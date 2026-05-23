@@ -1,0 +1,479 @@
+{
+  "project": {
+    "name": "futura-nota",
+    "version": "0.6.0",
+    "stack": ["React 18", "Vite 6", "CSS variables (no Tailwind)", "client-only state (useState)"],
+    "entry": "src/main.jsx → src/App.jsx"
+  },
+
+  "folderStructure": {
+    "current": {
+      "root": ["package.json", "vite.config.js", "index.html", "public/screenshots", "public/uploads"],
+      "src": {
+        "App.jsx": "Root routing: Landing → CompanySelector → Dashboard; global orchestration + all domain state",
+        "main.jsx": "React mount",
+        "data.jsx": "Seed data: companies, campaigns, intel, utilities, BLUEPRINT_COLORS",
+        "dashboard.jsx": "TopBar, MetaBar, ScanOverlay, UrlModal, Toast",
+        "panels.jsx": "NotesPanel, IntelPanel, Calendar, Timeline, TimelineTrack, NoteCard, BlueprintCard",
+        "canvas.jsx": "BlueprintCanvas, CanvasNode, connections, pan/zoom, blueprint frames",
+        "canvas-view.js": "Canvas viewport transform helpers",
+        "temporal.js": "Timeline math: parseDate, metric bridge, edge labels, node positions",
+        "tweaks-panel.jsx": "Theme/typography/accent tweaks (localStorage)",
+        "styles.css": "Global design tokens + all UI"
+      }
+    },
+    "targetRecommended": {
+      "src": {
+        "pages": ["LandingPage.jsx", "CompanySelectorPage.jsx", "DashboardPage.jsx"],
+        "components": {
+          "layout": ["TopBar", "MetaBar", "DashMain"],
+          "notes": ["NotesPanel", "NoteCard", "NewNoteForm", "BlueprintCard"],
+          "canvas": ["BlueprintCanvas", "CanvasNode", "CanvasToolbar", "BpFrame"],
+          "intel": ["IntelPanel", "Signal", "Calendar"],
+          "timeline": ["Timeline", "TimelineTrack"],
+          "shared": ["Toast", "UrlModal", "ScanOverlay", "Tabs"]
+        },
+        "hooks": [
+          "useNotes",
+          "useCanvas",
+          "useBlueprints",
+          "useTimelineZoom",
+          "useScan",
+          "useTokens",
+          "useFocusedNote"
+        ],
+        "store": ["store/index.js (Zustand or Context)", "store/selectors.js"],
+        "types": [
+          "note.ts",
+          "canvasNode.ts",
+          "blueprint.ts",
+          "connection.ts",
+          "intel.ts",
+          "company.ts",
+          "campaign.ts"
+        ],
+        "lib": ["temporal.js", "ids.js", "dates.js"],
+        "api": ["client.js", "routes manifest"],
+        "styles": ["tokens.css", "components/*.css"]
+      }
+    }
+  },
+
+  "mainComponents": [
+    {
+      "name": "App",
+      "file": "src/App.jsx",
+      "role": "Screen flow: Landing | CompanySelector | Dashboard"
+    },
+    {
+      "name": "Dashboard",
+      "file": "src/App.jsx",
+      "role": "Owns all workspace state; wires Notes, Canvas, Intel, Timeline"
+    },
+    {
+      "name": "NotesPanel",
+      "file": "src/panels.jsx",
+      "role": "Ungrouped notes + BlueprintCard accordion (expand/collapse); tokens footer"
+    },
+    {
+      "name": "BlueprintCard",
+      "file": "src/panels.jsx",
+      "role": "Single chrome per blueprint; notes list when expanded; Add to canvas / remove"
+    },
+    {
+      "name": "NoteCard",
+      "file": "src/panels.jsx",
+      "role": "Typed note editor (text | date | metric); insert node / insert blueprint actions"
+    },
+    {
+      "name": "BlueprintCanvas",
+      "file": "src/canvas.jsx",
+      "role": "Nodes, wires, multi-select, pan, zoom, create blueprint, clear/hide, frame drag"
+    },
+    {
+      "name": "CanvasNode",
+      "file": "src/canvas.jsx",
+      "role": "Visual node; ports; inline edit; links to noteId"
+    },
+    {
+      "name": "IntelPanel",
+      "file": "src/panels.jsx",
+      "role": "Intel stream tabs; getOverview (AI note + entities)"
+    },
+    {
+      "name": "Timeline / TimelineTrack",
+      "file": "src/panels.jsx",
+      "role": "Stacked tracks per blueprint; Zoom in/out; striped past → today → warm future"
+    },
+    {
+      "name": "TopBar / MetaBar / ScanOverlay / UrlModal / Toast",
+      "file": "src/dashboard.jsx",
+      "role": "Chrome, scan UX, URL paste mock, feedback"
+    }
+  ],
+
+  "dataModels": {
+    "Note": {
+      "id": "string (NT-xxx)",
+      "kind": "'manual' | 'ai'",
+      "title": "string",
+      "dataType": "'text' | 'date' | 'metric' (manual/derived)",
+      "content": "string | ISO date string | { value?, unit?, kind?: 'bridge' }",
+      "blueprintId": "string | null — groups note in Notes + Timeline",
+      "source": "string? (URL/source label)",
+      "timestamp": "string",
+      "cost": "number? (AI token cost)",
+      "entities": "Entity[]? — only on AI overview notes before Insert Blueprint",
+      "derivedFromAi": "string? (parent AI note id)",
+      "meta": "{ blueprintLabel?: string }?"
+    },
+    "Entity": {
+      "title": "string",
+      "dataType": "'text' | 'date' | 'metric'",
+      "content": "same shapes as Note.content"
+    },
+    "CanvasNode": {
+      "id": "string (CN-xxx)",
+      "noteId": "string? — link to Note; canvas-only nodes may lack until grouped",
+      "title": "string (display, uppercase truncated)",
+      "dataType": "'text' | 'date' | 'metric'",
+      "content": "same as note",
+      "x": "number",
+      "y": "number",
+      "hidden": "boolean? — Clear canvas hides without deleting data"
+    },
+    "Connection": {
+      "id": "string",
+      "from": "CanvasNode.id",
+      "to": "CanvasNode.id",
+      "comment": "Canvas wires; synced to Blueprint.edges as note-level edges"
+    },
+    "Blueprint": {
+      "id": "string (BP-xxx)",
+      "label": "string",
+      "noteIds": "string[]",
+      "nodeIds": "string[]",
+      "edges": "{ fromNoteId, toNoteId }[] — timeline temporal graph",
+      "color": "{ id, stroke, soft }",
+      "sourceNoteId": "string? (AI note that spawned insert)",
+      "comment": "Logical group; frame on canvas from nodeIds bounds"
+    },
+    "BlueprintEdge": {
+      "fromNoteId": "string",
+      "toNoteId": "string"
+    },
+    "IntelSignal": {
+      "id": "string (IN-xx)",
+      "src": "string",
+      "title": "string",
+      "category": "'news' | 'campaign'",
+      "confidence": "number"
+    },
+    "Company": {
+      "id": "string",
+      "name": "string",
+      "sector": "string",
+      "campaigns": "number",
+      "signal": "number",
+      "status": "'ACTIVE' | 'STANDBY' | 'QUIET'"
+    },
+    "Campaign": {
+      "id": "string",
+      "name": "string",
+      "company": "string",
+      "source": "string",
+      "launchDate": "Date",
+      "announcementDate": "Date",
+      "entities": "Entity[]",
+      "marketGap": "string"
+    },
+    "SessionMetadata": {
+      "campaign": "string?",
+      "niche": "string?",
+      "brand": "string?",
+      "category": "string?",
+      "launch": "string?",
+      "window": "string? (e.g. T−Nd)"
+    },
+    "Doc": {
+      "comment": "No separate Doc model in v0.6 — 'docs' are scan logs / intel items / AI notes. Future: crawled Document entity linked to Campaign."
+    }
+  },
+
+  "stateFlows": {
+    "architecture": "Three-tier: notes[] = source of truth; nodes[] = canvas projection; blueprints[] = grouping + timeline edges",
+    "flows": [
+      {
+        "id": "scan_campaigns",
+        "trigger": "TopBar Scan campaigns",
+        "steps": ["setScanState scanning", "mock logs", "setMetadata from CAMPAIGN_VOLTWAY", "prepend AI Note with entities[]", "user clicks Insert Blueprint"],
+        "state": ["scanState", "scanLogs", "metadata", "notes"]
+      },
+      {
+        "id": "scan_blogs",
+        "trigger": "Scan blogs",
+        "steps": ["mock logs", "setIntel(INTEL seed)", "hasScannedBlogs=true"],
+        "state": ["intel", "hasScannedBlogs"]
+      },
+      {
+        "id": "insert_blueprint_from_ai",
+        "trigger": "NoteCard Insert Blueprint on AI note",
+        "steps": [
+          "split entities[] → many manual Notes with blueprintId",
+          "create CanvasNodes + auto chain connections (date→metric→date)",
+          "create Blueprint { noteIds, nodeIds, edges, color }",
+          "append connections[]"
+        ],
+        "state": ["notes", "nodes", "connections", "blueprints", "insertedNoteIds"]
+      },
+      {
+        "id": "create_blueprint_from_selection",
+        "trigger": "Canvas multi-select + Create Blueprint (⌘G)",
+        "steps": [
+          "BlueprintNameModal",
+          "link node.noteId or create Note from canvas-only node",
+          "set blueprintId on notes",
+          "build edges from canvas connections",
+          "focus first note"
+        ],
+        "state": ["blueprints", "notes", "nodes", "selection", "focusedNoteId"]
+      },
+      {
+        "id": "sync_edges_from_canvas",
+        "trigger": "useEffect on [connections, nodes]",
+        "steps": ["deriveBlueprintEdges per blueprint with nodeIds", "update blueprint.edges if changed"],
+        "state": ["blueprints"]
+      },
+      {
+        "id": "notes_canvas_sync",
+        "trigger": "updateNote / onEditNode",
+        "steps": ["note change propagates to nodes with same noteId"],
+        "state": ["notes", "nodes"]
+      },
+      {
+        "id": "delete_note_cascade",
+        "trigger": "Delete note",
+        "steps": ["remove note", "strip blueprint refs", "remove canvas nodes by noteId"],
+        "state": ["notes", "nodes", "blueprints", "connections"]
+      },
+      {
+        "id": "delete_blueprint",
+        "trigger": "Blueprint ×",
+        "steps": ["delete all notes in blueprint", "remove nodes", "filter blueprints"],
+        "state": ["notes", "nodes", "connections", "blueprints"]
+      },
+      {
+        "id": "canvas_delete_node",
+        "trigger": "Delete node on canvas",
+        "steps": ["remove node + wires only; notes + timeline unchanged"],
+        "state": ["nodes", "connections", "blueprints.nodeIds"]
+      },
+      {
+        "id": "clear_canvas",
+        "trigger": "Clear canvas",
+        "steps": ["set hidden:true on all visible nodes"],
+        "state": ["nodes"]
+      },
+      {
+        "id": "focus_note",
+        "trigger": "Click note / timeline marker / canvas focus",
+        "steps": ["focusedNoteId", "Notes expands blueprint accordion", "Timeline marker highlight"],
+        "state": ["focusedNoteId", "expandedStackId in NotesPanel"]
+      },
+      {
+        "id": "timeline_zoom",
+        "trigger": "Zoom in on track header",
+        "steps": ["zoomedBlueprintId set", "only one TimelineTrack visible", "tighter date padding + .is-zoomed CSS"],
+        "state": ["zoomedBlueprintId (Timeline local)"]
+      },
+      {
+        "id": "get_overview",
+        "trigger": "Intel Get overview",
+        "steps": ["tokens++ if <10", "create AI note from OVERVIEWS[signalId]"],
+        "state": ["tokens", "notes", "addedIntel"]
+      }
+    ],
+    "localUIState": {
+      "Dashboard": ["scanState", "selection", "focusedNoteId", "bpNameModal", "toast", "today"],
+      "NotesPanel": ["showForm", "expandedStackId"],
+      "Timeline": ["zoomedBlueprintId"],
+      "BlueprintCanvas": ["tool, scale, pan, connectingFrom, hiddenCount"]
+    }
+  },
+
+  "apiRoutesToImplement": {
+    "comment": "v0.6 has NO backend — all scans/timers are mocked in App.jsx. Below is the contract for production.",
+    "base": "/api/v1",
+    "auth": [
+      "POST /auth/session",
+      "DELETE /auth/session"
+    ],
+    "workspace": [
+      "GET /workspaces/:workspaceId",
+      "PATCH /workspaces/:workspaceId"
+    ],
+    "companies": [
+      "GET /companies",
+      "GET /companies/:companyId"
+    ],
+    "campaigns": [
+      "GET /companies/:companyId/campaigns",
+      "POST /companies/:companyId/scan-campaigns",
+      "GET /campaigns/:campaignId"
+    ],
+    "intel": [
+      "POST /companies/:companyId/scan-blogs",
+      "GET /companies/:companyId/intel?category=",
+      "POST /intel/:signalId/overview"
+    ],
+    "notes": [
+      "GET /workspaces/:id/notes",
+      "POST /workspaces/:id/notes",
+      "PATCH /notes/:noteId",
+      "DELETE /notes/:noteId"
+    ],
+    "blueprints": [
+      "GET /workspaces/:id/blueprints",
+      "POST /workspaces/:id/blueprints",
+      "PATCH /blueprints/:bpId",
+      "DELETE /blueprints/:bpId",
+      "POST /blueprints/:bpId/restore-canvas",
+      "DELETE /blueprints/:bpId/canvas-presence"
+    ],
+    "canvas": [
+      "GET /workspaces/:id/canvas",
+      "PUT /workspaces/:id/canvas/nodes",
+      "PUT /workspaces/:id/canvas/connections",
+      "POST /workspaces/:id/canvas/clear"
+    ],
+    "ai": [
+      "POST /ai/extract-url",
+      "POST /ai/overview"
+    ],
+    "billing": [
+      "GET /users/me/tokens"
+    ]
+  },
+
+  "databaseSchema": {
+    "comment": "Proposed PostgreSQL-style schema; maps 1:1 from current client models",
+    "tables": {
+      "users": {
+        "id": "uuid PK",
+        "email": "text",
+        "token_balance": "int default 10",
+        "created_at": "timestamptz"
+      },
+      "workspaces": {
+        "id": "uuid PK",
+        "user_id": "uuid FK users",
+        "company_id": "text",
+        "metadata_json": "jsonb",
+        "created_at": "timestamptz"
+      },
+      "notes": {
+        "id": "text PK",
+        "workspace_id": "uuid FK",
+        "blueprint_id": "text FK nullable",
+        "kind": "text",
+        "title": "text",
+        "data_type": "text",
+        "content_json": "jsonb",
+        "source": "text",
+        "derived_from_ai": "text nullable",
+        "meta_json": "jsonb",
+        "created_at": "timestamptz",
+        "updated_at": "timestamptz"
+      },
+      "blueprints": {
+        "id": "text PK",
+        "workspace_id": "uuid FK",
+        "label": "text",
+        "color_id": "text",
+        "source_note_id": "text nullable",
+        "created_at": "timestamptz"
+      },
+      "blueprint_notes": {
+        "blueprint_id": "text FK",
+        "note_id": "text FK",
+        "primaryKey": ["blueprint_id", "note_id"]
+      },
+      "blueprint_edges": {
+        "id": "uuid PK",
+        "blueprint_id": "text FK",
+        "from_note_id": "text FK notes",
+        "to_note_id": "text FK notes"
+      },
+      "canvas_nodes": {
+        "id": "text PK",
+        "workspace_id": "uuid FK",
+        "note_id": "text FK nullable",
+        "title": "text",
+        "data_type": "text",
+        "content_json": "jsonb",
+        "x": "float",
+        "y": "float",
+        "hidden": "boolean default false"
+      },
+      "canvas_connections": {
+        "id": "text PK",
+        "workspace_id": "uuid FK",
+        "from_node_id": "text FK canvas_nodes",
+        "to_node_id": "text FK canvas_nodes"
+      },
+      "intel_signals": {
+        "id": "text PK",
+        "company_id": "text",
+        "src": "text",
+        "title": "text",
+        "category": "text",
+        "confidence": "int",
+        "fetched_at": "timestamptz"
+      },
+      "documents": {
+        "id": "uuid PK",
+        "company_id": "text",
+        "url": "text",
+        "title": "text",
+        "summary": "text",
+        "published_at": "date",
+        "raw_json": "jsonb",
+        "comment": "Future crawled docs feeding entities"
+      },
+      "ai_runs": {
+        "id": "uuid PK",
+        "workspace_id": "uuid",
+        "type": "scan_campaigns | scan_blogs | overview | url_extract",
+        "status": "text",
+        "logs_json": "jsonb",
+        "result_note_id": "text nullable",
+        "created_at": "timestamptz"
+      }
+    },
+    "relations": [
+      "workspace 1—N notes, blueprints, canvas_nodes, canvas_connections",
+      "blueprint N—M notes via blueprint_notes",
+      "blueprint 1—N blueprint_edges (note-level, for timeline)",
+      "note 1—0..1 canvas_node (via note_id)",
+      "canvas_connection links canvas_nodes only; edges derived on save"
+    ]
+  },
+
+  "keyBusinessRules": [
+    "Notes are source of truth; deleting canvas node does not delete note or timeline data",
+    "blueprint.edges derived from canvas wires when blueprint has nodeIds",
+    "Metric bridge: metric between two date nodes computes day diff (temporal.js)",
+    "Timeline uses notes by blueprintId; stacked view = compact bar; zoom = single track enlarged",
+    "AI notes cost tokens (max 10); manual notes free",
+    "Blueprint colors rotate from BLUEPRINT_COLORS"
+  ],
+
+  "filesForClaudeToReadFirst": [
+    "src/App.jsx",
+    "src/panels.jsx",
+    "src/canvas.jsx",
+    "src/temporal.js",
+    "src/data.jsx",
+    "src/styles.css"
+  ]
+}

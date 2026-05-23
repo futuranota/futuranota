@@ -1,0 +1,231 @@
+{
+  "project": {
+    "name": "futura-nota",
+    "version": "0.7.0-target",
+    "stack": ["React 18", "Vite 6", "Zustand 5", "CSS variables"],
+    "goldenRule": "Un cambio en cualquier capa se sincroniza automáticamente si hay link explícito (objectId, docId, linkedToDoc, canvasNodeId, source range)."
+  },
+
+  "layerHierarchy": {
+    "diagram": "Objects → Docs → Nodes → Canvas → Timeline",
+    "layers": [
+      { "id": "objects", "parent": null, "children": ["docs"] },
+      { "id": "docs", "parent": "objects", "optional": true, "children": ["nodes"] },
+      { "id": "nodes", "parent": "docs|nodes|none", "children": ["canvas"] },
+      { "id": "canvas", "parent": null, "children": ["timeline"] },
+      { "id": "timeline", "viewTiers": ["objects", "docs", "nodes"] }
+    ]
+  },
+
+  "folderStructure": {
+    "implemented": {
+      "src/store": [
+        "objectsStore.js",
+        "docsStore.js",
+        "nodesStore.js",
+        "canvasStore.js",
+        "plansStore.js",
+        "timelineStore.js",
+        "sync.js",
+        "initStores.js",
+        "index.js"
+      ],
+      "src/components/notes": [
+        "ObjectsFolder.jsx",
+        "DocsFolder.jsx",
+        "NodesFolder.jsx"
+      ],
+      "src/lib": ["ids.js"],
+      "docs": [
+        "futura-nota-architecture.json",
+        "futura-nota-architecture-v2.json"
+      ]
+    },
+    "target": {
+      "src/components/notes": ["DocEditorWysiwyg.jsx", "NodeFromSelectionMenu.jsx"],
+      "src/components/canvas": ["CanvasBridge.jsx"],
+      "src/hooks": ["useSyncNodeDoc.js", "useTimelineTracks.js"]
+    }
+  },
+
+  "zustandStores": {
+    "useObjectsStore": {
+      "state": "objects: Record<id, Object>",
+      "actions": ["createObject", "updateObject", "addDocToObject", "removeDocFromObject", "deleteObject"],
+      "defaultSeed": { "name": "yo", "description": "", "empty": true }
+    },
+    "useDocsStore": {
+      "state": "docs: Record<id, Doc>",
+      "actions": ["addDoc", "updateDoc", "updateDocBody", "linkDocToObject", "addNodeToDoc", "deleteDoc"]
+    },
+    "useNodesStore": {
+      "state": "nodes: Record<id, Node>",
+      "actions": ["addNode", "updateNode", "setCanvasNodeId", "deleteNode"],
+      "sync": "injectIntoDoc + updateNode syncs body when linkedToDoc"
+    },
+    "useCanvasStore": {
+      "state": "canvasNodes, connections, selection",
+      "actions": ["addCanvasNode", "updateCanvasNode", "addConnection", "setSelection", "deleteCanvasNode"],
+      "sync": "updateCanvasNode → nodesStore.updateNode"
+    },
+    "usePlansStore": {
+      "state": "plans: Record<id, Plan>",
+      "replaces": "blueprints[]",
+      "actions": ["createPlan", "resolveTimelineTitle"],
+      "titlePriority": ["object.name", "first node.title", "plan.name"]
+    },
+    "useTimelineStore": {
+      "state": "tier: objects|docs|nodes, zoomedPlanId, zoomedObjectId",
+      "actions": ["setTier", "setZoomedPlanId", "clearZoom"]
+    }
+  },
+
+  "dataModels": {
+    "Object": {
+      "id": "string",
+      "name": "string",
+      "description": "string",
+      "children": "docId[]",
+      "createdAt": "number"
+    },
+    "Doc": {
+      "id": "string",
+      "title": "string",
+      "body": "string",
+      "objectId": "string | null",
+      "nodeIds": "string[]",
+      "createdAt": "number",
+      "updatedAt": "number"
+    },
+    "Node": {
+      "id": "string",
+      "title": "string",
+      "dataType": "text | date | metric | integer",
+      "content": "any",
+      "parentDocId": "string | null",
+      "parentNodeId": "string | null",
+      "objectId": "string | null",
+      "linkedToDoc": "boolean",
+      "source": "{ query, start?, end? } | null",
+      "canvasNodeId": "string | null",
+      "createdAt": "number",
+      "updatedAt": "number"
+    },
+    "CanvasNode": {
+      "id": "string",
+      "nodeId": "string",
+      "title": "string",
+      "dataType": "string",
+      "content": "any",
+      "x": "number",
+      "y": "number",
+      "hidden": "boolean"
+    },
+    "Connection": {
+      "id": "string",
+      "from": "canvasNodeId",
+      "to": "canvasNodeId"
+    },
+    "Plan": {
+      "id": "string",
+      "name": "string",
+      "canvasNodeIds": "string[]",
+      "nodeIds": "string[]",
+      "parentDocId": "string | null",
+      "objectId": "string | null",
+      "color": "object | null",
+      "comment": "Agrupación canvas (ex-blueprint); frame + timeline entry"
+    }
+  },
+
+  "flows": [
+    {
+      "id": "flow_1_create_object",
+      "steps": ["Click + Crear objeto", "Modal nombre+descripción", "objectsStore.createObject", "ObjectsFolder render"]
+    },
+    {
+      "id": "flow_2_create_doc",
+      "steps": ["Click + Crear doc", "Modal título + padre Object", "docsStore.addDoc", "Doc bajo Object en UI", "Expandir → editor textarea"]
+    },
+    {
+      "id": "flow_3_text_to_node",
+      "steps": [
+        "Seleccionar texto en doc",
+        "Clic derecho (o modal NEW NOTE con query:)",
+        "nodesStore.addNode con linkedToDoc",
+        "injectNodeAnswerIntoDocBody",
+        "Node en NodesFolder"
+      ],
+      "implemented": true
+    },
+    {
+      "id": "flow_4_canvas_insert",
+      "steps": ["NodesFolder → Canvas", "canvasStore.addCanvasNode", "Edición canvas → sync node + doc si linked"],
+      "implemented": true
+    },
+    {
+      "id": "flow_5_connect",
+      "steps": ["Dibujar conexión", "canvasStore.addConnection", "ActionSet en timeline si tipos compatibles"],
+      "implemented": "partial (store ready; legacy canvas wires still in App)"
+    },
+    {
+      "id": "flow_6_group_plan",
+      "steps": ["Multi-select canvas", "⌘G", "plansStore.createPlan", "Frame + timeline", "Edits sync to doc"],
+      "implemented": "store only; legacy blueprint UI remains"
+    },
+    {
+      "id": "flow_7_timeline_tiers",
+      "steps": ["Toggle OBJECTS | DOCS | NODES", "Filtrar tracks", "Expand sub-items"],
+      "implemented": "timelineStore.tier; UI tier buttons pending"
+    }
+  ],
+
+  "syncRules": [
+    { "from": "node", "to": "doc", "when": "linkedToDoc && parentDocId", "via": "nodesStore.updateNode + injectNodeAnswerIntoDocBody" },
+    { "from": "canvasNode", "to": "node", "when": "canvasNode.nodeId", "via": "canvasStore.updateCanvasNode" },
+    { "from": "node", "to": "canvasNode", "when": "node.canvasNodeId", "via": "planned bidirectional" },
+    { "from": "doc", "to": "object", "when": "doc.objectId", "via": "objects.children[]" }
+  ],
+
+  "apiRoutesToImplement": {
+    "base": "/api/v1",
+    "objects": ["GET/POST /workspaces/:id/objects", "PATCH/DELETE /objects/:id"],
+    "docs": ["GET/POST /workspaces/:id/docs", "PATCH /docs/:id/body"],
+    "nodes": ["GET/POST /workspaces/:id/nodes", "PATCH /nodes/:id"],
+    "canvas": ["PUT /workspaces/:id/canvas"],
+    "plans": ["POST /workspaces/:id/plans"],
+    "ai": ["POST /ai/extract-url", "POST /docs/:id/nodes-from-selection"]
+  },
+
+  "databaseSchema": {
+    "tables": ["users", "workspaces", "objects", "docs", "nodes", "canvas_nodes", "canvas_connections", "plans", "plan_nodes", "doc_node_anchors"],
+    "doc_node_anchors": {
+      "doc_id": "FK",
+      "node_id": "FK",
+      "query_text": "text",
+      "start_offset": "int",
+      "end_offset": "int"
+    }
+  },
+
+  "migrationFromV06": {
+    "note_manual": "→ Node o Doc según kind",
+    "note_ai_entities": "→ Doc overview + addNode per entity",
+    "blueprint": "→ Plan",
+    "blueprintId_on_note": "→ parentDocId or plan.nodeIds",
+    "legacyPanel": "Label 'Legacy notes' hasta migración completa"
+  },
+
+  "implementationPhases": [
+    { "phase": 0, "status": "done", "items": ["Zustand stores", "Objects/Docs/Nodes folders", "init yo", "architecture v2 json"] },
+    { "phase": 1, "status": "pending", "items": ["Bridge canvas.jsx ↔ canvasStore", "Remove duplicate App state for nodes"] },
+    { "phase": 2, "status": "pending", "items": ["plansStore ↔ canvas ⌘G", "Retire blueprints UI"] },
+    { "phase": 3, "status": "pending", "items": ["Timeline tiers + plan/object title priority"] },
+    { "phase": 4, "status": "pending", "items": ["WYSIWYG doc editor", "Context menu /date /text shortcuts"] }
+  ],
+
+  "usageExample": {
+    "objectsStore": "import { useObjectsStore } from './store/objectsStore.js';",
+    "note": "Zustand v5 uses: import { create } from 'zustand'"
+  }
+}
