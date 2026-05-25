@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { findObjectIdByName } from "../../lib/storeSanitize.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 
 export function DocForm({ onSubmit, onCancel, initialData = null }) {
-  const objects = useObjectsStore((s) => Object.values(s.objects));
-  const defaultParent = objects.find((o) => o.name.toLowerCase() === "yo")?.id || "";
+  const objectMap = useObjectsStore((s) => s.objects);
+  const objects = Object.values(objectMap);
+  const defaultParent = findObjectIdByName(objectMap, "yo");
 
   const [title, setTitle] = useState(initialData?.title || "");
   const [parentObjectId, setParentObjectId] = useState(initialData?.parentObjectId || defaultParent);

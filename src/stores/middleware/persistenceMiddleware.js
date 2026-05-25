@@ -1,3 +1,5 @@
+import { sanitizePersistedSnapshot } from "../../lib/storeSanitize.js";
+
 const STORAGE_KEY = "futura-nota-v1";
 
 let initialized = false;
@@ -29,26 +31,29 @@ export function initPersistenceMiddleware(stores) {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const data = JSON.parse(raw);
-      if (data.objects) useObjectsStore.setState({ objects: data.objects });
-      if (data.docs) useDocsStore.setState({ docs: data.docs });
-      if (data.nodes) useNodesStore.setState({ nodes: data.nodes });
-      if (data.canvasNodes || data.canvasConnections || data.groupings) {
+      const parsed = JSON.parse(raw);
+      const data = sanitizePersistedSnapshot(parsed);
+      if (!data) {
+        localStorage.removeItem(STORAGE_KEY);
+      } else {
+        useObjectsStore.setState({ objects: data.objects });
+        useDocsStore.setState({ docs: data.docs });
+        useNodesStore.setState({ nodes: data.nodes });
         useCanvasStore.setState({
-          canvasNodes: data.canvasNodes || {},
-          canvasConnections: data.canvasConnections || {},
-          groupings: data.groupings || {},
+          canvasNodes: data.canvasNodes,
+          canvasConnections: data.canvasConnections,
+          groupings: data.groupings,
         });
-      }
-      if (data.timelines) {
-        useTimelineStore.setState({
-          timelines: data.timelines,
-          currentTier: data.currentTier || "objects",
-        });
+        if (data.timelines) {
+          useTimelineStore.setState({
+            timelines: data.timelines,
+            currentTier: data.currentTier,
+          });
+        }
       }
     }
   } catch {
-    /* corrupt snapshot */
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   const scheduleSave = () => {

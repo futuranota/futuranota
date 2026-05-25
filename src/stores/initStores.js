@@ -3,6 +3,7 @@ import { useDocsStore } from "./docsStore.js";
 import { useNodesStore } from "./nodesStore.js";
 import { useCanvasStore } from "./canvasStore.js";
 import { useTimelineStore } from "./timelineStore.js";
+import { findObjectIdByName } from "../lib/storeSanitize.js";
 import { initSyncMiddleware } from "./middleware/syncMiddleware.js";
 import { initPersistenceMiddleware } from "./middleware/persistenceMiddleware.js";
 
@@ -23,8 +24,7 @@ export function initStores() {
   initPersistenceMiddleware(stores);
 
   const { objects, addObject } = useObjectsStore.getState();
-  const hasYo = Object.values(objects).some((o) => o.name.toLowerCase() === "yo");
-  if (!hasYo) {
+  if (!findObjectIdByName(objects, "yo")) {
     addObject("yo", "");
   }
 
