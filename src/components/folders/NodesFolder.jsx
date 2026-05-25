@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNodesStore, useDocsStore, useCanvasStore, useUIStateStore } from "../../stores/index.js";
 import { NodeCard } from "../nodes/NodeCard.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
+import { NodeSearchModal } from "../nodes/NodeSearchModal.jsx";
 import { Modal } from "../shared/Modal.jsx";
 import { DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
 
@@ -16,6 +17,7 @@ export function NodesFolder() {
   const setExpandedNode = useUIStateStore((s) => s.setExpandedNode);
 
   const [showForm, setShowForm] = useState(false);
+  const [searchNodeId, setSearchNodeId] = useState(null);
 
   const looseNodes = Object.values(nodes);
 
@@ -48,6 +50,14 @@ export function NodesFolder() {
                 onClick={() => setExpandedNode(expandedNodeId === node.id ? null : node.id)}
               />
               <div className="fn-node-row-actions">
+                <button
+                  type="button"
+                  className="btn xs ghost"
+                  title="Buscar con AI"
+                  onClick={() => setSearchNodeId(node.id)}
+                >
+                  ⌕
+                </button>
                 {!onCanvas && (
                   <button type="button" className="btn xs ghost" onClick={() => addCanvasNode(node.id)}>
                     Canvas
@@ -81,6 +91,13 @@ export function NodesFolder() {
             onCancel={() => setShowForm(false)}
           />
         </Modal>
+      )}
+
+      {searchNodeId && (
+        <NodeSearchModal
+          nodeId={searchNodeId}
+          onClose={() => setSearchNodeId(null)}
+        />
       )}
     </section>
   );

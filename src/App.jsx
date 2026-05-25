@@ -14,7 +14,6 @@ import {
 import { initStores } from './stores/index.js';
 import { LandingPage } from './pages/LandingPage.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
-import { FuturaTimeline } from './components/timeline/FuturaTimeline.jsx';
 
 /* app.jsx — root state + orchestration
  *
@@ -729,8 +728,6 @@ function Dashboard({ company, onBack }) {
         focusedNoteId={focusedNoteId}
         onFocusNote={setFocusedNoteId}
       />
-
-      <FuturaTimeline />
 
       {showUrl && <UrlModal onAccept={handleUrlAccept} onClose={() => setShowUrl(false)} />}
       {bpNameModal && (
