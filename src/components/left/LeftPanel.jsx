@@ -5,6 +5,12 @@ import {
 import { DocExpandedView } from "../docs/DocExpandedView.jsx";
 import { DATA_TYPE_ICONS, DATA_TYPE_LABELS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { findObjectIdByName } from "../../lib/storeSanitize.js";
+import { setCanvasDragData } from "../../lib/canvasDrag.js";
+import { ObjectIcon } from "./objectIcons.jsx";
+
+function startObjectDrag(e, objectId) {
+  setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
+}
 
 /* ── helpers ────────────────────────────────── */
 const PANEL_TYPES = ["Objects", "Documents", "Nodes"];
@@ -15,59 +21,43 @@ const TYPE_ICON = {
   Nodes:     "◯",
 };
 
-/** Color square for objects; image upload can replace this later. */
-function ObjectSwatch({ color = "#5a1f1f", size = "md" }) {
-  const sizeClass =
-    size === "lg" ? "obj-swatch--lg" : size === "sm" ? "obj-swatch--sm" : "obj-swatch--md";
-  return (
-    <span
-      className={`obj-swatch ${sizeClass}`}
-      style={{ backgroundColor: color }}
-      aria-hidden
-    />
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Thumbnail card for Objects grid
-───────────────────────────────────────────── */
+/* Objects grid: cube + name below, draggable */
 function ObjectThumb({ object, active, onClick, onDoubleClick }) {
   return (
     <button
       type="button"
       className={"obj-thumb" + (active ? " active" : "")}
+      draggable
       onClick={onClick}
       onDoubleClick={onDoubleClick}
+      onDragStart={(e) => startObjectDrag(e, object.id)}
+      title="Drag to canvas · double-click for documents"
     >
-      <div className="obj-thumb-img">
-        <ObjectSwatch color={object.color || "#5a1f1f"} size="md" />
-      </div>
-      <div className="obj-thumb-footer">
-        <span className="obj-thumb-name">{object.name}</span>
-        <span className="obj-thumb-move" title="Double-click to open documents">⊹</span>
-      </div>
+      <ObjectIcon variant="md" />
+      <span className="obj-thumb-name">{object.name}</span>
     </button>
   );
 }
 
-function ObjectFilterChips({ objects, activeObjectId, onSelect }) {
+/** Documents: flat rows — small cube + name (no pill chips) */
+function ObjectPickerList({ objects, activeObjectId, onSelect }) {
   if (!objects.length) return null;
   return (
-    <div className="lp-filter-block">
-      <span className="lp-filter-label">Objects</span>
-      <div className="lp-filter-chips">
-        {objects.map((obj) => (
-          <button
-            key={obj.id}
-            type="button"
-            className={"lp-filter-chip" + (activeObjectId === obj.id ? " active" : "")}
-            onClick={() => onSelect(obj.id)}
-          >
-            <ObjectSwatch color={obj.color || "#5a1f1f"} size="sm" />
-            <span>{obj.name}</span>
-          </button>
-        ))}
-      </div>
+    <div className="lp-object-picker">
+      {objects.map((obj) => (
+        <button
+          key={obj.id}
+          type="button"
+          className={"lp-object-picker-row" + (activeObjectId === obj.id ? " active" : "")}
+          draggable
+          onDragStart={(e) => startObjectDrag(e, object.id)}
+          onClick={() => onSelect(obj.id)}
+          title="Drag to canvas"
+        >
+          <ObjectIcon variant="sm" />
+          <span className="lp-object-picker-name">{obj.name}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -193,7 +183,7 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
         <button type="button" className="lp-modal-close btn xs ghost" onClick={onCancel}>✕</button>
 
         <div className="obj-create-preview-row">
-          <ObjectSwatch color={color} size="lg" />
+          <ObjectIcon variant="lg" />
           <label className="obj-color-row">
             <input type="color" value={color} onChange={e => setColor(e.target.value)} />
             <span>Color</span>
@@ -687,7 +677,7 @@ export function LeftPanel({ onInsertToCanvas }) {
             >
               + Create new document
             </button>
-            <ObjectFilterChips
+            <ObjectPickerList
               objects={objList}
               activeObjectId={filterObjectId}
               onSelect={(id) => {
@@ -695,11 +685,6 @@ export function LeftPanel({ onInsertToCanvas }) {
                 setActiveId(null);
               }}
             />
-            {filterObject && (
-              <p className="lp-filter-heading">
-                Parent: <span className="lp-filter-heading-tag">{filterObject.name}</span>
-              </p>
-            )}
             {!filterObjectId && (
               <div className="lp-empty">
                 <p>Select an object</p>
@@ -732,9 +717,7 @@ export function LeftPanel({ onInsertToCanvas }) {
         {panelType === "Nodes" && !activeItem && (
           <>
             {filterDoc && (
-              <p className="lp-filter-heading">
-                Document: <span className="lp-filter-heading-tag">{filterDoc.title}</span>
-              </p>
+              <p className="lp-context-label">{filterDoc.title}</p>
             )}
             {!filterDocId && (
               <div className="lp-empty">

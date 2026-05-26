@@ -21,60 +21,80 @@
   margin-bottom: 10px;
 }
 
-.lp-filter-block {
+.lp-object-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 12px;
 }
 
-.lp-filter-label {
-  display: block;
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--dim);
-  margin-bottom: 6px;
-}
-
-.lp-filter-chips {
+.lp-object-picker-row {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.lp-filter-chip {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 4px;
-  font-size: 10px;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 4px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-2);
-  background: var(--panel-2);
-  border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   cursor: pointer;
+  text-align: left;
 }
 
-.lp-filter-chip:hover {
-  border-color: var(--glass-border-2);
+.lp-object-picker-row:hover {
   color: var(--text);
 }
 
-.lp-filter-chip.active {
-  border-color: color-mix(in oklab, var(--hud) 55%, transparent);
-  color: var(--hud);
-  background: var(--hud-soft);
+.lp-object-picker-row.active {
+  color: var(--text);
+  font-weight: 600;
 }
 
-.lp-filter-heading {
-  font-size: 10px;
-  color: var(--dim);
+.lp-object-picker-row[draggable="true"] {
+  cursor: grab;
+}
+
+.lp-object-picker-row:active {
+  cursor: grabbing;
+}
+
+.lp-object-picker-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-context-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
   margin: 0 0 10px;
 }
 
-.lp-filter-heading-tag {
-  color: var(--hud);
-  font-weight: 600;
+.obj-icon-img {
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.obj-icon-img--sm {
+  width: 20px;
+  height: 20px;
+}
+
+.obj-icon-img--md {
+  width: 48px;
+  height: 48px;
+}
+
+.obj-icon-img--lg {
+  width: 72px;
+  height: 72px;
 }
 
 .lp-dropdown-wrap {
@@ -187,46 +207,24 @@
   margin-top: 4px;
 }
 
-/* Object color square */
-.obj-swatch {
-  display: block;
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in oklab, var(--text) 12%, transparent);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-}
-
-.obj-swatch--lg {
-  width: 72px;
-  height: 72px;
-}
-
-.obj-swatch--md {
-  width: 48px;
-  height: 48px;
-}
-
-.obj-swatch--sm {
-  width: 32px;
-  height: 32px;
-}
-
 .lp-objects-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 10px;
 }
 
 .obj-thumb {
   display: flex;
   flex-direction: column;
-  padding: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 10px 6px 8px;
   background: var(--panel-2);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  overflow: hidden;
-  text-align: left;
+  text-align: center;
 }
 
 .obj-thumb:hover {
@@ -234,40 +232,30 @@
 }
 
 .obj-thumb.active {
-  border-color: color-mix(in oklab, var(--hud) 55%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--hud) 25%, transparent);
+  border-color: var(--glass-border-2);
 }
 
-.obj-thumb-img {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-  min-height: 72px;
-  background: color-mix(in oklab, var(--panel) 60%, #000);
+.obj-thumb[draggable="true"] {
+  cursor: grab;
 }
 
-.obj-thumb-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  padding: 6px 8px;
-  border-top: 1px solid var(--hairline);
+.obj-thumb[draggable="true"]:active {
+  cursor: grabbing;
 }
 
 .obj-thumb-name {
   font-size: 10px;
   font-weight: 500;
   color: var(--text);
+  line-height: 1.2;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.obj-thumb-move {
-  font-size: 10px;
-  color: var(--dim);
+.obj-thumb.active .obj-thumb-name {
+  font-weight: 600;
 }
 
 .lp-doc-card,

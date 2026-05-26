@@ -6,6 +6,7 @@ import {
   computeEdgeTemporalLabel,
   bezierMidpoint,
 } from './temporal.js';
+import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
  * Notes ↔ Nodes ↔ Blueprints. Three-tier model:
@@ -172,6 +173,16 @@ function CanvasNode({
     }
 
     // VIEW MODE
+    if (node.dataType === "object") {
+      return (
+        <div className="cnode-v cnode-object-ref">
+          <img src="/uploads/cube-m.png" alt="" className="cnode-object-img" draggable={false} />
+          {node.content ? (
+            <p className="cnode-object-desc">{String(node.content)}</p>
+          ) : null}
+        </div>
+      );
+    }
     if (node.dataType === "text") {
       return (
         <div className="cnode-v" onDoubleClick={() => setEditing("content")}>
@@ -244,7 +255,12 @@ function CanvasNode({
             onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); if (e.key === "Enter") e.target.blur(); }}
           />
         ) : (
-          <span className="cnode-k" onDoubleClick={() => setEditing("title")}>{node.title}</span>
+          <span
+            className="cnode-k"
+            onDoubleClick={() => node.dataType !== "object" && setEditing("title")}
+          >
+            {node.title}
+          </span>
         )}
         <span className="cnode-type" data-t={node.dataType}>{node.dataType}</span>
       </div>
@@ -293,7 +309,7 @@ function BlueprintCanvas({
   nodes, setNodes, connections, setConnections,
   blueprints, setBlueprints, selection, setSelection,
   today, onCreateBlueprint, onDeleteNode, onEditNode, onFocusNote,
-  onRemoveBlueprintFromCanvas,
+  onRemoveBlueprintFromCanvas, onCanvasDrop,
 }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
@@ -326,6 +342,21 @@ function BlueprintCanvas({
       y: (clientY - r.top - view.panY) / view.scale,
     };
   }, [view]);
+
+  const handleCanvasDragOver = useCallback((e) => {
+    if (!onCanvasDrop || !hasCanvasDrag(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, [onCanvasDrop]);
+
+  const handleCanvasDrop = useCallback((e) => {
+    if (!onCanvasDrop) return;
+    const payload = readCanvasDragData(e.dataTransfer);
+    if (!payload) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onCanvasDrop(payload, getWorldFromClient(e.clientX, e.clientY));
+  }, [onCanvasDrop, getWorldFromClient]);
 
   const zoomAt = useCallback((clientX, clientY, delta) => {
     const r = stageRef.current?.getBoundingClientRect();
@@ -931,6 +962,8 @@ function BlueprintCanvas({
         onPointerMove={onStagePointerMove}
         onPointerUp={onStagePointerUp}
         onPointerLeave={onStagePointerUp}
+        onDragOver={handleCanvasDragOver}
+        onDrop={handleCanvasDrop}
       >
         <div
           className="canvas-viewport"

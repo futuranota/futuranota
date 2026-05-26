@@ -1263,6 +1263,29 @@ textarea.field {
   font-weight: 400;
 }
 
+.cnode-v.cnode-object-ref {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  cursor: default;
+}
+
+.cnode-object-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.cnode-object-desc {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-2);
+  max-width: 140px;
+}
+
 .cnode-foot {
   display: flex;
   justify-content: space-between;
