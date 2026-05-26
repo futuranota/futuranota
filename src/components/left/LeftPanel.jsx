@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   useObjectsStore, useDocsStore, useNodesStore, useUIStateStore,
 } from "../../stores/index.js";
-import { DocExpandedView } from "../docs/DocExpandedView.jsx";
 import { DATA_TYPE_ICONS, DATA_TYPE_LABELS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { findObjectIdByName } from "../../lib/storeSanitize.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { ObjectIcon } from "./objectIcons.jsx";
+import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
+import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
@@ -50,7 +52,7 @@ function ObjectPickerList({ objects, activeObjectId, onSelect }) {
           type="button"
           className={"lp-object-picker-row" + (activeObjectId === obj.id ? " active" : "")}
           draggable
-          onDragStart={(e) => startObjectDrag(e, object.id)}
+          onDragStart={(e) => startObjectDrag(e, obj.id)}
           onClick={() => onSelect(obj.id)}
           title="Drag to canvas"
         >
@@ -65,7 +67,7 @@ function ObjectPickerList({ objects, activeObjectId, onSelect }) {
 /* ─────────────────────────────────────────────
    Doc list card
 ───────────────────────────────────────────── */
-function DocListCard({ doc, objects, onClick }) {
+function DocListCard({ doc, objects, onClick, onExpand }) {
   const parent = doc.parentObjectId ? objects[doc.parentObjectId] : null;
   return (
     <button type="button" className="lp-doc-card fn-card" onClick={onClick}>
@@ -76,7 +78,23 @@ function DocListCard({ doc, objects, onClick }) {
           {parent ? `↳ ${parent.name}` : "sin padre"} · {(doc.nodeIds || []).length} nodos
         </span>
       </div>
-      <span className="lp-expand-btn">↗</span>
+      <span
+        className="lp-expand-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          onExpand?.();
+        }}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onExpand?.();
+          }
+        }}
+      >
+        ↗
+      </span>
     </button>
   );
 }
@@ -231,13 +249,15 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
    MODAL: Create Document  "New File" Notion-like
 ───────────────────────────────────────────── */
 function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
-  const [title, setTitle] = useState("New File");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
   const fallbackParent =
     defaultParentId ||
     findObjectIdByName(Object.fromEntries(objects.map((o) => [o.id, o])), "yo") ||
     objects[0]?.id ||
     "";
   const [parentId, setParentId] = useState(fallbackParent);
+  const [createdDate, setCreatedDate] = useState(todayDateInputValue);
   const titleRef = useRef(null);
 
   useEffect(() => {
@@ -249,65 +269,48 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
     titleRef.current?.select();
   }, []);
 
+  const parentObject = objects.find((o) => o.id === parentId);
+
   const submitDoc = () => {
+    const finalTitle = title.trim() || "New document";
+    const autoTags = parentObject?.name ? [parentObject.name] : [];
     onSubmit({
-      title: title.trim() || "New File",
+      title: finalTitle,
       parentObjectId: parentId || null,
+      tags: autoTags,
+      body,
+      createdAt: isoFromDateInput(createdDate),
     });
   };
 
   return (
-    <div className="lp-overlay" onClick={onCancel}>
+    <div className="lp-overlay lp-overlay--solid lp-overlay--center" onClick={onCancel}>
       <div className="lp-modal doc-new-modal" onClick={e => e.stopPropagation()}>
-        <button type="button" className="lp-modal-close btn xs ghost" onClick={onCancel}>✕</button>
-        <div className="doc-new-inner">
-          <input
-            ref={titleRef}
-            type="text"
-            className="doc-new-title note-form-field"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                submitDoc();
-              }
-              if (e.key === "Escape") onCancel();
-            }}
-          />
-          <div className="doc-new-meta">
-            <div className="doc-new-row">
-              <span className="doc-new-icon">⏱</span>
-              <span className="doc-new-key">Created</span>
-              <span className="doc-new-val dim">{new Date().toLocaleDateString()}</span>
-            </div>
-            <div className="doc-new-row">
-              <span className="doc-new-icon">≡</span>
-              <span className="doc-new-key">Tags</span>
-              <span className="doc-new-val dim">—</span>
-            </div>
-            <div className="doc-new-row">
-              <span className="doc-new-icon">⊢</span>
-              <span className="doc-new-key">Parent</span>
-              <select
-                className="doc-new-select"
-                value={parentId}
-                onChange={e => setParentId(e.target.value)}
-                onClick={e => e.stopPropagation()}
-              >
-                <option value="">— sin padre —</option>
-                {objects.map(o => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <p className="doc-new-hint">Press Enter or Continue to open an empty page</p>
-          <div className="doc-new-actions">
-            <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
-            <button type="button" className="btn primary" onClick={submitDoc}>Continue</button>
-          </div>
-        </div>
+        <DocDocumentBox
+          title={title}
+          onTitleChange={setTitle}
+          titleRef={titleRef}
+          body={body}
+          onBodyChange={setBody}
+          createdDate={createdDate}
+          onCreatedDateChange={setCreatedDate}
+          parentId={parentId}
+          onParentIdChange={setParentId}
+          objects={objects}
+          onDelete={onCancel}
+          onSave={submitDoc}
+          onCloseExpand={onCancel}
+          onTitleKeyDown={(e) => {
+            if (e.key === "Escape") onCancel();
+          }}
+          onBodyKeyDown={(e) => {
+            if (e.key === "Escape") onCancel();
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              submitDoc();
+            }
+          }}
+        />
       </div>
     </div>
   );
@@ -426,7 +429,7 @@ function Dropdown({ label, open, onToggle, children, secondary }) {
 /* ─────────────────────────────────────────────
    LEFT PANEL  (main export)
 ───────────────────────────────────────────── */
-export function LeftPanel({ onInsertToCanvas }) {
+export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
   const [panelType, setPanelType]   = useState("Objects");
   const [activeId, setActiveId]     = useState(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -495,8 +498,15 @@ export function LeftPanel({ onInsertToCanvas }) {
       addObject(data.name, data.description, data.color);
     } else if (panelType === "Documents") {
       const parentId = data.parentObjectId || filterObjectId || null;
-      const docId = addDoc(data.title, parentId);
-      setActiveId(docId);
+      addDoc(
+        data.title,
+        parentId,
+        [],
+        data.tags || [],
+        data.body ?? "",
+        data.createdAt,
+      );
+      setActiveId(null);
     } else {
       const parentDoc = data.parentDocId || filterDocId || null;
       addNode(data.title, data.dataType, data.content, parentDoc);
@@ -668,7 +678,7 @@ export function LeftPanel({ onInsertToCanvas }) {
         )}
 
         {/* DOCUMENTS — filters + list */}
-        {panelType === "Documents" && !activeItem && (
+        {panelType === "Documents" && (
           <>
             <button
               type="button"
@@ -696,7 +706,11 @@ export function LeftPanel({ onInsertToCanvas }) {
                 key={doc.id}
                 doc={doc}
                 objects={objects}
-                onClick={() => setActiveId(doc.id)}
+                onClick={() => {
+                  setActiveId(doc.id);
+                  onOpenDocument?.(doc.id);
+                }}
+                onExpand={() => onOpenDocument?.(doc.id)}
               />
             ))}
             {filterObjectId && filteredDocList.length === 0 && (
@@ -706,11 +720,6 @@ export function LeftPanel({ onInsertToCanvas }) {
               </div>
             )}
           </>
-        )}
-
-        {/* DOCUMENTS — expanded */}
-        {panelType === "Documents" && activeItem && (
-          <DocExpandedView docId={activeItem.id} onClose={() => setActiveId(null)} />
         )}
 
         {/* NODES — list */}
@@ -778,13 +787,14 @@ export function LeftPanel({ onInsertToCanvas }) {
       {showCreate && panelType === "Objects" && (
         <ObjectCreateModal onSubmit={handleCreate} onCancel={() => setShowCreate(false)} />
       )}
-      {showCreate && panelType === "Documents" && (
+      {showCreate && panelType === "Documents" && typeof document !== "undefined" && createPortal(
         <DocCreateModal
           objects={objList}
           defaultParentId={filterObjectId || ""}
           onSubmit={handleCreate}
           onCancel={() => setShowCreate(false)}
-        />
+        />,
+        document.body,
       )}
       {showCreate && panelType === "Nodes" && (
         <NodeCreateModal
