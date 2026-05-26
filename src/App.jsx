@@ -8,7 +8,7 @@ import { TopBar, MetaBar, ScanOverlay, Toast } from './dashboard.jsx';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakButton,
 } from './tweaks-panel.jsx';
-import { initStores } from './stores/index.js';
+import { initStores, useObjectsStore } from './stores/index.js';
 import { LandingPage } from './pages/LandingPage.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
@@ -97,14 +97,22 @@ function Dashboard({ company, onBack }) {
     }, 2000);
   };
 
-  /* ── INSERT ZUSTAND NODE → canvas ─ */
-  const insertNodeToCanvas = (zustandNode) => {
+  const nextCanvasPosition = (preferredX, preferredY) => {
     const occupied = canvasNodes.map((n) => ({ x: n.x, y: n.y }));
-    let x = 30, y = 30;
-    while (occupied.some((p) => Math.abs(p.x - x) < 60 && Math.abs(p.y - y) < 60)) {
+    let x = preferredX ?? 30;
+    let y = preferredY ?? 30;
+    let guard = 0;
+    while (occupied.some((p) => Math.abs(p.x - x) < 60 && Math.abs(p.y - y) < 60) && guard < 80) {
       x += 40;
       if (x > 600) { x = 30; y += 110; }
+      guard += 1;
     }
+    return { x, y };
+  };
+
+  /* ── INSERT ZUSTAND NODE → canvas ─ */
+  const insertNodeToCanvas = (zustandNode) => {
+    const { x, y } = nextCanvasPosition();
     const newNode = {
       id: shortId("CN"),
       noteId: zustandNode.id,
@@ -115,6 +123,32 @@ function Dashboard({ company, onBack }) {
     };
     setCanvasNodes((all) => [...all, newNode]);
     setToast({ message: `Node added · "${newNode.title}"`, kind: "ok" });
+  };
+
+  const insertObjectToCanvas = (object, worldX, worldY) => {
+    const { x, y } = nextCanvasPosition(
+      worldX != null ? worldX - 50 : undefined,
+      worldY != null ? worldY - 40 : undefined,
+    );
+    const newNode = {
+      id: shortId("CN"),
+      canvasKind: "object",
+      objectId: object.id,
+      noteId: object.id,
+      title: (object.name || "OBJECT").toUpperCase().slice(0, 20),
+      dataType: "object",
+      content: object.description || object.name || "",
+      x, y,
+    };
+    setCanvasNodes((all) => [...all, newNode]);
+    setToast({ message: `Object placed · "${object.name}"`, kind: "ok" });
+  };
+
+  const handleCanvasDrop = (payload, world) => {
+    if (payload?.kind !== "object" || !payload.objectId) return;
+    const object = useObjectsStore.getState().objects[payload.objectId];
+    if (!object) return;
+    insertObjectToCanvas(object, world.x, world.y);
   };
 
   /* ── DELETE CANVAS NODE ─ */
@@ -166,6 +200,7 @@ function Dashboard({ company, onBack }) {
             onEditNode={() => {}}
             onFocusNote={() => {}}
             onRemoveBlueprintFromCanvas={() => {}}
+            onCanvasDrop={handleCanvasDrop}
           />
           {scanState === "scanning-blogs" && (
             <ScanOverlay logs={scanLogs} kind="blogs" />
