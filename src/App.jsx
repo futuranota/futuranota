@@ -12,6 +12,7 @@ import { initStores, useObjectsStore } from './stores/index.js';
 import { LandingPage } from './pages/LandingPage.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
+import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 
 /* app.jsx — root state + orchestration
  *
@@ -66,6 +67,7 @@ function Dashboard({ company, onBack }) {
   const [canvasConns, setCanvasConns] = useState([]);
   const [selection, setSelection]     = useState([]);
   const [blueprints, setBlueprints]   = useState([]);
+  const [expandedDocId, setExpandedDocId] = useState(null);
 
   useEffect(() => { initStores(); }, []);
 
@@ -163,6 +165,10 @@ function Dashboard({ company, onBack }) {
     setToast({ message: "Removed from canvas", kind: "ok" });
   };
 
+  const openDocumentOverlay = (docId) => {
+    setExpandedDocId(docId);
+  };
+
   return (
     <div className="dash">
       <TopBar
@@ -181,7 +187,10 @@ function Dashboard({ company, onBack }) {
 
       <div className="dash-main">
         <div className="dash-col">
-          <LeftPanel onInsertToCanvas={insertNodeToCanvas} />
+          <LeftPanel
+            onInsertToCanvas={insertNodeToCanvas}
+            onOpenDocument={openDocumentOverlay}
+          />
         </div>
 
         <div className="dash-col canvas-col">
@@ -230,6 +239,14 @@ function Dashboard({ company, onBack }) {
         focusedNoteId={null}
         onFocusNote={() => {}}
       />
+
+      {expandedDocId && (
+        <div className="doc-overlay-global" onClick={() => setExpandedDocId(null)}>
+          <div className="doc-overlay-global-card" onClick={(e) => e.stopPropagation()}>
+            <DocExpandedView docId={expandedDocId} onClose={() => setExpandedDocId(null)} />
+          </div>
+        </div>
+      )}
 
       <Toast {...(toast || {})} onDone={() => setToast(null)} />
     </div>

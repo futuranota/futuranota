@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { Modal } from "../shared/Modal.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
+import { dateInputFromIso, isoFromDateInput } from "../../lib/docDates.js";
+import { DocDocumentBox } from "./DocDocumentBox.jsx";
 
 function NodeFromSelectionModal({ query, onClose, onSave }) {
   return (
@@ -19,13 +21,33 @@ function NodeFromSelectionModal({ query, onClose, onSave }) {
 
 export function DocExpandedView({ docId, onClose }) {
   const doc = useDocsStore((s) => s.docs[docId]);
-  const updateDocContent = useDocsStore((s) => s.updateDocContent);
+  const updateDoc = useDocsStore((s) => s.updateDoc);
   const addNodeFromDoc = useNodesStore((s) => s.addNodeFromDoc);
   const [selectionModal, setSelectionModal] = useState(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftBody, setDraftBody] = useState("");
+  const [draftCreatedDate, setDraftCreatedDate] = useState("");
+
+  useEffect(() => {
+    const d = useDocsStore.getState().docs[docId];
+    if (!d) return;
+    setDraftTitle(d.title ?? "");
+    setDraftBody(d.body ?? d.content ?? "");
+    setDraftCreatedDate(dateInputFromIso(d.createdAt));
+  }, [docId]);
 
   if (!doc) return null;
 
-  const body = doc.body ?? doc.content ?? "";
+  const handleSave = () => {
+    const title = draftTitle.trim() || "New document";
+    updateDoc(doc.id, {
+      title,
+      content: draftBody,
+      body: draftBody,
+      createdAt: isoFromDateInput(draftCreatedDate),
+    });
+    onClose();
+  };
 
   const handleContextMenu = (e) => {
     e.preventDefault();
@@ -35,21 +57,21 @@ export function DocExpandedView({ docId, onClose }) {
   };
 
   return (
-    <div className="fn-doc-expanded">
-      <div className="fn-doc-expanded-head">
-        <b>{doc.title}</b>
-        <button type="button" className="btn xs ghost" onClick={onClose}>✕</button>
-      </div>
-      <div className="notes-doc-editor" onContextMenu={handleContextMenu}>
-        <textarea
-          className="note-form-field notes-doc-body"
-          value={body}
-          placeholder={"to do:\n- ir de compras\n- …"}
-          rows={10}
-          onChange={(e) => updateDocContent(doc.id, e.target.value)}
+    <>
+      <div onContextMenu={handleContextMenu}>
+        <DocDocumentBox
+          title={draftTitle}
+          onTitleChange={setDraftTitle}
+          body={draftBody}
+          onBodyChange={setDraftBody}
+          createdDate={draftCreatedDate}
+          onCreatedDateChange={setDraftCreatedDate}
+          onDelete={onClose}
+          onSave={handleSave}
+          onCloseExpand={onClose}
         />
-        <span className="notes-doc-editor-hint">Clic derecho con texto seleccionado → crear nodo</span>
       </div>
+      <span className="notes-doc-editor-hint">Clic derecho con texto seleccionado → crear nodo</span>
       {selectionModal && (
         <NodeFromSelectionModal
           query={selectionModal.query}
@@ -60,6 +82,6 @@ export function DocExpandedView({ docId, onClose }) {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

@@ -2745,3 +2745,54 @@ textarea.note-form-field {
 .conn-label.pending rect {
   stroke: color-mix(in oklab, var(--accent) 45%, transparent);
 }
+
+/* Global expanded document overlay */
+.doc-overlay-global {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.doc-overlay-global-card {
+  width: min(537px, calc(100vw - 48px));
+  max-width: 537px;
+  min-height: 356px;
+  max-height: calc(100vh - 56px);
+  overflow: auto;
+  background: #151515;
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.68);
+  padding: 22px 27px 18px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) #151515;
+}
+
+.doc-overlay-global-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.doc-overlay-global-card::-webkit-scrollbar-track {
+  background: #151515;
+}
+
+.doc-overlay-global-card::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+}
+
+.doc-overlay-global-card .fn-doc-expanded {
+  min-height: 0;
+}
+
+.doc-overlay-global-card .notes-doc-editor-hint {
+  margin-top: 10px;
+  display: block;
+  color: #898b8e;
+  font-size: 12px;
+}

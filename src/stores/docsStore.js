@@ -17,8 +17,20 @@ export const useDocsStore = create(
 
       getDocsByParent: (parentObjectId) => get().getDocsByObject(parentObjectId),
 
-      addDoc: (title, parentObjectId = null, dataProperties = []) => {
+      addDoc: (
+        title,
+        parentObjectId = null,
+        dataProperties = [],
+        tags = [],
+        initialContent = "",
+        createdAt = null,
+      ) => {
         const id = generateId("DOC");
+        const tagList = Array.isArray(tags)
+          ? tags.map((t) => String(t).trim()).filter(Boolean)
+          : [];
+        const body = String(initialContent ?? "");
+        const created = createdAt || new Date().toISOString();
         set((state) => ({
           docs: {
             ...state.docs,
@@ -26,12 +38,13 @@ export const useDocsStore = create(
               id,
               title,
               parentObjectId,
-              content: "",
-              body: "",
+              content: body,
+              body,
               dataProperties,
+              tags: tagList,
               nodeIds: [],
               syncedWithCanvas: true,
-              createdAt: new Date().toISOString(),
+              createdAt: created,
               updatedAt: new Date().toISOString(),
             },
           },
