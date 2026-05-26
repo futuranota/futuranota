@@ -9,6 +9,11 @@ export const useUIStateStore = create(
       expandedDocId: null,
       expandedNodeId: null,
 
+      /** Sidebar: filter documents by parent object */
+      filterObjectId: null,
+      /** Sidebar: filter nodes by parent document */
+      filterDocId: null,
+
       focusedCanvasNodeId: null,
       selectedCanvasNodeIds: [],
       isDrawingConnection: false,
@@ -23,6 +28,9 @@ export const useUIStateStore = create(
       setExpandedObject: (id) => set({ expandedObjectId: id }),
       setExpandedDoc: (id) => set({ expandedDocId: id }),
       setExpandedNode: (id) => set({ expandedNodeId: id }),
+
+      setFilterObjectId: (id) => set({ filterObjectId: id }),
+      setFilterDocId: (id) => set({ filterDocId: id }),
 
       setFocusedCanvasNode: (id) => set({ focusedCanvasNodeId: id }),
 
