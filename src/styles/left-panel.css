@@ -1,0 +1,716 @@
+/* Left workspace panel (Objects / Documents / Nodes) */
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.lp-selectors {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--hairline);
+  flex-shrink: 0;
+}
+
+.lp-inline-create {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.lp-filter-block {
+  margin-bottom: 12px;
+}
+
+.lp-filter-label {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+
+.lp-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lp-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-2);
+  background: var(--panel-2);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.lp-filter-chip:hover {
+  border-color: var(--glass-border-2);
+  color: var(--text);
+}
+
+.lp-filter-chip.active {
+  border-color: color-mix(in oklab, var(--hud) 55%, transparent);
+  color: var(--hud);
+  background: var(--hud-soft);
+}
+
+.lp-filter-heading {
+  font-size: 10px;
+  color: var(--dim);
+  margin: 0 0 10px;
+}
+
+.lp-filter-heading-tag {
+  color: var(--hud);
+  font-weight: 600;
+}
+
+.lp-dropdown-wrap {
+  position: relative;
+}
+
+.lp-dropdown-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.lp-dropdown-btn.secondary {
+  color: var(--text-2);
+}
+
+.lp-dropdown-btn:hover {
+  border-color: var(--glass-border-2);
+}
+
+.lp-chevron {
+  font-size: 9px;
+  color: var(--dim);
+}
+
+.lp-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.lp-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 11px;
+  text-align: left;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.lp-dropdown-item:hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.lp-dropdown-item.active,
+.lp-dropdown-item.checked {
+  color: var(--hud);
+}
+
+.lp-dropdown-item.create {
+  color: var(--accent);
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 4px;
+  border-radius: 6px 6px 0 0;
+}
+
+.lp-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-check {
+  color: var(--hud);
+  font-size: 10px;
+}
+
+.lp-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.lp-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.lp-empty .dim {
+  color: var(--dim);
+  margin-top: 4px;
+}
+
+/* Object color square */
+.obj-swatch {
+  display: block;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in oklab, var(--text) 12%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.obj-swatch--lg {
+  width: 72px;
+  height: 72px;
+}
+
+.obj-swatch--md {
+  width: 48px;
+  height: 48px;
+}
+
+.obj-swatch--sm {
+  width: 32px;
+  height: 32px;
+}
+
+.lp-objects-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.obj-thumb {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+
+.obj-thumb:hover {
+  border-color: var(--glass-border-2);
+}
+
+.obj-thumb.active {
+  border-color: color-mix(in oklab, var(--hud) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--hud) 25%, transparent);
+}
+
+.obj-thumb-img {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  min-height: 72px;
+  background: color-mix(in oklab, var(--panel) 60%, #000);
+}
+
+.obj-thumb-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--hairline);
+}
+
+.obj-thumb-name {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.obj-thumb-move {
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.lp-doc-card,
+.lp-node-card {
+  margin-bottom: 8px;
+}
+
+.lp-doc-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  background: var(--panel-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.lp-doc-card:hover {
+  border-color: var(--glass-border-2);
+}
+
+.lp-doc-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.fn-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.fn-card-body b {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fn-card-meta {
+  font-size: 10px;
+  color: var(--dim);
+  margin-top: 2px;
+}
+
+.lp-expand-btn {
+  font-size: 10px;
+  color: var(--dim);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.lp-node-card {
+  background: var(--panel-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.lp-node-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+  cursor: pointer;
+}
+
+.lp-node-parent {
+  flex: 1;
+  font-size: 10px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-node-card-body {
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.lp-node-title {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.lp-node-preview {
+  font-size: 10px;
+  color: var(--dim);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+
+.lp-node-card-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px 8px;
+}
+
+.lp-footer {
+  flex-shrink: 0;
+  padding: 10px;
+  border-top: 1px solid var(--hairline);
+}
+
+.lp-tokens-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.lp-tokens-label {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.lp-tokens-num {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.lp-tokens-sep,
+.lp-tokens-max {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.lp-tokens-bar {
+  height: 3px;
+  background: var(--panel-2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.lp-tokens-fill {
+  height: 100%;
+  background: var(--hud);
+  border-radius: 2px;
+}
+
+.lp-tokens-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+/* Modals */
+.lp-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10px;
+  background: color-mix(in oklab, var(--bg) 55%, transparent);
+  overflow-y: auto;
+}
+
+.lp-modal {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100% - 8px);
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.lp-modal-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+}
+
+.obj-create-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.obj-create-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.obj-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.obj-color-row input[type="color"] {
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.obj-create-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--hud);
+  margin: 0 0 8px;
+}
+
+.obj-create-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.obj-create-actions .btn {
+  flex: 1;
+}
+
+.obj-name-input,
+.obj-desc-input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+/* Doc / node modals */
+.doc-new-inner {
+  padding-top: 8px;
+}
+
+.doc-new-title {
+  width: 100%;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0 0 16px;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+}
+
+.doc-new-title:focus {
+  border-bottom-color: color-mix(in oklab, var(--hud) 45%, transparent);
+  outline: none;
+}
+
+.doc-new-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.doc-new-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doc-new-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.doc-new-key {
+  min-width: 52px;
+  color: var(--dim);
+}
+
+.doc-new-select {
+  flex: 1;
+  font-size: 11px;
+  padding: 4px 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--glass-border);
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.doc-new-hint {
+  margin-top: 16px;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.node-create-title {
+  margin-bottom: 10px;
+}
+
+.node-create-type-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.node-create-type-row .label {
+  font-size: 10px;
+  color: var(--dim);
+  margin-right: 4px;
+}
+
+.node-type-btn {
+  padding: 4px 10px;
+  font-size: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--panel-2);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.node-type-btn.active {
+  border-color: color-mix(in oklab, var(--hud) 50%, transparent);
+  color: var(--hud);
+  background: var(--hud-soft);
+}
+
+.node-create-parent {
+  margin-bottom: 8px;
+}
+
+.node-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* Doc expanded (inline in panel) */
+.fn-doc-expanded {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.fn-doc-expanded-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fn-doc-expanded-head b {
+  font-size: 12px;
+  color: var(--hud);
+}
+
+.notes-doc-editor {
+  flex: 1;
+  min-height: 120px;
+}
+
+.notes-doc-body {
+  min-height: 160px;
+  resize: vertical;
+}
+
+/* Node detail */
+.lp-node-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lp-node-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.lp-node-detail-title {
+  font-size: 13px;
+  color: var(--hud);
+  margin: 0;
+}
+
+.lp-node-detail-type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.lp-type-label {
+  color: var(--dim);
+}
+
+.lp-type-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--glass-border);
+  text-transform: uppercase;
+  font-size: 9px;
+}
+
+.lp-node-textarea {
+  min-height: 100px;
+}
+
+.lp-node-detail-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.lp-tokens-hint {
+  flex: 1;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.dash-col:first-child {
+  position: relative;
+}
