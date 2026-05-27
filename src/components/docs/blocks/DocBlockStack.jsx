@@ -8,11 +8,17 @@ import {
   replaceBlocksFromSlashInText,
   updateBlockAt,
 } from "../../../lib/docBlocks.js";
-import { parseSlashQuery, splitBodyForSlash } from "../../../lib/docBlockSlash.js";
+import {
+  createDocBlockFromSlash,
+  parseSlashQuery,
+  splitBodyForSlash,
+} from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock } from "../../../lib/docNodeSync.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { TodoBlockView } from "./TodoBlockView.jsx";
+import { DateBlockView } from "./DateBlockView.jsx";
+import { MetricBlockView } from "./MetricBlockView.jsx";
 
 export function DocBlockStack({
   blocks,
@@ -21,10 +27,12 @@ export function DocBlockStack({
   onFocusBlock,
   bodyPlaceholder,
   onBodyKeyDown,
+  onOpenNodeForBlock,
   onOpenNodeForH1,
   onAnswerBelowH1Change,
 }) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
+  const openNode = onOpenNodeForBlock || onOpenNodeForH1;
 
   useEffect(() => {
     if (!focusBlockId) return;
@@ -59,18 +67,7 @@ export function DocBlockStack({
     const parsed = parseSlashQuery(slash.slice(1));
     if (!parsed) return false;
 
-    let newBlock;
-    if (parsed.type === DOC_BLOCK_TYPES.TODO) {
-      newBlock = createDocBlock(DOC_BLOCK_TYPES.TODO, {
-        items: [createTodoItem()],
-        listTitle: "To do:",
-      });
-    } else if (parsed.type === DOC_BLOCK_TYPES.H1) {
-      newBlock = createDocBlock(DOC_BLOCK_TYPES.H1, { title: "" });
-    } else {
-      return false;
-    }
-
+    const newBlock = createDocBlockFromSlash(parsed);
     const next = replaceBlocksFromSlashInText(blocks, blockIndex, textValue, newBlock);
     setBlocks(next);
     onFocusBlock?.(newBlock.id);
@@ -95,6 +92,26 @@ export function DocBlockStack({
       return;
     }
 
+    onBodyKeyDown?.(e);
+  };
+
+  const handleLinkableBlockKeyDown = (index, block, e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      insertTextAfter(index);
+      return;
+    }
+    const atStart =
+      e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0;
+    const titleEmpty =
+      block.type === DOC_BLOCK_TYPES.TODO
+        ? !block.listTitle
+        : !block.title;
+    if ((e.key === "Backspace" || e.key === "Delete") && titleEmpty && atStart) {
+      e.preventDefault();
+      setBlocks(removeBlockAt(blocks, index));
+      return;
+    }
     onBodyKeyDown?.(e);
   };
 
@@ -138,33 +155,40 @@ export function DocBlockStack({
             <H1BlockView
               value={block.title || ""}
               onChange={(title) => updateAt(index, { title })}
-              onQueryHandleClick={() => onOpenNodeForH1?.(index, block)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  insertTextAfter(index);
-                  return;
-                }
-                const atStart =
-                  e.currentTarget.selectionStart === 0 &&
-                  e.currentTarget.selectionEnd === 0;
-                if (
-                  (e.key === "Backspace" || e.key === "Delete") &&
-                  !block.title &&
-                  atStart
-                ) {
-                  e.preventDefault();
-                  setBlocks(removeBlockAt(blocks, index));
-                  return;
-                }
-                onBodyKeyDown?.(e);
-              }}
+              onQueryHandleClick={() => openNode?.(index, block)}
+              onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.DATE ? (
+            <DateBlockView
+              title={block.title || ""}
+              date={block.date || ""}
+              time={block.time || ""}
+              onTitleChange={(title) => updateAt(index, { title })}
+              onDateChange={(date) => updateAt(index, { date })}
+              onTimeChange={(time) => updateAt(index, { time })}
+              onQueryHandleClick={() => openNode?.(index, block)}
+              onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.METRIC ? (
+            <MetricBlockView
+              title={block.title || ""}
+              value={block.value != null ? String(block.value) : ""}
+              unit={block.unit || ""}
+              onTitleChange={(title) => updateAt(index, { title })}
+              onValueChange={(value) => updateAt(index, { value })}
+              onUnitChange={(unit) => updateAt(index, { unit })}
+              onQueryHandleClick={() => openNode?.(index, block)}
+              onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
             />
           ) : null}
 
           {block.type === DOC_BLOCK_TYPES.TODO ? (
             <TodoBlockView
-              listTitle={block.listTitle ?? "To do:"}
+              listTitle={block.listTitle ?? "Checkbox:"}
               onListTitleChange={(listTitle) => updateAt(index, { listTitle })}
               items={block.items || []}
               focusItemId={todoFocusItemId}
@@ -176,6 +200,7 @@ export function DocBlockStack({
                 setTodoFocusItemId(newItem.id);
               }}
               onDragHandlePointerDown={handleDragPointerDown}
+              onQueryHandleClick={() => openNode?.(index, block)}
             />
           ) : null}
 

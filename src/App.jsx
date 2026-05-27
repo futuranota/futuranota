@@ -237,6 +237,8 @@ function Dashboard({ company, onBack }) {
             selection={selection}
             setSelection={setSelection}
             today={today}
+            docsById={docs}
+            nodeEntitiesById={nodeEntities}
             onCreateBlueprint={() => {}}
             onDeleteNode={deleteCanvasNode}
             onEditNode={() => {}}
@@ -259,13 +261,17 @@ function Dashboard({ company, onBack }) {
             hasScannedBlogs={hasScannedBlogs}
             today={today}
             launchDate={null}
-            onSelectDate={() => {}}
+            onSelectDate={(d) => {
+              if (!d) return;
+              setToday(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+            }}
           />
         </div>
       </div>
 
       <Timeline
         nodes={canvasNodes}
+        connections={canvasConns}
         today={today}
         focusedNoteId={null}
         onFocusNote={() => {}}

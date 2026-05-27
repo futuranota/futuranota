@@ -310,7 +310,9 @@ function BlueprintCanvas({
   blueprints, setBlueprints, selection, setSelection,
   today, onCreateBlueprint, onDeleteNode, onEditNode, onFocusNote,
   onRemoveBlueprintFromCanvas, onCanvasDrop,
+  docsById = {}, nodeEntitiesById = {},
 }) {
+  const temporalMeta = { docsById, nodeEntitiesById };
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
@@ -1038,7 +1040,7 @@ function BlueprintCanvas({
             const p1 = nodeAnchor(a, "right");
             const p2 = nodeAnchor(b, "left");
             const d = pathBetween(p1, p2);
-            const label = computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints);
+            const label = computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta);
             const mid = bezierMidpoint(p1, p2);
             const selected = selectedConnectionId === c.id;
             return (
@@ -1087,7 +1089,7 @@ function BlueprintCanvas({
               b = target;
             }
             const label = a && b
-              ? computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints)
+              ? computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta)
               : null;
             const mid = bezierMidpoint(p1, p2);
             return (

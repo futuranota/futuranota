@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { DOC_TODO_HEADER_ICON } from "../../../lib/docMediumAssets.js";
+import { DOC_QUERY_HANDLE_ICON, DOC_TODO_HEADER_ICON } from "../../../lib/docMediumAssets.js";
 
 export function TodoBlockView({
   listTitle,
@@ -10,6 +10,7 @@ export function TodoBlockView({
   onItemKeyDown,
   onAddItem,
   onDragHandlePointerDown,
+  onQueryHandleClick,
 }) {
   const inputRefs = useRef({});
 
@@ -28,6 +29,19 @@ export function TodoBlockView({
       <div className="doc-todo-block__header">
         <button
           type="button"
+          className="doc-query-handle"
+          aria-label="Abrir nodo de query"
+          title="Abrir nodo de query"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onQueryHandleClick?.();
+          }}
+        >
+          <img src={DOC_QUERY_HANDLE_ICON} alt="" aria-hidden />
+        </button>
+        <button
+          type="button"
           className="doc-block-drag-handle"
           aria-label="Mover bloque"
           title="Mover bloque"
@@ -42,7 +56,7 @@ export function TodoBlockView({
           value={listTitle}
           onChange={(e) => onListTitleChange(e.target.value)}
           onKeyDown={(e) => e.stopPropagation()}
-          aria-label="Título de la lista"
+          aria-label="Checkbox list title"
         />
         <button
           type="button"

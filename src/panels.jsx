@@ -4,11 +4,15 @@ import { Sidebar } from './components/sidebar/Sidebar.jsx';
 import { FuturaCanvas } from './components/canvas/FuturaCanvas.jsx';
 import {
   parseDate,
-  computeMetricValue,
   computeEdgeTemporalLabel,
   noteToTrackItem,
   timelineNodeLeftPct,
+  computeTimelineRange,
+  assignTimelineChipLanes,
+  resolveNodeAnchorDate,
+  buildChipDisplay,
 } from './temporal.js';
+import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
 import { useTimelineStore } from './stores/index.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
@@ -739,8 +743,9 @@ const TL_RULER_TICKS = 41;
 const DEFAULT_TIMELINE_TRACK_ID = "__default_timeline__";
 
 function TimelineTrack({
-  track, trackNodes, dateNodes, textNodes, metricNodes, today,
+  track, trackNodes, trackConnections = [], today,
   focusedNoteId, onMarkerClick, zoomed, onZoomToggle,
+  docsById = {}, nodeEntitiesById = {}, objectsById = {},
 }) {
   const accent = track.color.stroke;
   const isEmpty = trackNodes.length === 0;
@@ -771,22 +776,15 @@ function TimelineTrack({
     );
   }
 
-  const dates = dateNodes.map((n) => parseDate(n.content)).filter(Boolean);
-  const sorted = dates.length ? [...dates].sort((a, b) => a - b) : [];
-  const minD = sorted[0] || null;
-  const maxD = sorted.length ? sorted[sorted.length - 1] : null;
-
-  const padMs = (zoomed ? 2 : 10) * 86400000;
-  const fallbackPad = (zoomed ? 7 : 30) * 86400000;
-  let start;
-  let end;
-  if (minD && maxD) {
-    start = new Date(Math.min(minD.getTime(), today.getTime()) - padMs);
-    end = new Date(Math.max(maxD.getTime(), today.getTime()) + padMs);
-  } else {
-    start = new Date(today.getTime() - fallbackPad);
-    end = new Date(today.getTime() + fallbackPad);
-  }
+  const meta = { nodeEntitiesById, docsById };
+  const dateNodes = trackNodes.filter((n) => n.dataType === "date");
+  const { start, end, anchors, minD, maxD } = computeTimelineRange(
+    trackNodes,
+    trackConnections,
+    today,
+    meta,
+    { zoomed },
+  );
   const total = end - start || 1;
   const pct = (d) => ((d - start) / total) * 100;
 
@@ -795,7 +793,6 @@ function TimelineTrack({
   const winEnd = winEndD ? pct(winEndD) : 0;
   const remaining = maxD && maxD > today ? daysBetween(today, maxD) : 0;
   const todayPct = Math.min(100, Math.max(0, pct(today)));
-  const trackConnections = [];
 
   const tlCtx = {
     start,
@@ -808,7 +805,38 @@ function TimelineTrack({
     maxD,
     allNodes: trackNodes,
     connections: trackConnections,
+    anchors,
+    meta,
   };
+
+  const trackObject = objectsById[track.id] || null;
+  const chipExtras = { today, trackNodes, trackConnections };
+
+  const rawChips = trackNodes
+    .map((n) => {
+      const anchor =
+        anchors.get(n.id)
+        || resolveNodeAnchorDate(n, meta)
+        || (n.dataType === "date" ? parseDate(n.content) : null);
+      if (!anchor) return null;
+      const display = buildChipDisplay(n, trackObject, meta, chipExtras);
+      return {
+        node: n,
+        id: n.id,
+        noteId: n.noteId || n.id,
+        leftPct: pct(anchor),
+        sortTime: anchor.getTime(),
+        name: display.name,
+        dateLabel: display.dateLabel,
+        objectTint: display.objectTint,
+      };
+    })
+    .filter(Boolean);
+
+  const chips = assignTimelineChipLanes(rawChips);
+  const chipLeftById = new Map(chips.map((c) => [c.id, c.leftPct]));
+  const maxLane = chips.reduce((m, x) => Math.max(m, x.lane), 0);
+  const barExtraH = maxLane * 40;
 
   const futureMid = todayPct + (100 - todayPct) / 2;
 
@@ -838,12 +866,16 @@ function TimelineTrack({
           </button>
           <span className="tl-track-meta">
             {trackNodes.length} nodes · {dateNodes.length} dates
+            {trackConnections.length > 0 && <span> · {trackConnections.length} wires</span>}
             {winDays > 0 && <span> · {winDays}d span</span>}
             {remaining > 0 && <span className="tl-track-meta-countdown">· T−{remaining}d</span>}
           </span>
         </div>
       </div>
-      <div className="tl-track-bar">
+      <div
+        className="tl-track-bar"
+        style={{ "--tl-bar-extra-h": `${barExtraH}px` }}
+      >
         <div className="tl-ruler" aria-hidden>
           {Array.from({ length: TL_RULER_TICKS }, (_, i) => (
             <span
@@ -874,23 +906,30 @@ function TimelineTrack({
         )}
 
         {today >= start && today <= end && (
-          <div className="tl-today" style={{ left: todayPct + "%" }}>
+          <div
+            className={"tl-today" + (zoomed ? " is-zoomed" : " tl-today--figma")}
+            style={{ left: todayPct + "%" }}
+          >
             <span className="tl-today-pill">today</span>
             <div className="tl-today-line" />
-            <div className="tl-today-caption">
-              <span className="tl-today-caption-title">today</span>
-              <span className="tl-today-caption-date">{fmtDate(today, "short")}</span>
-            </div>
+            {zoomed && (
+              <div className="tl-today-caption">
+                <span className="tl-today-caption-title">today</span>
+                <span className="tl-today-caption-date">{fmtDate(today, "short")}</span>
+              </div>
+            )}
           </div>
         )}
 
         {trackConnections.map((c) => {
           const fromNode = trackNodes.find((n) => n.id === c.from);
           const toNode = trackNodes.find((n) => n.id === c.to);
-          const label = computeEdgeTemporalLabel(fromNode, toNode, today, trackNodes, trackConnections, []);
+          const label = computeEdgeTemporalLabel(
+            fromNode, toNode, today, trackNodes, trackConnections, [], meta,
+          );
           if (!label || !fromNode || !toNode) return null;
-          const leftA = timelineNodeLeftPct(fromNode, tlCtx);
-          const leftB = timelineNodeLeftPct(toNode, tlCtx);
+          const leftA = chipLeftById.get(c.from) ?? timelineNodeLeftPct(fromNode, tlCtx);
+          const leftB = chipLeftById.get(c.to) ?? timelineNodeLeftPct(toNode, tlCtx);
           const edgeLeft = Math.min(leftA, leftB);
           const edgeWidth = Math.max(Math.abs(leftB - leftA), 0.5);
           const isCountdown = label.startsWith("T");
@@ -907,109 +946,25 @@ function TimelineTrack({
           );
         })}
 
-        {dateNodes.map((n) => {
-          const d = parseDate(n.content);
-          if (!d) return null;
-          const noteId = n.noteId || n.id;
-          const left = pct(d);
-          const t = d.getTime();
-          const isStart = minD && t === minD.getTime();
-          const isEnd = maxD && t === maxD.getTime() && (!isStart || minD.getTime() !== maxD.getTime());
-          const isEndpoint = isStart || isEnd;
-
-          if (isEndpoint) {
-            return (
-              <div
-                key={n.id}
-                role="button"
-                tabIndex={0}
-                className={
-                  "tl-endpoint" +
-                  (isStart ? " start" : " end") +
-                  (focusedNoteId === noteId ? " tl-marker-focus" : "")
-                }
-                style={{ left: left + "%" }}
-                onClick={() => onMarkerClick(noteId)}
-                onKeyDown={(e) => e.key === "Enter" && onMarkerClick(noteId)}
-              >
-                <div className="tl-endpoint-node" />
-                <div className="tl-endpoint-label">
-                  <b>{n.title}</b>
-                  <span className="tl-marker-date">{fmtDate(d, "short")}</span>
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <div
-              key={n.id}
-              role="button"
-              tabIndex={0}
-              className={"tl-marker" + (focusedNoteId === noteId ? " tl-marker-focus" : "")}
-              data-t="date"
-              style={{ left: left + "%" }}
-              onClick={() => onMarkerClick(noteId)}
-              onKeyDown={(e) => e.key === "Enter" && onMarkerClick(noteId)}
-            >
-              <div className="tl-marker-dot" />
-              <div className="tl-marker-label">
-                <b>{n.title}</b>
-                <span className="tl-marker-date">{fmtDate(d, "short")}</span>
-              </div>
-            </div>
-          );
-        })}
-
-        {textNodes.map((n, i) => {
-          const noteId = n.noteId || n.id;
-          const preview = String(n.content || "").slice(0, 48);
-          return (
-            <div
-              key={n.id}
-              role="button"
-              tabIndex={0}
-              className={"tl-marker" + (focusedNoteId === noteId ? " tl-marker-focus" : "")}
-              data-t="text"
-              style={{
-                left: todayPct + "%",
-                transform: `translateX(${(i - (textNodes.length - 1) / 2) * 18}px)`,
-              }}
-              onClick={() => onMarkerClick(noteId)}
-              onKeyDown={(e) => e.key === "Enter" && onMarkerClick(noteId)}
-            >
-              <div className="tl-marker-dot tl-marker-dot-sm" />
-              <div className="tl-marker-label">
-                <b>{n.title}</b>
-                {preview && <span className="tl-marker-preview">{preview}</span>}
-              </div>
-            </div>
-          );
-        })}
-
-        {metricNodes.map((n) => {
-          const { value, unit } = computeMetricValue(n, trackNodes, trackConnections, today);
-          const left = timelineNodeLeftPct(n, tlCtx);
-          const noteId = n.noteId || n.id;
-          return (
-            <div
-              key={n.id}
-              role="button"
-              tabIndex={0}
-              className={"tl-marker" + (focusedNoteId === noteId ? " tl-marker-focus" : "")}
-              data-t="metric"
-              style={{ left: left + "%" }}
-              onClick={() => onMarkerClick(noteId)}
-              onKeyDown={(e) => e.key === "Enter" && onMarkerClick(noteId)}
-            >
-              <div className="tl-marker-dot tl-marker-dot-metric" />
-              <div className="tl-marker-label">
-                <b>{n.title}</b>
-                <span className="tl-marker-date">{String(value)}{unit ? ` ${unit}` : ""}</span>
-              </div>
-            </div>
-          );
-        })}
+        {chips.map((chip) => (
+          <div
+            key={chip.id}
+            className="tl-chip-anchor"
+            style={{
+              left: chip.leftPct + "%",
+              "--tl-lane": chip.lane,
+            }}
+          >
+            <TimelineEventChip
+              name={chip.name}
+              dateLabel={chip.dateLabel}
+              objectTint={chip.objectTint}
+              focused={focusedNoteId === chip.noteId}
+              onClick={() => onMarkerClick(chip.noteId)}
+              onKeyDown={(e) => e.key === "Enter" && onMarkerClick(chip.noteId)}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1017,6 +972,7 @@ function TimelineTrack({
 
 function Timeline({
   nodes = [],
+  connections = [],
   today,
   focusedNoteId,
   onFocusNote,
@@ -1062,18 +1018,28 @@ function Timeline({
       const object = objectsById[objectId];
       const fallbackLabel = object?.name || "Timeline";
       const label = (objectTimelineTitles[objectId] || "").trim() || fallbackLabel;
+      const canvasIds = new Set(objectNodes.map((n) => n.id));
+      const trackConnections = connections.filter(
+        (c) => canvasIds.has(c.from) && canvasIds.has(c.to),
+      );
       const trackNodes = objectNodes.map((n) => {
+        const base = {
+          id: n.id,
+          noteId: n.noteId,
+          docId: n.docId,
+          canvasKind: n.canvasKind,
+        };
         if (n.noteId && nodeEntitiesById[n.noteId]) {
           const source = nodeEntitiesById[n.noteId];
           return noteToTrackItem({
-            id: n.id,
+            ...base,
             title: source.sourceQuery || source.title || n.title,
             dataType: source.dataType || n.dataType || "text",
             content: source.content ?? n.content ?? "",
           });
         }
         return noteToTrackItem({
-          id: n.id,
+          ...base,
           title: n.title,
           dataType: n.dataType || "text",
           content: n.content ?? "",
@@ -1097,9 +1063,7 @@ function Timeline({
           },
         },
         trackNodes,
-        dateNodes: trackNodes.filter((item) => item.dataType === "date"),
-        textNodes: trackNodes.filter((item) => item.dataType === "text"),
-        metricNodes: trackNodes.filter((item) => item.dataType === "metric"),
+        trackConnections,
       };
     };
 
@@ -1116,16 +1080,17 @@ function Timeline({
           onEditTitle: () => {},
         },
         trackNodes: [],
-        dateNodes: [],
-        textNodes: [],
-        metricNodes: [],
+        trackConnections: [],
       }];
     }
 
     result.sort((a, b) => a.track.label.localeCompare(b.track.label));
 
     return result.filter((t) => !filterObjectId || t.track.id === filterObjectId);
-  }, [nodes, docsById, objectsById, nodeEntitiesById, objectTimelineTitles, setObjectTimelineTitle, filterObjectId]);
+  }, [
+    nodes, connections, docsById, objectsById, nodeEntitiesById,
+    objectTimelineTitles, setObjectTimelineTitle, filterObjectId,
+  ]);
 
   const trackIdsKey = useMemo(
     () => tracks.map((t) => t.track.id).join("|"),
@@ -1168,14 +1133,15 @@ function Timeline({
               key={t.track.id}
               track={t.track}
               trackNodes={t.trackNodes}
-              dateNodes={t.dateNodes}
-              textNodes={t.textNodes}
-              metricNodes={t.metricNodes}
+              trackConnections={t.trackConnections}
               today={today}
               focusedNoteId={focusedNoteId}
               onMarkerClick={onFocusNote}
               zoomed={isZoomed}
               onZoomToggle={() => setZoomedBlueprintId(isZoomed ? null : t.track.id)}
+              docsById={docsById}
+              nodeEntitiesById={nodeEntitiesById}
+              objectsById={objectsById}
             />
           );
         })}

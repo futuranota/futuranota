@@ -9,13 +9,208 @@ export function parseDate(content) {
   return null;
 }
 
+export function startOfCalendarDay(d) {
+  if (!d) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+export function sameCalendarDay(a, b) {
+  if (!a || !b) return false;
+  return startOfCalendarDay(a).getTime() === startOfCalendarDay(b).getTime();
+}
+
 export function noteToTrackItem(note) {
   return {
     id: note.id,
-    noteId: note.id,
+    noteId: note.noteId || note.id,
+    docId: note.docId || null,
+    canvasKind: note.canvasKind || null,
     title: note.title || "NOTE",
     dataType: note.dataType || "text",
     content: note.content,
+  };
+}
+
+/** Resolve anchor date: date → content; text/doc → createdAt / parent doc. */
+export function resolveNodeAnchorDate(node, { nodeEntitiesById = {}, docsById = {} } = {}) {
+  if (!node) return null;
+
+  if (node.dataType === "date") {
+    return parseDate(node.content);
+  }
+
+  if (node.dataType === "document") {
+    const doc = docsById[node.docId] || docsById[node.noteId];
+    if (doc?.createdAt) return parseDate(doc.createdAt);
+  }
+
+  if (node.dataType === "text" || node.dataType === "metric") {
+    const entityId = node.noteId;
+    const entity = entityId ? nodeEntitiesById[entityId] : null;
+    if (entity?.createdAt) return parseDate(entity.createdAt);
+    if (entity?.parentDocId) {
+      const doc = docsById[entity.parentDocId];
+      if (doc?.createdAt) return parseDate(doc.createdAt);
+    }
+    const text = String(node.content || "");
+    if (/created/i.test(text)) {
+      const iso = text.match(/\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?/);
+      if (iso) return parseDate(iso[0]);
+    }
+  }
+
+  return null;
+}
+
+/** Wire same-calendar-day pulls text/metric anchors to that day. */
+export function buildWireAnchorMap(nodes, connections, meta) {
+  const anchors = new Map();
+  for (const n of nodes) {
+    const d = resolveNodeAnchorDate(n, meta);
+    if (d) anchors.set(n.id, startOfCalendarDay(d));
+  }
+
+  for (const c of connections) {
+    const a = nodes.find((n) => n.id === c.from);
+    const b = nodes.find((n) => n.id === c.to);
+    if (!a || !b) continue;
+
+    let da = anchors.get(a.id) || resolveNodeAnchorDate(a, meta);
+    let db = anchors.get(b.id) || resolveNodeAnchorDate(b, meta);
+    if (da) da = startOfCalendarDay(da);
+    if (db) db = startOfCalendarDay(db);
+
+    if (da && db && sameCalendarDay(da, db)) {
+      anchors.set(a.id, da);
+      anchors.set(b.id, db);
+      continue;
+    }
+    if (da && !db) anchors.set(b.id, da);
+    if (db && !da) anchors.set(a.id, db);
+  }
+
+  return anchors;
+}
+
+export function computeTimelineRange(trackNodes, connections, today, meta, { zoomed = false } = {}) {
+  const anchors = buildWireAnchorMap(trackNodes, connections, meta);
+  const dates = [startOfCalendarDay(today)];
+
+  for (const n of trackNodes) {
+    const d = anchors.get(n.id) || resolveNodeAnchorDate(n, meta);
+    if (d) dates.push(startOfCalendarDay(d));
+  }
+
+  const hasWires = connections.length > 0;
+  const padMs = (zoomed ? 2 : hasWires ? 3 : 6) * 86400000;
+  const fallbackPad = (zoomed ? 7 : 14) * 86400000;
+
+  if (dates.length <= 1) {
+    return {
+      start: new Date(today.getTime() - fallbackPad),
+      end: new Date(today.getTime() + fallbackPad),
+      anchors,
+      minD: null,
+      maxD: null,
+    };
+  }
+
+  const sorted = [...dates].sort((a, b) => a - b);
+  const minD = sorted[0];
+  const maxD = sorted[sorted.length - 1];
+  const start = new Date(Math.min(minD.getTime(), today.getTime()) - padMs);
+  const end = new Date(Math.max(maxD.getTime(), today.getTime()) + padMs);
+
+  return { start, end, anchors, minD, maxD };
+}
+
+const LANE_GAP_PCT = 3.2;
+const CHIP_LANE_GAP_PCT = 9;
+
+export function assignTimelineLanes(markers) {
+  const sorted = [...markers].sort((a, b) => {
+    if (a.leftPct !== b.leftPct) return a.leftPct - b.leftPct;
+    return (a.sortTime || 0) - (b.sortTime || 0);
+  });
+  const placed = [];
+
+  for (const m of sorted) {
+    let lane = 0;
+    while (placed.some((p) => p.lane === lane && Math.abs(p.leftPct - m.leftPct) < LANE_GAP_PCT)) {
+      lane += 1;
+    }
+    placed.push({ ...m, lane });
+  }
+
+  return placed;
+}
+
+/** Wider gap for horizontal event chips (full label width). */
+export function assignTimelineChipLanes(markers, minGapPct = CHIP_LANE_GAP_PCT) {
+  const sorted = [...markers].sort((a, b) => {
+    if (a.leftPct !== b.leftPct) return a.leftPct - b.leftPct;
+    return (a.sortTime || 0) - (b.sortTime || 0);
+  });
+  const placed = [];
+
+  for (const m of sorted) {
+    let lane = 0;
+    while (placed.some((p) => p.lane === lane && Math.abs(p.leftPct - m.leftPct) < minGapPct)) {
+      lane += 1;
+    }
+    placed.push({ ...m, lane });
+  }
+
+  return placed;
+}
+
+const CHIP_MONTHS = [
+  "jan", "feb", "mar", "apr", "may", "jun",
+  "jul", "aug", "sep", "oct", "nov", "dec",
+];
+
+export function formatChipDate(d) {
+  if (!d) return "";
+  const dd = d instanceof Date ? d : new Date(d);
+  if (isNaN(dd.getTime())) return "";
+  return `${CHIP_MONTHS[dd.getMonth()]} ${dd.getDate()}`;
+}
+
+export function buildChipDisplay(node, trackObject, meta, extras = {}) {
+  const { docsById = {}, nodeEntitiesById = {} } = meta;
+  let name = (node.title || "Untitled").trim();
+
+  if (node.dataType === "document" && node.docId) {
+    const doc = docsById[node.docId];
+    if (doc?.title) name = doc.title;
+  } else if (node.noteId && nodeEntitiesById[node.noteId]) {
+    const source = nodeEntitiesById[node.noteId];
+    name = (source.sourceQuery || source.title || name).trim();
+  }
+
+  const anchor =
+    resolveNodeAnchorDate(node, meta)
+    || (node.dataType === "date" ? parseDate(node.content) : null);
+
+  let dateLabel = "";
+  if (node.dataType === "metric" && extras.trackNodes && extras.today) {
+    const { value, unit } = computeMetricValue(
+      node,
+      extras.trackNodes,
+      extras.trackConnections || [],
+      extras.today,
+      meta,
+    );
+    dateLabel = `${value}${unit ? ` ${unit}` : ""}`;
+  } else if (anchor) {
+    dateLabel = formatChipDate(anchor);
+  }
+
+  return {
+    name,
+    dateLabel,
+    anchor,
+    objectTint: trackObject?.color || null,
   };
 }
 
@@ -23,14 +218,13 @@ function blueprintContainsItem(bp, itemId) {
   return (bp.noteIds || []).includes(itemId) || (bp.nodeIds || []).includes(itemId);
 }
 
-function earliestDateInBlueprint(itemId, allItems, blueprints) {
+function earliestDateInBlueprint(itemId, allItems, blueprints, meta) {
   const bp = blueprints.find((b) => blueprintContainsItem(b, itemId));
   if (!bp) return null;
   const ids = bp.noteIds?.length ? bp.noteIds : bp.nodeIds || [];
   const dates = ids
     .map((id) => allItems.find((n) => n.id === id || n.noteId === id))
-    .filter((n) => n && n.dataType === "date")
-    .map((n) => parseDate(n.content))
+    .map((n) => resolveNodeAnchorDate(n, meta) || (n?.dataType === "date" ? parseDate(n.content) : null))
     .filter(Boolean);
   if (dates.length === 0) return null;
   return dates.reduce((a, b) => (a < b ? a : b));
@@ -52,7 +246,7 @@ function countdownLabel(today, date) {
   return "TODAY";
 }
 
-export function computeMetricValue(metricNode, allNodes, allConnections, today) {
+export function computeMetricValue(metricNode, allNodes, allConnections, today, meta = {}) {
   const content = metricNode.content || {};
   if (content.value != null && content.kind !== "bridge") {
     return { value: content.value, unit: content.unit || "" };
@@ -62,41 +256,49 @@ export function computeMetricValue(metricNode, allNodes, allConnections, today) 
     const outgoing = allConnections.filter((c) => c.from === metricNode.id);
     const linked = [...incoming.map((c) => c.from), ...outgoing.map((c) => c.to)]
       .map((id) => allNodes.find((n) => n.id === id))
-      .filter((n) => n && n.dataType === "date");
-    if (linked.length >= 2) {
-      const da = parseDate(linked[0].content);
-      const db = parseDate(linked[1].content);
-      if (da && db) {
-        const diff = Math.abs(daysBetween(da, db));
-        return { value: diff, unit: content.unit || "days", bridged: true };
-      }
+      .filter(Boolean);
+    const linkedDates = linked
+      .map((n) => resolveNodeAnchorDate(n, meta) || (n.dataType === "date" ? parseDate(n.content) : null))
+      .filter(Boolean);
+    if (linkedDates.length >= 2) {
+      const diff = Math.abs(daysBetween(linkedDates[0], linkedDates[1]));
+      return { value: diff, unit: content.unit || "days", bridged: true };
     }
-    if (linked.length === 1) {
-      const da = parseDate(linked[0].content);
-      if (da) {
-        const diff = daysBetween(today, da);
-        const sign = diff > 0 ? "T−" : diff < 0 ? "T+" : "T";
-        return { value: `${sign}${Math.abs(diff)}`, unit: content.unit || "d", bridged: true };
-      }
+    if (linkedDates.length === 1) {
+      const da = linkedDates[0];
+      const diff = daysBetween(today, da);
+      const sign = diff > 0 ? "T−" : diff < 0 ? "T+" : "T";
+      return { value: `${sign}${Math.abs(diff)}`, unit: content.unit || "d", bridged: true };
     }
     return { value: "—", unit: content.unit || "", bridged: true };
   }
   return { value: String(content), unit: "" };
 }
 
-export function computeEdgeTemporalLabel(fromNode, toNode, today, allNodes, allConnections, blueprints = []) {
+export function computeEdgeTemporalLabel(
+  fromNode,
+  toNode,
+  today,
+  allNodes,
+  allConnections,
+  blueprints = [],
+  meta = {},
+) {
   if (!fromNode || !toNode) return null;
 
-  const fromDate = fromNode.dataType === "date" ? parseDate(fromNode.content) : null;
-  const toDate = toNode.dataType === "date" ? parseDate(toNode.content) : null;
+  const fromDate = resolveNodeAnchorDate(fromNode, meta)
+    || (fromNode.dataType === "date" ? parseDate(fromNode.content) : null);
+  const toDate = resolveNodeAnchorDate(toNode, meta)
+    || (toNode.dataType === "date" ? parseDate(toNode.content) : null);
 
   if (fromDate && toDate) {
+    if (sameCalendarDay(fromDate, toDate)) return "same day";
     return `${Math.abs(daysBetween(fromDate, toDate))}d`;
   }
 
   if (toDate) {
-    const first = earliestDateInBlueprint(toNode.id, allNodes, blueprints);
-    if (first && toDate.getTime() === first.getTime()) {
+    const first = earliestDateInBlueprint(toNode.id, allNodes, blueprints, meta);
+    if (first && sameCalendarDay(toDate, first)) {
       return countdownLabel(today, toDate);
     }
     return countdownLabel(today, toDate);
@@ -110,7 +312,8 @@ export function computeEdgeTemporalLabel(fromNode, toNode, today, allNodes, allC
       );
       const otherDates = existing
         .map((c) => allNodes.find((n) => n.id === (c.from === toNode.id ? c.to : c.from)))
-        .filter((n) => n && n.dataType === "date");
+        .map((n) => resolveNodeAnchorDate(n, meta) || (n?.dataType === "date" ? parseDate(n.content) : null))
+        .filter(Boolean);
       if (otherDates.length === 0) {
         return countdownLabel(today, fromDate);
       }
@@ -121,15 +324,15 @@ export function computeEdgeTemporalLabel(fromNode, toNode, today, allNodes, allC
     const incoming = allConnections.filter((c) => c.to === toNode.id);
     const linkedDates = [...incoming.map((c) => c.from), fromNode.id]
       .map((id) => allNodes.find((n) => n.id === id))
-      .filter((n) => n && n.dataType === "date");
+      .map((n) => resolveNodeAnchorDate(n, meta) || (n?.dataType === "date" ? parseDate(n.content) : null))
+      .filter(Boolean);
     if (linkedDates.length === 1) {
-      const d = parseDate(linkedDates[0].content);
-      if (d) return countdownLabel(today, d);
+      return countdownLabel(today, linkedDates[0]);
     }
   }
 
-  if (fromNode.dataType !== "date" && toDate) {
-    return countdownLabel(today, toDate);
+  if (fromDate) {
+    return countdownLabel(today, fromDate);
   }
 
   return null;
@@ -151,7 +354,6 @@ export function timelineNodeLeftPct(node, ctx) {
   const {
     start,
     end,
-    today,
     todayPct,
     winStart,
     winEnd,
@@ -159,17 +361,21 @@ export function timelineNodeLeftPct(node, ctx) {
     maxD,
     allNodes,
     connections,
+    anchors,
+    meta = {},
   } = ctx;
   const total = end - start || 1;
   const pct = (d) => ((d - start) / total) * 100;
 
+  const anchored = anchors?.get(node.id);
+  if (anchored) return pct(anchored);
+
+  const resolved = resolveNodeAnchorDate(node, meta);
+  if (resolved) return pct(resolved);
+
   if (node.dataType === "date") {
     const d = parseDate(node.content);
     return d ? pct(d) : todayPct;
-  }
-
-  if (node.dataType === "text") {
-    return todayPct;
   }
 
   if (node.dataType === "metric") {
@@ -179,12 +385,16 @@ export function timelineNodeLeftPct(node, ctx) {
       const out = connections.filter((c) => c.from === node.id).map((c) => c.to);
       const linkedDates = [...inc, ...out]
         .map((id) => allNodes.find((nd) => nd.id === id))
-        .filter((nd) => nd && nd.dataType === "date")
-        .map((nd) => parseDate(nd.content))
+        .map((nd) => {
+          if (!nd) return null;
+          return anchors?.get(nd.id) || resolveNodeAnchorDate(nd, meta)
+            || (nd.dataType === "date" ? parseDate(nd.content) : null);
+        })
         .filter(Boolean);
       if (linkedDates.length >= 2 && minD && maxD) {
         return (winStart + winEnd) / 2;
       }
+      if (linkedDates.length === 1) return pct(linkedDates[0]);
     }
     return todayPct;
   }

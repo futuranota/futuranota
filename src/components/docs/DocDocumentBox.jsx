@@ -5,13 +5,12 @@ import {
   DOC_PARENT_ICON,
   DOC_TIMER_ICON,
 } from "../../lib/docMediumAssets.js";
+import { createDocBlock, DOC_BLOCK_TYPES, normalizeDocBlocks } from "../../lib/docBlocks.js";
 import {
-  createDocBlock,
-  createTodoItem,
-  DOC_BLOCK_TYPES,
-  normalizeDocBlocks,
-} from "../../lib/docBlocks.js";
-import { parseSlashQuery, splitBodyForSlash } from "../../lib/docBlockSlash.js";
+  createDocBlockFromSlash,
+  parseSlashQuery,
+  splitBodyForSlash,
+} from "../../lib/docBlockSlash.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 
@@ -40,6 +39,7 @@ export function DocDocumentBox({
   onCloseExpand,
   onTitleKeyDown,
   onBodyKeyDown,
+  onOpenNodeForBlock,
   onOpenNodeForH1,
   onAnswerBelowH1Change,
 }) {
@@ -80,16 +80,7 @@ export function DocDocumentBox({
       nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix }));
     }
 
-    let newBlock;
-    if (parsed.type === DOC_BLOCK_TYPES.TODO) {
-      newBlock = createDocBlock(DOC_BLOCK_TYPES.TODO, {
-        items: [createTodoItem()],
-        listTitle: "To do:",
-      });
-    } else {
-      newBlock = createDocBlock(DOC_BLOCK_TYPES.H1, { title: "" });
-    }
-
+    const newBlock = createDocBlockFromSlash(parsed);
     nextBlocks.push(newBlock);
     onBlocksChange?.(nextBlocks);
     onBodyChange?.("");
@@ -188,6 +179,7 @@ export function DocDocumentBox({
               onFocusBlock={setFocusBlockId}
               bodyPlaceholder={bodyPlaceholder}
               onBodyKeyDown={onBodyKeyDown}
+              onOpenNodeForBlock={onOpenNodeForBlock || onOpenNodeForH1}
               onOpenNodeForH1={onOpenNodeForH1}
               onAnswerBelowH1Change={onAnswerBelowH1Change}
             />

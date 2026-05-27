@@ -90,19 +90,20 @@ export const useNodesStore = create(
         return id;
       },
 
-      createOrUpdateNodeFromH1: ({
+      createOrUpdateNodeFromDocBlock: ({
         nodeId,
         docId,
         blockId,
         query,
         content,
+        dataType = "text",
         docCreatedAt = null,
       }) => {
         const title = (query || "").trim() || "Untitled query";
         const payload = {
           title,
-          dataType: "text",
-          content: content ?? "",
+          dataType,
+          content: content ?? (dataType === "checkbox" ? false : dataType === "date" ? { date: "", time: "" } : dataType === "metric" ? { value: "", unit: "" } : ""),
           sourceBlockId: blockId,
           sourceQuery: query || title,
         };
@@ -116,13 +117,16 @@ export const useNodesStore = create(
         const inheritedCreatedAt =
           docCreatedAt || parentDoc?.createdAt || new Date().toISOString();
 
-        const id = get().addNode(title, "text", payload.content, docId, {
+        const id = get().addNode(title, dataType, payload.content, docId, {
           sourceBlockId: blockId,
           sourceQuery: payload.sourceQuery,
           createdAt: inheritedCreatedAt,
         });
         return id;
       },
+
+      createOrUpdateNodeFromH1: (args) =>
+        get().createOrUpdateNodeFromDocBlock({ ...args, dataType: "text" }),
 
       addNodeFromDoc: (title, dataType, content, parentDocId, sourceQuery, inject = true) => {
         const id = get().addNode(title, dataType, content, parentDocId);
@@ -154,47 +158,102 @@ export const useNodesStore = create(
         const normalized = normalizeDocBlocks(doc.blocks);
         const syncedTitle = (node.sourceQuery || node.title || "Untitled").trim() || "Untitled";
         const syncedText = buildSyncedNodeText(node);
-        const existingH1Index = node.sourceBlockId
-          ? normalized.findIndex((b) => b.id === node.sourceBlockId && b.type === DOC_BLOCK_TYPES.H1)
+        const sourceBlockIndex = node.sourceBlockId
+          ? normalized.findIndex((b) => b.id === node.sourceBlockId)
           : -1;
-        const existingTextIndex = node.sourceTextBlockId
-          ? normalized.findIndex((b) => b.id === node.sourceTextBlockId && b.type === DOC_BLOCK_TYPES.TEXT)
-          : -1;
+        const sourceBlock = sourceBlockIndex >= 0 ? normalized[sourceBlockIndex] : null;
 
         let nextBlocks;
         let sourceBlockId = node.sourceBlockId || null;
         let sourceTextBlockId = node.sourceTextBlockId || null;
 
-        if (existingH1Index >= 0) {
+        if (sourceBlock?.type === DOC_BLOCK_TYPES.DATE) {
+          const dateContent =
+            node.content && typeof node.content === "object"
+              ? node.content
+              : { date: String(node.content ?? ""), time: "" };
+          nextBlocks = normalized.map((block, i) =>
+            i === sourceBlockIndex
+              ? {
+                  ...block,
+                  title: syncedTitle,
+                  sourceQuery: syncedTitle,
+                  date: dateContent.date || "",
+                  time: dateContent.time || "",
+                  nodeId: node.id,
+                }
+              : block,
+          );
+        } else if (sourceBlock?.type === DOC_BLOCK_TYPES.METRIC) {
+          const metricContent =
+            node.content && typeof node.content === "object"
+              ? node.content
+              : { value: node.content ?? "", unit: "" };
+          nextBlocks = normalized.map((block, i) =>
+            i === sourceBlockIndex
+              ? {
+                  ...block,
+                  title: syncedTitle,
+                  sourceQuery: syncedTitle,
+                  value: metricContent.value ?? "",
+                  unit: metricContent.unit || "",
+                  nodeId: node.id,
+                }
+              : block,
+          );
+        } else if (sourceBlock?.type === DOC_BLOCK_TYPES.TODO) {
+          const checked = Boolean(node.content);
           nextBlocks = normalized.map((block, i) => {
-            if (i === existingH1Index) {
-              return { ...block, title: syncedTitle, sourceQuery: syncedTitle };
-            }
-            if (existingTextIndex >= 0 && i === existingTextIndex) {
-              return { ...block, text: syncedText };
-            }
-            return block;
+            if (i !== sourceBlockIndex) return block;
+            const items = (block.items || []).map((item, idx) =>
+              idx === 0 ? { ...item, checked } : item,
+            );
+            return {
+              ...block,
+              listTitle: syncedTitle,
+              sourceQuery: syncedTitle,
+              items: items.length ? items : block.items,
+              nodeId: node.id,
+            };
           });
-
-          if (existingTextIndex < 0) {
-            const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: syncedText });
-            sourceTextBlockId = textBlock.id;
-            nextBlocks = [
-              ...nextBlocks.slice(0, existingH1Index + 1),
-              textBlock,
-              ...nextBlocks.slice(existingH1Index + 1),
-            ];
-          }
         } else {
-          const h1Block = createDocBlock(DOC_BLOCK_TYPES.H1, {
-            title: syncedTitle,
-            sourceQuery: syncedTitle,
-            nodeId: node.id,
-          });
-          const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: syncedText });
-          sourceBlockId = h1Block.id;
-          sourceTextBlockId = textBlock.id;
-          nextBlocks = [...normalized, h1Block, textBlock];
+          const existingH1Index =
+            sourceBlock?.type === DOC_BLOCK_TYPES.H1 ? sourceBlockIndex : -1;
+          const existingTextIndex = node.sourceTextBlockId
+            ? normalized.findIndex((b) => b.id === node.sourceTextBlockId && b.type === DOC_BLOCK_TYPES.TEXT)
+            : -1;
+
+          if (existingH1Index >= 0) {
+            nextBlocks = normalized.map((block, i) => {
+              if (i === existingH1Index) {
+                return { ...block, title: syncedTitle, sourceQuery: syncedTitle, nodeId: node.id };
+              }
+              if (existingTextIndex >= 0 && i === existingTextIndex) {
+                return { ...block, text: syncedText };
+              }
+              return block;
+            });
+
+            if (existingTextIndex < 0) {
+              const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: syncedText });
+              sourceTextBlockId = textBlock.id;
+              nextBlocks = [
+                ...nextBlocks.slice(0, existingH1Index + 1),
+                textBlock,
+                ...nextBlocks.slice(existingH1Index + 1),
+              ];
+            }
+          } else {
+            const h1Block = createDocBlock(DOC_BLOCK_TYPES.H1, {
+              title: syncedTitle,
+              sourceQuery: syncedTitle,
+              nodeId: node.id,
+            });
+            const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: syncedText });
+            sourceBlockId = h1Block.id;
+            sourceTextBlockId = textBlock.id;
+            nextBlocks = [...normalized, h1Block, textBlock];
+          }
         }
 
         useDocsStore.getState().updateDoc(docId, { blocks: nextBlocks });
