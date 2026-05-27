@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
+import { useDocsStore } from "./docsStore.js";
 
 export const useObjectsStore = create(
   devtools(
@@ -97,7 +98,13 @@ export const useObjectsStore = create(
 
       removeDocFromObject: (objectId, docId) => get().removeChildDoc(objectId, docId),
 
-      deleteObjectWithCascade: (id) => get().deleteObject(id),
+      deleteObjectWithCascade: (id) => {
+        const docs = useDocsStore.getState().getDocsByObject(id);
+        for (const doc of docs) {
+          useDocsStore.getState().deleteDoc(doc.id);
+        }
+        get().deleteObject(id);
+      },
     }),
     { name: "ObjectsStore" },
   ),

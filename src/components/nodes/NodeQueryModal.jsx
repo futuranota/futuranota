@@ -7,27 +7,51 @@ import {
   NODE_SAVE_ARCHIVE_ICON,
   NODE_SEARCH_ICON,
 } from "../../lib/docMediumAssets.js";
+import { DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
+
+const DEFAULT_DATA_TYPES = ["text", "date", "metric", "checkbox"];
 
 /**
- * Node editor modal — Figma 296:627 (datos).
- * Breadcrumb = parent document name; main title = H1 query; textarea = answer below H1 on save.
+ * Node editor modal — Figma 296:627.
+ * Doc H1 flow: read-only query/parent/type. Standalone: editable query, type, optional parent doc.
  */
 export function NodeQueryModal({
   query,
+  onQueryChange,
   content,
   onContentChange,
+  dataType = "text",
+  onDataTypeChange,
+  dataTypes = DEFAULT_DATA_TYPES,
   createdDate,
+  onCreatedDateChange,
   parentDocLabel,
+  parentDocId = "",
+  onParentDocIdChange,
+  docs = [],
   onSave,
   onDelete,
   onClose,
 }) {
   const bodyRef = useRef(null);
-  const displayQuery = (query || "").trim() || "Untitled query";
+  const displayQuery = (query || "").trim() || "Untitled";
+  const queryEditable = Boolean(onQueryChange);
+  const typeEditable = Boolean(onDataTypeChange);
+  const parentSelectable = Boolean(onParentDocIdChange);
+  const dateEditable = Boolean(onCreatedDateChange);
+
+  const normalizedDateContent =
+    dataType === "date"
+      ? typeof content === "string"
+        ? { date: content, time: "" }
+        : content && typeof content === "object"
+          ? { date: content.date || "", time: content.time || "" }
+          : { date: "", time: "" }
+      : { date: "", time: "" };
 
   useEffect(() => {
     bodyRef.current?.focus();
-  }, []);
+  }, [dataType]);
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -55,27 +79,72 @@ export function NodeQueryModal({
         <header className="node-query-modal__head">
           <div className="node-query-modal__head-top">
             <img className="node-query-modal__node-icon" src={NODE_ICON} alt="" aria-hidden />
-            <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
+            {parentSelectable ? (
+              <select
+                className="node-query-modal__parent-select"
+                value={parentDocId || ""}
+                onChange={(e) => onParentDocIdChange(e.target.value || null)}
+                aria-label="Assign to document"
+              >
+                <option value="">node</option>
+                {docs.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.title}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
+            )}
             <button
               type="button"
               className="node-query-modal__close"
               onClick={onClose}
-              aria-label="Cerrar"
+              aria-label="Close"
             >
               <img src={DOC_EXPAND_ICON} alt="" aria-hidden />
             </button>
           </div>
 
-          <h2 id="node-query-modal-title" className="node-query-modal__query-title">
-            query: {displayQuery}
-          </h2>
+          {queryEditable ? (
+            <div className="node-query-modal__query-edit" id="node-query-modal-title">
+              <input
+                type="text"
+                className="node-query-modal__query-input"
+                value={query}
+                onChange={(e) => onQueryChange(e.target.value)}
+                placeholder="Untitled"
+                spellCheck={false}
+                aria-label="Query or title"
+              />
+            </div>
+          ) : (
+            <h2 id="node-query-modal-title" className="node-query-modal__query-title">
+              {displayQuery}
+            </h2>
+          )}
         </header>
 
         <div className="node-query-modal__meta">
           <div className="node-query-modal__row">
             <img className="node-query-modal__meta-icon" src={NODE_ICON} alt="" aria-hidden />
             <span className="node-query-modal__key">Type:</span>
-            <span className="node-query-modal__val">text</span>
+            {typeEditable ? (
+              <select
+                className="node-query-modal__type-select"
+                value={dataType}
+                onChange={(e) => onDataTypeChange(e.target.value)}
+                aria-label="Data type"
+              >
+                {dataTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {DATA_TYPE_LABELS[t] || t}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="node-query-modal__val">{DATA_TYPE_LABELS[dataType] || dataType}</span>
+            )}
           </div>
           <div className="node-query-modal__row">
             <img className="node-query-modal__meta-icon" src={DOC_TIMER_ICON} alt="" aria-hidden />
@@ -84,23 +153,44 @@ export function NodeQueryModal({
               type="date"
               className="node-query-modal__date"
               value={createdDate}
-              readOnly
-              tabIndex={-1}
-              aria-readonly="true"
+              readOnly={!dateEditable}
+              tabIndex={dateEditable ? 0 : -1}
+              aria-readonly={!dateEditable}
+              onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
             />
           </div>
         </div>
 
         <div className="node-query-modal__content-box">
-          <textarea
-            ref={bodyRef}
-            className="node-query-modal__body"
-            value={content}
-            placeholder="Type your text here"
-            onChange={(e) => onContentChange(e.target.value)}
-            spellCheck={false}
-            aria-label="Contenido del nodo"
-          />
+          {dataType === "date" ? (
+            <div className="node-query-modal__date-editor">
+              <input
+                ref={bodyRef}
+                type="date"
+                className="node-query-modal__date-input"
+                value={normalizedDateContent.date}
+                onChange={(e) => onContentChange({ ...normalizedDateContent, date: e.target.value })}
+                aria-label="Date"
+              />
+              <input
+                type="time"
+                className="node-query-modal__time-input"
+                value={normalizedDateContent.time}
+                onChange={(e) => onContentChange({ ...normalizedDateContent, time: e.target.value })}
+                aria-label="Time"
+              />
+            </div>
+          ) : (
+            <textarea
+              ref={bodyRef}
+              className="node-query-modal__body"
+              value={content}
+              placeholder="Type your text here"
+              onChange={(e) => onContentChange(e.target.value)}
+              spellCheck={false}
+              aria-label="Contenido del nodo"
+            />
+          )}
         </div>
 
         <footer className="node-query-modal__actions">
@@ -124,7 +214,7 @@ export function NodeQueryModal({
             className="node-query-modal__action node-query-modal__action--search"
             disabled
             aria-disabled="true"
-            title="Próximamente"
+            title="Coming soon"
           >
             Search
             <img src={NODE_SEARCH_ICON} alt="" aria-hidden />

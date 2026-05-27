@@ -13,10 +13,10 @@ export const DATA_TYPE_ICONS = {
 };
 
 export const DATA_TYPE_LABELS = {
-  text: "Texto",
-  date: "Fecha",
-  checkbox: "Casilla",
-  metric: "Métrica",
+  text: "Text",
+  date: "Date",
+  checkbox: "Checkbox",
+  metric: "Metric",
 };
 
 export const isCompatibleConnection = (fromType, toType) => {

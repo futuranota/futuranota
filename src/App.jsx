@@ -8,7 +8,7 @@ import { TopBar, MetaBar, ScanOverlay, Toast } from './dashboard.jsx';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakButton,
 } from './tweaks-panel.jsx';
-import { initStores, useObjectsStore } from './stores/index.js';
+import { initStores, useDocsStore, useObjectsStore } from './stores/index.js';
 import { LandingPage } from './pages/LandingPage.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
@@ -68,6 +68,7 @@ function Dashboard({ company, onBack }) {
   const [selection, setSelection]     = useState([]);
   const [blueprints, setBlueprints]   = useState([]);
   const [expandedDocId, setExpandedDocId] = useState(null);
+  const docs = useDocsStore((s) => s.docs);
 
   useEffect(() => { initStores(); }, []);
 
@@ -146,11 +147,37 @@ function Dashboard({ company, onBack }) {
     setToast({ message: `Object placed · "${object.name}"`, kind: "ok" });
   };
 
+  const insertDocToCanvas = (doc, worldX, worldY) => {
+    const { x, y } = nextCanvasPosition(
+      worldX != null ? worldX - 50 : undefined,
+      worldY != null ? worldY - 40 : undefined,
+    );
+    const newNode = {
+      id: shortId("CN"),
+      canvasKind: "document",
+      docId: doc.id,
+      noteId: doc.id,
+      title: (doc.title || "DOCUMENT").toUpperCase().slice(0, 20),
+      dataType: "document",
+      content: doc.body || doc.content || "",
+      x, y,
+    };
+    setCanvasNodes((all) => [...all, newNode]);
+    setToast({ message: `Document placed · "${doc.title}"`, kind: "ok" });
+  };
+
   const handleCanvasDrop = (payload, world) => {
-    if (payload?.kind !== "object" || !payload.objectId) return;
-    const object = useObjectsStore.getState().objects[payload.objectId];
-    if (!object) return;
-    insertObjectToCanvas(object, world.x, world.y);
+    if (payload?.kind === "object" && payload.objectId) {
+      const object = useObjectsStore.getState().objects[payload.objectId];
+      if (!object) return;
+      insertObjectToCanvas(object, world.x, world.y);
+      return;
+    }
+    if (payload?.kind === "document" && payload.docId) {
+      const doc = docs[payload.docId];
+      if (!doc) return;
+      insertDocToCanvas(doc, world.x, world.y);
+    }
   };
 
   /* ── DELETE CANVAS NODE ─ */
@@ -190,6 +217,9 @@ function Dashboard({ company, onBack }) {
           <LeftPanel
             onInsertToCanvas={insertNodeToCanvas}
             onOpenDocument={openDocumentOverlay}
+            onDocumentDeleted={(docId) => {
+              if (expandedDocId === docId) setExpandedDocId(null);
+            }}
           />
         </div>
 

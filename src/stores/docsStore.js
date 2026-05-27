@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 import { useObjectsStore } from "./objectsStore.js";
+import { useNodesStore } from "./nodesStore.js";
 import {
   docBlocksFromBody,
   docBlocksToBody,
@@ -199,7 +200,11 @@ export const useDocsStore = create(
       setSyncedWithCanvas: (id, synced) =>
         get().updateDoc(id, { syncedWithCanvas: synced }),
 
-      deleteDoc: (id) =>
+      deleteDoc: (id) => {
+        const linkedNodes = useNodesStore.getState().getNodesByDoc(id);
+        for (const node of linkedNodes) {
+          useNodesStore.getState().deleteNode(node.id);
+        }
         set((state) => {
           const doc = state.docs[id];
           if (doc?.parentObjectId) {
@@ -208,7 +213,8 @@ export const useDocsStore = create(
           const next = { ...state.docs };
           delete next[id];
           return { docs: next };
-        }),
+        });
+      },
     }),
     { name: "DocsStore" },
   ),

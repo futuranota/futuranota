@@ -37,6 +37,7 @@ const UNTITLED_DOC_LABEL = "Untitled document";
 export function DocExpandedView({ docId, onClose }) {
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
+  const deleteDoc = useDocsStore((s) => s.deleteDoc);
   const addNodeFromDoc = useNodesStore((s) => s.addNodeFromDoc);
   const getNode = useNodesStore((s) => s.getNode);
   const createOrUpdateNodeFromH1 = useNodesStore((s) => s.createOrUpdateNodeFromH1);
@@ -68,6 +69,19 @@ export function DocExpandedView({ docId, onClose }) {
   if (!doc) return null;
 
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
+
+  const handleDeleteDoc = () => {
+    const label = draftTitle.trim() || doc.title || "this document";
+    if (!window.confirm(`Delete "${label}" and its nodes? This cannot be undone.`)) {
+      return;
+    }
+    if (activeNodeContext) {
+      setActiveNodeContext(null);
+      setNodeDraftContent("");
+    }
+    deleteDoc(docId);
+    onClose();
+  };
 
   const handleSave = () => {
     const title = draftTitle.trim() || "New document";
@@ -196,7 +210,7 @@ export function DocExpandedView({ docId, onClose }) {
           onBlocksChange={setDraftBlocks}
           createdDate={draftCreatedDate}
           onCreatedDateChange={setDraftCreatedDate}
-          onDelete={onClose}
+          onDelete={handleDeleteDoc}
           onSave={handleSave}
           onCloseExpand={onClose}
           onOpenNodeForH1={handleOpenNodeForH1}

@@ -10,9 +10,14 @@ import { ObjectIcon } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
 import { docBlocksToBody } from "../../lib/docBlocks.js";
+import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
+}
+
+function startDocDrag(e, docId) {
+  setCanvasDragData(e.dataTransfer, { kind: "document", docId });
 }
 
 /* ── helpers ────────────────────────────────── */
@@ -47,6 +52,13 @@ function ObjectPickerList({ objects, activeObjectId, onSelect }) {
   if (!objects.length) return null;
   return (
     <div className="lp-object-picker">
+      <button
+        type="button"
+        className={"lp-object-picker-row" + (activeObjectId === "__ALL__" ? " active" : "")}
+        onClick={() => onSelect("__ALL__")}
+      >
+        <span className="lp-object-picker-name">all documents</span>
+      </button>
       {objects.map((obj) => (
         <button
           key={obj.id}
@@ -55,7 +67,7 @@ function ObjectPickerList({ objects, activeObjectId, onSelect }) {
           draggable
           onDragStart={(e) => startObjectDrag(e, obj.id)}
           onClick={() => onSelect(obj.id)}
-          title="Drag to canvas"
+          title="Filter by object"
         >
           <ObjectIcon variant="sm" />
           <span className="lp-object-picker-name">{obj.name}</span>
@@ -68,35 +80,59 @@ function ObjectPickerList({ objects, activeObjectId, onSelect }) {
 /* ─────────────────────────────────────────────
    Doc list card
 ───────────────────────────────────────────── */
-function DocListCard({ doc, objects, onClick, onExpand }) {
+function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
   const parent = doc.parentObjectId ? objects[doc.parentObjectId] : null;
   return (
-    <button type="button" className="lp-doc-card fn-card" onClick={onClick}>
-      <span className="lp-doc-icon">📄</span>
-      <div className="fn-card-body">
-        <b>{doc.title}</b>
-        <span className="fn-card-meta">
-          {parent ? `↳ ${parent.name}` : "sin padre"} · {(doc.nodeIds || []).length} nodos
+    <div className="lp-doc-card fn-card">
+      <button type="button" className="lp-doc-card-main" onClick={onClick}>
+        <span
+          className="lp-doc-drag-area"
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            startDocDrag(e, doc.id);
+          }}
+          title="Drag document to canvas"
+        >
+          ⋮⋮
         </span>
-      </div>
-      <span
-        className="lp-expand-btn"
+        <span className="lp-doc-icon">📄</span>
+        <div className="fn-card-body">
+          <b>{doc.title}</b>
+          <span className="fn-card-meta">
+            {parent ? `↳ ${parent.name}` : "sin padre"} · {(doc.nodeIds || []).length} nodos
+          </span>
+        </div>
+        <span
+          className="lp-expand-btn"
+          onClick={(e) => {
+            e.stopPropagation();
+            onExpand?.();
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              onExpand?.();
+            }
+          }}
+        >
+          ↗
+        </span>
+      </button>
+      <button
+        type="button"
+        className="btn xs ghost danger-text lp-doc-card-delete"
         onClick={(e) => {
           e.stopPropagation();
-          onExpand?.();
-        }}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onExpand?.();
-          }
+          onDelete?.();
         }}
       >
-        ↗
-      </span>
-    </button>
+        delete
+      </button>
+    </div>
   );
 }
 
@@ -129,64 +165,6 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
       <div className="lp-node-card-foot">
         <button type="button" className="btn xs ghost danger-text" onClick={onDelete}>delete</button>
         <button type="button" className="btn xs solid" onClick={onInsert}>Insert node</button>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Node detail / expanded view
-───────────────────────────────────────────── */
-function NodeDetailView({ node, docs, onClose, onInsert, onDelete }) {
-  const updateNode = useNodesStore(s => s.updateNode);
-  const [content, setContent] = useState(
-    typeof node.content === "string" ? node.content : JSON.stringify(node.content ?? ""),
-  );
-  const parentDoc = node.parentDocId ? docs[node.parentDocId] : null;
-  const displayTitle = getNodeDisplayTitle(node);
-
-  const handleSave = () => {
-    updateNode(node.id, { content });
-  };
-
-  return (
-    <div className="lp-node-detail">
-      <div className="lp-node-detail-head">
-        <div className="lp-node-detail-breadcrumb">
-          <span className="lp-node-type-icon">{DATA_TYPE_ICONS[node.dataType] || "◯"}</span>
-          <span className="lp-node-parent">{parentDoc ? parentDoc.title : "sin padre"}</span>
-        </div>
-        <button type="button" className="btn xs ghost" onClick={onClose}>✕</button>
-      </div>
-
-      <h3 className="lp-node-detail-title">{displayTitle}</h3>
-
-      <div className="lp-node-detail-type">
-        <span className="lp-type-label">TYPE :</span>
-        <span className="lp-type-badge">{node.dataType || "text"}</span>
-      </div>
-
-      <div className="lp-node-detail-body">
-        {node.dataType === "date" ? (
-          <input
-            type="date" className="note-form-field"
-            value={content}
-            onChange={e => setContent(e.target.value)}
-          />
-        ) : (
-          <textarea
-            className="note-form-field lp-node-textarea"
-            value={content}
-            rows={6}
-            onChange={e => setContent(e.target.value)}
-          />
-        )}
-      </div>
-
-      <div className="lp-node-detail-foot">
-        <span className="lp-tokens-hint">tokens</span>
-        <button type="button" className="btn xs ghost" onClick={handleSave}>Save</button>
-        <button type="button" className="btn xs ghost">Search 🔍</button>
       </div>
     </div>
   );
@@ -329,88 +307,6 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
 }
 
 /* ─────────────────────────────────────────────
-   MODAL: Create Node  (inline TYPE selector)
-───────────────────────────────────────────── */
-function NodeCreateModal({ docs, defaultParentDocId = "", onSubmit, onCancel }) {
-  const [title, setTitle] = useState("");
-  const [dataType, setDataType] = useState("text");
-  const [content, setContent] = useState("");
-  const [parentDocId, setParentDocId] = useState(defaultParentDocId);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    setParentDocId(defaultParentDocId);
-  }, [defaultParentDocId]);
-
-  useEffect(() => { ref.current?.focus(); }, []);
-
-  const handleSave = () => {
-    if (!title.trim()) return;
-    let payload = content;
-    if (dataType === "metric") {
-      const n = Number(content);
-      payload = { value: Number.isNaN(n) ? content : n, unit: "" };
-    }
-    onSubmit({ title: title.trim(), dataType, content: payload, parentDocId: parentDocId || null });
-  };
-
-  return (
-    <div className="lp-overlay" onClick={onCancel}>
-      <div className="lp-modal node-create-modal" onClick={e => e.stopPropagation()}>
-        <button type="button" className="lp-modal-close btn xs ghost" onClick={onCancel}>✕</button>
-        <input
-          ref={ref}
-          className="note-form-field node-create-title"
-          placeholder="Title (e.g. Campaign, Note, Aim…)"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-        />
-        <div className="node-create-type-row">
-          <span className="label">TYPE</span>
-          {["text", "date", "metric"].map(t => (
-            <button
-              key={t}
-              type="button"
-              className={"node-type-btn" + (dataType === t ? " active" : "")}
-              onClick={() => setDataType(t)}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-        {docs.length > 0 && (
-          <select
-            className="note-form-field node-create-parent"
-            value={parentDocId}
-            onChange={e => setParentDocId(e.target.value)}
-          >
-            <option value="">— sin doc padre —</option>
-            {docs.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
-          </select>
-        )}
-        {dataType === "date" ? (
-          <input type="date" className="note-form-field" value={content} onChange={e => setContent(e.target.value)} />
-        ) : (
-          <textarea
-            className="note-form-field"
-            value={content}
-            rows={3}
-            placeholder="Content…"
-            onChange={e => setContent(e.target.value)}
-          />
-        )}
-        <div className="node-create-actions">
-          <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
-          <button type="button" className="btn primary" onClick={handleSave}>
-            Save · Free
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
    Dropdown  (shared)
 ───────────────────────────────────────────── */
 function Dropdown({ label, open, onToggle, children, secondary }) {
@@ -441,12 +337,14 @@ function Dropdown({ label, open, onToggle, children, secondary }) {
 /* ─────────────────────────────────────────────
    LEFT PANEL  (main export)
 ───────────────────────────────────────────── */
-export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
+export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted }) {
   const [panelType, setPanelType]   = useState("Objects");
   const [activeId, setActiveId]     = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [typeOpen, setTypeOpen]     = useState(false);
   const [optOpen, setOptOpen]       = useState(false);
+  const [nodeEditId, setNodeEditId] = useState(null);
+  const [nodeSearch, setNodeSearch] = useState("");
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const filterDocId = useUIStateStore((s) => s.filterDocId);
@@ -458,7 +356,9 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
   const addObject  = useObjectsStore(s => s.addObject);
   const docs       = useDocsStore(s => s.docs);
   const addDoc     = useDocsStore(s => s.addDoc);
+  const deleteDoc  = useDocsStore(s => s.deleteDoc);
   const getDocsByObject = useDocsStore(s => s.getDocsByObject);
+  const deleteObjectWithCascade = useObjectsStore(s => s.deleteObjectWithCascade);
   const nodes      = useNodesStore(s => s.nodes);
   const addNode    = useNodesStore(s => s.addNode);
   const getNodesByDoc = useNodesStore(s => s.getNodesByDoc);
@@ -468,12 +368,18 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
   const docList  = Object.values(docs);
   const nodeList = Object.values(nodes);
 
-  const filteredDocList = filterObjectId
-    ? getDocsByObject(filterObjectId)
-    : [];
-  const filteredNodeList = filterDocId
-    ? getNodesByDoc(filterDocId)
-    : [];
+  const filteredDocList =
+    !filterObjectId || filterObjectId === "__ALL__"
+      ? docList
+      : getDocsByObject(filterObjectId);
+  const filteredNodeList = (filterDocId ? getNodesByDoc(filterDocId) : nodeList).filter((node) => {
+    const q = nodeSearch.trim().toLowerCase();
+    if (!q) return true;
+    const title = (node.sourceQuery || node.title || "").toLowerCase();
+    const content =
+      typeof node.content === "string" ? node.content.toLowerCase() : JSON.stringify(node.content || "").toLowerCase();
+    return title.includes(q) || content.includes(q);
+  });
 
   const filterObject = filterObjectId ? objects[filterObjectId] : null;
   const filterDoc = filterDocId ? docs[filterDocId] : null;
@@ -505,6 +411,31 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
     setOptOpen(false);
   };
 
+  const handleDeleteDoc = (doc) => {
+    const label = doc.title || "this document";
+    if (!window.confirm(`Delete "${label}" and its nodes? This cannot be undone.`)) {
+      return;
+    }
+    deleteDoc(doc.id);
+    if (activeId === doc.id) setActiveId(null);
+    if (filterDocId === doc.id) setFilterDocId(null);
+    onDocumentDeleted?.(doc.id);
+  };
+
+  const handleDeleteObject = (objectId) => {
+    const obj = objects[objectId];
+    if (!obj) return;
+    const docCount = getDocsByObject(objectId).length;
+    const msg =
+      docCount > 0
+        ? `Delete object "${obj.name}" and its ${docCount} document(s)? This cannot be undone.`
+        : `Delete object "${obj.name}"? This cannot be undone.`;
+    if (!window.confirm(msg)) return;
+    deleteObjectWithCascade(objectId);
+    if (activeId === objectId) setActiveId(null);
+    if (filterObjectId === objectId) setFilterObjectId(null);
+  };
+
   const handleCreate = (data) => {
     if (panelType === "Objects") {
       addObject(data.name, data.description, data.color);
@@ -520,9 +451,6 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
         data.blocks ?? null,
       );
       setActiveId(null);
-    } else {
-      const parentDoc = data.parentDocId || filterDocId || null;
-      addNode(data.title, data.dataType, data.content, parentDoc);
     }
     setShowCreate(false);
   };
@@ -532,13 +460,15 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
       ? activeItem
         ? getLabel(activeItem).slice(0, 18)
         : "Select option"
-      : panelType === "Documents"
+        : panelType === "Documents"
         ? activeItem
           ? activeItem.title.slice(0, 18)
-          : "Select document"
+          : filterObjectId === "__ALL__" || !filterObjectId
+            ? "all documents"
+            : filterObject?.name || "Select document"
         : filterDoc
           ? filterDoc.title.slice(0, 18)
-          : "Select document";
+          : "all nodes";
 
   return (
     <div className="left-panel">
@@ -643,6 +573,19 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
               <span className="lp-item-icon">✏</span>
               Create new node
             </button>
+            <button
+              type="button"
+              className={"lp-dropdown-item" + (!filterDocId ? " checked" : "")}
+              onClick={() => {
+                setFilterDocId(null);
+                setActiveId(null);
+                setOptOpen(false);
+              }}
+            >
+              <span className="lp-item-icon">◯</span>
+              <span className="lp-item-label">all nodes</span>
+              {!filterDocId && <span className="lp-check">✓</span>}
+            </button>
             {docList.map((doc) => (
               <button
                 key={doc.id}
@@ -668,26 +611,37 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
 
         {/* OBJECTS */}
         {panelType === "Objects" && (
-          <div className="lp-objects-grid">
-            {objList.map(obj => (
-              <ObjectThumb
-                key={obj.id}
-                object={obj}
-                active={obj.id === activeId}
-                onClick={(e) => {
-                  if (e.detail > 1) return;
-                  setActiveId(obj.id === activeId ? null : obj.id);
-                }}
-                onDoubleClick={() => openDocumentsForObject(obj.id)}
-              />
-            ))}
-            {objList.length === 0 && (
-              <div className="lp-empty">
-                <p>No objects yet</p>
-                <p className="dim">Create your first model</p>
-              </div>
+          <>
+            <div className="lp-objects-grid">
+              {objList.map(obj => (
+                <ObjectThumb
+                  key={obj.id}
+                  object={obj}
+                  active={obj.id === activeId}
+                  onClick={(e) => {
+                    if (e.detail > 1) return;
+                    setActiveId(obj.id === activeId ? null : obj.id);
+                  }}
+                  onDoubleClick={() => openDocumentsForObject(obj.id)}
+                />
+              ))}
+              {objList.length === 0 && (
+                <div className="lp-empty">
+                  <p>No objects yet</p>
+                  <p className="dim">Create your first model</p>
+                </div>
+              )}
+            </div>
+            {activeId && objects[activeId] && (
+              <button
+                type="button"
+                className="btn xs ghost danger-text lp-object-delete"
+                onClick={() => handleDeleteObject(activeId)}
+              >
+                delete object
+              </button>
             )}
-          </div>
+          </>
         )}
 
         {/* DOCUMENTS — filters + list */}
@@ -702,19 +656,13 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
             </button>
             <ObjectPickerList
               objects={objList}
-              activeObjectId={filterObjectId}
+              activeObjectId={filterObjectId || "__ALL__"}
               onSelect={(id) => {
-                setFilterObjectId(id);
+                setFilterObjectId(id === "__ALL__" ? null : id);
                 setActiveId(null);
               }}
             />
-            {!filterObjectId && (
-              <div className="lp-empty">
-                <p>Select an object</p>
-                <p className="dim">Or double-click an object to open its documents</p>
-              </div>
-            )}
-            {filterObjectId && filteredDocList.map((doc) => (
+            {filteredDocList.map((doc) => (
               <DocListCard
                 key={doc.id}
                 doc={doc}
@@ -724,11 +672,12 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
                   onOpenDocument?.(doc.id);
                 }}
                 onExpand={() => onOpenDocument?.(doc.id)}
+                onDelete={() => handleDeleteDoc(doc)}
               />
             ))}
-            {filterObjectId && filteredDocList.length === 0 && (
+            {filteredDocList.length === 0 && (
               <div className="lp-empty">
-                <p>No documents for {filterObject?.name}</p>
+                <p>{filterObjectId ? `No documents for ${filterObject?.name}` : "No documents yet"}</p>
                 <p className="dim">Create one with Parent pre-selected</p>
               </div>
             )}
@@ -736,45 +685,42 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
         )}
 
         {/* NODES — list */}
-        {panelType === "Nodes" && !activeItem && (
+        {panelType === "Nodes" && !nodeEditId && (
           <>
-            {filterDoc && (
+            <input
+              type="text"
+              className="note-form-field"
+              placeholder="Search nodes"
+              value={nodeSearch}
+              onChange={(e) => setNodeSearch(e.target.value)}
+            />
+            {filterDoc ? (
               <p className="lp-context-label">{filterDoc.title}</p>
+            ) : (
+              <p className="lp-context-label dim">all nodes</p>
             )}
-            {!filterDocId && (
-              <div className="lp-empty">
-                <p>Select a document</p>
-                <p className="dim">Use the menu above — Create new node or pick a document</p>
-              </div>
-            )}
-            {filterDocId && filteredNodeList.map((node) => (
+            {filteredNodeList.map((node) => (
               <NodeListCard
                 key={node.id}
                 node={node}
                 docs={docs}
-                onClick={() => setActiveId(node.id)}
+                onClick={() => {
+                  setActiveId(node.id);
+                  setNodeEditId(node.id);
+                }}
                 onInsert={() => onInsertToCanvas?.(node)}
                 onDelete={() => deleteNode(node.id)}
               />
             ))}
-            {filterDocId && filteredNodeList.length === 0 && (
+            {filteredNodeList.length === 0 && (
               <div className="lp-empty">
-                <p>No nodes in this document</p>
-                <p className="dim">Create a node or use # in the doc editor</p>
+                <p>{filterDocId ? "No nodes in this document" : "No nodes yet"}</p>
+                <p className="dim">Create new node above</p>
               </div>
             )}
           </>
         )}
 
-        {/* NODES — detail */}
-        {panelType === "Nodes" && activeItem && (
-          <NodeDetailView
-            node={activeItem} docs={docs}
-            onClose={() => setActiveId(null)}
-            onInsert={() => onInsertToCanvas?.(activeItem)}
-            onDelete={() => { deleteNode(activeItem.id); setActiveId(null); }}
-          />
-        )}
       </div>
 
       {/* ── Footer: tokens ── */}
@@ -809,13 +755,32 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
         />,
         document.body,
       )}
-      {showCreate && panelType === "Nodes" && (
-        <NodeCreateModal
+      {showCreate && panelType === "Nodes" && typeof document !== "undefined" && createPortal(
+        <StandaloneNodeModal
           docs={docList}
           defaultParentDocId={filterDocId || ""}
-          onSubmit={handleCreate}
-          onCancel={() => setShowCreate(false)}
-        />
+          onClose={() => setShowCreate(false)}
+          onSaved={() => setShowCreate(false)}
+        />,
+        document.body,
+      )}
+      {nodeEditId && nodes[nodeEditId] && panelType === "Nodes" && typeof document !== "undefined" && createPortal(
+        <StandaloneNodeModal
+          node={nodes[nodeEditId]}
+          docs={docList}
+          defaultParentDocId={filterDocId || ""}
+          onClose={() => {
+            setNodeEditId(null);
+            setActiveId(null);
+          }}
+          onSaved={() => {}}
+          onDeleted={(id) => {
+            deleteNode(id);
+            setNodeEditId(null);
+            setActiveId(null);
+          }}
+        />,
+        document.body,
       )}
     </div>
   );
