@@ -1145,6 +1145,66 @@
   color: rgba(255, 255, 255, 0.16);
 }
 
+.doc-date-block__fields,
+.doc-metric-block__fields {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  padding-left: 36px;
+}
+
+.doc-date-block__date,
+.doc-date-block__time,
+.doc-metric-block__value,
+.doc-metric-block__unit {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 14px;
+  padding: 6px 8px;
+  outline: none;
+}
+
+.doc-metric-block__unit {
+  flex: 0 1 120px;
+}
+
+.node-query-modal__metric-editor {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.node-query-modal__metric-value,
+.node-query-modal__metric-unit {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 14px;
+  outline: none;
+}
+
+.node-query-modal__metric-unit {
+  flex: 0 1 100px;
+}
+
+.node-query-modal__checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 14px;
+  cursor: pointer;
+}
+
 .doc-block-stack {
   display: flex;
   flex-direction: column;

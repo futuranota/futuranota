@@ -4,7 +4,11 @@ const DOC_BLOCK_TYPES = {
   TEXT: "text",
   H1: "h1",
   TODO: "todo",
+  DATE: "date",
+  METRIC: "metric",
 };
+
+const DEFAULT_CHECKBOX_LIST_TITLE = "Checkbox:";
 
 export function createTodoItem(patch = {}) {
   return {
@@ -13,6 +17,26 @@ export function createTodoItem(patch = {}) {
     checked: false,
     ...patch,
   };
+}
+
+function normalizeDateContent(block) {
+  if (block.date != null || block.time != null) {
+    return { date: block.date || "", time: block.time || "" };
+  }
+  if (block.content && typeof block.content === "object") {
+    return { date: block.content.date || "", time: block.content.time || "" };
+  }
+  return { date: "", time: "" };
+}
+
+function normalizeMetricContent(block) {
+  if (block.value != null || block.unit != null) {
+    return { value: block.value ?? "", unit: block.unit || "" };
+  }
+  if (block.content && typeof block.content === "object") {
+    return { value: block.content.value ?? "", unit: block.content.unit || "" };
+  }
+  return { value: "", unit: "" };
 }
 
 export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
@@ -28,10 +52,36 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     return {
       ...base,
       type: DOC_BLOCK_TYPES.TODO,
-      listTitle: patch.listTitle ?? "To do:",
+      listTitle: patch.listTitle ?? DEFAULT_CHECKBOX_LIST_TITLE,
       items,
       showIntroAnim: false,
       ...patch,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.DATE) {
+    const { date, time } = normalizeDateContent(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.DATE,
+      title: patch.title || "",
+      date,
+      time,
+      nodeId: patch.nodeId,
+      sourceQuery: patch.sourceQuery,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.METRIC) {
+    const { value, unit } = normalizeMetricContent(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.METRIC,
+      title: patch.title || "",
+      value,
+      unit,
+      nodeId: patch.nodeId,
+      sourceQuery: patch.sourceQuery,
     };
   }
 
@@ -66,9 +116,35 @@ export function normalizeDocBlock(block) {
         : [createTodoItem()];
     return createDocBlock(DOC_BLOCK_TYPES.TODO, {
       id: block.id,
-      listTitle: block.listTitle ?? "To do:",
+      listTitle: block.listTitle ?? DEFAULT_CHECKBOX_LIST_TITLE,
       items,
+      nodeId: block.nodeId || undefined,
+      sourceQuery: block.sourceQuery || undefined,
       showIntroAnim: false,
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.DATE) {
+    const { date, time } = normalizeDateContent(block);
+    return createDocBlock(DOC_BLOCK_TYPES.DATE, {
+      id: block.id,
+      title: block.title || "",
+      date,
+      time,
+      nodeId: block.nodeId || undefined,
+      sourceQuery: block.sourceQuery || undefined,
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.METRIC) {
+    const { value, unit } = normalizeMetricContent(block);
+    return createDocBlock(DOC_BLOCK_TYPES.METRIC, {
+      id: block.id,
+      title: block.title || "",
+      value,
+      unit,
+      nodeId: block.nodeId || undefined,
+      sourceQuery: block.sourceQuery || undefined,
     });
   }
 
@@ -89,7 +165,7 @@ function parseTodoSection(section) {
   if (todoLines.length === 0) return null;
 
   const headerLines = lines.filter((line) => !/^-\s*\[[ xX]\]/.test(line.trim()));
-  const listTitle = headerLines.join("\n").trim() || "To do:";
+  const listTitle = headerLines.join("\n").trim() || DEFAULT_CHECKBOX_LIST_TITLE;
   const items = todoLines.map((line) => {
     const checked = /^-\s*\[x\]/i.test(line.trim());
     const text = line.replace(/^-\s*\[[ xX]\]\s*/, "").trim();
@@ -97,6 +173,30 @@ function parseTodoSection(section) {
   });
 
   return createDocBlock(DOC_BLOCK_TYPES.TODO, { listTitle, items });
+}
+
+function parseDateSection(section) {
+  const lines = section.split("\n").map((l) => l.trim()).filter(Boolean);
+  const first = lines[0] || "";
+  const m = first.match(/^::date\s+(.+)$/i);
+  if (!m) return null;
+  const rest = lines.slice(1).join("\n").trim();
+  const title = rest || m[1].trim();
+  const datePart = m[1].trim().split(/\s+/)[0] || "";
+  return createDocBlock(DOC_BLOCK_TYPES.DATE, { title, date: datePart });
+}
+
+function parseMetricSection(section) {
+  const lines = section.split("\n").map((l) => l.trim()).filter(Boolean);
+  const first = lines[0] || "";
+  const m = first.match(/^::metric\s+(.+)$/i);
+  if (!m) return null;
+  const rest = lines.slice(1).join("\n").trim();
+  const title = rest || "";
+  const parts = m[1].trim().split(/\s+/);
+  const value = parts[0] || "";
+  const unit = parts.slice(1).join(" ") || "";
+  return createDocBlock(DOC_BLOCK_TYPES.METRIC, { title, value, unit });
 }
 
 export function docBlocksFromBody(body) {
@@ -119,6 +219,18 @@ export function docBlocksFromBody(body) {
       );
       const rest = section.split("\n").slice(1).join("\n").trim();
       if (rest) blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: rest }));
+      continue;
+    }
+
+    const dateBlock = parseDateSection(section);
+    if (dateBlock) {
+      blocks.push(dateBlock);
+      continue;
+    }
+
+    const metricBlock = parseMetricSection(section);
+    if (metricBlock) {
+      blocks.push(metricBlock);
       continue;
     }
 
@@ -152,6 +264,16 @@ export function docBlocksToBody(blocks) {
           })
           .join("\n");
         return header + lines;
+      }
+      if (block.type === DOC_BLOCK_TYPES.DATE) {
+        const dateLine = block.date ? `::date ${block.date}` : "::date";
+        return block.title ? `${dateLine}\n${block.title}` : dateLine;
+      }
+      if (block.type === DOC_BLOCK_TYPES.METRIC) {
+        const val = block.value != null && block.value !== "" ? String(block.value) : "";
+        const unit = block.unit ? ` ${block.unit}` : "";
+        const metricLine = val ? `::metric ${val}${unit}`.trim() : "::metric";
+        return block.title ? `${metricLine}\n${block.title}` : metricLine;
       }
       return block.text || "";
     })
@@ -207,7 +329,12 @@ export function getActiveContentBlock(blocks) {
   const normalized = normalizeDocBlocks(blocks);
   if (normalized.length === 0) return null;
   const block = normalized[0];
-  if (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO) {
+  if (
+    block.type === DOC_BLOCK_TYPES.H1
+    || block.type === DOC_BLOCK_TYPES.TODO
+    || block.type === DOC_BLOCK_TYPES.DATE
+    || block.type === DOC_BLOCK_TYPES.METRIC
+  ) {
     return block;
   }
   return null;

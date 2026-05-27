@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { DOC_SLASH_GHOST_HINTS } from "../../../lib/docBlockSlash.js";
 
 /**
- * Inline slash input with ghost hints (slash-instructions.png):
- * value === "/" → hint "H1", then after 2s hint "to-do".
+ * Inline slash input with ghost hints:
+ * value === "/" → cycles Title → Checkbox → date → metric.
  */
 export function SlashCommandPreview({
   value,
@@ -13,16 +14,18 @@ export function SlashCommandPreview({
   className = "",
 }) {
   const inputRef = useRef(null);
-  const [ghostHint, setGhostHint] = useState("H1");
+  const [hintIndex, setHintIndex] = useState(0);
 
   useEffect(() => {
     if (!enableGhostHints || value !== "/") {
-      setGhostHint("H1");
+      setHintIndex(0);
       return;
     }
-    setGhostHint("H1");
-    const timer = setTimeout(() => setGhostHint("to-do"), 2000);
-    return () => clearTimeout(timer);
+    setHintIndex(0);
+    const interval = setInterval(() => {
+      setHintIndex((i) => (i + 1) % DOC_SLASH_GHOST_HINTS.length);
+    }, 2000);
+    return () => clearInterval(interval);
   }, [value, enableGhostHints]);
 
   useEffect(() => {
@@ -30,6 +33,7 @@ export function SlashCommandPreview({
   }, [autoFocus]);
 
   const showGhost = enableGhostHints && value === "/";
+  const ghostHint = DOC_SLASH_GHOST_HINTS[hintIndex] ?? DOC_SLASH_GHOST_HINTS[0];
   const slashIndex = value.indexOf("/");
   const prefix = slashIndex >= 0 ? value.slice(0, slashIndex + 1) : value;
   const typedAfterSlash = slashIndex >= 0 ? value.slice(slashIndex + 1) : "";

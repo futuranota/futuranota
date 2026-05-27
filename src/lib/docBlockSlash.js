@@ -1,4 +1,35 @@
-import { DOC_BLOCK_TYPES } from "./docBlocks.js";
+import { createDocBlock, createTodoItem, DOC_BLOCK_TYPES } from "./docBlocks.js";
+import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
+
+export const DOC_SLASH_COMMANDS = [
+  {
+    label: "Title",
+    aliases: ["title", "h1"],
+    blockType: DOC_BLOCK_TYPES.H1,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
+    label: "Checkbox",
+    aliases: ["checkbox", "todo", "to-do"],
+    blockType: DOC_BLOCK_TYPES.TODO,
+    nodeDataType: NODE_DATA_TYPES.CHECKBOX,
+    defaultListTitle: "Checkbox:",
+  },
+  {
+    label: "date",
+    aliases: ["date"],
+    blockType: DOC_BLOCK_TYPES.DATE,
+    nodeDataType: NODE_DATA_TYPES.DATE,
+  },
+  {
+    label: "metric",
+    aliases: ["metric"],
+    blockType: DOC_BLOCK_TYPES.METRIC,
+    nodeDataType: NODE_DATA_TYPES.METRIC,
+  },
+];
+
+export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map((c) => c.label);
 
 export function getSlashTail(value) {
   const m = String(value ?? "").match(/(\/[^\n]*)$/);
@@ -22,13 +53,68 @@ export function parseSlashQuery(query) {
     .toLowerCase()
     .replace(/\s+/g, "");
 
-  if (normalized === "h1") {
-    return { type: DOC_BLOCK_TYPES.H1 };
+  const match = DOC_SLASH_COMMANDS.find((cmd) =>
+    cmd.aliases.some((alias) => alias.replace(/\s+/g, "") === normalized),
+  );
+
+  if (!match) return null;
+
+  return {
+    type: match.blockType,
+    nodeDataType: match.nodeDataType,
+    label: match.label,
+  };
+}
+
+/** Build a new doc block from a parsed slash command. */
+export function createDocBlockFromSlash(parsed) {
+  if (!parsed?.type) return createDocBlock();
+
+  if (parsed.type === DOC_BLOCK_TYPES.H1) {
+    return createDocBlock(DOC_BLOCK_TYPES.H1, { title: "" });
   }
 
-  if (normalized === "todo" || normalized === "to-do") {
-    return { type: DOC_BLOCK_TYPES.TODO };
+  if (parsed.type === DOC_BLOCK_TYPES.TODO) {
+    const cmd = DOC_SLASH_COMMANDS.find((c) => c.blockType === DOC_BLOCK_TYPES.TODO);
+    return createDocBlock(DOC_BLOCK_TYPES.TODO, {
+      items: [createTodoItem()],
+      listTitle: cmd?.defaultListTitle ?? "Checkbox:",
+    });
   }
 
-  return null;
+  if (parsed.type === DOC_BLOCK_TYPES.DATE) {
+    return createDocBlock(DOC_BLOCK_TYPES.DATE, {
+      title: "",
+      date: "",
+      time: "",
+    });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.METRIC) {
+    return createDocBlock(DOC_BLOCK_TYPES.METRIC, {
+      title: "",
+      value: "",
+      unit: "",
+    });
+  }
+
+  return createDocBlock();
+}
+
+export function isNodeLinkableBlockType(blockType) {
+  return [
+    DOC_BLOCK_TYPES.H1,
+    DOC_BLOCK_TYPES.TODO,
+    DOC_BLOCK_TYPES.DATE,
+    DOC_BLOCK_TYPES.METRIC,
+  ].includes(blockType);
+}
+
+export function nodeDataTypeForBlock(block) {
+  if (!block) return NODE_DATA_TYPES.TEXT;
+  if (block.type === DOC_BLOCK_TYPES.H1) return NODE_DATA_TYPES.TEXT;
+  if (block.type === DOC_BLOCK_TYPES.TODO) return NODE_DATA_TYPES.CHECKBOX;
+  if (block.type === DOC_BLOCK_TYPES.DATE) return NODE_DATA_TYPES.DATE;
+  if (block.type === DOC_BLOCK_TYPES.METRIC) return NODE_DATA_TYPES.METRIC;
+  return NODE_DATA_TYPES.TEXT;
 }

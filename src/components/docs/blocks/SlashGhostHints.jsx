@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
+import { DOC_SLASH_GHOST_HINTS } from "../../../lib/docBlockSlash.js";
 
 /** Ghost hints overlay when body is exactly "/" — does not affect textarea layout. */
 export function SlashGhostHints({ visible }) {
-  const [ghostHint, setGhostHint] = useState("H1");
+  const [hintIndex, setHintIndex] = useState(0);
 
   useEffect(() => {
     if (!visible) {
-      setGhostHint("H1");
+      setHintIndex(0);
       return;
     }
-    setGhostHint("H1");
-    const timer = setTimeout(() => setGhostHint("to-do"), 2000);
-    return () => clearTimeout(timer);
+    setHintIndex(0);
+    const interval = setInterval(() => {
+      setHintIndex((i) => (i + 1) % DOC_SLASH_GHOST_HINTS.length);
+    }, 2000);
+    return () => clearInterval(interval);
   }, [visible]);
 
   if (!visible) return null;
+
+  const ghostHint = DOC_SLASH_GHOST_HINTS[hintIndex] ?? DOC_SLASH_GHOST_HINTS[0];
 
   return (
     <div className="doc-slash-ghost-hints" aria-hidden>

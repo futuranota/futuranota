@@ -49,6 +49,21 @@ export function NodeQueryModal({
           : { date: "", time: "" }
       : { date: "", time: "" };
 
+  const normalizedMetricContent =
+    dataType === "metric"
+      ? content && typeof content === "object"
+        ? {
+            value: content.value != null && content.value !== "" ? String(content.value) : "",
+            unit: content.unit || "",
+          }
+        : { value: content != null && content !== "" ? String(content) : "", unit: "" }
+      : { value: "", unit: "" };
+
+  const checkboxChecked =
+    dataType === "checkbox"
+      ? content === true || String(content).toLowerCase() === "true"
+      : false;
+
   useEffect(() => {
     bodyRef.current?.focus();
   }, [dataType]);
@@ -180,11 +195,45 @@ export function NodeQueryModal({
                 aria-label="Time"
               />
             </div>
+          ) : dataType === "metric" ? (
+            <div className="node-query-modal__metric-editor">
+              <input
+                ref={bodyRef}
+                type="number"
+                className="node-query-modal__metric-value"
+                value={normalizedMetricContent.value}
+                onChange={(e) =>
+                  onContentChange({ ...normalizedMetricContent, value: e.target.value })
+                }
+                aria-label="Metric value"
+              />
+              <input
+                type="text"
+                className="node-query-modal__metric-unit"
+                value={normalizedMetricContent.unit}
+                placeholder="unit"
+                onChange={(e) =>
+                  onContentChange({ ...normalizedMetricContent, unit: e.target.value })
+                }
+                aria-label="Metric unit"
+              />
+            </div>
+          ) : dataType === "checkbox" ? (
+            <label className="node-query-modal__checkbox-row">
+              <input
+                ref={bodyRef}
+                type="checkbox"
+                checked={checkboxChecked}
+                onChange={(e) => onContentChange(e.target.checked)}
+                aria-label="Checkbox value"
+              />
+              <span>Checked</span>
+            </label>
           ) : (
             <textarea
               ref={bodyRef}
               className="node-query-modal__body"
-              value={content}
+              value={typeof content === "string" ? content : ""}
               placeholder="Type your text here"
               onChange={(e) => onContentChange(e.target.value)}
               spellCheck={false}

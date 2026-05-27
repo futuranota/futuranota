@@ -13,10 +13,16 @@ import {
   updateBlockAt,
   DOC_BLOCK_TYPES,
 } from "../../lib/docBlocks.js";
+import { nodeDataTypeForBlock } from "../../lib/docBlockSlash.js";
+import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
+  blockDataType,
   getAnswerBelowH1,
+  getBlockQueryText,
+  getContentForNodeBlock,
   resolveNodeDraftFromDoc,
   setAnswerBelowH1,
+  setContentForNodeBlock,
 } from "../../lib/docNodeSync.js";
 
 function NodeFromSelectionModal({ query, onClose, onSave }) {
@@ -40,7 +46,7 @@ export function DocExpandedView({ docId, onClose }) {
   const deleteDoc = useDocsStore((s) => s.deleteDoc);
   const addNodeFromDoc = useNodesStore((s) => s.addNodeFromDoc);
   const getNode = useNodesStore((s) => s.getNode);
-  const createOrUpdateNodeFromH1 = useNodesStore((s) => s.createOrUpdateNodeFromH1);
+  const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
   const updateNode = useNodesStore((s) => s.updateNode);
   const deleteNode = useNodesStore((s) => s.deleteNode);
 
@@ -104,20 +110,22 @@ export function DocExpandedView({ docId, onClose }) {
     setSelectionModal({ query: text });
   };
 
-  const syncLinkedNodeFromDoc = (h1Index, text, blocks) => {
-    const h1Block = blocks[h1Index];
-    if (!h1Block || h1Block.type !== DOC_BLOCK_TYPES.H1 || !h1Block.nodeId) return;
-    const queryText = (h1Block.title || h1Block.sourceQuery || "").trim() || "Untitled query";
-    updateNode(h1Block.nodeId, {
-      content: text,
+  const syncLinkedNodeFromDoc = (blockIndex, content, blocks) => {
+    const block = blocks[blockIndex];
+    if (!block?.nodeId) return;
+    const dataType = blockDataType(block);
+    const queryText = getBlockQueryText(block) || "Untitled query";
+    updateNode(block.nodeId, {
+      content,
       title: queryText,
       sourceQuery: queryText,
+      dataType,
     });
   };
 
   const handleAnswerBelowH1Change = (h1Index, text) => {
     syncLinkedNodeFromDoc(h1Index, text, draftBlocks);
-    if (activeNodeContext?.h1Index === h1Index) {
+    if (activeNodeContext?.blockIndex === h1Index && activeNodeContext.dataType === NODE_DATA_TYPES.TEXT) {
       setNodeDraftContent(text);
     }
   };
@@ -126,48 +134,79 @@ export function DocExpandedView({ docId, onClose }) {
     setNodeDraftContent(content);
     if (!activeNodeContext) return;
 
-    const { h1Index } = activeNodeContext;
-    syncLinkedNodeFromDoc(h1Index, content, draftBlocks);
-    setDraftBlocks((prev) => setAnswerBelowH1(prev, h1Index, content));
+    const { blockIndex, dataType } = activeNodeContext;
+    syncLinkedNodeFromDoc(blockIndex, content, draftBlocks);
+    setDraftBlocks((prev) => {
+      let next = setContentForNodeBlock(prev, blockIndex, content, dataType);
+      if (dataType === NODE_DATA_TYPES.TEXT) {
+        next = setAnswerBelowH1(next, blockIndex, typeof content === "string" ? content : "");
+      }
+      return next;
+    });
   };
 
-  const handleOpenNodeForH1 = (h1Index, h1Block) => {
-    const answer = getAnswerBelowH1(draftBlocks, h1Index);
-    const existing = h1Block.nodeId ? getNode(h1Block.nodeId) : null;
+  const handleOpenNodeForBlock = (blockIndex, block) => {
+    const dataType = nodeDataTypeForBlock(block);
+    const existing = block.nodeId ? getNode(block.nodeId) : null;
+    let blockContent = getContentForNodeBlock(block);
+
+    if (block.type === DOC_BLOCK_TYPES.H1) {
+      const answer = getAnswerBelowH1(draftBlocks, blockIndex);
+      if (answer.trim()) blockContent = answer;
+    }
 
     setNodeSavedHint(false);
     setActiveNodeContext({
-      blockId: h1Block.id,
-      h1Index,
-      nodeId: h1Block.nodeId || null,
-      query: h1Block.title || h1Block.sourceQuery || "",
+      blockId: block.id,
+      blockIndex,
+      blockType: block.type,
+      nodeId: block.nodeId || null,
+      query: getBlockQueryText(block),
+      dataType,
     });
-    setNodeDraftContent(resolveNodeDraftFromDoc(answer, existing));
+    setNodeDraftContent(resolveNodeDraftFromDoc(blockContent, existing, dataType));
   };
+
+  const handleOpenNodeForH1 = (h1Index, h1Block) => handleOpenNodeForBlock(h1Index, h1Block);
 
   const handleNodeModalSave = () => {
     if (!activeNodeContext) return;
 
-    const { blockId, h1Index, nodeId, query } = activeNodeContext;
-    const h1Block = draftBlocks[h1Index];
-    if (!h1Block || h1Block.type !== DOC_BLOCK_TYPES.H1) return;
+    const { blockId, blockIndex, nodeId, query, dataType, blockType } = activeNodeContext;
+    const block = draftBlocks[blockIndex];
+    if (!block || block.type !== blockType) return;
 
-    const queryText = (h1Block.title || query || "").trim() || "Untitled query";
-    const newNodeId = createOrUpdateNodeFromH1({
-      nodeId: nodeId || h1Block.nodeId || null,
+    const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
+    const patch = { nodeId: null, sourceQuery: queryText };
+
+    if (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.DATE || block.type === DOC_BLOCK_TYPES.METRIC) {
+      patch.title = block.title || queryText;
+    }
+    if (block.type === DOC_BLOCK_TYPES.TODO) {
+      patch.listTitle = block.listTitle || queryText;
+    }
+
+    const newNodeId = createOrUpdateNodeFromDocBlock({
+      nodeId: nodeId || block.nodeId || null,
       docId: doc.id,
       blockId,
       query: queryText,
       content: nodeDraftContent,
+      dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
     });
 
-    let nextBlocks = updateBlockAt(draftBlocks, h1Index, {
-      nodeId: newNodeId,
-      sourceQuery: queryText,
-      title: h1Block.title || queryText,
-    });
-    nextBlocks = setAnswerBelowH1(nextBlocks, h1Index, nodeDraftContent);
+    patch.nodeId = newNodeId;
+
+    let nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
+    nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, nodeDraftContent, dataType);
+    if (dataType === NODE_DATA_TYPES.TEXT) {
+      nextBlocks = setAnswerBelowH1(
+        nextBlocks,
+        blockIndex,
+        typeof nodeDraftContent === "string" ? nodeDraftContent : "",
+      );
+    }
     setDraftBlocks(nextBlocks);
     setActiveNodeContext(null);
     setNodeDraftContent("");
@@ -177,16 +216,16 @@ export function DocExpandedView({ docId, onClose }) {
   const handleNodeModalDelete = () => {
     if (!activeNodeContext) return;
 
-    const { h1Index, nodeId } = activeNodeContext;
-    const h1Block = draftBlocks[h1Index];
-    const linkedId = nodeId || h1Block?.nodeId;
+    const { blockIndex, nodeId } = activeNodeContext;
+    const block = draftBlocks[blockIndex];
+    const linkedId = nodeId || block?.nodeId;
 
     if (linkedId) {
       deleteNode(linkedId);
     }
 
-    if (h1Block) {
-      const nextBlocks = updateBlockAt(draftBlocks, h1Index, {
+    if (block) {
+      const nextBlocks = updateBlockAt(draftBlocks, blockIndex, {
         nodeId: undefined,
         sourceQuery: undefined,
       });
@@ -213,6 +252,7 @@ export function DocExpandedView({ docId, onClose }) {
           onDelete={handleDeleteDoc}
           onSave={handleSave}
           onCloseExpand={onClose}
+          onOpenNodeForBlock={handleOpenNodeForBlock}
           onOpenNodeForH1={handleOpenNodeForH1}
           onAnswerBelowH1Change={handleAnswerBelowH1Change}
         />
@@ -240,6 +280,7 @@ export function DocExpandedView({ docId, onClose }) {
         <NodeQueryModal
           query={activeNodeContext.query}
           content={nodeDraftContent}
+          dataType={activeNodeContext.dataType}
           onContentChange={handleNodeContentChange}
           createdDate={draftCreatedDate}
           parentDocLabel={parentDocLabel}
