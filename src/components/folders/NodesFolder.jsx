@@ -5,6 +5,10 @@ import { NodeForm } from "../nodes/NodeForm.jsx";
 import { Modal } from "../shared/Modal.jsx";
 import { DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
 
+function getNodeDisplayTitle(node) {
+  return (node.sourceQuery || node.title || "Untitled query").trim() || "Untitled query";
+}
+
 export function NodesFolder() {
   const nodes = useNodesStore((s) => s.nodes);
   const docs = useDocsStore((s) => s.docs);
@@ -42,7 +46,7 @@ export function NodesFolder() {
           return (
             <div key={node.id} className="fn-node-row">
               <NodeCard
-                node={node}
+                node={{ ...node, title: getNodeDisplayTitle(node) }}
                 subtitle={subtitle}
                 active={expandedNodeId === node.id}
                 onClick={() => setExpandedNode(expandedNodeId === node.id ? null : node.id)}

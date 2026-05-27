@@ -1,16 +1,24 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
   DOC_EXPAND_ICON,
   DOC_FILE_TXT_ICON,
   DOC_PARENT_ICON,
   DOC_TIMER_ICON,
 } from "../../lib/docMediumAssets.js";
+import {
+  createDocBlock,
+  createTodoItem,
+  DOC_BLOCK_TYPES,
+  normalizeDocBlocks,
+} from "../../lib/docBlocks.js";
+import { parseSlashQuery, splitBodyForSlash } from "../../lib/docBlockSlash.js";
+import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
+import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 
 const DEFAULT_DOC_LABEL = "New document";
 
 /**
  * Document medium box — layout from Figma node 291:494 (datos).
- * Outer dimensions stay 537×356 via .doc-new-modal / .doc-overlay-global-card.
  */
 export function DocDocumentBox({
   title,
@@ -19,6 +27,8 @@ export function DocDocumentBox({
   titlePlaceholder = "Write your description",
   body,
   onBodyChange,
+  blocks = [],
+  onBlocksChange,
   bodyPlaceholder = 'Type your text here "/"create command',
   createdDate,
   onCreatedDateChange,
@@ -30,25 +40,78 @@ export function DocDocumentBox({
   onCloseExpand,
   onTitleKeyDown,
   onBodyKeyDown,
+  onOpenNodeForH1,
+  onAnswerBelowH1Change,
 }) {
   const showParent = objects && onParentIdChange;
   const docLabel = title.trim() ? title : DEFAULT_DOC_LABEL;
   const bodyRef = useRef(null);
+  const [focusBlockId, setFocusBlockId] = useState(null);
+
+  const normalizedBlocks = normalizeDocBlocks(blocks);
+  const hasBlocks = normalizedBlocks.length > 0;
+  const { slash: slashTail } = splitBodyForSlash(body);
 
   const syncBodyHeight = useCallback(() => {
     const el = bodyRef.current;
     if (!el) return;
+    const scroll = el.closest(".doc-new-content-scroll");
     el.style.height = "auto";
-    const maxPx = parseFloat(getComputedStyle(el).maxHeight);
-    const cap = Number.isFinite(maxPx) && maxPx > 0 ? maxPx : 200;
-    const next = Math.min(el.scrollHeight, cap);
+    const cap = scroll?.clientHeight ? scroll.clientHeight - 16 : 200;
+    const next = Math.min(el.scrollHeight, Math.max(cap, 40));
     el.style.height = `${next}px`;
     el.style.overflowY = el.scrollHeight > cap ? "auto" : "hidden";
   }, []);
 
   useLayoutEffect(() => {
+    if (hasBlocks) return;
     syncBodyHeight();
-  }, [body, syncBodyHeight]);
+  }, [body, syncBodyHeight, hasBlocks]);
+
+  const handleSlashConfirmFromBody = () => {
+    if (!slashTail) return false;
+    const parsed = parseSlashQuery(slashTail.slice(1));
+    if (!parsed) return false;
+
+    const { prefix } = splitBodyForSlash(body);
+    const nextBlocks = [];
+
+    if (prefix.trim()) {
+      nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix }));
+    }
+
+    let newBlock;
+    if (parsed.type === DOC_BLOCK_TYPES.TODO) {
+      newBlock = createDocBlock(DOC_BLOCK_TYPES.TODO, {
+        items: [createTodoItem()],
+        listTitle: "To do:",
+      });
+    } else {
+      newBlock = createDocBlock(DOC_BLOCK_TYPES.H1, { title: "" });
+    }
+
+    nextBlocks.push(newBlock);
+    onBlocksChange?.(nextBlocks);
+    onBodyChange?.("");
+    setFocusBlockId(newBlock.id);
+    return true;
+  };
+
+  const handleTextareaKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey && slashTail) {
+      if (handleSlashConfirmFromBody()) {
+        e.preventDefault();
+        return;
+      }
+    }
+    if (e.key === "Escape" && slashTail) {
+      const { prefix } = splitBodyForSlash(body);
+      e.preventDefault();
+      onBodyChange?.(prefix);
+      return;
+    }
+    onBodyKeyDown?.(e);
+  };
 
   return (
     <div className="doc-new-inner">
@@ -115,19 +178,38 @@ export function DocDocumentBox({
         )}
       </div>
 
-      <div className="doc-new-content-box">
-        <textarea
-          ref={bodyRef}
-          className="doc-new-body-field"
-          value={body}
-          placeholder={bodyPlaceholder}
-          rows={1}
-          onChange={(e) => {
-            onBodyChange(e.target.value);
-            requestAnimationFrame(syncBodyHeight);
-          }}
-          onKeyDown={onBodyKeyDown}
-        />
+      <div className="doc-new-content-box doc-new-content-box--resizable">
+        <div className="doc-new-content-scroll">
+          {hasBlocks ? (
+            <DocBlockStack
+              blocks={normalizedBlocks}
+              onBlocksChange={onBlocksChange}
+              focusBlockId={focusBlockId}
+              onFocusBlock={setFocusBlockId}
+              bodyPlaceholder={bodyPlaceholder}
+              onBodyKeyDown={onBodyKeyDown}
+              onOpenNodeForH1={onOpenNodeForH1}
+              onAnswerBelowH1Change={onAnswerBelowH1Change}
+            />
+          ) : (
+            <div className="doc-body-field-wrap">
+              <SlashAwareTextarea
+                inputRef={bodyRef}
+                value={body}
+                onChange={(v) => {
+                  onBodyChange?.(v);
+                  requestAnimationFrame(syncBodyHeight);
+                }}
+                onKeyDown={handleTextareaKeyDown}
+                placeholder={bodyPlaceholder}
+                wrapClassName="doc-body-field-wrap__slash"
+                className="doc-new-body-field"
+                minHeightPx={26}
+                maxHeightPx={9999}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="doc-new-actions">

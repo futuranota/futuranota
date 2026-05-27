@@ -2796,3 +2796,7 @@ textarea.note-form-field {
   color: #898b8e;
   font-size: 12px;
 }
+
+.doc-overlay-global-card .notes-doc-editor-hint--node-saved {
+  color: #85da99;
+}

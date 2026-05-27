@@ -1,0 +1,216 @@
+import { generateId } from "./ids.js";
+
+const DOC_BLOCK_TYPES = {
+  TEXT: "text",
+  H1: "h1",
+  TODO: "todo",
+};
+
+export function createTodoItem(patch = {}) {
+  return {
+    id: generateId("TODO"),
+    text: "",
+    checked: false,
+    ...patch,
+  };
+}
+
+export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
+  const id = patch.id || generateId("BLK");
+  const base = { id };
+
+  if (type === DOC_BLOCK_TYPES.H1) {
+    return { ...base, type: DOC_BLOCK_TYPES.H1, title: "", ...patch };
+  }
+
+  if (type === DOC_BLOCK_TYPES.TODO) {
+    const items = patch.items || [createTodoItem()];
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.TODO,
+      listTitle: patch.listTitle ?? "To do:",
+      items,
+      showIntroAnim: false,
+      ...patch,
+    };
+  }
+
+  return { ...base, type: DOC_BLOCK_TYPES.TEXT, text: "", ...patch };
+}
+
+export function normalizeDocBlock(block) {
+  if (!block || typeof block !== "object") return createDocBlock();
+
+  const type = block.type || DOC_BLOCK_TYPES.TEXT;
+
+  if (type === DOC_BLOCK_TYPES.H1) {
+    return createDocBlock(DOC_BLOCK_TYPES.H1, {
+      id: block.id,
+      title: block.title || "",
+      nodeId: block.nodeId || undefined,
+      sourceQuery: block.sourceQuery || undefined,
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.TODO) {
+    const rawItems = Array.isArray(block.items) ? block.items : [];
+    const items =
+      rawItems.length > 0
+        ? rawItems.map((item) =>
+            createTodoItem({
+              id: item.id,
+              text: item.text || "",
+              checked: Boolean(item.checked),
+            }),
+          )
+        : [createTodoItem()];
+    return createDocBlock(DOC_BLOCK_TYPES.TODO, {
+      id: block.id,
+      listTitle: block.listTitle ?? "To do:",
+      items,
+      showIntroAnim: false,
+    });
+  }
+
+  return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
+    id: block.id,
+    text: block.text || "",
+  });
+}
+
+export function normalizeDocBlocks(blocks) {
+  if (!Array.isArray(blocks) || blocks.length === 0) return [];
+  return blocks.map(normalizeDocBlock);
+}
+
+function parseTodoSection(section) {
+  const lines = section.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim());
+  const todoLines = lines.filter((line) => /^-\s*\[[ xX]\]/.test(line.trim()));
+  if (todoLines.length === 0) return null;
+
+  const headerLines = lines.filter((line) => !/^-\s*\[[ xX]\]/.test(line.trim()));
+  const listTitle = headerLines.join("\n").trim() || "To do:";
+  const items = todoLines.map((line) => {
+    const checked = /^-\s*\[x\]/i.test(line.trim());
+    const text = line.replace(/^-\s*\[[ xX]\]\s*/, "").trim();
+    return createTodoItem({ text, checked });
+  });
+
+  return createDocBlock(DOC_BLOCK_TYPES.TODO, { listTitle, items });
+}
+
+export function docBlocksFromBody(body) {
+  const raw = String(body ?? "").trim();
+  if (!raw) return [];
+
+  const sections = raw.split(/\n\n+/).map((s) => s.trim()).filter(Boolean);
+  if (sections.length === 0) return [];
+
+  const blocks = [];
+
+  for (const section of sections) {
+    const firstLine = section.split("\n")[0]?.trim() || "";
+
+    if (firstLine.startsWith("# ")) {
+      blocks.push(
+        createDocBlock(DOC_BLOCK_TYPES.H1, {
+          title: firstLine.slice(2).trim(),
+        }),
+      );
+      const rest = section.split("\n").slice(1).join("\n").trim();
+      if (rest) blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: rest }));
+      continue;
+    }
+
+    const todoBlock = parseTodoSection(section);
+    if (todoBlock) {
+      blocks.push(todoBlock);
+      continue;
+    }
+
+    blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: section }));
+  }
+
+  return blocks;
+}
+
+export function docBlocksToBody(blocks) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (normalized.length === 0) return "";
+
+  return normalized
+    .map((block) => {
+      if (block.type === DOC_BLOCK_TYPES.H1) {
+        return block.title ? `# ${block.title}` : "";
+      }
+      if (block.type === DOC_BLOCK_TYPES.TODO) {
+        const header = block.listTitle?.trim() ? `${block.listTitle}\n` : "";
+        const lines = (block.items || [])
+          .map((item) => {
+            const mark = item.checked ? "[x]" : "[ ]";
+            return item.text ? `- ${mark} ${item.text}` : `- ${mark}`;
+          })
+          .join("\n");
+        return header + lines;
+      }
+      return block.text || "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+export function updateBlockAt(blocks, index, patch) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (index < 0 || index >= normalized.length) return normalized;
+  const next = normalized.map((block, i) =>
+    i === index ? normalizeDocBlock({ ...block, ...patch }) : block,
+  );
+  return next;
+}
+
+export function insertBlockAfter(blocks, index, block) {
+  const normalized = normalizeDocBlocks(blocks);
+  const next = [...normalized];
+  next.splice(index + 1, 0, normalizeDocBlock(block));
+  return next;
+}
+
+export function removeBlockAt(blocks, index) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (index < 0 || index >= normalized.length) return normalized;
+  return normalized.filter((_, i) => i !== index);
+}
+
+export function replaceBlocksFromSlashInText(blocks, blockIndex, textValue, newBlock) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[blockIndex];
+  if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return normalized;
+
+  const raw = String(textValue ?? "");
+  const slashIdx = raw.search(/\/[^\n]*$/);
+  const prefix = slashIdx >= 0 ? raw.slice(0, slashIdx) : raw;
+
+  const next = [...normalized];
+  const newNormalized = normalizeDocBlock(newBlock);
+
+  if (!prefix.trim()) {
+    next[blockIndex] = newNormalized;
+  } else {
+    next[blockIndex] = normalizeDocBlock({ ...block, text: prefix });
+    next.splice(blockIndex + 1, 0, newNormalized);
+  }
+  return next;
+}
+
+/** @deprecated Use full blocks stack instead */
+export function getActiveContentBlock(blocks) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (normalized.length === 0) return null;
+  const block = normalized[0];
+  if (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO) {
+    return block;
+  }
+  return null;
+}
+
+export { DOC_BLOCK_TYPES };
