@@ -6,10 +6,10 @@ import {
   parseDate,
   computeMetricValue,
   computeEdgeTemporalLabel,
-  getTrackConnections,
   noteToTrackItem,
   timelineNodeLeftPct,
 } from './temporal.js';
+import { useTimelineStore } from './stores/index.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
 
@@ -736,11 +736,40 @@ function Calendar({ today, launchDate, onSelectDate }) {
 
 const TL_RULER_TICKS = 41;
 
+const DEFAULT_TIMELINE_TRACK_ID = "__default_timeline__";
+
 function TimelineTrack({
-  blueprint, trackNodes, dateNodes, textNodes, metricNodes, today,
+  track, trackNodes, dateNodes, textNodes, metricNodes, today,
   focusedNoteId, onMarkerClick, zoomed, onZoomToggle,
 }) {
-  if (trackNodes.length === 0) return null;
+  const accent = track.color.stroke;
+  const isEmpty = trackNodes.length === 0;
+
+  if (isEmpty) {
+    return (
+      <div
+        className="tl-track tl-track-empty"
+        style={{ "--tl-accent": accent, "--tl-soft": track.color.soft }}
+      >
+        <div className="tl-track-header">
+          <button
+            type="button"
+            className="tl-track-label"
+            style={{ background: track.color.soft, color: accent, borderColor: accent + "55" }}
+            onClick={track.onEditTitle}
+            title="Edit timeline title"
+          >
+            <i className="tl-track-label-dot" />
+            {track.label}
+          </button>
+          <span className="tl-track-meta mute">empty space</span>
+        </div>
+        <div className="tl-track-bar tl-track-bar-empty" aria-hidden>
+          <span className="tl-track-empty-label">empty space</span>
+        </div>
+      </div>
+    );
+  }
 
   const dates = dateNodes.map((n) => parseDate(n.content)).filter(Boolean);
   const sorted = dates.length ? [...dates].sort((a, b) => a - b) : [];
@@ -766,8 +795,7 @@ function TimelineTrack({
   const winEnd = winEndD ? pct(winEndD) : 0;
   const remaining = maxD && maxD > today ? daysBetween(today, maxD) : 0;
   const todayPct = Math.min(100, Math.max(0, pct(today)));
-  const trackConnections = getTrackConnections(blueprint);
-  const accent = blueprint.color.stroke;
+  const trackConnections = [];
 
   const tlCtx = {
     start,
@@ -787,16 +815,19 @@ function TimelineTrack({
   return (
     <div
       className={"tl-track" + (zoomed ? " is-zoomed" : "")}
-      style={{ "--tl-accent": accent, "--tl-soft": blueprint.color.soft }}
+      style={{ "--tl-accent": accent, "--tl-soft": track.color.soft }}
     >
       <div className="tl-track-header">
-        <span
+        <button
+          type="button"
           className="tl-track-label"
-          style={{ background: blueprint.color.soft, color: accent, borderColor: accent + "55" }}
+          style={{ background: track.color.soft, color: accent, borderColor: accent + "55" }}
+          onClick={track.onEditTitle}
+          title="Edit timeline title"
         >
           <i className="tl-track-label-dot" />
-          {blueprint.label}
-        </span>
+          {track.label}
+        </button>
         <div className="tl-track-actions">
           <button
             type="button"
@@ -856,7 +887,7 @@ function TimelineTrack({
         {trackConnections.map((c) => {
           const fromNode = trackNodes.find((n) => n.id === c.from);
           const toNode = trackNodes.find((n) => n.id === c.to);
-          const label = computeEdgeTemporalLabel(fromNode, toNode, today, trackNodes, trackConnections, [blueprint]);
+          const label = computeEdgeTemporalLabel(fromNode, toNode, today, trackNodes, trackConnections, []);
           if (!label || !fromNode || !toNode) return null;
           const leftA = timelineNodeLeftPct(fromNode, tlCtx);
           const leftB = timelineNodeLeftPct(toNode, tlCtx);
@@ -984,29 +1015,120 @@ function TimelineTrack({
   );
 }
 
-function Timeline({ blueprints, notes, nodes = [], today, focusedNoteId, onFocusNote }) {
+function Timeline({
+  nodes = [],
+  today,
+  focusedNoteId,
+  onFocusNote,
+  docsById = {},
+  objectsById = {},
+  nodeEntitiesById = {},
+  filterObjectId = null,
+}) {
   const [zoomedBlueprintId, setZoomedBlueprintId] = useState(null);
+  const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
+  const setObjectTimelineTitle = useTimelineStore((s) => s.setObjectTimelineTitle);
 
-  const tracks = blueprints.map((bp) => {
-    let bpNotes = notes.filter((n) => n.blueprintId === bp.id);
-    if (bpNotes.length === 0 && (bp.noteIds?.length || bp.nodeIds?.length)) {
-      const ids = bp.noteIds?.length
-        ? bp.noteIds
-        : (bp.nodeIds || []).map((nid) => nodes.find((n) => n.id === nid)?.noteId).filter(Boolean);
-      bpNotes = notes.filter((n) => ids.includes(n.id));
+  const tracks = useMemo(() => {
+    const groups = new Map();
+    for (const objectId of Object.keys(objectsById)) {
+      groups.set(objectId, []);
     }
-    const trackNodes = bpNotes.map(noteToTrackItem);
-    return {
-      blueprint: bp,
-      trackNodes,
-      dateNodes: trackNodes.filter((n) => n.dataType === "date"),
-      textNodes: trackNodes.filter((n) => n.dataType === "text"),
-      metricNodes: trackNodes.filter((n) => n.dataType === "metric"),
+
+    const ensureGroup = (objectId) => {
+      if (!objectId) return null;
+      if (!groups.has(objectId)) groups.set(objectId, []);
+      return groups.get(objectId);
     };
-  }).filter((t) => t.trackNodes.length > 0);
+
+    for (const canvasNode of nodes) {
+      let objectId = null;
+      if (canvasNode.canvasKind === "object") {
+        objectId = canvasNode.objectId || null;
+      } else if (canvasNode.canvasKind === "document") {
+        const doc = docsById[canvasNode.docId];
+        objectId = doc?.parentObjectId || null;
+      } else if (canvasNode.noteId) {
+        const sourceNode = nodeEntitiesById[canvasNode.noteId];
+        const parentDoc = sourceNode?.parentDocId ? docsById[sourceNode.parentDocId] : null;
+        objectId = parentDoc?.parentObjectId || null;
+      }
+      const bucket = ensureGroup(objectId);
+      if (!bucket) continue;
+      bucket.push(canvasNode);
+    }
+
+    const buildTrack = (objectId, objectNodes) => {
+      const object = objectsById[objectId];
+      const fallbackLabel = object?.name || "Timeline";
+      const label = (objectTimelineTitles[objectId] || "").trim() || fallbackLabel;
+      const trackNodes = objectNodes.map((n) => {
+        if (n.noteId && nodeEntitiesById[n.noteId]) {
+          const source = nodeEntitiesById[n.noteId];
+          return noteToTrackItem({
+            id: n.id,
+            title: source.sourceQuery || source.title || n.title,
+            dataType: source.dataType || n.dataType || "text",
+            content: source.content ?? n.content ?? "",
+          });
+        }
+        return noteToTrackItem({
+          id: n.id,
+          title: n.title,
+          dataType: n.dataType || "text",
+          content: n.content ?? "",
+        });
+      });
+
+      return {
+        track: {
+          id: objectId,
+          label,
+          color: object?.color
+            ? {
+              stroke: object.color,
+              soft: `${object.color}22`,
+            }
+            : { stroke: "var(--hud)", soft: "var(--hud-soft)" },
+          onEditTitle: () => {
+            const next = window.prompt("Timeline title", label);
+            if (next == null) return;
+            setObjectTimelineTitle(objectId, next.trim());
+          },
+        },
+        trackNodes,
+        dateNodes: trackNodes.filter((item) => item.dataType === "date"),
+        textNodes: trackNodes.filter((item) => item.dataType === "text"),
+        metricNodes: trackNodes.filter((item) => item.dataType === "metric"),
+      };
+    };
+
+    let result = Array.from(groups.entries()).map(([objectId, objectNodes]) =>
+      buildTrack(objectId, objectNodes),
+    );
+
+    if (result.length === 0) {
+      result = [{
+        track: {
+          id: DEFAULT_TIMELINE_TRACK_ID,
+          label: "Timeline",
+          color: { stroke: "var(--hud)", soft: "var(--hud-soft)" },
+          onEditTitle: () => {},
+        },
+        trackNodes: [],
+        dateNodes: [],
+        textNodes: [],
+        metricNodes: [],
+      }];
+    }
+
+    result.sort((a, b) => a.track.label.localeCompare(b.track.label));
+
+    return result.filter((t) => !filterObjectId || t.track.id === filterObjectId);
+  }, [nodes, docsById, objectsById, nodeEntitiesById, objectTimelineTitles, setObjectTimelineTitle, filterObjectId]);
 
   const trackIdsKey = useMemo(
-    () => tracks.map((t) => t.blueprint.id).join("|"),
+    () => tracks.map((t) => t.track.id).join("|"),
     [tracks],
   );
 
@@ -1017,19 +1139,10 @@ function Timeline({ blueprints, notes, nodes = [], today, focusedNoteId, onFocus
   }, [trackIdsKey, zoomedBlueprintId]);
 
   const visibleTracks = zoomedBlueprintId
-    ? tracks.filter((t) => t.blueprint.id === zoomedBlueprintId)
+    ? tracks.filter((t) => t.track.id === zoomedBlueprintId)
     : tracks;
 
-  if (tracks.length === 0) {
-    return (
-      <div className="timeline empty">
-        <div className="timeline-header">
-          <span><b>Timeline</b></span>
-          <span style={{ color: "var(--mute)" }}>Crea un blueprint (⌘G) para ver la línea de tiempo</span>
-        </div>
-      </div>
-    );
-  }
+  const objectTrackCount = tracks.filter((t) => t.track.id !== DEFAULT_TIMELINE_TRACK_ID).length;
 
   return (
     <div
@@ -1037,18 +1150,23 @@ function Timeline({ blueprints, notes, nodes = [], today, focusedNoteId, onFocus
       style={{ "--track-count": visibleTracks.length }}
     >
       <div className="timeline-header">
-        <span><b>Timelines</b> · {tracks.length} blueprint{tracks.length > 1 ? "s" : ""}</span>
+        <span>
+          <b>Timelines</b>
+          {objectTrackCount > 0
+            ? ` · ${objectTrackCount} object${objectTrackCount > 1 ? "s" : ""}`
+            : " · empty space"}
+        </span>
         <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--dim)" }}>
           {zoomedBlueprintId ? "zoomed" : "stacked"}
         </span>
       </div>
       <div className="tl-tracks">
         {visibleTracks.map((t) => {
-          const isZoomed = zoomedBlueprintId === t.blueprint.id;
+          const isZoomed = zoomedBlueprintId === t.track.id;
           return (
             <TimelineTrack
-              key={t.blueprint.id}
-              blueprint={t.blueprint}
+              key={t.track.id}
+              track={t.track}
               trackNodes={t.trackNodes}
               dateNodes={t.dateNodes}
               textNodes={t.textNodes}
@@ -1057,7 +1175,7 @@ function Timeline({ blueprints, notes, nodes = [], today, focusedNoteId, onFocus
               focusedNoteId={focusedNoteId}
               onMarkerClick={onFocusNote}
               zoomed={isZoomed}
-              onZoomToggle={() => setZoomedBlueprintId(isZoomed ? null : t.blueprint.id)}
+              onZoomToggle={() => setZoomedBlueprintId(isZoomed ? null : t.track.id)}
             />
           );
         })}

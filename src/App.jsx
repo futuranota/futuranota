@@ -8,7 +8,7 @@ import { TopBar, MetaBar, ScanOverlay, Toast } from './dashboard.jsx';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakButton,
 } from './tweaks-panel.jsx';
-import { initStores, useDocsStore, useObjectsStore } from './stores/index.js';
+import { initStores, useDocsStore, useNodesStore, useObjectsStore, useUIStateStore } from './stores/index.js';
 import { LandingPage } from './pages/LandingPage.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
@@ -69,6 +69,9 @@ function Dashboard({ company, onBack }) {
   const [blueprints, setBlueprints]   = useState([]);
   const [expandedDocId, setExpandedDocId] = useState(null);
   const docs = useDocsStore((s) => s.docs);
+  const objects = useObjectsStore((s) => s.objects);
+  const nodeEntities = useNodesStore((s) => s.nodes);
+  const filterObjectId = useUIStateStore((s) => s.filterObjectId);
 
   useEffect(() => { initStores(); }, []);
 
@@ -262,12 +265,14 @@ function Dashboard({ company, onBack }) {
       </div>
 
       <Timeline
-        blueprints={blueprints}
-        notes={[]}
         nodes={canvasNodes}
         today={today}
         focusedNoteId={null}
         onFocusNote={() => {}}
+        docsById={docs}
+        objectsById={objects}
+        nodeEntitiesById={nodeEntities}
+        filterObjectId={filterObjectId}
       />
 
       {expandedDocId && (

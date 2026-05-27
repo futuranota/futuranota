@@ -47,36 +47,6 @@ function ObjectThumb({ object, active, onClick, onDoubleClick }) {
   );
 }
 
-/** Documents: flat rows — small cube + name (no pill chips) */
-function ObjectPickerList({ objects, activeObjectId, onSelect }) {
-  if (!objects.length) return null;
-  return (
-    <div className="lp-object-picker">
-      <button
-        type="button"
-        className={"lp-object-picker-row" + (activeObjectId === "__ALL__" ? " active" : "")}
-        onClick={() => onSelect("__ALL__")}
-      >
-        <span className="lp-object-picker-name">all documents</span>
-      </button>
-      {objects.map((obj) => (
-        <button
-          key={obj.id}
-          type="button"
-          className={"lp-object-picker-row" + (activeObjectId === obj.id ? " active" : "")}
-          draggable
-          onDragStart={(e) => startObjectDrag(e, obj.id)}
-          onClick={() => onSelect(obj.id)}
-          title="Filter by object"
-        >
-          <ObjectIcon variant="sm" />
-          <span className="lp-object-picker-name">{obj.name}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /* ─────────────────────────────────────────────
    Doc list card
 ───────────────────────────────────────────── */
@@ -368,10 +338,11 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
   const docList  = Object.values(docs);
   const nodeList = Object.values(nodes);
 
-  const filteredDocList =
-    !filterObjectId || filterObjectId === "__ALL__"
-      ? docList
-      : getDocsByObject(filterObjectId);
+  const docsWithoutParent = docList.filter((doc) => !doc.parentObjectId);
+  const filteredDocList = filterObjectId ? getDocsByObject(filterObjectId) : docsWithoutParent;
+  const objectDocSections = objList
+    .map((obj) => ({ object: obj, docs: getDocsByObject(obj.id) }))
+    .filter((section) => section.docs.length > 0);
   const filteredNodeList = (filterDocId ? getNodesByDoc(filterDocId) : nodeList).filter((node) => {
     const q = nodeSearch.trim().toLowerCase();
     if (!q) return true;
@@ -440,7 +411,7 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
     if (panelType === "Objects") {
       addObject(data.name, data.description, data.color);
     } else if (panelType === "Documents") {
-      const parentId = data.parentObjectId || filterObjectId || null;
+      const parentId = data.parentObjectId || null;
       addDoc(
         data.title,
         parentId,
@@ -461,14 +432,12 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
         ? getLabel(activeItem).slice(0, 18)
         : "Select option"
         : panelType === "Documents"
-        ? activeItem
-          ? activeItem.title.slice(0, 18)
-          : filterObjectId === "__ALL__" || !filterObjectId
-            ? "all documents"
-            : filterObject?.name || "Select document"
+        ? filterObjectId
+          ? filterObject?.name || "Select object"
+          : "Documents"
         : filterDoc
           ? filterDoc.title.slice(0, 18)
-          : "all nodes";
+          : "nodes";
 
   return (
     <div className="left-panel">
@@ -540,19 +509,33 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
               <span className="lp-item-icon">✏</span>
               Create new document
             </button>
-            {filteredDocList.map((doc) => (
+            <button
+              type="button"
+              className={"lp-dropdown-item" + (!filterObjectId ? " checked" : "")}
+              onClick={() => {
+                setFilterObjectId(null);
+                setActiveId(null);
+                setOptOpen(false);
+              }}
+            >
+              <span className="lp-item-icon">📄</span>
+              <span className="lp-item-label">Documents</span>
+              {!filterObjectId && <span className="lp-check">✓</span>}
+            </button>
+            {objList.map((obj) => (
               <button
-                key={doc.id}
+                key={obj.id}
                 type="button"
-                className={"lp-dropdown-item" + (doc.id === activeId ? " checked" : "")}
+                className={"lp-dropdown-item" + (obj.id === filterObjectId ? " checked" : "")}
                 onClick={() => {
-                  setActiveId(doc.id);
+                  setFilterObjectId(obj.id);
+                  setActiveId(null);
                   setOptOpen(false);
                 }}
               >
-                <span className="lp-item-icon">📄</span>
-                <span className="lp-item-label">{doc.title}</span>
-                {doc.id === activeId && <span className="lp-check">✓</span>}
+                <span className="lp-item-icon">◈</span>
+                <span className="lp-item-label">{obj.name}</span>
+                {obj.id === filterObjectId && <span className="lp-check">✓</span>}
               </button>
             ))}
           </Dropdown>
@@ -583,7 +566,7 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
               }}
             >
               <span className="lp-item-icon">◯</span>
-              <span className="lp-item-label">all nodes</span>
+              <span className="lp-item-label">nodes</span>
               {!filterDocId && <span className="lp-check">✓</span>}
             </button>
             {docList.map((doc) => (
@@ -647,21 +630,6 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
         {/* DOCUMENTS — filters + list */}
         {panelType === "Documents" && (
           <>
-            <button
-              type="button"
-              className="btn xs solid lp-inline-create"
-              onClick={() => setShowCreate(true)}
-            >
-              + Create new document
-            </button>
-            <ObjectPickerList
-              objects={objList}
-              activeObjectId={filterObjectId || "__ALL__"}
-              onSelect={(id) => {
-                setFilterObjectId(id === "__ALL__" ? null : id);
-                setActiveId(null);
-              }}
-            />
             {filteredDocList.map((doc) => (
               <DocListCard
                 key={doc.id}
@@ -675,10 +643,28 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
                 onDelete={() => handleDeleteDoc(doc)}
               />
             ))}
+            {!filterObjectId && objectDocSections.map((section) => (
+              <div key={section.object.id} className="lp-doc-section">
+                <p className="lp-context-label">{section.object.name}</p>
+                {section.docs.map((doc) => (
+                  <DocListCard
+                    key={doc.id}
+                    doc={doc}
+                    objects={objects}
+                    onClick={() => {
+                      setActiveId(doc.id);
+                      onOpenDocument?.(doc.id);
+                    }}
+                    onExpand={() => onOpenDocument?.(doc.id)}
+                    onDelete={() => handleDeleteDoc(doc)}
+                  />
+                ))}
+              </div>
+            ))}
             {filteredDocList.length === 0 && (
               <div className="lp-empty">
-                <p>{filterObjectId ? `No documents for ${filterObject?.name}` : "No documents yet"}</p>
-                <p className="dim">Create one with Parent pre-selected</p>
+                <p>{filterObjectId ? `No documents for ${filterObject?.name}` : "No documents without parent"}</p>
+                <p className="dim">Create one and leave Parent empty</p>
               </div>
             )}
           </>

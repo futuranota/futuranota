@@ -12,6 +12,7 @@ export const useTimelineStore = create(
       zoomedTimelineId: null,
       zoomedPlanId: null,
       zoomedObjectId: null,
+      objectTimelineTitles: {},
 
       getTimeline: (id) => get().timelines[id] || null,
 
@@ -142,6 +143,14 @@ export const useTimelineStore = create(
       setZoomedPlanId: (id) => set({ zoomedPlanId: id, zoomedTimelineId: id }),
 
       setZoomedObjectId: (id) => set({ zoomedObjectId: id }),
+
+      setObjectTimelineTitle: (objectId, title) =>
+        set((state) => ({
+          objectTimelineTitles: {
+            ...state.objectTimelineTitles,
+            [objectId]: String(title ?? ""),
+          },
+        })),
 
       clearZoom: () => set({ zoomedTimelineId: null, zoomedPlanId: null, zoomedObjectId: null }),
 
