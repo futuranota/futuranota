@@ -2,6 +2,11 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 import { useObjectsStore } from "./objectsStore.js";
+import {
+  docBlocksFromBody,
+  docBlocksToBody,
+  normalizeDocBlocks,
+} from "../lib/docBlocks.js";
 
 export const useDocsStore = create(
   devtools(
@@ -24,12 +29,15 @@ export const useDocsStore = create(
         tags = [],
         initialContent = "",
         createdAt = null,
+        initialBlocks = null,
       ) => {
         const id = generateId("DOC");
         const tagList = Array.isArray(tags)
           ? tags.map((t) => String(t).trim()).filter(Boolean)
           : [];
         const body = String(initialContent ?? "");
+        const blocks = normalizeDocBlocks(initialBlocks || docBlocksFromBody(body));
+        const normalizedBody = docBlocksToBody(blocks) || body;
         const created = createdAt || new Date().toISOString();
         set((state) => ({
           docs: {
@@ -38,8 +46,9 @@ export const useDocsStore = create(
               id,
               title,
               parentObjectId,
-              content: body,
-              body,
+              content: normalizedBody,
+              body: normalizedBody,
+              blocks,
               dataProperties,
               tags: tagList,
               nodeIds: [],
@@ -59,10 +68,22 @@ export const useDocsStore = create(
         set((state) => {
           const doc = state.docs[id];
           if (!doc) return state;
+          const nextPatch = { ...patch };
+          if (Object.prototype.hasOwnProperty.call(nextPatch, "blocks")) {
+            const normalizedBlocks = normalizeDocBlocks(nextPatch.blocks);
+            const mergedBody = docBlocksToBody(normalizedBlocks);
+            nextPatch.blocks = normalizedBlocks;
+            if (!Object.prototype.hasOwnProperty.call(nextPatch, "body")) {
+              nextPatch.body = mergedBody;
+            }
+            if (!Object.prototype.hasOwnProperty.call(nextPatch, "content")) {
+              nextPatch.content = mergedBody;
+            }
+          }
           return {
             docs: {
               ...state.docs,
-              [id]: { ...doc, ...patch, updatedAt: new Date().toISOString() },
+              [id]: { ...doc, ...nextPatch, updatedAt: new Date().toISOString() },
             },
           };
         }),
@@ -73,13 +94,16 @@ export const useDocsStore = create(
         set((state) => {
           const doc = state.docs[id];
           if (!doc) return state;
+          const text = String(content ?? "");
+          const blocks = docBlocksFromBody(text);
           return {
             docs: {
               ...state.docs,
               [id]: {
                 ...doc,
-                content,
-                body: content,
+                content: text,
+                body: text,
+                blocks,
                 syncedWithCanvas: false,
                 updatedAt: new Date().toISOString(),
               },
@@ -112,6 +136,22 @@ export const useDocsStore = create(
             docs: {
               ...state.docs,
               [docId]: { ...doc, nodeIds, updatedAt: new Date().toISOString() },
+            },
+          };
+        }),
+
+      removeNodeFromDoc: (docId, nodeId) =>
+        set((state) => {
+          const doc = state.docs[docId];
+          if (!doc) return state;
+          return {
+            docs: {
+              ...state.docs,
+              [docId]: {
+                ...doc,
+                nodeIds: (doc.nodeIds || []).filter((id) => id !== nodeId),
+                updatedAt: new Date().toISOString(),
+              },
             },
           };
         }),

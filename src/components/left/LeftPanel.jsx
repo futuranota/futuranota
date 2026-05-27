@@ -9,6 +9,7 @@ import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { ObjectIcon } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
+import { docBlocksToBody } from "../../lib/docBlocks.js";
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
@@ -102,9 +103,14 @@ function DocListCard({ doc, objects, onClick, onExpand }) {
 /* ─────────────────────────────────────────────
    Node list card (with parent + type + insert)
 ───────────────────────────────────────────── */
+function getNodeDisplayTitle(node) {
+  return (node.sourceQuery || node.title || "Untitled query").trim() || "Untitled query";
+}
+
 function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
   const parentDoc = node.parentDocId ? docs[node.parentDocId] : null;
   const icon = DATA_TYPE_ICONS[node.dataType] || "◯";
+  const displayTitle = getNodeDisplayTitle(node);
   const contentPreview = typeof node.content === "string"
     ? node.content.slice(0, 80)
     : node.content != null ? JSON.stringify(node.content).slice(0, 60) : "";
@@ -117,7 +123,7 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
         <button type="button" className="lp-expand-btn" onClick={(e) => { e.stopPropagation(); onClick(); }}>↗</button>
       </div>
       <div className="lp-node-card-body" onClick={onClick}>
-        <b className="lp-node-title">{node.title}</b>
+        <b className="lp-node-title">{displayTitle}</b>
         {contentPreview && <p className="lp-node-preview">{contentPreview}</p>}
       </div>
       <div className="lp-node-card-foot">
@@ -137,6 +143,7 @@ function NodeDetailView({ node, docs, onClose, onInsert, onDelete }) {
     typeof node.content === "string" ? node.content : JSON.stringify(node.content ?? ""),
   );
   const parentDoc = node.parentDocId ? docs[node.parentDocId] : null;
+  const displayTitle = getNodeDisplayTitle(node);
 
   const handleSave = () => {
     updateNode(node.id, { content });
@@ -152,7 +159,7 @@ function NodeDetailView({ node, docs, onClose, onInsert, onDelete }) {
         <button type="button" className="btn xs ghost" onClick={onClose}>✕</button>
       </div>
 
-      <h3 className="lp-node-detail-title">{node.title}</h3>
+      <h3 className="lp-node-detail-title">{displayTitle}</h3>
 
       <div className="lp-node-detail-type">
         <span className="lp-type-label">TYPE :</span>
@@ -251,6 +258,7 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
 function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [blocks, setBlocks] = useState([]);
   const fallbackParent =
     defaultParentId ||
     findObjectIdByName(Object.fromEntries(objects.map((o) => [o.id, o])), "yo") ||
@@ -274,11 +282,13 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
   const submitDoc = () => {
     const finalTitle = title.trim() || "New document";
     const autoTags = parentObject?.name ? [parentObject.name] : [];
+    const serializedBody = docBlocksToBody(blocks) || body;
     onSubmit({
       title: finalTitle,
       parentObjectId: parentId || null,
       tags: autoTags,
-      body,
+      body: serializedBody,
+      blocks,
       createdAt: isoFromDateInput(createdDate),
     });
   };
@@ -292,6 +302,8 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
           titleRef={titleRef}
           body={body}
           onBodyChange={setBody}
+          blocks={blocks}
+          onBlocksChange={setBlocks}
           createdDate={createdDate}
           onCreatedDateChange={setCreatedDate}
           parentId={parentId}
@@ -505,6 +517,7 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument }) {
         data.tags || [],
         data.body ?? "",
         data.createdAt,
+        data.blocks ?? null,
       );
       setActiveId(null);
     } else {

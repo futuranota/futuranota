@@ -21,8 +21,10 @@ export const useNodesStore = create(
           node.canvasConnections?.includes(canvasNodeId),
         ),
 
-      addNode: (title, dataType, content, parentDocId = null) => {
+      addNode: (title, dataType, content, parentDocId = null, extra = {}) => {
         const id = generateId("NODE");
+        const now = new Date().toISOString();
+        const createdAt = extra.createdAt ?? now;
         set((state) => ({
           nodes: {
             ...state.nodes,
@@ -34,18 +36,54 @@ export const useNodesStore = create(
               parentDocId,
               parentNodeId: null,
               objectId: null,
+              sourceBlockId: extra.sourceBlockId ?? null,
+              sourceQuery: extra.sourceQuery ?? null,
               canvasConnections: [],
               linkedToCanvas: false,
               linkedToDoc: Boolean(parentDocId),
               canvasNodeId: null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
+              createdAt,
+              updatedAt: now,
             },
           },
         }));
         if (parentDocId) {
           useDocsStore.getState().addNodeToDoc(parentDocId, id);
         }
+        return id;
+      },
+
+      createOrUpdateNodeFromH1: ({
+        nodeId,
+        docId,
+        blockId,
+        query,
+        content,
+        docCreatedAt = null,
+      }) => {
+        const title = (query || "").trim() || "Untitled query";
+        const payload = {
+          title,
+          dataType: "text",
+          content: content ?? "",
+          sourceBlockId: blockId,
+          sourceQuery: query || title,
+        };
+
+        if (nodeId) {
+          get().updateNode(nodeId, payload);
+          return nodeId;
+        }
+
+        const parentDoc = docId ? useDocsStore.getState().getDoc(docId) : null;
+        const inheritedCreatedAt =
+          docCreatedAt || parentDoc?.createdAt || new Date().toISOString();
+
+        const id = get().addNode(title, "text", payload.content, docId, {
+          sourceBlockId: blockId,
+          sourceQuery: payload.sourceQuery,
+          createdAt: inheritedCreatedAt,
+        });
         return id;
       },
 
@@ -119,12 +157,17 @@ export const useNodesStore = create(
           };
         }),
 
-      deleteNode: (id) =>
+      deleteNode: (id) => {
+        const node = get().nodes[id];
+        if (node?.parentDocId) {
+          useDocsStore.getState().removeNodeFromDoc(node.parentDocId, id);
+        }
         set((state) => {
           const next = { ...state.nodes };
           delete next[id];
           return { nodes: next };
-        }),
+        });
+      },
     }),
     { name: "NodesStore" },
   ),
