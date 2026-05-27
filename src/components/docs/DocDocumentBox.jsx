@@ -19,7 +19,7 @@ export function DocDocumentBox({
   titlePlaceholder = "Write your description",
   body,
   onBodyChange,
-  bodyPlaceholder = "Type your text here",
+  bodyPlaceholder = 'Type your text here "/"create command',
   createdDate,
   onCreatedDateChange,
   parentId,
