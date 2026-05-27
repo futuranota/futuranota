@@ -503,11 +503,7 @@ function BlueprintCanvas({
         } else if (selection.length) {
           selection.forEach((id) => onDeleteNode(id));
         }
-      } else if (e.key === "g" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        if (selection.length >= 1) onCreateBlueprint();
-      }
-      else if (e.key === "z" && (e.ctrlKey || e.metaKey)) {
+      } else if (e.key === "z" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         setStrokes((s) => s.slice(0, -1));
       }
@@ -521,7 +517,7 @@ function BlueprintCanvas({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selection, selectedConnectionId, onCreateBlueprint, onDeleteNode, setSelection, setConnections]);
+  }, [selection, selectedConnectionId, onDeleteNode, setSelection, setConnections]);
 
   useEffect(() => {
     if (selection.length === 0) {

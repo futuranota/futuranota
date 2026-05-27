@@ -102,7 +102,8 @@ html, body {
 }
 
 body {
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(ellipse 1200px 800px at 70% 10%, color-mix(in oklab, var(--hud) 5%, transparent), transparent 60%),
     radial-gradient(ellipse 800px 600px at 10% 90%, color-mix(in oklab, var(--accent) 4%, transparent), transparent 60%),
@@ -110,7 +111,7 @@ body {
   background-attachment: fixed;
 }
 
-#root { height: 100%; display: block; }
+#root { min-height: 100%; display: block; }
 
 button, input, textarea, select {
   font: inherit;
@@ -653,22 +654,27 @@ textarea.field {
 .selector-card .co-stats b { color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* ── dashboard layout ───────────────── */
+/* Main + first timeline slot fit in viewport; extra tracks grow below → page scroll */
 .dash {
+  --dash-chrome-h: 96px;
+  --timeline-first-slot-h: 200px;
   display: grid;
-  grid-template-rows: 52px 44px 1fr auto;
-  height: 100vh;
+  grid-template-rows: 52px 44px minmax(calc(100vh - var(--dash-chrome-h) - var(--timeline-first-slot-h)), auto) auto;
+  min-height: 100vh;
+  overflow: visible;
 }
 .dash-main {
   display: grid;
   grid-template-columns: 256px 1fr 296px;
-  min-height: 0;
+  align-items: stretch;
   padding: 10px 10px 0;
   gap: 10px;
+  overflow: visible;
 }
 .dash-col {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: calc(100vh - var(--dash-chrome-h) - var(--timeline-first-slot-h) - 10px);
   background: var(--panel);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
@@ -2085,14 +2091,32 @@ textarea.note-form-field {
   backdrop-filter: blur(16px);
   position: relative;
   z-index: 5;
-  min-height: 120px;
-  max-height: 420px;
-  overflow-y: auto;
+  min-height: var(--timeline-first-slot-h, 200px);
+  max-height: none;
+  overflow: visible;
 }
 .timeline.is-zoomed {
-  max-height: min(70vh, 560px);
+  max-height: none;
 }
 .timeline.empty .timeline-header { padding-top: 4px; }
+.tl-track-empty .tl-track-bar-empty {
+  position: relative;
+  height: 72px;
+  margin-top: 4px;
+  padding: 10px 20px 6px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--panel-3) 55%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tl-track-empty-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
 .timeline-header {
   display: flex;
   justify-content: space-between;
