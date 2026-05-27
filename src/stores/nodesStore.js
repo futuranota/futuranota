@@ -3,6 +3,43 @@ import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 import { useDocsStore } from "./docsStore.js";
 import { injectNodeAnswerIntoDocBody } from "../lib/sync.js";
+import {
+  createDocBlock,
+  DOC_BLOCK_TYPES,
+  normalizeDocBlocks,
+} from "../lib/docBlocks.js";
+
+function stringifyNodeContent(dataType, content) {
+  if (dataType === "date") {
+    if (content && typeof content === "object") {
+      const date = content.date || "";
+      const time = content.time || "";
+      if (date && time) return `${date} ${time}`;
+      return date || time;
+    }
+    return String(content ?? "");
+  }
+
+  if (dataType === "metric" && content && typeof content === "object") {
+    const value = content.value ?? "";
+    const unit = content.unit ? ` ${content.unit}` : "";
+    return `${value}${unit}`.trim();
+  }
+
+  if (dataType === "checkbox") {
+    return content ? "true" : "false";
+  }
+
+  if (typeof content === "string") return content;
+  if (content == null) return "";
+  return JSON.stringify(content);
+}
+
+function buildSyncedNodeText(node) {
+  const title = (node.sourceQuery || node.title || "Untitled query").trim() || "Untitled query";
+  const detail = stringifyNodeContent(node.dataType, node.content);
+  return detail;
+}
 
 export const useNodesStore = create(
   devtools(
@@ -104,6 +141,91 @@ export const useNodesStore = create(
         return id;
       },
 
+      syncNodeToParentDoc: (nodeId, parentDocId = null) => {
+        const node = get().nodes[nodeId];
+        if (!node) return;
+
+        const docId = parentDocId || node.parentDocId;
+        if (!docId) return;
+
+        const doc = useDocsStore.getState().getDoc(docId);
+        if (!doc) return;
+
+        const normalized = normalizeDocBlocks(doc.blocks);
+        const syncedTitle = (node.sourceQuery || node.title || "Untitled").trim() || "Untitled";
+        const syncedText = buildSyncedNodeText(node);
+        const existingH1Index = node.sourceBlockId
+          ? normalized.findIndex((b) => b.id === node.sourceBlockId && b.type === DOC_BLOCK_TYPES.H1)
+          : -1;
+        const existingTextIndex = node.sourceTextBlockId
+          ? normalized.findIndex((b) => b.id === node.sourceTextBlockId && b.type === DOC_BLOCK_TYPES.TEXT)
+          : -1;
+
+        let nextBlocks;
+        let sourceBlockId = node.sourceBlockId || null;
+        let sourceTextBlockId = node.sourceTextBlockId || null;
+
+        if (existingH1Index >= 0) {
+          nextBlocks = normalized.map((block, i) => {
+            if (i === existingH1Index) {
+              return { ...block, title: syncedTitle, sourceQuery: syncedTitle };
+            }
+            if (existingTextIndex >= 0 && i === existingTextIndex) {
+              return { ...block, text: syncedText };
+            }
+            return block;
+          });
+
+          if (existingTextIndex < 0) {
+            const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: syncedText });
+            sourceTextBlockId = textBlock.id;
+            nextBlocks = [
+              ...nextBlocks.slice(0, existingH1Index + 1),
+              textBlock,
+              ...nextBlocks.slice(existingH1Index + 1),
+            ];
+          }
+        } else {
+          const h1Block = createDocBlock(DOC_BLOCK_TYPES.H1, {
+            title: syncedTitle,
+            sourceQuery: syncedTitle,
+            nodeId: node.id,
+          });
+          const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: syncedText });
+          sourceBlockId = h1Block.id;
+          sourceTextBlockId = textBlock.id;
+          nextBlocks = [...normalized, h1Block, textBlock];
+        }
+
+        useDocsStore.getState().updateDoc(docId, { blocks: nextBlocks });
+        get().updateNode(nodeId, {
+          parentDocId: docId,
+          linkedToDoc: true,
+          sourceBlockId: sourceBlockId || undefined,
+          sourceTextBlockId: sourceTextBlockId || undefined,
+        });
+      },
+
+      removeNodeSyncFromDoc: (nodeId, docId = null) => {
+        const node = get().nodes[nodeId];
+        if (!node?.sourceBlockId && !node?.sourceTextBlockId) return;
+
+        const targetDocId = docId || node.parentDocId;
+        if (!targetDocId) return;
+
+        const doc = useDocsStore.getState().getDoc(targetDocId);
+        if (!doc) return;
+
+        const normalized = normalizeDocBlocks(doc.blocks);
+        const nextBlocks = normalized.filter(
+          (b) => b.id !== node.sourceBlockId && b.id !== node.sourceTextBlockId,
+        );
+        if (nextBlocks.length === normalized.length) return;
+
+        useDocsStore.getState().updateDoc(targetDocId, { blocks: nextBlocks });
+        get().updateNode(nodeId, { sourceBlockId: undefined, sourceTextBlockId: undefined });
+      },
+
       updateNode: (id, updates) =>
         set((state) => {
           const node = state.nodes[id];
@@ -159,6 +281,7 @@ export const useNodesStore = create(
 
       deleteNode: (id) => {
         const node = get().nodes[id];
+        get().removeNodeSyncFromDoc(id, node?.parentDocId || null);
         if (node?.parentDocId) {
           useDocsStore.getState().removeNodeFromDoc(node.parentDocId, id);
         }
