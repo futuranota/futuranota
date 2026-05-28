@@ -820,6 +820,85 @@ textarea.field {
 .intel-tab-chip:hover {
   color: #dcb2a6;
 }
+
+/* Intel folder tabs (Calendar / Forecast / Market Hype) */
+.intel-folders-section {
+  flex-shrink: 0;
+  margin: 14px -14px 0;
+  padding: 14px 14px 0;
+  border-top: 1px solid var(--hairline);
+}
+.intel-folder-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.intel-folder-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+  padding: 2px;
+  background: #12171d;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  position: relative;
+}
+.intel-folder-tabs-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: #171921;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  transition: left 0.2s var(--ease, ease), width 0.2s var(--ease, ease);
+  z-index: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.intel-folder-tabs button {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 5px 6px;
+  border: none;
+  background: transparent;
+  color: #757b87;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: color 120ms ease;
+}
+.intel-folder-tabs button[data-on="1"] {
+  color: #e8eaef;
+}
+.intel-folder-tabs button:hover {
+  color: #b8bdc8;
+}
+.intel-folder-launch-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--warm);
+}
+.intel-folder-panel {
+  min-height: 200px;
+}
+.intel-folder-placeholder {
+  padding: 24px 12px;
+  text-align: center;
+}
+.intel-folder-placeholder b {
+  font-size: 12px;
+  color: var(--text-1);
+}
 .col-body { flex: 1; min-height: 0; }
 .col-section {
   padding: 14px;
@@ -3087,6 +3166,165 @@ textarea.note-form-field {
   border-color: rgba(214, 206, 181, 0.72);
 }
 
+.intel-query-btn.is-loading,
+.node-query-modal__action--search.is-loading {
+  cursor: wait;
+  pointer-events: none;
+}
+.search-spinner {
+  display: inline-block;
+  border: 2px solid rgba(32, 35, 41, 0.25);
+  border-top-color: rgba(32, 35, 41, 0.85);
+  border-radius: 50%;
+  animation: search-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+.node-query-modal__action--search .search-spinner {
+  border-color: rgba(205, 255, 165, 0.25);
+  border-top-color: #cdffa5;
+}
+@keyframes search-spin {
+  to { transform: rotate(360deg); }
+}
+.intel-search-loading {
+  padding: 20px 12px;
+  text-align: center;
+}
+.intel-search-loading-pulse {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(142, 233, 163, 0.2);
+  border-top-color: var(--hud);
+  animation: search-spin 0.8s linear infinite;
+}
+.intel-overview-block {
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+.intel-overview-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-1);
+}
+.intel-overview-text p {
+  margin: 0 0 8px;
+}
+.intel-context-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--hud);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--hud-soft);
+}
+.intel-citation {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 10px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: rgba(255, 255, 255, 0.02);
+  text-decoration: none;
+  color: inherit;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.intel-citation:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: color-mix(in oklab, var(--hud) 35%, var(--hairline));
+}
+.intel-citation-body {
+  min-width: 0;
+}
+.intel-citation-src {
+  font-size: 10px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.intel-citation-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+.intel-citation-snippet {
+  font-size: 11px;
+  color: var(--text-2);
+  margin: 4px 0 0;
+  line-height: 1.4;
+}
+.intel-citation-ext {
+  font-size: 12px;
+  color: var(--text-3);
+  padding-top: 2px;
+}
+.intel-col-body--results {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.intel-results {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.intel-citations-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+}
+.intel-citations-scroll {
+  flex: 1;
+  min-height: 0;
+  max-height: min(260px, 40vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-top: 0;
+  padding-right: 2px;
+  border-radius: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #2b323d #0b0e12;
+}
+.intel-citations-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.intel-citations-scroll::-webkit-scrollbar-track {
+  background: #0b0e12;
+  border-radius: 5px;
+}
+.intel-citations-scroll::-webkit-scrollbar-thumb {
+  background: #2b323d;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px #0f1318;
+}
+.intel-citations-scroll::-webkit-scrollbar-thumb:hover {
+  background: #384252;
+}
+.intel-citations-scroll .intel-citation:last-child {
+  margin-bottom: 0;
+}
+[data-theme="light"] .intel-citations-scroll {
+  scrollbar-color: #c5c9d1 #e8e6df;
+}
+[data-theme="light"] .intel-citations-scroll::-webkit-scrollbar-track {
+  background: #e8e6df;
+}
+[data-theme="light"] .intel-citations-scroll::-webkit-scrollbar-thumb {
+  background: #c5c9d1;
+  box-shadow: inset 0 0 0 1px #ddd9d0;
+}
+[data-theme="light"] .intel-citations-scroll::-webkit-scrollbar-thumb:hover {
+  background: #aeb4bf;
+}
 .intel-query-btn:active {
   transform: translateY(0);
   filter: brightness(0.98);

@@ -4,8 +4,9 @@ import {
   DOC_TIMER_ICON,
   NODE_ICON,
   NODE_SAVE_ARCHIVE_ICON,
-  NODE_SEARCH_ICON,
 } from "../../lib/docMediumAssets.js";
+import { IntelSearchButton } from "../shared/IntelSearchButton.jsx";
+import { runIntelSearch } from "../../lib/intelSearch.js";
 import { DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
@@ -35,6 +36,7 @@ export function NodeQueryModal({
   onClose,
   onBackToDocument,
   onSendToIntelSearch,
+  intelSearchMeta = null,
   anchorDate = "",
   anchorTime = "",
   onAnchorDateChange,
@@ -49,6 +51,7 @@ export function NodeQueryModal({
   const showCloseButton = Boolean(onClose) && !onBackToDocument;
   const setActiveNodeQueryDraft = useUIStateStore((s) => s.setActiveNodeQueryDraft);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
+  const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
 
   const normalizedDateContent =
     dataType === "date"
@@ -99,8 +102,16 @@ export function NodeQueryModal({
   }, [onClose]);
 
   const handleSearchClick = () => {
-    const queryText = displayQuery.trim() || displayQuery;
+    const queryText = (displayQuery || "").trim() || displayQuery;
+    if (!queryText || intelSearchStatus === "loading") return;
     triggerIntelSearchFromNode(queryText);
+    runIntelSearch({
+      query: queryText,
+      queryNodeEntityId: intelSearchMeta?.queryNodeEntityId ?? null,
+      queryCanvasNodeId: intelSearchMeta?.queryCanvasNodeId ?? null,
+      docId: intelSearchMeta?.docId ?? null,
+      blockIndex: intelSearchMeta?.blockIndex ?? null,
+    });
     if (onSendToIntelSearch) {
       onSendToIntelSearch();
       return;
@@ -288,15 +299,12 @@ export function NodeQueryModal({
         </div>
 
         <footer className="node-query-modal__actions">
-          <button
-            type="button"
-            className="node-query-modal__action node-query-modal__action--search"
+          <IntelSearchButton
+            variant="modal"
+            loading={intelSearchStatus === "loading"}
             onClick={handleSearchClick}
             title="Send query to Intel search and close"
-          >
-            Search
-            <img src={NODE_SEARCH_ICON} alt="" aria-hidden />
-          </button>
+          />
         </footer>
       </div>
     </div>

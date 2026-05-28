@@ -84,6 +84,13 @@ function Dashboard({ company, onBack }) {
     return () => clearInterval(tick);
   }, []);
 
+  useEffect(() => {
+    useUIStateStore.getState().setCanvasSearchSnapshot({
+      nodes: canvasNodes,
+      connections: canvasConns,
+    });
+  }, [canvasNodes, canvasConns]);
+
   /* ── SCAN BLOGS ─ */
   const scanBlogs = () => {
     setScanState("scanning-blogs");
@@ -316,6 +323,9 @@ function Dashboard({ company, onBack }) {
         <StandaloneNodeModal
           node={nodeEntities[expandedNodeId]}
           docs={Object.values(docs)}
+          queryCanvasNodeId={
+            canvasNodes.find((n) => n.noteId === expandedNodeId)?.id ?? null
+          }
           onClose={() => setExpandedNodeId(null)}
           onSaved={() => setExpandedNodeId(null)}
           onDeleted={() => setExpandedNodeId(null)}

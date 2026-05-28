@@ -30,6 +30,17 @@ export const useUIStateStore = create(
       intelSearchSeed: "",
       intelSearchRequest: 0,
 
+      /** Canvas snapshot for upstream wire resolution during intel search. */
+      canvasSearchSnapshot: null,
+
+      /** idle | loading | success | error */
+      intelSearchStatus: "idle",
+      intelSearchError: null,
+      intelSearchResult: null,
+
+      /** Active search meta while loading or for last run */
+      intelSearchMeta: null,
+
       setExpandedFolder: (folder) => set({ expandedFolder: folder }),
       setExpandedObject: (id) => set({ expandedObjectId: id }),
       setExpandedDoc: (id) => set({ expandedDocId: id }),
@@ -83,6 +94,41 @@ export const useUIStateStore = create(
           intelSearchSeed: query || "",
           intelSearchRequest: state.intelSearchRequest + 1,
         })),
+
+      setCanvasSearchSnapshot: (snapshot) =>
+        set({ canvasSearchSnapshot: snapshot }),
+
+      setIntelSearchLoading: (meta) =>
+        set({
+          intelSearchStatus: "loading",
+          intelSearchError: null,
+          intelSearchMeta: meta,
+        }),
+
+      setIntelSearchSuccess: (result) =>
+        set({
+          intelSearchStatus: "success",
+          intelSearchError: null,
+          intelSearchResult: result,
+          intelSearchMeta: {
+            query: result.query,
+            queryNodeEntityId: result.queryNodeEntityId ?? null,
+          },
+        }),
+
+      setIntelSearchError: (message) =>
+        set({
+          intelSearchStatus: "error",
+          intelSearchError: message || "Search failed",
+        }),
+
+      clearIntelSearch: () =>
+        set({
+          intelSearchStatus: "idle",
+          intelSearchError: null,
+          intelSearchResult: null,
+          intelSearchMeta: null,
+        }),
     }),
     { name: "UIStateStore" },
   ),

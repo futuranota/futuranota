@@ -14,7 +14,8 @@ import {
 } from './temporal.js';
 import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
 import { useTimelineStore, useUIStateStore } from './stores/index.js';
-import { NODE_SEARCH_ICON } from './lib/docMediumAssets.js';
+import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
+import { runIntelSearch } from './lib/intelSearch.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
 
@@ -575,6 +576,12 @@ const TAB_OPTIONS = [
   { id: "campaign", label: "Campaign" },
 ];
 
+const INTEL_FOLDER_TABS = [
+  { id: "calendar", label: "Calendar" },
+  { id: "forecast", label: "Forecast" },
+  { id: "market-hype", label: "Market Hype" },
+];
+
 function Tabs({ value, options, onChange }) {
   const refs = useRef([]);
   const [thumb, setThumb] = useState({ left: 0, width: 0 });
@@ -591,6 +598,124 @@ function Tabs({ value, options, onChange }) {
                 data-on={value === o.id ? "1" : "0"} onClick={() => onChange(o.id)}>
           {o.label}
         </button>
+      ))}
+    </div>
+  );
+}
+
+function IntelCitationCard({ item }) {
+  const conf = item.confidence ?? 0;
+  const colorCls = conf >= 80 ? "color-hi" : conf >= 65 ? "color-md" : "color-lo";
+  return (
+    <a
+      className="intel-citation"
+      href={item.url}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <div className={"signal-dot " + colorCls} style={{ background: "currentColor" }} />
+      <div className="intel-citation-body">
+        <div className="intel-citation-src">{item.source}</div>
+        <div className="intel-citation-title">{item.title}</div>
+        {item.snippet ? <p className="intel-citation-snippet">{item.snippet}</p> : null}
+      </div>
+      <span className="intel-citation-ext" aria-hidden>↗</span>
+    </a>
+  );
+}
+
+function IntelFolderBar({ value, onChange, launchBadge = null }) {
+  const refs = useRef([]);
+  const [thumb, setThumb] = useState({ left: 0, width: 0 });
+
+  useEffect(() => {
+    const idx = INTEL_FOLDER_TABS.findIndex((o) => o.id === value);
+    const el = refs.current[idx];
+    if (el) setThumb({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [value]);
+
+  return (
+    <div className="intel-folder-bar">
+      <div className="intel-folder-tabs" role="tablist" aria-label="Intel folders">
+        <div className="intel-folder-tabs-thumb" style={{ left: thumb.left, width: thumb.width }} />
+        {INTEL_FOLDER_TABS.map((o, i) => (
+          <button
+            key={o.id}
+            type="button"
+            ref={(el) => { refs.current[i] = el; }}
+            role="tab"
+            id={`intel-folder-tab-${o.id}`}
+            aria-selected={value === o.id}
+            aria-controls={`intel-folder-panel-${o.id}`}
+            data-on={value === o.id ? "1" : "0"}
+            onClick={() => onChange(o.id)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {launchBadge}
+    </div>
+  );
+}
+
+function IntelFolderPlaceholder({ title }) {
+  return (
+    <div className="intel-folder-placeholder empty-block">
+      <b>{title}</b>
+      <p className="mute" style={{ marginTop: 8 }}>
+        Coming soon — content for this folder will appear here.
+      </p>
+    </div>
+  );
+}
+
+function IntelFoldersSection({
+  folder,
+  onFolderChange,
+  today,
+  launchDate,
+  onSelectDate,
+}) {
+  const activeTab = INTEL_FOLDER_TABS.find((t) => t.id === folder) || INTEL_FOLDER_TABS[0];
+  const daysUntilLaunch = launchDate ? daysBetween(today, launchDate) : null;
+  const launchBadge = folder === "calendar" && launchDate ? (
+    <span className="intel-folder-launch-badge tnum mono">
+      T−{daysUntilLaunch}d
+    </span>
+  ) : null;
+
+  return (
+    <section className="intel-folders-section" aria-label="Intel folders">
+      <IntelFolderBar
+        value={folder}
+        onChange={onFolderChange}
+        launchBadge={launchBadge}
+      />
+      <div
+        id={`intel-folder-panel-${activeTab.id}`}
+        className="intel-folder-panel"
+        role="tabpanel"
+        aria-labelledby={`intel-folder-tab-${activeTab.id}`}
+      >
+        {folder === "calendar" && (
+          <Calendar today={today} launchDate={launchDate} onSelectDate={onSelectDate} />
+        )}
+        {folder === "forecast" && <IntelFolderPlaceholder title="Forecast" />}
+        {folder === "market-hype" && <IntelFolderPlaceholder title="Market Hype" />}
+      </div>
+    </section>
+  );
+}
+
+/** All source cards scroll from the first reference (dark scrollbar). */
+function IntelSourcesList({ citations = [] }) {
+  if (!citations.length) return null;
+
+  return (
+    <div className="intel-citations-scroll" role="region" aria-label="Sources">
+      {citations.map((c) => (
+        <IntelCitationCard key={c.id} item={c} />
       ))}
     </div>
   );
@@ -641,11 +766,15 @@ function IntelPanel({
   onSelectDate,
 }) {
   const [tab, setTab] = useState("news");
+  const [intelFolderTab, setIntelFolderTab] = useState("calendar");
   const [intelQuery, setIntelQuery] = useState("");
   const intelQueryRef = useRef(null);
-  const activeNodeQueryDraft = useUIStateStore((s) => s.activeNodeQueryDraft);
   const intelSearchSeed = useUIStateStore((s) => s.intelSearchSeed);
   const intelSearchRequest = useUIStateStore((s) => s.intelSearchRequest);
+  const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
+  const intelSearchResult = useUIStateStore((s) => s.intelSearchResult);
+  const intelSearchError = useUIStateStore((s) => s.intelSearchError);
+  const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
 
   const syncIntelQueryHeight = () => {
     const el = intelQueryRef.current;
@@ -666,11 +795,16 @@ function IntelPanel({
     requestAnimationFrame(() => syncIntelQueryHeight());
   }, [intelSearchRequest, intelSearchSeed]);
 
-  const handleIntelSearchFromNode = () => {
-    const fromNode = (activeNodeQueryDraft || "").trim();
-    setIntelQuery(fromNode);
-    requestAnimationFrame(() => syncIntelQueryHeight());
+  const handleIntelSearchSubmit = () => {
+    const q = intelQuery.trim();
+    if (!q || intelSearchStatus === "loading") return;
+    triggerIntelSearchFromNode(q);
+    runIntelSearch({ query: q });
   };
+
+  const isSearchLoading = intelSearchStatus === "loading";
+  const hasSearchResult = intelSearchStatus === "success" && intelSearchResult;
+  const contextCount = intelSearchResult?.contextNodes?.length ?? 0;
 
   const normalizedQuery = intelQuery.trim().toLowerCase();
   const filtered = intel.filter((s) => {
@@ -701,15 +835,12 @@ function IntelPanel({
               spellCheck={false}
               aria-label="Simulated intelligence query"
             />
-            <button
-              type="button"
-              className="intel-query-btn"
-              aria-label="Search"
-              title="Use node query in search"
-              onClick={handleIntelSearchFromNode}
-            >
-              <img src={NODE_SEARCH_ICON} alt="" aria-hidden />
-            </button>
+            <IntelSearchButton
+              variant="intel"
+              loading={isSearchLoading}
+              onClick={handleIntelSearchSubmit}
+              title="Run search"
+            />
           </div>
           <div className="intel-search-bottom">
             <span className="intel-meta-kv intel-bottom-item">tokens:<b>{tokenCurrent}/{tokenMax}</b></span>
@@ -728,37 +859,92 @@ function IntelPanel({
           </div>
         </div>
       </div>
-      <div className="col-body scroll" style={{ padding: 14 }}>
-        {!hasScannedBlogs && intel.length === 0 && (
-          <div className="empty-block">
-            <b>No signals loaded</b>
-            <button className="btn sm primary" style={{ marginTop: 10 }} onClick={onScanBlogs}>Scan blogs</button>
+      <div
+        className={
+          "col-body scroll"
+          + (hasSearchResult ? " intel-col-body--results" : "")
+        }
+        style={{ padding: 14 }}
+      >
+        {isSearchLoading && (
+          <div className="intel-search-loading" role="status" aria-live="polite">
+            <div className="intel-search-loading-pulse" />
+            <b>Searching the web…</b>
+            <p className="mute">Reading connected nodes and gathering references.</p>
           </div>
         )}
-        {hasScannedBlogs && filtered.length === 0 && (
+
+        {intelSearchStatus === "error" && (
+          <div className="empty-block">
+            <b>Search failed</b>
+            <p className="mute" style={{ marginTop: 6 }}>{intelSearchError}</p>
+            <button
+              type="button"
+              className="btn sm primary"
+              style={{ marginTop: 10 }}
+              onClick={handleIntelSearchSubmit}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {hasSearchResult && !isSearchLoading && (
+          <div className="intel-results">
+            <section className="intel-overview-block" aria-label="AI overview">
+              <div className="col-section-h" style={{ marginBottom: 8 }}>
+                <span className="label">Overview</span>
+                {contextCount > 0 && (
+                  <span className="intel-context-badge">{contextCount} wired node{contextCount === 1 ? "" : "s"}</span>
+                )}
+              </div>
+              <div className="intel-overview-text">
+                {intelSearchResult.overview.split("\n").map((line, i) => (
+                  <p key={i}>{line.replace(/\*\*(.*?)\*\*/g, "$1")}</p>
+                ))}
+              </div>
+            </section>
+            <section className="intel-citations-block" aria-label="Web references">
+              <div className="col-section-h" style={{ margin: "16px 0 8px" }}>
+                <span className="label">Sources</span>
+                <span className="mute" style={{ fontSize: 11 }}>
+                  {intelSearchResult.citations?.length ?? 0} references
+                </span>
+              </div>
+              <IntelSourcesList citations={intelSearchResult.citations || []} />
+            </section>
+          </div>
+        )}
+
+        {!isSearchLoading && !hasSearchResult && intelSearchStatus !== "error" && !hasScannedBlogs && intel.length === 0 && (
+          <div className="empty-block">
+            <b>Ask anything</b>
+            <p className="mute" style={{ marginTop: 6 }}>
+              Enter a query and press search for an AI overview and web references.
+            </p>
+          </div>
+        )}
+
+        {!hasSearchResult && !isSearchLoading && hasScannedBlogs && filtered.length === 0 && (
           <div className="empty-block">
             <b>No {tab} signals</b>
             Try another tab or run scan again.
           </div>
         )}
-        {filtered.map((s) => (
+        {!hasSearchResult && !isSearchLoading && filtered.map((s) => (
           <Signal key={s.id} item={s}
                   added={addedIds.includes(s.id)}
                   isLoading={loadingIds.includes(s.id)}
                   onGetOverview={onGetOverview} />
         ))}
 
-        <div style={{ borderTop: "1px solid var(--hairline)", margin: "14px -14px 0", padding: "14px 14px 0" }}>
-          <div className="col-section-h" style={{ marginBottom: 8 }}>
-            <span className="label">Calendar</span>
-            {launchDate && (
-              <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--warm)" }}>
-                T−{daysBetween(today, launchDate)}d
-              </span>
-            )}
-          </div>
-          <Calendar today={today} launchDate={launchDate} onSelectDate={onSelectDate} />
-        </div>
+        <IntelFoldersSection
+          folder={intelFolderTab}
+          onFolderChange={setIntelFolderTab}
+          today={today}
+          launchDate={launchDate}
+          onSelectDate={onSelectDate}
+        />
       </div>
     </>
   );

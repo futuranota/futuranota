@@ -535,6 +535,15 @@ export function DocExpandedView({ docId, onClose }) {
           onAnchorTimeChange={handleNodeAnchorTimeChange}
           onClose={handleRequestCloseNodeModal}
           onSendToIntelSearch={handleSendQueryToIntelSearch}
+          intelSearchMeta={
+            activeNodeContext
+              ? {
+                  queryNodeEntityId: activeNodeContext.nodeId || null,
+                  docId,
+                  blockIndex: activeNodeContext.blockIndex,
+                }
+              : null
+          }
         />
       )}
       {showUnsavedConfirm ? (
