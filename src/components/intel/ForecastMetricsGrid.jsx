@@ -1,10 +1,10 @@
 import { ForecastMetricIcon } from "./ForecastIcons.jsx";
 
-export function ForecastMetricsGrid({ metrics = [] }) {
+export function ForecastMetricsGrid({ metrics = [], compact = false }) {
   if (!metrics.length) return null;
 
   return (
-    <div className="forecast-metrics-card">
+    <div className={"forecast-metrics-card" + (compact ? " forecast-metrics-card--compact" : "")}>
       <ul className="forecast-metrics-grid">
         {metrics.map((m) => (
           <li
@@ -12,7 +12,7 @@ export function ForecastMetricsGrid({ metrics = [] }) {
             className="forecast-metrics-row"
             style={m.span === 2 ? { gridColumn: "span 2" } : undefined}
           >
-            <ForecastMetricIcon name={m.icon} size={16} />
+            <ForecastMetricIcon name={m.icon} size={compact ? 13 : 14} />
             {m.span === 2 ? (
               <p className="forecast-metrics-row__phase">{m.label}</p>
             ) : (

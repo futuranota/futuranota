@@ -4,6 +4,7 @@ import App from './App.jsx';
 import './styles.css';
 import './styles/parte3.css';
 import './styles/left-panel.css';
+import './styles/intel-reference.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

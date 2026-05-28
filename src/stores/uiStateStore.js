@@ -106,15 +106,25 @@ export const useUIStateStore = create(
         }),
 
       setIntelSearchSuccess: (result) =>
-        set({
+        set((state) => ({
           intelSearchStatus: "success",
           intelSearchError: null,
           intelSearchResult: result,
           intelSearchMeta: {
+            ...state.intelSearchMeta,
             query: result.query,
-            queryNodeEntityId: result.queryNodeEntityId ?? null,
+            queryNodeEntityId:
+              result.queryNodeEntityId
+              ?? state.intelSearchMeta?.queryNodeEntityId
+              ?? null,
+            queryCanvasNodeId:
+              result.queryCanvasNodeId
+              ?? state.intelSearchMeta?.queryCanvasNodeId
+              ?? null,
+            docId: result.docId ?? state.intelSearchMeta?.docId ?? null,
+            blockIndex: result.blockIndex ?? state.intelSearchMeta?.blockIndex ?? null,
           },
-        }),
+        })),
 
       setIntelSearchError: (message) =>
         set({

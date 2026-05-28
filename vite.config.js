@@ -6,5 +6,12 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    proxy: {
+      '/jina': {
+        target: 'https://r.jina.ai',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/jina/, ''),
+      },
+    },
   },
 });

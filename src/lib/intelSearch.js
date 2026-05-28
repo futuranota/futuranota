@@ -1,4 +1,5 @@
 import { INTEL } from "../data.jsx";
+import { citationPageUrl, citationSourceDomain } from "./citationFavicon.js";
 import { useUIStateStore } from "../stores/uiStateStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
 import { useDocsStore } from "../stores/docsStore.js";
@@ -163,16 +164,28 @@ function buildMockOverview(query, contextNodes) {
   return `${ctxBlock}**Answer:** ${query}\n\nBased on current web signals and your node graph, here is a synthesized overview. Key themes include product timing, supplier activity, and market reception. Use the citations below to verify sources and drill into details.`;
 }
 
+function buildMockCitationBody(item) {
+  return [
+    `${item.title} — reported by ${item.src}.`,
+    `Signal category: ${item.category || "general"}. Corroborated from web mentions and supplier chatter.`,
+    "This preview is simulated locally. A live intel fetch will replace this text with extracted article content.",
+  ];
+}
+
 function intelToCitations(intelItems) {
-  return intelItems.slice(0, 8).map((item, i) => ({
-    id: item.id || `cite-${i + 1}`,
-    title: item.title,
-    url: `https://example.com/${encodeURIComponent(item.src || "source")}/${item.id}`,
-    snippet: `${item.title} — reported by ${item.src}. Confidence ${item.confidence}%.`,
-    source: item.src,
-    confidence: item.confidence,
-    category: item.category,
-  }));
+  return intelItems.slice(0, 8).map((item, i) => {
+    const id = item.id || `cite-${i + 1}`;
+    const domain = citationSourceDomain(item.src);
+    return {
+      id,
+      title: item.title,
+      url: citationPageUrl(item.src, id),
+      domain,
+      source: item.src,
+      category: item.category,
+      body: buildMockCitationBody(item),
+    };
+  });
 }
 
 /**
@@ -240,6 +253,10 @@ export async function runIntelSearch(payload) {
     store.setIntelSearchSuccess({
       ...result,
       query: q,
+      queryNodeEntityId,
+      queryCanvasNodeId,
+      docId,
+      blockIndex,
       contextNodes,
       ranAt: new Date().toISOString(),
     });

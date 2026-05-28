@@ -16,6 +16,7 @@ import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
 import { useTimelineStore, useUIStateStore } from './stores/index.js';
 import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
+import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
 import { runIntelSearch } from './lib/intelSearch.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
@@ -604,27 +605,6 @@ function Tabs({ value, options, onChange }) {
   );
 }
 
-function IntelCitationCard({ item }) {
-  const conf = item.confidence ?? 0;
-  const colorCls = conf >= 80 ? "color-hi" : conf >= 65 ? "color-md" : "color-lo";
-  return (
-    <a
-      className="intel-citation"
-      href={item.url}
-      target="_blank"
-      rel="noopener noreferrer"
-    >
-      <div className={"signal-dot " + colorCls} style={{ background: "currentColor" }} />
-      <div className="intel-citation-body">
-        <div className="intel-citation-src">{item.source}</div>
-        <div className="intel-citation-title">{item.title}</div>
-        {item.snippet ? <p className="intel-citation-snippet">{item.snippet}</p> : null}
-      </div>
-      <span className="intel-citation-ext" aria-hidden>↗</span>
-    </a>
-  );
-}
-
 function IntelFolderBar({ value, onChange, launchBadge = null }) {
   const refs = useRef([]);
   const [thumb, setThumb] = useState({ left: 0, width: 0 });
@@ -712,19 +692,6 @@ function IntelFoldersSection({
   );
 }
 
-/** All source cards scroll from the first reference (dark scrollbar). */
-function IntelSourcesList({ citations = [] }) {
-  if (!citations.length) return null;
-
-  return (
-    <div className="intel-citations-scroll" role="region" aria-label="Sources">
-      {citations.map((c) => (
-        <IntelCitationCard key={c.id} item={c} />
-      ))}
-    </div>
-  );
-}
-
 function Signal({ item, added, isLoading, onGetOverview }) {
   const conf = item.confidence;
   const colorCls = conf >= 80 ? "color-hi" : conf >= 65 ? "color-md" : "color-lo";
@@ -778,6 +745,7 @@ function IntelPanel({
   const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
   const intelSearchResult = useUIStateStore((s) => s.intelSearchResult);
   const intelSearchError = useUIStateStore((s) => s.intelSearchError);
+  const intelSearchMeta = useUIStateStore((s) => s.intelSearchMeta);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
 
   const syncIntelQueryHeight = () => {
@@ -803,7 +771,13 @@ function IntelPanel({
     const q = intelQuery.trim();
     if (!q || intelSearchStatus === "loading") return;
     triggerIntelSearchFromNode(q);
-    runIntelSearch({ query: q });
+    runIntelSearch({
+      query: q,
+      queryNodeEntityId: intelSearchMeta?.queryNodeEntityId ?? null,
+      queryCanvasNodeId: intelSearchMeta?.queryCanvasNodeId ?? null,
+      docId: intelSearchMeta?.docId ?? null,
+      blockIndex: intelSearchMeta?.blockIndex ?? null,
+    });
   };
 
   const isSearchLoading = intelSearchStatus === "loading";
@@ -909,13 +883,17 @@ function IntelPanel({
               </div>
             </section>
             <section className="intel-citations-block" aria-label="Web references">
-              <div className="col-section-h" style={{ margin: "16px 0 8px" }}>
+              <div className="col-section-h" style={{ margin: "10px 0 6px" }}>
                 <span className="label">Sources</span>
                 <span className="mute" style={{ fontSize: 11 }}>
                   {intelSearchResult.citations?.length ?? 0} references
                 </span>
               </div>
-              <IntelSourcesList citations={intelSearchResult.citations || []} />
+              <IntelSourcesList
+                citations={intelSearchResult.citations || []}
+                searchQuery={intelSearchResult.query ?? intelQuery}
+                nodeId={intelSearchMeta?.queryNodeEntityId ?? null}
+              />
             </section>
           </div>
         )}
