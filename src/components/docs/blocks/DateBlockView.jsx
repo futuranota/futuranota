@@ -19,6 +19,7 @@ export function DateBlockView({
         onQueryHandleClick={onQueryHandleClick}
         placeholder="Insert Query (?) or title"
         ariaLabel="Date block title or query"
+        multiline
       />
       <p className="doc-block-type-label">Date</p>
       <div className="doc-date-block__fields">
