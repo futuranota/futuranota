@@ -54,8 +54,13 @@ export function CleanReader({ url, title, source, domain, onBack }) {
   return (
     <section className="clean-reader" aria-label="Article reader">
       <header className="clean-reader__header">
-        <button type="button" className="clean-reader__back" onClick={onBack}>
-          ← Sources
+        <button
+          type="button"
+          className="clean-reader__back"
+          onClick={onBack}
+          aria-label="Back to sources"
+        >
+          ←
         </button>
         <div className="clean-reader__title-wrap">
           <ReaderFavicon domain={domain} />
@@ -78,9 +83,6 @@ export function CleanReader({ url, title, source, domain, onBack }) {
         {status === "error" && (
           <div className="clean-reader__error">
             <p>{error}</p>
-            <button type="button" className="btn sm" onClick={handleViewOriginal}>
-              View Original
-            </button>
           </div>
         )}
         {status === "ready" && paragraphs.map((p, i) => (
