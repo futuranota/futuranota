@@ -24,6 +24,12 @@ export const useUIStateStore = create(
 
       toast: null,
 
+      /** Live query/title from open node modal (editable query input). */
+      activeNodeQueryDraft: "",
+      /** Last query pushed from node modal Search action. */
+      intelSearchSeed: "",
+      intelSearchRequest: 0,
+
       setExpandedFolder: (folder) => set({ expandedFolder: folder }),
       setExpandedObject: (id) => set({ expandedObjectId: id }),
       setExpandedDoc: (id) => set({ expandedDocId: id }),
@@ -70,6 +76,13 @@ export const useUIStateStore = create(
           set({ toast: null });
         }, duration);
       },
+
+      setActiveNodeQueryDraft: (query) => set({ activeNodeQueryDraft: query || "" }),
+      triggerIntelSearchFromNode: (query) =>
+        set((state) => ({
+          intelSearchSeed: query || "",
+          intelSearchRequest: state.intelSearchRequest + 1,
+        })),
     }),
     { name: "UIStateStore" },
   ),

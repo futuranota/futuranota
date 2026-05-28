@@ -10,6 +10,7 @@ import { DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import { useUIStateStore } from "../../stores/uiStateStore.js";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "metric", "checkbox"];
 
@@ -33,6 +34,7 @@ export function NodeQueryModal({
   docs = [],
   onClose,
   onBackToDocument,
+  onSendToIntelSearch,
   anchorDate = "",
   anchorTime = "",
   onAnchorDateChange,
@@ -44,6 +46,9 @@ export function NodeQueryModal({
   const typeEditable = Boolean(onDataTypeChange);
   const parentSelectable = Boolean(onParentDocIdChange);
   const dateEditable = Boolean(onCreatedDateChange);
+  const showCloseButton = Boolean(onClose) && !onBackToDocument;
+  const setActiveNodeQueryDraft = useUIStateStore((s) => s.setActiveNodeQueryDraft);
+  const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
 
   const normalizedDateContent =
     dataType === "date"
@@ -78,6 +83,11 @@ export function NodeQueryModal({
   }, [dataType]);
 
   useEffect(() => {
+    setActiveNodeQueryDraft(displayQuery);
+    return () => setActiveNodeQueryDraft("");
+  }, [displayQuery, setActiveNodeQueryDraft]);
+
+  useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -87,6 +97,16 @@ export function NodeQueryModal({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
+
+  const handleSearchClick = () => {
+    const queryText = displayQuery.trim() || displayQuery;
+    triggerIntelSearchFromNode(queryText);
+    if (onSendToIntelSearch) {
+      onSendToIntelSearch();
+      return;
+    }
+    onClose?.();
+  };
 
   const modal = (
     <div
@@ -100,7 +120,12 @@ export function NodeQueryModal({
         aria-labelledby="node-query-modal-title"
       >
         <header className="node-query-modal__head">
-          <div className="node-query-modal__head-top">
+          <div
+            className={
+              "node-query-modal__head-top"
+              + (showCloseButton ? " node-query-modal__head-top--closable" : "")
+            }
+          >
             <img className="node-query-modal__node-icon" src={NODE_ICON} alt="" aria-hidden />
             {parentSelectable ? (
               <select
@@ -130,6 +155,16 @@ export function NodeQueryModal({
                 ) : null}
               </>
             )}
+            {showCloseButton ? (
+              <button
+                type="button"
+                className="doc-new-head-expand-btn node-query-modal__close"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                <span className="doc-new-head-close-x" aria-hidden>×</span>
+              </button>
+            ) : null}
           </div>
 
           {queryEditable ? (
@@ -256,9 +291,8 @@ export function NodeQueryModal({
           <button
             type="button"
             className="node-query-modal__action node-query-modal__action--search"
-            disabled
-            aria-disabled="true"
-            title="Coming soon"
+            onClick={handleSearchClick}
+            title="Send query to Intel search and close"
           >
             Search
             <img src={NODE_SEARCH_ICON} alt="" aria-hidden />
