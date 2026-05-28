@@ -9,11 +9,12 @@
 
 .lp-selectors {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  align-items: stretch;
+  gap: 5px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--hairline);
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .lp-inline-create {
@@ -99,51 +100,133 @@
 
 .lp-dropdown-wrap {
   position: relative;
+  flex: 0 0 102px;
+  width: 102px;
+  max-width: calc(100% - 108px);
+  min-width: 0;
+  display: flex;
+  align-items: center;
 }
 
 .lp-dropdown-btn {
-  width: 100%;
+  width: 102px;
+  max-width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
+  justify-content: flex-start;
+  gap: 4px;
+  min-height: 43px;
+  padding: 0 6px;
   font-size: 11px;
   font-weight: 500;
-  color: var(--text-2);
-  background: var(--panel-solid);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-sm);
+  color: #535765;
+  background:
+    6px center / 90px 37px no-repeat url("/uploads/botones/frame.svg"),
+    rgba(35, 39, 47, 0.56);
+  border: none;
+  border-radius: 0;
   cursor: pointer;
-  transition: color 0.12s ease, border-color 0.12s ease;
-}
-
-.lp-dropdown-btn.secondary {
-  color: var(--text-2);
+  transition: color 0.12s ease, filter 0.12s ease;
+  box-sizing: border-box;
 }
 
 .lp-dropdown-btn:hover {
-  color: var(--hud);
-  border-color: var(--glass-border-2);
+  color: #dadfee;
+  filter: brightness(1.05);
 }
 
-.lp-chevron {
-  font-size: 9px;
-  color: var(--dim);
+.lp-folder-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.lp-folder-trigger-label {
+  min-width: 0;
+  max-width: calc(100% - 22px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+}
+
+.lp-folder-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 16px;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.lp-folder-icon--object .obj-icon-img--sm {
+  width: 18px;
+  height: 16px;
+}
+
+.lp-folder-icon-img {
+  display: block;
+  width: 18px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.lp-item-icon-img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.lp-dropdown-divider {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--hairline);
 }
 
 .lp-dropdown-menu {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  right: 0;
+  width: 248px;
+  max-width: 248px;
   z-index: 40;
-  max-height: 220px;
-  overflow-y: auto;
+  max-height: 280px;
+  overflow: hidden;
   padding: 4px;
   background: var(--panel-solid);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+.lp-dropdown-flyout {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 6px;
+  max-height: 272px;
+}
+
+.lp-dropdown-pane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lp-dropdown-pane--types {
+  padding-right: 6px;
+  border-right: 1px solid var(--hairline);
+}
+
+.lp-dropdown-pane--items {
+  overflow-y: auto;
+  max-height: 270px;
+  padding-right: 2px;
 }
 
 .lp-dropdown-item {
@@ -162,14 +245,27 @@
   transition: color 0.12s ease;
 }
 
+.lp-dropdown-item--type {
+  justify-content: flex-start;
+}
+
+.lp-dropdown-item--type.preview {
+  color: #8f96a8;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
 .lp-dropdown-item:hover {
-  background: transparent;
-  color: var(--hud);
+  background: rgba(255, 255, 255, 0.06);
+  color: #8f96a8;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .lp-dropdown-item.active,
 .lp-dropdown-item.checked {
-  color: var(--hud);
+  color: var(--text-2);
+  background: transparent;
+  box-shadow: none;
 }
 
 .lp-dropdown-item.create {
@@ -183,6 +279,10 @@
   color: var(--hud);
 }
 
+.lp-dropdown-item--nested {
+  padding-left: 22px;
+}
+
 .lp-item-label {
   flex: 1;
   overflow: hidden;
@@ -191,8 +291,46 @@
 }
 
 .lp-check {
-  color: var(--hud);
+  color: #8f96a8;
   font-size: 10px;
+}
+
+.lp-new-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 92px;
+  min-width: 92px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  font-size: 0;
+  color: transparent;
+  margin-left: auto;
+  background: center / 92px 38px no-repeat url("/uploads/botones/plus-new-1.svg");
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  box-sizing: border-box;
+}
+
+.lp-new-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+}
+
+.lp-new-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  color: transparent;
+  pointer-events: none;
 }
 
 .lp-content {
@@ -385,6 +523,23 @@
   padding: 8px 10px;
   border-bottom: 1px solid var(--hairline);
   cursor: pointer;
+}
+
+.lp-node-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  line-height: 1;
+}
+
+.lp-node-type-icon-img {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
 }
 
 .lp-node-parent {

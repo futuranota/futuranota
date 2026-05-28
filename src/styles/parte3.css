@@ -47,6 +47,24 @@
 
 .fn-card-dot.doc { background: var(--cool); }
 
+.fn-card-dot.node {
+  width: 16px;
+  height: 16px;
+  margin-top: 0;
+  border-radius: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fn-card-dot-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
 .fn-card-body {
   flex: 1;
   min-width: 0;
