@@ -14,6 +14,7 @@ import {
 } from './temporal.js';
 import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
 import { useTimelineStore } from './stores/index.js';
+import { NODE_SEARCH_ICON } from './lib/docMediumAssets.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
 
@@ -570,9 +571,8 @@ function NotesPanel({
 /* ─── INTEL PANEL ─────────────────────────────────────────── */
 
 const TAB_OPTIONS = [
-  { id: "all",      label: "All" },
   { id: "news",     label: "News" },
-  { id: "campaign", label: "Campaigns" },
+  { id: "campaign", label: "Campaign" },
 ];
 
 function Tabs({ value, options, onChange }) {
@@ -627,15 +627,91 @@ function Signal({ item, added, isLoading, onGetOverview }) {
   );
 }
 
-function IntelPanel({ intel, addedIds, loadingIds, onGetOverview, onScanBlogs, hasScannedBlogs, today, launchDate, onSelectDate }) {
-  const [tab, setTab] = useState("all");
-  const filtered = intel.filter((s) => tab === "all" || s.category === tab);
+function IntelPanel({
+  intel,
+  addedIds,
+  loadingIds,
+  onGetOverview,
+  onScanBlogs,
+  hasScannedBlogs,
+  tokenCurrent = 0,
+  tokenMax = 10,
+  today,
+  launchDate,
+  onSelectDate,
+}) {
+  const [tab, setTab] = useState("news");
+  const [intelQuery, setIntelQuery] = useState("");
+  const intelQueryRef = useRef(null);
+
+  const syncIntelQueryHeight = () => {
+    const el = intelQueryRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const maxPx = 120;
+    const next = Math.min(el.scrollHeight, maxPx);
+    el.style.height = `${next}px`;
+    el.style.overflowY = el.scrollHeight > maxPx ? "auto" : "hidden";
+  };
+
+  useEffect(() => {
+    syncIntelQueryHeight();
+  }, [intelQuery]);
+
+  const normalizedQuery = intelQuery.trim().toLowerCase();
+  const filtered = intel.filter((s) => {
+    const byTab = s.category === tab;
+    if (!byTab) return false;
+    if (!normalizedQuery) return true;
+    const haystack = [s.src, s.category, String(s.confidence ?? "")]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(normalizedQuery);
+  });
 
   return (
     <>
-      <div className="col-header">
-        <span className="ttl">Intelligence</span>
-        <Tabs value={tab} options={TAB_OPTIONS} onChange={setTab} />
+      <div className="col-header intel-header">
+        <div className="intel-search-card">
+          <div className="intel-search-top">
+            <textarea
+              ref={intelQueryRef}
+              className="intel-query-input"
+              value={intelQuery}
+              onChange={(e) => {
+                setIntelQuery(e.target.value);
+                syncIntelQueryHeight();
+              }}
+              placeholder="Describe your search"
+              rows={1}
+              spellCheck={false}
+              aria-label="Simulated intelligence query"
+            />
+            <button
+              type="button"
+              className="intel-query-btn"
+              aria-label="Search"
+              title="Simulated search"
+            >
+              <img src={NODE_SEARCH_ICON} alt="" aria-hidden />
+            </button>
+          </div>
+          <div className="intel-search-bottom">
+            <span className="intel-meta-kv intel-bottom-item">tokens:<b>{tokenCurrent}/{tokenMax}</b></span>
+            <span className="intel-meta-kv intel-bottom-item">Model:<b>Ai 1.0</b></span>
+            {TAB_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className="intel-tab-chip intel-bottom-item"
+                data-on={tab === option.id ? "1" : "0"}
+                onClick={() => setTab(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       <div className="col-body scroll" style={{ padding: 14 }}>
         {!hasScannedBlogs && intel.length === 0 && (

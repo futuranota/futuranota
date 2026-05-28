@@ -72,6 +72,8 @@ function Dashboard({ company, onBack }) {
   const objects = useObjectsStore((s) => s.objects);
   const nodeEntities = useNodesStore((s) => s.nodes);
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
+  const tokenCurrent = 0;
+  const tokenMax = 10;
 
   useEffect(() => { initStores(); }, []);
 
@@ -220,6 +222,8 @@ function Dashboard({ company, onBack }) {
           <LeftPanel
             onInsertToCanvas={insertNodeToCanvas}
             onOpenDocument={openDocumentOverlay}
+            tokenCurrent={tokenCurrent}
+            tokenMax={tokenMax}
             onDocumentDeleted={(docId) => {
               if (expandedDocId === docId) setExpandedDocId(null);
             }}
@@ -259,6 +263,8 @@ function Dashboard({ company, onBack }) {
             onGetOverview={() => {}}
             onScanBlogs={scanBlogs}
             hasScannedBlogs={hasScannedBlogs}
+            tokenCurrent={tokenCurrent}
+            tokenMax={tokenMax}
             today={today}
             launchDate={null}
             onSelectDate={(d) => {

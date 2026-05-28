@@ -308,7 +308,13 @@ function Dropdown({ label, open, onToggle, children, secondary }) {
 /* ─────────────────────────────────────────────
    LEFT PANEL  (main export)
 ───────────────────────────────────────────── */
-export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted }) {
+export function LeftPanel({
+  onInsertToCanvas,
+  onOpenDocument,
+  onDocumentDeleted,
+  tokenCurrent = 0,
+  tokenMax = 10,
+}) {
   const [panelType, setPanelType]   = useState("Objects");
   const [activeId, setActiveId]     = useState(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -720,13 +726,16 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
         <div className="lp-tokens-row">
           <span className="lp-tokens-label">TOKENS</span>
           <div className="lp-tokens-value">
-            <span className="lp-tokens-num">0</span>
+            <span className="lp-tokens-num">{tokenCurrent}</span>
             <span className="lp-tokens-sep"> / </span>
-            <span className="lp-tokens-max">10</span>
+            <span className="lp-tokens-max">{tokenMax}</span>
           </div>
         </div>
         <div className="lp-tokens-bar">
-          <div className="lp-tokens-fill" style={{ width: "0%" }} />
+          <div
+            className="lp-tokens-fill"
+            style={{ width: `${Math.max(0, Math.min(100, (tokenCurrent / Math.max(tokenMax, 1)) * 100))}%` }}
+          />
         </div>
         <div className="lp-tokens-meta">
           <span>{nodeList.length} manual · 0 AI</span>
