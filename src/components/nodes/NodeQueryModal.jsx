@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
-  DOC_EXPAND_ICON,
   DOC_TIMER_ICON,
   NODE_ICON,
   NODE_SAVE_ARCHIVE_ICON,
@@ -32,9 +31,8 @@ export function NodeQueryModal({
   parentDocId = "",
   onParentDocIdChange,
   docs = [],
-  onSave,
-  onDelete,
   onClose,
+  onBackToDocument,
   anchorDate = "",
   anchorTime = "",
   onAnchorDateChange,
@@ -93,7 +91,6 @@ export function NodeQueryModal({
   const modal = (
     <div
       className="node-query-overlay lp-overlay--solid lp-overlay--center"
-      onClick={onClose}
       role="presentation"
     >
       <div
@@ -120,16 +117,19 @@ export function NodeQueryModal({
                 ))}
               </select>
             ) : (
-              <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
+              <>
+                <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
+                {onBackToDocument ? (
+                  <button
+                    type="button"
+                    className="node-query-modal__back-link"
+                    onClick={onBackToDocument}
+                  >
+                    ← return
+                  </button>
+                ) : null}
+              </>
             )}
-            <button
-              type="button"
-              className="node-query-modal__close"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <img src={DOC_EXPAND_ICON} alt="" aria-hidden />
-            </button>
           </div>
 
           {queryEditable ? (
@@ -253,21 +253,6 @@ export function NodeQueryModal({
         </div>
 
         <footer className="node-query-modal__actions">
-          <button
-            type="button"
-            className="node-query-modal__action node-query-modal__action--delete"
-            onClick={onDelete}
-          >
-            delete
-          </button>
-          <button
-            type="button"
-            className="node-query-modal__action node-query-modal__action--save"
-            onClick={onSave}
-          >
-            save
-            <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
-          </button>
           <button
             type="button"
             className="node-query-modal__action node-query-modal__action--search"

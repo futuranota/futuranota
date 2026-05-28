@@ -1,6 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import {
-  DOC_EXPAND_ICON,
   DOC_FILE_TXT_ICON,
   DOC_PARENT_ICON,
   DOC_TIMER_ICON,
@@ -119,7 +118,9 @@ export function DocDocumentBox({
               onClick={onCloseExpand}
               aria-label="Close"
             >
-              <img className="doc-new-head-expand" src={DOC_EXPAND_ICON} alt="" aria-hidden />
+              <span className="doc-new-head-close-x" aria-hidden>
+                ×
+              </span>
             </button>
           )}
         </div>
@@ -200,7 +201,7 @@ export function DocDocumentBox({
                 wrapClassName="doc-body-field-wrap__slash"
                 className="doc-new-body-field"
                 minHeightPx={26}
-                maxHeightPx={9999}
+                maxHeightPx={520}
               />
             </div>
           )}

@@ -7,6 +7,7 @@ export function TextBlockView({
   placeholder,
   autoFocus = false,
   showPlaceholder = true,
+  maxHeightPx = 520,
 }) {
   return (
     <div className="doc-text-block">
@@ -20,7 +21,7 @@ export function TextBlockView({
         wrapClassName="doc-text-block__wrap"
         className="doc-text-block__field"
         minHeightPx={20}
-        maxHeightPx={9999}
+        maxHeightPx={maxHeightPx}
       />
     </div>
   );

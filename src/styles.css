@@ -124,7 +124,7 @@ input, textarea {
   font-family: inherit;
 }
 
-::selection { background: color-mix(in oklab, var(--hud) 35%, transparent); color: var(--text); }
+::selection { background: color-mix(in oklab, #dcb2a6 56%, transparent); color: #fff; }
 
 /* ── primitives ───────────────────────────────────────────── */
 

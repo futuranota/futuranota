@@ -237,6 +237,7 @@ export function DocBlockStack({
               placeholder={bodyPlaceholder}
               showPlaceholder={index === 0 && blocks.length === 1}
               autoFocus={focusBlockId === block.id}
+              maxHeightPx={520}
               onKeyDown={(e) => handleTextKeyDown(index, e, block.text || "")}
             />
           ) : null}
