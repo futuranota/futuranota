@@ -15,13 +15,13 @@ function IconWrap({ children, size = 16, className = "" }) {
   );
 }
 
-function IconWrap24({ children, className = "" }) {
+function IconWrap24({ children, size = 36, className = "" }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 24 24"
-      width={44}
-      height={44}
+      width={size}
+      height={size}
       className={`forecast-icon forecast-icon--lg ${className}`.trim()}
       aria-hidden
     >
@@ -123,9 +123,9 @@ export function ForecastIconMoonPhase({ size = 16 }) {
   );
 }
 
-export function ForecastIconThunderstorms() {
+export function ForecastIconThunderstorms({ size = 36 }) {
   return (
-    <IconWrap24>
+    <IconWrap24 size={size}>
       <path
         fill="#8a939f"
         d="M7.914 11.984h-.388l-.003-.026C6.099 11.77 5 10.564 5 9.104c0-1.476 1.123-2.692 2.57-2.86C7.771 3.867 9.787 2 12.244 2c1.937 0 3.6 1.161 4.315 2.818 1.7.314 2.986 1.789 2.986 3.56 0 2-1.64 3.622-3.664 3.622q-.176 0-.347-.016h-1.382L15 10.5l-3.5-2-1.742 3.484z"
@@ -138,9 +138,9 @@ export function ForecastIconThunderstorms() {
   );
 }
 
-export function ForecastIconShowersNight() {
+export function ForecastIconShowersNight({ size = 36 }) {
   return (
-    <IconWrap24>
+    <IconWrap24 size={size}>
       <path
         fill="#9aa3b8"
         d="M16.196 10.6c.108-.387.166-.8.166-1.229 0-1.505-1.012-2.75-2.462-3.104a6.5 6.5 0 0 0-.242-1.202c.166-.498.421-.967.758-1.387a4.7 4.7 0 0 1 2.86-1.673.4.4 0 0 1 .062-.005.37.37 0 0 1 .289.158.35.35 0 0 1 .035.32 4.4 4.4 0 0 0 .45 3.974c.383.584.9 1.076 1.51 1.435.61.36 1.298.579 2.009.64a.37.37 0 0 1 .3.191.34.34 0 0 1-.021.35c-.43.593-1 1.077-1.663 1.412s-1.4.508-2.147.508h-.174a4.8 4.8 0 0 1-1.73-.389"
@@ -172,10 +172,10 @@ const METRIC_ICONS = {
   "moon-phase": ForecastIconMoonPhase,
 };
 
-export function ForecastConditionIcon({ name, large = false }) {
+export function ForecastConditionIcon({ name, size = 36 }) {
   const Cmp = CONDITION_ICONS[name];
   if (!Cmp) return null;
-  return <Cmp />;
+  return <Cmp size={size} />;
 }
 
 export function ForecastMetricIcon({ name, size = 16 }) {

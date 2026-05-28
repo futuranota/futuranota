@@ -6,7 +6,7 @@ export function ForecastPanel({ today = new Date() }) {
   const forecast = useMemo(() => getForecastMock(today), [today]);
 
   return (
-    <div className="forecast-panel">
+    <div className="forecast-panel forecast-panel--compact">
       <header className="forecast-panel__header">
         <h2 className="forecast-panel__title">Daily Forecast</h2>
         <p className="forecast-panel__location">

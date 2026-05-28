@@ -6,6 +6,7 @@ import {
 } from "./ForecastIcons.jsx";
 import { ForecastPeriodBlock } from "./ForecastPeriodBlock.jsx";
 import { ForecastMetricsGrid } from "./ForecastMetricsGrid.jsx";
+import { ForecastPeriodSwitch } from "./ForecastPeriodSwitch.jsx";
 
 function TempPair({ high, low }) {
   return (
@@ -25,7 +26,10 @@ function TempPair({ high, low }) {
 
 export function ForecastDayAccordion({ day, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [periodMode, setPeriodMode] = useState("day");
   const wind = day.wind || {};
+  const activePeriod = periodMode === "night" ? day.night : day.day;
+  const activeMetrics = periodMode === "night" ? day.nightMetrics : day.dayMetrics;
 
   return (
     <article
@@ -45,7 +49,7 @@ export function ForecastDayAccordion({ day, defaultOpen = true }) {
               <TempPair high={day.high} low={day.low} />
             </span>
             <span className="forecast-summary__hide-when-open forecast-summary__wx">
-              <ForecastConditionIcon name={day.conditionIcon} />
+              <ForecastConditionIcon name={day.conditionIcon} size={24} />
               <span className="forecast-summary__condition">{day.condition}</span>
             </span>
             <span className="forecast-summary__hide-when-open forecast-summary__precip">
@@ -65,10 +69,9 @@ export function ForecastDayAccordion({ day, defaultOpen = true }) {
       </h3>
       {open ? (
         <div className="forecast-accordion__content" role="region">
-          <ForecastPeriodBlock period={day.day} />
-          <ForecastMetricsGrid metrics={day.dayMetrics} />
-          <ForecastPeriodBlock period={day.night} />
-          <ForecastMetricsGrid metrics={day.nightMetrics} />
+          <ForecastPeriodSwitch value={periodMode} onChange={setPeriodMode} />
+          <ForecastPeriodBlock period={activePeriod} compact />
+          <ForecastMetricsGrid metrics={activeMetrics} compact />
         </div>
       ) : null}
     </article>
