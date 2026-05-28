@@ -3,7 +3,7 @@ import { DOC_SLASH_GHOST_HINTS } from "../../../lib/docBlockSlash.js";
 
 /**
  * Inline slash input with ghost hints:
- * value === "/" → cycles Title → Checkbox → date → metric.
+ * value === "/" → cycles create title → checkbox → metric → Date.
  */
 export function SlashCommandPreview({
   value,

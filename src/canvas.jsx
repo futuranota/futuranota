@@ -6,6 +6,7 @@ import {
   computeEdgeTemporalLabel,
   bezierMidpoint,
 } from './temporal.js';
+import { formatScheduleLabelFromIso } from './lib/nodeAnchor.js';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
@@ -68,10 +69,16 @@ function ConnLabel({ x, y, text, pending }) {
 
 /* ─── CANVAS NODE ──────────────────────────────────────────── */
 
+function resolveCanvasNodeAnchor(node, nodeEntitiesById = {}) {
+  const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+  return parseDate(node.anchorAt) || parseDate(entity?.anchorAt);
+}
+
 function CanvasNode({
   node, today, selected, connectingFrom, isConnectingFrom, rewiring, blueprintColor,
   allNodes, allConnections,
   selectedConnectionId, connections,
+  nodeEntitiesById = {},
   onAddToSelection, onTapToggle, onMove, onEdit, onDelete, onStartConnect, onPortMouseUp,
   onConnectHover, onStartRewire, getWorldFromClient,
 }) {
@@ -184,9 +191,38 @@ function CanvasNode({
       );
     }
     if (node.dataType === "text") {
+      const anchor = resolveCanvasNodeAnchor(node, nodeEntitiesById);
+      const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+      const anchorIso = entity?.anchorAt || node.anchorAt;
+      const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
       return (
-        <div className="cnode-v" onDoubleClick={() => setEditing("content")}>
-          {String(node.content || <span style={{ color: "var(--mute)" }}>—</span>)}
+        <div className="cnode-v cnode-v--with-anchor" onDoubleClick={() => setEditing("content")}>
+          <span className="cnode-v__main">
+            {String(node.content || <span style={{ color: "var(--mute)" }}>—</span>)}
+          </span>
+          {scheduleLabel ? (
+            <span className="cnode-anchor-date" title="Scheduled date">
+              {scheduleLabel}
+            </span>
+          ) : null}
+        </div>
+      );
+    }
+    if (node.dataType === "checkbox") {
+      const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+      const checked = entity
+        ? Boolean(entity.content)
+        : Boolean(node.content);
+      const anchorIso = entity?.anchorAt || node.anchorAt;
+      const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
+      return (
+        <div className="cnode-v cnode-v--with-anchor" onDoubleClick={() => setEditing("content")}>
+          <span className="cnode-v__main">{checked ? "☑" : "☐"}</span>
+          {scheduleLabel ? (
+            <span className="cnode-anchor-date" title="Scheduled date">
+              {scheduleLabel}
+            </span>
+          ) : null}
         </div>
       );
     }
@@ -1126,6 +1162,7 @@ function BlueprintCanvas({
             onStartRewire={handleStartRewire}
             getWorldFromClient={getWorldFromClient}
             onConnectHover={(connectingFrom || rewiring) ? setConnectHoverTarget : undefined}
+            nodeEntitiesById={nodeEntitiesById}
           />
         ))}
         </div>

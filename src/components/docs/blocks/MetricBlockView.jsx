@@ -1,4 +1,5 @@
 import { DocQueryHandleRow } from "./DocQueryHandleRow.jsx";
+import { MetricFieldsEditor } from "../../shared/MetricFieldsEditor.jsx";
 
 export function MetricBlockView({
   title,
@@ -20,25 +21,14 @@ export function MetricBlockView({
         placeholder="Insert Query (?) or title"
         ariaLabel="Metric block title or query"
       />
-      <div className="doc-metric-block__fields">
-        <input
-          type="number"
-          className="doc-metric-block__value"
-          value={value}
-          onChange={(e) => onValueChange(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
-          aria-label="Metric value"
-        />
-        <input
-          type="text"
-          className="doc-metric-block__unit"
-          value={unit}
-          placeholder="unit"
-          onChange={(e) => onUnitChange(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
-          aria-label="Metric unit"
-        />
-      </div>
+      <p className="doc-block-type-label">Metric</p>
+      <MetricFieldsEditor
+        className="doc-metric-block__fields"
+        value={value}
+        unit={unit}
+        onValueChange={onValueChange}
+        onUnitChange={onUnitChange}
+      />
     </div>
   );
 }

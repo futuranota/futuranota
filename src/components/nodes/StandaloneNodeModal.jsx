@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import { anchorFieldsFromIso, isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import {
   dateInputFromIso,
   isoFromDateInput,
@@ -106,6 +107,9 @@ export function StandaloneNodeModal({
   const [createdDate, setCreatedDate] = useState(() =>
     dateInputFromIso(node?.createdAt),
   );
+  const initialAnchor = anchorFieldsFromIso(node?.anchorAt);
+  const [anchorDate, setAnchorDate] = useState(initialAnchor.anchorDate);
+  const [anchorTime, setAnchorTime] = useState(initialAnchor.anchorTime);
 
   const handleDataTypeChange = (nextType) => {
     setDataType(nextType);
@@ -117,11 +121,16 @@ export function StandaloneNodeModal({
     const payload = parseContentForSave(content, dataType);
     const parentId = parentDocId || null;
     const createdAt = isoFromDateInput(createdDate);
+    const anchorAt =
+      dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX
+        ? isoFromAnchorFields(anchorDate, anchorTime)
+        : null;
 
     if (isNew) {
       const newId = addNode(title, dataType, payload, parentId, {
         sourceQuery: title,
         createdAt,
+        anchorAt,
       });
       if (parentId) {
         syncNodeToParentDoc(newId, parentId);
@@ -143,6 +152,7 @@ export function StandaloneNodeModal({
         parentDocId: parentId,
         linkedToDoc: Boolean(parentId),
         createdAt,
+        anchorAt,
       });
       if (parentId) {
         syncNodeToParentDoc(node.id, parentId);
@@ -183,6 +193,10 @@ export function StandaloneNodeModal({
       parentDocId={parentDocId}
       onParentDocIdChange={setParentDocId}
       docs={docList}
+      anchorDate={anchorDate}
+      anchorTime={anchorTime}
+      onAnchorDateChange={setAnchorDate}
+      onAnchorTimeChange={setAnchorTime}
       onSave={handleSave}
       onDelete={handleDelete}
       onClose={onClose}

@@ -4,32 +4,38 @@ import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
 export const DOC_SLASH_COMMANDS = [
   {
     label: "Title",
-    aliases: ["title", "h1"],
+    ghostHint: "create title",
+    aliases: ["title", "h1", "createtitle"],
     blockType: DOC_BLOCK_TYPES.H1,
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
     label: "Checkbox",
+    ghostHint: "checkbox",
     aliases: ["checkbox", "todo", "to-do"],
     blockType: DOC_BLOCK_TYPES.TODO,
     nodeDataType: NODE_DATA_TYPES.CHECKBOX,
     defaultListTitle: "Checkbox:",
   },
   {
-    label: "date",
+    label: "Date",
+    ghostHint: "Date",
     aliases: ["date"],
     blockType: DOC_BLOCK_TYPES.DATE,
     nodeDataType: NODE_DATA_TYPES.DATE,
   },
   {
     label: "metric",
+    ghostHint: "metric",
     aliases: ["metric"],
     blockType: DOC_BLOCK_TYPES.METRIC,
     nodeDataType: NODE_DATA_TYPES.METRIC,
   },
 ];
 
-export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map((c) => c.label);
+export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
+  (c) => c.ghostHint ?? c.label,
+);
 
 export function getSlashTail(value) {
   const m = String(value ?? "").match(/(\/[^\n]*)$/);

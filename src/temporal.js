@@ -2,11 +2,22 @@ import { daysBetween } from './data.jsx';
 
 export function parseDate(content) {
   if (content instanceof Date) return content;
+  if (content && typeof content === "object" && content.date) {
+    const time = content.time || "12:00";
+    const normalized = String(time).length === 5 ? `${time}:00` : time;
+    const d = new Date(`${content.date}T${normalized}`);
+    return isNaN(d.getTime()) ? null : d;
+  }
   if (typeof content === "string") {
     const d = new Date(content);
     return isNaN(d) ? null : d;
   }
   return null;
+}
+
+function resolveEntityAnchor(entity) {
+  if (!entity?.anchorAt) return null;
+  return parseDate(entity.anchorAt);
 }
 
 export function startOfCalendarDay(d) {
@@ -28,12 +39,18 @@ export function noteToTrackItem(note) {
     title: note.title || "NOTE",
     dataType: note.dataType || "text",
     content: note.content,
+    anchorAt: note.anchorAt || null,
   };
 }
 
-/** Resolve anchor date: date → content; text/doc → createdAt / parent doc. */
+/** Resolve anchor date: optional anchorAt; date → content; text/doc → createdAt. */
 export function resolveNodeAnchorDate(node, { nodeEntitiesById = {}, docsById = {} } = {}) {
   if (!node) return null;
+
+  const entityId = node.noteId;
+  const entity = entityId ? nodeEntitiesById[entityId] : null;
+  const directAnchor = parseDate(node.anchorAt) || resolveEntityAnchor(entity);
+  if (directAnchor) return directAnchor;
 
   if (node.dataType === "date") {
     return parseDate(node.content);
@@ -44,9 +61,7 @@ export function resolveNodeAnchorDate(node, { nodeEntitiesById = {}, docsById = 
     if (doc?.createdAt) return parseDate(doc.createdAt);
   }
 
-  if (node.dataType === "text" || node.dataType === "metric") {
-    const entityId = node.noteId;
-    const entity = entityId ? nodeEntitiesById[entityId] : null;
+  if (node.dataType === "text" || node.dataType === "metric" || node.dataType === "checkbox") {
     if (entity?.createdAt) return parseDate(entity.createdAt);
     if (entity?.parentDocId) {
       const doc = docsById[entity.parentDocId];

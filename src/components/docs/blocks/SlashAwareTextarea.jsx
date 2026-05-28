@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { getSlashTail, splitBodyForSlash } from "../../../lib/docBlockSlash.js";
+import { DOC_SLASH_GHOST_HINTS, getSlashTail, splitBodyForSlash } from "../../../lib/docBlockSlash.js";
 
 function collapseDuplicateSlashTail(value) {
   const tail = getSlashTail(value);
@@ -29,7 +29,7 @@ export function SlashAwareTextarea({
 }) {
   const internalRef = useRef(null);
   const textareaRef = externalRef || internalRef;
-  const [ghostHint, setGhostHint] = useState("H1");
+  const [hintIndex, setHintIndex] = useState(0);
 
   const { prefix, slash } = splitBodyForSlash(value);
   const slashActive = Boolean(slash);
@@ -37,13 +37,17 @@ export function SlashAwareTextarea({
 
   useEffect(() => {
     if (!showGhost) {
-      setGhostHint("H1");
+      setHintIndex(0);
       return;
     }
-    setGhostHint("H1");
-    const timer = setTimeout(() => setGhostHint("to-do"), 2000);
-    return () => clearTimeout(timer);
+    setHintIndex(0);
+    const interval = setInterval(() => {
+      setHintIndex((i) => (i + 1) % DOC_SLASH_GHOST_HINTS.length);
+    }, 2000);
+    return () => clearInterval(interval);
   }, [showGhost, slash]);
+
+  const ghostHint = DOC_SLASH_GHOST_HINTS[hintIndex] ?? DOC_SLASH_GHOST_HINTS[0];
 
   const syncHeight = useCallback(() => {
     const el = textareaRef.current;

@@ -245,6 +245,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
     <div className="lp-overlay lp-overlay--solid lp-overlay--center" onClick={onCancel}>
       <div className="lp-modal doc-new-modal" onClick={e => e.stopPropagation()}>
         <DocDocumentBox
+          headerLabel={parentObject?.name || "— sin padre —"}
           title={title}
           onTitleChange={setTitle}
           titleRef={titleRef}
@@ -412,7 +413,7 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
       addObject(data.name, data.description, data.color);
     } else if (panelType === "Documents") {
       const parentId = data.parentObjectId || null;
-      addDoc(
+      const newDocId = addDoc(
         data.title,
         parentId,
         [],
@@ -422,6 +423,11 @@ export function LeftPanel({ onInsertToCanvas, onOpenDocument, onDocumentDeleted 
         data.blocks ?? null,
       );
       setActiveId(null);
+      setShowCreate(false);
+      if (newDocId && onOpenDocument) {
+        onOpenDocument(newDocId);
+      }
+      return;
     }
     setShowCreate(false);
   };

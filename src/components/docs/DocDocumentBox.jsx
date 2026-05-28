@@ -14,7 +14,7 @@ import {
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 
-const DEFAULT_DOC_LABEL = "New document";
+const DEFAULT_HEADER_LABEL = "— sin padre —";
 
 /**
  * Document medium box — layout from Figma node 291:494 (datos).
@@ -42,9 +42,11 @@ export function DocDocumentBox({
   onOpenNodeForBlock,
   onOpenNodeForH1,
   onAnswerBelowH1Change,
+  onBlockAnchorChange,
+  headerLabel,
 }) {
   const showParent = objects && onParentIdChange;
-  const docLabel = title.trim() ? title : DEFAULT_DOC_LABEL;
+  const docHeaderLabel = (headerLabel ?? "").trim() || DEFAULT_HEADER_LABEL;
   const bodyRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
 
@@ -109,7 +111,7 @@ export function DocDocumentBox({
       <header className="doc-new-head">
         <div className="doc-new-head-top">
           <img className="doc-new-head-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />
-          <span className="doc-new-doc-label">{docLabel}</span>
+          <span className="doc-new-doc-label">{docHeaderLabel}</span>
           {onCloseExpand && (
             <button
               type="button"
@@ -182,6 +184,7 @@ export function DocDocumentBox({
               onOpenNodeForBlock={onOpenNodeForBlock || onOpenNodeForH1}
               onOpenNodeForH1={onOpenNodeForH1}
               onAnswerBelowH1Change={onAnswerBelowH1Change}
+              onBlockAnchorChange={onBlockAnchorChange}
             />
           ) : (
             <div className="doc-body-field-wrap">

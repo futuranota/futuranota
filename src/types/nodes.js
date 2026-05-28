@@ -11,6 +11,7 @@
  * @property {string|null} [canvasNodeId]
  * @property {string} createdAt
  * @property {string} [updatedAt]
+ * @property {string|null} [anchorAt] — optional schedule ISO for text/checkbox (wires + canvas)
  */
 
 export {};

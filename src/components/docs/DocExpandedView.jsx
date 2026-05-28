@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
+import { useObjectsStore } from "../../stores/objectsStore.js";
 import { Modal } from "../shared/Modal.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
@@ -16,6 +17,8 @@ import {
 import { nodeDataTypeForBlock } from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
+  anchorFieldsFromIso,
+  anchorAtFromBlock,
   blockDataType,
   getAnswerBelowH1,
   getBlockQueryText,
@@ -24,6 +27,7 @@ import {
   setAnswerBelowH1,
   setContentForNodeBlock,
 } from "../../lib/docNodeSync.js";
+import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 
 function NodeFromSelectionModal({ query, onClose, onSave }) {
   return (
@@ -57,7 +61,11 @@ export function DocExpandedView({ docId, onClose }) {
   const [draftCreatedDate, setDraftCreatedDate] = useState("");
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
+  const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
+  const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
   const [nodeSavedHint, setNodeSavedHint] = useState(false);
+  const [docSavedHint, setDocSavedHint] = useState(false);
+  const objects = useObjectsStore((s) => s.objects);
 
   useEffect(() => {
     const d = useDocsStore.getState().docs[docId];
@@ -70,10 +78,13 @@ export function DocExpandedView({ docId, onClose }) {
     setDraftBody(loadedBlocks.length ? "" : (d.body ?? d.content ?? ""));
     setDraftCreatedDate(dateInputFromIso(d.createdAt));
     setNodeSavedHint(false);
+    setDocSavedHint(false);
   }, [docId]);
 
   if (!doc) return null;
 
+  const parentObject = doc.parentObjectId ? objects[doc.parentObjectId] : null;
+  const headerLabel = parentObject?.name || "— sin padre —";
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
 
   const handleDeleteDoc = () => {
@@ -100,7 +111,8 @@ export function DocExpandedView({ docId, onClose }) {
       body: serializedBody,
       createdAt: isoFromDateInput(draftCreatedDate),
     });
-    onClose();
+    setDocSavedHint(true);
+    setNodeSavedHint(false);
   };
 
   const handleContextMenu = (e) => {
@@ -110,16 +122,41 @@ export function DocExpandedView({ docId, onClose }) {
     setSelectionModal({ query: text });
   };
 
-  const syncLinkedNodeFromDoc = (blockIndex, content, blocks) => {
+  const syncLinkedNodeFromDoc = (blockIndex, content, blocks, anchorPatch = null) => {
     const block = blocks[blockIndex];
     if (!block?.nodeId) return;
     const dataType = blockDataType(block);
     const queryText = getBlockQueryText(block) || "Untitled query";
-    updateNode(block.nodeId, {
+    const updates = {
       content,
       title: queryText,
       sourceQuery: queryText,
       dataType,
+    };
+    if (anchorPatch) {
+      updates.anchorAt = isoFromAnchorFields(anchorPatch.anchorDate, anchorPatch.anchorTime);
+    }
+    updateNode(block.nodeId, updates);
+  };
+
+  const handleBlockAnchorChange = (blockIndex, anchorDate, anchorTime) => {
+    setDraftBlocks((prev) => {
+      const next = updateBlockAt(prev, blockIndex, { anchorDate, anchorTime });
+      const block = next[blockIndex];
+      if (block?.nodeId) {
+        updateNode(block.nodeId, {
+          anchorAt: isoFromAnchorFields(anchorDate, anchorTime),
+        });
+      }
+      if (
+        activeNodeContext?.blockIndex === blockIndex
+        && (activeNodeContext.dataType === NODE_DATA_TYPES.TEXT
+          || activeNodeContext.dataType === NODE_DATA_TYPES.CHECKBOX)
+      ) {
+        setNodeDraftAnchorDate(anchorDate);
+        setNodeDraftAnchorTime(anchorTime);
+      }
+      return next;
     });
   };
 
@@ -165,6 +202,27 @@ export function DocExpandedView({ docId, onClose }) {
       dataType,
     });
     setNodeDraftContent(resolveNodeDraftFromDoc(blockContent, existing, dataType));
+    const anchorFromBlock = anchorFieldsFromIso(anchorAtFromBlock(block));
+    const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
+    setNodeDraftAnchorDate(anchorFromBlock.anchorDate || anchorFromNode.anchorDate);
+    setNodeDraftAnchorTime(anchorFromBlock.anchorTime || anchorFromNode.anchorTime);
+  };
+
+  const supportsScheduleAnchor = (dataType) =>
+    dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
+
+  const handleNodeAnchorDateChange = (anchorDate) => {
+    setNodeDraftAnchorDate(anchorDate);
+    if (!activeNodeContext) return;
+    const { blockIndex } = activeNodeContext;
+    handleBlockAnchorChange(blockIndex, anchorDate, nodeDraftAnchorTime);
+  };
+
+  const handleNodeAnchorTimeChange = (anchorTime) => {
+    setNodeDraftAnchorTime(anchorTime);
+    if (!activeNodeContext) return;
+    const { blockIndex } = activeNodeContext;
+    handleBlockAnchorChange(blockIndex, nodeDraftAnchorDate, anchorTime);
   };
 
   const handleOpenNodeForH1 = (h1Index, h1Block) => handleOpenNodeForBlock(h1Index, h1Block);
@@ -186,6 +244,10 @@ export function DocExpandedView({ docId, onClose }) {
       patch.listTitle = block.listTitle || queryText;
     }
 
+    const anchorAt = supportsScheduleAnchor(dataType)
+      ? isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorTime)
+      : null;
+
     const newNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
       docId: doc.id,
@@ -194,9 +256,14 @@ export function DocExpandedView({ docId, onClose }) {
       content: nodeDraftContent,
       dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
+      anchorAt,
     });
 
     patch.nodeId = newNodeId;
+    if (supportsScheduleAnchor(dataType)) {
+      patch.anchorDate = nodeDraftAnchorDate;
+      patch.anchorTime = nodeDraftAnchorTime;
+    }
 
     let nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
     nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, nodeDraftContent, dataType);
@@ -210,6 +277,8 @@ export function DocExpandedView({ docId, onClose }) {
     setDraftBlocks(nextBlocks);
     setActiveNodeContext(null);
     setNodeDraftContent("");
+    setNodeDraftAnchorDate("");
+    setNodeDraftAnchorTime("");
     setNodeSavedHint(true);
   };
 
@@ -241,12 +310,22 @@ export function DocExpandedView({ docId, onClose }) {
     <>
       <div onContextMenu={handleContextMenu}>
         <DocDocumentBox
+          headerLabel={headerLabel}
           title={draftTitle}
-          onTitleChange={setDraftTitle}
+          onTitleChange={(v) => {
+            setDraftTitle(v);
+            setDocSavedHint(false);
+          }}
           body={draftBody}
-          onBodyChange={setDraftBody}
+          onBodyChange={(v) => {
+            setDraftBody(v);
+            setDocSavedHint(false);
+          }}
           blocks={draftBlocks}
-          onBlocksChange={setDraftBlocks}
+          onBlocksChange={(next) => {
+            setDraftBlocks(next);
+            setDocSavedHint(false);
+          }}
           createdDate={draftCreatedDate}
           onCreatedDateChange={setDraftCreatedDate}
           onDelete={handleDeleteDoc}
@@ -255,9 +334,14 @@ export function DocExpandedView({ docId, onClose }) {
           onOpenNodeForBlock={handleOpenNodeForBlock}
           onOpenNodeForH1={handleOpenNodeForH1}
           onAnswerBelowH1Change={handleAnswerBelowH1Change}
+          onBlockAnchorChange={handleBlockAnchorChange}
         />
       </div>
-      {nodeSavedHint ? (
+      {docSavedHint ? (
+        <span className="notes-doc-editor-hint notes-doc-editor-hint--node-saved">
+          Documento guardado. El editor sigue abierto.
+        </span>
+      ) : nodeSavedHint ? (
         <span className="notes-doc-editor-hint notes-doc-editor-hint--node-saved">
           Nodo guardado en el documento. Pulsa save del documento para persistir todo.
         </span>
@@ -286,9 +370,15 @@ export function DocExpandedView({ docId, onClose }) {
           parentDocLabel={parentDocLabel}
           onSave={handleNodeModalSave}
           onDelete={handleNodeModalDelete}
+          anchorDate={nodeDraftAnchorDate}
+          anchorTime={nodeDraftAnchorTime}
+          onAnchorDateChange={handleNodeAnchorDateChange}
+          onAnchorTimeChange={handleNodeAnchorTimeChange}
           onClose={() => {
             setActiveNodeContext(null);
             setNodeDraftContent("");
+            setNodeDraftAnchorDate("");
+            setNodeDraftAnchorTime("");
           }}
         />
       )}

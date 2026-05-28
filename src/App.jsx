@@ -123,7 +123,7 @@ function Dashboard({ company, onBack }) {
       id: shortId("CN"),
       noteId: zustandNode.id,
       title: (zustandNode.title || zustandNode.content || "NODE").toUpperCase().slice(0, 20),
-      dataType: zustandNode.type || "text",
+      dataType: zustandNode.dataType || "text",
       content: zustandNode.content ?? "",
       x, y,
     };

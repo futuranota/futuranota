@@ -1,5 +1,16 @@
 import { useState } from "react";
 import { NODE_DATA_TYPES, DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
+import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
+
+function initialMetricState(content) {
+  if (content && typeof content === "object") {
+    return {
+      value: content.value != null ? String(content.value) : "",
+      unit: content.unit || "",
+    };
+  }
+  return { value: content != null ? String(content) : "", unit: "" };
+}
 
 export function NodeForm({ onSubmit, onCancel, initialData = null }) {
   const [title, setTitle] = useState(initialData?.title || "");
@@ -7,14 +18,23 @@ export function NodeForm({ onSubmit, onCancel, initialData = null }) {
   const [content, setContent] = useState(
     initialData?.content != null ? String(initialData.content) : "",
   );
+  const [metricValue, setMetricValue] = useState(() =>
+    initialData?.dataType === "metric" ? initialMetricState(initialData.content).value : "",
+  );
+  const [metricUnit, setMetricUnit] = useState(() =>
+    initialData?.dataType === "metric" ? initialMetricState(initialData.content).unit : "",
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
     let payload = content;
     if (dataType === "metric") {
-      const num = Number(content);
-      payload = { value: Number.isNaN(num) ? content : num, unit: "" };
+      const num = Number(metricValue);
+      payload = {
+        value: Number.isNaN(num) ? metricValue : num,
+        unit: metricUnit,
+      };
     }
     if (dataType === "checkbox") {
       payload = content === "true" || content === true;
@@ -72,13 +92,21 @@ export function NodeForm({ onSubmit, onCancel, initialData = null }) {
             Marcado
           </label>
         )}
-        {(dataType === "text" || dataType === "metric") && (
+        {dataType === "text" && (
           <textarea
             className="note-form-field"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="Contenido…"
             rows={4}
+          />
+        )}
+        {dataType === "metric" && (
+          <MetricFieldsEditor
+            value={metricValue}
+            unit={metricUnit}
+            onValueChange={setMetricValue}
+            onUnitChange={setMetricUnit}
           />
         )}
       </div>

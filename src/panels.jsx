@@ -1036,6 +1036,7 @@ function Timeline({
             title: source.sourceQuery || source.title || n.title,
             dataType: source.dataType || n.dataType || "text",
             content: source.content ?? n.content ?? "",
+            anchorAt: source.anchorAt ?? null,
           });
         }
         return noteToTrackItem({
