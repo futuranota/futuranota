@@ -80,7 +80,7 @@ function CanvasNode({
   selectedConnectionId, connections,
   nodeEntitiesById = {},
   onAddToSelection, onTapToggle, onMove, onEdit, onDelete, onStartConnect, onPortMouseUp,
-  onConnectHover, onStartRewire, getWorldFromClient,
+  onConnectHover, onStartRewire, getWorldFromClient, onOpen,
 }) {
   const ref = useRef(null);
   const [editing, setEditing] = useState(null); // 'title' | 'content' | null
@@ -196,7 +196,7 @@ function CanvasNode({
       const anchorIso = entity?.anchorAt || node.anchorAt;
       const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
       return (
-        <div className="cnode-v cnode-v--with-anchor" onDoubleClick={() => setEditing("content")}>
+        <div className="cnode-v cnode-v--with-anchor">
           <span className="cnode-v__main">
             {String(node.content || <span style={{ color: "var(--mute)" }}>—</span>)}
           </span>
@@ -216,7 +216,7 @@ function CanvasNode({
       const anchorIso = entity?.anchorAt || node.anchorAt;
       const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
       return (
-        <div className="cnode-v cnode-v--with-anchor" onDoubleClick={() => setEditing("content")}>
+        <div className="cnode-v cnode-v--with-anchor">
           <span className="cnode-v__main">{checked ? "☑" : "☐"}</span>
           {scheduleLabel ? (
             <span className="cnode-anchor-date" title="Scheduled date">
@@ -230,7 +230,7 @@ function CanvasNode({
       const d = parseDate(node.content);
       const countdown = d ? daysBetween(today, d) : null;
       return (
-        <div className="cnode-v" onDoubleClick={() => setEditing("content")}>
+        <div className="cnode-v">
           <div style={{ fontFamily: "var(--mono)", fontSize: 14, fontWeight: 500, letterSpacing: "-0.005em" }}>
             {d ? fmtDate(d) : <span style={{ color: "var(--mute)" }}>(no date)</span>}
           </div>
@@ -248,7 +248,7 @@ function CanvasNode({
     if (node.dataType === "metric") {
       const { value, unit, bridged } = computeMetricValue(node, allNodes, allConnections, today);
       return (
-        <div className="cnode-v metric" onDoubleClick={() => !bridged && setEditing("content")}>
+        <div className="cnode-v metric">
           {String(value)}<span className="unit">{unit}</span>
           {bridged && <div style={{ fontFamily: "var(--mono)", fontSize: 9.5, color: "var(--accent)", marginTop: 4, letterSpacing: "0.04em", textTransform: "uppercase" }}>bridge</div>}
         </div>
@@ -276,6 +276,10 @@ function CanvasNode({
         display: node.hidden ? "none" : undefined,
       }}
       onPointerDown={onPointerDown}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onOpen?.(node.id);
+      }}
       onMouseEnter={() => { if (isConnectingFrom && isConnectingFrom !== node.id) onConnectHover?.(node.id); }}
       onMouseLeave={() => onConnectHover?.(null)}
       onMouseUp={(e) => { if (isConnectingFrom && isConnectingFrom !== node.id) onPortMouseUp(node.id); }}
@@ -291,10 +295,7 @@ function CanvasNode({
             onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); if (e.key === "Enter") e.target.blur(); }}
           />
         ) : (
-          <span
-            className="cnode-k"
-            onDoubleClick={() => node.dataType !== "object" && setEditing("title")}
-          >
+          <span className="cnode-k">
             {node.title}
           </span>
         )}
@@ -345,6 +346,7 @@ function BlueprintCanvas({
   nodes, setNodes, connections, setConnections,
   blueprints, setBlueprints, selection, setSelection,
   today, onCreateBlueprint, onDeleteNode, onEditNode, onFocusNote,
+  onOpenNote,
   onRemoveBlueprintFromCanvas, onCanvasDrop,
   docsById = {}, nodeEntitiesById = {},
 }) {
@@ -358,6 +360,7 @@ function BlueprintCanvas({
   const [unit, setUnit] = useState("mm");
 
   const [strokes, setStrokes] = useState([]);
+  const [selectedStrokeIds, setSelectedStrokeIds] = useState([]);
   const [drawing, setDrawing] = useState(null);
   const [rulerPt1, setRulerPt1] = useState(null);
   const [hoverPos, setHoverPos] = useState(null);
@@ -365,12 +368,14 @@ function BlueprintCanvas({
   const [hoverConnect, setHoverConnect] = useState(null);
   const [connectHoverTarget, setConnectHoverTarget] = useState(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState(null);
+  const [marqueeRect, setMarqueeRect] = useState(null); // {x1,y1,x2,y2} in world coords
   const [rewiring, setRewiring] = useState(null); // { connId, end: 'from'|'to' }
   const [view, setView] = useState({ scale: 1, panX: 0, panY: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(null);
   const panDrag = useRef(null);
   const PAN_CLICK_THRESHOLD = 5;
+  const marqueeDrag = useRef(null);
 
   const getWorldFromClient = useCallback((clientX, clientY) => {
     const r = stageRef.current?.getBoundingClientRect();
@@ -446,7 +451,7 @@ function BlueprintCanvas({
     const h = c.height / (window.devicePixelRatio || 1);
     ctx.clearRect(0, 0, w, h);
 
-    const drawStroke = (s) => {
+    const drawStroke = (s, idx = -1) => {
       if (s.kind === "path") {
         ctx.strokeStyle = s.color;
         ctx.lineWidth = s.size;
@@ -498,14 +503,56 @@ function BlueprintCanvas({
         ctx.textBaseline = "top";
         ctx.fillText(s.text, s.x, s.y);
       }
+
+      if (idx >= 0 && selectedStrokeIds.includes(idx)) {
+        let bounds = null;
+        if (s.kind === "path" && s.points?.length) {
+          const xs = s.points.map((p) => p.x);
+          const ys = s.points.map((p) => p.y);
+          bounds = {
+            left: Math.min(...xs) - 6,
+            top: Math.min(...ys) - 6,
+            right: Math.max(...xs) + 6,
+            bottom: Math.max(...ys) + 6,
+          };
+        } else if (s.kind === "measure") {
+          bounds = {
+            left: Math.min(s.p1.x, s.p2.x) - 8,
+            top: Math.min(s.p1.y, s.p2.y) - 8,
+            right: Math.max(s.p1.x, s.p2.x) + 8,
+            bottom: Math.max(s.p1.y, s.p2.y) + 8,
+          };
+        } else if (s.kind === "text") {
+          const width = Math.max(18, String(s.text || "").length * 7);
+          bounds = {
+            left: s.x - 2,
+            top: s.y - 2,
+            right: s.x + width + 2,
+            bottom: s.y + 18,
+          };
+        }
+        if (bounds) {
+          ctx.save();
+          ctx.strokeStyle = "rgba(142, 233, 163, 0.82)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 3]);
+          ctx.strokeRect(
+            bounds.left,
+            bounds.top,
+            Math.max(1, bounds.right - bounds.left),
+            Math.max(1, bounds.bottom - bounds.top),
+          );
+          ctx.restore();
+        }
+      }
     };
 
-    strokes.forEach(drawStroke);
+    strokes.forEach((s, idx) => drawStroke(s, idx));
     if (drawing) drawStroke(drawing);
     if (tool === "ruler" && rulerPt1 && hoverPos) {
       drawStroke({ kind: "measure", p1: rulerPt1, p2: hoverPos, unit });
     }
-  }, [strokes, drawing, tool, rulerPt1, hoverPos, unit]);
+  }, [strokes, drawing, tool, rulerPt1, hoverPos, unit, selectedStrokeIds]);
 
   useEffect(() => { redraw(); }, [redraw]);
   useEffect(() => {
@@ -532,14 +579,20 @@ function BlueprintCanvas({
         setRewiring(null);
         setSelectedConnectionId(null);
         setSelection([]);
+        setSelectedStrokeIds([]);
         setRulerPt1(null);
       }
       else if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedConnectionId) {
           setConnections((cs) => cs.filter((c) => c.id !== selectedConnectionId));
           setSelectedConnectionId(null);
-        } else if (selection.length) {
+        }
+        if (selection.length) {
           selection.forEach((id) => onDeleteNode(id));
+        }
+        if (selectedStrokeIds.length) {
+          setStrokes((all) => all.filter((_, idx) => !selectedStrokeIds.includes(idx)));
+          setSelectedStrokeIds([]);
         }
       } else if (e.key === "z" && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
@@ -555,7 +608,7 @@ function BlueprintCanvas({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [selection, selectedConnectionId, onDeleteNode, setSelection, setConnections]);
+  }, [selection, selectedConnectionId, selectedStrokeIds, onDeleteNode, setSelection, setConnections]);
 
   useEffect(() => {
     if (selection.length === 0) {
@@ -590,6 +643,58 @@ function BlueprintCanvas({
 
   const getPos = (e) => getWorldFromClient(e.clientX, e.clientY);
 
+  const normalizeRect = (r) => ({
+    left: Math.min(r.x1, r.x2),
+    top: Math.min(r.y1, r.y2),
+    right: Math.max(r.x1, r.x2),
+    bottom: Math.max(r.y1, r.y2),
+  });
+
+  const rectIntersectsNode = (rect, node) => {
+    const nx1 = node.x;
+    const ny1 = node.y;
+    const nx2 = node.x + (node._w || 200);
+    const ny2 = node.y + (node._h || 80);
+    return !(nx2 < rect.left || nx1 > rect.right || ny2 < rect.top || ny1 > rect.bottom);
+  };
+
+  const strokeBounds = (s) => {
+    if (s.kind === "path" && s.points?.length) {
+      const xs = s.points.map((p) => p.x);
+      const ys = s.points.map((p) => p.y);
+      return {
+        left: Math.min(...xs) - 6,
+        top: Math.min(...ys) - 6,
+        right: Math.max(...xs) + 6,
+        bottom: Math.max(...ys) + 6,
+      };
+    }
+    if (s.kind === "measure") {
+      return {
+        left: Math.min(s.p1.x, s.p2.x) - 8,
+        top: Math.min(s.p1.y, s.p2.y) - 8,
+        right: Math.max(s.p1.x, s.p2.x) + 8,
+        bottom: Math.max(s.p1.y, s.p2.y) + 8,
+      };
+    }
+    if (s.kind === "text") {
+      const width = Math.max(18, String(s.text || "").length * 7);
+      return {
+        left: s.x - 2,
+        top: s.y - 2,
+        right: s.x + width + 2,
+        bottom: s.y + 18,
+      };
+    }
+    return null;
+  };
+
+  const rectIntersectsStroke = (rect, s) => {
+    const b = strokeBounds(s);
+    if (!b) return false;
+    return !(b.right < rect.left || b.left > rect.right || b.bottom < rect.top || b.top > rect.bottom);
+  };
+
   const startPanDrag = (e, clearOnClick = false) => {
     e.preventDefault();
     panDrag.current = {
@@ -606,7 +711,7 @@ function BlueprintCanvas({
     const isStageBg = e.target === stageRef.current || e.target.classList?.contains("canvas-stage");
     if (
       e.button === 1
-      || (tool === "select" && (spaceHeld || (e.button === 0 && isStageBg)))
+      || (tool === "select" && spaceHeld && e.button === 0 && isStageBg)
     ) {
       startPanDrag(e, e.button === 0 && tool === "select");
       return;
@@ -614,6 +719,12 @@ function BlueprintCanvas({
   };
 
   const onStagePointerMove = (e) => {
+    if (marqueeDrag.current) {
+      const p = getWorldFromClient(e.clientX, e.clientY);
+      const start = marqueeDrag.current;
+      setMarqueeRect({ x1: start.x, y1: start.y, x2: p.x, y2: p.y });
+      return;
+    }
     if (panDrag.current) {
       const d = panDrag.current;
       if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > PAN_CLICK_THRESHOLD) {
@@ -629,9 +740,28 @@ function BlueprintCanvas({
   };
 
   const onStagePointerUp = () => {
+    if (marqueeDrag.current && marqueeRect) {
+      const rect = normalizeRect(marqueeRect);
+      const selectedNodeIds = nodes
+        .filter((n) => !n.hidden && rectIntersectsNode(rect, n))
+        .map((n) => n.id);
+      const selectedStrokeIdx = strokes
+        .map((s, idx) => (rectIntersectsStroke(rect, s) ? idx : -1))
+        .filter((idx) => idx >= 0);
+      setSelection(selectedNodeIds);
+      setSelectedStrokeIds(selectedStrokeIdx);
+      setSelectedConnectionId(null);
+      setSelectedBlueprintId(null);
+      marqueeDrag.current = null;
+      setMarqueeRect(null);
+      return;
+    }
+    marqueeDrag.current = null;
+    setMarqueeRect(null);
     const d = panDrag.current;
     if (d?.clearOnClick && !d.moved) {
       setSelection([]);
+      setSelectedStrokeIds([]);
       setSelectedConnectionId(null);
       setSelectedBlueprintId(null);
     }
@@ -642,7 +772,16 @@ function BlueprintCanvas({
     if (panDrag.current) return;
     if (tool === "select") {
       if (e.target === canvasRef.current) {
-        startPanDrag(e, true);
+        if (spaceHeld || e.button === 1) {
+          startPanDrag(e, true);
+          return;
+        }
+        if (e.button === 0) {
+          const p = getPos(e);
+          marqueeDrag.current = { x: p.x, y: p.y };
+          setMarqueeRect({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+          return;
+        }
       }
       return;
     }
@@ -706,14 +845,21 @@ function BlueprintCanvas({
   const handleAddToSelection = (id) => {
     setSelectedConnectionId(null);
     setSelectedBlueprintId(null);
+    setSelectedStrokeIds([]);
     focusNoteForNode(id);
     setSelection((sel) => (sel.includes(id) ? sel : [...sel, id]));
   };
 
   const handleTapToggle = (id) => {
     setSelectedConnectionId(null);
+    setSelectedStrokeIds([]);
     focusNoteForNode(id);
     setSelection((sel) => (sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]));
+  };
+  const handleOpenNode = (id) => {
+    const node = nodes.find((n) => n.id === id);
+    if (!node || !onOpenNote) return;
+    onOpenNote(node.noteId, node);
   };
   const handleMove = (id, x, y) => {
     setNodes((all) => all.map((n) => n.id === id ? { ...n, x: Math.max(0, x), y: Math.max(0, y) } : n));
@@ -868,6 +1014,7 @@ function BlueprintCanvas({
     setStrokes([]);
     setRulerPt1(null);
     setSelection([]);
+    setSelectedStrokeIds([]);
   };
 
   const handleShowAll = () => {
@@ -901,6 +1048,7 @@ function BlueprintCanvas({
     setSelectedBlueprintId(bpId);
     setSelectedConnectionId(null);
     setSelection(visibleIds);
+    setSelectedStrokeIds([]);
   };
 
   const handleRemoveBlueprintFromCanvas = (bpId) => {
@@ -909,6 +1057,7 @@ function BlueprintCanvas({
     onRemoveBlueprintFromCanvas(bp);
     setSelectedBlueprintId(null);
     setSelection([]);
+    setSelectedStrokeIds([]);
   };
 
   /* compute blueprint bounding boxes for frames */
@@ -1087,6 +1236,7 @@ function BlueprintCanvas({
                   e.stopPropagation();
                   setSelectedConnectionId(c.id);
                   setSelection([]);
+                  setSelectedStrokeIds([]);
                 }}
               >
                 <path className="conn-hit" d={d} />
@@ -1163,8 +1313,23 @@ function BlueprintCanvas({
             getWorldFromClient={getWorldFromClient}
             onConnectHover={(connectingFrom || rewiring) ? setConnectHoverTarget : undefined}
             nodeEntitiesById={nodeEntitiesById}
+            onOpen={handleOpenNode}
           />
         ))}
+        {marqueeRect && (() => {
+          const r = normalizeRect(marqueeRect);
+          return (
+            <div
+              className="canvas-marquee"
+              style={{
+                left: r.left,
+                top: r.top,
+                width: Math.max(1, r.right - r.left),
+                height: Math.max(1, r.bottom - r.top),
+              }}
+            />
+          );
+        })()}
         </div>
 
         <div className="canvas-coords">

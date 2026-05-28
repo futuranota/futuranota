@@ -1174,6 +1174,14 @@ textarea.field {
 }
 .canvas-stage[data-tool="select"] canvas { cursor: default; }
 .canvas-stage[data-tool="connect"] canvas { cursor: cell; }
+.canvas-marquee {
+  position: absolute;
+  border: 1px solid color-mix(in oklab, var(--hud) 65%, #9aa3b8);
+  background: color-mix(in oklab, var(--hud) 14%, transparent);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 4;
+}
 
 .canvas-svg {
   position: absolute;
