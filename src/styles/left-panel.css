@@ -637,14 +637,31 @@
 
 .doc-new-head-expand-btn {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 2px;
+  right: 2px;
   margin: 0;
+  width: 20px;
+  height: 20px;
   padding: 0;
-  border: none;
-  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
   cursor: pointer;
-  line-height: 0;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.doc-new-head-expand-btn:hover,
+.doc-new-head-expand-btn:focus-visible {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  outline: none;
 }
 
 .doc-new-head-expand {
@@ -652,6 +669,10 @@
   height: 21px;
   object-fit: contain;
   opacity: 0.9;
+}
+
+.doc-new-head-close-x {
+  transform: translateY(-0.5px);
 }
 
 .doc-new-head-title {
@@ -1382,7 +1403,7 @@
   box-sizing: border-box;
   border: none;
   resize: none;
-  overflow-y: hidden;
+  overflow-y: auto;
   background: transparent;
   font-family: var(--sans);
   font-size: 13px;
@@ -1627,8 +1648,9 @@
   align-items: center;
   gap: 6px;
   min-height: 29px;
-  padding-right: 32px;
-  margin-bottom: 12px;
+  padding-right: 0;
+  margin-top: -4px;
+  margin-bottom: 10px;
 }
 
 .node-query-modal__node-icon {
@@ -1646,23 +1668,22 @@
   color: #d8d8d8;
 }
 
-.node-query-modal__close {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 28px;
-  height: 27px;
-  padding: 0;
+.node-query-modal__back-link {
+  margin-left: auto;
   border: none;
   background: transparent;
+  color: #d8d8d8;
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0.32px;
   cursor: pointer;
-  flex-shrink: 0;
+  padding: 2px 0;
+  opacity: 0.9;
 }
 
-.node-query-modal__close img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+.node-query-modal__back-link:hover {
+  opacity: 1;
+  color: #dcb2a6;
 }
 
 .node-query-modal__query-title {
@@ -1893,6 +1914,10 @@
   cursor: pointer;
 }
 
+.node-query-modal__action:hover {
+  color: #dcb2a6;
+}
+
 .node-query-modal__action--delete {
   color: #ff8f8f;
 }
@@ -1916,4 +1941,53 @@
 .node-query-modal__action--search img {
   width: 18px;
   height: 18px;
+}
+
+.doc-unsaved-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 290;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.52);
+}
+
+.doc-unsaved-confirm {
+  width: min(420px, calc(100vw - 40px));
+  background: #111;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 18px 16px 14px;
+  color: #fff;
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.62);
+}
+
+.doc-unsaved-confirm__text {
+  margin: 0 0 14px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #fff;
+}
+
+.doc-unsaved-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.doc-unsaved-confirm__btn {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+  text-transform: lowercase;
+}
+
+.doc-unsaved-confirm__btn--yes {
+  background: rgba(255, 255, 255, 0.16);
 }

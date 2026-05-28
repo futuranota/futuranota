@@ -282,7 +282,7 @@ function Dashboard({ company, onBack }) {
       />
 
       {expandedDocId && (
-        <div className="doc-overlay-global" onClick={() => setExpandedDocId(null)}>
+        <div className="doc-overlay-global">
           <div className="doc-overlay-global-card" onClick={(e) => e.stopPropagation()}>
             <DocExpandedView docId={expandedDocId} onClose={() => setExpandedDocId(null)} />
           </div>

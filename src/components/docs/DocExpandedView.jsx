@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
@@ -63,8 +63,13 @@ export function DocExpandedView({ docId, onClose }) {
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
+  const [nodeInitialSnapshot, setNodeInitialSnapshot] = useState(null);
   const [nodeSavedHint, setNodeSavedHint] = useState(false);
   const [docSavedHint, setDocSavedHint] = useState(false);
+  const [initialSnapshot, setInitialSnapshot] = useState(null);
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
+  const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
+  const nodeAutosaveTimerRef = useRef(null);
   const objects = useObjectsStore((s) => s.objects);
 
   useEffect(() => {
@@ -79,6 +84,15 @@ export function DocExpandedView({ docId, onClose }) {
     setDraftCreatedDate(dateInputFromIso(d.createdAt));
     setNodeSavedHint(false);
     setDocSavedHint(false);
+    const normalizedBlocks = normalizeDocBlocks(loadedBlocks);
+    const fallbackBody = loadedBlocks.length ? "" : (d.body ?? d.content ?? "");
+    const serializedBody = docBlocksToBody(normalizedBlocks) || fallbackBody;
+    setInitialSnapshot({
+      title: d.title ?? "",
+      blocks: normalizedBlocks,
+      body: serializedBody,
+      createdAt: isoFromDateInput(dateInputFromIso(d.createdAt)),
+    });
   }, [docId]);
 
   if (!doc) return null;
@@ -86,6 +100,17 @@ export function DocExpandedView({ docId, onClose }) {
   const parentObject = doc.parentObjectId ? objects[doc.parentObjectId] : null;
   const headerLabel = parentObject?.name || "— sin padre —";
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
+  const normalizedBlocks = normalizeDocBlocks(draftBlocks);
+  const serializedBody = docBlocksToBody(normalizedBlocks) || draftBody;
+  const draftSnapshot = {
+    title: draftTitle,
+    blocks: normalizedBlocks,
+    body: serializedBody,
+    createdAt: isoFromDateInput(draftCreatedDate),
+  };
+  const hasUnsavedChanges = initialSnapshot
+    ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
+    : false;
 
   const handleDeleteDoc = () => {
     const label = draftTitle.trim() || doc.title || "this document";
@@ -102,17 +127,66 @@ export function DocExpandedView({ docId, onClose }) {
 
   const handleSave = () => {
     const title = draftTitle.trim() || "New document";
-    const normalizedBlocks = normalizeDocBlocks(draftBlocks);
-    const serializedBody = docBlocksToBody(normalizedBlocks) || draftBody;
-    updateDoc(doc.id, {
-      title,
+    const savedSnapshot = {
+      title: draftTitle,
       blocks: normalizedBlocks,
-      content: serializedBody,
       body: serializedBody,
       createdAt: isoFromDateInput(draftCreatedDate),
+    };
+    updateDoc(doc.id, {
+      title,
+      blocks: savedSnapshot.blocks,
+      content: savedSnapshot.body,
+      body: savedSnapshot.body,
+      createdAt: savedSnapshot.createdAt,
     });
+    setInitialSnapshot(savedSnapshot);
     setDocSavedHint(true);
     setNodeSavedHint(false);
+  };
+
+  const resetNodeModalState = () => {
+    if (nodeAutosaveTimerRef.current) {
+      clearTimeout(nodeAutosaveTimerRef.current);
+      nodeAutosaveTimerRef.current = null;
+    }
+    setActiveNodeContext(null);
+    setNodeDraftContent("");
+    setNodeDraftAnchorDate("");
+    setNodeDraftAnchorTime("");
+    setNodeInitialSnapshot(null);
+  };
+
+  const normalizeNodeContent = (value) => {
+    if (value && typeof value === "object") {
+      return JSON.stringify(value);
+    }
+    return String(value ?? "");
+  };
+
+  const hasNodeUnsavedChanges = () => {
+    if (!activeNodeContext || !nodeInitialSnapshot) return false;
+    return (
+      normalizeNodeContent(nodeDraftContent) !== nodeInitialSnapshot.content
+      || nodeDraftAnchorDate !== nodeInitialSnapshot.anchorDate
+      || nodeDraftAnchorTime !== nodeInitialSnapshot.anchorTime
+    );
+  };
+
+  const handleRequestCloseNodeModal = () => {
+    if (hasNodeUnsavedChanges()) {
+      setShowNodeUnsavedConfirm(true);
+      return;
+    }
+    resetNodeModalState();
+  };
+
+  const handleRequestCloseDoc = () => {
+    if (hasUnsavedChanges) {
+      setShowUnsavedConfirm(true);
+      return;
+    }
+    onClose();
   };
 
   const handleContextMenu = (e) => {
@@ -167,19 +241,78 @@ export function DocExpandedView({ docId, onClose }) {
     }
   };
 
-  const handleNodeContentChange = (content) => {
-    setNodeDraftContent(content);
-    if (!activeNodeContext) return;
+  const persistNodeContentDebounced = (content, context, anchorDate, anchorTime) => {
+    const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
+    const block = draftBlocks[blockIndex];
+    if (!block || block.type !== blockType) return;
 
-    const { blockIndex, dataType } = activeNodeContext;
-    syncLinkedNodeFromDoc(blockIndex, content, draftBlocks);
+    const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
+    const anchorAt = supportsScheduleAnchor(dataType)
+      ? isoFromAnchorFields(anchorDate, anchorTime)
+      : null;
+
+    const savedNodeId = createOrUpdateNodeFromDocBlock({
+      nodeId: nodeId || block.nodeId || null,
+      docId: doc.id,
+      blockId,
+      query: queryText,
+      content,
+      dataType,
+      docCreatedAt: isoFromDateInput(draftCreatedDate),
+      anchorAt,
+    });
+
+    if ((nodeId || block.nodeId) !== savedNodeId) {
+      setActiveNodeContext((prev) => (prev ? { ...prev, nodeId: savedNodeId } : prev));
+    }
+
     setDraftBlocks((prev) => {
-      let next = setContentForNodeBlock(prev, blockIndex, content, dataType);
+      const current = prev[blockIndex];
+      if (!current) return prev;
+      const patch = {
+        nodeId: savedNodeId,
+        sourceQuery: queryText,
+      };
+      if (current.type === DOC_BLOCK_TYPES.H1 || current.type === DOC_BLOCK_TYPES.DATE || current.type === DOC_BLOCK_TYPES.METRIC) {
+        patch.title = current.title || queryText;
+      }
+      if (current.type === DOC_BLOCK_TYPES.TODO) {
+        patch.listTitle = current.listTitle || queryText;
+      }
+      if (supportsScheduleAnchor(dataType)) {
+        patch.anchorDate = anchorDate;
+        patch.anchorTime = anchorTime;
+      }
+
+      let next = updateBlockAt(prev, blockIndex, patch);
+      next = setContentForNodeBlock(next, blockIndex, content, dataType);
       if (dataType === NODE_DATA_TYPES.TEXT) {
         next = setAnswerBelowH1(next, blockIndex, typeof content === "string" ? content : "");
       }
       return next;
     });
+
+    setNodeInitialSnapshot({
+      content: normalizeNodeContent(content),
+      anchorDate,
+      anchorTime,
+    });
+  };
+
+  const handleNodeContentChange = (content) => {
+    setNodeDraftContent(content);
+    if (!activeNodeContext) return;
+
+    if (nodeAutosaveTimerRef.current) {
+      clearTimeout(nodeAutosaveTimerRef.current);
+    }
+    const context = { ...activeNodeContext };
+    const anchorDate = nodeDraftAnchorDate;
+    const anchorTime = nodeDraftAnchorTime;
+    nodeAutosaveTimerRef.current = setTimeout(() => {
+      persistNodeContentDebounced(content, context, anchorDate, anchorTime);
+      nodeAutosaveTimerRef.current = null;
+    }, 250);
   };
 
   const handleOpenNodeForBlock = (blockIndex, block) => {
@@ -201,11 +334,19 @@ export function DocExpandedView({ docId, onClose }) {
       query: getBlockQueryText(block),
       dataType,
     });
-    setNodeDraftContent(resolveNodeDraftFromDoc(blockContent, existing, dataType));
+    const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
+    setNodeDraftContent(resolvedNodeDraft);
     const anchorFromBlock = anchorFieldsFromIso(anchorAtFromBlock(block));
     const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
-    setNodeDraftAnchorDate(anchorFromBlock.anchorDate || anchorFromNode.anchorDate);
-    setNodeDraftAnchorTime(anchorFromBlock.anchorTime || anchorFromNode.anchorTime);
+    const resolvedAnchorDate = anchorFromBlock.anchorDate || anchorFromNode.anchorDate;
+    const resolvedAnchorTime = anchorFromBlock.anchorTime || anchorFromNode.anchorTime;
+    setNodeDraftAnchorDate(resolvedAnchorDate);
+    setNodeDraftAnchorTime(resolvedAnchorTime);
+    setNodeInitialSnapshot({
+      content: normalizeNodeContent(resolvedNodeDraft),
+      anchorDate: resolvedAnchorDate,
+      anchorTime: resolvedAnchorTime,
+    });
   };
 
   const supportsScheduleAnchor = (dataType) =>
@@ -229,6 +370,10 @@ export function DocExpandedView({ docId, onClose }) {
 
   const handleNodeModalSave = () => {
     if (!activeNodeContext) return;
+    if (nodeAutosaveTimerRef.current) {
+      clearTimeout(nodeAutosaveTimerRef.current);
+      nodeAutosaveTimerRef.current = null;
+    }
 
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = activeNodeContext;
     const block = draftBlocks[blockIndex];
@@ -279,11 +424,16 @@ export function DocExpandedView({ docId, onClose }) {
     setNodeDraftContent("");
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
+    setNodeInitialSnapshot(null);
     setNodeSavedHint(true);
   };
 
   const handleNodeModalDelete = () => {
     if (!activeNodeContext) return;
+    if (nodeAutosaveTimerRef.current) {
+      clearTimeout(nodeAutosaveTimerRef.current);
+      nodeAutosaveTimerRef.current = null;
+    }
 
     const { blockIndex, nodeId } = activeNodeContext;
     const block = draftBlocks[blockIndex];
@@ -303,6 +453,9 @@ export function DocExpandedView({ docId, onClose }) {
 
     setActiveNodeContext(null);
     setNodeDraftContent("");
+    setNodeDraftAnchorDate("");
+    setNodeDraftAnchorTime("");
+    setNodeInitialSnapshot(null);
     setNodeSavedHint(false);
   };
 
@@ -330,7 +483,7 @@ export function DocExpandedView({ docId, onClose }) {
           onCreatedDateChange={setDraftCreatedDate}
           onDelete={handleDeleteDoc}
           onSave={handleSave}
-          onCloseExpand={onClose}
+          onCloseExpand={handleRequestCloseDoc}
           onOpenNodeForBlock={handleOpenNodeForBlock}
           onOpenNodeForH1={handleOpenNodeForH1}
           onAnswerBelowH1Change={handleAnswerBelowH1Change}
@@ -370,18 +523,94 @@ export function DocExpandedView({ docId, onClose }) {
           parentDocLabel={parentDocLabel}
           onSave={handleNodeModalSave}
           onDelete={handleNodeModalDelete}
+          onBackToDocument={handleRequestCloseNodeModal}
           anchorDate={nodeDraftAnchorDate}
           anchorTime={nodeDraftAnchorTime}
           onAnchorDateChange={handleNodeAnchorDateChange}
           onAnchorTimeChange={handleNodeAnchorTimeChange}
-          onClose={() => {
-            setActiveNodeContext(null);
-            setNodeDraftContent("");
-            setNodeDraftAnchorDate("");
-            setNodeDraftAnchorTime("");
-          }}
+          onClose={handleRequestCloseNodeModal}
         />
       )}
+      {showUnsavedConfirm ? (
+        <div className="doc-unsaved-confirm-overlay" role="presentation">
+          <div
+            className="doc-unsaved-confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="doc-unsaved-confirm-title"
+          >
+            <p id="doc-unsaved-confirm-title" className="doc-unsaved-confirm__text">
+              Would you like to save the new modifications?
+            </p>
+            <div className="doc-unsaved-confirm__actions">
+              <button
+                type="button"
+                className="doc-unsaved-confirm__btn"
+                onClick={() => setShowUnsavedConfirm(false)}
+              >
+                confirm
+              </button>
+              <button
+                type="button"
+                className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
+                onClick={() => {
+                  handleSave();
+                  setShowUnsavedConfirm(false);
+                  onClose();
+                }}
+              >
+                yes
+              </button>
+              <button
+                type="button"
+                className="doc-unsaved-confirm__btn"
+                onClick={() => {
+                  setShowUnsavedConfirm(false);
+                  onClose();
+                }}
+              >
+                no
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {showNodeUnsavedConfirm ? (
+        <div className="doc-unsaved-confirm-overlay" role="presentation">
+          <div
+            className="doc-unsaved-confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="node-unsaved-confirm-title"
+          >
+            <p id="node-unsaved-confirm-title" className="doc-unsaved-confirm__text">
+              Would you like to save the newest changes?
+            </p>
+            <div className="doc-unsaved-confirm__actions">
+              <button
+                type="button"
+                className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
+                onClick={() => {
+                  handleNodeModalSave();
+                  setShowNodeUnsavedConfirm(false);
+                }}
+              >
+                yes
+              </button>
+              <button
+                type="button"
+                className="doc-unsaved-confirm__btn"
+                onClick={() => {
+                  setShowNodeUnsavedConfirm(false);
+                  resetNodeModalState();
+                }}
+              >
+                no
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

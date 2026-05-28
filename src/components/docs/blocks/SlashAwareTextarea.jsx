@@ -55,6 +55,7 @@ export function SlashAwareTextarea({
     el.style.height = "auto";
     const next = Math.min(el.scrollHeight, maxHeightPx);
     el.style.height = `${Math.max(next, minHeightPx)}px`;
+    el.style.overflowY = el.scrollHeight > maxHeightPx ? "auto" : "hidden";
   }, [maxHeightPx, minHeightPx, textareaRef]);
 
   useLayoutEffect(() => {
