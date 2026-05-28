@@ -13,6 +13,7 @@ import { LandingPage } from './pages/LandingPage.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
+import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 
 /* app.jsx — root state + orchestration
  *
@@ -68,6 +69,7 @@ function Dashboard({ company, onBack }) {
   const [selection, setSelection]     = useState([]);
   const [blueprints, setBlueprints]   = useState([]);
   const [expandedDocId, setExpandedDocId] = useState(null);
+  const [expandedNodeId, setExpandedNodeId] = useState(null);
   const docs = useDocsStore((s) => s.docs);
   const objects = useObjectsStore((s) => s.objects);
   const nodeEntities = useNodesStore((s) => s.nodes);
@@ -201,6 +203,21 @@ function Dashboard({ company, onBack }) {
     setExpandedDocId(docId);
   };
 
+  const openCanvasEntity = (noteId, canvasNode = null) => {
+    if (!noteId && !canvasNode) return;
+    const targetDocId = noteId && docs[noteId] ? noteId : canvasNode?.docId;
+    if (targetDocId && docs[targetDocId]) {
+      setExpandedNodeId(null);
+      setExpandedDocId(targetDocId);
+      return;
+    }
+
+    if (noteId && nodeEntities[noteId]) {
+      setExpandedDocId(null);
+      setExpandedNodeId(noteId);
+    }
+  };
+
   return (
     <div className="dash">
       <TopBar
@@ -247,6 +264,7 @@ function Dashboard({ company, onBack }) {
             onDeleteNode={deleteCanvasNode}
             onEditNode={() => {}}
             onFocusNote={() => {}}
+            onOpenNote={openCanvasEntity}
             onRemoveBlueprintFromCanvas={() => {}}
             onCanvasDrop={handleCanvasDrop}
           />
@@ -294,6 +312,15 @@ function Dashboard({ company, onBack }) {
           </div>
         </div>
       )}
+      {expandedNodeId && nodeEntities[expandedNodeId] ? (
+        <StandaloneNodeModal
+          node={nodeEntities[expandedNodeId]}
+          docs={Object.values(docs)}
+          onClose={() => setExpandedNodeId(null)}
+          onSaved={() => setExpandedNodeId(null)}
+          onDeleted={() => setExpandedNodeId(null)}
+        />
+      ) : null}
 
       <Toast {...(toast || {})} onDone={() => setToast(null)} />
     </div>
