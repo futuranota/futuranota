@@ -881,6 +881,14 @@
   margin-bottom: 10px;
 }
 
+.doc-h1-block__header--multiline {
+  align-items: flex-start;
+}
+
+.doc-h1-block__header--multiline .doc-query-handle {
+  margin-top: 4px;
+}
+
 .doc-block-drag-handle {
   width: 13px;
   height: 15px;
@@ -1120,6 +1128,7 @@
 .doc-h1-block {
   padding: 6px 21px 4px 15px;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .doc-h1-block__header {
@@ -1129,6 +1138,7 @@
 .doc-h1-block__input {
   flex: 1;
   min-width: 0;
+  width: 100%;
   border: none;
   background: transparent;
   outline: none;
@@ -1139,6 +1149,19 @@
   line-height: 1.15;
   color: #fff;
   padding: 0;
+}
+
+.doc-h1-block__input--multiline {
+  display: block;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+  field-sizing: content;
+  min-height: 22px;
+  padding: 2px 0;
+  margin: 0;
 }
 
 .doc-h1-block__input::placeholder {
@@ -1247,7 +1270,7 @@
 }
 
 .doc-block-stack__item:has(.doc-h1-block) + .doc-block-stack__item:has(.doc-text-block) {
-  margin-top: -6px;
+  margin-top: 0;
 }
 
 .doc-block-anchor {

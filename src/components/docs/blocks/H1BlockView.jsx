@@ -22,6 +22,7 @@ export function H1BlockView({
         onQueryHandleClick={onQueryHandleClick}
         placeholder="Insert Query (?) or title"
         ariaLabel="Title block query or title"
+        multiline
       />
       <BlockAnchorFields
         anchorDate={anchorDate}

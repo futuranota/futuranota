@@ -20,6 +20,7 @@ export function MetricBlockView({
         onQueryHandleClick={onQueryHandleClick}
         placeholder="Insert Query (?) or title"
         ariaLabel="Metric block title or query"
+        multiline
       />
       <p className="doc-block-type-label">Metric</p>
       <MetricFieldsEditor
