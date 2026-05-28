@@ -13,7 +13,7 @@ import {
   buildChipDisplay,
 } from './temporal.js';
 import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
-import { useTimelineStore } from './stores/index.js';
+import { useTimelineStore, useUIStateStore } from './stores/index.js';
 import { NODE_SEARCH_ICON } from './lib/docMediumAssets.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
@@ -643,6 +643,9 @@ function IntelPanel({
   const [tab, setTab] = useState("news");
   const [intelQuery, setIntelQuery] = useState("");
   const intelQueryRef = useRef(null);
+  const activeNodeQueryDraft = useUIStateStore((s) => s.activeNodeQueryDraft);
+  const intelSearchSeed = useUIStateStore((s) => s.intelSearchSeed);
+  const intelSearchRequest = useUIStateStore((s) => s.intelSearchRequest);
 
   const syncIntelQueryHeight = () => {
     const el = intelQueryRef.current;
@@ -657,6 +660,17 @@ function IntelPanel({
   useEffect(() => {
     syncIntelQueryHeight();
   }, [intelQuery]);
+
+  useEffect(() => {
+    setIntelQuery(intelSearchSeed || "");
+    requestAnimationFrame(() => syncIntelQueryHeight());
+  }, [intelSearchRequest, intelSearchSeed]);
+
+  const handleIntelSearchFromNode = () => {
+    const fromNode = (activeNodeQueryDraft || "").trim();
+    setIntelQuery(fromNode);
+    requestAnimationFrame(() => syncIntelQueryHeight());
+  };
 
   const normalizedQuery = intelQuery.trim().toLowerCase();
   const filtered = intel.filter((s) => {
@@ -691,7 +705,8 @@ function IntelPanel({
               type="button"
               className="intel-query-btn"
               aria-label="Search"
-              title="Simulated search"
+              title="Use node query in search"
+              onClick={handleIntelSearchFromNode}
             >
               <img src={NODE_SEARCH_ICON} alt="" aria-hidden />
             </button>

@@ -181,6 +181,11 @@ export function DocExpandedView({ docId, onClose }) {
     resetNodeModalState();
   };
 
+  const handleSendQueryToIntelSearch = () => {
+    resetNodeModalState();
+    onClose();
+  };
+
   const handleRequestCloseDoc = () => {
     if (hasUnsavedChanges) {
       setShowUnsavedConfirm(true);
@@ -529,6 +534,7 @@ export function DocExpandedView({ docId, onClose }) {
           onAnchorDateChange={handleNodeAnchorDateChange}
           onAnchorTimeChange={handleNodeAnchorTimeChange}
           onClose={handleRequestCloseNodeModal}
+          onSendToIntelSearch={handleSendQueryToIntelSearch}
         />
       )}
       {showUnsavedConfirm ? (
