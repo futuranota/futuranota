@@ -747,6 +747,7 @@ function IntelPanel({
   const intelSearchError = useUIStateStore((s) => s.intelSearchError);
   const intelSearchMeta = useUIStateStore((s) => s.intelSearchMeta);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
+  const clearIntelSearch = useUIStateStore((s) => s.clearIntelSearch);
 
   const syncIntelQueryHeight = () => {
     const el = intelQueryRef.current;
@@ -778,6 +779,13 @@ function IntelPanel({
       docId: intelSearchMeta?.docId ?? null,
       blockIndex: intelSearchMeta?.blockIndex ?? null,
     });
+  };
+
+  const handleIntelClear = () => {
+    if (intelSearchStatus === "loading") return;
+    setIntelQuery("");
+    clearIntelSearch();
+    requestAnimationFrame(() => syncIntelQueryHeight());
   };
 
   const isSearchLoading = intelSearchStatus === "loading";
@@ -834,6 +842,20 @@ function IntelPanel({
                 {option.label}
               </button>
             ))}
+            <button
+              type="button"
+              className="intel-clear-chip intel-bottom-item"
+              onClick={handleIntelClear}
+              title="Clear search and results"
+            >
+              <img
+                className="intel-clear-chip__icon"
+                src="/uploads/botones/SpinnerGap.svg"
+                alt=""
+                aria-hidden
+              />
+              clear
+            </button>
           </div>
         </div>
       </div>

@@ -774,26 +774,26 @@ textarea.field {
   filter: brightness(0) saturate(0) opacity(0.92);
 }
 .intel-search-bottom {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-items: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 8px;
   width: 100%;
   min-height: 16px;
-  padding: 2px 4px 0;
+  padding: 2px 0 0;
   box-sizing: border-box;
 }
 .intel-bottom-item {
-  padding: 0 4px;
+  padding: 0;
+  flex-shrink: 0;
 }
 .intel-meta-kv {
   font-family: var(--sans);
   font-size: 10px;
   color: #757b87;
   white-space: nowrap;
-  text-align: center;
-  flex: 1 1 0;
+  text-align: left;
 }
 .intel-meta-kv b {
   color: #ededed;
@@ -811,14 +811,37 @@ textarea.field {
   cursor: pointer;
   padding: 0;
   white-space: nowrap;
-  text-align: center;
-  flex: 1 1 0;
+  text-align: left;
 }
 .intel-tab-chip[data-on="1"] {
   color: #d8dbe2;
 }
 .intel-tab-chip:hover {
   color: #dcb2a6;
+}
+.intel-clear-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  color: #757b87;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+.intel-clear-chip__icon {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  display: block;
+}
+.intel-clear-chip:hover {
+  color: #b8bdc8;
 }
 
 /* Intel folder tabs (Calendar / Forecast / Market Hype) */

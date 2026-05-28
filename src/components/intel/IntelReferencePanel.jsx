@@ -23,12 +23,11 @@ export function IntelReferencePanel({ citation, searchQuery, nodeId, onClose }) 
       role="dialog"
       aria-modal="true"
       aria-label="Reference reader"
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
     >
-      <div
-        className="intel-ref-panel"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="intel-ref-panel">
         <CleanReader
           url={citation.url}
           title={citation.title}
