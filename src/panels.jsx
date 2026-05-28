@@ -15,6 +15,7 @@ import {
 import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
 import { useTimelineStore, useUIStateStore } from './stores/index.js';
 import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
+import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { runIntelSearch } from './lib/intelSearch.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
@@ -694,14 +695,17 @@ function IntelFoldersSection({
       />
       <div
         id={`intel-folder-panel-${activeTab.id}`}
-        className="intel-folder-panel"
+        className={
+          "intel-folder-panel"
+          + (folder === "forecast" ? " intel-folder-panel--forecast" : "")
+        }
         role="tabpanel"
         aria-labelledby={`intel-folder-tab-${activeTab.id}`}
       >
         {folder === "calendar" && (
           <Calendar today={today} launchDate={launchDate} onSelectDate={onSelectDate} />
         )}
-        {folder === "forecast" && <IntelFolderPlaceholder title="Forecast" />}
+        {folder === "forecast" && <ForecastPanel today={today} />}
         {folder === "market-hype" && <IntelFolderPlaceholder title="Market Hype" />}
       </div>
     </section>
