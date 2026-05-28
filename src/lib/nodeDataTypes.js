@@ -12,6 +12,11 @@ export const DATA_TYPE_ICONS = {
   metric: "📊",
 };
 
+export const DATA_TYPE_ICON_ASSETS = {
+  text: "/uploads/botones/node.svg",
+  date: "/uploads/botones/CalendarDots.svg",
+};
+
 export const DATA_TYPE_LABELS = {
   text: "Text",
   date: "Date",

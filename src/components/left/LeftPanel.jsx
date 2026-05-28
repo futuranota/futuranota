@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   useObjectsStore, useDocsStore, useNodesStore, useUIStateStore,
 } from "../../stores/index.js";
-import { DATA_TYPE_ICONS, DATA_TYPE_LABELS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { findObjectIdByName } from "../../lib/storeSanitize.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { ObjectIcon } from "./objectIcons.jsx";
@@ -28,6 +28,20 @@ const TYPE_ICON = {
   Documents: "📄",
   Nodes:     "◯",
 };
+
+const SELECTOR_ICON_ASSETS = {
+  Objects: "/uploads/botones/all-objects.svg",
+  Documents: "/uploads/botones/docs.svg",
+  Nodes: "/uploads/so-ref-nodes.svg",
+};
+
+function SelectorTypeIcon({ type, className = "lp-item-icon" }) {
+  const src = SELECTOR_ICON_ASSETS[type];
+  if (src) {
+    return <img src={src} alt="" aria-hidden className={`${className} lp-item-icon-img`} />;
+  }
+  return <span className={className}>{TYPE_ICON[type] || "◯"}</span>;
+}
 
 /* Objects grid: cube + name below, draggable */
 function ObjectThumb({ object, active, onClick, onDoubleClick }) {
@@ -66,7 +80,9 @@ function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
         >
           ⋮⋮
         </span>
-        <span className="lp-doc-icon">📄</span>
+        <span className="lp-doc-icon">
+          <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
+        </span>
         <div className="fn-card-body">
           <b>{doc.title}</b>
           <span className="fn-card-meta">
@@ -116,6 +132,7 @@ function getNodeDisplayTitle(node) {
 function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
   const parentDoc = node.parentDocId ? docs[node.parentDocId] : null;
   const icon = DATA_TYPE_ICONS[node.dataType] || "◯";
+  const iconAsset = DATA_TYPE_ICON_ASSETS[node.dataType] || null;
   const displayTitle = getNodeDisplayTitle(node);
   const contentPreview = typeof node.content === "string"
     ? node.content.slice(0, 80)
@@ -124,7 +141,13 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
   return (
     <div className="lp-node-card">
       <div className="lp-node-card-head" onClick={onClick}>
-        <span className="lp-node-type-icon">{icon}</span>
+        <span className="lp-node-type-icon">
+          {iconAsset ? (
+            <img src={iconAsset} alt="" aria-hidden className="lp-node-type-icon-img" />
+          ) : (
+            icon
+          )}
+        </span>
         <span className="lp-node-parent">{parentDoc ? parentDoc.title : "sin padre"}</span>
         <button type="button" className="lp-expand-btn" onClick={(e) => { e.stopPropagation(); onClick(); }}>↗</button>
       </div>
@@ -280,8 +303,9 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
 /* ─────────────────────────────────────────────
    Dropdown  (shared)
 ───────────────────────────────────────────── */
-function Dropdown({ label, open, onToggle, children, secondary }) {
+function Dropdown({ label, open, onToggle, children }) {
   const ref = useRef(null);
+  const leaveTimerRef = useRef(null);
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
@@ -291,17 +315,51 @@ function Dropdown({ label, open, onToggle, children, secondary }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [open, onToggle]);
 
+  useEffect(
+    () => () => {
+      if (leaveTimerRef.current) {
+        clearTimeout(leaveTimerRef.current);
+      }
+    },
+    [],
+  );
+
   return (
-    <div className="lp-dropdown-wrap" ref={ref}>
+    <div
+      className="lp-dropdown-wrap"
+      ref={ref}
+      onMouseEnter={() => {
+        if (leaveTimerRef.current) {
+          clearTimeout(leaveTimerRef.current);
+          leaveTimerRef.current = null;
+        }
+      }}
+      onMouseLeave={() => {
+        if (!open) return;
+        if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+        leaveTimerRef.current = setTimeout(() => {
+          onToggle();
+          leaveTimerRef.current = null;
+        }, 180);
+      }}
+    >
       <button
         type="button"
-        className={"lp-dropdown-btn" + (secondary ? " secondary" : "")}
+        className="lp-dropdown-btn"
         onClick={onToggle}
       >
-        {label} <span className="lp-chevron">▾</span>
+        {label}
       </button>
       {open && <div className="lp-dropdown-menu">{children}</div>}
     </div>
+  );
+}
+
+function FolderTypeIcon({ panelType }) {
+  return (
+    <span className="lp-folder-icon lp-folder-icon--object" aria-hidden>
+      <SelectorTypeIcon type={panelType} className="lp-folder-icon-img" />
+    </span>
   );
 }
 
@@ -315,13 +373,15 @@ export function LeftPanel({
   tokenCurrent = 0,
   tokenMax = 10,
 }) {
-  const [panelType, setPanelType]   = useState("Objects");
-  const [activeId, setActiveId]     = useState(null);
+  const [panelType, setPanelType] = useState("Objects");
+  const [activeId, setActiveId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [typeOpen, setTypeOpen]     = useState(false);
-  const [optOpen, setOptOpen]       = useState(false);
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [previewPanelType, setPreviewPanelType] = useState("Objects");
+  const [hoveredPanelType, setHoveredPanelType] = useState(null);
   const [nodeEditId, setNodeEditId] = useState(null);
   const [nodeSearch, setNodeSearch] = useState("");
+  const [objectScopeId, setObjectScopeId] = useState(null);
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const filterDocId = useUIStateStore((s) => s.filterDocId);
@@ -346,6 +406,9 @@ export function LeftPanel({
   const nodeList = Object.values(nodes);
 
   const docsWithoutParent = docList.filter((doc) => !doc.parentObjectId);
+  const filteredObjectList = objectScopeId
+    ? objList.filter((obj) => obj.id === objectScopeId)
+    : objList;
   const filteredDocList = filterObjectId ? getDocsByObject(filterObjectId) : docsWithoutParent;
   const objectDocSections = objList
     .map((obj) => ({ object: obj, docs: getDocsByObject(obj.id) }))
@@ -367,26 +430,13 @@ export function LeftPanel({
     setPanelType("Documents");
     setActiveId(null);
     setShowCreate(false);
-    setOptOpen(false);
+    setFolderOpen(false);
   };
-
-  const items = panelType === "Objects" ? objList : [];
-
-  const activeItem =
-    panelType === "Objects"
-      ? objList.find((i) => i.id === activeId)
-      : panelType === "Documents"
-        ? docList.find((i) => i.id === activeId)
-        : nodeList.find((i) => i.id === activeId);
-
-  const getLabel = (item) =>
-    panelType === "Objects" ? item.name : item.title;
 
   const switchType = (t) => {
     setPanelType(t);
+    setPreviewPanelType(t);
     setActiveId(null);
-    setTypeOpen(false);
-    setOptOpen(false);
   };
 
   const handleDeleteDoc = (doc) => {
@@ -438,18 +488,32 @@ export function LeftPanel({
     setShowCreate(false);
   };
 
-  const optLabel =
+  const folderScopeLabel =
     panelType === "Objects"
-      ? activeItem
-        ? getLabel(activeItem).slice(0, 18)
-        : "Select option"
-        : panelType === "Documents"
+      ? objectScopeId
+        ? objects[objectScopeId]?.name || "object"
+        : "object"
+      : panelType === "Documents"
         ? filterObjectId
-          ? filterObject?.name || "Select object"
-          : "Documents"
+          ? filterObject?.name || "object"
+          : "document"
         : filterDoc
-          ? filterDoc.title.slice(0, 18)
-          : "nodes";
+          ? filterDoc.title || "node"
+          : "node";
+
+  const folderLabel = `${panelType.slice(0, -1).toLowerCase()} : ${folderScopeLabel}`;
+
+  const handleNewByFolder = () => {
+    setShowCreate(true);
+    setFolderOpen(false);
+  };
+
+  const commitPreviewType = () => {
+    if (panelType !== previewPanelType) {
+      setPanelType(previewPanelType);
+      setActiveId(null);
+    }
+  };
 
   return (
     <div className="left-panel">
@@ -457,148 +521,176 @@ export function LeftPanel({
       {/* ── Selector row ── */}
       <div className="lp-selectors">
         <Dropdown
-          label={panelType}
-          open={typeOpen}
-          onToggle={() => setTypeOpen(o => !o)}
+          label={
+            <span className="lp-folder-trigger">
+              <FolderTypeIcon panelType={panelType} />
+              <span className="lp-folder-trigger-label">{folderLabel}</span>
+            </span>
+          }
+          open={folderOpen}
+          onToggle={() =>
+            setFolderOpen((o) => {
+              const next = !o;
+              if (next) setPreviewPanelType(panelType);
+              return next;
+            })
+          }
         >
-          {PANEL_TYPES.map(t => (
-            <button
-              key={t}
-              type="button"
-              className={"lp-dropdown-item" + (panelType === t ? " active" : "")}
-              onClick={() => switchType(t)}
-            >
-              {TYPE_ICON[t]} {t}
-            </button>
-          ))}
+          <div
+            className="lp-dropdown-flyout"
+            onMouseLeave={() => {
+              setPreviewPanelType(panelType);
+              setHoveredPanelType(null);
+            }}
+          >
+            <div className="lp-dropdown-pane lp-dropdown-pane--types">
+              {PANEL_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={
+                    "lp-dropdown-item lp-dropdown-item--type"
+                    + (panelType === t ? " active" : "")
+                    + (hoveredPanelType === t ? " preview" : "")
+                  }
+                  onMouseEnter={() => {
+                    setPreviewPanelType(t);
+                    setHoveredPanelType(t);
+                  }}
+                  onFocus={() => {
+                    setPreviewPanelType(t);
+                    setHoveredPanelType(t);
+                  }}
+                  onClick={() => switchType(t)}
+                >
+                  <SelectorTypeIcon type={t} />
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="lp-dropdown-pane lp-dropdown-pane--items">
+              {previewPanelType === "Objects" && (
+                <>
+                  <button
+                    type="button"
+                    className={"lp-dropdown-item" + (!objectScopeId ? " checked" : "")}
+                    onClick={() => {
+                      commitPreviewType();
+                      setObjectScopeId(null);
+                      setActiveId(null);
+                      setFolderOpen(false);
+                    }}
+                  >
+                    <img
+                      src="/uploads/botones/all-objects.svg"
+                      alt=""
+                      aria-hidden
+                      className="lp-item-icon lp-item-icon-img"
+                    />
+                    <span className="lp-item-label">all objects</span>
+                    {!objectScopeId && <span className="lp-check">✓</span>}
+                  </button>
+                  {objList.map((obj) => (
+                    <button
+                      key={obj.id}
+                      type="button"
+                      className={"lp-dropdown-item" + (obj.id === objectScopeId ? " checked" : "")}
+                      onClick={() => {
+                        commitPreviewType();
+                        setObjectScopeId(obj.id);
+                        setActiveId(obj.id);
+                        setFolderOpen(false);
+                      }}
+                    >
+                      <SelectorTypeIcon type="Objects" />
+                      <span className="lp-item-label">{obj.name}</span>
+                      {obj.id === objectScopeId && <span className="lp-check">✓</span>}
+                    </button>
+                  ))}
+                </>
+              )}
+              {previewPanelType === "Documents" && (
+                <>
+                  <button
+                    type="button"
+                    className={"lp-dropdown-item" + (!filterObjectId ? " checked" : "")}
+                    onClick={() => {
+                      commitPreviewType();
+                      setFilterObjectId(null);
+                      setActiveId(null);
+                      setFolderOpen(false);
+                    }}
+                  >
+                    <SelectorTypeIcon type="Documents" />
+                    <span className="lp-item-label">all documents</span>
+                    {!filterObjectId && <span className="lp-check">✓</span>}
+                  </button>
+                  {objList.map((obj) => (
+                    <button
+                      key={obj.id}
+                      type="button"
+                      className={"lp-dropdown-item" + (obj.id === filterObjectId ? " checked" : "")}
+                      onClick={() => {
+                        commitPreviewType();
+                        setFilterObjectId(obj.id);
+                        setActiveId(null);
+                        setFolderOpen(false);
+                      }}
+                    >
+                      <SelectorTypeIcon type="Objects" />
+                      <span className="lp-item-label">{obj.name}</span>
+                      {obj.id === filterObjectId && <span className="lp-check">✓</span>}
+                    </button>
+                  ))}
+                </>
+              )}
+              {previewPanelType === "Nodes" && (
+                <>
+                  <button
+                    type="button"
+                    className={"lp-dropdown-item" + (!filterDocId ? " checked" : "")}
+                    onClick={() => {
+                      commitPreviewType();
+                      setFilterDocId(null);
+                      setActiveId(null);
+                      setFolderOpen(false);
+                    }}
+                  >
+                    <SelectorTypeIcon type="Nodes" />
+                    <span className="lp-item-label">all nodes</span>
+                    {!filterDocId && <span className="lp-check">✓</span>}
+                  </button>
+                  {docList.map((doc) => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      className={"lp-dropdown-item" + (doc.id === filterDocId ? " checked" : "")}
+                      onClick={() => {
+                        commitPreviewType();
+                        setFilterDocId(doc.id);
+                        setActiveId(null);
+                        setFolderOpen(false);
+                      }}
+                    >
+                      <SelectorTypeIcon type="Documents" />
+                      <span className="lp-item-label">{doc.title}</span>
+                      {doc.id === filterDocId && <span className="lp-check">✓</span>}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
         </Dropdown>
 
-        {panelType === "Objects" && (
-          <Dropdown
-            label={optLabel}
-            secondary
-            open={optOpen}
-            onToggle={() => setOptOpen((o) => !o)}
-          >
-            <button
-              type="button"
-              className="lp-dropdown-item create"
-              onClick={() => { setShowCreate(true); setOptOpen(false); }}
-            >
-              <span className="lp-item-icon">✏</span>
-              Create new object
-            </button>
-            {items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={"lp-dropdown-item" + (item.id === activeId ? " checked" : "")}
-                onClick={() => {
-                  setActiveId(item.id === activeId ? null : item.id);
-                  setOptOpen(false);
-                }}
-              >
-                <span className="lp-item-icon">◈</span>
-                <span className="lp-item-label">{getLabel(item)}</span>
-                {item.id === activeId && <span className="lp-check">✓</span>}
-              </button>
-            ))}
-          </Dropdown>
-        )}
-
-        {panelType === "Documents" && (
-          <Dropdown
-            label={optLabel}
-            secondary
-            open={optOpen}
-            onToggle={() => setOptOpen((o) => !o)}
-          >
-            <button
-              type="button"
-              className="lp-dropdown-item create"
-              onClick={() => { setShowCreate(true); setOptOpen(false); }}
-            >
-              <span className="lp-item-icon">✏</span>
-              Create new document
-            </button>
-            <button
-              type="button"
-              className={"lp-dropdown-item" + (!filterObjectId ? " checked" : "")}
-              onClick={() => {
-                setFilterObjectId(null);
-                setActiveId(null);
-                setOptOpen(false);
-              }}
-            >
-              <span className="lp-item-icon">📄</span>
-              <span className="lp-item-label">Documents</span>
-              {!filterObjectId && <span className="lp-check">✓</span>}
-            </button>
-            {objList.map((obj) => (
-              <button
-                key={obj.id}
-                type="button"
-                className={"lp-dropdown-item" + (obj.id === filterObjectId ? " checked" : "")}
-                onClick={() => {
-                  setFilterObjectId(obj.id);
-                  setActiveId(null);
-                  setOptOpen(false);
-                }}
-              >
-                <span className="lp-item-icon">◈</span>
-                <span className="lp-item-label">{obj.name}</span>
-                {obj.id === filterObjectId && <span className="lp-check">✓</span>}
-              </button>
-            ))}
-          </Dropdown>
-        )}
-
-        {panelType === "Nodes" && (
-          <Dropdown
-            label={optLabel}
-            secondary
-            open={optOpen}
-            onToggle={() => setOptOpen((o) => !o)}
-          >
-            <button
-              type="button"
-              className="lp-dropdown-item create"
-              onClick={() => { setShowCreate(true); setOptOpen(false); }}
-            >
-              <span className="lp-item-icon">✏</span>
-              Create new node
-            </button>
-            <button
-              type="button"
-              className={"lp-dropdown-item" + (!filterDocId ? " checked" : "")}
-              onClick={() => {
-                setFilterDocId(null);
-                setActiveId(null);
-                setOptOpen(false);
-              }}
-            >
-              <span className="lp-item-icon">◯</span>
-              <span className="lp-item-label">nodes</span>
-              {!filterDocId && <span className="lp-check">✓</span>}
-            </button>
-            {docList.map((doc) => (
-              <button
-                key={doc.id}
-                type="button"
-                className={"lp-dropdown-item" + (doc.id === filterDocId ? " checked" : "")}
-                onClick={() => {
-                  setFilterDocId(doc.id);
-                  setActiveId(null);
-                  setOptOpen(false);
-                }}
-              >
-                <span className="lp-item-icon">📄</span>
-                <span className="lp-item-label">{doc.title}</span>
-                {doc.id === filterDocId && <span className="lp-check">✓</span>}
-              </button>
-            ))}
-          </Dropdown>
-        )}
+        <button
+          type="button"
+          className="lp-new-btn"
+          onClick={handleNewByFolder}
+          aria-label={`Create new ${panelType.slice(0, -1).toLowerCase()}`}
+        >
+          <span className="lp-new-label">+ new</span>
+        </button>
       </div>
 
       {/* ── Content area ── */}
@@ -608,7 +700,7 @@ export function LeftPanel({
         {panelType === "Objects" && (
           <>
             <div className="lp-objects-grid">
-              {objList.map(obj => (
+              {filteredObjectList.map(obj => (
                 <ObjectThumb
                   key={obj.id}
                   object={obj}
@@ -620,10 +712,10 @@ export function LeftPanel({
                   onDoubleClick={() => openDocumentsForObject(obj.id)}
                 />
               ))}
-              {objList.length === 0 && (
+              {filteredObjectList.length === 0 && (
                 <div className="lp-empty">
-                  <p>No objects yet</p>
-                  <p className="dim">Create your first model</p>
+                  <p>{objectScopeId ? "No object in this filter" : "No objects yet"}</p>
+                  <p className="dim">{objectScopeId ? "Choose another subfolder" : "Create your first model"}</p>
                 </div>
               )}
             </div>
