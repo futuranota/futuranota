@@ -8,6 +8,7 @@ import {
   DOC_BLOCK_TYPES,
   normalizeDocBlocks,
 } from "../lib/docBlocks.js";
+import { anchorFieldsFromIso } from "../lib/nodeAnchor.js";
 
 function stringifyNodeContent(dataType, content) {
   if (dataType === "date") {
@@ -75,6 +76,7 @@ export const useNodesStore = create(
               objectId: null,
               sourceBlockId: extra.sourceBlockId ?? null,
               sourceQuery: extra.sourceQuery ?? null,
+              anchorAt: extra.anchorAt ?? null,
               canvasConnections: [],
               linkedToCanvas: false,
               linkedToDoc: Boolean(parentDocId),
@@ -98,6 +100,7 @@ export const useNodesStore = create(
         content,
         dataType = "text",
         docCreatedAt = null,
+        anchorAt = undefined,
       }) => {
         const title = (query || "").trim() || "Untitled query";
         const payload = {
@@ -107,6 +110,10 @@ export const useNodesStore = create(
           sourceBlockId: blockId,
           sourceQuery: query || title,
         };
+
+        if (anchorAt !== undefined) {
+          payload.anchorAt = anchorAt;
+        }
 
         if (nodeId) {
           get().updateNode(nodeId, payload);
@@ -121,6 +128,7 @@ export const useNodesStore = create(
           sourceBlockId: blockId,
           sourceQuery: payload.sourceQuery,
           createdAt: inheritedCreatedAt,
+          anchorAt: payload.anchorAt ?? null,
         });
         return id;
       },
@@ -203,6 +211,7 @@ export const useNodesStore = create(
           );
         } else if (sourceBlock?.type === DOC_BLOCK_TYPES.TODO) {
           const checked = Boolean(node.content);
+          const anchorFields = anchorFieldsFromIso(node.anchorAt);
           nextBlocks = normalized.map((block, i) => {
             if (i !== sourceBlockIndex) return block;
             const items = (block.items || []).map((item, idx) =>
@@ -214,6 +223,7 @@ export const useNodesStore = create(
               sourceQuery: syncedTitle,
               items: items.length ? items : block.items,
               nodeId: node.id,
+              ...anchorFields,
             };
           });
         } else {
@@ -222,11 +232,18 @@ export const useNodesStore = create(
           const existingTextIndex = node.sourceTextBlockId
             ? normalized.findIndex((b) => b.id === node.sourceTextBlockId && b.type === DOC_BLOCK_TYPES.TEXT)
             : -1;
+          const anchorFields = anchorFieldsFromIso(node.anchorAt);
 
           if (existingH1Index >= 0) {
             nextBlocks = normalized.map((block, i) => {
               if (i === existingH1Index) {
-                return { ...block, title: syncedTitle, sourceQuery: syncedTitle, nodeId: node.id };
+                return {
+                  ...block,
+                  title: syncedTitle,
+                  sourceQuery: syncedTitle,
+                  nodeId: node.id,
+                  ...anchorFields,
+                };
               }
               if (existingTextIndex >= 0 && i === existingTextIndex) {
                 return { ...block, text: syncedText };

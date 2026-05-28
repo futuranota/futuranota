@@ -1269,6 +1269,34 @@ textarea.field {
   font-weight: 400;
 }
 
+.cnode-v.cnode-v--with-anchor {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cnode-v__main {
+  flex: 1;
+  min-width: 0;
+}
+
+.cnode-anchor-date {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--warm);
+  white-space: normal;
+  max-width: 120px;
+  text-align: right;
+  line-height: 1.25;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--warm-soft);
+}
+
 .cnode-v.cnode-object-ref {
   display: flex;
   flex-direction: column;

@@ -8,6 +8,9 @@ import {
   NODE_SEARCH_ICON,
 } from "../../lib/docMediumAssets.js";
 import { DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
+import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
+import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
+import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "metric", "checkbox"];
 
@@ -32,6 +35,10 @@ export function NodeQueryModal({
   onSave,
   onDelete,
   onClose,
+  anchorDate = "",
+  anchorTime = "",
+  onAnchorDateChange,
+  onAnchorTimeChange,
 }) {
   const bodyRef = useRef(null);
   const displayQuery = (query || "").trim() || "Untitled";
@@ -63,6 +70,10 @@ export function NodeQueryModal({
     dataType === "checkbox"
       ? content === true || String(content).toLowerCase() === "true"
       : false;
+
+  const showScheduleAnchor =
+    Boolean(onAnchorDateChange)
+    && (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX);
 
   useEffect(() => {
     bodyRef.current?.focus();
@@ -196,28 +207,18 @@ export function NodeQueryModal({
               />
             </div>
           ) : dataType === "metric" ? (
-            <div className="node-query-modal__metric-editor">
-              <input
-                ref={bodyRef}
-                type="number"
-                className="node-query-modal__metric-value"
-                value={normalizedMetricContent.value}
-                onChange={(e) =>
-                  onContentChange({ ...normalizedMetricContent, value: e.target.value })
-                }
-                aria-label="Metric value"
-              />
-              <input
-                type="text"
-                className="node-query-modal__metric-unit"
-                value={normalizedMetricContent.unit}
-                placeholder="unit"
-                onChange={(e) =>
-                  onContentChange({ ...normalizedMetricContent, unit: e.target.value })
-                }
-                aria-label="Metric unit"
-              />
-            </div>
+            <MetricFieldsEditor
+              valueInputRef={bodyRef}
+              className="node-query-modal__metric-editor"
+              value={normalizedMetricContent.value}
+              unit={normalizedMetricContent.unit}
+              onValueChange={(value) =>
+                onContentChange({ ...normalizedMetricContent, value })
+              }
+              onUnitChange={(unit) =>
+                onContentChange({ ...normalizedMetricContent, unit })
+              }
+            />
           ) : dataType === "checkbox" ? (
             <label className="node-query-modal__checkbox-row">
               <input
@@ -240,6 +241,15 @@ export function NodeQueryModal({
               aria-label="Contenido del nodo"
             />
           )}
+          {showScheduleAnchor ? (
+            <BlockAnchorFields
+              className="node-query-modal__schedule"
+              anchorDate={anchorDate}
+              anchorTime={anchorTime}
+              onAnchorDateChange={onAnchorDateChange}
+              onAnchorTimeChange={onAnchorTimeChange}
+            />
+          ) : null}
         </div>
 
         <footer className="node-query-modal__actions">

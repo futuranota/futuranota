@@ -1,4 +1,5 @@
 import { generateId } from "./ids.js";
+import { normalizeAnchorFields } from "./nodeAnchor.js";
 
 const DOC_BLOCK_TYPES = {
   TEXT: "text",
@@ -94,11 +95,14 @@ export function normalizeDocBlock(block) {
   const type = block.type || DOC_BLOCK_TYPES.TEXT;
 
   if (type === DOC_BLOCK_TYPES.H1) {
+    const anchor = normalizeAnchorFields(block);
     return createDocBlock(DOC_BLOCK_TYPES.H1, {
       id: block.id,
       title: block.title || "",
       nodeId: block.nodeId || undefined,
       sourceQuery: block.sourceQuery || undefined,
+      anchorDate: anchor.anchorDate,
+      anchorTime: anchor.anchorTime,
     });
   }
 
@@ -114,12 +118,15 @@ export function normalizeDocBlock(block) {
             }),
           )
         : [createTodoItem()];
+    const anchor = normalizeAnchorFields(block);
     return createDocBlock(DOC_BLOCK_TYPES.TODO, {
       id: block.id,
       listTitle: block.listTitle ?? DEFAULT_CHECKBOX_LIST_TITLE,
       items,
       nodeId: block.nodeId || undefined,
       sourceQuery: block.sourceQuery || undefined,
+      anchorDate: anchor.anchorDate,
+      anchorTime: anchor.anchorTime,
       showIntroAnim: false,
     });
   }

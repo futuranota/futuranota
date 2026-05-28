@@ -1,9 +1,14 @@
 import { useEffect, useRef } from "react";
 import { DOC_QUERY_HANDLE_ICON, DOC_TODO_HEADER_ICON } from "../../../lib/docMediumAssets.js";
+import { BlockAnchorFields } from "./BlockAnchorFields.jsx";
 
 export function TodoBlockView({
   listTitle,
   onListTitleChange,
+  anchorDate = "",
+  anchorTime = "",
+  onAnchorDateChange,
+  onAnchorTimeChange,
   items,
   focusItemId = null,
   onItemsChange,
@@ -66,6 +71,14 @@ export function TodoBlockView({
           + new
         </button>
       </div>
+
+      <BlockAnchorFields
+        anchorDate={anchorDate}
+        anchorTime={anchorTime}
+        onAnchorDateChange={onAnchorDateChange}
+        onAnchorTimeChange={onAnchorTimeChange}
+        className="doc-todo-block__anchor"
+      />
 
       <div className="doc-todo-block__rows">
         {items.map((item, index) => (

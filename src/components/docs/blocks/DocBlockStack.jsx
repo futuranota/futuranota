@@ -30,6 +30,7 @@ export function DocBlockStack({
   onOpenNodeForBlock,
   onOpenNodeForH1,
   onAnswerBelowH1Change,
+  onBlockAnchorChange,
 }) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
@@ -47,6 +48,11 @@ export function DocBlockStack({
 
   const updateAt = (index, patch) => {
     setBlocks(updateBlockAt(blocks, index, patch));
+  };
+
+  const patchAnchor = (index, anchorDate, anchorTime) => {
+    updateAt(index, { anchorDate, anchorTime });
+    onBlockAnchorChange?.(index, anchorDate, anchorTime);
   };
 
   const insertTextAfter = (index) => {
@@ -155,6 +161,14 @@ export function DocBlockStack({
             <H1BlockView
               value={block.title || ""}
               onChange={(title) => updateAt(index, { title })}
+              anchorDate={block.anchorDate || ""}
+              anchorTime={block.anchorTime || ""}
+              onAnchorDateChange={(anchorDate) =>
+                patchAnchor(index, anchorDate, block.anchorTime || "")
+              }
+              onAnchorTimeChange={(anchorTime) =>
+                patchAnchor(index, block.anchorDate || "", anchorTime)
+              }
               onQueryHandleClick={() => openNode?.(index, block)}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
             />
@@ -190,6 +204,14 @@ export function DocBlockStack({
             <TodoBlockView
               listTitle={block.listTitle ?? "Checkbox:"}
               onListTitleChange={(listTitle) => updateAt(index, { listTitle })}
+              anchorDate={block.anchorDate || ""}
+              anchorTime={block.anchorTime || ""}
+              onAnchorDateChange={(anchorDate) =>
+                patchAnchor(index, anchorDate, block.anchorTime || "")
+              }
+              onAnchorTimeChange={(anchorTime) =>
+                patchAnchor(index, block.anchorDate || "", anchorTime)
+              }
               items={block.items || []}
               focusItemId={todoFocusItemId}
               onItemsChange={(items) => updateAt(index, { items })}

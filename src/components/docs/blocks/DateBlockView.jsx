@@ -20,6 +20,7 @@ export function DateBlockView({
         placeholder="Insert Query (?) or title"
         ariaLabel="Date block title or query"
       />
+      <p className="doc-block-type-label">Date</p>
       <div className="doc-date-block__fields">
         <input
           type="date"

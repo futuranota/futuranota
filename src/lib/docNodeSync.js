@@ -8,6 +8,19 @@ import {
 } from "./docBlocks.js";
 import { nodeDataTypeForBlock } from "./docBlockSlash.js";
 import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
+import {
+  anchorAtFromBlock,
+  anchorFieldsFromIso,
+  isoFromAnchorFields,
+  normalizeAnchorFields,
+} from "./nodeAnchor.js";
+
+export {
+  anchorAtFromBlock,
+  anchorFieldsFromIso,
+  isoFromAnchorFields,
+  normalizeAnchorFields,
+};
 
 export function getTextBlockIndexAfterH1(blocks, h1Index) {
   const normalized = normalizeDocBlocks(blocks);

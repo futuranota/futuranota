@@ -1118,7 +1118,7 @@
 
 /* H1 block — same scale as To do header */
 .doc-h1-block {
-  padding: 6px 21px 8px 15px;
+  padding: 6px 21px 4px 15px;
   box-sizing: border-box;
 }
 
@@ -1145,18 +1145,15 @@
   color: rgba(255, 255, 255, 0.16);
 }
 
-.doc-date-block__fields,
-.doc-metric-block__fields {
+.doc-date-block__fields {
   display: flex;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 0;
   padding-left: 36px;
 }
 
 .doc-date-block__date,
-.doc-date-block__time,
-.doc-metric-block__value,
-.doc-metric-block__unit {
+.doc-date-block__time {
   flex: 1;
   min-width: 0;
   border: none;
@@ -1169,30 +1166,66 @@
   outline: none;
 }
 
-.doc-metric-block__unit {
-  flex: 0 1 120px;
+.doc-metric-block__fields {
+  padding-left: 36px;
 }
 
-.node-query-modal__metric-editor {
+.metric-fields-editor {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  align-items: center;
   width: 100%;
+  box-sizing: border-box;
 }
 
-.node-query-modal__metric-value,
-.node-query-modal__metric-unit {
+.metric-fields-editor__data {
   flex: 1;
   min-width: 0;
   border: none;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
   color: #fff;
   font-family: var(--sans);
   font-size: 14px;
+  padding: 6px 8px;
   outline: none;
 }
 
-.node-query-modal__metric-unit {
-  flex: 0 1 100px;
+.metric-fields-editor__picker {
+  flex: 0 1 110px;
+  min-width: 88px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 6px 8px;
+  outline: none;
+  cursor: pointer;
+}
+
+.metric-fields-editor__custom-unit {
+  flex: 0 1 72px;
+  min-width: 56px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 6px 6px;
+  outline: none;
+}
+
+.node-query-modal__metric-editor {
+  width: 100%;
+}
+
+.node-query-modal__metric-editor .metric-fields-editor__data,
+.node-query-modal__metric-editor .metric-fields-editor__picker,
+.node-query-modal__metric-editor .metric-fields-editor__custom-unit {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .node-query-modal__checkbox-row {
@@ -1211,6 +1244,67 @@
   gap: 14px;
   padding: 16px 0 8px;
   box-sizing: border-box;
+}
+
+.doc-block-stack__item:has(.doc-h1-block) + .doc-block-stack__item:has(.doc-text-block) {
+  margin-top: -6px;
+}
+
+.doc-block-anchor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-left: 36px;
+  flex-wrap: wrap;
+}
+
+.doc-block-anchor__label {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.32);
+  flex: 0 0 auto;
+}
+
+.doc-block-anchor__date,
+.doc-block-anchor__time {
+  flex: 1;
+  min-width: 0;
+  max-width: 140px;
+  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 4px 6px;
+  outline: none;
+}
+
+.doc-todo-block__anchor {
+  padding-left: 36px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+.node-query-modal__content-box .node-query-modal__schedule {
+  margin-top: 14px;
+  padding-left: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-block-type-label {
+  margin: 6px 0 4px 36px;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.44px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .doc-block-stack__item {
