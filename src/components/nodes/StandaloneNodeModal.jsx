@@ -88,6 +88,7 @@ export function StandaloneNodeModal({
   node = null,
   docs,
   defaultParentDocId = "",
+  queryCanvasNodeId = null,
   onClose,
   onSaved,
   onDeleted,
@@ -200,6 +201,15 @@ export function StandaloneNodeModal({
       onSave={handleSave}
       onDelete={handleDelete}
       onClose={onClose}
+      intelSearchMeta={
+        node?.id
+          ? {
+              queryNodeEntityId: node.id,
+              queryCanvasNodeId,
+              docId: parentDocId || null,
+            }
+          : null
+      }
     />
   );
 }
