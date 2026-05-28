@@ -701,6 +701,118 @@ textarea.field {
   letter-spacing: -0.005em;
   color: var(--text);
 }
+.col-header.intel-header {
+  display: block;
+  padding: 10px 10px 8px;
+}
+.intel-search-card {
+  background: #12171d;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 5px;
+}
+.intel-search-top {
+  position: relative;
+  min-height: 35px;
+  background: #171921;
+  border-radius: 3px;
+  padding: 6px 38px 6px 6px;
+  margin-bottom: 6px;
+  box-sizing: border-box;
+}
+.intel-query-input {
+  display: block;
+  width: 100%;
+  min-height: 20px;
+  border: none;
+  background: transparent;
+  color: #f2f3f5;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.35;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  box-sizing: border-box;
+}
+.intel-query-input::placeholder {
+  color: #4a4f59;
+  opacity: 1;
+}
+.intel-query-btn {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 25.9px;
+  height: 23px;
+  border: 1px solid rgba(108, 101, 83, 0.5);
+  border-radius: 6px;
+  background: linear-gradient(176deg, rgb(214, 206, 181) 4%, rgb(165, 159, 141) 119%);
+  color: #202329;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+}
+.intel-query-btn img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  filter: brightness(0) saturate(0) opacity(0.76);
+}
+.intel-query-btn:hover {
+  filter: brightness(1.05);
+}
+.intel-search-bottom {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  justify-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 16px;
+  padding: 2px 4px 0;
+  box-sizing: border-box;
+}
+.intel-bottom-item {
+  padding: 0 4px;
+}
+.intel-meta-kv {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: #757b87;
+  white-space: nowrap;
+  text-align: center;
+  flex: 1 1 0;
+}
+.intel-meta-kv b {
+  color: #ededed;
+  font-size: 9px;
+  font-weight: 700;
+  margin-left: 2px;
+}
+.intel-tab-chip {
+  border: none;
+  background: transparent;
+  color: #757b87;
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: 0;
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+  text-align: center;
+  flex: 1 1 0;
+}
+.intel-tab-chip[data-on="1"] {
+  color: #d8dbe2;
+}
+.intel-tab-chip:hover {
+  color: #dcb2a6;
+}
 .col-body { flex: 1; min-height: 0; }
 .col-section {
   padding: 14px;
