@@ -74,11 +74,72 @@ function resolveCanvasNodeAnchor(node, nodeEntitiesById = {}) {
   return parseDate(node.anchorAt) || parseDate(entity?.anchorAt);
 }
 
+function resolveCanvasDisplayTitle(node, nodeEntitiesById = {}) {
+  const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+  return (entity?.sourceQuery || entity?.title || node.title || "Untitled").trim();
+}
+
+function resolveCanvasParentDocTag(node, nodeEntitiesById = {}, docsById = {}) {
+  const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+  if (!entity?.parentDocId) return null;
+  const doc = docsById[entity.parentDocId];
+  return {
+    kind: "Document",
+    name: (doc?.title || "Untitled").trim(),
+  };
+}
+
+function resolveCanvasDocTitle(node, docsById = {}) {
+  const docId = node.docId || node.noteId;
+  const doc = docId ? docsById[docId] : null;
+  return (doc?.title || node.title || "Untitled").trim();
+}
+
+function resolveCanvasParentObjectTag(node, docsById = {}, objectsById = {}) {
+  const docId = node.docId || node.noteId;
+  const doc = docId ? docsById[docId] : null;
+  if (!doc?.parentObjectId) return null;
+  const obj = objectsById[doc.parentObjectId];
+  return {
+    kind: "Object",
+    name: (obj?.name || "Untitled").trim(),
+  };
+}
+
+function CanvasNodeTags({ parentTag, scheduleLabel, parentTitle = "Parent" }) {
+  if (!parentTag && !scheduleLabel) return null;
+  return (
+    <div className="cnode-v cnode-v--compact">
+      <div className="cnode-tags">
+        {parentTag ? (
+          <span className="cnode-parent-tag" title={parentTitle}>
+            <span className="cnode-parent-tag__kind">{parentTag.kind}</span>
+            <span className="cnode-parent-tag__name">{parentTag.name}</span>
+          </span>
+        ) : null}
+        {scheduleLabel ? (
+          <span className="cnode-anchor-date" title="Scheduled date">
+            {scheduleLabel}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function startCanvasMarquee(getWorldFromClient, setMarqueeRect, marqueeDrag, clientX, clientY) {
+  const p = getWorldFromClient(clientX, clientY);
+  marqueeDrag.current = { x: p.x, y: p.y };
+  setMarqueeRect({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+}
+
 function CanvasNode({
   node, today, selected, connectingFrom, isConnectingFrom, rewiring, blueprintColor,
   allNodes, allConnections,
   selectedConnectionId, connections,
   nodeEntitiesById = {},
+  docsById = {},
+  objectsById = {},
   onAddToSelection, onTapToggle, onMove, onEdit, onDelete, onStartConnect, onPortMouseUp,
   onConnectHover, onStartRewire, getWorldFromClient, onOpen,
 }) {
@@ -190,22 +251,26 @@ function CanvasNode({
         </div>
       );
     }
+    if (node.dataType === "document") {
+      const parentTag = resolveCanvasParentObjectTag(node, docsById, objectsById);
+      return (
+        <CanvasNodeTags
+          parentTag={parentTag}
+          parentTitle="Parent object"
+        />
+      );
+    }
     if (node.dataType === "text") {
-      const anchor = resolveCanvasNodeAnchor(node, nodeEntitiesById);
       const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
       const anchorIso = entity?.anchorAt || node.anchorAt;
       const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
+      const parentTag = resolveCanvasParentDocTag(node, nodeEntitiesById, docsById);
       return (
-        <div className="cnode-v cnode-v--with-anchor">
-          <span className="cnode-v__main">
-            {String(node.content || <span style={{ color: "var(--mute)" }}>—</span>)}
-          </span>
-          {scheduleLabel ? (
-            <span className="cnode-anchor-date" title="Scheduled date">
-              {scheduleLabel}
-            </span>
-          ) : null}
-        </div>
+        <CanvasNodeTags
+          parentTag={parentTag}
+          scheduleLabel={scheduleLabel}
+          parentTitle="Parent document"
+        />
       );
     }
     if (node.dataType === "checkbox") {
@@ -257,10 +322,17 @@ function CanvasNode({
     return null;
   };
 
+  const displayTitle = node.dataType === "text"
+    ? resolveCanvasDisplayTitle(node, nodeEntitiesById)
+    : node.dataType === "document"
+      ? resolveCanvasDocTitle(node, docsById)
+      : node.title;
+
   const cls = ["cnode"];
   if (selected) cls.push("selected");
   if (connectingFrom === node.id) cls.push("connect-source");
   if (node.hidden) cls.push("hidden");
+  if (node.dataType === "text" || node.dataType === "document") cls.push("cnode--card-compact");
 
   if (blueprintColor) cls.push("cnode-in-bp");
 
@@ -295,8 +367,8 @@ function CanvasNode({
             onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); if (e.key === "Enter") e.target.blur(); }}
           />
         ) : (
-          <span className="cnode-k">
-            {node.title}
+          <span className="cnode-k" title={displayTitle}>
+            {displayTitle}
           </span>
         )}
         <span className="cnode-type" data-t={node.dataType}>{node.dataType}</span>
@@ -348,7 +420,7 @@ function BlueprintCanvas({
   today, onCreateBlueprint, onDeleteNode, onEditNode, onFocusNote,
   onOpenNote,
   onRemoveBlueprintFromCanvas, onCanvasDrop,
-  docsById = {}, nodeEntitiesById = {},
+  docsById = {}, nodeEntitiesById = {}, objectsById = {},
 }) {
   const temporalMeta = { docsById, nodeEntitiesById };
   const canvasRef = useRef(null);
@@ -709,11 +781,16 @@ function BlueprintCanvas({
 
   const onStagePointerDown = (e) => {
     const isStageBg = e.target === stageRef.current || e.target.classList?.contains("canvas-stage");
-    if (
-      e.button === 1
-      || (tool === "select" && spaceHeld && e.button === 0 && isStageBg)
-    ) {
+    if (e.button === 1 || (tool === "select" && spaceHeld && e.button === 0 && isStageBg)) {
       startPanDrag(e, e.button === 0 && tool === "select");
+      return;
+    }
+    if (tool === "select" && e.button === 0 && isStageBg) {
+      if (e.shiftKey) {
+        startCanvasMarquee(getWorldFromClient, setMarqueeRect, marqueeDrag, e.clientX, e.clientY);
+      } else {
+        startPanDrag(e, true);
+      }
       return;
     }
   };
@@ -777,9 +854,11 @@ function BlueprintCanvas({
           return;
         }
         if (e.button === 0) {
-          const p = getPos(e);
-          marqueeDrag.current = { x: p.x, y: p.y };
-          setMarqueeRect({ x1: p.x, y1: p.y, x2: p.x, y2: p.y });
+          if (e.shiftKey) {
+            startCanvasMarquee(getWorldFromClient, setMarqueeRect, marqueeDrag, e.clientX, e.clientY);
+          } else {
+            startPanDrag(e, true);
+          }
           return;
         }
       }
@@ -862,7 +941,7 @@ function BlueprintCanvas({
     onOpenNote(node.noteId, node);
   };
   const handleMove = (id, x, y) => {
-    setNodes((all) => all.map((n) => n.id === id ? { ...n, x: Math.max(0, x), y: Math.max(0, y) } : n));
+    setNodes((all) => all.map((n) => (n.id === id ? { ...n, x, y } : n)));
   };
 
   const handleMoveBlueprint = (bpId, dx, dy) => {
@@ -871,7 +950,7 @@ function BlueprintCanvas({
     const idSet = new Set(bp.nodeIds);
     setNodes((all) => all.map((n) => (
       idSet.has(n.id) && !n.hidden
-        ? { ...n, x: Math.max(0, n.x + dx), y: Math.max(0, n.y + dy) }
+        ? { ...n, x: n.x + dx, y: n.y + dy }
         : n
     )));
   };
@@ -1138,7 +1217,7 @@ function BlueprintCanvas({
       </div>
 
       <div
-        className={"canvas-stage" + (spaceHeld || tool === "select" ? " pan-ready" : "")}
+        className={"canvas-stage" + (tool === "select" ? " pan-ready" : "")}
         ref={stageRef}
         data-tool={tool}
         onPointerDown={onStagePointerDown}
@@ -1313,6 +1392,8 @@ function BlueprintCanvas({
             getWorldFromClient={getWorldFromClient}
             onConnectHover={(connectingFrom || rewiring) ? setConnectHoverTarget : undefined}
             nodeEntitiesById={nodeEntitiesById}
+            docsById={docsById}
+            objectsById={objectsById}
             onOpen={handleOpenNode}
           />
         ))}

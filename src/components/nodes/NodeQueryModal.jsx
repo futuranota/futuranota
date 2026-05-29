@@ -34,6 +34,7 @@ export function NodeQueryModal({
   onParentDocIdChange,
   docs = [],
   onClose,
+  onSave,
   onBackToDocument,
   onSendToIntelSearch,
   intelSearchMeta = null,
@@ -299,6 +300,16 @@ export function NodeQueryModal({
         </div>
 
         <footer className="node-query-modal__actions">
+          {onSave ? (
+            <button
+              type="button"
+              className="node-query-modal__action node-query-modal__action--save"
+              onClick={onSave}
+            >
+              <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
+              save
+            </button>
+          ) : null}
           <IntelSearchButton
             variant="modal"
             loading={intelSearchStatus === "loading"}

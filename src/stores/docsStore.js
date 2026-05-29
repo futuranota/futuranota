@@ -8,13 +8,17 @@ import {
   docBlocksToBody,
   normalizeDocBlocks,
 } from "../lib/docBlocks.js";
+import { emptyDocCampaignFields, normalizeDoc } from "../lib/normalizeDoc.js";
 
 export const useDocsStore = create(
   devtools(
     (set, get) => ({
       docs: {},
 
-      getDoc: (id) => get().docs[id] || null,
+      getDoc: (id) => {
+        const doc = get().docs[id];
+        return doc ? normalizeDoc(doc) : null;
+      },
 
       getAllDocs: () => Object.values(get().docs),
 
@@ -31,6 +35,7 @@ export const useDocsStore = create(
         initialContent = "",
         createdAt = null,
         initialBlocks = null,
+        campaignMeta = {},
       ) => {
         const id = generateId("DOC");
         const tagList = Array.isArray(tags)
@@ -40,10 +45,11 @@ export const useDocsStore = create(
         const blocks = normalizeDocBlocks(initialBlocks || docBlocksFromBody(body));
         const normalizedBody = docBlocksToBody(blocks) || body;
         const created = createdAt || new Date().toISOString();
+        const campaign = { ...emptyDocCampaignFields(), ...campaignMeta };
         set((state) => ({
           docs: {
             ...state.docs,
-            [id]: {
+            [id]: normalizeDoc({
               id,
               title,
               parentObjectId,
@@ -56,7 +62,11 @@ export const useDocsStore = create(
               syncedWithCanvas: true,
               createdAt: created,
               updatedAt: new Date().toISOString(),
-            },
+              version: campaign.version ?? "",
+              category: campaign.category ?? "",
+              launchAt: campaign.launchAt ?? null,
+              campaignActive: Boolean(campaign.campaignActive),
+            }),
           },
         }));
         if (parentObjectId) {

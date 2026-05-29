@@ -10,6 +10,9 @@ import {
   parseSlashQuery,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
+import { getToday } from "../../data.jsx";
+import { computeWindowLabel } from "../../lib/docMetaBar.js";
+import { isoFromDateInput } from "../../lib/docDates.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 
@@ -43,9 +46,20 @@ export function DocDocumentBox({
   onAnswerBelowH1Change,
   onBlockAnchorChange,
   headerLabel,
+  version = "",
+  onVersionChange,
+  category = "",
+  onCategoryChange,
+  launchDate = "",
+  onLaunchDateChange,
+  campaignActive = false,
+  onCampaignActiveChange,
 }) {
   const showParent = objects && onParentIdChange;
+  const showCampaignMeta = Boolean(onVersionChange);
   const docHeaderLabel = (headerLabel ?? "").trim() || DEFAULT_HEADER_LABEL;
+  const launchIso = launchDate ? isoFromDateInput(launchDate) : null;
+  const windowPreview = computeWindowLabel(getToday(), launchIso) || "—";
   const bodyRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
 
@@ -136,7 +150,7 @@ export function DocDocumentBox({
         />
       </header>
 
-      <div className="doc-new-meta">
+      <div className={"doc-new-meta" + (showCampaignMeta ? " doc-new-meta--campaign" : "")}>
         <div className="doc-new-row">
           <img className="doc-new-meta-icon" src={DOC_TIMER_ICON} alt="" aria-hidden />
           <span className="doc-new-key">Created</span>
@@ -148,6 +162,83 @@ export function DocDocumentBox({
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+        {showCampaignMeta ? (
+          <>
+            <div className="doc-new-row">
+              <img className="doc-new-meta-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />
+              <span className="doc-new-key">Version</span>
+              <input
+                type="text"
+                className="doc-new-meta-input"
+                value={version}
+                onChange={(e) => onVersionChange(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="—"
+                spellCheck={false}
+                aria-label="Version"
+              />
+            </div>
+            <div className="doc-new-row">
+              <img className="doc-new-meta-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />
+              <span className="doc-new-key">Campaign</span>
+              <div className="doc-new-campaign-toggle" role="group" aria-label="Campaign status">
+                <button
+                  type="button"
+                  className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCampaignActiveChange(true);
+                  }}
+                >
+                  Active
+                </button>
+                <button
+                  type="button"
+                  className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCampaignActiveChange(false);
+                  }}
+                >
+                  Not active
+                </button>
+              </div>
+            </div>
+            <div className="doc-new-row">
+              <img className="doc-new-meta-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />
+              <span className="doc-new-key">Categories</span>
+              <input
+                type="text"
+                className="doc-new-meta-input"
+                value={category}
+                onChange={(e) => onCategoryChange(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="Category tag"
+                spellCheck={false}
+                aria-label="Categories"
+              />
+            </div>
+            <div className="doc-new-row">
+              <img className="doc-new-meta-icon" src={DOC_TIMER_ICON} alt="" aria-hidden />
+              <span className="doc-new-key">Launch date</span>
+              <input
+                type="date"
+                className="doc-new-date"
+                value={launchDate}
+                onChange={(e) => onLaunchDateChange(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                aria-label="Launch date"
+              />
+            </div>
+            <div className="doc-new-row">
+              <img className="doc-new-meta-icon" src={DOC_TIMER_ICON} alt="" aria-hidden />
+              <span className="doc-new-key">Window</span>
+              <span className="doc-new-meta-readonly" aria-live="polite">
+                {windowPreview}
+              </span>
+            </div>
+          </>
+        ) : null}
         {showParent && (
           <div className="doc-new-row">
             <img

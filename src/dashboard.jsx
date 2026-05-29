@@ -48,9 +48,9 @@ function TopBar({ company, onBack, status, signal, scanState, onScan, onScanBlog
 
 function MetaBar({ metadata }) {
   const cells = [
-    { k: "Campaign",  v: metadata.campaign,  source: metadata.campaignSource },
-    { k: "Niche",     v: metadata.niche },
     { k: "Brand",     v: metadata.brand },
+    { k: "Version",   v: metadata.version },
+    { k: "Campaign",  v: metadata.campaign,  source: metadata.campaignSource },
     { k: "Category",  v: metadata.category },
     { k: "Launch",    v: metadata.launch,    accent: true },
     { k: "Window",    v: metadata.window,    warm: true },
