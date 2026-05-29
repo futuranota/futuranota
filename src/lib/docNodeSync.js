@@ -72,6 +72,22 @@ export function getH1IndexForTextBlock(blocks, textBlockIndex) {
   return -1;
 }
 
+/** H1 or Todo index owning a run of text blocks below it, or -1. */
+export function getOwningScheduleBlockIndexForText(blocks, textBlockIndex) {
+  if (textBlockIndex < 0) return -1;
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[textBlockIndex];
+  if (block?.type !== DOC_BLOCK_TYPES.TEXT) return -1;
+
+  for (let i = textBlockIndex - 1; i >= 0; i--) {
+    const prev = normalized[i];
+    if (prev.type === DOC_BLOCK_TYPES.TEXT) continue;
+    if (prev.type === DOC_BLOCK_TYPES.H1 || prev.type === DOC_BLOCK_TYPES.TODO) return i;
+    return -1;
+  }
+  return -1;
+}
+
 /** H1/Todo index for meta-strip node color when a block (or its text) is focused. */
 export function findLinkableBlockIndexForFocus(blocks, focusBlockId) {
   if (!focusBlockId) return -1;

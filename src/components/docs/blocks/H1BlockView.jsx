@@ -14,6 +14,8 @@ export function H1BlockView({
   autoFocus = false,
   onQueryHandleClick,
   onFocus,
+  contentExpanded = true,
+  onContentToggle,
 }) {
   const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
 
@@ -36,6 +38,9 @@ export function H1BlockView({
       {showSchedule ? (
         <BlockAnchorFields
           readOnly
+          showContentToggle={Boolean(onContentToggle)}
+          contentExpanded={contentExpanded}
+          onContentToggle={onContentToggle}
           anchorDate={anchorDate}
           anchorTime={anchorTime}
         />

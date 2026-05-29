@@ -6,9 +6,36 @@ export function BlockAnchorFields({
   onAnchorTimeChange,
   readOnly = false,
   className = "",
+  showContentToggle = false,
+  contentExpanded = true,
+  onContentToggle,
 }) {
+  const rootClass = [
+    "doc-block-anchor",
+    readOnly ? "doc-block-anchor--readonly" : "",
+    showContentToggle ? "doc-block-anchor--with-toggle" : "",
+    showContentToggle && !contentExpanded ? "doc-block-anchor--content-collapsed" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className={`doc-block-anchor${readOnly ? " doc-block-anchor--readonly" : ""} ${className}`.trim()}>
+    <div className={rootClass}>
+      {showContentToggle ? (
+        <button
+          type="button"
+          className="doc-block-anchor__content-toggle"
+          onClick={onContentToggle}
+          aria-expanded={contentExpanded}
+          aria-label={contentExpanded ? "Collapse document content" : "Expand document content"}
+          title={contentExpanded ? "Collapse content" : "Expand content"}
+        >
+          <span className="doc-block-anchor__content-chevron" aria-hidden>
+            ^
+          </span>
+        </button>
+      ) : null}
       <span className="doc-block-anchor__label">Schedule</span>
       <input
         type="date"

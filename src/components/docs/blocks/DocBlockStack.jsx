@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   createDocBlock,
   createTodoItem,
   DOC_BLOCK_TYPES,
+  ensureEmptyTextBlockAfter,
   insertBlockAfter,
   isEmptyTextBlock,
   normalizeDocBlocks,
   removeBlockAt,
+  replaceBlockFromSlashInLinkable,
   replaceBlocksFromSlashInText,
   updateBlockAt,
 } from "../../../lib/docBlocks.js";
@@ -15,7 +17,7 @@ import {
   parseSlashQuery,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
-import { getH1IndexForTextBlock } from "../../../lib/docNodeSync.js";
+import { getH1IndexForTextBlock, getOwningScheduleBlockIndexForText } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
@@ -38,6 +40,7 @@ export function DocBlockStack({
   docCreatedDate = "",
 }) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
+  const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
@@ -45,17 +48,45 @@ export function DocBlockStack({
   const blockLinkColor = (block) => resolveBlockNodeLinkColor(block);
   const blockLinksEnabled = (block) => !isNoNodeLinkMode(blockLinkColor(block));
 
+  const showScheduleForBlock = (block) =>
+    blockLinksEnabled(block) && Boolean(block.queryEnabled) && Boolean(block.anchorFromNode);
+
+  const isContentExpanded = (blockId) => !collapsedContentByBlockId[blockId];
+
+  const toggleBlockContent = (blockId) => {
+    setCollapsedContentByBlockId((prev) => ({
+      ...prev,
+      [blockId]: !prev[blockId],
+    }));
+    requestContentGrow();
+  };
+
+  const isTextHiddenByParentCollapse = (index) => {
+    const ownerIndex = getOwningScheduleBlockIndexForText(blocks, index);
+    if (ownerIndex < 0) return false;
+    const ownerBlock = blocks[ownerIndex];
+    if (!showScheduleForBlock(ownerBlock)) return false;
+    return Boolean(collapsedContentByBlockId[ownerBlock.id]);
+  };
+
   const focusBlockCaret = (blockId, caretPos = null) => {
     if (!blockId) return;
     onFocusBlock?.(blockId);
-    requestAnimationFrame(() => {
-      const el = document.querySelector(`[data-block-id="${blockId}"]`);
-      const input = el?.querySelector("input, textarea");
-      if (!input || !("setSelectionRange" in input)) return;
-      input.focus();
-      const pos = caretPos ?? input.value.length;
-      input.setSelectionRange(pos, pos);
-    });
+    const attempt = (tries = 0) => {
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-block-id="${blockId}"]`);
+        const input = el?.querySelector("input, textarea");
+        if (!input && tries < 6) {
+          attempt(tries + 1);
+          return;
+        }
+        if (!input || !("setSelectionRange" in input)) return;
+        input.focus();
+        const pos = caretPos ?? input.value.length;
+        input.setSelectionRange(pos, pos);
+      });
+    };
+    attempt();
   };
 
   const isAtInputStart = (e) =>
@@ -79,10 +110,26 @@ export function DocBlockStack({
     }
   }, [focusBlockId, blocks.length]);
 
+  useLayoutEffect(() => {
+    requestContentGrow();
+  }, [collapsedContentByBlockId]);
+
   const setBlocks = (next) => onBlocksChange?.(next);
 
   const updateAt = (index, patch) => {
-    setBlocks(updateBlockAt(blocks, index, patch));
+    setBlocks(updateBlockAt(blocksRef.current, index, patch));
+  };
+
+  const finalizeSlashInsert = (nextBlocks, newBlockId, focusBlockId = newBlockId) => {
+    const newIndex = nextBlocks.findIndex((b) => b.id === newBlockId);
+    const next = newIndex >= 0
+      ? ensureEmptyTextBlockAfter(nextBlocks, newIndex)
+      : nextBlocks;
+    setBlocks(next);
+    onFocusBlock?.(focusBlockId);
+    focusBlockCaret(focusBlockId, 0);
+    requestContentGrow();
+    return newBlockId;
   };
 
   const handleQueryHandleClick = (index) => {
@@ -98,11 +145,20 @@ export function DocBlockStack({
     openNode?.(index, fresh);
   };
 
-  const insertTextAfter = (index, initialText = "") => {
-    const current = blocksRef.current;
+  const insertTextAfter = (index, initialText = "", sourceBlocks = null) => {
+    const current = sourceBlocks ?? blocksRef.current;
     const nextBlock = current[index + 1];
-    if (isEmptyTextBlock(nextBlock) && !initialText) {
-      focusBlockCaret(nextBlock.id, 0);
+    const h1Index = current[index]?.type === DOC_BLOCK_TYPES.H1 ? index : -1;
+
+    if (isEmptyTextBlock(nextBlock)) {
+      if (initialText) {
+        const next = updateBlockAt(current, index + 1, { text: initialText });
+        setBlocks(next);
+        if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, initialText);
+      } else {
+        setBlocks(current);
+      }
+      focusBlockCaret(nextBlock.id, initialText ? initialText.length : 0);
       requestContentGrow();
       return nextBlock.id;
     }
@@ -110,13 +166,14 @@ export function DocBlockStack({
     const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: initialText });
     const next = insertBlockAfter(current, index, textBlock);
     setBlocks(next);
+    if (h1Index >= 0 && initialText) onAnswerBelowH1Change?.(h1Index, initialText);
     onFocusBlock?.(textBlock.id);
     focusBlockCaret(textBlock.id, initialText.length);
     requestContentGrow();
     return textBlock.id;
   };
 
-  const insertNewlineAtCaret = (blockIndex, e) => {
+  const insertNewlineAtCaret = (blockIndex, e, field = "text") => {
     e.preventDefault();
     const el = e.currentTarget;
     const caretStart = el.selectionStart ?? 0;
@@ -126,11 +183,31 @@ export function DocBlockStack({
     const blockId = blocksRef.current[blockIndex]?.id;
     if (!blockId) return;
 
-    const next = updateBlockAt(blocksRef.current, blockIndex, { text: nextText });
+    const next = updateBlockAt(blocksRef.current, blockIndex, { [field]: nextText });
     setBlocks(next);
-    syncAnswerBelowH1(next, blockIndex, nextText);
+    if (field === "text") {
+      syncAnswerBelowH1(next, blockIndex, nextText);
+    }
     focusBlockCaret(blockId, caretStart + 1);
     requestContentGrow();
+  };
+
+  const focusTodoItem = (blockId, itemId) => {
+    if (!blockId || !itemId) return;
+    setTodoFocusItemId(itemId);
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-block-id="${blockId}"]`);
+      const input = el?.querySelector(`[data-todo-item-id="${itemId}"]`);
+      input?.focus();
+    });
+  };
+
+  const appendTodoItem = (blockIndex) => {
+    const block = blocksRef.current[blockIndex];
+    if (!block || block.type !== DOC_BLOCK_TYPES.TODO) return;
+    const newItem = createTodoItem({ text: "" });
+    updateAt(blockIndex, { items: [...(block.items || []), newItem] });
+    focusTodoItem(block.id, newItem.id);
   };
 
   const handleDragPointerDown = (e) => {
@@ -144,9 +221,30 @@ export function DocBlockStack({
     if (!parsed) return false;
 
     const newBlock = createDocBlockFromSlash(parsed);
-    const next = replaceBlocksFromSlashInText(blocks, blockIndex, textValue, newBlock);
-    setBlocks(next);
-    onFocusBlock?.(newBlock.id);
+    const next = replaceBlocksFromSlashInText(
+      blocksRef.current,
+      blockIndex,
+      textValue,
+      newBlock,
+    );
+    finalizeSlashInsert(next, newBlock.id);
+    return newBlock.id;
+  };
+
+  const tryConfirmSlashInLinkable = (blockIndex, fieldValue) => {
+    const { slash } = splitBodyForSlash(fieldValue);
+    if (!slash) return false;
+    const parsed = parseSlashQuery(slash.slice(1));
+    if (!parsed) return false;
+
+    const newBlock = createDocBlockFromSlash(parsed);
+    const next = replaceBlockFromSlashInLinkable(
+      blocksRef.current,
+      blockIndex,
+      fieldValue,
+      newBlock,
+    );
+    finalizeSlashInsert(next, newBlock.id);
     return newBlock.id;
   };
 
@@ -193,7 +291,8 @@ export function DocBlockStack({
     return false;
   };
 
-  const handleTextKeyDown = (blockIndex, e, textValue) => {
+  const handleTextKeyDown = (blockIndex, e) => {
+    const textValue = e.currentTarget?.value ?? blocksRef.current[blockIndex]?.text ?? "";
     if (handleTextBackspace(blockIndex, e, textValue)) return;
 
     const { slash } = splitBodyForSlash(textValue);
@@ -223,10 +322,65 @@ export function DocBlockStack({
   };
 
   const handleLinkableBlockKeyDown = (index, block, e) => {
+    const fieldValue = e.currentTarget?.value ?? "";
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+
+      const { slash } = splitBodyForSlash(fieldValue);
+      if (slash) {
+        const parsed = parseSlashQuery(slash.slice(1));
+        if (parsed) {
+          tryConfirmSlashInLinkable(index, fieldValue);
+          return;
+        }
+      }
+
+      if (block.type === DOC_BLOCK_TYPES.TODO) {
+        const items = block.items || [];
+        if (items.length === 0) {
+          appendTodoItem(index);
+        } else {
+          focusTodoItem(block.id, items[0].id);
+        }
+        return;
+      }
+
+      if (block.type === DOC_BLOCK_TYPES.H1) {
+        const el = e.currentTarget;
+        const caretStart = el.selectionStart ?? 0;
+        const caretEnd = el.selectionEnd ?? caretStart;
+        const title = fieldValue || block.title || "";
+        const head = title.slice(0, caretStart);
+        const tail = title.slice(caretEnd);
+        const current = updateBlockAt(blocksRef.current, index, { title: head });
+
+        if (tail) onAnswerBelowH1Change?.(index, tail);
+        insertTextAfter(index, tail, current);
+        return;
+      }
+
+      if (e.currentTarget.tagName === "TEXTAREA") {
+        insertNewlineAtCaret(index, e, "title");
+        return;
+      }
+
       insertTextAfter(index);
       return;
+    }
+
+    if (e.key === "Escape") {
+      const { slash } = splitBodyForSlash(fieldValue);
+      if (slash) {
+        const { prefix } = splitBodyForSlash(fieldValue);
+        e.preventDefault();
+        if (block.type === DOC_BLOCK_TYPES.TODO) {
+          updateAt(index, { listTitle: prefix });
+        } else {
+          updateAt(index, { title: prefix });
+        }
+        return;
+      }
     }
 
     const atStart = isAtInputStart(e);
@@ -258,7 +412,7 @@ export function DocBlockStack({
   };
 
   const handleTodoItemKeyDown = (index, itemIndex, e) => {
-    const block = blocks[index];
+    const block = blocksRef.current[index];
     if (!block || block.type !== DOC_BLOCK_TYPES.TODO) return;
 
     const items = block.items || [];
@@ -267,7 +421,14 @@ export function DocBlockStack({
 
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      insertTextAfter(index);
+      const newItem = createTodoItem({ text: "" });
+      const nextItems = [
+        ...items.slice(0, itemIndex + 1),
+        newItem,
+        ...items.slice(itemIndex + 1),
+      ];
+      updateAt(index, { items: nextItems });
+      focusTodoItem(block.id, newItem.id);
       return;
     }
 
@@ -294,7 +455,7 @@ export function DocBlockStack({
         const focusTarget = nextItems[Math.min(itemIndex, nextItems.length - 1)];
         setTodoFocusItemId(focusTarget?.id || null);
       } else {
-        setBlocks(removeBlockAt(blocks, index));
+        setBlocks(removeBlockAt(blocksRef.current, index));
         setTodoFocusItemId(null);
       }
       return;
@@ -305,8 +466,20 @@ export function DocBlockStack({
 
   return (
     <div className="doc-block-stack">
-      {blocks.map((block, index) => (
-        <div className="doc-block-stack__item" key={block.id} data-block-id={block.id}>
+      {blocks.map((block, index) => {
+        const itemHidden =
+          block.type === DOC_BLOCK_TYPES.TEXT && isTextHiddenByParentCollapse(index);
+
+        return (
+        <div
+          className={
+            "doc-block-stack__item"
+            + (itemHidden ? " doc-block-stack__item--content-collapsed" : "")
+          }
+          key={block.id}
+          data-block-id={block.id}
+          hidden={itemHidden}
+        >
           {block.type === DOC_BLOCK_TYPES.H1 ? (
             <H1BlockView
               value={block.title || ""}
@@ -320,6 +493,12 @@ export function DocBlockStack({
               anchorTime={block.anchorTime || ""}
               onQueryHandleClick={() => handleQueryHandleClick(index)}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+              contentExpanded={isContentExpanded(block.id)}
+              onContentToggle={
+                showScheduleForBlock(block)
+                  ? () => toggleBlockContent(block.id)
+                  : undefined
+              }
             />
           ) : null}
 
@@ -372,6 +551,12 @@ export function DocBlockStack({
               onDragHandlePointerDown={handleDragPointerDown}
               onQueryHandleClick={() => handleQueryHandleClick(index)}
               onListTitleKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+              contentExpanded={isContentExpanded(block.id)}
+              onContentToggle={
+                showScheduleForBlock(block)
+                  ? () => toggleBlockContent(block.id)
+                  : undefined
+              }
             />
           ) : null}
 
@@ -388,11 +573,13 @@ export function DocBlockStack({
               autoFocus={focusBlockId === block.id}
               maxHeightPx={520}
               onFocus={() => onFocusBlock?.(block.id)}
-              onKeyDown={(e) => handleTextKeyDown(index, e, block.text || "")}
+              onKeyDown={(e) => handleTextKeyDown(index, e)}
+              onAfterInput={requestContentGrow}
             />
           ) : null}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

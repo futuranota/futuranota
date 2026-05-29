@@ -28,6 +28,8 @@ export function SlashAwareTextarea({
   minHeightPx = 20,
   maxHeightPx = 120,
   inputRef: externalRef,
+  ariaLabel,
+  onAfterInput,
 }) {
   const internalRef = useRef(null);
   const textareaRef = externalRef || internalRef;
@@ -95,12 +97,22 @@ export function SlashAwareTextarea({
         rows={1}
         onChange={(e) => {
           onChange(collapseDuplicateSlashTail(e.target.value));
-          requestAnimationFrame(syncHeight);
+          requestAnimationFrame(() => {
+            syncHeight();
+            onAfterInput?.();
+          });
+        }}
+        onPaste={() => {
+          requestAnimationFrame(() => {
+            syncHeight();
+            onAfterInput?.();
+          });
         }}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
         onFocus={onFocus}
         spellCheck={false}
+        aria-label={ariaLabel}
       />
     </div>
   );
