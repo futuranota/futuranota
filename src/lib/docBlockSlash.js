@@ -25,6 +25,13 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.DATE,
   },
   {
+    label: "ProductCard",
+    ghostHint: "productcard",
+    aliases: ["productcard", "product-card", "product card"],
+    blockType: DOC_BLOCK_TYPES.PRODUCT_CARD,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
     label: "metric",
     ghostHint: "metric",
     aliases: ["metric"],
@@ -101,6 +108,12 @@ export function createDocBlockFromSlash(parsed) {
       title: "",
       value: "",
       unit: "",
+    });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
+    return createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, {
+      title: "ProductCard",
     });
   }
 

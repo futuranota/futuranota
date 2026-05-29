@@ -141,8 +141,10 @@ function Dashboard({ company, onBack }) {
   };
 
   /* ── INSERT ZUSTAND NODE → canvas ─ */
-  const insertNodeToCanvas = (zustandNode) => {
-    const { x, y } = nextCanvasPosition();
+  const insertNodeToCanvas = (zustandNode, options = null) => {
+    const preferredX = options?.center ? 320 : options?.x;
+    const preferredY = options?.center ? 190 : options?.y;
+    const { x, y } = nextCanvasPosition(preferredX, preferredY);
     const newNode = {
       id: shortId("CN"),
       noteId: zustandNode.id,
@@ -331,7 +333,11 @@ function Dashboard({ company, onBack }) {
       {expandedDocId && (
         <div className="doc-overlay-global">
           <div className="doc-overlay-global-card" onClick={(e) => e.stopPropagation()}>
-            <DocExpandedView docId={expandedDocId} onClose={() => setExpandedDocId(null)} />
+            <DocExpandedView
+              docId={expandedDocId}
+              onClose={() => setExpandedDocId(null)}
+              onInsertToCanvas={insertNodeToCanvas}
+            />
           </div>
         </div>
       )}

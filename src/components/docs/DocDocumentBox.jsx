@@ -53,6 +53,7 @@ export function DocDocumentBox({
   onOpenNodeForH1,
   onAnswerBelowH1Change,
   onBlockAnchorChange,
+  onInsertProductToCanvas,
   headerLabel,
   version = "",
   onVersionChange,
@@ -306,6 +307,7 @@ export function DocDocumentBox({
               onAnswerBelowH1Change={onAnswerBelowH1Change}
               onBlockAnchorChange={onBlockAnchorChange}
               docCreatedDate={createdDate}
+              onInsertProductToCanvas={onInsertProductToCanvas}
             />
           ) : (
             <div className="doc-body-field-wrap">
