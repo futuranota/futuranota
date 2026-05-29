@@ -7,11 +7,11 @@ export function TodoBlockView({
   listTitle,
   onListTitleChange,
   queryEnabled = false,
-  nodeLinkColor = "mint",
+  nodeLinkColor = "dark",
+  linksEnabled = true,
+  anchorFromNode = false,
   anchorDate = "",
   anchorTime = "",
-  onAnchorDateChange,
-  onAnchorTimeChange,
   items,
   focusItemId = null,
   onItemsChange,
@@ -21,6 +21,7 @@ export function TodoBlockView({
   onQueryHandleClick,
 }) {
   const inputRefs = useRef({});
+  const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
 
   useEffect(() => {
     if (!focusItemId) return;
@@ -35,15 +36,17 @@ export function TodoBlockView({
   return (
     <div className="doc-todo-block">
       <div className="doc-todo-block__header">
-        <DocQueryHandleButton
-          queryEnabled={queryEnabled}
-          nodeLinkColor={nodeLinkColor}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onQueryHandleClick?.();
-          }}
-        />
+        {linksEnabled ? (
+          <DocQueryHandleButton
+            queryEnabled={queryEnabled}
+            nodeLinkColor={nodeLinkColor}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onQueryHandleClick?.();
+            }}
+          />
+        ) : null}
         <button
           type="button"
           className="doc-block-drag-handle"
@@ -71,12 +74,11 @@ export function TodoBlockView({
         </button>
       </div>
 
-      {queryEnabled ? (
+      {showSchedule ? (
         <BlockAnchorFields
+          readOnly
           anchorDate={anchorDate}
           anchorTime={anchorTime}
-          onAnchorDateChange={onAnchorDateChange}
-          onAnchorTimeChange={onAnchorTimeChange}
           className="doc-todo-block__anchor"
         />
       ) : null}

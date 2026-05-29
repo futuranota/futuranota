@@ -32,6 +32,7 @@ import {
   setAnswerBelowH1,
   setContentForNodeBlock,
 } from "../../lib/docNodeSync.js";
+import { isNoNodeLinkMode } from "../../lib/docNodeLinkColors.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 
 function NodeFromSelectionModal({ query, onClose, onSave }) {
@@ -69,7 +70,7 @@ export function DocExpandedView({ docId, onClose }) {
   const [draftCategory, setDraftCategory] = useState("");
   const [draftLaunchDate, setDraftLaunchDate] = useState("");
   const [draftCampaignActive, setDraftCampaignActive] = useState(false);
-  const [draftNodeLinkColor, setDraftNodeLinkColor] = useState("mint");
+  const [draftNodeLinkColor, setDraftNodeLinkColor] = useState("dark");
   const [draftParentId, setDraftParentId] = useState("");
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
@@ -99,7 +100,7 @@ export function DocExpandedView({ docId, onClose }) {
     setDraftCategory(normalized.category ?? "");
     setDraftLaunchDate(launchDateInputFromIso(normalized.launchAt));
     setDraftCampaignActive(Boolean(normalized.campaignActive));
-    setDraftNodeLinkColor(normalized.nodeLinkColor ?? "mint");
+    setDraftNodeLinkColor(normalized.nodeLinkColor ?? "dark");
     setDraftParentId(doc.parentObjectId ?? "");
     setNodeSavedHint(false);
     setDocSavedHint(false);
@@ -116,7 +117,7 @@ export function DocExpandedView({ docId, onClose }) {
       launchAt: normalized.launchAt ?? null,
       campaignActive: Boolean(normalized.campaignActive),
       parentObjectId: doc.parentObjectId ?? "",
-      nodeLinkColor: normalized.nodeLinkColor ?? "mint",
+      nodeLinkColor: normalized.nodeLinkColor ?? "dark",
     });
   }, [docId]);
 
@@ -267,7 +268,11 @@ export function DocExpandedView({ docId, onClose }) {
 
   const handleBlockAnchorChange = (blockIndex, anchorDate, anchorTime) => {
     setDraftBlocks((prev) => {
-      const next = updateBlockAt(prev, blockIndex, { anchorDate, anchorTime });
+      const next = updateBlockAt(prev, blockIndex, {
+        anchorDate,
+        anchorTime,
+        anchorFromNode: true,
+      });
       const block = next[blockIndex];
       if (block?.nodeId) {
         updateNode(block.nodeId, {
@@ -294,6 +299,7 @@ export function DocExpandedView({ docId, onClose }) {
   };
 
   const persistNodeContentDebounced = (content, context, anchorDate, anchorTime) => {
+    if (isNoNodeLinkMode(draftNodeLinkColor)) return;
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
     const block = draftBlocks[blockIndex];
     if (!block || block.type !== blockType) return;
@@ -334,6 +340,7 @@ export function DocExpandedView({ docId, onClose }) {
       if (supportsScheduleAnchor(dataType)) {
         patch.anchorDate = anchorDate;
         patch.anchorTime = anchorTime;
+        patch.anchorFromNode = true;
         patch.queryEnabled = true;
       }
 
@@ -369,6 +376,7 @@ export function DocExpandedView({ docId, onClose }) {
   };
 
   const handleOpenNodeForBlock = (blockIndex, block) => {
+    if (isNoNodeLinkMode(draftNodeLinkColor)) return;
     const dataType = nodeDataTypeForBlock(block);
     const existing = block.nodeId ? getNode(block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block);
@@ -389,7 +397,9 @@ export function DocExpandedView({ docId, onClose }) {
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
-    const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate);
+    const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate, {
+      noNodeLink: isNoNodeLinkMode(draftNodeLinkColor),
+    });
     const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
     const resolvedAnchorDate = anchorFromBlock.anchorDate || anchorFromNode.anchorDate;
     const resolvedAnchorTime = anchorFromBlock.anchorTime || anchorFromNode.anchorTime;
@@ -461,6 +471,10 @@ export function DocExpandedView({ docId, onClose }) {
     if (supportsScheduleAnchor(dataType)) {
       patch.anchorDate = nodeDraftAnchorDate;
       patch.anchorTime = nodeDraftAnchorTime;
+      patch.anchorFromNode = Boolean(
+        nodeDraftAnchorDate !== nodeInitialSnapshot?.anchorDate
+        || nodeDraftAnchorTime !== nodeInitialSnapshot?.anchorTime,
+      ) || Boolean(block.anchorFromNode);
       patch.queryEnabled = true;
     }
 

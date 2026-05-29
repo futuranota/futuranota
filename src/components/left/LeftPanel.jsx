@@ -237,7 +237,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
   const [category, setCategory] = useState("");
   const [launchDate, setLaunchDate] = useState("");
   const [campaignActive, setCampaignActive] = useState(false);
-  const [nodeLinkColor, setNodeLinkColor] = useState("mint");
+  const [nodeLinkColor, setNodeLinkColor] = useState("dark");
   const titleRef = useRef(null);
 
   useEffect(() => {
@@ -262,6 +262,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
     createdDate,
     docId: null,
     docTitle: title,
+    nodeLinkColor,
   });
 
   const submitDoc = () => {
@@ -515,7 +516,7 @@ export function LeftPanel({
           category: data.category ?? "",
           launchAt: data.launchAt ?? null,
           campaignActive: Boolean(data.campaignActive),
-          nodeLinkColor: data.nodeLinkColor ?? "mint",
+          nodeLinkColor: data.nodeLinkColor ?? "dark",
         },
       );
       if (newDocId && data.blocks?.length) {

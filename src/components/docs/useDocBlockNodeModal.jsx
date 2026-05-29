@@ -21,6 +21,7 @@ import {
   setContentForNodeBlock,
 } from "../../lib/docNodeSync.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
+import { isNoNodeLinkMode } from "../../lib/docNodeLinkColors.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 
 function supportsScheduleAnchor(dataType) {
@@ -36,6 +37,7 @@ export function useDocBlockNodeModal({
   createdDate,
   docId = null,
   docTitle = "New document",
+  nodeLinkColor = "dark",
 }) {
   const getNode = useNodesStore((s) => s.getNode);
   const updateNode = useNodesStore((s) => s.updateNode);
@@ -49,7 +51,11 @@ export function useDocBlockNodeModal({
 
   const handleBlockAnchorChange = (blockIndex, anchorDate, anchorTime) => {
     setBlocks((prev) => {
-      const next = updateBlockAt(prev, blockIndex, { anchorDate, anchorTime });
+      const next = updateBlockAt(prev, blockIndex, {
+        anchorDate,
+        anchorTime,
+        anchorFromNode: true,
+      });
       const block = next[blockIndex];
       if (block?.nodeId) {
         updateNode(block.nodeId, {
@@ -89,6 +95,7 @@ export function useDocBlockNodeModal({
   };
 
   const persistNodeContentDebounced = (content, context, anchorDate, anchorTime) => {
+    if (isNoNodeLinkMode(nodeLinkColor)) return;
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
     const block = blocks[blockIndex];
     if (!block || block.type !== blockType) return;
@@ -133,6 +140,7 @@ export function useDocBlockNodeModal({
       if (supportsScheduleAnchor(dataType)) {
         patch.anchorDate = anchorDate;
         patch.anchorTime = anchorTime;
+        patch.anchorFromNode = true;
         patch.queryEnabled = true;
       }
 
@@ -162,6 +170,7 @@ export function useDocBlockNodeModal({
   };
 
   const handleOpenNodeForBlock = (blockIndex, block) => {
+    if (isNoNodeLinkMode(nodeLinkColor)) return;
     const dataType = nodeDataTypeForBlock(block);
     const existing = block.nodeId ? getNode(block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block);
@@ -181,7 +190,9 @@ export function useDocBlockNodeModal({
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
-    const anchorFromBlock = resolveBlockAnchorFields(block, createdDate);
+    const anchorFromBlock = resolveBlockAnchorFields(block, createdDate, {
+      noNodeLink: isNoNodeLinkMode(nodeLinkColor),
+    });
     const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
     setNodeDraftAnchorDate(anchorFromBlock.anchorDate || anchorFromNode.anchorDate);
     setNodeDraftAnchorTime(anchorFromBlock.anchorTime || anchorFromNode.anchorTime);
@@ -242,6 +253,7 @@ export function useDocBlockNodeModal({
     if (supportsScheduleAnchor(dataType)) {
       patch.anchorDate = nodeDraftAnchorDate;
       patch.anchorTime = nodeDraftAnchorTime;
+      patch.anchorFromNode = true;
       patch.queryEnabled = true;
     }
 

@@ -111,6 +111,7 @@ export function normalizeDocBlock(block) {
       sourceQuery: block.sourceQuery || undefined,
       anchorDate: anchor.anchorDate,
       anchorTime: anchor.anchorTime,
+      anchorFromNode: Boolean(block.anchorFromNode),
       queryEnabled,
     });
   }
@@ -137,6 +138,7 @@ export function normalizeDocBlock(block) {
       sourceQuery: block.sourceQuery || undefined,
       anchorDate: anchor.anchorDate,
       anchorTime: anchor.anchorTime,
+      anchorFromNode: Boolean(block.anchorFromNode),
       showIntroAnim: false,
       queryEnabled,
     });

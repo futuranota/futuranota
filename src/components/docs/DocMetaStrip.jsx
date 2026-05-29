@@ -66,7 +66,7 @@ export function DocMetaStrip({
   onCampaignActiveChange,
   parentId = "",
   onParentIdChange,
-  nodeLinkColor = "mint",
+  nodeLinkColor = "dark",
   onNodeLinkColorChange,
   objects = null,
   showCampaignMeta = false,
@@ -175,7 +175,7 @@ export function DocMetaStrip({
                       onCampaignActiveChange(false);
                     }}
                   >
-                    Not active
+                    inactive
                   </button>
                 </div>
               </div>

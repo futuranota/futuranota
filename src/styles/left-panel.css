@@ -1470,6 +1470,10 @@
   margin-top: calc(2px + (17px * 1.15 - 12px) / 2);
 }
 
+.doc-h1-block__header--no-handle.doc-h1-block__header--multiline {
+  padding-left: 0;
+}
+
 .doc-block-drag-handle {
   width: 13px;
   height: 15px;
@@ -1535,12 +1539,9 @@
   pointer-events: none;
 }
 
-.doc-meta-field--link-colors {
-  align-items: center;
-}
-
 .doc-meta-field--link-colors .doc-node-link-colors {
-  margin-left: auto;
+  margin-left: 0;
+  align-self: flex-start;
 }
 
 .doc-todo-block__title-input {
@@ -1910,6 +1911,13 @@
 .doc-block-anchor__date,
 .doc-block-anchor__time {
   color-scheme: dark;
+}
+
+.doc-block-anchor--readonly .doc-block-anchor__date,
+.doc-block-anchor--readonly .doc-block-anchor__time {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.92;
 }
 
 .doc-block-anchor__date::-webkit-calendar-picker-indicator,

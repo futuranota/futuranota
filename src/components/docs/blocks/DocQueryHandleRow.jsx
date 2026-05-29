@@ -48,6 +48,7 @@ export function DocQueryHandleRow({
   onQueryHandleClick,
   queryEnabled = false,
   nodeLinkColor = "mint",
+  showQueryHandle = true,
   placeholder = "Insert Query (?) or title",
   ariaLabel = "Block title or query",
   multiline = false,
@@ -73,21 +74,23 @@ export function DocQueryHandleRow({
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
 
-  const headerClass = multiline
-    ? "doc-h1-block__header doc-h1-block__header--multiline"
-    : "doc-h1-block__header";
+  const headerClass =
+    (multiline ? "doc-h1-block__header doc-h1-block__header--multiline" : "doc-h1-block__header")
+    + (showQueryHandle ? "" : " doc-h1-block__header--no-handle");
 
   return (
     <div className={headerClass}>
-      <DocQueryHandleButton
-        queryEnabled={queryEnabled}
-        nodeLinkColor={nodeLinkColor}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onQueryHandleClick?.();
-        }}
-      />
+      {showQueryHandle ? (
+        <DocQueryHandleButton
+          queryEnabled={queryEnabled}
+          nodeLinkColor={nodeLinkColor}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onQueryHandleClick?.();
+          }}
+        />
+      ) : null}
       {multiline ? (
         <textarea
           ref={inputRef}
