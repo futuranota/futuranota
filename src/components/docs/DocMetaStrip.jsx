@@ -1,12 +1,9 @@
 import { useState } from "react";
 import { getToday } from "../../data.jsx";
-import {
-  formatCampaignLabel,
-  formatWindowDays,
-} from "../../lib/docMetaBar.js";
+import { formatCampaignLabel, formatWindowDays } from "../../lib/docMetaBar.js";
 import { formatMmDdYy, isoFromDateInput } from "../../lib/docDates.js";
+import { NodeLinkColorPicker } from "./blocks/NodeLinkColorPicker.jsx";
 
-const LAUNCH_PLACEHOLDER = "mm/dd/yy";
 const PARENT_PLACEHOLDER = "Select parent";
 
 function openDatePicker(e) {
@@ -27,7 +24,7 @@ function MetaChip({
   value,
   tone = "muted",
   placeholder = null,
-  emptyDisplay = "—",
+  emptyDisplay = "",
   valueLowercase = false,
 }) {
   const empty = value == null || value === "" || value === "—";
@@ -69,6 +66,8 @@ export function DocMetaStrip({
   onCampaignActiveChange,
   parentId = "",
   onParentIdChange,
+  nodeLinkColor = "mint",
+  onNodeLinkColorChange,
   objects = null,
   showCampaignMeta = false,
 }) {
@@ -76,7 +75,7 @@ export function DocMetaStrip({
   const showParent = objects && onParentIdChange;
   const launchIso = launchDate ? isoFromDateInput(launchDate) : null;
   const today = getToday();
-  const windowSummary = formatWindowDays(today, launchIso) || "—";
+  const windowSummary = formatWindowDays(today, launchIso);
   const parentName =
     objects?.find((o) => o.id === parentId)?.name?.trim()
     || (brandLabel && brandLabel !== "— sin padre —" ? brandLabel : null);
@@ -102,16 +101,8 @@ export function DocMetaStrip({
               <MetaChip label="Version" value={version.trim() || null} />
               <MetaChip label="Campaign" value={campaignSummary} valueLowercase />
               <MetaChip label="Category" value={category.trim() || null} />
-              <MetaChip
-                label="Launch"
-                value={launchFormatted}
-                placeholder={LAUNCH_PLACEHOLDER}
-              />
-              <MetaChip
-                label="Window"
-                value={formatWindowDays(today, launchIso)}
-                emptyDisplay="—"
-              />
+              <MetaChip label="Launch" value={launchFormatted || null} />
+              <MetaChip label="Window" value={windowSummary} />
             </>
           ) : null}
           {showParent && !showCampaignMeta ? (
@@ -236,6 +227,14 @@ export function DocMetaStrip({
                 ))}
               </select>
             </label>
+          ) : null}
+
+          {onNodeLinkColorChange ? (
+            <NodeLinkColorPicker
+              variant="meta"
+              value={nodeLinkColor}
+              onChange={onNodeLinkColorChange}
+            />
           ) : null}
         </div>
       </div>

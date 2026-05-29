@@ -48,6 +48,8 @@ export function DocDocumentBox({
   onLaunchDateChange,
   campaignActive = false,
   onCampaignActiveChange,
+  nodeLinkColor = "mint",
+  onNodeLinkColorChange,
 }) {
   const showCampaignMeta = Boolean(onVersionChange);
   const docHeaderLabel = (headerLabel ?? "").trim() || DEFAULT_HEADER_LABEL;
@@ -57,6 +59,17 @@ export function DocDocumentBox({
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const hasBlocks = normalizedBlocks.length > 0;
   const { slash: slashTail } = splitBodyForSlash(body);
+
+  const syncTitleHeight = useCallback(() => {
+    const el = titleRef?.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [titleRef]);
+
+  useLayoutEffect(() => {
+    syncTitleHeight();
+  }, [title, syncTitleHeight]);
 
   const syncBodyHeight = useCallback(() => {
     const el = bodyRef.current;
@@ -131,14 +144,17 @@ export function DocDocumentBox({
             </button>
           )}
         </div>
-        <input
+        <textarea
           ref={titleRef}
-          type="text"
           className="doc-new-head-title"
           value={title}
           placeholder={titlePlaceholder}
-          onChange={(e) => onTitleChange(e.target.value)}
+          onChange={(e) => {
+            onTitleChange(e.target.value);
+            requestAnimationFrame(syncTitleHeight);
+          }}
           onKeyDown={onTitleKeyDown}
+          rows={1}
           aria-label="Document title"
         />
       </header>
@@ -159,6 +175,8 @@ export function DocDocumentBox({
         onParentIdChange={onParentIdChange}
         objects={objects}
         showCampaignMeta={showCampaignMeta}
+        nodeLinkColor={nodeLinkColor}
+        onNodeLinkColorChange={onNodeLinkColorChange}
       />
 
       <div className="doc-new-content-box doc-new-content-box--resizable">
@@ -175,6 +193,8 @@ export function DocDocumentBox({
               onOpenNodeForH1={onOpenNodeForH1}
               onAnswerBelowH1Change={onAnswerBelowH1Change}
               onBlockAnchorChange={onBlockAnchorChange}
+              docCreatedDate={createdDate}
+              nodeLinkColor={nodeLinkColor}
             />
           ) : (
             <div className="doc-body-field-wrap">

@@ -1,3 +1,5 @@
+import { normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
+
 /** Default campaign/meta fields on documents. */
 export function emptyDocCampaignFields() {
   return {
@@ -5,6 +7,7 @@ export function emptyDocCampaignFields() {
     category: "",
     launchAt: null,
     campaignActive: false,
+    nodeLinkColor: "mint",
   };
 }
 
@@ -18,5 +21,6 @@ export function normalizeDoc(doc) {
     category: typeof doc.category === "string" ? doc.category : base.category,
     launchAt: doc.launchAt ?? base.launchAt,
     campaignActive: Boolean(doc.campaignActive),
+    nodeLinkColor: normalizeNodeLinkColorId(doc.nodeLinkColor ?? base.nodeLinkColor),
   };
 }

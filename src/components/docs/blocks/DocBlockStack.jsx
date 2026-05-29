@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createDocBlock,
   createTodoItem,
   DOC_BLOCK_TYPES,
   insertBlockAfter,
+  normalizeDocBlocks,
   removeBlockAt,
   replaceBlocksFromSlashInText,
   updateBlockAt,
@@ -31,9 +32,13 @@ export function DocBlockStack({
   onOpenNodeForH1,
   onAnswerBelowH1Change,
   onBlockAnchorChange,
+  docCreatedDate = "",
+  nodeLinkColor = "mint",
 }) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
 
   useEffect(() => {
     if (!focusBlockId) return;
@@ -53,6 +58,23 @@ export function DocBlockStack({
   const patchAnchor = (index, anchorDate, anchorTime) => {
     updateAt(index, { anchorDate, anchorTime });
     onBlockAnchorChange?.(index, anchorDate, anchorTime);
+  };
+
+  const handleQueryHandleClick = (index) => {
+    const block = blocksRef.current[index];
+    if (!block) return;
+
+    if (!block.queryEnabled) {
+      updateAt(index, {
+        queryEnabled: true,
+        anchorDate: block.anchorDate || docCreatedDate || "",
+        anchorTime: block.anchorTime || "",
+      });
+      return;
+    }
+
+    const fresh = normalizeDocBlocks(blocksRef.current)[index] ?? block;
+    openNode?.(index, fresh);
   };
 
   const insertTextAfter = (index) => {
@@ -161,6 +183,8 @@ export function DocBlockStack({
             <H1BlockView
               value={block.title || ""}
               onChange={(title) => updateAt(index, { title })}
+              queryEnabled={Boolean(block.queryEnabled)}
+              nodeLinkColor={nodeLinkColor}
               anchorDate={block.anchorDate || ""}
               anchorTime={block.anchorTime || ""}
               onAnchorDateChange={(anchorDate) =>
@@ -169,7 +193,7 @@ export function DocBlockStack({
               onAnchorTimeChange={(anchorTime) =>
                 patchAnchor(index, block.anchorDate || "", anchorTime)
               }
-              onQueryHandleClick={() => openNode?.(index, block)}
+              onQueryHandleClick={() => handleQueryHandleClick(index)}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
             />
           ) : null}
@@ -204,6 +228,8 @@ export function DocBlockStack({
             <TodoBlockView
               listTitle={block.listTitle ?? "Checkbox:"}
               onListTitleChange={(listTitle) => updateAt(index, { listTitle })}
+              queryEnabled={Boolean(block.queryEnabled)}
+              nodeLinkColor={nodeLinkColor}
               anchorDate={block.anchorDate || ""}
               anchorTime={block.anchorTime || ""}
               onAnchorDateChange={(anchorDate) =>
@@ -222,7 +248,7 @@ export function DocBlockStack({
                 setTodoFocusItemId(newItem.id);
               }}
               onDragHandlePointerDown={handleDragPointerDown}
-              onQueryHandleClick={() => openNode?.(index, block)}
+              onQueryHandleClick={() => handleQueryHandleClick(index)}
             />
           ) : null}
 

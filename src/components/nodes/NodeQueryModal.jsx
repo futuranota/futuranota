@@ -288,19 +288,20 @@ export function NodeQueryModal({
               aria-label="Contenido del nodo"
             />
           )}
-          {showScheduleAnchor ? (
-            <BlockAnchorFields
-              className="node-query-modal__schedule"
-              anchorDate={anchorDate}
-              anchorTime={anchorTime}
-              onAnchorDateChange={onAnchorDateChange}
-              onAnchorTimeChange={onAnchorTimeChange}
-            />
-          ) : null}
         </div>
 
+        {showScheduleAnchor ? (
+          <BlockAnchorFields
+            className="node-query-modal__schedule"
+            anchorDate={anchorDate}
+            anchorTime={anchorTime}
+            onAnchorDateChange={onAnchorDateChange}
+            onAnchorTimeChange={onAnchorTimeChange}
+          />
+        ) : null}
+
         <footer className="node-query-modal__actions">
-          {onSave ? (
+          {onSave && !onBackToDocument ? (
             <button
               type="button"
               className="node-query-modal__action node-query-modal__action--save"

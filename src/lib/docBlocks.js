@@ -45,7 +45,13 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
   const base = { id };
 
   if (type === DOC_BLOCK_TYPES.H1) {
-    return { ...base, type: DOC_BLOCK_TYPES.H1, title: "", ...patch };
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.H1,
+      title: "",
+      queryEnabled: false,
+      ...patch,
+    };
   }
 
   if (type === DOC_BLOCK_TYPES.TODO) {
@@ -56,6 +62,7 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       listTitle: patch.listTitle ?? DEFAULT_CHECKBOX_LIST_TITLE,
       items,
       showIntroAnim: false,
+      queryEnabled: false,
       ...patch,
     };
   }
@@ -96,6 +103,7 @@ export function normalizeDocBlock(block) {
 
   if (type === DOC_BLOCK_TYPES.H1) {
     const anchor = normalizeAnchorFields(block);
+    const queryEnabled = Boolean(block.queryEnabled ?? block.nodeId);
     return createDocBlock(DOC_BLOCK_TYPES.H1, {
       id: block.id,
       title: block.title || "",
@@ -103,6 +111,7 @@ export function normalizeDocBlock(block) {
       sourceQuery: block.sourceQuery || undefined,
       anchorDate: anchor.anchorDate,
       anchorTime: anchor.anchorTime,
+      queryEnabled,
     });
   }
 
@@ -119,6 +128,7 @@ export function normalizeDocBlock(block) {
           )
         : [createTodoItem()];
     const anchor = normalizeAnchorFields(block);
+    const queryEnabled = Boolean(block.queryEnabled ?? block.nodeId);
     return createDocBlock(DOC_BLOCK_TYPES.TODO, {
       id: block.id,
       listTitle: block.listTitle ?? DEFAULT_CHECKBOX_LIST_TITLE,
@@ -128,6 +138,7 @@ export function normalizeDocBlock(block) {
       anchorDate: anchor.anchorDate,
       anchorTime: anchor.anchorTime,
       showIntroAnim: false,
+      queryEnabled,
     });
   }
 
