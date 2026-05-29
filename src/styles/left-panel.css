@@ -1940,8 +1940,8 @@
 .node-query-modal__schedule {
   flex-shrink: 0;
   margin-bottom: 10px;
-  padding-left: 21px;
-  padding-right: 21px;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .doc-block-type-label {
@@ -2227,7 +2227,7 @@
 .lp-modal.node-query-modal {
   width: min(537px, calc(100vw - 48px));
   max-width: 537px;
-  min-height: 356px;
+  min-height: 390px;
   max-height: min(90vh, 520px);
   padding: 22px 27px 18px;
   background: #151515;
@@ -2437,17 +2437,13 @@
 
 .node-query-modal__content-box {
   flex: 1 1 auto;
-  min-height: 175px;
+  min-height: 210px;
+  margin-left: -21px;
+  width: calc(100% + 21px);
   margin-bottom: 10px;
   border-radius: 6px;
   overflow: hidden;
-  background: linear-gradient(
-    90deg,
-    rgb(26, 25, 25) 0%,
-    rgb(22, 26, 29) 9.73%,
-    rgb(22, 26, 29) 91.59%,
-    rgb(26, 25, 25) 99.46%
-  );
+  background: #151515;
 }
 
 .node-query-modal__date-editor {
@@ -2485,14 +2481,14 @@
 .node-query-modal__body {
   display: block;
   width: 100%;
-  min-height: 175px;
+  min-height: 210px;
   height: 100%;
   margin: 0;
   padding: 24px 21px 24px 21px;
   box-sizing: border-box;
   border: none;
   resize: vertical;
-  background: transparent;
+  background: #151515;
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 400;
