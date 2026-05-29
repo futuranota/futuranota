@@ -48,7 +48,7 @@ export function DocDocumentBox({
   onLaunchDateChange,
   campaignActive = false,
   onCampaignActiveChange,
-  nodeLinkColor = "mint",
+  nodeLinkColor = "dark",
   onNodeLinkColorChange,
 }) {
   const showCampaignMeta = Boolean(onVersionChange);

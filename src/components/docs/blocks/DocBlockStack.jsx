@@ -15,6 +15,7 @@ import {
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock } from "../../../lib/docNodeSync.js";
+import { isNoNodeLinkMode } from "../../../lib/docNodeLinkColors.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { TodoBlockView } from "./TodoBlockView.jsx";
@@ -33,8 +34,9 @@ export function DocBlockStack({
   onAnswerBelowH1Change,
   onBlockAnchorChange,
   docCreatedDate = "",
-  nodeLinkColor = "mint",
+  nodeLinkColor = "dark",
 }) {
+  const linksEnabled = !isNoNodeLinkMode(nodeLinkColor);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
@@ -55,21 +57,14 @@ export function DocBlockStack({
     setBlocks(updateBlockAt(blocks, index, patch));
   };
 
-  const patchAnchor = (index, anchorDate, anchorTime) => {
-    updateAt(index, { anchorDate, anchorTime });
-    onBlockAnchorChange?.(index, anchorDate, anchorTime);
-  };
-
   const handleQueryHandleClick = (index) => {
+    if (!linksEnabled) return;
+
     const block = blocksRef.current[index];
     if (!block) return;
 
     if (!block.queryEnabled) {
-      updateAt(index, {
-        queryEnabled: true,
-        anchorDate: block.anchorDate || docCreatedDate || "",
-        anchorTime: block.anchorTime || "",
-      });
+      updateAt(index, { queryEnabled: true });
       return;
     }
 
@@ -185,14 +180,10 @@ export function DocBlockStack({
               onChange={(title) => updateAt(index, { title })}
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={nodeLinkColor}
+              linksEnabled={linksEnabled}
+              anchorFromNode={Boolean(block.anchorFromNode)}
               anchorDate={block.anchorDate || ""}
               anchorTime={block.anchorTime || ""}
-              onAnchorDateChange={(anchorDate) =>
-                patchAnchor(index, anchorDate, block.anchorTime || "")
-              }
-              onAnchorTimeChange={(anchorTime) =>
-                patchAnchor(index, block.anchorDate || "", anchorTime)
-              }
               onQueryHandleClick={() => handleQueryHandleClick(index)}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
             />
@@ -230,14 +221,10 @@ export function DocBlockStack({
               onListTitleChange={(listTitle) => updateAt(index, { listTitle })}
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={nodeLinkColor}
+              linksEnabled={linksEnabled}
+              anchorFromNode={Boolean(block.anchorFromNode)}
               anchorDate={block.anchorDate || ""}
               anchorTime={block.anchorTime || ""}
-              onAnchorDateChange={(anchorDate) =>
-                patchAnchor(index, anchorDate, block.anchorTime || "")
-              }
-              onAnchorTimeChange={(anchorTime) =>
-                patchAnchor(index, block.anchorDate || "", anchorTime)
-              }
               items={block.items || []}
               focusItemId={todoFocusItemId}
               onItemsChange={(items) => updateAt(index, { items })}

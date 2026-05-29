@@ -7,7 +7,7 @@ export function emptyDocCampaignFields() {
     category: "",
     launchAt: null,
     campaignActive: false,
-    nodeLinkColor: "mint",
+    nodeLinkColor: "dark",
   };
 }
 

@@ -1,11 +1,18 @@
-/** Link color presets for nodes belonging to a document. */
+/** Link color presets for documents — dark = queries without node links. */
 export const DOC_NODE_LINK_COLORS = [
   { id: "mint", label: "Mint", stroke: "#85da99", soft: "rgba(133, 218, 153, 0.12)" },
   { id: "rose", label: "Rose", stroke: "#c7a1a1", soft: "rgba(199, 161, 161, 0.12)" },
-  { id: "dark", label: "Dark", stroke: "#212121", soft: "rgba(33, 33, 33, 0.35)" },
+  { id: "dark", label: "No link", stroke: "#212121", soft: "rgba(33, 33, 33, 0.35)" },
 ];
 
-const DEFAULT_NODE_LINK_COLOR = DOC_NODE_LINK_COLORS[0];
+export const NO_NODE_LINK_COLOR_ID = "dark";
+
+const DEFAULT_NODE_LINK_COLOR = DOC_NODE_LINK_COLORS.find((c) => c.id === NO_NODE_LINK_COLOR_ID)
+  || DOC_NODE_LINK_COLORS[0];
+
+export function isNoNodeLinkMode(nodeLinkColor) {
+  return normalizeNodeLinkColorId(nodeLinkColor) === NO_NODE_LINK_COLOR_ID;
+}
 
 export function normalizeNodeLinkColorId(value) {
   const id = typeof value === "string" ? value.trim() : "";
@@ -20,7 +27,7 @@ export function getDocNodeLinkColorPreset(id) {
 function linkColorFromEntity(entity, docsById) {
   if (!entity?.parentDocId) return null;
   const doc = docsById[entity.parentDocId];
-  if (!doc) return null;
+  if (!doc || isNoNodeLinkMode(doc.nodeLinkColor)) return null;
   return getDocNodeLinkColorPreset(doc.nodeLinkColor).stroke;
 }
 

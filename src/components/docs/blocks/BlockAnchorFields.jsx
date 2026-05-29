@@ -4,16 +4,20 @@ export function BlockAnchorFields({
   anchorTime = "",
   onAnchorDateChange,
   onAnchorTimeChange,
+  readOnly = false,
   className = "",
 }) {
   return (
-    <div className={`doc-block-anchor ${className}`.trim()}>
+    <div className={`doc-block-anchor${readOnly ? " doc-block-anchor--readonly" : ""} ${className}`.trim()}>
       <span className="doc-block-anchor__label">Schedule</span>
       <input
         type="date"
         className="doc-block-anchor__date"
         value={anchorDate}
-        onChange={(e) => onAnchorDateChange(e.target.value)}
+        readOnly={readOnly}
+        tabIndex={readOnly ? -1 : 0}
+        aria-readonly={readOnly}
+        onChange={readOnly ? undefined : (e) => onAnchorDateChange(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
         aria-label="Anchor date"
       />
@@ -21,7 +25,10 @@ export function BlockAnchorFields({
         type="time"
         className="doc-block-anchor__time"
         value={anchorTime}
-        onChange={(e) => onAnchorTimeChange(e.target.value)}
+        readOnly={readOnly}
+        tabIndex={readOnly ? -1 : 0}
+        aria-readonly={readOnly}
+        onChange={readOnly ? undefined : (e) => onAnchorTimeChange(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
         aria-label="Anchor time"
       />

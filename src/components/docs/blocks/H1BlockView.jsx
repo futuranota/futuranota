@@ -5,15 +5,17 @@ export function H1BlockView({
   value,
   onChange,
   queryEnabled = false,
-  nodeLinkColor = "mint",
+  nodeLinkColor = "dark",
+  linksEnabled = true,
+  anchorFromNode = false,
   anchorDate = "",
   anchorTime = "",
-  onAnchorDateChange,
-  onAnchorTimeChange,
   onKeyDown,
   autoFocus = false,
   onQueryHandleClick,
 }) {
+  const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
+
   return (
     <div className="doc-h1-block">
       <DocQueryHandleRow
@@ -24,16 +26,16 @@ export function H1BlockView({
         onQueryHandleClick={onQueryHandleClick}
         queryEnabled={queryEnabled}
         nodeLinkColor={nodeLinkColor}
-        placeholder="Insert Query (?) or title"
+        showQueryHandle={linksEnabled}
+        placeholder="Create a new query or title "
         ariaLabel="Title block query or title"
         multiline
       />
-      {queryEnabled ? (
+      {showSchedule ? (
         <BlockAnchorFields
+          readOnly
           anchorDate={anchorDate}
           anchorTime={anchorTime}
-          onAnchorDateChange={onAnchorDateChange}
-          onAnchorTimeChange={onAnchorTimeChange}
         />
       ) : null}
     </div>
