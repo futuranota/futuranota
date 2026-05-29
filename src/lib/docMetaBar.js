@@ -1,10 +1,11 @@
-import { daysBetween, fmtDate, getToday } from "../data.jsx";
+import { daysBetween, getToday } from "../data.jsx";
+import { formatMmDdYy } from "./docDates.js";
 import { normalizeDoc } from "./normalizeDoc.js";
 
 export { emptyDocCampaignFields } from "./normalizeDoc.js";
 
 export function formatCampaignLabel(active) {
-  return active ? "ACTIVE" : "INACTIVE";
+  return active ? "active" : "inactive";
 }
 
 function parseLaunchDate(launchAt) {
@@ -22,6 +23,17 @@ export function computeWindowLabel(today, launchAt) {
   if (diff > 0) return `T−${diff}d`;
   if (diff < 0) return `T+${-diff}d`;
   return "TODAY";
+}
+
+/** Days until/since launch for doc meta strip, e.g. "25 days". */
+export function formatWindowDays(today, launchAt) {
+  const launch = parseLaunchDate(launchAt);
+  if (!launch) return null;
+  const t = today instanceof Date ? today : getToday();
+  const diff = daysBetween(t, launch);
+  const n = Math.abs(diff);
+  if (n === 0) return "0 days";
+  return `${n} days`;
 }
 
 export function buildMetaBarFromDoc({ doc, objectsById = {}, today = getToday() }) {
@@ -48,8 +60,8 @@ export function buildMetaBarFromDoc({ doc, objectsById = {}, today = getToday() 
     version: normalized.version?.trim() || null,
     campaign: formatCampaignLabel(normalized.campaignActive),
     category: normalized.category?.trim() || null,
-    launch: launchDate ? fmtDate(launchDate, "short") : null,
-    window: computeWindowLabel(today, normalized.launchAt),
+    launch: launchDate ? formatMmDdYy(launchDate) : null,
+    window: formatWindowDays(today, normalized.launchAt),
   };
 }
 

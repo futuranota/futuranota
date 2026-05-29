@@ -48,25 +48,27 @@ function TopBar({ company, onBack, status, signal, scanState, onScan, onScanBlog
 
 function MetaBar({ metadata }) {
   const cells = [
-    { k: "Brand",     v: metadata.brand },
-    { k: "Version",   v: metadata.version },
-    { k: "Campaign",  v: metadata.campaign,  source: metadata.campaignSource },
-    { k: "Category",  v: metadata.category },
-    { k: "Launch",    v: metadata.launch,    accent: true },
-    { k: "Window",    v: metadata.window,    warm: true },
+    { k: "Brand", v: metadata.brand },
+    { k: "Version", v: metadata.version },
+    { k: "Campaign", v: metadata.campaign, source: metadata.campaignSource },
+    { k: "Category", v: metadata.category },
+    { k: "Launch", v: metadata.launch, accent: true },
+    { k: "Window", v: metadata.window, warm: true },
   ];
   const allEmpty = cells.every((c) => !c.v);
   return (
     <div className={"metabar" + (allEmpty ? " empty" : "")}>
-      {cells.map((c, i) => (
-        <div className="meta-cell" key={i}>
+      {cells.map((c) => (
+        <div className="meta-cell" key={c.k}>
           <div className="meta-cell-k">{c.k}</div>
           <div className={"meta-cell-v" + (c.accent ? " accent" : "") + (c.warm ? " warm" : "")}>
             {c.v ? (
               <span className={c.accent ? "accent" : c.warm ? "warm" : ""}>{c.v}</span>
-            ) : "—"}
+            ) : (
+              "—"
+            )}
           </div>
-          {c.source && <div className="meta-source">{c.source}</div>}
+          {c.source ? <div className="meta-source">{c.source}</div> : null}
         </div>
       ))}
     </div>
