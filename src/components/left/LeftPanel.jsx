@@ -285,7 +285,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
   };
 
   return (
-    <div className="lp-overlay lp-overlay--solid lp-overlay--center" onClick={onCancel}>
+    <div className="lp-overlay lp-overlay--solid lp-overlay--center">
       <div className="lp-modal doc-new-modal" onClick={e => e.stopPropagation()}>
         <DocDocumentBox
           headerLabel={parentObject?.name || ""}

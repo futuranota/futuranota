@@ -32,7 +32,7 @@ import {
   setAnswerBelowH1,
   setContentForNodeBlock,
 } from "../../lib/docNodeSync.js";
-import { isNoNodeLinkMode } from "../../lib/docNodeLinkColors.js";
+import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 
 function NodeFromSelectionModal({ query, onClose, onSave }) {
@@ -299,7 +299,7 @@ export function DocExpandedView({ docId, onClose }) {
   };
 
   const persistNodeContentDebounced = (content, context, anchorDate, anchorTime) => {
-    if (isNoNodeLinkMode(draftNodeLinkColor)) return;
+    if (isNoNodeLinkMode(resolveBlockNodeLinkColor(draftBlocks[context.blockIndex]))) return;
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
     const block = draftBlocks[blockIndex];
     if (!block || block.type !== blockType) return;
@@ -376,7 +376,7 @@ export function DocExpandedView({ docId, onClose }) {
   };
 
   const handleOpenNodeForBlock = (blockIndex, block) => {
-    if (isNoNodeLinkMode(draftNodeLinkColor)) return;
+    if (isNoNodeLinkMode(resolveBlockNodeLinkColor(block))) return;
     const dataType = nodeDataTypeForBlock(block);
     const existing = block.nodeId ? getNode(block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block);
@@ -398,7 +398,7 @@ export function DocExpandedView({ docId, onClose }) {
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
     const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate, {
-      noNodeLink: isNoNodeLinkMode(draftNodeLinkColor),
+      noNodeLink: isNoNodeLinkMode(resolveBlockNodeLinkColor(block)),
     });
     const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
     const resolvedAnchorDate = anchorFromBlock.anchorDate || anchorFromNode.anchorDate;

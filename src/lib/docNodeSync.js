@@ -72,6 +72,22 @@ export function getH1IndexForTextBlock(blocks, textBlockIndex) {
   return -1;
 }
 
+/** H1/Todo index for meta-strip node color when a block (or its text) is focused. */
+export function findLinkableBlockIndexForFocus(blocks, focusBlockId) {
+  if (!focusBlockId) return -1;
+  const normalized = normalizeDocBlocks(blocks);
+  const index = normalized.findIndex((b) => b.id === focusBlockId);
+  if (index < 0) return -1;
+  const block = normalized[index];
+  if (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO) {
+    return index;
+  }
+  if (block.type === DOC_BLOCK_TYPES.TEXT) {
+    return getH1IndexForTextBlock(normalized, index);
+  }
+  return -1;
+}
+
 export function nodeContentAsString(node) {
   if (!node) return "";
   if (typeof node.content === "string") return node.content;

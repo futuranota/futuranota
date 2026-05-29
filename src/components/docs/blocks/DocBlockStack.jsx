@@ -4,6 +4,7 @@ import {
   createTodoItem,
   DOC_BLOCK_TYPES,
   insertBlockAfter,
+  isEmptyTextBlock,
   normalizeDocBlocks,
   removeBlockAt,
   replaceBlocksFromSlashInText,
@@ -15,7 +16,7 @@ import {
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock } from "../../../lib/docNodeSync.js";
-import { isNoNodeLinkMode } from "../../../lib/docNodeLinkColors.js";
+import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { TodoBlockView } from "./TodoBlockView.jsx";
@@ -29,18 +30,45 @@ export function DocBlockStack({
   onFocusBlock,
   bodyPlaceholder,
   onBodyKeyDown,
+  onEnterNewLine,
   onOpenNodeForBlock,
   onOpenNodeForH1,
   onAnswerBelowH1Change,
   onBlockAnchorChange,
   docCreatedDate = "",
-  nodeLinkColor = "dark",
 }) {
-  const linksEnabled = !isNoNodeLinkMode(nodeLinkColor);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
+
+  const blockLinkColor = (block) => resolveBlockNodeLinkColor(block);
+  const blockLinksEnabled = (block) => !isNoNodeLinkMode(blockLinkColor(block));
+
+  const focusBlockCaret = (blockId, caretPos = null) => {
+    if (!blockId) return;
+    onFocusBlock?.(blockId);
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-block-id="${blockId}"]`);
+      const input = el?.querySelector("input, textarea");
+      if (!input || !("setSelectionRange" in input)) return;
+      input.focus();
+      const pos = caretPos ?? input.value.length;
+      input.setSelectionRange(pos, pos);
+    });
+  };
+
+  const isAtInputStart = (e) =>
+    e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0;
+
+  const syncAnswerBelowH1 = (blocksList, textBlockIndex, text) => {
+    const h1Index = getH1IndexForTextBlock(blocksList, textBlockIndex);
+    if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, text);
+  };
+
+  const requestContentGrow = () => {
+    onEnterNewLine?.();
+  };
 
   useEffect(() => {
     if (!focusBlockId) return;
@@ -58,10 +86,8 @@ export function DocBlockStack({
   };
 
   const handleQueryHandleClick = (index) => {
-    if (!linksEnabled) return;
-
     const block = blocksRef.current[index];
-    if (!block) return;
+    if (!block || !blockLinksEnabled(block)) return;
 
     if (!block.queryEnabled) {
       updateAt(index, { queryEnabled: true });
@@ -72,12 +98,39 @@ export function DocBlockStack({
     openNode?.(index, fresh);
   };
 
-  const insertTextAfter = (index) => {
-    const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" });
-    const next = insertBlockAfter(blocks, index, textBlock);
+  const insertTextAfter = (index, initialText = "") => {
+    const current = blocksRef.current;
+    const nextBlock = current[index + 1];
+    if (isEmptyTextBlock(nextBlock) && !initialText) {
+      focusBlockCaret(nextBlock.id, 0);
+      requestContentGrow();
+      return nextBlock.id;
+    }
+
+    const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: initialText });
+    const next = insertBlockAfter(current, index, textBlock);
     setBlocks(next);
     onFocusBlock?.(textBlock.id);
+    focusBlockCaret(textBlock.id, initialText.length);
+    requestContentGrow();
     return textBlock.id;
+  };
+
+  const insertNewlineAtCaret = (blockIndex, e) => {
+    e.preventDefault();
+    const el = e.currentTarget;
+    const caretStart = el.selectionStart ?? 0;
+    const caretEnd = el.selectionEnd ?? caretStart;
+    const text = el.value ?? "";
+    const nextText = `${text.slice(0, caretStart)}\n${text.slice(caretEnd)}`;
+    const blockId = blocksRef.current[blockIndex]?.id;
+    if (!blockId) return;
+
+    const next = updateBlockAt(blocksRef.current, blockIndex, { text: nextText });
+    setBlocks(next);
+    syncAnswerBelowH1(next, blockIndex, nextText);
+    focusBlockCaret(blockId, caretStart + 1);
+    requestContentGrow();
   };
 
   const handleDragPointerDown = (e) => {
@@ -97,15 +150,66 @@ export function DocBlockStack({
     return newBlock.id;
   };
 
+  const handleTextBackspace = (blockIndex, e, textValue) => {
+    if (e.key !== "Backspace" || !isAtInputStart(e)) return false;
+
+    const currentBlocks = blocksRef.current;
+    const block = currentBlocks[blockIndex];
+    if (block?.type !== DOC_BLOCK_TYPES.TEXT) return false;
+
+    const text = textValue ?? "";
+    const isEmpty = text.length === 0;
+
+    if (!isEmpty && blockIndex > 0) {
+      const prev = currentBlocks[blockIndex - 1];
+      if (prev?.type === DOC_BLOCK_TYPES.TEXT) {
+        e.preventDefault();
+        const joinAt = (prev.text || "").length;
+        const merged = (prev.text || "") + text;
+        let next = updateBlockAt(currentBlocks, blockIndex - 1, { text: merged });
+        next = removeBlockAt(next, blockIndex);
+        const h1Index = getH1IndexForTextBlock(currentBlocks, blockIndex);
+        if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, merged);
+        setBlocks(next);
+        focusBlockCaret(prev.id, joinAt);
+        return true;
+      }
+
+      e.preventDefault();
+      focusBlockCaret(currentBlocks[blockIndex - 1].id);
+      return true;
+    }
+
+    if (isEmpty && currentBlocks.length > 1) {
+      e.preventDefault();
+      const prevId = blockIndex > 0 ? currentBlocks[blockIndex - 1]?.id : null;
+      const h1Index = getH1IndexForTextBlock(currentBlocks, blockIndex);
+      if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, "");
+      setBlocks(removeBlockAt(currentBlocks, blockIndex));
+      if (prevId) focusBlockCaret(prevId);
+      return true;
+    }
+
+    return false;
+  };
+
   const handleTextKeyDown = (blockIndex, e, textValue) => {
+    if (handleTextBackspace(blockIndex, e, textValue)) return;
+
     const { slash } = splitBodyForSlash(textValue);
 
-    if (e.key === "Enter" && !e.shiftKey && slash) {
-      const newId = tryConfirmSlashInText(blockIndex, textValue);
-      if (newId) {
-        e.preventDefault();
-        return;
+    if (e.key === "Enter" && !e.shiftKey) {
+      if (slash) {
+        const newId = tryConfirmSlashInText(blockIndex, textValue);
+        if (newId) {
+          e.preventDefault();
+          requestContentGrow();
+          return;
+        }
       }
+      e.preventDefault();
+      insertNewlineAtCaret(blockIndex, e);
+      return;
     }
 
     if (e.key === "Escape" && slash) {
@@ -124,17 +228,32 @@ export function DocBlockStack({
       insertTextAfter(index);
       return;
     }
-    const atStart =
-      e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0;
+
+    const atStart = isAtInputStart(e);
     const titleEmpty =
       block.type === DOC_BLOCK_TYPES.TODO
         ? !block.listTitle
         : !block.title;
-    if ((e.key === "Backspace" || e.key === "Delete") && titleEmpty && atStart) {
+
+    if (e.key === "Backspace" && atStart && !titleEmpty && index > 0) {
       e.preventDefault();
-      setBlocks(removeBlockAt(blocks, index));
+      focusBlockCaret(blocksRef.current[index - 1]?.id);
       return;
     }
+
+    if ((e.key === "Backspace" || e.key === "Delete") && titleEmpty && atStart) {
+      e.preventDefault();
+      const prevId = index > 0 ? blocksRef.current[index - 1]?.id : null;
+      const next = removeBlockAt(blocksRef.current, index);
+      if (next.length === 0) {
+        setBlocks([createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })]);
+        return;
+      }
+      setBlocks(next);
+      if (prevId) focusBlockCaret(prevId);
+      return;
+    }
+
     onBodyKeyDown?.(e);
   };
 
@@ -152,7 +271,21 @@ export function DocBlockStack({
       return;
     }
 
-    const atStart = e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0;
+    const atStart = isAtInputStart(e);
+    if (e.key === "Backspace" && atStart && item.text) {
+      e.preventDefault();
+      focusBlockCaret(block.id);
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-block-id="${block.id}"]`);
+        const titleInput = el?.querySelector(".doc-todo-block__title-input");
+        if (titleInput && "setSelectionRange" in titleInput) {
+          titleInput.focus();
+          titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
+        }
+      });
+      return;
+    }
+
     if ((e.key === "Backspace" || e.key === "Delete") && !item.text && atStart) {
       e.preventDefault();
       if (items.length > 1) {
@@ -179,8 +312,9 @@ export function DocBlockStack({
               value={block.title || ""}
               onChange={(title) => updateAt(index, { title })}
               queryEnabled={Boolean(block.queryEnabled)}
-              nodeLinkColor={nodeLinkColor}
-              linksEnabled={linksEnabled}
+              nodeLinkColor={blockLinkColor(block)}
+              linksEnabled={blockLinksEnabled(block)}
+              onFocus={() => onFocusBlock?.(block.id)}
               anchorFromNode={Boolean(block.anchorFromNode)}
               anchorDate={block.anchorDate || ""}
               anchorTime={block.anchorTime || ""}
@@ -220,8 +354,9 @@ export function DocBlockStack({
               listTitle={block.listTitle ?? "Checkbox:"}
               onListTitleChange={(listTitle) => updateAt(index, { listTitle })}
               queryEnabled={Boolean(block.queryEnabled)}
-              nodeLinkColor={nodeLinkColor}
-              linksEnabled={linksEnabled}
+              nodeLinkColor={blockLinkColor(block)}
+              linksEnabled={blockLinksEnabled(block)}
+              onFocus={() => onFocusBlock?.(block.id)}
               anchorFromNode={Boolean(block.anchorFromNode)}
               anchorDate={block.anchorDate || ""}
               anchorTime={block.anchorTime || ""}
@@ -236,6 +371,7 @@ export function DocBlockStack({
               }}
               onDragHandlePointerDown={handleDragPointerDown}
               onQueryHandleClick={() => handleQueryHandleClick(index)}
+              onListTitleKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
             />
           ) : null}
 
@@ -251,6 +387,7 @@ export function DocBlockStack({
               showPlaceholder={index === 0 && blocks.length === 1}
               autoFocus={focusBlockId === block.id}
               maxHeightPx={520}
+              onFocus={() => onFocusBlock?.(block.id)}
               onKeyDown={(e) => handleTextKeyDown(index, e, block.text || "")}
             />
           ) : null}

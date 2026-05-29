@@ -4,6 +4,7 @@ export function TextBlockView({
   value,
   onChange,
   onKeyDown,
+  onFocus,
   placeholder,
   autoFocus = false,
   showPlaceholder = true,
@@ -15,6 +16,7 @@ export function TextBlockView({
         value={value}
         onChange={onChange}
         onKeyDown={onKeyDown}
+        onFocus={onFocus}
         placeholder={placeholder}
         showPlaceholder={showPlaceholder}
         autoFocus={autoFocus}
