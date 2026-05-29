@@ -23,11 +23,11 @@ import { nodeDataTypeForBlock } from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
   anchorFieldsFromIso,
-  anchorAtFromBlock,
   blockDataType,
   getAnswerBelowH1,
   getBlockQueryText,
   getContentForNodeBlock,
+  resolveBlockAnchorFields,
   resolveNodeDraftFromDoc,
   setAnswerBelowH1,
   setContentForNodeBlock,
@@ -69,6 +69,7 @@ export function DocExpandedView({ docId, onClose }) {
   const [draftCategory, setDraftCategory] = useState("");
   const [draftLaunchDate, setDraftLaunchDate] = useState("");
   const [draftCampaignActive, setDraftCampaignActive] = useState(false);
+  const [draftNodeLinkColor, setDraftNodeLinkColor] = useState("mint");
   const [draftParentId, setDraftParentId] = useState("");
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
@@ -98,6 +99,7 @@ export function DocExpandedView({ docId, onClose }) {
     setDraftCategory(normalized.category ?? "");
     setDraftLaunchDate(launchDateInputFromIso(normalized.launchAt));
     setDraftCampaignActive(Boolean(normalized.campaignActive));
+    setDraftNodeLinkColor(normalized.nodeLinkColor ?? "mint");
     setDraftParentId(doc.parentObjectId ?? "");
     setNodeSavedHint(false);
     setDocSavedHint(false);
@@ -114,6 +116,7 @@ export function DocExpandedView({ docId, onClose }) {
       launchAt: normalized.launchAt ?? null,
       campaignActive: Boolean(normalized.campaignActive),
       parentObjectId: doc.parentObjectId ?? "",
+      nodeLinkColor: normalized.nodeLinkColor ?? "mint",
     });
   }, [docId]);
 
@@ -136,6 +139,7 @@ export function DocExpandedView({ docId, onClose }) {
     launchAt: draftLaunchAt,
     campaignActive: draftCampaignActive,
     parentObjectId: draftParentId || null,
+    nodeLinkColor: draftNodeLinkColor,
   };
   const hasUnsavedChanges = initialSnapshot
     ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
@@ -166,6 +170,7 @@ export function DocExpandedView({ docId, onClose }) {
       launchAt: draftLaunchAt,
       campaignActive: draftCampaignActive,
       parentObjectId: draftParentId || "",
+      nodeLinkColor: draftNodeLinkColor,
     };
     updateDoc(doc.id, {
       title,
@@ -177,6 +182,7 @@ export function DocExpandedView({ docId, onClose }) {
       category: savedSnapshot.category,
       launchAt: savedSnapshot.launchAt,
       campaignActive: savedSnapshot.campaignActive,
+      nodeLinkColor: savedSnapshot.nodeLinkColor,
     });
     if ((doc.parentObjectId ?? "") !== (draftParentId || "")) {
       linkDocToObject(doc.id, draftParentId || null);
@@ -328,6 +334,7 @@ export function DocExpandedView({ docId, onClose }) {
       if (supportsScheduleAnchor(dataType)) {
         patch.anchorDate = anchorDate;
         patch.anchorTime = anchorTime;
+        patch.queryEnabled = true;
       }
 
       let next = updateBlockAt(prev, blockIndex, patch);
@@ -382,7 +389,7 @@ export function DocExpandedView({ docId, onClose }) {
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
-    const anchorFromBlock = anchorFieldsFromIso(anchorAtFromBlock(block));
+    const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate);
     const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
     const resolvedAnchorDate = anchorFromBlock.anchorDate || anchorFromNode.anchorDate;
     const resolvedAnchorTime = anchorFromBlock.anchorTime || anchorFromNode.anchorTime;
@@ -454,6 +461,7 @@ export function DocExpandedView({ docId, onClose }) {
     if (supportsScheduleAnchor(dataType)) {
       patch.anchorDate = nodeDraftAnchorDate;
       patch.anchorTime = nodeDraftAnchorTime;
+      patch.queryEnabled = true;
     }
 
     let nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
@@ -522,6 +530,11 @@ export function DocExpandedView({ docId, onClose }) {
           parentId={draftParentId}
           onParentIdChange={(v) => {
             setDraftParentId(v);
+            setDocSavedHint(false);
+          }}
+          nodeLinkColor={draftNodeLinkColor}
+          onNodeLinkColorChange={(v) => {
+            setDraftNodeLinkColor(v);
             setDocSavedHint(false);
           }}
           objects={objectList}

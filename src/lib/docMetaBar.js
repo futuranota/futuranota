@@ -3,6 +3,7 @@ import { formatMmDdYy } from "./docDates.js";
 import { normalizeDoc } from "./normalizeDoc.js";
 
 export { emptyDocCampaignFields } from "./normalizeDoc.js";
+export { DOC_NODE_LINK_COLORS } from "./docNodeLinkColors.js";
 
 export function formatCampaignLabel(active) {
   return active ? "active" : "inactive";

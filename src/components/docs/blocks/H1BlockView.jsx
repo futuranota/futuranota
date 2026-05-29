@@ -4,6 +4,8 @@ import { BlockAnchorFields } from "./BlockAnchorFields.jsx";
 export function H1BlockView({
   value,
   onChange,
+  queryEnabled = false,
+  nodeLinkColor = "mint",
   anchorDate = "",
   anchorTime = "",
   onAnchorDateChange,
@@ -20,16 +22,20 @@ export function H1BlockView({
         onKeyDown={onKeyDown}
         autoFocus={autoFocus}
         onQueryHandleClick={onQueryHandleClick}
+        queryEnabled={queryEnabled}
+        nodeLinkColor={nodeLinkColor}
         placeholder="Insert Query (?) or title"
         ariaLabel="Title block query or title"
         multiline
       />
-      <BlockAnchorFields
-        anchorDate={anchorDate}
-        anchorTime={anchorTime}
-        onAnchorDateChange={onAnchorDateChange}
-        onAnchorTimeChange={onAnchorTimeChange}
-      />
+      {queryEnabled ? (
+        <BlockAnchorFields
+          anchorDate={anchorDate}
+          anchorTime={anchorTime}
+          onAnchorDateChange={onAnchorDateChange}
+          onAnchorTimeChange={onAnchorTimeChange}
+        />
+      ) : null}
     </div>
   );
 }

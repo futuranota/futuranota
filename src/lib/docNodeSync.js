@@ -13,6 +13,8 @@ import {
   anchorFieldsFromIso,
   isoFromAnchorFields,
   normalizeAnchorFields,
+  resolveBlockAnchor,
+  resolveBlockAnchorFields,
 } from "./nodeAnchor.js";
 
 export {
@@ -20,6 +22,8 @@ export {
   anchorFieldsFromIso,
   isoFromAnchorFields,
   normalizeAnchorFields,
+  resolveBlockAnchor,
+  resolveBlockAnchorFields,
 };
 
 export function getTextBlockIndexAfterH1(blocks, h1Index) {

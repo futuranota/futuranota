@@ -7,6 +7,7 @@ import {
   bezierMidpoint,
 } from './temporal.js';
 import { formatScheduleLabelFromIso } from './lib/nodeAnchor.js';
+import { resolveConnectionLinkColor } from './lib/docNodeLinkColors.js';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
@@ -1307,6 +1308,7 @@ function BlueprintCanvas({
             const label = computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta);
             const mid = bezierMidpoint(p1, p2);
             const selected = selectedConnectionId === c.id;
+            const linkColor = resolveConnectionLinkColor(a, b, temporalMeta);
             return (
               <g
                 key={c.id}
@@ -1319,7 +1321,12 @@ function BlueprintCanvas({
                 }}
               >
                 <path className="conn-hit" d={d} />
-                <path className={"conn" + (selected ? " selected" : "")} d={d} markerEnd="url(#arrow)" />
+                <path
+                  className={"conn" + (selected ? " selected" : "")}
+                  d={d}
+                  markerEnd="url(#arrow)"
+                  style={linkColor && !selected ? { stroke: linkColor } : undefined}
+                />
                 {label && <ConnLabel x={mid.x} y={mid.y} text={label} />}
               </g>
             );

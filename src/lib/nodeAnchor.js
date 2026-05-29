@@ -32,6 +32,20 @@ export function anchorAtFromBlock(block) {
   return isoFromAnchorFields(anchorDate, anchorTime);
 }
 
+/** Effective anchor: doc Created when query handle inactive; block fields when active. */
+export function resolveBlockAnchorFields(block, docCreatedDate = "") {
+  if (!block?.queryEnabled) {
+    const date = String(docCreatedDate ?? "").trim();
+    return { anchorDate: date, anchorTime: "" };
+  }
+  return normalizeAnchorFields(block);
+}
+
+export function resolveBlockAnchor(block, docCreatedDate = "") {
+  const { anchorDate, anchorTime } = resolveBlockAnchorFields(block, docCreatedDate);
+  return isoFromAnchorFields(anchorDate, anchorTime);
+}
+
 export function hasAnchorFields(blockOrNode) {
   const { anchorDate } = normalizeAnchorFields(blockOrNode);
   return Boolean(anchorDate);

@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react";
-import { DOC_QUERY_HANDLE_ICON, DOC_TODO_HEADER_ICON } from "../../../lib/docMediumAssets.js";
+import { DOC_TODO_HEADER_ICON } from "../../../lib/docMediumAssets.js";
 import { BlockAnchorFields } from "./BlockAnchorFields.jsx";
+import { DocQueryHandleButton } from "./DocQueryHandleRow.jsx";
 
 export function TodoBlockView({
   listTitle,
   onListTitleChange,
+  queryEnabled = false,
+  nodeLinkColor = "mint",
   anchorDate = "",
   anchorTime = "",
   onAnchorDateChange,
@@ -32,19 +35,15 @@ export function TodoBlockView({
   return (
     <div className="doc-todo-block">
       <div className="doc-todo-block__header">
-        <button
-          type="button"
-          className="doc-query-handle"
-          aria-label="Abrir nodo de query"
-          title="Abrir nodo de query"
+        <DocQueryHandleButton
+          queryEnabled={queryEnabled}
+          nodeLinkColor={nodeLinkColor}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onQueryHandleClick?.();
           }}
-        >
-          <img src={DOC_QUERY_HANDLE_ICON} alt="" aria-hidden />
-        </button>
+        />
         <button
           type="button"
           className="doc-block-drag-handle"
@@ -72,13 +71,15 @@ export function TodoBlockView({
         </button>
       </div>
 
-      <BlockAnchorFields
-        anchorDate={anchorDate}
-        anchorTime={anchorTime}
-        onAnchorDateChange={onAnchorDateChange}
-        onAnchorTimeChange={onAnchorTimeChange}
-        className="doc-todo-block__anchor"
-      />
+      {queryEnabled ? (
+        <BlockAnchorFields
+          anchorDate={anchorDate}
+          anchorTime={anchorTime}
+          onAnchorDateChange={onAnchorDateChange}
+          onAnchorTimeChange={onAnchorTimeChange}
+          className="doc-todo-block__anchor"
+        />
+      ) : null}
 
       <div className="doc-todo-block__rows">
         {items.map((item, index) => (

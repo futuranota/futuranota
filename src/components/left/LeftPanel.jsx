@@ -9,6 +9,7 @@ import { ObjectIcon } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
 import { docBlocksToBody } from "../../lib/docBlocks.js";
+import { useDocBlockNodeModal, linkBlockNodesToDoc } from "../docs/useDocBlockNodeModal.jsx";
 import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
 
 function startObjectDrag(e, objectId) {
@@ -236,6 +237,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
   const [category, setCategory] = useState("");
   const [launchDate, setLaunchDate] = useState("");
   const [campaignActive, setCampaignActive] = useState(false);
+  const [nodeLinkColor, setNodeLinkColor] = useState("mint");
   const titleRef = useRef(null);
 
   useEffect(() => {
@@ -248,6 +250,19 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
   }, []);
 
   const parentObject = objects.find((o) => o.id === parentId);
+
+  const {
+    onOpenNodeForBlock,
+    onBlockAnchorChange,
+    onAnswerBelowH1Change,
+    nodeModal,
+  } = useDocBlockNodeModal({
+    blocks,
+    setBlocks,
+    createdDate,
+    docId: null,
+    docTitle: title,
+  });
 
   const submitDoc = () => {
     const finalTitle = title.trim() || "New document";
@@ -264,6 +279,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
       category: category.trim(),
       launchAt: launchDate ? isoFromDateInput(launchDate) : null,
       campaignActive,
+      nodeLinkColor,
     });
   };
 
@@ -289,12 +305,17 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
           onLaunchDateChange={setLaunchDate}
           campaignActive={campaignActive}
           onCampaignActiveChange={setCampaignActive}
+          nodeLinkColor={nodeLinkColor}
+          onNodeLinkColorChange={setNodeLinkColor}
           parentId={parentId}
           onParentIdChange={setParentId}
           objects={objects}
           onDelete={onCancel}
           onSave={submitDoc}
           onCloseExpand={onCancel}
+          onOpenNodeForBlock={onOpenNodeForBlock}
+          onAnswerBelowH1Change={onAnswerBelowH1Change}
+          onBlockAnchorChange={onBlockAnchorChange}
           onTitleKeyDown={(e) => {
             if (e.key === "Escape") onCancel();
           }}
@@ -307,6 +328,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
           }}
         />
       </div>
+      {nodeModal}
     </div>
   );
 }
@@ -493,8 +515,12 @@ export function LeftPanel({
           category: data.category ?? "",
           launchAt: data.launchAt ?? null,
           campaignActive: Boolean(data.campaignActive),
+          nodeLinkColor: data.nodeLinkColor ?? "mint",
         },
       );
+      if (newDocId && data.blocks?.length) {
+        linkBlockNodesToDoc(data.blocks, newDocId);
+      }
       setActiveId(null);
       setShowCreate(false);
       if (newDocId && onOpenDocument) {
