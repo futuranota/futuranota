@@ -49,6 +49,7 @@ export function DocQueryHandleRow({
   queryEnabled = false,
   nodeLinkColor = "mint",
   showQueryHandle = true,
+  onFocus,
   placeholder = "Insert Query (?) or title",
   ariaLabel = "Block title or query",
   multiline = false,
@@ -102,6 +103,7 @@ export function DocQueryHandleRow({
             onChange(e.target.value);
             requestAnimationFrame(syncHeight);
           }}
+          onFocus={onFocus}
           onKeyDown={onKeyDown}
           spellCheck={false}
           aria-label={ariaLabel}
@@ -114,6 +116,7 @@ export function DocQueryHandleRow({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
           onKeyDown={onKeyDown}
           spellCheck={false}
           aria-label={ariaLabel}

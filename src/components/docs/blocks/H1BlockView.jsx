@@ -13,6 +13,7 @@ export function H1BlockView({
   onKeyDown,
   autoFocus = false,
   onQueryHandleClick,
+  onFocus,
 }) {
   const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
 
@@ -24,6 +25,7 @@ export function H1BlockView({
         onKeyDown={onKeyDown}
         autoFocus={autoFocus}
         onQueryHandleClick={onQueryHandleClick}
+        onFocus={onFocus}
         queryEnabled={queryEnabled}
         nodeLinkColor={nodeLinkColor}
         showQueryHandle={linksEnabled}

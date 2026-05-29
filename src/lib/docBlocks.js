@@ -1,4 +1,5 @@
 import { generateId } from "./ids.js";
+import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
 
 const DOC_BLOCK_TYPES = {
@@ -50,6 +51,7 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       type: DOC_BLOCK_TYPES.H1,
       title: "",
       queryEnabled: false,
+      nodeLinkColor: NO_NODE_LINK_COLOR_ID,
       ...patch,
     };
   }
@@ -63,6 +65,7 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       items,
       showIntroAnim: false,
       queryEnabled: false,
+      nodeLinkColor: NO_NODE_LINK_COLOR_ID,
       ...patch,
     };
   }
@@ -113,6 +116,9 @@ export function normalizeDocBlock(block) {
       anchorTime: anchor.anchorTime,
       anchorFromNode: Boolean(block.anchorFromNode),
       queryEnabled,
+      nodeLinkColor: block.nodeLinkColor != null
+        ? normalizeNodeLinkColorId(block.nodeLinkColor)
+        : NO_NODE_LINK_COLOR_ID,
     });
   }
 
@@ -141,6 +147,9 @@ export function normalizeDocBlock(block) {
       anchorFromNode: Boolean(block.anchorFromNode),
       showIntroAnim: false,
       queryEnabled,
+      nodeLinkColor: block.nodeLinkColor != null
+        ? normalizeNodeLinkColorId(block.nodeLinkColor)
+        : NO_NODE_LINK_COLOR_ID,
     });
   }
 
@@ -174,9 +183,54 @@ export function normalizeDocBlock(block) {
   });
 }
 
+function mergeAdjacentTextBlocks(blocks) {
+  const merged = [];
+  for (const block of blocks) {
+    const prev = merged[merged.length - 1];
+    if (
+      block.type === DOC_BLOCK_TYPES.TEXT
+      && prev?.type === DOC_BLOCK_TYPES.TEXT
+    ) {
+      merged[merged.length - 1] = {
+        ...prev,
+        text: `${prev.text || ""}\n${block.text || ""}`,
+      };
+      continue;
+    }
+    merged.push(block);
+  }
+  return merged;
+}
+
 export function normalizeDocBlocks(blocks) {
   if (!Array.isArray(blocks) || blocks.length === 0) return [];
-  return blocks.map(normalizeDocBlock);
+  return mergeAdjacentTextBlocks(blocks.map(normalizeDocBlock));
+}
+
+export function isEmptyTextBlock(block) {
+  return block?.type === DOC_BLOCK_TYPES.TEXT && !(block.text || "").trim();
+}
+
+/** Drop unfocused empty text rows so they do not occupy layout space. */
+export function compactEmptyTextBlocks(blocks, keepBlockIds = null) {
+  if (!Array.isArray(blocks) || blocks.length === 0) return [];
+
+  const keep = new Set(
+    keepBlockIds == null
+      ? []
+      : (Array.isArray(keepBlockIds) ? keepBlockIds : [keepBlockIds]).filter(Boolean),
+  );
+
+  const compacted = blocks.filter((block, _i, arr) => {
+    if (!isEmptyTextBlock(block)) return true;
+    if (arr.length === 1) return true;
+    if (keep.has(block.id)) return true;
+    return false;
+  });
+
+  return compacted.length > 0
+    ? compacted
+    : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
 }
 
 function parseTodoSection(section) {

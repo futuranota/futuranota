@@ -24,10 +24,26 @@ export function getDocNodeLinkColorPreset(id) {
   return DOC_NODE_LINK_COLORS.find((c) => c.id === normalized) || DEFAULT_NODE_LINK_COLOR;
 }
 
+/** Per-title link color; unset blocks stay unlinked (dark / no handle). */
+export function resolveBlockNodeLinkColor(block) {
+  return normalizeNodeLinkColorId(block?.nodeLinkColor ?? NO_NODE_LINK_COLOR_ID);
+}
+
 function linkColorFromEntity(entity, docsById) {
   if (!entity?.parentDocId) return null;
   const doc = docsById[entity.parentDocId];
-  if (!doc || isNoNodeLinkMode(doc.nodeLinkColor)) return null;
+  if (!doc) return null;
+
+  if (entity.sourceBlockId && Array.isArray(doc.blocks)) {
+    const block = doc.blocks.find((b) => b?.id === entity.sourceBlockId);
+    if (block) {
+      const blockColor = resolveBlockNodeLinkColor(block);
+      if (isNoNodeLinkMode(blockColor)) return null;
+      return getDocNodeLinkColorPreset(blockColor).stroke;
+    }
+  }
+
+  if (isNoNodeLinkMode(doc.nodeLinkColor)) return null;
   return getDocNodeLinkColorPreset(doc.nodeLinkColor).stroke;
 }
 

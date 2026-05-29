@@ -196,43 +196,43 @@ export function NodeQueryModal({
               {displayQuery}
             </h2>
           )}
-        </header>
 
-        <div className="node-query-modal__meta">
-          <div className="node-query-modal__row">
-            <img className="node-query-modal__meta-icon" src={NODE_ICON} alt="" aria-hidden />
-            <span className="node-query-modal__key">Type:</span>
-            {typeEditable ? (
-              <select
-                className="node-query-modal__type-select"
-                value={dataType}
-                onChange={(e) => onDataTypeChange(e.target.value)}
-                aria-label="Data type"
-              >
-                {dataTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {DATA_TYPE_LABELS[t] || t}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="node-query-modal__val">{DATA_TYPE_LABELS[dataType] || dataType}</span>
-            )}
+          <div className="node-query-modal__meta">
+            <div className="node-query-modal__row">
+              <img className="node-query-modal__meta-icon" src={NODE_ICON} alt="" aria-hidden />
+              <span className="node-query-modal__key">Type:</span>
+              {typeEditable ? (
+                <select
+                  className="node-query-modal__type-select"
+                  value={dataType}
+                  onChange={(e) => onDataTypeChange(e.target.value)}
+                  aria-label="Data type"
+                >
+                  {dataTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {DATA_TYPE_LABELS[t] || t}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="node-query-modal__val">{DATA_TYPE_LABELS[dataType] || dataType}</span>
+              )}
+            </div>
+            <div className="node-query-modal__row">
+              <img className="node-query-modal__meta-icon" src={DOC_TIMER_ICON} alt="" aria-hidden />
+              <span className="node-query-modal__key">Created:</span>
+              <input
+                type="date"
+                className="node-query-modal__date"
+                value={createdDate}
+                readOnly={!dateEditable}
+                tabIndex={dateEditable ? 0 : -1}
+                aria-readonly={!dateEditable}
+                onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
+              />
+            </div>
           </div>
-          <div className="node-query-modal__row">
-            <img className="node-query-modal__meta-icon" src={DOC_TIMER_ICON} alt="" aria-hidden />
-            <span className="node-query-modal__key">Created:</span>
-            <input
-              type="date"
-              className="node-query-modal__date"
-              value={createdDate}
-              readOnly={!dateEditable}
-              tabIndex={dateEditable ? 0 : -1}
-              aria-readonly={!dateEditable}
-              onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
-            />
-          </div>
-        </div>
+        </header>
 
         <div className="node-query-modal__content-box">
           {dataType === "date" ? (

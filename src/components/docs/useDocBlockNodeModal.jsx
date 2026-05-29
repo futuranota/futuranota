@@ -21,7 +21,7 @@ import {
   setContentForNodeBlock,
 } from "../../lib/docNodeSync.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
-import { isNoNodeLinkMode } from "../../lib/docNodeLinkColors.js";
+import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 
 function supportsScheduleAnchor(dataType) {
@@ -48,6 +48,9 @@ export function useDocBlockNodeModal({
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
   const nodeAutosaveTimerRef = useRef(null);
+
+  const blockLinkColor = (blockIndex) =>
+    resolveBlockNodeLinkColor(blocks[blockIndex]);
 
   const handleBlockAnchorChange = (blockIndex, anchorDate, anchorTime) => {
     setBlocks((prev) => {
@@ -95,7 +98,7 @@ export function useDocBlockNodeModal({
   };
 
   const persistNodeContentDebounced = (content, context, anchorDate, anchorTime) => {
-    if (isNoNodeLinkMode(nodeLinkColor)) return;
+    if (isNoNodeLinkMode(blockLinkColor(context.blockIndex))) return;
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
     const block = blocks[blockIndex];
     if (!block || block.type !== blockType) return;
@@ -170,7 +173,7 @@ export function useDocBlockNodeModal({
   };
 
   const handleOpenNodeForBlock = (blockIndex, block) => {
-    if (isNoNodeLinkMode(nodeLinkColor)) return;
+    if (isNoNodeLinkMode(blockLinkColor(blockIndex))) return;
     const dataType = nodeDataTypeForBlock(block);
     const existing = block.nodeId ? getNode(block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block);
@@ -191,7 +194,7 @@ export function useDocBlockNodeModal({
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
     const anchorFromBlock = resolveBlockAnchorFields(block, createdDate, {
-      noNodeLink: isNoNodeLinkMode(nodeLinkColor),
+      noNodeLink: isNoNodeLinkMode(blockLinkColor(blockIndex)),
     });
     const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
     setNodeDraftAnchorDate(anchorFromBlock.anchorDate || anchorFromNode.anchorDate);

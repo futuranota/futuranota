@@ -19,6 +19,8 @@ export function TodoBlockView({
   onAddItem,
   onDragHandlePointerDown,
   onQueryHandleClick,
+  onFocus,
+  onListTitleKeyDown,
 }) {
   const inputRefs = useRef({});
   const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
@@ -62,7 +64,11 @@ export function TodoBlockView({
           className="doc-todo-block__title-input"
           value={listTitle}
           onChange={(e) => onListTitleChange(e.target.value)}
-          onKeyDown={(e) => e.stopPropagation()}
+          onFocus={onFocus}
+          onKeyDown={(e) => {
+            onListTitleKeyDown?.(e);
+            if (!e.defaultPrevented) e.stopPropagation();
+          }}
           aria-label="Checkbox list title"
         />
         <button

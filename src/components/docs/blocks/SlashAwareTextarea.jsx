@@ -18,6 +18,8 @@ export function SlashAwareTextarea({
   value,
   onChange,
   onKeyDown,
+  onBlur,
+  onFocus,
   placeholder,
   className = "",
   wrapClassName = "",
@@ -96,6 +98,8 @@ export function SlashAwareTextarea({
           requestAnimationFrame(syncHeight);
         }}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
+        onFocus={onFocus}
         spellCheck={false}
       />
     </div>
