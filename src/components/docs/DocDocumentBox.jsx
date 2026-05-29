@@ -152,11 +152,15 @@ export function DocDocumentBox({
   }, []);
 
   const requestContentBoxGrow = useCallback(() => {
+    const runSync = () => {
+      if (!hasBlocks && bodyRef.current) syncBodyHeightUncapped();
+      syncContentBoxHeight();
+    };
     requestAnimationFrame(() => {
-      if (bodyRef.current) syncBodyHeightUncapped();
-      requestAnimationFrame(syncContentBoxHeight);
+      runSync();
+      requestAnimationFrame(runSync);
     });
-  }, [syncContentBoxHeight, syncBodyHeightUncapped]);
+  }, [hasBlocks, syncContentBoxHeight, syncBodyHeightUncapped]);
 
   const syncBodyHeight = useCallback(() => {
     const el = bodyRef.current;
@@ -178,6 +182,14 @@ export function DocDocumentBox({
     syncBodyHeight();
   }, [body, syncBodyHeight, hasBlocks]);
 
+  useLayoutEffect(() => {
+    if (!hasBlocks) return;
+    requestAnimationFrame(() => {
+      syncContentBoxHeight();
+      requestAnimationFrame(syncContentBoxHeight);
+    });
+  }, [normalizedBlocks, hasBlocks, syncContentBoxHeight]);
+
   const handleSlashConfirmFromBody = () => {
     if (!slashTail) return false;
     const parsed = parseSlashQuery(slashTail.slice(1));
@@ -192,6 +204,7 @@ export function DocDocumentBox({
 
     const newBlock = createDocBlockFromSlash(parsed);
     nextBlocks.push(newBlock);
+    nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" }));
     onBlocksChange?.(nextBlocks);
     onBodyChange?.("");
     setFocusBlockId(newBlock.id);
@@ -303,6 +316,7 @@ export function DocDocumentBox({
                   onBodyChange?.(v);
                   requestAnimationFrame(syncBodyHeight);
                 }}
+                onAfterInput={requestContentBoxGrow}
                 onKeyDown={handleTextareaKeyDown}
                 placeholder={bodyPlaceholder}
                 wrapClassName="doc-body-field-wrap__slash"

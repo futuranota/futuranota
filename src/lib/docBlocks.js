@@ -398,6 +398,50 @@ export function replaceBlocksFromSlashInText(blocks, blockIndex, textValue, newB
   return next;
 }
 
+export function replaceBlockFromSlashInLinkable(blocks, blockIndex, fieldValue, newBlock) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[blockIndex];
+  if (
+    !block
+    || ![
+      DOC_BLOCK_TYPES.H1,
+      DOC_BLOCK_TYPES.TODO,
+      DOC_BLOCK_TYPES.DATE,
+      DOC_BLOCK_TYPES.METRIC,
+    ].includes(block.type)
+  ) {
+    return normalized;
+  }
+
+  const raw = String(fieldValue ?? "");
+  const slashIdx = raw.search(/\/[^\n]*$/);
+  const prefix = slashIdx >= 0 ? raw.slice(0, slashIdx) : raw;
+  const titleField = block.type === DOC_BLOCK_TYPES.TODO ? "listTitle" : "title";
+
+  const next = [...normalized];
+  const newNormalized = normalizeDocBlock(newBlock);
+
+  if (!prefix.trim()) {
+    next[blockIndex] = newNormalized;
+  } else {
+    next[blockIndex] = normalizeDocBlock({ ...block, [titleField]: prefix });
+    next.splice(blockIndex + 1, 0, newNormalized);
+  }
+  return next;
+}
+
+export function ensureEmptyTextBlockAfter(blocks, blockIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (blockIndex < 0 || blockIndex >= normalized.length) return normalized;
+  const after = normalized[blockIndex + 1];
+  if (isEmptyTextBlock(after)) return normalized;
+  return insertBlockAfter(
+    normalized,
+    blockIndex,
+    createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" }),
+  );
+}
+
 /** @deprecated Use full blocks stack instead */
 export function getActiveContentBlock(blocks) {
   const normalized = normalizeDocBlocks(blocks);

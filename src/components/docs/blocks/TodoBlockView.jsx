@@ -21,6 +21,8 @@ export function TodoBlockView({
   onQueryHandleClick,
   onFocus,
   onListTitleKeyDown,
+  contentExpanded = true,
+  onContentToggle,
 }) {
   const inputRefs = useRef({});
   const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
@@ -83,6 +85,9 @@ export function TodoBlockView({
       {showSchedule ? (
         <BlockAnchorFields
           readOnly
+          showContentToggle={Boolean(onContentToggle)}
+          contentExpanded={contentExpanded}
+          onContentToggle={onContentToggle}
           anchorDate={anchorDate}
           anchorTime={anchorTime}
           className="doc-todo-block__anchor"
@@ -107,6 +112,7 @@ export function TodoBlockView({
               }}
               type="text"
               className="doc-todo-block__input"
+              data-todo-item-id={item.id}
               value={item.text}
               onChange={(e) => updateItem(index, { text: e.target.value })}
               onKeyDown={(e) => onItemKeyDown?.(index, e)}
