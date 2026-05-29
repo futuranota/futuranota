@@ -50,12 +50,13 @@ function NodeFromSelectionModal({ query, onClose, onSave }) {
 
 const UNTITLED_DOC_LABEL = "Untitled document";
 
-export function DocExpandedView({ docId, onClose }) {
+export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const linkDocToObject = useDocsStore((s) => s.linkDocToObject);
   const deleteDoc = useDocsStore((s) => s.deleteDoc);
   const addNodeFromDoc = useNodesStore((s) => s.addNodeFromDoc);
+  const addNode = useNodesStore((s) => s.addNode);
   const getNode = useNodesStore((s) => s.getNode);
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
   const updateNode = useNodesStore((s) => s.updateNode);
@@ -157,6 +158,37 @@ export function DocExpandedView({ docId, onClose }) {
     }
     deleteDoc(docId);
     onClose();
+  };
+
+  const handleInsertProductToCanvas = (payload) => {
+    const specs = payload?.specs || {};
+    const nodeTitle = (
+      specs.partNumber
+      || specs.category
+      || payload?.title
+      || "Product Card"
+    ).trim();
+    const nodeContent = JSON.stringify({
+      category: specs.category || "",
+      partNumber: specs.partNumber || "",
+      dimensions: specs.dimensions || { x: "", y: "", z: "" },
+      material: specs.material || "",
+      mountingPointDistance: specs.mountingPointDistance || "",
+      imageCount: Array.isArray(payload?.images) ? payload.images.length : 0,
+      images: Array.isArray(payload?.images)
+        ? payload.images.map((img) => ({ name: img.name, src: img.src }))
+        : [],
+    });
+
+    const nodeId = addNode(nodeTitle, "text", nodeContent, docId, {
+      sourceBlockId: payload?.sourceBlockId || null,
+      sourceQuery: nodeTitle,
+    });
+    const createdNode = useNodesStore.getState().getNode(nodeId);
+    if (createdNode && onInsertToCanvas) {
+      onInsertToCanvas(createdNode, { center: true });
+    }
+    setDocSavedHint(false);
   };
 
   const handleSave = () => {
@@ -559,6 +591,7 @@ export function DocExpandedView({ docId, onClose }) {
           onOpenNodeForH1={handleOpenNodeForH1}
           onAnswerBelowH1Change={handleAnswerBelowH1Change}
           onBlockAnchorChange={handleBlockAnchorChange}
+          onInsertProductToCanvas={handleInsertProductToCanvas}
         />
       </div>
       {docSavedHint ? (

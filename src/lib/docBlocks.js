@@ -8,6 +8,7 @@ const DOC_BLOCK_TYPES = {
   TODO: "todo",
   DATE: "date",
   METRIC: "metric",
+  PRODUCT_CARD: "product_card",
 };
 
 const DEFAULT_CHECKBOX_LIST_TITLE = "Checkbox:";
@@ -39,6 +40,40 @@ function normalizeMetricContent(block) {
     return { value: block.content.value ?? "", unit: block.content.unit || "" };
   }
   return { value: "", unit: "" };
+}
+
+function normalizeProductCard(block) {
+  const specs = block?.specs && typeof block.specs === "object" ? block.specs : {};
+  const dims = specs.dimensions && typeof specs.dimensions === "object" ? specs.dimensions : {};
+  const images = Array.isArray(block?.images) ? block.images : [];
+  return {
+    title: block?.title || "ProductCard",
+    specs: {
+      category: specs.category || "",
+      partNumber: specs.partNumber || "",
+      dimensions: {
+        x: dims.x || "",
+        y: dims.y || "",
+        z: dims.z || "",
+      },
+      material: specs.material || "",
+      mountingPointDistance: specs.mountingPointDistance || "",
+    },
+    images: images
+      .map((img) => (img && typeof img === "object"
+        ? {
+            id: img.id || generateId("PRDIMG"),
+            src: img.src || "",
+            name: img.name || "image.webp",
+          }
+        : null))
+      .filter(Boolean),
+    activeImageIndex:
+      Number.isInteger(block?.activeImageIndex) && block.activeImageIndex >= 0
+        ? block.activeImageIndex
+        : 0,
+    specsSaved: Boolean(block?.specsSaved),
+  };
 }
 
 export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
@@ -93,6 +128,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       unit,
       nodeId: patch.nodeId,
       sourceQuery: patch.sourceQuery,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
+    const normalized = normalizeProductCard(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.PRODUCT_CARD,
+      ...normalized,
     };
   }
 
@@ -174,6 +218,13 @@ export function normalizeDocBlock(block) {
       unit,
       nodeId: block.nodeId || undefined,
       sourceQuery: block.sourceQuery || undefined,
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
+    return createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, {
+      id: block.id,
+      ...normalizeProductCard(block),
     });
   }
 
@@ -273,6 +324,20 @@ function parseMetricSection(section) {
   return createDocBlock(DOC_BLOCK_TYPES.METRIC, { title, value, unit });
 }
 
+function parseProductCardSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::productcard")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD);
+  }
+}
+
 export function docBlocksFromBody(body) {
   const raw = String(body ?? "").trim();
   if (!raw) return [];
@@ -305,6 +370,12 @@ export function docBlocksFromBody(body) {
     const metricBlock = parseMetricSection(section);
     if (metricBlock) {
       blocks.push(metricBlock);
+      continue;
+    }
+
+    const productCardBlock = parseProductCardSection(section);
+    if (productCardBlock) {
+      blocks.push(productCardBlock);
       continue;
     }
 
@@ -348,6 +419,15 @@ export function docBlocksToBody(blocks) {
         const unit = block.unit ? ` ${block.unit}` : "";
         const metricLine = val ? `::metric ${val}${unit}`.trim() : "::metric";
         return block.title ? `${metricLine}\n${block.title}` : metricLine;
+      }
+      if (block.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
+        return `::productcard\n${JSON.stringify({
+          title: block.title || "ProductCard",
+          specs: block.specs || {},
+          images: block.images || [],
+          activeImageIndex: block.activeImageIndex || 0,
+          specsSaved: Boolean(block.specsSaved),
+        })}`;
       }
       return block.text || "";
     })
@@ -408,6 +488,7 @@ export function replaceBlockFromSlashInLinkable(blocks, blockIndex, fieldValue, 
       DOC_BLOCK_TYPES.TODO,
       DOC_BLOCK_TYPES.DATE,
       DOC_BLOCK_TYPES.METRIC,
+      DOC_BLOCK_TYPES.PRODUCT_CARD,
     ].includes(block.type)
   ) {
     return normalized;
@@ -452,6 +533,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.TODO
     || block.type === DOC_BLOCK_TYPES.DATE
     || block.type === DOC_BLOCK_TYPES.METRIC
+    || block.type === DOC_BLOCK_TYPES.PRODUCT_CARD
   ) {
     return block;
   }

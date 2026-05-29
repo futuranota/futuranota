@@ -24,6 +24,7 @@ import { TextBlockView } from "./TextBlockView.jsx";
 import { TodoBlockView } from "./TodoBlockView.jsx";
 import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
+import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 
 export function DocBlockStack({
   blocks,
@@ -38,6 +39,7 @@ export function DocBlockStack({
   onAnswerBelowH1Change,
   onBlockAnchorChange,
   docCreatedDate = "",
+  onInsertProductToCanvas,
 }) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
@@ -525,6 +527,14 @@ export function DocBlockStack({
               onUnitChange={(unit) => updateAt(index, { unit })}
               onQueryHandleClick={() => openNode?.(index, block)}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.PRODUCT_CARD ? (
+            <ProductCardBlockView
+              block={block}
+              onChange={(patch) => updateAt(index, patch)}
+              onInsertToCanvas={onInsertProductToCanvas}
             />
           ) : null}
 
