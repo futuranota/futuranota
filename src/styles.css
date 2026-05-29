@@ -1484,8 +1484,9 @@ textarea.field {
 }
 .cnode-type[data-t="date"]    { color: var(--warm); background: var(--warm-soft); }
 .cnode-type[data-t="metric"]  { color: var(--hud);  background: var(--hud-soft); }
-.cnode-type[data-t="text"]    { color: var(--cool); background: var(--cool-soft); }
-.cnode-type[data-t="company"] { color: var(--accent); background: var(--accent-soft); }
+.cnode-type[data-t="text"]     { color: var(--cool); background: var(--cool-soft); }
+.cnode-type[data-t="document"] { color: var(--accent); background: var(--accent-soft); }
+.cnode-type[data-t="company"]  { color: var(--accent); background: var(--accent-soft); }
 .cnode-v {
   font-size: 12.5px;
   color: var(--text);
@@ -1528,6 +1529,64 @@ textarea.field {
   min-width: 0;
 }
 
+.cnode--card-compact {
+  min-width: 148px;
+  max-width: 220px;
+  padding-bottom: 8px;
+}
+.cnode--card-compact .cnode-k {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cnode-v.cnode-v--compact {
+  cursor: default;
+  padding-top: 2px;
+}
+.cnode-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  width: 100%;
+}
+.cnode-parent-tag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  max-width: 100%;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--cool) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--cool) 28%, transparent);
+}
+.cnode-parent-tag__kind {
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cool);
+  line-height: 1.2;
+}
+.cnode-parent-tag__name {
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.2;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .cnode-anchor-date {
   flex-shrink: 0;
   font-family: var(--mono);

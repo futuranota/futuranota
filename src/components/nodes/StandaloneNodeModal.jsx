@@ -71,10 +71,17 @@ function parseContentForSave(text, dataType) {
     return { date: "", time: "" };
   }
   if (dataType === "metric") {
+    if (text && typeof text === "object") {
+      const raw = text.value;
+      if (raw === "" || raw == null) return { value: "", unit: text.unit || "" };
+      const n = Number(raw);
+      return { value: Number.isNaN(n) ? raw : n, unit: text.unit || "" };
+    }
     const n = Number(text);
     return { value: Number.isNaN(n) ? text : n, unit: "" };
   }
   if (dataType === "checkbox") {
+    if (typeof text === "boolean") return text;
     const s = String(text).toLowerCase();
     return s === "true" || s === "1" || s === "yes";
   }
@@ -163,16 +170,6 @@ export function StandaloneNodeModal({
     onClose?.();
   };
 
-  const handleDelete = () => {
-    if (isNew) {
-      onClose?.();
-      return;
-    }
-    if (!window.confirm("Delete this node? This cannot be undone.")) return;
-    onDeleted?.(node.id);
-    onClose?.();
-  };
-
   const docList = Array.isArray(docs) ? docs : Object.values(docs || {});
 
   return (
@@ -199,7 +196,6 @@ export function StandaloneNodeModal({
       onAnchorDateChange={setAnchorDate}
       onAnchorTimeChange={setAnchorTime}
       onSave={handleSave}
-      onDelete={handleDelete}
       onClose={onClose}
       intelSearchMeta={
         node?.id

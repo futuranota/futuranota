@@ -1,3 +1,4 @@
+import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import { sanitizePersistedSnapshot } from "../../lib/storeSanitize.js";
 
 const STORAGE_KEY = "futura-nota-v1";
@@ -37,7 +38,11 @@ export function initPersistenceMiddleware(stores) {
         localStorage.removeItem(STORAGE_KEY);
       } else {
         useObjectsStore.setState({ objects: data.objects });
-        useDocsStore.setState({ docs: data.docs });
+        const normalizedDocs = {};
+        for (const [id, doc] of Object.entries(data.docs)) {
+          normalizedDocs[id] = normalizeDoc(doc);
+        }
+        useDocsStore.setState({ docs: normalizedDocs });
         useNodesStore.setState({ nodes: data.nodes });
         useCanvasStore.setState({
           canvasNodes: data.canvasNodes,

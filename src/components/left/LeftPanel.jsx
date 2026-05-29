@@ -237,6 +237,10 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
     "";
   const [parentId, setParentId] = useState(fallbackParent);
   const [createdDate, setCreatedDate] = useState(todayDateInputValue);
+  const [version, setVersion] = useState("");
+  const [category, setCategory] = useState("");
+  const [launchDate, setLaunchDate] = useState("");
+  const [campaignActive, setCampaignActive] = useState(false);
   const titleRef = useRef(null);
 
   useEffect(() => {
@@ -261,6 +265,10 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
       body: serializedBody,
       blocks,
       createdAt: isoFromDateInput(createdDate),
+      version: version.trim(),
+      category: category.trim(),
+      launchAt: launchDate ? isoFromDateInput(launchDate) : null,
+      campaignActive,
     });
   };
 
@@ -278,6 +286,14 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
           onBlocksChange={setBlocks}
           createdDate={createdDate}
           onCreatedDateChange={setCreatedDate}
+          version={version}
+          onVersionChange={setVersion}
+          category={category}
+          onCategoryChange={setCategory}
+          launchDate={launchDate}
+          onLaunchDateChange={setLaunchDate}
+          campaignActive={campaignActive}
+          onCampaignActiveChange={setCampaignActive}
           parentId={parentId}
           onParentIdChange={setParentId}
           objects={objects}
@@ -477,6 +493,12 @@ export function LeftPanel({
         data.body ?? "",
         data.createdAt,
         data.blocks ?? null,
+        {
+          version: data.version ?? "",
+          category: data.category ?? "",
+          launchAt: data.launchAt ?? null,
+          campaignActive: Boolean(data.campaignActive),
+        },
       );
       setActiveId(null);
       setShowCreate(false);

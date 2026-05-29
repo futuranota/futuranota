@@ -43,6 +43,10 @@
  * @property {boolean} syncedWithCanvas
  * @property {string} createdAt
  * @property {string} updatedAt
+ * @property {string} [version]
+ * @property {string} [category]
+ * @property {string|null} [launchAt]
+ * @property {boolean} [campaignActive]
  */
 
 export {};

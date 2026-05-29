@@ -5,7 +5,12 @@ import { useObjectsStore } from "../../stores/objectsStore.js";
 import { Modal } from "../shared/Modal.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
-import { dateInputFromIso, isoFromDateInput } from "../../lib/docDates.js";
+import {
+  dateInputFromIso,
+  isoFromDateInput,
+  launchDateInputFromIso,
+} from "../../lib/docDates.js";
+import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import { DocDocumentBox } from "./DocDocumentBox.jsx";
 import {
   docBlocksFromBody,
@@ -59,6 +64,10 @@ export function DocExpandedView({ docId, onClose }) {
   const [draftBody, setDraftBody] = useState("");
   const [draftBlocks, setDraftBlocks] = useState([]);
   const [draftCreatedDate, setDraftCreatedDate] = useState("");
+  const [draftVersion, setDraftVersion] = useState("");
+  const [draftCategory, setDraftCategory] = useState("");
+  const [draftLaunchDate, setDraftLaunchDate] = useState("");
+  const [draftCampaignActive, setDraftCampaignActive] = useState(false);
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
@@ -81,17 +90,26 @@ export function DocExpandedView({ docId, onClose }) {
     setDraftTitle(d.title ?? "");
     setDraftBlocks(loadedBlocks);
     setDraftBody(loadedBlocks.length ? "" : (d.body ?? d.content ?? ""));
-    setDraftCreatedDate(dateInputFromIso(d.createdAt));
+    const normalized = normalizeDoc(d);
+    setDraftCreatedDate(dateInputFromIso(normalized.createdAt));
+    setDraftVersion(normalized.version ?? "");
+    setDraftCategory(normalized.category ?? "");
+    setDraftLaunchDate(launchDateInputFromIso(normalized.launchAt));
+    setDraftCampaignActive(Boolean(normalized.campaignActive));
     setNodeSavedHint(false);
     setDocSavedHint(false);
     const normalizedBlocks = normalizeDocBlocks(loadedBlocks);
     const fallbackBody = loadedBlocks.length ? "" : (d.body ?? d.content ?? "");
     const serializedBody = docBlocksToBody(normalizedBlocks) || fallbackBody;
     setInitialSnapshot({
-      title: d.title ?? "",
+      title: normalized.title ?? "",
       blocks: normalizedBlocks,
       body: serializedBody,
-      createdAt: isoFromDateInput(dateInputFromIso(d.createdAt)),
+      createdAt: isoFromDateInput(dateInputFromIso(normalized.createdAt)),
+      version: normalized.version ?? "",
+      category: normalized.category ?? "",
+      launchAt: normalized.launchAt ?? null,
+      campaignActive: Boolean(normalized.campaignActive),
     });
   }, [docId]);
 
@@ -102,11 +120,16 @@ export function DocExpandedView({ docId, onClose }) {
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
   const normalizedBlocks = normalizeDocBlocks(draftBlocks);
   const serializedBody = docBlocksToBody(normalizedBlocks) || draftBody;
+  const draftLaunchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
   const draftSnapshot = {
     title: draftTitle,
     blocks: normalizedBlocks,
     body: serializedBody,
     createdAt: isoFromDateInput(draftCreatedDate),
+    version: draftVersion.trim(),
+    category: draftCategory.trim(),
+    launchAt: draftLaunchAt,
+    campaignActive: draftCampaignActive,
   };
   const hasUnsavedChanges = initialSnapshot
     ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
@@ -132,6 +155,10 @@ export function DocExpandedView({ docId, onClose }) {
       blocks: normalizedBlocks,
       body: serializedBody,
       createdAt: isoFromDateInput(draftCreatedDate),
+      version: draftVersion.trim(),
+      category: draftCategory.trim(),
+      launchAt: draftLaunchAt,
+      campaignActive: draftCampaignActive,
     };
     updateDoc(doc.id, {
       title,
@@ -139,6 +166,10 @@ export function DocExpandedView({ docId, onClose }) {
       content: savedSnapshot.body,
       body: savedSnapshot.body,
       createdAt: savedSnapshot.createdAt,
+      version: savedSnapshot.version,
+      category: savedSnapshot.category,
+      launchAt: savedSnapshot.launchAt,
+      campaignActive: savedSnapshot.campaignActive,
     });
     setInitialSnapshot(savedSnapshot);
     setDocSavedHint(true);
@@ -433,37 +464,6 @@ export function DocExpandedView({ docId, onClose }) {
     setNodeSavedHint(true);
   };
 
-  const handleNodeModalDelete = () => {
-    if (!activeNodeContext) return;
-    if (nodeAutosaveTimerRef.current) {
-      clearTimeout(nodeAutosaveTimerRef.current);
-      nodeAutosaveTimerRef.current = null;
-    }
-
-    const { blockIndex, nodeId } = activeNodeContext;
-    const block = draftBlocks[blockIndex];
-    const linkedId = nodeId || block?.nodeId;
-
-    if (linkedId) {
-      deleteNode(linkedId);
-    }
-
-    if (block) {
-      const nextBlocks = updateBlockAt(draftBlocks, blockIndex, {
-        nodeId: undefined,
-        sourceQuery: undefined,
-      });
-      setDraftBlocks(nextBlocks);
-    }
-
-    setActiveNodeContext(null);
-    setNodeDraftContent("");
-    setNodeDraftAnchorDate("");
-    setNodeDraftAnchorTime("");
-    setNodeInitialSnapshot(null);
-    setNodeSavedHint(false);
-  };
-
   return (
     <>
       <div onContextMenu={handleContextMenu}>
@@ -485,7 +485,30 @@ export function DocExpandedView({ docId, onClose }) {
             setDocSavedHint(false);
           }}
           createdDate={draftCreatedDate}
-          onCreatedDateChange={setDraftCreatedDate}
+          onCreatedDateChange={(v) => {
+            setDraftCreatedDate(v);
+            setDocSavedHint(false);
+          }}
+          version={draftVersion}
+          onVersionChange={(v) => {
+            setDraftVersion(v);
+            setDocSavedHint(false);
+          }}
+          category={draftCategory}
+          onCategoryChange={(v) => {
+            setDraftCategory(v);
+            setDocSavedHint(false);
+          }}
+          launchDate={draftLaunchDate}
+          onLaunchDateChange={(v) => {
+            setDraftLaunchDate(v);
+            setDocSavedHint(false);
+          }}
+          campaignActive={draftCampaignActive}
+          onCampaignActiveChange={(v) => {
+            setDraftCampaignActive(v);
+            setDocSavedHint(false);
+          }}
           onDelete={handleDeleteDoc}
           onSave={handleSave}
           onCloseExpand={handleRequestCloseDoc}
@@ -527,7 +550,6 @@ export function DocExpandedView({ docId, onClose }) {
           createdDate={draftCreatedDate}
           parentDocLabel={parentDocLabel}
           onSave={handleNodeModalSave}
-          onDelete={handleNodeModalDelete}
           onBackToDocument={handleRequestCloseNodeModal}
           anchorDate={nodeDraftAnchorDate}
           anchorTime={nodeDraftAnchorTime}

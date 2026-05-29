@@ -930,6 +930,68 @@
   color: #d8d8d8;
 }
 
+.doc-new-meta-input {
+  flex: 1;
+  min-width: 0;
+  margin-left: 4px;
+  padding: 2px 6px;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.42px;
+  color: #d8d8d8;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  outline: none;
+}
+
+.doc-new-meta-input::placeholder {
+  color: #7e7a76;
+}
+
+.doc-new-meta-readonly {
+  flex: 1;
+  min-width: 0;
+  margin-left: 4px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.42px;
+  color: var(--warm, #ffc56b);
+}
+
+.doc-new-campaign-toggle {
+  flex: 1;
+  min-width: 0;
+  margin-left: 4px;
+  display: flex;
+  gap: 6px;
+}
+
+.doc-new-campaign-opt {
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.36px;
+  color: #7e7a76;
+  cursor: pointer;
+}
+
+.doc-new-campaign-opt.is-on {
+  color: #85da99;
+  border-color: rgba(133, 218, 153, 0.45);
+  background: rgba(133, 218, 153, 0.08);
+}
+
+.doc-new-meta--campaign {
+  gap: 6px;
+}
+
 .doc-new-content-box {
   flex: 1 1 auto;
   min-height: 120px;
@@ -2094,17 +2156,42 @@
   color: #dcb2a6;
 }
 
-.node-query-modal__action--delete {
-  color: #ff8f8f;
+.node-query-modal__action--save {
+  margin-right: auto;
+  color: #fff;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: linear-gradient(
+    90deg,
+    rgb(26, 25, 25) 0%,
+    rgb(22, 26, 29) 9.73%,
+    rgb(22, 26, 29) 91.59%,
+    rgb(26, 25, 25) 99.46%
+  );
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 
-.node-query-modal__action--save {
-  color: #c5b483;
+.node-query-modal__action--save:hover {
+  color: #e8ffd4;
+  background: rgba(205, 255, 165, 0.12);
+  border-color: rgba(205, 255, 165, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .node-query-modal__action--save img {
   width: 21px;
   height: 21px;
+  transition: filter 120ms ease, opacity 120ms ease;
+}
+
+.node-query-modal__action--save:hover img {
+  opacity: 1;
+  filter: brightness(1.15);
 }
 
 .node-query-modal__action--search {

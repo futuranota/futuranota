@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   COMPANIES, INTEL, shortId, getToday,
 } from './data.jsx';
@@ -14,6 +14,7 @@ import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
+import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
 
 /* app.jsx — root state + orchestration
  *
@@ -76,6 +77,18 @@ function Dashboard({ company, onBack }) {
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const tokenCurrent = 0;
   const tokenMax = 10;
+
+  const metaBarMetadata = useMemo(
+    () =>
+      buildMetaBarFromCanvas({
+        selection,
+        canvasNodes,
+        docs,
+        objectsById: objects,
+        today,
+      }),
+    [selection, canvasNodes, docs, objects, today],
+  );
 
   useEffect(() => { initStores(); }, []);
 
@@ -177,7 +190,9 @@ function Dashboard({ company, onBack }) {
       x, y,
     };
     setCanvasNodes((all) => [...all, newNode]);
+    setSelection([newNode.id]);
     setToast({ message: `Document placed · "${doc.title}"`, kind: "ok" });
+    return newNode.id;
   };
 
   const handleCanvasDrop = (payload, world) => {
@@ -239,7 +254,7 @@ function Dashboard({ company, onBack }) {
         onAltSeed={null}
       />
 
-      <MetaBar metadata={{}} />
+      <MetaBar metadata={metaBarMetadata} />
 
       <div className="dash-main">
         <div className="dash-col">
@@ -267,6 +282,7 @@ function Dashboard({ company, onBack }) {
             today={today}
             docsById={docs}
             nodeEntitiesById={nodeEntities}
+            objectsById={objects}
             onCreateBlueprint={() => {}}
             onDeleteNode={deleteCanvasNode}
             onEditNode={() => {}}
