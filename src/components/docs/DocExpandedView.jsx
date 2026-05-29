@@ -52,6 +52,7 @@ const UNTITLED_DOC_LABEL = "Untitled document";
 export function DocExpandedView({ docId, onClose }) {
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
+  const linkDocToObject = useDocsStore((s) => s.linkDocToObject);
   const deleteDoc = useDocsStore((s) => s.deleteDoc);
   const addNodeFromDoc = useNodesStore((s) => s.addNodeFromDoc);
   const getNode = useNodesStore((s) => s.getNode);
@@ -68,6 +69,7 @@ export function DocExpandedView({ docId, onClose }) {
   const [draftCategory, setDraftCategory] = useState("");
   const [draftLaunchDate, setDraftLaunchDate] = useState("");
   const [draftCampaignActive, setDraftCampaignActive] = useState(false);
+  const [draftParentId, setDraftParentId] = useState("");
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
@@ -96,6 +98,7 @@ export function DocExpandedView({ docId, onClose }) {
     setDraftCategory(normalized.category ?? "");
     setDraftLaunchDate(launchDateInputFromIso(normalized.launchAt));
     setDraftCampaignActive(Boolean(normalized.campaignActive));
+    setDraftParentId(doc.parentObjectId ?? "");
     setNodeSavedHint(false);
     setDocSavedHint(false);
     const normalizedBlocks = normalizeDocBlocks(loadedBlocks);
@@ -110,13 +113,15 @@ export function DocExpandedView({ docId, onClose }) {
       category: normalized.category ?? "",
       launchAt: normalized.launchAt ?? null,
       campaignActive: Boolean(normalized.campaignActive),
+      parentObjectId: doc.parentObjectId ?? "",
     });
   }, [docId]);
 
   if (!doc) return null;
 
-  const parentObject = doc.parentObjectId ? objects[doc.parentObjectId] : null;
-  const headerLabel = parentObject?.name || "— sin padre —";
+  const objectList = Object.values(objects);
+  const parentObject = draftParentId ? objects[draftParentId] : null;
+  const headerLabel = parentObject?.name || "";
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
   const normalizedBlocks = normalizeDocBlocks(draftBlocks);
   const serializedBody = docBlocksToBody(normalizedBlocks) || draftBody;
@@ -130,6 +135,7 @@ export function DocExpandedView({ docId, onClose }) {
     category: draftCategory.trim(),
     launchAt: draftLaunchAt,
     campaignActive: draftCampaignActive,
+    parentObjectId: draftParentId || null,
   };
   const hasUnsavedChanges = initialSnapshot
     ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
@@ -159,6 +165,7 @@ export function DocExpandedView({ docId, onClose }) {
       category: draftCategory.trim(),
       launchAt: draftLaunchAt,
       campaignActive: draftCampaignActive,
+      parentObjectId: draftParentId || "",
     };
     updateDoc(doc.id, {
       title,
@@ -171,6 +178,9 @@ export function DocExpandedView({ docId, onClose }) {
       launchAt: savedSnapshot.launchAt,
       campaignActive: savedSnapshot.campaignActive,
     });
+    if ((doc.parentObjectId ?? "") !== (draftParentId || "")) {
+      linkDocToObject(doc.id, draftParentId || null);
+    }
     setInitialSnapshot(savedSnapshot);
     setDocSavedHint(true);
     setNodeSavedHint(false);
@@ -509,6 +519,12 @@ export function DocExpandedView({ docId, onClose }) {
             setDraftCampaignActive(v);
             setDocSavedHint(false);
           }}
+          parentId={draftParentId}
+          onParentIdChange={(v) => {
+            setDraftParentId(v);
+            setDocSavedHint(false);
+          }}
+          objects={objectList}
           onDelete={handleDeleteDoc}
           onSave={handleSave}
           onCloseExpand={handleRequestCloseDoc}

@@ -4,7 +4,6 @@ import {
   useObjectsStore, useDocsStore, useNodesStore, useUIStateStore,
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
-import { findObjectIdByName } from "../../lib/storeSanitize.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { ObjectIcon } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
@@ -230,11 +229,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [blocks, setBlocks] = useState([]);
-  const fallbackParent =
-    defaultParentId ||
-    findObjectIdByName(Object.fromEntries(objects.map((o) => [o.id, o])), "yo") ||
-    objects[0]?.id ||
-    "";
+  const fallbackParent = defaultParentId || "";
   const [parentId, setParentId] = useState(fallbackParent);
   const [createdDate, setCreatedDate] = useState(todayDateInputValue);
   const [version, setVersion] = useState("");
@@ -276,7 +271,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
     <div className="lp-overlay lp-overlay--solid lp-overlay--center" onClick={onCancel}>
       <div className="lp-modal doc-new-modal" onClick={e => e.stopPropagation()}>
         <DocDocumentBox
-          headerLabel={parentObject?.name || "— sin padre —"}
+          headerLabel={parentObject?.name || ""}
           title={title}
           onTitleChange={setTitle}
           titleRef={titleRef}
