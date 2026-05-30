@@ -12,9 +12,12 @@ function safeProductData(block) {
         x: dimensions.x || "",
         y: dimensions.y || "",
         z: dimensions.z || "",
-        xUnit: dimensions.xUnit || "",
-        yUnit: dimensions.yUnit || "",
-        zUnit: dimensions.zUnit || "",
+        unit:
+          dimensions.unit
+          || dimensions.xUnit
+          || dimensions.yUnit
+          || dimensions.zUnit
+          || "",
       },
       material: specs.material || "",
       mountingPointDistance: specs.mountingPointDistance || "",

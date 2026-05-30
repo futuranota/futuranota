@@ -5,9 +5,7 @@ export type ProductCardDimensions = {
   x: string;
   y: string;
   z: string;
-  xUnit?: string;
-  yUnit?: string;
-  zUnit?: string;
+  unit?: string;
 };
 
 export type ProductCardSpecs = {
@@ -43,17 +41,18 @@ type ProductCardProps = {
   onDelete?: () => void;
 };
 
-function formatDimValue(value: string, unit: string) {
+function formatDimPart(value: string) {
   const trimmed = value.trim();
-  if (!trimmed) return "-";
-  const unitTrim = unit.trim();
-  return unitTrim ? `${trimmed} ${unitTrim}` : trimmed;
+  return trimmed || "-";
 }
 
 function formatDimension(specs: ProductCardSpecs) {
-  const { x, y, z, xUnit = "", yUnit = "", zUnit = "" } = specs.dimensions;
-  if (!x && !y && !z) return "-";
-  return `${formatDimValue(x, xUnit)} / ${formatDimValue(y, yUnit)} / ${formatDimValue(z, zUnit)}`;
+  const { x, y, z, unit = "" } = specs.dimensions;
+  const parts = [x, y, z].map((value) => formatDimPart(value));
+  if (!parts.some((part) => part !== "-")) return "-";
+  const unitTrim = unit.trim();
+  const joined = parts.join(" x ");
+  return unitTrim ? `${joined} ${unitTrim}` : joined;
 }
 
 function formatValue(value: string) {
@@ -111,23 +110,24 @@ export function ProductCard({
     });
   };
 
-  const updateDimensionUnit = (unitKey: "xUnit" | "yUnit" | "zUnit", value: string) => {
+  const updateDimensionUnit = (value: string) => {
     onChange?.({
       specs: {
         ...data.specs,
         dimensions: {
           ...data.specs.dimensions,
-          [unitKey]: value,
+          unit: value,
         },
       },
     });
   };
 
   const dimAxes = [
-    { axis: "x" as const, unitKey: "xUnit" as const, placeholder: "length", label: "Length" },
-    { axis: "y" as const, unitKey: "yUnit" as const, placeholder: "width", label: "Width" },
-    { axis: "z" as const, unitKey: "zUnit" as const, placeholder: "high", label: "High" },
+    { axis: "x" as const, placeholder: "length", label: "Length" },
+    { axis: "y" as const, placeholder: "width", label: "Width" },
+    { axis: "z" as const, placeholder: "high", label: "High" },
   ];
+  const dimUnit = data.specs.dimensions.unit || "";
 
   const onTouchStart = (event: React.TouchEvent) => {
     touchStartX.current = event.touches[0]?.clientX ?? null;
@@ -148,121 +148,146 @@ export function ProductCard({
     setDragOffset(0);
   };
 
-  const tableRows: Array<{ label: string; value: string }> = [
+  const tableRows: Array<{ label: string; value: string; compact?: boolean }> = [
     { label: "Category", value: formatValue(data.specs.category) },
-    { label: "Part Number", value: formatValue(data.specs.partNumber) },
-    { label: "Dimensions L/W/H", value: formatDimension(data.specs) },
+    { label: "Dimensions", value: formatDimension(data.specs) },
     { label: "Material", value: formatValue(data.specs.material) },
     {
       label: "Mounting Point Distance",
       value: formatValue(data.specs.mountingPointDistance),
+      compact: true,
     },
   ];
 
+  const partNumber = data.specs.partNumber.trim();
+
+  const carousel = (
+    <div
+      className="product-card__carousel"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {activeImage?.src ? (
+        <img
+          className="product-card__image"
+          src={activeImage.src}
+          alt={activeImage.name || "Product image"}
+          draggable={false}
+        />
+      ) : (
+        <div className="product-card__image-empty">No image</div>
+      )}
+      {specsSaved && partNumber ? (
+        <span className="product-card__part-badge">{partNumber}</span>
+      ) : null}
+    </div>
+  );
+
   return (
     <section className="product-card">
-      <div className="product-card__layout">
-        <div className="product-card__media">
-          <div
-            className="product-card__carousel"
-            onTouchStart={onTouchStart}
-            onTouchMove={onTouchMove}
-            onTouchEnd={onTouchEnd}
-          >
-            {activeImage?.src ? (
-              <img
-                className="product-card__image"
-                src={activeImage.src}
-                alt={activeImage.name || "Product image"}
-                draggable={false}
-              />
-            ) : (
-              <div className="product-card__image-empty">No image</div>
-            )}
-          </div>
-        </div>
-
-        <div className="product-card__panel">
-          <div className="product-card__panel-scroll">
-            {specsSaved ? (
-              <table className="product-card__table">
-                <tbody>
-                  {tableRows.map((row) => (
-                    <tr key={row.label}>
-                      <th>{row.label}</th>
-                      <td>{row.value}</td>
-                    </tr>
+      <div className="product-card__body">
+        <div
+          className={`product-card__layout${!specsSaved ? " product-card__layout--edit" : ""}`}
+        >
+        {!specsSaved ? (
+          <>
+            <div className="product-card__edit-media">
+              <div className="product-card__carousel-cell">{carousel}</div>
+              <label className="product-card__part-inline">
+                <span className="product-card__part-inline-label">Part number :</span>
+                <input
+                  className="product-card__part-inline-input"
+                  value={data.specs.partNumber}
+                  onChange={(event) => updateSpec("partNumber", event.target.value)}
+                  placeholder="—"
+                  aria-label="Part number"
+                  spellCheck={false}
+                />
+              </label>
+            </div>
+            <div className="product-card__specs-editor">
+              <label className="product-card__field">
+                <span>Category</span>
+                <input
+                  value={data.specs.category}
+                  onChange={(event) => updateSpec("category", event.target.value)}
+                  placeholder="Category"
+                />
+              </label>
+              <label className="product-card__field product-card__field--dims">
+                <span>Dimensions</span>
+                <div className="product-card__dim-row">
+                  {dimAxes.map(({ axis, placeholder, label }) => (
+                    <input
+                      key={axis}
+                      className="product-card__dim-input"
+                      value={data.specs.dimensions[axis]}
+                      onChange={(event) => updateDimension(axis, event.target.value)}
+                      placeholder={placeholder}
+                      aria-label={label}
+                    />
                   ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="product-card__specs-editor">
-                <label className="product-card__field">
-                  <span>Category</span>
-                  <input
-                    value={data.specs.category}
-                    onChange={(event) => updateSpec("category", event.target.value)}
-                    placeholder="Category"
-                  />
-                </label>
-                <label className="product-card__field">
-                  <span>Part Number</span>
-                  <input
-                    value={data.specs.partNumber}
-                    onChange={(event) => updateSpec("partNumber", event.target.value)}
-                    placeholder="Part Number"
-                  />
-                </label>
-                <label className="product-card__field product-card__field--dims">
-                  <span>Dimensions</span>
-                  <div className="product-card__dim-row">
-                    {dimAxes.map(({ axis, unitKey, placeholder, label }) => (
-                      <div key={axis} className="product-card__dim-cell">
-                        <input
-                          value={data.specs.dimensions[axis]}
-                          onChange={(event) => updateDimension(axis, event.target.value)}
-                          placeholder={placeholder}
-                          aria-label={label}
-                        />
-                        <select
-                          className="product-card__dim-picker"
-                          value={data.specs.dimensions[unitKey] || ""}
-                          onChange={(event) =>
-                            updateDimensionUnit(unitKey, event.target.value)
-                          }
-                          aria-label={`${label} unit`}
-                        >
-                          {DIMENSION_UNIT_OPTIONS.map((opt) => (
-                            <option key={opt.id || "none"} value={opt.id}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                  <select
+                    className="product-card__dim-picker"
+                    value={dimUnit}
+                    onChange={(event) => updateDimensionUnit(event.target.value)}
+                    aria-label="Dimensions unit"
+                  >
+                    {DIMENSION_UNIT_OPTIONS.map((opt) => (
+                      <option key={opt.id || "none"} value={opt.id}>
+                        {opt.label}
+                      </option>
                     ))}
-                  </div>
-                </label>
-                <label className="product-card__field">
-                  <span>Material</span>
-                  <input
-                    value={data.specs.material}
-                    onChange={(event) => updateSpec("material", event.target.value)}
-                    placeholder="Material"
-                  />
-                </label>
-                <label className="product-card__field">
-                  <span>Mounting Point Distance</span>
-                  <input
-                    value={data.specs.mountingPointDistance}
-                    onChange={(event) =>
-                      updateSpec("mountingPointDistance", event.target.value)
-                    }
-                    placeholder="Mounting Point Distance"
-                  />
-                </label>
+                  </select>
+                </div>
+              </label>
+              <label className="product-card__field">
+                <span>Material</span>
+                <input
+                  value={data.specs.material}
+                  onChange={(event) => updateSpec("material", event.target.value)}
+                  placeholder="Material"
+                />
+              </label>
+              <label className="product-card__field">
+                <span>Mounting Point Distance</span>
+                <input
+                  value={data.specs.mountingPointDistance}
+                  onChange={(event) =>
+                    updateSpec("mountingPointDistance", event.target.value)
+                  }
+                  placeholder="Mounting Point Distance"
+                />
+              </label>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="product-card__media">
+              <div className="product-card__media-stack">{carousel}</div>
+            </div>
+            <div className="product-card__panel">
+              <div className="product-card__panel-scroll">
+                <table className="product-card__table">
+                  <tbody>
+                    {tableRows.map((row) => (
+                      <tr
+                        key={row.label}
+                        className={
+                          row.compact ? "product-card__table-row--compact" : undefined
+                        }
+                      >
+                        <th>{row.label}</th>
+                        <td>{row.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
+            </div>
+          </>
+        )}
         </div>
       </div>
 
