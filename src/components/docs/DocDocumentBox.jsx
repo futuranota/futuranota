@@ -14,6 +14,7 @@ import {
 } from "../../lib/docNodeLinkColors.js";
 import { DocMetaStrip } from "./DocMetaStrip.jsx";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
+import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 
 const DEFAULT_HEADER_LABEL = "";
@@ -71,6 +72,7 @@ export function DocDocumentBox({
   const bodyRef = useRef(null);
   const contentBoxRef = useRef(null);
   const contentScrollRef = useRef(null);
+  const blockStackRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
 
   const normalizedBlocks = normalizeDocBlocks(blocks);
@@ -191,6 +193,51 @@ export function DocDocumentBox({
     });
   }, [normalizedBlocks, hasBlocks, syncContentBoxHeight]);
 
+  const isSlashCommandEnabled = useCallback((cmd) => {
+    const parsed = parseSlashQuery(cmd.aliases[0]);
+    if (!parsed) return false;
+    if (
+      parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
+      && hasProductCardBlock(hasBlocks ? normalizedBlocks : [])
+    ) {
+      return false;
+    }
+    return true;
+  }, [hasBlocks, normalizedBlocks]);
+
+  const insertSlashCommandFromPicker = useCallback((alias) => {
+    if (hasBlocks) {
+      blockStackRef.current?.insertSlashCommand?.(alias);
+      requestContentBoxGrow();
+      return;
+    }
+
+    const parsed = parseSlashQuery(alias);
+    if (!parsed || !isSlashCommandEnabled({ aliases: [alias] })) return;
+
+    const { prefix } = splitBodyForSlash(body);
+    const nextBlocks = [];
+
+    if (prefix.trim()) {
+      nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix }));
+    }
+
+    const newBlock = createDocBlockFromSlash(parsed);
+    nextBlocks.push(newBlock);
+    nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" }));
+    onBlocksChange?.(nextBlocks);
+    onBodyChange?.("");
+    setFocusBlockId(newBlock.id);
+    requestContentBoxGrow();
+  }, [
+    body,
+    hasBlocks,
+    isSlashCommandEnabled,
+    onBlocksChange,
+    onBodyChange,
+    requestContentBoxGrow,
+  ]);
+
   const handleSlashConfirmFromBody = () => {
     if (!slashTail) return false;
     const parsed = parseSlashQuery(slashTail.slice(1));
@@ -301,6 +348,7 @@ export function DocDocumentBox({
         <div ref={contentScrollRef} className="doc-new-content-scroll">
           {hasBlocks ? (
             <DocBlockStack
+              ref={blockStackRef}
               blocks={normalizedBlocks}
               onBlocksChange={onBlocksChange}
               focusBlockId={focusBlockId}
@@ -334,6 +382,11 @@ export function DocDocumentBox({
               />
             </div>
           )}
+          <DocSlashCommandPicker
+            onSelectCommand={insertSlashCommandFromPicker}
+            isCommandEnabled={isSlashCommandEnabled}
+            variant="floating"
+          />
         </div>
       </div>
 

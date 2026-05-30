@@ -72,6 +72,24 @@ export function getH1IndexForTextBlock(blocks, textBlockIndex) {
   return -1;
 }
 
+/** Consecutive TEXT block indices directly below an H1 or Todo. */
+export function getOwnedTextBlockIndices(blocks, ownerIndex) {
+  if (ownerIndex < 0) return [];
+  const normalized = normalizeDocBlocks(blocks);
+  const owner = normalized[ownerIndex];
+  if (owner?.type !== DOC_BLOCK_TYPES.H1 && owner?.type !== DOC_BLOCK_TYPES.TODO) return [];
+
+  const indices = [];
+  for (let i = ownerIndex + 1; i < normalized.length; i++) {
+    if (normalized[i].type === DOC_BLOCK_TYPES.TEXT) {
+      indices.push(i);
+    } else {
+      break;
+    }
+  }
+  return indices;
+}
+
 /** H1 or Todo index owning a run of text blocks below it, or -1. */
 export function getOwningScheduleBlockIndexForText(blocks, textBlockIndex) {
   if (textBlockIndex < 0) return -1;

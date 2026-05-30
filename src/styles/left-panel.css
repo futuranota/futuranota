@@ -1408,9 +1408,12 @@
 }
 
 .doc-new-content-scroll {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  padding-bottom: 40px;
+  box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.28) var(--doc-body-track);
 }
@@ -1886,6 +1889,10 @@
   box-sizing: border-box;
 }
 
+.doc-block-stack:has(.doc-collapsed-write-pad) {
+  min-height: 100%;
+}
+
 .doc-block-stack__item:has(.doc-h1-block) + .doc-block-stack__item:has(.doc-text-block) {
   margin-top: -14px;
 }
@@ -2019,6 +2026,171 @@
 
 .doc-block-stack__item--content-collapsed {
   display: none;
+}
+
+.doc-collapsed-write-clickzone {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 4px 21px 4px 15px;
+  border: none;
+  background: transparent;
+  cursor: text;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.doc-collapsed-write-pad {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 72px;
+  margin-top: -8px;
+}
+
+.doc-collapsed-pad-command,
+.doc-slash-command-picker {
+  z-index: 3;
+  pointer-events: none;
+}
+
+.doc-collapsed-pad-command {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+}
+
+.doc-slash-command-picker--floating {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  z-index: 6;
+}
+
+.doc-slash-command-picker--pad {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+}
+
+.doc-collapsed-pad-command__btn,
+.doc-slash-command-picker__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.82;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: auto;
+}
+
+.doc-collapsed-pad-command__btn:hover,
+.doc-collapsed-pad-command__btn:focus-visible,
+.doc-collapsed-pad-command__btn[aria-expanded="true"],
+.doc-slash-command-picker__btn:hover,
+.doc-slash-command-picker__btn:focus-visible,
+.doc-slash-command-picker__btn[aria-expanded="true"] {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+.doc-collapsed-pad-command__icon,
+.doc-slash-command-picker__icon {
+  display: block;
+  width: 21px;
+  height: 21px;
+}
+
+.doc-collapsed-pad-command__menu,
+.doc-slash-command-picker__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  min-width: 168px;
+  max-width: min(240px, calc(100vw - 48px));
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(12, 12, 12, 0.94);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+.doc-collapsed-pad-command__option,
+.doc-slash-command-picker__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doc-collapsed-pad-command__option:hover:not(:disabled),
+.doc-collapsed-pad-command__option:focus-visible:not(:disabled),
+.doc-slash-command-picker__option:hover:not(:disabled),
+.doc-slash-command-picker__option:focus-visible:not(:disabled) {
+  background: rgba(235, 186, 186, 0.12);
+}
+
+.doc-collapsed-pad-command__option:disabled,
+.doc-slash-command-picker__option:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.doc-collapsed-pad-command__option-label,
+.doc-slash-command-picker__option-label {
+  flex: 1 1 auto;
+}
+
+.doc-collapsed-pad-command__option-slash,
+.doc-slash-command-picker__option-slash {
+  flex: 0 0 auto;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: var(--mono, "Geist Mono", monospace);
+  font-size: 11px;
+}
+
+.doc-collapsed-write-pad .doc-collapsed-write-clickzone {
+  min-height: 72px;
+  height: 100%;
+  padding-bottom: 28px;
+  box-sizing: border-box;
+}
+
+.doc-collapsed-write-pad[data-collapsed-write-for] .doc-text-block {
+  width: 100%;
+  padding-bottom: 24px;
+  box-sizing: border-box;
+}
+
+.doc-collapsed-write-clickzone__hint {
+  display: block;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 0.39px;
+  color: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
 }
 
 .doc-block-stack__item {

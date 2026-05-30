@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { DOC_TODO_HEADER_ICON } from "../../../lib/docMediumAssets.js";
 import { BlockAnchorFields } from "./BlockAnchorFields.jsx";
+import { CollapsedWriteClickZone } from "./CollapsedWriteClickZone.jsx";
 import { DocQueryHandleButton } from "./DocQueryHandleRow.jsx";
 
 export function TodoBlockView({
@@ -23,6 +24,9 @@ export function TodoBlockView({
   onListTitleKeyDown,
   contentExpanded = true,
   onContentToggle,
+  showCollapsedWriteClick = false,
+  onBeginCollapsedWrite,
+  collapsedWritePlaceholder,
 }) {
   const inputRefs = useRef({});
   const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
@@ -91,6 +95,13 @@ export function TodoBlockView({
           anchorDate={anchorDate}
           anchorTime={anchorTime}
           className="doc-todo-block__anchor"
+        />
+      ) : null}
+
+      {showCollapsedWriteClick ? (
+        <CollapsedWriteClickZone
+          onActivate={onBeginCollapsedWrite}
+          placeholder={collapsedWritePlaceholder}
         />
       ) : null}
 
