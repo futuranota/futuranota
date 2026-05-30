@@ -4,6 +4,7 @@ import {
   createTodoItem,
   DOC_BLOCK_TYPES,
   ensureEmptyTextBlockAfter,
+  hasProductCardBlock,
   insertBlockAfter,
   isEmptyTextBlock,
   normalizeDocBlocks,
@@ -216,11 +217,21 @@ export function DocBlockStack({
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
+  const canInsertSlashBlock = (parsed) => {
+    if (
+      parsed?.type === DOC_BLOCK_TYPES.PRODUCT_CARD
+      && hasProductCardBlock(blocksRef.current)
+    ) {
+      return false;
+    }
+    return true;
+  };
+
   const tryConfirmSlashInText = (blockIndex, textValue) => {
     const { slash } = splitBodyForSlash(textValue);
     if (!slash) return false;
     const parsed = parseSlashQuery(slash.slice(1));
-    if (!parsed) return false;
+    if (!parsed || !canInsertSlashBlock(parsed)) return false;
 
     const newBlock = createDocBlockFromSlash(parsed);
     const next = replaceBlocksFromSlashInText(
@@ -237,7 +248,7 @@ export function DocBlockStack({
     const { slash } = splitBodyForSlash(fieldValue);
     if (!slash) return false;
     const parsed = parseSlashQuery(slash.slice(1));
-    if (!parsed) return false;
+    if (!parsed || !canInsertSlashBlock(parsed)) return false;
 
     const newBlock = createDocBlockFromSlash(parsed);
     const next = replaceBlockFromSlashInLinkable(
@@ -332,7 +343,7 @@ export function DocBlockStack({
       const { slash } = splitBodyForSlash(fieldValue);
       if (slash) {
         const parsed = parseSlashQuery(slash.slice(1));
-        if (parsed) {
+        if (parsed && canInsertSlashBlock(parsed)) {
           tryConfirmSlashInLinkable(index, fieldValue);
           return;
         }
@@ -535,6 +546,16 @@ export function DocBlockStack({
               block={block}
               onChange={(patch) => updateAt(index, patch)}
               onInsertToCanvas={onInsertProductToCanvas}
+              onDelete={() => {
+                if (!window.confirm("Delete this product card from the document?")) return;
+                let next = removeBlockAt(blocksRef.current, index);
+                if (!next.length) {
+                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+                }
+                setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+              }}
             />
           ) : null}
 

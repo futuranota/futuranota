@@ -19,6 +19,16 @@ export const METRIC_UNIT_OPTIONS = [
   { id: "lb", label: "lb" },
 ];
 
+/** Length units for product card dimension pickers. */
+export const DIMENSION_UNIT_OPTIONS = [
+  { id: "", label: "—" },
+  { id: "mm", label: "mm" },
+  { id: "cm", label: "cm" },
+  { id: "m", label: "m" },
+  { id: "in", label: "in" },
+  { id: "ft", label: "ft" },
+];
+
 export function metricUnitInOptions(unit) {
   const id = String(unit ?? "");
   return METRIC_UNIT_OPTIONS.some((o) => o.id === id);

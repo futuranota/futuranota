@@ -2038,24 +2038,42 @@
 .product-card__layout {
   display: flex;
   flex-direction: row;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 12px;
 }
 
 .product-card__media {
   flex: 0 0 46%;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  /* Align carousel top with Part Number field (skip Category row) */
+  padding-top: 52px;
+  box-sizing: border-box;
 }
 
 .product-card__panel {
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+}
+
+.product-card__panel-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 218px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+.product-card__panel-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.product-card__panel-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 3px;
 }
 
 .product-card__carousel-wrap {
@@ -2065,26 +2083,28 @@
 }
 
 .product-card__carousel {
-  min-height: 188px;
+  min-height: 168px;
   border-radius: 6px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: #0b0b0b;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding: 6px 6px 0;
+  box-sizing: border-box;
 }
 
 .product-card__image {
   display: block;
   width: 100%;
-  max-height: 240px;
+  max-height: 156px;
   object-fit: contain;
 }
 
 .product-card__image-empty {
   color: rgba(255, 255, 255, 0.42);
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 12px;
   letter-spacing: 0.24px;
 }
@@ -2093,6 +2113,26 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.product-card__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.product-card__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+  justify-content: flex-end;
 }
 
 .product-card__nav {
@@ -2102,29 +2142,33 @@
   border-radius: 4px;
   background: transparent;
   color: #d8d8d8;
-  font-family: var(--mono);
+  font-family: var(--sans);
   cursor: pointer;
 }
 
 .product-card__counter {
   min-width: 42px;
   color: #a9a9a9;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
   letter-spacing: 0.22px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .product-card__upload {
-  margin-left: auto;
   position: relative;
   overflow: hidden;
   padding: 5px 8px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   color: #d8d8d8;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .product-card__upload input {
@@ -2138,7 +2182,36 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1 1 auto;
+}
+
+.product-card__add-canvas,
+.product-card__save,
+.product-card__export,
+.product-card__delete {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: #d8d8d8;
+  border-radius: 4px;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: 0.24px;
+  text-transform: uppercase;
+  padding: 5px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.product-card__delete {
+  color: #ff8f8f;
+  border-color: rgba(255, 143, 143, 0.35);
+}
+
+.product-card__delete:hover {
+  background: rgba(255, 143, 143, 0.08);
+}
+
+.product-card__export {
+  opacity: 0.9;
 }
 
 .product-card__field {
@@ -2149,8 +2222,9 @@
 
 .product-card__field span {
   color: #9a9a9a;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.24px;
   text-transform: uppercase;
 }
@@ -2161,17 +2235,57 @@
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.04);
   color: #f0f0f0;
-  font-family: var(--mono);
-  font-size: 12px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
   padding: 5px 7px;
   box-sizing: border-box;
   outline: none;
 }
 
-.product-card__field--dims > div {
+.product-card__dim-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.product-card__dim-cell {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.product-card__dim-cell input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 0;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 4px;
+  letter-spacing: 0.08px;
+}
+
+.product-card__dim-cell input::placeholder {
+  font-size: 10px;
+  opacity: 0.72;
+}
+
+.product-card__dim-picker {
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8e8e8;
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 500;
+  padding: 3px 2px;
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
 }
 
 .product-card__table {
@@ -2180,14 +2294,13 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
   overflow: hidden;
-  flex: 1 1 auto;
 }
 
 .product-card__table th,
 .product-card__table td {
   padding: 6px 8px;
   text-align: left;
-  font-family: var(--mono);
+  font-family: var(--sans);
   font-size: 11px;
   letter-spacing: 0.2px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -2202,34 +2315,6 @@
 .product-card__table td {
   color: #e8e8e8;
   font-weight: 500;
-}
-
-.product-card__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: auto;
-}
-
-.product-card__add-canvas,
-.product-card__save,
-.product-card__export {
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: transparent;
-  color: #d8d8d8;
-  border-radius: 4px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.24px;
-  text-transform: uppercase;
-  padding: 6px 9px;
-  cursor: pointer;
-}
-
-.product-card__export {
-  margin-left: auto;
-  opacity: 0.9;
 }
 
 .doc-text-block {

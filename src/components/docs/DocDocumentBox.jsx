@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DOC_FILE_TXT_ICON } from "../../lib/docMediumAssets.js";
-import { createDocBlock, DOC_BLOCK_TYPES, normalizeDocBlocks, updateBlockAt } from "../../lib/docBlocks.js";
+import { createDocBlock, DOC_BLOCK_TYPES, hasProductCardBlock, normalizeDocBlocks, updateBlockAt } from "../../lib/docBlocks.js";
 import {
   createDocBlockFromSlash,
   parseSlashQuery,
@@ -195,6 +195,12 @@ export function DocDocumentBox({
     if (!slashTail) return false;
     const parsed = parseSlashQuery(slashTail.slice(1));
     if (!parsed) return false;
+    if (
+      parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
+      && hasProductCardBlock(normalizedBlocks)
+    ) {
+      return false;
+    }
 
     const { prefix } = splitBodyForSlash(body);
     const nextBlocks = [];
