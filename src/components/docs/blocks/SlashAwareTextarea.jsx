@@ -53,6 +53,29 @@ export function SlashAwareTextarea({
 
   const ghostHint = DOC_SLASH_GHOST_HINTS[hintIndex] ?? DOC_SLASH_GHOST_HINTS[0];
 
+  const focusField = useCallback(
+    (placeCaretAtEnd = false) => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      if (placeCaretAtEnd && "setSelectionRange" in el) {
+        const pos = el.value.length;
+        el.setSelectionRange(pos, pos);
+      }
+    },
+    [textareaRef],
+  );
+
+  const handleWrapPointerDown = useCallback(
+    (event) => {
+      const el = textareaRef.current;
+      if (!el || event.target === el) return;
+      event.preventDefault();
+      focusField(true);
+    },
+    [focusField, textareaRef],
+  );
+
   const syncHeight = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -79,7 +102,10 @@ export function SlashAwareTextarea({
     .join(" ");
 
   return (
-    <div className={`doc-slash-field ${wrapClassName}`.trim()}>
+    <div
+      className={`doc-slash-field ${wrapClassName}`.trim()}
+      onMouseDown={handleWrapPointerDown}
+    >
       {slashActive ? (
         <div className="doc-slash-field__mirror" aria-hidden>
           <span className="doc-slash-field__plain">{prefix}</span>

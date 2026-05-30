@@ -1650,6 +1650,7 @@
   position: relative;
   width: 100%;
   box-sizing: border-box;
+  cursor: text;
 }
 
 .doc-slash-field__mirror {
@@ -1691,6 +1692,8 @@
   overflow: hidden;
   background: transparent;
   outline: none;
+  pointer-events: auto;
+  cursor: text;
   font-family: var(--sans);
   font-size: 13px;
   font-weight: 400;
@@ -2553,10 +2556,12 @@
 
 .doc-text-block {
   box-sizing: border-box;
+  cursor: text;
 }
 
 .doc-text-block__wrap {
   position: relative;
+  min-height: 28px;
 }
 
 .doc-text-block__wrap .doc-slash-field__mirror {
@@ -2570,7 +2575,7 @@
 .doc-text-block__field {
   display: block;
   width: 100%;
-  min-height: 20px;
+  min-height: 28px;
   margin: 0;
   padding: 4px 21px 4px 15px;
   box-sizing: border-box;
@@ -3200,46 +3205,58 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.52);
+  background: rgba(0, 0, 0, 0.45);
 }
 
 .doc-unsaved-confirm {
-  width: min(420px, calc(100vw - 40px));
-  background: #111;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  padding: 18px 16px 14px;
-  color: #fff;
-  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.62);
+  width: min(320px, calc(100vw - 32px));
+  background: #0e0e0e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 14px 16px 16px;
+  color: #e8e8e8;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48);
+  text-align: center;
 }
 
 .doc-unsaved-confirm__text {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
+  font-family: var(--sans);
   font-size: 14px;
+  font-weight: 500;
   line-height: 1.4;
-  color: #fff;
+  color: #d8d8d8;
+  letter-spacing: -0.01em;
+  text-align: center;
 }
 
 .doc-unsaved-confirm__actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
 }
 
 .doc-unsaved-confirm__btn {
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  background: transparent;
+  color: #b8b8b8;
   font-family: var(--sans);
   font-size: 13px;
-  padding: 6px 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  min-width: 52px;
+  min-height: 32px;
+  padding: 5px 14px;
   cursor: pointer;
   text-transform: lowercase;
+  line-height: 1.2;
 }
 
 .doc-unsaved-confirm__btn--yes {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ececec;
 }
 
 

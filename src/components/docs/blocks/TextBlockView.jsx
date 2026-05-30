@@ -24,7 +24,7 @@ export function TextBlockView({
         autoFocus={autoFocus}
         wrapClassName="doc-text-block__wrap"
         className="doc-text-block__field"
-        minHeightPx={20}
+        minHeightPx={28}
         maxHeightPx={maxHeightPx}
       />
     </div>

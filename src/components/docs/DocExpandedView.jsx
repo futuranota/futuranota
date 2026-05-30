@@ -50,6 +50,34 @@ function NodeFromSelectionModal({ query, onClose, onSave }) {
 
 const UNTITLED_DOC_LABEL = "Untitled document";
 
+function buildDocPersistSnapshot({
+  title,
+  blocks,
+  body = "",
+  createdDate,
+  version = "",
+  category = "",
+  launchAt = null,
+  campaignActive = false,
+  parentObjectId = "",
+  nodeLinkColor = "dark",
+}) {
+  const normalizedBlocks = normalizeDocBlocks(blocks);
+  const serializedBody = docBlocksToBody(normalizedBlocks) || body || "";
+  return {
+    title: title ?? "",
+    blocks: normalizedBlocks,
+    body: serializedBody,
+    createdAt: isoFromDateInput(createdDate),
+    version: String(version ?? "").trim(),
+    category: String(category ?? "").trim(),
+    launchAt: launchAt ?? null,
+    campaignActive: Boolean(campaignActive),
+    parentObjectId: parentObjectId || "",
+    nodeLinkColor: nodeLinkColor ?? "dark",
+  };
+}
+
 export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
@@ -105,21 +133,20 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
     setDraftParentId(doc.parentObjectId ?? "");
     setNodeSavedHint(false);
     setDocSavedHint(false);
-    const normalizedBlocks = normalizeDocBlocks(loadedBlocks);
-    const fallbackBody = loadedBlocks.length ? "" : (d.body ?? d.content ?? "");
-    const serializedBody = docBlocksToBody(normalizedBlocks) || fallbackBody;
-    setInitialSnapshot({
-      title: normalized.title ?? "",
-      blocks: normalizedBlocks,
-      body: serializedBody,
-      createdAt: isoFromDateInput(dateInputFromIso(normalized.createdAt)),
-      version: normalized.version ?? "",
-      category: normalized.category ?? "",
-      launchAt: normalized.launchAt ?? null,
-      campaignActive: Boolean(normalized.campaignActive),
-      parentObjectId: doc.parentObjectId ?? "",
-      nodeLinkColor: normalized.nodeLinkColor ?? "dark",
-    });
+    setInitialSnapshot(
+      buildDocPersistSnapshot({
+        title: normalized.title ?? "",
+        blocks: loadedBlocks,
+        body: d.body ?? d.content ?? "",
+        createdDate: dateInputFromIso(normalized.createdAt),
+        version: normalized.version ?? "",
+        category: normalized.category ?? "",
+        launchAt: normalized.launchAt ?? null,
+        campaignActive: Boolean(normalized.campaignActive),
+        parentObjectId: doc.parentObjectId ?? "",
+        nodeLinkColor: normalized.nodeLinkColor ?? "dark",
+      }),
+    );
   }, [docId]);
 
   if (!doc) return null;
@@ -128,21 +155,19 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
   const parentObject = draftParentId ? objects[draftParentId] : null;
   const headerLabel = parentObject?.name || "";
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
-  const normalizedBlocks = normalizeDocBlocks(draftBlocks);
-  const serializedBody = docBlocksToBody(normalizedBlocks) || draftBody;
   const draftLaunchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
-  const draftSnapshot = {
+  const draftSnapshot = buildDocPersistSnapshot({
     title: draftTitle,
-    blocks: normalizedBlocks,
-    body: serializedBody,
-    createdAt: isoFromDateInput(draftCreatedDate),
-    version: draftVersion.trim(),
-    category: draftCategory.trim(),
+    blocks: draftBlocks,
+    body: draftBody,
+    createdDate: draftCreatedDate,
+    version: draftVersion,
+    category: draftCategory,
     launchAt: draftLaunchAt,
     campaignActive: draftCampaignActive,
-    parentObjectId: draftParentId || null,
+    parentObjectId: draftParentId,
     nodeLinkColor: draftNodeLinkColor,
-  };
+  });
   const hasUnsavedChanges = initialSnapshot
     ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
     : false;
@@ -193,18 +218,18 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
 
   const handleSave = () => {
     const title = draftTitle.trim() || "New document";
-    const savedSnapshot = {
+    const savedSnapshot = buildDocPersistSnapshot({
       title: draftTitle,
-      blocks: normalizedBlocks,
-      body: serializedBody,
-      createdAt: isoFromDateInput(draftCreatedDate),
-      version: draftVersion.trim(),
-      category: draftCategory.trim(),
+      blocks: draftBlocks,
+      body: draftBody,
+      createdDate: draftCreatedDate,
+      version: draftVersion,
+      category: draftCategory,
       launchAt: draftLaunchAt,
       campaignActive: draftCampaignActive,
-      parentObjectId: draftParentId || "",
+      parentObjectId: draftParentId,
       nodeLinkColor: draftNodeLinkColor,
-    };
+    });
     updateDoc(doc.id, {
       title,
       blocks: savedSnapshot.blocks,
@@ -653,16 +678,9 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
             aria-labelledby="doc-unsaved-confirm-title"
           >
             <p id="doc-unsaved-confirm-title" className="doc-unsaved-confirm__text">
-              Would you like to save the new modifications?
+              Would you like to save the changes?
             </p>
             <div className="doc-unsaved-confirm__actions">
-              <button
-                type="button"
-                className="doc-unsaved-confirm__btn"
-                onClick={() => setShowUnsavedConfirm(false)}
-              >
-                confirm
-              </button>
               <button
                 type="button"
                 className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
@@ -697,7 +715,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
             aria-labelledby="node-unsaved-confirm-title"
           >
             <p id="node-unsaved-confirm-title" className="doc-unsaved-confirm__text">
-              Would you like to save the newest changes?
+              Would you like to save the changes?
             </p>
             <div className="doc-unsaved-confirm__actions">
               <button
