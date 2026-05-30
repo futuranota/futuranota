@@ -470,7 +470,9 @@ export function replaceBlocksFromSlashInText(blocks, blockIndex, textValue, newB
   const next = [...normalized];
   const newNormalized = normalizeDocBlock(newBlock);
 
-  if (!prefix.trim()) {
+  if (newNormalized.type === DOC_BLOCK_TYPES.H1 && prefix.trim()) {
+    next[blockIndex] = normalizeDocBlock({ ...newNormalized, title: prefix.trim() });
+  } else if (!prefix.trim()) {
     next[blockIndex] = newNormalized;
   } else {
     next[blockIndex] = normalizeDocBlock({ ...block, text: prefix });
