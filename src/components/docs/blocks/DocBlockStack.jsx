@@ -458,7 +458,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       return;
     }
     focusBlockCaret(focusBlockId);
-  }, [focusBlockId, blocks.length, collapsedContentByBlockId, collapsedPadWriteByOwnerId]);
+  }, [focusBlockId, collapsedContentByBlockId, collapsedPadWriteByOwnerId]);
 
   useLayoutEffect(() => {
     Object.entries(collapsedPadWriteByOwnerId).forEach(([ownerId, entry]) => {
@@ -674,11 +674,36 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     return false;
   };
 
+  const splitTextBlockAtCaret = (blockIndex, e) => {
+    const el = e.currentTarget;
+    const caretStart = el.selectionStart ?? 0;
+    const caretEnd = el.selectionEnd ?? caretStart;
+    const text = el.value ?? "";
+    const head = text.slice(0, caretStart);
+    const tail = text.slice(caretEnd);
+
+    let next = updateBlockAt(blocksRef.current, blockIndex, { text: head });
+    const newBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: tail });
+    next = insertBlockAfter(next, blockIndex, newBlock);
+
+    setBlocks(next);
+    syncAnswerBelowH1(next, blockIndex, head);
+    onFocusBlock?.(newBlock.id);
+    focusBlockCaret(newBlock.id, 0);
+    requestContentGrow();
+  };
+
   const handleTextKeyDown = (blockIndex, e) => {
     const textValue = e.currentTarget?.value ?? blocksRef.current[blockIndex]?.text ?? "";
     if (handleTextBackspace(blockIndex, e, textValue)) return;
 
     const { slash } = splitBodyForSlash(textValue);
+
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      insertNewlineAtCaret(blockIndex, e);
+      return;
+    }
 
     if (e.key === "Enter" && !e.shiftKey) {
       if (slash) {
@@ -690,7 +715,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         }
       }
       e.preventDefault();
-      insertNewlineAtCaret(blockIndex, e);
+      splitTextBlockAtCaret(blockIndex, e);
       return;
     }
 
