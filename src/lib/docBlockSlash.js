@@ -45,7 +45,7 @@ export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
 );
 
 export function getSlashTail(value) {
-  const m = String(value ?? "").match(/(?:^|\n)(\/[^\n]*)$/);
+  const m = String(value ?? "").match(/(\/[^\n]*)$/);
   return m ? m[1] : null;
 }
 
