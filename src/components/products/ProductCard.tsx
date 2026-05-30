@@ -335,15 +335,6 @@ export function ProductCard({
               Delete
             </button>
           ) : null}
-          {onAddToCanvas ? (
-            <button
-              type="button"
-              className="product-card__add-canvas"
-              onClick={onAddToCanvas}
-            >
-              Add to Canvas
-            </button>
-          ) : null}
           {!specsSaved ? (
             <button type="button" className="product-card__save" onClick={onSave}>
               Save

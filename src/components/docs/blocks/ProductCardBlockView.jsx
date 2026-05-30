@@ -134,7 +134,6 @@ export function ProductCardBlockView({ block, onChange, onInsertToCanvas, onDele
         data={data}
         onChange={handleChange}
         onUploadImages={handleUploadImages}
-        onAddToCanvas={onInsertToCanvas ? handleAddToCanvas : undefined}
         onSave={handleSave}
         onEdit={handleEdit}
         onExportSpecs={handleExportSpecs}
