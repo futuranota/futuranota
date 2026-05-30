@@ -12,6 +12,9 @@ function safeProductData(block) {
         x: dimensions.x || "",
         y: dimensions.y || "",
         z: dimensions.z || "",
+        xUnit: dimensions.xUnit || "",
+        yUnit: dimensions.yUnit || "",
+        zUnit: dimensions.zUnit || "",
       },
       material: specs.material || "",
       mountingPointDistance: specs.mountingPointDistance || "",
@@ -65,7 +68,7 @@ async function fileToWebpData(file) {
   }
 }
 
-export function ProductCardBlockView({ block, onChange, onInsertToCanvas }) {
+export function ProductCardBlockView({ block, onChange, onInsertToCanvas, onDelete }) {
   const data = safeProductData(block);
 
   const handleChange = (patch) => {
@@ -128,10 +131,11 @@ export function ProductCardBlockView({ block, onChange, onInsertToCanvas }) {
         data={data}
         onChange={handleChange}
         onUploadImages={handleUploadImages}
-        onAddToCanvas={handleAddToCanvas}
+        onAddToCanvas={onInsertToCanvas ? handleAddToCanvas : undefined}
         onSave={handleSave}
         onEdit={handleEdit}
         onExportSpecs={handleExportSpecs}
+        onDelete={onDelete}
       />
     </div>
   );

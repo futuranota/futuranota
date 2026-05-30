@@ -55,6 +55,9 @@ function normalizeProductCard(block) {
         x: dims.x || "",
         y: dims.y || "",
         z: dims.z || "",
+        xUnit: dims.xUnit || "",
+        yUnit: dims.yUnit || "",
+        zUnit: dims.zUnit || "",
       },
       material: specs.material || "",
       mountingPointDistance: specs.mountingPointDistance || "",
@@ -538,6 +541,12 @@ export function getActiveContentBlock(blocks) {
     return block;
   }
   return null;
+}
+
+export function hasProductCardBlock(blocks) {
+  return normalizeDocBlocks(blocks).some(
+    (block) => block.type === DOC_BLOCK_TYPES.PRODUCT_CARD,
+  );
 }
 
 export { DOC_BLOCK_TYPES };
