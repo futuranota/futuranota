@@ -3,28 +3,19 @@ export function CollapsedWriteClickZone({ onActivate, placeholder }) {
   return (
     <div
       role="button"
-      tabIndex={-1}
+      tabIndex={0}
       className="doc-collapsed-write-clickzone"
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation();
-        // #region agent log
-        fetch("http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "a58ec5" },
-          body: JSON.stringify({
-            sessionId: "a58ec5",
-            runId: "post-fix-v2",
-            location: "CollapsedWriteClickZone.jsx:click",
-            message: "clickzone-activate",
-            data: {},
-            hypothesisId: "B,F",
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         onActivate?.();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " " || (e.key.length === 1 && !e.metaKey && !e.ctrlKey)) {
+          e.preventDefault();
+          onActivate?.();
+        }
       }}
       aria-label={placeholder || "Start writing"}
     >

@@ -755,16 +755,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       }
 
       if (block.type === DOC_BLOCK_TYPES.H1) {
-        const el = e.currentTarget;
-        const caretStart = el.selectionStart ?? 0;
-        const caretEnd = el.selectionEnd ?? caretStart;
-        const title = fieldValue || block.title || "";
-        const head = title.slice(0, caretStart);
-        const tail = title.slice(caretEnd);
-        const current = updateBlockAt(blocksRef.current, index, { title: head });
-
-        if (tail) onAnswerBelowH1Change?.(index, tail);
-        insertTextAfter(index, tail, current);
+        // Keep the H1 title intact; just move the cursor to the text block below
+        insertTextAfter(index);
         return;
       }
 
