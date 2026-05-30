@@ -67,8 +67,26 @@ export function DocQueryHandleRow({
     (multiline ? "doc-h1-block__header doc-h1-block__header--multiline" : "doc-h1-block__header")
     + (showQueryHandle ? "" : " doc-h1-block__header--no-handle");
 
+  const focusInput = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    if ("setSelectionRange" in el) {
+      const pos = el.value.length;
+      el.setSelectionRange(pos, pos);
+    }
+  };
+
+  const handleHeaderPointerDown = (e) => {
+    const el = inputRef.current;
+    if (!el || e.target === el) return;
+    if (e.target.closest("button")) return;
+    e.preventDefault();
+    focusInput();
+  };
+
   return (
-    <div className={headerClass}>
+    <div className={headerClass} onMouseDown={handleHeaderPointerDown}>
       {showQueryHandle ? (
         <DocQueryHandleButton
           queryEnabled={queryEnabled}

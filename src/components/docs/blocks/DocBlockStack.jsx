@@ -78,15 +78,17 @@ export function DocBlockStack({
     const attempt = (tries = 0) => {
       requestAnimationFrame(() => {
         const el = document.querySelector(`[data-block-id="${blockId}"]`);
-        const input = el?.querySelector("input, textarea");
-        if (!input && tries < 6) {
+        const input = el?.querySelector("input:not([type='checkbox']), textarea");
+        if (!input && tries < 12) {
           attempt(tries + 1);
           return;
         }
-        if (!input || !("setSelectionRange" in input)) return;
-        input.focus();
-        const pos = caretPos ?? input.value.length;
-        input.setSelectionRange(pos, pos);
+        if (!input || !("focus" in input)) return;
+        input.focus({ preventScroll: true });
+        if ("setSelectionRange" in input) {
+          const pos = caretPos ?? input.value.length;
+          input.setSelectionRange(pos, pos);
+        }
       });
     };
     attempt();
@@ -106,11 +108,7 @@ export function DocBlockStack({
 
   useEffect(() => {
     if (!focusBlockId) return;
-    const el = document.querySelector(`[data-block-id="${focusBlockId}"]`);
-    if (el instanceof HTMLElement) {
-      const input = el.querySelector("input, textarea");
-      input?.focus();
-    }
+    focusBlockCaret(focusBlockId);
   }, [focusBlockId, blocks.length]);
 
   useLayoutEffect(() => {
