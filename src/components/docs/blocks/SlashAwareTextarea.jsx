@@ -76,18 +76,71 @@ export function SlashAwareTextarea({
     [focusField, textareaRef],
   );
 
-  const syncHeight = useCallback(() => {
+  const isFieldVisible = useCallback((el) => {
+    if (!el) return false;
+    if (el.offsetParent !== null) return true;
+    const rects = el.getClientRects();
+    return rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
+  }, []);
+
+  const syncHeight = useCallback((force = false) => {
     const el = textareaRef.current;
     if (!el) return;
+    const visible = isFieldVisible(el);
+    if (!visible && !force) return;
     el.style.height = "auto";
     const next = Math.min(el.scrollHeight, maxHeightPx);
     el.style.height = `${Math.max(next, minHeightPx)}px`;
     el.style.overflowY = el.scrollHeight > maxHeightPx ? "auto" : "hidden";
-  }, [maxHeightPx, minHeightPx, textareaRef]);
+    // #region agent log
+    fetch("http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "a58ec5" },
+      body: JSON.stringify({
+        sessionId: "a58ec5",
+        runId: "post-fix-v2",
+        location: "SlashAwareTextarea.jsx:syncHeight",
+        message: "synced",
+        data: {
+          valueLen: el.value.length,
+          clientHeight: el.clientHeight,
+          scrollHeight: el.scrollHeight,
+          visible,
+          force,
+        },
+        hypothesisId: "D",
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+  }, [isFieldVisible, maxHeightPx, minHeightPx, textareaRef]);
 
   useLayoutEffect(() => {
-    syncHeight();
-  }, [value, syncHeight]);
+    const el = textareaRef.current;
+    if (!el || !isFieldVisible(el)) return;
+    el.style.height = "auto";
+    requestAnimationFrame(() => syncHeight());
+  }, [value, syncHeight, isFieldVisible]);
+
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => syncHeight());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [syncHeight, textareaRef]);
+
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      el.style.height = "auto";
+      requestAnimationFrame(() => syncHeight(true));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [syncHeight, textareaRef]);
 
   useLayoutEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
@@ -136,7 +189,10 @@ export function SlashAwareTextarea({
         }}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
-        onFocus={onFocus}
+        onFocus={(e) => {
+          syncHeight();
+          onFocus?.(e);
+        }}
         spellCheck={false}
         aria-label={ariaLabel}
       />

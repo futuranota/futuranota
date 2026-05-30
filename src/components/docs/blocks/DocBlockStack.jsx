@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, Fragment, forwardRef } from "react";
 import {
   createDocBlock,
   createTodoItem,
@@ -18,16 +18,34 @@ import {
   parseSlashQuery,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
-import { getH1IndexForTextBlock, getOwningScheduleBlockIndexForText } from "../../../lib/docNodeSync.js";
+import { getH1IndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { TodoBlockView } from "./TodoBlockView.jsx";
+import { CollapsedWriteClickZone } from "./CollapsedWriteClickZone.jsx";
 import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 
-export function DocBlockStack({
+// #region agent log
+const debugLog = (location, message, data, hypothesisId) => {
+  fetch("http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "a58ec5" },
+    body: JSON.stringify({
+      sessionId: "a58ec5",
+      location,
+      message,
+      data,
+      hypothesisId,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+};
+// #endregion
+
+export const DocBlockStack = forwardRef(function DocBlockStack({
   blocks,
   onBlocksChange,
   focusBlockId = null,
@@ -41,12 +59,56 @@ export function DocBlockStack({
   onBlockAnchorChange,
   docCreatedDate = "",
   onInsertProductToCanvas,
-}) {
+}, ref) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
+  const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
-  blocksRef.current = blocks;
+
+  useLayoutEffect(() => {
+    if (blocks.length >= blocksRef.current.length) {
+      blocksRef.current = blocks;
+    }
+  }, [blocks]);
+
+  const isCollapsedPadWriteBlock = (blockId) => {
+    if (!blockId) return false;
+    for (const [ownerId, entry] of Object.entries(collapsedPadWriteByOwnerId)) {
+      if (entry?.blockId === blockId && collapsedContentByBlockId[ownerId]) return true;
+    }
+    return false;
+  };
+
+  const resolveBlockById = (blockId) => {
+    if (isCollapsedPadWriteBlock(blockId)) {
+      return blocksRef.current.find((b) => b.id === blockId)
+        ?? blocks.find((b) => b.id === blockId)
+        ?? null;
+    }
+    return blocks.find((b) => b.id === blockId)
+      ?? blocksRef.current.find((b) => b.id === blockId)
+      ?? null;
+  };
+
+  const resolveBlockIndexById = (blockId) => {
+    if (isCollapsedPadWriteBlock(blockId)) {
+      const refIndex = blocksRef.current.findIndex((b) => b.id === blockId);
+      if (refIndex >= 0) return refIndex;
+    }
+    const propsIndex = blocks.findIndex((b) => b.id === blockId);
+    if (propsIndex >= 0) return propsIndex;
+    return blocksRef.current.findIndex((b) => b.id === blockId);
+  };
+
+  const clearCollapsedPadWrite = (ownerId) => {
+    setCollapsedPadWriteByOwnerId((prev) => {
+      if (!prev[ownerId]) return prev;
+      const next = { ...prev };
+      delete next[ownerId];
+      return next;
+    });
+  };
 
   const blockLinkColor = (block) => resolveBlockNodeLinkColor(block);
   const blockLinksEnabled = (block) => !isNoNodeLinkMode(blockLinkColor(block));
@@ -57,24 +119,256 @@ export function DocBlockStack({
   const isContentExpanded = (blockId) => !collapsedContentByBlockId[blockId];
 
   const toggleBlockContent = (blockId) => {
+    const willCollapse = !collapsedContentByBlockId[blockId];
+
+    // #region agent log
+    debugLog("DocBlockStack.jsx:toggleBlockContent", "toggle", {
+      blockId,
+      willCollapse,
+      activeWrite: collapsedPadWriteByOwnerId[blockId] ?? null,
+      runId: "post-fix-v4",
+    }, "A,F");
+    // #endregion
+
     setCollapsedContentByBlockId((prev) => ({
       ...prev,
       [blockId]: !prev[blockId],
     }));
+
+    clearCollapsedPadWrite(blockId);
+
+    if (!willCollapse) {
+      const ownerIndex = blocksRef.current.findIndex((b) => b.id === blockId);
+      if (ownerIndex >= 0 && blocksRef.current[ownerIndex]?.type === DOC_BLOCK_TYPES.H1) {
+        const owned = getOwnedTextBlockIndices(blocksRef.current, ownerIndex);
+        if (owned[0] >= 0) {
+          onAnswerBelowH1Change?.(
+            ownerIndex,
+            blocksRef.current[owned[0]]?.text || "",
+          );
+        }
+      }
+      if (ownerIndex >= 0) {
+        resyncOwnedTextHeights(ownerIndex);
+      }
+    }
+
     requestContentGrow();
   };
 
+  const beginCollapsedWrite = (ownerIndex) => {
+    const ownerBlock = blocksRef.current[ownerIndex];
+    if (!ownerBlock || !showScheduleForBlock(ownerBlock)) return;
+    if (isContentExpanded(ownerBlock.id)) return;
+
+    const owned = getOwnedTextBlockIndices(blocksRef.current, ownerIndex);
+    const insertAfterIndex = owned.length > 0 ? owned[owned.length - 1] : ownerIndex;
+
+    // #region agent log
+    debugLog("DocBlockStack.jsx:beginCollapsedWrite", "insert-new-only", {
+      ownerIndex,
+      ownerId: ownerBlock.id,
+      insertAfterIndex,
+      preservedBlocks: owned.map((i) => ({
+        id: blocksRef.current[i]?.id,
+        textLen: (blocksRef.current[i]?.text || "").length,
+      })),
+      runId: "post-fix-v4",
+    }, "A,F");
+    // #endregion
+
+    const blockId = insertTextAfter(insertAfterIndex, "", null, { skipFocus: true });
+    const blockIndex = blocksRef.current.findIndex((b) => b.id === blockId);
+    setCollapsedPadWriteByOwnerId((prev) => ({
+      ...prev,
+      [ownerBlock.id]: { blockId, blockIndex },
+    }));
+    onFocusBlock?.(blockId);
+  };
+
+  const insertSlashCommandForOwner = (ownerIndex, alias) => {
+    const parsed = parseSlashQuery(alias);
+    if (!parsed || !canInsertSlashBlock(parsed)) return;
+
+    const ownerBlock = blocksRef.current[ownerIndex];
+    if (!ownerBlock) return;
+
+    const padEntry = collapsedPadWriteByOwnerId[ownerBlock.id];
+    let blockIndex = padEntry?.blockId
+      ? blocksRef.current.findIndex((b) => b.id === padEntry.blockId)
+      : -1;
+
+    if (blockIndex < 0) {
+      const owned = getOwnedTextBlockIndices(blocksRef.current, ownerIndex);
+      const insertAfterIndex = owned.length > 0 ? owned[owned.length - 1] : ownerIndex;
+      const nextBlock = blocksRef.current[insertAfterIndex + 1];
+      if (isEmptyTextBlock(nextBlock)) {
+        blockIndex = insertAfterIndex + 1;
+      } else {
+        const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" });
+        const inserted = insertBlockAfter(blocksRef.current, insertAfterIndex, textBlock);
+        setBlocks(inserted);
+        blockIndex = insertAfterIndex + 1;
+      }
+    }
+
+    const block = blocksRef.current[blockIndex];
+    if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return;
+
+    const newBlock = createDocBlockFromSlash(parsed);
+    const next = replaceBlocksFromSlashInText(
+      blocksRef.current,
+      blockIndex,
+      block.text || "",
+      newBlock,
+    );
+    clearCollapsedPadWrite(ownerBlock.id);
+    finalizeSlashInsert(next, newBlock.id);
+  };
+
+  const insertSlashCommandAtFocus = (alias) => {
+    const parsed = parseSlashQuery(alias);
+    if (!parsed || !canInsertSlashBlock(parsed)) return;
+
+    for (const [ownerId, entry] of Object.entries(collapsedPadWriteByOwnerId)) {
+      if (!collapsedContentByBlockId[ownerId] || !entry?.blockId) continue;
+      const ownerIndex = blocksRef.current.findIndex((b) => b.id === ownerId);
+      if (ownerIndex >= 0) {
+        insertSlashCommandForOwner(ownerIndex, alias);
+        return;
+      }
+    }
+
+    const current = blocksRef.current;
+    let blockIndex = focusBlockId
+      ? current.findIndex((b) => b.id === focusBlockId)
+      : -1;
+
+    if (blockIndex >= 0) {
+      const focused = current[blockIndex];
+      if (focused.type === DOC_BLOCK_TYPES.TEXT) {
+        if (isTextHiddenByParentCollapse(blockIndex)) {
+          const ownerIndex = getOwningScheduleBlockIndexForText(current, blockIndex);
+          if (ownerIndex >= 0) {
+            insertSlashCommandForOwner(ownerIndex, alias);
+            return;
+          }
+        }
+        const newBlock = createDocBlockFromSlash(parsed);
+        const next = replaceBlocksFromSlashInText(
+          current,
+          blockIndex,
+          focused.text || "",
+          newBlock,
+        );
+        finalizeSlashInsert(next, newBlock.id);
+        return;
+      }
+
+      if (
+        focused.type === DOC_BLOCK_TYPES.H1
+        || focused.type === DOC_BLOCK_TYPES.TODO
+        || focused.type === DOC_BLOCK_TYPES.DATE
+        || focused.type === DOC_BLOCK_TYPES.METRIC
+      ) {
+        const owned = focused.type === DOC_BLOCK_TYPES.H1 || focused.type === DOC_BLOCK_TYPES.TODO
+          ? getOwnedTextBlockIndices(current, blockIndex)
+          : [];
+        const insertAfterIndex = owned.length > 0 ? owned[owned.length - 1] : blockIndex;
+        const nextBlock = current[insertAfterIndex + 1];
+        let targetIndex = insertAfterIndex + 1;
+        if (!isEmptyTextBlock(nextBlock)) {
+          const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" });
+          const inserted = insertBlockAfter(current, insertAfterIndex, textBlock);
+          setBlocks(inserted);
+          targetIndex = insertAfterIndex + 1;
+        }
+        const newBlock = createDocBlockFromSlash(parsed);
+        const next = replaceBlocksFromSlashInText(
+          blocksRef.current,
+          targetIndex,
+          blocksRef.current[targetIndex]?.text || "",
+          newBlock,
+        );
+        finalizeSlashInsert(next, newBlock.id);
+        return;
+      }
+    }
+
+    let targetIndex = current.length - 1;
+    if (targetIndex < 0) return;
+
+    if (!isEmptyTextBlock(current[targetIndex])) {
+      const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" });
+      const inserted = insertBlockAfter(current, targetIndex, textBlock);
+      setBlocks(inserted);
+      targetIndex += 1;
+    }
+
+    const newBlock = createDocBlockFromSlash(parsed);
+    const next = replaceBlocksFromSlashInText(
+      blocksRef.current,
+      targetIndex,
+      blocksRef.current[targetIndex]?.text || "",
+      newBlock,
+    );
+    finalizeSlashInsert(next, newBlock.id);
+  };
+
   const isTextHiddenByParentCollapse = (index) => {
-    const ownerIndex = getOwningScheduleBlockIndexForText(blocks, index);
+    const blocksList = blocksRef.current;
+    const ownerIndex = getOwningScheduleBlockIndexForText(blocksList, index);
     if (ownerIndex < 0) return false;
-    const ownerBlock = blocks[ownerIndex];
+    const ownerBlock = blocksList[ownerIndex];
     if (!showScheduleForBlock(ownerBlock)) return false;
     return Boolean(collapsedContentByBlockId[ownerBlock.id]);
+  };
+
+  const focusPadTextarea = (blockId, caretPos = 0) => {
+    const attempt = (tries = 0) => {
+      requestAnimationFrame(() => {
+        const input = document.querySelector(
+          `[data-collapsed-write-field="${blockId}"] textarea`,
+        );
+        if (!input && tries < 12) {
+          attempt(tries + 1);
+          return;
+        }
+        if (!input || !("focus" in input)) {
+          // #region agent log
+          debugLog("DocBlockStack.jsx:focusPadTextarea", "no-input", {
+            blockId,
+            tries,
+            runId: "post-fix-v4",
+          }, "B");
+          // #endregion
+          return;
+        }
+        input.focus({ preventScroll: true });
+        if ("setSelectionRange" in input) {
+          const pos = caretPos ?? input.value.length;
+          input.setSelectionRange(pos, pos);
+        }
+        // #region agent log
+        debugLog("DocBlockStack.jsx:focusPadTextarea", "focused", {
+          blockId,
+          valueLen: input.value?.length ?? 0,
+          clientHeight: input.clientHeight,
+          runId: "post-fix-v4",
+        }, "B");
+        // #endregion
+      });
+    };
+    attempt();
   };
 
   const focusBlockCaret = (blockId, caretPos = null) => {
     if (!blockId) return;
     onFocusBlock?.(blockId);
+    if (isCollapsedPadWriteBlock(blockId)) {
+      focusPadTextarea(blockId, caretPos ?? 0);
+      return;
+    }
     const attempt = (tries = 0) => {
       requestAnimationFrame(() => {
         const el = document.querySelector(`[data-block-id="${blockId}"]`);
@@ -83,12 +377,32 @@ export function DocBlockStack({
           attempt(tries + 1);
           return;
         }
-        if (!input || !("focus" in input)) return;
+        if (!input || !("focus" in input)) {
+          // #region agent log
+          debugLog("DocBlockStack.jsx:focusBlockCaret", "no-input", {
+            blockId,
+            tries,
+            itemHidden: el?.closest(".doc-block-stack__item")?.hasAttribute("hidden"),
+          }, "B");
+          // #endregion
+          return;
+        }
         input.focus({ preventScroll: true });
         if ("setSelectionRange" in input) {
           const pos = caretPos ?? input.value.length;
           input.setSelectionRange(pos, pos);
         }
+        // #region agent log
+        debugLog("DocBlockStack.jsx:focusBlockCaret", "focused", {
+          blockId,
+          tag: input.tagName,
+          valueLen: input.value?.length ?? 0,
+          clientHeight: input.clientHeight,
+          scrollHeight: input.scrollHeight,
+          activeTag: document.activeElement?.tagName,
+          activeClass: document.activeElement?.className,
+        }, "B,D");
+        // #endregion
       });
     };
     attempt();
@@ -106,16 +420,61 @@ export function DocBlockStack({
     onEnterNewLine?.();
   };
 
+  const resyncOwnedTextHeights = (ownerIndex) => {
+    const owned = getOwnedTextBlockIndices(blocksRef.current, ownerIndex);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        owned.forEach((textIndex) => {
+          const blockId = blocksRef.current[textIndex]?.id;
+          if (!blockId) return;
+          const textarea = document.querySelector(
+            `[data-block-id="${blockId}"] textarea`,
+          );
+          if (!textarea) return;
+          textarea.style.height = "auto";
+          const scrollHeight = textarea.scrollHeight;
+          const maxHeight = Number.parseInt(
+            getComputedStyle(textarea).maxHeight,
+            10,
+          );
+          const cap = Number.isFinite(maxHeight) && maxHeight > 0 ? maxHeight : 520;
+          const next = Math.min(scrollHeight, cap);
+          textarea.style.height = `${Math.max(next, 28)}px`;
+          textarea.style.overflowY = scrollHeight > cap ? "auto" : "hidden";
+        });
+      });
+    });
+  };
+
   useEffect(() => {
     if (!focusBlockId) return;
+    if (isCollapsedPadWriteBlock(focusBlockId)) {
+      focusPadTextarea(focusBlockId);
+      return;
+    }
+    const currentBlocks = blocksRef.current;
+    const focusIndex = currentBlocks.findIndex((b) => b.id === focusBlockId);
+    if (focusIndex >= 0 && isTextHiddenByParentCollapse(focusIndex)) {
+      return;
+    }
     focusBlockCaret(focusBlockId);
-  }, [focusBlockId, blocks.length]);
+  }, [focusBlockId, blocks.length, collapsedContentByBlockId, collapsedPadWriteByOwnerId]);
+
+  useLayoutEffect(() => {
+    Object.entries(collapsedPadWriteByOwnerId).forEach(([ownerId, entry]) => {
+      if (!collapsedContentByBlockId[ownerId] || focusBlockId !== entry?.blockId) return;
+      focusPadTextarea(entry.blockId);
+    });
+  }, [collapsedPadWriteByOwnerId, collapsedContentByBlockId, focusBlockId, blocks.length]);
 
   useLayoutEffect(() => {
     requestContentGrow();
-  }, [collapsedContentByBlockId]);
+  }, [collapsedContentByBlockId, collapsedPadWriteByOwnerId]);
 
-  const setBlocks = (next) => onBlocksChange?.(next);
+  const setBlocks = (next) => {
+    blocksRef.current = next;
+    onBlocksChange?.(next);
+  };
 
   const updateAt = (index, patch) => {
     setBlocks(updateBlockAt(blocksRef.current, index, patch));
@@ -146,7 +505,8 @@ export function DocBlockStack({
     openNode?.(index, fresh);
   };
 
-  const insertTextAfter = (index, initialText = "", sourceBlocks = null) => {
+  const insertTextAfter = (index, initialText = "", sourceBlocks = null, options = {}) => {
+    const { skipFocus = false } = options;
     const current = sourceBlocks ?? blocksRef.current;
     const nextBlock = current[index + 1];
     const h1Index = current[index]?.type === DOC_BLOCK_TYPES.H1 ? index : -1;
@@ -157,9 +517,11 @@ export function DocBlockStack({
         setBlocks(next);
         if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, initialText);
       } else {
-        setBlocks(current);
+        setBlocks([...current]);
       }
-      focusBlockCaret(nextBlock.id, initialText ? initialText.length : 0);
+      if (!skipFocus) {
+        focusBlockCaret(nextBlock.id, initialText ? initialText.length : 0);
+      }
       requestContentGrow();
       return nextBlock.id;
     }
@@ -168,8 +530,10 @@ export function DocBlockStack({
     const next = insertBlockAfter(current, index, textBlock);
     setBlocks(next);
     if (h1Index >= 0 && initialText) onAnswerBelowH1Change?.(h1Index, initialText);
-    onFocusBlock?.(textBlock.id);
-    focusBlockCaret(textBlock.id, initialText.length);
+    if (!skipFocus) {
+      onFocusBlock?.(textBlock.id);
+      focusBlockCaret(textBlock.id, initialText.length);
+    }
     requestContentGrow();
     return textBlock.id;
   };
@@ -290,6 +654,14 @@ export function DocBlockStack({
     }
 
     if (isEmpty && currentBlocks.length > 1) {
+      const ownerIndex = getOwningScheduleBlockIndexForText(currentBlocks, blockIndex);
+      const ownerBlock = ownerIndex >= 0 ? currentBlocks[ownerIndex] : null;
+      if (
+        ownerBlock
+        && collapsedPadWriteByOwnerId[ownerBlock.id]?.blockId === block.id
+      ) {
+        clearCollapsedPadWrite(ownerBlock.id);
+      }
       e.preventDefault();
       const prevId = blockIndex > 0 ? currentBlocks[blockIndex - 1]?.id : null;
       const h1Index = getH1IndexForTextBlock(currentBlocks, blockIndex);
@@ -475,19 +847,82 @@ export function DocBlockStack({
     onBodyKeyDown?.(e);
   };
 
+  useImperativeHandle(ref, () => ({
+    insertSlashCommand: insertSlashCommandAtFocus,
+  }));
+
   return (
     <div className="doc-block-stack">
       {blocks.map((block, index) => {
         const itemHidden =
           block.type === DOC_BLOCK_TYPES.TEXT && isTextHiddenByParentCollapse(index);
+        const ownerIndexForBlock =
+          block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO
+            ? index
+            : -1;
+        const padWrite = collapsedPadWriteByOwnerId[block.id] ?? null;
+        const collapsedActiveWriteId = padWrite?.blockId ?? null;
+        const showCollapsedWriteClick =
+          ownerIndexForBlock >= 0
+          && showScheduleForBlock(block)
+          && !isContentExpanded(block.id)
+          && !collapsedActiveWriteId;
+        const showCollapsedWritePad =
+          (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
+          && showScheduleForBlock(block)
+          && !isContentExpanded(block.id)
+          && (showCollapsedWriteClick || Boolean(collapsedActiveWriteId));
+        const collapsedWriteIndex = collapsedActiveWriteId
+          ? resolveBlockIndexById(collapsedActiveWriteId)
+          : -1;
+        const collapsedWriteBlock = collapsedActiveWriteId
+          ? resolveBlockById(collapsedActiveWriteId)
+          : null;
+
+        if (block.type === DOC_BLOCK_TYPES.TEXT && !itemHidden) {
+          const ownerIdx = getOwningScheduleBlockIndexForText(blocks, index);
+          const ownerId = ownerIdx >= 0 ? blocks[ownerIdx]?.id : null;
+          // #region agent log
+          debugLog("DocBlockStack.jsx:renderText", "visible-text", {
+            blockId: block.id,
+            index,
+            textLen: (block.text || "").length,
+            itemHidden,
+            isActiveWrite: ownerId
+              ? collapsedPadWriteByOwnerId[ownerId]?.blockId === block.id
+              : false,
+            collapsed: ownerId ? Boolean(collapsedContentByBlockId[ownerId]) : false,
+            runId: "post-fix-v4",
+          }, "A,C");
+          // #endregion
+        }
+
+        if (
+          (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
+          && showScheduleForBlock(block)
+        ) {
+          // #region agent log
+          debugLog("DocBlockStack.jsx:renderOwner", "schedule-owner", {
+            blockId: block.id,
+            type: block.type,
+            collapsed: Boolean(collapsedContentByBlockId[block.id]),
+            showCollapsedWriteClick,
+            showCollapsedWritePad,
+            activeWrite: collapsedActiveWriteId,
+            collapsedWriteIndex,
+            hasWriteBlock: Boolean(collapsedWriteBlock),
+            runId: "post-fix-v4",
+          }, "F");
+          // #endregion
+        }
 
         return (
+        <Fragment key={block.id}>
         <div
           className={
             "doc-block-stack__item"
             + (itemHidden ? " doc-block-stack__item--content-collapsed" : "")
           }
-          key={block.id}
           data-block-id={block.id}
           hidden={itemHidden}
         >
@@ -498,7 +933,10 @@ export function DocBlockStack({
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={blockLinkColor(block)}
               linksEnabled={blockLinksEnabled(block)}
-              onFocus={() => onFocusBlock?.(block.id)}
+              onFocus={() => {
+                if (collapsedPadWriteByOwnerId[block.id]) return;
+                onFocusBlock?.(block.id);
+              }}
               anchorFromNode={Boolean(block.anchorFromNode)}
               anchorDate={block.anchorDate || ""}
               anchorTime={block.anchorTime || ""}
@@ -564,7 +1002,10 @@ export function DocBlockStack({
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={blockLinkColor(block)}
               linksEnabled={blockLinksEnabled(block)}
-              onFocus={() => onFocusBlock?.(block.id)}
+              onFocus={() => {
+                if (collapsedPadWriteByOwnerId[block.id]) return;
+                onFocusBlock?.(block.id);
+              }}
               anchorFromNode={Boolean(block.anchorFromNode)}
               anchorDate={block.anchorDate || ""}
               anchorTime={block.anchorTime || ""}
@@ -589,26 +1030,87 @@ export function DocBlockStack({
             />
           ) : null}
 
-          {block.type === DOC_BLOCK_TYPES.TEXT ? (
+          {block.type === DOC_BLOCK_TYPES.TEXT && !isCollapsedPadWriteBlock(block.id) ? (
             <TextBlockView
               value={block.text || ""}
               onChange={(text) => {
                 updateAt(index, { text });
                 const h1Index = getH1IndexForTextBlock(blocks, index);
-                if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, text);
+                const ownerBlock = h1Index >= 0 ? blocks[h1Index] : null;
+                const parentCollapsed = ownerBlock
+                  && collapsedContentByBlockId[ownerBlock.id];
+                if (h1Index >= 0 && !parentCollapsed) {
+                  onAnswerBelowH1Change?.(h1Index, text);
+                }
               }}
               placeholder={bodyPlaceholder}
               showPlaceholder={index === 0 && blocks.length === 1}
-              autoFocus={focusBlockId === block.id}
+              autoFocus={focusBlockId === block.id && !itemHidden}
               maxHeightPx={520}
-              onFocus={() => onFocusBlock?.(block.id)}
+              onFocus={() => {
+                // #region agent log
+                debugLog("DocBlockStack.jsx:textFocus", "textarea-focus", {
+                  blockId: block.id,
+                  textLen: (block.text || "").length,
+                }, "B");
+                // #endregion
+                onFocusBlock?.(block.id);
+              }}
               onKeyDown={(e) => handleTextKeyDown(index, e)}
               onAfterInput={requestContentGrow}
             />
           ) : null}
         </div>
+        {showCollapsedWritePad ? (
+          <div
+            className="doc-block-stack__item doc-collapsed-write-pad"
+            data-collapsed-write-for={block.id}
+          >
+            {showCollapsedWriteClick ? (
+              <CollapsedWriteClickZone
+                onActivate={() => beginCollapsedWrite(index)}
+                placeholder="Click to write…"
+              />
+            ) : collapsedActiveWriteId ? (
+              <div data-collapsed-write-field={collapsedActiveWriteId}>
+                <TextBlockView
+                  value={collapsedWriteBlock?.text || ""}
+                  onChange={(text) => {
+                    const writeIndex = blocksRef.current.findIndex(
+                      (b) => b.id === collapsedActiveWriteId,
+                    );
+                    if (writeIndex >= 0) updateAt(writeIndex, { text });
+                  }}
+                  placeholder=""
+                  showPlaceholder={false}
+                  autoFocus
+                  maxHeightPx={520}
+                  onFocus={() => {
+                    // #region agent log
+                    debugLog("DocBlockStack.jsx:padTextFocus", "textarea-focus", {
+                      blockId: collapsedActiveWriteId,
+                      writeIndex: collapsedWriteIndex,
+                      textLen: (collapsedWriteBlock?.text || "").length,
+                      runId: "post-fix-v4",
+                    }, "B");
+                    // #endregion
+                    onFocusBlock?.(collapsedActiveWriteId);
+                  }}
+                  onKeyDown={(e) => {
+                    const writeIndex = blocksRef.current.findIndex(
+                      (b) => b.id === collapsedActiveWriteId,
+                    );
+                    if (writeIndex >= 0) handleTextKeyDown(writeIndex, e);
+                  }}
+                  onAfterInput={requestContentGrow}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        </Fragment>
         );
       })}
     </div>
   );
-}
+});
