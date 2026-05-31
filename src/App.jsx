@@ -15,6 +15,7 @@ import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
+import { isContentDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 
 const DOC_CHILD_OFFSET_X = 248;
 const DOC_CHILD_ROW_STEP = 88;
@@ -261,6 +262,15 @@ function Dashboard({ company, onBack }) {
       title: (doc.title || "DOCUMENT").toUpperCase().slice(0, 20),
       dataType: "document",
       content: doc.body || doc.content || "",
+      ...(isContentDoc(doc)
+        ? {
+            linkedProductCategories: resolveLinkedProductCategories(
+              useDocsStore.getState().docs,
+              doc.subcategoryDocIds,
+            ),
+            contentCategory: doc.category?.trim() || "",
+          }
+        : {}),
     });
     occupied.push({ x, y });
 

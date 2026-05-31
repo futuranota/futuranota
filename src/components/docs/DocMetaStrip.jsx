@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { getToday } from "../../data.jsx";
 import { formatCampaignLabel, formatWindowDays } from "../../lib/docMetaBar.js";
 import { formatMmDdYy, isoFromDateInput } from "../../lib/docDates.js";
-import { resolveSubcategoryLines } from "../../lib/templateDoc.js";
+import { resolveSubcategoryLines, resolveLinkedProductCategories } from "../../lib/templateDoc.js";
 import { NodeLinkColorPicker } from "./blocks/NodeLinkColorPicker.jsx";
 import { SubcategoryField } from "./SubcategoryField.jsx";
+import { ProductCategorySubcategoryField } from "./ProductCategorySubcategoryField.jsx";
 import { ProductVersionField } from "./ProductVersionField.jsx";
 
 function openDatePicker(e) {
@@ -55,7 +56,7 @@ function MetaChip({
   );
 }
 
-function ProductCategoryField({ value, onChange }) {
+function ProductCategoryField({ value, onChange, placeholder = "Type product category" }) {
   const [editing, setEditing] = useState(false);
   const inputRef = useRef(null);
   const trimmed = value.trim();
@@ -103,7 +104,7 @@ function ProductCategoryField({ value, onChange }) {
                 setEditing(false);
               }
             }}
-            placeholder={trimmed ? "Edit product category" : "Type product category"}
+            placeholder={trimmed ? "Edit category" : placeholder}
             spellCheck={false}
           />
         ) : null}
@@ -143,22 +144,35 @@ export function DocMetaStrip({
   onNodeLinkColorChange,
   objects = null,
   showCampaignMeta = false,
+  metaMode = "campaign",
 }) {
   const [expanded, setExpanded] = useState(false);
+  const isProductMode = metaMode === "product";
+  const isContentMode = metaMode === "content";
+  const isLegacyCampaign = metaMode === "campaign" && showCampaignMeta;
+  const showMetaFields = isProductMode || isContentMode || isLegacyCampaign;
   const launchIso = launchDate ? isoFromDateInput(launchDate) : null;
   const today = getToday();
   const windowSummary = formatWindowDays(today, launchIso);
   const parentObject = resolveParentObject(objects, parentId);
   const brandSummary = parentObject?.brand?.trim() || brandLabel?.trim() || null;
-  const showSubcategories = Boolean(onSubcategoryDocIdsChange && allDocs);
-  const subcategoryLines = showSubcategories
+  const showLegacySubcategories = isLegacyCampaign && Boolean(onSubcategoryDocIdsChange && allDocs);
+  const showProductSubcategories = isContentMode && Boolean(onSubcategoryDocIdsChange && allDocs);
+  const subcategoryLines = showLegacySubcategories
     ? resolveSubcategoryLines(allDocs, subcategoryDocIds)
+    : [];
+  const linkedProductLabels = isContentMode
+    ? resolveLinkedProductCategories(allDocs, subcategoryDocIds)
     : [];
   const subcategorySummary = subcategoryLines.length
     ? `${subcategoryLines.length} doc${subcategoryLines.length === 1 ? "" : "s"}`
-    : null;
+    : linkedProductLabels.length
+      ? linkedProductLabels.join(", ")
+      : isContentMode && subcategoryDocIds?.length
+        ? `${subcategoryDocIds.length} product${subcategoryDocIds.length === 1 ? "" : "s"}`
+        : null;
 
-  const campaignSummary = showCampaignMeta
+  const campaignSummary = (isLegacyCampaign || isContentMode)
     ? formatCampaignLabel(campaignActive)
     : null;
 
@@ -168,7 +182,23 @@ export function DocMetaStrip({
     <div className={"doc-meta-strip" + (expanded ? " doc-meta-strip--open" : "")}>
       <div className="doc-meta-strip__summary">
         <div className="doc-meta-strip__chips" role="list">
-          {showCampaignMeta ? (
+          {isProductMode ? (
+            <>
+              <MetaChip label="Category" value={category.trim() || null} asTag />
+              <MetaChip label="Version" value={version.trim() || null} />
+            </>
+          ) : null}
+          {isContentMode ? (
+            <>
+              <MetaChip label="Brand" value={brandSummary} />
+              <MetaChip label="Category" value={category.trim() || null} asTag />
+              <MetaChip label="Campaign" value={campaignSummary} valueLowercase />
+              <MetaChip label="Subcategories" value={subcategorySummary} />
+              <MetaChip label="Launch" value={launchFormatted || null} />
+              <MetaChip label="Window" value={windowSummary} />
+            </>
+          ) : null}
+          {isLegacyCampaign ? (
             <>
               <MetaChip label="Brand" value={brandSummary} />
               <MetaChip label="Version" value={version.trim() || null} />
@@ -176,7 +206,7 @@ export function DocMetaStrip({
               <MetaChip label="Category" value={category.trim() || null} asTag />
               <MetaChip label="Launch" value={launchFormatted || null} />
               <MetaChip label="Window" value={windowSummary} />
-              {showSubcategories ? (
+              {showLegacySubcategories ? (
                 <MetaChip label="Subcategories" value={subcategorySummary} />
               ) : null}
             </>
@@ -213,7 +243,79 @@ export function DocMetaStrip({
             />
           </label>
 
-          {showCampaignMeta ? (
+          {isProductMode ? (
+            <>
+              <ProductVersionField
+                onCommit={onVersionCommit}
+                parentId={parentId}
+                category={category}
+                allDocs={allDocs}
+                docId={docId}
+              />
+              <ProductCategoryField value={category} onChange={onCategoryChange} />
+            </>
+          ) : null}
+
+          {isContentMode ? (
+            <>
+              <div className="doc-meta-field">
+                <span className="doc-meta-field-k">Campaign</span>
+                <div className="doc-new-campaign-toggle" role="group" aria-label="Campaign status">
+                  <button
+                    type="button"
+                    className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCampaignActiveChange(true);
+                    }}
+                  >
+                    Active
+                  </button>
+                  <button
+                    type="button"
+                    className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCampaignActiveChange(false);
+                    }}
+                  >
+                    inactive
+                  </button>
+                </div>
+              </div>
+              <ProductCategoryField
+                value={category}
+                onChange={onCategoryChange}
+                placeholder="e.g. blogs"
+              />
+              <label className="doc-meta-field">
+                <span className="doc-meta-field-k">Launch</span>
+                <input
+                  type="date"
+                  className="doc-new-date doc-meta-field-input"
+                  value={launchDate}
+                  onChange={(e) => onLaunchDateChange(e.target.value)}
+                  onClick={openDatePicker}
+                  onFocus={openDatePicker}
+                />
+              </label>
+              {showProductSubcategories ? (
+                <ProductCategorySubcategoryField
+                  parentId={parentId}
+                  allDocs={allDocs}
+                  selectedDocIds={subcategoryDocIds}
+                  onChange={onSubcategoryDocIdsChange}
+                  excludeDocId={docId}
+                />
+              ) : null}
+              <div className="doc-meta-field doc-meta-field--readonly">
+                <span className="doc-meta-field-k">Window</span>
+                <span className="doc-new-meta-readonly">{windowSummary}</span>
+              </div>
+            </>
+          ) : null}
+
+          {isLegacyCampaign ? (
             <>
               <ProductVersionField
                 onCommit={onVersionCommit}
@@ -259,7 +361,7 @@ export function DocMetaStrip({
                   onFocus={openDatePicker}
                 />
               </label>
-              {showSubcategories ? (
+              {showLegacySubcategories ? (
                 <SubcategoryField
                   parentId={parentId}
                   allDocs={allDocs}
@@ -275,7 +377,7 @@ export function DocMetaStrip({
             </>
           ) : null}
 
-          {onNodeLinkColorChange ? (
+          {showMetaFields && onNodeLinkColorChange ? (
             <NodeLinkColorPicker
               variant="meta"
               value={nodeLinkColor}

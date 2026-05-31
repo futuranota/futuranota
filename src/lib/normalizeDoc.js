@@ -1,7 +1,11 @@
 import { normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import {
+  DOC_KIND_CONTENT,
+  DOC_KIND_PRODUCT,
   DOC_KIND_STANDARD,
+  DOC_KIND_TEMPLATE,
   emptyTemplateFields,
+  resolveDocKind,
 } from "./templateDoc.js";
 
 /** Default campaign/meta fields on documents. */
@@ -16,13 +20,21 @@ export function emptyDocCampaignFields() {
   };
 }
 
+function normalizeDocKind(doc) {
+  const kind = doc.docKind;
+  if (kind === DOC_KIND_TEMPLATE) return DOC_KIND_TEMPLATE;
+  if (kind === DOC_KIND_PRODUCT) return DOC_KIND_PRODUCT;
+  if (kind === DOC_KIND_CONTENT) return DOC_KIND_CONTENT;
+  return resolveDocKind(doc);
+}
+
 /** Ensure persisted docs include campaign meta fields. */
 export function normalizeDoc(doc) {
   if (!doc) return null;
   const base = emptyDocCampaignFields();
   return {
     ...doc,
-    docKind: doc.docKind === "template" ? "template" : DOC_KIND_STANDARD,
+    docKind: normalizeDocKind(doc),
     templateKind: doc.templateKind ?? base.templateKind,
     subcategoryDocIds: Array.isArray(doc.subcategoryDocIds)
       ? doc.subcategoryDocIds.filter(Boolean)

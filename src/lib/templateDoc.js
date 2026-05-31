@@ -1,5 +1,7 @@
-/** Document kind: standard product file vs campaign analysis template. */
+/** Document kind: product line, content/campaign doc, legacy standard, or template. */
 export const DOC_KIND_STANDARD = "standard";
+export const DOC_KIND_PRODUCT = "product";
+export const DOC_KIND_CONTENT = "content";
 export const DOC_KIND_TEMPLATE = "template";
 
 export const TEMPLATE_KIND_CAMPAIGN = "campaign";
@@ -21,6 +23,33 @@ export const templateSubcategoryDocIds = "subcategoryDocIds";
 
 export function isTemplateDoc(doc) {
   return doc?.docKind === DOC_KIND_TEMPLATE;
+}
+
+export function isProductDoc(doc) {
+  if (!doc) return false;
+  if (doc.docKind === DOC_KIND_PRODUCT) return true;
+  if (doc.docKind === DOC_KIND_CONTENT || doc.docKind === DOC_KIND_TEMPLATE) return false;
+  const linked = doc.subcategoryDocIds ?? doc.templateSubcategoryDocIds ?? [];
+  if (Array.isArray(linked) && linked.filter(Boolean).length > 0) return false;
+  return Boolean(doc.category?.trim());
+}
+
+export function isContentDoc(doc) {
+  if (!doc) return false;
+  if (doc.docKind === DOC_KIND_CONTENT) return true;
+  if (doc.docKind === DOC_KIND_PRODUCT || doc.docKind === DOC_KIND_TEMPLATE) return false;
+  const linked = doc.subcategoryDocIds ?? doc.templateSubcategoryDocIds ?? [];
+  return Array.isArray(linked) && linked.filter(Boolean).length > 0;
+}
+
+export function resolveDocKind(doc) {
+  if (!doc) return DOC_KIND_STANDARD;
+  if (doc.docKind === DOC_KIND_TEMPLATE) return DOC_KIND_TEMPLATE;
+  if (doc.docKind === DOC_KIND_PRODUCT) return DOC_KIND_PRODUCT;
+  if (doc.docKind === DOC_KIND_CONTENT) return DOC_KIND_CONTENT;
+  if (isContentDoc(doc)) return DOC_KIND_CONTENT;
+  if (isProductDoc(doc)) return DOC_KIND_PRODUCT;
+  return DOC_KIND_STANDARD;
 }
 
 export function templateKindLabel(templateKind) {
@@ -54,8 +83,18 @@ export function isSubcategoryLinkCandidate(doc, selectedDocIds = []) {
 function siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId = null) {
   return Object.values(allDocs || {})
     .filter((doc) => doc.parentObjectId === parentObjectId)
-    .filter((doc) => doc.docKind !== DOC_KIND_TEMPLATE)
+    .filter((doc) => !isTemplateDoc(doc))
     .filter((doc) => doc.id !== excludeDocId);
+}
+
+function productDocsUnderParent(allDocs, parentObjectId, excludeDocId = null) {
+  return siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId)
+    .filter((doc) => isProductDoc(doc));
+}
+
+function contentDocsUnderParent(allDocs, parentObjectId, excludeDocId = null) {
+  return siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId)
+    .filter((doc) => isContentDoc(doc));
 }
 
 function docHasOwnSubcategories(doc) {
@@ -127,11 +166,8 @@ export function findProductVersionDoc(allDocs, parentObjectId, category, version
   const ver = version?.trim();
   if (!parentObjectId || !cat || !ver) return null;
   return (
-    Object.values(allDocs || {}).find(
-      (doc) => doc.parentObjectId === parentObjectId
-        && doc.docKind !== DOC_KIND_TEMPLATE
-        && doc.category?.trim() === cat
-        && doc.version?.trim() === ver,
+    productDocsUnderParent(allDocs, parentObjectId).find(
+      (doc) => doc.category?.trim() === cat && doc.version?.trim() === ver,
     ) ?? null
   );
 }
@@ -140,9 +176,7 @@ export function findProductVersionDoc(allDocs, parentObjectId, category, version
 export function listProductVersionOptions(allDocs, parentObjectId, category) {
   const cat = category?.trim();
   if (!parentObjectId || !cat) return [];
-  return Object.values(allDocs || {})
-    .filter((doc) => doc.parentObjectId === parentObjectId)
-    .filter((doc) => doc.docKind !== DOC_KIND_TEMPLATE)
+  return productDocsUnderParent(allDocs, parentObjectId)
     .filter((doc) => doc.category?.trim() === cat)
     .filter((doc) => doc.version?.trim())
     .map((doc) => ({
@@ -157,12 +191,8 @@ export function findUnversionedProductDoc(allDocs, parentObjectId, category, exc
   const cat = category?.trim();
   if (!parentObjectId || !cat) return null;
   return (
-    Object.values(allDocs || {}).find(
-      (doc) => doc.id !== excludeDocId
-        && doc.parentObjectId === parentObjectId
-        && doc.docKind !== DOC_KIND_TEMPLATE
-        && doc.category?.trim() === cat
-        && !doc.version?.trim(),
+    productDocsUnderParent(allDocs, parentObjectId, excludeDocId).find(
+      (doc) => doc.category?.trim() === cat && !doc.version?.trim(),
     ) ?? null
   );
 }
@@ -235,7 +265,7 @@ export function listProductCategoryGroups(allDocs, parentObjectId) {
   if (!parentObjectId) return [];
   const byCategory = new Map();
 
-  siblingDocsUnderParent(allDocs, parentObjectId)
+  productDocsUnderParent(allDocs, parentObjectId)
     .filter((doc) => doc.category?.trim())
     .forEach((doc) => {
       const cat = doc.category.trim();
@@ -254,14 +284,63 @@ export function listProductCategoryGroups(allDocs, parentObjectId) {
     .sort((a, b) => a.category.localeCompare(b.category));
 }
 
-/** Versioned product docs (category + version) for the Campaign subfolder. */
-export function listCampaignSubcategoryDocs(allDocs, parentObjectId) {
+/** All product docs under an object (folder 1 flat list). */
+export function listProductDocs(allDocs, parentObjectId) {
   if (!parentObjectId) return [];
-  return siblingDocsUnderParent(allDocs, parentObjectId)
-    .filter((doc) => formatProductSubcategoryLine(doc))
-    .sort((a, b) => {
-      const aLabel = formatProductSubcategoryLine(a);
-      const bLabel = formatProductSubcategoryLine(b);
-      return aLabel.localeCompare(bLabel, undefined, { numeric: true });
-    });
+  return listProductCategoryGroups(allDocs, parentObjectId).flatMap((group) => group.docs);
+}
+
+/** Content docs under an object (folder 2). */
+export function listContentDocs(allDocs, parentObjectId) {
+  if (!parentObjectId) return [];
+  return contentDocsUnderParent(allDocs, parentObjectId)
+    .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+}
+
+/**
+ * One picker row per product category — links to base doc when available.
+ * @returns {{ category: string, docId: string, label: string }[]}
+ */
+export function listProductCategoryPickerOptions(allDocs, parentObjectId, excludeDocId = null) {
+  if (!parentObjectId) return [];
+  const groups = listProductCategoryGroups(allDocs, parentObjectId);
+  return groups
+    .map((group) => {
+      const base = findUnversionedProductDoc(allDocs, parentObjectId, group.category, excludeDocId);
+      const representative = base
+        || group.docs.find((doc) => doc.id !== excludeDocId)
+        || group.docs[0];
+      if (!representative || representative.id === excludeDocId) return null;
+      return {
+        category: group.category,
+        docId: representative.id,
+        label: group.category,
+      };
+    })
+    .filter(Boolean);
+}
+
+/** Product category names linked from a content doc's subcategoryDocIds. */
+export function resolveLinkedProductCategories(allDocs, subcategoryDocIds = []) {
+  const byId = allDocs || {};
+  const categories = [];
+  const seen = new Set();
+
+  for (const id of subcategoryDocIds || []) {
+    const doc = byId[id];
+    if (!doc) continue;
+    const cat = doc.category?.trim();
+    if (!cat) continue;
+    const key = cat.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    categories.push(cat);
+  }
+
+  return categories.sort((a, b) => a.localeCompare(b));
+}
+
+/** @deprecated use listContentDocs */
+export function listCampaignSubcategoryDocs(allDocs, parentObjectId) {
+  return listContentDocs(allDocs, parentObjectId);
 }

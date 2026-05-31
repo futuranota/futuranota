@@ -14,7 +14,8 @@ import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
 import {
   isTemplateDoc,
   findProductVersionDoc,
-  listProductCategoryGroups,
+  listProductDocs,
+  listContentDocs,
 } from "../../lib/templateDoc.js";
 
 function startObjectDrag(e, objectId) {
@@ -95,22 +96,6 @@ function ObjectThumb({ object, active, onClick, onDoubleClick, onDelete, onEdit 
 /* ─────────────────────────────────────────────
    Doc list card
 ───────────────────────────────────────────── */
-function ClickFolderDocRow({ label }) {
-  return (
-    <div className="lp-doc-card fn-card lp-click-folder-doc-row">
-      <div className="lp-doc-card-main lp-click-folder-doc-row-main">
-        <span className="lp-doc-drag-area lp-doc-drag-area--static" aria-hidden>⋮⋮</span>
-        <span className="lp-doc-icon">
-          <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
-        </span>
-        <div className="fn-card-body">
-          <b>{label}</b>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ClickFolderBox({ variant, onClick }) {
   return (
     <button
@@ -347,7 +332,16 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
 /* ─────────────────────────────────────────────
    MODAL: Create Document  "New File" Notion-like
 ───────────────────────────────────────────── */
-function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel, onOpenDocument }) {
+function DocCreateModal({
+  objects,
+  allDocs,
+  defaultParentId,
+  createMode = "content",
+  defaultCategory = "",
+  onSubmit,
+  onCancel,
+  onOpenDocument,
+}) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [blocks, setBlocks] = useState([]);
@@ -355,16 +349,23 @@ function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel,
   const [parentId, setParentId] = useState(fallbackParent);
   const [createdDate, setCreatedDate] = useState(todayDateInputValue);
   const [version, setVersion] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(defaultCategory);
   const [launchDate, setLaunchDate] = useState("");
   const [campaignActive, setCampaignActive] = useState(false);
   const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
   const [nodeLinkColor, setNodeLinkColor] = useState("dark");
   const titleRef = useRef(null);
+  const isProductMode = createMode === "product";
+  const metaMode = isProductMode ? "product" : "content";
+  const docKind = isProductMode ? "product" : "content";
 
   useEffect(() => {
     setParentId(fallbackParent);
   }, [fallbackParent]);
+
+  useEffect(() => {
+    setCategory(defaultCategory);
+  }, [defaultCategory]);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -372,6 +373,16 @@ function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel,
   }, []);
 
   const parentObject = objects.find((o) => o.id === parentId);
+
+  const handleTitleChange = (value) => {
+    setTitle(value);
+    if (isProductMode) setCategory(value);
+  };
+
+  const handleCategoryChange = (value) => {
+    setCategory(value);
+    if (isProductMode) setTitle(value);
+  };
 
   const {
     onOpenNodeForBlock,
@@ -408,7 +419,13 @@ function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel,
   };
 
   const submitDoc = () => {
-    const finalTitle = title.trim() || "New document";
+    const trimmedCategory = category.trim();
+    const finalTitle = isProductMode
+      ? (title.trim() || trimmedCategory || "New product")
+      : (title.trim() || "New document");
+    const finalCategory = isProductMode
+      ? (trimmedCategory || finalTitle)
+      : trimmedCategory;
     const autoTags = parentObject?.name ? [parentObject.name] : [];
     const serializedBody = docBlocksToBody(blocks) || body;
     onSubmit({
@@ -419,11 +436,12 @@ function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel,
       blocks,
       createdAt: isoFromDateInput(createdDate),
       version: version.trim(),
-      category: category.trim(),
+      category: finalCategory,
       launchAt: launchDate ? isoFromDateInput(launchDate) : null,
       campaignActive,
       subcategoryDocIds,
       nodeLinkColor,
+      docKind,
     });
   };
 
@@ -432,8 +450,9 @@ function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel,
       <div className="lp-modal doc-new-modal" onClick={(e) => e.stopPropagation()}>
         <DocDocumentBox
           title={title}
-          onTitleChange={setTitle}
+          onTitleChange={handleTitleChange}
           titleRef={titleRef}
+          titlePlaceholder={isProductMode ? "Product's name" : "Write your description"}
           body={body}
           onBodyChange={setBody}
           blocks={blocks}
@@ -444,7 +463,7 @@ function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel,
           onVersionChange={setVersion}
           onVersionCommit={handleVersionCommit}
           category={category}
-          onCategoryChange={setCategory}
+          onCategoryChange={handleCategoryChange}
           launchDate={launchDate}
           onLaunchDateChange={setLaunchDate}
           campaignActive={campaignActive}
@@ -457,6 +476,8 @@ function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel,
           parentId={parentId}
           onParentIdChange={setParentId}
           objects={objects}
+          docKind={docKind}
+          metaMode={metaMode}
           onDelete={onCancel}
           onSave={submitDoc}
           onCloseExpand={onCancel}
@@ -610,13 +631,13 @@ export function LeftPanel({
   const filterObject = filterObjectId ? objects[filterObjectId] : null;
   const filterDoc = filterDocId ? docs[filterDocId] : null;
 
-  const productCategoryGroups = useMemo(
-    () => (filterObjectId ? listProductCategoryGroups(docs, filterObjectId) : []),
+  const productDocs = useMemo(
+    () => (filterObjectId ? listProductDocs(docs, filterObjectId) : []),
     [docs, filterObjectId],
   );
-  const productBGroup = useMemo(
-    () => productCategoryGroups.find((group) => group.category.toLowerCase() === "product b"),
-    [productCategoryGroups],
+  const contentDocs = useMemo(
+    () => (filterObjectId ? listContentDocs(docs, filterObjectId) : []),
+    [docs, filterObjectId],
   );
 
   useEffect(() => {
@@ -738,9 +759,13 @@ export function LeftPanel({
   const folderLabel = `${panelType.slice(0, -1).toLowerCase()} : ${folderScopeLabel}`;
 
   const handleNewByFolder = () => {
+    if (panelType === "Documents" && !clickFolderView) return;
     setShowCreate(true);
     setFolderOpen(false);
   };
+
+  const newDisabled = panelType === "Documents" && !clickFolderView;
+  const docCreateMode = clickFolderView === "groups" ? "product" : "content";
 
   const commitPreviewType = () => {
     if (panelType !== previewPanelType) {
@@ -922,6 +947,8 @@ export function LeftPanel({
             type="button"
             className="lp-new-btn"
             onClick={handleNewByFolder}
+            disabled={newDisabled}
+            title={newDisabled ? "Open a folder first" : undefined}
             aria-label={`Create new ${panelType.slice(0, -1).toLowerCase()}`}
           >
             <span className="lp-new-label">+ new</span>
@@ -974,10 +1001,10 @@ export function LeftPanel({
 
             {clickFolderView === "groups" ? (
               <div className="lp-click-folder-detail">
-                <ClickFolderBack onBack={() => setClickFolderView(null)} label="product b" lowercase />
+                <ClickFolderBack onBack={() => setClickFolderView(null)} label="Products" />
                 <div className="lp-click-folder-detail-list">
-                  {productBGroup?.docs?.length ? (
-                    productBGroup.docs.map((doc) => (
+                  {productDocs.length ? (
+                    productDocs.map((doc) => (
                       <DocListCard
                         key={doc.id}
                         doc={doc}
@@ -988,10 +1015,10 @@ export function LeftPanel({
                       />
                     ))
                   ) : (
-                    <>
-                      <ClickFolderDocRow label="product b" />
-                      <ClickFolderDocRow label="product b 1.0" />
-                    </>
+                    <div className="lp-empty">
+                      <p className="dim">No products yet</p>
+                      <p className="dim">Use + new to create a product</p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -999,9 +1026,25 @@ export function LeftPanel({
 
             {clickFolderView === "subgroups" ? (
               <div className="lp-click-folder-detail">
-                <ClickFolderBack onBack={() => setClickFolderView(null)} label="Campaign" />
+                <ClickFolderBack onBack={() => setClickFolderView(null)} label="Content" />
                 <div className="lp-click-folder-detail-list">
-                  <ClickFolderDocRow label="Campaign" />
+                  {contentDocs.length ? (
+                    contentDocs.map((doc) => (
+                      <DocListCard
+                        key={doc.id}
+                        doc={doc}
+                        objects={objects}
+                        onClick={() => handleOpenFolderDoc(doc.id)}
+                        onExpand={() => handleOpenFolderDoc(doc.id)}
+                        onDelete={() => handleDeleteDoc(doc)}
+                      />
+                    ))
+                  ) : (
+                    <div className="lp-empty">
+                      <p className="dim">No content docs yet</p>
+                      <p className="dim">Use + new to create content</p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}
@@ -1085,6 +1128,7 @@ export function LeftPanel({
           objects={objList}
           allDocs={docs}
           defaultParentId={filterObjectId || ""}
+          createMode={docCreateMode}
           onSubmit={handleCreate}
           onCancel={() => setShowCreate(false)}
           onOpenDocument={onOpenDocument}

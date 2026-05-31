@@ -4,6 +4,8 @@ import { normalizeDoc } from "./normalizeDoc.js";
 import {
   formatProductSubcategoryLine,
   resolveSubcategoryLines,
+  isContentDoc,
+  resolveLinkedProductCategories,
 } from "./templateDoc.js";
 
 export { emptyDocCampaignFields } from "./normalizeDoc.js";
@@ -81,13 +83,19 @@ export function buildMetaBarFromDoc({
       : null;
   const launchDate = parseLaunchDate(normalized.launchAt);
   const brandFromDoc = parent?.brand?.trim() || null;
+  const linkedProducts = isContentDoc(normalized)
+    ? resolveLinkedProductCategories(allDocs, normalized.subcategoryDocIds)
+    : null;
+  const subcategoriesDisplay = linkedProducts?.length
+    ? linkedProducts.join(", ")
+    : formatSubcategoriesDisplay(allDocs, normalized.subcategoryDocIds);
 
   return {
     corpus,
     brand: brandFromSelection || brandFromDoc,
     product: formatProductSubcategoryLine(normalized),
     campaign: formatCampaignLabel(normalized.campaignActive),
-    subcategories: formatSubcategoriesDisplay(allDocs, normalized.subcategoryDocIds),
+    subcategories: subcategoriesDisplay,
     launch: launchDate ? formatMmDdYy(launchDate) : null,
     window: formatWindowDays(today, normalized.launchAt),
   };

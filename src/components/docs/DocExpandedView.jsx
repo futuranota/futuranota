@@ -18,6 +18,9 @@ import {
   listProductVersionOptions,
   resolveDocAfterVersionDelete,
   buildProductDeleteConfirmMessage,
+  resolveDocKind,
+  DOC_KIND_PRODUCT,
+  DOC_KIND_CONTENT,
 } from "../../lib/templateDoc.js";
 import { DocDocumentBox } from "./DocDocumentBox.jsx";
 import {
@@ -223,6 +226,17 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
     subcategoryDocIds: draftSubcategoryDocIds,
   });
   const isTemplate = isTemplateDoc({ docKind: draftDocKind });
+  const resolvedKind = resolveDocKind({
+    docKind: draftDocKind,
+    category: draftCategory,
+    subcategoryDocIds: draftSubcategoryDocIds,
+  });
+  const metaMode = resolvedKind === DOC_KIND_PRODUCT
+    ? "product"
+    : resolvedKind === DOC_KIND_CONTENT
+      ? "content"
+      : "campaign";
+  const isProductMode = metaMode === "product";
   const hasUnsavedChanges = initialSnapshot
     ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
     : false;
@@ -712,8 +726,10 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
           title={draftTitle}
           onTitleChange={(v) => {
             setDraftTitle(v);
+            if (isProductMode) setDraftCategory(v);
             setDocSavedHint(false);
           }}
+          titlePlaceholder={isProductMode ? "Product's name" : "Write your description"}
           body={draftBody}
           onBodyChange={(v) => {
             setDraftBody(v);
@@ -738,6 +754,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
           category={isTemplate ? "" : draftCategory}
           onCategoryChange={isTemplate ? undefined : (v) => {
             setDraftCategory(v);
+            if (isProductMode) setDraftTitle(v);
             setDocSavedHint(false);
           }}
           launchDate={isTemplate ? "" : draftLaunchDate}
@@ -756,6 +773,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
             setDocSavedHint(false);
           }}
           docKind={draftDocKind}
+          metaMode={metaMode}
           templateKind={draftTemplateKind}
           subcategoryDocIds={draftSubcategoryDocIds}
           onSubcategoryDocIdsChange={(ids) => {
