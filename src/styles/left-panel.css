@@ -704,6 +704,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  --obj-pie-light: #ffcf97;
+  --obj-pie-dark: #8b7051;
   background: linear-gradient(
     145deg,
     rgb(22, 26, 29) 0%,
@@ -721,15 +723,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 0 2px;
+  padding: 14px 0 0;
+}
+
+.obj-create-illustration {
+  display: block;
+  width: 136px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .obj-create-title {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   color: #9fa1a6;
   margin: 0 0 8px;
+  text-transform: none;
 }
 
 .obj-create-actions {
@@ -749,9 +761,12 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
 }
 
-.obj-create-actions .btn.primary.obj-create-save:hover:not(:disabled) {
-  background: linear-gradient(180deg, #f8d4c9 0%, #e0bdb0 100%);
+.obj-create-actions .btn.primary.obj-create-save:hover:not(:disabled),
+.obj-create-actions .btn.primary.obj-create-save:active:not(:disabled) {
+  background: linear-gradient(180deg, var(--obj-pie-light) 0%, var(--obj-pie-dark) 100%);
+  border-color: color-mix(in oklab, var(--obj-pie-light) 55%, transparent);
   color: #1c1513;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--obj-pie-light) 22%, transparent) inset;
 }
 
 .obj-name-input,
@@ -761,9 +776,9 @@
 }
 
 .obj-create-modal .note-form-field:focus {
-  border-color: #dcb2a6;
+  border-color: var(--obj-pie-light);
   background: var(--panel-solid);
-  box-shadow: 0 0 0 1px color-mix(in oklab, #dcb2a6 28%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--obj-pie-dark) 42%, transparent);
 }
 
 /* Doc / node modals — Figma 291:494 (datos) */

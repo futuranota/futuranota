@@ -166,6 +166,8 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
 /* ─────────────────────────────────────────────
    MODAL: Create Object  "CREATE YOUR MODEL"
 ───────────────────────────────────────────── */
+const CREATE_BUSINESS_ILLUSTRATION = "/uploads/botones/create-business-name.svg";
+
 function ObjectCreateModal({ onSubmit, onCancel }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -184,11 +186,16 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
         <button type="button" className="lp-modal-close btn xs ghost" onClick={onCancel}>✕</button>
 
         <div className="obj-create-preview-row">
-          <ObjectIcon variant="lg" />
+          <img
+            src={CREATE_BUSINESS_ILLUSTRATION}
+            alt=""
+            className="obj-create-illustration"
+            draggable={false}
+          />
         </div>
 
         <div>
-          <h3 className="obj-create-title">CREATE OBJECT</h3>
+          <h3 className="obj-create-title">Insert business reference</h3>
           <input
             ref={ref}
             className="note-form-field obj-name-input"
