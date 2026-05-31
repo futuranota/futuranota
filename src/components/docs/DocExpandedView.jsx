@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
+import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { Modal } from "../shared/Modal.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
@@ -11,7 +12,13 @@ import {
   launchDateInputFromIso,
 } from "../../lib/docDates.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
-import { isTemplateDoc } from "../../lib/templateDoc.js";
+import {
+  isTemplateDoc,
+  findProductVersionDoc,
+  listProductVersionOptions,
+  resolveDocAfterVersionDelete,
+  buildProductDeleteConfirmMessage,
+} from "../../lib/templateDoc.js";
 import { DocDocumentBox } from "./DocDocumentBox.jsx";
 import {
   docBlocksFromBody,
@@ -64,10 +71,11 @@ function buildDocPersistSnapshot({
   nodeLinkColor = "dark",
   docKind = "standard",
   templateKind = null,
-  templateSubcategoryDocIds = [],
+  subcategoryDocIds = [],
 }) {
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const serializedBody = docBlocksToBody(normalizedBlocks) || body || "";
+  const ids = Array.isArray(subcategoryDocIds) ? subcategoryDocIds : [];
   return {
     title: title ?? "",
     blocks: normalizedBlocks,
@@ -81,15 +89,15 @@ function buildDocPersistSnapshot({
     nodeLinkColor: nodeLinkColor ?? "dark",
     docKind: docKind ?? "standard",
     templateKind: templateKind ?? null,
-    templateSubcategoryDocIds: Array.isArray(templateSubcategoryDocIds)
-      ? templateSubcategoryDocIds
-      : [],
+    subcategoryDocIds: ids,
+    templateSubcategoryDocIds: ids,
   };
 }
 
-export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
+export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateToDoc }) {
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
+  const addDoc = useDocsStore((s) => s.addDoc);
   const linkDocToObject = useDocsStore((s) => s.linkDocToObject);
   const deleteDoc = useDocsStore((s) => s.deleteDoc);
   const addNodeFromDoc = useNodesStore((s) => s.addNodeFromDoc);
@@ -112,7 +120,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
   const [draftParentId, setDraftParentId] = useState("");
   const [draftDocKind, setDraftDocKind] = useState("standard");
   const [draftTemplateKind, setDraftTemplateKind] = useState(null);
-  const [draftTemplateSubcategoryDocIds, setDraftTemplateSubcategoryDocIds] = useState([]);
+  const [draftSubcategoryDocIds, setDraftSubcategoryDocIds] = useState([]);
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
@@ -122,6 +130,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
   const [docSavedHint, setDocSavedHint] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
+  const [pendingNavigateDocId, setPendingNavigateDocId] = useState(null);
   const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
   const nodeAutosaveTimerRef = useRef(null);
   const objects = useObjectsStore((s) => s.objects);
@@ -146,7 +155,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
     setDraftParentId(doc.parentObjectId ?? "");
     setDraftDocKind(normalized.docKind ?? "standard");
     setDraftTemplateKind(normalized.templateKind ?? null);
-    setDraftTemplateSubcategoryDocIds(normalized.templateSubcategoryDocIds ?? []);
+    setDraftSubcategoryDocIds(normalized.subcategoryDocIds ?? []);
     setNodeSavedHint(false);
     setDocSavedHint(false);
     setInitialSnapshot(
@@ -163,10 +172,33 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
         nodeLinkColor: normalized.nodeLinkColor ?? "dark",
         docKind: normalized.docKind ?? "standard",
         templateKind: normalized.templateKind ?? null,
-        templateSubcategoryDocIds: normalized.templateSubcategoryDocIds ?? [],
+        subcategoryDocIds: normalized.subcategoryDocIds ?? [],
       }),
     );
   }, [docId]);
+
+  useEffect(() => {
+    if (!docId) return undefined;
+    const launchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
+    useUIStateStore.getState().setActiveDocMetaDraft({
+      docId,
+      version: draftVersion,
+      category: draftCategory,
+      launchAt,
+      campaignActive: draftCampaignActive,
+      subcategoryDocIds: draftSubcategoryDocIds,
+      parentObjectId: draftParentId || "",
+    });
+    return () => useUIStateStore.getState().clearActiveDocMetaDraft();
+  }, [
+    docId,
+    draftVersion,
+    draftCategory,
+    draftLaunchDate,
+    draftCampaignActive,
+    draftSubcategoryDocIds,
+    draftParentId,
+  ]);
 
   if (!doc) return null;
 
@@ -188,7 +220,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
     nodeLinkColor: draftNodeLinkColor,
     docKind: draftDocKind,
     templateKind: draftTemplateKind,
-    templateSubcategoryDocIds: draftTemplateSubcategoryDocIds,
+    subcategoryDocIds: draftSubcategoryDocIds,
   });
   const isTemplate = isTemplateDoc({ docKind: draftDocKind });
   const hasUnsavedChanges = initialSnapshot
@@ -196,15 +228,36 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
     : false;
 
   const handleDeleteDoc = () => {
-    const label = draftTitle.trim() || doc.title || "this document";
-    if (!window.confirm(`Delete "${label}" and its nodes? This cannot be undone.`)) {
+    const category = draftCategory.trim();
+    const version = draftVersion.trim();
+    const versionInstanceCount = category
+      ? listProductVersionOptions(allDocs, draftParentId, category).length
+      : 0;
+    const confirmMsg = buildProductDeleteConfirmMessage({
+      title: draftTitle.trim() || doc.title,
+      category,
+      version,
+      versionInstanceCount,
+    });
+
+    if (!window.confirm(confirmMsg)) {
       return;
     }
+
+    const nextDocId = version && category
+      ? resolveDocAfterVersionDelete(allDocs, docId, draftParentId, category)
+      : null;
+
     if (activeNodeContext) {
       setActiveNodeContext(null);
       setNodeDraftContent("");
     }
     deleteDoc(docId);
+
+    if (nextDocId) {
+      onNavigateToDoc?.(nextDocId);
+      return;
+    }
     onClose();
   };
 
@@ -254,7 +307,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
       nodeLinkColor: draftNodeLinkColor,
       docKind: draftDocKind,
       templateKind: draftTemplateKind,
-      templateSubcategoryDocIds: draftTemplateSubcategoryDocIds,
+      subcategoryDocIds: draftSubcategoryDocIds,
     });
     updateDoc(doc.id, {
       title,
@@ -269,6 +322,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
       nodeLinkColor: savedSnapshot.nodeLinkColor,
       docKind: savedSnapshot.docKind,
       templateKind: savedSnapshot.templateKind,
+      subcategoryDocIds: savedSnapshot.subcategoryDocIds,
       templateSubcategoryDocIds: savedSnapshot.templateSubcategoryDocIds,
     });
     if ((doc.parentObjectId ?? "") !== (draftParentId || "")) {
@@ -321,11 +375,79 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
   };
 
   const handleRequestCloseDoc = () => {
+    setPendingNavigateDocId(null);
     if (hasUnsavedChanges) {
       setShowUnsavedConfirm(true);
       return;
     }
     onClose();
+  };
+
+  const navigateToDoc = (targetDocId) => {
+    if (!targetDocId || targetDocId === docId) return;
+    setPendingNavigateDocId(null);
+    setShowUnsavedConfirm(false);
+    onNavigateToDoc?.(targetDocId);
+  };
+
+  const requestNavigateToDoc = (targetDocId) => {
+    if (!targetDocId || targetDocId === docId) return;
+    if (hasUnsavedChanges) {
+      setPendingNavigateDocId(targetDocId);
+      setShowUnsavedConfirm(true);
+      return;
+    }
+    navigateToDoc(targetDocId);
+  };
+
+  const handleVersionCommit = (trimmedVersion) => {
+    const trimmed = trimmedVersion.trim();
+    if (!trimmed) {
+      setDraftVersion("");
+      setDocSavedHint(false);
+      return;
+    }
+
+    const category = draftCategory.trim();
+    if (!category) {
+      setDraftVersion(trimmed);
+      setDocSavedHint(false);
+      return;
+    }
+
+    const existing = findProductVersionDoc(allDocs, draftParentId, category, trimmed);
+    if (existing) {
+      if (existing.id !== doc.id) {
+        requestNavigateToDoc(existing.id);
+      }
+      return;
+    }
+
+    if (hasUnsavedChanges) {
+      handleSave();
+    }
+
+    const newDocId = addDoc(
+      draftTitle.trim() || doc.title || "New document",
+      draftParentId || null,
+      doc.dataProperties || [],
+      Array.isArray(doc.tags) ? doc.tags : [],
+      "",
+      isoFromDateInput(draftCreatedDate),
+      [],
+      {
+        version: trimmed,
+        category,
+        launchAt: draftLaunchAt,
+        campaignActive: draftCampaignActive,
+        subcategoryDocIds: draftSubcategoryDocIds,
+        nodeLinkColor: draftNodeLinkColor,
+      },
+    );
+
+    if (newDocId) {
+      navigateToDoc(newDocId);
+    }
   };
 
   const handleContextMenu = (e) => {
@@ -612,6 +734,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
             setDraftVersion(v);
             setDocSavedHint(false);
           }}
+          onVersionCommit={isTemplate ? undefined : handleVersionCommit}
           category={isTemplate ? "" : draftCategory}
           onCategoryChange={isTemplate ? undefined : (v) => {
             setDraftCategory(v);
@@ -634,9 +757,9 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
           }}
           docKind={draftDocKind}
           templateKind={draftTemplateKind}
-          templateSubcategoryDocIds={draftTemplateSubcategoryDocIds}
-          onTemplateSubcategoryDocIdsChange={(ids) => {
-            setDraftTemplateSubcategoryDocIds(ids);
+          subcategoryDocIds={draftSubcategoryDocIds}
+          onSubcategoryDocIdsChange={(ids) => {
+            setDraftSubcategoryDocIds(ids);
             setDocSavedHint(false);
           }}
           allDocs={allDocs}
@@ -725,7 +848,11 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
                 onClick={() => {
                   handleSave();
                   setShowUnsavedConfirm(false);
-                  onClose();
+                  if (pendingNavigateDocId) {
+                    navigateToDoc(pendingNavigateDocId);
+                  } else {
+                    onClose();
+                  }
                 }}
               >
                 yes
@@ -735,7 +862,11 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
                 className="doc-unsaved-confirm__btn"
                 onClick={() => {
                   setShowUnsavedConfirm(false);
-                  onClose();
+                  if (pendingNavigateDocId) {
+                    navigateToDoc(pendingNavigateDocId);
+                  } else {
+                    onClose();
+                  }
                 }}
               >
                 no

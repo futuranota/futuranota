@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { getToday } from "../../data.jsx";
 import { formatCampaignLabel, formatWindowDays } from "../../lib/docMetaBar.js";
 import { formatMmDdYy, isoFromDateInput } from "../../lib/docDates.js";
+import { resolveSubcategoryLines } from "../../lib/templateDoc.js";
 import { NodeLinkColorPicker } from "./blocks/NodeLinkColorPicker.jsx";
-
-const PARENT_PLACEHOLDER = "Select parent";
+import { SubcategoryField } from "./SubcategoryField.jsx";
+import { ProductVersionField } from "./ProductVersionField.jsx";
 
 function openDatePicker(e) {
   e.stopPropagation();
@@ -66,7 +67,7 @@ function ProductCategoryField({ value, onChange }) {
 
   return (
     <div className="doc-meta-field">
-      <span className="doc-meta-field-k">Product Category</span>
+      <span className="doc-meta-field-k">Category</span>
       <div className="doc-product-category-wrap">
         {trimmed && !editing ? (
           <button
@@ -111,6 +112,12 @@ function ProductCategoryField({ value, onChange }) {
   );
 }
 
+function resolveParentObject(objects, parentId) {
+  if (!parentId || !objects) return null;
+  if (Array.isArray(objects)) return objects.find((o) => o.id === parentId) ?? null;
+  return objects[parentId] ?? null;
+}
+
 /**
  * Compact meta strip: one summary row + collapsible editor drawer.
  */
@@ -120,6 +127,7 @@ export function DocMetaStrip({
   brandLabel = "",
   version = "",
   onVersionChange,
+  onVersionCommit,
   category = "",
   onCategoryChange,
   launchDate = "",
@@ -127,22 +135,28 @@ export function DocMetaStrip({
   campaignActive = false,
   onCampaignActiveChange,
   parentId = "",
-  onParentIdChange,
+  subcategoryDocIds = [],
+  onSubcategoryDocIdsChange,
+  allDocs = null,
+  docId = null,
   nodeLinkColor = "dark",
   onNodeLinkColorChange,
   objects = null,
   showCampaignMeta = false,
 }) {
   const [expanded, setExpanded] = useState(false);
-  const showParent = objects && onParentIdChange;
   const launchIso = launchDate ? isoFromDateInput(launchDate) : null;
   const today = getToday();
   const windowSummary = formatWindowDays(today, launchIso);
-  const parentObject = objects?.find((o) => o.id === parentId) ?? null;
-  const parentName =
-    parentObject?.name?.trim()
-    || (brandLabel && brandLabel !== "— sin padre —" ? brandLabel : null);
-  const brandSummary = parentObject?.brand?.trim() || null;
+  const parentObject = resolveParentObject(objects, parentId);
+  const brandSummary = parentObject?.brand?.trim() || brandLabel?.trim() || null;
+  const showSubcategories = Boolean(onSubcategoryDocIdsChange && allDocs);
+  const subcategoryLines = showSubcategories
+    ? resolveSubcategoryLines(allDocs, subcategoryDocIds)
+    : [];
+  const subcategorySummary = subcategoryLines.length
+    ? `${subcategoryLines.length} doc${subcategoryLines.length === 1 ? "" : "s"}`
+    : null;
 
   const campaignSummary = showCampaignMeta
     ? formatCampaignLabel(campaignActive)
@@ -154,23 +168,18 @@ export function DocMetaStrip({
     <div className={"doc-meta-strip" + (expanded ? " doc-meta-strip--open" : "")}>
       <div className="doc-meta-strip__summary">
         <div className="doc-meta-strip__chips" role="list">
-          <MetaChip
-            label="Created"
-            value={formatMmDdYy(createdDate)}
-            tone="created"
-          />
           {showCampaignMeta ? (
             <>
               <MetaChip label="Brand" value={brandSummary} />
               <MetaChip label="Version" value={version.trim() || null} />
               <MetaChip label="Campaign" value={campaignSummary} valueLowercase />
-              <MetaChip label="Product Category" value={category.trim() || null} asTag />
+              <MetaChip label="Category" value={category.trim() || null} asTag />
               <MetaChip label="Launch" value={launchFormatted || null} />
               <MetaChip label="Window" value={windowSummary} />
+              {showSubcategories ? (
+                <MetaChip label="Subcategories" value={subcategorySummary} />
+              ) : null}
             </>
-          ) : null}
-          {showParent && !showCampaignMeta ? (
-            <MetaChip label="Parent" value={parentName} />
           ) : null}
         </div>
         <button
@@ -206,18 +215,13 @@ export function DocMetaStrip({
 
           {showCampaignMeta ? (
             <>
-              <label className="doc-meta-field">
-                <span className="doc-meta-field-k">Version</span>
-                <input
-                  type="text"
-                  className="doc-new-meta-input doc-meta-field-input"
-                  value={version}
-                  onChange={(e) => onVersionChange(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder="Type your version"
-                  spellCheck={false}
-                />
-              </label>
+              <ProductVersionField
+                onCommit={onVersionCommit}
+                parentId={parentId}
+                category={category}
+                allDocs={allDocs}
+                docId={docId}
+              />
               <div className="doc-meta-field">
                 <span className="doc-meta-field-k">Campaign</span>
                 <div className="doc-new-campaign-toggle" role="group" aria-label="Campaign status">
@@ -255,31 +259,20 @@ export function DocMetaStrip({
                   onFocus={openDatePicker}
                 />
               </label>
+              {showSubcategories ? (
+                <SubcategoryField
+                  parentId={parentId}
+                  allDocs={allDocs}
+                  selectedDocIds={subcategoryDocIds}
+                  onChange={onSubcategoryDocIdsChange}
+                  excludeDocId={docId}
+                />
+              ) : null}
               <div className="doc-meta-field doc-meta-field--readonly">
                 <span className="doc-meta-field-k">Window</span>
                 <span className="doc-new-meta-readonly">{windowSummary}</span>
               </div>
             </>
-          ) : null}
-
-          {showParent ? (
-            <label className="doc-meta-field">
-              <span className="doc-meta-field-k">Parent</span>
-              <select
-                className={
-                  "doc-new-select doc-meta-field-input"
-                  + (!parentId ? " is-placeholder-option" : "")
-                }
-                value={parentId}
-                onChange={(e) => onParentIdChange(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <option value="">{PARENT_PLACEHOLDER}</option>
-                {objects.map((o) => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
-                ))}
-              </select>
-            </label>
           ) : null}
 
           {onNodeLinkColorChange ? (

@@ -12,9 +12,12 @@ export function emptyTemplateFields() {
   return {
     docKind: DOC_KIND_STANDARD,
     templateKind: null,
-    templateSubcategoryDocIds: [],
+    subcategoryDocIds: [],
   };
 }
+
+/** @deprecated use subcategoryDocIds */
+export const templateSubcategoryDocIds = "subcategoryDocIds";
 
 export function isTemplateDoc(doc) {
   return doc?.docKind === DOC_KIND_TEMPLATE;
@@ -25,31 +28,180 @@ export function templateKindLabel(templateKind) {
   return TEMPLATE_KIND_LABELS[templateKind] || templateKind;
 }
 
-/** Single line label: "product a + 1.0" */
+/** Single line label: "product a 1.0" */
 export function formatProductSubcategoryLine(doc) {
   const category = doc?.category?.trim();
   const version = doc?.version?.trim();
   if (!category || !version) return null;
-  return `${category} + ${version}`;
+  return `${category} ${version}`;
 }
 
-/**
- * Product docs under the same parent with category + version filled.
- * @returns {{ docId: string, label: string }[]}
- */
-export function listProductSubcategoryCandidates(allDocs, parentObjectId, excludeDocId = null) {
-  if (!parentObjectId) return [];
+function docCandidateLabel(doc) {
+  return formatProductSubcategoryLine(doc) || doc?.category?.trim() || doc?.title?.trim() || "Untitled";
+}
+
+/** Docs with a category filled and no subcategories of their own. */
+export function isSubcategoryLinkCandidate(doc, selectedDocIds = []) {
+  if (!doc?.id) return false;
+  if (selectedDocIds.includes(doc.id)) return true;
+  if (doc.docKind === DOC_KIND_TEMPLATE) return false;
+  const category = doc.category?.trim();
+  if (!category) return false;
+  const linked = doc.subcategoryDocIds ?? doc.templateSubcategoryDocIds ?? [];
+  return !Array.isArray(linked) || linked.filter(Boolean).length === 0;
+}
+
+function siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId = null) {
   return Object.values(allDocs || {})
     .filter((doc) => doc.parentObjectId === parentObjectId)
     .filter((doc) => doc.docKind !== DOC_KIND_TEMPLATE)
-    .filter((doc) => doc.id !== excludeDocId)
-    .map((doc) => {
-      const label = formatProductSubcategoryLine(doc);
-      if (!label) return null;
-      return { docId: doc.id, label };
-    })
-    .filter(Boolean)
+    .filter((doc) => doc.id !== excludeDocId);
+}
+
+function docHasOwnSubcategories(doc) {
+  const linked = doc.subcategoryDocIds ?? doc.templateSubcategoryDocIds ?? [];
+  return Array.isArray(linked) && linked.filter(Boolean).length > 0;
+}
+
+function toSubcategoryListItem(doc) {
+  return {
+    docId: doc.id,
+    label: docCandidateLabel(doc),
+  };
+}
+
+/**
+ * Sibling documents under the same parent that can be linked as subcategories:
+ * have a category, no subcategories of their own (plus already-selected ids).
+ */
+export function listSubcategoryDocCandidates(
+  allDocs,
+  parentObjectId,
+  excludeDocId = null,
+  selectedDocIds = [],
+) {
+  if (!parentObjectId) return [];
+  const selected = selectedDocIds || [];
+  return siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId)
+    .filter((doc) => isSubcategoryLinkCandidate(doc, selected))
+    .map(toSubcategoryListItem)
     .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** Linkable (top) vs docs that already have subcategories (bottom). */
+export function listSubcategoryPickerGroups(
+  allDocs,
+  parentObjectId,
+  excludeDocId = null,
+  selectedDocIds = [],
+) {
+  if (!parentObjectId) {
+    return { linkable: [], withSubcategories: [] };
+  }
+  const selected = selectedDocIds || [];
+  const withCategory = siblingDocsUnderParent(allDocs, parentObjectId, excludeDocId)
+    .filter((doc) => doc.category?.trim());
+
+  const linkable = withCategory
+    .filter((doc) => isSubcategoryLinkCandidate(doc, selected))
+    .map(toSubcategoryListItem)
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  const withSubcategories = withCategory
+    .filter((doc) => docHasOwnSubcategories(doc))
+    .map(toSubcategoryListItem)
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return { linkable, withSubcategories };
+}
+
+/** @deprecated use listSubcategoryDocCandidates */
+export function listProductSubcategoryCandidates(allDocs, parentObjectId, excludeDocId = null) {
+  return listSubcategoryDocCandidates(allDocs, parentObjectId, excludeDocId).filter(
+    (item) => item.label.includes(" "),
+  );
+}
+
+export function findProductVersionDoc(allDocs, parentObjectId, category, version) {
+  const cat = category?.trim();
+  const ver = version?.trim();
+  if (!parentObjectId || !cat || !ver) return null;
+  return (
+    Object.values(allDocs || {}).find(
+      (doc) => doc.parentObjectId === parentObjectId
+        && doc.docKind !== DOC_KIND_TEMPLATE
+        && doc.category?.trim() === cat
+        && doc.version?.trim() === ver,
+    ) ?? null
+  );
+}
+
+/** Existing version strings for the same product line (parent + category). */
+export function listProductVersionOptions(allDocs, parentObjectId, category) {
+  const cat = category?.trim();
+  if (!parentObjectId || !cat) return [];
+  return Object.values(allDocs || {})
+    .filter((doc) => doc.parentObjectId === parentObjectId)
+    .filter((doc) => doc.docKind !== DOC_KIND_TEMPLATE)
+    .filter((doc) => doc.category?.trim() === cat)
+    .filter((doc) => doc.version?.trim())
+    .map((doc) => ({
+      docId: doc.id,
+      version: doc.version.trim(),
+    }))
+    .sort((a, b) => a.version.localeCompare(b.version, undefined, { numeric: true }));
+}
+
+/** Unversioned base doc for a product category (same parent + category, empty version). */
+export function findUnversionedProductDoc(allDocs, parentObjectId, category, excludeDocId = null) {
+  const cat = category?.trim();
+  if (!parentObjectId || !cat) return null;
+  return (
+    Object.values(allDocs || {}).find(
+      (doc) => doc.id !== excludeDocId
+        && doc.parentObjectId === parentObjectId
+        && doc.docKind !== DOC_KIND_TEMPLATE
+        && doc.category?.trim() === cat
+        && !doc.version?.trim(),
+    ) ?? null
+  );
+}
+
+/** Where to open after deleting a version instance. */
+export function resolveDocAfterVersionDelete(allDocs, deletedDocId, parentObjectId, category) {
+  const cat = category?.trim();
+  if (!parentObjectId || !cat) return null;
+
+  const base = findUnversionedProductDoc(allDocs, parentObjectId, category, deletedDocId);
+  if (base) return base.id;
+
+  const remaining = listProductVersionOptions(allDocs, parentObjectId, category)
+    .filter(({ docId }) => docId !== deletedDocId);
+  return remaining[0]?.docId ?? null;
+}
+
+export function buildProductDeleteConfirmMessage({
+  title,
+  category = "",
+  version = "",
+  versionInstanceCount = 0,
+}) {
+  const cat = category.trim();
+  const ver = version.trim();
+  const label = title?.trim() || "this document";
+
+  if (ver && cat) {
+    if (versionInstanceCount > 1) {
+      return `Delete version ${ver} of "${cat}"? ${versionInstanceCount - 1} other version(s) will remain. This cannot be undone.`;
+    }
+    return `Delete version ${ver} of "${cat}"? This cannot be undone.`;
+  }
+
+  if (cat && versionInstanceCount > 0) {
+    return `Delete "${label}"? ${versionInstanceCount} version instance(s) of "${cat}" will remain. This cannot be undone.`;
+  }
+
+  return `Delete "${label}" and its nodes? This cannot be undone.`;
 }
 
 export function resolveSubcategoryLines(allDocs, docIds = []) {
@@ -57,8 +209,9 @@ export function resolveSubcategoryLines(allDocs, docIds = []) {
   return (docIds || [])
     .map((id) => {
       const doc = byId[id];
-      const label = formatProductSubcategoryLine(doc);
-      return label ? { docId: id, label } : null;
+      if (!doc) return null;
+      const label = formatProductSubcategoryLine(doc) || doc.title?.trim() || "Untitled";
+      return { docId: id, label };
     })
     .filter(Boolean);
 }

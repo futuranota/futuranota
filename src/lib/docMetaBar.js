@@ -1,6 +1,10 @@
 import { daysBetween, getToday } from "../data.jsx";
 import { formatMmDdYy } from "./docDates.js";
 import { normalizeDoc } from "./normalizeDoc.js";
+import {
+  formatProductSubcategoryLine,
+  resolveSubcategoryLines,
+} from "./templateDoc.js";
 
 export { emptyDocCampaignFields } from "./normalizeDoc.js";
 export { DOC_NODE_LINK_COLORS } from "./docNodeLinkColors.js";
@@ -37,10 +41,18 @@ export function formatWindowDays(today, launchAt) {
   return `${n} days`;
 }
 
+/** Comma-separated labels for linked subcategory documents. */
+export function formatSubcategoriesDisplay(allDocs, docIds = []) {
+  const lines = resolveSubcategoryLines(allDocs, docIds);
+  if (!lines.length) return null;
+  return lines.map(({ label }) => label).join(", ");
+}
+
 export function buildMetaBarFromDoc({
   doc,
   objectsById = {},
   selectedObjectId = null,
+  allDocs = {},
   today = getToday(),
 }) {
   const selectedObject =
@@ -54,9 +66,9 @@ export function buildMetaBarFromDoc({
     return {
       corpus,
       brand: brandFromSelection,
-      version: null,
+      product: null,
       campaign: null,
-      category: null,
+      subcategories: null,
       launch: null,
       window: null,
     };
@@ -73,9 +85,9 @@ export function buildMetaBarFromDoc({
   return {
     corpus,
     brand: brandFromSelection || brandFromDoc,
-    version: normalized.version?.trim() || null,
+    product: formatProductSubcategoryLine(normalized),
     campaign: formatCampaignLabel(normalized.campaignActive),
-    category: normalized.category?.trim() || null,
+    subcategories: formatSubcategoriesDisplay(allDocs, normalized.subcategoryDocIds),
     launch: launchDate ? formatMmDdYy(launchDate) : null,
     window: formatWindowDays(today, normalized.launchAt),
   };
@@ -101,8 +113,26 @@ export function buildMetaBarFromCanvas({
   docs = {},
   objectsById = {},
   selectedObjectId = null,
+  expandedDocId = null,
+  activeDocMetaDraft = null,
   today = getToday(),
 }) {
-  const doc = resolveActiveDocFromCanvas(selection, canvasNodes, docs);
-  return buildMetaBarFromDoc({ doc, objectsById, selectedObjectId, today });
+  let doc = null;
+
+  if (expandedDocId && docs[expandedDocId]) {
+    doc = normalizeDoc(docs[expandedDocId]);
+    if (activeDocMetaDraft?.docId === expandedDocId) {
+      doc = normalizeDoc({ ...doc, ...activeDocMetaDraft });
+    }
+  } else {
+    doc = resolveActiveDocFromCanvas(selection, canvasNodes, docs);
+  }
+
+  return buildMetaBarFromDoc({
+    doc,
+    objectsById,
+    selectedObjectId,
+    allDocs: docs,
+    today,
+  });
 }

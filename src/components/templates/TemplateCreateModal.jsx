@@ -14,7 +14,7 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
   const fallbackParent = defaultParentId || "";
   const [parentId, setParentId] = useState(fallbackParent);
   const [createdDate, setCreatedDate] = useState(todayDateInputValue);
-  const [templateSubcategoryDocIds, setTemplateSubcategoryDocIds] = useState([]);
+  const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
   const [nodeLinkColor, setNodeLinkColor] = useState("dark");
   const titleRef = useRef(null);
 
@@ -56,7 +56,7 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
       createdAt: isoFromDateInput(createdDate),
       docKind: "template",
       templateKind: TEMPLATE_KIND_CAMPAIGN,
-      templateSubcategoryDocIds,
+      subcategoryDocIds,
       nodeLinkColor,
     });
   };
@@ -65,7 +65,6 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
     <div className="lp-overlay lp-overlay--solid lp-overlay--center">
       <div className="lp-modal doc-new-modal" onClick={(e) => e.stopPropagation()}>
         <DocDocumentBox
-          headerLabel={parentObject?.name || ""}
           title={title}
           onTitleChange={setTitle}
           titleRef={titleRef}
@@ -81,8 +80,8 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
           objects={objects}
           docKind="template"
           templateKind={TEMPLATE_KIND_CAMPAIGN}
-          templateSubcategoryDocIds={templateSubcategoryDocIds}
-          onTemplateSubcategoryDocIdsChange={setTemplateSubcategoryDocIds}
+          subcategoryDocIds={subcategoryDocIds}
+          onSubcategoryDocIdsChange={setSubcategoryDocIds}
           allDocs={allDocs}
           nodeLinkColor={nodeLinkColor}
           onNodeLinkColorChange={setNodeLinkColor}

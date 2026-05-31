@@ -50,9 +50,9 @@ function MetaBar({ metadata }) {
   const cells = [
     { k: "Corpus", v: metadata.corpus, corpus: true },
     { k: "Brand", v: metadata.brand },
-    { k: "Version", v: metadata.version },
+    { k: "Category", v: metadata.product },
     { k: "Campaign", v: metadata.campaign, source: metadata.campaignSource },
-    { k: "Product Category", v: metadata.category },
+    { k: "Subcategories", v: metadata.subcategories },
     { k: "Launch", v: metadata.launch, accent: true },
     { k: "Window", v: metadata.window, warm: true },
   ];
