@@ -28,6 +28,11 @@
  * }} ForecastDay
  */
 
+import { daysBetween } from "../data.jsx";
+import { startOfCalendarDay } from "../temporal.js";
+
+export const FORECAST_MOCK_HORIZON_DAYS = 7;
+
 const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function formatAsOf(today) {
@@ -101,5 +106,32 @@ export function getForecastMock(today = new Date()) {
         ],
       },
     ],
+  };
+}
+
+/**
+ * @param {Date} targetDate
+ * @param {Date} [baseToday]
+ * @returns {{ location: string, asOf: string, day: ForecastDay }|null}
+ */
+export function getForecastForDate(targetDate, baseToday = new Date()) {
+  const base = startOfCalendarDay(baseToday);
+  const target = startOfCalendarDay(targetDate);
+  if (!base || !target) return null;
+
+  const diff = daysBetween(base, target);
+  if (diff < 0 || diff > FORECAST_MOCK_HORIZON_DAYS) return null;
+
+  const mock = getForecastMock(target);
+  const day = mock.days[0];
+  if (!day) return null;
+
+  return {
+    location: mock.location,
+    asOf: mock.asOf,
+    day: {
+      ...day,
+      label: diff === 0 ? "Today" : formatDateLabel(target),
+    },
   };
 }
