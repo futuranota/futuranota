@@ -215,3 +215,53 @@ export function resolveSubcategoryLines(allDocs, docIds = []) {
     })
     .filter(Boolean);
 }
+
+function sortProductGroupDocs(docs) {
+  return [...docs].sort((a, b) => {
+    const aVer = a.version?.trim() || "";
+    const bVer = b.version?.trim() || "";
+    if (!aVer && bVer) return -1;
+    if (aVer && !bVer) return 1;
+    if (!aVer && !bVer) return 0;
+    return aVer.localeCompare(bVer, undefined, { numeric: true });
+  });
+}
+
+/**
+ * Product lines under one object: one folder per category with all sibling docs
+ * (unversioned base + version instances, e.g. "product b" and "product b 1.0").
+ */
+export function listProductCategoryGroups(allDocs, parentObjectId) {
+  if (!parentObjectId) return [];
+  const byCategory = new Map();
+
+  siblingDocsUnderParent(allDocs, parentObjectId)
+    .filter((doc) => doc.category?.trim())
+    .forEach((doc) => {
+      const cat = doc.category.trim();
+      const key = cat.toLowerCase();
+      if (!byCategory.has(key)) {
+        byCategory.set(key, { category: cat, docs: [] });
+      }
+      byCategory.get(key).docs.push(doc);
+    });
+
+  return [...byCategory.values()]
+    .map((group) => ({
+      category: group.category,
+      docs: sortProductGroupDocs(group.docs),
+    }))
+    .sort((a, b) => a.category.localeCompare(b.category));
+}
+
+/** Versioned product docs (category + version) for the Campaign subfolder. */
+export function listCampaignSubcategoryDocs(allDocs, parentObjectId) {
+  if (!parentObjectId) return [];
+  return siblingDocsUnderParent(allDocs, parentObjectId)
+    .filter((doc) => formatProductSubcategoryLine(doc))
+    .sort((a, b) => {
+      const aLabel = formatProductSubcategoryLine(a);
+      const bLabel = formatProductSubcategoryLine(b);
+      return aLabel.localeCompare(bLabel, undefined, { numeric: true });
+    });
+}

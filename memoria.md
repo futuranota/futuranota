@@ -6,7 +6,7 @@ Documentación para re-aplicar el trabajo hecho en el panel Intel (tabs **Calend
 
 ## 1. Arquitectura general
 
-```
+
 IntelFoldersSection (panels.jsx)
 ├── Tab "calendar"
 │   └── CalendarPanel
