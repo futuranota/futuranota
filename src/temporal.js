@@ -426,3 +426,47 @@ export function bezierMidpoint(a, b) {
   const y = mt * mt * mt * a.y + 3 * mt * mt * t * a.y + 3 * mt * t * t * b.y + t * t * t * b.y;
   return { x, y };
 }
+
+function cubicBezierAt(p0, p1, p2, p3, t) {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * mt * p0.x + 3 * mt * mt * t * p1.x + 3 * mt * t * t * p2.x + t * t * t * p3.x,
+    y: mt * mt * mt * p0.y + 3 * mt * mt * t * p1.y + 3 * mt * t * t * p2.y + t * t * t * p3.y,
+  };
+}
+
+/** Control points for canvas connection cubic bezier (matches pathBetween in canvas.jsx). */
+export function getConnectionBezierControls(a, b) {
+  const dx = b.x - a.x;
+  const k = Math.max(40, Math.abs(dx) * 0.4);
+  return {
+    p0: a,
+    p1: { x: a.x + k, y: a.y },
+    p2: { x: b.x - k, y: b.y },
+    p3: b,
+  };
+}
+
+/**
+ * Point on a connection bezier at least `minOffset` px along the curve from start or end.
+ * @param {{ x: number, y: number }} a
+ * @param {{ x: number, y: number }} b
+ * @param {number} [minOffset]
+ * @param {{ fromEnd?: boolean }} [options]
+ */
+export function bezierPointAtArcOffset(a, b, minOffset = 36, { fromEnd = false } = {}) {
+  const { p0, p1, p2, p3 } = getConnectionBezierControls(a, b);
+  const steps = 48;
+  let accumulated = 0;
+  let prev = fromEnd ? p3 : p0;
+
+  for (let i = 1; i <= steps; i += 1) {
+    const t = fromEnd ? 1 - i / steps : i / steps;
+    const pt = cubicBezierAt(p0, p1, p2, p3, t);
+    accumulated += Math.hypot(pt.x - prev.x, pt.y - prev.y);
+    if (accumulated >= minOffset) return pt;
+    prev = pt;
+  }
+
+  return fromEnd ? p2 : p1;
+}

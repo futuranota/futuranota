@@ -5,6 +5,7 @@ import {
   computeMetricValue,
   computeEdgeTemporalLabel,
   bezierMidpoint,
+  bezierPointAtArcOffset,
 } from './temporal.js';
 import { formatScheduleLabelFromIso } from './lib/nodeAnchor.js';
 import { resolveConnectionLinkColor } from './lib/docNodeLinkColors.js';
@@ -57,6 +58,11 @@ const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.5;
 const clampScale = (s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
 
+const CONN_ATOM_ICON = "/uploads/botones/Atom.svg";
+const CONN_ATOM_SIZE = 23;
+const CONN_ATOM_MIN_OFFSET = 22;
+const CONN_ATOM_LIFT = 22;
+
 function ConnLabel({ x, y, text, pending }) {
   const cls = pending ? "conn-label pending" : "conn-label";
   const w = Math.max(28, text.length * 6.5 + 14);
@@ -66,6 +72,39 @@ function ConnLabel({ x, y, text, pending }) {
       <text textAnchor="middle" dominantBaseline="central">{text}</text>
     </g>
   );
+}
+
+function ConnAtomMarker({ x, y }) {
+  const half = CONN_ATOM_SIZE / 2;
+  return (
+    <g className="conn-atom" transform={`translate(${x - half}, ${y - half - CONN_ATOM_LIFT})`}>
+      <image
+        href={CONN_ATOM_ICON}
+        width={CONN_ATOM_SIZE}
+        height={CONN_ATOM_SIZE}
+        aria-hidden
+      />
+    </g>
+  );
+}
+
+function isDocAssignedCanvasNode(canvasNode, nodeEntitiesById = {}) {
+  if (!canvasNode?.noteId) return false;
+  const entity = nodeEntitiesById[canvasNode.noteId];
+  if (!entity) return false;
+  return Boolean(entity.parentDocId || entity.linkedToDoc);
+}
+
+function resolveConnAtomPlacement(fromNode, toNode, p1, p2, nodeEntitiesById = {}) {
+  const fromAssigned = isDocAssignedCanvasNode(fromNode, nodeEntitiesById);
+  const toAssigned = isDocAssignedCanvasNode(toNode, nodeEntitiesById);
+  if (!fromAssigned && !toAssigned) return null;
+
+  if (fromAssigned) {
+    return bezierPointAtArcOffset(p1, p2, CONN_ATOM_MIN_OFFSET, { fromEnd: false });
+  }
+
+  return bezierPointAtArcOffset(p1, p2, CONN_ATOM_MIN_OFFSET, { fromEnd: true });
 }
 
 /* ─── CANVAS NODE ──────────────────────────────────────────── */
@@ -1309,6 +1348,7 @@ function BlueprintCanvas({
             const mid = bezierMidpoint(p1, p2);
             const selected = selectedConnectionId === c.id;
             const linkColor = resolveConnectionLinkColor(a, b, temporalMeta);
+            const atomPoint = resolveConnAtomPlacement(a, b, p1, p2, nodeEntitiesById);
             return (
               <g
                 key={c.id}
@@ -1327,6 +1367,7 @@ function BlueprintCanvas({
                   markerEnd="url(#arrow)"
                   style={linkColor && !selected ? { stroke: linkColor } : undefined}
                 />
+                {atomPoint ? <ConnAtomMarker x={atomPoint.x} y={atomPoint.y} /> : null}
                 {label && <ConnLabel x={mid.x} y={mid.y} text={label} />}
               </g>
             );

@@ -157,6 +157,38 @@ function Dashboard({ company, onBack }) {
     setToast({ message: `Node added · "${newNode.title}"`, kind: "ok" });
   };
 
+  const handleInsertForecastNode = ({ title, payload, sourceNode, anchorAt }) => {
+    const addNode = useNodesStore.getState().addNode;
+    const nodeId = addNode(
+      title,
+      "text",
+      JSON.stringify(payload),
+      sourceNode?.parentDocId || null,
+      {
+        anchorAt: anchorAt || null,
+        sourceQuery: title,
+      },
+    );
+    const created = useNodesStore.getState().getNode(nodeId);
+    if (created) insertNodeToCanvas(created, { center: true });
+  };
+
+  const handleInsertEventNode = ({ title, payload, sourceNode, anchorAt }) => {
+    const addNode = useNodesStore.getState().addNode;
+    const nodeId = addNode(
+      title,
+      "text",
+      JSON.stringify(payload),
+      sourceNode?.parentDocId || null,
+      {
+        anchorAt: anchorAt || null,
+        sourceQuery: title,
+      },
+    );
+    const created = useNodesStore.getState().getNode(nodeId);
+    if (created) insertNodeToCanvas(created, { center: true });
+  };
+
   const insertObjectToCanvas = (object, worldX, worldY) => {
     const { x, y } = nextCanvasPosition(
       worldX != null ? worldX - 50 : undefined,
@@ -314,6 +346,13 @@ function Dashboard({ company, onBack }) {
               if (!d) return;
               setToday(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
             }}
+            nodeEntities={nodeEntities}
+            docsById={docs}
+            expandedNodeId={expandedNodeId}
+            selection={selection}
+            canvasNodes={canvasNodes}
+            onInsertForecastNode={handleInsertForecastNode}
+            onInsertEventNode={handleInsertEventNode}
           />
         </div>
       </div>

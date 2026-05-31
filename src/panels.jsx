@@ -15,8 +15,11 @@ import {
 import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
 import { useTimelineStore, useUIStateStore } from './stores/index.js';
 import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
+import { CalendarPanel, getScheduleHintForNode } from './components/intel/CalendarPanel.jsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
+import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
 import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
+import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
@@ -657,6 +660,13 @@ function IntelFoldersSection({
   today,
   launchDate,
   onSelectDate,
+  nodeEntities = {},
+  docsById = {},
+  expandedNodeId = null,
+  selection = [],
+  canvasNodes = [],
+  onInsertForecastNode,
+  onInsertEventNode,
 }) {
   const activeTab = INTEL_FOLDER_TABS.find((t) => t.id === folder) || INTEL_FOLDER_TABS[0];
   const daysUntilLaunch = launchDate ? daysBetween(today, launchDate) : null;
@@ -665,6 +675,13 @@ function IntelFoldersSection({
       T−{daysUntilLaunch}d
     </span>
   ) : null;
+  const activeNode = resolveActiveForecastNode(
+    nodeEntities,
+    { expandedNodeId, selection, canvasNodes },
+    docsById,
+  );
+  const scheduleHint = getScheduleHintForNode(activeNode);
+  const showForecastSearch = folder === "forecast";
 
   return (
     <section className="intel-folders-section" aria-label="Intel folders">
@@ -677,16 +694,39 @@ function IntelFoldersSection({
         id={`intel-folder-panel-${activeTab.id}`}
         className={
           "intel-folder-panel"
+          + (folder === "calendar" ? " intel-folder-panel--calendar" : "")
           + (folder === "forecast" ? " intel-folder-panel--forecast" : "")
+          + (showForecastSearch ? " intel-folder-panel--with-search" : "")
         }
         role="tabpanel"
         aria-labelledby={`intel-folder-tab-${activeTab.id}`}
       >
         {folder === "calendar" && (
-          <Calendar today={today} launchDate={launchDate} onSelectDate={onSelectDate} />
+          <CalendarPanel
+            today={today}
+            launchDate={launchDate}
+            onSelectDate={onSelectDate}
+            scheduleHint={scheduleHint}
+            nodeEntities={nodeEntities}
+            docsById={docsById}
+            expandedNodeId={expandedNodeId}
+            selection={selection}
+            canvasNodes={canvasNodes}
+            onInsertEventNode={onInsertEventNode}
+          />
         )}
         {folder === "forecast" && <ForecastPanel today={today} />}
         {folder === "market-hype" && <IntelFolderPlaceholder title="Market Hype" />}
+        {showForecastSearch ? (
+          <ForecastSearchFooter
+            nodeEntities={nodeEntities}
+            docsById={docsById}
+            expandedNodeId={expandedNodeId}
+            selection={selection}
+            canvasNodes={canvasNodes}
+            onInsertForecastNode={onInsertForecastNode}
+          />
+        ) : null}
       </div>
     </section>
   );
@@ -735,6 +775,13 @@ function IntelPanel({
   today,
   launchDate,
   onSelectDate,
+  nodeEntities = {},
+  docsById = {},
+  expandedNodeId = null,
+  selection = [],
+  canvasNodes = [],
+  onInsertForecastNode,
+  onInsertEventNode,
 }) {
   const [tab, setTab] = useState("news");
   const [intelFolderTab, setIntelFolderTab] = useState("calendar");
@@ -948,6 +995,13 @@ function IntelPanel({
           today={today}
           launchDate={launchDate}
           onSelectDate={onSelectDate}
+          nodeEntities={nodeEntities}
+          docsById={docsById}
+          expandedNodeId={expandedNodeId}
+          selection={selection}
+          canvasNodes={canvasNodes}
+          onInsertForecastNode={onInsertForecastNode}
+          onInsertEventNode={onInsertEventNode}
         />
       </div>
     </>
