@@ -106,6 +106,7 @@ function Dashboard({ company, onBack }) {
   const objects = useObjectsStore((s) => s.objects);
   const nodeEntities = useNodesStore((s) => s.nodes);
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
+  const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
   const tokenCurrent = 0;
   const tokenMax = 10;
 
@@ -116,9 +117,10 @@ function Dashboard({ company, onBack }) {
         canvasNodes,
         docs,
         objectsById: objects,
+        selectedObjectId,
         today,
       }),
-    [selection, canvasNodes, docs, objects, today],
+    [selection, canvasNodes, docs, objects, selectedObjectId, today],
   );
 
   useEffect(() => { initStores(); }, []);

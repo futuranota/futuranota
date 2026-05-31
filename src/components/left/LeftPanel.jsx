@@ -11,6 +11,8 @@ import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
 import { docBlocksToBody } from "../../lib/docBlocks.js";
 import { useDocBlockNodeModal, linkBlockNodesToDoc } from "../docs/useDocBlockNodeModal.jsx";
 import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
+import { TemplateCreateModalPortal } from "../templates/TemplateCreateModal.jsx";
+import { isTemplateDoc } from "../../lib/templateDoc.js";
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
@@ -44,20 +46,46 @@ function SelectorTypeIcon({ type, className = "lp-item-icon" }) {
 }
 
 /* Objects grid: cube + name below, draggable */
-function ObjectThumb({ object, active, onClick, onDoubleClick }) {
+function ObjectThumb({ object, active, onClick, onDoubleClick, onDelete, onEdit }) {
   return (
-    <button
-      type="button"
-      className={"obj-thumb" + (active ? " active" : "")}
-      draggable
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      onDragStart={(e) => startObjectDrag(e, object.id)}
-      title="Drag to canvas · double-click for documents"
-    >
-      <ObjectIcon variant="md" />
-      <span className="obj-thumb-name">{object.name}</span>
-    </button>
+    <div className={"obj-thumb-cell" + (active ? " active" : "")}>
+      <button
+        type="button"
+        className={"obj-thumb" + (active ? " active" : "")}
+        draggable
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        onDragStart={(e) => startObjectDrag(e, object.id)}
+        title="Drag to canvas · double-click for documents"
+      >
+        <ObjectIcon variant="md" />
+        <span className="obj-thumb-name">{object.name}</span>
+      </button>
+      {active && (
+        <div className="obj-thumb-actions">
+          <button
+            type="button"
+            className="btn xs ghost obj-thumb-action obj-thumb-action--delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete?.();
+            }}
+          >
+            delete
+          </button>
+          <button
+            type="button"
+            className="btn xs ghost obj-thumb-action obj-thumb-action--edit"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit?.();
+            }}
+          >
+            edit
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -66,6 +94,7 @@ function ObjectThumb({ object, active, onClick, onDoubleClick }) {
 ───────────────────────────────────────────── */
 function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
   const parent = doc.parentObjectId ? objects[doc.parentObjectId] : null;
+  const isTemplate = isTemplateDoc(doc);
   return (
     <div className="lp-doc-card fn-card">
       <button type="button" className="lp-doc-card-main" onClick={onClick}>
@@ -86,6 +115,7 @@ function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
         <div className="fn-card-body">
           <b>{doc.title}</b>
           <span className="fn-card-meta">
+            {isTemplate ? "template · " : ""}
             {parent ? `↳ ${parent.name}` : "sin padre"} · {(doc.nodeIds || []).length} nodos
           </span>
         </div>
@@ -168,16 +198,19 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
 ───────────────────────────────────────────── */
 const CREATE_BUSINESS_ILLUSTRATION = "/uploads/botones/create-business-name.svg";
 
-function ObjectCreateModal({ onSubmit, onCancel }) {
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
+function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
+  const isEdit = Boolean(initial);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [brand, setBrand] = useState(initial?.brand ?? "");
+  const [desc, setDesc] = useState(initial?.description ?? "");
   const ref = useRef(null);
   useEffect(() => { ref.current?.focus(); }, []);
 
   const submitPayload = () => ({
     name: name.trim(),
+    brand: brand.trim(),
     description: desc,
-    color: "#5a1f1f",
+    color: initial?.color ?? "#5a1f1f",
   });
 
   return (
@@ -195,7 +228,9 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
         </div>
 
         <div>
-          <h3 className="obj-create-title">Insert business reference</h3>
+          <h3 className="obj-create-title">
+            {isEdit ? "Edit business reference" : "Insert business reference"}
+          </h3>
           <input
             ref={ref}
             className="note-form-field obj-name-input"
@@ -206,6 +241,17 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
               if (e.key === "Enter" && name.trim()) onSubmit(submitPayload());
               if (e.key === "Escape") onCancel();
             }}
+          />
+          <input
+            className="note-form-field obj-brand-input"
+            placeholder="Brand"
+            value={brand}
+            onChange={e => setBrand(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === "Enter" && name.trim()) onSubmit(submitPayload());
+              if (e.key === "Escape") onCancel();
+            }}
+            spellCheck={false}
           />
           <textarea
             className="note-form-field obj-desc-input"
@@ -222,7 +268,7 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
               disabled={!name.trim()}
               onClick={() => onSubmit(submitPayload())}
             >
-              Save object
+              {isEdit ? "Save changes" : "Save object"}
             </button>
           </div>
         </div>
@@ -418,6 +464,8 @@ export function LeftPanel({
   const [panelType, setPanelType] = useState("Objects");
   const [activeId, setActiveId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [showTemplateCreate, setShowTemplateCreate] = useState(false);
+  const [editObjectId, setEditObjectId] = useState(null);
   const [folderOpen, setFolderOpen] = useState(false);
   const [previewPanelType, setPreviewPanelType] = useState("Objects");
   const [hoveredPanelType, setHoveredPanelType] = useState(null);
@@ -426,13 +474,16 @@ export function LeftPanel({
   const [objectScopeId, setObjectScopeId] = useState(null);
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
+  const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
   const filterDocId = useUIStateStore((s) => s.filterDocId);
   const setFilterObjectId = useUIStateStore((s) => s.setFilterObjectId);
+  const setSelectedObjectId = useUIStateStore((s) => s.setSelectedObjectId);
   const setFilterDocId = useUIStateStore((s) => s.setFilterDocId);
 
   /* stores */
   const objects    = useObjectsStore(s => s.objects);
   const addObject  = useObjectsStore(s => s.addObject);
+  const updateObject = useObjectsStore(s => s.updateObject);
   const docs       = useDocsStore(s => s.docs);
   const addDoc     = useDocsStore(s => s.addDoc);
   const deleteDoc  = useDocsStore(s => s.deleteDoc);
@@ -469,6 +520,7 @@ export function LeftPanel({
 
   const openDocumentsForObject = (objectId) => {
     setFilterObjectId(objectId);
+    setSelectedObjectId(objectId);
     setPanelType("Documents");
     setActiveId(null);
     setShowCreate(false);
@@ -504,11 +556,27 @@ export function LeftPanel({
     deleteObjectWithCascade(objectId);
     if (activeId === objectId) setActiveId(null);
     if (filterObjectId === objectId) setFilterObjectId(null);
+    if (selectedObjectId === objectId) setSelectedObjectId(null);
+    if (editObjectId === objectId) setEditObjectId(null);
+  };
+
+  const handleUpdateObject = (data) => {
+    if (!editObjectId) return;
+    updateObject(editObjectId, {
+      name: data.name,
+      brand: data.brand,
+      description: data.description,
+    });
+    setEditObjectId(null);
   };
 
   const handleCreate = (data) => {
     if (panelType === "Objects") {
-      addObject(data.name, data.description, data.color);
+      const newObjectId = addObject(data.name, data.description, data.color, data.brand);
+      if (newObjectId) {
+        setActiveId(newObjectId);
+        setSelectedObjectId(newObjectId);
+      }
     } else if (panelType === "Documents") {
       const parentId = data.parentObjectId || null;
       const newDocId = addDoc(
@@ -520,6 +588,9 @@ export function LeftPanel({
         data.createdAt,
         data.blocks ?? null,
         {
+          docKind: data.docKind ?? "standard",
+          templateKind: data.templateKind ?? null,
+          templateSubcategoryDocIds: data.templateSubcategoryDocIds ?? [],
           version: data.version ?? "",
           category: data.category ?? "",
           launchAt: data.launchAt ?? null,
@@ -532,6 +603,7 @@ export function LeftPanel({
       }
       setActiveId(null);
       setShowCreate(false);
+      setShowTemplateCreate(false);
       if (newDocId && onOpenDocument) {
         onOpenDocument(newDocId);
       }
@@ -735,14 +807,30 @@ export function LeftPanel({
           </div>
         </Dropdown>
 
-        <button
-          type="button"
-          className="lp-new-btn"
-          onClick={handleNewByFolder}
-          aria-label={`Create new ${panelType.slice(0, -1).toLowerCase()}`}
-        >
-          <span className="lp-new-label">+ new</span>
-        </button>
+        <div className="lp-selector-actions">
+          {panelType === "Documents" ? (
+            <button
+              type="button"
+              className="lp-template-btn"
+              onClick={() => {
+                setShowTemplateCreate(true);
+                setShowCreate(false);
+                setFolderOpen(false);
+              }}
+              aria-label="Create campaign template"
+            >
+              template
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="lp-new-btn"
+            onClick={handleNewByFolder}
+            aria-label={`Create new ${panelType.slice(0, -1).toLowerCase()}`}
+          >
+            <span className="lp-new-label">+ new</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Content area ── */}
@@ -759,9 +847,13 @@ export function LeftPanel({
                   active={obj.id === activeId}
                   onClick={(e) => {
                     if (e.detail > 1) return;
-                    setActiveId(obj.id === activeId ? null : obj.id);
+                    const nextId = obj.id === activeId ? null : obj.id;
+                    setActiveId(nextId);
+                    setSelectedObjectId(nextId);
                   }}
                   onDoubleClick={() => openDocumentsForObject(obj.id)}
+                  onDelete={() => handleDeleteObject(obj.id)}
+                  onEdit={() => setEditObjectId(obj.id)}
                 />
               ))}
               {filteredObjectList.length === 0 && (
@@ -771,15 +863,6 @@ export function LeftPanel({
                 </div>
               )}
             </div>
-            {activeId && objects[activeId] && (
-              <button
-                type="button"
-                className="btn xs ghost danger-text lp-object-delete"
-                onClick={() => handleDeleteObject(activeId)}
-              >
-                delete object
-              </button>
-            )}
           </>
         )}
 
@@ -890,6 +973,22 @@ export function LeftPanel({
       {/* ── Create modals ── */}
       {showCreate && panelType === "Objects" && (
         <ObjectCreateModal onSubmit={handleCreate} onCancel={() => setShowCreate(false)} />
+      )}
+      {editObjectId && objects[editObjectId] && (
+        <ObjectCreateModal
+          initial={objects[editObjectId]}
+          onSubmit={handleUpdateObject}
+          onCancel={() => setEditObjectId(null)}
+        />
+      )}
+      {showTemplateCreate && panelType === "Documents" && (
+        <TemplateCreateModalPortal
+          objects={objList}
+          allDocs={docs}
+          defaultParentId={filterObjectId || ""}
+          onSubmit={handleCreate}
+          onCancel={() => setShowTemplateCreate(false)}
+        />
       )}
       {showCreate && panelType === "Documents" && typeof document !== "undefined" && createPortal(
         <DocCreateModal

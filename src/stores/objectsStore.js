@@ -18,24 +18,25 @@ export const useObjectsStore = create(
         return { ...obj };
       },
 
-      addObject: (name, description = "", color = "#6366f1") =>
-        set((state) => {
-          const id = generateId("OBJ");
-          return {
-            objects: {
-              ...state.objects,
-              [id]: {
-                id,
-                name,
-                description,
-                children: [],
-                color,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              },
+      addObject: (name, description = "", color = "#6366f1", brand = "") => {
+        const id = generateId("OBJ");
+        set((state) => ({
+          objects: {
+            ...state.objects,
+            [id]: {
+              id,
+              name,
+              description,
+              brand: typeof brand === "string" ? brand : "",
+              children: [],
+              color,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
             },
-          };
-        }),
+          },
+        }));
+        return id;
+      },
 
       createObject: (name, description = "") => get().addObject(name, description),
 

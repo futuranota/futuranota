@@ -11,6 +11,7 @@ import {
   launchDateInputFromIso,
 } from "../../lib/docDates.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
+import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocDocumentBox } from "./DocDocumentBox.jsx";
 import {
   docBlocksFromBody,
@@ -61,6 +62,9 @@ function buildDocPersistSnapshot({
   campaignActive = false,
   parentObjectId = "",
   nodeLinkColor = "dark",
+  docKind = "standard",
+  templateKind = null,
+  templateSubcategoryDocIds = [],
 }) {
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const serializedBody = docBlocksToBody(normalizedBlocks) || body || "";
@@ -75,6 +79,11 @@ function buildDocPersistSnapshot({
     campaignActive: Boolean(campaignActive),
     parentObjectId: parentObjectId || "",
     nodeLinkColor: nodeLinkColor ?? "dark",
+    docKind: docKind ?? "standard",
+    templateKind: templateKind ?? null,
+    templateSubcategoryDocIds: Array.isArray(templateSubcategoryDocIds)
+      ? templateSubcategoryDocIds
+      : [],
   };
 }
 
@@ -101,6 +110,9 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
   const [draftCampaignActive, setDraftCampaignActive] = useState(false);
   const [draftNodeLinkColor, setDraftNodeLinkColor] = useState("dark");
   const [draftParentId, setDraftParentId] = useState("");
+  const [draftDocKind, setDraftDocKind] = useState("standard");
+  const [draftTemplateKind, setDraftTemplateKind] = useState(null);
+  const [draftTemplateSubcategoryDocIds, setDraftTemplateSubcategoryDocIds] = useState([]);
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
@@ -113,6 +125,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
   const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
   const nodeAutosaveTimerRef = useRef(null);
   const objects = useObjectsStore((s) => s.objects);
+  const allDocs = useDocsStore((s) => s.docs);
 
   useEffect(() => {
     const d = useDocsStore.getState().docs[docId];
@@ -131,6 +144,9 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
     setDraftCampaignActive(Boolean(normalized.campaignActive));
     setDraftNodeLinkColor(normalized.nodeLinkColor ?? "dark");
     setDraftParentId(doc.parentObjectId ?? "");
+    setDraftDocKind(normalized.docKind ?? "standard");
+    setDraftTemplateKind(normalized.templateKind ?? null);
+    setDraftTemplateSubcategoryDocIds(normalized.templateSubcategoryDocIds ?? []);
     setNodeSavedHint(false);
     setDocSavedHint(false);
     setInitialSnapshot(
@@ -145,6 +161,9 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
         campaignActive: Boolean(normalized.campaignActive),
         parentObjectId: doc.parentObjectId ?? "",
         nodeLinkColor: normalized.nodeLinkColor ?? "dark",
+        docKind: normalized.docKind ?? "standard",
+        templateKind: normalized.templateKind ?? null,
+        templateSubcategoryDocIds: normalized.templateSubcategoryDocIds ?? [],
       }),
     );
   }, [docId]);
@@ -167,7 +186,11 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
     campaignActive: draftCampaignActive,
     parentObjectId: draftParentId,
     nodeLinkColor: draftNodeLinkColor,
+    docKind: draftDocKind,
+    templateKind: draftTemplateKind,
+    templateSubcategoryDocIds: draftTemplateSubcategoryDocIds,
   });
+  const isTemplate = isTemplateDoc({ docKind: draftDocKind });
   const hasUnsavedChanges = initialSnapshot
     ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
     : false;
@@ -229,6 +252,9 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
       campaignActive: draftCampaignActive,
       parentObjectId: draftParentId,
       nodeLinkColor: draftNodeLinkColor,
+      docKind: draftDocKind,
+      templateKind: draftTemplateKind,
+      templateSubcategoryDocIds: draftTemplateSubcategoryDocIds,
     });
     updateDoc(doc.id, {
       title,
@@ -241,6 +267,9 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
       launchAt: savedSnapshot.launchAt,
       campaignActive: savedSnapshot.campaignActive,
       nodeLinkColor: savedSnapshot.nodeLinkColor,
+      docKind: savedSnapshot.docKind,
+      templateKind: savedSnapshot.templateKind,
+      templateSubcategoryDocIds: savedSnapshot.templateSubcategoryDocIds,
     });
     if ((doc.parentObjectId ?? "") !== (draftParentId || "")) {
       linkDocToObject(doc.id, draftParentId || null);
@@ -578,23 +607,23 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
             setDraftCreatedDate(v);
             setDocSavedHint(false);
           }}
-          version={draftVersion}
-          onVersionChange={(v) => {
+          version={isTemplate ? "" : draftVersion}
+          onVersionChange={isTemplate ? undefined : (v) => {
             setDraftVersion(v);
             setDocSavedHint(false);
           }}
-          category={draftCategory}
-          onCategoryChange={(v) => {
+          category={isTemplate ? "" : draftCategory}
+          onCategoryChange={isTemplate ? undefined : (v) => {
             setDraftCategory(v);
             setDocSavedHint(false);
           }}
-          launchDate={draftLaunchDate}
-          onLaunchDateChange={(v) => {
+          launchDate={isTemplate ? "" : draftLaunchDate}
+          onLaunchDateChange={isTemplate ? undefined : (v) => {
             setDraftLaunchDate(v);
             setDocSavedHint(false);
           }}
           campaignActive={draftCampaignActive}
-          onCampaignActiveChange={(v) => {
+          onCampaignActiveChange={isTemplate ? undefined : (v) => {
             setDraftCampaignActive(v);
             setDocSavedHint(false);
           }}
@@ -603,6 +632,15 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas }) {
             setDraftParentId(v);
             setDocSavedHint(false);
           }}
+          docKind={draftDocKind}
+          templateKind={draftTemplateKind}
+          templateSubcategoryDocIds={draftTemplateSubcategoryDocIds}
+          onTemplateSubcategoryDocIdsChange={(ids) => {
+            setDraftTemplateSubcategoryDocIds(ids);
+            setDocSavedHint(false);
+          }}
+          allDocs={allDocs}
+          docId={doc.id}
           nodeLinkColor={draftNodeLinkColor}
           onNodeLinkColorChange={(v) => {
             setDraftNodeLinkColor(v);
