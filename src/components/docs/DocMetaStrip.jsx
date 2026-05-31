@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getToday } from "../../data.jsx";
 import { formatCampaignLabel, formatWindowDays } from "../../lib/docMetaBar.js";
 import { formatMmDdYy, isoFromDateInput } from "../../lib/docDates.js";
@@ -26,6 +26,7 @@ function MetaChip({
   placeholder = null,
   emptyDisplay = "",
   valueLowercase = false,
+  asTag = false,
 }) {
   const empty = value == null || value === "" || value === "—";
   const display = empty ? (placeholder ?? emptyDisplay) : value;
@@ -34,17 +35,78 @@ function MetaChip({
   return (
     <div className="doc-meta-chip" title={!empty ? String(value) : undefined}>
       <span className="doc-meta-chip-k">{label}</span>
-      <span
-        className={
-          "doc-meta-chip-v"
-          + (tone === "created" ? " tone-created" : " tone-muted")
-          + (isPlaceholder ? " is-placeholder" : "")
-          + (empty && !placeholder ? " is-empty" : "")
-          + (valueLowercase ? " is-lowercase" : "")
-        }
-      >
-        {display}
-      </span>
+      {asTag && !empty ? (
+        <span className="doc-product-category-tag doc-product-category-tag--summary">{display}</span>
+      ) : (
+        <span
+          className={
+            "doc-meta-chip-v"
+            + (tone === "created" ? " tone-created" : " tone-muted")
+            + (isPlaceholder ? " is-placeholder" : "")
+            + (empty && !placeholder ? " is-empty" : "")
+            + (valueLowercase ? " is-lowercase" : "")
+          }
+        >
+          {display}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ProductCategoryField({ value, onChange }) {
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef(null);
+  const trimmed = value.trim();
+  const showInput = !trimmed || editing;
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  return (
+    <div className="doc-meta-field">
+      <span className="doc-meta-field-k">Product Category</span>
+      <div className="doc-product-category-wrap">
+        {trimmed && !editing ? (
+          <button
+            type="button"
+            className="doc-product-category-tag"
+            title={`${trimmed} · click to edit`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditing(true);
+            }}
+          >
+            {trimmed}
+          </button>
+        ) : null}
+        {showInput ? (
+          <input
+            ref={inputRef}
+            type="text"
+            className="doc-new-meta-input doc-meta-field-input doc-product-category-input"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={() => {
+              if (trimmed) setEditing(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setEditing(false);
+              }
+            }}
+            placeholder={trimmed ? "Edit product category" : "Type product category"}
+            spellCheck={false}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -76,9 +138,11 @@ export function DocMetaStrip({
   const launchIso = launchDate ? isoFromDateInput(launchDate) : null;
   const today = getToday();
   const windowSummary = formatWindowDays(today, launchIso);
+  const parentObject = objects?.find((o) => o.id === parentId) ?? null;
   const parentName =
-    objects?.find((o) => o.id === parentId)?.name?.trim()
+    parentObject?.name?.trim()
     || (brandLabel && brandLabel !== "— sin padre —" ? brandLabel : null);
+  const brandSummary = parentObject?.brand?.trim() || null;
 
   const campaignSummary = showCampaignMeta
     ? formatCampaignLabel(campaignActive)
@@ -97,10 +161,10 @@ export function DocMetaStrip({
           />
           {showCampaignMeta ? (
             <>
-              <MetaChip label="Brand" value={parentName} />
+              <MetaChip label="Brand" value={brandSummary} />
               <MetaChip label="Version" value={version.trim() || null} />
               <MetaChip label="Campaign" value={campaignSummary} valueLowercase />
-              <MetaChip label="Category" value={category.trim() || null} />
+              <MetaChip label="Product Category" value={category.trim() || null} asTag />
               <MetaChip label="Launch" value={launchFormatted || null} />
               <MetaChip label="Window" value={windowSummary} />
             </>
@@ -179,18 +243,7 @@ export function DocMetaStrip({
                   </button>
                 </div>
               </div>
-              <label className="doc-meta-field">
-                <span className="doc-meta-field-k">Categories</span>
-                <input
-                  type="text"
-                  className="doc-new-meta-input doc-meta-field-input"
-                  value={category}
-                  onChange={(e) => onCategoryChange(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder="Type your category"
-                  spellCheck={false}
-                />
-              </label>
+              <ProductCategoryField value={category} onChange={onCategoryChange} />
               <label className="doc-meta-field">
                 <span className="doc-meta-field-k">Launch</span>
                 <input

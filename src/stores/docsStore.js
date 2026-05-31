@@ -62,6 +62,9 @@ export const useDocsStore = create(
               syncedWithCanvas: true,
               createdAt: created,
               updatedAt: new Date().toISOString(),
+              docKind: campaign.docKind ?? "standard",
+              templateKind: campaign.templateKind ?? null,
+              templateSubcategoryDocIds: campaign.templateSubcategoryDocIds ?? [],
               version: campaign.version ?? "",
               category: campaign.category ?? "",
               launchAt: campaign.launchAt ?? null,
@@ -95,7 +98,7 @@ export const useDocsStore = create(
           return {
             docs: {
               ...state.docs,
-              [id]: { ...doc, ...nextPatch, updatedAt: new Date().toISOString() },
+              [id]: normalizeDoc({ ...doc, ...nextPatch, updatedAt: new Date().toISOString() }),
             },
           };
         }),

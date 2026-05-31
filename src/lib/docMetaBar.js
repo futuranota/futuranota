@@ -37,10 +37,23 @@ export function formatWindowDays(today, launchAt) {
   return `${n} days`;
 }
 
-export function buildMetaBarFromDoc({ doc, objectsById = {}, today = getToday() }) {
+export function buildMetaBarFromDoc({
+  doc,
+  objectsById = {},
+  selectedObjectId = null,
+  today = getToday(),
+}) {
+  const selectedObject =
+    selectedObjectId && objectsById[selectedObjectId]
+      ? objectsById[selectedObjectId]
+      : null;
+  const corpus = selectedObject?.name?.trim() || null;
+  const brandFromSelection = selectedObject?.brand?.trim() || null;
+
   if (!doc) {
     return {
-      brand: null,
+      corpus,
+      brand: brandFromSelection,
       version: null,
       campaign: null,
       category: null,
@@ -55,9 +68,11 @@ export function buildMetaBarFromDoc({ doc, objectsById = {}, today = getToday() 
       ? objectsById[normalized.parentObjectId]
       : null;
   const launchDate = parseLaunchDate(normalized.launchAt);
+  const brandFromDoc = parent?.brand?.trim() || null;
 
   return {
-    brand: parent?.name?.trim() || null,
+    corpus,
+    brand: brandFromSelection || brandFromDoc,
     version: normalized.version?.trim() || null,
     campaign: formatCampaignLabel(normalized.campaignActive),
     category: normalized.category?.trim() || null,
@@ -85,8 +100,9 @@ export function buildMetaBarFromCanvas({
   canvasNodes = [],
   docs = {},
   objectsById = {},
+  selectedObjectId = null,
   today = getToday(),
 }) {
   const doc = resolveActiveDocFromCanvas(selection, canvasNodes, docs);
-  return buildMetaBarFromDoc({ doc, objectsById, today });
+  return buildMetaBarFromDoc({ doc, objectsById, selectedObjectId, today });
 }

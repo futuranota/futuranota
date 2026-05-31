@@ -11,6 +11,8 @@ export const useUIStateStore = create(
 
       /** Sidebar: filter documents by parent object */
       filterObjectId: null,
+      /** Sidebar: selected object (corpus) for meta bar */
+      selectedObjectId: null,
       /** Sidebar: filter nodes by parent document */
       filterDocId: null,
 
@@ -47,6 +49,7 @@ export const useUIStateStore = create(
       setExpandedNode: (id) => set({ expandedNodeId: id }),
 
       setFilterObjectId: (id) => set({ filterObjectId: id }),
+      setSelectedObjectId: (id) => set({ selectedObjectId: id }),
       setFilterDocId: (id) => set({ filterDocId: id }),
 
       setFocusedCanvasNode: (id) => set({ focusedCanvasNodeId: id }),

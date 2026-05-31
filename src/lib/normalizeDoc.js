@@ -1,8 +1,13 @@
 import { normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
+import {
+  DOC_KIND_STANDARD,
+  emptyTemplateFields,
+} from "./templateDoc.js";
 
 /** Default campaign/meta fields on documents. */
 export function emptyDocCampaignFields() {
   return {
+    ...emptyTemplateFields(),
     version: "",
     category: "",
     launchAt: null,
@@ -17,6 +22,11 @@ export function normalizeDoc(doc) {
   const base = emptyDocCampaignFields();
   return {
     ...doc,
+    docKind: doc.docKind === "template" ? "template" : DOC_KIND_STANDARD,
+    templateKind: doc.templateKind ?? base.templateKind,
+    templateSubcategoryDocIds: Array.isArray(doc.templateSubcategoryDocIds)
+      ? doc.templateSubcategoryDocIds.filter(Boolean)
+      : base.templateSubcategoryDocIds,
     version: typeof doc.version === "string" ? doc.version : base.version,
     category: typeof doc.category === "string" ? doc.category : base.category,
     launchAt: doc.launchAt ?? base.launchAt,

@@ -13,6 +13,8 @@ import {
   resolveBlockNodeLinkColor,
 } from "../../lib/docNodeLinkColors.js";
 import { DocMetaStrip } from "./DocMetaStrip.jsx";
+import { TemplateMetaStrip } from "../templates/TemplateMetaStrip.jsx";
+import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
@@ -66,8 +68,17 @@ export function DocDocumentBox({
   onCampaignActiveChange,
   nodeLinkColor = "dark",
   onNodeLinkColorChange,
+  docKind = "standard",
+  templateKind = null,
+  templateSubcategoryDocIds = [],
+  onTemplateSubcategoryDocIdsChange,
+  allDocs = null,
+  docId = null,
+  saveDisabled = false,
 }) {
-  const showCampaignMeta = Boolean(onVersionChange);
+  const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
+  const showCampaignMeta = Boolean(onVersionChange) && !isTemplate;
+  const showTemplateMeta = isTemplate && Boolean(onTemplateSubcategoryDocIdsChange);
   const docHeaderLabel = (headerLabel ?? "").trim() || DEFAULT_HEADER_LABEL;
   const bodyRef = useRef(null);
   const contentBoxRef = useRef(null);
@@ -321,25 +332,42 @@ export function DocDocumentBox({
         />
       </header>
 
-      <DocMetaStrip
-        createdDate={createdDate}
-        onCreatedDateChange={onCreatedDateChange}
-        brandLabel={docHeaderLabel}
-        version={version}
-        onVersionChange={onVersionChange}
-        category={category}
-        onCategoryChange={onCategoryChange}
-        launchDate={launchDate}
-        onLaunchDateChange={onLaunchDateChange}
-        campaignActive={campaignActive}
-        onCampaignActiveChange={onCampaignActiveChange}
-        parentId={parentId}
-        onParentIdChange={onParentIdChange}
-        objects={objects}
-        showCampaignMeta={showCampaignMeta}
-        nodeLinkColor={metaStripNodeLinkColor}
-        onNodeLinkColorChange={handleMetaNodeLinkColorChange}
-      />
+      {showTemplateMeta ? (
+        <TemplateMetaStrip
+          createdDate={createdDate}
+          onCreatedDateChange={onCreatedDateChange}
+          parentId={parentId}
+          onParentIdChange={onParentIdChange}
+          objects={objects}
+          templateKind={templateKind}
+          templateSubcategoryDocIds={templateSubcategoryDocIds}
+          onTemplateSubcategoryDocIdsChange={onTemplateSubcategoryDocIdsChange}
+          allDocs={allDocs}
+          excludeDocId={docId}
+          nodeLinkColor={metaStripNodeLinkColor}
+          onNodeLinkColorChange={handleMetaNodeLinkColorChange}
+        />
+      ) : (
+        <DocMetaStrip
+          createdDate={createdDate}
+          onCreatedDateChange={onCreatedDateChange}
+          brandLabel={docHeaderLabel}
+          version={version}
+          onVersionChange={onVersionChange}
+          category={category}
+          onCategoryChange={onCategoryChange}
+          launchDate={launchDate}
+          onLaunchDateChange={onLaunchDateChange}
+          campaignActive={campaignActive}
+          onCampaignActiveChange={onCampaignActiveChange}
+          parentId={parentId}
+          onParentIdChange={onParentIdChange}
+          objects={objects}
+          showCampaignMeta={showCampaignMeta}
+          nodeLinkColor={metaStripNodeLinkColor}
+          onNodeLinkColorChange={handleMetaNodeLinkColorChange}
+        />
+      )}
 
       <div
         ref={contentBoxRef}
@@ -394,7 +422,12 @@ export function DocDocumentBox({
         <button type="button" className="doc-new-action doc-new-action--delete" onClick={onDelete}>
           delete
         </button>
-        <button type="button" className="doc-new-action doc-new-action--save" onClick={onSave}>
+        <button
+          type="button"
+          className="doc-new-action doc-new-action--save"
+          disabled={saveDisabled}
+          onClick={onSave}
+        >
           save
         </button>
       </div>

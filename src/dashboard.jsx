@@ -48,10 +48,11 @@ function TopBar({ company, onBack, status, signal, scanState, onScan, onScanBlog
 
 function MetaBar({ metadata }) {
   const cells = [
+    { k: "Corpus", v: metadata.corpus, corpus: true },
     { k: "Brand", v: metadata.brand },
     { k: "Version", v: metadata.version },
     { k: "Campaign", v: metadata.campaign, source: metadata.campaignSource },
-    { k: "Category", v: metadata.category },
+    { k: "Product Category", v: metadata.category },
     { k: "Launch", v: metadata.launch, accent: true },
     { k: "Window", v: metadata.window, warm: true },
   ];
@@ -61,12 +62,17 @@ function MetaBar({ metadata }) {
       {cells.map((c) => (
         <div className="meta-cell" key={c.k}>
           <div className="meta-cell-k">{c.k}</div>
-          <div className={"meta-cell-v" + (c.accent ? " accent" : "") + (c.warm ? " warm" : "")}>
+          <div
+            className={
+              "meta-cell-v"
+              + (c.corpus ? " corpus" : "")
+              + (c.accent ? " accent" : "")
+              + (c.warm ? " warm" : "")
+            }
+          >
             {c.v ? (
               <span className={c.accent ? "accent" : c.warm ? "warm" : ""}>{c.v}</span>
-            ) : (
-              "—"
-            )}
+            ) : null}
           </div>
           {c.source ? <div className="meta-source">{c.source}</div> : null}
         </div>
