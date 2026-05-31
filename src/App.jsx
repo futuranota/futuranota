@@ -107,6 +107,7 @@ function Dashboard({ company, onBack }) {
   const nodeEntities = useNodesStore((s) => s.nodes);
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const activeDocMetaDraft = useUIStateStore((s) => s.activeDocMetaDraft);
   const tokenCurrent = 0;
   const tokenMax = 10;
 
@@ -118,9 +119,11 @@ function Dashboard({ company, onBack }) {
         docs,
         objectsById: objects,
         selectedObjectId,
+        expandedDocId,
+        activeDocMetaDraft,
         today,
       }),
-    [selection, canvasNodes, docs, objects, selectedObjectId, today],
+    [selection, canvasNodes, docs, objects, selectedObjectId, expandedDocId, activeDocMetaDraft, today],
   );
 
   useEffect(() => { initStores(); }, []);
@@ -433,6 +436,7 @@ function Dashboard({ company, onBack }) {
             <DocExpandedView
               docId={expandedDocId}
               onClose={() => setExpandedDocId(null)}
+              onNavigateToDoc={setExpandedDocId}
               onInsertToCanvas={insertNodeToCanvas}
             />
           </div>

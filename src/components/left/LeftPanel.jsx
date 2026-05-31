@@ -11,8 +11,7 @@ import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
 import { docBlocksToBody } from "../../lib/docBlocks.js";
 import { useDocBlockNodeModal, linkBlockNodesToDoc } from "../docs/useDocBlockNodeModal.jsx";
 import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
-import { TemplateCreateModalPortal } from "../templates/TemplateCreateModal.jsx";
-import { isTemplateDoc } from "../../lib/templateDoc.js";
+import { isTemplateDoc, findProductVersionDoc } from "../../lib/templateDoc.js";
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
@@ -280,7 +279,7 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
 /* ─────────────────────────────────────────────
    MODAL: Create Document  "New File" Notion-like
 ───────────────────────────────────────────── */
-function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
+function DocCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCancel, onOpenDocument }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [blocks, setBlocks] = useState([]);
@@ -291,6 +290,7 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
   const [category, setCategory] = useState("");
   const [launchDate, setLaunchDate] = useState("");
   const [campaignActive, setCampaignActive] = useState(false);
+  const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
   const [nodeLinkColor, setNodeLinkColor] = useState("dark");
   const titleRef = useRef(null);
 
@@ -319,6 +319,26 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
     nodeLinkColor,
   });
 
+  const handleVersionCommit = (trimmedVersion) => {
+    const trimmed = trimmedVersion.trim();
+    if (!trimmed) {
+      setVersion("");
+      return;
+    }
+    const cat = category.trim();
+    if (cat) {
+      const existing = findProductVersionDoc(allDocs, parentId, cat, trimmed);
+      if (existing) {
+        onCancel();
+        onOpenDocument?.(existing.id);
+        return;
+      }
+    }
+    setVersion(trimmed);
+    setBlocks([]);
+    setBody("");
+  };
+
   const submitDoc = () => {
     const finalTitle = title.trim() || "New document";
     const autoTags = parentObject?.name ? [parentObject.name] : [];
@@ -334,15 +354,15 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
       category: category.trim(),
       launchAt: launchDate ? isoFromDateInput(launchDate) : null,
       campaignActive,
+      subcategoryDocIds,
       nodeLinkColor,
     });
   };
 
   return (
     <div className="lp-overlay lp-overlay--solid lp-overlay--center">
-      <div className="lp-modal doc-new-modal" onClick={e => e.stopPropagation()}>
+      <div className="lp-modal doc-new-modal" onClick={(e) => e.stopPropagation()}>
         <DocDocumentBox
-          headerLabel={parentObject?.name || ""}
           title={title}
           onTitleChange={setTitle}
           titleRef={titleRef}
@@ -354,12 +374,16 @@ function DocCreateModal({ objects, defaultParentId, onSubmit, onCancel }) {
           onCreatedDateChange={setCreatedDate}
           version={version}
           onVersionChange={setVersion}
+          onVersionCommit={handleVersionCommit}
           category={category}
           onCategoryChange={setCategory}
           launchDate={launchDate}
           onLaunchDateChange={setLaunchDate}
           campaignActive={campaignActive}
           onCampaignActiveChange={setCampaignActive}
+          subcategoryDocIds={subcategoryDocIds}
+          onSubcategoryDocIdsChange={setSubcategoryDocIds}
+          allDocs={allDocs}
           nodeLinkColor={nodeLinkColor}
           onNodeLinkColorChange={setNodeLinkColor}
           parentId={parentId}
@@ -464,7 +488,6 @@ export function LeftPanel({
   const [panelType, setPanelType] = useState("Objects");
   const [activeId, setActiveId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [showTemplateCreate, setShowTemplateCreate] = useState(false);
   const [editObjectId, setEditObjectId] = useState(null);
   const [folderOpen, setFolderOpen] = useState(false);
   const [previewPanelType, setPreviewPanelType] = useState("Objects");
@@ -590,7 +613,8 @@ export function LeftPanel({
         {
           docKind: data.docKind ?? "standard",
           templateKind: data.templateKind ?? null,
-          templateSubcategoryDocIds: data.templateSubcategoryDocIds ?? [],
+          templateSubcategoryDocIds: data.subcategoryDocIds ?? data.templateSubcategoryDocIds ?? [],
+          subcategoryDocIds: data.subcategoryDocIds ?? data.templateSubcategoryDocIds ?? [],
           version: data.version ?? "",
           category: data.category ?? "",
           launchAt: data.launchAt ?? null,
@@ -603,7 +627,6 @@ export function LeftPanel({
       }
       setActiveId(null);
       setShowCreate(false);
-      setShowTemplateCreate(false);
       if (newDocId && onOpenDocument) {
         onOpenDocument(newDocId);
       }
@@ -808,20 +831,6 @@ export function LeftPanel({
         </Dropdown>
 
         <div className="lp-selector-actions">
-          {panelType === "Documents" ? (
-            <button
-              type="button"
-              className="lp-template-btn"
-              onClick={() => {
-                setShowTemplateCreate(true);
-                setShowCreate(false);
-                setFolderOpen(false);
-              }}
-              aria-label="Create campaign template"
-            >
-              template
-            </button>
-          ) : null}
           <button
             type="button"
             className="lp-new-btn"
@@ -981,21 +990,14 @@ export function LeftPanel({
           onCancel={() => setEditObjectId(null)}
         />
       )}
-      {showTemplateCreate && panelType === "Documents" && (
-        <TemplateCreateModalPortal
+      {showCreate && panelType === "Documents" && typeof document !== "undefined" && createPortal(
+        <DocCreateModal
           objects={objList}
           allDocs={docs}
           defaultParentId={filterObjectId || ""}
           onSubmit={handleCreate}
-          onCancel={() => setShowTemplateCreate(false)}
-        />
-      )}
-      {showCreate && panelType === "Documents" && typeof document !== "undefined" && createPortal(
-        <DocCreateModal
-          objects={objList}
-          defaultParentId={filterObjectId || ""}
-          onSubmit={handleCreate}
           onCancel={() => setShowCreate(false)}
+          onOpenDocument={onOpenDocument}
         />,
         document.body,
       )}

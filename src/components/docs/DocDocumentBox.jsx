@@ -13,6 +13,7 @@ import {
   resolveBlockNodeLinkColor,
 } from "../../lib/docNodeLinkColors.js";
 import { DocMetaStrip } from "./DocMetaStrip.jsx";
+import { DocParentHeadPicker } from "./DocParentHeadPicker.jsx";
 import { TemplateMetaStrip } from "../templates/TemplateMetaStrip.jsx";
 import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
@@ -60,6 +61,7 @@ export function DocDocumentBox({
   headerLabel,
   version = "",
   onVersionChange,
+  onVersionCommit,
   category = "",
   onCategoryChange,
   launchDate = "",
@@ -70,6 +72,8 @@ export function DocDocumentBox({
   onNodeLinkColorChange,
   docKind = "standard",
   templateKind = null,
+  subcategoryDocIds = [],
+  onSubcategoryDocIdsChange,
   templateSubcategoryDocIds = [],
   onTemplateSubcategoryDocIdsChange,
   allDocs = null,
@@ -78,7 +82,12 @@ export function DocDocumentBox({
 }) {
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
   const showCampaignMeta = Boolean(onVersionChange) && !isTemplate;
-  const showTemplateMeta = isTemplate && Boolean(onTemplateSubcategoryDocIdsChange);
+  const resolvedSubcategoryDocIds = subcategoryDocIds?.length
+    ? subcategoryDocIds
+    : templateSubcategoryDocIds;
+  const handleSubcategoryDocIdsChange = onSubcategoryDocIdsChange || onTemplateSubcategoryDocIdsChange;
+  const showTemplateMeta = isTemplate && Boolean(handleSubcategoryDocIdsChange);
+  const showParentPicker = Boolean(onParentIdChange && objects?.length);
   const docHeaderLabel = (headerLabel ?? "").trim() || DEFAULT_HEADER_LABEL;
   const bodyRef = useRef(null);
   const contentBoxRef = useRef(null);
@@ -86,6 +95,11 @@ export function DocDocumentBox({
   const blockStackRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
 
+  const parentObject = useMemo(() => {
+    if (!parentId || !objects) return null;
+    if (Array.isArray(objects)) return objects.find((o) => o.id === parentId) ?? null;
+    return objects[parentId] ?? null;
+  }, [objects, parentId]);
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const hasBlocks = normalizedBlocks.length > 0;
   const { slash: slashTail } = splitBodyForSlash(body);
@@ -300,10 +314,20 @@ export function DocDocumentBox({
     <div className="doc-new-inner">
       <header className="doc-new-head">
         <div className="doc-new-head-top">
-          <img className="doc-new-head-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />
-          {docHeaderLabel ? (
-            <span className="doc-new-doc-label">{docHeaderLabel}</span>
-          ) : null}
+          {showParentPicker ? (
+            <DocParentHeadPicker
+              parentId={parentId}
+              onParentIdChange={onParentIdChange}
+              objects={objects}
+            />
+          ) : (
+            <>
+              <img className="doc-new-head-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />
+              {docHeaderLabel ? (
+                <span className="doc-new-doc-label">{docHeaderLabel}</span>
+              ) : null}
+            </>
+          )}
           {onCloseExpand && (
             <button
               type="button"
@@ -337,11 +361,9 @@ export function DocDocumentBox({
           createdDate={createdDate}
           onCreatedDateChange={onCreatedDateChange}
           parentId={parentId}
-          onParentIdChange={onParentIdChange}
-          objects={objects}
           templateKind={templateKind}
-          templateSubcategoryDocIds={templateSubcategoryDocIds}
-          onTemplateSubcategoryDocIdsChange={onTemplateSubcategoryDocIdsChange}
+          subcategoryDocIds={resolvedSubcategoryDocIds}
+          onSubcategoryDocIdsChange={handleSubcategoryDocIdsChange}
           allDocs={allDocs}
           excludeDocId={docId}
           nodeLinkColor={metaStripNodeLinkColor}
@@ -351,9 +373,10 @@ export function DocDocumentBox({
         <DocMetaStrip
           createdDate={createdDate}
           onCreatedDateChange={onCreatedDateChange}
-          brandLabel={docHeaderLabel}
+          brandLabel={parentObject?.brand?.trim() || ""}
           version={version}
           onVersionChange={onVersionChange}
+          onVersionCommit={onVersionCommit}
           category={category}
           onCategoryChange={onCategoryChange}
           launchDate={launchDate}
@@ -361,7 +384,10 @@ export function DocDocumentBox({
           campaignActive={campaignActive}
           onCampaignActiveChange={onCampaignActiveChange}
           parentId={parentId}
-          onParentIdChange={onParentIdChange}
+          subcategoryDocIds={resolvedSubcategoryDocIds}
+          onSubcategoryDocIdsChange={handleSubcategoryDocIdsChange}
+          allDocs={allDocs}
+          docId={docId}
           objects={objects}
           showCampaignMeta={showCampaignMeta}
           nodeLinkColor={metaStripNodeLinkColor}

@@ -43,6 +43,9 @@ export const useUIStateStore = create(
       /** Active search meta while loading or for last run */
       intelSearchMeta: null,
 
+      /** Live doc meta while document overlay is open (syncs MetaBar). */
+      activeDocMetaDraft: null,
+
       setExpandedFolder: (folder) => set({ expandedFolder: folder }),
       setExpandedObject: (id) => set({ expandedObjectId: id }),
       setExpandedDoc: (id) => set({ expandedDocId: id }),
@@ -142,6 +145,9 @@ export const useUIStateStore = create(
           intelSearchResult: null,
           intelSearchMeta: null,
         }),
+
+      setActiveDocMetaDraft: (draft) => set({ activeDocMetaDraft: draft }),
+      clearActiveDocMetaDraft: () => set({ activeDocMetaDraft: null }),
     }),
     { name: "UIStateStore" },
   ),

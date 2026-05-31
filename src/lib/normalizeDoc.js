@@ -24,9 +24,11 @@ export function normalizeDoc(doc) {
     ...doc,
     docKind: doc.docKind === "template" ? "template" : DOC_KIND_STANDARD,
     templateKind: doc.templateKind ?? base.templateKind,
-    templateSubcategoryDocIds: Array.isArray(doc.templateSubcategoryDocIds)
-      ? doc.templateSubcategoryDocIds.filter(Boolean)
-      : base.templateSubcategoryDocIds,
+    subcategoryDocIds: Array.isArray(doc.subcategoryDocIds)
+      ? doc.subcategoryDocIds.filter(Boolean)
+      : Array.isArray(doc.templateSubcategoryDocIds)
+        ? doc.templateSubcategoryDocIds.filter(Boolean)
+        : base.subcategoryDocIds,
     version: typeof doc.version === "string" ? doc.version : base.version,
     category: typeof doc.category === "string" ? doc.category : base.category,
     launchAt: doc.launchAt ?? base.launchAt,
