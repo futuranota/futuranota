@@ -169,9 +169,14 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
 function ObjectCreateModal({ onSubmit, onCancel }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
-  const [color, setColor] = useState("#5a1f1f");
   const ref = useRef(null);
   useEffect(() => { ref.current?.focus(); }, []);
+
+  const submitPayload = () => ({
+    name: name.trim(),
+    description: desc,
+    color: "#5a1f1f",
+  });
 
   return (
     <div className="lp-overlay" onClick={onCancel}>
@@ -180,10 +185,6 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
 
         <div className="obj-create-preview-row">
           <ObjectIcon variant="lg" />
-          <label className="obj-color-row">
-            <input type="color" value={color} onChange={e => setColor(e.target.value)} />
-            <span>Color</span>
-          </label>
         </div>
 
         <div>
@@ -191,11 +192,11 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
           <input
             ref={ref}
             className="note-form-field obj-name-input"
-            placeholder="Object name"
+            placeholder="Corpus name"
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => {
-              if (e.key === "Enter" && name.trim()) onSubmit({ name: name.trim(), description: desc, color });
+              if (e.key === "Enter" && name.trim()) onSubmit(submitPayload());
               if (e.key === "Escape") onCancel();
             }}
           />
@@ -210,9 +211,9 @@ function ObjectCreateModal({ onSubmit, onCancel }) {
             <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
             <button
               type="button"
-              className="btn primary"
+              className="btn primary obj-create-save"
               disabled={!name.trim()}
-              onClick={() => onSubmit({ name: name.trim(), description: desc, color })}
+              onClick={() => onSubmit(submitPayload())}
             >
               Save object
             </button>
