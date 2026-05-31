@@ -79,9 +79,12 @@ export function DocDocumentBox({
   allDocs = null,
   docId = null,
   saveDisabled = false,
+  metaMode = "campaign",
 }) {
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
-  const showCampaignMeta = Boolean(onVersionChange) && !isTemplate;
+  const isProductMode = metaMode === "product";
+  const isContentMode = metaMode === "content";
+  const showCampaignMeta = Boolean(onVersionChange) && !isTemplate && !isProductMode;
   const resolvedSubcategoryDocIds = subcategoryDocIds?.length
     ? subcategoryDocIds
     : templateSubcategoryDocIds;
@@ -390,6 +393,7 @@ export function DocDocumentBox({
           docId={docId}
           objects={objects}
           showCampaignMeta={showCampaignMeta}
+          metaMode={metaMode}
           nodeLinkColor={metaStripNodeLinkColor}
           onNodeLinkColorChange={handleMetaNodeLinkColorChange}
         />
