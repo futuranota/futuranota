@@ -16,6 +16,37 @@ import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
 
+const DOC_CHILD_OFFSET_X = 248;
+const DOC_CHILD_ROW_STEP = 88;
+
+function buildCanvasNodeFromEntity(zustandNode, x, y, overrides = {}) {
+  return {
+    id: shortId("CN"),
+    noteId: zustandNode.id,
+    title: (zustandNode.title || zustandNode.content || "NODE").toUpperCase().slice(0, 20),
+    dataType: zustandNode.dataType || "text",
+    content: zustandNode.content ?? "",
+    x,
+    y,
+    ...overrides,
+  };
+}
+
+function resolveDocChildNodes(doc) {
+  const nodesStore = useNodesStore.getState();
+  const childMap = new Map(
+    nodesStore.getNodesByDoc(doc.id).map((node) => [node.id, node]),
+  );
+
+  for (const nodeId of doc.nodeIds || []) {
+    if (childMap.has(nodeId)) continue;
+    const node = nodesStore.getNode(nodeId);
+    if (node) childMap.set(node.id, node);
+  }
+
+  return [...childMap.values()];
+}
+
 /* app.jsx — root state + orchestration
  *
  * Three-tier model:
@@ -127,8 +158,11 @@ function Dashboard({ company, onBack }) {
     }, 2000);
   };
 
-  const nextCanvasPosition = (preferredX, preferredY) => {
-    const occupied = canvasNodes.map((n) => ({ x: n.x, y: n.y }));
+  const nextCanvasPosition = (preferredX, preferredY, extraOccupied = []) => {
+    const occupied = [
+      ...canvasNodes.map((n) => ({ x: n.x, y: n.y })),
+      ...extraOccupied,
+    ];
     let x = preferredX ?? 30;
     let y = preferredY ?? 30;
     let guard = 0;
@@ -145,14 +179,7 @@ function Dashboard({ company, onBack }) {
     const preferredX = options?.center ? 320 : options?.x;
     const preferredY = options?.center ? 190 : options?.y;
     const { x, y } = nextCanvasPosition(preferredX, preferredY);
-    const newNode = {
-      id: shortId("CN"),
-      noteId: zustandNode.id,
-      title: (zustandNode.title || zustandNode.content || "NODE").toUpperCase().slice(0, 20),
-      dataType: zustandNode.dataType || "text",
-      content: zustandNode.content ?? "",
-      x, y,
-    };
+    const newNode = buildCanvasNodeFromEntity(zustandNode, x, y);
     setCanvasNodes((all) => [...all, newNode]);
     setToast({ message: `Node added · "${newNode.title}"`, kind: "ok" });
   };
@@ -209,24 +236,53 @@ function Dashboard({ company, onBack }) {
   };
 
   const insertDocToCanvas = (doc, worldX, worldY) => {
+    const existingNoteIds = new Set(
+      canvasNodes.map((n) => n.noteId).filter(Boolean),
+    );
+    const childNodes = resolveDocChildNodes(doc).filter(
+      (node) => !existingNoteIds.has(node.id),
+    );
+
+    const occupied = [];
     const { x, y } = nextCanvasPosition(
       worldX != null ? worldX - 50 : undefined,
       worldY != null ? worldY - 40 : undefined,
+      occupied,
     );
-    const newNode = {
-      id: shortId("CN"),
+    const docCanvasNode = buildCanvasNodeFromEntity(doc, x, y, {
       canvasKind: "document",
       docId: doc.id,
       noteId: doc.id,
       title: (doc.title || "DOCUMENT").toUpperCase().slice(0, 20),
       dataType: "document",
       content: doc.body || doc.content || "",
-      x, y,
-    };
-    setCanvasNodes((all) => [...all, newNode]);
-    setSelection([newNode.id]);
-    setToast({ message: `Document placed · "${doc.title}"`, kind: "ok" });
-    return newNode.id;
+    });
+    occupied.push({ x, y });
+
+    const rowOffset = childNodes.length > 1
+      ? ((childNodes.length - 1) * DOC_CHILD_ROW_STEP) / 2
+      : 0;
+
+    const childCanvasNodes = childNodes.map((childNode, index) => {
+      const preferredX = x + DOC_CHILD_OFFSET_X;
+      const preferredY = y + index * DOC_CHILD_ROW_STEP - rowOffset;
+      const pos = nextCanvasPosition(preferredX, preferredY, occupied);
+      occupied.push(pos);
+      return buildCanvasNodeFromEntity(childNode, pos.x, pos.y);
+    });
+
+    const newCanvasNodes = [docCanvasNode, ...childCanvasNodes];
+
+    setCanvasNodes((all) => [...all, ...newCanvasNodes]);
+    setSelection([docCanvasNode.id]);
+    const childMsg = childCanvasNodes.length
+      ? ` + ${childCanvasNodes.length} node${childCanvasNodes.length === 1 ? "" : "s"}`
+      : "";
+    setToast({
+      message: `Document placed · "${doc.title}"${childMsg}`,
+      kind: "ok",
+    });
+    return docCanvasNode.id;
   };
 
   const handleCanvasDrop = (payload, world) => {
