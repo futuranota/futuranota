@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   DOC_TIMER_ICON,
@@ -44,6 +44,7 @@ export function NodeQueryModal({
   onAnchorTimeChange,
 }) {
   const bodyRef = useRef(null);
+  const queryInputRef = useRef(null);
   const displayQuery = (query || "").trim() || "Untitled";
   const queryEditable = Boolean(onQueryChange);
   const typeEditable = Boolean(onDataTypeChange);
@@ -85,6 +86,18 @@ export function NodeQueryModal({
   useEffect(() => {
     bodyRef.current?.focus();
   }, [dataType]);
+
+  const syncQueryInputHeight = useCallback(() => {
+    const el = queryInputRef.current;
+    if (!el) return;
+    const maxHeight = 128;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+  }, []);
+
+  useEffect(() => {
+    syncQueryInputHeight();
+  }, [query, syncQueryInputHeight]);
 
   useEffect(() => {
     setActiveNodeQueryDraft(displayQuery);
@@ -181,11 +194,15 @@ export function NodeQueryModal({
 
           {queryEditable ? (
             <div className="node-query-modal__query-edit" id="node-query-modal-title">
-              <input
-                type="text"
+              <textarea
+                ref={queryInputRef}
                 className="node-query-modal__query-input"
                 value={query}
-                onChange={(e) => onQueryChange(e.target.value)}
+                onChange={(e) => {
+                  onQueryChange(e.target.value);
+                  syncQueryInputHeight();
+                }}
+                rows={1}
                 placeholder="Untitled"
                 spellCheck={false}
                 aria-label="Query or title"
@@ -308,7 +325,7 @@ export function NodeQueryModal({
               onClick={onSave}
             >
               <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
-              save
+              <span className="node-query-modal__save-text">save</span>
             </button>
           ) : null}
           <IntelSearchButton
