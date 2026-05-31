@@ -179,12 +179,8 @@ function useTweaks(defaults) {
 }
 
 // ── TweaksPanel ─────────────────────────────────────────────────────────────
-// Floating shell. Registers the protocol listener BEFORE announcing
-// availability — if the announce ran first, the host's activate could land
-// before our handler exists and the toolbar toggle would silently no-op.
-// The close button posts __edit_mode_dismissed so the host's toolbar toggle
-// flips off in lockstep; the host echoes __deactivate_edit_mode back which
-// is what actually hides the panel.
+// Floating dev panel. Cursor edit-mode hooks disabled so Select Element does not
+// auto-open this panel. Toggle in dev with Alt+Shift+T.
 function TweaksPanel({ title = 'Tweaks', noDeckControls = false, children }) {
   const [open, setOpen] = useState(false);
   const dragRef = useRef(null);
@@ -251,19 +247,19 @@ function TweaksPanel({ title = 'Tweaks', noDeckControls = false, children }) {
   }, [open, clampToViewport]);
 
   useEffect(() => {
-    const onMsg = (e) => {
-      const t = e?.data?.type;
-      if (t === '__activate_edit_mode') setOpen(true);
-      else if (t === '__deactivate_edit_mode') setOpen(false);
+    if (!import.meta.env.DEV) return undefined;
+    const onKeyDown = (event) => {
+      if (event.altKey && event.shiftKey && event.key.toLowerCase() === 't') {
+        event.preventDefault();
+        setOpen((v) => !v);
+      }
     };
-    window.addEventListener('message', onMsg);
-    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
-    return () => window.removeEventListener('message', onMsg);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const dismiss = () => {
     setOpen(false);
-    window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
   };
 
   const onDragStart = (e) => {

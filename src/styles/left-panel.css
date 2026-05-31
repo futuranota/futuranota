@@ -547,6 +547,105 @@
   margin-bottom: 8px;
 }
 
+.lp-click-folders-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lp-click-folder-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-bottom: 4px;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  color: #dadfee;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lp-click-folder-back:hover {
+  color: #e8dcc8;
+}
+
+.lp-click-folder-back-arrow {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.lp-click-folder-back-label {
+  font-weight: 600;
+}
+
+.lp-click-folder-back-label.is-lowercase {
+  text-transform: lowercase;
+}
+
+.lp-click-folder-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lp-click-folder-doc-row {
+  margin-bottom: 0;
+}
+
+.lp-click-folder-doc-row-main {
+  cursor: default;
+}
+
+.lp-click-folder-doc-row .fn-card-body b {
+  text-transform: lowercase;
+  font-size: 13px;
+}
+
+.lp-doc-drag-area--static {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.lp-click-folder-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 110px;
+  padding: 16px;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(35, 39, 47, 0.56);
+  cursor: pointer;
+  color: #79818b;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.lp-click-folder-box:hover {
+  color: #e8dcc8;
+  background: rgba(42, 46, 56, 0.72);
+}
+
+.lp-click-folder-box:focus-visible {
+  outline: 2px solid color-mix(in oklab, #e8dcc8 45%, transparent);
+  outline-offset: 2px;
+}
+
+.lp-click-folder-box-icon {
+  width: auto;
+  height: 52px;
+  max-width: 100%;
+  display: block;
+}
+
+.lp-click-folder-box--subgroups .lp-click-folder-box-icon {
+  height: 58px;
+}
+
 .lp-doc-card {
   display: flex;
   align-items: stretch;
