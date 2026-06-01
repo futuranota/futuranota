@@ -16,6 +16,7 @@ import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
 import { useTimelineStore, useUIStateStore } from './stores/index.js';
 import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
 import { CalendarPanel, getScheduleHintForNode } from './components/intel/CalendarPanel.jsx';
+import { MarketHypeWidget } from './components/intel/MarketHypeWidget.tsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
 import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
@@ -696,6 +697,7 @@ function IntelFoldersSection({
           "intel-folder-panel"
           + (folder === "calendar" ? " intel-folder-panel--calendar" : "")
           + (folder === "forecast" ? " intel-folder-panel--forecast" : "")
+          + (folder === "market-hype" ? " intel-folder-panel--market-hype" : "")
           + (showForecastSearch ? " intel-folder-panel--with-search" : "")
         }
         role="tabpanel"
@@ -716,7 +718,11 @@ function IntelFoldersSection({
           />
         )}
         {folder === "forecast" && <ForecastPanel today={today} />}
-        {folder === "market-hype" && <IntelFolderPlaceholder title="Market Hype" />}
+        {folder === "market-hype" && (
+          <div className="intel-market-hype-wrap">
+            <MarketHypeWidget />
+          </div>
+        )}
         {showForecastSearch ? (
           <ForecastSearchFooter
             nodeEntities={nodeEntities}
