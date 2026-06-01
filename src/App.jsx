@@ -15,9 +15,16 @@ import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
+import {
+  buildLaunchDateCanvasNode,
+  CANVAS_DOC_CHILD_OFFSET_X,
+  collectCanvasNodeIdsForDoc,
+  syncContentDocCanvasNodes,
+} from './lib/canvasDocSync.js';
+import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 
-const DOC_CHILD_OFFSET_X = 248;
+const DOC_CHILD_OFFSET_X = CANVAS_DOC_CHILD_OFFSET_X;
 const DOC_CHILD_ROW_STEP = 88;
 
 function buildCanvasNodeFromEntity(zustandNode, x, y, overrides = {}) {
@@ -141,6 +148,13 @@ function Dashboard({ company, onBack }) {
     });
   }, [canvasNodes, canvasConns]);
 
+  useEffect(() => {
+    setCanvasNodes((prev) => syncContentDocCanvasNodes(prev, docs, {
+      expandedDocId,
+      activeDocMetaDraft,
+    }));
+  }, [docs, expandedDocId, activeDocMetaDraft]);
+
   /* ── SCAN BLOGS ─ */
   const scanBlogs = () => {
     setScanState("scanning-blogs");
@@ -242,11 +256,11 @@ function Dashboard({ company, onBack }) {
   };
 
   const insertDocToCanvas = (doc, worldX, worldY) => {
+    const normalizedDoc = normalizeDoc(
+      useDocsStore.getState().docs[doc.id] || doc,
+    );
     const existingNoteIds = new Set(
       canvasNodes.map((n) => n.noteId).filter(Boolean),
-    );
-    const childNodes = resolveDocChildNodes(doc).filter(
-      (node) => !existingNoteIds.has(node.id),
     );
 
     const occupied = [];
@@ -255,35 +269,61 @@ function Dashboard({ company, onBack }) {
       worldY != null ? worldY - 40 : undefined,
       occupied,
     );
-    const docCanvasNode = buildCanvasNodeFromEntity(doc, x, y, {
+    const docCanvasNode = buildCanvasNodeFromEntity(normalizedDoc, x, y, {
       canvasKind: "document",
-      docId: doc.id,
-      noteId: doc.id,
-      title: (doc.title || "DOCUMENT").toUpperCase().slice(0, 20),
+      docId: normalizedDoc.id,
+      noteId: normalizedDoc.id,
+      title: (normalizedDoc.title || "DOCUMENT").toUpperCase().slice(0, 20),
       dataType: "document",
-      content: doc.body || doc.content || "",
-      ...(isContentDoc(doc)
+      content: normalizedDoc.body || normalizedDoc.content || "",
+      ...(isContentDoc(normalizedDoc)
         ? {
             linkedProductCategories: resolveLinkedProductCategories(
               useDocsStore.getState().docs,
-              doc.subcategoryDocIds,
+              normalizedDoc.subcategoryDocIds,
             ),
-            contentCategory: doc.category?.trim() || "",
+            contentCategory: normalizedDoc.category?.trim() || "",
+            launchAt: normalizedDoc.launchAt ?? null,
+            campaignActive: Boolean(normalizedDoc.campaignActive),
           }
         : {}),
     });
     occupied.push({ x, y });
 
-    const rowOffset = childNodes.length > 1
-      ? ((childNodes.length - 1) * DOC_CHILD_ROW_STEP) / 2
+    const launchCanvasNode = isContentDoc(normalizedDoc)
+      ? buildLaunchDateCanvasNode(normalizedDoc.launchAt, normalizedDoc.id)
+      : null;
+    const childNodes = resolveDocChildNodes(normalizedDoc).filter(
+      (node) => !existingNoteIds.has(node.id),
+    );
+    const totalChildren = childNodes.length + (launchCanvasNode ? 1 : 0);
+    const rowOffset = totalChildren > 1
+      ? ((totalChildren - 1) * DOC_CHILD_ROW_STEP) / 2
       : 0;
 
-    const childCanvasNodes = childNodes.map((childNode, index) => {
+    const childCanvasNodes = [];
+    let childIndex = 0;
+
+    if (launchCanvasNode) {
+      const pos = nextCanvasPosition(
+        x + DOC_CHILD_OFFSET_X,
+        y + childIndex * DOC_CHILD_ROW_STEP - rowOffset,
+        occupied,
+      );
+      occupied.push(pos);
+      childCanvasNodes.push({ ...launchCanvasNode, x: pos.x, y: pos.y });
+      childIndex += 1;
+    }
+
+    childNodes.forEach((childNode) => {
       const preferredX = x + DOC_CHILD_OFFSET_X;
-      const preferredY = y + index * DOC_CHILD_ROW_STEP - rowOffset;
+      const preferredY = y + childIndex * DOC_CHILD_ROW_STEP - rowOffset;
       const pos = nextCanvasPosition(preferredX, preferredY, occupied);
       occupied.push(pos);
-      return buildCanvasNodeFromEntity(childNode, pos.x, pos.y);
+      childCanvasNodes.push(buildCanvasNodeFromEntity(childNode, pos.x, pos.y, {
+        parentDocId: normalizedDoc.id,
+      }));
+      childIndex += 1;
     });
 
     const newCanvasNodes = [docCanvasNode, ...childCanvasNodes];
@@ -294,7 +334,7 @@ function Dashboard({ company, onBack }) {
       ? ` + ${childCanvasNodes.length} node${childCanvasNodes.length === 1 ? "" : "s"}`
       : "";
     setToast({
-      message: `Document placed · "${doc.title}"${childMsg}`,
+      message: `Document placed · "${normalizedDoc.title}"${childMsg}`,
       kind: "ok",
     });
     return docCanvasNode.id;
@@ -315,15 +355,64 @@ function Dashboard({ company, onBack }) {
   };
 
   /* ── DELETE CANVAS NODE ─ */
-  const deleteCanvasNode = (nodeId) => {
-    setCanvasNodes((all) => all.filter((n) => n.id !== nodeId));
-    setCanvasConns((cs) => cs.filter((c) => c.from !== nodeId && c.to !== nodeId));
+  const pruneCanvasRefs = (idsToRemove) => {
+    setCanvasConns((cs) => cs.filter(
+      (c) => !idsToRemove.has(c.from) && !idsToRemove.has(c.to),
+    ));
     setBlueprints((bps) => bps.map((bp) => ({
       ...bp,
-      nodeIds: (bp.nodeIds || []).filter((id) => id !== nodeId),
+      nodeIds: (bp.nodeIds || []).filter((id) => !idsToRemove.has(id)),
     })));
-    setSelection((sel) => sel.filter((id) => id !== nodeId));
-    setToast({ message: "Removed from canvas", kind: "ok" });
+    setSelection((sel) => sel.filter((id) => !idsToRemove.has(id)));
+  };
+
+  const removeCanvasNodesForDoc = (docId) => {
+    const nodeEntities = useNodesStore.getState().nodes;
+    let idsToRemove = null;
+    setCanvasNodes((all) => {
+      idsToRemove = collectCanvasNodeIdsForDoc(all, docId, nodeEntities);
+      if (!idsToRemove.size) return all;
+      return all.filter((n) => !idsToRemove.has(n.id));
+    });
+    if (idsToRemove?.size) {
+      pruneCanvasRefs(idsToRemove);
+    }
+  };
+
+  const deleteCanvasNode = (nodeId) => {
+    const nodeEntities = useNodesStore.getState().nodes;
+    let idsToRemove = null;
+    let removedDoc = false;
+
+    setCanvasNodes((all) => {
+      const target = all.find((n) => n.id === nodeId);
+      if (!target) return all;
+
+      const docId = target.canvasKind === "document"
+        ? (target.docId || target.noteId)
+        : null;
+      removedDoc = Boolean(docId);
+      idsToRemove = docId
+        ? collectCanvasNodeIdsForDoc(all, docId, nodeEntities)
+        : new Set([nodeId]);
+      if (!idsToRemove.has(nodeId)) idsToRemove.add(nodeId);
+
+      return all.filter((n) => !idsToRemove.has(n.id));
+    });
+
+    if (!idsToRemove?.size) return;
+
+    pruneCanvasRefs(idsToRemove);
+
+    const toastMessage = removedDoc
+      ? "Document removed from canvas"
+      : "Removed from canvas";
+    setToast({ message: toastMessage, kind: "ok" });
+  };
+
+  const handleDocumentDeleted = (docId) => {
+    removeCanvasNodesForDoc(docId);
+    if (expandedDocId === docId) setExpandedDocId(null);
   };
 
   const openDocumentOverlay = (docId) => {
@@ -368,9 +457,7 @@ function Dashboard({ company, onBack }) {
             onOpenDocument={openDocumentOverlay}
             tokenCurrent={tokenCurrent}
             tokenMax={tokenMax}
-            onDocumentDeleted={(docId) => {
-              if (expandedDocId === docId) setExpandedDocId(null);
-            }}
+            onDocumentDeleted={handleDocumentDeleted}
           />
         </div>
 
@@ -448,6 +535,7 @@ function Dashboard({ company, onBack }) {
               onClose={() => setExpandedDocId(null)}
               onNavigateToDoc={setExpandedDocId}
               onInsertToCanvas={insertNodeToCanvas}
+              onDocumentDeleted={handleDocumentDeleted}
             />
           </div>
         </div>

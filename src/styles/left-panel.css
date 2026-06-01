@@ -3866,13 +3866,16 @@
   font-size: 13px;
   letter-spacing: 0.32px;
   cursor: pointer;
-  padding: 2px 0;
+  padding: 4px 8px;
   opacity: 0.9;
+  border-radius: 4px;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .node-query-modal__back-link:hover {
-  opacity: 1;
-  color: #dcb2a6;
+  background: #e8dcc8;
+  color: #3a3428;
+  border-radius: 4px;
 }
 
 .node-query-modal__query-title {
@@ -4256,7 +4259,7 @@
 .doc-unsaved-confirm-overlay {
   position: fixed;
   inset: 0;
-  z-index: 290;
+  z-index: 300;
   display: flex;
   align-items: center;
   justify-content: center;

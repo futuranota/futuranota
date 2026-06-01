@@ -50,7 +50,8 @@ export function NodeQueryModal({
   const typeEditable = Boolean(onDataTypeChange);
   const parentSelectable = Boolean(onParentDocIdChange);
   const dateEditable = Boolean(onCreatedDateChange);
-  const showCloseButton = Boolean(onClose) && !onBackToDocument;
+  const handleDismiss = onBackToDocument || onClose;
+  const showCloseButton = Boolean(handleDismiss);
   const setActiveNodeQueryDraft = useUIStateStore((s) => s.setActiveNodeQueryDraft);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
   const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
@@ -108,12 +109,12 @@ export function NodeQueryModal({
     const onKeyDown = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose?.();
+        handleDismiss?.();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [handleDismiss]);
 
   const handleSearchClick = () => {
     const queryText = (displayQuery || "").trim() || displayQuery;
@@ -184,7 +185,7 @@ export function NodeQueryModal({
               <button
                 type="button"
                 className="doc-new-head-expand-btn node-query-modal__close"
-                onClick={onClose}
+                onClick={handleDismiss}
                 aria-label="Close"
               >
                 <span className="doc-new-head-close-x" aria-hidden>×</span>

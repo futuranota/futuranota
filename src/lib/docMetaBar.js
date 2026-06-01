@@ -5,6 +5,7 @@ import {
   formatProductSubcategoryLine,
   resolveSubcategoryLines,
   isContentDoc,
+  isProductDoc,
   resolveLinkedProductCategories,
 } from "./templateDoc.js";
 
@@ -50,6 +51,15 @@ export function formatSubcategoriesDisplay(allDocs, docIds = []) {
   return lines.map(({ label }) => label).join(", ");
 }
 
+/** MetaBar "Category" cell — product/content use doc.category; legacy uses category + version line. */
+function resolveMetaBarCategory(doc) {
+  const category = doc?.category?.trim();
+  if (isContentDoc(doc) || isProductDoc(doc)) {
+    return category || null;
+  }
+  return formatProductSubcategoryLine(doc) || category || null;
+}
+
 export function buildMetaBarFromDoc({
   doc,
   objectsById = {},
@@ -93,12 +103,26 @@ export function buildMetaBarFromDoc({
   return {
     corpus,
     brand: brandFromSelection || brandFromDoc,
-    product: formatProductSubcategoryLine(normalized),
+    product: resolveMetaBarCategory(normalized),
     campaign: formatCampaignLabel(normalized.campaignActive),
     subcategories: subcategoriesDisplay,
     launch: launchDate ? formatMmDdYy(launchDate) : null,
     window: formatWindowDays(today, normalized.launchAt),
   };
+}
+
+/** Merge canvas node snapshot fields into doc for MetaBar (content launch, category, etc.). */
+export function mergeDocWithCanvasNodeMetadata(doc, node) {
+  if (!doc) return null;
+  const normalized = normalizeDoc(doc);
+  if (!node || node.canvasKind !== "document") return normalized;
+
+  return normalizeDoc({
+    ...normalized,
+    category: node.contentCategory || normalized.category,
+    launchAt: normalized.launchAt ?? node.launchAt ?? null,
+    campaignActive: normalized.campaignActive ?? Boolean(node.campaignActive),
+  });
 }
 
 export function resolveActiveDocFromCanvas(selection, canvasNodes, docs) {
@@ -110,7 +134,7 @@ export function resolveActiveDocFromCanvas(selection, canvasNodes, docs) {
     const docId = node.docId || node.noteId;
     if (!docId) continue;
     const doc = docs[docId];
-    if (doc) return normalizeDoc(doc);
+    if (doc) return mergeDocWithCanvasNodeMetadata(doc, node);
   }
   return null;
 }

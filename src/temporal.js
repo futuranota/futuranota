@@ -9,6 +9,11 @@ export function parseDate(content) {
     return isNaN(d.getTime()) ? null : d;
   }
   if (typeof content === "string") {
+    const dateOnly = content.match(/^(\d{4}-\d{2}-\d{2})$/);
+    if (dateOnly) {
+      const d = new Date(`${dateOnly[1]}T12:00:00`);
+      return isNaN(d.getTime()) ? null : d;
+    }
     const d = new Date(content);
     return isNaN(d) ? null : d;
   }

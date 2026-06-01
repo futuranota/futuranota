@@ -10,6 +10,7 @@ import {
 import { formatScheduleLabelFromIso } from './lib/nodeAnchor.js';
 import { resolveConnectionLinkColor } from './lib/docNodeLinkColors.js';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
+import { isContentDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
  * Notes ↔ Nodes ↔ Blueprints. Three-tier model:
@@ -144,6 +145,26 @@ function resolveCanvasParentObjectTag(node, docsById = {}, objectsById = {}) {
     kind: "Object",
     name: (obj?.name || "Untitled").trim(),
   };
+}
+
+function resolveCanvasDocumentTag(node, docsById = {}, objectsById = {}) {
+  const docId = node.docId || node.noteId;
+  const doc = docId ? docsById[docId] : null;
+  if (!doc) return null;
+
+  if (isContentDoc(doc)) {
+    const categories = node.linkedProductCategories?.length
+      ? node.linkedProductCategories
+      : resolveLinkedProductCategories(docsById, doc.subcategoryDocIds);
+    if (categories.length) {
+      return {
+        kind: "Product",
+        name: categories.join(", "),
+      };
+    }
+  }
+
+  return resolveCanvasParentObjectTag(node, docsById, objectsById);
 }
 
 function CanvasNodeTags({ parentTag, scheduleLabel, parentTitle = "Parent" }) {
@@ -292,11 +313,11 @@ function CanvasNode({
       );
     }
     if (node.dataType === "document") {
-      const parentTag = resolveCanvasParentObjectTag(node, docsById, objectsById);
+      const parentTag = resolveCanvasDocumentTag(node, docsById, objectsById);
       return (
         <CanvasNodeTags
           parentTag={parentTag}
-          parentTitle="Parent object"
+          parentTitle="Linked product"
         />
       );
     }

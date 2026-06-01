@@ -14,8 +14,10 @@ import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
 import {
   isTemplateDoc,
   findProductVersionDoc,
+  formatProductDocTitle,
   listProductDocs,
   listContentDocs,
+  resolveProductDocDisplayTitle,
 } from "../../lib/templateDoc.js";
 
 function startObjectDrag(e, objectId) {
@@ -147,6 +149,7 @@ function ClickFolderIcon({ variant, className = "lp-click-folder-box-icon" }) {
 function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
   const parent = doc.parentObjectId ? objects[doc.parentObjectId] : null;
   const isTemplate = isTemplateDoc(doc);
+  const displayTitle = resolveProductDocDisplayTitle(doc);
   return (
     <div className="lp-doc-card fn-card">
       <button type="button" className="lp-doc-card-main" onClick={onClick}>
@@ -165,7 +168,7 @@ function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
           <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
         </span>
         <div className="fn-card-body">
-          <b>{doc.title}</b>
+          <b>{displayTitle}</b>
           <span className="fn-card-meta">
             {isTemplate ? "template · " : ""}
             {parent ? `↳ ${parent.name}` : "sin padre"} · {(doc.nodeIds || []).length} nodos
@@ -420,12 +423,13 @@ function DocCreateModal({
 
   const submitDoc = () => {
     const trimmedCategory = category.trim();
-    const finalTitle = isProductMode
-      ? (title.trim() || trimmedCategory || "New product")
-      : (title.trim() || "New document");
+    const productName = title.trim() || trimmedCategory;
     const finalCategory = isProductMode
-      ? (trimmedCategory || finalTitle)
+      ? (trimmedCategory || productName)
       : trimmedCategory;
+    const finalTitle = isProductMode
+      ? (formatProductDocTitle(finalCategory || productName, version.trim()) || productName || "New product")
+      : (title.trim() || "New document");
     const autoTags = parentObject?.name ? [parentObject.name] : [];
     const serializedBody = docBlocksToBody(blocks) || body;
     onSubmit({
@@ -650,14 +654,14 @@ export function LeftPanel({
   };
 
   const handleDeleteDoc = (doc) => {
-    const label = doc.title || "this document";
+    const label = resolveProductDocDisplayTitle(doc);
     if (!window.confirm(`Delete "${label}" and its nodes? This cannot be undone.`)) {
       return;
     }
+    onDocumentDeleted?.(doc.id);
     deleteDoc(doc.id);
     if (activeId === doc.id) setActiveId(null);
     if (filterDocId === doc.id) setFilterDocId(null);
-    onDocumentDeleted?.(doc.id);
   };
 
   const openDocumentsForObject = (objectId) => {
@@ -932,7 +936,7 @@ export function LeftPanel({
                       }}
                     >
                       <SelectorTypeIcon type="Documents" />
-                      <span className="lp-item-label">{doc.title}</span>
+                      <span className="lp-item-label">{resolveProductDocDisplayTitle(doc)}</span>
                       {doc.id === filterDocId && <span className="lp-check">✓</span>}
                     </button>
                   ))}

@@ -17,6 +17,20 @@ export const FORECAST_MESSAGES = {
 
 /** @typedef {'available'|'past'|'future'|'invalid'} ForecastAvailability */
 
+/** Build a schedulable node shape from a canvas date/launch node. */
+function canvasDateNodeFromCanvas(canvasNode) {
+  return {
+    id: canvasNode.noteId || canvasNode.id,
+    title: canvasNode.title,
+    dataType: "date",
+    content: canvasNode.content ?? "",
+    anchorAt: canvasNode.anchorAt || canvasNode.launchAt || null,
+    launchAt: canvasNode.launchAt || null,
+    parentDocId: canvasNode.parentDocId || null,
+    sourceKind: canvasNode.canvasKind === "launch" ? "launch" : "canvas-date",
+  };
+}
+
 /**
  * @param {Record<string, object>} nodeEntities
  * @param {Record<string, object>} [docsById]
@@ -49,8 +63,22 @@ export function resolveActiveForecastNode(nodeEntities, context = {}, docsById =
     }
 
     const entityId = canvasNode.noteId;
-    if (entityId && nodeEntities[entityId]) {
-      return nodeEntities[entityId];
+    const entity = entityId ? nodeEntities[entityId] : null;
+    if (entity) {
+      if (entity.dataType === "date" || canvasNode.dataType === "date") {
+        return {
+          ...entity,
+          dataType: "date",
+          content: canvasNode.content ?? entity.content,
+          launchAt: canvasNode.launchAt ?? entity.launchAt ?? null,
+          anchorAt: canvasNode.anchorAt ?? entity.anchorAt ?? canvasNode.launchAt ?? null,
+        };
+      }
+      return entity;
+    }
+
+    if (canvasNode.dataType === "date" || canvasNode.canvasKind === "launch") {
+      return canvasDateNodeFromCanvas(canvasNode);
     }
   }
 
@@ -59,7 +87,7 @@ export function resolveActiveForecastNode(nodeEntities, context = {}, docsById =
 
 /**
  * @param {object|null} node
- * @returns {{ date: Date|null, resolvedFrom: 'schedule'|'created'|null, scheduleIso: string|null }}
+ * @returns {{ date: Date|null, resolvedFrom: 'schedule'|'date'|'created'|null, scheduleIso: string|null }}
  */
 export function resolveForecastTargetDate(node) {
   if (!node) {
@@ -73,6 +101,32 @@ export function resolveForecastTargetDate(node) {
       resolvedFrom: "schedule",
       scheduleIso: node.anchorAt,
     };
+  }
+
+  if (node.launchAt) {
+    const date = parseDate(node.launchAt);
+    if (date) {
+      return {
+        date: startOfCalendarDay(date),
+        resolvedFrom: "schedule",
+        scheduleIso: node.launchAt,
+      };
+    }
+  }
+
+  if (node.dataType === "date") {
+    const date = parseDate(node.content);
+    if (date) {
+      const raw = typeof node.content === "string" ? node.content.trim() : "";
+      const scheduleIso = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+        ? `${raw}T12:00:00`
+        : (node.launchAt || null);
+      return {
+        date: startOfCalendarDay(date),
+        resolvedFrom: "date",
+        scheduleIso,
+      };
+    }
   }
 
   if (node.createdAt) {
@@ -137,7 +191,9 @@ export async function fetchForecastForNode(node, baseToday = new Date()) {
   const uiDate = formatForecastUiDate(date);
   const sourceLabel = resolvedFrom === "schedule"
     ? (formatScheduleLabelFromIso(scheduleIso) || `schedule: ${uiDate}`)
-    : `created: ${uiDate}`;
+    : resolvedFrom === "date"
+      ? `date: ${uiDate}`
+      : `created: ${uiDate}`;
 
   if (availability === "past") {
     return {
