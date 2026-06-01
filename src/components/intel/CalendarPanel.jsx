@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { daysBetween, fmtDate } from "../../data.jsx";
 import { formatScheduleLabelFromIso } from "../../lib/nodeAnchor.js";
-import { resolveActiveForecastNode } from "../../lib/forecastSearch.js";
+import { resolveActiveForecastNode, resolveForecastTargetDate, formatForecastUiDate } from "../../lib/forecastSearch.js";
 import { CalendarEventCanvas } from "./CalendarEventCanvas.jsx";
 import { IntelFolderAccordion } from "./IntelFolderAccordion.jsx";
 
@@ -151,9 +151,13 @@ export function CalendarPanel({
 
 export function getScheduleHintForNode(node) {
   if (!node) return "";
-  if (node.anchorAt) {
-    const label = formatScheduleLabelFromIso(node.anchorAt);
-    return label || "";
+  const { date, resolvedFrom, scheduleIso } = resolveForecastTargetDate(node);
+  if (date) {
+    if (resolvedFrom === "schedule" && scheduleIso) {
+      const label = formatScheduleLabelFromIso(scheduleIso);
+      if (label) return label.replace(/^schedule:\s*/, "");
+    }
+    return formatForecastUiDate(date);
   }
   if (node.createdAt) {
     const d = new Date(node.createdAt);

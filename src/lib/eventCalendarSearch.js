@@ -49,7 +49,9 @@ export async function fetchEventsForNode(node, baseToday = new Date()) {
   const uiDate = formatForecastUiDate(date);
   const sourceLabel = resolvedFrom === "schedule"
     ? (formatScheduleLabelFromIso(scheduleIso) || `schedule: ${uiDate}`)
-    : `created: ${uiDate}`;
+    : resolvedFrom === "date"
+      ? `date: ${uiDate}`
+      : `created: ${uiDate}`;
 
   if (!events.length) {
     return {

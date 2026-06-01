@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
@@ -14,7 +15,9 @@ import {
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import {
   isTemplateDoc,
+  isProductDoc,
   findProductVersionDoc,
+  formatProductDocTitle,
   listProductVersionOptions,
   resolveDocAfterVersionDelete,
   buildProductDeleteConfirmMessage,
@@ -61,6 +64,27 @@ function NodeFromSelectionModal({ query, onClose, onSave }) {
 
 const UNTITLED_DOC_LABEL = "Untitled document";
 
+function resolvePersistTitle({
+  draftTitle,
+  draftCategory,
+  draftVersion,
+  draftDocKind,
+  draftSubcategoryDocIds,
+}) {
+  const kind = resolveDocKind({
+    docKind: draftDocKind,
+    category: draftCategory,
+    subcategoryDocIds: draftSubcategoryDocIds,
+  });
+  if (kind === DOC_KIND_PRODUCT) {
+    return formatProductDocTitle(draftCategory, draftVersion)
+      || draftCategory.trim()
+      || draftTitle.trim()
+      || "";
+  }
+  return draftTitle ?? "";
+}
+
 function buildDocPersistSnapshot({
   title,
   blocks,
@@ -97,7 +121,7 @@ function buildDocPersistSnapshot({
   };
 }
 
-export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateToDoc }) {
+export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateToDoc, onDocumentDeleted }) {
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const addDoc = useDocsStore((s) => s.addDoc);
@@ -145,17 +169,21 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
     const loadedBlocks = normalizeDocBlocks(
       d.blocks?.length ? d.blocks : docBlocksFromBody(d.body ?? d.content ?? ""),
     );
-    setDraftTitle(d.title ?? "");
+    const normalized = normalizeDoc(d);
+    setDraftTitle(
+      isProductDoc(normalized)
+        ? (normalized.category?.trim() || normalized.title?.trim() || "")
+        : (d.title ?? ""),
+    );
     setDraftBlocks(loadedBlocks);
     setDraftBody(loadedBlocks.length ? "" : (d.body ?? d.content ?? ""));
-    const normalized = normalizeDoc(d);
     setDraftCreatedDate(dateInputFromIso(normalized.createdAt));
     setDraftVersion(normalized.version ?? "");
     setDraftCategory(normalized.category ?? "");
     setDraftLaunchDate(launchDateInputFromIso(normalized.launchAt));
     setDraftCampaignActive(Boolean(normalized.campaignActive));
     setDraftNodeLinkColor(normalized.nodeLinkColor ?? "dark");
-    setDraftParentId(doc.parentObjectId ?? "");
+    setDraftParentId(d.parentObjectId ?? "");
     setDraftDocKind(normalized.docKind ?? "standard");
     setDraftTemplateKind(normalized.templateKind ?? null);
     setDraftSubcategoryDocIds(normalized.subcategoryDocIds ?? []);
@@ -163,7 +191,12 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
     setDocSavedHint(false);
     setInitialSnapshot(
       buildDocPersistSnapshot({
-        title: normalized.title ?? "",
+        title: isProductDoc(normalized)
+          ? (formatProductDocTitle(normalized.category, normalized.version)
+            || normalized.category?.trim()
+            || normalized.title?.trim()
+            || "")
+          : (normalized.title ?? ""),
         blocks: loadedBlocks,
         body: d.body ?? d.content ?? "",
         createdDate: dateInputFromIso(normalized.createdAt),
@@ -171,7 +204,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
         category: normalized.category ?? "",
         launchAt: normalized.launchAt ?? null,
         campaignActive: Boolean(normalized.campaignActive),
-        parentObjectId: doc.parentObjectId ?? "",
+        parentObjectId: d.parentObjectId ?? "",
         nodeLinkColor: normalized.nodeLinkColor ?? "dark",
         docKind: normalized.docKind ?? "standard",
         templateKind: normalized.templateKind ?? null,
@@ -211,7 +244,13 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
   const draftLaunchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
   const draftSnapshot = buildDocPersistSnapshot({
-    title: draftTitle,
+    title: resolvePersistTitle({
+      draftTitle,
+      draftCategory,
+      draftVersion,
+      draftDocKind,
+      draftSubcategoryDocIds,
+    }),
     blocks: draftBlocks,
     body: draftBody,
     createdDate: draftCreatedDate,
@@ -266,6 +305,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
       setActiveNodeContext(null);
       setNodeDraftContent("");
     }
+    onDocumentDeleted?.(docId);
     deleteDoc(docId);
 
     if (nextDocId) {
@@ -307,9 +347,15 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
   };
 
   const handleSave = () => {
-    const title = draftTitle.trim() || "New document";
+    const title = resolvePersistTitle({
+      draftTitle,
+      draftCategory,
+      draftVersion,
+      draftDocKind,
+      draftSubcategoryDocIds,
+    }).trim() || "New document";
     const savedSnapshot = buildDocPersistSnapshot({
-      title: draftTitle,
+      title,
       blocks: draftBlocks,
       body: draftBody,
       createdDate: draftCreatedDate,
@@ -442,7 +488,10 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
     }
 
     const newDocId = addDoc(
-      draftTitle.trim() || doc.title || "New document",
+      formatProductDocTitle(category, trimmed)
+        || draftTitle.trim()
+        || doc.title
+        || "New document",
       draftParentId || null,
       doc.dataProperties || [],
       Array.isArray(doc.tags) ? doc.tags : [],
@@ -821,7 +870,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
           }}
         />
       )}
-      {activeNodeContext && (
+      {activeNodeContext && !showNodeUnsavedConfirm ? (
         <NodeQueryModal
           query={activeNodeContext.query}
           content={nodeDraftContent}
@@ -847,88 +896,94 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
               : null
           }
         />
-      )}
-      {showUnsavedConfirm ? (
-        <div className="doc-unsaved-confirm-overlay" role="presentation">
-          <div
-            className="doc-unsaved-confirm"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="doc-unsaved-confirm-title"
-          >
-            <p id="doc-unsaved-confirm-title" className="doc-unsaved-confirm__text">
-              Would you like to save the changes?
-            </p>
-            <div className="doc-unsaved-confirm__actions">
-              <button
-                type="button"
-                className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
-                onClick={() => {
-                  handleSave();
-                  setShowUnsavedConfirm(false);
-                  if (pendingNavigateDocId) {
-                    navigateToDoc(pendingNavigateDocId);
-                  } else {
-                    onClose();
-                  }
-                }}
-              >
-                yes
-              </button>
-              <button
-                type="button"
-                className="doc-unsaved-confirm__btn"
-                onClick={() => {
-                  setShowUnsavedConfirm(false);
-                  if (pendingNavigateDocId) {
-                    navigateToDoc(pendingNavigateDocId);
-                  } else {
-                    onClose();
-                  }
-                }}
-              >
-                no
-              </button>
-            </div>
-          </div>
-        </div>
       ) : null}
-      {showNodeUnsavedConfirm ? (
-        <div className="doc-unsaved-confirm-overlay" role="presentation">
-          <div
-            className="doc-unsaved-confirm"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="node-unsaved-confirm-title"
-          >
-            <p id="node-unsaved-confirm-title" className="doc-unsaved-confirm__text">
-              Would you like to save the changes?
-            </p>
-            <div className="doc-unsaved-confirm__actions">
-              <button
-                type="button"
-                className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
-                onClick={() => {
-                  handleNodeModalSave();
-                  setShowNodeUnsavedConfirm(false);
-                }}
+      {showUnsavedConfirm && typeof document !== "undefined"
+        ? createPortal(
+            <div className="doc-unsaved-confirm-overlay" role="presentation">
+              <div
+                className="doc-unsaved-confirm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="doc-unsaved-confirm-title"
               >
-                yes
-              </button>
-              <button
-                type="button"
-                className="doc-unsaved-confirm__btn"
-                onClick={() => {
-                  setShowNodeUnsavedConfirm(false);
-                  resetNodeModalState();
-                }}
+                <p id="doc-unsaved-confirm-title" className="doc-unsaved-confirm__text">
+                  ¿Quieres guardar los cambios?
+                </p>
+                <div className="doc-unsaved-confirm__actions">
+                  <button
+                    type="button"
+                    className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
+                    onClick={() => {
+                      handleSave();
+                      setShowUnsavedConfirm(false);
+                      if (pendingNavigateDocId) {
+                        navigateToDoc(pendingNavigateDocId);
+                      } else {
+                        onClose();
+                      }
+                    }}
+                  >
+                    sí
+                  </button>
+                  <button
+                    type="button"
+                    className="doc-unsaved-confirm__btn"
+                    onClick={() => {
+                      setShowUnsavedConfirm(false);
+                      if (pendingNavigateDocId) {
+                        navigateToDoc(pendingNavigateDocId);
+                      } else {
+                        onClose();
+                      }
+                    }}
+                  >
+                    no
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+      {showNodeUnsavedConfirm && typeof document !== "undefined"
+        ? createPortal(
+            <div className="doc-unsaved-confirm-overlay" role="presentation">
+              <div
+                className="doc-unsaved-confirm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="node-unsaved-confirm-title"
               >
-                no
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                <p id="node-unsaved-confirm-title" className="doc-unsaved-confirm__text">
+                  ¿Quieres guardar los cambios del nodo?
+                </p>
+                <div className="doc-unsaved-confirm__actions">
+                  <button
+                    type="button"
+                    className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
+                    onClick={() => {
+                      handleNodeModalSave();
+                      setShowNodeUnsavedConfirm(false);
+                    }}
+                  >
+                    sí
+                  </button>
+                  <button
+                    type="button"
+                    className="doc-unsaved-confirm__btn"
+                    onClick={() => {
+                      setShowNodeUnsavedConfirm(false);
+                      resetNodeModalState();
+                    }}
+                  >
+                    no
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }

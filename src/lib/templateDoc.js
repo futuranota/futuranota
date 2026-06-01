@@ -57,12 +57,31 @@ export function templateKindLabel(templateKind) {
   return TEMPLATE_KIND_LABELS[templateKind] || templateKind;
 }
 
-/** Single line label: "product a 1.0" */
+/** Product title / label: "Google Pixel" or "Google Pixel 1.0" when version is set. */
+export function formatProductDocTitle(category, version) {
+  const cat = String(category ?? "").trim();
+  const ver = String(version ?? "").trim();
+  if (!cat) return "";
+  if (!ver) return cat;
+  return `${cat} ${ver}`;
+}
+
+/** Single line label for versioned products in pickers: "product a 1.0" */
 export function formatProductSubcategoryLine(doc) {
-  const category = doc?.category?.trim();
-  const version = doc?.version?.trim();
-  if (!category || !version) return null;
-  return `${category} ${version}`;
+  const cat = doc?.category?.trim();
+  const ver = doc?.version?.trim();
+  if (!cat || !ver) return null;
+  return formatProductDocTitle(cat, ver);
+}
+
+/** Display title for product docs in lists and selectors. */
+export function resolveProductDocDisplayTitle(doc) {
+  if (!doc) return "Untitled";
+  if (!isProductDoc(doc)) return doc.title?.trim() || "Untitled";
+  return formatProductDocTitle(doc.category, doc.version)
+    || doc.title?.trim()
+    || doc.category?.trim()
+    || "Untitled";
 }
 
 function docCandidateLabel(doc) {

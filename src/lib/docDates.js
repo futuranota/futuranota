@@ -1,13 +1,22 @@
+/** YYYY-MM-DD in local calendar (avoids UTC shift from toISOString). */
+function calendarDateInputValue(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /** YYYY-MM-DD for &lt;input type="date" /&gt; */
 export function todayDateInputValue() {
-  return new Date().toISOString().slice(0, 10);
+  return calendarDateInputValue(new Date());
 }
 
 export function dateInputFromIso(iso) {
   if (!iso) return todayDateInputValue();
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return todayDateInputValue();
-  return d.toISOString().slice(0, 10);
+  return calendarDateInputValue(d);
 }
 
 export function isoFromDateInput(yyyyMmDd) {
@@ -34,5 +43,5 @@ export function launchDateInputFromIso(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  return calendarDateInputValue(d);
 }
