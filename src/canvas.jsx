@@ -44,6 +44,7 @@ function Icon({ name, size = 14 }) {
     download:<path d="M10 3v9m0 0l-3.5-3.5M10 12l3.5-3.5M4 15h12" stroke="currentColor" strokeWidth="1.4" fill="none" />,
     group:   <path d="M3 6h6v3M11 6h6v8H8V9" stroke="currentColor" strokeWidth="1.4" fill="none" />,
     show:    <path d="M10 5C5 5 2 10 2 10s3 5 8 5 8-5 8-5-3-5-8-5zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" stroke="currentColor" strokeWidth="1.2" fill="none" />,
+    import:  <path d="M10 16V7m0 0l-3.5 3.5M10 7l3.5 3.5M4 4h12" stroke="currentColor" strokeWidth="1.4" fill="none" />,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor">
@@ -238,7 +239,7 @@ function CanvasNode({
     const startY = e.clientY;
     const wasSelected = selected;
 
-    if (!knowledgeCorpus && timelineSelectable && !wasSelected) {
+    if (!wasSelected) {
       onAddToSelection(node.id);
     }
 
@@ -253,9 +254,8 @@ function CanvasNode({
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
-      if (knowledgeCorpus) return;
       const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
-      if (dist < TAP_THRESHOLD && wasSelected && timelineSelectable && timelineQueueMode) {
+      if (dist < TAP_THRESHOLD && wasSelected && timelineQueueMode) {
         onTapToggle(node.id);
       }
     };
@@ -553,6 +553,7 @@ function BlueprintCanvas({
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
   const temporalMeta = { docsById, nodeEntitiesById };
   const canvasRef = useRef(null);
+  const importInputRef = useRef(null);
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
   const [tool, setTool] = useState("select");
@@ -574,6 +575,9 @@ function BlueprintCanvas({
   const [view, setView] = useState({ scale: 1, panX: 0, panY: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(null);
+  const [importedImage, setImportedImage] = useState(null);
+  const importedImageDrag = useRef(null);
+  const importedImageResize = useRef(null);
   const panDrag = useRef(null);
   const PAN_CLICK_THRESHOLD = 5;
   const marqueeDrag = useRef(null);
@@ -1258,6 +1262,7 @@ function BlueprintCanvas({
     setRulerPt1(null);
     setSelection([]);
     setSelectedStrokeIds([]);
+    setImportedImage(null);
   };
 
   const handleShowAll = () => {
@@ -1276,6 +1281,111 @@ function BlueprintCanvas({
     const url = out.toDataURL("image/png");
     const a = document.createElement("a");
     a.href = url; a.download = `voltway-blueprint.png`; a.click();
+  };
+
+  const handleImportClick = () => {
+    const hasVisibleCards = nodes.some((n) => !n.hidden);
+    if (hasVisibleCards) {
+      window.alert("Clear the canvas cards first, then import an image.");
+      return;
+    }
+    importInputRef.current?.click();
+  };
+
+  const handleImportFileChange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      window.alert("Please select an image file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = String(reader.result || "");
+      if (!src) return;
+      const img = new Image();
+      img.onload = () => {
+        const stage = stageRef.current?.getBoundingClientRect();
+        const maxW = Math.min(420, Math.round((stage?.width || 960) * 0.5));
+        const naturalW = img.naturalWidth || 240;
+        const naturalH = img.naturalHeight || 180;
+        const scale = naturalW > maxW ? maxW / naturalW : 1;
+        const width = Math.max(120, Math.round(naturalW * scale));
+        const height = Math.max(80, Math.round(naturalH * scale));
+        setImportedImage({
+          src,
+          name: file.name || "imported-image",
+          x: 120,
+          y: 90,
+          width,
+          height,
+        });
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImportedImagePointerDown = (e) => {
+    if (!importedImage) return;
+    if (e.target.closest(".canvas-import-image__remove")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    importedImageDrag.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      x: importedImage.x,
+      y: importedImage.y,
+    };
+    const move = (ev) => {
+      const drag = importedImageDrag.current;
+      if (!drag) return;
+      setImportedImage((prev) => (prev
+        ? {
+            ...prev,
+            x: drag.x + (ev.clientX - drag.startX) / view.scale,
+            y: drag.y + (ev.clientY - drag.startY) / view.scale,
+          }
+        : prev));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      importedImageDrag.current = null;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  };
+
+  const handleImportedImageResizePointerDown = (e) => {
+    if (!importedImage) return;
+    e.preventDefault();
+    e.stopPropagation();
+    importedImageResize.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      width: importedImage.width,
+      height: importedImage.height,
+    };
+    const move = (ev) => {
+      const resize = importedImageResize.current;
+      if (!resize) return;
+      const nextW = Math.max(80, resize.width + (ev.clientX - resize.startX) / view.scale);
+      const nextH = Math.max(60, resize.height + (ev.clientY - resize.startY) / view.scale);
+      setImportedImage((prev) => (prev ? { ...prev, width: nextW, height: nextH } : prev));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      importedImageResize.current = null;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   };
 
   const visibleNodes = nodes.filter((n) => !n.hidden);
@@ -1327,6 +1437,13 @@ function BlueprintCanvas({
   return (
     <div className="canvas-wrap" ref={wrapRef}>
       <div className="canvas-toolbar">
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImportFileChange}
+          style={{ display: "none" }}
+        />
         <button className={"canvas-tool " + (tool === "select" ? "active" : "")} title="Select [V]" onClick={() => setTool("select")}><Icon name="select" /></button>
         <button className={"canvas-tool " + (tool === "pencil" ? "active" : "")} title="Pencil [P]" onClick={() => setTool("pencil")}><Icon name="pencil" /></button>
         <button className={"canvas-tool " + (tool === "ruler" ? "active" : "")}  title="Ruler [R]"  onClick={() => setTool("ruler")}><Icon name="ruler" /></button>
@@ -1386,7 +1503,7 @@ function BlueprintCanvas({
           </button>
         )}
         <button className="btn xs ghost" onClick={handleClear}><Icon name="clear" size={11} /> Clear</button>
-        <button className="btn xs" onClick={handleDownload}><Icon name="download" size={11} /> Export</button>
+        <button className="btn xs" onClick={handleImportClick}><Icon name="import" size={11} /> Import</button>
         <span className="canvas-tool-divider" />
         <button className="canvas-tool" title="Zoom out" onClick={() => {
           const r = stageRef.current?.getBoundingClientRect();
@@ -1426,6 +1543,42 @@ function BlueprintCanvas({
           onPointerUp={onPointerUp}
           onPointerLeave={() => { setHoverPos(null); if (drawing) { setStrokes((s) => [...s, drawing]); setDrawing(null); } }}
         />
+
+        {importedImage ? (
+          <div
+            className="canvas-import-image"
+            style={{
+              left: importedImage.x,
+              top: importedImage.y,
+              width: importedImage.width,
+              height: importedImage.height,
+            }}
+            onPointerDown={handleImportedImagePointerDown}
+          >
+            <img
+              src={importedImage.src}
+              alt={importedImage.name}
+              className="canvas-import-image__img"
+              draggable={false}
+            />
+            <button
+              type="button"
+              className="canvas-import-image__remove"
+              onClick={(e) => {
+                e.stopPropagation();
+                setImportedImage(null);
+              }}
+              title="Remove imported image"
+            >
+              ×
+            </button>
+            <div
+              className="canvas-import-image__resize"
+              onPointerDown={handleImportedImageResizePointerDown}
+              title="Stretch image"
+            />
+          </div>
+        ) : null}
 
         {/* blueprint frames */}
         {bpFrames.map((f) => {
@@ -1572,7 +1725,7 @@ function BlueprintCanvas({
             key={n.id}
             node={n}
             today={today}
-            selected={timelineSelectable && selection.includes(n.id)}
+            selected={selection.includes(n.id)}
             timelineSelectable={timelineSelectable}
             timelineQueueMode={effectiveTimelineQueueMode}
             connectingFrom={connectingFrom}
@@ -1641,7 +1794,7 @@ function BlueprintCanvas({
           <span className="pill ok"><i className="dot" />Canvas · Live</span>
         </div>
 
-        {nodes.length === 0 && strokes.length === 0 && (
+        {nodes.length === 0 && strokes.length === 0 && !importedImage && (
           <div className="canvas-empty">
             <div className="canvas-empty-card">
               <div style={{ fontSize: 11, color: "var(--dim)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
@@ -1652,7 +1805,7 @@ function BlueprintCanvas({
             </div>
           </div>
         )}
-        {nodes.length > 0 && visibleNodes.length === 0 && (
+        {nodes.length > 0 && visibleNodes.length === 0 && !importedImage && (
           <div className="canvas-empty">
             <div className="canvas-empty-card">
               <div style={{ fontSize: 11, color: "var(--dim)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Canvas cleared</div>
