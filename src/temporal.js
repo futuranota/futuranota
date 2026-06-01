@@ -224,6 +224,8 @@ export function buildChipDisplay(node, trackObject, meta, extras = {}) {
     dateLabel = `${value}${unit ? ` ${unit}` : ""}`;
   } else if (anchor) {
     dateLabel = formatChipDate(anchor);
+  } else if (node.dataType === "date") {
+    dateLabel = "Set date";
   }
 
   return {

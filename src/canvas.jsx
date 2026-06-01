@@ -478,7 +478,7 @@ function CanvasNode({
 function BlueprintCanvas({
   nodes, setNodes, connections, setConnections,
   blueprints, setBlueprints, selection, setSelection,
-  today, onCreateBlueprint, onDeleteNode, onEditNode, onFocusNote,
+  today, onInsertToTimeline, onDeleteNode, onEditNode, onFocusNote,
   onOpenNote,
   onRemoveBlueprintFromCanvas, onCanvasDrop,
   docsById = {}, nodeEntitiesById = {}, objectsById = {},
@@ -1252,8 +1252,13 @@ function BlueprintCanvas({
 
         <div style={{ flex: 1 }} />
 
-        <button className="btn xs primary" disabled={selection.length < 1} onClick={onCreateBlueprint} title="Create blueprint from selection (⌘G)">
-          <Icon name="group" size={11} /> Create blueprint ({selection.length})
+        <button
+          className="btn xs primary"
+          disabled
+          onClick={onInsertToTimeline}
+          title="Insert selected nodes into the timeline (requires an instruction set — coming soon)"
+        >
+          Insert to timeline
         </button>
         {hiddenCount > 0 && (
           <button className="btn xs" onClick={handleShowAll} title="Show all hidden nodes">
@@ -1492,7 +1497,7 @@ function BlueprintCanvas({
             <span className="pill warm"><i className="dot" />Edge selected · Del to remove · drag port to reassign</span>
           )}
           {selection.length > 0 && (
-            <span className="pill ai"><i className="dot" />{selection.length} selected · tap to toggle · ⌘G group</span>
+            <span className="pill ai"><i className="dot" />{selection.length} selected · tap to toggle</span>
           )}
           <span className="pill ok"><i className="dot" />Canvas · Live</span>
         </div>

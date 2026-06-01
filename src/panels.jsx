@@ -720,7 +720,7 @@ function IntelFoldersSection({
         {folder === "forecast" && <ForecastPanel today={today} />}
         {folder === "market-hype" && (
           <div className="intel-market-hype-wrap">
-            <MarketHypeWidget />
+            <MarketHypeWidget today={today} />
           </div>
         )}
         {showForecastSearch ? (
@@ -1311,180 +1311,118 @@ function TimelineTrack({
   );
 }
 
-function Timeline({
-  nodes = [],
+function TimelineChainTrack({
+  chain,
+  grid,
+  trackItemsById,
+  wireAnchors,
   connections = [],
   today,
   focusedNoteId,
-  onFocusNote,
+  onMarkerClick,
+  onEditTitle,
   docsById = {},
-  objectsById = {},
   nodeEntitiesById = {},
-  filterObjectId = null,
+  objectsById = {},
 }) {
-  const [zoomedBlueprintId, setZoomedBlueprintId] = useState(null);
-  const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
-  const setObjectTimelineTitle = useTimelineStore((s) => s.setObjectTimelineTitle);
-
-  const tracks = useMemo(() => {
-    const groups = new Map();
-    for (const objectId of Object.keys(objectsById)) {
-      groups.set(objectId, []);
-    }
-
-    const ensureGroup = (objectId) => {
-      if (!objectId) return null;
-      if (!groups.has(objectId)) groups.set(objectId, []);
-      return groups.get(objectId);
-    };
-
-    for (const canvasNode of nodes) {
-      let objectId = null;
-      if (canvasNode.canvasKind === "object") {
-        objectId = canvasNode.objectId || null;
-      } else if (canvasNode.canvasKind === "document") {
-        const doc = docsById[canvasNode.docId];
-        objectId = doc?.parentObjectId || null;
-      } else if (canvasNode.noteId) {
-        const sourceNode = nodeEntitiesById[canvasNode.noteId];
-        const parentDoc = sourceNode?.parentDocId ? docsById[sourceNode.parentDocId] : null;
-        objectId = parentDoc?.parentObjectId || null;
-      }
-      const bucket = ensureGroup(objectId);
-      if (!bucket) continue;
-      bucket.push(canvasNode);
-    }
-
-    const buildTrack = (objectId, objectNodes) => {
-      const object = objectsById[objectId];
-      const fallbackLabel = object?.name || "Timeline";
-      const label = (objectTimelineTitles[objectId] || "").trim() || fallbackLabel;
-      const canvasIds = new Set(objectNodes.map((n) => n.id));
-      const trackConnections = connections.filter(
-        (c) => canvasIds.has(c.from) && canvasIds.has(c.to),
-      );
-      const trackNodes = objectNodes.map((n) => {
-        const base = {
-          id: n.id,
-          noteId: n.noteId,
-          docId: n.docId,
-          canvasKind: n.canvasKind,
-        };
-        if (n.noteId && nodeEntitiesById[n.noteId]) {
-          const source = nodeEntitiesById[n.noteId];
-          return noteToTrackItem({
-            ...base,
-            title: source.sourceQuery || source.title || n.title,
-            dataType: source.dataType || n.dataType || "text",
-            content: source.content ?? n.content ?? "",
-            anchorAt: source.anchorAt ?? null,
-          });
-        }
-        return noteToTrackItem({
-          ...base,
-          title: n.title,
-          dataType: n.dataType || "text",
-          content: n.content ?? "",
-        });
-      });
-
-      return {
-        track: {
-          id: objectId,
-          label,
-          color: object?.color
-            ? {
-              stroke: object.color,
-              soft: `${object.color}22`,
-            }
-            : { stroke: "var(--hud)", soft: "var(--hud-soft)" },
-          onEditTitle: () => {
-            const next = window.prompt("Timeline title", label);
-            if (next == null) return;
-            setObjectTimelineTitle(objectId, next.trim());
-          },
-        },
-        trackNodes,
-        trackConnections,
-      };
-    };
-
-    let result = Array.from(groups.entries()).map(([objectId, objectNodes]) =>
-      buildTrack(objectId, objectNodes),
-    );
-
-    if (result.length === 0) {
-      result = [{
-        track: {
-          id: DEFAULT_TIMELINE_TRACK_ID,
-          label: "Timeline",
-          color: { stroke: "var(--hud)", soft: "var(--hud-soft)" },
-          onEditTitle: () => {},
-        },
-        trackNodes: [],
-        trackConnections: [],
-      }];
-    }
-
-    result.sort((a, b) => a.track.label.localeCompare(b.track.label));
-
-    return result.filter((t) => !filterObjectId || t.track.id === filterObjectId);
-  }, [
-    nodes, connections, docsById, objectsById, nodeEntitiesById,
-    objectTimelineTitles, setObjectTimelineTitle, filterObjectId,
-  ]);
-
-  const trackIdsKey = useMemo(
-    () => tracks.map((t) => t.track.id).join("|"),
-    [tracks],
+  const accent = chain.objectColor;
+  const meta = { nodeEntitiesById, docsById };
+  const trackObject = objectsById[chain.objectId] || null;
+  const chainNodes = chain.nodeIds
+    .map((id) => trackItemsById.get(id))
+    .filter(Boolean);
+  const chainConnections = connections.filter(
+    (c) => chain.nodeIds.includes(c.from) && chain.nodeIds.includes(c.to),
   );
+  const chipExtras = { today, trackNodes: chainNodes, trackConnections: chainConnections };
 
-  useEffect(() => {
-    if (!zoomedBlueprintId) return;
-    const ids = trackIdsKey ? trackIdsKey.split("|") : [];
-    if (!ids.includes(zoomedBlueprintId)) setZoomedBlueprintId(null);
-  }, [trackIdsKey, zoomedBlueprintId]);
-
-  const visibleTracks = zoomedBlueprintId
-    ? tracks.filter((t) => t.track.id === zoomedBlueprintId)
-    : tracks;
-
-  const objectTrackCount = tracks.filter((t) => t.track.id !== DEFAULT_TIMELINE_TRACK_ID).length;
+  const nodePositions = chain.anchors.map(({ nodeId, date }) => ({
+    nodeId,
+    leftPct: grid.pct(date),
+  }));
+  const edgeLeft = nodePositions.length
+    ? Math.min(...nodePositions.map((p) => p.leftPct))
+    : 0;
+  const edgeRight = nodePositions.length
+    ? Math.max(...nodePositions.map((p) => p.leftPct))
+    : 0;
+  const edgeWidth = Math.max(edgeRight - edgeLeft, 0.5);
 
   return (
     <div
-      className={"timeline stacked" + (zoomedBlueprintId ? " is-zoomed" : "")}
-      style={{ "--track-count": visibleTracks.length }}
+      className={
+        "tl-chain-row"
+        + (chain.isCorpus ? " is-corpus" : " is-satellite")
+        + (chain.hasCrossObjectLink ? " is-linked-row" : "")
+      }
+      style={{ "--tl-accent": accent, "--tl-soft": chain.colorSoft }}
     >
-      <div className="timeline-header">
-        <span>
-          <b>Timelines</b>
-          {objectTrackCount > 0
-            ? ` · ${objectTrackCount} object${objectTrackCount > 1 ? "s" : ""}`
-            : " · empty space"}
-        </span>
-        <span style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--dim)" }}>
-          {zoomedBlueprintId ? "zoomed" : "stacked"}
+      <div className="tl-track-header">
+        <button
+          type="button"
+          className="tl-track-label"
+          style={{ background: chain.colorSoft, color: accent, borderColor: accent + "55" }}
+          onClick={onEditTitle}
+          title="Edit timeline title"
+        >
+          <i className="tl-track-label-dot" />
+          {chain.label}
+        </button>
+        <span className="tl-track-meta mute">
+          {chain.nodeIds.length} node{chain.nodeIds.length === 1 ? "" : "s"}
+          {chain.hasCrossObjectLink ? " · linked" : ""}
         </span>
       </div>
-      <div className="tl-tracks">
-        {visibleTracks.map((t) => {
-          const isZoomed = zoomedBlueprintId === t.track.id;
+      <div className="tl-chain-bar">
+        <div className="tl-chain-axis" aria-hidden />
+        {chain.anchors.length > 1 && (
+          <div
+            className={"tl-chain-edge" + (chain.hasCrossObjectLink ? " is-linked" : "")}
+            style={{ left: edgeLeft + "%", width: edgeWidth + "%" }}
+            aria-hidden
+          />
+        )}
+        {chain.anchors.slice(0, -1).map((anchor, i) => {
+          const next = chain.anchors[i + 1];
+          const left = grid.pct(anchor.date);
+          const width = Math.max(grid.pct(next.date) - left, 0.5);
           return (
-            <TimelineTrack
-              key={t.track.id}
-              track={t.track}
-              trackNodes={t.trackNodes}
-              trackConnections={t.trackConnections}
-              today={today}
-              focusedNoteId={focusedNoteId}
-              onMarkerClick={onFocusNote}
-              zoomed={isZoomed}
-              onZoomToggle={() => setZoomedBlueprintId(isZoomed ? null : t.track.id)}
-              docsById={docsById}
-              nodeEntitiesById={nodeEntitiesById}
-              objectsById={objectsById}
+            <div
+              key={`${anchor.nodeId}-${next.nodeId}`}
+              className="tl-chain-window"
+              style={{ left: left + "%", width: width + "%" }}
             />
+          );
+        })}
+        {today >= grid.start && today <= grid.end && (
+          <div className="tl-chain-today" style={{ left: grid.todayPct + "%" }} aria-hidden>
+            <span className="tl-today-line" />
+          </div>
+        )}
+        {chain.anchors.map(({ nodeId, date }) => {
+          const n = trackItemsById.get(nodeId);
+          if (!n) return null;
+          const display = buildChipDisplay(n, trackObject, meta, chipExtras);
+          const anchorResolved = wireAnchors.get(nodeId) || date;
+          const dateLabel = display.dateLabel
+            || (anchorResolved ? fmtDate(anchorResolved, "short") : "");
+          return (
+            <div
+              key={nodeId}
+              className="tl-chain-node-wrap"
+              style={{ left: grid.pct(date) + "%" }}
+            >
+              <TimelineEventChip
+                name={display.name}
+                dateLabel={dateLabel}
+                objectTint={display.objectTint || accent}
+                focused={focusedNoteId === (n.noteId || nodeId)}
+                onClick={() => onMarkerClick(n.noteId || nodeId)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onMarkerClick(n.noteId || nodeId);
+                }}
+              />
+            </div>
           );
         })}
       </div>
@@ -1492,4 +1430,53 @@ function Timeline({
   );
 }
 
-export { NewNoteForm, NoteCard, NotesPanel, Tabs, Signal, IntelPanel, Calendar, Timeline, TimelineTrack };
+function Timeline({
+  today: _today,
+  focusedNoteId: _focusedNoteId,
+  onFocusNote: _onFocusNote,
+  nodes: _nodes = [],
+  connections: _connections = [],
+  docsById: _docsById = {},
+  objectsById: _objectsById = {},
+  nodeEntitiesById: _nodeEntitiesById = {},
+  filterObjectId: _filterObjectId = null,
+}) {
+  const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
+  const setTimelineAlertsEnabled = useTimelineStore((s) => s.setTimelineAlertsEnabled);
+
+  return (
+    <div className="timeline stacked tl-grid-mode tl-grid-mode--empty">
+      <div className="timeline-header">
+        <span><b>Timeline</b> · empty</span>
+        <div className="timeline-header__actions">
+          <label
+            className="tl-alerts-toggle"
+            data-on={timelineAlertsEnabled ? "1" : "0"}
+            title="Show timeline alerts on canvas at T-30, T-7, and T-1 day windows"
+          >
+            <input
+              type="checkbox"
+              checked={timelineAlertsEnabled}
+              onChange={(e) => setTimelineAlertsEnabled(e.target.checked)}
+            />
+            <span>Timeline alerts</span>
+          </label>
+        </div>
+      </div>
+      <div className="tl-empty-shell" aria-label="Timeline placeholder" />
+    </div>
+  );
+}
+
+export {
+  NewNoteForm,
+  NoteCard,
+  NotesPanel,
+  Tabs,
+  Signal,
+  IntelPanel,
+  Calendar,
+  Timeline,
+  TimelineTrack,
+  TimelineChainTrack,
+};

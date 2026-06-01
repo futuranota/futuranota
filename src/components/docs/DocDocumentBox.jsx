@@ -55,6 +55,7 @@ export function DocDocumentBox({
   onBodyKeyDown,
   onOpenNodeForBlock,
   onOpenNodeForH1,
+  onEnsureNodeForBlock,
   onAnswerBelowH1Change,
   onBlockAnchorChange,
   onInsertProductToCanvas,
@@ -416,6 +417,7 @@ export function DocDocumentBox({
               onEnterNewLine={requestContentBoxGrow}
               onOpenNodeForBlock={onOpenNodeForBlock || onOpenNodeForH1}
               onOpenNodeForH1={onOpenNodeForH1}
+              onEnsureNodeForBlock={onEnsureNodeForBlock}
               onAnswerBelowH1Change={onAnswerBelowH1Change}
               onBlockAnchorChange={onBlockAnchorChange}
               docCreatedDate={createdDate}

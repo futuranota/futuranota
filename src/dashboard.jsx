@@ -3,32 +3,23 @@ import { URL_EXTRACT_SAMPLE } from './data.jsx';
 
 /* dashboard.jsx — TopBar, MetaBar, ScanOverlay, UrlModal, Toast */
 
-function TopBar({ company, onBack, status, signal, scanState, onScan, onScanBlogs, onPasteUrl, onAltSeed }) {
+function TopBar({ onBack, scanState, onScan, onScanBlogs, onPasteUrl, onAltSeed }) {
   return (
     <div className="topbar">
-      <button className="btn icon ghost" onClick={onBack} title="Back">
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none">
-          <path d="M12 4l-6 6 6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        </svg>
-      </button>
-      <div className="brand">
-        <div className="brand-mark" />
-        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
-          <span className="brand-name">Futura Nota</span>
-          <span className="brand-sub">v0.6 · terminal</span>
-        </div>
+      <div className="topbar-start">
+        <button className="btn icon ghost" onClick={onBack} title="Back">
+          <svg width="12" height="12" viewBox="0 0 20 20" fill="none">
+            <path d="M12 4l-6 6 6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
-      <div className="target-block">
-        <span style={{ color: "var(--dim)", fontSize: 11 }}>Target</span>
-        <span className="target-name">{company.name}</span>
-        <span className="pill ok pulse"><i className="dot" />{status}</span>
-        <span className="pill cool"><i className="dot" />Signal {signal}</span>
+      <div className="topbar-center brand brand--centered">
+        <div className="brand-mark" aria-hidden />
+        <span className="brand-name">Futura Nota</span>
       </div>
 
-      <div style={{ flex: 1 }} />
-
-      <div style={{ display: "flex", gap: 4 }}>
+      <div className="topbar-end">
         <button className="btn sm primary" onClick={onScan} disabled={scanState === "scanning"}>
           {scanState === "scanning" ? "Scanning…" : "▸ Scan campaigns"}
         </button>

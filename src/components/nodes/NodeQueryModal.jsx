@@ -37,6 +37,7 @@ export function NodeQueryModal({
   onSave,
   onBackToDocument,
   onSendToIntelSearch,
+  onInsertToCanvas,
   intelSearchMeta = null,
   anchorDate = "",
   anchorTime = "",
@@ -327,6 +328,16 @@ export function NodeQueryModal({
             >
               <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
               <span className="node-query-modal__save-text">save</span>
+            </button>
+          ) : null}
+          {onInsertToCanvas ? (
+            <button
+              type="button"
+              className="node-query-modal__action node-query-modal__action--canvas"
+              onClick={onInsertToCanvas}
+              title="Place this node on the canvas"
+            >
+              Canvas
             </button>
           ) : null}
           <IntelSearchButton

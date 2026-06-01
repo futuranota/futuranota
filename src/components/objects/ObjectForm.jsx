@@ -1,9 +1,15 @@
 import { useState } from "react";
+import {
+  OBJECT_COLOR_CORPUS,
+  OBJECT_COLOR_SATELLITE,
+} from "../../lib/objectColors.js";
 
-export function ObjectForm({ onSubmit, onCancel, initialData = null }) {
+export function ObjectForm({ onSubmit, onCancel, initialData = null, defaultColor }) {
   const [name, setName] = useState(initialData?.name || "");
   const [description, setDescription] = useState(initialData?.description || "");
-  const [color, setColor] = useState(initialData?.color || "#6366f1");
+  const [color, setColor] = useState(
+    initialData?.color || defaultColor || OBJECT_COLOR_CORPUS,
+  );
 
   const handleSubmit = (e) => {
     e.preventDefault();

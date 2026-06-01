@@ -31,6 +31,7 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
 
   const {
     onOpenNodeForBlock,
+    onEnsureNodeForBlock,
     onBlockAnchorChange,
     onAnswerBelowH1Change,
     nodeModal,
@@ -90,6 +91,7 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
           saveDisabled={!parentId}
           onCloseExpand={onCancel}
           onOpenNodeForBlock={onOpenNodeForBlock}
+          onEnsureNodeForBlock={onEnsureNodeForBlock}
           onAnswerBelowH1Change={onAnswerBelowH1Change}
           onBlockAnchorChange={onBlockAnchorChange}
           onTitleKeyDown={(e) => {

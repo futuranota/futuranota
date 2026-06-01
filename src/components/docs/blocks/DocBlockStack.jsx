@@ -59,6 +59,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   onBlockAnchorChange,
   docCreatedDate = "",
   onInsertProductToCanvas,
+  onEnsureNodeForBlock,
 }, ref) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
@@ -497,7 +498,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     if (!block || !blockLinksEnabled(block)) return;
 
     if (!block.queryEnabled) {
-      updateAt(index, { queryEnabled: true });
+      const patch = { queryEnabled: true };
+      const ensuredNodeId = onEnsureNodeForBlock?.(index, block);
+      if (ensuredNodeId) patch.nodeId = ensuredNodeId;
+      updateAt(index, patch);
       return;
     }
 
