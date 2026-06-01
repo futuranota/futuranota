@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { getToday } from "../../data.jsx";
 import { formatCampaignLabel, formatWindowDays } from "../../lib/docMetaBar.js";
 import { formatMmDdYy, isoFromDateInput } from "../../lib/docDates.js";
+import {
+  importKnowledgeFile,
+  KNOWLEDGE_FILE_ACCEPT,
+  FLOPPY_DISK_ICON,
+  normalizeKnowledgeImport,
+} from "../../lib/knowledgeImport.js";
 import { resolveSubcategoryLines, resolveLinkedProductCategories } from "../../lib/templateDoc.js";
 import { NodeLinkColorPicker } from "./blocks/NodeLinkColorPicker.jsx";
 import { SubcategoryField } from "./SubcategoryField.jsx";
@@ -113,6 +119,69 @@ function ProductCategoryField({ value, onChange, placeholder = "Type product cat
   );
 }
 
+function KnowledgeUploadField({ onImport, knowledgeImport = null, hasExistingImport = false }) {
+  const inputRef = useRef(null);
+  const imported = normalizeKnowledgeImport(knowledgeImport);
+
+  const handleChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !onImport) return;
+    try {
+      const data = await importKnowledgeFile(file);
+      if (
+        hasExistingImport
+        && !window.confirm("Replace the imported file? Your summary text will be kept.")
+      ) {
+        return;
+      }
+      onImport(data);
+    } catch (err) {
+      window.alert(err?.message || "Upload failed");
+    }
+  };
+
+  return (
+    <div className="doc-meta-field doc-meta-field--upload">
+      <span className="doc-meta-field-k">File</span>
+      <button
+        type="button"
+        className={
+          "doc-meta-upload-btn"
+          + (imported ? " doc-meta-upload-btn--imported" : "")
+        }
+        onClick={(e) => {
+          e.stopPropagation();
+          inputRef.current?.click();
+        }}
+        title={imported ? `${imported.fileName}, click to replace` : "Upload a file"}
+      >
+        {imported ? (
+          <>
+            <img
+              src={FLOPPY_DISK_ICON}
+              alt=""
+              className="doc-meta-upload-btn__icon"
+              draggable={false}
+            />
+            <span className="doc-meta-upload-btn__name">{imported.fileName}</span>
+            <span className="doc-meta-upload-btn__state">imported</span>
+          </>
+        ) : (
+          "upload"
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={KNOWLEDGE_FILE_ACCEPT}
+        hidden
+        onChange={handleChange}
+      />
+    </div>
+  );
+}
+
 function resolveParentObject(objects, parentId) {
   if (!parentId || !objects) return null;
   if (Array.isArray(objects)) return objects.find((o) => o.id === parentId) ?? null;
@@ -145,12 +214,16 @@ export function DocMetaStrip({
   objects = null,
   showCampaignMeta = false,
   metaMode = "campaign",
+  onKnowledgeFileImport,
+  knowledgeImport = null,
+  hasKnowledgeImport = false,
 }) {
   const [expanded, setExpanded] = useState(false);
   const isProductMode = metaMode === "product";
   const isContentMode = metaMode === "content";
+  const isKnowledgeMode = metaMode === "knowledge";
   const isLegacyCampaign = metaMode === "campaign" && showCampaignMeta;
-  const showMetaFields = isProductMode || isContentMode || isLegacyCampaign;
+  const showMetaFields = isProductMode || isContentMode || isLegacyCampaign || isKnowledgeMode;
   const launchIso = launchDate ? isoFromDateInput(launchDate) : null;
   const today = getToday();
   const windowSummary = formatWindowDays(today, launchIso);
@@ -177,6 +250,7 @@ export function DocMetaStrip({
     : null;
 
   const launchFormatted = formatMmDdYy(launchDate);
+  const importedFile = normalizeKnowledgeImport(knowledgeImport);
 
   return (
     <div className={"doc-meta-strip" + (expanded ? " doc-meta-strip--open" : "")}>
@@ -208,6 +282,19 @@ export function DocMetaStrip({
               <MetaChip label="Window" value={windowSummary} />
               {showLegacySubcategories ? (
                 <MetaChip label="Subcategories" value={subcategorySummary} />
+              ) : null}
+            </>
+          ) : null}
+          {isKnowledgeMode ? (
+            <>
+              <MetaChip label="Category" value="knowledge" asTag />
+              <MetaChip
+                label="Subcategory"
+                value={category.trim() || null}
+                placeholder="e.g. marketing"
+              />
+              {importedFile ? (
+                <MetaChip label="File" value={importedFile.fileName} />
               ) : null}
             </>
           ) : null}
@@ -315,6 +402,27 @@ export function DocMetaStrip({
             </>
           ) : null}
 
+          {isKnowledgeMode ? (
+            <>
+              <div className="doc-meta-field doc-meta-field--knowledge-tag">
+                <span className="doc-meta-field-k">Category</span>
+                <span className="doc-product-category-tag doc-product-category-tag--fixed">knowledge</span>
+              </div>
+              <ProductCategoryField
+                value={category}
+                onChange={onCategoryChange}
+                placeholder="e.g. marketing"
+              />
+              {onKnowledgeFileImport ? (
+                <KnowledgeUploadField
+                  onImport={onKnowledgeFileImport}
+                  knowledgeImport={knowledgeImport}
+                  hasExistingImport={hasKnowledgeImport}
+                />
+              ) : null}
+            </>
+          ) : null}
+
           {isLegacyCampaign ? (
             <>
               <ProductVersionField
@@ -377,7 +485,7 @@ export function DocMetaStrip({
             </>
           ) : null}
 
-          {showMetaFields && onNodeLinkColorChange ? (
+          {showMetaFields && onNodeLinkColorChange && !isKnowledgeMode ? (
             <NodeLinkColorPicker
               variant="meta"
               value={nodeLinkColor}

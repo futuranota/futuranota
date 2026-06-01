@@ -17,11 +17,14 @@ import { useDocBlockNodeModal, linkBlockNodesToDoc } from "../docs/useDocBlockNo
 import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
 import {
   isTemplateDoc,
+  isKnowledgeDoc,
   findProductVersionDoc,
   formatProductDocTitle,
   listProductDocs,
   listContentDocs,
+  listKnowledgeDocs,
   resolveProductDocDisplayTitle,
+  resolveKnowledgeDocDisplayTitle,
 } from "../../lib/templateDoc.js";
 import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
 
@@ -175,7 +178,10 @@ function DocListCard({
 }) {
   const parent = doc.parentObjectId ? objects[doc.parentObjectId] : null;
   const isTemplate = isTemplateDoc(doc);
-  const displayTitle = resolveProductDocDisplayTitle(doc);
+  const isKnowledge = isKnowledgeDoc(doc);
+  const displayTitle = isKnowledge
+    ? resolveKnowledgeDocDisplayTitle(doc)
+    : resolveProductDocDisplayTitle(doc);
   return (
     <div
       className={
@@ -214,7 +220,10 @@ function DocListCard({
           <b>{displayTitle}</b>
           <span className="fn-card-meta">
             {isTemplate ? "template · " : ""}
-            {parent ? `↳ ${parent.name}` : "sin padre"} · {(doc.nodeIds || []).length} nodos
+            {isKnowledge
+              ? (doc.knowledgeImport?.fileName ? "file imported, knowledge" : "knowledge corpus")
+              : parent ? `↳ ${parent.name}` : "sin padre"}
+            {" · "}{(doc.nodeIds || []).length} nodos
           </span>
         </div>
         <span
@@ -401,10 +410,12 @@ function DocCreateModal({
   const [campaignActive, setCampaignActive] = useState(false);
   const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
   const [nodeLinkColor, setNodeLinkColor] = useState("dark");
+  const [knowledgeImport, setKnowledgeImport] = useState(null);
   const titleRef = useRef(null);
   const isProductMode = createMode === "product";
-  const metaMode = isProductMode ? "product" : "content";
-  const docKind = isProductMode ? "product" : "content";
+  const isKnowledgeMode = createMode === "knowledge";
+  const metaMode = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
+  const docKind = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
 
   useEffect(() => {
     setParentId(fallbackParent);
@@ -419,7 +430,12 @@ function DocCreateModal({
     titleRef.current?.select();
   }, []);
 
-  const parentObject = objects.find((o) => o.id === parentId);
+  const parentObject = isKnowledgeMode ? null : objects.find((o) => o.id === parentId);
+
+  const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
+    if (importTitle && !title.trim()) setTitle(importTitle);
+    if (nextImport) setKnowledgeImport(nextImport);
+  };
 
   const handleTitleChange = (value) => {
     setTitle(value);
@@ -475,12 +491,14 @@ function DocCreateModal({
       : trimmedCategory;
     const finalTitle = isProductMode
       ? (formatProductDocTitle(finalCategory || productName, version.trim()) || productName || "New product")
-      : (title.trim() || "New document");
-    const autoTags = parentObject?.name ? [parentObject.name] : [];
+      : isKnowledgeMode
+        ? (finalCategory || title.trim() || "New knowledge")
+        : (title.trim() || "New document");
+    const autoTags = isKnowledgeMode ? [] : (parentObject?.name ? [parentObject.name] : []);
     const serializedBody = docBlocksToBody(blocks) || body;
     onSubmit({
       title: finalTitle,
-      parentObjectId: parentId || null,
+      parentObjectId: isKnowledgeMode ? null : (parentId || null),
       tags: autoTags,
       body: serializedBody,
       blocks,
@@ -492,6 +510,7 @@ function DocCreateModal({
       subcategoryDocIds,
       nodeLinkColor,
       docKind,
+      knowledgeImport: isKnowledgeMode ? knowledgeImport : null,
     });
   };
 
@@ -502,7 +521,13 @@ function DocCreateModal({
           title={title}
           onTitleChange={handleTitleChange}
           titleRef={titleRef}
-          titlePlaceholder={isProductMode ? "Product's name" : "Write your description"}
+          titlePlaceholder={
+            isProductMode
+              ? "Product's name"
+              : isKnowledgeMode
+                ? "Document title"
+                : "Write your description"
+          }
           body={body}
           onBodyChange={setBody}
           blocks={blocks}
@@ -535,6 +560,8 @@ function DocCreateModal({
           onEnsureNodeForBlock={onEnsureNodeForBlock}
           onAnswerBelowH1Change={onAnswerBelowH1Change}
           onBlockAnchorChange={onBlockAnchorChange}
+          onKnowledgeFileImport={isKnowledgeMode ? handleKnowledgeFileImport : undefined}
+          knowledgeImport={isKnowledgeMode ? knowledgeImport : null}
           onTitleKeyDown={(e) => {
             if (e.key === "Escape") onCancel();
           }}
@@ -681,6 +708,7 @@ export function LeftPanel({
   const setFilterObjectId = useUIStateStore((s) => s.setFilterObjectId);
   const setSelectedObjectId = useUIStateStore((s) => s.setSelectedObjectId);
   const setFilterDocId = useUIStateStore((s) => s.setFilterDocId);
+  const setKnowledgeFolderActive = useUIStateStore((s) => s.setKnowledgeFolderActive);
 
   /* stores */
   const objects    = useObjectsStore(s => s.objects);
@@ -745,10 +773,16 @@ export function LeftPanel({
     () => (filterObjectId ? listContentDocs(docs, filterObjectId) : []),
     [docs, filterObjectId],
   );
+  const knowledgeDocs = useMemo(() => listKnowledgeDocs(docs), [docs]);
 
   useEffect(() => {
     setClickFolderView(null);
   }, [panelType, filterObjectId]);
+
+  useEffect(() => {
+    setKnowledgeFolderActive(clickFolderView === "knowledge");
+    return () => setKnowledgeFolderActive(false);
+  }, [clickFolderView, setKnowledgeFolderActive]);
 
   /** Sidebar highlight only — does not add to the canvas-driven timeline queue. */
   const handleSelectFolderDoc = (docId) => {
@@ -851,6 +885,7 @@ export function LeftPanel({
           launchAt: data.launchAt ?? null,
           campaignActive: Boolean(data.campaignActive),
           nodeLinkColor: data.nodeLinkColor ?? "dark",
+          knowledgeImport: data.knowledgeImport ?? null,
         },
       );
       if (newDocId && data.blocks?.length) {
@@ -888,7 +923,11 @@ export function LeftPanel({
   };
 
   const newDisabled = panelType === "Documents" && !clickFolderView;
-  const docCreateMode = clickFolderView === "groups" ? "product" : "content";
+  const docCreateMode = clickFolderView === "groups"
+    ? "product"
+    : clickFolderView === "knowledge"
+      ? "knowledge"
+      : "content";
 
   const commitPreviewType = () => {
     if (panelType !== previewPanelType) {
@@ -1119,7 +1158,11 @@ export function LeftPanel({
               <>
                 <ClickFolderBox variant="groups" onClick={() => setClickFolderView("groups")} />
                 <ClickFolderBox variant="subgroups" onClick={() => setClickFolderView("subgroups")} />
-                <ClickFolderBox variant="knowledge" label="kowledge" onClick={() => {}} />
+                <ClickFolderBox
+                  variant="knowledge"
+                  label="knowledge"
+                  onClick={() => setClickFolderView("knowledge")}
+                />
               </>
             ) : null}
 
@@ -1152,6 +1195,32 @@ export function LeftPanel({
                     <div className="lp-empty">
                       <p className="dim">No products yet</p>
                       <p className="dim">Use + new to create a product</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {clickFolderView === "knowledge" ? (
+              <div className="lp-click-folder-detail">
+                <ClickFolderBack onBack={() => setClickFolderView(null)} label="Knowledge" />
+                <div className="lp-click-folder-detail-list">
+                  {knowledgeDocs.length ? (
+                    knowledgeDocs.map((doc) => (
+                      <DocListCard
+                        key={doc.id}
+                        doc={doc}
+                        objects={objects}
+                        active={activeId === doc.id}
+                        onSelect={() => handleSelectFolderDoc(doc.id)}
+                        onOpen={() => handleOpenFolderDoc(doc.id)}
+                        onDelete={() => handleDeleteDoc(doc)}
+                      />
+                    ))
+                  ) : (
+                    <div className="lp-empty">
+                      <p className="dim">No knowledge docs yet</p>
+                      <p className="dim">Use + new to add corpus documents</p>
                     </div>
                   )}
                 </div>

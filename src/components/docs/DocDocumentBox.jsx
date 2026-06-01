@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DOC_FILE_TXT_ICON } from "../../lib/docMediumAssets.js";
-import { createDocBlock, DOC_BLOCK_TYPES, hasProductCardBlock, normalizeDocBlocks, updateBlockAt } from "../../lib/docBlocks.js";
+import {
+  createDocBlock,
+  DOC_BLOCK_TYPES,
+  docBlocksToBody,
+  hasProductCardBlock,
+  normalizeDocBlocks,
+  updateBlockAt,
+} from "../../lib/docBlocks.js";
 import {
   createDocBlockFromSlash,
   parseSlashQuery,
@@ -19,11 +26,17 @@ import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
+import { hasKnowledgeImport } from "../../lib/knowledgeImport.js";
 
 const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;
 const CONTENT_BOX_DEFAULT_HEIGHT = 200;
+const CONTENT_BOX_KNOWLEDGE_DEFAULT_HEIGHT = 118;
 const CONTENT_BOX_MAX_HEIGHT = 520;
+
+const KNOWLEDGE_IMPORT_HINT =
+  "Use the text area below to summarize what you imported: key topics, "
+  + "what the file is for, or a short outline. This space is for your own reference.";
 
 function getContentBoxMaxHeight() {
   if (typeof window === "undefined") return CONTENT_BOX_MAX_HEIGHT;
@@ -42,7 +55,7 @@ export function DocDocumentBox({
   onBodyChange,
   blocks = [],
   onBlocksChange,
-  bodyPlaceholder = 'Type your text here "/"create command',
+  bodyPlaceholder: bodyPlaceholderProp = 'Type your text here "/"create command',
   createdDate,
   onCreatedDateChange,
   parentId,
@@ -82,23 +95,34 @@ export function DocDocumentBox({
   saveDisabled = false,
   metaMode = "campaign",
   initialFocusBlockId = null,
+  onKnowledgeFileImport,
+  knowledgeImport = null,
 }) {
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
   const isProductMode = metaMode === "product";
   const isContentMode = metaMode === "content";
-  const showCampaignMeta = Boolean(onVersionChange) && !isTemplate && !isProductMode;
+  const isKnowledgeMode = metaMode === "knowledge";
+  const showCampaignMeta = Boolean(onVersionChange) && !isTemplate && !isProductMode && !isKnowledgeMode;
   const resolvedSubcategoryDocIds = subcategoryDocIds?.length
     ? subcategoryDocIds
     : templateSubcategoryDocIds;
   const handleSubcategoryDocIdsChange = onSubcategoryDocIdsChange || onTemplateSubcategoryDocIdsChange;
   const showTemplateMeta = isTemplate && Boolean(handleSubcategoryDocIdsChange);
-  const showParentPicker = Boolean(onParentIdChange && objects?.length);
+  const showParentPicker = Boolean(onParentIdChange && objects?.length && !isKnowledgeMode);
+  const knowledgeImportActive = hasKnowledgeImport({ knowledgeImport });
   const docHeaderLabel = (headerLabel ?? "").trim() || DEFAULT_HEADER_LABEL;
+  const bodyPlaceholder = isKnowledgeMode ? "" : bodyPlaceholderProp;
   const bodyRef = useRef(null);
   const contentBoxRef = useRef(null);
   const contentScrollRef = useRef(null);
   const blockStackRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
+  const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!isKnowledgeMode) return;
+    setKnowledgeHintDismissed(false);
+  }, [isKnowledgeMode, docId]);
 
   useEffect(() => {
     if (!initialFocusBlockId) return undefined;
@@ -130,6 +154,15 @@ export function DocDocumentBox({
   }, [objects, parentId]);
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const hasBlocks = normalizedBlocks.length > 0;
+  const showKnowledgeNotesPlaceholder = isKnowledgeMode && !knowledgeHintDismissed;
+
+  const dismissKnowledgeHint = () => {
+    setKnowledgeHintDismissed(true);
+    requestAnimationFrame(() => {
+      bodyRef.current?.focus({ preventScroll: true });
+    });
+  };
+
   const { slash: slashTail } = splitBodyForSlash(body);
 
   const linkableFocusIndex = useMemo(
@@ -172,6 +205,9 @@ export function DocDocumentBox({
 
     const maxHeight = getContentBoxMaxHeight();
     const contentHeight = scroll.scrollHeight;
+    const defaultHeight = isKnowledgeMode
+      ? CONTENT_BOX_KNOWLEDGE_DEFAULT_HEIGHT
+      : CONTENT_BOX_DEFAULT_HEIGHT;
     const desired = Math.min(
       maxHeight,
       Math.max(CONTENT_BOX_MIN_HEIGHT, contentHeight),
@@ -179,7 +215,7 @@ export function DocDocumentBox({
     const currentHeight = box.getBoundingClientRect().height;
 
     if (desired > currentHeight + 1) {
-      box.style.height = `${Math.max(desired, CONTENT_BOX_DEFAULT_HEIGHT)}px`;
+      box.style.height = `${Math.max(desired, defaultHeight)}px`;
     }
 
     if (!hasBlocks && bodyRef.current && scroll.clientHeight) {
@@ -197,7 +233,7 @@ export function DocDocumentBox({
     } else if (desired >= maxHeight - 1) {
       scroll.scrollTop = scroll.scrollHeight;
     }
-  }, [hasBlocks]);
+  }, [hasBlocks, isKnowledgeMode]);
 
   const syncBodyHeightUncapped = useCallback(() => {
     const el = bodyRef.current;
@@ -339,7 +375,12 @@ export function DocDocumentBox({
   };
 
   return (
-    <div className="doc-new-inner">
+    <div
+      className={
+        "doc-new-inner"
+        + (isKnowledgeMode ? " doc-new-inner--knowledge" : "")
+      }
+    >
       <header className="doc-new-head">
         <div className="doc-new-head-top">
           {showParentPicker ? (
@@ -371,7 +412,10 @@ export function DocDocumentBox({
         </div>
         <textarea
           ref={titleRef}
-          className="doc-new-head-title"
+          className={
+            "doc-new-head-title"
+            + (isKnowledgeMode ? " doc-new-head-title--knowledge" : "")
+          }
           value={title}
           placeholder={titlePlaceholder}
           onChange={(e) => {
@@ -420,15 +464,38 @@ export function DocDocumentBox({
           showCampaignMeta={showCampaignMeta}
           metaMode={metaMode}
           nodeLinkColor={metaStripNodeLinkColor}
-          onNodeLinkColorChange={handleMetaNodeLinkColorChange}
+          onNodeLinkColorChange={isKnowledgeMode ? undefined : handleMetaNodeLinkColorChange}
+          onKnowledgeFileImport={onKnowledgeFileImport}
+          knowledgeImport={knowledgeImport}
+          hasKnowledgeImport={knowledgeImportActive}
         />
       )}
 
       <div
         ref={contentBoxRef}
-        className="doc-new-content-box doc-new-content-box--resizable"
+        className={
+          "doc-new-content-box doc-new-content-box--resizable"
+          + (isKnowledgeMode ? " doc-new-content-box--knowledge-notes" : "")
+        }
       >
-        <div ref={contentScrollRef} className="doc-new-content-scroll">
+        <div
+          ref={contentScrollRef}
+          className={
+            "doc-new-content-scroll"
+            + (isKnowledgeMode ? " doc-new-content-scroll--knowledge" : "")
+            + (showKnowledgeNotesPlaceholder ? " doc-new-content-scroll--hint-active" : "")
+          }
+        >
+          {showKnowledgeNotesPlaceholder ? (
+            <button
+              type="button"
+              className="doc-knowledge-import-hint doc-knowledge-import-hint--placeholder"
+              onClick={dismissKnowledgeHint}
+            >
+              <span className="doc-knowledge-import-hint__text">{KNOWLEDGE_IMPORT_HINT}</span>
+              <span className="doc-knowledge-import-hint__action">Tap to write</span>
+            </button>
+          ) : null}
           {hasBlocks ? (
             <DocBlockStack
               ref={blockStackRef}
@@ -448,7 +515,13 @@ export function DocDocumentBox({
               onInsertProductToCanvas={onInsertProductToCanvas}
             />
           ) : (
-            <div className="doc-body-field-wrap">
+            <div
+              className={
+                "doc-body-field-wrap"
+                + (isKnowledgeMode ? " doc-body-field-wrap--knowledge" : "")
+                + (showKnowledgeNotesPlaceholder ? " doc-body-field-wrap--has-placeholder" : "")
+              }
+            >
               <SlashAwareTextarea
                 inputRef={bodyRef}
                 value={body}

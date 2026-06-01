@@ -10,7 +10,14 @@ import {
 import { formatScheduleLabelFromIso } from './lib/nodeAnchor.js';
 import { resolveConnectionLinkColor } from './lib/docNodeLinkColors.js';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
-import { isContentDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
+import {
+  isContentDoc,
+  isKnowledgeDoc,
+  resolveKnowledgeDocDisplayTitle,
+  resolveLinkedProductCategories,
+} from './lib/templateDoc.js';
+
+import { FLOPPY_DISK_ICON } from './lib/knowledgeImport.js';
 import {
   filterSelectableCanvasNodeIds,
   isTimelineSelectableCanvasNode,
@@ -134,9 +141,17 @@ function resolveCanvasParentDocTag(node, nodeEntitiesById = {}, docsById = {}) {
   };
 }
 
+function isKnowledgeCanvasNode(node, docsById = {}) {
+  if (node?.corpusKind === "knowledge") return true;
+  const docId = node?.docId || node?.noteId;
+  const doc = docId ? docsById[docId] : null;
+  return isKnowledgeDoc(doc);
+}
+
 function resolveCanvasDocTitle(node, docsById = {}) {
   const docId = node.docId || node.noteId;
   const doc = docId ? docsById[docId] : null;
+  if (isKnowledgeDoc(doc)) return resolveKnowledgeDocDisplayTitle(doc);
   return (doc?.title || node.title || "Untitled").trim();
 }
 
@@ -321,6 +336,34 @@ function CanvasNode({
       );
     }
     if (node.dataType === "document") {
+      if (isKnowledgeCanvasNode(node, docsById)) {
+        const docId = node.docId || node.noteId;
+        const doc = docId ? docsById[docId] : null;
+        const subcategory = doc?.category?.trim() || "";
+        const importedName = doc?.knowledgeImport?.fileName?.trim() || "";
+        return (
+          <div className="cnode-v cnode-knowledge-corpus" title="Reusable knowledge corpus">
+            <div className="cnode-knowledge-corpus__cylinder" aria-hidden>
+              <img
+                src={FLOPPY_DISK_ICON}
+                alt=""
+                className="cnode-knowledge-corpus__icon"
+                draggable={false}
+              />
+            </div>
+            {importedName ? (
+              <span className="cnode-knowledge-corpus__file" title={importedName}>
+                {importedName}
+              </span>
+            ) : null}
+            {subcategory ? (
+              <span className="cnode-knowledge-corpus__sub">{subcategory}</span>
+            ) : (
+              <span className="cnode-knowledge-corpus__sub cnode-knowledge-corpus__sub--dim">corpus</span>
+            )}
+          </div>
+        );
+      }
       const parentTag = resolveCanvasDocumentTag(node, docsById, objectsById);
       return (
         <CanvasNodeTags
@@ -402,7 +445,9 @@ function CanvasNode({
   else if (selected) cls.push("selected");
   if (connectingFrom === node.id) cls.push("connect-source");
   if (node.hidden) cls.push("hidden");
-  if (node.dataType === "text" || node.dataType === "document") cls.push("cnode--card-compact");
+  const knowledgeCorpus = node.dataType === "document" && isKnowledgeCanvasNode(node, docsById);
+  if (knowledgeCorpus) cls.push("cnode--knowledge-corpus");
+  else if (node.dataType === "text" || node.dataType === "document") cls.push("cnode--card-compact");
 
   if (blueprintColor) cls.push("cnode-in-bp");
 
@@ -441,7 +486,9 @@ function CanvasNode({
             {displayTitle}
           </span>
         )}
-        <span className="cnode-type" data-t={node.dataType}>{node.dataType}</span>
+        <span className="cnode-type" data-t={knowledgeCorpus ? "corpus" : node.dataType}>
+          {knowledgeCorpus ? "corpus" : node.dataType}
+        </span>
       </div>
       {renderContent()}
       {blueprintColor && (
@@ -492,10 +539,12 @@ function BlueprintCanvas({
   onRemoveBlueprintFromCanvas, onCanvasDrop,
   docsById = {}, nodeEntitiesById = {}, objectsById = {},
   timelineQueueMode = false,
+  timelineSelectEnabled = true,
   onToggleTimelineQueueMode,
   onTimelineCanvasSelect,
   onTimelineCanvasSelectMany,
 }) {
+  const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
   const temporalMeta = { docsById, nodeEntitiesById };
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
@@ -901,20 +950,20 @@ function BlueprintCanvas({
         nodes,
         nodeEntitiesById,
       );
-      if (timelineQueueMode) {
+      if (effectiveTimelineQueueMode) {
         if (selectedNodeIds.length > 1) {
           onTimelineCanvasSelectMany?.(selectedNodeIds);
         } else if (selectedNodeIds.length === 1) {
           onTimelineCanvasSelect?.(selectedNodeIds[0]);
         }
       }
-      if (!timelineQueueMode && selectedNodeIds.length > 1) {
+      if (!effectiveTimelineQueueMode && selectedNodeIds.length > 1) {
         selectedNodeIds = [selectedNodeIds[selectedNodeIds.length - 1]];
       }
       const selectedStrokeIdx = strokes
         .map((s, idx) => (rectIntersectsStroke(rect, s) ? idx : -1))
         .filter((idx) => idx >= 0);
-      if (timelineQueueMode && selectedNodeIds.length > 0) {
+      if (effectiveTimelineQueueMode && selectedNodeIds.length > 0) {
         setSelection((prev) => [...new Set([...prev, ...selectedNodeIds])]);
       } else {
         setSelection(selectedNodeIds);
@@ -1020,7 +1069,7 @@ function BlueprintCanvas({
     setSelectedStrokeIds([]);
     focusNoteForNode(id);
     const allowed = onTimelineCanvasSelect?.(id);
-    if (timelineQueueMode) {
+    if (effectiveTimelineQueueMode) {
       if (allowed === false) return;
       setSelection((sel) => (sel.includes(id) ? sel : [...sel, id]));
       return;
@@ -1030,7 +1079,7 @@ function BlueprintCanvas({
   };
 
   const handleTapToggle = (id) => {
-    if (!timelineQueueMode) return;
+    if (!effectiveTimelineQueueMode) return;
     setSelectedConnectionId(null);
     setSelectedStrokeIds([]);
     focusNoteForNode(id);
@@ -1299,27 +1348,31 @@ function BlueprintCanvas({
 
         <div style={{ flex: 1 }} />
 
-        <button
-          type="button"
-          className={"btn xs" + (timelineQueueMode ? " primary" : " ghost")}
-          onClick={onToggleTimelineQueueMode}
-          title="Select nodes on the canvas and queue their documents for the timeline"
-        >
-          Select
-        </button>
-        <button
-          type="button"
-          className="btn xs primary"
-          disabled={!timelineQueueMode || selection.length === 0}
-          onClick={onInsertToTimeline}
-          title={
-            timelineQueueMode && selection.length > 0
-              ? "Insert queued documents into the timeline (instruction set — coming soon)"
-              : "Enable Select and pick nodes linked to documents"
-          }
-        >
-          Insert to timeline
-        </button>
+        {timelineSelectEnabled ? (
+          <>
+            <button
+              type="button"
+              className={"btn xs" + (timelineQueueMode ? " primary" : " ghost")}
+              onClick={onToggleTimelineQueueMode}
+              title="Select nodes on the canvas and queue their documents for the timeline"
+            >
+              Select
+            </button>
+            <button
+              type="button"
+              className="btn xs primary"
+              disabled={!timelineQueueMode || selection.length === 0}
+              onClick={onInsertToTimeline}
+              title={
+                timelineQueueMode && selection.length > 0
+                  ? "Insert queued documents into the timeline (instruction set — coming soon)"
+                  : "Enable Select and pick nodes linked to documents"
+              }
+            >
+              Insert to timeline
+            </button>
+          </>
+        ) : null}
         {hiddenCount > 0 && (
           <button className="btn xs" onClick={handleShowAll} title="Show all hidden nodes">
             <Icon name="show" size={11} /> Show all
@@ -1510,7 +1563,7 @@ function BlueprintCanvas({
             today={today}
             selected={timelineSelectable && selection.includes(n.id)}
             timelineSelectable={timelineSelectable}
-            timelineQueueMode={timelineQueueMode}
+            timelineQueueMode={effectiveTimelineQueueMode}
             connectingFrom={connectingFrom}
             isConnectingFrom={!!connectingFrom}
             rewiring={rewiring}
@@ -1565,10 +1618,10 @@ function BlueprintCanvas({
             <span className="pill ai">
               <i className="dot" />
               1 selected
-              {timelineQueueMode ? " · tap to clear" : ""}
+              {effectiveTimelineQueueMode ? " · tap to clear" : ""}
             </span>
           )}
-          {timelineQueueMode && selection.length > 0 && (
+          {effectiveTimelineQueueMode && selection.length > 0 && (
             <span className="pill warm">
               <i className="dot" />
               {selection.length} selected

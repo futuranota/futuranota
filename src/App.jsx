@@ -45,7 +45,7 @@ import {
   syncContentDocCanvasNodes,
 } from './lib/canvasDocSync.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
-import { isContentDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
+import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 
 const DOC_CHILD_OFFSET_X = CANVAS_DOC_CHILD_OFFSET_X;
 const DOC_CHILD_ROW_STEP = 88;
@@ -167,6 +167,7 @@ function Dashboard({ company, onBack }) {
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
   const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
   const toggleTimelineQueueMode = useTimelineStore((s) => s.toggleTimelineQueueMode);
+  const knowledgeFolderActive = useUIStateStore((s) => s.knowledgeFolderActive);
   const timelines = useTimelineStore((s) => s.timelines);
   const prevTimelineAlertsEnabled = useRef(false);
   const tokenCurrent = 0;
@@ -193,6 +194,7 @@ function Dashboard({ company, onBack }) {
       if (!node) return true;
       const docId = resolveParentDocIdForCanvasNode(node, nodeEntities, docs);
       const doc = docId ? docs[docId] : null;
+      if (isKnowledgeDoc(doc)) return true;
       if (doc?.parentObjectId) {
         setFilterObjectId(doc.parentObjectId);
         setSelectedObjectId(doc.parentObjectId);
@@ -427,7 +429,8 @@ function Dashboard({ company, onBack }) {
       title: (normalizedDoc.title || "DOCUMENT").toUpperCase().slice(0, 20),
       dataType: "document",
       content: normalizedDoc.body || normalizedDoc.content || "",
-      ...(isContentDoc(normalizedDoc)
+      ...(isKnowledgeDoc(normalizedDoc) ? { corpusKind: "knowledge" } : {}),
+      ...(isContentDoc(normalizedDoc) && !isKnowledgeDoc(normalizedDoc)
         ? {
             linkedProductCategories: resolveLinkedProductCategories(
               useDocsStore.getState().docs,
@@ -441,7 +444,7 @@ function Dashboard({ company, onBack }) {
     });
     occupied.push({ x, y });
 
-    const launchCanvasNode = isContentDoc(normalizedDoc)
+    const launchCanvasNode = isContentDoc(normalizedDoc) && !isKnowledgeDoc(normalizedDoc)
       ? buildLaunchDateCanvasNode(normalizedDoc.launchAt, normalizedDoc.id)
       : null;
     const childNodes = resolveDocChildNodes(normalizedDoc).filter(
@@ -661,6 +664,7 @@ function Dashboard({ company, onBack }) {
             nodeEntitiesById={nodeEntities}
             objectsById={objects}
             timelineQueueMode={timelineQueueMode}
+            timelineSelectEnabled={!knowledgeFolderActive}
             onToggleTimelineQueueMode={toggleTimelineQueueMode}
             onInsertToTimeline={() => {}}
             onTimelineCanvasSelect={handleTimelineCanvasSelect}
