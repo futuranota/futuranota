@@ -41,8 +41,10 @@ export const MOCK_MARKET_HYPE_DATA: MarketHypeData = {
     primaryHashtag: "ProductDrop",
   },
   platformDistribution: [
-    { platform: "TikTok", percentage: 65 },
-    { platform: "Instagram Reels", percentage: 25 },
-    { platform: "YouTube", percentage: 10 },
+    { platform: "TikTok", percentage: 48 },
+    { platform: "Instagram Reels", percentage: 20 },
+    { platform: "YouTube", percentage: 9 },
+    { platform: "X / Twitter", percentage: 15 },
+    { platform: "Snapchat", percentage: 8 },
   ],
 };
