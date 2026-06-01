@@ -12,6 +12,7 @@ import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
   anchorFieldsFromIso,
   blockDataType,
+  ensureNodeForDocBlock,
   getAnswerBelowH1,
   getBlockQueryText,
   getContentForNodeBlock,
@@ -38,6 +39,7 @@ export function useDocBlockNodeModal({
   docId = null,
   docTitle = "New document",
   nodeLinkColor = "dark",
+  onInsertToCanvas,
 }) {
   const getNode = useNodesStore((s) => s.getNode);
   const updateNode = useNodesStore((s) => s.updateNode);
@@ -172,10 +174,73 @@ export function useDocBlockNodeModal({
     }, 250);
   };
 
+  const ensureBlockNode = (blockIndex, block, contentOverride) => {
+    if (isNoNodeLinkMode(blockLinkColor(blockIndex))) return null;
+    const nodeId = ensureNodeForDocBlock({
+      block: { ...block, queryEnabled: true },
+      blocks,
+      blockIndex,
+      docId,
+      docCreatedAt: isoFromDateInput(createdDate),
+      contentOverride,
+      createOrUpdateNodeFromDocBlock,
+    });
+    if (!nodeId) return null;
+
+    if (blocks[blockIndex]?.nodeId !== nodeId) {
+      const queryText = getBlockQueryText(block) || "Untitled query";
+      const dataType = blockDataType(block);
+      setBlocks((prev) => {
+        const current = prev[blockIndex];
+        if (!current) return prev;
+        const patch = {
+          nodeId,
+          sourceQuery: queryText,
+          queryEnabled: true,
+        };
+        if (
+          current.type === DOC_BLOCK_TYPES.H1
+          || current.type === DOC_BLOCK_TYPES.DATE
+          || current.type === DOC_BLOCK_TYPES.METRIC
+        ) {
+          patch.title = current.title || queryText;
+        }
+        if (current.type === DOC_BLOCK_TYPES.TODO) {
+          patch.listTitle = current.listTitle || queryText;
+        }
+        if (supportsScheduleAnchor(dataType)) {
+          patch.anchorFromNode = current.anchorFromNode ?? false;
+        }
+        return updateBlockAt(prev, blockIndex, patch);
+      });
+      setActiveNodeContext((prev) =>
+        (prev?.blockIndex === blockIndex ? { ...prev, nodeId } : prev),
+      );
+    }
+    return nodeId;
+  };
+
+  const handleEnsureNodeForBlock = (blockIndex, block) => ensureBlockNode(blockIndex, block);
+
+  const handleInsertNodeToCanvas = () => {
+    if (!activeNodeContext || !onInsertToCanvas) return;
+    if (nodeAutosaveTimerRef.current) {
+      clearTimeout(nodeAutosaveTimerRef.current);
+      nodeAutosaveTimerRef.current = null;
+    }
+    const { blockIndex } = activeNodeContext;
+    const block = blocks[blockIndex];
+    if (!block) return;
+    const nodeId = ensureBlockNode(blockIndex, block, nodeDraftContent);
+    const entity = nodeId ? getNode(nodeId) : null;
+    if (entity) onInsertToCanvas(entity, { center: true });
+  };
+
   const handleOpenNodeForBlock = (blockIndex, block) => {
     if (isNoNodeLinkMode(blockLinkColor(blockIndex))) return;
+    const ensuredNodeId = ensureBlockNode(blockIndex, block);
     const dataType = nodeDataTypeForBlock(block);
-    const existing = block.nodeId ? getNode(block.nodeId) : null;
+    const existing = (ensuredNodeId || block.nodeId) ? getNode(ensuredNodeId || block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block);
 
     if (block.type === DOC_BLOCK_TYPES.H1) {
@@ -187,7 +252,7 @@ export function useDocBlockNodeModal({
       blockId: block.id,
       blockIndex,
       blockType: block.type,
-      nodeId: block.nodeId || null,
+      nodeId: ensuredNodeId || block.nodeId || null,
       query: getBlockQueryText(block),
       dataType,
     });
@@ -300,6 +365,7 @@ export function useDocBlockNodeModal({
       onAnchorDateChange={handleNodeAnchorDateChange}
       onAnchorTimeChange={handleNodeAnchorTimeChange}
       onClose={resetNodeModal}
+      onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
       intelSearchMeta={
         docId
           ? {
@@ -314,6 +380,7 @@ export function useDocBlockNodeModal({
 
   return {
     onOpenNodeForBlock: handleOpenNodeForBlock,
+    onEnsureNodeForBlock: handleEnsureNodeForBlock,
     onBlockAnchorChange: handleBlockAnchorChange,
     onAnswerBelowH1Change: handleAnswerBelowH1Change,
     nodeModal,

@@ -344,6 +344,7 @@ function DocCreateModal({
   onSubmit,
   onCancel,
   onOpenDocument,
+  onInsertToCanvas,
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -389,6 +390,7 @@ function DocCreateModal({
 
   const {
     onOpenNodeForBlock,
+    onEnsureNodeForBlock,
     onBlockAnchorChange,
     onAnswerBelowH1Change,
     nodeModal,
@@ -399,6 +401,7 @@ function DocCreateModal({
     docId: null,
     docTitle: title,
     nodeLinkColor,
+    onInsertToCanvas,
   });
 
   const handleVersionCommit = (trimmedVersion) => {
@@ -486,6 +489,7 @@ function DocCreateModal({
           onSave={submitDoc}
           onCloseExpand={onCancel}
           onOpenNodeForBlock={onOpenNodeForBlock}
+          onEnsureNodeForBlock={onEnsureNodeForBlock}
           onAnswerBelowH1Change={onAnswerBelowH1Change}
           onBlockAnchorChange={onBlockAnchorChange}
           onTitleKeyDown={(e) => {
@@ -1136,6 +1140,7 @@ export function LeftPanel({
           onSubmit={handleCreate}
           onCancel={() => setShowCreate(false)}
           onOpenDocument={onOpenDocument}
+          onInsertToCanvas={onInsertToCanvas}
         />,
         document.body,
       )}

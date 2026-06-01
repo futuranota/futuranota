@@ -2,6 +2,17 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 
+const TIMELINE_ALERTS_KEY = "futura-timeline-alerts";
+
+function readTimelineAlertsEnabled() {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(TIMELINE_ALERTS_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 export const useTimelineStore = create(
   devtools(
     (set, get) => ({
@@ -13,6 +24,8 @@ export const useTimelineStore = create(
       zoomedPlanId: null,
       zoomedObjectId: null,
       objectTimelineTitles: {},
+      /** Opt-in: show TimelineAlertToast when checkTimelineTrigger fires (30/7/1d). */
+      timelineAlertsEnabled: readTimelineAlertsEnabled(),
 
       getTimeline: (id) => get().timelines[id] || null,
 
@@ -153,6 +166,22 @@ export const useTimelineStore = create(
         })),
 
       clearZoom: () => set({ zoomedTimelineId: null, zoomedPlanId: null, zoomedObjectId: null }),
+
+      setTimelineAlertsEnabled: (enabled) => {
+        const on = Boolean(enabled);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem(TIMELINE_ALERTS_KEY, on ? "1" : "0");
+          } catch {
+            /* private mode */
+          }
+        }
+        set({ timelineAlertsEnabled: on });
+      },
+
+      toggleTimelineAlertsEnabled: () => {
+        get().setTimelineAlertsEnabled(!get().timelineAlertsEnabled);
+      },
 
       deleteTimeline: (id) =>
         set((state) => {

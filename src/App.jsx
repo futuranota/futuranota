@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   COMPANIES, INTEL, shortId, getToday,
 } from './data.jsx';
@@ -8,12 +8,26 @@ import { TopBar, MetaBar, ScanOverlay, Toast } from './dashboard.jsx';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakButton,
 } from './tweaks-panel.jsx';
-import { initStores, useDocsStore, useNodesStore, useObjectsStore, useUIStateStore } from './stores/index.js';
+import {
+  initStores,
+  useDocsStore,
+  useNodesStore,
+  useObjectsStore,
+  useTimelineStore,
+  useUIStateStore,
+} from './stores/index.js';
 import { LandingPage } from './pages/LandingPage.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
+import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
+import { resolveActiveTimelineAlert } from './lib/resolveTimelineAlert.js';
+import {
+  ensureNodeForDocBlock,
+  shouldIncludeBlockOnCanvas,
+} from './lib/docNodeSync.js';
+import { normalizeDocBlocks } from './lib/docBlocks.js';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
 import {
   buildLaunchDateCanvasNode,
@@ -51,6 +65,25 @@ function resolveDocChildNodes(doc) {
     const node = nodesStore.getNode(nodeId);
     if (node) childMap.set(node.id, node);
   }
+
+  const blocks = normalizeDocBlocks(doc.blocks || []);
+  const docCreatedAt = doc.createdAt || null;
+  blocks.forEach((block, blockIndex) => {
+    if (!shouldIncludeBlockOnCanvas(block)) return;
+    if (block.nodeId && childMap.has(block.nodeId)) return;
+
+    const ensuredId = ensureNodeForDocBlock({
+      block,
+      blocks,
+      blockIndex,
+      docId: doc.id,
+      docCreatedAt,
+      createOrUpdateNodeFromDocBlock: nodesStore.createOrUpdateNodeFromDocBlock,
+    });
+    if (!ensuredId) return;
+    const node = nodesStore.getNode(ensuredId);
+    if (node) childMap.set(node.id, node);
+  });
 
   return [...childMap.values()];
 }
@@ -100,6 +133,8 @@ function applyTheme(t) {
 function Dashboard({ company, onBack }) {
   const [today, setToday]             = useState(() => getToday());
   const [toast, setToast]             = useState(null);
+  const [timelineAlert, setTimelineAlert] = useState(null);
+  const dismissedTimelineAlertKey = useRef(null);
   const [intel, setIntel]             = useState([]);
   const [hasScannedBlogs, setBlogs]   = useState(false);
   const [scanState, setScanState]     = useState("idle");
@@ -116,6 +151,9 @@ function Dashboard({ company, onBack }) {
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
   const activeDocMetaDraft = useUIStateStore((s) => s.activeDocMetaDraft);
+  const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
+  const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
+  const prevTimelineAlertsEnabled = useRef(false);
   const tokenCurrent = 0;
   const tokenMax = 10;
 
@@ -140,6 +178,45 @@ function Dashboard({ company, onBack }) {
     const tick = setInterval(() => setToday(getToday()), 60_000);
     return () => clearInterval(tick);
   }, []);
+
+  useEffect(() => {
+    if (timelineAlertsEnabled && !prevTimelineAlertsEnabled.current) {
+      dismissedTimelineAlertKey.current = null;
+    }
+    prevTimelineAlertsEnabled.current = timelineAlertsEnabled;
+
+    if (!timelineAlertsEnabled) {
+      setTimelineAlert(null);
+      return;
+    }
+
+    const alert = resolveActiveTimelineAlert({
+      docs,
+      objects,
+      objectTimelineTitles,
+      selectedObjectId: selectedObjectId || filterObjectId,
+      canvasNodes,
+    });
+
+    if (!alert) {
+      setTimelineAlert(null);
+      return;
+    }
+
+    const key = `${alert.title}|${alert.campaignRef}`;
+    if (dismissedTimelineAlertKey.current === key) return;
+
+    setTimelineAlert(alert);
+  }, [
+    timelineAlertsEnabled,
+    docs,
+    objects,
+    objectTimelineTitles,
+    selectedObjectId,
+    filterObjectId,
+    canvasNodes,
+    today,
+  ]);
 
   useEffect(() => {
     useUIStateStore.getState().setCanvasSearchSnapshot({
@@ -196,6 +273,12 @@ function Dashboard({ company, onBack }) {
 
   /* ── INSERT ZUSTAND NODE → canvas ─ */
   const insertNodeToCanvas = (zustandNode, options = null) => {
+    if (!zustandNode?.id) return;
+    const alreadyOnCanvas = canvasNodes.some((n) => n.noteId === zustandNode.id);
+    if (alreadyOnCanvas) {
+      setToast({ message: `Already on canvas · "${zustandNode.title || "node"}"`, kind: "ok" });
+      return;
+    }
     const preferredX = options?.center ? 320 : options?.x;
     const preferredY = options?.center ? 190 : options?.y;
     const { x, y } = nextCanvasPosition(preferredX, preferredY);
@@ -437,10 +520,7 @@ function Dashboard({ company, onBack }) {
   return (
     <div className="dash">
       <TopBar
-        company={company}
         onBack={onBack}
-        status="ARMED"
-        signal={company.signal}
         scanState={scanState}
         onScan={() => {}}
         onScanBlogs={scanBlogs}
@@ -475,7 +555,7 @@ function Dashboard({ company, onBack }) {
             docsById={docs}
             nodeEntitiesById={nodeEntities}
             objectsById={objects}
-            onCreateBlueprint={() => {}}
+            onInsertToTimeline={() => {}}
             onDeleteNode={deleteCanvasNode}
             onEditNode={() => {}}
             onFocusNote={() => {}}
@@ -486,6 +566,15 @@ function Dashboard({ company, onBack }) {
           {scanState === "scanning-blogs" && (
             <ScanOverlay logs={scanLogs} kind="blogs" />
           )}
+          {timelineAlert ? (
+            <TimelineAlertToast
+              alert={timelineAlert}
+              onDismiss={() => {
+                dismissedTimelineAlertKey.current = `${timelineAlert.title}|${timelineAlert.campaignRef}`;
+                setTimelineAlert(null);
+              }}
+            />
+          ) : null}
         </div>
 
         <div className="dash-col">

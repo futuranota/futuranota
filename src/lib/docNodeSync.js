@@ -271,3 +271,66 @@ export function getBlockQueryText(block) {
 export function blockDataType(block) {
   return nodeDataTypeForBlock(block);
 }
+
+const LINKABLE_NODE_BLOCK_TYPES = new Set([
+  DOC_BLOCK_TYPES.H1,
+  DOC_BLOCK_TYPES.DATE,
+  DOC_BLOCK_TYPES.METRIC,
+  DOC_BLOCK_TYPES.TODO,
+]);
+
+export function isLinkableNodeBlock(block) {
+  return LINKABLE_NODE_BLOCK_TYPES.has(block?.type);
+}
+
+/** Block should spawn / sync a canvas child when dragging the parent document. */
+export function shouldIncludeBlockOnCanvas(block) {
+  return isLinkableNodeBlock(block) && Boolean(block?.queryEnabled || block?.nodeId);
+}
+
+function supportsScheduleAnchor(dataType) {
+  return dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
+}
+
+/**
+ * Create or update the Zustand node for an activated doc block (even with empty content).
+ * @returns {string|null} node id
+ */
+export function ensureNodeForDocBlock({
+  block,
+  blocks = [],
+  blockIndex = -1,
+  docId = null,
+  docCreatedAt = "",
+  nodeId: existingNodeId = null,
+  contentOverride = undefined,
+  createOrUpdateNodeFromDocBlock,
+}) {
+  if (!block || !isLinkableNodeBlock(block)) return null;
+  if (!block.queryEnabled && !existingNodeId && !block.nodeId) return null;
+  if (!createOrUpdateNodeFromDocBlock) return block.nodeId || existingNodeId || null;
+
+  const dataType = nodeDataTypeForBlock(block);
+  let content = contentOverride !== undefined ? contentOverride : getContentForNodeBlock(block);
+  if (block.type === DOC_BLOCK_TYPES.H1 && contentOverride === undefined) {
+    const answer = blockIndex >= 0 ? getAnswerBelowH1(blocks, blockIndex) : "";
+    if (answer.trim()) content = answer;
+  }
+
+  const query = getBlockQueryText(block) || "Untitled query";
+  const anchorFields = resolveBlockAnchorFields(block, docCreatedAt);
+  const anchorAt = supportsScheduleAnchor(dataType)
+    ? isoFromAnchorFields(anchorFields.anchorDate, anchorFields.anchorTime)
+    : undefined;
+
+  return createOrUpdateNodeFromDocBlock({
+    nodeId: existingNodeId || block.nodeId || null,
+    docId,
+    blockId: block.id,
+    query,
+    content,
+    dataType,
+    docCreatedAt,
+    anchorAt,
+  });
+}

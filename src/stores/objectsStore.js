@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
+import {
+  OBJECT_ROLE_CORPUS,
+  OBJECT_ROLE_SATELLITE,
+  resolveDefaultObjectColor,
+} from "../lib/objectColors.js";
 import { useDocsStore } from "./docsStore.js";
 
 export const useObjectsStore = create(
@@ -18,8 +23,12 @@ export const useObjectsStore = create(
         return { ...obj };
       },
 
-      addObject: (name, description = "", color = "#6366f1", brand = "") => {
+      addObject: (name, description = "", color, brand = "") => {
         const id = generateId("OBJ");
+        const existingCount = Object.keys(get().objects).length;
+        const isFirst = existingCount === 0;
+        const resolvedColor = color || resolveDefaultObjectColor(existingCount);
+        const role = isFirst ? OBJECT_ROLE_CORPUS : OBJECT_ROLE_SATELLITE;
         set((state) => ({
           objects: {
             ...state.objects,
@@ -29,7 +38,8 @@ export const useObjectsStore = create(
               description,
               brand: typeof brand === "string" ? brand : "",
               children: [],
-              color,
+              color: resolvedColor,
+              role,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             },
