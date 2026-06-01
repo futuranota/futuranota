@@ -705,8 +705,10 @@
 
 .lp-click-folder-box {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   width: 100%;
   min-height: 110px;
   padding: 16px;
@@ -717,6 +719,14 @@
   cursor: pointer;
   color: #79818b;
   transition: color 0.15s ease, background 0.15s ease;
+}
+
+.lp-click-folder-box-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
 }
 
 .lp-click-folder-box:hover {
@@ -738,6 +748,10 @@
 
 .lp-click-folder-box--subgroups .lp-click-folder-box-icon {
   height: 58px;
+}
+
+.lp-click-folder-box--knowledge .lp-click-folder-box-icon {
+  height: 52px;
 }
 
 .lp-doc-card {
