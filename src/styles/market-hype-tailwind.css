@@ -1,1 +1,29 @@
 @import "tailwindcss";
+
+@layer utilities {
+  .mh-platform-scroll {
+    max-height: 5.25rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+    padding-right: 2px;
+  }
+
+  .mh-platform-scroll::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .mh-platform-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .mh-platform-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+  }
+
+  .mh-platform-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
+}
