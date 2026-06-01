@@ -956,6 +956,12 @@ textarea.field {
 .intel-folder-panel--calendar {
   min-height: 200px;
 }
+.intel-folder-panel--market-hype {
+  padding: 0 2px 4px;
+}
+.intel-market-hype-wrap {
+  width: 100%;
+}
 .intel-folder-panel--with-search {
   display: flex;
   flex-direction: column;
