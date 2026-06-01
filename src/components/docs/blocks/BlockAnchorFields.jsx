@@ -26,30 +26,12 @@ export function BlockAnchorFields({
         <button
           type="button"
           className="doc-block-anchor__content-toggle"
-          onClick={() => {
-            // #region agent log
-            fetch("http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "a58ec5" },
-              body: JSON.stringify({
-                sessionId: "a58ec5",
-                location: "BlockAnchorFields.jsx:toggle",
-                message: "chevron-click",
-                data: { contentExpanded, willCollapse: contentExpanded },
-                hypothesisId: "F",
-                timestamp: Date.now(),
-              }),
-            }).catch(() => {});
-            // #endregion
-            onContentToggle?.();
-          }}
+          onClick={() => onContentToggle?.()}
           aria-expanded={contentExpanded}
           aria-label={contentExpanded ? "Collapse document content" : "Expand document content"}
           title={contentExpanded ? "Collapse content" : "Expand content"}
         >
-          <span className="doc-block-anchor__content-chevron" aria-hidden>
-            ^
-          </span>
+          <span className="doc-block-anchor__content-chevron" aria-hidden />
         </button>
       ) : null}
       <span className="doc-block-anchor__label">Schedule</span>

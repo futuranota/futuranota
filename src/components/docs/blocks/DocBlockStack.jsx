@@ -23,7 +23,6 @@ import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNod
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { TodoBlockView } from "./TodoBlockView.jsx";
-import { CollapsedWriteClickZone } from "./CollapsedWriteClickZone.jsx";
 import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
@@ -155,36 +154,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     }
 
     requestContentGrow();
-  };
-
-  const beginCollapsedWrite = (ownerIndex) => {
-    const ownerBlock = blocksRef.current[ownerIndex];
-    if (!ownerBlock || !showScheduleForBlock(ownerBlock)) return;
-    if (isContentExpanded(ownerBlock.id)) return;
-
-    const owned = getOwnedTextBlockIndices(blocksRef.current, ownerIndex);
-    const insertAfterIndex = owned.length > 0 ? owned[owned.length - 1] : ownerIndex;
-
-    // #region agent log
-    debugLog("DocBlockStack.jsx:beginCollapsedWrite", "insert-new-only", {
-      ownerIndex,
-      ownerId: ownerBlock.id,
-      insertAfterIndex,
-      preservedBlocks: owned.map((i) => ({
-        id: blocksRef.current[i]?.id,
-        textLen: (blocksRef.current[i]?.text || "").length,
-      })),
-      runId: "post-fix-v4",
-    }, "A,F");
-    // #endregion
-
-    const blockId = insertTextAfter(insertAfterIndex, "", null, { skipFocus: true });
-    const blockIndex = blocksRef.current.findIndex((b) => b.id === blockId);
-    setCollapsedPadWriteByOwnerId((prev) => ({
-      ...prev,
-      [ownerBlock.id]: { blockId, blockIndex },
-    }));
-    onFocusBlock?.(blockId);
   };
 
   const insertSlashCommandForOwner = (ownerIndex, alias) => {
@@ -891,16 +860,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             : -1;
         const padWrite = collapsedPadWriteByOwnerId[block.id] ?? null;
         const collapsedActiveWriteId = padWrite?.blockId ?? null;
-        const showCollapsedWriteClick =
-          ownerIndexForBlock >= 0
-          && showScheduleForBlock(block)
-          && !isContentExpanded(block.id)
-          && !collapsedActiveWriteId;
         const showCollapsedWritePad =
           (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
           && showScheduleForBlock(block)
           && !isContentExpanded(block.id)
-          && (showCollapsedWriteClick || Boolean(collapsedActiveWriteId));
+          && Boolean(collapsedActiveWriteId);
         const collapsedWriteIndex = collapsedActiveWriteId
           ? resolveBlockIndexById(collapsedActiveWriteId)
           : -1;
@@ -935,7 +899,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             blockId: block.id,
             type: block.type,
             collapsed: Boolean(collapsedContentByBlockId[block.id]),
-            showCollapsedWriteClick,
             showCollapsedWritePad,
             activeWrite: collapsedActiveWriteId,
             collapsedWriteIndex,
@@ -1090,51 +1053,34 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             />
           ) : null}
         </div>
-        {showCollapsedWritePad ? (
+        {showCollapsedWritePad && collapsedActiveWriteId ? (
           <div
             className="doc-block-stack__item doc-collapsed-write-pad"
             data-collapsed-write-for={block.id}
           >
-            {showCollapsedWriteClick ? (
-              <CollapsedWriteClickZone
-                onActivate={() => beginCollapsedWrite(index)}
-                placeholder="Click to write…"
+            <div data-collapsed-write-field={collapsedActiveWriteId}>
+              <TextBlockView
+                value={collapsedWriteBlock?.text || ""}
+                onChange={(text) => {
+                  const writeIndex = blocksRef.current.findIndex(
+                    (b) => b.id === collapsedActiveWriteId,
+                  );
+                  if (writeIndex >= 0) updateAt(writeIndex, { text });
+                }}
+                placeholder=""
+                showPlaceholder={false}
+                autoFocus
+                maxHeightPx={520}
+                onFocus={() => onFocusBlock?.(collapsedActiveWriteId)}
+                onKeyDown={(e) => {
+                  const writeIndex = blocksRef.current.findIndex(
+                    (b) => b.id === collapsedActiveWriteId,
+                  );
+                  if (writeIndex >= 0) handleTextKeyDown(writeIndex, e);
+                }}
+                onAfterInput={requestContentGrow}
               />
-            ) : collapsedActiveWriteId ? (
-              <div data-collapsed-write-field={collapsedActiveWriteId}>
-                <TextBlockView
-                  value={collapsedWriteBlock?.text || ""}
-                  onChange={(text) => {
-                    const writeIndex = blocksRef.current.findIndex(
-                      (b) => b.id === collapsedActiveWriteId,
-                    );
-                    if (writeIndex >= 0) updateAt(writeIndex, { text });
-                  }}
-                  placeholder=""
-                  showPlaceholder={false}
-                  autoFocus
-                  maxHeightPx={520}
-                  onFocus={() => {
-                    // #region agent log
-                    debugLog("DocBlockStack.jsx:padTextFocus", "textarea-focus", {
-                      blockId: collapsedActiveWriteId,
-                      writeIndex: collapsedWriteIndex,
-                      textLen: (collapsedWriteBlock?.text || "").length,
-                      runId: "post-fix-v4",
-                    }, "B");
-                    // #endregion
-                    onFocusBlock?.(collapsedActiveWriteId);
-                  }}
-                  onKeyDown={(e) => {
-                    const writeIndex = blocksRef.current.findIndex(
-                      (b) => b.id === collapsedActiveWriteId,
-                    );
-                    if (writeIndex >= 0) handleTextKeyDown(writeIndex, e);
-                  }}
-                  onAfterInput={requestContentGrow}
-                />
-              </div>
-            ) : null}
+            </div>
           </div>
         ) : null}
         </Fragment>
