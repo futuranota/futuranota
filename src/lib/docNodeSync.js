@@ -334,3 +334,25 @@ export function ensureNodeForDocBlock({
     anchorAt,
   });
 }
+
+/** Zustand node ids still referenced by saved doc blocks (h1, todo, date, metric, …). */
+export function collectNodeIdsReferencedByBlocks(blocks) {
+  const ids = new Set();
+  for (const block of normalizeDocBlocks(blocks)) {
+    if (block?.nodeId) ids.add(block.nodeId);
+  }
+  return ids;
+}
+
+/** Nodes belonging to a doc that are no longer tied to any block after save. */
+export function findOrphanNodeIdsForDoc(docId, blocks, nodesById = {}) {
+  if (!docId) return [];
+  const referenced = collectNodeIdsReferencedByBlocks(blocks);
+  const orphans = [];
+  for (const node of Object.values(nodesById)) {
+    if (node?.parentDocId === docId && !referenced.has(node.id)) {
+      orphans.push(node.id);
+    }
+  }
+  return orphans;
+}

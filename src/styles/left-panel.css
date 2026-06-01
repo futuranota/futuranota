@@ -591,6 +591,64 @@
   text-transform: lowercase;
 }
 
+.lp-timeline-doc-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.lp-timeline-doc-queue-label {
+  margin: 0 0 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.lp-timeline-doc-queue-empty {
+  margin: 0 0 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.lp-doc-card--queued {
+  position: relative;
+  border-color: color-mix(in oklab, var(--warm) 45%, var(--hairline));
+  background: color-mix(in oklab, var(--warm) 8%, var(--panel-2));
+}
+
+.lp-doc-card-queue-index {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 1;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  color: var(--text);
+  background: color-mix(in oklab, var(--warm) 35%, var(--panel-3));
+}
+
+.lp-doc-card--queued .lp-doc-card-main {
+  padding-left: 28px;
+}
+
+.lp-doc-card--active {
+  border-color: color-mix(in oklab, var(--hud) 55%, var(--hairline));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--hud) 20%, transparent);
+}
+
 .lp-click-folder-detail-list {
   display: flex;
   flex-direction: column;

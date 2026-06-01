@@ -20,9 +20,6 @@ function TopBar({ onBack, scanState, onScan, onScanBlogs, onPasteUrl, onAltSeed 
       </div>
 
       <div className="topbar-end">
-        <button className="btn sm primary" onClick={onScan} disabled={scanState === "scanning"}>
-          {scanState === "scanning" ? "Scanning…" : "▸ Scan campaigns"}
-        </button>
         <button className="btn sm" onClick={onScanBlogs} disabled={scanState === "scanning-blogs"}>
           {scanState === "scanning-blogs" ? "Scanning blogs…" : "Scan blogs"}
         </button>

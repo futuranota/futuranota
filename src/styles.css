@@ -1495,6 +1495,26 @@ textarea.field {
   border-color: var(--hud);
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--hud) 30%, transparent), var(--shadow);
 }
+.cnode--timeline-pick {
+  border-color: color-mix(in oklab, var(--hud) 70%, var(--hairline));
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--hud) 22%, transparent),
+    var(--shadow);
+}
+.cnode--timeline-pick.cnode-in-bp {
+  border-color: color-mix(in oklab, var(--bp-accent) 75%, var(--hairline));
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--bp-accent) 35%, transparent) inset,
+    0 0 0 1px color-mix(in oklab, var(--bp-accent) 40%, transparent),
+    var(--shadow);
+}
+.cnode--not-selectable {
+  cursor: grab;
+}
+.cnode--not-selectable.selected {
+  border-color: var(--hairline);
+  box-shadow: var(--shadow);
+}
 .cnode.selected.cnode-in-bp {
   border-color: var(--bp-accent);
   box-shadow:
@@ -1752,7 +1772,8 @@ textarea.field {
   line-height: 1;
   box-shadow: var(--shadow-sm);
 }
-.cnode.selected .cnode-del { display: flex; }
+.cnode.selected .cnode-del,
+.cnode--timeline-pick .cnode-del { display: flex; }
 .cnode-del:hover { transform: scale(1.1); }
 
 /* ── focus ring resets ───────────── */
@@ -2625,6 +2646,7 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
 }
 .toast.danger .dot { background: var(--danger); }
 .toast.ai .dot { background: var(--accent); }
+.toast.warm .dot { background: var(--warm); }
 
 /* ── url modal ────────────────────────── */
 .modal-bg {

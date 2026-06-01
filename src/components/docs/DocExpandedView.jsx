@@ -122,7 +122,15 @@ function buildDocPersistSnapshot({
   };
 }
 
-export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateToDoc, onDocumentDeleted }) {
+export function DocExpandedView({
+  docId,
+  onClose,
+  onInsertToCanvas,
+  onNavigateToDoc,
+  onDocumentDeleted,
+  onAfterDocSave,
+  initialFocusBlockId = null,
+}) {
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const addDoc = useDocsStore((s) => s.addDoc);
@@ -392,6 +400,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
     setInitialSnapshot(savedSnapshot);
     setDocSavedHint(true);
     setNodeSavedHint(false);
+    onAfterDocSave?.(doc.id, savedSnapshot.blocks);
   };
 
   const resetNodeModalState = () => {
@@ -910,6 +919,7 @@ export function DocExpandedView({ docId, onClose, onInsertToCanvas, onNavigateTo
           onAnswerBelowH1Change={handleAnswerBelowH1Change}
           onBlockAnchorChange={handleBlockAnchorChange}
           onInsertProductToCanvas={handleInsertProductToCanvas}
+          initialFocusBlockId={initialFocusBlockId}
         />
       </div>
       {docSavedHint ? (

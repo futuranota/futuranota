@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   COMPANIES, INTEL, shortId, getToday,
 } from './data.jsx';
@@ -26,9 +26,18 @@ import { resolveActiveTimelineAlert } from './lib/resolveTimelineAlert.js';
 import {
   ensureNodeForDocBlock,
   shouldIncludeBlockOnCanvas,
+  collectNodeIdsReferencedByBlocks,
+  findOrphanNodeIdsForDoc,
 } from './lib/docNodeSync.js';
+import { collectCanvasNodeIdsForEntityIds } from './lib/canvasDocSync.js';
 import { normalizeDocBlocks } from './lib/docBlocks.js';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
+import {
+  filterSelectableCanvasNodeIds,
+  resolveParentDocIdForCanvasNode,
+  resolveHeadlineBlockIdForCanvasNode,
+  docIdExistsOnTimeline,
+} from './lib/timelineSelection.js';
 import {
   buildLaunchDateCanvasNode,
   CANVAS_DOC_CHILD_OFFSET_X,
@@ -144,15 +153,21 @@ function Dashboard({ company, onBack }) {
   const [selection, setSelection]     = useState([]);
   const [blueprints, setBlueprints]   = useState([]);
   const [expandedDocId, setExpandedDocId] = useState(null);
+  const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
   const [expandedNodeId, setExpandedNodeId] = useState(null);
   const docs = useDocsStore((s) => s.docs);
   const objects = useObjectsStore((s) => s.objects);
   const nodeEntities = useNodesStore((s) => s.nodes);
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const setFilterObjectId = useUIStateStore((s) => s.setFilterObjectId);
+  const setSelectedObjectId = useUIStateStore((s) => s.setSelectedObjectId);
   const activeDocMetaDraft = useUIStateStore((s) => s.activeDocMetaDraft);
   const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
+  const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
+  const toggleTimelineQueueMode = useTimelineStore((s) => s.toggleTimelineQueueMode);
+  const timelines = useTimelineStore((s) => s.timelines);
   const prevTimelineAlertsEnabled = useRef(false);
   const tokenCurrent = 0;
   const tokenMax = 10;
@@ -171,6 +186,59 @@ function Dashboard({ company, onBack }) {
       }),
     [selection, canvasNodes, docs, objects, selectedObjectId, expandedDocId, activeDocMetaDraft, today],
   );
+
+  const handleTimelineCanvasSelect = useCallback(
+    (canvasNodeId) => {
+      const node = canvasNodes.find((n) => n.id === canvasNodeId);
+      if (!node) return true;
+      const docId = resolveParentDocIdForCanvasNode(node, nodeEntities, docs);
+      const doc = docId ? docs[docId] : null;
+      if (doc?.parentObjectId) {
+        setFilterObjectId(doc.parentObjectId);
+        setSelectedObjectId(doc.parentObjectId);
+      }
+      if (!timelineQueueMode) return true;
+      if (docId && docIdExistsOnTimeline(docId, timelines)) {
+        setToast({
+          message: `"${doc?.title || "Document"}" is already on the timeline`,
+          kind: "warm",
+        });
+        return false;
+      }
+      return true;
+    },
+    [
+      timelineQueueMode,
+      canvasNodes,
+      nodeEntities,
+      docs,
+      timelines,
+      setFilterObjectId,
+      setSelectedObjectId,
+    ],
+  );
+
+  const handleTimelineCanvasSelectMany = useCallback(
+    (canvasNodeIds) => {
+      if (!timelineQueueMode || !canvasNodeIds?.length) return;
+      for (const canvasId of canvasNodeIds) {
+        handleTimelineCanvasSelect(canvasId);
+      }
+    },
+    [timelineQueueMode, handleTimelineCanvasSelect],
+  );
+
+  const prevTimelineQueueMode = useRef(timelineQueueMode);
+  useEffect(() => {
+    const wasQueue = prevTimelineQueueMode.current;
+    prevTimelineQueueMode.current = timelineQueueMode;
+    if (!wasQueue || timelineQueueMode) return;
+    setSelection((sel) => {
+      const filtered = filterSelectableCanvasNodeIds(sel, canvasNodes, nodeEntities);
+      if (filtered.length <= 1) return filtered;
+      return [filtered[filtered.length - 1]];
+    });
+  }, [timelineQueueMode, canvasNodes, nodeEntities]);
 
   useEffect(() => { initStores(); }, []);
 
@@ -462,6 +530,36 @@ function Dashboard({ company, onBack }) {
     }
   };
 
+  const removeCanvasNodesForEntityIds = useCallback((entityNodeIds) => {
+    const ids = (entityNodeIds || []).filter(Boolean);
+    if (!ids.length) return;
+    let idsToRemove = null;
+    setCanvasNodes((all) => {
+      idsToRemove = collectCanvasNodeIdsForEntityIds(all, ids);
+      if (!idsToRemove.size) return all;
+      return all.filter((n) => !idsToRemove.has(n.id));
+    });
+    if (idsToRemove?.size) {
+      pruneCanvasRefs(idsToRemove);
+    }
+  }, []);
+
+  const handleAfterDocSave = useCallback((docId, blocks) => {
+    if (!docId) return;
+    const nodesById = useNodesStore.getState().nodes;
+    const orphanNodeIds = findOrphanNodeIdsForDoc(docId, blocks, nodesById);
+    const referencedNodeIds = [...collectNodeIdsReferencedByBlocks(blocks)];
+    useDocsStore.getState().updateDoc(docId, { nodeIds: referencedNodeIds });
+
+    if (!orphanNodeIds.length) return;
+
+    removeCanvasNodesForEntityIds(orphanNodeIds);
+    const deleteNode = useNodesStore.getState().deleteNode;
+    for (const nodeId of orphanNodeIds) {
+      deleteNode(nodeId);
+    }
+  }, [removeCanvasNodesForEntityIds]);
+
   const deleteCanvasNode = (nodeId) => {
     const nodeEntities = useNodesStore.getState().nodes;
     let idsToRemove = null;
@@ -498,8 +596,10 @@ function Dashboard({ company, onBack }) {
     if (expandedDocId === docId) setExpandedDocId(null);
   };
 
-  const openDocumentOverlay = (docId) => {
+  const openDocumentOverlay = (docId, options = {}) => {
+    if (!docId || !docs[docId]) return;
     setExpandedDocId(docId);
+    setDocOpenFocusBlockId(options.focusBlockId ?? null);
   };
 
   const openCanvasEntity = (noteId, canvasNode = null) => {
@@ -507,7 +607,10 @@ function Dashboard({ company, onBack }) {
     const targetDocId = noteId && docs[noteId] ? noteId : canvasNode?.docId;
     if (targetDocId && docs[targetDocId]) {
       setExpandedNodeId(null);
-      setExpandedDocId(targetDocId);
+      const focusBlockId = canvasNode
+        ? resolveHeadlineBlockIdForCanvasNode(canvasNode, nodeEntities, docs)
+        : null;
+      openDocumentOverlay(targetDocId, { focusBlockId });
       return;
     }
 
@@ -538,6 +641,8 @@ function Dashboard({ company, onBack }) {
             tokenCurrent={tokenCurrent}
             tokenMax={tokenMax}
             onDocumentDeleted={handleDocumentDeleted}
+            timelineCanvasSelection={selection}
+            canvasNodesForQueue={canvasNodes}
           />
         </div>
 
@@ -555,7 +660,11 @@ function Dashboard({ company, onBack }) {
             docsById={docs}
             nodeEntitiesById={nodeEntities}
             objectsById={objects}
+            timelineQueueMode={timelineQueueMode}
+            onToggleTimelineQueueMode={toggleTimelineQueueMode}
             onInsertToTimeline={() => {}}
+            onTimelineCanvasSelect={handleTimelineCanvasSelect}
+            onTimelineCanvasSelectMany={handleTimelineCanvasSelectMany}
             onDeleteNode={deleteCanvasNode}
             onEditNode={() => {}}
             onFocusNote={() => {}}
@@ -621,10 +730,15 @@ function Dashboard({ company, onBack }) {
           <div className="doc-overlay-global-card" onClick={(e) => e.stopPropagation()}>
             <DocExpandedView
               docId={expandedDocId}
-              onClose={() => setExpandedDocId(null)}
-              onNavigateToDoc={setExpandedDocId}
+              initialFocusBlockId={docOpenFocusBlockId}
+              onClose={() => {
+                setExpandedDocId(null);
+                setDocOpenFocusBlockId(null);
+              }}
+              onNavigateToDoc={(nextDocId) => openDocumentOverlay(nextDocId)}
               onInsertToCanvas={insertNodeToCanvas}
               onDocumentDeleted={handleDocumentDeleted}
+              onAfterDocSave={handleAfterDocSave}
             />
           </div>
         </div>

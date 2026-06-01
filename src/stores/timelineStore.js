@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
+import {
+  pushDocToTimelineQueue,
+  resolveHeadlineBlockIdForCanvasNode,
+  resolveParentDocIdForCanvasNode,
+} from "../lib/timelineSelection.js";
 
 const TIMELINE_ALERTS_KEY = "futura-timeline-alerts";
 
@@ -26,6 +31,12 @@ export const useTimelineStore = create(
       objectTimelineTitles: {},
       /** Opt-in: show TimelineAlertToast when checkTimelineTrigger fires (30/7/1d). */
       timelineAlertsEnabled: readTimelineAlertsEnabled(),
+      /** Multi-select on canvas + doc queue in left panel for timeline insert. */
+      timelineQueueMode: false,
+      /** Doc ids queued for timeline insert (accumulates while queue mode is on). */
+      timelineDocQueue: [],
+      /** Optional headline block id per queued doc (from canvas child selection). */
+      timelineDocQueueFocusByDocId: {},
 
       getTimeline: (id) => get().timelines[id] || null,
 
@@ -181,6 +192,67 @@ export const useTimelineStore = create(
 
       toggleTimelineAlertsEnabled: () => {
         get().setTimelineAlertsEnabled(!get().timelineAlertsEnabled);
+      },
+
+      setTimelineQueueMode: (enabled) => {
+        const on = Boolean(enabled);
+        set(on
+          ? { timelineQueueMode: true }
+          : {
+            timelineQueueMode: false,
+            timelineDocQueue: [],
+            timelineDocQueueFocusByDocId: {},
+          });
+      },
+
+      toggleTimelineQueueMode: () => {
+        const next = !get().timelineQueueMode;
+        get().setTimelineQueueMode(next);
+      },
+
+      clearTimelineDocQueue: () => set({ timelineDocQueue: [], timelineDocQueueFocusByDocId: {} }),
+
+      removeTimelineDocFromQueue: (docId) => {
+        if (!docId) return;
+        set((state) => {
+          const { [docId]: _removed, ...focusRest } = state.timelineDocQueueFocusByDocId;
+          return {
+            timelineDocQueue: state.timelineDocQueue.filter((id) => id !== docId),
+            timelineDocQueueFocusByDocId: focusRest,
+          };
+        });
+      },
+
+      pushTimelineDocToQueue: (docId, focusBlockId = null) => {
+        if (!docId) return;
+        set((state) => {
+          const nextFocus = { ...state.timelineDocQueueFocusByDocId };
+          if (focusBlockId) nextFocus[docId] = focusBlockId;
+          return {
+            timelineDocQueue: pushDocToTimelineQueue(state.timelineDocQueue, docId),
+            timelineDocQueueFocusByDocId: nextFocus,
+          };
+        });
+      },
+
+      enqueueTimelineDocsFromCanvasNodes: (canvasNodeIds, canvasNodes, nodeEntitiesById, docsById) => {
+        const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
+        let queue = get().timelineDocQueue;
+        const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
+        for (const canvasId of canvasNodeIds) {
+          const node = nodeById.get(canvasId);
+          if (!node) continue;
+          const docId = resolveParentDocIdForCanvasNode(node, nodeEntitiesById, docsById);
+          if (!docId) continue;
+          queue = pushDocToTimelineQueue(queue, docId);
+          const focusBlockId = resolveHeadlineBlockIdForCanvasNode(
+            node,
+            nodeEntitiesById,
+            docsById,
+          );
+          if (focusBlockId) focusByDocId[docId] = focusBlockId;
+        }
+        set({ timelineDocQueue: queue, timelineDocQueueFocusByDocId: focusByDocId });
       },
 
       deleteTimeline: (id) =>
