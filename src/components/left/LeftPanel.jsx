@@ -1,7 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
-  useObjectsStore, useDocsStore, useNodesStore, useUIStateStore,
+  useObjectsStore,
+  useDocsStore,
+  useNodesStore,
+  useUIStateStore,
+  useTimelineStore,
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
@@ -19,6 +23,7 @@ import {
   listContentDocs,
   resolveProductDocDisplayTitle,
 } from "../../lib/templateDoc.js";
+import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
@@ -146,13 +151,39 @@ function ClickFolderIcon({ variant, className = "lp-click-folder-box-icon" }) {
   );
 }
 
-function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
+function DocListCard({
+  doc,
+  objects,
+  onSelect,
+  onOpen,
+  onDelete,
+  queued = false,
+  queueIndex = null,
+  active = false,
+}) {
   const parent = doc.parentObjectId ? objects[doc.parentObjectId] : null;
   const isTemplate = isTemplateDoc(doc);
   const displayTitle = resolveProductDocDisplayTitle(doc);
   return (
-    <div className="lp-doc-card fn-card">
-      <button type="button" className="lp-doc-card-main" onClick={onClick}>
+    <div
+      className={
+        "lp-doc-card fn-card"
+        + (queued ? " lp-doc-card--queued" : "")
+        + (active ? " lp-doc-card--active" : "")
+      }
+    >
+      {queued && queueIndex != null ? (
+        <span className="lp-doc-card-queue-index" aria-hidden>{queueIndex}</span>
+      ) : null}
+      <button
+        type="button"
+        className="lp-doc-card-main"
+        onClick={onSelect}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          onOpen?.();
+        }}
+      >
         <span
           className="lp-doc-drag-area"
           draggable
@@ -178,7 +209,7 @@ function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
           className="lp-expand-btn"
           onClick={(e) => {
             e.stopPropagation();
-            onExpand?.();
+            onOpen?.();
           }}
           role="button"
           tabIndex={0}
@@ -186,7 +217,7 @@ function DocListCard({ doc, objects, onClick, onExpand, onDelete }) {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
               e.stopPropagation();
-              onExpand?.();
+              onOpen?.();
             }
           }}
         >
@@ -575,10 +606,48 @@ function FolderTypeIcon({ panelType }) {
 /* ─────────────────────────────────────────────
    LEFT PANEL  (main export)
 ───────────────────────────────────────────── */
+function TimelineDocQueue({
+  entries = [],
+  docs = {},
+  objects = {},
+  activeDocId = null,
+  onSelectDoc,
+  onOpenDocument,
+  onDeleteDoc,
+}) {
+  if (!entries.length) return null;
+
+  return (
+    <section className="lp-timeline-doc-queue" aria-label="Selected documents">
+      {entries.map((entry) => {
+        const doc = docs[entry.docId];
+        if (!doc) return null;
+        return (
+          <DocListCard
+            key={entry.docId}
+            doc={doc}
+            objects={objects}
+            queued
+            queueIndex={entry.queueIndex}
+            active={activeDocId === entry.docId}
+            onSelect={() => onSelectDoc?.(entry.docId)}
+            onOpen={() => onOpenDocument?.(entry.docId, {
+              focusBlockId: entry.focusBlockId ?? null,
+            })}
+            onDelete={() => onDeleteDoc?.(doc)}
+          />
+        );
+      })}
+    </section>
+  );
+}
+
 export function LeftPanel({
   onInsertToCanvas,
   onOpenDocument,
   onDocumentDeleted,
+  timelineCanvasSelection = [],
+  canvasNodesForQueue = [],
   tokenCurrent = 0,
   tokenMax = 10,
 }) {
@@ -614,6 +683,23 @@ export function LeftPanel({
   const addNode    = useNodesStore(s => s.addNode);
   const getNodesByDoc = useNodesStore(s => s.getNodesByDoc);
   const deleteNode = useNodesStore(s => s.deleteNode);
+  const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
+  const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
+
+  const timelineQueueEntries = useMemo(
+    () => (
+      timelineCanvasSelection.length
+        ? buildTimelineQueueEntries(
+          timelineCanvasSelection,
+          canvasNodesForQueue,
+          nodes,
+          docs,
+          { selectCounterMode: timelineQueueMode },
+        )
+        : []
+    ),
+    [timelineQueueMode, timelineCanvasSelection, canvasNodesForQueue, nodes, docs],
+  );
 
   const objList  = Object.values(objects);
   const docList  = Object.values(docs);
@@ -652,9 +738,25 @@ export function LeftPanel({
     setClickFolderView(null);
   }, [panelType, filterObjectId]);
 
-  const handleOpenFolderDoc = (docId) => {
+  /** Sidebar highlight only — does not add to the canvas-driven timeline queue. */
+  const handleSelectFolderDoc = (docId) => {
+    if (!docId) return;
     setActiveId(docId);
-    onOpenDocument?.(docId);
+  };
+
+  const handleSelectQueuedDoc = (docId) => {
+    if (!docId) return;
+    setActiveId(docId);
+    const doc = docs[docId];
+    if (doc?.parentObjectId) {
+      setFilterObjectId(doc.parentObjectId);
+      setSelectedObjectId(doc.parentObjectId);
+    }
+  };
+
+  const handleOpenFolderDoc = (docId, options = {}) => {
+    setActiveId(docId);
+    onOpenDocument?.(docId, options);
   };
 
   const handleDeleteDoc = (doc) => {
@@ -663,6 +765,7 @@ export function LeftPanel({
       return;
     }
     onDocumentDeleted?.(doc.id);
+    removeTimelineDocFromQueue(doc.id);
     deleteDoc(doc.id);
     if (activeId === doc.id) setActiveId(null);
     if (filterDocId === doc.id) setFilterDocId(null);
@@ -1010,6 +1113,15 @@ export function LeftPanel({
             {clickFolderView === "groups" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack onBack={() => setClickFolderView(null)} label="Products" />
+                <TimelineDocQueue
+                  entries={timelineQueueEntries}
+                  docs={docs}
+                  objects={objects}
+                  activeDocId={activeId}
+                  onSelectDoc={handleSelectQueuedDoc}
+                  onOpenDocument={onOpenDocument}
+                  onDeleteDoc={handleDeleteDoc}
+                />
                 <div className="lp-click-folder-detail-list">
                   {productDocs.length ? (
                     productDocs.map((doc) => (
@@ -1017,8 +1129,9 @@ export function LeftPanel({
                         key={doc.id}
                         doc={doc}
                         objects={objects}
-                        onClick={() => handleOpenFolderDoc(doc.id)}
-                        onExpand={() => handleOpenFolderDoc(doc.id)}
+                        active={activeId === doc.id}
+                        onSelect={() => handleSelectFolderDoc(doc.id)}
+                        onOpen={() => handleOpenFolderDoc(doc.id)}
                         onDelete={() => handleDeleteDoc(doc)}
                       />
                     ))
@@ -1035,6 +1148,15 @@ export function LeftPanel({
             {clickFolderView === "subgroups" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack onBack={() => setClickFolderView(null)} label="Content" />
+                <TimelineDocQueue
+                  entries={timelineQueueEntries}
+                  docs={docs}
+                  objects={objects}
+                  activeDocId={activeId}
+                  onSelectDoc={handleSelectQueuedDoc}
+                  onOpenDocument={onOpenDocument}
+                  onDeleteDoc={handleDeleteDoc}
+                />
                 <div className="lp-click-folder-detail-list">
                   {contentDocs.length ? (
                     contentDocs.map((doc) => (
@@ -1042,8 +1164,9 @@ export function LeftPanel({
                         key={doc.id}
                         doc={doc}
                         objects={objects}
-                        onClick={() => handleOpenFolderDoc(doc.id)}
-                        onExpand={() => handleOpenFolderDoc(doc.id)}
+                        active={activeId === doc.id}
+                        onSelect={() => handleSelectFolderDoc(doc.id)}
+                        onOpen={() => handleOpenFolderDoc(doc.id)}
                         onDelete={() => handleDeleteDoc(doc)}
                       />
                     ))

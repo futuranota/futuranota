@@ -37,6 +37,19 @@ export function collectCanvasNodeIdsForDoc(canvasNodes, docId, nodeEntitiesById 
   return ids;
 }
 
+/** Canvas node ids whose noteId matches one of the given entity node ids. */
+export function collectCanvasNodeIdsForEntityIds(canvasNodes, entityNodeIds = []) {
+  const entitySet = new Set(entityNodeIds.filter(Boolean));
+  const ids = new Set();
+  if (!entitySet.size) return ids;
+  for (const node of canvasNodes || []) {
+    if (node.noteId && entitySet.has(node.noteId)) {
+      ids.add(node.id);
+    }
+  }
+  return ids;
+}
+
 function resolveDocLaunchAt(doc, docId, draft) {
   if (draft?.docId === docId && draft.launchAt !== undefined) {
     return draft.launchAt;

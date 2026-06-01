@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DOC_FILE_TXT_ICON } from "../../lib/docMediumAssets.js";
 import { createDocBlock, DOC_BLOCK_TYPES, hasProductCardBlock, normalizeDocBlocks, updateBlockAt } from "../../lib/docBlocks.js";
 import {
@@ -81,6 +81,7 @@ export function DocDocumentBox({
   docId = null,
   saveDisabled = false,
   metaMode = "campaign",
+  initialFocusBlockId = null,
 }) {
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
   const isProductMode = metaMode === "product";
@@ -98,6 +99,29 @@ export function DocDocumentBox({
   const contentScrollRef = useRef(null);
   const blockStackRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
+
+  useEffect(() => {
+    if (!initialFocusBlockId) return undefined;
+    setFocusBlockId(initialFocusBlockId);
+    const scrollToTarget = () => {
+      if (initialFocusBlockId === "__doc_meta_launch__") {
+        const launchInput = document.querySelector(
+          ".doc-overlay-global .doc-meta-field input[type='date']",
+        );
+        launchInput?.scrollIntoView({ block: "center", behavior: "smooth" });
+        launchInput?.focus({ preventScroll: true });
+        return;
+      }
+      const blockEl = document.querySelector(
+        `.doc-overlay-global [data-block-id="${initialFocusBlockId}"]`,
+      );
+      blockEl?.scrollIntoView({ block: "center", behavior: "smooth" });
+    };
+    const t1 = requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToTarget);
+    });
+    return () => cancelAnimationFrame(t1);
+  }, [initialFocusBlockId, docId]);
 
   const parentObject = useMemo(() => {
     if (!parentId || !objects) return null;
