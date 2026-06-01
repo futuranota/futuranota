@@ -119,15 +119,6 @@ export function ProductCardBlockView({ block, onChange, onInsertToCanvas, onDele
     URL.revokeObjectURL(href);
   };
 
-  const handleAddToCanvas = () => {
-    onInsertToCanvas?.({
-      title: data.specs.partNumber || data.specs.category || data.title || "ProductCard",
-      specs: data.specs,
-      images: data.images,
-      sourceBlockId: block.id,
-    });
-  };
-
   return (
     <div className="doc-product-card-block">
       <ProductCard
