@@ -15,6 +15,8 @@ export const useUIStateStore = create(
       selectedObjectId: null,
       /** Sidebar: filter nodes by parent document */
       filterDocId: null,
+      /** Documents panel: Knowledge folder is open (disables canvas timeline Select). */
+      knowledgeFolderActive: false,
 
       focusedCanvasNodeId: null,
       selectedCanvasNodeIds: [],
@@ -54,6 +56,7 @@ export const useUIStateStore = create(
       setFilterObjectId: (id) => set({ filterObjectId: id }),
       setSelectedObjectId: (id) => set({ selectedObjectId: id }),
       setFilterDocId: (id) => set({ filterDocId: id }),
+      setKnowledgeFolderActive: (active) => set({ knowledgeFolderActive: Boolean(active) }),
 
       setFocusedCanvasNode: (id) => set({ focusedCanvasNodeId: id }),
 

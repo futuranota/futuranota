@@ -1,5 +1,6 @@
 import { normalizeDocBlocks } from "./docBlocks.js";
 import { findH1BlockIndex, getH1IndexForTextBlock } from "./docNodeSync.js";
+import { isKnowledgeDoc } from "./templateDoc.js";
 
 /**
  * Canvas selection + timeline doc queue helpers.
@@ -87,6 +88,8 @@ export function buildTimelineQueueEntries(
     if (!isTimelineSelectableCanvasNode(node, nodeEntitiesById)) continue;
     const docId = resolveParentDocIdForCanvasNode(node, nodeEntitiesById, docsById);
     if (!docId) continue;
+    const doc = docsById[docId];
+    if (isKnowledgeDoc(doc)) continue;
     if (!byDocId.has(docId)) {
       docOrder.push(docId);
       byDocId.set(docId, {

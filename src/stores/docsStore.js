@@ -71,6 +71,7 @@ export const useDocsStore = create(
               launchAt: campaign.launchAt ?? null,
               campaignActive: Boolean(campaign.campaignActive),
               nodeLinkColor: campaign.nodeLinkColor,
+              knowledgeImport: campaign.knowledgeImport ?? null,
             }),
           },
         }));

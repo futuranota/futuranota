@@ -1,6 +1,8 @@
+import { normalizeKnowledgeImport } from "./knowledgeImport.js";
 import { normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import {
   DOC_KIND_CONTENT,
+  DOC_KIND_KNOWLEDGE,
   DOC_KIND_PRODUCT,
   DOC_KIND_STANDARD,
   DOC_KIND_TEMPLATE,
@@ -17,12 +19,14 @@ export function emptyDocCampaignFields() {
     launchAt: null,
     campaignActive: false,
     nodeLinkColor: "dark",
+    knowledgeImport: null,
   };
 }
 
 function normalizeDocKind(doc) {
   const kind = doc.docKind;
   if (kind === DOC_KIND_TEMPLATE) return DOC_KIND_TEMPLATE;
+  if (kind === DOC_KIND_KNOWLEDGE) return DOC_KIND_KNOWLEDGE;
   if (kind === DOC_KIND_PRODUCT) return DOC_KIND_PRODUCT;
   if (kind === DOC_KIND_CONTENT) return DOC_KIND_CONTENT;
   return resolveDocKind(doc);
@@ -46,5 +50,6 @@ export function normalizeDoc(doc) {
     launchAt: doc.launchAt ?? base.launchAt,
     campaignActive: Boolean(doc.campaignActive),
     nodeLinkColor: normalizeNodeLinkColorId(doc.nodeLinkColor ?? base.nodeLinkColor),
+    knowledgeImport: normalizeKnowledgeImport(doc.knowledgeImport),
   };
 }

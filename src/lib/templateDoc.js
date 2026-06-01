@@ -1,7 +1,8 @@
-/** Document kind: product line, content/campaign doc, legacy standard, or template. */
+/** Document kind: product, content/campaign, global knowledge corpus, legacy standard, or template. */
 export const DOC_KIND_STANDARD = "standard";
 export const DOC_KIND_PRODUCT = "product";
 export const DOC_KIND_CONTENT = "content";
+export const DOC_KIND_KNOWLEDGE = "knowledge";
 export const DOC_KIND_TEMPLATE = "template";
 
 export const TEMPLATE_KIND_CAMPAIGN = "campaign";
@@ -25,8 +26,13 @@ export function isTemplateDoc(doc) {
   return doc?.docKind === DOC_KIND_TEMPLATE;
 }
 
+export function isKnowledgeDoc(doc) {
+  return doc?.docKind === DOC_KIND_KNOWLEDGE;
+}
+
 export function isProductDoc(doc) {
   if (!doc) return false;
+  if (doc.docKind === DOC_KIND_KNOWLEDGE) return false;
   if (doc.docKind === DOC_KIND_PRODUCT) return true;
   if (doc.docKind === DOC_KIND_CONTENT || doc.docKind === DOC_KIND_TEMPLATE) return false;
   const linked = doc.subcategoryDocIds ?? doc.templateSubcategoryDocIds ?? [];
@@ -36,6 +42,7 @@ export function isProductDoc(doc) {
 
 export function isContentDoc(doc) {
   if (!doc) return false;
+  if (doc.docKind === DOC_KIND_KNOWLEDGE) return false;
   if (doc.docKind === DOC_KIND_CONTENT) return true;
   if (doc.docKind === DOC_KIND_PRODUCT || doc.docKind === DOC_KIND_TEMPLATE) return false;
   const linked = doc.subcategoryDocIds ?? doc.templateSubcategoryDocIds ?? [];
@@ -45,6 +52,7 @@ export function isContentDoc(doc) {
 export function resolveDocKind(doc) {
   if (!doc) return DOC_KIND_STANDARD;
   if (doc.docKind === DOC_KIND_TEMPLATE) return DOC_KIND_TEMPLATE;
+  if (doc.docKind === DOC_KIND_KNOWLEDGE) return DOC_KIND_KNOWLEDGE;
   if (doc.docKind === DOC_KIND_PRODUCT) return DOC_KIND_PRODUCT;
   if (doc.docKind === DOC_KIND_CONTENT) return DOC_KIND_CONTENT;
   if (isContentDoc(doc)) return DOC_KIND_CONTENT;
@@ -314,6 +322,22 @@ export function listContentDocs(allDocs, parentObjectId) {
   if (!parentObjectId) return [];
   return contentDocsUnderParent(allDocs, parentObjectId)
     .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+}
+
+/** Global knowledge corpus docs (no parent object). */
+export function listKnowledgeDocs(allDocs) {
+  return Object.values(allDocs || {})
+    .filter((doc) => isKnowledgeDoc(doc))
+    .sort((a, b) => resolveKnowledgeDocDisplayTitle(a).localeCompare(resolveKnowledgeDocDisplayTitle(b)));
+}
+
+/** Display title for knowledge docs in lists. */
+export function resolveKnowledgeDocDisplayTitle(doc) {
+  if (!doc) return "Untitled";
+  const sub = doc.category?.trim();
+  const title = doc.title?.trim();
+  const fileName = doc.knowledgeImport?.fileName?.trim();
+  return sub || title || fileName || "Untitled";
 }
 
 /**

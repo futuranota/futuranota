@@ -24,6 +24,7 @@ import {
   resolveDocKind,
   DOC_KIND_PRODUCT,
   DOC_KIND_CONTENT,
+  DOC_KIND_KNOWLEDGE,
 } from "../../lib/templateDoc.js";
 import { DocDocumentBox } from "./DocDocumentBox.jsx";
 import {
@@ -100,6 +101,7 @@ function buildDocPersistSnapshot({
   docKind = "standard",
   templateKind = null,
   subcategoryDocIds = [],
+  knowledgeImport = null,
 }) {
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const serializedBody = docBlocksToBody(normalizedBlocks) || body || "";
@@ -119,6 +121,7 @@ function buildDocPersistSnapshot({
     templateKind: templateKind ?? null,
     subcategoryDocIds: ids,
     templateSubcategoryDocIds: ids,
+    knowledgeImport: knowledgeImport ?? null,
   };
 }
 
@@ -157,6 +160,7 @@ export function DocExpandedView({
   const [draftDocKind, setDraftDocKind] = useState("standard");
   const [draftTemplateKind, setDraftTemplateKind] = useState(null);
   const [draftSubcategoryDocIds, setDraftSubcategoryDocIds] = useState([]);
+  const [draftKnowledgeImport, setDraftKnowledgeImport] = useState(null);
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
@@ -196,6 +200,7 @@ export function DocExpandedView({
     setDraftDocKind(normalized.docKind ?? "standard");
     setDraftTemplateKind(normalized.templateKind ?? null);
     setDraftSubcategoryDocIds(normalized.subcategoryDocIds ?? []);
+    setDraftKnowledgeImport(normalized.knowledgeImport ?? null);
     setNodeSavedHint(false);
     setDocSavedHint(false);
     setInitialSnapshot(
@@ -218,6 +223,7 @@ export function DocExpandedView({
         docKind: normalized.docKind ?? "standard",
         templateKind: normalized.templateKind ?? null,
         subcategoryDocIds: normalized.subcategoryDocIds ?? [],
+        knowledgeImport: normalized.knowledgeImport ?? null,
       }),
     );
   }, [docId]);
@@ -272,6 +278,7 @@ export function DocExpandedView({
     docKind: draftDocKind,
     templateKind: draftTemplateKind,
     subcategoryDocIds: draftSubcategoryDocIds,
+    knowledgeImport: draftKnowledgeImport,
   });
   const isTemplate = isTemplateDoc({ docKind: draftDocKind });
   const resolvedKind = resolveDocKind({
@@ -281,10 +288,13 @@ export function DocExpandedView({
   });
   const metaMode = resolvedKind === DOC_KIND_PRODUCT
     ? "product"
-    : resolvedKind === DOC_KIND_CONTENT
-      ? "content"
-      : "campaign";
+    : resolvedKind === DOC_KIND_KNOWLEDGE
+      ? "knowledge"
+      : resolvedKind === DOC_KIND_CONTENT
+        ? "content"
+        : "campaign";
   const isProductMode = metaMode === "product";
+  const isKnowledgeMode = metaMode === "knowledge";
   const hasUnsavedChanges = initialSnapshot
     ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
     : false;
@@ -372,7 +382,7 @@ export function DocExpandedView({
       category: draftCategory,
       launchAt: draftLaunchAt,
       campaignActive: draftCampaignActive,
-      parentObjectId: draftParentId,
+      parentObjectId: isKnowledgeMode ? "" : draftParentId,
       nodeLinkColor: draftNodeLinkColor,
       docKind: draftDocKind,
       templateKind: draftTemplateKind,
@@ -393,8 +403,11 @@ export function DocExpandedView({
       templateKind: savedSnapshot.templateKind,
       subcategoryDocIds: savedSnapshot.subcategoryDocIds,
       templateSubcategoryDocIds: savedSnapshot.templateSubcategoryDocIds,
+      knowledgeImport: savedSnapshot.knowledgeImport,
     });
-    if ((doc.parentObjectId ?? "") !== (draftParentId || "")) {
+    if (isKnowledgeMode) {
+      if (doc.parentObjectId) linkDocToObject(doc.id, null);
+    } else if ((doc.parentObjectId ?? "") !== (draftParentId || "")) {
       linkDocToObject(doc.id, draftParentId || null);
     }
     setInitialSnapshot(savedSnapshot);
@@ -840,6 +853,14 @@ export function DocExpandedView({
     setNodeSavedHint(true);
   };
 
+  const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
+    if (importTitle && !draftTitle.trim()) {
+      setDraftTitle(importTitle);
+    }
+    if (nextImport) setDraftKnowledgeImport(nextImport);
+    setDocSavedHint(false);
+  };
+
   return (
     <>
       <div onContextMenu={handleContextMenu}>
@@ -851,7 +872,13 @@ export function DocExpandedView({
             if (isProductMode) setDraftCategory(v);
             setDocSavedHint(false);
           }}
-          titlePlaceholder={isProductMode ? "Product's name" : "Write your description"}
+          titlePlaceholder={
+            isProductMode
+              ? "Product's name"
+              : isKnowledgeMode
+                ? "Document title"
+                : "Write your description"
+          }
           body={draftBody}
           onBodyChange={(v) => {
             setDraftBody(v);
@@ -890,7 +917,7 @@ export function DocExpandedView({
             setDocSavedHint(false);
           }}
           parentId={draftParentId}
-          onParentIdChange={(v) => {
+          onParentIdChange={isKnowledgeMode ? undefined : (v) => {
             setDraftParentId(v);
             setDocSavedHint(false);
           }}
@@ -919,6 +946,8 @@ export function DocExpandedView({
           onAnswerBelowH1Change={handleAnswerBelowH1Change}
           onBlockAnchorChange={handleBlockAnchorChange}
           onInsertProductToCanvas={handleInsertProductToCanvas}
+          onKnowledgeFileImport={isKnowledgeMode ? handleKnowledgeFileImport : undefined}
+          knowledgeImport={isKnowledgeMode ? draftKnowledgeImport : null}
           initialFocusBlockId={initialFocusBlockId}
         />
       </div>
