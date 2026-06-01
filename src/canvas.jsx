@@ -20,6 +20,7 @@ import {
 import { FLOPPY_DISK_ICON } from './lib/knowledgeImport.js';
 import {
   filterSelectableCanvasNodeIds,
+  isKnowledgeCanvasNode,
   isTimelineSelectableCanvasNode,
 } from './lib/timelineSelection.js';
 /* canvas.jsx — Blueprint Canvas v3
@@ -141,13 +142,6 @@ function resolveCanvasParentDocTag(node, nodeEntitiesById = {}, docsById = {}) {
   };
 }
 
-function isKnowledgeCanvasNode(node, docsById = {}) {
-  if (node?.corpusKind === "knowledge") return true;
-  const docId = node?.docId || node?.noteId;
-  const doc = docId ? docsById[docId] : null;
-  return isKnowledgeDoc(doc);
-}
-
 function resolveCanvasDocTitle(node, docsById = {}) {
   const docId = node.docId || node.noteId;
   const doc = docId ? docsById[docId] : null;
@@ -233,6 +227,9 @@ function CanvasNode({
     ? connections.find((c) => c.id === selectedConnectionId)
     : null;
 
+  const knowledgeCorpus =
+    node.dataType === "document" && isKnowledgeCanvasNode(node, docsById);
+
   const onPointerDown = (e) => {
     if (e.target.closest('.cnode-port') || e.target.closest('.cnode-del')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -240,7 +237,10 @@ function CanvasNode({
     const startX = e.clientX;
     const startY = e.clientY;
     const wasSelected = selected;
-    if (timelineSelectable && !wasSelected) onAddToSelection(node.id);
+
+    if (!knowledgeCorpus && timelineSelectable && !wasSelected) {
+      onAddToSelection(node.id);
+    }
 
     const world = getWorldFromClient(e.clientX, e.clientY);
     const offX = world.x - node.x;
@@ -253,6 +253,7 @@ function CanvasNode({
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      if (knowledgeCorpus) return;
       const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
       if (dist < TAP_THRESHOLD && wasSelected && timelineSelectable && timelineQueueMode) {
         onTapToggle(node.id);
@@ -342,25 +343,27 @@ function CanvasNode({
         const subcategory = doc?.category?.trim() || "";
         const importedName = doc?.knowledgeImport?.fileName?.trim() || "";
         return (
-          <div className="cnode-v cnode-knowledge-corpus" title="Reusable knowledge corpus">
-            <div className="cnode-knowledge-corpus__cylinder" aria-hidden>
+          <div className="cnode-v cnode-v--compact cnode-knowledge-corpus" title="Reusable knowledge corpus">
+            <div className="cnode-knowledge-corpus__row">
               <img
                 src={FLOPPY_DISK_ICON}
                 alt=""
                 className="cnode-knowledge-corpus__icon"
                 draggable={false}
               />
+              <div className="cnode-knowledge-corpus__labels">
+                {importedName ? (
+                  <span className="cnode-knowledge-corpus__file" title={importedName}>
+                    {importedName}
+                  </span>
+                ) : null}
+                {subcategory ? (
+                  <span className="cnode-knowledge-corpus__sub">{subcategory}</span>
+                ) : (
+                  <span className="cnode-knowledge-corpus__sub cnode-knowledge-corpus__sub--dim">corpus</span>
+                )}
+              </div>
             </div>
-            {importedName ? (
-              <span className="cnode-knowledge-corpus__file" title={importedName}>
-                {importedName}
-              </span>
-            ) : null}
-            {subcategory ? (
-              <span className="cnode-knowledge-corpus__sub">{subcategory}</span>
-            ) : (
-              <span className="cnode-knowledge-corpus__sub cnode-knowledge-corpus__sub--dim">corpus</span>
-            )}
           </div>
         );
       }
@@ -445,9 +448,11 @@ function CanvasNode({
   else if (selected) cls.push("selected");
   if (connectingFrom === node.id) cls.push("connect-source");
   if (node.hidden) cls.push("hidden");
-  const knowledgeCorpus = node.dataType === "document" && isKnowledgeCanvasNode(node, docsById);
-  if (knowledgeCorpus) cls.push("cnode--knowledge-corpus");
-  else if (node.dataType === "text" || node.dataType === "document") cls.push("cnode--card-compact");
+  if (knowledgeCorpus) {
+    cls.push("cnode--knowledge-corpus", "cnode--card-compact");
+  } else if (node.dataType === "text" || node.dataType === "document") {
+    cls.push("cnode--card-compact");
+  }
 
   if (blueprintColor) cls.push("cnode-in-bp");
 
@@ -465,6 +470,7 @@ function CanvasNode({
       onPointerDown={onPointerDown}
       onDoubleClick={(e) => {
         e.stopPropagation();
+        if (knowledgeCorpus) return;
         onOpen?.(node.id);
       }}
       onMouseEnter={() => { if (isConnectingFrom && isConnectingFrom !== node.id) onConnectHover?.(node.id); }}
@@ -949,6 +955,7 @@ function BlueprintCanvas({
         selectedNodeIds,
         nodes,
         nodeEntitiesById,
+        docsById,
       );
       if (effectiveTimelineQueueMode) {
         if (selectedNodeIds.length > 1) {
@@ -1555,7 +1562,11 @@ function BlueprintCanvas({
 
         {/* nodes */}
         {nodes.map((n) => {
-          const timelineSelectable = isTimelineSelectableCanvasNode(n, nodeEntitiesById);
+          const timelineSelectable = isTimelineSelectableCanvasNode(
+            n,
+            nodeEntitiesById,
+            docsById,
+          );
           return (
           <CanvasNode
             key={n.id}

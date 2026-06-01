@@ -54,9 +54,24 @@ export function resolveHeadlineBlockIdForCanvasNode(
   return blockId;
 }
 
-/** Any visible canvas node can be clicked and selected. */
-export function isTimelineSelectableCanvasNode(node, _nodeEntitiesById = {}) {
-  return Boolean(node && !node.hidden);
+/** Knowledge corpus document nodes on canvas (passive — not timeline-selectable). */
+export function isKnowledgeCanvasNode(node, docsById = {}) {
+  if (!node) return false;
+  if (node.corpusKind === "knowledge") return true;
+  const docId = node.docId || node.noteId;
+  if (node.dataType === "document" && docId) return isKnowledgeDoc(docsById[docId]);
+  return false;
+}
+
+/** Visible canvas nodes that can be selected (excludes knowledge corpus). */
+export function isTimelineSelectableCanvasNode(
+  node,
+  _nodeEntitiesById = {},
+  docsById = {},
+) {
+  if (!node || node.hidden) return false;
+  if (isKnowledgeCanvasNode(node, docsById)) return false;
+  return true;
 }
 
 /** Append doc to queue in selection order (1, 2, 3…); same doc is not duplicated. */
@@ -148,10 +163,11 @@ export function filterSelectableCanvasNodeIds(
   nodeIds = [],
   canvasNodes = [],
   nodeEntitiesById = {},
+  docsById = {},
 ) {
   const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
   return nodeIds.filter((id) => {
     const node = nodeById.get(id);
-    return isTimelineSelectableCanvasNode(node, nodeEntitiesById);
+    return isTimelineSelectableCanvasNode(node, nodeEntitiesById, docsById);
   });
 }

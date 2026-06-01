@@ -1,4 +1,5 @@
 import { daysBetween } from './data.jsx';
+import { isKnowledgeCanvasNode } from './lib/timelineSelection.js';
 
 export function parseDate(content) {
   if (content instanceof Date) return content;
@@ -314,7 +315,16 @@ export function computeEdgeTemporalLabel(
     || (toNode.dataType === "date" ? parseDate(toNode.content) : null);
 
   if (fromDate && toDate) {
-    if (sameCalendarDay(fromDate, toDate)) return "same day";
+    if (sameCalendarDay(fromDate, toDate)) {
+      const { docsById = {} } = meta;
+      if (
+        isKnowledgeCanvasNode(fromNode, docsById)
+        || isKnowledgeCanvasNode(toNode, docsById)
+      ) {
+        return "knowledge";
+      }
+      return "same day";
+    }
     return `${Math.abs(daysBetween(fromDate, toDate))}d`;
   }
 

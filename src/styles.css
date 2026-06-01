@@ -1631,40 +1631,32 @@ textarea.field {
   text-overflow: ellipsis;
 }
 
-/* Knowledge corpus — cylindrical reusable asset on canvas */
+/* Knowledge corpus — compact card (passive: no hover/select noise; ports + delete only) */
 .cnode--knowledge-corpus {
-  min-width: 108px;
-  max-width: 132px;
-  padding: 10px 12px 12px;
-  border-radius: 999px;
-  border-color: color-mix(in oklab, var(--cool) 42%, var(--glass-border-2));
-  background: color-mix(in oklab, var(--panel-solid) 72%, var(--cool-soft));
-  box-shadow:
-    0 2px 10px color-mix(in oklab, var(--cool) 12%, transparent),
-    var(--shadow);
-  align-items: center;
-  text-align: center;
+  cursor: default;
+  pointer-events: auto;
 }
 
-.cnode--knowledge-corpus:hover {
-  border-color: color-mix(in oklab, var(--cool) 58%, var(--border-strong));
-}
-
-.cnode--knowledge-corpus.selected {
-  border-color: color-mix(in oklab, var(--cool) 70%, var(--hud));
-  box-shadow:
-    0 0 0 2px color-mix(in oklab, var(--cool) 28%, transparent),
-    var(--shadow);
-}
-
-.cnode--knowledge-corpus .cnode-h {
-  width: 100%;
-  justify-content: center;
+.cnode--knowledge-corpus:hover,
+.cnode--knowledge-corpus.selected,
+.cnode--knowledge-corpus.cnode--timeline-pick,
+.cnode--knowledge-corpus.connect-source {
+  border-color: var(--glass-border-2);
+  box-shadow: var(--shadow);
 }
 
 .cnode--knowledge-corpus .cnode-k {
-  text-align: center;
-  font-size: 8px;
+  cursor: default;
+  pointer-events: none;
+}
+
+.cnode--knowledge-corpus .cnode-del {
+  display: flex;
+  pointer-events: auto;
+}
+
+.cnode--knowledge-corpus .cnode-port {
+  pointer-events: auto;
 }
 
 .cnode-type[data-t="corpus"] {
@@ -1672,39 +1664,27 @@ textarea.field {
   background: var(--cool-soft);
 }
 
-.cnode-knowledge-corpus {
+.cnode-knowledge-corpus__row {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 8px;
   width: 100%;
-  padding: 2px 0 0;
-}
-
-.cnode-knowledge-corpus__cylinder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--panel-3) 90%, white 8%) 0%,
-    color-mix(in oklab, var(--panel-2) 85%, black 6%) 100%
-  );
-  border: 1px solid color-mix(in oklab, var(--cool) 35%, var(--hairline));
-  box-shadow:
-    inset 0 2px 6px color-mix(in oklab, white 12%, transparent),
-    inset 0 -3px 8px color-mix(in oklab, black 18%, transparent);
 }
 
 .cnode-knowledge-corpus__icon {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
   object-fit: contain;
   opacity: 0.92;
-  filter: brightness(1.05);
+}
+
+.cnode-knowledge-corpus__labels {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
 }
 
 .cnode-knowledge-corpus__sub {

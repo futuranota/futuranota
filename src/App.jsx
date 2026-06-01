@@ -236,11 +236,11 @@ function Dashboard({ company, onBack }) {
     prevTimelineQueueMode.current = timelineQueueMode;
     if (!wasQueue || timelineQueueMode) return;
     setSelection((sel) => {
-      const filtered = filterSelectableCanvasNodeIds(sel, canvasNodes, nodeEntities);
+      const filtered = filterSelectableCanvasNodeIds(sel, canvasNodes, nodeEntities, docs);
       if (filtered.length <= 1) return filtered;
       return [filtered[filtered.length - 1]];
     });
-  }, [timelineQueueMode, canvasNodes, nodeEntities]);
+  }, [timelineQueueMode, canvasNodes, nodeEntities, docs]);
 
   useEffect(() => { initStores(); }, []);
 
