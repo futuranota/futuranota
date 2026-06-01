@@ -3063,11 +3063,11 @@
 
 .doc-block-anchor__content-chevron {
   display: block;
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1;
-  color: #7e7a76;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #7e7a76;
   transform: rotate(180deg);
 }
 
