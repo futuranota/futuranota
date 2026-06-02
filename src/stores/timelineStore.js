@@ -37,6 +37,59 @@ export const useTimelineStore = create(
       timelineDocQueue: [],
       /** Optional headline block id per queued doc (from canvas child selection). */
       timelineDocQueueFocusByDocId: {},
+      /** Fase 2: cross-family doc links + timeline inherit (Bloque A). */
+      inheritObjMode: false,
+      /** Drill-down / timeline selection focus (Bloque A → B UI). */
+      timelineFocus: null,
+      /** Doc ids expanded to show child nodes on tactical timeline. */
+      expandedDocIds: [],
+
+      getEffectiveCanvasMode: () => {
+        const s = get();
+        if (s.inheritObjMode) return "inherit-obj";
+        if (s.timelineQueueMode) return "queue";
+        return "free";
+      },
+
+      setInheritObjMode: (enabled) => {
+        const on = Boolean(enabled);
+        set(on ? { inheritObjMode: true } : { inheritObjMode: false });
+      },
+
+      toggleInheritObjMode: () => {
+        get().setInheritObjMode(!get().inheritObjMode);
+      },
+
+      setTimelineFocus: (focus) => {
+        if (!focus) {
+          set({ timelineFocus: null });
+          return;
+        }
+        set({
+          timelineFocus: {
+            level: focus.level || "family",
+            objectId: focus.objectId || null,
+            docId: focus.docId || null,
+            canvasNodeId: focus.canvasNodeId || null,
+          },
+        });
+      },
+
+      clearTimelineFocus: () => set({ timelineFocus: null }),
+
+      setExpandedDocIds: (docIds) => {
+        set({ expandedDocIds: Array.isArray(docIds) ? [...docIds] : [] });
+      },
+
+      toggleExpandedDocId: (docId) => {
+        if (!docId) return;
+        set((state) => {
+          const setIds = new Set(state.expandedDocIds);
+          if (setIds.has(docId)) setIds.delete(docId);
+          else setIds.add(docId);
+          return { expandedDocIds: [...setIds] };
+        });
+      },
 
       getTimeline: (id) => get().timelines[id] || null,
 
@@ -197,7 +250,7 @@ export const useTimelineStore = create(
       setTimelineQueueMode: (enabled) => {
         const on = Boolean(enabled);
         set(on
-          ? { timelineQueueMode: true }
+          ? { timelineQueueMode: true, inheritObjMode: false }
           : {
             timelineQueueMode: false,
             timelineDocQueue: [],

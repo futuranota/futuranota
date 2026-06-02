@@ -23,6 +23,7 @@ import {
   isKnowledgeCanvasNode,
   isTimelineSelectableCanvasNode,
 } from './lib/timelineSelection.js';
+import { resolveCanvasNodeParentTagStyle } from './lib/objectColors.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
  * Notes ↔ Nodes ↔ Blueprints. Three-tier model:
@@ -181,14 +182,20 @@ function resolveCanvasDocumentTag(node, docsById = {}, objectsById = {}) {
   return resolveCanvasParentObjectTag(node, docsById, objectsById);
 }
 
-function CanvasNodeTags({ parentTag, scheduleLabel, parentTitle = "Parent" }) {
+function CanvasNodeTags({ parentTag, scheduleLabel, parentTitle = "Parent", tagFamily = null }) {
   if (!parentTag && !scheduleLabel) return null;
   return (
     <div className="cnode-v cnode-v--compact">
       <div className="cnode-tags">
         {parentTag ? (
-          <span className="cnode-parent-tag" title={parentTitle}>
-            <span className="cnode-parent-tag__kind">{parentTag.kind}</span>
+          <span
+            className="cnode-parent-tag"
+            title={parentTitle}
+            style={tagFamily?.style}
+          >
+            <span className="cnode-parent-tag__kind" style={tagFamily?.kindStyle}>
+              {parentTag.kind}
+            </span>
             <span className="cnode-parent-tag__name">{parentTag.name}</span>
           </span>
         ) : null}
@@ -368,10 +375,14 @@ function CanvasNode({
         );
       }
       const parentTag = resolveCanvasDocumentTag(node, docsById, objectsById);
+      const tagFamily = resolveCanvasNodeParentTagStyle(
+        node, docsById, objectsById, nodeEntitiesById,
+      );
       return (
         <CanvasNodeTags
           parentTag={parentTag}
           parentTitle="Linked product"
+          tagFamily={tagFamily}
         />
       );
     }
@@ -380,11 +391,15 @@ function CanvasNode({
       const anchorIso = entity?.anchorAt || node.anchorAt;
       const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
       const parentTag = resolveCanvasParentDocTag(node, nodeEntitiesById, docsById);
+      const tagFamily = resolveCanvasNodeParentTagStyle(
+        node, docsById, objectsById, nodeEntitiesById,
+      );
       return (
         <CanvasNodeTags
           parentTag={parentTag}
           scheduleLabel={scheduleLabel}
           parentTitle="Parent document"
+          tagFamily={tagFamily}
         />
       );
     }
