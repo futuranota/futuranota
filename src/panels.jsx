@@ -13,6 +13,7 @@ import {
   buildChipDisplay,
 } from './temporal.js';
 import { TimelineEventChip } from './components/timeline/TimelineEventChip.jsx';
+import { TacticalTimeline } from './components/timeline/TacticalTimeline.jsx';
 import { useTimelineStore, useUIStateStore } from './stores/index.js';
 import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
 import { CalendarPanel, getScheduleHintForNode } from './components/intel/CalendarPanel.jsx';
@@ -1431,40 +1432,27 @@ function TimelineChainTrack({
 }
 
 function Timeline({
-  today: _today,
-  focusedNoteId: _focusedNoteId,
+  today,
+  focusedNoteId,
   onFocusNote: _onFocusNote,
-  nodes: _nodes = [],
-  connections: _connections = [],
-  docsById: _docsById = {},
-  objectsById: _objectsById = {},
-  nodeEntitiesById: _nodeEntitiesById = {},
-  filterObjectId: _filterObjectId = null,
+  nodes = [],
+  connections = [],
+  docsById = {},
+  objectsById = {},
+  nodeEntitiesById = {},
+  filterObjectId = null,
 }) {
-  const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
-  const setTimelineAlertsEnabled = useTimelineStore((s) => s.setTimelineAlertsEnabled);
-
   return (
-    <div className="timeline stacked tl-grid-mode tl-grid-mode--empty">
-      <div className="timeline-header">
-        <span><b>Timeline</b> · empty</span>
-        <div className="timeline-header__actions">
-          <label
-            className="tl-alerts-toggle"
-            data-on={timelineAlertsEnabled ? "1" : "0"}
-            title="Show timeline alerts on canvas at T-30, T-7, and T-1 day windows"
-          >
-            <input
-              type="checkbox"
-              checked={timelineAlertsEnabled}
-              onChange={(e) => setTimelineAlertsEnabled(e.target.checked)}
-            />
-            <span>Timeline alerts</span>
-          </label>
-        </div>
-      </div>
-      <div className="tl-empty-shell" aria-label="Timeline placeholder" />
-    </div>
+    <TacticalTimeline
+      canvasNodes={nodes}
+      connections={connections}
+      docsById={docsById}
+      objectsById={objectsById}
+      nodeEntitiesById={nodeEntitiesById}
+      today={today}
+      filterObjectId={filterObjectId}
+      focusedNoteId={focusedNoteId}
+    />
   );
 }
 

@@ -1129,6 +1129,19 @@ CARRIL INF (O2)              [product ideation doc] —————————�
 
 ### 10.4 Fase 2 — Cross-family (`Inherit obj → obj`)
 
+**Regla clave (producto):** el **orden de creación** de objetos/docs **no define** el timeline. Puedes crear varias familias, meter docs en la cola en cualquier orden y guardar. Lo que importa es:
+
+- **Set primario** = el eje de tiempo de referencia (familia cuyos docs ya están posicionados en el timeline).
+- **Familia secundaria** = la que quieres **enganchar** al eje del primario mediante un wire doc↔doc cross-family.
+
+La herencia de tiempo va **siempre primario → secundario**, no al revés ni por “quién se creó primero”.
+
+**Resolución del primario en código (`timelinePrimary.js`):**
+
+1. `primaryTimelineObjectId` explícito en store (elección del usuario).
+2. Si no hay: `parentObjectId` del **primer doc en `timelineDocQueue`** (el set que ya estás construyendo en timeline).
+3. Fallback: objeto con `role: corpus`.
+
 **Activación:** toggle **“Inherit obj → obj”** en canvas (infografía/tooltip). Solo entonces:
 
 - Se permiten **dos objetos distintos** en el mismo “modo”.
@@ -1151,7 +1164,7 @@ CARRIL INF (O2)              [product ideation doc] —————————�
 
 | Pieza | Estado |
 |-------|--------|
-| `panels.jsx` → `Timeline` | Placeholder vacío (`tl-empty-shell`) |
+| `panels.jsx` → `Timeline` | **`TacticalTimeline`** montado (multi-objeto, cola, click/doble-click) |
 | `buildTimelineChains` (`timelineChains.js`) | Lógica de cadenas por objeto, `hasCrossObjectLink`, grid temporal — **no montada** en UI |
 | `TimelineTrack` / chips en `panels.jsx` | Existe para blueprint tracks; patrón reutilizable |
 | Canvas cola timeline | `timelineQueueMode`, selección en `App.jsx` + `canvas.jsx` |
@@ -1169,10 +1182,11 @@ CARRIL INF (O2)              [product ideation doc] —————————�
 
 | Archivo | Responsabilidad |
 |---------|-----------------|
-| `src/stores/timelineStore.js` | Estado táctico: `inheritObjMode`, `timelineFocus`, `expandedDocIds`, cola (`timelineDocQueue*`), `getEffectiveCanvasMode()` |
+| `src/stores/timelineStore.js` | `primaryTimelineObjectId`, `inheritObjMode`, cola, foco |
 | `src/types/timelineTactical.js` | JSDoc: `CanvasMode`, `TimelineFocus`, `ConnectionKind`, `ClassifiedConnection` |
 | `src/lib/timelineGraph.js` | `classifyCanvasConnection`, `buildClassifiedConnections`, `crossFamilyDocPairKey`, dedup un wire cross-doc |
-| `src/lib/timelineAnchors.js` | `resolveTimelineAnchor`, `buildTacticalWireAnchorMap`, `inheritAnchorFromConnection`, `sortNodesByTimelineAnchor` |
+| `src/lib/timelinePrimary.js` | `resolvePrimaryTimelineObjectId`, primario vs secundario (sin orden de creación) |
+| `src/lib/timelineAnchors.js` | Herencia **primario → secundario** en cross-family-doc |
 | `src/lib/timelineChains.js` | `buildTimelineChains({ inheritObjMode })` consume anchors tácticos |
 | `src/lib/objectColors.js` | `resolveCanvasNodeObjectId` (familia en nodo) |
 | `src/lib/timelineSelection.js` | `resolveParentDocIdForCanvasNode` (doc padre de hijo) |
@@ -1199,7 +1213,80 @@ App / canvas.jsx  →  timelineStore (modo, foco, cola)
    - `expandedDocIds`, `timelineDocQueue` (ya existía)
 2. **`classifyCanvasConnection`** en `timelineGraph.js`
 3. **`resolveTimelineAnchor`** + **`buildTacticalWireAnchorMap`** en `timelineAnchors.js`
-4. **`inheritAnchorFromConnection`** — cross-family-doc + `inheritObjMode` + extremo sin fecha
+4. **`inheritAnchorFromConnection`** — cross-family-doc + `inheritObjMode`; con `primaryTimelineObjectId` copia anchor **del primario al secundario** (si no hay primario explícito, fallback simétrico “quien tiene fecha gana”).
+
+### 10.9 Primario vs secundario (no confundir con orden de creación)
+
+| Concepto | Qué es | Qué NO es |
+|----------|--------|-----------|
+| Set primario | Familia cuyo timeline es el **eje** (docs ya en cola / posicionados) | El primer objeto creado en la app |
+| Familia secundaria | Otra familia que conectas **al** eje del primario | Automáticamente “el segundo objeto” |
+| Cola `timelineDocQueue` | Docs que tú añades en **cualquier orden** | Orden obligatorio de construcción |
+| Color tag por familia | Índice visual en `.cnode-parent-tag` | No controla herencia temporal |
+
+**Ejemplo:** Corpus 01 tiene docs en timeline. Creas Product Random (familia 2) después o antes — da igual. Activas inherit y conectas un doc de familia 2 a un doc de familia 1: el doc (y date vacío) de familia 2 se alinea al **tiempo del set primario**, no al orden en que creaste los objetos.
+
+### 10.10 Multi-objeto, canvas ↔ timeline, mismos tipos, macronodos
+
+**Varios objetos en timeline (sin inherit):** puedes tener N familias independientes, cada una con su fila/carril:
+
+```
+[obj 1 name] ─── [doc]
+[obj 2 name] ─── [doc]
+[obj 3 name] ─── [doc] ─── [doc]   ← doc→doc misma familia
+```
+
+El orden en que creaste obj 1/2/3 **no importa**. Cada uno es un **set de instrucciones** en el timeline.
+
+**Elegir objeto del timeline → insertar en canvas:** al sacar un set al canvas deben **reaparecer los wires** que tenía ese subgraph (docs, hijos, doc→doc→date→metric). Canvas y timeline comparten el mismo grafo; el timeline solo **informa tiempo**.
+
+**Función del timeline:** mostrar **cuándo** (fecha de creación del doc o **schedule** del macronodo / nodo date). No modifica el contenido de los documentos.
+
+**Cadena intra-familia (canvas + tiempo):**
+
+```
+obj N:
+  doc ─── doc ─── …
+    │
+    macronodos de ese doc (text, date, metric…) ordenados por schedule / anchor
+```
+
+Enlaces permitidos en la cadena temporal: **doc → doc → date → metric** (y hijos bajo el mismo doc).
+
+**Regla mismo tipo (cross-family / inherit):** solo wires del **mismo dataType**:
+
+| Permitido | No permitido (timeline inherit) |
+|-----------|----------------------------------|
+| doc ↔ doc | doc ↔ date |
+| date ↔ date | date ↔ metric |
+
+**Inherit obj 4 → obj 2 existente (ejemplo usuario):**
+
+```
+Timeline (obj 2 = padre del eje):
+
+[obj 2 doc] ────────────────  ← carril / timeframe padre
+      │
+[obj 4 doc] ────────────────  ← inherit: misma posición temporal, contenido del doc intacto
+```
+
+- Conectas **doc obj4 ↔ doc obj2** (mismo tipo).
+- Obj 4 **no cambia** sus documentos; solo **hereda el timeframe** (dónde cae en el eje) del punto al que conectaste (obj 2).
+- Un solo wire por par doc↔doc cross-family.
+
+**Código (Bloque A):**
+
+- `resolveTimelineWireType`, `isAllowedCrossFamilyTimelineLink` → `timelineGraph.js`
+- `cross-family-doc` | `cross-family-date` | `type-mismatch` en `classifyCanvasConnection`
+- Herencia primario→secundario en `timelineAnchors.js` para doc y date cross-family
+
+**Pendiente UI (Bloque B/D):**
+
+- Filas multi-objeto en panel timeline.
+- “Insertar set en canvas” con wires restaurados.
+- Validación visual al conectar tipos distintos (rechazar doc→date cross-family).
+
+**Estado Bloque B (en curso):** UI táctica en panel inferior — ver `TacticalTimeline.jsx`, `tacticalTimelineView.js`.
 
 #### Bloque B — Fase 1 UI timeline
 

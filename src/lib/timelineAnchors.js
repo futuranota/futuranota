@@ -5,9 +5,11 @@ import {
 } from "../temporal.js";
 import {
   CONNECTION_KIND_CROSS_FAMILY_DOC,
+  CONNECTION_KIND_CROSS_FAMILY_DATE,
   buildClassifiedConnections,
   indexCrossFamilyDocPairs,
 } from "./timelineGraph.js";
+import { resolvePrimarySecondarySides } from "./timelinePrimary.js";
 
 /**
  * @param {object} node
@@ -32,18 +34,42 @@ export function nodeHasTimelineAnchor(node, wireAnchors, meta = {}) {
 }
 
 /**
- * Apply cross-family inherit when inheritObjMode is on (Fase 2 prep).
- * @param {Map<string, Date>} anchors
- * @param {import('../types/timelineTactical.js').ClassifiedConnection} classified
- * @param {Map<string, object>} nodeById
- * @param {{ nodeEntitiesById?: Record<string, object>, docsById?: Record<string, object> }} meta
+ * Cross-family inherit: secondary adopts primary timeline anchor (not creation order).
+ * @param {string|null} [primaryTimelineObjectId]
  */
-export function inheritAnchorFromConnection(anchors, classified, nodeById, meta = {}) {
-  if (classified.kind !== CONNECTION_KIND_CROSS_FAMILY_DOC) return anchors;
+export function inheritAnchorFromConnection(
+  anchors,
+  classified,
+  nodeById,
+  meta = {},
+  primaryTimelineObjectId = null,
+) {
+  if (
+    classified.kind !== CONNECTION_KIND_CROSS_FAMILY_DOC
+    && classified.kind !== CONNECTION_KIND_CROSS_FAMILY_DATE
+  ) {
+    return anchors;
+  }
 
   const from = nodeById.get(classified.from);
   const to = nodeById.get(classified.to);
   if (!from || !to) return anchors;
+
+  const { primarySide, secondarySide } = resolvePrimarySecondarySides(
+    classified.fromObjectId,
+    classified.toObjectId,
+    primaryTimelineObjectId,
+  );
+
+  if (primarySide && secondarySide) {
+    const primaryNode = primarySide === "from" ? from : to;
+    const secondaryNode = secondarySide === "from" ? from : to;
+    const primaryAnchor = resolveTimelineAnchor(primaryNode, anchors, meta);
+    if (primaryAnchor) {
+      anchors.set(secondaryNode.id, primaryAnchor);
+    }
+    return anchors;
+  }
 
   const fromHas = nodeHasTimelineAnchor(from, anchors, meta);
   const toHas = nodeHasTimelineAnchor(to, anchors, meta);
@@ -61,11 +87,11 @@ export function inheritAnchorFromConnection(anchors, classified, nodeById, meta 
  * @param {object[]} nodes
  * @param {object[]} connections
  * @param {{ nodeEntitiesById?: Record<string, object>, docsById?: Record<string, object> }} meta
- * @param {{ inheritObjMode?: boolean }} [options]
+ * @param {{ inheritObjMode?: boolean, primaryTimelineObjectId?: string|null }} [options]
  * @returns {import('../types/timelineTactical.js').TacticalWireAnchorResult}
  */
 export function buildTacticalWireAnchorMap(nodes, connections, meta = {}, options = {}) {
-  const { inheritObjMode = false } = options;
+  const { inheritObjMode = false, primaryTimelineObjectId = null } = options;
   const classifiedConnections = buildClassifiedConnections(
     connections,
     nodes,
@@ -80,8 +106,11 @@ export function buildTacticalWireAnchorMap(nodes, connections, meta = {}, option
   if (inheritObjMode) {
     const nodeById = new Map(nodes.map((n) => [n.id, n]));
     for (const c of classifiedConnections) {
-      if (c.kind !== CONNECTION_KIND_CROSS_FAMILY_DOC) continue;
-      inheritAnchorFromConnection(anchors, c, nodeById, meta);
+      if (
+        c.kind !== CONNECTION_KIND_CROSS_FAMILY_DOC
+        && c.kind !== CONNECTION_KIND_CROSS_FAMILY_DATE
+      ) continue;
+      inheritAnchorFromConnection(anchors, c, nodeById, meta, primaryTimelineObjectId);
     }
   }
 
@@ -89,6 +118,7 @@ export function buildTacticalWireAnchorMap(nodes, connections, meta = {}, option
     anchors,
     classifiedConnections,
     crossFamilyDocPairKeys,
+    primaryTimelineObjectId: primaryTimelineObjectId || null,
   };
 }
 

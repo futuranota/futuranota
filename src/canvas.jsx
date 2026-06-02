@@ -24,6 +24,12 @@ import {
   isTimelineSelectableCanvasNode,
 } from './lib/timelineSelection.js';
 import { resolveCanvasNodeParentTagStyle } from './lib/objectColors.js';
+import {
+  classifyConnectionRecord,
+  isCrossFamilyConnectionKind,
+  validateCanvasConnectionAttempt,
+} from './lib/timelineGraph.js';
+import { useTimelineStore } from './stores/index.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
  * Notes ↔ Nodes ↔ Blueprints. Three-tier model:
@@ -564,9 +570,14 @@ function BlueprintCanvas({
   onToggleTimelineQueueMode,
   onTimelineCanvasSelect,
   onTimelineCanvasSelectMany,
+  onNotify,
 }) {
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
-  const temporalMeta = { docsById, nodeEntitiesById };
+  const traceFunixMode = useTimelineStore((s) => s.traceFunixMode);
+  const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
+  const toggleTraceFunixMode = useTimelineStore((s) => s.toggleTraceFunixMode);
+  const toggleInheritObjMode = useTimelineStore((s) => s.toggleInheritObjMode);
+  const temporalMeta = { docsById, nodeEntitiesById, objectsById };
   const canvasRef = useRef(null);
   const importInputRef = useRef(null);
   const wrapRef = useRef(null);
@@ -1190,6 +1201,44 @@ function BlueprintCanvas({
     }
   };
 
+  const connectionValidationContext = useMemo(
+    () => ({
+      canvasNodes: nodes,
+      connections,
+      docsById,
+      nodeEntitiesById,
+      objectsById,
+      inheritObjMode,
+    }),
+    [nodes, connections, docsById, nodeEntitiesById, objectsById, inheritObjMode],
+  );
+
+  const notifyConnectionError = useCallback((message) => {
+    if (message) onNotify?.(message, "warm");
+  }, [onNotify]);
+
+  const validateEdge = useCallback((fromId, toId, excludeConnectionId = null) => {
+    const result = validateCanvasConnectionAttempt({
+      fromNodeId: fromId,
+      toNodeId: toId,
+      excludeConnectionId,
+      ...connectionValidationContext,
+    });
+    if (!result.ok) notifyConnectionError(result.message);
+    return result.ok;
+  }, [connectionValidationContext, notifyConnectionError]);
+
+  const connectionLayoutFor = useCallback((fromId, toId) => {
+    const classified = classifyConnectionRecord(
+      { id: "draft", from: fromId, to: toId },
+      nodes,
+      docsById,
+      nodeEntitiesById,
+      objectsById,
+    );
+    return isCrossFamilyConnectionKind(classified.kind) ? "vertical" : "horizontal";
+  }, [nodes, docsById, nodeEntitiesById, objectsById]);
+
   const handlePortMouseUp = (portNodeId) => {
     if (rewiring) {
       const { connId, end } = rewiring;
@@ -1204,7 +1253,10 @@ function BlueprintCanvas({
           if (portNodeId === c.from) return conns;
           next.to = portNodeId;
         }
-        if (conns.some((x) => x.id !== connId && x.from === next.from && x.to === next.to)) return conns;
+        if (conns.some((x) => x.id !== connId && x.from === next.from && x.to === next.to)) {
+          return conns;
+        }
+        if (!validateEdge(next.from, next.to, connId)) return conns;
         return conns.map((x) => (x.id === connId ? next : x));
       });
       setRewiring(null);
@@ -1213,6 +1265,12 @@ function BlueprintCanvas({
       return;
     }
     if (!connectingFrom || connectingFrom === portNodeId) {
+      setConnectingFrom(null);
+      setHoverConnect(null);
+      setConnectHoverTarget(null);
+      return;
+    }
+    if (!validateEdge(connectingFrom, portNodeId)) {
       setConnectingFrom(null);
       setHoverConnect(null);
       setConnectHoverTarget(null);
@@ -1232,14 +1290,31 @@ function BlueprintCanvas({
     const w = n._w || 200;
     const h = n._h || 80;
     if (side === "right") return { x: n.x + w, y: n.y + h / 2 };
+    if (side === "left") return { x: n.x, y: n.y + h / 2 };
+    if (side === "bottom") return { x: n.x + w / 2, y: n.y + h };
+    if (side === "top") return { x: n.x + w / 2, y: n.y };
     return { x: n.x, y: n.y + h / 2 };
   };
 
-  const pathBetween = (a, b) => {
-    const dx = b.x - a.x;
+  const pathBetweenPoints = (p1, p2, layout = "horizontal") => {
+    if (layout === "vertical") {
+      const dy = p2.y - p1.y;
+      const k = Math.max(40, Math.abs(dy) * 0.4);
+      return `M ${p1.x} ${p1.y} C ${p1.x} ${p1.y + k}, ${p2.x} ${p2.y - k}, ${p2.x} ${p2.y}`;
+    }
+    const dx = p2.x - p1.x;
     const k = Math.max(40, Math.abs(dx) * 0.4);
-    return `M ${a.x} ${a.y} C ${a.x + k} ${a.y}, ${b.x - k} ${b.y}, ${b.x} ${b.y}`;
+    return `M ${p1.x} ${p1.y} C ${p1.x + k} ${p1.y}, ${p2.x - k} ${p2.y}, ${p2.x} ${p2.y}`;
   };
+
+  const endpointsForConnection = (fromNode, toNode, layout) => {
+    if (layout === "vertical") {
+      return { p1: nodeAnchor(fromNode, "bottom"), p2: nodeAnchor(toNode, "top") };
+    }
+    return { p1: nodeAnchor(fromNode, "right"), p2: nodeAnchor(toNode, "left") };
+  };
+
+  const pathBetween = (a, b, layout = "horizontal") => pathBetweenPoints(a, b, layout);
 
   const getRewireAnchor = () => {
     if (!rewiring) return null;
@@ -1491,6 +1566,22 @@ function BlueprintCanvas({
           <>
             <button
               type="button"
+              className={"btn xs" + (traceFunixMode ? " primary" : " ghost")}
+              onClick={toggleTraceFunixMode}
+              title="Snapshot cognitivo para query Intel"
+            >
+              Trace Funix
+            </button>
+            <button
+              type="button"
+              className={"btn xs" + (inheritObjMode ? " primary" : " ghost")}
+              onClick={toggleInheritObjMode}
+              title="Obj-Obj mode: herencia entre familias"
+            >
+              Obj-Obj
+            </button>
+            <button
+              type="button"
               className={"btn xs" + (timelineQueueMode ? " primary" : " ghost")}
               onClick={onToggleTimelineQueueMode}
               title="Select nodes on the canvas and queue their documents for the timeline"
@@ -1504,7 +1595,7 @@ function BlueprintCanvas({
               onClick={onInsertToTimeline}
               title={
                 timelineQueueMode && selection.length > 0
-                  ? "Insert queued documents into the timeline (instruction set — coming soon)"
+                  ? "Add selected document nodes to the tactical timeline"
                   : "Enable Select and pick nodes linked to documents"
               }
             >
@@ -1655,9 +1746,9 @@ function BlueprintCanvas({
             const b = nodes.find((n) => n.id === c.to);
             if (!a || !b || a.hidden || b.hidden) return null;
             if (rewiring && rewiring.connId === c.id) return null;
-            const p1 = nodeAnchor(a, "right");
-            const p2 = nodeAnchor(b, "left");
-            const d = pathBetween(p1, p2);
+            const layout = connectionLayoutFor(c.from, c.to);
+            const { p1, p2 } = endpointsForConnection(a, b, layout);
+            const d = pathBetween(p1, p2, layout);
             const label = computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta);
             const mid = bezierMidpoint(p1, p2);
             const selected = selectedConnectionId === c.id;
@@ -1697,31 +1788,41 @@ function BlueprintCanvas({
               const c = connections.find((x) => x.id === rewiring.connId);
               const target = connectHoverTarget ? nodes.find((n) => n.id === connectHoverTarget) : null;
               if (rewiring.end === "from") {
+                const layout = target && c?.to ? connectionLayoutFor(target.id, c.to) : "horizontal";
                 p2 = fixed;
-                p1 = target ? nodeAnchor(target, "right") : hoverConnect;
+                p1 = target
+                  ? nodeAnchor(target, layout === "vertical" ? "bottom" : "right")
+                  : hoverConnect;
                 a = target;
                 b = nodes.find((n) => n.id === c?.to);
               } else {
+                const layout = c?.from && target ? connectionLayoutFor(c.from, target.id) : "horizontal";
                 p1 = fixed;
-                p2 = target ? nodeAnchor(target, "left") : hoverConnect;
+                p2 = target
+                  ? nodeAnchor(target, layout === "vertical" ? "top" : "left")
+                  : hoverConnect;
                 a = nodes.find((n) => n.id === c?.from);
                 b = target;
               }
             } else {
               a = nodes.find((n) => n.id === connectingFrom);
               if (!a) return null;
-              p1 = nodeAnchor(a, "right");
               const target = connectHoverTarget ? nodes.find((n) => n.id === connectHoverTarget) : null;
-              p2 = target ? nodeAnchor(target, "left") : hoverConnect;
+              const layout = target ? connectionLayoutFor(a.id, target.id) : "horizontal";
+              p1 = nodeAnchor(a, layout === "vertical" ? "bottom" : "right");
+              p2 = target
+                ? nodeAnchor(target, layout === "vertical" ? "top" : "left")
+                : hoverConnect;
               b = target;
             }
             const label = a && b
               ? computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta)
               : null;
             const mid = bezierMidpoint(p1, p2);
+            const layout = a && b ? connectionLayoutFor(a.id, b.id) : "horizontal";
             return (
               <g>
-                <path className="conn pending" d={pathBetween(p1, p2)} markerEnd="url(#arrow-pending)" />
+                <path className="conn pending" d={pathBetween(p1, p2, layout)} markerEnd="url(#arrow-pending)" />
                 {label && <ConnLabel x={mid.x} y={mid.y} text={label} pending />}
               </g>
             );
