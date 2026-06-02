@@ -3702,11 +3702,11 @@ textarea.note-form-field {
 }
 .tl-tactical-node-group.is-anchor-start {
   transform: translateX(0);
-  align-items: flex-start;
+  align-items: center;
 }
 .tl-tactical-node-group.is-anchor-end {
   transform: translateX(-100%);
-  align-items: flex-end;
+  align-items: center;
 }
 .tl-tactical-node-group__date {
   font-family: var(--mono);
@@ -3717,12 +3717,7 @@ textarea.note-form-field {
   color: #8a919c;
   white-space: nowrap;
   flex-shrink: 0;
-}
-.tl-tactical-node-group.is-anchor-start .tl-tactical-node-group__date {
-  text-align: left;
-}
-.tl-tactical-node-group.is-anchor-end .tl-tactical-node-group__date {
-  text-align: right;
+  text-align: center;
 }
 .tl-tactical-node-group__stack {
   display: flex;
