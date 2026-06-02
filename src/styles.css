@@ -3529,8 +3529,8 @@ textarea.note-form-field {
 }
 .tl-tactical-bar {
   position: relative;
-  height: 34px;
-  margin-bottom: 6px;
+  height: 46px;
+  margin-bottom: 8px;
   border-radius: 8px;
   background: color-mix(in oklab, var(--panel-2) 70%, #1b1f27 30%);
   overflow: visible;
@@ -3538,43 +3538,32 @@ textarea.note-form-field {
 .tl-tactical-ruler {
   position: absolute;
   inset: 0 0 auto 0;
-  height: 10px;
+  height: 12px;
   z-index: 1;
   pointer-events: none;
 }
 .tl-tactical-ruler__tick {
   position: absolute;
-  top: 2px;
+  top: 3px;
   width: 1px;
-  height: 6px;
+  height: 7px;
   margin-left: -0.5px;
   background: color-mix(in oklab, #444 80%, var(--dim) 20%);
   border-radius: 1px;
   opacity: 0.55;
 }
 .tl-tactical-ruler__tick.is-major {
-  height: 8px;
+  height: 9px;
   opacity: 0.85;
 }
-.tl-tactical-bar-past {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  height: 14px;
-  margin-top: -7px;
-  border-radius: 7px 0 0 7px;
-  background: color-mix(in oklab, #444 18%, transparent);
-  z-index: 0;
-  pointer-events: none;
-}
-.tl-tactical-bar-future {
+.tl-tactical-range-window {
   position: absolute;
   top: 50%;
-  height: 14px;
-  margin-top: -7px;
-  border-radius: 0 7px 7px 0;
+  height: 20px;
+  margin-top: -10px;
+  border-radius: 6px;
   background: color-mix(in oklab, #a6b125 22%, transparent);
-  z-index: 0;
+  z-index: 1;
   pointer-events: none;
 }
 .tl-tactical-rail__axis {
@@ -3608,7 +3597,7 @@ textarea.note-form-field {
 }
 .tl-tactical-segment__label {
   position: absolute;
-  top: -17px;
+  top: -19px;
   left: 50%;
   transform: translateX(-50%);
   padding: 1px 6px;
@@ -3633,23 +3622,24 @@ textarea.note-form-field {
 }
 .tl-tactical-rail__today-pill {
   position: absolute;
-  top: 1px;
+  top: 3px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 1px 8px;
+  padding: 2px 10px;
   border-radius: 999px;
   font-family: var(--sans);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
   color: #e7b464;
-  background: transparent;
+  background: color-mix(in oklab, var(--panel-solid) 90%, transparent);
   border: 1.5px solid #675539;
   white-space: nowrap;
+  z-index: 6;
 }
 .tl-tactical-rail__today-line {
   position: absolute;
-  top: 18px;
-  bottom: 2px;
+  top: 22px;
+  bottom: 4px;
   left: 50%;
   width: 2px;
   margin-left: -1px;
@@ -3659,7 +3649,7 @@ textarea.note-form-field {
 }
 .tl-tactical-rail__remaining {
   position: absolute;
-  top: 1px;
+  top: 3px;
   transform: translateX(-50%);
   padding: 1px 8px;
   border-radius: 999px;
@@ -3691,7 +3681,7 @@ textarea.note-form-field {
 }
 .tl-tactical-rail__nodes {
   position: relative;
-  height: 50px;
+  height: 58px;
   min-width: 0;
   overflow: visible;
   padding-bottom: 2px;
