@@ -1,10 +1,15 @@
 import {
-  buildWireAnchorMap,
   noteToTrackItem,
   resolveNodeAnchorDate,
   startOfCalendarDay,
 } from "../temporal.js";
-import { resolveObjectStroke, softColorFromStroke, isCorpusColor } from "./objectColors.js";
+import { buildTacticalWireAnchorMap, sortNodeIdsByTimelineAnchor } from "./timelineAnchors.js";
+import {
+  resolveObjectStroke,
+  softColorFromStroke,
+  isCorpusColor,
+  resolveCanvasNodeObjectId,
+} from "./objectColors.js";
 
 /**
  * @typedef {Object} TimelineChainAnchor
@@ -34,22 +39,6 @@ import { resolveObjectStroke, softColorFromStroke, isCorpusColor } from "./objec
  * @property {(d: Date) => number} pct
  * @property {number} todayPct
  */
-
-function resolveCanvasNodeObjectId(node, docsById, nodeEntitiesById) {
-  if (!node) return null;
-  if (node.canvasKind === "object" && node.objectId) return node.objectId;
-  if (node.objectId) return node.objectId;
-  if (node.canvasKind === "document") {
-    const doc = docsById[node.docId || node.noteId];
-    return doc?.parentObjectId || null;
-  }
-  if (node.noteId && nodeEntitiesById[node.noteId]) {
-    const entity = nodeEntitiesById[node.noteId];
-    const doc = entity.parentDocId ? docsById[entity.parentDocId] : null;
-    return doc?.parentObjectId || null;
-  }
-  return null;
-}
 
 function canvasNodeToTrackItem(node, nodeEntitiesById) {
   const base = {
@@ -165,7 +154,7 @@ function buildTimelineGrid(anchorDates, today) {
 
 /**
  * @param {Object} params
- * @returns {{ grid: TimelineGrid, chains: TimelineChainRow[], trackItemsById: Map<string, object>, wireAnchors: Map<string, Date>, emptyObjectTracks: object[] }}
+ * @returns {{ grid: TimelineGrid, chains: TimelineChainRow[], trackItemsById: Map<string, object>, wireAnchors: Map<string, Date>, emptyObjectTracks: object[], classifiedConnections: import('../types/timelineTactical.js').ClassifiedConnection[], crossFamilyDocPairKeys: Set<string> }}
  */
 export function buildTimelineChains({
   canvasNodes = [],
@@ -176,8 +165,9 @@ export function buildTimelineChains({
   objectTimelineTitles = {},
   today = new Date(),
   filterObjectId = null,
+  inheritObjMode = false,
 }) {
-  const meta = { nodeEntitiesById, docsById };
+  const meta = { nodeEntitiesById, docsById, objectsById };
   const trackItemsById = new Map();
   const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
 
@@ -186,7 +176,11 @@ export function buildTimelineChains({
   }
 
   const allTrackItems = [...trackItemsById.values()];
-  const wireAnchors = buildWireAnchorMap(allTrackItems, connections, meta);
+  const {
+    anchors: wireAnchors,
+    classifiedConnections,
+    crossFamilyDocPairKeys,
+  } = buildTacticalWireAnchorMap(allTrackItems, connections, meta, { inheritObjMode });
 
   const anchoredIds = [];
   for (const item of allTrackItems) {
@@ -217,11 +211,7 @@ export function buildTimelineChains({
     for (const [objectId, nodeIds] of byObject) {
       if (filterObjectId && objectId !== filterObjectId) continue;
 
-      const sortedIds = [...nodeIds].sort((a, b) => {
-        const da = wireAnchors.get(a) || resolveNodeAnchorDate(trackItemsById.get(a), meta);
-        const db = wireAnchors.get(b) || resolveNodeAnchorDate(trackItemsById.get(b), meta);
-        return (da?.getTime() || 0) - (db?.getTime() || 0);
-      });
+      const sortedIds = sortNodeIdsByTimelineAnchor(nodeIds, nodeById, wireAnchors, meta);
 
       /** @type {TimelineChainAnchor[]} */
       const anchors = sortedIds.map((nodeId) => ({
@@ -310,5 +300,13 @@ export function buildTimelineChains({
     return a.label.localeCompare(b.label);
   });
 
-  return { grid, chains, trackItemsById, wireAnchors, emptyObjectTracks };
+  return {
+    grid,
+    chains,
+    trackItemsById,
+    wireAnchors,
+    emptyObjectTracks,
+    classifiedConnections,
+    crossFamilyDocPairKeys,
+  };
 }

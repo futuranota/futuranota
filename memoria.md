@@ -1049,3 +1049,200 @@ Click search icon
 6. Cablear `panels.jsx` + `App.jsx`
 7. Pegar CSS blocks
 8. Confirmar asset `e-c.svg` en `public/uploads/botones/`
+
+---
+
+## 10. Canvas + Timeline — Fases (visión producto)
+
+> Documento de referencia para construir el timeline táctico sin ensuciar el canvas libre.
+> Última actualización: sesión fases 0 / 1 / 2 + capa macro.
+
+### 10.1 Principio rector
+
+- **Canvas = libre** (Fase 0): conectar nodos para queries, search, relaciones doc↔doc. **No** implica añadir al timeline.
+- **Timeline = minimalista**: solo entra lo que el usuario explícitamente selecciona / despliega por interacción.
+- **Dos “carpetas” de comportamiento** (no tres modos de UI pesados):
+  1. Canvas libre (default).
+  2. Modo **“Inherit obj → obj”** (toggle): limita a dos familias de objeto, muestra nodo conector asimétrico, reglas cross-family.
+
+### 10.2 Fase 0 — Canvas libre (estado actual + search)
+
+| Qué | Detalle |
+|-----|---------|
+| Objetivo | Conectar todos los nodos; disparar queries/preguntas hacia search; relacionar documentos entre sí. |
+| Timeline | **Sin relación**: conectar en canvas no añade nodos al timeline. |
+| UI | Mantener canvas lo más minimalista posible. |
+
+### 10.3 Fase 1 — Timeline intra-familia (misma familia / mismo objeto)
+
+**Estructura por producto (familia):**
+
+```
+Producto N
+  └── Docs de la misma familia se conectan entre sí (Type: Document)
+  └── Hijos (bloques H1, text, date, etc.) pueden variar o conectarse “random” entre sí
+```
+
+**Ejemplo canvas actual:**
+
+- `Product document` (Object Corpus 01) → conectado a:
+  - `nuevo documento (h1)`
+  - `otro documento (h1)`
+  - `H1`
+
+**Comportamiento timeline:**
+
+| Interacción | Vista en timeline |
+|-------------|-------------------|
+| **1× click** en nodo doc (en cola/selección timeline) | Carril de **solo nodos Type: Document** de esa familia, ordenados en el **eje de tiempo** (pasado → presente → futuro). |
+| **2× click** en doc | Drill-down: hijos del doc, p. ej. `[product] — [doc] — [launch date type]`, también ordenados por tiempo. |
+
+**Reglas de tiempo:**
+
+- El eje **siempre mide tiempo** (pasado | presente | futuro).
+- Docs ordenados por fecha de ancla: **de mayor a menor** en el eje (ej. `doc 02 May 15` — `doc 01 May 20` si May 15 es más pasado que May 20 en la escala elegida; validar convención al implementar: izquierda = pasado, derecha = futuro).
+- Click en un doc en timeline → segundo nivel muestra **sus nodos hijos** con el mismo criterio temporal.
+
+**Capa MACRO (solo mismos tipos en el carril principal):**
+
+```
+[ Objeto 1 ] ───────────────────────────────────────► [ Objeto 2 ]
+     │ (Tiene)                                              │ (Tiene)
+     ▼                                                      ▼
+[ Doc táctico O1 ] ═══ (link permitido mismo tipo) ═══► [ Doc táctico O2 ]
+     │ (Abre hijos)                                        │ (Abre hijos)
+     ▼                                                      ▼
+ Hijos O1: H1, Date launch…                          Hijos O2: H1, Date slot vacío…
+```
+
+**Eje de tiempo (referencia visual):**
+
+```
+[EJE] ──► Pasado ──────────► Presente ──────────► Futuro (Launch)
+
+CARRIL SUP (O1)   [latest news] — [campaign results] — [product update] — [launch date]
+CARRIL INF (O2)              [product ideation doc] ——————————————— [empty date slot]
+                                      │ cross-link vertical (herencia de timeframe)
+                                      ▼
+                            (slot vacío hereda tiempo del padre conectado)
+```
+
+### 10.4 Fase 2 — Cross-family (`Inherit obj → obj`)
+
+**Activación:** toggle **“Inherit obj → obj”** en canvas (infografía/tooltip). Solo entonces:
+
+- Se permiten **dos objetos distintos** en el mismo “modo”.
+- **No** se muestran nodos de esquina a esquina de la otra familia en timeline (solo lo relevante al puente).
+- Aparece **canvas node conector asimétrico** en el centro para unir **doc de familia A ↔ doc de familia B** (endpoint `---`).
+
+**Timeline:**
+
+- Objeto secundario en **layer debajo**, visualmente **cerca** del principal.
+- **Un solo wire** por par doc↔doc cross-family (no dos wires duplicados al mismo doc).
+- Al conectar doc padre (con date) ↔ doc hijo otra familia (date vacío): el vacío **hereda posición y tiempo en el timeline** del padre (segunda dimensión / carril inferior alineado).
+
+```
+[doc padre 1] — [date con dato]
+       |
+[doc padre 2] — [date empty]  → tras link, hereda timeframe del padre 1
+```
+
+### 10.5 Estado técnico actual (repo)
+
+| Pieza | Estado |
+|-------|--------|
+| `panels.jsx` → `Timeline` | Placeholder vacío (`tl-empty-shell`) |
+| `buildTimelineChains` (`timelineChains.js`) | Lógica de cadenas por objeto, `hasCrossObjectLink`, grid temporal — **no montada** en UI |
+| `TimelineTrack` / chips en `panels.jsx` | Existe para blueprint tracks; patrón reutilizable |
+| Canvas cola timeline | `timelineQueueMode`, selección en `App.jsx` + `canvas.jsx` |
+| `resolveCanvasNodeObjectId` | `objectColors.js` — familia de objeto en nodos |
+| Tag color por familia | Solo `.cnode-parent-tag` (no toda la tarjeta) |
+
+### 10.6 Plan de implementación (orden recomendado)
+
+#### Bloque A — Modelo de datos (sin UI pesada)
+
+> **No es** el primer timeline visible de una familia (eso es Bloque B).  
+> **No son** las dos “carpetas” de producto (canvas libre vs inherit) — esas son modos; A es la capa de código compartida.
+
+**Mapa de archivos (Bloque A implementado / en curso):**
+
+| Archivo | Responsabilidad |
+|---------|-----------------|
+| `src/stores/timelineStore.js` | Estado táctico: `inheritObjMode`, `timelineFocus`, `expandedDocIds`, cola (`timelineDocQueue*`), `getEffectiveCanvasMode()` |
+| `src/types/timelineTactical.js` | JSDoc: `CanvasMode`, `TimelineFocus`, `ConnectionKind`, `ClassifiedConnection` |
+| `src/lib/timelineGraph.js` | `classifyCanvasConnection`, `buildClassifiedConnections`, `crossFamilyDocPairKey`, dedup un wire cross-doc |
+| `src/lib/timelineAnchors.js` | `resolveTimelineAnchor`, `buildTacticalWireAnchorMap`, `inheritAnchorFromConnection`, `sortNodesByTimelineAnchor` |
+| `src/lib/timelineChains.js` | `buildTimelineChains({ inheritObjMode })` consume anchors tácticos |
+| `src/lib/objectColors.js` | `resolveCanvasNodeObjectId` (familia en nodo) |
+| `src/lib/timelineSelection.js` | `resolveParentDocIdForCanvasNode` (doc padre de hijo) |
+| `src/temporal.js` | `resolveNodeAnchorDate`, `buildWireAnchorMap` (base; sin reglas cross-family) |
+| `src/hooks/useTacticalTimeline.js` | Selector: canvas + store → `{ chains, grid, classifiedConnections, mode }` (para Bloque B) |
+
+**Flujo de datos:**
+
+```
+App / canvas.jsx  →  timelineStore (modo, foco, cola)
+                 →  timelineGraph (clasificar wires)
+                 →  timelineAnchors (fechas efectivas + inherit)
+                 →  timelineChains (cadenas por objectId)
+                 →  [Bloque B] TacticalTimeline en panels.jsx
+```
+
+**Estado Bloque A:** implementado (sin UI timeline — Bloque B pendiente).
+
+**Piezas Bloque A:**
+
+1. **`timelineViewState`** en `timelineStore.js`:
+   - `getEffectiveCanvasMode()` → `'free' | 'queue' | 'inherit-obj'`
+   - `timelineFocus`: `{ level: 'family' | 'doc' | 'children', objectId?, docId?, canvasNodeId? }`
+   - `expandedDocIds`, `timelineDocQueue` (ya existía)
+2. **`classifyCanvasConnection`** en `timelineGraph.js`
+3. **`resolveTimelineAnchor`** + **`buildTacticalWireAnchorMap`** en `timelineAnchors.js`
+4. **`inheritAnchorFromConnection`** — cross-family-doc + `inheritObjMode` + extremo sin fecha
+
+#### Bloque B — Fase 1 UI timeline
+
+5. Componente **`TacticalTimeline`** (reemplazar placeholder en `panels.jsx`):
+   - Eje pasado → futuro siempre visible.
+   - Carril por `objectId` (o un carril si un solo objeto en foco).
+   - Chips solo `dataType === 'document'` / `canvasKind === 'document'` en nivel 1.
+6. **Click canvas (queue mode)** → añade doc a cola; **click chip timeline** → `focus.docId`, pintar hijos (text, date, launch) en sub-carril o fila indentada.
+7. **Doble click chip doc** → drill-down H1 / bloques (`resolveHeadlineBlockIdForCanvasNode` en `timelineSelection.js`).
+8. Ordenación: `sortByAnchorDate(asc)` — pasado izquierda, futuro derecha (documentar convención en UI).
+
+#### Bloque C — Fase 0 explícito
+
+9. Garantizar que en `mode === 'free'`, conexiones canvas **no** mutan timeline store (solo graph para search/intel).
+10. Separar botón “Add to timeline” / queue del gesto de conectar.
+
+#### Bloque D — Fase 2 `Inherit obj → obj`
+
+11. Toggle en toolbar canvas + estado `inheritObjMode` en store.
+12. Al activar: validar máx. 2 `objectId` en escena; ocultar en timeline nodos de familias no implicadas en el puente.
+13. **`BridgeConnectorNode`** — tipo canvas `bridge` / `asymmetric`, posición central sugerida al crear primer link cross-family.
+14. Regla **un wire** cross-doc: al crear segundo link mismo par, rechazar o fusionar.
+15. Timeline: segundo carril (`layer: 'below'`), `linkedChainIds` de `buildTimelineChains` + conectores verticales SVG entre anchors heredados.
+16. Herencia temporal: date vacío en carril inferior usa `wireAnchors.get(parentId)` del doc conectado upstream.
+
+#### Bloque E — Pulido
+
+17. Colores por familia en chips timeline (reusar `resolveParentTagFamilyStyle` / `resolveObjectStroke`).
+18. Tests unitarios: ordenación fechas, herencia anchor, deduplicación cross-link.
+19. Infografía toggle “Inherit obj → obj” (asset estático o tooltip rich).
+
+### 10.7 Convenciones de nomenclatura
+
+| Término | Significado |
+|---------|-------------|
+| Familia | `parentObjectId` en doc / `objectId` en nodo objeto |
+| Doc táctico | Nodo canvas `canvasKind: document` (product/content, no knowledge corpus) |
+| Hijo | Nodo text/date/checkbox con `parentDocId` vía entity |
+| Wire | Conexión canvas `connections[]` |
+| Herencia | Anchor temporal copiado cross-family (Fase 2) |
+
+### 10.8 Fuera de alcance (por ahora)
+
+- Timeline táctico FuturaTimelineCanvas (mock MACRO/DOC) — eliminado; no reutilizar.
+- Añadir automáticamente todos los nodos conectados al timeline sin acción del usuario.
+- Más de dos familias simultáneas en modo inherit (requiere desactivar toggle o reemplazar familia).
