@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
+import { resolveCanvasNodeObjectId } from "../lib/objectColors.js";
 import {
   pushDocToTimelineQueue,
   resolveHeadlineBlockIdForCanvasNode,
@@ -37,8 +38,15 @@ export const useTimelineStore = create(
       timelineDocQueue: [],
       /** Optional headline block id per queued doc (from canvas child selection). */
       timelineDocQueueFocusByDocId: {},
+      /** Cognitive snapshot mode (Trace Funix) — Intel / mixed doc+object queries. */
+      traceFunixMode: false,
       /** Fase 2: cross-family doc links + timeline inherit (Bloque A). */
       inheritObjMode: false,
+      /**
+       * Reference object for the tactical timeline axis (primary family).
+       * Secondary families inherit time from this set when cross-linked — not from creation order.
+       */
+      primaryTimelineObjectId: null,
       /** Drill-down / timeline selection focus (Bloque A → B UI). */
       timelineFocus: null,
       /** Doc ids expanded to show child nodes on tactical timeline. */
@@ -51,13 +59,31 @@ export const useTimelineStore = create(
         return "free";
       },
 
+      setTraceFunixMode: (enabled) => {
+        const on = Boolean(enabled);
+        if (on) console.log("Trace Funix activated");
+        set({ traceFunixMode: on });
+      },
+
+      toggleTraceFunixMode: () => {
+        const next = !get().traceFunixMode;
+        if (next) console.log("Trace Funix activated");
+        set({ traceFunixMode: next });
+      },
+
       setInheritObjMode: (enabled) => {
         const on = Boolean(enabled);
-        set(on ? { inheritObjMode: true } : { inheritObjMode: false });
+        set(on
+          ? { inheritObjMode: true, timelineQueueMode: false }
+          : { inheritObjMode: false });
       },
 
       toggleInheritObjMode: () => {
         get().setInheritObjMode(!get().inheritObjMode);
+      },
+
+      setPrimaryTimelineObjectId: (objectId) => {
+        set({ primaryTimelineObjectId: objectId || null });
       },
 
       setTimelineFocus: (focus) => {
@@ -290,14 +316,32 @@ export const useTimelineStore = create(
 
       enqueueTimelineDocsFromCanvasNodes: (canvasNodeIds, canvasNodes, nodeEntitiesById, docsById) => {
         const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
+        const familyIds = new Set();
+        for (const canvasId of canvasNodeIds) {
+          const node = nodeById.get(canvasId);
+          if (!node) continue;
+          const objectId = resolveCanvasNodeObjectId(node, docsById, nodeEntitiesById);
+          if (objectId) familyIds.add(objectId);
+        }
+        if (familyIds.size > 1) {
+          return {
+            ok: false,
+            code: "MULTI_FAMILY",
+            message: "Insert to timeline requires nodes from a single object family.",
+          };
+        }
+
         let queue = get().timelineDocQueue;
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
+        let added = 0;
         for (const canvasId of canvasNodeIds) {
           const node = nodeById.get(canvasId);
           if (!node) continue;
           const docId = resolveParentDocIdForCanvasNode(node, nodeEntitiesById, docsById);
           if (!docId) continue;
+          const prevLen = queue.length;
           queue = pushDocToTimelineQueue(queue, docId);
+          if (queue.length > prevLen) added += 1;
           const focusBlockId = resolveHeadlineBlockIdForCanvasNode(
             node,
             nodeEntitiesById,
@@ -306,6 +350,7 @@ export const useTimelineStore = create(
           if (focusBlockId) focusByDocId[docId] = focusBlockId;
         }
         set({ timelineDocQueue: queue, timelineDocQueueFocusByDocId: focusByDocId });
+        return { ok: true, added };
       },
 
       deleteTimeline: (id) =>

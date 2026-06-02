@@ -16,7 +16,11 @@
  */
 
 /**
- * @typedef {'intra-doc' | 'intra-family-doc' | 'intra-family-child' | 'cross-family-doc' | 'cross-family-other' | 'ignored-for-timeline'} ConnectionKind
+ * @typedef {'intra-doc' | 'intra-family-doc' | 'intra-family-child' | 'cross-family-doc' | 'cross-family-date' | 'cross-family-other' | 'type-mismatch' | 'ignored-for-timeline'} ConnectionKind
+ */
+
+/**
+ * @typedef {'document' | 'date' | 'metric' | 'text' | 'other'} TimelineWireType
  */
 
 /**
@@ -25,6 +29,7 @@
  * @property {string} from
  * @property {string} to
  * @property {ConnectionKind} kind
+ * @property {TimelineWireType} [wireType]
  * @property {string|null} [fromObjectId]
  * @property {string|null} [toObjectId]
  * @property {string|null} [fromDocId]

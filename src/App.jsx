@@ -36,7 +36,6 @@ import {
   filterSelectableCanvasNodeIds,
   resolveParentDocIdForCanvasNode,
   resolveHeadlineBlockIdForCanvasNode,
-  docIdExistsOnTimeline,
 } from './lib/timelineSelection.js';
 import {
   buildLaunchDateCanvasNode,
@@ -167,6 +166,8 @@ function Dashboard({ company, onBack }) {
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
   const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
   const toggleTimelineQueueMode = useTimelineStore((s) => s.toggleTimelineQueueMode);
+  const enqueueTimelineDocsFromCanvasNodes = useTimelineStore((s) => s.enqueueTimelineDocsFromCanvasNodes);
+  const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
   const knowledgeFolderActive = useUIStateStore((s) => s.knowledgeFolderActive);
   const timelines = useTimelineStore((s) => s.timelines);
   const prevTimelineAlertsEnabled = useRef(false);
@@ -200,7 +201,7 @@ function Dashboard({ company, onBack }) {
         setSelectedObjectId(doc.parentObjectId);
       }
       if (!timelineQueueMode) return true;
-      if (docId && docIdExistsOnTimeline(docId, timelines)) {
+      if (docId && timelineDocQueue.includes(docId)) {
         setToast({
           message: `"${doc?.title || "Document"}" is already on the timeline`,
           kind: "warm",
@@ -214,11 +215,27 @@ function Dashboard({ company, onBack }) {
       canvasNodes,
       nodeEntities,
       docs,
-      timelines,
+      timelineDocQueue,
       setFilterObjectId,
       setSelectedObjectId,
     ],
   );
+
+  const handleInsertToTimeline = useCallback(() => {
+    if (!selection.length) return;
+    const result = enqueueTimelineDocsFromCanvasNodes(selection, canvasNodes, nodeEntities, docs);
+    if (!result?.ok) {
+      setToast({
+        message: result?.message || "Insert to timeline failed.",
+        kind: "warm",
+      });
+      return;
+    }
+    setToast({
+      message: `Added ${result.added} node${result.added === 1 ? "" : "s"} to timeline queue`,
+      kind: "ok",
+    });
+  }, [selection, canvasNodes, nodeEntities, docs, enqueueTimelineDocsFromCanvasNodes]);
 
   const handleTimelineCanvasSelectMany = useCallback(
     (canvasNodeIds) => {
@@ -666,9 +683,10 @@ function Dashboard({ company, onBack }) {
             timelineQueueMode={timelineQueueMode}
             timelineSelectEnabled={!knowledgeFolderActive}
             onToggleTimelineQueueMode={toggleTimelineQueueMode}
-            onInsertToTimeline={() => {}}
+            onInsertToTimeline={handleInsertToTimeline}
             onTimelineCanvasSelect={handleTimelineCanvasSelect}
             onTimelineCanvasSelectMany={handleTimelineCanvasSelectMany}
+            onNotify={(message, kind = "warm") => setToast({ message, kind })}
             onDeleteNode={deleteCanvasNode}
             onEditNode={() => {}}
             onFocusNote={() => {}}

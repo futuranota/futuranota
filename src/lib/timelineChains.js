@@ -166,6 +166,7 @@ export function buildTimelineChains({
   today = new Date(),
   filterObjectId = null,
   inheritObjMode = false,
+  primaryTimelineObjectId = null,
 }) {
   const meta = { nodeEntitiesById, docsById, objectsById };
   const trackItemsById = new Map();
@@ -180,7 +181,10 @@ export function buildTimelineChains({
     anchors: wireAnchors,
     classifiedConnections,
     crossFamilyDocPairKeys,
-  } = buildTacticalWireAnchorMap(allTrackItems, connections, meta, { inheritObjMode });
+  } = buildTacticalWireAnchorMap(allTrackItems, connections, meta, {
+    inheritObjMode,
+    primaryTimelineObjectId,
+  });
 
   const anchoredIds = [];
   for (const item of allTrackItems) {

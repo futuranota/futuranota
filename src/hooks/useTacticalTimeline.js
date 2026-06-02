@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { buildTimelineChains } from "../lib/timelineChains.js";
+import { resolvePrimaryTimelineObjectId } from "../lib/timelinePrimary.js";
 import { useTimelineStore } from "../stores/index.js";
 
 /**
@@ -30,6 +31,17 @@ export function useTacticalTimeline({
   const expandedDocIds = useTimelineStore((s) => s.expandedDocIds);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
   const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
+  const explicitPrimaryId = useTimelineStore((s) => s.primaryTimelineObjectId);
+
+  const primaryTimelineObjectId = useMemo(
+    () => resolvePrimaryTimelineObjectId({
+      explicitId: explicitPrimaryId,
+      timelineDocQueue,
+      docsById,
+      objectsById,
+    }),
+    [explicitPrimaryId, timelineDocQueue, docsById, objectsById],
+  );
 
   const tactical = useMemo(
     () => buildTimelineChains({
@@ -42,6 +54,7 @@ export function useTacticalTimeline({
       today,
       filterObjectId,
       inheritObjMode,
+      primaryTimelineObjectId,
     }),
     [
       canvasNodes,
@@ -53,12 +66,14 @@ export function useTacticalTimeline({
       today,
       filterObjectId,
       inheritObjMode,
+      primaryTimelineObjectId,
     ],
   );
 
   return {
     canvasMode,
     inheritObjMode,
+    primaryTimelineObjectId,
     timelineFocus,
     expandedDocIds,
     timelineDocQueue,
