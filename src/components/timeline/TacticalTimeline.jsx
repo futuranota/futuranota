@@ -98,21 +98,15 @@ function TacticalObjectRow({
                   />
                 ))}
               </div>
-              {grid && (
-                <>
-                  <div
-                    className="tl-tactical-bar-past"
-                    style={{ width: `${grid.todayPct}%` }}
-                    aria-hidden
-                  />
-                  <div
-                    className="tl-tactical-bar-future"
-                    style={{ left: `${grid.todayPct}%`, width: `${100 - grid.todayPct}%` }}
-                    aria-hidden
-                  />
-                </>
-              )}
               <div className="tl-tactical-rail__axis" aria-hidden />
+              {segments.map((segment) => (
+                <div
+                  key={`range-${segment.key}`}
+                  className="tl-tactical-range-window"
+                  style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
+                  aria-hidden
+                />
+              ))}
               {segments.map((segment) => (
                 <div
                   key={segment.key}
@@ -132,7 +126,7 @@ function TacticalObjectRow({
                   <span className="tl-tactical-rail__today-line" aria-hidden />
                 </div>
               )}
-              {daysLeft > 0 && grid && (
+              {daysLeft > 0 && grid && segments.length > 0 && (
                 <div
                   className="tl-tactical-rail__remaining"
                   style={{ left: `${futureMidPct}%` }}
