@@ -105,7 +105,7 @@ function connectedComponents(nodeIds, adj) {
   return components;
 }
 
-function buildTimelineGrid(anchorDates, today) {
+export function buildTimelineGrid(anchorDates, today) {
   const dates = [startOfCalendarDay(today)];
   for (const d of anchorDates) {
     if (d) dates.push(startOfCalendarDay(d));

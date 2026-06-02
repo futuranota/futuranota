@@ -5,6 +5,7 @@ export function TimelineEventChip({
   objectTint,
   familyAccent,
   variant = "sphere",
+  compact = false,
   focused = false,
   onClick,
   onDoubleClick,
@@ -24,7 +25,11 @@ export function TimelineEventChip({
       <div
         role="button"
         tabIndex={0}
-        className={"tl-event-chip tl-event-chip--card" + (focused ? " is-focused" : "")}
+        className={
+          "tl-event-chip tl-event-chip--card"
+          + (compact ? " is-compact" : "")
+          + (focused ? " is-focused" : "")
+        }
         style={cardStyle}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
@@ -33,7 +38,9 @@ export function TimelineEventChip({
         <span className="tl-chip-card-accent" aria-hidden />
         <span className="tl-chip-card-body">
           <span className="tl-chip-card-title">{name}</span>
-          {dateLabel ? <span className="tl-chip-card-date">{dateLabel}</span> : null}
+          {!compact && dateLabel ? (
+            <span className="tl-chip-card-date">{dateLabel}</span>
+          ) : null}
         </span>
       </div>
     );

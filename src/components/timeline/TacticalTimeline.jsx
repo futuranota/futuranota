@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { fmtDate } from "../../data.jsx";
-import { buildChipDisplay } from "../../temporal.js";
+import { daysBetween, fmtDate } from "../../data.jsx";
+import { buildChipDisplay, startOfCalendarDay } from "../../temporal.js";
 import { buildTacticalObjectRows } from "../../lib/tacticalTimelineView.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
@@ -13,9 +13,16 @@ function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
   return fallbackColor || "var(--hud)";
 }
 
+function resolveNodeAnchorAlign(leftPct, index, total) {
+  if (index === 0 && leftPct < 14) return "start";
+  if (index === total - 1 && leftPct > 86) return "end";
+  return "center";
+}
+
 function TacticalObjectRow({
   row,
   today,
+  grid,
   trackItemsById,
   docsById,
   nodeEntitiesById,
@@ -30,7 +37,7 @@ function TacticalObjectRow({
   const meta = { nodeEntitiesById, docsById };
   const trackObject = objectsById[row.objectId] || null;
   const isChildRow = row.rowKind === "children";
-  const columns = row.columns || [];
+  const { nodeGroups = [], segments = [] } = row.rail || {};
   const chainNodes = row.chain
     ? row.chain.nodeIds.map((id) => trackItemsById.get(id)).filter(Boolean)
     : [];
@@ -40,7 +47,16 @@ function TacticalObjectRow({
     )
     : [];
   const chipExtras = { today, trackNodes: chainNodes, trackConnections: chainConnections };
-  const markerCount = columns.reduce((acc, col) => acc + col.items.length, 0);
+  const markerCount = nodeGroups.reduce((acc, g) => acc + g.items.length, 0);
+  const lastGroupDate = nodeGroups.length ? nodeGroups[nodeGroups.length - 1].date : null;
+  const lastDay = lastGroupDate ? startOfCalendarDay(lastGroupDate) : null;
+  const todayDay = startOfCalendarDay(today);
+  const daysLeft = lastDay && lastDay.getTime() > todayDay.getTime()
+    ? daysBetween(today, lastGroupDate)
+    : 0;
+  const futureMidPct = grid
+    ? grid.todayPct + (100 - grid.todayPct) / 2
+    : 50;
 
   const rowClass = [
     "tl-tactical-row",
@@ -67,53 +83,131 @@ function TacticalObjectRow({
       </div>
 
       <div className="tl-tactical-row__track">
-        {columns.length === 0 ? (
+        {nodeGroups.length === 0 ? (
           <span className="tl-tactical-row__empty mute">No dated events</span>
         ) : (
-          <div className="tl-tactical-columns">
-            {columns.map((column) => (
-              <div key={column.columnKey} className="tl-tactical-column">
-                <time className="tl-tactical-column__date" dateTime={column.date.toISOString()}>
-                  {fmtDate(column.date, "short")}
-                </time>
-                <div
-                  className="tl-tactical-column__stack"
-                  style={{ "--tl-stack-count": column.items.length }}
-                >
-                  {column.items.map((marker) => {
-                    const item = trackItemsById.get(marker.nodeId);
-                    const display = item
-                      ? buildChipDisplay(item, trackObject, meta, chipExtras)
-                      : {
-                        name: (docsById[marker.docId]?.title || "Document").trim(),
-                        dateLabel: fmtDate(marker.date, "short"),
-                        objectTint: accent,
-                      };
-                    const dateLabel = display.dateLabel || fmtDate(marker.date, "short");
-                    const chipName = marker.dataType && marker.dataType !== "document"
-                      ? `${display.name} · ${marker.dataType}`
-                      : display.name;
-
-                    return (
-                      <TimelineEventChip
-                        key={marker.nodeId}
-                        variant="card"
-                        name={chipName}
-                        dateLabel={dateLabel}
-                        familyAccent={familyAccent}
-                        objectTint={display.objectTint || accent}
-                        focused={focusedNoteId === (item?.noteId || marker.nodeId)}
-                        onClick={() => onChipClick(marker, row)}
-                        onDoubleClick={() => onChipDoubleClick(marker, row)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") onChipClick(marker, row);
-                        }}
-                      />
-                    );
-                  })}
-                </div>
+          <div className="tl-tactical-rail">
+            <div className="tl-tactical-rail__inset">
+            <div className="tl-tactical-bar">
+              <div className="tl-tactical-ruler" aria-hidden>
+                {(grid?.ticks || []).map((tick, i) => (
+                  <span
+                    key={i}
+                    className={"tl-tactical-ruler__tick" + (tick.major ? " is-major" : "")}
+                    style={{ left: `${tick.leftPct}%` }}
+                  />
+                ))}
               </div>
-            ))}
+              {grid && (
+                <>
+                  <div
+                    className="tl-tactical-bar-past"
+                    style={{ width: `${grid.todayPct}%` }}
+                    aria-hidden
+                  />
+                  <div
+                    className="tl-tactical-bar-future"
+                    style={{ left: `${grid.todayPct}%`, width: `${100 - grid.todayPct}%` }}
+                    aria-hidden
+                  />
+                </>
+              )}
+              <div className="tl-tactical-rail__axis" aria-hidden />
+              {segments.map((segment) => (
+                <div
+                  key={segment.key}
+                  className="tl-tactical-segment"
+                  style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
+                >
+                  <span className="tl-tactical-segment__edge" aria-hidden />
+                  <span className="tl-tactical-segment__label">{segment.label}</span>
+                </div>
+              ))}
+              {grid && today >= grid.start && today <= grid.end && (
+                <div
+                  className="tl-tactical-rail__today"
+                  style={{ left: `${grid.todayPct}%` }}
+                >
+                  <span className="tl-tactical-rail__today-pill">today</span>
+                  <span className="tl-tactical-rail__today-line" aria-hidden />
+                </div>
+              )}
+              {daysLeft > 0 && grid && (
+                <div
+                  className="tl-tactical-rail__remaining"
+                  style={{ left: `${futureMidPct}%` }}
+                >
+                  {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+                </div>
+              )}
+              {nodeGroups.map((group) => (
+                <span
+                  key={`dot-${group.columnKey}`}
+                  className="tl-tactical-rail__anchor"
+                  style={{ left: `${group.leftPct}%` }}
+                  aria-hidden
+                />
+              ))}
+            </div>
+            <div className="tl-tactical-rail__nodes">
+              {nodeGroups.map((group, groupIndex) => {
+                const anchorAlign = resolveNodeAnchorAlign(
+                  group.leftPct,
+                  groupIndex,
+                  nodeGroups.length,
+                );
+                return (
+                <div
+                  key={group.columnKey}
+                  className={`tl-tactical-node-group is-anchor-${anchorAlign}`}
+                  style={{ left: `${group.leftPct}%` }}
+                >
+                  <div
+                    className="tl-tactical-node-group__stack"
+                    style={{ "--tl-stack-count": group.items.length }}
+                  >
+                    {group.items.map((marker) => {
+                      const item = trackItemsById.get(marker.nodeId);
+                      const display = item
+                        ? buildChipDisplay(item, trackObject, meta, chipExtras)
+                        : {
+                          name: (docsById[marker.docId]?.title || "Document").trim(),
+                          dateLabel: fmtDate(marker.date, "short"),
+                          objectTint: accent,
+                        };
+                      const chipName = marker.dataType && marker.dataType !== "document"
+                        ? `${display.name} · ${marker.dataType}`
+                        : display.name;
+
+                      return (
+                        <TimelineEventChip
+                          key={marker.nodeId}
+                          variant="card"
+                          compact
+                          name={chipName}
+                          familyAccent={familyAccent}
+                          objectTint={display.objectTint || accent}
+                          focused={focusedNoteId === (item?.noteId || marker.nodeId)}
+                          onClick={() => onChipClick(marker, row)}
+                          onDoubleClick={() => onChipDoubleClick(marker, row)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") onChipClick(marker, row);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <time
+                    className="tl-tactical-node-group__date"
+                    dateTime={group.date.toISOString()}
+                  >
+                    {fmtDate(group.date, "short")}
+                  </time>
+                </div>
+                );
+              })}
+            </div>
+            </div>
           </div>
         )}
       </div>
@@ -182,7 +276,7 @@ export function TacticalTimeline({
     ],
   );
 
-  const { displayRows, trackItemsById } = view;
+  const { displayRows, trackItemsById, grid } = view;
   const hasQueue = timelineDocQueue.length > 0;
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
 
@@ -218,6 +312,7 @@ export function TacticalTimeline({
               <b>Timeline</b>
               {` · ${objectRowCount} famil${objectRowCount === 1 ? "y" : "ies"}`}
               {` · ${timelineDocQueue.length} doc${timelineDocQueue.length === 1 ? "" : "s"}`}
+              {grid?.spanDays ? ` · ${grid.spanDays}d span` : ""}
             </span>
             <label
               className="tl-alerts-toggle"
@@ -239,6 +334,7 @@ export function TacticalTimeline({
                 key={row.id}
                 row={row}
                 today={today}
+                grid={grid}
                 trackItemsById={trackItemsById}
                 docsById={docsById}
                 nodeEntitiesById={nodeEntitiesById}

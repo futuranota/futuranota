@@ -1,7 +1,136 @@
-import { parseDate, resolveNodeAnchorDate, startOfCalendarDay } from "../temporal.js";
+import { daysBetween } from "../data.jsx";
+import {
+  parseDate,
+  resolveNodeAnchorDate,
+  sameCalendarDay,
+  startOfCalendarDay,
+} from "../temporal.js";
 import { resolveObjectStroke, softColorFromStroke } from "./objectColors.js";
 import { buildTimelineChains } from "./timelineChains.js";
 import { listChildCanvasNodeIdsForDoc } from "./timelineGraph.js";
+
+/**
+ * First / last calendar day of the month containing `date`.
+ */
+export function startOfCalendarMonth(date) {
+  return startOfCalendarDay(new Date(date.getFullYear(), date.getMonth(), 1));
+}
+
+export function endOfCalendarMonth(date) {
+  return startOfCalendarDay(new Date(date.getFullYear(), date.getMonth() + 1, 0));
+}
+
+const TACTICAL_GRID_PAD_DAYS = 2;
+
+function buildGridTicks(start, end, pct, spanDays) {
+  const ticks = [];
+  const step = spanDays > 62 ? 7 : spanDays > 31 ? 3 : 1;
+  const cur = new Date(start);
+  while (cur.getTime() <= end.getTime()) {
+    const dayOfMonth = cur.getDate();
+    ticks.push({
+      leftPct: pct(cur),
+      major: step === 1 ? dayOfMonth === 1 || dayOfMonth % 5 === 0 : dayOfMonth === 1,
+    });
+    cur.setDate(cur.getDate() + step);
+  }
+  return ticks;
+}
+
+/**
+ * Month-first timeline scale: default span = current calendar month; zooms out when
+ * markers fall outside that window.
+ * @param {Date[]} markerDates
+ * @param {Date} today
+ */
+export function buildTacticalDisplayGrid(markerDates, today) {
+  const monthStart = startOfCalendarMonth(today);
+  const monthEnd = endOfCalendarMonth(today);
+  let start = monthStart;
+  let end = monthEnd;
+
+  const normalized = markerDates.filter(Boolean).map((d) => startOfCalendarDay(d));
+  const todayDay = startOfCalendarDay(today);
+  const anchorTs = normalized.map((d) => d.getTime());
+
+  if (anchorTs.length > 0) {
+    const minTs = Math.min(...anchorTs, todayDay.getTime());
+    const maxTs = Math.max(...anchorTs, todayDay.getTime());
+    if (minTs < monthStart.getTime()) {
+      start = startOfCalendarDay(new Date(minTs - TACTICAL_GRID_PAD_DAYS * 86400000));
+    }
+    if (maxTs > monthEnd.getTime()) {
+      end = startOfCalendarDay(new Date(maxTs + TACTICAL_GRID_PAD_DAYS * 86400000));
+    }
+  }
+
+  const total = end.getTime() - start.getTime() || 86400000;
+  const pct = (d) => {
+    const day = startOfCalendarDay(d);
+    return Math.min(100, Math.max(0, ((day.getTime() - start.getTime()) / total) * 100));
+  };
+  const spanDays = Math.max(1, Math.round(total / 86400000));
+
+  const markerSet = new Map();
+  for (const d of [...normalized, todayDay]) {
+    markerSet.set(d.getTime(), d);
+  }
+  const markers = [...markerSet.values()].sort((a, b) => a - b);
+
+  return {
+    start,
+    end,
+    pct,
+    todayPct: pct(today),
+    spanDays,
+    monthStart,
+    monthEnd,
+    markers,
+    ticks: buildGridTicks(start, end, pct, spanDays),
+  };
+}
+
+/**
+ * Label between two anchor dates (matches canvas ConnLabel / computeEdgeTemporalLabel).
+ * @param {Date} fromDate
+ * @param {Date} toDate
+ */
+export function formatTimelineSpanLabel(fromDate, toDate) {
+  if (sameCalendarDay(fromDate, toDate)) return "same day";
+  return `${Math.abs(daysBetween(fromDate, toDate))}d`;
+}
+
+/**
+ * Proportional rail layout for one row (node groups + span segments).
+ * @param {ReturnType<typeof buildTimelineColumns>} columns
+ * @param {import('./timelineChains.js').TimelineGrid | null | undefined} grid
+ */
+export function buildRowTimelineRail(columns, grid) {
+  if (!columns?.length || !grid) {
+    return { nodeGroups: [], segments: [] };
+  }
+
+  const nodeGroups = columns.map((col) => ({
+    ...col,
+    leftPct: grid.pct(col.date),
+  }));
+
+  const segments = [];
+  for (let i = 0; i < columns.length - 1; i += 1) {
+    const from = columns[i].date;
+    const to = columns[i + 1].date;
+    const leftPct = grid.pct(from);
+    const rightPct = grid.pct(to);
+    segments.push({
+      key: `${columns[i].columnKey}-${columns[i + 1].columnKey}`,
+      leftPct,
+      widthPct: Math.max(rightPct - leftPct, 0.5),
+      label: formatTimelineSpanLabel(from, to),
+    });
+  }
+
+  return { nodeGroups, segments };
+}
 
 function isDocumentNode(node, item) {
   const n = node || item;
@@ -222,8 +351,18 @@ export function buildTacticalObjectRows(params) {
   const childRows = displayRows.filter((r) => r.rowKind === "children");
   const orderedRows = [...primaryRows, ...inheritRows, ...childRows];
 
+  const allMarkerDates = orderedRows.flatMap((row) =>
+    (row.columns || []).map((col) => col.date),
+  );
+  const displayGrid = buildTacticalDisplayGrid(allMarkerDates, today);
+
+  for (const row of orderedRows) {
+    row.rail = buildRowTimelineRail(row.columns, displayGrid);
+  }
+
   return {
     ...tactical,
+    grid: displayGrid,
     displayRows: orderedRows,
   };
 }
