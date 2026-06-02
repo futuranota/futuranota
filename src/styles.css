@@ -3408,13 +3408,16 @@ textarea.note-form-field {
   color: var(--text-2);
 }
 
-/* ─── Tactical timeline (tracks + chronological columns) ─── */
+/* ─── Tactical timeline (proportional month rail) ─── */
 .timeline.tl-tactical {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--panel-solid);
-  border-top: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--panel-solid) 96%, #14181d 4%);
+  border-top: 1px solid color-mix(in oklab, var(--hairline) 80%, #21232b 20%);
+  border-radius: 12px 12px 0 0;
+  margin: 0 4px;
+  overflow: visible;
 }
 .timeline.tl-tactical--empty {
   align-items: center;
@@ -3447,17 +3450,19 @@ textarea.note-form-field {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 0 12px 12px;
+  padding: 0 10px 12px;
   overflow-y: auto;
+  overflow-x: visible;
   max-height: min(42vh, 320px);
 }
 .tl-tactical-row {
   display: grid;
-  grid-template-columns: minmax(100px, 132px) minmax(0, 1fr);
-  gap: 12px 16px;
-  align-items: center;
-  padding: 12px 4px;
+  grid-template-columns: minmax(88px, 112px) minmax(0, 1fr);
+  gap: 8px 12px;
+  align-items: start;
+  padding: 10px 2px 12px;
   border-bottom: 1px solid color-mix(in oklab, var(--hairline) 90%, transparent);
+  overflow: visible;
 }
 .tl-tactical-row:last-child {
   border-bottom: none;
@@ -3502,45 +3507,271 @@ textarea.note-form-field {
 }
 .tl-tactical-row__track {
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: visible;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
+  overflow: visible;
+  padding: 0 6px 0 8px;
 }
 .tl-tactical-row__empty {
   font-family: var(--mono);
   font-size: 10px;
   padding: 8px 0;
 }
-.tl-tactical-columns {
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
-  min-height: 36px;
+.tl-tactical-rail {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  --tl-rail-gutter: 58px;
 }
-.tl-tactical-column {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 0 0 auto;
-  min-width: 108px;
-  max-width: 168px;
+.tl-tactical-rail__inset {
+  position: relative;
+  margin: 0 var(--tl-rail-gutter);
+  min-width: 0;
 }
-.tl-tactical-column__date {
-  font-family: var(--mono);
+.tl-tactical-bar {
+  position: relative;
+  height: 34px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--panel-2) 70%, #1b1f27 30%);
+  overflow: visible;
+}
+.tl-tactical-ruler {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 10px;
+  z-index: 1;
+  pointer-events: none;
+}
+.tl-tactical-ruler__tick {
+  position: absolute;
+  top: 2px;
+  width: 1px;
+  height: 6px;
+  margin-left: -0.5px;
+  background: color-mix(in oklab, #444 80%, var(--dim) 20%);
+  border-radius: 1px;
+  opacity: 0.55;
+}
+.tl-tactical-ruler__tick.is-major {
+  height: 8px;
+  opacity: 0.85;
+}
+.tl-tactical-bar-past {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 7px 0 0 7px;
+  background: color-mix(in oklab, #444 18%, transparent);
+  z-index: 0;
+  pointer-events: none;
+}
+.tl-tactical-bar-future {
+  position: absolute;
+  top: 50%;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 0 7px 7px 0;
+  background: color-mix(in oklab, #a6b125 22%, transparent);
+  z-index: 0;
+  pointer-events: none;
+}
+.tl-tactical-rail__axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dim) 55%, #444);
+  z-index: 2;
+  pointer-events: none;
+}
+.tl-tactical-segment {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  z-index: 3;
+  pointer-events: none;
+}
+.tl-tactical-segment__edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tl-family-accent, var(--hud)) 35%, var(--dim));
+}
+.tl-tactical-segment__label {
+  position: absolute;
+  top: -17px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--text-2);
+  background: color-mix(in oklab, var(--panel-solid) 92%, transparent);
+  border: 1px solid var(--hairline);
+}
+.tl-tactical-rail__today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  z-index: 5;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.tl-tactical-rail__today-pill {
+  position: absolute;
+  top: 1px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-family: var(--sans);
   font-size: 9px;
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--dim);
+  color: #e7b464;
+  background: transparent;
+  border: 1.5px solid #675539;
   white-space: nowrap;
 }
-.tl-tactical-column__stack {
+.tl-tactical-rail__today-line {
+  position: absolute;
+  top: 18px;
+  bottom: 2px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: #e7b464;
+  border-radius: 1px;
+  opacity: 0.9;
+}
+.tl-tactical-rail__remaining {
+  position: absolute;
+  top: 1px;
+  transform: translateX(-50%);
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 600;
+  color: #e7b464;
+  background: color-mix(in oklab, var(--panel-solid) 88%, transparent);
+  border: 1.5px solid #675539;
+  white-space: nowrap;
+  z-index: 4;
+  pointer-events: none;
+}
+.tl-tactical-rail__anchor {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    color-mix(in oklab, var(--tl-family-accent, var(--hud)) 25%, #f5e6c8),
+    color-mix(in oklab, var(--tl-family-accent, var(--hud)) 45%, #9a8f76)
+  );
+  border: 1px solid color-mix(in oklab, var(--tl-family-accent, var(--hud)) 40%, var(--hairline));
+  z-index: 4;
+  pointer-events: none;
+}
+.tl-tactical-rail__nodes {
+  position: relative;
+  height: 50px;
+  min-width: 0;
+  overflow: visible;
+  padding-bottom: 2px;
+}
+.tl-tactical-node-group {
+  position: absolute;
+  top: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-height: 28px;
+  min-width: 0;
+  max-width: min(120px, 26vw);
+}
+.tl-tactical-node-group.is-anchor-center {
+  transform: translateX(-50%);
+  align-items: center;
+}
+.tl-tactical-node-group.is-anchor-start {
+  transform: translateX(0);
+  align-items: flex-start;
+}
+.tl-tactical-node-group.is-anchor-end {
+  transform: translateX(-100%);
+  align-items: flex-end;
+}
+.tl-tactical-node-group__date {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: lowercase;
+  color: #8a919c;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tl-tactical-node-group.is-anchor-start .tl-tactical-node-group__date {
+  text-align: left;
+}
+.tl-tactical-node-group.is-anchor-end .tl-tactical-node-group__date {
+  text-align: right;
+}
+.tl-tactical-node-group__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  width: max-content;
+  min-width: 72px;
+  max-width: 120px;
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact {
+  width: 100%;
+  min-width: 72px;
+  max-width: 120px;
+  border-radius: 5px;
+  border-left-width: 3px;
+  background: color-mix(in oklab, var(--panel-3) 92%, var(--bg) 8%);
+  box-shadow:
+    0 1px 3px color-mix(in oklab, #000 22%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--hairline) 80%, transparent);
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact:hover {
+  background: color-mix(in oklab, var(--panel-3) 98%, var(--text) 2%);
+  box-shadow:
+    0 2px 6px color-mix(in oklab, #000 26%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--tl-family-accent, var(--hud)) 25%, var(--hairline));
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact .tl-chip-card-body {
+  padding: 5px 8px 5px 7px;
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact .tl-chip-card-title {
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .tl-event-chip--card {
   display: flex;
