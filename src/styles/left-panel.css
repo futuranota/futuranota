@@ -432,18 +432,12 @@
   box-sizing: border-box;
 }
 
-.obj-thumb-cell.active {
+.obj-thumb-cell.is-menu-open {
   padding: 6px;
-  background: linear-gradient(
-    145deg,
-    rgb(22, 26, 29) 0%,
-    rgb(18, 22, 26) 48%,
-    rgb(28, 22, 24) 100%
-  );
+  gap: 6px;
   border-color: rgba(255, 255, 255, 0.07);
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  background: transparent;
+  box-shadow: none;
 }
 
 .obj-thumb {
@@ -454,30 +448,24 @@
   gap: 6px;
   width: 100%;
   padding: 10px 6px 8px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: center;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .obj-thumb:hover {
-  border-color: rgba(255, 255, 255, 0.32);
-}
-
-.obj-thumb-cell:not(.active) .obj-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--glass-border);
-}
-
-.obj-thumb-cell:not(.active) .obj-thumb:hover {
   border-color: var(--glass-border-2);
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.obj-thumb.active {
+.obj-thumb-cell.is-menu-open .obj-thumb {
   border-color: rgba(255, 203, 151, 0.28);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .obj-thumb[draggable="true"] {
@@ -491,7 +479,7 @@
 .obj-thumb-name {
   font-size: 10px;
   font-weight: 500;
-  color: #1c1513;
+  color: var(--text);
   line-height: 1.2;
   max-width: 100%;
   overflow: hidden;
@@ -499,12 +487,9 @@
   white-space: nowrap;
 }
 
-.obj-thumb-cell:not(.active) .obj-thumb-name {
-  color: var(--text);
-}
-
-.obj-thumb.active .obj-thumb-name {
+.obj-thumb-cell.is-menu-open .obj-thumb-name {
   font-weight: 600;
+  color: var(--text);
 }
 
 .obj-thumb-actions {
@@ -559,32 +544,78 @@
   gap: 12px;
 }
 
+.lp-click-folders-stack--has-back {
+  position: relative;
+  padding-top: var(--lp-folder-back-inset-top, 34px);
+  padding-left: var(--lp-folder-back-inset-left, 4px);
+}
+
+.lp-click-folders-stack__boxes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lp-click-folder-detail {
+  position: relative;
+  padding-top: var(--lp-folder-back-inset-top, 34px);
+  padding-left: var(--lp-folder-back-inset-left, 4px);
+}
+
 .lp-click-folder-back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   width: fit-content;
-  margin-bottom: 4px;
-  padding: 4px 2px;
+  margin: 0;
+  padding: 2px;
   border: none;
+  border-radius: 4px;
   background: transparent;
-  color: #dadfee;
+  color: #e8dcc8;
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+  transition: opacity 0.15s ease;
 }
 
-.lp-click-folder-back:hover {
-  color: #e8dcc8;
+.lp-click-folder-back:focus-visible {
+  outline: 2px solid color-mix(in oklab, #e8dcc8 45%, transparent);
+  outline-offset: 2px;
 }
 
-.lp-click-folder-back-arrow {
-  font-size: 14px;
-  line-height: 1;
+.lp-click-folder-back-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  opacity: 0.2;
+  -webkit-mask-image: url("/uploads/botones/left.svg");
+  mask-image: url("/uploads/botones/left.svg");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  transition: opacity 0.15s ease;
+}
+
+.lp-click-folder-back:hover .lp-click-folder-back-icon,
+.lp-click-folder-back:hover .lp-click-folder-back-label {
+  opacity: 1;
 }
 
 .lp-click-folder-back-label {
+  opacity: 0.2;
   font-weight: 600;
+  line-height: 1.2;
+  transition: opacity 0.15s ease;
 }
 
 .lp-click-folder-back-label.is-lowercase {

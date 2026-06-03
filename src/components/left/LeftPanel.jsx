@@ -59,23 +59,71 @@ function SelectorTypeIcon({ type, className = "lp-item-icon" }) {
   return <span className={className}>{TYPE_ICON[type] || "◯"}</span>;
 }
 
+const OBJECT_LONG_PRESS_MS = 550;
+
 /* Objects grid: cube + name below, draggable */
-function ObjectThumb({ object, active, onClick, onDoubleClick, onDelete, onEdit }) {
+function ObjectThumb({ object, menuOpen, onOpen, onMenuOpen, onDelete, onEdit }) {
+  const longPressTimer = useRef(null);
+  const suppressClickRef = useRef(false);
+  const pointerStartRef = useRef({ x: 0, y: 0 });
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handlePointerDown = (e) => {
+    if (e.button !== 0) return;
+    suppressClickRef.current = false;
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    clearLongPress();
+    longPressTimer.current = setTimeout(() => {
+      suppressClickRef.current = true;
+      onMenuOpen?.();
+    }, OBJECT_LONG_PRESS_MS);
+  };
+
+  const handlePointerMove = (e) => {
+    const dx = e.clientX - pointerStartRef.current.x;
+    const dy = e.clientY - pointerStartRef.current.y;
+    if (Math.hypot(dx, dy) > 8) clearLongPress();
+  };
+
+  const handlePointerUp = () => clearLongPress();
+  const handlePointerCancel = () => clearLongPress();
+
+  const handleClick = (e) => {
+    if (e.detail > 1) return;
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    onOpen?.();
+  };
+
+  useEffect(() => () => clearLongPress(), []);
+
   return (
-    <div className={"obj-thumb-cell" + (active ? " active" : "")}>
+    <div className={"obj-thumb-cell" + (menuOpen ? " is-menu-open" : "")}>
       <button
         type="button"
-        className={"obj-thumb" + (active ? " active" : "")}
+        className="obj-thumb"
         draggable
-        onClick={onClick}
-        onDoubleClick={onDoubleClick}
+        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onPointerLeave={handlePointerUp}
         onDragStart={(e) => startObjectDrag(e, object.id)}
-        title="Drag to canvas · double-click for documents"
+        title="Click for documents · hold for edit or delete · drag to canvas"
       >
         <ObjectIcon variant="md" />
         <span className="obj-thumb-name">{object.name}</span>
       </button>
-      {active && (
+      {menuOpen && (
         <div className="obj-thumb-actions">
           <button
             type="button"
@@ -120,11 +168,22 @@ function ClickFolderBox({ variant, onClick, label }) {
   );
 }
 
-function ClickFolderBack({ onBack, label, lowercase = false }) {
+function ClickFolderBack({ onBack, label, lowercase = false, iconOnly = false }) {
+  const ariaLabel = label ? `Back — ${label}` : "Back";
   return (
-    <button type="button" className="lp-click-folder-back" onClick={onBack}>
-      <span className="lp-click-folder-back-arrow" aria-hidden>←</span>
-      <span className={"lp-click-folder-back-label" + (lowercase ? " is-lowercase" : "")}>{label}</span>
+    <button
+      type="button"
+      className="lp-click-folder-back"
+      onClick={onBack}
+      aria-label={ariaLabel}
+      title={ariaLabel}
+    >
+      <span className="lp-click-folder-back-icon" aria-hidden />
+      {!iconOnly && label ? (
+        <span className={"lp-click-folder-back-label" + (lowercase ? " is-lowercase" : "")}>
+          {label}
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -688,6 +747,7 @@ export function LeftPanel({
 }) {
   const [panelType, setPanelType] = useState("Objects");
   const [activeId, setActiveId] = useState(null);
+  const [objectMenuId, setObjectMenuId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editObjectId, setEditObjectId] = useState(null);
   const [folderOpen, setFolderOpen] = useState(false);
@@ -814,6 +874,7 @@ export function LeftPanel({
   };
 
   const openDocumentsForObject = (objectId) => {
+    setObjectMenuId(null);
     setFilterObjectId(objectId);
     setSelectedObjectId(objectId);
     setPanelType("Documents");
@@ -821,6 +882,16 @@ export function LeftPanel({
     setShowCreate(false);
     setFolderOpen(false);
   };
+
+  useEffect(() => {
+    if (!objectMenuId) return;
+    const closeMenu = (e) => {
+      if (e.target.closest?.(".obj-thumb-cell")) return;
+      setObjectMenuId(null);
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    return () => document.removeEventListener("pointerdown", closeMenu);
+  }, [objectMenuId]);
 
   const switchType = (t) => {
     setPanelType(t);
@@ -1125,16 +1196,19 @@ export function LeftPanel({
                 <ObjectThumb
                   key={obj.id}
                   object={obj}
-                  active={obj.id === activeId}
-                  onClick={(e) => {
-                    if (e.detail > 1) return;
-                    const nextId = obj.id === activeId ? null : obj.id;
-                    setActiveId(nextId);
-                    setSelectedObjectId(nextId);
+                  menuOpen={obj.id === objectMenuId}
+                  onOpen={() => openDocumentsForObject(obj.id)}
+                  onMenuOpen={() => setObjectMenuId(
+                    (prev) => (prev === obj.id ? null : obj.id),
+                  )}
+                  onDelete={() => {
+                    setObjectMenuId(null);
+                    handleDeleteObject(obj.id);
                   }}
-                  onDoubleClick={() => openDocumentsForObject(obj.id)}
-                  onDelete={() => handleDeleteObject(obj.id)}
-                  onEdit={() => setEditObjectId(obj.id)}
+                  onEdit={() => {
+                    setObjectMenuId(null);
+                    setEditObjectId(obj.id);
+                  }}
                 />
               ))}
               {filteredObjectList.length === 0 && (
@@ -1149,22 +1223,44 @@ export function LeftPanel({
 
         {/* DOCUMENTS — click folder navigation */}
         {panelType === "Documents" && (
-          <div className="lp-click-folders-stack">
+          <div
+            className={
+              "lp-click-folders-stack"
+              + (clickFolderView === null && filterObjectId ? " lp-click-folders-stack--has-back" : "")
+            }
+          >
             {clickFolderView === null ? (
               <>
-                <ClickFolderBox variant="groups" onClick={() => setClickFolderView("groups")} />
-                <ClickFolderBox variant="subgroups" onClick={() => setClickFolderView("subgroups")} />
-                <ClickFolderBox
-                  variant="knowledge"
-                  label="knowledge"
-                  onClick={() => setClickFolderView("knowledge")}
-                />
+                {filterObjectId ? (
+                  <ClickFolderBack
+                    iconOnly
+                    onBack={() => {
+                      setClickFolderView(null);
+                      setFilterObjectId(null);
+                      setPanelType("Objects");
+                    }}
+                    label={filterObject?.name || "Objects"}
+                  />
+                ) : null}
+                <div className="lp-click-folders-stack__boxes">
+                  <ClickFolderBox variant="groups" onClick={() => setClickFolderView("groups")} />
+                  <ClickFolderBox variant="subgroups" onClick={() => setClickFolderView("subgroups")} />
+                  <ClickFolderBox
+                    variant="knowledge"
+                    label="knowledge"
+                    onClick={() => setClickFolderView("knowledge")}
+                  />
+                </div>
               </>
             ) : null}
 
             {clickFolderView === "groups" ? (
               <div className="lp-click-folder-detail">
-                <ClickFolderBack onBack={() => setClickFolderView(null)} label="Products" />
+                <ClickFolderBack
+                  iconOnly
+                  onBack={() => setClickFolderView(null)}
+                  label="Products"
+                />
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
                   docs={docs}
@@ -1199,7 +1295,11 @@ export function LeftPanel({
 
             {clickFolderView === "knowledge" ? (
               <div className="lp-click-folder-detail">
-                <ClickFolderBack onBack={() => setClickFolderView(null)} label="Knowledge" />
+                <ClickFolderBack
+                  iconOnly
+                  onBack={() => setClickFolderView(null)}
+                  label="Knowledge"
+                />
                 <div className="lp-click-folder-detail-list">
                   {knowledgeDocs.length ? (
                     knowledgeDocs.map((doc) => (
@@ -1225,7 +1325,11 @@ export function LeftPanel({
 
             {clickFolderView === "subgroups" ? (
               <div className="lp-click-folder-detail">
-                <ClickFolderBack onBack={() => setClickFolderView(null)} label="Content" />
+                <ClickFolderBack
+                  iconOnly
+                  onBack={() => setClickFolderView(null)}
+                  label="Content"
+                />
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
                   docs={docs}
