@@ -13,9 +13,7 @@ function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
   return fallbackColor || "var(--hud)";
 }
 
-function resolveNodeAnchorAlign(leftPct, index, total) {
-  if (index === 0 && leftPct < 14) return "start";
-  if (index === total - 1 && leftPct > 86) return "end";
+function resolveNodeAnchorAlign() {
   return "center";
 }
 
@@ -88,6 +86,7 @@ function TacticalObjectRow({
         ) : (
           <div className="tl-tactical-rail">
             <div className="tl-tactical-rail__inset">
+            <div className="tl-tactical-rail__plot">
             <div className="tl-tactical-bar">
               <div className="tl-tactical-ruler" aria-hidden>
                 {(grid?.ticks || []).map((tick, i) => (
@@ -98,6 +97,13 @@ function TacticalObjectRow({
                   />
                 ))}
               </div>
+              {grid && today >= grid.start && today <= grid.end && (
+                <div
+                  className="tl-tactical-rail__past"
+                  style={{ width: `${grid.todayPct}%` }}
+                  aria-hidden
+                />
+              )}
               <div className="tl-tactical-rail__axis" aria-hidden />
               {segments.map((segment) => (
                 <div
@@ -114,7 +120,6 @@ function TacticalObjectRow({
                   style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
                 >
                   <span className="tl-tactical-segment__edge" aria-hidden />
-                  <span className="tl-tactical-segment__label">{segment.label}</span>
                 </div>
               ))}
               {grid && today >= grid.start && today <= grid.end && (
@@ -122,7 +127,9 @@ function TacticalObjectRow({
                   className="tl-tactical-rail__today"
                   style={{ left: `${grid.todayPct}%` }}
                 >
-                  <span className="tl-tactical-rail__today-pill">today</span>
+                  <div className="tl-tactical-rail__today-head">
+                    <span className="tl-tactical-rail__today-date">{fmtDate(today, "short")}</span>
+                  </div>
                   <span className="tl-tactical-rail__today-line" aria-hidden />
                 </div>
               )}
@@ -134,14 +141,22 @@ function TacticalObjectRow({
                   {daysLeft} day{daysLeft === 1 ? "" : "s"} left
                 </div>
               )}
-              {nodeGroups.map((group) => (
-                <span
-                  key={`dot-${group.columnKey}`}
-                  className="tl-tactical-rail__anchor"
-                  style={{ left: `${group.leftPct}%` }}
-                  aria-hidden
-                />
-              ))}
+            </div>
+            <div className="tl-tactical-rail__anchors" aria-hidden>
+              {nodeGroups.map((group, groupIndex) => {
+                const anchorAlign = resolveNodeAnchorAlign(
+                  group.leftPct,
+                  groupIndex,
+                  nodeGroups.length,
+                );
+                return (
+                  <span
+                    key={`dot-${group.columnKey}`}
+                    className={`tl-tactical-rail__anchor is-anchor-${anchorAlign}`}
+                    style={{ left: `${group.leftPct}%` }}
+                  />
+                );
+              })}
             </div>
             <div className="tl-tactical-rail__nodes">
               {nodeGroups.map((group, groupIndex) => {
@@ -200,6 +215,7 @@ function TacticalObjectRow({
                 </div>
                 );
               })}
+            </div>
             </div>
             </div>
           </div>

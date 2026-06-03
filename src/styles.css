@@ -3438,13 +3438,20 @@ textarea.note-form-field {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px 8px;
+  padding: 8px 16px 6px;
   border-bottom: 1px solid var(--hairline);
   flex-shrink: 0;
 }
 .tl-tactical-header__title {
-  font-size: 12px;
+  font-size: 10px;
+  line-height: 1.35;
   color: var(--text-2);
+}
+.tl-tactical-header__title b {
+  font-weight: 600;
+}
+.tl-tactical-header .tl-alerts-toggle {
+  font-size: 9.5px;
 }
 .tl-tactical-body {
   display: flex;
@@ -3460,7 +3467,7 @@ textarea.note-form-field {
   grid-template-columns: minmax(88px, 112px) minmax(0, 1fr);
   gap: 8px 12px;
   align-items: start;
-  padding: 10px 2px 12px;
+  padding: 16px 2px 12px;
   border-bottom: 1px solid color-mix(in oklab, var(--hairline) 90%, transparent);
   overflow: visible;
 }
@@ -3520,16 +3527,31 @@ textarea.note-form-field {
   width: 100%;
   min-width: 0;
   margin: 0;
-  --tl-rail-gutter: 58px;
+  --tl-rail-gutter: 20px;
 }
 .tl-tactical-rail__inset {
   position: relative;
   margin: 0 var(--tl-rail-gutter);
   min-width: 0;
+  padding: 16px 24px 0;
+  box-sizing: border-box;
+}
+.tl-tactical-rail__plot {
+  position: relative;
+  min-width: 0;
+}
+.tl-tactical-rail__anchors {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 56px;
+  pointer-events: none;
+  z-index: 6;
 }
 .tl-tactical-bar {
   position: relative;
-  height: 46px;
+  height: 56px;
   margin-bottom: 8px;
   border-radius: 8px;
   background: color-mix(in oklab, var(--panel-2) 70%, #1b1f27 30%);
@@ -3566,6 +3588,17 @@ textarea.note-form-field {
   z-index: 1;
   pointer-events: none;
 }
+.tl-tactical-rail__past {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+  background: color-mix(in oklab, #c9a574 40%, transparent);
+  border-radius: 1px 0 0 1px;
+  z-index: 3;
+  pointer-events: none;
+}
 .tl-tactical-rail__axis {
   position: absolute;
   left: 0;
@@ -3580,9 +3613,10 @@ textarea.note-form-field {
 }
 .tl-tactical-segment {
   position: absolute;
-  top: 50%;
-  height: 2px;
-  margin-top: -1px;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  margin-top: 0;
   z-index: 3;
   pointer-events: none;
 }
@@ -3590,17 +3624,18 @@ textarea.note-form-field {
   position: absolute;
   left: 0;
   right: 0;
-  top: 0;
+  top: 50%;
   height: 2px;
+  margin-top: -1px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--tl-family-accent, var(--hud)) 35%, var(--dim));
 }
 .tl-tactical-segment__label {
   position: absolute;
-  top: -19px;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  padding: 1px 6px;
+  padding: 0 6px;
   border-radius: 999px;
   font-family: var(--sans);
   font-size: 9px;
@@ -3620,45 +3655,74 @@ textarea.note-form-field {
   pointer-events: none;
   transform: translateX(-50%);
 }
-.tl-tactical-rail__today-pill {
+.tl-tactical-rail__today-head {
   position: absolute;
-  top: 3px;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-family: var(--sans);
-  font-size: 10px;
-  font-weight: 500;
-  color: #e7b464;
-  background: color-mix(in oklab, var(--panel-solid) 90%, transparent);
-  border: 1.5px solid #675539;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  padding-top: 0;
   white-space: nowrap;
-  z-index: 6;
+  z-index: 8;
+}
+.tl-tactical-rail__today-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--sans);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-transform: lowercase;
+  color: color-mix(in oklab, #d48882 85%, var(--text));
+}
+.tl-tactical-rail__today-date::before {
+  content: "";
+  flex-shrink: 0;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: color-mix(in oklab, #c9a574 22%, transparent);
 }
 .tl-tactical-rail__today-line {
   position: absolute;
-  top: 22px;
-  bottom: 4px;
+  top: 50%;
   left: 50%;
   width: 2px;
-  margin-left: -1px;
-  background: #e7b464;
+  height: 28px;
+  margin: -14px 0 0 -1px;
+  background: color-mix(in oklab, #c97872 80%, transparent);
   border-radius: 1px;
-  opacity: 0.9;
+  z-index: 7;
+}
+.tl-tactical-rail__today-line::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: color-mix(in oklab, #c97872 80%, transparent);
 }
 .tl-tactical-rail__remaining {
   position: absolute;
-  top: 3px;
+  top: 0;
   transform: translateX(-50%);
-  padding: 1px 8px;
-  border-radius: 999px;
+  padding: 0 6px;
+  padding-top: 0;
+  border-radius: 0;
   font-family: var(--sans);
   font-size: 9px;
-  font-weight: 600;
-  color: #e7b464;
-  background: color-mix(in oklab, var(--panel-solid) 88%, transparent);
-  border: 1.5px solid #675539;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #f5e8b8;
+  background: transparent;
+  border: none;
   white-space: nowrap;
   z-index: 4;
   pointer-events: none;
@@ -3668,7 +3732,7 @@ textarea.note-form-field {
   top: 50%;
   width: 8px;
   height: 8px;
-  margin: -4px 0 0 -4px;
+  margin-top: -4px;
   border-radius: 50%;
   background: radial-gradient(
     circle at 35% 35%,
@@ -3676,12 +3740,16 @@ textarea.note-form-field {
     color-mix(in oklab, var(--tl-family-accent, var(--hud)) 45%, #9a8f76)
   );
   border: 1px solid color-mix(in oklab, var(--tl-family-accent, var(--hud)) 40%, var(--hairline));
-  z-index: 4;
   pointer-events: none;
+}
+.tl-tactical-rail__anchor.is-anchor-center,
+.tl-tactical-rail__anchor.is-anchor-start,
+.tl-tactical-rail__anchor.is-anchor-end {
+  transform: translateX(-50%);
 }
 .tl-tactical-rail__nodes {
   position: relative;
-  height: 58px;
+  height: 64px;
   min-width: 0;
   overflow: visible;
   padding-bottom: 2px;
@@ -3696,17 +3764,11 @@ textarea.note-form-field {
   min-width: 0;
   max-width: min(120px, 26vw);
 }
-.tl-tactical-node-group.is-anchor-center {
+.tl-tactical-node-group.is-anchor-center,
+.tl-tactical-node-group.is-anchor-start,
+.tl-tactical-node-group.is-anchor-end {
   transform: translateX(-50%);
   align-items: center;
-}
-.tl-tactical-node-group.is-anchor-start {
-  transform: translateX(0);
-  align-items: flex-start;
-}
-.tl-tactical-node-group.is-anchor-end {
-  transform: translateX(-100%);
-  align-items: flex-end;
 }
 .tl-tactical-node-group__date {
   font-family: var(--mono);
@@ -3717,12 +3779,7 @@ textarea.note-form-field {
   color: #8a919c;
   white-space: nowrap;
   flex-shrink: 0;
-}
-.tl-tactical-node-group.is-anchor-start .tl-tactical-node-group__date {
-  text-align: left;
-}
-.tl-tactical-node-group.is-anchor-end .tl-tactical-node-group__date {
-  text-align: right;
+  text-align: center;
 }
 .tl-tactical-node-group__stack {
   display: flex;

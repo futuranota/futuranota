@@ -740,18 +740,19 @@
 }
 
 .lp-click-folder-box-icon {
-  width: auto;
-  height: 52px;
-  max-width: 100%;
+  width: 26px;
+  height: 44px;
+  flex-shrink: 0;
   display: block;
 }
 
-.lp-click-folder-box--subgroups .lp-click-folder-box-icon {
-  height: 58px;
+.lp-click-folder-box-icon-img {
+  object-fit: contain;
+  opacity: 0.55;
 }
 
-.lp-click-folder-box--knowledge .lp-click-folder-box-icon {
-  height: 52px;
+.lp-click-folder-box:hover .lp-click-folder-box-icon-img {
+  opacity: 0.92;
 }
 
 .lp-doc-card {
