@@ -27,6 +27,8 @@ import {
   resolveKnowledgeDocDisplayTitle,
 } from "../../lib/templateDoc.js";
 import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
+import { PackActionsBar } from "../packs/PackActionsBar.jsx";
+import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
@@ -757,6 +759,7 @@ export function LeftPanel({
   const [nodeSearch, setNodeSearch] = useState("");
   const [objectScopeId, setObjectScopeId] = useState(null);
   const [clickFolderView, setClickFolderView] = useState(null);
+  const [packImportActive, setPackImportActive] = useState(false);
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
@@ -833,7 +836,17 @@ export function LeftPanel({
 
   useEffect(() => {
     setClickFolderView(null);
+    setPackImportActive(false);
   }, [panelType, filterObjectId]);
+
+  const openPackImportView = () => {
+    setClickFolderView(null);
+    setPackImportActive(true);
+  };
+
+  const closePackImportView = () => {
+    setPackImportActive(false);
+  };
 
   useEffect(() => {
     setKnowledgeFolderActive(clickFolderView === "knowledge");
@@ -881,6 +894,11 @@ export function LeftPanel({
     setActiveId(null);
     setShowCreate(false);
     setFolderOpen(false);
+  };
+
+  const handlePackImported = ({ rootObjectId }) => {
+    closePackImportView();
+    if (rootObjectId) openDocumentsForObject(rootObjectId);
   };
 
   useEffect(() => {
@@ -1191,6 +1209,18 @@ export function LeftPanel({
         {/* OBJECTS */}
         {panelType === "Objects" && (
           <>
+            <PackActionsBar
+              placement="objects"
+              onOpenImport={() => {
+                setPanelType("Documents");
+                if (selectedObjectId || filterObjectId) {
+                  setFilterObjectId(filterObjectId || selectedObjectId);
+                  openPackImportView();
+                } else {
+                  openPackImportView();
+                }
+              }}
+            />
             <div className="lp-objects-grid">
               {filteredObjectList.map(obj => (
                 <ObjectThumb
@@ -1226,10 +1256,18 @@ export function LeftPanel({
           <div
             className={
               "lp-click-folders-stack"
-              + (clickFolderView === null && filterObjectId ? " lp-click-folders-stack--has-back" : "")
+              + (filterObjectId ? " lp-click-folders-stack--has-back" : "")
             }
           >
-            {clickFolderView === null ? (
+            {packImportActive ? (
+              <ImportPackWizard
+                mergeTargetObjectId={filterObjectId}
+                onClose={closePackImportView}
+                onImported={handlePackImported}
+              />
+            ) : null}
+
+            {!packImportActive && clickFolderView === null ? (
               <>
                 {filterObjectId ? (
                   <ClickFolderBack
@@ -1240,6 +1278,13 @@ export function LeftPanel({
                       setPanelType("Objects");
                     }}
                     label={filterObject?.name || "Objects"}
+                  />
+                ) : null}
+                {filterObjectId ? (
+                  <PackActionsBar
+                    placement="documents"
+                    exportObjectId={filterObjectId}
+                    onOpenImport={openPackImportView}
                   />
                 ) : null}
                 <div className="lp-click-folders-stack__boxes">
@@ -1254,7 +1299,7 @@ export function LeftPanel({
               </>
             ) : null}
 
-            {clickFolderView === "groups" ? (
+            {!packImportActive && clickFolderView === "groups" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -1293,7 +1338,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {clickFolderView === "knowledge" ? (
+            {!packImportActive && clickFolderView === "knowledge" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -1323,7 +1368,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {clickFolderView === "subgroups" ? (
+            {!packImportActive && clickFolderView === "subgroups" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly

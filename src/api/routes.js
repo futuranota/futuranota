@@ -3,4 +3,5 @@ export const API_ROUTES = {
   scanBlogs: "/api/scan/blogs",
   extractUrl: "/api/extract/url",
   intel: "/api/intel",
+  brandCadence: "/api/analytics/brand-cadence",
 };

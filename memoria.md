@@ -1,6 +1,6 @@
-# Futura Nota — Intel Calendar + Forecast (backup de sesión)
+# Futura Nota — Intel Calendar + Forecast + Launch radar (backup de sesión)
 
-Documentación para re-aplicar el trabajo hecho en el panel Intel (tabs **Calendar** y **Forecast**), incluyendo `CalendarEventCanvas`, búsqueda de eventos, pill de fecha, e inserción de nodos.
+Documentación para re-aplicar el trabajo hecho en el panel Intel (tabs **Calendar**, **Forecast** y **Launch radar**), incluyendo `CalendarEventCanvas`, búsqueda de eventos, pill de fecha, inserción de nodos, y cadencia de lanzamientos por marca.
 
 ---
 
@@ -17,10 +17,17 @@ IntelFoldersSection (panels.jsx)
 │           ├── result → CalendarEventResultBox + Insert node
 │           └── noEvent/error → mensaje
 │
-└── Tab "forecast"
-    ├── ForecastPanel (Daily Forecast, 1er día abierto)
-    └── ForecastSearchFooter (solo en forecast, NO en calendar)
-        └── busca clima del nodo activo → Insert node
+├── Tab "forecast"
+│   ├── ForecastPanel (Daily Forecast, 1er día abierto)
+│   └── ForecastSearchFooter (solo en forecast, NO en calendar)
+│       └── busca clima del nodo activo → Insert node
+│
+└── Tab "launch-radar"
+    └── LaunchPredictor (sin input del usuario)
+        ├── lee marca: resolveCurrentCorpus() → brandName (campo brand o name del objeto corpus)
+        ├── POST /api/analytics/brand-cadence → Groq o Gemini (JSON)
+        ├── proyección: monthsRemaining = averageIntervalMonths − monthsSinceLast
+        └── UI inglés: timeline Today ── X months left ── Est. launch + nota cadencia
 ```
 
 **Nodo activo compartido** (Calendar y Forecast):
@@ -1333,3 +1340,107 @@ Timeline (obj 2 = padre del eje):
 - Timeline táctico FuturaTimelineCanvas (mock MACRO/DOC) — eliminado; no reutilizar.
 - Añadir automáticamente todos los nodos conectados al timeline sin acción del usuario.
 - Más de dos familias simultáneas en modo inherit (requiere desactivar toggle o reemplazar familia).
+
+---
+
+## 11. Launch radar — Cadencia de lanzamientos
+
+Tab **Launch radar** en `IntelFoldersSection` (`panels.jsx`), entre Forecast y Market Hype. UI en **inglés**; card oscuro en `launch-predictor.css` (sin cambiar look al traducir).
+
+### 11.1 Flujo
+
+| Paso | Detalle |
+|------|---------|
+| Corpus | Objeto `role: corpus` (o corpus seleccionado). Marca = `brand` o `name`. |
+| API | `POST /api/analytics/brand-cadence` body: `{ brandName, referenceMonthLabel }` |
+| LLM | `server/llmJson.js` — Groq (`response_format: json_object`) o Gemini (`application/json`). Prompt en español en servidor; labels UI en inglés. |
+| Sin API key | `mockCadenceForBrand()` determinista por hash del nombre (`source: "mock"`) |
+| Matemática | `src/lib/launchCadenceMath.js` — `monthsBetween`, `computeLaunchCadenceProjection` |
+| Vacío | Sin corpus/marca → empty state en inglés |
+
+### 11.2 Archivos
+
+| Archivo | Rol |
+|---------|-----|
+| `src/components/analytics/LaunchPredictor.jsx` | Componente Intel tab |
+| `src/lib/currentCorpus.js` | `resolveCurrentCorpus` → `currentCorpus.brandName` |
+| `src/lib/fetchBrandCadence.js` | Cliente `API_ROUTES.brandCadence` |
+| `src/lib/launchCadenceMath.js` | Meses restantes + labels `en-US` |
+| `src/styles/launch-predictor.css` | Card timeline (gradiente oscuro) |
+| `server/brandCadenceHandler.js` | Middleware Vite |
+| `server/llmJson.js` | `completeJson()` |
+| `vite.config.js` | Plugin `brandCadenceApiPlugin` + `loadEnv` → `process.env` |
+| `src/api/routes.js` | `brandCadence: "/api/analytics/brand-cadence"` |
+
+### 11.3 Cableado `panels.jsx`
+
+```jsx
+import { LaunchPredictor } from './components/analytics/LaunchPredictor.jsx';
+
+{folder === "launch-radar" && (
+  <LaunchPredictor today={today} />
+)}
+```
+
+### 11.4 `.env.local` (desarrollo)
+
+**Sí, conviene integrarlo** si quieres inferencia real (no mock):
+
+1. Copiar `.env.example` → `.env.local` en la raíz del repo.
+2. Definir **una** clave: `GROQ_API_KEY` **o** `GEMINI_API_KEY` / `GOOGLE_API_KEY`.
+3. Reiniciar `npm run dev` (Vite carga `.env.local` vía `loadEnv` y la inyecta al middleware).
+
+Sin `.env.local` el módulo **sigue funcionando** con datos mock en dev.
+
+**Producción:** el middleware solo existe en el dev server de Vite; despliegue estático (`vite build`) no expone `/api/analytics/brand-cadence` hasta montar el mismo handler en un backend.
+
+### 11.5 Nota UI (inglés)
+
+> This company typically launches products every **N** months. They will likely launch their next product within the next **X** month(s). Announcements usually begin about three months before.
+
+Timeline: `[ Today: June 2026 ] ── X months left ── [ Est. launch: Month Year ]`
+
+---
+
+## 12. Product packs — import / export (`.zip`)
+
+Intercambio de modelos (brand → products → content) sin backend. **Knowledge no va en el pack** (sigue en app con + new → Knowledge + archivo local).
+
+### 12.1 Archivo ZIP
+
+```
+mi-marca.zip
+├── README.txt
+├── manifest.json   — nombre, brand, counts
+├── model.json      — objects, docs, nodes
+└── graph.json      — opcional (canvas)
+```
+
+- Export: objeto abierto → Documents → **Export pack** → descarga `.zip`.
+- Edición local: descomprimir, editar `model.json` (products/content), volver a comprimir o re-exportar.
+- Import: **Import pack** → wizard (acepta `.zip`; legacy `.fnota` / JSON monolito).
+
+### 12.2 Librería
+
+| Archivo | Rol |
+|---------|-----|
+| `src/lib/pack/packZip.js` | JSZip: `packToZipBlob`, `parseZipPack` |
+| `src/lib/pack/packSchema.js` | Versión esquema, parse/validate |
+| `src/lib/pack/packCollect.js` | Recorte por `objectId` (sin knowledge) |
+| `src/lib/pack/packRemap.js` | Remap IDs al importar |
+| `src/lib/pack/packExport.js` | `exportObjectPack`, `downloadPackFile` |
+| `src/lib/pack/packImport.js` | `readPackFile`, `stripKnowledgeFromPack`, `applyPackImport` |
+
+### 12.3 Modos de import
+
+- **New object** — crea objeto (satellite si ya hay corpus).
+- **Merge into current** — añade docs/nodos al objeto filtrado.
+
+### 12.4 Contenido
+
+- Solo **Products** + **Content** del objeto exportado.
+- **Canvas** opcional (`includeGraph: false` por defecto).
+
+### 12.5 Starter
+
+Wizard → “Download empty starter model” → `.zip` con 1 product + 1 content.
