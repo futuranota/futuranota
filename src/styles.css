@@ -699,7 +699,7 @@ textarea.field {
 /* Main + first timeline slot fit in viewport; extra tracks grow below → page scroll */
 .dash {
   --dash-chrome-h: 96px;
-  --timeline-first-slot-h: 200px;
+  --timeline-first-slot-h: 212px;
   display: grid;
   grid-template-rows: 52px 44px minmax(calc(100vh - var(--dash-chrome-h) - var(--timeline-first-slot-h)), auto) auto;
   min-height: 100vh;
@@ -3410,6 +3410,11 @@ textarea.note-form-field {
 
 /* ─── Tactical timeline (proportional month rail) ─── */
 .timeline.tl-tactical {
+  /* Banda doc↔doc (Figma): #3E293B al 55% */
+  --tl-dimension-span: rgba(62, 41, 59, 0.55);
+  --tl-dimension-span-h: 28px;
+  --tl-ruler-h: 12px;
+  --tl-bar-h: 58px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -3545,22 +3550,32 @@ textarea.note-form-field {
   left: 0;
   right: 0;
   top: 0;
-  height: 56px;
+  height: var(--tl-bar-h, 64px);
   pointer-events: none;
   z-index: 6;
 }
 .tl-tactical-bar {
   position: relative;
-  height: 56px;
+  height: var(--tl-bar-h, 64px);
   margin-bottom: 8px;
   border-radius: 8px;
   background: color-mix(in oklab, var(--panel-2) 70%, #1b1f27 30%);
   overflow: visible;
 }
+.tl-tactical-range-window.is-doc-dimension {
+  /* Centro de la barra (misma capa que el eje) + altura de banda original */
+  top: 50%;
+  height: var(--tl-dimension-span-h, 21px);
+  margin-top: calc(var(--tl-dimension-span-h, 21px) / -2);
+  border-radius: 6px;
+  background: var(--tl-dimension-span, rgba(62, 41, 59, 0.55));
+  box-shadow: none;
+  z-index: 1;
+}
 .tl-tactical-ruler {
   position: absolute;
   inset: 0 0 auto 0;
-  height: 12px;
+  height: var(--tl-ruler-h, 12px);
   z-index: 1;
   pointer-events: none;
 }
@@ -3581,10 +3596,9 @@ textarea.note-form-field {
 .tl-tactical-range-window {
   position: absolute;
   top: 50%;
-  height: 20px;
-  margin-top: -10px;
+  height: 21px;
+  margin-top: -10.5px;
   border-radius: 6px;
-  background: color-mix(in oklab, #a6b125 22%, transparent);
   z-index: 1;
   pointer-events: none;
 }

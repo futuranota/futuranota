@@ -7,7 +7,17 @@ import {
 } from "../temporal.js";
 import { resolveObjectStroke, softColorFromStroke } from "./objectColors.js";
 import { buildTimelineChains } from "./timelineChains.js";
-import { listChildCanvasNodeIdsForDoc } from "./timelineGraph.js";
+import {
+  CONNECTION_KIND_CROSS_FAMILY_DOC,
+  CONNECTION_KIND_INTRA_FAMILY_DOC,
+  listChildCanvasNodeIdsForDoc,
+} from "./timelineGraph.js";
+
+/** Doc↔doc wires that draw the temporal dimension band (any family). */
+const DOC_WIRE_DIMENSION_KINDS = new Set([
+  CONNECTION_KIND_INTRA_FAMILY_DOC,
+  CONNECTION_KIND_CROSS_FAMILY_DOC,
+]);
 
 /**
  * First / last calendar day of the month containing `date`.
@@ -101,11 +111,131 @@ export function formatTimelineSpanLabel(fromDate, toDate) {
 }
 
 /**
- * Proportional rail layout for one row (node groups + span segments).
+ * Index doc markers across all object rows (for cross-family dimension spans).
+ * @param {object[]} orderedRows
+ */
+function buildMarkerColumnIndexFromRows(orderedRows) {
+  /** @type {Map<string, { columnKey: string, date: Date }>} */
+  const index = new Map();
+  for (const row of orderedRows) {
+    if (row.rowKind !== "object") continue;
+    for (const col of row.columns || []) {
+      for (const item of col.items) {
+        if (item.dataType && item.dataType !== "document") continue;
+        index.set(item.nodeId, col);
+        if (item.docId) {
+          index.set(item.docId, col);
+          index.set(`virtual-${item.docId}`, col);
+        }
+      }
+    }
+  }
+  return index;
+}
+
+function buildDimensionSegmentBetweenColumns(fromCol, toCol, grid) {
+  const fromPct = grid.pct(fromCol.date);
+  const toPct = grid.pct(toCol.date);
+  const leftPct = Math.min(fromPct, toPct);
+  const widthPct = Math.max(Math.abs(toPct - fromPct), 0.5);
+  const fromDate = fromCol.date;
+  const toDate = toCol.date;
+  const start = fromDate.getTime() <= toDate.getTime() ? fromDate : toDate;
+  const end = fromDate.getTime() <= toDate.getTime() ? toDate : fromDate;
+  return {
+    key: `doc-link-${fromCol.columnKey}-${toCol.columnKey}`,
+    leftPct,
+    widthPct,
+    label: formatTimelineSpanLabel(start, end),
+    isDocDimension: true,
+  };
+}
+
+/**
+ * Hide dimension fill from span start → today; only today → end stays colored.
+ * @param {ReturnType<typeof buildDimensionSegmentBetweenColumns>} segment
+ * @param {ReturnType<typeof buildTacticalDisplayGrid>} grid
+ * @param {Date} today
+ */
+export function clipDocDimensionSegmentFromToday(segment, grid, today) {
+  if (!segment || !grid) return null;
+
+  const todayDay = startOfCalendarDay(today);
+  if (todayDay.getTime() < grid.start.getTime() || todayDay.getTime() > grid.end.getTime()) {
+    return segment;
+  }
+
+  const todayPct = grid.todayPct;
+  const segEnd = segment.leftPct + segment.widthPct;
+  if (segEnd <= todayPct) return null;
+  if (segment.leftPct >= todayPct) return segment;
+
+  return {
+    ...segment,
+    leftPct: todayPct,
+    widthPct: Math.max(segEnd - todayPct, 0.5),
+  };
+}
+
+/**
+ * Every doc↔doc wire on canvas → dimension band on each involved object row
+ * (Product↔Content cross-family, same-family, etc.).
+ * @param {object[]} orderedRows
+ * @param {import('./timelineChains.js').TimelineGrid} grid
+ * @param {import('../types/timelineTactical.js').ClassifiedConnection[]} classifiedConnections
+ * @param {Date} [today]
+ * @returns {Map<string, object[]>}
+ */
+export function buildDocDimensionSegmentsByRow(
+  orderedRows,
+  grid,
+  classifiedConnections = [],
+  today = new Date(),
+) {
+  /** @type {Map<string, object[]>} */
+  const byRowId = new Map();
+  for (const row of orderedRows) {
+    if (row.rowKind === "object") byRowId.set(row.id, []);
+  }
+
+  const markerIndex = buildMarkerColumnIndexFromRows(orderedRows);
+  const seenPair = new Set();
+
+  for (const c of classifiedConnections) {
+    if (!DOC_WIRE_DIMENSION_KINDS.has(c.kind)) continue;
+
+    const fromCol = markerIndex.get(c.from)
+      || (c.fromDocId ? markerIndex.get(c.fromDocId) : null);
+    const toCol = markerIndex.get(c.to)
+      || (c.toDocId ? markerIndex.get(c.toDocId) : null);
+    if (!fromCol || !toCol || fromCol.columnKey === toCol.columnKey) continue;
+
+    const pairKey = [fromCol.columnKey, toCol.columnKey].sort().join("|");
+    if (seenPair.has(pairKey)) continue;
+    seenPair.add(pairKey);
+
+    const segment = buildDimensionSegmentBetweenColumns(fromCol, toCol, grid);
+    const clipped = clipDocDimensionSegmentFromToday(segment, grid, today);
+    if (!clipped) continue;
+
+    for (const row of orderedRows) {
+      if (row.rowKind !== "object") continue;
+      if (row.objectId !== c.fromObjectId && row.objectId !== c.toObjectId) continue;
+      const list = byRowId.get(row.id);
+      if (list) list.push(clipped);
+    }
+  }
+
+  return byRowId;
+}
+
+/**
+ * Proportional rail layout for one row (node groups + doc-wire dimension spans).
  * @param {ReturnType<typeof buildTimelineColumns>} columns
  * @param {import('./timelineChains.js').TimelineGrid | null | undefined} grid
+ * @param {{ segments?: object[] }} [options]
  */
-export function buildRowTimelineRail(columns, grid) {
+export function buildRowTimelineRail(columns, grid, options = {}) {
   if (!columns?.length || !grid) {
     return { nodeGroups: [], segments: [] };
   }
@@ -115,19 +245,7 @@ export function buildRowTimelineRail(columns, grid) {
     leftPct: grid.pct(col.date),
   }));
 
-  const segments = [];
-  for (let i = 0; i < columns.length - 1; i += 1) {
-    const from = columns[i].date;
-    const to = columns[i + 1].date;
-    const leftPct = grid.pct(from);
-    const rightPct = grid.pct(to);
-    segments.push({
-      key: `${columns[i].columnKey}-${columns[i + 1].columnKey}`,
-      leftPct,
-      widthPct: Math.max(rightPct - leftPct, 0.5),
-      label: formatTimelineSpanLabel(from, to),
-    });
-  }
+  const segments = options.segments || [];
 
   return { nodeGroups, segments };
 }
@@ -227,7 +345,7 @@ export function buildTacticalObjectRows(params) {
     primaryTimelineObjectId,
   });
 
-  const { chains, wireAnchors, trackItemsById } = tactical;
+  const { chains, wireAnchors, trackItemsById, classifiedConnections } = tactical;
   const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
   const meta = { nodeEntitiesById, docsById, objectsById };
 
@@ -356,8 +474,16 @@ export function buildTacticalObjectRows(params) {
   );
   const displayGrid = buildTacticalDisplayGrid(allMarkerDates, today);
 
+  const dimensionSegmentsByRow = buildDocDimensionSegmentsByRow(
+    orderedRows,
+    displayGrid,
+    classifiedConnections,
+    today,
+  );
+
   for (const row of orderedRows) {
-    row.rail = buildRowTimelineRail(row.columns, displayGrid);
+    const segments = dimensionSegmentsByRow.get(row.id) || [];
+    row.rail = buildRowTimelineRail(row.columns, displayGrid, { segments });
   }
 
   return {
