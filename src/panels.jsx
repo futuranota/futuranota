@@ -18,6 +18,7 @@ import { useTimelineStore, useUIStateStore } from './stores/index.js';
 import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
 import { CalendarPanel, getScheduleHintForNode } from './components/intel/CalendarPanel.jsx';
 import { MarketHypeWidget } from './components/intel/MarketHypeWidget.tsx';
+import { LaunchPredictor } from './components/analytics/LaunchPredictor.jsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
 import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
@@ -586,6 +587,7 @@ const TAB_OPTIONS = [
 const INTEL_FOLDER_TABS = [
   { id: "calendar", label: "Calendar" },
   { id: "forecast", label: "Forecast" },
+  { id: "launch-radar", label: "Launch radar" },
   { id: "market-hype", label: "Market Hype" },
 ];
 
@@ -698,6 +700,7 @@ function IntelFoldersSection({
           "intel-folder-panel"
           + (folder === "calendar" ? " intel-folder-panel--calendar" : "")
           + (folder === "forecast" ? " intel-folder-panel--forecast" : "")
+          + (folder === "launch-radar" ? " intel-folder-panel--launch-radar" : "")
           + (folder === "market-hype" ? " intel-folder-panel--market-hype" : "")
           + (showForecastSearch ? " intel-folder-panel--with-search" : "")
         }
@@ -719,6 +722,9 @@ function IntelFoldersSection({
           />
         )}
         {folder === "forecast" && <ForecastPanel today={today} />}
+        {folder === "launch-radar" && (
+          <LaunchPredictor today={today} />
+        )}
         {folder === "market-hype" && (
           <div className="intel-market-hype-wrap">
             <MarketHypeWidget today={today} />

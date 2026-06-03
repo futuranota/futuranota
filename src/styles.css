@@ -707,7 +707,7 @@ textarea.field {
 }
 .dash-main {
   display: grid;
-  grid-template-columns: 256px 1fr 296px;
+  grid-template-columns: 256px 1fr 328px;
   align-items: stretch;
   padding: 10px 10px 0;
   gap: 10px;
@@ -886,25 +886,27 @@ textarea.field {
   color: #b8bdc8;
 }
 
-/* Intel folder tabs (Calendar / Forecast / Market Hype) */
+/* Intel folder tabs (Calendar / Forecast / Launch radar / Market Hype) */
 .intel-folders-section {
   flex-shrink: 0;
-  margin: 14px -14px 0;
-  padding: 14px 14px 0;
+  margin: 14px -18px 0;
+  padding: 14px 10px 0;
   border-top: 1px solid var(--hairline);
 }
 .intel-folder-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 10px;
+  width: 100%;
 }
 .intel-folder-tabs {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  gap: 2px;
+  width: 100%;
+  gap: 1px;
   padding: 2px;
   background: #12171d;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -927,7 +929,7 @@ textarea.field {
   z-index: 1;
   flex: 1 1 0;
   min-width: 0;
-  padding: 5px 6px;
+  padding: 4px 5px;
   border: none;
   background: transparent;
   color: #757b87;
@@ -935,6 +937,7 @@ textarea.field {
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -950,8 +953,9 @@ textarea.field {
 }
 .intel-folder-launch-badge {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--warm);
+  white-space: nowrap;
 }
 .intel-folder-panel {
   min-height: 200px;
@@ -976,6 +980,10 @@ textarea.field {
 }
 .intel-folder-panel--calendar {
   min-height: 200px;
+}
+.intel-folder-panel--launch-radar {
+  min-height: 200px;
+  padding: 0 2px 4px;
 }
 .intel-folder-panel--market-hype {
   padding: 0 2px 4px;
