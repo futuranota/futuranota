@@ -108,8 +108,9 @@ function TacticalObjectRow({
               {segments.map((segment) => (
                 <div
                   key={`range-${segment.key}`}
-                  className="tl-tactical-range-window"
+                  className="tl-tactical-range-window is-doc-dimension"
                   style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
+                  title={segment.label || undefined}
                   aria-hidden
                 />
               ))}
