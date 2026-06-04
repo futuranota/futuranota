@@ -16,7 +16,7 @@ import {
   useTimelineStore,
   useUIStateStore,
 } from './stores/index.js';
-import { LandingPage } from './pages/LandingPage.jsx';
+import { useNavigate } from 'react-router-dom';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
@@ -785,18 +785,23 @@ function Dashboard({ company, onBack }) {
 
 /* ── APP ROOT ──────────────────────────────────────── */
 function App() {
+  const navigate = useNavigate();
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [screen, setScreen] = useState("landing");
+  const [screen, setScreen] = useState("selector");
   const [company, setCompany] = useState(null);
-  useEffect(() => { applyTheme(t); }, [t.theme, t.typography, t.accent]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-site', 'app');
+    applyTheme(t);
+    return () => document.documentElement.removeAttribute('data-site');
+  }, [t.theme, t.typography, t.accent]);
 
   return (
     <>
-      {screen === "landing" && <LandingPage onStart={() => setScreen("selector")} />}
       {screen === "selector" && (
         <CompanySelectorPage
           onSelect={(c) => { setCompany(c); setScreen("dashboard"); }}
-          onBack={() => setScreen("landing")}
+          onBack={() => navigate("/")}
         />
       )}
       {screen === "dashboard" && company && (
@@ -823,7 +828,7 @@ function App() {
           onChange={(v) => setTweak("accent", v)} />
         <TweakSection label="Navigate" />
         <div style={{ display: "flex", gap: 4 }}>
-          <TweakButton label="Landing"   secondary onClick={() => setScreen("landing")} />
+          <TweakButton label="Landing"   secondary onClick={() => navigate("/")} />
           <TweakButton label="Selector"  secondary onClick={() => setScreen("selector")} />
           <TweakButton label="Dashboard" secondary onClick={() => {
             if (!company) setCompany(COMPANIES[0]);

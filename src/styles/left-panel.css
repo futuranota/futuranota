@@ -548,8 +548,20 @@
 
 .lp-click-folders-stack--has-back {
   position: relative;
-  padding-top: var(--lp-folder-back-inset-top, 34px);
-  padding-left: var(--lp-folder-back-inset-left, 4px);
+  padding-top: var(--lp-folder-back-inset-top, 38px);
+  padding-left: 0;
+  gap: 8px;
+}
+
+/* Folder detail has its own back corner; avoid double top inset on stack */
+.lp-click-folders-stack--has-back:has(.lp-click-folder-detail) {
+  padding-top: 0;
+  padding-left: 0;
+}
+
+.lp-click-folders-stack--has-back > .pack-actions,
+.lp-click-folder-detail > .pack-actions {
+  margin-top: 0;
 }
 
 .lp-click-folders-stack__boxes {
@@ -560,8 +572,8 @@
 
 .lp-click-folder-detail {
   position: relative;
-  padding-top: var(--lp-folder-back-inset-top, 34px);
-  padding-left: var(--lp-folder-back-inset-left, 4px);
+  padding-top: var(--lp-folder-back-inset-top, 38px);
+  padding-left: 0;
 }
 
 .lp-click-folder-back {
@@ -571,18 +583,21 @@
   z-index: 2;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   width: fit-content;
   margin: 0;
-  padding: 2px;
+  padding: 4px 4px 10px;
   border: none;
   border-radius: 4px;
   background: transparent;
   color: #e8dcc8;
   font: inherit;
   font-size: 12px;
+  line-height: 1;
   cursor: pointer;
   transition: opacity 0.15s ease;
+  box-sizing: border-box;
 }
 
 .lp-click-folder-back:focus-visible {

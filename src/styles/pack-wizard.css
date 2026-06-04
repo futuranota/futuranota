@@ -5,20 +5,42 @@
   padding: 0 0 8px;
 }
 
+.pack-actions--documents {
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 6px;
+}
+
 .pack-actions--objects {
   padding: 8px 0 4px;
 }
 
 .pack-actions__btn {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 11px;
   font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.04em;
+  font-size: 10px;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+  border-radius: 6px;
+  color: rgba(232, 220, 200, 0.42);
+  border-color: rgba(232, 220, 200, 0.16);
+  background: transparent;
+}
+
+.pack-actions__btn:hover:not(:disabled),
+.pack-actions__btn:active:not(:disabled) {
+  color: rgba(232, 220, 200, 0.42);
+  border-color: rgba(232, 220, 200, 0.16);
+  background: transparent;
+  transform: none;
 }
 
 .pack-actions__btn--accent {
-  color: #e8dcc8;
-  border-color: rgba(232, 220, 200, 0.25);
+  color: rgba(232, 220, 200, 0.42);
+  border-color: rgba(232, 220, 200, 0.16);
+  background: transparent;
 }
 
 /* Fit import flow inside .lp-content */
