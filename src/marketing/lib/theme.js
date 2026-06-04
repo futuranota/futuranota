@@ -1,10 +1,11 @@
 export const MARKETING_ACCENTS = {
   terracotta: {
-    '--accent': 'oklch(0.72 0.135 52)',
-    '--accent-strong': 'oklch(0.67 0.140 50)',
-    '--accent-soft': 'oklch(0.72 0.135 52 / 0.14)',
-    '--accent-line': 'oklch(0.72 0.135 52 / 0.40)',
-    '--on-accent': 'oklch(0.18 0.02 50)',
+    '--accent': 'oklch(0.82 0.11 350)',
+    '--accent-strong': 'oklch(0.76 0.12 350)',
+    '--accent-bright': 'oklch(0.90 0.12 350)',
+    '--accent-soft': 'oklch(0.82 0.11 350 / 0.14)',
+    '--accent-line': 'oklch(0.75 0.10 350 / 0.42)',
+    '--on-accent': 'oklch(0.14 0.03 350)',
   },
   green: {
     '--accent': 'oklch(0.80 0.150 159)',
@@ -22,7 +23,7 @@ export const MARKETING_ACCENTS = {
   },
 };
 
-const SWATCH = { terracotta: '#cf8157', green: '#3fd39a', violet: '#a78bfa' };
+const SWATCH = { terracotta: '#e8a4c8', green: '#3fd39a', violet: '#a78bfa' };
 
 export function accentSwatch(name) {
   return SWATCH[name] || SWATCH.terracotta;
