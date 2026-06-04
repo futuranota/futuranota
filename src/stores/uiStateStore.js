@@ -17,6 +17,10 @@ export const useUIStateStore = create(
       filterDocId: null,
       /** Documents panel: Knowledge folder is open (disables canvas timeline Select). */
       knowledgeFolderActive: false,
+      /** Products list: filter by product category (partial match). */
+      productCategoryFilter: null,
+      /** Content list: filter by linked subcategory label (partial match). */
+      contentProductFilter: null,
 
       focusedCanvasNodeId: null,
       selectedCanvasNodeIds: [],
@@ -57,6 +61,12 @@ export const useUIStateStore = create(
       setSelectedObjectId: (id) => set({ selectedObjectId: id }),
       setFilterDocId: (id) => set({ filterDocId: id }),
       setKnowledgeFolderActive: (active) => set({ knowledgeFolderActive: Boolean(active) }),
+      setProductCategoryFilter: (query) => set({
+        productCategoryFilter: query?.trim() ? query.trim() : null,
+      }),
+      setContentProductFilter: (query) => set({
+        contentProductFilter: query?.trim() ? query.trim() : null,
+      }),
 
       setFocusedCanvasNode: (id) => set({ focusedCanvasNodeId: id }),
 

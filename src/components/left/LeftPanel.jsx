@@ -27,6 +27,12 @@ import {
   resolveKnowledgeDocDisplayTitle,
 } from "../../lib/templateDoc.js";
 import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
+import {
+  buildCategoryFilterOptions,
+  buildContentFilterOptions,
+  contentDocMatchesProductFilter,
+  productDocMatchesCategoryFilter,
+} from "../../lib/contentProductFilter.js";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
 
@@ -768,6 +774,10 @@ export function LeftPanel({
   const setSelectedObjectId = useUIStateStore((s) => s.setSelectedObjectId);
   const setFilterDocId = useUIStateStore((s) => s.setFilterDocId);
   const setKnowledgeFolderActive = useUIStateStore((s) => s.setKnowledgeFolderActive);
+  const productCategoryFilter = useUIStateStore((s) => s.productCategoryFilter);
+  const setProductCategoryFilter = useUIStateStore((s) => s.setProductCategoryFilter);
+  const contentProductFilter = useUIStateStore((s) => s.contentProductFilter);
+  const setContentProductFilter = useUIStateStore((s) => s.setContentProductFilter);
 
   /* stores */
   const objects    = useObjectsStore(s => s.objects);
@@ -834,10 +844,32 @@ export function LeftPanel({
   );
   const knowledgeDocs = useMemo(() => listKnowledgeDocs(docs), [docs]);
 
+  const categoryFilterOptions = useMemo(
+    () => buildCategoryFilterOptions(productDocs),
+    [productDocs],
+  );
+
+  const contentFilterOptions = useMemo(
+    () => buildContentFilterOptions(productDocs),
+    [productDocs],
+  );
+
+  const filteredProductDocs = useMemo(
+    () => productDocs.filter((doc) => productDocMatchesCategoryFilter(doc, productCategoryFilter)),
+    [productDocs, productCategoryFilter],
+  );
+
+  const filteredContentDocs = useMemo(
+    () => contentDocs.filter((doc) => contentDocMatchesProductFilter(doc, docs, contentProductFilter)),
+    [contentDocs, docs, contentProductFilter],
+  );
+
   useEffect(() => {
     setClickFolderView(null);
     setPackImportActive(false);
-  }, [panelType, filterObjectId]);
+    setProductCategoryFilter(null);
+    setContentProductFilter(null);
+  }, [panelType, filterObjectId, setProductCategoryFilter, setContentProductFilter]);
 
   const openPackImportView = () => {
     setClickFolderView(null);
@@ -1308,6 +1340,10 @@ export function LeftPanel({
                   placement="documents"
                   exportObjectId={filterObjectId}
                   onOpenImport={openPackImportView}
+                  filterMode="category"
+                  filterOptions={categoryFilterOptions}
+                  filterValue={productCategoryFilter}
+                  onFilterChange={setProductCategoryFilter}
                 />
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
@@ -1319,8 +1355,8 @@ export function LeftPanel({
                   onDeleteDoc={handleDeleteDoc}
                 />
                 <div className="lp-click-folder-detail-list">
-                  {productDocs.length ? (
-                    productDocs.map((doc) => (
+                  {filteredProductDocs.length ? (
+                    filteredProductDocs.map((doc) => (
                       <DocListCard
                         key={doc.id}
                         doc={doc}
@@ -1333,8 +1369,16 @@ export function LeftPanel({
                     ))
                   ) : (
                     <div className="lp-empty">
-                      <p className="dim">No products yet</p>
-                      <p className="dim">Use + new to create a product</p>
+                      <p className="dim">
+                        {productCategoryFilter
+                          ? "No products in this category"
+                          : "No products yet"}
+                      </p>
+                      <p className="dim">
+                        {productCategoryFilter
+                          ? "Choose Category again to clear"
+                          : "Use + new to create a product"}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -1382,6 +1426,10 @@ export function LeftPanel({
                   placement="documents"
                   exportObjectId={filterObjectId}
                   onOpenImport={openPackImportView}
+                  filterMode="content"
+                  filterOptions={contentFilterOptions}
+                  filterValue={contentProductFilter}
+                  onFilterChange={setContentProductFilter}
                 />
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
@@ -1393,8 +1441,8 @@ export function LeftPanel({
                   onDeleteDoc={handleDeleteDoc}
                 />
                 <div className="lp-click-folder-detail-list">
-                  {contentDocs.length ? (
-                    contentDocs.map((doc) => (
+                  {filteredContentDocs.length ? (
+                    filteredContentDocs.map((doc) => (
                       <DocListCard
                         key={doc.id}
                         doc={doc}
@@ -1407,8 +1455,16 @@ export function LeftPanel({
                     ))
                   ) : (
                     <div className="lp-empty">
-                      <p className="dim">No content docs yet</p>
-                      <p className="dim">Use + new to create content</p>
+                      <p className="dim">
+                        {contentProductFilter
+                          ? "No content docs link this product"
+                          : "No content docs yet"}
+                      </p>
+                      <p className="dim">
+                        {contentProductFilter
+                          ? "Choose Content again to clear"
+                          : "Use + new to create content"}
+                      </p>
                     </div>
                   )}
                 </div>

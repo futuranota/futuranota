@@ -7,7 +7,10 @@ import { useNodesStore } from "../../stores/nodesStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { parsePackFile } from "./packSchema.js";
 import { createIdRemap, remapPackModel } from "./packRemap.js";
+import { PACK_FORMAT_FOLDER_V2 } from "./packSchema.js";
 import { parseZipPack } from "./packZip.js";
+import { parseZipPackV2 } from "./packV2Zip.js";
+import JSZip from "jszip";
 
 /**
  * @typedef {'new-object' | 'merge-into'} PackImportMode
@@ -49,12 +52,42 @@ export function stripKnowledgeFromPack(pack) {
 /**
  * @param {File} file
  */
+async function readManifestFromZip(zip) {
+  const direct = zip.file("manifest.json");
+  if (direct) {
+    try {
+      return JSON.parse(await direct.async("string"));
+    } catch {
+      return null;
+    }
+  }
+  const nestedPath = Object.keys(zip.files).find(
+    (p) => !zip.files[p].dir && /(^|\/)manifest\.json$/.test(p),
+  );
+  if (!nestedPath) return null;
+  try {
+    return JSON.parse(await zip.file(nestedPath).async("string"));
+  } catch {
+    return null;
+  }
+}
+
 export async function readPackFile(file) {
   const name = (file.name || "").toLowerCase();
   const isZip = name.endsWith(".zip") || file.type === "application/zip";
-  const parsed = isZip
-    ? await parseZipPack(await file.arrayBuffer())
-    : parsePackFromJson(await file.text());
+  let parsed;
+  if (isZip) {
+    const buffer = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buffer);
+    const manifest = await readManifestFromZip(zip);
+    if (manifest?.packFormat === PACK_FORMAT_FOLDER_V2) {
+      parsed = await parseZipPackV2(zip);
+    } else {
+      parsed = await parseZipPack(buffer);
+    }
+  } else {
+    parsed = parsePackFromJson(await file.text());
+  }
   return stripKnowledgeFromPack(parsed);
 }
 
