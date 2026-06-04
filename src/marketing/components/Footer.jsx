@@ -26,15 +26,13 @@ export function Footer() {
     <footer className="footer" data-screen-label="footer">
       <div className="container footer__grid">
         <div className="footer__brand">
-          <Link to={PATHS.home} className="brand">
+          <Link to={PATHS.home} className="brand footer__brand-link">
             <span className="brand__mark"><Mark /></span>
             <span className="brand__type">FUTURA<span className="brand__type-thin"> NOTA</span></span>
           </Link>
-          <p className="muted footer__tag">The future of taking notes — for the people who ship before the window closes.</p>
           <form className="footer__news" onSubmit={(e) => e.preventDefault()}>
-            <label className="mono-sm faint" htmlFor="news">Stay ahead of the trends</label>
             <div className="footer__news-row">
-              <input id="news" type="email" placeholder="you@studio.com" className="footer__input" />
+              <input id="news" type="email" placeholder="you@studio.com" className="footer__input" aria-label="Email for newsletter" />
               <button className="btn btn-primary btn-sm" type="submit">Subscribe</button>
             </div>
           </form>
@@ -54,9 +52,8 @@ export function Footer() {
           ))}
         </div>
       </div>
-      <div className="container footer__base">
-        <span className="mono-sm faint">© 2026 Futura Nota — operational since 2026.</span>
-        <span className="mono-sm faint">Made by hand · shipped on the window.</span>
+      <div className="container footer__end">
+        <p className="mono-sm faint footer__trends">Stay ahead of the trends</p>
       </div>
     </footer>
   );
