@@ -111,6 +111,21 @@ auth-wrap
 
 Vive en `src/App.jsx` — selector de company y dashboard. La landing vieja (`src/pages/LandingPage.jsx`) ya no se usa; el marketing reemplaza esa entrada.
 
+## Export Pack v2
+
+Junto a **Export pack**, **Pack v2** genera un ZIP con carpetas legibles:
+
+```
+{nombre-marca}/
+  Brand/object.json
+  Products/{categoria}/{version}/doc.json + assets/*.webp
+  Content/{titulo}/doc.json + assets/ + nodes/*.json
+  Nodes/*.json
+  manifest.json, model.json, README.txt
+```
+
+Import pack acepta v1 y v2.
+
 ## Carpeta legacy
 
 `futura-landing/` en la raíz del repo es la versión HTML original. Puede eliminarse cuando confirmes que la migración Vite cubre todo.

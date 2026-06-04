@@ -2,7 +2,10 @@
 /** @typedef {'new-object' | 'merge-into'} PackImportMode */
 
 export const PACK_SCHEMA_VERSION = 1;
+export const PACK_SCHEMA_VERSION_V2 = 2;
+export const PACK_FORMAT_FOLDER_V2 = "folder-v2";
 export const PACK_FILE_EXTENSION = ".zip";
+export const PACK_V2_FILE_SUFFIX = "-v2";
 /** @deprecated legacy single-file export */
 export const PACK_LEGACY_EXTENSION = ".fnota";
 export const PACK_MIME = "application/zip";
@@ -22,8 +25,9 @@ export function isRecord(value) {
  */
 export function validateManifest(manifest) {
   if (!isRecord(manifest)) throw new Error("Invalid pack: missing manifest");
-  if (manifest.schemaVersion !== PACK_SCHEMA_VERSION) {
-    throw new Error(`Unsupported pack version (${manifest.schemaVersion})`);
+  const version = manifest.schemaVersion;
+  if (version !== PACK_SCHEMA_VERSION && version !== PACK_SCHEMA_VERSION_V2) {
+    throw new Error(`Unsupported pack version (${version})`);
   }
   if (!manifest.name || typeof manifest.name !== "string") {
     throw new Error("Invalid pack: manifest.name required");
