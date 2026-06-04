@@ -4,7 +4,7 @@ import { PATHS, sectionPath } from '../lib/paths.js';
 
 const FOOTER_COLS = [
   ['Product', ['Features', 'Pricing', 'Documentation', 'Changelog']],
-  ['Learn', ['Blogs', 'Enseñanzas', 'Marketplace', 'Horizon']],
+  ['Learn', ['Blogs', 'Marketplace', 'Horizon', 'How it works']],
   ['Community', ['GitHub', 'Twitter / X', 'Discord', 'Contact']],
   ['Legal', ['Privacy', 'Terms', 'Cookies']],
 ];
@@ -13,7 +13,7 @@ const FOOTER_SECTION_SLUGS = {
   Horizon: 'horizon',
   Marketplace: 'marketplace',
   Blogs: 'blogs',
-  Enseñanzas: 'ensenanzas',
+  'How it works': 'how',
 };
 
 function footerHref(label) {

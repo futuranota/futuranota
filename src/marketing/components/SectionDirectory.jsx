@@ -25,17 +25,10 @@ const DIRECTORY = [
   },
   {
     slug: 'blogs', num: '04', eyebrow: 'BLOGS',
-    title: 'Shark Tank & the commerce world, as inspiration.',
-    blurb: 'Trends, validation, and the AI-powered winners worth copying — read the signal before it lands.',
-    tags: ['Shark Tank', 'Ecommerce', 'AI', 'Trends'],
-    cta: 'Read the blog', span: 7,
-  },
-  {
-    slug: 'ensenanzas', num: '05', eyebrow: 'ENSEÑANZAS',
-    title: 'Learn to think like an entrepreneur.',
-    blurb: 'The strategies and frameworks behind the people who turn a launch into a living. Short, practical, and built for makers.',
-    tags: ['Marketing 101', 'Product validation', '6 courses'],
-    cta: 'Explore courses', span: 12,
+    title: 'Trends, marketing, and commerce — read the signal before it lands.',
+    blurb: 'Marketing, sales, branding, validation, and the launches worth studying — filter by topic or browse by section.',
+    tags: ['Trends', 'Marketing', 'Sales', 'Validation'],
+    cta: 'Read the blog', span: 12,
   },
 ];
 
@@ -67,7 +60,7 @@ export function SectionDirectory() {
       <div className="container">
         <div className="section-head" style={{ marginBottom: 'clamp(28px,4vw,48px)' }}>
           <span className="eyebrow"><span className="tick" />EXPLORE FUTURA NOTA</span>
-          <h2 className="h2">Five windows. Step through any one.</h2>
+          <h2 className="h2">Four windows. Step through any one.</h2>
           <p className="lead">Every part of Futura Nota now lives on its own page. Pick a window below and dive in.</p>
         </div>
         <div className="dir-grid">
