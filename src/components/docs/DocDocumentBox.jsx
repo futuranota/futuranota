@@ -118,6 +118,7 @@ export function DocDocumentBox({
   const blockStackRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
+  const [contentExpanded, setContentExpanded] = useState(false);
 
   useEffect(() => {
     if (!isKnowledgeMode) return;
@@ -242,6 +243,24 @@ export function DocDocumentBox({
     el.style.height = `${el.scrollHeight}px`;
     el.style.overflowY = "hidden";
   }, []);
+
+  const toggleContentExpand = useCallback(() => {
+    setContentExpanded((prev) => {
+      const next = !prev;
+      const box = contentBoxRef.current;
+      if (box) {
+        if (next) {
+          box.style.height = `${getContentBoxMaxHeight()}px`;
+        } else {
+          box.style.height = "";
+          requestAnimationFrame(() => {
+            syncContentBoxHeight();
+          });
+        }
+      }
+      return next;
+    });
+  }, [syncContentBoxHeight]);
 
   const requestContentBoxGrow = useCallback(() => {
     const runSync = () => {
@@ -476,6 +495,7 @@ export function DocDocumentBox({
         className={
           "doc-new-content-box doc-new-content-box--resizable"
           + (isKnowledgeMode ? " doc-new-content-box--knowledge-notes" : "")
+          + (contentExpanded ? " doc-new-content-box--expanded" : "")
         }
       >
         <div
@@ -486,6 +506,19 @@ export function DocDocumentBox({
             + (showKnowledgeNotesPlaceholder ? " doc-new-content-scroll--hint-active" : "")
           }
         >
+          <button
+            type="button"
+            className={
+              "doc-new-content-expand-btn"
+              + (contentExpanded ? " is-expanded" : "")
+            }
+            onClick={toggleContentExpand}
+            aria-label={contentExpanded ? "Collapse content area" : "Expand content area"}
+            aria-pressed={contentExpanded}
+            title={contentExpanded ? "Collapse" : "Expand"}
+          >
+            <span className="doc-new-content-expand-btn__icon" aria-hidden />
+          </button>
           {showKnowledgeNotesPlaceholder ? (
             <button
               type="button"

@@ -2570,10 +2570,66 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: 40px;
+  padding: 6px 32px 40px 0;
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.28) var(--doc-body-track);
+}
+
+.doc-new-content-expand-btn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
+.doc-new-content-expand-btn__icon {
+  display: block;
+  width: 13px;
+  height: 13px;
+  background-color: #4d4f53;
+  opacity: 0.9;
+  -webkit-mask-image: url("/uploads/botones/expansion.svg");
+  mask-image: url("/uploads/botones/expansion.svg");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.doc-new-content-expand-btn:hover,
+.doc-new-content-expand-btn:focus-visible {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.04);
+  outline: none;
+}
+
+.doc-new-content-expand-btn:hover .doc-new-content-expand-btn__icon,
+.doc-new-content-expand-btn:focus-visible .doc-new-content-expand-btn__icon,
+.doc-new-content-expand-btn.is-expanded .doc-new-content-expand-btn__icon {
+  background-color: #6a6d72;
+  opacity: 1;
+}
+
+.doc-new-content-box--expanded {
+  height: min(72vh, 520px) !important;
+  max-height: min(72vh, 520px);
+  resize: none;
 }
 
 .doc-new-content-box--resizable .doc-new-content-scroll {
