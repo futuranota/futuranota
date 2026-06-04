@@ -1280,13 +1280,11 @@ export function LeftPanel({
                     label={filterObject?.name || "Objects"}
                   />
                 ) : null}
-                {filterObjectId ? (
-                  <PackActionsBar
-                    placement="documents"
-                    exportObjectId={filterObjectId}
-                    onOpenImport={openPackImportView}
-                  />
-                ) : null}
+                <PackActionsBar
+                  placement="documents"
+                  exportObjectId={filterObjectId}
+                  onOpenImport={openPackImportView}
+                />
                 <div className="lp-click-folders-stack__boxes">
                   <ClickFolderBox variant="groups" onClick={() => setClickFolderView("groups")} />
                   <ClickFolderBox variant="subgroups" onClick={() => setClickFolderView("subgroups")} />
@@ -1305,6 +1303,11 @@ export function LeftPanel({
                   iconOnly
                   onBack={() => setClickFolderView(null)}
                   label="Products"
+                />
+                <PackActionsBar
+                  placement="documents"
+                  exportObjectId={filterObjectId}
+                  onOpenImport={openPackImportView}
                 />
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
@@ -1374,6 +1377,11 @@ export function LeftPanel({
                   iconOnly
                   onBack={() => setClickFolderView(null)}
                   label="Content"
+                />
+                <PackActionsBar
+                  placement="documents"
+                  exportObjectId={filterObjectId}
+                  onOpenImport={openPackImportView}
                 />
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
