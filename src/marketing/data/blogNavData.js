@@ -15,21 +15,18 @@ export const BLOG_NAV_SECTIONS = [
     id: 'topics',
     label: 'Topics',
     cards: [
-      { title: 'Smart CRM', description: 'Managing contacts, pipelines, and relationships at scale', href: '/blogs?cat=Marketing' },
       { title: 'Marketing Automation', description: 'Personalize campaigns, nurture leads, and drive growth', href: '/blogs?cat=Marketing' },
-      { title: 'Sales Enablement', description: 'Align marketing and sales, close deals faster', href: '/blogs?cat=Sales' },
       { title: 'Customer Service', description: 'Deliver seamless support and memorable experiences', href: '/blogs?cat=Sales' },
       { title: 'Website & Content', description: 'High-performing sites and content that convert', href: '/blogs?cat=Website' },
       { title: 'Data & Analytics', description: 'Measure performance and turn data into action', href: '/blogs?cat=Trends' },
       { title: 'AI & Automation', description: 'Use AI to streamline work and scale smarter efforts', href: '/blogs?cat=Trends' },
-      { title: '(e)commerce & Payments', description: 'Selling online and optimizing the digital buying experience', href: '/blogs?cat=Ecommerce' },
+      { title: 'Ecommerce', description: 'Selling online and optimizing the digital buying experience', href: '/blogs?cat=Ecommerce' },
     ],
   },
   {
     id: 'insights',
     label: 'Insights',
     cards: [
-      { title: 'Loop Playbook', description: 'Our methodology for modern growth strategies', href: '/blogs?cat=Trends' },
       { title: 'Case Studies', description: 'Success stories from makers using Futura Nota', href: '/blogs?cat=Validation' },
       { title: 'Newsletters', description: 'Subscribe to industry signals in your inbox', href: '/blogs' },
       { title: 'Company News', description: 'Latest updates from Futura Nota', href: '/blogs' },
