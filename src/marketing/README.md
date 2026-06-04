@@ -10,8 +10,7 @@ Sitio marketing migrado desde `futura-landing/` (HTML + Babel CDN) a React + Vit
 | `/horizon` | Horizon | Oportunidades de negocio pre-modeladas |
 | `/how` | How it works | Walkthrough en 5 pasos + video placeholder |
 | `/marketplace` | Marketplace | Kits descargables / importables |
-| `/blogs` | Blogs | Artículos Shark Tank, ecommerce, AI |
-| `/ensenanzas` | Enseñanzas | Cursos cortos para makers |
+| `/blogs` | Blogs | Artículos por categoría + mega-menú (Blogs / Topics / Insights) |
 | `/welcome` | Auth | Sign up / sign in (prototipo) |
 | `/welcome#signin` | Auth | Tab sign in |
 | `/app` | App | Dashboard Futura Nota (selector → workspace) |
@@ -20,7 +19,7 @@ Sitio marketing migrado desde `futura-landing/` (HTML + Babel CDN) a React + Vit
 
 ```
 /  (landing)
-  ├── /horizon, /how, /marketplace, /blogs, /ensenanzas  (subpáginas)
+  ├── /horizon, /how, /marketplace, /blogs  (subpáginas)
   ├── /welcome  (crear cuenta / login)
   └── /app  (producto — selector de company → dashboard)
 ```

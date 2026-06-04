@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Wordmark } from './Wordmark.jsx';
+import { BlogNavMegaMenu } from './BlogNavMegaMenu.jsx';
 import { PATHS, authPath } from '../lib/paths.js';
 
 const NAV_LINKS = [
   ['Horizon', PATHS.horizon],
   ['Marketplace', PATHS.marketplace],
-  ['Blogs', PATHS.blogs],
-  ['Enseñanzas', PATHS.ensenanzas],
 ];
 
 export function Nav() {
+  const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
+  const [blogsOpen, setBlogsOpen] = useState(false);
+  const showReturn = pathname !== PATHS.home;
 
   return (
     <header className="nav" data-screen-label="nav">
@@ -21,8 +23,27 @@ export function Nav() {
           {NAV_LINKS.map(([label, href]) => (
             <Link key={label} to={href} className="nav__link">{label}</Link>
           ))}
+          <div className="nav__item nav__item--mega">
+            <button
+              type="button"
+              className={`nav__link nav__mega-trigger${blogsOpen ? ' is-open' : ''}`}
+              aria-expanded={blogsOpen}
+              aria-haspopup="true"
+              onClick={() => setBlogsOpen((o) => !o)}
+            >
+              Blogs
+              <span className="nav__mega-chevron" aria-hidden />
+            </button>
+            <BlogNavMegaMenu open={blogsOpen} onClose={() => setBlogsOpen(false)} />
+          </div>
         </nav>
         <div className="nav__actions">
+          {showReturn && (
+            <Link to={PATHS.home} className="nav__return" aria-label="Return to home">
+              <span className="nav__return-arrow" aria-hidden>←</span>
+              Return
+            </Link>
+          )}
           <Link to={authPath('signin')} className="nav__link nav__link--quiet">Log in</Link>
           <Link to={authPath()} className="btn btn-primary btn-sm" style={{ fontFamily: 'sans-serif' }}>Sign up free</Link>
         </div>
@@ -35,6 +56,10 @@ export function Nav() {
           {NAV_LINKS.map(([label, href]) => (
             <Link key={label} to={href} className="nav__mobile-link" onClick={() => setOpen(false)}>{label}</Link>
           ))}
+          <Link to={PATHS.blogs} className="nav__mobile-link" onClick={() => setOpen(false)}>Blogs</Link>
+          {showReturn && (
+            <Link to={PATHS.home} className="nav__mobile-link nav__mobile-return" onClick={() => setOpen(false)}>← Return</Link>
+          )}
           <Link to={authPath('signin')} className="nav__mobile-link" onClick={() => setOpen(false)}>Log in</Link>
           <Link to={authPath()} className="btn btn-primary" onClick={() => setOpen(false)} style={{ marginTop: 8 }}>Sign up free</Link>
         </div>

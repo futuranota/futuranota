@@ -5,7 +5,6 @@ export const PATHS = {
   how: '/how',
   marketplace: '/marketplace',
   blogs: '/blogs',
-  ensenanzas: '/ensenanzas',
   welcome: '/welcome',
   app: '/app',
 };
