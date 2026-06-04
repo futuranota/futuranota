@@ -2621,15 +2621,41 @@
 
 .doc-new-content-expand-btn:hover .doc-new-content-expand-btn__icon,
 .doc-new-content-expand-btn:focus-visible .doc-new-content-expand-btn__icon,
-.doc-new-content-expand-btn.is-expanded .doc-new-content-expand-btn__icon {
+.doc-new-content-expand-btn.is-focus .doc-new-content-expand-btn__icon {
   background-color: #6a6d72;
   opacity: 1;
 }
 
-.doc-new-content-box--expanded {
-  height: min(72vh, 520px) !important;
-  max-height: min(72vh, 520px);
+/* Content focus mode — content area fills parent card (overlay) */
+.doc-new-inner--content-focus {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.doc-new-inner--content-focus .doc-new-head,
+.doc-new-inner--content-focus .doc-meta-strip,
+.doc-new-inner--content-focus .doc-new-actions {
+  display: none !important;
+}
+
+.doc-new-inner--content-focus .doc-new-content-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  margin: 0;
   resize: none;
+}
+
+.doc-new-inner--content-focus .doc-new-content-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.doc-new-inner--content-focus .doc-new-content-scroll:focus {
+  outline: none;
 }
 
 .doc-new-content-box--resizable .doc-new-content-scroll {

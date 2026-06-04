@@ -118,7 +118,11 @@ export function DocDocumentBox({
   const blockStackRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
-  const [contentExpanded, setContentExpanded] = useState(false);
+  const [contentFocusMode, setContentFocusMode] = useState(false);
+
+  useEffect(() => {
+    setContentFocusMode(false);
+  }, [docId]);
 
   useEffect(() => {
     if (!isKnowledgeMode) return;
@@ -199,10 +203,24 @@ export function DocDocumentBox({
     el.style.height = `${el.scrollHeight}px`;
   }, [titleRef]);
 
+  const focusContentArea = useCallback(() => {
+    const scroll = contentScrollRef.current;
+    if (!scroll) return;
+    const target = scroll.querySelector(
+      "textarea, input:not([type='hidden']), [contenteditable='true']",
+    );
+    if (target instanceof HTMLElement) {
+      target.focus({ preventScroll: true });
+      return;
+    }
+    scroll.focus({ preventScroll: true });
+  }, []);
+
   const syncContentBoxHeight = useCallback(() => {
     const box = contentBoxRef.current;
     const scroll = contentScrollRef.current;
     if (!box || !scroll) return;
+    if (contentFocusMode) return;
 
     const maxHeight = getContentBoxMaxHeight();
     const contentHeight = scroll.scrollHeight;
@@ -234,7 +252,16 @@ export function DocDocumentBox({
     } else if (desired >= maxHeight - 1) {
       scroll.scrollTop = scroll.scrollHeight;
     }
-  }, [hasBlocks, isKnowledgeMode]);
+  }, [hasBlocks, isKnowledgeMode, contentFocusMode]);
+
+  const exitContentFocusMode = useCallback(() => {
+    setContentFocusMode(false);
+    const box = contentBoxRef.current;
+    if (box) box.style.height = "";
+    requestAnimationFrame(() => {
+      syncContentBoxHeight();
+    });
+  }, [syncContentBoxHeight]);
 
   const syncBodyHeightUncapped = useCallback(() => {
     const el = bodyRef.current;
@@ -244,23 +271,35 @@ export function DocDocumentBox({
     el.style.overflowY = "hidden";
   }, []);
 
-  const toggleContentExpand = useCallback(() => {
-    setContentExpanded((prev) => {
-      const next = !prev;
-      const box = contentBoxRef.current;
-      if (box) {
-        if (next) {
-          box.style.height = `${getContentBoxMaxHeight()}px`;
-        } else {
-          box.style.height = "";
-          requestAnimationFrame(() => {
-            syncContentBoxHeight();
-          });
-        }
-      }
-      return next;
+  const toggleContentFocus = useCallback(() => {
+    if (contentFocusMode) {
+      exitContentFocusMode();
+      return;
+    }
+    setContentFocusMode(true);
+  }, [contentFocusMode, exitContentFocusMode]);
+
+  useEffect(() => {
+    if (!contentFocusMode) return undefined;
+    const box = contentBoxRef.current;
+    if (box) box.style.height = "";
+    const t = requestAnimationFrame(() => {
+      requestAnimationFrame(focusContentArea);
     });
-  }, [syncContentBoxHeight]);
+    return () => cancelAnimationFrame(t);
+  }, [contentFocusMode, focusContentArea]);
+
+  useEffect(() => {
+    if (!contentFocusMode) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      exitContentFocusMode();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [contentFocusMode, exitContentFocusMode]);
 
   const requestContentBoxGrow = useCallback(() => {
     const runSync = () => {
@@ -398,6 +437,7 @@ export function DocDocumentBox({
       className={
         "doc-new-inner"
         + (isKnowledgeMode ? " doc-new-inner--knowledge" : "")
+        + (contentFocusMode ? " doc-new-inner--content-focus" : "")
       }
     >
       <header className="doc-new-head">
@@ -495,27 +535,28 @@ export function DocDocumentBox({
         className={
           "doc-new-content-box doc-new-content-box--resizable"
           + (isKnowledgeMode ? " doc-new-content-box--knowledge-notes" : "")
-          + (contentExpanded ? " doc-new-content-box--expanded" : "")
         }
       >
         <div
           ref={contentScrollRef}
+          tabIndex={-1}
           className={
             "doc-new-content-scroll"
             + (isKnowledgeMode ? " doc-new-content-scroll--knowledge" : "")
             + (showKnowledgeNotesPlaceholder ? " doc-new-content-scroll--hint-active" : "")
+            + (contentFocusMode ? " doc-new-content-scroll--focus" : "")
           }
         >
           <button
             type="button"
             className={
               "doc-new-content-expand-btn"
-              + (contentExpanded ? " is-expanded" : "")
+              + (contentFocusMode ? " is-focus" : "")
             }
-            onClick={toggleContentExpand}
-            aria-label={contentExpanded ? "Collapse content area" : "Expand content area"}
-            aria-pressed={contentExpanded}
-            title={contentExpanded ? "Collapse" : "Expand"}
+            onClick={toggleContentFocus}
+            aria-label={contentFocusMode ? "Back to document" : "Focus on content"}
+            aria-pressed={contentFocusMode}
+            title={contentFocusMode ? "Back to document" : "Expand content"}
           >
             <span className="doc-new-content-expand-btn__icon" aria-hidden />
           </button>

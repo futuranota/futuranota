@@ -4878,6 +4878,24 @@ textarea.note-form-field {
   min-height: 0;
 }
 
+.doc-overlay-global-card:has(.doc-new-inner--content-focus) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.doc-overlay-global-card:has(.doc-new-inner--content-focus) > div:first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-overlay-global-card:has(.doc-new-inner--content-focus) .notes-doc-editor-hint {
+  display: none;
+}
+
 .doc-overlay-global-card .notes-doc-editor-hint {
   margin-top: 10px;
   display: block;
