@@ -1,20 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Mark } from './Mark.jsx';
 import { PATHS, sectionPath } from '../lib/paths.js';
-
-const FOOTER_COLS = [
-  ['Product', ['Features', 'Pricing', 'Documentation', 'Changelog']],
-  ['Learn', ['Blogs', 'Marketplace', 'Horizon', 'How it works']],
-  ['Community', ['GitHub', 'Twitter / X', 'Discord', 'Contact']],
-  ['Legal', ['Privacy', 'Terms', 'Cookies']],
-];
-
-const FOOTER_SECTION_SLUGS = {
-  Horizon: 'horizon',
-  Marketplace: 'marketplace',
-  Blogs: 'blogs',
-  'How it works': 'how',
-};
+import { getSite, FOOTER_SECTION_SLUGS } from '../lib/content.js';
 
 function footerHref(label) {
   const slug = FOOTER_SECTION_SLUGS[label];
@@ -22,6 +9,8 @@ function footerHref(label) {
 }
 
 export function Footer() {
+  const { footer } = getSite();
+
   return (
     <footer className="footer" data-screen-label="footer">
       <div className="container footer__grid">
@@ -32,15 +21,21 @@ export function Footer() {
           </Link>
           <form className="footer__news" onSubmit={(e) => e.preventDefault()}>
             <div className="footer__news-row">
-              <input id="news" type="email" placeholder="you@studio.com" className="footer__input" aria-label="Email for newsletter" />
+              <input
+                id="news"
+                type="email"
+                placeholder={footer.newsletterPlaceholder}
+                className="footer__input"
+                aria-label="Email for newsletter"
+              />
               <button className="btn btn-primary btn-sm" type="submit">Subscribe</button>
             </div>
           </form>
         </div>
         <div className="footer__cols">
-          {FOOTER_COLS.map(([h, links]) => (
-            <div className="footer__col" key={h}>
-              <div className="footer__col-h mono-sm">{h}</div>
+          {footer.columns.map(({ heading, links }) => (
+            <div className="footer__col" key={heading}>
+              <div className="footer__col-h mono-sm">{heading}</div>
               {links.map((l) => (
                 footerHref(l).startsWith('/') ? (
                   <Link key={l} to={footerHref(l)} className="footer__link">{l}</Link>
@@ -53,7 +48,7 @@ export function Footer() {
         </div>
       </div>
       <div className="container footer__end">
-        <p className="mono-sm faint footer__trends">Stay ahead of the trends</p>
+        <p className="mono-sm faint footer__trends">{footer.trendsLine}</p>
       </div>
     </footer>
   );

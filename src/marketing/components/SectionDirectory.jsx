@@ -1,36 +1,6 @@
 import { Link } from 'react-router-dom';
+import { getHome } from '../lib/content.js';
 import { sectionPath } from '../lib/paths.js';
-
-const DIRECTORY = [
-  {
-    slug: 'horizon', num: '01', eyebrow: 'HORIZON OPPORTUNITIES',
-    title: 'Ideas, already shaped into business models.',
-    blurb: 'Real opportunities, shown with how they organize inside Futura. Download the prototype and start building before the window closes.',
-    tags: ['The Companion Cup', 'Drop-Day Packaging', 'Launch Merch'],
-    cta: 'Browse opportunities', span: 7,
-  },
-  {
-    slug: 'how', num: '02', eyebrow: 'HOW FUTURA WORKS',
-    title: 'Think in objects. Move in windows.',
-    blurb: 'A ninety-second walk through the whole loop — from spotting a campaign to shipping the thing you make by hand.',
-    tags: ['5 steps', '90-sec walkthrough'],
-    cta: 'See how it works', span: 5,
-  },
-  {
-    slug: 'marketplace', num: '03', eyebrow: 'HORIZON MARKETPLACE',
-    title: 'Ready-made kits. One-click into Futura.',
-    blurb: 'Start from a proven model — the downloadable, the domain, the email, even the course. Customize for your window, then ship.',
-    tags: ['SaaS Launchpad', 'Ecommerce Setup', '6 kits'],
-    cta: 'Open marketplace', span: 5,
-  },
-  {
-    slug: 'blogs', num: '04', eyebrow: 'BLOGS',
-    title: 'Trends, marketing, and commerce — read the signal before it lands.',
-    blurb: 'Marketing, sales, branding, validation, and the launches worth studying — filter by topic or browse by section.',
-    tags: ['Trends', 'Marketing', 'Sales', 'Validation'],
-    cta: 'Read the blog', span: 12,
-  },
-];
 
 function DirCard({ d }) {
   return (
@@ -55,16 +25,18 @@ function DirCard({ d }) {
 }
 
 export function SectionDirectory() {
+  const { directory } = getHome();
+
   return (
     <section className="section directory" id="explore" data-screen-label="directory">
       <div className="container">
         <div className="section-head" style={{ marginBottom: 'clamp(28px,4vw,48px)' }}>
-          <span className="eyebrow"><span className="tick" />EXPLORE FUTURA NOTA</span>
-          <h2 className="h2">Four windows. Step through any one.</h2>
-          <p className="lead">Every part of Futura Nota now lives on its own page. Pick a window below and dive in.</p>
+          <span className="eyebrow"><span className="tick" />{directory.eyebrow}</span>
+          <h2 className="h2">{directory.title}</h2>
+          <p className="lead">{directory.lead}</p>
         </div>
         <div className="dir-grid">
-          {DIRECTORY.map((d) => <DirCard key={d.slug} d={d} />)}
+          {directory.cards.map((d) => <DirCard key={d.slug} d={d} />)}
         </div>
       </div>
     </section>

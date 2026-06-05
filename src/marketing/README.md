@@ -26,12 +26,21 @@ Sitio marketing migrado desde `futura-landing/` (HTML + Babel CDN) a React + Vit
 
 Tras auth exitoso, **Enter Futura** lleva a `/app` (no de vuelta a la landing).
 
+## Contenido editable (Tina CMS)
+
+Copy y datos de marketing viven en `content/marketing/*.json` y se cargan con `src/marketing/lib/content.js`.
+
+- Editar en el admin: `npm run dev` → http://localhost:5173/admin/index.html
+- Más detalle: `content/README.md`
+
 ## Estructura de archivos
 
 ```
+content/marketing/            ← JSON (site, home, páginas, blogs/)
 src/marketing/
 ├── README.md                 ← este archivo
 ├── lib/
+│   ├── content.js            ← loaders desde content/marketing
 │   ├── paths.js              ← constantes de rutas (PATHS, authPath)
 │   └── theme.js              ← acentos terracotta/green/violet, applyMarketingTheme
 ├── layout/
@@ -133,6 +142,7 @@ Import pack acepta v1 y v2.
 
 ```bash
 npm run dev
-# http://localhost:5173/        → landing
-# http://localhost:5173/app     → dashboard
+# http://localhost:5173/              → landing
+# http://localhost:5173/admin/index.html → Tina CMS
+# http://localhost:5173/app           → dashboard
 ```

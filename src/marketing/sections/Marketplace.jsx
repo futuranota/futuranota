@@ -1,11 +1,4 @@
-const PRODUCTS = [
-  { title: 'SaaS Startup Launchpad', desc: 'Plan a SaaS from object to launch window.', price: '$49', rating: '4.9', reviews: 324, includes: ['.futura import', 'domain', 'Shopify course'], free: false, hot: true },
-  { title: 'Ecommerce Store Setup', desc: 'Storefront, product objects, and drop calendar.', price: '$39', rating: '4.8', reviews: 211, includes: ['.futura import', 'domain', 'email'], free: false, hot: false },
-  { title: 'Course Creator Bundle', desc: 'Turn a launch into a small-batch course + merch.', price: '$59', rating: '5.0', reviews: 148, includes: ['.futura import', 'Shopify course'], free: false, hot: true },
-  { title: 'AI Agency Framework', desc: 'Productized AI photo & copy service, ready to sell.', price: '$79', rating: '4.7', reviews: 96, includes: ['.futura import', 'domain', 'email'], free: false, hot: false },
-  { title: 'Personal Brand Kit', desc: 'Position yourself as the maker behind the window.', price: '$29', rating: '4.9', reviews: 502, includes: ['.futura import', 'domain'], free: false, hot: false },
-  { title: 'Maker Starter — Companion Cup', desc: 'Our full coffee-and-cup playbook. Yours free.', price: 'Free', rating: '5.0', reviews: 1280, includes: ['.futura import', 'Shopify course'], free: true, hot: false },
-];
+import { getMarketplace } from '../lib/content.js';
 
 function ProductCard({ p }) {
   return (
@@ -37,19 +30,21 @@ function ProductCard({ p }) {
 }
 
 export function Marketplace() {
+  const { header, products } = getMarketplace();
+
   return (
     <section className="section marketplace" id="marketplace" data-screen-label="marketplace">
       <div className="container">
         <div className="block-head">
           <div className="section-head">
-            <span className="eyebrow"><span className="tick" />HORIZON MARKETPLACE</span>
-            <h2 className="h2">Ready-made kits. One-click into Futura.</h2>
-            <p className="lead">Start from a proven model — the downloadable, the domain, the email, even the course that walks you through importing it to Shopify. Customize for your window, then ship.</p>
+            <span className="eyebrow"><span className="tick" />{header.eyebrow}</span>
+            <h2 className="h2">{header.title}</h2>
+            <p className="lead">{header.lead}</p>
           </div>
-          <a href="#" className="link-arrow block-head__link">Open marketplace <span className="arrow">→</span></a>
+          <a href="#" className="link-arrow block-head__link">{header.linkLabel} <span className="arrow">→</span></a>
         </div>
         <div className="prod-grid grid">
-          {PRODUCTS.map((p) => <ProductCard key={p.title} p={p} />)}
+          {products.map((p) => <ProductCard key={p.title} p={p} />)}
         </div>
       </div>
     </section>

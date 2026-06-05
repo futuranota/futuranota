@@ -1,0 +1,380 @@
+import { defineConfig } from 'tinacms';
+
+const branch =
+  process.env.TINA_BRANCH ||
+  process.env.VERCEL_GIT_COMMIT_REF ||
+  process.env.GITHUB_BRANCH ||
+  'main';
+
+const linkFields = [
+  { type: 'string' as const, name: 'label', label: 'Label' },
+  { type: 'string' as const, name: 'path', label: 'Path' },
+];
+
+const blogCardFields = [
+  { type: 'string' as const, name: 'title', label: 'Title' },
+  { type: 'string' as const, name: 'description', label: 'Description' },
+  { type: 'string' as const, name: 'href', label: 'Link' },
+];
+
+export default defineConfig({
+  branch,
+  clientId: process.env.TINA_PUBLIC_CLIENT_ID || null,
+  token: process.env.TINA_TOKEN || null,
+  build: {
+    outputFolder: 'admin',
+    publicFolder: 'public',
+  },
+  media: {
+    tina: {
+      mediaRoot: 'uploads',
+      publicFolder: 'public',
+    },
+  },
+  schema: {
+    collections: [
+      {
+        name: 'site',
+        label: 'Site (nav & footer)',
+        path: 'content/marketing',
+        format: 'json',
+        match: { include: 'site' },
+        ui: {
+          allowedActions: { create: false, delete: false },
+        },
+        fields: [
+          {
+            type: 'object',
+            name: 'nav',
+            label: 'Navigation',
+            fields: [
+              {
+                type: 'object',
+                name: 'links',
+                label: 'Nav links',
+                list: true,
+                fields: linkFields,
+              },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'footer',
+            label: 'Footer',
+            fields: [
+              {
+                type: 'object',
+                name: 'columns',
+                label: 'Columns',
+                list: true,
+                fields: [
+                  { type: 'string', name: 'heading', label: 'Heading' },
+                  {
+                    type: 'string',
+                    name: 'links',
+                    label: 'Link labels',
+                    list: true,
+                  },
+                ],
+              },
+              { type: 'string', name: 'newsletterPlaceholder', label: 'Newsletter placeholder' },
+              { type: 'string', name: 'trendsLine', label: 'Trends line' },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'blogNavSections',
+            label: 'Blog mega-menu sections',
+            list: true,
+            fields: [
+              { type: 'string', name: 'id', label: 'ID' },
+              { type: 'string', name: 'label', label: 'Section label' },
+              {
+                type: 'object',
+                name: 'cards',
+                label: 'Cards',
+                list: true,
+                fields: blogCardFields,
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'home',
+        label: 'Home page',
+        path: 'content/marketing',
+        format: 'json',
+        match: { include: 'home' },
+        ui: { allowedActions: { create: false, delete: false } },
+        fields: [
+          {
+            type: 'object',
+            name: 'hero',
+            label: 'Hero',
+            fields: [
+              {
+                type: 'object',
+                name: 'maker',
+                label: 'Maker tab',
+                fields: [
+                  { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+                  {
+                    type: 'object',
+                    name: 'titleLines',
+                    label: 'Title lines',
+                    list: true,
+                    fields: [
+                      { type: 'string', name: 'subject', label: 'Subject key' },
+                      { type: 'string', name: 'bracket', label: 'Bracket text' },
+                    ],
+                  },
+                  { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
+                  { type: 'string', name: 'primaryCta', label: 'Primary CTA' },
+                  { type: 'string', name: 'secondaryCta', label: 'Secondary CTA' },
+                  { type: 'string', name: 'trustChip', label: 'Trust chip' },
+                ],
+              },
+              {
+                type: 'object',
+                name: 'founder',
+                label: 'Founder tab',
+                fields: [
+                  { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+                  { type: 'string', name: 'pre', label: 'Title prefix' },
+                  { type: 'string', name: 'accent', label: 'Title accent' },
+                  { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
+                ],
+              },
+              {
+                type: 'object',
+                name: 'frame',
+                label: 'Frame mock',
+                fields: [
+                  { type: 'string', name: 'detectedLabel', label: 'Detected label' },
+                  { type: 'string', name: 'ago', label: 'Time ago' },
+                  { type: 'string', name: 'campaignName', label: 'Campaign name' },
+                  { type: 'string', name: 'windowLabel', label: 'Window label' },
+                  { type: 'number', name: 'windowProgress', label: 'Window progress %' },
+                  { type: 'string', name: 'opens', label: 'Opens' },
+                  { type: 'string', name: 'closes', label: 'Closes' },
+                  {
+                    type: 'object',
+                    name: 'nodes',
+                    label: 'Nodes',
+                    list: true,
+                    fields: [
+                      { type: 'string', name: 'hash', label: 'Hash tag' },
+                      { type: 'string', name: 'text', label: 'Text' },
+                    ],
+                  },
+                ],
+              },
+              {
+                type: 'object',
+                name: 'features',
+                label: 'Feature strip',
+                list: true,
+                fields: [
+                  { type: 'string', name: 'num', label: 'Number' },
+                  { type: 'string', name: 'title', label: 'Title' },
+                  { type: 'string', name: 'body', label: 'Body', ui: { component: 'textarea' } },
+                ],
+              },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'directory',
+            label: 'Directory section',
+            fields: [
+              { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+              { type: 'string', name: 'title', label: 'Title' },
+              { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
+              {
+                type: 'object',
+                name: 'cards',
+                label: 'Cards',
+                list: true,
+                fields: [
+                  { type: 'string', name: 'slug', label: 'Slug' },
+                  { type: 'string', name: 'num', label: 'Number' },
+                  { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+                  { type: 'string', name: 'title', label: 'Title' },
+                  { type: 'string', name: 'blurb', label: 'Blurb', ui: { component: 'textarea' } },
+                  { type: 'string', name: 'cta', label: 'CTA' },
+                  { type: 'number', name: 'span', label: 'Grid span' },
+                  { type: 'string', name: 'tags', label: 'Tags', list: true },
+                ],
+              },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'finalCta',
+            label: 'Final CTA',
+            fields: [
+              { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+              { type: 'string', name: 'title', label: 'Title' },
+              { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
+              { type: 'string', name: 'primaryCta', label: 'Primary CTA' },
+              { type: 'string', name: 'secondaryCta', label: 'Secondary CTA' },
+              { type: 'string', name: 'trust', label: 'Trust bullets', list: true },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'horizon',
+        label: 'Horizon page',
+        path: 'content/marketing',
+        format: 'json',
+        match: { include: 'horizon' },
+        ui: { allowedActions: { create: false, delete: false } },
+        fields: [
+          {
+            type: 'object',
+            name: 'header',
+            label: 'Header',
+            fields: [
+              { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+              { type: 'string', name: 'title', label: 'Title' },
+              { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
+              { type: 'string', name: 'linkLabel', label: 'Link label' },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'opportunities',
+            label: 'Opportunities',
+            list: true,
+            fields: [
+              { type: 'string', name: 'tag', label: 'Tag' },
+              { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
+              { type: 'string', name: 'desc', label: 'Description', ui: { component: 'textarea' } },
+              { type: 'string', name: 'org', label: 'Org lines', list: true },
+              { type: 'string', name: 'downloads', label: 'Downloads' },
+              { type: 'boolean', name: 'trend', label: 'Trending' },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'how',
+        label: 'How it works',
+        path: 'content/marketing',
+        format: 'json',
+        match: { include: 'how' },
+        ui: { allowedActions: { create: false, delete: false } },
+        fields: [
+          {
+            type: 'object',
+            name: 'header',
+            label: 'Header',
+            fields: [
+              { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+              { type: 'string', name: 'title', label: 'Title' },
+              { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'video',
+            label: 'Video block',
+            fields: [
+              { type: 'string', name: 'label', label: 'Label' },
+              { type: 'string', name: 'duration', label: 'Duration' },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'steps',
+            label: 'Steps',
+            list: true,
+            fields: [
+              { type: 'string', name: 'num', label: 'Number' },
+              { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
+              { type: 'string', name: 'body', label: 'Body', ui: { component: 'textarea' } },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'marketplace',
+        label: 'Marketplace',
+        path: 'content/marketing',
+        format: 'json',
+        match: { include: 'marketplace' },
+        ui: { allowedActions: { create: false, delete: false } },
+        fields: [
+          {
+            type: 'object',
+            name: 'header',
+            label: 'Header',
+            fields: [
+              { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+              { type: 'string', name: 'title', label: 'Title' },
+              { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'products',
+            label: 'Products',
+            list: true,
+            fields: [
+              { type: 'string', name: 'tag', label: 'Tag' },
+              { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
+              { type: 'string', name: 'desc', label: 'Description', ui: { component: 'textarea' } },
+              { type: 'string', name: 'price', label: 'Price' },
+              { type: 'string', name: 'cta', label: 'CTA' },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'blogsPage',
+        label: 'Blogs page',
+        path: 'content/marketing',
+        format: 'json',
+        match: { include: 'blogs-page' },
+        ui: { allowedActions: { create: false, delete: false } },
+        fields: [
+          {
+            type: 'object',
+            name: 'wall',
+            label: 'Wall header',
+            fields: [
+              { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
+              { type: 'string', name: 'title', label: 'Title' },
+              { type: 'string', name: 'viewAllLabel', label: 'View all label' },
+            ],
+          },
+          {
+            type: 'object',
+            name: 'categories',
+            label: 'Categories',
+            list: true,
+            fields: [
+              { type: 'string', name: 'id', label: 'ID' },
+              { type: 'string', name: 'label', label: 'Label' },
+            ],
+          },
+        ],
+      },
+      {
+        name: 'blog',
+        label: 'Blog articles',
+        path: 'content/marketing/blogs',
+        format: 'json',
+        fields: [
+          { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
+          { type: 'string', name: 'author', label: 'Author' },
+          { type: 'string', name: 'read', label: 'Read time' },
+          { type: 'boolean', name: 'feat', label: 'Featured on home' },
+          { type: 'string', name: 'cat', label: 'Categories', list: true },
+        ],
+      },
+    ],
+  },
+});

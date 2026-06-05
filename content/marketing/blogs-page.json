@@ -1,0 +1,17 @@
+{
+  "wall": {
+    "eyebrow": "BLOGS",
+    "title": "Trends, marketing, and commerce — read the signal before it lands.",
+    "viewAllLabel": "View all articles"
+  },
+  "categories": [
+    { "id": "All", "label": "All" },
+    { "id": "Trends", "label": "Trends" },
+    { "id": "Marketing", "label": "Marketing" },
+    { "id": "Sales", "label": "Sales" },
+    { "id": "Branding", "label": "Branding" },
+    { "id": "Website", "label": "Website" },
+    { "id": "Ecommerce", "label": "(e)commerce" },
+    { "id": "Validation", "label": "Validation" }
+  ]
+}
