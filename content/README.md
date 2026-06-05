@@ -41,7 +41,7 @@ The collection list and form-only view (e.g. `site.json` with Nav/Footer fields)
 | How it works | `how.json` | `/how` |
 | Marketplace | `marketplace.json` | `/marketplace` |
 | Blogs page | `blogs-page.json` | `/blogs` |
-| Blog articles | `blogs/*.json` | `/blogs` |
+| Blog articles | `blogs/*.json` | `/blogs/{slug}` (ej. `/blogs/how-to-read-a-launch-campaign`) |
 
 Override the preview origin if Vite uses another host/port:
 
@@ -52,6 +52,7 @@ TINA_PREVIEW_URL=http://localhost:5173
 ### What is already wired in code
 
 - `useTina` + `tinaField` on marketing pages (visual editing in the preview iframe).
+- Blog posts: open `blogs/your-slug.json` in admin → Preview opens `/blogs/your-slug` → click title, excerpt, or body in the iframe to edit inline.
 - `ui.previewUrl` and `ui.router` in `tina/config.ts`.
 - Tina GraphQL client loads **only in dev**; production uses static JSON.
 

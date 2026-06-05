@@ -35,17 +35,13 @@ function marketingPreviewUrl(context: {
   collection?: { name?: string };
   document?: { _sys?: { relativePath?: string; filename?: string } };
 }) {
-  const collection = context.collection?.name;
-  if (collection === 'blog') {
-    return { url: `${PREVIEW_BASE}/blogs` };
-  }
-
   const rel = context.document?._sys?.relativePath ?? '';
   const stem = rel.replace(/\.json$/i, '');
   const key = stem || context.document?._sys?.filename || '';
 
-  if (key.startsWith('blogs/') || key.includes('blogs/')) {
-    return { url: `${PREVIEW_BASE}/blogs` };
+  if (context.collection?.name === 'blog' || key.startsWith('blogs/') || key.includes('blogs/')) {
+    const slug = key.replace(/^blogs\//, '');
+    return { url: `${PREVIEW_BASE}/blogs/${slug}` };
   }
 
   return { url: `${PREVIEW_BASE}${MARKETING_ROUTES[key] ?? '/'}` };
@@ -54,6 +50,14 @@ function marketingPreviewUrl(context: {
 /** Site path shown in Tina admin when opening a document for visual preview */
 function collectionRouter(path: string) {
   return () => path;
+}
+
+function blogPostRouter(context: {
+  document?: { _sys?: { relativePath?: string; filename?: string } };
+}) {
+  const rel = context.document?._sys?.relativePath ?? '';
+  const stem = rel.replace(/\.json$/i, '') || context.document?._sys?.filename?.replace(/\.json$/i, '') || '';
+  return stem ? `/blogs/${stem}` : '/blogs';
 }
 
 const collectionUi = {
@@ -369,6 +373,7 @@ export default defineConfig({
               { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
               { type: 'string', name: 'title', label: 'Title' },
               { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
+              { type: 'string', name: 'linkLabel', label: 'Link label' },
             ],
           },
           {
@@ -377,11 +382,14 @@ export default defineConfig({
             label: 'Products',
             list: true,
             fields: [
-              { type: 'string', name: 'tag', label: 'Tag' },
               { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
               { type: 'string', name: 'desc', label: 'Description', ui: { component: 'textarea' } },
               { type: 'string', name: 'price', label: 'Price' },
-              { type: 'string', name: 'cta', label: 'CTA' },
+              { type: 'string', name: 'rating', label: 'Rating' },
+              { type: 'number', name: 'reviews', label: 'Review count' },
+              { type: 'string', name: 'includes', label: 'Includes', list: true },
+              { type: 'boolean', name: 'free', label: 'Free sample' },
+              { type: 'boolean', name: 'hot', label: 'Best seller' },
             ],
           },
         ],
@@ -421,13 +429,19 @@ export default defineConfig({
         label: 'Blog articles',
         path: 'content/marketing/blogs',
         format: 'json',
-        ui: { router: collectionRouter('/blogs') },
+        ui: {
+          allowedActions: { create: true, delete: true },
+          router: blogPostRouter,
+        },
         fields: [
+          { type: 'string', name: 'slug', label: 'Slug (optional — defaults to filename)' },
           { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
           { type: 'string', name: 'author', label: 'Author' },
           { type: 'string', name: 'read', label: 'Read time' },
           { type: 'boolean', name: 'feat', label: 'Featured on home' },
           { type: 'string', name: 'cat', label: 'Categories', list: true },
+          { type: 'string', name: 'excerpt', label: 'Excerpt', ui: { component: 'textarea' } },
+          { type: 'string', name: 'body', label: 'Body', ui: { component: 'textarea' } },
         ],
       },
     ],

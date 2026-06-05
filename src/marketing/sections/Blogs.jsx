@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getBlogArticles, getBlogPageCategories, getBlogsPage } from '../lib/content.js';
+import { blogPostPath } from '../lib/paths.js';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
 function countForCategory(catId, articles, categories) {
@@ -56,7 +57,7 @@ export function Blogs() {
         </aside>
         <div className="blogs__list">
           {featured && (
-            <article className="blog-feat card" data-screen-label="blog-featured">
+            <Link to={blogPostPath(featured.slug)} className="blog-feat card" data-screen-label="blog-featured">
               <div className="blog-feat__img ph"><span className="ph__tag">featured image</span></div>
               <div className="blog-feat__body">
                 <div className="eyebrow-row">
@@ -67,13 +68,13 @@ export function Blogs() {
                 </div>
                 <h3 className="h2 blog-feat__title" style={{ fontSize: 'clamp(24px,2.6vw,34px)' }}>{featured.title}</h3>
                 <div className="blog__meta mono-sm faint">By {featured.author} · {featured.read} read</div>
-                <a href="#" className="link-arrow">Read article <span className="arrow">→</span></a>
+                <span className="link-arrow">Read article <span className="arrow">→</span></span>
               </div>
-            </article>
+            </Link>
           )}
           <div className="blog-grid">
             {rest.map((a, i) => (
-              <article className="blog card" key={a.title} data-screen-label={`blog-${i}`}>
+              <Link to={blogPostPath(a.slug)} className="blog card" key={a.slug} data-screen-label={`blog-${i}`}>
                 <div className="blog__img ph"><span className="ph__tag">image</span></div>
                 <div className="blog__body">
                   <div className="eyebrow-row">
@@ -85,7 +86,7 @@ export function Blogs() {
                   <h4 className="blog__title">{a.title}</h4>
                   <div className="blog__meta mono-sm faint">By {a.author} · {a.read}</div>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </div>

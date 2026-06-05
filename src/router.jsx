@@ -5,6 +5,7 @@ import { HorizonPage } from './marketing/pages/HorizonPage.jsx';
 import { HowPage } from './marketing/pages/HowPage.jsx';
 import { MarketplacePage } from './marketing/pages/MarketplacePage.jsx';
 import { BlogsPage } from './marketing/pages/BlogsPage.jsx';
+import { BlogPostPage } from './marketing/pages/BlogPostPage.jsx';
 import { WelcomePage } from './marketing/pages/WelcomePage.jsx';
 import App from './App.jsx';
 
@@ -17,6 +18,7 @@ export default function AppRouter() {
         <Route path="how" element={<HowPage />} />
         <Route path="marketplace" element={<MarketplacePage />} />
         <Route path="blogs" element={<BlogsPage />} />
+        <Route path="blogs/:slug" element={<BlogPostPage />} />
         <Route path="ensenanzas" element={<Navigate to="/blogs" replace />} />
       </Route>
 

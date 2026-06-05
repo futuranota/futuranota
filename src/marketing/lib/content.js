@@ -16,9 +16,29 @@ const blogModules = import.meta.glob('../../../content/marketing/blogs/*.json', 
   import: 'default',
 });
 
-/** @returns {import('../../../content/marketing/blogs/how-to-read-a-launch-campaign.json')[]} */
+function slugFromPath(path) {
+  const match = path.match(/\/([^/]+)\.json$/);
+  return match ? match[1] : '';
+}
+
+function withSlug(path, article) {
+  const fileSlug = slugFromPath(path);
+  return { ...article, slug: article.slug || fileSlug };
+}
+
+const blogArticles = Object.entries(blogModules).map(([path, article]) =>
+  withSlug(path, article),
+);
+
+/** @returns {ReturnType<typeof withSlug>[]} */
 export function getBlogArticles() {
-  return Object.values(blogModules);
+  return blogArticles;
+}
+
+/** @param {string} slug */
+export function getBlogArticleBySlug(slug) {
+  if (!slug) return null;
+  return blogArticles.find((a) => a.slug === slug) ?? null;
 }
 
 export function getSite() {

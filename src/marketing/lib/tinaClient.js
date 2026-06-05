@@ -63,3 +63,31 @@ export async function fetchTinaQuery(docKey, variables) {
     return staticPayload;
   }
 }
+
+/**
+ * @param {string} slug
+ */
+export async function fetchTinaBlogPost(slug) {
+  const relativePath = `${slug}.json`;
+  const staticArticle = (await import('./content.js')).getBlogArticleBySlug(slug);
+  const staticPayload = {
+    query: '',
+    variables: { relativePath },
+    data: { blog: staticArticle },
+  };
+
+  if (!import.meta.env.DEV) return staticPayload;
+
+  try {
+    const client = await getTinaClient();
+    if (!client) return staticPayload;
+    const res = await client.queries.blog({ relativePath });
+    return {
+      query: res.query,
+      variables: res.variables,
+      data: res.data,
+    };
+  } catch {
+    return staticPayload;
+  }
+}

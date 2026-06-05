@@ -1,6 +1,19 @@
 import { getMarketplace } from '../lib/content.js';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
+function normalizeProduct(p = {}) {
+  return {
+    title: p.title ?? '',
+    desc: p.desc ?? '',
+    price: p.price ?? '',
+    rating: p.rating ?? '—',
+    reviews: p.reviews ?? 0,
+    includes: Array.isArray(p.includes) ? p.includes : [],
+    free: Boolean(p.free),
+    hot: Boolean(p.hot),
+  };
+}
+
 function ProductCard({ p }) {
   return (
     <article className="prod card" data-screen-label={`product-${p.title}`}>
@@ -32,7 +45,12 @@ function ProductCard({ p }) {
 
 export function Marketplace() {
   const pageTina = usePageTina();
-  const { header, products } = pageTina?.document ?? getMarketplace();
+  const fallback = getMarketplace();
+  const raw = pageTina?.document ?? fallback;
+  const header = { ...fallback.header, ...raw.header };
+  const products = (raw.products ?? fallback.products ?? []).map((p, i) =>
+    normalizeProduct({ ...fallback.products?.[i], ...p }),
+  );
 
   return (
     <section className="section marketplace" id="marketplace" data-screen-label="marketplace">
