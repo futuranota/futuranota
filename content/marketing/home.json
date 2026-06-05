@@ -1,0 +1,95 @@
+{
+  "hero": {
+    "maker": {
+      "eyebrow": "FOR MAKERS & FOUNDERS",
+      "titleLines": [
+        { "subject": "coffee", "bracket": "You sell the cup." },
+        { "subject": "product", "bracket": "you design what fits." }
+      ],
+      "lead": "Spot a launch before it lands then turn it into something you make by hand or as a prototype. Ceramics, wood, prints, design. Futura Nota gives you the exact window to ship the companion product while attention is at its peak.",
+      "primaryCta": "Get Started",
+      "secondaryCta": "Watch how it works",
+      "trustChip": "10 free searches"
+    },
+    "founder": {
+      "eyebrow": "REAL-TIME CAMPAIGN INTELLIGENCE",
+      "pre": "Study the campaign.",
+      "accent": "Move on the window.",
+      "lead": "Futura Nota detects when a company starts a launch campaign — and hands you the exact window of opportunity to ship the companion product before it closes."
+    },
+    "frame": {
+      "detectedLabel": "CAMPAIGN DETECTED",
+      "ago": "02:14 ago",
+      "campaignName": "NovaBrew · single-origin launch",
+      "windowLabel": "SHIP WINDOW",
+      "windowProgress": 62,
+      "opens": "opens now",
+      "closes": "closes in 9d",
+      "nodes": [
+        { "hash": "problem", "text": "mugs ship cold, look generic" },
+        { "hash": "make", "text": "hand-thrown stoneware, matte glaze" },
+        { "hash": "window", "text": "drop day 0 → day 9" }
+      ]
+    },
+    "features": [
+      { "num": "01", "title": "OBJECTS", "body": "Parent entities — you, projects, products, spaces. Everything you track lives as an object you can branch." },
+      { "num": "02", "title": "DOCS & NODES", "body": "Notion-like docs that split into typed, atomic #-nodes the moment you write them. Structure, automatically." },
+      { "num": "03", "title": "CANVAS & SYNC", "body": "Plan the connections on an infinite canvas, then sync across tiers so the window never slips past you." }
+    ]
+  },
+  "directory": {
+    "eyebrow": "EXPLORE FUTURA NOTA",
+    "title": "Four windows. Step through any one.",
+    "lead": "Every part of Futura Nota now lives on its own page. Pick a window below and dive in.",
+    "cards": [
+      {
+        "slug": "horizon",
+        "num": "01",
+        "eyebrow": "HORIZON OPPORTUNITIES",
+        "title": "Ideas, already shaped into business models.",
+        "blurb": "Real opportunities, shown with how they organize inside Futura. Download the prototype and start building before the window closes.",
+        "tags": ["The Companion Cup", "Drop-Day Packaging", "Launch Merch"],
+        "cta": "Browse opportunities",
+        "span": 7
+      },
+      {
+        "slug": "how",
+        "num": "02",
+        "eyebrow": "HOW FUTURA WORKS",
+        "title": "Think in objects. Move in windows.",
+        "blurb": "A ninety-second walk through the whole loop — from spotting a campaign to shipping the thing you make by hand.",
+        "tags": ["5 steps", "90-sec walkthrough"],
+        "cta": "See how it works",
+        "span": 5
+      },
+      {
+        "slug": "marketplace",
+        "num": "03",
+        "eyebrow": "HORIZON MARKETPLACE",
+        "title": "Ready-made kits. One-click into Futura.",
+        "blurb": "Start from a proven model — the downloadable, the domain, the email, even the course. Customize for your window, then ship.",
+        "tags": ["SaaS Launchpad", "Ecommerce Setup", "6 kits"],
+        "cta": "Open marketplace",
+        "span": 5
+      },
+      {
+        "slug": "blogs",
+        "num": "04",
+        "eyebrow": "BLOGS",
+        "title": "Trends, marketing, and commerce — read the signal before it lands.",
+        "blurb": "Marketing, sales, branding, validation, and the launches worth studying — filter by topic or browse by section.",
+        "tags": ["Trends", "Marketing", "Sales", "Validation"],
+        "cta": "Read the blog",
+        "span": 12
+      }
+    ]
+  },
+  "finalCta": {
+    "eyebrow": "THE WINDOW IS OPEN",
+    "title": "Ready to move on your opportunities?",
+    "lead": "Join the makers and founders using Futura Nota to organize their ideas and move faster than the competition. Start free — no card, full features.",
+    "primaryCta": "Start free — 10 searches",
+    "secondaryCta": "Sign in",
+    "trust": ["No credit card", "Full features free", "500+ entrepreneurs", "Operational since 2026"]
+  }
+}

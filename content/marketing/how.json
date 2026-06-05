@@ -1,0 +1,19 @@
+{
+  "header": {
+    "eyebrow": "HOW FUTURA WORKS",
+    "title": "Think in objects. Move in windows.",
+    "lead": "A ninety-second walk through the whole loop — from spotting a campaign to shipping the thing you make by hand."
+  },
+  "video": {
+    "title": "futura-nota.app — walkthrough",
+    "duration": "01:32",
+    "placeholder": "video placeholder · drop screen-recording here"
+  },
+  "steps": [
+    { "num": "01", "title": "Create an object", "desc": "Spin up a product, brand, or space you want to track." },
+    { "num": "02", "title": "Write the doc", "desc": "Type freely — #-nodes split into typed, atomic pieces as you go." },
+    { "num": "03", "title": "Search the signal", "desc": "The intelligence panel surfaces campaigns starting right now." },
+    { "num": "04", "title": "Map the canvas", "desc": "Drag connections between problem, make, and window." },
+    { "num": "05", "title": "Watch the window", "desc": "The timeline tells you exactly when to ship — and when it closes." }
+  ]
+}

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BLOG_NAV_SECTIONS } from '../data/blogNavData.js';
+import { getBlogNavSections } from '../lib/content.js';
 import { PATHS } from '../lib/paths.js';
 
 function MegaCard({ card }) {
@@ -36,7 +36,8 @@ export function BlogNavMegaMenu({ open, onClose }) {
   const rootRef = useRef(null);
   const [activeSection, setActiveSection] = useState('blogs');
 
-  const section = BLOG_NAV_SECTIONS.find((s) => s.id === activeSection) || BLOG_NAV_SECTIONS[0];
+  const sections = getBlogNavSections();
+  const section = sections.find((s) => s.id === activeSection) || sections[0];
 
   useEffect(() => {
     if (!open) return undefined;
@@ -64,7 +65,7 @@ export function BlogNavMegaMenu({ open, onClose }) {
     >
       <div className="blog-nav-mega__inner container">
         <div className="blog-nav-mega__tabs" role="tablist" aria-label="Blog sections">
-          {BLOG_NAV_SECTIONS.map((s) => (
+          {sections.map((s) => (
             <button
               key={s.id}
               type="button"

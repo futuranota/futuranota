@@ -3,25 +3,22 @@ import { Link, useLocation } from 'react-router-dom';
 import { Wordmark } from './Wordmark.jsx';
 import { BlogNavMegaMenu } from './BlogNavMegaMenu.jsx';
 import { PATHS, authPath } from '../lib/paths.js';
-
-const NAV_LINKS = [
-  ['Horizon', PATHS.horizon],
-  ['Marketplace', PATHS.marketplace],
-];
+import { getSite } from '../lib/content.js';
 
 export function Nav() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [blogsOpen, setBlogsOpen] = useState(false);
   const showReturn = pathname !== PATHS.home;
+  const navLinks = getSite().nav.links;
 
   return (
     <header className="nav" data-screen-label="nav">
       <div className="nav__inner container">
         <Wordmark />
         <nav className="nav__links" aria-label="Primary">
-          {NAV_LINKS.map(([label, href]) => (
-            <Link key={label} to={href} className="nav__link">{label}</Link>
+          {navLinks.map(({ label, path }) => (
+            <Link key={label} to={path} className="nav__link">{label}</Link>
           ))}
           <div className="nav__item nav__item--mega">
             <button
@@ -53,8 +50,8 @@ export function Nav() {
       </div>
       {open && (
         <div className="nav__mobile">
-          {NAV_LINKS.map(([label, href]) => (
-            <Link key={label} to={href} className="nav__mobile-link" onClick={() => setOpen(false)}>{label}</Link>
+          {navLinks.map(({ label, path }) => (
+            <Link key={label} to={path} className="nav__mobile-link" onClick={() => setOpen(false)}>{label}</Link>
           ))}
           <Link to={PATHS.blogs} className="nav__mobile-link" onClick={() => setOpen(false)}>Blogs</Link>
           {showReturn && (

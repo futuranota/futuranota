@@ -1,25 +1,29 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { BLOG_ARTICLES, BLOG_PAGE_CATEGORIES } from '../data/blogNavData.js';
+import { getBlogArticles, getBlogPageCategories, getBlogsPage } from '../lib/content.js';
 
-function countForCategory(catId) {
-  if (catId === 'All') return BLOG_ARTICLES.length;
-  return BLOG_ARTICLES.filter((a) => a.cat.includes(catId)).length;
+function countForCategory(catId, articles, categories) {
+  if (catId === 'All') return articles.length;
+  return articles.filter((a) => a.cat.includes(catId)).length;
 }
 
 export function Blogs() {
+  const { wall } = getBlogsPage();
+  const categories = getBlogPageCategories();
+  const articles = getBlogArticles();
+
   const [searchParams] = useSearchParams();
   const catFromUrl = searchParams.get('cat');
-  const initial = BLOG_PAGE_CATEGORIES.some((c) => c.id === catFromUrl) ? catFromUrl : 'All';
+  const initial = categories.some((c) => c.id === catFromUrl) ? catFromUrl : 'All';
   const [active, setActive] = useState(initial);
 
   useEffect(() => {
-    if (catFromUrl && BLOG_PAGE_CATEGORIES.some((c) => c.id === catFromUrl)) {
+    if (catFromUrl && categories.some((c) => c.id === catFromUrl)) {
       setActive(catFromUrl);
     }
-  }, [catFromUrl]);
+  }, [catFromUrl, categories]);
 
-  const list = BLOG_ARTICLES.filter((a) => active === 'All' || a.cat.includes(active));
+  const list = articles.filter((a) => active === 'All' || a.cat.includes(active));
   const featured = list.find((a) => a.feat) || list[0];
   const rest = list.filter((a) => a !== featured);
 
@@ -28,13 +32,11 @@ export function Blogs() {
       <div className="container blogs__grid">
         <aside className="blogs__wall">
           <div className="blogs__wall-inner">
-            <span className="eyebrow"><span className="tick" />BLOGS</span>
-            <h2 className="h3 blogs__wall-title">
-              Trends, marketing, and commerce — read the signal before it lands.
-            </h2>
+            <span className="eyebrow"><span className="tick" />{wall.eyebrow}</span>
+            <h2 className="h3 blogs__wall-title">{wall.title}</h2>
 
             <nav className="blogs__cats" aria-label="Blog categories">
-              {BLOG_PAGE_CATEGORIES.map((c) => (
+              {categories.map((c) => (
                 <button
                   key={c.id}
                   type="button"
@@ -42,11 +44,11 @@ export function Blogs() {
                   onClick={() => setActive(c.id)}
                 >
                   <span>{c.label}</span>
-                  <span className="mono-sm faint">{countForCategory(c.id)}</span>
+                  <span className="mono-sm faint">{countForCategory(c.id, articles, categories)}</span>
                 </button>
               ))}
             </nav>
-            <Link to="/blogs" className="link-arrow" style={{ fontSize: 14 }}>View all articles <span className="arrow">→</span></Link>
+            <Link to="/blogs" className="link-arrow" style={{ fontSize: 14 }}>{wall.viewAllLabel} <span className="arrow">→</span></Link>
           </div>
         </aside>
         <div className="blogs__list">
@@ -56,7 +58,7 @@ export function Blogs() {
               <div className="blog-feat__body">
                 <div className="eyebrow-row">
                   {featured.cat.map((c) => {
-                    const label = BLOG_PAGE_CATEGORIES.find((x) => x.id === c)?.label || c;
+                    const label = categories.find((x) => x.id === c)?.label || c;
                     return <span key={c} className="chip chip--accent">{label}</span>;
                   })}
                 </div>
@@ -68,12 +70,12 @@ export function Blogs() {
           )}
           <div className="blog-grid">
             {rest.map((a, i) => (
-              <article className="blog card" key={i} data-screen-label={`blog-${i}`}>
+              <article className="blog card" key={a.title} data-screen-label={`blog-${i}`}>
                 <div className="blog__img ph"><span className="ph__tag">image</span></div>
                 <div className="blog__body">
                   <div className="eyebrow-row">
                     {a.cat.map((c) => {
-                      const label = BLOG_PAGE_CATEGORIES.find((x) => x.id === c)?.label || c;
+                      const label = categories.find((x) => x.id === c)?.label || c;
                       return <span key={c} className="chip">{label}</span>;
                     })}
                   </div>
