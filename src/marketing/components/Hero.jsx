@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { authPath, PATHS } from '../lib/paths.js';
 import { getHome } from '../lib/content.js';
+import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 import { HeroTitleLoop } from './HeroTitleLoop.jsx';
 
 function HeroFrame({ frame }) {
@@ -59,25 +60,27 @@ function FeatureCards({ features }) {
 }
 
 export function Hero({ heroMode = 'maker' }) {
-  const { hero } = getHome();
+  const pageTina = usePageTina();
+  const { hero } = pageTina?.document ?? getHome();
   const c = hero[heroMode] || hero.maker;
   const frame = hero.frame;
+  const modeKey = heroMode === 'founder' ? 'founder' : 'maker';
 
   return (
     <section className="hero section" id="top" data-screen-label="hero">
       <div className="container hero__grid">
         <div className="hero__copy">
           <div className="eyebrow-row">
-            <span className="eyebrow eyebrow--signal hero__eyebrow"><span className="tick" />{c.eyebrow}</span>
+            <span className="eyebrow eyebrow--signal hero__eyebrow" {...pageTinaProps(`hero.${modeKey}.eyebrow`)}><span className="tick" />{c.eyebrow}</span>
           </div>
           {heroMode === 'maker' ? (
             <HeroTitleLoop lines={c.titleLines} />
           ) : (
-            <h1 className="display hero__title">
-              {c.pre} <span className="accent-word">{c.accent}</span>
+            <h1 className="display hero__title" {...pageTinaProps(`hero.${modeKey}.pre`)}>
+              {c.pre} <span className="accent-word" {...pageTinaProps(`hero.${modeKey}.accent`)}>{c.accent}</span>
             </h1>
           )}
-          <p className="lead hero__lead">{c.lead}</p>
+          <p className="lead hero__lead" {...pageTinaProps(`hero.${modeKey}.lead`)}>{c.lead}</p>
           <div className="hero__cta">
             <Link to={authPath()} className="btn btn-primary" style={{ color: 'rgb(255, 255, 255)', fontFamily: 'Helvetica' }}>
               {c.primaryCta || 'Get Started'} <span className="arrow">→</span>

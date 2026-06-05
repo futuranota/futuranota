@@ -1,10 +1,13 @@
+import { PageTinaProvider } from '../context/TinaVisualEditing.jsx';
 import { SubpageLayout } from '../layout/SubpageLayout.jsx';
 import { Blogs } from '../sections/Blogs.jsx';
 
 export function BlogsPage() {
   return (
-    <SubpageLayout>
-      <Blogs />
-    </SubpageLayout>
+    <PageTinaProvider docKey="blogsPage">
+      <SubpageLayout>
+        <Blogs />
+      </SubpageLayout>
+    </PageTinaProvider>
   );
 }

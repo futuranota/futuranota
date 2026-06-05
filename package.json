@@ -5,9 +5,9 @@
   "description": "Futura Nota — Voltway Arc",
   "type": "module",
   "scripts": {
-    "dev": "tinacms dev -c \"vite\"",
+    "dev": "dotenv -e .env.local -- tinacms dev -c \"vite\"",
     "build": "tinacms build --local --skip-cloud-checks && vite build",
-    "build:tina": "tinacms build",
+    "build:tina": "dotenv -e .env.local -- tinacms build",
     "preview": "vite preview",
     "start": "npm run dev"
   },
@@ -23,6 +23,7 @@
     "@tailwindcss/vite": "^4.3.0",
     "@tinacms/cli": "^2.4.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "dotenv-cli": "^11.0.0",
     "tailwindcss": "^4.3.0",
     "tinacms": "^3.9.0",
     "vite": "^6.0.3"

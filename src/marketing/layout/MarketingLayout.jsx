@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Nav } from '../components/Nav.jsx';
 import { Footer } from '../components/Footer.jsx';
+import { SiteTinaProvider } from '../context/TinaVisualEditing.jsx';
 import { applyMarketingTheme } from '../lib/theme.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
@@ -18,13 +19,13 @@ export function MarketingLayout() {
   }, []);
 
   return (
-    <>
+    <SiteTinaProvider>
       <div className="canvas-bg" />
       <Nav />
       <main>
         <Outlet />
       </main>
       <Footer />
-    </>
+    </SiteTinaProvider>
   );
 }
