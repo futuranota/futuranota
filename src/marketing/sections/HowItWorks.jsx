@@ -1,15 +1,17 @@
 import { getHow } from '../lib/content.js';
+import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
 export function HowItWorks() {
-  const { header, video, steps } = getHow();
+  const pageTina = usePageTina();
+  const { header, video, steps } = pageTina?.document ?? getHow();
 
   return (
     <section className="section how" id="how" data-screen-label="how">
       <div className="container">
         <div className="section-head" style={{ marginBottom: 'clamp(28px,4vw,44px)' }}>
-          <span className="eyebrow"><span className="tick" />{header.eyebrow}</span>
-          <h2 className="h2">{header.title}</h2>
-          <p className="lead">{header.lead}</p>
+          <span className="eyebrow" {...pageTinaProps('header.eyebrow')}><span className="tick" />{header.eyebrow}</span>
+          <h2 className="h2" {...pageTinaProps('header.title')}>{header.title}</h2>
+          <p className="lead" {...pageTinaProps('header.lead')}>{header.lead}</p>
         </div>
         <div className="video card" role="img" aria-label="Product walkthrough video placeholder">
           <div className="frame__bar">

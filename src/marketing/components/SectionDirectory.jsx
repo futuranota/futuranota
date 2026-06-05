@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { getHome } from '../lib/content.js';
+import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 import { sectionPath } from '../lib/paths.js';
 
 function DirCard({ d }) {
@@ -25,15 +26,16 @@ function DirCard({ d }) {
 }
 
 export function SectionDirectory() {
-  const { directory } = getHome();
+  const pageTina = usePageTina();
+  const { directory } = pageTina?.document ?? getHome();
 
   return (
     <section className="section directory" id="explore" data-screen-label="directory">
       <div className="container">
         <div className="section-head" style={{ marginBottom: 'clamp(28px,4vw,48px)' }}>
-          <span className="eyebrow"><span className="tick" />{directory.eyebrow}</span>
-          <h2 className="h2">{directory.title}</h2>
-          <p className="lead">{directory.lead}</p>
+          <span className="eyebrow" {...pageTinaProps('directory.eyebrow')}><span className="tick" />{directory.eyebrow}</span>
+          <h2 className="h2" {...pageTinaProps('directory.title')}>{directory.title}</h2>
+          <p className="lead" {...pageTinaProps('directory.lead')}>{directory.lead}</p>
         </div>
         <div className="dir-grid">
           {directory.cards.map((d) => <DirCard key={d.slug} d={d} />)}

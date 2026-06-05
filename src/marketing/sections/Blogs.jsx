@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getBlogArticles, getBlogPageCategories, getBlogsPage } from '../lib/content.js';
+import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
 function countForCategory(catId, articles, categories) {
   if (catId === 'All') return articles.length;
@@ -8,7 +9,9 @@ function countForCategory(catId, articles, categories) {
 }
 
 export function Blogs() {
-  const { wall } = getBlogsPage();
+  const pageTina = usePageTina();
+  const doc = pageTina?.document;
+  const { wall } = doc ?? getBlogsPage();
   const categories = getBlogPageCategories();
   const articles = getBlogArticles();
 
@@ -32,8 +35,8 @@ export function Blogs() {
       <div className="container blogs__grid">
         <aside className="blogs__wall">
           <div className="blogs__wall-inner">
-            <span className="eyebrow"><span className="tick" />{wall.eyebrow}</span>
-            <h2 className="h3 blogs__wall-title">{wall.title}</h2>
+            <span className="eyebrow" {...pageTinaProps('wall.eyebrow')}><span className="tick" />{wall.eyebrow}</span>
+            <h2 className="h3 blogs__wall-title" {...pageTinaProps('wall.title')}>{wall.title}</h2>
 
             <nav className="blogs__cats" aria-label="Blog categories">
               {categories.map((c) => (

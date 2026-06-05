@@ -6,6 +6,7 @@ const branch =
   process.env.GITHUB_BRANCH ||
   'main';
 
+
 const linkFields = [
   { type: 'string' as const, name: 'label', label: 'Label' },
   { type: 'string' as const, name: 'path', label: 'Path' },
@@ -16,6 +17,48 @@ const blogCardFields = [
   { type: 'string' as const, name: 'description', label: 'Description' },
   { type: 'string' as const, name: 'href', label: 'Link' },
 ];
+
+/** Vite marketing site — side-by-side preview in Tina admin */
+const PREVIEW_BASE = process.env.TINA_PREVIEW_URL || 'http://localhost:5173';
+
+const MARKETING_ROUTES: Record<string, string> = {
+  site: '/',
+  home: '/',
+  horizon: '/horizon',
+  how: '/how',
+  marketplace: '/marketplace',
+  'blogs-page': '/blogs',
+};
+
+function marketingPreviewUrl(context: {
+  branch: string;
+  collection?: { name?: string };
+  document?: { _sys?: { relativePath?: string; filename?: string } };
+}) {
+  const collection = context.collection?.name;
+  if (collection === 'blog') {
+    return { url: `${PREVIEW_BASE}/blogs` };
+  }
+
+  const rel = context.document?._sys?.relativePath ?? '';
+  const stem = rel.replace(/\.json$/i, '');
+  const key = stem || context.document?._sys?.filename || '';
+
+  if (key.startsWith('blogs/') || key.includes('blogs/')) {
+    return { url: `${PREVIEW_BASE}/blogs` };
+  }
+
+  return { url: `${PREVIEW_BASE}${MARKETING_ROUTES[key] ?? '/'}` };
+}
+
+/** Site path shown in Tina admin when opening a document for visual preview */
+function collectionRouter(path: string) {
+  return () => path;
+}
+
+const collectionUi = {
+  allowedActions: { create: false, delete: false },
+} as const;
 
 export default defineConfig({
   branch,
@@ -30,6 +73,16 @@ export default defineConfig({
       mediaRoot: 'uploads',
       publicFolder: 'public',
     },
+    
+  },
+  search: {
+    tina: {
+      indexerToken: process.env.TINA_SEARCH_TOKEN,
+      stopwordLanguages: ['eng', 'spa'],
+    },
+  },
+  ui: {
+    previewUrl: marketingPreviewUrl,
   },
   schema: {
     collections: [
@@ -40,7 +93,8 @@ export default defineConfig({
         format: 'json',
         match: { include: 'site' },
         ui: {
-          allowedActions: { create: false, delete: false },
+          ...collectionUi,
+          router: collectionRouter('/'),
         },
         fields: [
           {
@@ -106,7 +160,7 @@ export default defineConfig({
         path: 'content/marketing',
         format: 'json',
         match: { include: 'home' },
-        ui: { allowedActions: { create: false, delete: false } },
+        ui: { ...collectionUi, router: collectionRouter('/') },
         fields: [
           {
             type: 'object',
@@ -230,7 +284,7 @@ export default defineConfig({
         path: 'content/marketing',
         format: 'json',
         match: { include: 'horizon' },
-        ui: { allowedActions: { create: false, delete: false } },
+        ui: { ...collectionUi, router: collectionRouter('/horizon') },
         fields: [
           {
             type: 'object',
@@ -265,7 +319,7 @@ export default defineConfig({
         path: 'content/marketing',
         format: 'json',
         match: { include: 'how' },
-        ui: { allowedActions: { create: false, delete: false } },
+        ui: { ...collectionUi, router: collectionRouter('/how') },
         fields: [
           {
             type: 'object',
@@ -305,7 +359,7 @@ export default defineConfig({
         path: 'content/marketing',
         format: 'json',
         match: { include: 'marketplace' },
-        ui: { allowedActions: { create: false, delete: false } },
+        ui: { ...collectionUi, router: collectionRouter('/marketplace') },
         fields: [
           {
             type: 'object',
@@ -338,7 +392,7 @@ export default defineConfig({
         path: 'content/marketing',
         format: 'json',
         match: { include: 'blogs-page' },
-        ui: { allowedActions: { create: false, delete: false } },
+        ui: { ...collectionUi, router: collectionRouter('/blogs') },
         fields: [
           {
             type: 'object',
@@ -367,6 +421,7 @@ export default defineConfig({
         label: 'Blog articles',
         path: 'content/marketing/blogs',
         format: 'json',
+        ui: { router: collectionRouter('/blogs') },
         fields: [
           { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
           { type: 'string', name: 'author', label: 'Author' },

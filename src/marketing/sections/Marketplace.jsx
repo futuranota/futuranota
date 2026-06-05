@@ -1,4 +1,5 @@
 import { getMarketplace } from '../lib/content.js';
+import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
 function ProductCard({ p }) {
   return (
@@ -30,16 +31,17 @@ function ProductCard({ p }) {
 }
 
 export function Marketplace() {
-  const { header, products } = getMarketplace();
+  const pageTina = usePageTina();
+  const { header, products } = pageTina?.document ?? getMarketplace();
 
   return (
     <section className="section marketplace" id="marketplace" data-screen-label="marketplace">
       <div className="container">
         <div className="block-head">
           <div className="section-head">
-            <span className="eyebrow"><span className="tick" />{header.eyebrow}</span>
-            <h2 className="h2">{header.title}</h2>
-            <p className="lead">{header.lead}</p>
+            <span className="eyebrow" {...pageTinaProps('header.eyebrow')}><span className="tick" />{header.eyebrow}</span>
+            <h2 className="h2" {...pageTinaProps('header.title')}>{header.title}</h2>
+            <p className="lead" {...pageTinaProps('header.lead')}>{header.lead}</p>
           </div>
           <a href="#" className="link-arrow block-head__link">{header.linkLabel} <span className="arrow">→</span></a>
         </div>

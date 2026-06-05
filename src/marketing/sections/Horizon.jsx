@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { PATHS } from '../lib/paths.js';
 import { getHorizon } from '../lib/content.js';
+import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
 function OppCard({ o }) {
   return (
@@ -37,16 +38,17 @@ function OppCard({ o }) {
 }
 
 export function Horizon() {
-  const { header, opportunities } = getHorizon();
+  const pageTina = usePageTina();
+  const { header, opportunities } = pageTina?.document ?? getHorizon();
 
   return (
     <section className="section" id="horizon" data-screen-label="horizon">
       <div className="container">
         <div className="block-head">
           <div className="section-head">
-            <span className="eyebrow"><span className="tick" />{header.eyebrow}</span>
-            <h2 className="h2">{header.title}</h2>
-            <p className="lead">{header.lead}</p>
+            <span className="eyebrow" {...pageTinaProps('header.eyebrow')}><span className="tick" />{header.eyebrow}</span>
+            <h2 className="h2" {...pageTinaProps('header.title')}>{header.title}</h2>
+            <p className="lead" {...pageTinaProps('header.lead')}>{header.lead}</p>
           </div>
           <Link to={PATHS.marketplace} className="link-arrow block-head__link">{header.linkLabel} <span className="arrow">→</span></Link>
         </div>

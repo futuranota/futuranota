@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakToggle, TweakColor,
 } from '../../tweaks-panel.jsx';
+import { PageTinaProvider } from '../context/TinaVisualEditing.jsx';
 import { Hero } from '../components/Hero.jsx';
 import { SectionDirectory } from '../components/SectionDirectory.jsx';
 import { FinalCTA } from '../components/FinalCTA.jsx';
@@ -13,7 +14,7 @@ const TWEAK_DEFAULTS = {
   texture: 'on',
 };
 
-export function HomePage() {
+function HomePageContent() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   useEffect(() => {
@@ -48,5 +49,13 @@ export function HomePage() {
         />
       </TweaksPanel>
     </>
+  );
+}
+
+export function HomePage() {
+  return (
+    <PageTinaProvider docKey="home">
+      <HomePageContent />
+    </PageTinaProvider>
   );
 }

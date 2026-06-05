@@ -4,21 +4,31 @@ import { Wordmark } from './Wordmark.jsx';
 import { BlogNavMegaMenu } from './BlogNavMegaMenu.jsx';
 import { PATHS, authPath } from '../lib/paths.js';
 import { getSite } from '../lib/content.js';
+import { useSiteTina, siteTinaProps } from '../context/TinaVisualEditing.jsx';
 
 export function Nav() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const [blogsOpen, setBlogsOpen] = useState(false);
   const showReturn = pathname !== PATHS.home;
-  const navLinks = getSite().nav.links;
+  const siteTina = useSiteTina();
+  const site = siteTina?.document ?? getSite();
+  const navLinks = site.nav.links;
 
   return (
     <header className="nav" data-screen-label="nav">
       <div className="nav__inner container">
         <Wordmark />
         <nav className="nav__links" aria-label="Primary">
-          {navLinks.map(({ label, path }) => (
-            <Link key={label} to={path} className="nav__link">{label}</Link>
+          {navLinks.map(({ label, path }, index) => (
+            <Link
+              key={`${label}-${path}`}
+              to={path}
+              className="nav__link"
+              {...siteTinaProps(`nav.links.${index}.label`)}
+            >
+              {label}
+            </Link>
           ))}
           <div className="nav__item nav__item--mega">
             <button
@@ -50,8 +60,16 @@ export function Nav() {
       </div>
       {open && (
         <div className="nav__mobile">
-          {navLinks.map(({ label, path }) => (
-            <Link key={label} to={path} className="nav__mobile-link" onClick={() => setOpen(false)}>{label}</Link>
+          {navLinks.map(({ label, path }, index) => (
+            <Link
+              key={`${label}-${path}`}
+              to={path}
+              className="nav__mobile-link"
+              onClick={() => setOpen(false)}
+              {...siteTinaProps(`nav.links.${index}.label`)}
+            >
+              {label}
+            </Link>
           ))}
           <Link to={PATHS.blogs} className="nav__mobile-link" onClick={() => setOpen(false)}>Blogs</Link>
           {showReturn && (

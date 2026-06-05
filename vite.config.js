@@ -23,10 +23,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
+  envPrefix: ['VITE_', 'TINA_'],
   plugins: [react(), tailwindcss(), brandCadenceApiPlugin(env)],
   server: {
     port: 5173,
-    strictPort: false,
+    // Keep port fixed so /admin URLs match; kill other Vite processes if this fails.
+    strictPort: true,
     proxy: {
       '/jina': {
         target: 'https://r.jina.ai',

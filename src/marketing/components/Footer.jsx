@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Mark } from './Mark.jsx';
 import { PATHS, sectionPath } from '../lib/paths.js';
 import { getSite, FOOTER_SECTION_SLUGS } from '../lib/content.js';
+import { useSiteTina, siteTinaProps } from '../context/TinaVisualEditing.jsx';
 
 function footerHref(label) {
   const slug = FOOTER_SECTION_SLUGS[label];
@@ -9,7 +10,8 @@ function footerHref(label) {
 }
 
 export function Footer() {
-  const { footer } = getSite();
+  const siteTina = useSiteTina();
+  const { footer } = siteTina?.document ?? getSite();
 
   return (
     <footer className="footer" data-screen-label="footer">
@@ -27,6 +29,7 @@ export function Footer() {
                 placeholder={footer.newsletterPlaceholder}
                 className="footer__input"
                 aria-label="Email for newsletter"
+                {...siteTinaProps('footer.newsletterPlaceholder')}
               />
               <button className="btn btn-primary btn-sm" type="submit">Subscribe</button>
             </div>
@@ -48,7 +51,7 @@ export function Footer() {
         </div>
       </div>
       <div className="container footer__end">
-        <p className="mono-sm faint footer__trends">{footer.trendsLine}</p>
+        <p className="mono-sm faint footer__trends" {...siteTinaProps('footer.trendsLine')}>{footer.trendsLine}</p>
       </div>
     </footer>
   );
