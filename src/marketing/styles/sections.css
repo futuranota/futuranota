@@ -422,6 +422,18 @@
 .blogs__cat.is-active .faint { color: var(--accent); }
 
 .blogs__list { display: flex; flex-direction: column; gap: 22px; }
+a.blog-feat.card,
+a.blog.card {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+a.blog-feat.card:hover,
+a.blog.card:hover {
+  border-color: var(--accent-line);
+  box-shadow: 0 8px 28px oklch(0 0 0 / 0.12);
+}
+
 .blog-feat { display: grid; grid-template-columns: 1.1fr 1fr; overflow: hidden; padding: 0; }
 .blog-feat__img { border-radius: 0; border: 0; border-right: 1px solid var(--line-soft); min-height: 240px; }
 .blog-feat__body { padding: 26px 28px; display: flex; flex-direction: column; gap: 14px; justify-content: center; }

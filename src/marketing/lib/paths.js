@@ -17,3 +17,8 @@ export function sectionPath(slug) {
 export function authPath(mode) {
   return mode === 'signin' ? `${PATHS.welcome}#signin` : PATHS.welcome;
 }
+
+/** @param {string} slug */
+export function blogPostPath(slug) {
+  return `${PATHS.blogs}/${slug}`;
+}
