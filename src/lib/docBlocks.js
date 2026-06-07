@@ -645,14 +645,13 @@ export function ensureEmptyTextBlockAfter(blocks, blockIndex) {
   const normalized = normalizeDocBlocks(blocks);
   if (blockIndex < 0 || blockIndex >= normalized.length) return normalized;
   const current = normalized[blockIndex];
-  const prev = blockIndex > 0 ? normalized[blockIndex - 1] : null;
+  const after = normalized[blockIndex + 1];
   if (
-    current?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
-    && prev?.type === DOC_BLOCK_TYPES.H1
+    current?.type === DOC_BLOCK_TYPES.H1
+    && after?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
   ) {
     return normalized;
   }
-  const after = normalized[blockIndex + 1];
   if (isEmptyTextBlock(after)) return normalized;
   return insertBlockAfter(
     normalized,

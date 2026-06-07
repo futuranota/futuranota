@@ -522,14 +522,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const h1Index = current[index]?.type === DOC_BLOCK_TYPES.H1 ? index : -1;
 
     if (h1Index >= 0 && nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
-      if (!skipFocus) {
-        onFocusBlock?.(nextBlock.id);
-        requestAnimationFrame(() => {
-          document.getElementById(`video-embed-${nextBlock.id}`)?.focus();
-        });
+      const videoReady = Boolean(nextBlock.embedSaved && nextBlock.embedSrc);
+      if (!videoReady) {
+        if (!skipFocus) {
+          onFocusBlock?.(nextBlock.id);
+          requestAnimationFrame(() => {
+            document.getElementById(`video-embed-${nextBlock.id}`)?.focus();
+          });
+        }
+        requestContentGrow();
+        return nextBlock.id;
       }
-      requestContentGrow();
-      return nextBlock.id;
+      return insertTextAfter(h1Index + 1, initialText, current, options);
     }
 
     if (isEmptyTextBlock(nextBlock)) {
@@ -770,10 +774,24 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       if (block.type === DOC_BLOCK_TYPES.H1) {
         const nextBlock = blocksRef.current[index + 1];
         if (nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
-          onFocusBlock?.(nextBlock.id);
-          requestAnimationFrame(() => {
-            document.getElementById(`video-embed-${nextBlock.id}`)?.focus();
-          });
+          const videoReady = Boolean(nextBlock.embedSaved && nextBlock.embedSrc);
+          if (!videoReady) {
+            onFocusBlock?.(nextBlock.id);
+            requestAnimationFrame(() => {
+              document.getElementById(`video-embed-${nextBlock.id}`)?.focus();
+            });
+            return;
+          }
+
+          const el = e.currentTarget;
+          const caretStart = el.selectionStart ?? 0;
+          const caretEnd = el.selectionEnd ?? caretStart;
+          const title = fieldValue || block.title || "";
+          const head = title.slice(0, caretStart);
+          const tail = title.slice(caretEnd);
+          const current = updateBlockAt(blocksRef.current, index, { title: head });
+
+          insertTextAfter(index + 1, tail, current);
           return;
         }
 
@@ -1057,8 +1075,20 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             <VideoEmbedBlockView
               block={block}
               onChange={(patch) => {
-                updateAt(index, patch);
+                let next = updateBlockAt(blocksRef.current, index, patch);
+                if (patch.embedSaved && patch.embedSrc) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
                 onVideoEmbedSync?.(index);
+                if (patch.embedSaved && patch.embedSrc) {
+                  const textBlock = next[index + 1];
+                  if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {
+                    onFocusBlock?.(textBlock.id);
+                    focusBlockCaret(textBlock.id, 0);
+                  }
+                  requestContentGrow();
+                }
               }}
               onDelete={() => removeEmbedVideoSection(index)}
             />
