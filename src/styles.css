@@ -3486,6 +3486,13 @@ textarea.note-form-field {
   --tl-dimension-span-h: 28px;
   --tl-ruler-h: 12px;
   --tl-bar-h: 58px;
+  --tl-roadmap-line: var(--hairline);
+  --tl-dot-size: 16px;
+  --tl-dot-inner: 6px;
+  --tl-dot-active: #ffffff;
+  --tl-dot-past: color-mix(in oklab, #fff 35%, var(--dim));
+  --tl-dot-future: color-mix(in oklab, #fff 65%, transparent);
+  --tl-dot-inner-bg: var(--bg);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -3509,22 +3516,34 @@ textarea.note-form-field {
   color: var(--dim);
   text-align: center;
 }
+:root[data-theme="light"] .timeline.tl-tactical {
+  --tl-dot-active: #14181e;
+  --tl-dot-past: color-mix(in oklab, #14181e 38%, var(--dim));
+  --tl-dot-future: color-mix(in oklab, #14181e 55%, transparent);
+  --tl-dot-inner-bg: #f5f4ef;
+}
 .tl-tactical-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 16px 6px;
+  padding: 10px 16px 8px;
   border-bottom: 1px solid var(--hairline);
   flex-shrink: 0;
 }
 .tl-tactical-header__title {
-  font-size: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
   line-height: 1.35;
-  color: var(--text-2);
+  color: var(--dim);
 }
 .tl-tactical-header__title b {
+  font-size: 12px;
   font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
 }
 .tl-tactical-header .tl-alerts-toggle {
   font-size: 9.5px;
@@ -3630,7 +3649,9 @@ textarea.note-form-field {
   height: var(--tl-bar-h, 64px);
   margin-bottom: 8px;
   border-radius: 8px;
-  background: color-mix(in oklab, var(--panel-2) 70%, #1b1f27 30%);
+  background: color-mix(in oklab, var(--panel-2) 45%, transparent);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-sm);
   overflow: visible;
 }
 .tl-tactical-range-window.is-doc-dimension {
@@ -3658,11 +3679,11 @@ textarea.note-form-field {
   margin-left: -0.5px;
   background: color-mix(in oklab, #444 80%, var(--dim) 20%);
   border-radius: 1px;
-  opacity: 0.55;
+  opacity: 0.32;
 }
 .tl-tactical-ruler__tick.is-major {
   height: 9px;
-  opacity: 0.85;
+  opacity: 0.5;
 }
 .tl-tactical-range-window {
   position: absolute;
@@ -3677,9 +3698,9 @@ textarea.note-form-field {
   position: absolute;
   left: 0;
   top: 50%;
-  height: 3px;
+  height: 1px;
   transform: translateY(-50%);
-  background: color-mix(in oklab, #c9a574 40%, transparent);
+  background: color-mix(in oklab, var(--dim) 28%, transparent);
   border-radius: 1px 0 0 1px;
   z-index: 3;
   pointer-events: none;
@@ -3689,10 +3710,10 @@ textarea.note-form-field {
   left: 0;
   right: 0;
   top: 50%;
-  height: 2px;
-  margin-top: -1px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--dim) 55%, #444);
+  height: 1px;
+  margin-top: -0.5px;
+  border-radius: 0;
+  background: var(--tl-roadmap-line);
   z-index: 2;
   pointer-events: none;
 }
@@ -3815,22 +3836,49 @@ textarea.note-form-field {
 .tl-tactical-rail__anchor {
   position: absolute;
   top: 50%;
-  width: 8px;
-  height: 8px;
-  margin-top: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tl-dot-size);
+  height: var(--tl-dot-size);
+  margin-top: calc(var(--tl-dot-size) / -2);
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 35% 35%,
-    color-mix(in oklab, var(--tl-family-accent, var(--hud)) 25%, #f5e6c8),
-    color-mix(in oklab, var(--tl-family-accent, var(--hud)) 45%, #9a8f76)
-  );
-  border: 1px solid color-mix(in oklab, var(--tl-family-accent, var(--hud)) 40%, var(--hairline));
+  background: var(--tl-dot-future);
+  border: 1px solid color-mix(in oklab, var(--tl-dot-future) 80%, var(--hairline));
   pointer-events: none;
+  transition: transform var(--t-fast) var(--ease);
+}
+.tl-tactical-rail__anchor-core {
+  width: var(--tl-dot-inner);
+  height: var(--tl-dot-inner);
+  border-radius: 50%;
+  background: var(--tl-dot-inner-bg);
+  flex-shrink: 0;
+}
+.tl-tactical-rail__anchor.is-status-past {
+  background: var(--tl-dot-past);
+  border-color: color-mix(in oklab, var(--tl-dot-past) 70%, var(--hairline));
+}
+.tl-tactical-rail__anchor.is-status-active {
+  background: var(--tl-dot-active);
+  border-color: color-mix(in oklab, var(--tl-dot-active) 85%, var(--hairline));
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--tl-dot-active) 18%, transparent);
+}
+.tl-tactical-rail__anchor.is-status-future {
+  background: transparent;
+  border-color: var(--tl-dot-future);
+  border-width: 1.5px;
+}
+.tl-tactical-rail__anchor.is-status-future .tl-tactical-rail__anchor-core {
+  background: var(--tl-dot-future);
 }
 .tl-tactical-rail__anchor.is-anchor-center,
 .tl-tactical-rail__anchor.is-anchor-start,
 .tl-tactical-rail__anchor.is-anchor-end {
   transform: translateX(-50%);
+}
+.tl-tactical-rail:hover .tl-tactical-rail__anchor.is-status-active {
+  transform: translateX(-50%) scale(1.12);
 }
 .tl-tactical-rail__nodes {
   position: relative;
@@ -3856,12 +3904,19 @@ textarea.note-form-field {
   align-items: center;
 }
 .tl-tactical-node-group__date {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border-radius: 999px;
   font-family: var(--mono);
   font-size: 8.5px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-  text-transform: lowercase;
-  color: #8a919c;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  background: color-mix(in oklab, var(--panel-solid) 88%, transparent);
+  border: 1px solid var(--hairline);
   white-space: nowrap;
   flex-shrink: 0;
   text-align: center;
@@ -3879,18 +3934,23 @@ textarea.note-form-field {
   width: 100%;
   min-width: 72px;
   max-width: 120px;
-  border-radius: 5px;
+  border-radius: 6px;
   border-left-width: 3px;
-  background: color-mix(in oklab, var(--panel-3) 92%, var(--bg) 8%);
+  background: color-mix(in oklab, var(--panel-solid) 90%, var(--bg) 10%);
   box-shadow:
-    0 1px 3px color-mix(in oklab, #000 22%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--hairline) 80%, transparent);
+    0 1px 4px color-mix(in oklab, #000 18%, transparent),
+    0 0 0 1px var(--glass-border);
+  transition:
+    background var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease);
 }
 .tl-tactical-rail .tl-event-chip--card.is-compact:hover {
-  background: color-mix(in oklab, var(--panel-3) 98%, var(--text) 2%);
+  background: color-mix(in oklab, var(--panel-solid) 96%, var(--text) 4%);
   box-shadow:
-    0 2px 6px color-mix(in oklab, #000 26%, transparent),
-    0 0 0 1px color-mix(in oklab, var(--tl-family-accent, var(--hud)) 25%, var(--hairline));
+    0 3px 10px color-mix(in oklab, #000 22%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--tl-family-accent, var(--hud)) 22%, var(--hairline));
+  transform: translateY(-1px);
 }
 .tl-tactical-rail .tl-event-chip--card.is-compact .tl-chip-card-body {
   padding: 5px 8px 5px 7px;
