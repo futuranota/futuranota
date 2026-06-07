@@ -1,16 +1,15 @@
 /**
  * Mock calendar events keyed by schedule date.
- * Replace getEventsForDate with GET /api/events?date=YYYY-MM-DD when backend exists.
+ * Replace getEventsInRange with GET /api/events?from=&to= when backend exists.
  */
-import { daysBetween } from "../data.jsx";
 import { startOfCalendarDay } from "../temporal.js";
 
 /** @typedef {{ id: string, title: string, summary: string, date: string, dateEnd?: string|null, source: string, type: string }} CalendarEvent */
 
-/** @type {{ dayOffset: number, dayEndOffset?: number, event: Omit<CalendarEvent, "date"|"dateEnd"> }[]} */
+/** @type {{ offsetStart: number, offsetEnd?: number, event: Omit<CalendarEvent, "date"|"dateEnd"> }[]} */
 const EVENT_TEMPLATES = [
   {
-    dayOffset: 0,
+    offsetStart: 0,
     event: {
       id: "evt-launch-brief",
       title: "Product launch briefing",
@@ -20,7 +19,7 @@ const EVENT_TEMPLATES = [
     },
   },
   {
-    dayOffset: 3,
+    offsetStart: 3,
     event: {
       id: "evt-media-window",
       title: "Media preview window",
@@ -30,8 +29,8 @@ const EVENT_TEMPLATES = [
     },
   },
   {
-    dayOffset: 7,
-    dayEndOffset: 9,
+    offsetStart: 7,
+    offsetEnd: 9,
     event: {
       id: "evt-industry-summit",
       title: "Industry summit",
@@ -51,39 +50,55 @@ function toIsoDate(date) {
   return `${y}-${m}-${dd}`;
 }
 
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return startOfCalendarDay(next);
+}
+
+function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+  return aStart.getTime() <= bEnd.getTime() && aEnd.getTime() >= bStart.getTime();
+}
+
+function buildEventFromTemplate(anchor, template) {
+  const offsetEnd = template.offsetEnd ?? template.offsetStart;
+  const eventStart = addDays(anchor, template.offsetStart);
+  const eventEnd = addDays(anchor, offsetEnd);
+  return {
+    ...template.event,
+    date: toIsoDate(eventStart),
+    dateEnd: offsetEnd !== template.offsetStart ? toIsoDate(eventEnd) : null,
+  };
+}
+
 /**
- * @param {Date|null|undefined} targetDate
- * @param {Date} [baseToday]
+ * Events whose window overlaps [anchor, anchor + rangeDays].
+ * @param {Date|null|undefined} anchorDate
+ * @param {number} rangeDays
  * @returns {CalendarEvent[]}
  */
-export function getEventsForDate(targetDate, baseToday = new Date()) {
-  const target = startOfCalendarDay(targetDate);
-  const base = startOfCalendarDay(baseToday);
-  if (!target || !base) return [];
+export function getEventsInRange(anchorDate, rangeDays = 7) {
+  const anchor = startOfCalendarDay(anchorDate);
+  if (!anchor) return [];
 
-  const diff = daysBetween(base, target);
+  const rangeStart = anchor;
+  const rangeEnd = addDays(anchor, rangeDays);
   const results = [];
 
   EVENT_TEMPLATES.forEach((template) => {
-    const startDiff = template.dayOffset;
-    const endDiff = template.dayEndOffset ?? template.dayOffset;
-    if (diff < startDiff || diff > endDiff) return;
-
-    const eventDate = new Date(base);
-    eventDate.setDate(eventDate.getDate() + startDiff);
-
-    let eventDateEnd = null;
-    if (template.dayEndOffset != null && template.dayEndOffset !== template.dayOffset) {
-      eventDateEnd = new Date(base);
-      eventDateEnd.setDate(eventDateEnd.getDate() + template.dayEndOffset);
-    }
-
-    results.push({
-      ...template.event,
-      date: toIsoDate(eventDate),
-      dateEnd: eventDateEnd ? toIsoDate(eventDateEnd) : null,
-    });
+    const offsetEnd = template.offsetEnd ?? template.offsetStart;
+    const eventStart = addDays(anchor, template.offsetStart);
+    const eventEnd = addDays(anchor, offsetEnd);
+    if (!rangesOverlap(eventStart, eventEnd, rangeStart, rangeEnd)) return;
+    results.push(buildEventFromTemplate(anchor, template));
   });
 
-  return results;
+  return results.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * @deprecated Use getEventsInRange(anchor, 0) for single-day overlap.
+ */
+export function getEventsForDate(targetDate, _baseToday = new Date()) {
+  return getEventsInRange(targetDate, 0);
 }
