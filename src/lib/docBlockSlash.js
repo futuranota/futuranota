@@ -1,4 +1,9 @@
-import { createDocBlock, createTodoItem, DOC_BLOCK_TYPES } from "./docBlocks.js";
+import {
+  createDocBlock,
+  createEmbedVideoBlocks,
+  createTodoItem,
+  DOC_BLOCK_TYPES,
+} from "./docBlocks.js";
 import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
 
 export const DOC_SLASH_COMMANDS = [
@@ -38,6 +43,14 @@ export const DOC_SLASH_COMMANDS = [
     blockType: DOC_BLOCK_TYPES.METRIC,
     nodeDataType: NODE_DATA_TYPES.METRIC,
   },
+  {
+    label: "Embedded video",
+    ghostHint: "embedvideo",
+    aliases: ["embedvideo", "embeddedvideo", "video", "embed"],
+    blockType: DOC_BLOCK_TYPES.VIDEO_EMBED,
+    nodeDataType: NODE_DATA_TYPES.VIDEO,
+    compound: true,
+  },
 ];
 
 export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
@@ -76,6 +89,7 @@ export function parseSlashQuery(query) {
     type: match.blockType,
     nodeDataType: match.nodeDataType,
     label: match.label,
+    compound: Boolean(match.compound),
   };
 }
 
@@ -117,7 +131,25 @@ export function createDocBlockFromSlash(parsed) {
     });
   }
 
+  if (parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+    const [, video] = createEmbedVideoBlocks();
+    return video;
+  }
+
   return createDocBlock();
+}
+
+export function createBlocksFromSlash(parsed, prefix = "") {
+  const blocks = [];
+  if (String(prefix).trim()) {
+    blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix }));
+  }
+  if (parsed?.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+    blocks.push(...createEmbedVideoBlocks());
+  } else {
+    blocks.push(createDocBlockFromSlash(parsed));
+  }
+  return blocks;
 }
 
 export function isNodeLinkableBlockType(blockType) {

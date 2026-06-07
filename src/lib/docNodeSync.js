@@ -2,12 +2,15 @@ import {
   createDocBlock,
   createTodoItem,
   DOC_BLOCK_TYPES,
+  getVideoEmbedBlockAfterH1,
+  h1HasVideoEmbedSibling,
   insertBlockAfter,
   normalizeDocBlocks,
   updateBlockAt,
 } from "./docBlocks.js";
 import { nodeDataTypeForBlock } from "./docBlockSlash.js";
 import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
+import { buildVideoNodeContent } from "./videoEmbed.js";
 import {
   anchorAtFromBlock,
   anchorFieldsFromIso,
@@ -32,6 +35,8 @@ export function getTextBlockIndexAfterH1(blocks, h1Index) {
   if (next?.type === DOC_BLOCK_TYPES.TEXT) return h1Index + 1;
   return -1;
 }
+
+export { getVideoEmbedBlockAfterH1, h1HasVideoEmbedSibling };
 
 export function getAnswerBelowH1(blocks, h1Index) {
   const textIndex = getTextBlockIndexAfterH1(blocks, h1Index);
@@ -158,10 +163,14 @@ function normalizeMetricContent(content) {
 }
 
 /** Node content shape from a doc block (for modal draft / save). */
-export function getContentForNodeBlock(block) {
+export function getContentForNodeBlock(block, blocks = [], blockIndex = -1) {
   if (!block) return "";
 
   if (block.type === DOC_BLOCK_TYPES.H1) {
+    const video = blockIndex >= 0 ? getVideoEmbedBlockAfterH1(blocks, blockIndex) : null;
+    if (video) {
+      return buildVideoNodeContent(video, block.title || "");
+    }
     return "";
   }
 
@@ -228,6 +237,9 @@ export function resolveNodeDraftFromDoc(blockContent, node, dataType) {
     if (dataType === NODE_DATA_TYPES.METRIC && typeof blockContent === "object") {
       return normalizeMetricContent(blockContent);
     }
+    if (dataType === NODE_DATA_TYPES.VIDEO && typeof blockContent === "object") {
+      return blockContent;
+    }
     if (typeof blockContent === "string" && blockContent.trim() !== "") {
       return blockContent;
     }
@@ -240,6 +252,9 @@ export function resolveNodeDraftFromDoc(blockContent, node, dataType) {
     if (dataType === NODE_DATA_TYPES.DATE) return { date: "", time: "" };
     if (dataType === NODE_DATA_TYPES.METRIC) return { value: "", unit: "" };
     if (dataType === NODE_DATA_TYPES.CHECKBOX) return false;
+    if (dataType === NODE_DATA_TYPES.VIDEO) {
+      return buildVideoNodeContent(null, "");
+    }
     return "";
   }
 
@@ -252,6 +267,10 @@ export function resolveNodeDraftFromDoc(blockContent, node, dataType) {
   if (dataType === NODE_DATA_TYPES.CHECKBOX) {
     if (typeof node.content === "boolean") return node.content;
     return false;
+  }
+  if (dataType === NODE_DATA_TYPES.VIDEO) {
+    if (node.content && typeof node.content === "object") return node.content;
+    return buildVideoNodeContent(null, node.title || "");
   }
 
   return nodeContentAsString(node);
@@ -268,8 +287,40 @@ export function getBlockQueryText(block) {
   return "";
 }
 
-export function blockDataType(block) {
+export function blockDataType(block, blocks = [], blockIndex = -1) {
+  if (block?.type === DOC_BLOCK_TYPES.H1 && blockIndex >= 0 && h1HasVideoEmbedSibling(blocks, blockIndex)) {
+    return NODE_DATA_TYPES.VIDEO;
+  }
   return nodeDataTypeForBlock(block);
+}
+
+export function syncVideoNodeFromH1Blocks(blocks, h1Index, updateNode) {
+  if (!updateNode || h1Index < 0) return;
+  const normalized = normalizeDocBlocks(blocks);
+  const h1 = normalized[h1Index];
+  const video = getVideoEmbedBlockAfterH1(normalized, h1Index);
+  if (!h1?.nodeId || !video) return;
+  const title = (h1.title || h1.sourceQuery || "Untitled query").trim() || "Untitled query";
+  updateNode(h1.nodeId, {
+    title,
+    sourceQuery: title,
+    dataType: NODE_DATA_TYPES.VIDEO,
+    content: buildVideoNodeContent(video, h1.title || ""),
+  });
+}
+
+export function syncVideoNodeFromVideoBlock(blocks, videoIndex, videoPatch, updateNode) {
+  if (!updateNode || videoIndex < 0) return;
+  const normalized = normalizeDocBlocks(blocks);
+  const h1Index = videoIndex - 1;
+  const h1 = normalized[h1Index];
+  if (h1?.type !== DOC_BLOCK_TYPES.H1 || !h1.nodeId) return;
+  const video = { ...normalized[videoIndex], ...videoPatch };
+  syncVideoNodeFromH1Blocks(
+    updateBlockAt(normalized, videoIndex, videoPatch),
+    h1Index,
+    updateNode,
+  );
 }
 
 const LINKABLE_NODE_BLOCK_TYPES = new Set([
@@ -310,9 +361,11 @@ export function ensureNodeForDocBlock({
   if (!block.queryEnabled && !existingNodeId && !block.nodeId) return null;
   if (!createOrUpdateNodeFromDocBlock) return block.nodeId || existingNodeId || null;
 
-  const dataType = nodeDataTypeForBlock(block);
-  let content = contentOverride !== undefined ? contentOverride : getContentForNodeBlock(block);
-  if (block.type === DOC_BLOCK_TYPES.H1 && contentOverride === undefined) {
+  const dataType = blockDataType(block, blocks, blockIndex);
+  let content = contentOverride !== undefined
+    ? contentOverride
+    : getContentForNodeBlock(block, blocks, blockIndex);
+  if (block.type === DOC_BLOCK_TYPES.H1 && contentOverride === undefined && dataType === NODE_DATA_TYPES.TEXT) {
     const answer = blockIndex >= 0 ? getAnswerBelowH1(blocks, blockIndex) : "";
     if (answer.trim()) content = answer;
   }

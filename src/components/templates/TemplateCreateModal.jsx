@@ -34,6 +34,8 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
     onEnsureNodeForBlock,
     onBlockAnchorChange,
     onAnswerBelowH1Change,
+    onVideoEmbedSync,
+    onVideoEmbedH1TitleChange,
     nodeModal,
   } = useDocBlockNodeModal({
     blocks,
@@ -94,6 +96,8 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
           onEnsureNodeForBlock={onEnsureNodeForBlock}
           onAnswerBelowH1Change={onAnswerBelowH1Change}
           onBlockAnchorChange={onBlockAnchorChange}
+          onVideoEmbedSync={onVideoEmbedSync}
+          onVideoEmbedH1TitleChange={onVideoEmbedH1TitleChange}
           onTitleKeyDown={(e) => {
             if (e.key === "Escape") onCancel();
           }}

@@ -515,6 +515,8 @@ function DocCreateModal({
     onEnsureNodeForBlock,
     onBlockAnchorChange,
     onAnswerBelowH1Change,
+    onVideoEmbedSync,
+    onVideoEmbedH1TitleChange,
     nodeModal,
   } = useDocBlockNodeModal({
     blocks,
@@ -623,6 +625,8 @@ function DocCreateModal({
           onEnsureNodeForBlock={onEnsureNodeForBlock}
           onAnswerBelowH1Change={onAnswerBelowH1Change}
           onBlockAnchorChange={onBlockAnchorChange}
+          onVideoEmbedSync={onVideoEmbedSync}
+          onVideoEmbedH1TitleChange={onVideoEmbedH1TitleChange}
           onKnowledgeFileImport={isKnowledgeMode ? handleKnowledgeFileImport : undefined}
           knowledgeImport={isKnowledgeMode ? knowledgeImport : null}
           onTitleKeyDown={(e) => {
