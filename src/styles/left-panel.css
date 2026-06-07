@@ -3495,12 +3495,91 @@
   color: #d88;
 }
 
-.doc-video-embed-block__preview {
+.doc-video-embed-block__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
   margin-top: 8px;
+}
+
+.doc-video-embed-block__save,
+.doc-video-embed-block__delete {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.02);
+  color: #b8b8b8;
+  border-radius: 4px;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.25;
+  padding: 4px 10px;
+  min-height: 22px;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+
+.doc-video-embed-block__delete {
+  margin-right: auto;
+  color: #c97878;
+  border-color: rgba(201, 120, 120, 0.28);
+}
+
+.doc-video-embed-block__delete:hover {
+  background: rgba(201, 120, 120, 0.06);
+}
+
+.doc-video-embed-block__save:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  color: #d8d8d8;
+}
+
+.doc-video-embed-block__save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.doc-video-embed-block__preview {
+  position: relative;
   border-radius: 8px;
   overflow: hidden;
   background: #000;
   aspect-ratio: 16 / 9;
+}
+
+.doc-video-embed-block__remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #f0f0f0;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.doc-video-embed-block__preview:hover .doc-video-embed-block__remove,
+.doc-video-embed-block__remove:focus-visible {
+  opacity: 1;
+}
+
+.doc-video-embed-block__remove:hover {
+  background: rgba(201, 120, 120, 0.85);
+  border-color: rgba(201, 120, 120, 0.5);
+  color: #fff;
 }
 
 .doc-video-embed-block__preview iframe {

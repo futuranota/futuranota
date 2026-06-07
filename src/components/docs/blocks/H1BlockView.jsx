@@ -16,6 +16,7 @@ export function H1BlockView({
   onFocus,
   contentExpanded = true,
   onContentToggle,
+  placeholder = "Create a new query or title ",
 }) {
   const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
 
@@ -31,7 +32,7 @@ export function H1BlockView({
         queryEnabled={queryEnabled}
         nodeLinkColor={nodeLinkColor}
         showQueryHandle={linksEnabled}
-        placeholder="Create a new query or title "
+        placeholder={placeholder}
         ariaLabel="Title block query or title"
         multiline
       />
