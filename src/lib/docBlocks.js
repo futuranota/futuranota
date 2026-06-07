@@ -146,15 +146,17 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
   if (type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
     const rawInput = patch.rawInput || "";
     const parsed = rawInput ? parseVideoEmbedInput(rawInput) : null;
+    const embedSrc = patch.embedSrc || parsed?.embedSrc || "";
     return {
       ...base,
       type: DOC_BLOCK_TYPES.VIDEO_EMBED,
       rawInput,
       provider: patch.provider || parsed?.provider || "unknown",
       videoId: patch.videoId || parsed?.videoId || "",
-      embedSrc: patch.embedSrc || parsed?.embedSrc || "",
+      embedSrc,
       ownerH1Id: patch.ownerH1Id || undefined,
       parseError: patch.parseError ?? parsed?.error ?? null,
+      embedSaved: Boolean(patch.embedSaved ?? embedSrc),
     };
   }
 
@@ -255,6 +257,7 @@ export function normalizeDocBlock(block) {
       embedSrc: block.embedSrc || "",
       ownerH1Id: block.ownerH1Id || undefined,
       parseError: block.parseError || null,
+      embedSaved: Boolean(block.embedSaved ?? block.embedSrc),
     });
   }
 
@@ -525,6 +528,7 @@ export function docBlocksToBody(blocks) {
           videoId: block.videoId || "",
           embedSrc: block.embedSrc || "",
           ownerH1Id: block.ownerH1Id || null,
+          embedSaved: Boolean(block.embedSaved),
         })}`;
       }
       return block.text || "";
@@ -553,6 +557,34 @@ export function removeBlockAt(blocks, index) {
   const normalized = normalizeDocBlocks(blocks);
   if (index < 0 || index >= normalized.length) return normalized;
   return normalized.filter((_, i) => i !== index);
+}
+
+/** Removes H1 + immediate VIDEO_EMBED sibling (embedvideo pair). */
+export function removeEmbedVideoPairAt(blocks, h1Index) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (h1Index < 0 || h1Index >= normalized.length) return normalized;
+  const h1 = normalized[h1Index];
+  const video = normalized[h1Index + 1];
+  if (h1?.type !== DOC_BLOCK_TYPES.H1 || video?.type !== DOC_BLOCK_TYPES.VIDEO_EMBED) {
+    return removeBlockAt(normalized, h1Index);
+  }
+  return normalized.filter((_, i) => i !== h1Index && i !== h1Index + 1);
+}
+
+/** Removes embed pair when invoked from the video block index. */
+export function removeEmbedVideoPairFromVideoIndex(blocks, videoIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (videoIndex <= 0 || videoIndex >= normalized.length) {
+    return removeBlockAt(normalized, videoIndex);
+  }
+  const h1Index = videoIndex - 1;
+  if (
+    normalized[h1Index]?.type === DOC_BLOCK_TYPES.H1
+    && normalized[videoIndex]?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+  ) {
+    return removeEmbedVideoPairAt(normalized, h1Index);
+  }
+  return removeBlockAt(normalized, videoIndex);
 }
 
 export function replaceBlocksFromSlashInText(blocks, blockIndex, textValue, newBlock) {

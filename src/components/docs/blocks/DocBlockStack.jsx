@@ -10,6 +10,8 @@ import {
   isEmptyTextBlock,
   normalizeDocBlocks,
   removeBlockAt,
+  removeEmbedVideoPairAt,
+  removeEmbedVideoPairFromVideoIndex,
   replaceBlockFromSlashInLinkable,
   replaceBlocksFromSlashInText,
   replaceBlocksFromSlashWithEmbedVideo,
@@ -435,6 +437,21 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     setBlocks(updateBlockAt(blocksRef.current, index, patch));
   };
 
+  const removeEmbedVideoSection = (videoIndex) => {
+    const h1Index = videoIndex - 1;
+    let next = removeEmbedVideoPairFromVideoIndex(blocksRef.current, videoIndex);
+    if (!next.length) {
+      next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+    }
+    setBlocks(next);
+    const focusIndex = Math.max(0, h1Index - 1);
+    const focusId = next[focusIndex]?.id;
+    if (focusId) {
+      onFocusBlock?.(focusId);
+      focusBlockCaret(focusId);
+    }
+  };
+
   const finalizeSlashInsert = (nextBlocks, newBlockId, focusBlockId = newBlockId) => {
     const newIndex = nextBlocks.findIndex((b) => b.id === newBlockId);
     const next = newIndex >= 0
@@ -810,8 +827,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
     if ((e.key === "Backspace" || e.key === "Delete") && titleEmpty && atStart) {
       e.preventDefault();
-      const prevId = index > 0 ? blocksRef.current[index - 1]?.id : null;
-      const next = removeBlockAt(blocksRef.current, index);
+      const current = blocksRef.current;
+      const prevId = index > 0 ? current[index - 1]?.id : null;
+      const nextBlock = current[index + 1];
+      let next;
+      if (block.type === DOC_BLOCK_TYPES.H1 && nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+        next = removeEmbedVideoPairAt(current, index);
+      } else {
+        next = removeBlockAt(current, index);
+      }
       if (next.length === 0) {
         setBlocks([createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })]);
         return;
@@ -953,6 +977,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.H1 ? (
             <H1BlockView
               value={block.title || ""}
+              placeholder={
+                h1HasVideoEmbedSibling(blocksRef.current, index)
+                  ? "Create video title"
+                  : undefined
+              }
               onChange={(title) => {
                 updateAt(index, { title });
                 if (h1HasVideoEmbedSibling(blocksRef.current, index)) {
@@ -1031,6 +1060,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 updateAt(index, patch);
                 onVideoEmbedSync?.(index);
               }}
+              onDelete={() => removeEmbedVideoSection(index)}
             />
           ) : null}
 
