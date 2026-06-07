@@ -3,6 +3,7 @@ export const NODE_DATA_TYPES = {
   DATE: "date",
   CHECKBOX: "checkbox",
   METRIC: "metric",
+  VIDEO: "video",
 };
 
 export const DATA_TYPE_ICONS = {
@@ -10,6 +11,7 @@ export const DATA_TYPE_ICONS = {
   date: "📅",
   checkbox: "☑️",
   metric: "📊",
+  video: "▶️",
 };
 
 export const DATA_TYPE_ICON_ASSETS = {
@@ -22,6 +24,7 @@ export const DATA_TYPE_LABELS = {
   date: "Date",
   checkbox: "Checkbox",
   metric: "Metric",
+  video: "Video",
 };
 
 export const isCompatibleConnection = (fromType, toType) => {

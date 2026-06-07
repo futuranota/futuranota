@@ -31,6 +31,10 @@ function stringifyNodeContent(dataType, content) {
     return content ? "true" : "false";
   }
 
+  if (dataType === "video" && content && typeof content === "object") {
+    return content.rawInput || content.embedSrc || "";
+  }
+
   if (typeof content === "string") return content;
   if (content == null) return "";
   return JSON.stringify(content);
@@ -106,7 +110,24 @@ export const useNodesStore = create(
         const payload = {
           title,
           dataType,
-          content: content ?? (dataType === "checkbox" ? false : dataType === "date" ? { date: "", time: "" } : dataType === "metric" ? { value: "", unit: "" } : ""),
+          content: content ?? (
+            dataType === "checkbox"
+              ? false
+              : dataType === "date"
+                ? { date: "", time: "" }
+                : dataType === "metric"
+                  ? { value: "", unit: "" }
+                  : dataType === "video"
+                    ? {
+                        kind: "embedded-video",
+                        provider: "unknown",
+                        videoId: "",
+                        embedSrc: "",
+                        rawInput: "",
+                        description: "",
+                      }
+                    : ""
+          ),
           sourceBlockId: blockId,
           sourceQuery: query || title,
         };
@@ -225,6 +246,35 @@ export const useNodesStore = create(
               nodeId: node.id,
               ...anchorFields,
             };
+          });
+        } else if (
+          sourceBlock?.type === DOC_BLOCK_TYPES.H1
+          && normalized[sourceBlockIndex + 1]?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+        ) {
+          const videoContent =
+            node.content && typeof node.content === "object" ? node.content : {};
+          const anchorFields = anchorFieldsFromIso(node.anchorAt);
+          nextBlocks = normalized.map((block, i) => {
+            if (i === sourceBlockIndex) {
+              return {
+                ...block,
+                title: syncedTitle,
+                sourceQuery: syncedTitle,
+                nodeId: node.id,
+                ...anchorFields,
+              };
+            }
+            if (i === sourceBlockIndex + 1) {
+              return {
+                ...block,
+                rawInput: videoContent.rawInput || block.rawInput || "",
+                provider: videoContent.provider || block.provider || "unknown",
+                videoId: videoContent.videoId || block.videoId || "",
+                embedSrc: videoContent.embedSrc || block.embedSrc || "",
+                parseError: null,
+              };
+            }
+            return block;
           });
         } else {
           const existingH1Index =

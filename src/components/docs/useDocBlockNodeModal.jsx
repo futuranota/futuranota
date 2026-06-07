@@ -6,8 +6,8 @@ import {
   DOC_BLOCK_TYPES,
   normalizeDocBlocks,
   updateBlockAt,
+  h1HasVideoEmbedSibling,
 } from "../../lib/docBlocks.js";
-import { nodeDataTypeForBlock } from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
   anchorFieldsFromIso,
@@ -20,6 +20,8 @@ import {
   resolveNodeDraftFromDoc,
   setAnswerBelowH1,
   setContentForNodeBlock,
+  syncVideoNodeFromH1Blocks,
+  syncVideoNodeFromVideoBlock,
 } from "../../lib/docNodeSync.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
@@ -82,8 +84,8 @@ export function useDocBlockNodeModal({
   const handleAnswerBelowH1Change = (h1Index, text) => {
     setBlocks((prev) => {
       const block = prev[h1Index];
-      if (block?.nodeId) {
-        const dataType = blockDataType(block);
+      if (block?.nodeId && !h1HasVideoEmbedSibling(prev, h1Index)) {
+        const dataType = blockDataType(block, prev, h1Index);
         const queryText = getBlockQueryText(block) || "Untitled query";
         updateNode(block.nodeId, {
           content: text,
@@ -189,7 +191,7 @@ export function useDocBlockNodeModal({
 
     if (blocks[blockIndex]?.nodeId !== nodeId) {
       const queryText = getBlockQueryText(block) || "Untitled query";
-      const dataType = blockDataType(block);
+      const dataType = blockDataType(block, blocks, blockIndex);
       setBlocks((prev) => {
         const current = prev[blockIndex];
         if (!current) return prev;
@@ -239,11 +241,11 @@ export function useDocBlockNodeModal({
   const handleOpenNodeForBlock = (blockIndex, block) => {
     if (isNoNodeLinkMode(blockLinkColor(blockIndex))) return;
     const ensuredNodeId = ensureBlockNode(blockIndex, block);
-    const dataType = nodeDataTypeForBlock(block);
+    const dataType = blockDataType(block, blocks, blockIndex);
     const existing = (ensuredNodeId || block.nodeId) ? getNode(ensuredNodeId || block.nodeId) : null;
-    let blockContent = getContentForNodeBlock(block);
+    let blockContent = getContentForNodeBlock(block, blocks, blockIndex);
 
-    if (block.type === DOC_BLOCK_TYPES.H1) {
+    if (block.type === DOC_BLOCK_TYPES.H1 && dataType === NODE_DATA_TYPES.TEXT) {
       const answer = getAnswerBelowH1(blocks, blockIndex);
       if (answer.trim()) blockContent = answer;
     }
@@ -350,6 +352,20 @@ export function useDocBlockNodeModal({
     handleBlockAnchorChange(activeNodeContext.blockIndex, nodeDraftAnchorDate, anchorTime);
   };
 
+  const handleVideoEmbedSync = (videoIndex) => {
+    setBlocks((prev) => {
+      syncVideoNodeFromVideoBlock(prev, videoIndex, {}, updateNode);
+      return prev;
+    });
+  };
+
+  const handleVideoEmbedH1TitleChange = (h1Index) => {
+    setBlocks((prev) => {
+      syncVideoNodeFromH1Blocks(prev, h1Index, updateNode);
+      return prev;
+    });
+  };
+
   const nodeModal = activeNodeContext ? (
     <NodeQueryModal
       query={activeNodeContext.query}
@@ -383,6 +399,8 @@ export function useDocBlockNodeModal({
     onEnsureNodeForBlock: handleEnsureNodeForBlock,
     onBlockAnchorChange: handleBlockAnchorChange,
     onAnswerBelowH1Change: handleAnswerBelowH1Change,
+    onVideoEmbedSync: handleVideoEmbedSync,
+    onVideoEmbedH1TitleChange: handleVideoEmbedH1TitleChange,
     nodeModal,
   };
 }

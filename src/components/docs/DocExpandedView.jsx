@@ -34,7 +34,6 @@ import {
   updateBlockAt,
   DOC_BLOCK_TYPES,
 } from "../../lib/docBlocks.js";
-import { nodeDataTypeForBlock } from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
   anchorFieldsFromIso,
@@ -47,6 +46,8 @@ import {
   resolveNodeDraftFromDoc,
   setAnswerBelowH1,
   setContentForNodeBlock,
+  syncVideoNodeFromH1Blocks,
+  syncVideoNodeFromVideoBlock,
 } from "../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
@@ -546,7 +547,7 @@ export function DocExpandedView({
   const syncLinkedNodeFromDoc = (blockIndex, content, blocks, anchorPatch = null) => {
     const block = blocks[blockIndex];
     if (!block?.nodeId) return;
-    const dataType = blockDataType(block);
+    const dataType = blockDataType(block, blocks, blockIndex);
     const queryText = getBlockQueryText(block) || "Untitled query";
     const updates = {
       content,
@@ -684,7 +685,7 @@ export function DocExpandedView({
 
     if (draftBlocks[blockIndex]?.nodeId !== nodeId) {
       const queryText = getBlockQueryText(block) || "Untitled query";
-      const dataType = blockDataType(block);
+      const dataType = blockDataType(block, draftBlocks, blockIndex);
       setDraftBlocks((prev) => {
         const current = prev[blockIndex];
         if (!current) return prev;
@@ -717,6 +718,20 @@ export function DocExpandedView({
 
   const handleEnsureNodeForBlock = (blockIndex, block) => ensureBlockNode(blockIndex, block);
 
+  const handleVideoEmbedSync = (videoIndex) => {
+    setDraftBlocks((prev) => {
+      syncVideoNodeFromVideoBlock(prev, videoIndex, {}, updateNode);
+      return prev;
+    });
+  };
+
+  const handleVideoEmbedH1TitleChange = (h1Index) => {
+    setDraftBlocks((prev) => {
+      syncVideoNodeFromH1Blocks(prev, h1Index, updateNode);
+      return prev;
+    });
+  };
+
   const handleInsertNodeToCanvas = () => {
     if (!activeNodeContext || !onInsertToCanvas) return;
     if (nodeAutosaveTimerRef.current) {
@@ -734,11 +749,11 @@ export function DocExpandedView({
   const handleOpenNodeForBlock = (blockIndex, block) => {
     if (isNoNodeLinkMode(resolveBlockNodeLinkColor(block))) return;
     const ensuredNodeId = ensureBlockNode(blockIndex, block);
-    const dataType = nodeDataTypeForBlock(block);
+    const dataType = blockDataType(block, draftBlocks, blockIndex);
     const existing = (ensuredNodeId || block.nodeId) ? getNode(ensuredNodeId || block.nodeId) : null;
-    let blockContent = getContentForNodeBlock(block);
+    let blockContent = getContentForNodeBlock(block, draftBlocks, blockIndex);
 
-    if (block.type === DOC_BLOCK_TYPES.H1) {
+    if (block.type === DOC_BLOCK_TYPES.H1 && dataType === NODE_DATA_TYPES.TEXT) {
       const answer = getAnswerBelowH1(draftBlocks, blockIndex);
       if (answer.trim()) blockContent = answer;
     }
@@ -946,6 +961,8 @@ export function DocExpandedView({
           onAnswerBelowH1Change={handleAnswerBelowH1Change}
           onBlockAnchorChange={handleBlockAnchorChange}
           onInsertProductToCanvas={handleInsertProductToCanvas}
+          onVideoEmbedSync={handleVideoEmbedSync}
+          onVideoEmbedH1TitleChange={handleVideoEmbedH1TitleChange}
           onKnowledgeFileImport={isKnowledgeMode ? handleKnowledgeFileImport : undefined}
           knowledgeImport={isKnowledgeMode ? draftKnowledgeImport : null}
           initialFocusBlockId={initialFocusBlockId}

@@ -1,6 +1,7 @@
 import { generateId } from "./ids.js";
 import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
+import { parseVideoEmbedInput } from "./videoEmbed.js";
 
 const DOC_BLOCK_TYPES = {
   TEXT: "text",
@@ -9,6 +10,7 @@ const DOC_BLOCK_TYPES = {
   DATE: "date",
   METRIC: "metric",
   PRODUCT_CARD: "product_card",
+  VIDEO_EMBED: "video_embed",
 };
 
 const DEFAULT_CHECKBOX_LIST_TITLE = "Checkbox:";
@@ -141,6 +143,21 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     };
   }
 
+  if (type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+    const rawInput = patch.rawInput || "";
+    const parsed = rawInput ? parseVideoEmbedInput(rawInput) : null;
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.VIDEO_EMBED,
+      rawInput,
+      provider: patch.provider || parsed?.provider || "unknown",
+      videoId: patch.videoId || parsed?.videoId || "",
+      embedSrc: patch.embedSrc || parsed?.embedSrc || "",
+      ownerH1Id: patch.ownerH1Id || undefined,
+      parseError: patch.parseError ?? parsed?.error ?? null,
+    };
+  }
+
   return { ...base, type: DOC_BLOCK_TYPES.TEXT, text: "", ...patch };
 }
 
@@ -226,6 +243,18 @@ export function normalizeDocBlock(block) {
     return createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, {
       id: block.id,
       ...normalizeProductCard(block),
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+    return createDocBlock(DOC_BLOCK_TYPES.VIDEO_EMBED, {
+      id: block.id,
+      rawInput: block.rawInput || "",
+      provider: block.provider || "unknown",
+      videoId: block.videoId || "",
+      embedSrc: block.embedSrc || "",
+      ownerH1Id: block.ownerH1Id || undefined,
+      parseError: block.parseError || null,
     });
   }
 
@@ -325,6 +354,59 @@ function parseMetricSection(section) {
   return createDocBlock(DOC_BLOCK_TYPES.METRIC, { title, value, unit });
 }
 
+function parseVideoEmbedSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::videoembed")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) {
+    return createDocBlock(DOC_BLOCK_TYPES.VIDEO_EMBED);
+  }
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.VIDEO_EMBED, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.VIDEO_EMBED, { rawInput: payload });
+  }
+}
+
+export function createEmbedVideoBlocks() {
+  const h1 = createDocBlock(DOC_BLOCK_TYPES.H1, { title: "" });
+  const video = createDocBlock(DOC_BLOCK_TYPES.VIDEO_EMBED, { ownerH1Id: h1.id });
+  return [h1, video];
+}
+
+export function getVideoEmbedBlockAfterH1(blocks, h1Index) {
+  const normalized = normalizeDocBlocks(blocks);
+  const next = normalized[h1Index + 1];
+  if (next?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) return next;
+  return null;
+}
+
+export function h1HasVideoEmbedSibling(blocks, h1Index) {
+  return Boolean(getVideoEmbedBlockAfterH1(blocks, h1Index));
+}
+
+export function replaceBlocksFromSlashWithEmbedVideo(blocks, blockIndex, textValue) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[blockIndex];
+  if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return normalized;
+
+  const raw = String(textValue ?? "");
+  const slashIdx = raw.search(/\/[^\n]*$/);
+  const prefix = slashIdx >= 0 ? raw.slice(0, slashIdx) : raw;
+  const [h1Block, videoBlock] = createEmbedVideoBlocks();
+
+  const next = [...normalized];
+  if (!prefix.trim()) {
+    next.splice(blockIndex, 1, h1Block, videoBlock);
+  } else {
+    next[blockIndex] = normalizeDocBlock({ ...block, text: prefix });
+    next.splice(blockIndex + 1, 0, h1Block, videoBlock);
+  }
+  return next;
+}
+
 function parseProductCardSection(section) {
   const lines = section.split("\n");
   const first = lines[0]?.trim() || "";
@@ -380,6 +462,12 @@ export function docBlocksFromBody(body) {
       continue;
     }
 
+    const videoEmbedBlock = parseVideoEmbedSection(section);
+    if (videoEmbedBlock) {
+      blocks.push(videoEmbedBlock);
+      continue;
+    }
+
     const todoBlock = parseTodoSection(section);
     if (todoBlock) {
       blocks.push(todoBlock);
@@ -428,6 +516,15 @@ export function docBlocksToBody(blocks) {
           images: block.images || [],
           activeImageIndex: block.activeImageIndex || 0,
           specsSaved: Boolean(block.specsSaved),
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+        return `::videoembed\n${JSON.stringify({
+          rawInput: block.rawInput || "",
+          provider: block.provider || "unknown",
+          videoId: block.videoId || "",
+          embedSrc: block.embedSrc || "",
+          ownerH1Id: block.ownerH1Id || null,
         })}`;
       }
       return block.text || "";
@@ -515,6 +612,14 @@ export function replaceBlockFromSlashInLinkable(blocks, blockIndex, fieldValue, 
 export function ensureEmptyTextBlockAfter(blocks, blockIndex) {
   const normalized = normalizeDocBlocks(blocks);
   if (blockIndex < 0 || blockIndex >= normalized.length) return normalized;
+  const current = normalized[blockIndex];
+  const prev = blockIndex > 0 ? normalized[blockIndex - 1] : null;
+  if (
+    current?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+    && prev?.type === DOC_BLOCK_TYPES.H1
+  ) {
+    return normalized;
+  }
   const after = normalized[blockIndex + 1];
   if (isEmptyTextBlock(after)) return normalized;
   return insertBlockAfter(
@@ -535,6 +640,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.DATE
     || block.type === DOC_BLOCK_TYPES.METRIC
     || block.type === DOC_BLOCK_TYPES.PRODUCT_CARD
+    || block.type === DOC_BLOCK_TYPES.VIDEO_EMBED
   ) {
     return block;
   }

@@ -5,12 +5,14 @@ import {
   DOC_BLOCK_TYPES,
   ensureEmptyTextBlockAfter,
   hasProductCardBlock,
+  h1HasVideoEmbedSibling,
   insertBlockAfter,
   isEmptyTextBlock,
   normalizeDocBlocks,
   removeBlockAt,
   replaceBlockFromSlashInLinkable,
   replaceBlocksFromSlashInText,
+  replaceBlocksFromSlashWithEmbedVideo,
   updateBlockAt,
 } from "../../../lib/docBlocks.js";
 import {
@@ -26,6 +28,7 @@ import { TodoBlockView } from "./TodoBlockView.jsx";
 import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
+import { VideoEmbedBlockView } from "./VideoEmbedBlockView.jsx";
 
 // #region agent log
 const debugLog = (location, message, data, hypothesisId) => {
@@ -59,6 +62,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   docCreatedDate = "",
   onInsertProductToCanvas,
   onEnsureNodeForBlock,
+  onVideoEmbedSync,
+  onVideoEmbedH1TitleChange,
 }, ref) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
@@ -185,15 +190,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const block = blocksRef.current[blockIndex];
     if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return;
 
-    const newBlock = createDocBlockFromSlash(parsed);
-    const next = replaceBlocksFromSlashInText(
-      blocksRef.current,
-      blockIndex,
-      block.text || "",
-      newBlock,
-    );
     clearCollapsedPadWrite(ownerBlock.id);
-    finalizeSlashInsert(next, newBlock.id);
+    insertSlashFromText(blockIndex, block.text || "", parsed);
   };
 
   const insertSlashCommandAtFocus = (alias) => {
@@ -224,14 +222,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             return;
           }
         }
-        const newBlock = createDocBlockFromSlash(parsed);
-        const next = replaceBlocksFromSlashInText(
-          current,
-          blockIndex,
-          focused.text || "",
-          newBlock,
-        );
-        finalizeSlashInsert(next, newBlock.id);
+        insertSlashFromText(blockIndex, focused.text || "", parsed);
         return;
       }
 
@@ -253,14 +244,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           setBlocks(inserted);
           targetIndex = insertAfterIndex + 1;
         }
-        const newBlock = createDocBlockFromSlash(parsed);
-        const next = replaceBlocksFromSlashInText(
-          blocksRef.current,
+        insertSlashFromText(
           targetIndex,
           blocksRef.current[targetIndex]?.text || "",
-          newBlock,
+          parsed,
         );
-        finalizeSlashInsert(next, newBlock.id);
         return;
       }
     }
@@ -275,14 +263,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       targetIndex += 1;
     }
 
-    const newBlock = createDocBlockFromSlash(parsed);
-    const next = replaceBlocksFromSlashInText(
-      blocksRef.current,
+    insertSlashFromText(
       targetIndex,
       blocksRef.current[targetIndex]?.text || "",
-      newBlock,
+      parsed,
     );
-    finalizeSlashInsert(next, newBlock.id);
   };
 
   const isTextHiddenByParentCollapse = (index) => {
@@ -462,6 +447,41 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     return newBlockId;
   };
 
+  const finalizeEmbedVideoSlashInsert = (nextBlocks) => {
+    const videoIndex = nextBlocks.findIndex(
+      (b, i) => b.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+        && nextBlocks[i - 1]?.type === DOC_BLOCK_TYPES.H1,
+    );
+    if (videoIndex < 0) return null;
+    const h1Block = nextBlocks[videoIndex - 1];
+    const next = ensureEmptyTextBlockAfter(nextBlocks, videoIndex);
+    setBlocks(next);
+    onFocusBlock?.(h1Block.id);
+    focusBlockCaret(h1Block.id, 0);
+    requestContentGrow();
+    return h1Block.id;
+  };
+
+  const insertSlashFromText = (blockIndex, textValue, parsed) => {
+    if (parsed.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+      const next = replaceBlocksFromSlashWithEmbedVideo(
+        blocksRef.current,
+        blockIndex,
+        textValue,
+      );
+      return finalizeEmbedVideoSlashInsert(next);
+    }
+    const newBlock = createDocBlockFromSlash(parsed);
+    const next = replaceBlocksFromSlashInText(
+      blocksRef.current,
+      blockIndex,
+      textValue,
+      newBlock,
+    );
+    finalizeSlashInsert(next, newBlock.id);
+    return newBlock.id;
+  };
+
   const handleQueryHandleClick = (index) => {
     const block = blocksRef.current[index];
     if (!block || !blockLinksEnabled(block)) return;
@@ -483,6 +503,17 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const current = sourceBlocks ?? blocksRef.current;
     const nextBlock = current[index + 1];
     const h1Index = current[index]?.type === DOC_BLOCK_TYPES.H1 ? index : -1;
+
+    if (h1Index >= 0 && nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+      if (!skipFocus) {
+        onFocusBlock?.(nextBlock.id);
+        requestAnimationFrame(() => {
+          document.getElementById(`video-embed-${nextBlock.id}`)?.focus();
+        });
+      }
+      requestContentGrow();
+      return nextBlock.id;
+    }
 
     if (isEmptyTextBlock(nextBlock)) {
       if (initialText) {
@@ -568,15 +599,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const parsed = parseSlashQuery(slash.slice(1));
     if (!parsed || !canInsertSlashBlock(parsed)) return false;
 
-    const newBlock = createDocBlockFromSlash(parsed);
-    const next = replaceBlocksFromSlashInText(
-      blocksRef.current,
-      blockIndex,
-      textValue,
-      newBlock,
-    );
-    finalizeSlashInsert(next, newBlock.id);
-    return newBlock.id;
+    return insertSlashFromText(blockIndex, textValue, parsed);
   };
 
   const tryConfirmSlashInLinkable = (blockIndex, fieldValue) => {
@@ -728,6 +751,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       }
 
       if (block.type === DOC_BLOCK_TYPES.H1) {
+        const nextBlock = blocksRef.current[index + 1];
+        if (nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+          onFocusBlock?.(nextBlock.id);
+          requestAnimationFrame(() => {
+            document.getElementById(`video-embed-${nextBlock.id}`)?.focus();
+          });
+          return;
+        }
+
         const el = e.currentTarget;
         const caretStart = el.selectionStart ?? 0;
         const caretEnd = el.selectionEnd ?? caretStart;
@@ -921,7 +953,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.H1 ? (
             <H1BlockView
               value={block.title || ""}
-              onChange={(title) => updateAt(index, { title })}
+              onChange={(title) => {
+                updateAt(index, { title });
+                if (h1HasVideoEmbedSibling(blocksRef.current, index)) {
+                  onVideoEmbedH1TitleChange?.(index);
+                }
+              }}
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={blockLinkColor(block)}
               linksEnabled={blockLinksEnabled(block)}
@@ -983,6 +1020,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 setBlocks(next);
                 const focusIndex = Math.min(index, next.length - 1);
                 onFocusBlock?.(next[focusIndex]?.id);
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.VIDEO_EMBED ? (
+            <VideoEmbedBlockView
+              block={block}
+              onChange={(patch) => {
+                updateAt(index, patch);
+                onVideoEmbedSync?.(index);
               }}
             />
           ) : null}

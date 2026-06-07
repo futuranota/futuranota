@@ -9,6 +9,7 @@ import {
 } from './temporal.js';
 import { formatScheduleLabelFromIso } from './lib/nodeAnchor.js';
 import { resolveConnectionLinkColor } from './lib/docNodeLinkColors.js';
+import { resolveVideoEmbedFromNodeContent } from './lib/videoEmbed.js';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
 import {
   isContentDoc,
@@ -455,6 +456,28 @@ function CanvasNode({
         </div>
       );
     }
+    if (node.dataType === "video") {
+      const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+      const payload = resolveVideoEmbedFromNodeContent(entity?.content ?? node.content);
+      if (!payload?.embedSrc) {
+        return (
+          <div className="cnode-v cnode-v--video cnode-v--video-empty">
+            Paste a YouTube/Vimeo URL in the document
+          </div>
+        );
+      }
+      return (
+        <div className="cnode-v cnode-v--video">
+          <iframe
+            src={payload.embedSrc}
+            title={node.title || "Embedded video"}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            loading="lazy"
+          />
+        </div>
+      );
+    }
     return null;
   };
 
@@ -473,6 +496,8 @@ function CanvasNode({
     cls.push("cnode--knowledge-corpus", "cnode--card-compact");
   } else if (node.dataType === "text" || node.dataType === "document") {
     cls.push("cnode--card-compact");
+  } else if (node.dataType === "video") {
+    cls.push("cnode--video");
   }
 
   if (blueprintColor) cls.push("cnode-in-bp");

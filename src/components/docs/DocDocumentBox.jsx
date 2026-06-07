@@ -10,6 +10,7 @@ import {
 } from "../../lib/docBlocks.js";
 import {
   createDocBlockFromSlash,
+  createBlocksFromSlash,
   parseSlashQuery,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
@@ -72,6 +73,8 @@ export function DocDocumentBox({
   onAnswerBelowH1Change,
   onBlockAnchorChange,
   onInsertProductToCanvas,
+  onVideoEmbedSync,
+  onVideoEmbedH1TitleChange,
   headerLabel,
   version = "",
   onVersionChange,
@@ -363,18 +366,13 @@ export function DocDocumentBox({
     if (!parsed || !isSlashCommandEnabled({ aliases: [alias] })) return;
 
     const { prefix } = splitBodyForSlash(body);
-    const nextBlocks = [];
-
-    if (prefix.trim()) {
-      nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix }));
-    }
-
-    const newBlock = createDocBlockFromSlash(parsed);
-    nextBlocks.push(newBlock);
-    nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" }));
-    onBlocksChange?.(nextBlocks);
+    const inserted = createBlocksFromSlash(parsed, prefix);
+    const focusId = parsed.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+      ? inserted.find((b) => b.type === DOC_BLOCK_TYPES.H1)?.id
+      : inserted[inserted.length - 1]?.id;
+    onBlocksChange?.([...inserted, createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })]);
     onBodyChange?.("");
-    setFocusBlockId(newBlock.id);
+    setFocusBlockId(focusId || null);
     requestContentBoxGrow();
   }, [
     body,
@@ -397,18 +395,13 @@ export function DocDocumentBox({
     }
 
     const { prefix } = splitBodyForSlash(body);
-    const nextBlocks = [];
-
-    if (prefix.trim()) {
-      nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix }));
-    }
-
-    const newBlock = createDocBlockFromSlash(parsed);
-    nextBlocks.push(newBlock);
-    nextBlocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" }));
-    onBlocksChange?.(nextBlocks);
+    const inserted = createBlocksFromSlash(parsed, prefix);
+    const focusId = parsed.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+      ? inserted.find((b) => b.type === DOC_BLOCK_TYPES.H1)?.id
+      : inserted[inserted.length - 1]?.id;
+    onBlocksChange?.([...inserted, createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })]);
     onBodyChange?.("");
-    setFocusBlockId(newBlock.id);
+    setFocusBlockId(focusId || null);
     return true;
   };
 
@@ -587,6 +580,8 @@ export function DocDocumentBox({
               onBlockAnchorChange={onBlockAnchorChange}
               docCreatedDate={createdDate}
               onInsertProductToCanvas={onInsertProductToCanvas}
+              onVideoEmbedSync={onVideoEmbedSync}
+              onVideoEmbedH1TitleChange={onVideoEmbedH1TitleChange}
             />
           ) : (
             <div

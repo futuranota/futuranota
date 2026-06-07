@@ -1690,6 +1690,32 @@ textarea.field {
   text-overflow: ellipsis;
 }
 
+.cnode--video {
+  min-width: 280px;
+  max-width: 360px;
+  padding-bottom: 10px;
+}
+
+.cnode-v--video {
+  padding: 0 8px 8px;
+}
+
+.cnode-v--video iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: #000;
+}
+
+.cnode-v--video-empty {
+  padding: 8px 10px 10px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-2);
+}
+
 /* Knowledge corpus — compact card (passive: no hover/select noise; ports + delete only) */
 .cnode--knowledge-corpus {
   cursor: default;
