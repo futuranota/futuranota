@@ -22,6 +22,7 @@ import { LaunchPredictor } from './components/analytics/LaunchPredictor.jsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
 import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
+import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.jsx';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
 
@@ -958,11 +959,10 @@ function IntelPanel({
                   <span className="intel-context-badge">{contextCount} wired node{contextCount === 1 ? "" : "s"}</span>
                 )}
               </div>
-              <div className="intel-overview-text">
-                {intelSearchResult.overview.split("\n").map((line, i) => (
-                  <p key={i}>{line.replace(/\*\*(.*?)\*\*/g, "$1")}</p>
-                ))}
-              </div>
+              <AnimatedOverviewText
+                key={intelSearchResult.query ?? intelSearchResult.overview}
+                text={intelSearchResult.overview}
+              />
             </section>
             <section className="intel-citations-block" aria-label="Web references">
               <div className="col-section-h" style={{ margin: "10px 0 6px" }}>
