@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { motion } from "framer-motion";
 import { daysBetween, fmtDate } from "../../data.jsx";
 import { buildChipDisplay, startOfCalendarDay } from "../../temporal.js";
 import { buildTacticalObjectRows } from "../../lib/tacticalTimelineView.js";
@@ -15,6 +16,14 @@ function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
 
 function resolveNodeAnchorAlign() {
   return "center";
+}
+
+function resolveAnchorStatus(groupDate, today) {
+  const d = startOfCalendarDay(groupDate);
+  const t = startOfCalendarDay(today);
+  if (d.getTime() < t.getTime()) return "past";
+  if (d.getTime() === t.getTime()) return "active";
+  return "future";
 }
 
 function TacticalObjectRow({
@@ -150,12 +159,15 @@ function TacticalObjectRow({
                   groupIndex,
                   nodeGroups.length,
                 );
+                const anchorStatus = resolveAnchorStatus(group.date, today);
                 return (
                   <span
                     key={`dot-${group.columnKey}`}
-                    className={`tl-tactical-rail__anchor is-anchor-${anchorAlign}`}
+                    className={`tl-tactical-rail__anchor is-status-${anchorStatus} is-anchor-${anchorAlign}`}
                     style={{ left: `${group.leftPct}%` }}
-                  />
+                  >
+                    <span className="tl-tactical-rail__anchor-core" aria-hidden />
+                  </span>
                 );
               })}
             </div>
@@ -167,10 +179,13 @@ function TacticalObjectRow({
                   nodeGroups.length,
                 );
                 return (
-                <div
+                <motion.div
                   key={group.columnKey}
                   className={`tl-tactical-node-group is-anchor-${anchorAlign}`}
                   style={{ left: `${group.leftPct}%` }}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: groupIndex * 0.12 }}
                 >
                   <div
                     className="tl-tactical-node-group__stack"
@@ -213,7 +228,7 @@ function TacticalObjectRow({
                   >
                     {fmtDate(group.date, "short")}
                   </time>
-                </div>
+                </motion.div>
                 );
               })}
             </div>
@@ -321,9 +336,10 @@ export function TacticalTimeline({
           <div className="tl-tactical-header">
             <span className="tl-tactical-header__title">
               <b>Timeline</b>
-              {` · ${objectRowCount} famil${objectRowCount === 1 ? "y" : "ies"}`}
-              {` · ${timelineDocQueue.length} doc${timelineDocQueue.length === 1 ? "" : "s"}`}
-              {grid?.spanDays ? ` · ${grid.spanDays}d span` : ""}
+              <span>
+                {`${objectRowCount} famil${objectRowCount === 1 ? "y" : "ies"} · ${timelineDocQueue.length} doc${timelineDocQueue.length === 1 ? "" : "s"}`}
+                {grid?.spanDays ? ` · ${grid.spanDays}d span` : ""}
+              </span>
             </span>
             <label
               className="tl-alerts-toggle"
