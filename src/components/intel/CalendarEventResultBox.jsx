@@ -10,6 +10,9 @@ export function CalendarEventResultBox({ result, onInsert }) {
     <div className="cal-event-result" role="status">
       <div className="cal-event-result__meta">
         <span className="cal-event-result__date tnum">{result.uiDate}</span>
+        {result.rangeLabel ? (
+          <span className="cal-event-result__range-label tnum">{result.rangeLabel}</span>
+        ) : null}
         <span className="cal-event-result__source">{result.sourceLabel}</span>
       </div>
       <div className="cal-event-result__body">

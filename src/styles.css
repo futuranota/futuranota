@@ -2527,9 +2527,17 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   min-height: 120px;
   overflow: visible;
 }
-.cal-event-canvas__search-pill {
+.cal-event-canvas__controls {
   position: relative;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.cal-event-canvas__search-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
@@ -2538,13 +2546,20 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   min-width: 108px;
   height: 28px;
   padding: 0 5px 0 16px;
-  margin-top: 4px;
   border: none;
   border-radius: 3px;
   background: rgba(38, 70, 83, 0.6);
   cursor: pointer;
   line-height: 0;
   transition: opacity 120ms ease, transform 120ms ease;
+}
+.cal-event-canvas__search-pill--compact {
+  min-width: 72px;
+  height: 24px;
+  padding: 0 10px;
+}
+.cal-event-canvas__search-pill--compact .cal-event-canvas__date {
+  font-size: 11px;
 }
 .cal-event-canvas__search-pill.has-date {
   justify-content: center;
@@ -2623,6 +2638,24 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   flex-shrink: 0;
   color: #9fa1a6;
 }
+.cal-event-range-switch {
+  flex-shrink: 0;
+  width: auto;
+  min-height: 22px;
+  margin-bottom: 0;
+  padding: 2px;
+  border-radius: 3px;
+}
+.cal-event-range-switch .forecast-period-switch__btn {
+  font-size: 8.5px;
+  padding: 3px 5px;
+  line-height: 1.2;
+}
+.cal-event-canvas--result .cal-event-canvas__controls {
+  align-self: stretch;
+  justify-content: flex-start;
+  margin-bottom: 6px;
+}
 .cal-event-result {
   width: 100%;
   padding: 10px;
@@ -2649,6 +2682,10 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
 .cal-event-result__date {
   font-weight: 700;
   color: var(--warm);
+}
+.cal-event-result__range-label {
+  font-weight: 600;
+  color: var(--text-2);
 }
 .cal-event-result__source {
   min-width: 0;
