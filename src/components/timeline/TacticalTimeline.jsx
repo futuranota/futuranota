@@ -1,10 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { daysBetween, fmtDate } from "../../data.jsx";
 import { buildChipDisplay, startOfCalendarDay } from "../../temporal.js";
-import { buildTacticalObjectRows } from "../../lib/tacticalTimelineView.js";
+import { buildTacticalObjectRows, resolveDaysLeftCenterPct } from "../../lib/tacticalTimelineView.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
+import { useTacticalRangeDrag } from "../../hooks/useTacticalRangeDrag.js";
+import { useTranslatedText } from "../../hooks/useTranslatedText.js";
+import { useI18n } from "../../i18n/useI18n.js";
 import { useTimelineStore } from "../../stores/index.js";
 import { TimelineEventChip } from "./TimelineEventChip.jsx";
 
@@ -38,7 +41,11 @@ function TacticalObjectRow({
   focusedNoteId,
   onChipClick,
   onChipDoubleClick,
+  enableRangeHandles = false,
+  rangeDrag = null,
+  t,
 }) {
+  const plotRef = useRef(null);
   const accent = row.objectColor;
   const familyAccent = resolveFamilyAccent(row.objectId, objectsById, accent);
   const meta = { nodeEntitiesById, docsById };
@@ -61,9 +68,9 @@ function TacticalObjectRow({
   const daysLeft = lastDay && lastDay.getTime() > todayDay.getTime()
     ? daysBetween(today, lastGroupDate)
     : 0;
-  const futureMidPct = grid
-    ? grid.todayPct + (100 - grid.todayPct) / 2
-    : 50;
+  const daysLeftCenterPct = resolveDaysLeftCenterPct(nodeGroups);
+  const pluralS = (n) => (n === 1 ? "" : "s");
+  const objectNameLabel = useTranslatedText(row.objectName);
 
   const rowClass = [
     "tl-tactical-row",
@@ -79,23 +86,23 @@ function TacticalObjectRow({
       style={{ "--tl-accent": accent, "--tl-family-accent": familyAccent }}
     >
       <div className="tl-tactical-row__label">
-        <span className="tl-tactical-object-name" title={row.objectName}>
-          {isChildRow ? `↳ ${row.objectName}` : row.objectName}
+        <span className="tl-tactical-object-name" title={objectNameLabel}>
+          {isChildRow ? `↳ ${objectNameLabel}` : objectNameLabel}
         </span>
         <span className="tl-tactical-row__meta">
-          {markerCount} event{markerCount === 1 ? "" : "s"}
-          {row.isPrimary ? " · primary" : ""}
-          {row.isInheritLayer ? " · inherit" : ""}
+          {t("timeline.events", { count: markerCount, s: pluralS(markerCount) })}
+          {row.isPrimary ? t("timeline.primary") : ""}
+          {row.isInheritLayer ? t("timeline.inherit") : ""}
         </span>
       </div>
 
       <div className="tl-tactical-row__track">
         {nodeGroups.length === 0 ? (
-          <span className="tl-tactical-row__empty mute">No dated events</span>
+          <span className="tl-tactical-row__empty mute">{t("timeline.noDatedEvents")}</span>
         ) : (
-          <div className="tl-tactical-rail">
+          <div className={"tl-tactical-rail" + (rangeDrag?.isDragging ? " is-dragging-range" : "")}>
             <div className="tl-tactical-rail__inset">
-            <div className="tl-tactical-rail__plot">
+            <div className="tl-tactical-rail__plot" ref={plotRef}>
             <div className="tl-tactical-bar">
               <div className="tl-tactical-ruler" aria-hidden>
                 {(grid?.ticks || []).map((tick, i) => (
@@ -117,7 +124,11 @@ function TacticalObjectRow({
               {segments.map((segment) => (
                 <div
                   key={`range-${segment.key}`}
-                  className="tl-tactical-range-window is-doc-dimension"
+                  className={
+                    "tl-tactical-range-window"
+                    + (segment.isDocDimension || segment.isRowEndpointSpan ? " is-doc-dimension" : "")
+                    + (segment.isRowEndpointSpan ? " is-row-endpoint-span" : "")
+                  }
                   style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
                   title={segment.label || undefined}
                   aria-hidden
@@ -143,16 +154,16 @@ function TacticalObjectRow({
                   <span className="tl-tactical-rail__today-line" aria-hidden />
                 </div>
               )}
-              {daysLeft > 0 && grid && segments.length > 0 && (
+              {daysLeft > 0 && nodeGroups.length > 0 && (
                 <div
                   className="tl-tactical-rail__remaining"
-                  style={{ left: `${futureMidPct}%` }}
+                  style={{ left: `${daysLeftCenterPct}%` }}
                 >
-                  {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+                  {t("timeline.daysLeft", { count: daysLeft, s: pluralS(daysLeft) })}
                 </div>
               )}
             </div>
-            <div className="tl-tactical-rail__anchors" aria-hidden>
+            <div className="tl-tactical-rail__anchors">
               {nodeGroups.map((group, groupIndex) => {
                 const anchorAlign = resolveNodeAnchorAlign(
                   group.leftPct,
@@ -160,11 +171,59 @@ function TacticalObjectRow({
                   nodeGroups.length,
                 );
                 const anchorStatus = resolveAnchorStatus(group.date, today);
+                const isRangeStart = enableRangeHandles && groupIndex === 0;
+                const isRangeEnd = enableRangeHandles && groupIndex === nodeGroups.length - 1;
+                const isRangeHandle = isRangeStart || isRangeEnd;
+                const handleClass = [
+                  "tl-tactical-rail__anchor",
+                  `is-status-${anchorStatus}`,
+                  `is-anchor-${anchorAlign}`,
+                  isRangeStart ? "is-range-handle is-range-start" : "",
+                  isRangeEnd ? "is-range-handle is-range-end" : "",
+                ].filter(Boolean).join(" ");
+
                 return (
                   <span
                     key={`dot-${group.columnKey}`}
-                    className={`tl-tactical-rail__anchor is-status-${anchorStatus} is-anchor-${anchorAlign}`}
+                    className={handleClass}
                     style={{ left: `${group.leftPct}%` }}
+                    role={isRangeHandle ? "slider" : undefined}
+                    aria-label={
+                      isRangeStart
+                        ? t("timeline.dragStart")
+                        : isRangeEnd
+                          ? t("timeline.dragEnd")
+                          : undefined
+                    }
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(group.leftPct)}
+                    tabIndex={isRangeHandle ? 0 : undefined}
+                    onPointerDown={
+                      isRangeStart && isRangeEnd
+                        ? (e) => rangeDrag?.onRangeHandlePointerDown(
+                          "both",
+                          plotRef.current,
+                          e,
+                          { anchorDate: group.date, anchorPct: group.leftPct },
+                        )
+                        : isRangeStart
+                          ? (e) => rangeDrag?.onRangeHandlePointerDown(
+                            "start",
+                            plotRef.current,
+                            e,
+                            { anchorDate: group.date, anchorPct: group.leftPct },
+                          )
+                          : isRangeEnd
+                            ? (e) => rangeDrag?.onRangeHandlePointerDown(
+                              "end",
+                              plotRef.current,
+                              e,
+                              { anchorDate: group.date, anchorPct: group.leftPct },
+                            )
+                            : undefined
+                    }
+                    onDoubleClick={isRangeHandle ? rangeDrag?.onRangeHandleDoubleClick : undefined}
                   >
                     <span className="tl-tactical-rail__anchor-core" aria-hidden />
                   </span>
@@ -260,6 +319,13 @@ export function TacticalTimeline({
   const toggleExpandedDocId = useTimelineStore((s) => s.toggleExpandedDocId);
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
   const setTimelineAlertsEnabled = useTimelineStore((s) => s.setTimelineAlertsEnabled);
+  const tacticalRangeOverride = useTimelineStore((s) => s.tacticalRangeOverride);
+  const { t, locale } = useI18n();
+  const pluralS = (n) => (n === 1 ? "" : "s");
+  const familySuffix = (n) => {
+    if (locale === "es") return n === 1 ? "ia" : "ias";
+    return n === 1 ? "y" : "ies";
+  };
 
   const primaryTimelineObjectId = useMemo(
     () => resolvePrimaryTimelineObjectId({
@@ -285,6 +351,7 @@ export function TacticalTimeline({
       filterObjectId,
       inheritObjMode,
       primaryTimelineObjectId,
+      rangeOverride: tacticalRangeOverride,
     }),
     [
       canvasNodes,
@@ -299,10 +366,12 @@ export function TacticalTimeline({
       filterObjectId,
       inheritObjMode,
       primaryTimelineObjectId,
+      tacticalRangeOverride,
     ],
   );
 
   const { displayRows, trackItemsById, grid } = view;
+  const rangeDrag = useTacticalRangeDrag(grid);
   const hasQueue = timelineDocQueue.length > 0;
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
 
@@ -335,23 +404,25 @@ export function TacticalTimeline({
         <>
           <div className="tl-tactical-header">
             <span className="tl-tactical-header__title">
-              <b>Timeline</b>
+              <b>{t("timeline.title")}</b>
               <span>
-                {`${objectRowCount} famil${objectRowCount === 1 ? "y" : "ies"} · ${timelineDocQueue.length} doc${timelineDocQueue.length === 1 ? "" : "s"}`}
-                {grid?.spanDays ? ` · ${grid.spanDays}d span` : ""}
+                {t("timeline.families", { count: objectRowCount, suffix: familySuffix(objectRowCount) })}
+                {" · "}
+                {t("timeline.docs", { count: timelineDocQueue.length, s: pluralS(timelineDocQueue.length) })}
+                {grid?.spanDays ? ` · ${t("timeline.span", { days: grid.spanDays })}` : ""}
               </span>
             </span>
             <label
               className="tl-alerts-toggle"
               data-on={timelineAlertsEnabled ? "1" : "0"}
-              title="Show timeline alerts on canvas at T-30, T-7, and T-1 day windows"
+              title={t("timeline.alertsTitle")}
             >
               <input
                 type="checkbox"
                 checked={timelineAlertsEnabled}
                 onChange={(e) => setTimelineAlertsEnabled(e.target.checked)}
               />
-              <span>Timeline alerts</span>
+              <span>{t("timeline.alerts")}</span>
             </label>
           </div>
 
@@ -370,12 +441,17 @@ export function TacticalTimeline({
                 focusedNoteId={focusedNoteId}
                 onChipClick={handleChipClick}
                 onChipDoubleClick={handleChipDoubleClick}
+                enableRangeHandles={
+                  row.rowKind === "object" && (row.rail?.nodeGroups?.length ?? 0) > 0
+                }
+                rangeDrag={rangeDrag}
+                t={t}
               />
             ))}
           </div>
         </>
       ) : (
-        <p className="tl-empty-hint">Enable Select → pick nodes → Insert to timeline</p>
+        <p className="tl-empty-hint">{t("timeline.emptyHint")}</p>
       )}
     </div>
   );

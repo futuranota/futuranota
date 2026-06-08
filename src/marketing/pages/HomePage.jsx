@@ -5,6 +5,7 @@ import {
 import { PageTinaProvider } from '../context/TinaVisualEditing.jsx';
 import { Hero } from '../components/Hero.jsx';
 import { SectionDirectory } from '../components/SectionDirectory.jsx';
+import { PricingPlans } from '../components/PricingPlans.jsx';
 import { FinalCTA } from '../components/FinalCTA.jsx';
 import { applyMarketingTheme, accentSwatch, swatchToName } from '../lib/theme.js';
 
@@ -25,6 +26,7 @@ function HomePageContent() {
     <>
       <Hero heroMode={t.heroMode} />
       <SectionDirectory />
+      <PricingPlans />
       <FinalCTA />
 
       <TweaksPanel title="Futura Nota · Landing">

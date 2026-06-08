@@ -2,9 +2,10 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { createBrandCadenceMiddleware } from './server/brandCadenceHandler.js';
+import { createTranslateMiddleware } from './server/translateHandler.js';
 
 function applyServerEnv(env) {
-  for (const key of ['GROQ_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY']) {
+  for (const key of ['GROQ_API_KEY', 'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_TRANSLATE_API_KEY']) {
     if (env[key]) process.env[key] = env[key];
   }
 }
@@ -15,6 +16,7 @@ function brandCadenceApiPlugin(env) {
     configureServer(server) {
       applyServerEnv(env);
       server.middlewares.use(createBrandCadenceMiddleware());
+      server.middlewares.use(createTranslateMiddleware());
     },
   };
 }

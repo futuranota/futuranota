@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { exportObjectPack } from "../../lib/pack/packExport.js";
 import { exportObjectPackV2 } from "../../lib/pack/packV2Export.js";
+import { useI18n } from "../../i18n/useI18n.js";
 
 /**
  * @param {Object} props
@@ -21,6 +22,7 @@ export function PackActionsBar({
   filterValue = null,
   onFilterChange,
 }) {
+  const { t } = useI18n();
   const [exporting, setExporting] = useState(false);
   const [exportingV2, setExportingV2] = useState(false);
 
@@ -49,7 +51,7 @@ export function PackActionsBar({
     && exportObjectId
     && typeof onFilterChange === "function";
 
-  const filterPlaceholder = filterMode === "category" ? "Category" : "Content";
+  const filterPlaceholder = filterMode === "category" ? t("pack.category") : t("pack.content");
 
   const handleSelectChange = (e) => {
     const value = e.target.value;
@@ -68,13 +70,13 @@ export function PackActionsBar({
     : "";
 
   return (
-    <div className={"pack-actions pack-actions--" + placement} role="toolbar" aria-label="Pack import export">
+    <div className={"pack-actions pack-actions--" + placement} role="toolbar" aria-label={t("pack.toolbar")}>
       <button
         type="button"
         className="btn xs pack-actions__btn"
         onClick={onOpenImport}
       >
-        Import pack
+        {t("pack.importPack")}
       </button>
       {placement === "documents" && exportObjectId ? (
         <>
@@ -84,16 +86,16 @@ export function PackActionsBar({
             onClick={handleExport}
             disabled={exporting || exportingV2}
           >
-            {exporting ? "Exporting…" : "Export pack"}
+            {exporting ? t("pack.exporting") : t("pack.exportPack")}
           </button>
           <button
             type="button"
             className="btn xs pack-actions__btn pack-actions__btn--accent"
             onClick={handleExportV2}
             disabled={exporting || exportingV2}
-            title="Readable folders + image files (Pack v2)"
+            title={t("pack.packV2Title")}
           >
-            {exportingV2 ? "Exporting…" : "Pack v2"}
+            {exportingV2 ? t("pack.exporting") : t("pack.packV2")}
           </button>
           {filterEnabled ? (
             <select
@@ -105,10 +107,8 @@ export function PackActionsBar({
               }
               value={selectedOptionId}
               onChange={handleSelectChange}
-              aria-label={filterMode === "category" ? "Filter products by category" : "Filter content by subcategory"}
-              title={filterMode === "category"
-                ? "Filter Products by category"
-                : "Filter Content by linked product subcategory"}
+              aria-label={filterMode === "category" ? t("pack.filterProductsAria") : t("pack.filterContentAria")}
+              title={filterMode === "category" ? t("pack.filterProducts") : t("pack.filterContent")}
             >
               <option value="">{filterPlaceholder}</option>
               {filterOptions.map((opt) => (

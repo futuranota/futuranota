@@ -55,6 +55,66 @@
   --shadow-lg: 0 1px 0 oklch(1 0 0 / 0.05) inset, 0 40px 80px -40px oklch(0 0 0 / 0.85);
 }
 
+:root[data-theme="light"] {
+  --bg:        oklch(0.99 0.004 85);
+  --bg-2:      oklch(0.97 0.006 85);
+  --surface:   oklch(1 0 0);
+  --surface-2: oklch(0.965 0.007 85);
+  --line:      oklch(0.55 0.012 60 / 0.24);
+  --line-soft: oklch(0.55 0.012 60 / 0.14);
+
+  --text:   oklch(0.20 0.022 60);
+  --muted:  oklch(0.44 0.018 65);
+  --faint:  oklch(0.56 0.014 70);
+
+  /* deeper rose + green so labels read on white */
+  --accent:        oklch(0.56 0.19 350);
+  --accent-strong: oklch(0.50 0.20 350);
+  --accent-bright: oklch(0.62 0.21 350);
+  --accent-soft:   oklch(0.56 0.19 350 / 0.14);
+  --accent-line:   oklch(0.56 0.17 350 / 0.38);
+  --on-accent:     oklch(0.99 0.01 350);
+
+  --signal:      oklch(0.48 0.17 159);
+  --signal-soft: oklch(0.48 0.17 159 / 0.14);
+  --signal-line: oklch(0.48 0.17 159 / 0.38);
+
+  --shadow: 0 1px 0 oklch(0 0 0 / 0.04) inset, 0 10px 24px -16px oklch(0 0 0 / 0.10);
+  --shadow-lg: 0 1px 0 oklch(0 0 0 / 0.05) inset, 0 20px 40px -20px oklch(0 0 0 / 0.14);
+}
+
+/* light canvas — no dark vignette on scroll */
+:root[data-theme="light"] .canvas-bg {
+  background-image:
+    radial-gradient(circle at 50% -8%, var(--accent-soft), transparent 48%),
+    radial-gradient(circle, oklch(0 0 0 / 0.045) 1px, transparent 1.4px);
+}
+:root[data-theme="light"] .canvas-bg::after {
+  background: none;
+}
+
+:root[data-theme="light"] .btn-ghost {
+  background: oklch(0 0 0 / 0.02);
+  border-color: var(--line);
+}
+:root[data-theme="light"] .btn-ghost:hover {
+  border-color: oklch(0 0 0 / 0.18);
+  background: oklch(0 0 0 / 0.04);
+}
+:root[data-theme="light"] .card {
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+}
+:root[data-theme="light"] .card:hover {
+  border-color: var(--line);
+  box-shadow: var(--shadow-lg);
+}
+:root[data-theme="light"] .chip--accent:hover {
+  background: oklch(0.56 0.19 350 / 0.18);
+}
+:root[data-theme="light"] .ph__tag {
+  background: oklch(1 0 0 / 0.72);
+}
+
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 

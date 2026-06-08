@@ -1,7 +1,9 @@
 import { useAnimatedText } from "../../hooks/useAnimatedText.js";
+import { useTranslatedText } from "../../hooks/useTranslatedText.js";
 
 export function AnimatedOverviewText({ text }) {
-  const plain = (text || "").replace(/\*\*(.*?)\*\*/g, "$1");
+  const translated = useTranslatedText(text);
+  const plain = (translated || "").replace(/\*\*(.*?)\*\*/g, "$1");
   const animated = useAnimatedText(plain);
 
   return (

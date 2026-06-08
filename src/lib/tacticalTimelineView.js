@@ -1,5 +1,10 @@
 import { daysBetween } from "../data.jsx";
 import {
+  applyAutoZoomForQueue,
+  applyTacticalRangeOverride,
+  resolveTacticalGridBaseBounds,
+} from "./tacticalTimelineRange.js";
+import {
   parseDate,
   resolveNodeAnchorDate,
   sameCalendarDay,
@@ -52,27 +57,18 @@ function buildGridTicks(start, end, pct, spanDays) {
  * markers fall outside that window.
  * @param {Date[]} markerDates
  * @param {Date} today
+ * @param {{ rangeOverride?: { startMs?: number | null, endMs?: number | null } | null, queueDocCount?: number }} [options]
  */
-export function buildTacticalDisplayGrid(markerDates, today) {
-  const monthStart = startOfCalendarMonth(today);
-  const monthEnd = endOfCalendarMonth(today);
-  let start = monthStart;
-  let end = monthEnd;
+export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
+  const { rangeOverride = null, queueDocCount = 0 } = options;
+  let { start, end } = resolveTacticalGridBaseBounds(markerDates, today);
+  ({ start, end } = applyAutoZoomForQueue(start, end, markerDates, queueDocCount));
+  ({ start, end } = applyTacticalRangeOverride(start, end, rangeOverride));
 
   const normalized = markerDates.filter(Boolean).map((d) => startOfCalendarDay(d));
   const todayDay = startOfCalendarDay(today);
-  const anchorTs = normalized.map((d) => d.getTime());
-
-  if (anchorTs.length > 0) {
-    const minTs = Math.min(...anchorTs, todayDay.getTime());
-    const maxTs = Math.max(...anchorTs, todayDay.getTime());
-    if (minTs < monthStart.getTime()) {
-      start = startOfCalendarDay(new Date(minTs - TACTICAL_GRID_PAD_DAYS * 86400000));
-    }
-    if (maxTs > monthEnd.getTime()) {
-      end = startOfCalendarDay(new Date(maxTs + TACTICAL_GRID_PAD_DAYS * 86400000));
-    }
-  }
+  const monthStart = startOfCalendarMonth(today);
+  const monthEnd = endOfCalendarMonth(today);
 
   const total = end.getTime() - start.getTime() || 86400000;
   const pct = (d) => {
@@ -149,6 +145,48 @@ function buildDimensionSegmentBetweenColumns(fromCol, toCol, grid) {
     label: formatTimelineSpanLabel(start, end),
     isDocDimension: true,
   };
+}
+
+/**
+ * Full-row dimension band from first milestone (start) to last (endpoint).
+ * Shrinks proportionally when the visible grid is zoomed in.
+ * @param {ReturnType<typeof buildTimelineColumns>} columns
+ * @param {ReturnType<typeof buildTacticalDisplayGrid>} grid
+ */
+export function buildRowEndpointSpanSegment(columns, grid) {
+  if (!columns?.length || !grid) return null;
+
+  if (columns.length === 1) {
+    const pct = grid.pct(columns[0].date);
+    return {
+      key: `row-endpoint-${columns[0].columnKey}`,
+      leftPct: pct,
+      widthPct: 0.5,
+      label: formatTimelineSpanLabel(columns[0].date, columns[0].date),
+      isRowEndpointSpan: true,
+    };
+  }
+
+  const first = columns[0];
+  const last = columns[columns.length - 1];
+  const segment = buildDimensionSegmentBetweenColumns(first, last, grid);
+  return {
+    ...segment,
+    key: `row-endpoints-${first.columnKey}-${last.columnKey}`,
+    isDocDimension: false,
+    isRowEndpointSpan: true,
+  };
+}
+
+/**
+ * Center pct for the "days left" label within the row endpoint span.
+ * @param {{ leftPct: number }[]} nodeGroups
+ */
+export function resolveDaysLeftCenterPct(nodeGroups) {
+  if (!nodeGroups.length) return 50;
+  const firstPct = nodeGroups[0].leftPct;
+  const lastPct = nodeGroups[nodeGroups.length - 1].leftPct;
+  return firstPct + (lastPct - firstPct) / 2;
 }
 
 /**
@@ -245,7 +283,9 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
     leftPct: grid.pct(col.date),
   }));
 
-  const segments = options.segments || [];
+  const wireSegments = options.segments || [];
+  const rowSpan = buildRowEndpointSpanSegment(columns, grid);
+  const segments = rowSpan ? [rowSpan, ...wireSegments] : wireSegments;
 
   return { nodeGroups, segments };
 }
@@ -330,6 +370,7 @@ export function buildTacticalObjectRows(params) {
     filterObjectId = null,
     inheritObjMode = false,
     primaryTimelineObjectId = null,
+    rangeOverride = null,
   } = params;
 
   const tactical = buildTimelineChains({
@@ -472,7 +513,10 @@ export function buildTacticalObjectRows(params) {
   const allMarkerDates = orderedRows.flatMap((row) =>
     (row.columns || []).map((col) => col.date),
   );
-  const displayGrid = buildTacticalDisplayGrid(allMarkerDates, today);
+  const displayGrid = buildTacticalDisplayGrid(allMarkerDates, today, {
+    rangeOverride,
+    queueDocCount: timelineDocQueue.length,
+  });
 
   const dimensionSegmentsByRow = buildDocDimensionSegmentsByRow(
     orderedRows,
