@@ -97,13 +97,12 @@
         "desc": "Best for testing & understanding your first launch window.",
         "price": "0",
         "priceSuffix": "/mo",
-        "billingNote": "$0 / month",
+        "billingNote": "No credit card is required",
         "cta": "Get Started",
         "bullets": [
           "2 Main Objects · 100 MB storage",
           "10 AI search credits per month",
-          "Basic Calendar & day-one Forecast",
-          "General Market Hype Score"
+          "Basic Calendar & Forecast"
         ],
         "featureGroups": [
           {
