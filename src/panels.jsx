@@ -25,6 +25,7 @@ import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
 import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.jsx';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
+import { useI18n } from './i18n/useI18n.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
 
@@ -580,17 +581,23 @@ function NotesPanel({
 
 /* ─── INTEL PANEL ─────────────────────────────────────────── */
 
-const TAB_OPTIONS = [
-  { id: "news",     label: "News" },
-  { id: "campaign", label: "Campaign" },
-];
+function useIntelTabOptions() {
+  const { t } = useI18n();
+  return useMemo(() => ([
+    { id: "news", label: t("intel.news") },
+    { id: "campaign", label: t("intel.campaign") },
+  ]), [t]);
+}
 
-const INTEL_FOLDER_TABS = [
-  { id: "calendar", label: "Calendar" },
-  { id: "forecast", label: "Forecast" },
-  { id: "launch-radar", label: "Launch radar" },
-  { id: "market-hype", label: "Market Hype" },
-];
+function useIntelFolderTabs() {
+  const { t } = useI18n();
+  return useMemo(() => ([
+    { id: "calendar", label: t("intel.calendar") },
+    { id: "forecast", label: t("intel.forecast") },
+    { id: "launch-radar", label: t("intel.launchRadar") },
+    { id: "market-hype", label: t("intel.marketHype") },
+  ]), [t]);
+}
 
 function Tabs({ value, options, onChange }) {
   const refs = useRef([]);
@@ -613,21 +620,22 @@ function Tabs({ value, options, onChange }) {
   );
 }
 
-function IntelFolderBar({ value, onChange, launchBadge = null }) {
+function IntelFolderBar({ value, onChange, launchBadge = null, tabs }) {
+  const { t } = useI18n();
   const refs = useRef([]);
   const [thumb, setThumb] = useState({ left: 0, width: 0 });
 
   useEffect(() => {
-    const idx = INTEL_FOLDER_TABS.findIndex((o) => o.id === value);
+    const idx = tabs.findIndex((o) => o.id === value);
     const el = refs.current[idx];
     if (el) setThumb({ left: el.offsetLeft, width: el.offsetWidth });
-  }, [value]);
+  }, [value, tabs]);
 
   return (
     <div className="intel-folder-bar">
-      <div className="intel-folder-tabs" role="tablist" aria-label="Intel folders">
+      <div className="intel-folder-tabs" role="tablist" aria-label={t("intel.foldersAria")}>
         <div className="intel-folder-tabs-thumb" style={{ left: thumb.left, width: thumb.width }} />
-        {INTEL_FOLDER_TABS.map((o, i) => (
+        {tabs.map((o, i) => (
           <button
             key={o.id}
             type="button"
@@ -649,11 +657,12 @@ function IntelFolderBar({ value, onChange, launchBadge = null }) {
 }
 
 function IntelFolderPlaceholder({ title }) {
+  const { t } = useI18n();
   return (
     <div className="intel-folder-placeholder empty-block">
       <b>{title}</b>
       <p className="mute" style={{ marginTop: 8 }}>
-        Coming soon — content for this folder will appear here.
+        {t("intel.comingSoon")}
       </p>
     </div>
   );
@@ -673,7 +682,9 @@ function IntelFoldersSection({
   onInsertForecastNode,
   onInsertEventNode,
 }) {
-  const activeTab = INTEL_FOLDER_TABS.find((t) => t.id === folder) || INTEL_FOLDER_TABS[0];
+  const { t } = useI18n();
+  const intelFolderTabs = useIntelFolderTabs();
+  const activeTab = intelFolderTabs.find((tab) => tab.id === folder) || intelFolderTabs[0];
   const daysUntilLaunch = launchDate ? daysBetween(today, launchDate) : null;
   const launchBadge = folder === "calendar" && launchDate ? (
     <span className="intel-folder-launch-badge tnum mono">
@@ -689,11 +700,12 @@ function IntelFoldersSection({
   const showForecastSearch = folder === "forecast";
 
   return (
-    <section className="intel-folders-section" aria-label="Intel folders">
+    <section className="intel-folders-section" aria-label={t("intel.foldersAria")}>
       <IntelFolderBar
         value={folder}
         onChange={onFolderChange}
         launchBadge={launchBadge}
+        tabs={intelFolderTabs}
       />
       <div
         id={`intel-folder-panel-${activeTab.id}`}
@@ -797,6 +809,9 @@ function IntelPanel({
   onInsertForecastNode,
   onInsertEventNode,
 }) {
+  const { t } = useI18n();
+  const tabOptions = useIntelTabOptions();
+  const pluralS = (n) => (n === 1 ? "" : "s");
   const [tab, setTab] = useState("news");
   const [intelFolderTab, setIntelFolderTab] = useState("calendar");
   const [intelQuery, setIntelQuery] = useState("");
@@ -877,22 +892,22 @@ function IntelPanel({
                 setIntelQuery(e.target.value);
                 syncIntelQueryHeight();
               }}
-              placeholder="Describe your search"
+              placeholder={t("intel.describeSearch")}
               rows={1}
               spellCheck={false}
-              aria-label="Simulated intelligence query"
+              aria-label={t("intel.searchAria")}
             />
             <IntelSearchButton
               variant="intel"
               loading={isSearchLoading}
               onClick={handleIntelSearchSubmit}
-              title="Run search"
+              title={t("intel.runSearch")}
             />
           </div>
           <div className="intel-search-bottom">
-            <span className="intel-meta-kv intel-bottom-item">tokens:<b>{tokenCurrent}/{tokenMax}</b></span>
-            <span className="intel-meta-kv intel-bottom-item">Model:<b>Ai 1.0</b></span>
-            {TAB_OPTIONS.map((option) => (
+            <span className="intel-meta-kv intel-bottom-item">{t("intel.tokens")}:<b>{tokenCurrent}/{tokenMax}</b></span>
+            <span className="intel-meta-kv intel-bottom-item">{t("intel.model")}:<b>Ai 1.0</b></span>
+            {tabOptions.map((option) => (
               <button
                 key={option.id}
                 type="button"
@@ -907,7 +922,7 @@ function IntelPanel({
               type="button"
               className="intel-clear-chip intel-bottom-item"
               onClick={handleIntelClear}
-              title="Clear search and results"
+              title={t("intel.clearSearchTitle")}
             >
               <img
                 className="intel-clear-chip__icon"
@@ -915,7 +930,7 @@ function IntelPanel({
                 alt=""
                 aria-hidden
               />
-              clear
+              {t("intel.clearChip")}
             </button>
           </div>
         </div>
@@ -930,14 +945,14 @@ function IntelPanel({
         {isSearchLoading && (
           <div className="intel-search-loading" role="status" aria-live="polite">
             <div className="intel-search-loading-pulse" />
-            <b>Searching the web…</b>
-            <p className="mute">Reading connected nodes and gathering references.</p>
+            <b>{t("intel.searchingWeb")}</b>
+            <p className="mute">{t("intel.readingNodes")}</p>
           </div>
         )}
 
         {intelSearchStatus === "error" && (
           <div className="empty-block">
-            <b>Search failed</b>
+            <b>{t("intel.searchFailed")}</b>
             <p className="mute" style={{ marginTop: 6 }}>{intelSearchError}</p>
             <button
               type="button"
@@ -945,18 +960,20 @@ function IntelPanel({
               style={{ marginTop: 10 }}
               onClick={handleIntelSearchSubmit}
             >
-              Retry
+              {t("common.retry")}
             </button>
           </div>
         )}
 
         {hasSearchResult && !isSearchLoading && (
           <div className="intel-results">
-            <section className="intel-overview-block" aria-label="AI overview">
+            <section className="intel-overview-block" aria-label={t("intel.aiOverview")}>
               <div className="col-section-h" style={{ marginBottom: 8 }}>
-                <span className="label">Overview</span>
+                <span className="label">{t("intel.overview")}</span>
                 {contextCount > 0 && (
-                  <span className="intel-context-badge">{contextCount} wired node{contextCount === 1 ? "" : "s"}</span>
+                  <span className="intel-context-badge">
+                    {t("intel.wiredNodes", { count: contextCount, s: pluralS(contextCount) })}
+                  </span>
                 )}
               </div>
               <AnimatedOverviewText
@@ -964,11 +981,11 @@ function IntelPanel({
                 text={intelSearchResult.overview}
               />
             </section>
-            <section className="intel-citations-block" aria-label="Web references">
+            <section className="intel-citations-block" aria-label={t("intel.webReferences")}>
               <div className="col-section-h" style={{ margin: "10px 0 6px" }}>
-                <span className="label">Sources</span>
+                <span className="label">{t("intel.sources")}</span>
                 <span className="mute" style={{ fontSize: 11 }}>
-                  {intelSearchResult.citations?.length ?? 0} references
+                  {t("intel.references", { count: intelSearchResult.citations?.length ?? 0 })}
                 </span>
               </div>
               <IntelSourcesList

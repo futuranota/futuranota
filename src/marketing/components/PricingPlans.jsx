@@ -1,57 +1,39 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { authPath } from '../lib/paths.js';
 import { getHome } from '../lib/content.js';
+import { PRICING_PLANS_DEFAULT, PRICING_SECTION_DEFAULT, planBullets } from '../lib/pricingDefaults.js';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
+import { PricingInterestChart } from './PricingInterestChart.jsx';
 
 const MOTION = { duration: 0.8, ease: [0.16, 1, 0.3, 1] };
 
+function CheckIcon() {
+  return (
+    <svg className="pricing-check-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M6.5 10.2 8.8 12.5 13.5 7.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /**
- * @param {{ plan: Record<string, unknown>, index: number }} props
+ * @param {{ plan: Record<string, unknown>, index: number, variant: 'free' | 'pro' }} props
  */
-function PricingCard({ plan, index }) {
-  const base = `pricing.plans.${index}`;
-  const featured = Boolean(plan.featured);
-  const planId = plan.id === 'pro' ? 'pro' : 'free';
-  const to = authPath(undefined, { plan: planId });
+function FeatureList({ plan, index, variant }) {
+  const bullets = planBullets(plan);
+  const base = `pricing.plans.${index}.bullets`;
 
   return (
-    <div className={`pricing-plan${featured ? ' pricing-plan--featured' : ''}`}>
-      {featured ? <div className="pricing-plan__glow" aria-hidden="true" /> : null}
-      <div className="pricing-plan__head">
-        <div className="pricing-plan__title-row">
-          <h3 className="h3 pricing-plan__name" {...pageTinaProps(`${base}.name`)}>{plan.name}</h3>
-          {plan.badge ? (
-            <span className="chip chip--accent pricing-plan__badge" {...pageTinaProps(`${base}.badge`)}>
-              {plan.badge}
-            </span>
-          ) : null}
-        </div>
-        <p className="muted pricing-plan__desc" {...pageTinaProps(`${base}.desc`)}>{plan.desc}</p>
-      </div>
-      <div className="pricing-plan__price-block">
-        {plan.price === '0' || plan.priceLabel === 'Free' ? (
-          <div className="pricing-plan__price">
-            <span className="pricing-plan__amount" {...pageTinaProps(`${base}.priceLabel`)}>Free</span>
-          </div>
-        ) : (
-          <div className="pricing-plan__price">
-            <span className="pricing-plan__currency">$</span>
-            <span className="pricing-plan__amount" {...pageTinaProps(`${base}.price`)}>{plan.price}</span>
-            {plan.priceSuffix ? (
-              <span className="pricing-plan__suffix faint" {...pageTinaProps(`${base}.priceSuffix`)}>{plan.priceSuffix}</span>
-            ) : null}
-          </div>
-        )}
-        <Link
-          to={to}
-          className={`btn btn-sm pricing-plan__cta${featured ? ' btn-primary' : ' btn-ghost'}`}
-        >
-          <span {...pageTinaProps(`${base}.cta`)}>{plan.cta}</span>
-          <span className="arrow">→</span>
-        </Link>
-      </div>
-    </div>
+    <ul className={`pricing-feature-list pricing-feature-list--${variant}`}>
+      {bullets.map((item, i) => (
+        <li key={item} className="pricing-feature-list__item">
+          <CheckIcon />
+          <span {...pageTinaProps(`${base}.${i}`)}>{item}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -59,7 +41,22 @@ export function PricingPlans() {
   const reduceMotion = useReducedMotion();
   const pageTina = usePageTina();
   const { pricing } = pageTina?.document ?? getHome();
-  const plans = pricing?.plans ?? [];
+  const rawPlans = pricing?.plans?.length ? pricing.plans : PRICING_PLANS_DEFAULT;
+
+  const { freePlan, proPlan, freeIndex, proIndex } = useMemo(() => {
+    const freeIdx = rawPlans.findIndex((p) => p.id === 'free');
+    const proIdx = rawPlans.findIndex((p) => p.id === 'pro');
+    return {
+      freePlan: rawPlans.find((p) => p.id === 'free') ?? PRICING_PLANS_DEFAULT[0],
+      proPlan: rawPlans.find((p) => p.id === 'pro') ?? PRICING_PLANS_DEFAULT[1],
+      freeIndex: freeIdx >= 0 ? freeIdx : 0,
+      proIndex: proIdx >= 0 ? proIdx : 1,
+    };
+  }, [rawPlans]);
+
+  const section = { ...PRICING_SECTION_DEFAULT, ...pricing };
+  const freeTo = authPath(undefined, { plan: 'free' });
+  const proTo = authPath(undefined, { plan: 'pro' });
 
   const motionProps = (delay) => reduceMotion
     ? {}
@@ -67,38 +64,109 @@ export function PricingPlans() {
         initial: { opacity: 0, y: 20 },
         whileInView: { opacity: 1, y: 0 },
         transition: { ...MOTION, delay },
-        viewport: { once: true },
+        viewport: { once: true, amount: 0.15 },
       };
 
   return (
     <section className="section pricing-section" id="pricing" data-screen-label="pricing">
       <div className="container pricing-section__inner">
-        <motion.div className="pricing-section__head" {...motionProps(0.1)}>
-          <div className="pricing-section__eyebrow-wrap">
-            <span className="eyebrow pricing-section__eyebrow" {...pageTinaProps('pricing.eyebrow')}>
-              <span className="tick" />{pricing.eyebrow}
-            </span>
-          </div>
-          <h2 className="h2 pricing-section__title" {...pageTinaProps('pricing.title')}>{pricing.title}</h2>
-          <p className="lead pricing-section__lead" {...pageTinaProps('pricing.lead')}>{pricing.lead}</p>
+        <motion.div className="pricing-section__head pricing-section__head--center" {...motionProps(0.05)}>
+          <span className="eyebrow pricing-section__eyebrow" {...pageTinaProps('pricing.eyebrow')}>
+            <span className="tick" />{section.eyebrow}
+          </span>
+          <h2 className="h2 pricing-section__title" {...pageTinaProps('pricing.title')}>{section.title}</h2>
+          <p className="lead pricing-section__lead" {...pageTinaProps('pricing.lead')}>{section.lead}</p>
         </motion.div>
 
-        <div className="pricing-section__grid-wrap">
-          <div className="pricing-section__grid-bg" aria-hidden="true" />
-          <motion.div className="pricing-grid" {...motionProps(0.2)}>
-            <span className="pricing-grid__corner pricing-grid__corner--tl" aria-hidden="true">+</span>
-            <span className="pricing-grid__corner pricing-grid__corner--tr" aria-hidden="true">+</span>
-            <span className="pricing-grid__corner pricing-grid__corner--bl" aria-hidden="true">+</span>
-            <span className="pricing-grid__corner pricing-grid__corner--br" aria-hidden="true">+</span>
-            {plans.map((plan, index) => (
-              <PricingCard key={plan.id || index} plan={plan} index={index} />
-            ))}
-          </motion.div>
-        </div>
+        <motion.div className="pricing-chart-grid card" {...motionProps(0.15)}>
+          {/* Starter / Free */}
+          <div className="pricing-chart-grid__free">
+            <div className="pricing-chart-grid__free-inner">
+              <div>
+                <h3 className="pricing-chart-grid__plan-name" {...pageTinaProps(`pricing.plans.${freeIndex}.shortName`)}>
+                  {freePlan.shortName || freePlan.name || 'Free'}
+                </h3>
+                <div className="pricing-chart-grid__price">
+                  <span className="pricing-chart-grid__currency">$</span>
+                  <span className="pricing-chart-grid__amount" {...pageTinaProps(`pricing.plans.${freeIndex}.price`)}>
+                    {freePlan.price}
+                  </span>
+                </div>
+                <p className="muted pricing-chart-grid__desc" {...pageTinaProps(`pricing.plans.${freeIndex}.desc`)}>
+                  {freePlan.desc}
+                </p>
+              </div>
 
-        <motion.p className="pricing-section__trust mono-sm faint" {...motionProps(0.3)}>
+              <Link
+                to={freeTo}
+                className="btn btn-ghost pricing-chart-grid__cta"
+              >
+                <span {...pageTinaProps(`pricing.plans.${freeIndex}.cta`)}>{freePlan.cta || 'Get Started'}</span>
+              </Link>
+
+              <hr className="divider pricing-chart-grid__sep" />
+
+              <FeatureList plan={freePlan} index={freeIndex} variant="free" />
+            </div>
+          </div>
+
+          {/* Pro */}
+          <div className="pricing-chart-grid__pro">
+            <div className="pricing-chart-grid__pro-layout">
+              <div className="pricing-chart-grid__pro-main">
+                <div>
+                  <div className="pricing-chart-grid__pro-head">
+                    <h3 className="pricing-chart-grid__plan-name" {...pageTinaProps(`pricing.plans.${proIndex}.name`)}>
+                      {proPlan.name} Monthly Package
+                    </h3>
+                    {proPlan.badge ? (
+                      <span className="chip chip--accent" {...pageTinaProps(`pricing.plans.${proIndex}.badge`)}>
+                        {proPlan.badge}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="pricing-chart-grid__price">
+                    <span className="pricing-chart-grid__currency">$</span>
+                    <span className="pricing-chart-grid__amount" {...pageTinaProps(`pricing.plans.${proIndex}.price`)}>
+                      {proPlan.price}
+                    </span>
+                    {proPlan.priceSuffix ? (
+                      <span className="faint pricing-chart-grid__suffix" {...pageTinaProps(`pricing.plans.${proIndex}.priceSuffix`)}>
+                        {proPlan.priceSuffix}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="muted pricing-chart-grid__desc" {...pageTinaProps(`pricing.plans.${proIndex}.desc`)}>
+                    {proPlan.desc}
+                  </p>
+                </div>
+                <div className="pricing-chart-grid__chart-wrap">
+                  <PricingInterestChart />
+                </div>
+              </div>
+
+              <div className="pricing-chart-grid__pro-features">
+                <p className="pricing-chart-grid__plus-label">Everything in Starter plus:</p>
+                <FeatureList plan={proPlan} index={proIndex} variant="pro" />
+                <div className="pricing-chart-grid__cta-row">
+                  <Link to={proTo} className="btn btn-primary">
+                    <span {...pageTinaProps(`pricing.plans.${proIndex}.cta`)}>{proPlan.cta || 'Get Started'}</span>
+                    <span className="arrow">→</span>
+                  </Link>
+                  <Link to={freeTo} className="btn btn-ghost">
+                    <span {...pageTinaProps(`pricing.plans.${proIndex}.secondaryCta`)}>
+                      {proPlan.secondaryCta || 'Start free trial'}
+                    </span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.p className="pricing-section__trust mono-sm faint" {...motionProps(0.25)}>
           <span className="pricing-section__trust-icon" aria-hidden="true">✓</span>
-          <span {...pageTinaProps('pricing.trust')}>{pricing.trust}</span>
+          <span {...pageTinaProps('pricing.trust')}>{section.trust}</span>
         </motion.p>
       </div>
     </section>

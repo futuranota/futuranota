@@ -5,6 +5,7 @@ import {
 import { BlueprintCanvas } from './canvas.jsx';
 import { IntelPanel, Timeline } from './panels.jsx';
 import { TopBar, MetaBar, ScanOverlay, Toast } from './dashboard.jsx';
+import { useThemeStore } from './stores/themeStore.js';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakButton,
 } from './tweaks-panel.jsx';
@@ -113,8 +114,12 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accent": "mint"
 }/*EDITMODE-END*/;
 
-function applyTheme(t) {
-  document.documentElement.setAttribute("data-theme", t.theme);
+function applyTheme(t, themeMode = t.theme) {
+  if (themeMode === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
   if (t.typography === "sans") {
     document.documentElement.style.setProperty("--font-body", "var(--sans)");
     document.documentElement.style.setProperty("--font-display", "var(--sans)");
@@ -787,14 +792,15 @@ function Dashboard({ company, onBack }) {
 function App() {
   const navigate = useNavigate();
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const theme = useThemeStore((s) => s.theme);
   const [screen, setScreen] = useState("selector");
   const [company, setCompany] = useState(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-site', 'app');
-    applyTheme(t);
+    applyTheme(t, theme);
     return () => document.documentElement.removeAttribute('data-site');
-  }, [t.theme, t.typography, t.accent]);
+  }, [theme, t.typography, t.accent]);
 
   return (
     <>

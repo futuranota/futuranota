@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import AppRouter from './router.jsx';
+import './stores/themeStore.js';
 import './styles.css';
 import './styles/parte3.css';
 import './styles/left-panel.css';

@@ -51,6 +51,8 @@ export const useTimelineStore = create(
       timelineFocus: null,
       /** Doc ids expanded to show child nodes on tactical timeline. */
       expandedDocIds: [],
+      /** Manual zoom-out: extend visible grid start/end (ms, calendar day). */
+      tacticalRangeOverride: null,
 
       getEffectiveCanvasMode: () => {
         const s = get();
@@ -289,7 +291,15 @@ export const useTimelineStore = create(
         get().setTimelineQueueMode(next);
       },
 
-      clearTimelineDocQueue: () => set({ timelineDocQueue: [], timelineDocQueueFocusByDocId: {} }),
+      clearTimelineDocQueue: () => set({
+        timelineDocQueue: [],
+        timelineDocQueueFocusByDocId: {},
+        tacticalRangeOverride: null,
+      }),
+
+      setTacticalRangeOverride: (override) => set({ tacticalRangeOverride: override }),
+
+      clearTacticalRangeOverride: () => set({ tacticalRangeOverride: null }),
 
       removeTimelineDocFromQueue: (docId) => {
         if (!docId) return;

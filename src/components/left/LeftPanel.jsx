@@ -35,6 +35,9 @@ import {
 } from "../../lib/contentProductFilter.js";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
+import { TranslatedText } from "../shared/TranslatedText.jsx";
+import { useI18n } from "../../i18n/useI18n.js";
+import { PANEL_TYPES, usePanelTypeLabels } from "../../i18n/panelTypes.js";
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
@@ -45,8 +48,6 @@ function startDocDrag(e, docId) {
 }
 
 /* ── helpers ────────────────────────────────── */
-const PANEL_TYPES = ["Objects", "Documents", "Nodes"];
-
 const TYPE_ICON = {
   Objects:   "◈",
   Documents: "📄",
@@ -330,6 +331,7 @@ function getNodeDisplayTitle(node) {
 }
 
 function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
+  const { t } = useI18n();
   const parentDoc = node.parentDocId ? docs[node.parentDocId] : null;
   const icon = DATA_TYPE_ICONS[node.dataType] || "◯";
   const iconAsset = DATA_TYPE_ICON_ASSETS[node.dataType] || null;
@@ -348,7 +350,9 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
             icon
           )}
         </span>
-        <span className="lp-node-parent">{parentDoc ? parentDoc.title : "sin padre"}</span>
+        <span className="lp-node-parent">
+          {parentDoc ? <TranslatedText text={parentDoc.title} /> : t("common.noParent")}
+        </span>
         <button type="button" className="lp-expand-btn" onClick={(e) => { e.stopPropagation(); onClick(); }}>↗</button>
       </div>
       <div className="lp-node-card-body" onClick={onClick}>
@@ -356,8 +360,8 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
         {contentPreview && <p className="lp-node-preview">{contentPreview}</p>}
       </div>
       <div className="lp-node-card-foot">
-        <button type="button" className="btn xs ghost danger-text" onClick={onDelete}>delete</button>
-        <button type="button" className="btn xs solid" onClick={onInsert}>Insert node</button>
+        <button type="button" className="btn xs ghost danger-text" onClick={onDelete}>{t("common.delete")}</button>
+        <button type="button" className="btn xs solid" onClick={onInsert}>{t("sidebar.insertNode")}</button>
       </div>
     </div>
   );
@@ -369,6 +373,7 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
 const CREATE_BUSINESS_ILLUSTRATION = "/uploads/botones/create-business-name.svg";
 
 function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
+  const { t } = useI18n();
   const isEdit = Boolean(initial);
   const [name, setName] = useState(initial?.name ?? "");
   const [brand, setBrand] = useState(initial?.brand ?? "");
@@ -399,12 +404,12 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
 
         <div>
           <h3 className="obj-create-title">
-            {isEdit ? "Edit business reference" : "Insert business reference"}
+            {isEdit ? t("sidebar.editBusinessRef") : t("sidebar.insertBusinessRef")}
           </h3>
           <input
             ref={ref}
             className="note-form-field obj-name-input"
-            placeholder="Corpus name"
+            placeholder={t("sidebar.corpusName")}
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => {
@@ -414,7 +419,7 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
           />
           <input
             className="note-form-field obj-brand-input"
-            placeholder="Brand"
+            placeholder={t("sidebar.brandPlaceholder")}
             value={brand}
             onChange={e => setBrand(e.target.value)}
             onKeyDown={e => {
@@ -425,20 +430,20 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
           />
           <textarea
             className="note-form-field obj-desc-input"
-            placeholder="Description (optional)"
+            placeholder={t("sidebar.descriptionOptional")}
             value={desc}
             rows={3}
             onChange={e => setDesc(e.target.value)}
           />
           <div className="obj-create-actions">
-            <button type="button" className="btn ghost" onClick={onCancel}>Cancel</button>
+            <button type="button" className="btn ghost" onClick={onCancel}>{t("common.cancel")}</button>
             <button
               type="button"
               className="btn primary obj-create-save"
               disabled={!name.trim()}
               onClick={() => onSubmit(submitPayload())}
             >
-              {isEdit ? "Save changes" : "Save object"}
+              {isEdit ? t("sidebar.saveChanges") : t("sidebar.saveObject")}
             </button>
           </div>
         </div>
@@ -461,6 +466,7 @@ function DocCreateModal({
   onOpenDocument,
   onInsertToCanvas,
 }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [blocks, setBlocks] = useState([]);
@@ -555,10 +561,10 @@ function DocCreateModal({
       ? (trimmedCategory || productName)
       : trimmedCategory;
     const finalTitle = isProductMode
-      ? (formatProductDocTitle(finalCategory || productName, version.trim()) || productName || "New product")
+      ? (formatProductDocTitle(finalCategory || productName, version.trim()) || productName || t("sidebar.newProduct"))
       : isKnowledgeMode
-        ? (finalCategory || title.trim() || "New knowledge")
-        : (title.trim() || "New document");
+        ? (finalCategory || title.trim() || t("sidebar.newKnowledge"))
+        : (title.trim() || t("sidebar.newDocument"));
     const autoTags = isKnowledgeMode ? [] : (parentObject?.name ? [parentObject.name] : []);
     const serializedBody = docBlocksToBody(blocks) || body;
     onSubmit({
@@ -588,10 +594,10 @@ function DocCreateModal({
           titleRef={titleRef}
           titlePlaceholder={
             isProductMode
-              ? "Product's name"
+              ? t("sidebar.productName")
               : isKnowledgeMode
-                ? "Document title"
-                : "Write your description"
+                ? t("sidebar.documentTitle")
+                : t("sidebar.writeDescription")
           }
           body={body}
           onBodyChange={setBody}
@@ -721,10 +727,11 @@ function TimelineDocQueue({
   onOpenDocument,
   onDeleteDoc,
 }) {
+  const { t } = useI18n();
   if (!entries.length) return null;
 
   return (
-    <section className="lp-timeline-doc-queue" aria-label="Selected documents">
+    <section className="lp-timeline-doc-queue" aria-label={t("sidebar.selectedDocs")}>
       {entries.map((entry) => {
         const doc = docs[entry.docId];
         if (!doc) return null;
@@ -757,6 +764,8 @@ export function LeftPanel({
   tokenCurrent = 0,
   tokenMax = 10,
 }) {
+  const { t } = useI18n();
+  const panelTypeLabel = usePanelTypeLabels();
   const [panelType, setPanelType] = useState("Objects");
   const [activeId, setActiveId] = useState(null);
   const [objectMenuId, setObjectMenuId] = useState(null);
@@ -1086,27 +1095,27 @@ export function LeftPanel({
             }}
           >
             <div className="lp-dropdown-pane lp-dropdown-pane--types">
-              {PANEL_TYPES.map((t) => (
+              {PANEL_TYPES.map((type) => (
                 <button
-                  key={t}
+                  key={type}
                   type="button"
                   className={
                     "lp-dropdown-item lp-dropdown-item--type"
-                    + (panelType === t ? " active" : "")
-                    + (hoveredPanelType === t ? " preview" : "")
+                    + (panelType === type ? " active" : "")
+                    + (hoveredPanelType === type ? " preview" : "")
                   }
                   onMouseEnter={() => {
-                    setPreviewPanelType(t);
-                    setHoveredPanelType(t);
+                    setPreviewPanelType(type);
+                    setHoveredPanelType(type);
                   }}
                   onFocus={() => {
-                    setPreviewPanelType(t);
-                    setHoveredPanelType(t);
+                    setPreviewPanelType(type);
+                    setHoveredPanelType(type);
                   }}
-                  onClick={() => switchType(t)}
+                  onClick={() => switchType(type)}
                 >
-                  <SelectorTypeIcon type={t} />
-                  {t}
+                  <SelectorTypeIcon type={type} />
+                  {panelTypeLabel(type)}
                 </button>
               ))}
             </div>
@@ -1129,7 +1138,7 @@ export function LeftPanel({
                       aria-hidden
                       className="lp-item-icon lp-item-icon-img"
                     />
-                    <span className="lp-item-label">all objects</span>
+                    <span className="lp-item-label">{t("sidebar.allObjects")}</span>
                     {!objectScopeId && <span className="lp-check">✓</span>}
                   </button>
                   {objList.map((obj) => (
@@ -1145,7 +1154,7 @@ export function LeftPanel({
                       }}
                     >
                       <SelectorTypeIcon type="Objects" />
-                      <span className="lp-item-label">{obj.name}</span>
+                      <span className="lp-item-label"><TranslatedText text={obj.name} /></span>
                       {obj.id === objectScopeId && <span className="lp-check">✓</span>}
                     </button>
                   ))}
@@ -1164,7 +1173,7 @@ export function LeftPanel({
                     }}
                   >
                     <SelectorTypeIcon type="Documents" />
-                    <span className="lp-item-label">all documents</span>
+                    <span className="lp-item-label">{t("sidebar.allDocuments")}</span>
                     {!filterObjectId && <span className="lp-check">✓</span>}
                   </button>
                   {objList.map((obj) => (
@@ -1180,7 +1189,7 @@ export function LeftPanel({
                       }}
                     >
                       <SelectorTypeIcon type="Objects" />
-                      <span className="lp-item-label">{obj.name}</span>
+                      <span className="lp-item-label"><TranslatedText text={obj.name} /></span>
                       {obj.id === filterObjectId && <span className="lp-check">✓</span>}
                     </button>
                   ))}
@@ -1199,7 +1208,7 @@ export function LeftPanel({
                     }}
                   >
                     <SelectorTypeIcon type="Nodes" />
-                    <span className="lp-item-label">all nodes</span>
+                    <span className="lp-item-label">{t("sidebar.allNodes")}</span>
                     {!filterDocId && <span className="lp-check">✓</span>}
                   </button>
                   {docList.map((doc) => (
@@ -1231,10 +1240,10 @@ export function LeftPanel({
             className="lp-new-btn"
             onClick={handleNewByFolder}
             disabled={newDisabled}
-            title={newDisabled ? "Open a folder first" : undefined}
-            aria-label={`Create new ${panelType.slice(0, -1).toLowerCase()}`}
+            title={newDisabled ? t("sidebar.openFolderFirst") : undefined}
+            aria-label={t("sidebar.createNew", { type: panelTypeLabel(panelType).toLowerCase() })}
           >
-            <span className="lp-new-label">+ new</span>
+            <span className="lp-new-label">{t("sidebar.newButton")}</span>
           </button>
         </div>
       </div>
@@ -1279,8 +1288,8 @@ export function LeftPanel({
               ))}
               {filteredObjectList.length === 0 && (
                 <div className="lp-empty">
-                  <p>{objectScopeId ? "No object in this filter" : "No objects yet"}</p>
-                  <p className="dim">{objectScopeId ? "Choose another subfolder" : "Create your first model"}</p>
+                  <p>{objectScopeId ? t("sidebar.noObjectInFilter") : t("sidebar.noObjectsYet")}</p>
+                  <p className="dim">{objectScopeId ? t("sidebar.chooseSubfolder") : t("sidebar.createFirstModel")}</p>
                 </div>
               )}
             </div>
@@ -1326,7 +1335,7 @@ export function LeftPanel({
                   <ClickFolderBox variant="subgroups" onClick={() => setClickFolderView("subgroups")} />
                   <ClickFolderBox
                     variant="knowledge"
-                    label="knowledge"
+                    label={t("sidebar.knowledge")}
                     onClick={() => setClickFolderView("knowledge")}
                   />
                 </div>
@@ -1338,7 +1347,7 @@ export function LeftPanel({
                 <ClickFolderBack
                   iconOnly
                   onBack={() => setClickFolderView(null)}
-                  label="Products"
+                  label={t("sidebar.products")}
                 />
                 <PackActionsBar
                   placement="documents"
@@ -1375,13 +1384,13 @@ export function LeftPanel({
                     <div className="lp-empty">
                       <p className="dim">
                         {productCategoryFilter
-                          ? "No products in this category"
-                          : "No products yet"}
+                          ? t("sidebar.noProductsInCategory")
+                          : t("sidebar.noProductsYet")}
                       </p>
                       <p className="dim">
                         {productCategoryFilter
-                          ? "Choose Category again to clear"
-                          : "Use + new to create a product"}
+                          ? t("sidebar.clearCategoryFilter")
+                          : t("sidebar.useNewProduct")}
                       </p>
                     </div>
                   )}
@@ -1394,7 +1403,7 @@ export function LeftPanel({
                 <ClickFolderBack
                   iconOnly
                   onBack={() => setClickFolderView(null)}
-                  label="Knowledge"
+                  label={t("sidebar.knowledgeTitle")}
                 />
                 <div className="lp-click-folder-detail-list">
                   {knowledgeDocs.length ? (
@@ -1411,8 +1420,8 @@ export function LeftPanel({
                     ))
                   ) : (
                     <div className="lp-empty">
-                      <p className="dim">No knowledge docs yet</p>
-                      <p className="dim">Use + new to add corpus documents</p>
+                      <p className="dim">{t("sidebar.noKnowledgeYet")}</p>
+                      <p className="dim">{t("sidebar.useNewKnowledge")}</p>
                     </div>
                   )}
                 </div>
@@ -1424,7 +1433,7 @@ export function LeftPanel({
                 <ClickFolderBack
                   iconOnly
                   onBack={() => setClickFolderView(null)}
-                  label="Content"
+                  label={t("sidebar.content")}
                 />
                 <PackActionsBar
                   placement="documents"
@@ -1461,13 +1470,13 @@ export function LeftPanel({
                     <div className="lp-empty">
                       <p className="dim">
                         {contentProductFilter
-                          ? "No content docs link this product"
-                          : "No content docs yet"}
+                          ? t("sidebar.noContentForProduct")
+                          : t("sidebar.noContentYet")}
                       </p>
                       <p className="dim">
                         {contentProductFilter
-                          ? "Choose Content again to clear"
-                          : "Use + new to create content"}
+                          ? t("sidebar.clearContentFilter")
+                          : t("sidebar.useNewContent")}
                       </p>
                     </div>
                   )}
@@ -1483,14 +1492,14 @@ export function LeftPanel({
             <input
               type="text"
               className="note-form-field"
-              placeholder="Search nodes"
+              placeholder={t("sidebar.searchNodesPlaceholder")}
               value={nodeSearch}
               onChange={(e) => setNodeSearch(e.target.value)}
             />
             {filterDoc ? (
               <p className="lp-context-label">{filterDoc.title}</p>
             ) : (
-              <p className="lp-context-label dim">all nodes</p>
+              <p className="lp-context-label dim">{t("sidebar.allNodesLabel")}</p>
             )}
             {filteredNodeList.map((node) => (
               <NodeListCard
@@ -1507,8 +1516,8 @@ export function LeftPanel({
             ))}
             {filteredNodeList.length === 0 && (
               <div className="lp-empty">
-                <p>{filterDocId ? "No nodes in this document" : "No nodes yet"}</p>
-                <p className="dim">Create new node above</p>
+                <p>{filterDocId ? t("sidebar.noNodesInDoc") : t("sidebar.noNodesYet")}</p>
+                <p className="dim">{t("sidebar.createNewNodeAbove")}</p>
               </div>
             )}
           </>
@@ -1519,7 +1528,7 @@ export function LeftPanel({
       {/* ── Footer: tokens ── */}
       <div className="lp-footer">
         <div className="lp-tokens-row">
-          <span className="lp-tokens-label">TOKENS</span>
+          <span className="lp-tokens-label">{t("sidebar.tokensLabel")}</span>
           <div className="lp-tokens-value">
             <span className="lp-tokens-num">{tokenCurrent}</span>
             <span className="lp-tokens-sep"> / </span>
@@ -1533,8 +1542,8 @@ export function LeftPanel({
           />
         </div>
         <div className="lp-tokens-meta">
-          <span>{nodeList.length} manual · 0 AI</span>
-          <button type="button" className="btn xs ghost">Upgrade →</button>
+          <span>{t("sidebar.manualAiFooter", { manual: nodeList.length, ai: 0 })}</span>
+          <button type="button" className="btn xs ghost">{t("sidebar.upgrade")}</button>
         </div>
       </div>
 

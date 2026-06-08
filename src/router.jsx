@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { DomPageTranslator } from './components/shared/DomPageTranslator.jsx';
 import { MarketingLayout } from './marketing/layout/MarketingLayout.jsx';
 import { HomePage } from './marketing/pages/HomePage.jsx';
 import { HorizonPage } from './marketing/pages/HorizonPage.jsx';
@@ -11,6 +12,8 @@ import App from './App.jsx';
 
 export default function AppRouter() {
   return (
+    <>
+    <DomPageTranslator />
     <Routes>
       <Route element={<MarketingLayout />}>
         <Route index element={<HomePage />} />
@@ -28,5 +31,6 @@ export default function AppRouter() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }

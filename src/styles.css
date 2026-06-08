@@ -316,8 +316,57 @@ input, textarea {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 4px;
+  gap: 8px;
   justify-self: end;
+}
+.nav__prefs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lang-toggle,
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--panel-2) 70%, transparent);
+  gap: 1px;
+}
+.lang-toggle__btn,
+.theme-toggle__btn {
+  min-width: 30px;
+  height: 22px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.theme-toggle__btn {
+  min-width: 28px;
+  padding: 0 6px;
+}
+.lang-toggle__btn:hover,
+.theme-toggle__btn:hover {
+  color: var(--text-2);
+}
+.lang-toggle__btn.is-active,
+.theme-toggle__btn.is-active {
+  background: color-mix(in oklab, var(--hud) 18%, var(--panel-solid));
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.theme-toggle__icon {
+  font-size: 11px;
+  line-height: 1;
 }
 
 .brand {
@@ -3663,6 +3712,10 @@ textarea.note-form-field {
   background: var(--tl-dimension-span, rgba(62, 41, 59, 0.55));
   box-shadow: none;
   z-index: 1;
+  transition: left var(--t-fast) var(--ease), width var(--t-fast) var(--ease);
+}
+.tl-tactical-range-window.is-row-endpoint-span {
+  z-index: 0;
 }
 .tl-tactical-ruler {
   position: absolute;
@@ -3725,6 +3778,7 @@ textarea.note-form-field {
   margin-top: 0;
   z-index: 3;
   pointer-events: none;
+  transition: left var(--t-fast) var(--ease), width var(--t-fast) var(--ease);
 }
 .tl-tactical-segment__edge {
   position: absolute;
@@ -3832,6 +3886,7 @@ textarea.note-form-field {
   white-space: nowrap;
   z-index: 4;
   pointer-events: none;
+  transition: left var(--t-fast) var(--ease);
 }
 .tl-tactical-rail__anchor {
   position: absolute;
@@ -3854,6 +3909,26 @@ textarea.note-form-field {
   border-radius: 50%;
   background: var(--tl-dot-inner-bg);
   flex-shrink: 0;
+}
+.tl-tactical-rail__anchor.is-range-handle {
+  pointer-events: auto;
+  cursor: ew-resize;
+  z-index: 12;
+  touch-action: none;
+}
+.tl-tactical-rail__anchor.is-range-handle:hover,
+.tl-tactical-rail__anchor.is-range-handle:focus-visible {
+  transform: translateX(-50%) scale(1.15);
+  outline: 2px solid color-mix(in oklab, var(--hud) 55%, transparent);
+  outline-offset: 2px;
+}
+.tl-tactical-rail.is-dragging-range .tl-tactical-rail__anchor.is-range-handle {
+  transform: translateX(-50%) scale(1.2);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--hud) 22%, transparent);
+}
+.tl-tactical-rail.is-dragging-range {
+  cursor: ew-resize;
+  user-select: none;
 }
 .tl-tactical-rail__anchor.is-status-past {
   background: var(--tl-dot-past);
