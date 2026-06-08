@@ -44,6 +44,12 @@ export function PricingInterestChart() {
       <div className="pricing-interest-chart__body">
         <ResponsiveContainer width="100%" height={168}>
           <LineChart data={CHART_DATA} margin={{ left: 4, right: 8, top: 8, bottom: 0 }}>
+            <defs>
+              <linearGradient id="pricingInterestLine" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="var(--signal)" />
+                <stop offset="100%" stopColor="var(--accent)" />
+              </linearGradient>
+            </defs>
             <CartesianGrid vertical={false} stroke="var(--line-soft)" />
             <XAxis
               dataKey="month"
@@ -57,7 +63,7 @@ export function PricingInterestChart() {
             <Line
               dataKey="interest"
               type="monotone"
-              stroke="var(--accent)"
+              stroke="url(#pricingInterestLine)"
               strokeWidth={2}
               dot={false}
               activeDot={{ r: 4, fill: 'var(--accent)', stroke: 'var(--bg)' }}

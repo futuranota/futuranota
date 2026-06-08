@@ -108,6 +108,15 @@ export function PricingPlans() {
 
               <FeatureList plan={freePlan} index={freeIndex} variant="free" />
             </div>
+
+            {freePlan.billingNote ? (
+              <p
+                className="faint pricing-chart-grid__billing-note"
+                {...pageTinaProps(`pricing.plans.${freeIndex}.billingNote`)}
+              >
+                {freePlan.billingNote}
+              </p>
+            ) : null}
           </div>
 
           {/* Pro */}
@@ -163,11 +172,6 @@ export function PricingPlans() {
             </div>
           </div>
         </motion.div>
-
-        <motion.p className="pricing-section__trust mono-sm faint" {...motionProps(0.25)}>
-          <span className="pricing-section__trust-icon" aria-hidden="true">✓</span>
-          <span {...pageTinaProps('pricing.trust')}>{section.trust}</span>
-        </motion.p>
       </div>
     </section>
   );
