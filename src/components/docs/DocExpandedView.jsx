@@ -933,6 +933,7 @@ export function DocExpandedView({
           objects={objectList}
           onDelete={handleDeleteDoc}
           onSave={handleSave}
+          onCloseAfterSave={onClose}
           onCloseExpand={handleRequestCloseDoc}
           onOpenNodeForBlock={handleOpenNodeForBlock}
           onOpenNodeForH1={handleOpenNodeForH1}
