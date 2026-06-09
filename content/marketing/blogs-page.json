@@ -9,9 +9,8 @@
     { "id": "Trends", "label": "Trends" },
     { "id": "Marketing", "label": "Marketing" },
     { "id": "Sales", "label": "Sales" },
-    { "id": "Branding", "label": "Branding" },
-    { "id": "Website", "label": "Website" },
-    { "id": "Ecommerce", "label": "(e)commerce" },
-    { "id": "Validation", "label": "Validation" }
+    { "id": "Commerce", "label": "Commerce" },
+    { "id": "Entrepreneur", "label": "Entrepreneur" },
+    { "id": "Horizon", "label": "Horizon" }
   ]
 }

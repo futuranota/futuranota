@@ -76,7 +76,6 @@ export function getBlogPageCategories() {
 /** Footer link label → route slug */
 export const FOOTER_SECTION_SLUGS = {
   Horizon: 'horizon',
-  Marketplace: 'marketplace',
   Blogs: 'blogs',
   'How it works': 'how',
 };

@@ -9,7 +9,7 @@ import {
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
-import { ObjectIcon } from "./objectIcons.jsx";
+import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
 import { docBlocksToBody } from "../../lib/docBlocks.js";
@@ -129,7 +129,7 @@ function ObjectThumb({ object, menuOpen, onOpen, onMenuOpen, onDelete, onEdit })
         onDragStart={(e) => startObjectDrag(e, object.id)}
         title="Click for documents · hold for edit or delete · drag to canvas"
       >
-        <ObjectIcon variant="md" />
+        <ObjectThumbPreview />
         <span className="obj-thumb-name">{object.name}</span>
       </button>
       {menuOpen && (

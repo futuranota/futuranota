@@ -832,7 +832,26 @@
 .block-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: clamp(28px, 4vw, 48px); flex-wrap: wrap; }
 .block-head__link { margin-bottom: 6px; white-space: nowrap; }
 
-/* ============ HORIZON OPPORTUNITIES ============ */
+/* ============ HORIZON (kits + opportunities) ============ */
+.horizon-grid { grid-template-columns: repeat(3, 1fr); }
+.horizon-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.horizon-card__preview { position: relative; border-radius: 0; border: 0; border-bottom: 1px solid var(--line-soft); }
+.horizon-card__badge { position: absolute; top: 12px; left: 12px; }
+.horizon-card__body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.horizon-card__title { letter-spacing: -0.02em; font-size: 20px; }
+.horizon-card__desc { font-size: 14.5px; line-height: 1.45; }
+.horizon-card__includes { display: flex; flex-wrap: wrap; gap: 7px; }
+.horizon-card__foot { margin-top: auto; display: flex; flex-direction: column; gap: 13px; padding-top: 4px; }
+.horizon-card__meta { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.horizon-card__price { font-family: var(--font-display); font-weight: 600; font-size: 22px; letter-spacing: -0.02em; }
+.horizon-card__cta { display: flex; flex-wrap: wrap; gap: 8px; }
+.horizon-card__cta .is-disabled {
+  opacity: 0.38;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* ============ HORIZON OPPORTUNITIES (legacy opp blocks in cards) ============ */
 .opp-grid { grid-template-columns: repeat(2, 1fr); }
 .opp { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .opp__illu { border-radius: 0; border: 0; border-bottom: 1px solid var(--line-soft); }
@@ -1247,11 +1266,12 @@ a.blog.card:hover {
 
 /* ============ responsive ============ */
 @media (max-width: 1080px) {
-  .prod-grid, .teach-grid { grid-template-columns: repeat(2, 1fr); }
+  .prod-grid, .teach-grid, .horizon-grid { grid-template-columns: repeat(2, 1fr); }
   .steps { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 880px) {
   .opp-grid { grid-template-columns: 1fr; }
+  .horizon-grid { grid-template-columns: 1fr; }
   .dir { grid-column: span 12 !important; }
   .blogs__grid { grid-template-columns: 1fr; }
   .blogs__wall-inner { position: static; }
@@ -1261,7 +1281,7 @@ a.blog.card:hover {
   .footer__grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 620px) {
-  .prod-grid, .teach-grid, .blog-grid { grid-template-columns: 1fr; }
+  .prod-grid, .teach-grid, .blog-grid, .horizon-grid { grid-template-columns: 1fr; }
   .steps { grid-template-columns: 1fr; }
   .footer__cols { grid-template-columns: repeat(2, 1fr); }
   .block-head { align-items: flex-start; }

@@ -39,17 +39,17 @@
   },
   "directory": {
     "eyebrow": "EXPLORE FUTURA NOTA",
-    "title": "Four windows. Step through any one.",
+    "title": "Three windows. Step through any one.",
     "lead": "Every part of Futura Nota now lives on its own page. Pick a window below and dive in.",
     "cards": [
       {
         "slug": "horizon",
         "num": "01",
-        "eyebrow": "HORIZON OPPORTUNITIES",
-        "title": "Ideas, already shaped into business models.",
-        "blurb": "Real opportunities, shown with how they organize inside Futura. Download the prototype and start building before the window closes.",
-        "tags": ["The Companion Cup", "Drop-Day Packaging", "Launch Merch"],
-        "cta": "Browse opportunities",
+        "eyebrow": "HORIZON",
+        "title": "Ideas, kits, and windows — free or paid.",
+        "blurb": "Download playbooks, import paid kits with pre-built sites, preview Shopify rebuilds, and read the Horizon story behind each opportunity.",
+        "tags": ["Companion Cup", "SaaS Launchpad", "10 kits"],
+        "cta": "Browse Horizon",
         "span": 7
       },
       {
@@ -63,22 +63,12 @@
         "span": 5
       },
       {
-        "slug": "marketplace",
-        "num": "03",
-        "eyebrow": "HORIZON MARKETPLACE",
-        "title": "Ready-made kits. One-click into Futura.",
-        "blurb": "Start from a proven model — the downloadable, the domain, the email, even the course. Customize for your window, then ship.",
-        "tags": ["SaaS Launchpad", "Ecommerce Setup", "6 kits"],
-        "cta": "Open marketplace",
-        "span": 5
-      },
-      {
         "slug": "blogs",
-        "num": "04",
+        "num": "03",
         "eyebrow": "BLOGS",
         "title": "Trends, marketing, and commerce — read the signal before it lands.",
-        "blurb": "Marketing, sales, branding, validation, and the launches worth studying — filter by topic or browse by section.",
-        "tags": ["Trends", "Marketing", "Sales", "Validation"],
+        "blurb": "Marketing, sales, entrepreneur, and the launches worth studying — filter by topic or browse by section.",
+        "tags": ["Trends", "Marketing", "Sales", "Entrepreneur"],
         "cta": "Read the blog",
         "span": 12
       }
