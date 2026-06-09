@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { GoogleIcon } from './AuthOAuthIcons.jsx';
 import { PATHS } from '../lib/paths.js';
 
@@ -45,6 +45,7 @@ export function AuthSignupCard({
   onModeChange,
   onSubmitSuccess,
 }) {
+  const navigate = useNavigate();
   const isSignup = mode === 'signup';
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
@@ -65,6 +66,10 @@ export function AuthSignupCard({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!isSignup) {
+      navigate(PATHS.app, { replace: true });
+      return;
+    }
     onSubmitSuccess?.(form);
   };
 
@@ -188,7 +193,7 @@ export function AuthSignupCard({
               className="auth-split-input"
               value={form.email}
               onChange={handleChange}
-              required
+              required={isSignup}
             />
           </label>
 
@@ -204,7 +209,7 @@ export function AuthSignupCard({
                 className="auth-split-input auth-split-input--password"
                 value={form.password}
                 onChange={handleChange}
-                required
+                required={isSignup}
               />
               <button
                 type="button"

@@ -46,6 +46,7 @@ import {
 } from './lib/canvasDocSync.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
+import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 
 const DOC_CHILD_OFFSET_X = CANVAS_DOC_CHILD_OFFSET_X;
 const DOC_CHILD_ROW_STEP = 88;
@@ -797,6 +798,10 @@ function App() {
   const [company, setCompany] = useState(null);
 
   useEffect(() => {
+    initStores();
+  }, []);
+
+  useEffect(() => {
     document.documentElement.setAttribute('data-site', 'app');
     applyTheme(t, theme);
     return () => document.documentElement.removeAttribute('data-site');
@@ -806,7 +811,11 @@ function App() {
     <>
       {screen === "selector" && (
         <CompanySelectorPage
-          onSelect={(c) => { setCompany(c); setScreen("dashboard"); }}
+          onSelect={(c) => {
+            ensureCompanyObject(c);
+            setCompany(c);
+            setScreen("dashboard");
+          }}
           onBack={() => navigate("/")}
         />
       )}

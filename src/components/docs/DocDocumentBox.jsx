@@ -539,6 +539,11 @@ export function DocDocumentBox({
             + (showKnowledgeNotesPlaceholder ? " doc-new-content-scroll--hint-active" : "")
             + (contentFocusMode ? " doc-new-content-scroll--focus" : "")
           }
+          onPointerDown={(event) => {
+            if (!showKnowledgeNotesPlaceholder) return;
+            if (event.target.closest(".doc-knowledge-import-hint")) return;
+            dismissKnowledgeHint();
+          }}
         >
           <button
             type="button"
@@ -600,6 +605,9 @@ export function DocDocumentBox({
                 }}
                 onAfterInput={requestContentBoxGrow}
                 onKeyDown={handleTextareaKeyDown}
+                onFocus={() => {
+                  if (showKnowledgeNotesPlaceholder) dismissKnowledgeHint();
+                }}
                 placeholder={bodyPlaceholder}
                 wrapClassName="doc-body-field-wrap__slash"
                 className="doc-new-body-field"
