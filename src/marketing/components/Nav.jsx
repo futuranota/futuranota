@@ -57,7 +57,7 @@ export function Nav() {
             </Link>
           )}
           <Link to={authPath('signin')} className="nav__link nav__link--quiet">{t("marketing.logIn")}</Link>
-          <Link to={authPath()} className="btn btn-primary btn-sm" style={{ fontFamily: 'sans-serif' }}>{t("marketing.signUp")}</Link>
+          <Link to={authPath()} className="btn btn-primary btn-sm">{t("marketing.signUp")}</Link>
         </div>
         <button type="button" className="nav__burger" aria-label={t("marketing.openMenu")} aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           <span /><span /><span />

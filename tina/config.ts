@@ -177,16 +177,8 @@ export default defineConfig({
                 label: 'Maker tab',
                 fields: [
                   { type: 'string', name: 'eyebrow', label: 'Eyebrow' },
-                  {
-                    type: 'object',
-                    name: 'titleLines',
-                    label: 'Title lines',
-                    list: true,
-                    fields: [
-                      { type: 'string', name: 'subject', label: 'Subject key' },
-                      { type: 'string', name: 'bracket', label: 'Bracket text' },
-                    ],
-                  },
+                  { type: 'string', name: 'titleLead', label: 'Title line 1' },
+                  { type: 'string', name: 'titleAccent', label: 'Title line 2 (accent)' },
                   { type: 'string', name: 'lead', label: 'Lead', ui: { component: 'textarea' } },
                   { type: 'string', name: 'primaryCta', label: 'Primary CTA' },
                   { type: 'string', name: 'secondaryCta', label: 'Secondary CTA' },

@@ -35,10 +35,10 @@
   --accent: #c9b8ff;     /* lavender for AI */
   --accent-soft: rgba(201, 184, 255, 0.12);
 
-  --sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --sans: "Hanken Grotesk", system-ui, sans-serif;
   --mono: "JetBrains Mono", "Geist Mono", ui-monospace, Menlo, monospace;
-  --font-body: var(--sans);
-  --font-display: var(--sans);
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Hanken Grotesk", system-ui, sans-serif;
 
   --radius-sm: 6px;
   --radius: 10px;
@@ -57,10 +57,10 @@
 }
 
 :root[data-theme="light"] {
-  --bg: #f5f4ef;
-  --bg-2: #ebeae3;
-  --bg-grad-a: #f7f6f1;
-  --bg-grad-b: #e9e7df;
+  --bg: #FFFFFF;
+  --bg-2: #FAFAFA;
+  --bg-grad-a: #FFFFFF;
+  --bg-grad-b: #FAFAFA;
   --panel: rgba(255, 255, 255, 0.62);
   --panel-solid: #ffffff;
   --panel-2: rgba(247, 246, 241, 0.7);
@@ -109,6 +109,14 @@ body {
     radial-gradient(ellipse 800px 600px at 10% 90%, color-mix(in oklab, var(--accent) 4%, transparent), transparent 60%),
     linear-gradient(180deg, var(--bg-grad-a), var(--bg-grad-b));
   background-attachment: fixed;
+}
+
+:root[data-theme="light"] body {
+  background: #FFFFFF;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
 }
 
 #root { min-height: 100%; display: block; }
@@ -618,7 +626,7 @@ textarea.field {
   color: var(--dim);
 }
 .landing h1 {
-  font-family: var(--sans);
+  font-family: var(--font-display);
   font-size: 38px;
   font-weight: 600;
   letter-spacing: -0.025em;
@@ -696,7 +704,7 @@ textarea.field {
 }
 .selector-header h2 {
   margin: 4px 0 0;
-  font-family: var(--sans);
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.015em;
@@ -2171,6 +2179,7 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   gap: 8px;
 }
 .forecast-temp {
+  font-family: var(--font-display);
   font-size: 28px;
   font-weight: 800;
   line-height: 1;

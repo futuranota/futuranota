@@ -2,10 +2,8 @@
   "hero": {
     "maker": {
       "eyebrow": "FOR MAKERS & FOUNDERS",
-      "titleLines": [
-        { "subject": "coffee", "bracket": "You sell the cup." },
-        { "subject": "product", "bracket": "you design what fits." }
-      ],
+      "titleLead": "They launch the product",
+      "titleAccent": "You sell the cup.",
       "lead": "Spot a launch before it lands then turn it into something you make by hand or as a prototype. Ceramics, wood, prints, design. Futura Nota gives you the exact window to ship the companion product while attention is at its peak.",
       "primaryCta": "Get Started",
       "secondaryCta": "Watch how it works",
@@ -17,6 +15,10 @@
       "accent": "Move on the window.",
       "lead": "Futura Nota detects when a company starts a launch campaign — and hands you the exact window of opportunity to ship the companion product before it closes."
     },
+    "marquee": [
+      ["Ceramics", "Wood", "Prints", "Design", "Companion products", "Launch windows"],
+      ["Spot the signal", "Ship the companion", "Move on the window", "NovaBrew", "Hand-thrown stoneware"]
+    ],
     "frame": {
       "detectedLabel": "CAMPAIGN DETECTED",
       "ago": "02:14 ago",
