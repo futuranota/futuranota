@@ -1,0 +1,111 @@
+.blogs__list { min-width: 0; }
+
+.blog-card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+a.blog-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: calc(var(--radius-sm) + 2px);
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid transparent;
+  transition: background 75ms ease, border-color 75ms ease;
+}
+
+a.blog-card:hover {
+  background: var(--accent-soft);
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+a.blog-card:active {
+  background: color-mix(in oklab, var(--accent-soft) 72%, var(--bg-2));
+}
+
+.blog-card__media {
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  aspect-ratio: 16 / 9;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+}
+
+.blog-card__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 500ms ease;
+}
+
+a.blog-card:hover .blog-card__media img {
+  transform: scale(1.05);
+}
+
+.blog-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px 8px;
+}
+
+.blog-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--muted);
+}
+
+@media (min-width: 480px) {
+  .blog-card__meta { font-size: 12px; }
+}
+
+.blog-card__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.blog-card__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.blog-card__excerpt {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (min-width: 720px) {
+  .blog-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1180px) {
+  .blog-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+}

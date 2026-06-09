@@ -72,7 +72,7 @@ function HorizonCard({ item }) {
         <p className="muted horizon-card__desc">{item.desc}</p>
 
         {item.org.length > 0 && (
-          <div className="opp__org" style={{ fontFamily: 'Helvetica' }}>
+          <div className="opp__org">
             <div className="opp__org-head mono-sm faint">// how it organizes in futura</div>
             <div className="opp__nodes">
               {item.org.map((n, i) => {

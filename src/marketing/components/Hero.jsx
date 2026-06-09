@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom';
 import { authPath, PATHS } from '../lib/paths.js';
 import { getHome } from '../lib/content.js';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
-import { HeroTitleLoop } from './HeroTitleLoop.jsx';
+import { HeroMarquee } from './HeroMarquee.jsx';
+import { HeroAccentTypewriter } from './HeroAccentTypewriter.jsx';
 
 function HeroFrame({ frame }) {
   return (
@@ -74,7 +75,20 @@ export function Hero({ heroMode = 'maker' }) {
             <span className="eyebrow eyebrow--signal hero__eyebrow" {...pageTinaProps(`hero.${modeKey}.eyebrow`)}><span className="tick" />{c.eyebrow}</span>
           </div>
           {heroMode === 'maker' ? (
-            <HeroTitleLoop lines={c.titleLines} />
+            <h1 className="display hero__title hero__title--static">
+              <span
+                className="hero__title-line hero__title-line--lead"
+                {...pageTinaProps('hero.maker.titleLead')}
+              >
+                {c.titleLead || 'They launch the product'}
+              </span>
+              <span className="hero__title-line hero__title-line--accent">
+                <HeroAccentTypewriter
+                  texts={c.titleAccentLines?.length ? c.titleAccentLines : [c.titleAccent || 'You sell the cup.']}
+                  tinaProps={pageTinaProps('hero.maker.titleAccent')}
+                />
+              </span>
+            </h1>
           ) : (
             <h1 className="display hero__title" {...pageTinaProps(`hero.${modeKey}.pre`)}>
               {c.pre} <span className="accent-word" {...pageTinaProps(`hero.${modeKey}.accent`)}>{c.accent}</span>
@@ -82,18 +96,21 @@ export function Hero({ heroMode = 'maker' }) {
           )}
           <p className="lead hero__lead" {...pageTinaProps(`hero.${modeKey}.lead`)}>{c.lead}</p>
           <div className="hero__cta">
-            <Link to={authPath()} className="btn btn-primary" style={{ color: 'rgb(255, 255, 255)', fontFamily: 'Helvetica' }}>
+            <Link to={authPath()} className="btn btn-primary">
               {c.primaryCta || 'Get Started'} <span className="arrow">→</span>
             </Link>
             <Link to={PATHS.how} className="btn btn-ghost">{c.secondaryCta || 'Watch how it works'}</Link>
           </div>
           <div className="hero__trust">
-            <span className="chip chip--signal" style={{ fontFamily: 'sans-serif' }}>
-              <span className="tick" style={{ width: 6, height: 6, borderRadius: 2, background: 'currentColor' }} />{c.trustChip || '10 free searches'}
+            <span className="chip chip--signal">
+              <span className="tick" />{c.trustChip || '10 free searches'}
             </span>
           </div>
         </div>
-        <HeroFrame frame={frame} />
+        <div className="hero__aside">
+          <HeroFrame frame={frame} />
+          <HeroMarquee rows={hero.marquee} />
+        </div>
       </div>
       <div className="container">
         <FeatureCards features={hero.features} />

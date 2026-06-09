@@ -122,14 +122,14 @@ function applyTheme(t, themeMode = t.theme) {
     document.documentElement.removeAttribute("data-theme");
   }
   if (t.typography === "sans") {
-    document.documentElement.style.setProperty("--font-body", "var(--sans)");
-    document.documentElement.style.setProperty("--font-display", "var(--sans)");
+    document.documentElement.style.setProperty("--font-body", '"Hanken Grotesk", system-ui, sans-serif');
+    document.documentElement.style.setProperty("--font-display", '"Space Grotesk", system-ui, sans-serif');
   } else if (t.typography === "mono") {
     document.documentElement.style.setProperty("--font-body", "var(--mono)");
     document.documentElement.style.setProperty("--font-display", "var(--mono)");
   } else if (t.typography === "mixed") {
-    document.documentElement.style.setProperty("--font-body", "var(--sans)");
-    document.documentElement.style.setProperty("--font-display", "var(--mono)");
+    document.documentElement.style.setProperty("--font-body", '"Hanken Grotesk", system-ui, sans-serif');
+    document.documentElement.style.setProperty("--font-display", '"Space Grotesk", system-ui, sans-serif');
   }
   const accents = {
     mint:   { hud: "#8ee9a3", glow: "#8ee9a380", soft: "rgba(142, 233, 163, 0.12)" },

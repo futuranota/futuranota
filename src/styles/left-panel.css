@@ -3111,7 +3111,7 @@ body.doc-content-resizing * {
   border: none;
   background: transparent;
   outline: none;
-  font-family: var(--sans);
+  font-family: var(--font-display);
   font-size: 17px;
   font-weight: 800;
   letter-spacing: 0.68px;
