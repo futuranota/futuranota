@@ -83,15 +83,17 @@ export function SlashAwareTextarea({
     return rects.length > 0 && rects[0].width > 0 && rects[0].height > 0;
   }, []);
 
+  const heightCap = maxHeightPx == null ? Number.POSITIVE_INFINITY : maxHeightPx;
+
   const syncHeight = useCallback((force = false) => {
     const el = textareaRef.current;
     if (!el) return;
     const visible = isFieldVisible(el);
     if (!visible && !force) return;
     el.style.height = "auto";
-    const next = Math.min(el.scrollHeight, maxHeightPx);
+    const next = Math.min(el.scrollHeight, heightCap);
     el.style.height = `${Math.max(next, minHeightPx)}px`;
-    el.style.overflowY = el.scrollHeight > maxHeightPx ? "auto" : "hidden";
+    el.style.overflowY = el.scrollHeight > heightCap ? "auto" : "hidden";
     // #region agent log
     fetch("http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736", {
       method: "POST",
@@ -113,7 +115,7 @@ export function SlashAwareTextarea({
       }),
     }).catch(() => {});
     // #endregion
-  }, [isFieldVisible, maxHeightPx, minHeightPx, textareaRef]);
+  }, [heightCap, isFieldVisible, minHeightPx, textareaRef]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;

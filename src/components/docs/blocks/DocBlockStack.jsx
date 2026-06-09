@@ -74,9 +74,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const blocksRef = useRef(blocks);
 
   useLayoutEffect(() => {
-    if (blocks.length >= blocksRef.current.length) {
-      blocksRef.current = blocks;
-    }
+    blocksRef.current = blocks;
   }, [blocks]);
 
   const isCollapsedPadWriteBlock = (blockId) => {
@@ -389,15 +387,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           );
           if (!textarea) return;
           textarea.style.height = "auto";
-          const scrollHeight = textarea.scrollHeight;
-          const maxHeight = Number.parseInt(
-            getComputedStyle(textarea).maxHeight,
-            10,
-          );
-          const cap = Number.isFinite(maxHeight) && maxHeight > 0 ? maxHeight : 520;
-          const next = Math.min(scrollHeight, cap);
-          textarea.style.height = `${Math.max(next, 28)}px`;
-          textarea.style.overflowY = scrollHeight > cap ? "auto" : "hidden";
+          textarea.style.height = `${Math.max(textarea.scrollHeight, 28)}px`;
+          textarea.style.overflowY = "hidden";
         });
       });
     });
@@ -429,8 +420,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   }, [collapsedContentByBlockId, collapsedPadWriteByOwnerId]);
 
   const setBlocks = (next) => {
-    blocksRef.current = next;
-    onBlocksChange?.(next);
+    const merged = normalizeDocBlocks(next);
+    blocksRef.current = merged;
+    onBlocksChange?.(merged);
   };
 
   const updateAt = (index, patch) => {
@@ -691,25 +683,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     return false;
   };
 
-  const splitTextBlockAtCaret = (blockIndex, e) => {
-    const el = e.currentTarget;
-    const caretStart = el.selectionStart ?? 0;
-    const caretEnd = el.selectionEnd ?? caretStart;
-    const text = el.value ?? "";
-    const head = text.slice(0, caretStart);
-    const tail = text.slice(caretEnd);
-
-    let next = updateBlockAt(blocksRef.current, blockIndex, { text: head });
-    const newBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: tail });
-    next = insertBlockAfter(next, blockIndex, newBlock);
-
-    setBlocks(next);
-    syncAnswerBelowH1(next, blockIndex, head);
-    onFocusBlock?.(newBlock.id);
-    focusBlockCaret(newBlock.id, 0);
-    requestContentGrow();
-  };
-
   const handleTextKeyDown = (blockIndex, e) => {
     const textValue = e.currentTarget?.value ?? blocksRef.current[blockIndex]?.text ?? "";
     if (handleTextBackspace(blockIndex, e, textValue)) return;
@@ -731,8 +704,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           return;
         }
       }
-      e.preventDefault();
-      splitTextBlockAtCaret(blockIndex, e);
+      insertNewlineAtCaret(blockIndex, e);
       return;
     }
 
@@ -1145,7 +1117,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               placeholder={bodyPlaceholder}
               showPlaceholder={index === 0 && blocks.length === 1}
               autoFocus={focusBlockId === block.id && !itemHidden}
-              maxHeightPx={520}
               onFocus={() => {
                 // #region agent log
                 debugLog("DocBlockStack.jsx:textFocus", "textarea-focus", {
@@ -1177,7 +1148,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 placeholder=""
                 showPlaceholder={false}
                 autoFocus
-                maxHeightPx={520}
                 onFocus={() => onFocusBlock?.(collapsedActiveWriteId)}
                 onKeyDown={(e) => {
                   const writeIndex = blocksRef.current.findIndex(

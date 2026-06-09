@@ -5038,9 +5038,10 @@ textarea.note-form-field {
   inset: 0;
   z-index: 240;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 24px;
+  overflow-y: auto;
   background: rgba(0, 0, 0, 0.72);
 }
 
@@ -5048,8 +5049,8 @@ textarea.note-form-field {
   width: min(537px, calc(100vw - 48px));
   max-width: 537px;
   min-height: 356px;
-  max-height: calc(100vh - 56px);
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   background: #151515;
   border: none;
   border-radius: 14px;
@@ -5081,6 +5082,12 @@ textarea.note-form-field {
   flex-direction: column;
   overflow: hidden;
   padding: 0;
+  width: min(537px, calc(100vw - 48px));
+  max-width: 537px;
+  height: calc(100vh - 48px);
+  max-height: calc(100vh - 48px);
+  min-height: calc(100vh - 48px);
+  box-sizing: border-box;
 }
 
 .doc-overlay-global-card:has(.doc-new-inner--content-focus) > div:first-child {

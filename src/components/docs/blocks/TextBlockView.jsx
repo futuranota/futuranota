@@ -9,7 +9,7 @@ export function TextBlockView({
   placeholder,
   autoFocus = false,
   showPlaceholder = true,
-  maxHeightPx = 520,
+  maxHeightPx = null,
 }) {
   return (
     <div className="doc-text-block">

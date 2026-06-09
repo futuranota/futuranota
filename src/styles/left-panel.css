@@ -1045,6 +1045,8 @@
   width: min(537px, calc(100vw - 48px));
   max-width: 537px;
   min-height: 356px;
+  max-height: none;
+  overflow: visible;
   background: #151515;
   border-radius: 14px;
   border: none;
@@ -1052,6 +1054,12 @@
   padding: 22px 15px 18px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.22) #151515;
+}
+
+.lp-overlay.lp-overlay--center:has(.doc-new-modal:not(:has(.doc-new-inner--content-focus))) {
+  align-items: flex-start;
+  padding-top: 24px;
+  padding-bottom: 24px;
 }
 
 .lp-modal.doc-new-modal::-webkit-scrollbar {
@@ -1065,6 +1073,23 @@
 .lp-modal.doc-new-modal::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.22);
   border-radius: 4px;
+}
+
+.lp-modal.doc-new-modal:has(.doc-new-inner--content-focus) {
+  display: flex;
+  flex-direction: column;
+  width: min(537px, calc(100vw - 48px));
+  max-width: 537px;
+  height: calc(100vh - 48px);
+  max-height: calc(100vh - 48px);
+  min-height: calc(100vh - 48px);
+  overflow: hidden;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.lp-overlay.lp-overlay--center:has(.doc-new-modal .doc-new-inner--content-focus) {
+  overflow: hidden;
 }
 
 .lp-modal-close {
@@ -1161,7 +1186,7 @@
   display: flex;
   flex-direction: column;
   min-height: 312px;
-  height: 100%;
+  height: auto;
 }
 
 .doc-new-head {
@@ -1897,7 +1922,7 @@
 }
 
 .doc-new-content-box--knowledge-notes.doc-new-content-box--resizable {
-  height: 118px;
+  height: auto;
   min-height: 72px;
 }
 
@@ -2515,11 +2540,11 @@
 .doc-new-content-box--resizable {
   display: flex;
   flex-direction: column;
-  height: 200px;
+  height: auto;
   min-height: 100px;
-  max-height: min(72vh, 520px);
-  resize: vertical;
-  overflow: hidden;
+  max-height: none;
+  resize: none;
+  overflow: visible;
 }
 
 /* slash-instructions.png — ghost hints after "/" */
@@ -2581,9 +2606,10 @@
 
 .doc-new-content-scroll {
   position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
+  flex: 0 0 auto;
+  min-height: 72px;
+  overflow-y: visible;
+  overflow-x: hidden;
   padding: 6px 32px 40px 0;
   box-sizing: border-box;
   scrollbar-width: thin;
@@ -2642,9 +2668,10 @@
 
 /* Content focus mode — content area fills parent card (overlay) */
 .doc-new-inner--content-focus {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   height: 100%;
+  width: 100%;
 }
 
 .doc-new-inner--content-focus .doc-new-head,
@@ -2666,6 +2693,7 @@
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;
+  overflow-y: auto;
 }
 
 .doc-new-inner--content-focus .doc-new-content-scroll:focus {
@@ -3138,9 +3166,22 @@
 .doc-block-stack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px 0 8px;
+  gap: 0;
+  padding: 8px 0 4px;
   box-sizing: border-box;
+}
+
+.doc-block-stack__item:has(.doc-h1-block),
+.doc-block-stack__item:has(.doc-todo-block),
+.doc-block-stack__item:has(.doc-date-block),
+.doc-block-stack__item:has(.doc-metric-block),
+.doc-block-stack__item:has(.doc-product-card-block),
+.doc-block-stack__item:has(.doc-video-embed-block) {
+  margin-top: 10px;
+}
+
+.doc-block-stack__item:first-child {
+  margin-top: 0;
 }
 
 .doc-block-stack:has(.doc-collapsed-write-pad) {
@@ -3148,12 +3189,12 @@
 }
 
 .doc-block-stack__item:has(.doc-h1-block) + .doc-block-stack__item:has(.doc-text-block) {
-  margin-top: -14px;
+  margin-top: 0;
 }
 
 /* Text lines in the same flow — no extra stack gap between consecutive text cells */
 .doc-block-stack__item:has(.doc-text-block) + .doc-block-stack__item:has(.doc-text-block) {
-  margin-top: -14px;
+  margin-top: 0;
 }
 
 .doc-block-anchor {
@@ -4115,6 +4156,7 @@
 .doc-text-block {
   box-sizing: border-box;
   cursor: text;
+  margin: 0;
 }
 
 .doc-text-block__wrap {
@@ -4123,7 +4165,7 @@
 }
 
 .doc-text-block__wrap .doc-slash-field__mirror {
-  padding: 4px 21px 4px 15px;
+  padding: 2px 21px 2px 15px;
 }
 
 .doc-body-field-wrap__slash .doc-slash-field__mirror {
@@ -4135,7 +4177,7 @@
   width: 100%;
   min-height: 28px;
   margin: 0;
-  padding: 4px 21px 4px 15px;
+  padding: 2px 21px 2px 15px;
   box-sizing: border-box;
   border: none;
   resize: none;
@@ -4150,6 +4192,25 @@
   outline: none;
   word-break: normal;
   overflow-wrap: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: var(--doc-body-track, rgb(22, 26, 29)) var(--doc-body-track, rgb(22, 26, 29));
+}
+
+.doc-text-block__field::-webkit-scrollbar {
+  width: 8px;
+}
+
+.doc-text-block__field::-webkit-scrollbar-track {
+  background: var(--doc-body-track, rgb(22, 26, 29));
+}
+
+.doc-text-block__field::-webkit-scrollbar-thumb {
+  background: var(--doc-body-track, rgb(22, 26, 29));
+  border-radius: 4px;
+}
+
+.doc-text-block__field::-webkit-scrollbar-thumb:hover {
+  background: var(--doc-body-track, rgb(22, 26, 29));
 }
 
 .doc-new-body-field {

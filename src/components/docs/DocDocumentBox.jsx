@@ -33,16 +33,10 @@ const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;
 const CONTENT_BOX_DEFAULT_HEIGHT = 200;
 const CONTENT_BOX_KNOWLEDGE_DEFAULT_HEIGHT = 118;
-const CONTENT_BOX_MAX_HEIGHT = 520;
 
 const KNOWLEDGE_IMPORT_HINT =
   "Use the text area below to summarize what you imported: key topics, "
   + "what the file is for, or a short outline. This space is for your own reference.";
-
-function getContentBoxMaxHeight() {
-  if (typeof window === "undefined") return CONTENT_BOX_MAX_HEIGHT;
-  return Math.min(window.innerHeight * 0.72, CONTENT_BOX_MAX_HEIGHT);
-}
 
 /**
  * Document medium box — layout from Figma node 291:494 (datos).
@@ -219,43 +213,35 @@ export function DocDocumentBox({
     scroll.focus({ preventScroll: true });
   }, []);
 
+  const syncBodyHeightUncapped = useCallback(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+    el.style.overflowY = "hidden";
+  }, []);
+
   const syncContentBoxHeight = useCallback(() => {
     const box = contentBoxRef.current;
     const scroll = contentScrollRef.current;
     if (!box || !scroll) return;
     if (contentFocusMode) return;
 
-    const maxHeight = getContentBoxMaxHeight();
-    const contentHeight = scroll.scrollHeight;
     const defaultHeight = isKnowledgeMode
       ? CONTENT_BOX_KNOWLEDGE_DEFAULT_HEIGHT
       : CONTENT_BOX_DEFAULT_HEIGHT;
-    const desired = Math.min(
-      maxHeight,
-      Math.max(CONTENT_BOX_MIN_HEIGHT, contentHeight),
-    );
-    const currentHeight = box.getBoundingClientRect().height;
+    const desired = Math.max(CONTENT_BOX_MIN_HEIGHT, scroll.scrollHeight, defaultHeight);
+    box.style.height = `${desired}px`;
 
-    if (desired > currentHeight + 1) {
-      box.style.height = `${Math.max(desired, defaultHeight)}px`;
-    }
-
-    if (!hasBlocks && bodyRef.current && scroll.clientHeight) {
-      const el = bodyRef.current;
-      const cap = scroll.clientHeight - 16;
-      if (el.scrollHeight > cap) {
-        el.style.height = `${cap}px`;
-        el.style.overflowY = "auto";
-      }
+    if (!hasBlocks && bodyRef.current) {
+      syncBodyHeightUncapped();
     }
 
     const active = document.activeElement;
     if (active instanceof HTMLElement && scroll.contains(active)) {
       active.scrollIntoView({ block: "nearest", behavior: "instant" });
-    } else if (desired >= maxHeight - 1) {
-      scroll.scrollTop = scroll.scrollHeight;
     }
-  }, [hasBlocks, isKnowledgeMode, contentFocusMode]);
+  }, [hasBlocks, isKnowledgeMode, contentFocusMode, syncBodyHeightUncapped]);
 
   const exitContentFocusMode = useCallback(() => {
     setContentFocusMode(false);
@@ -265,14 +251,6 @@ export function DocDocumentBox({
       syncContentBoxHeight();
     });
   }, [syncContentBoxHeight]);
-
-  const syncBodyHeightUncapped = useCallback(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-    el.style.overflowY = "hidden";
-  }, []);
 
   const toggleContentFocus = useCallback(() => {
     if (contentFocusMode) {
@@ -316,15 +294,9 @@ export function DocDocumentBox({
   }, [hasBlocks, syncContentBoxHeight, syncBodyHeightUncapped]);
 
   const syncBodyHeight = useCallback(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    const scroll = el.closest(".doc-new-content-scroll");
-    el.style.height = "auto";
-    const cap = scroll?.clientHeight ? scroll.clientHeight - 16 : 200;
-    const next = Math.min(el.scrollHeight, Math.max(cap, 40));
-    el.style.height = `${next}px`;
-    el.style.overflowY = el.scrollHeight > cap ? "auto" : "hidden";
-  }, []);
+    syncBodyHeightUncapped();
+    requestAnimationFrame(syncContentBoxHeight);
+  }, [syncBodyHeightUncapped, syncContentBoxHeight]);
 
   useLayoutEffect(() => {
     syncTitleHeight();
