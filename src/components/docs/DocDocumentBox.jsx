@@ -29,6 +29,7 @@ import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { hasKnowledgeImport } from "../../lib/knowledgeImport.js";
+import { scrollTextareaCaretIntoCameraView } from "../../lib/textareaSelectionRect.js";
 
 const SAVE_LOADING_MIN_MS = 400;
 
@@ -259,7 +260,9 @@ export function DocDocumentBox({
     }
 
     const active = document.activeElement;
-    if (active instanceof HTMLElement && scroll.contains(active)) {
+    if (active instanceof HTMLTextAreaElement && scroll.contains(active)) {
+      scrollTextareaCaretIntoCameraView(active, { behavior: "instant" });
+    } else if (active instanceof HTMLElement && scroll.contains(active)) {
       active.scrollIntoView({ block: "nearest", behavior: "instant" });
     }
   }, [hasBlocks, isKnowledgeMode, contentFocusMode, syncBodyHeightUncapped]);

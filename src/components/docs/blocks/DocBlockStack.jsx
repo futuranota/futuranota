@@ -33,6 +33,7 @@ import {
 } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
+import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { TodoBlockView } from "./TodoBlockView.jsx";
@@ -40,6 +41,19 @@ import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 import { VideoEmbedBlockView } from "./VideoEmbedBlockView.jsx";
+
+function focusTextInputWithCamera(input, caretPos) {
+  input.focus({ preventScroll: true });
+  if ("setSelectionRange" in input) {
+    const pos = caretPos ?? input.value.length;
+    input.setSelectionRange(pos, pos);
+  }
+  if (input.tagName === "TEXTAREA") {
+    requestAnimationFrame(() => {
+      scrollTextareaCaretIntoCameraView(input, { behavior: "smooth" });
+    });
+  }
+}
 
 // #region agent log
 const debugLog = (location, message, data, hypothesisId) => {
@@ -320,11 +334,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           // #endregion
           return;
         }
-        input.focus({ preventScroll: true });
-        if ("setSelectionRange" in input) {
-          const pos = caretPos ?? input.value.length;
-          input.setSelectionRange(pos, pos);
-        }
+        focusTextInputWithCamera(input, caretPos);
         // #region agent log
         debugLog("DocBlockStack.jsx:focusPadTextarea", "focused", {
           blockId,
@@ -363,11 +373,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           // #endregion
           return;
         }
-        input.focus({ preventScroll: true });
-        if ("setSelectionRange" in input) {
-          const pos = caretPos ?? input.value.length;
-          input.setSelectionRange(pos, pos);
-        }
+        focusTextInputWithCamera(input, caretPos);
         // #region agent log
         debugLog("DocBlockStack.jsx:focusBlockCaret", "focused", {
           blockId,

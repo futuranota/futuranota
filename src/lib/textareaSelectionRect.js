@@ -70,3 +70,85 @@ export function resolveTextSelectionToolbarPosition(textarea, selectionStart, se
 
   return { left, top, btnSize };
 }
+
+function isVerticallyScrollable(el) {
+  if (!el) return false;
+  const style = window.getComputedStyle(el);
+  const overflowY = style.overflowY;
+  return (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay")
+    && el.scrollHeight > el.clientHeight + 1;
+}
+
+function resolveScrollBehavior(requested) {
+  if (requested === "instant") return "instant";
+  if (typeof window !== "undefined"
+    && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    return "instant";
+  }
+  return requested || "smooth";
+}
+
+/**
+ * Keeps the textarea caret in a comfortable viewport band — smooth "camera" scroll
+ * through inner fields, content scroll areas, and the doc overlay.
+ */
+export function scrollTextareaCaretIntoCameraView(textarea, options = {}) {
+  if (!textarea?.isConnected || textarea.tagName !== "TEXTAREA") return;
+
+  const behavior = resolveScrollBehavior(options.behavior);
+  const bandTopRatio = options.bandTopRatio ?? 0.3;
+  const bandBottomRatio = options.bandBottomRatio ?? 0.58;
+  const targetRatio = options.targetRatio ?? 0.38;
+  const clipPadding = options.clipPadding ?? 24;
+
+  const lineHeight = parseFloat(window.getComputedStyle(textarea).lineHeight) || 20;
+  const pos = textarea.selectionStart ?? textarea.value.length;
+
+  const readCaretRect = () => getCaretClientRect(textarea, pos);
+  let caretRect = readCaretRect();
+
+  if (textarea.scrollHeight > textarea.clientHeight) {
+    const fieldRect = textarea.getBoundingClientRect();
+    const caretBottom = caretRect.top + lineHeight;
+    if (caretBottom > fieldRect.bottom - 10) {
+      textarea.scrollTop += caretBottom - fieldRect.bottom + 16;
+    } else if (caretRect.top < fieldRect.top + 10) {
+      textarea.scrollTop -= fieldRect.top - caretRect.top + 16;
+    }
+    caretRect = readCaretRect();
+  }
+
+  let node = textarea.parentElement;
+  while (node) {
+    if (!isVerticallyScrollable(node)) {
+      node = node.parentElement;
+      continue;
+    }
+    const box = node.getBoundingClientRect();
+    const caretBottom = caretRect.top + lineHeight;
+    let delta = 0;
+    if (caretBottom > box.bottom - clipPadding) {
+      delta = caretBottom - (box.bottom - clipPadding);
+    } else if (caretRect.top < box.top + clipPadding) {
+      delta = caretRect.top - (box.top + clipPadding);
+    }
+    if (delta !== 0) {
+      node.scrollBy({ top: delta, behavior });
+      return;
+    }
+    node = node.parentElement;
+  }
+
+  const caretCenter = caretRect.top + lineHeight / 2;
+  const bandTop = window.innerHeight * bandTopRatio;
+  const bandBottom = window.innerHeight * bandBottomRatio;
+  if (caretCenter >= bandTop && caretCenter <= bandBottom) return;
+
+  const delta = caretCenter - window.innerHeight * targetRatio;
+  if (Math.abs(delta) < 6) return;
+
+  const overlay = textarea.closest(".doc-overlay-global");
+  if (overlay && isVerticallyScrollable(overlay)) {
+    overlay.scrollBy({ top: delta, behavior });
+  }
+}
