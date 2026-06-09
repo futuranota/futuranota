@@ -17,9 +17,21 @@ export function isAllowedEmbedSrc(src) {
   }
 }
 
+function decodeHtmlEntities(value) {
+  return String(value ?? "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
 function extractIframeSrc(raw) {
   const match = String(raw ?? "").match(/<iframe[^>]+src=["']([^"']+)["']/i);
-  return match ? match[1].trim() : null;
+  return match ? decodeHtmlEntities(match[1].trim()) : null;
+}
+
+function buildYouTubeEmbedSrc(videoId) {
+  if (!videoId) return "";
+  return `https://www.youtube.com/embed/${videoId}`;
 }
 
 function parseYouTube(input) {
@@ -44,6 +56,8 @@ function parseYouTube(input) {
   } else if (host === "youtube.com" || host === "youtube-nocookie.com") {
     if (url.pathname.startsWith("/embed/")) {
       videoId = url.pathname.split("/embed/")[1]?.split(/[/?#]/)[0] || "";
+    } else if (url.pathname.startsWith("/shorts/")) {
+      videoId = url.pathname.split("/shorts/")[1]?.split(/[/?#]/)[0] || "";
     } else {
       videoId = url.searchParams.get("v") || "";
     }
@@ -56,7 +70,7 @@ function parseYouTube(input) {
   return {
     provider: "youtube",
     videoId,
-    embedSrc: `https://www.youtube-nocookie.com/embed/${videoId}`,
+    embedSrc: buildYouTubeEmbedSrc(videoId),
   };
 }
 
@@ -138,20 +152,49 @@ export function parseVideoEmbedInput(raw) {
   };
 }
 
+/** Normalize legacy nocookie URLs for reliable iframe playback. */
+export function normalizeEmbedSrcForPlayback(src) {
+  if (!src) return "";
+  try {
+    const url = new URL(src);
+    const host = url.hostname.replace(/^www\./, "");
+    if (
+      (host === "youtube-nocookie.com" || host === "youtube.com")
+      && url.pathname.startsWith("/embed/")
+    ) {
+      const videoId = url.pathname.split("/embed/")[1]?.split(/[/?#]/)[0] || "";
+      if (videoId) return buildYouTubeEmbedSrc(videoId);
+    }
+  } catch {
+    return src;
+  }
+  return src;
+}
+
 export function buildVideoNodeContent(videoBlock, description = "") {
+  const embedSrc = normalizeEmbedSrcForPlayback(videoBlock?.embedSrc || "");
   return {
     kind: "embedded-video",
     provider: videoBlock?.provider || "unknown",
     videoId: videoBlock?.videoId || "",
-    embedSrc: videoBlock?.embedSrc || "",
+    embedSrc,
     rawInput: videoBlock?.rawInput || "",
     description: description || "",
   };
 }
 
 export function resolveVideoEmbedFromNodeContent(content) {
-  if (!content || typeof content !== "object") return null;
-  if (content.kind !== "embedded-video") return null;
-  if (!isAllowedEmbedSrc(content.embedSrc)) return null;
-  return content;
+  let payload = content;
+  if (typeof content === "string") {
+    try {
+      payload = JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+  if (!payload || typeof payload !== "object") return null;
+  if (payload.kind !== "embedded-video") return null;
+  const embedSrc = normalizeEmbedSrcForPlayback(payload.embedSrc);
+  if (!isAllowedEmbedSrc(embedSrc)) return null;
+  return { ...payload, embedSrc };
 }

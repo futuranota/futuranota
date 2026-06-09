@@ -1085,7 +1085,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   next = ensureEmptyTextBlockAfter(next, index);
                 }
                 setBlocks(next);
-                onVideoEmbedSync?.(index);
+                onVideoEmbedSync?.(index, patch, next);
                 if (patch.embedSaved && patch.embedSrc) {
                   const textBlock = next[index + 1];
                   if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {

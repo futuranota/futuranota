@@ -594,12 +594,12 @@ export function DocDocumentBox({
               />
             </div>
           )}
-          <DocSlashCommandPicker
-            onSelectCommand={insertSlashCommandFromPicker}
-            isCommandEnabled={isSlashCommandEnabled}
-            variant="floating"
-          />
         </div>
+        <DocSlashCommandPicker
+          onSelectCommand={insertSlashCommandFromPicker}
+          isCommandEnabled={isSlashCommandEnabled}
+          variant="floating"
+        />
       </div>
 
       <div className="doc-new-actions">

@@ -352,11 +352,13 @@ export function useDocBlockNodeModal({
     handleBlockAnchorChange(activeNodeContext.blockIndex, nodeDraftAnchorDate, anchorTime);
   };
 
-  const handleVideoEmbedSync = (videoIndex) => {
-    setBlocks((prev) => {
-      syncVideoNodeFromVideoBlock(prev, videoIndex, {}, updateNode);
-      return prev;
-    });
+  const handleVideoEmbedSync = (videoIndex, videoPatch = {}, blocksSnapshot) => {
+    syncVideoNodeFromVideoBlock(
+      blocksSnapshot ?? blocks,
+      videoIndex,
+      videoPatch,
+      updateNode,
+    );
   };
 
   const handleVideoEmbedH1TitleChange = (h1Index) => {
