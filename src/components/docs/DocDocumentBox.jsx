@@ -27,7 +27,10 @@ import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
+import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { hasKnowledgeImport } from "../../lib/knowledgeImport.js";
+
+const SAVE_LOADING_MIN_MS = 400;
 
 const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;
@@ -57,6 +60,7 @@ export function DocDocumentBox({
   onParentIdChange,
   objects = null,
   onSave,
+  onCloseAfterSave,
   onCloseExpand,
   onTitleKeyDown,
   onBodyKeyDown,
@@ -115,9 +119,27 @@ export function DocDocumentBox({
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
   const [contentFocusMode, setContentFocusMode] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveClick = useCallback(async () => {
+    if (isSaving || saveDisabled || !onSave) return;
+    setIsSaving(true);
+    try {
+      await Promise.all([
+        Promise.resolve(onSave()),
+        new Promise((resolve) => {
+          window.setTimeout(resolve, SAVE_LOADING_MIN_MS);
+        }),
+      ]);
+      onCloseAfterSave?.();
+    } catch {
+      setIsSaving(false);
+    }
+  }, [isSaving, saveDisabled, onSave, onCloseAfterSave]);
 
   useEffect(() => {
     setContentFocusMode(false);
+    setIsSaving(false);
   }, [docId]);
 
   useEffect(() => {
@@ -605,11 +627,22 @@ export function DocDocumentBox({
       <div className="doc-new-actions">
         <button
           type="button"
-          className="doc-new-action doc-new-action--save"
-          disabled={saveDisabled}
-          onClick={onSave}
+          className={
+            "doc-new-action doc-new-action--save"
+            + (isSaving ? " doc-new-action--save-loading" : "")
+          }
+          disabled={saveDisabled || isSaving}
+          onClick={handleSaveClick}
+          aria-busy={isSaving}
         >
-          save
+          {isSaving ? (
+            <>
+              <SearchSpinner size={14} />
+              <span>Saving…</span>
+            </>
+          ) : (
+            "save"
+          )}
         </button>
       </div>
     </div>
