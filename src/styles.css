@@ -5063,8 +5063,8 @@ textarea.note-form-field {
 }
 
 .doc-overlay-global-card {
-  width: min(537px, calc(100vw - 48px));
-  max-width: 537px;
+  width: min(620px, calc(100vw - 48px));
+  max-width: 620px;
   min-height: 356px;
   max-height: none;
   overflow: visible;
@@ -5099,12 +5099,18 @@ textarea.note-form-field {
   flex-direction: column;
   overflow: hidden;
   padding: 0;
-  width: min(537px, calc(100vw - 48px));
-  max-width: 537px;
+  width: min(620px, calc(100vw - 48px));
+  max-width: 620px;
   height: calc(100vh - 48px);
   max-height: calc(100vh - 48px);
   min-height: calc(100vh - 48px);
   box-sizing: border-box;
+}
+
+.doc-overlay-global-card:has(.doc-new-content-box--manual-height) {
+  height: auto;
+  min-height: 0;
+  max-height: calc(100vh - 48px);
 }
 
 .doc-overlay-global-card:has(.doc-new-inner--content-focus) > div:first-child {

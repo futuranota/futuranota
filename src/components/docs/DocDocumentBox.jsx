@@ -29,14 +29,15 @@ import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { hasKnowledgeImport } from "../../lib/knowledgeImport.js";
-import { scrollTextareaCaretIntoCameraView } from "../../lib/textareaSelectionRect.js";
 
 const SAVE_LOADING_MIN_MS = 400;
 
 const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;
-const CONTENT_BOX_DEFAULT_HEIGHT = 200;
+const CONTENT_BOX_DEFAULT_HEIGHT = 240;
 const CONTENT_BOX_KNOWLEDGE_DEFAULT_HEIGHT = 118;
+const CONTENT_BOX_PICKER_CLEARANCE = 28;
+const CONTENT_BOX_MAX_HEIGHT = 720;
 
 const KNOWLEDGE_IMPORT_HINT =
   "Use the text area below to summarize what you imported: key topics, "
@@ -117,9 +118,12 @@ export function DocDocumentBox({
   const contentBoxRef = useRef(null);
   const contentScrollRef = useRef(null);
   const blockStackRef = useRef(null);
+  const contentBoxManualHeightRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
   const [contentFocusMode, setContentFocusMode] = useState(false);
+  const [hasManualBoxHeight, setHasManualBoxHeight] = useState(false);
+  const [contentBoxResizing, setContentBoxResizing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSaveClick = useCallback(async () => {
@@ -141,6 +145,8 @@ export function DocDocumentBox({
   useEffect(() => {
     setContentFocusMode(false);
     setIsSaving(false);
+    setHasManualBoxHeight(false);
+    contentBoxManualHeightRef.current = null;
   }, [docId]);
 
   useEffect(() => {
@@ -178,6 +184,10 @@ export function DocDocumentBox({
   }, [objects, parentId]);
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const hasBlocks = normalizedBlocks.length > 0;
+  const blocksStructureKey = useMemo(
+    () => normalizedBlocks.map((b) => `${b.id}:${b.type}`).join("|"),
+    [normalizedBlocks],
+  );
   const showKnowledgeNotesPlaceholder = isKnowledgeMode && !knowledgeHintDismissed;
 
   const dismissKnowledgeHint = () => {
@@ -243,51 +253,123 @@ export function DocDocumentBox({
     el.style.overflowY = "hidden";
   }, []);
 
+  const applyContentBoxLayout = useCallback((box, scroll, desired) => {
+    const contentNeeded = scroll.scrollHeight + CONTENT_BOX_PICKER_CLEARANCE;
+    const finalHeight = Math.min(
+      CONTENT_BOX_MAX_HEIGHT,
+      Math.max(CONTENT_BOX_MIN_HEIGHT, desired),
+    );
+
+    box.style.height = `${finalHeight}px`;
+    scroll.style.overflowY = "auto";
+    scroll.style.maxHeight = `${finalHeight}px`;
+    return { finalHeight, contentNeeded };
+  }, []);
+
+  const clearManualBoxHeight = useCallback(() => {
+    contentBoxManualHeightRef.current = null;
+    setHasManualBoxHeight(false);
+    const box = contentBoxRef.current;
+    const scroll = contentScrollRef.current;
+    if (box) box.style.height = "";
+    if (scroll) {
+      scroll.style.maxHeight = "";
+      scroll.style.overflowY = "";
+    }
+  }, []);
+
   const syncContentBoxHeight = useCallback(() => {
     const box = contentBoxRef.current;
     const scroll = contentScrollRef.current;
     if (!box || !scroll) return;
-    if (contentFocusMode) return;
 
     const defaultHeight = isKnowledgeMode
       ? CONTENT_BOX_KNOWLEDGE_DEFAULT_HEIGHT
       : CONTENT_BOX_DEFAULT_HEIGHT;
-    const desired = Math.max(CONTENT_BOX_MIN_HEIGHT, scroll.scrollHeight, defaultHeight);
-    box.style.height = `${desired}px`;
+    const manual = contentBoxManualHeightRef.current;
+
+    if (contentFocusMode && manual == null) {
+      box.style.height = "";
+      scroll.style.maxHeight = "";
+      scroll.style.overflowY = "";
+      return;
+    }
+
+    if (manual != null) {
+      applyContentBoxLayout(box, scroll, manual);
+      return;
+    }
 
     if (!hasBlocks && bodyRef.current) {
       syncBodyHeightUncapped();
     }
 
-    const active = document.activeElement;
-    if (active instanceof HTMLTextAreaElement && scroll.contains(active)) {
-      scrollTextareaCaretIntoCameraView(active, { behavior: "instant" });
-    } else if (active instanceof HTMLElement && scroll.contains(active)) {
-      active.scrollIntoView({ block: "nearest", behavior: "instant" });
-    }
-  }, [hasBlocks, isKnowledgeMode, contentFocusMode, syncBodyHeightUncapped]);
+    applyContentBoxLayout(box, scroll, defaultHeight);
+  }, [hasBlocks, isKnowledgeMode, contentFocusMode, syncBodyHeightUncapped, applyContentBoxLayout]);
 
-  const exitContentFocusMode = useCallback(() => {
-    setContentFocusMode(false);
+  const handleContentResizePointerDown = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const box = contentBoxRef.current;
-    if (box) box.style.height = "";
+    const scroll = contentScrollRef.current;
+    if (!box || !scroll) return;
+
+    if (contentBoxManualHeightRef.current == null) {
+      contentBoxManualHeightRef.current = box.getBoundingClientRect().height;
+      setHasManualBoxHeight(true);
+    }
+
+    const startY = event.clientY;
+    const startHeight = contentBoxManualHeightRef.current;
+    setContentBoxResizing(true);
+    document.body.classList.add("doc-content-resizing");
+
+    const onMove = (moveEvent) => {
+      const next = Math.min(
+        CONTENT_BOX_MAX_HEIGHT,
+        Math.max(CONTENT_BOX_MIN_HEIGHT, startHeight + (moveEvent.clientY - startY)),
+      );
+      contentBoxManualHeightRef.current = next;
+      applyContentBoxLayout(box, scroll, next);
+    };
+
+    const onUp = () => {
+      setContentBoxResizing(false);
+      document.body.classList.remove("doc-content-resizing");
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+    };
+
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  }, [applyContentBoxLayout]);
+
+  const resetContentBoxHeight = useCallback(() => {
+    clearManualBoxHeight();
     requestAnimationFrame(() => {
       syncContentBoxHeight();
     });
-  }, [syncContentBoxHeight]);
+  }, [clearManualBoxHeight, syncContentBoxHeight]);
+
+  const exitContentFocusMode = useCallback(() => {
+    clearManualBoxHeight();
+    setContentFocusMode(false);
+    requestAnimationFrame(() => {
+      syncContentBoxHeight();
+    });
+  }, [clearManualBoxHeight, syncContentBoxHeight]);
 
   const toggleContentFocus = useCallback(() => {
     if (contentFocusMode) {
       exitContentFocusMode();
       return;
     }
+    clearManualBoxHeight();
     setContentFocusMode(true);
-  }, [contentFocusMode, exitContentFocusMode]);
+  }, [contentFocusMode, exitContentFocusMode, clearManualBoxHeight]);
 
   useEffect(() => {
     if (!contentFocusMode) return undefined;
-    const box = contentBoxRef.current;
-    if (box) box.style.height = "";
     const t = requestAnimationFrame(() => {
       requestAnimationFrame(focusContentArea);
     });
@@ -307,14 +389,8 @@ export function DocDocumentBox({
   }, [contentFocusMode, exitContentFocusMode]);
 
   const requestContentBoxGrow = useCallback(() => {
-    const runSync = () => {
-      if (!hasBlocks && bodyRef.current) syncBodyHeightUncapped();
-      syncContentBoxHeight();
-    };
-    requestAnimationFrame(() => {
-      runSync();
-      requestAnimationFrame(runSync);
-    });
+    if (!hasBlocks && bodyRef.current) syncBodyHeightUncapped();
+    syncContentBoxHeight();
   }, [hasBlocks, syncContentBoxHeight, syncBodyHeightUncapped]);
 
   const syncBodyHeight = useCallback(() => {
@@ -325,6 +401,10 @@ export function DocDocumentBox({
   useLayoutEffect(() => {
     syncTitleHeight();
   }, [title, syncTitleHeight]);
+
+  useLayoutEffect(() => {
+    syncContentBoxHeight();
+  }, [docId, contentFocusMode, syncContentBoxHeight]);
 
   useLayoutEffect(() => {
     if (hasBlocks) return;
@@ -344,7 +424,7 @@ export function DocDocumentBox({
       cancelAnimationFrame(id1);
       if (id2) cancelAnimationFrame(id2);
     };
-  }, [docId, normalizedBlocks, hasBlocks, syncContentBoxHeight]);
+  }, [docId, blocksStructureKey, hasBlocks, syncContentBoxHeight]);
 
   const isSlashCommandEnabled = useCallback((cmd) => {
     const parsed = parseSlashQuery(cmd.aliases[0]);
@@ -415,9 +495,6 @@ export function DocDocumentBox({
         requestContentBoxGrow();
         return;
       }
-    }
-    if (e.key === "Enter" && !e.shiftKey) {
-      requestContentBoxGrow();
     }
     if (e.key === "Escape" && slashTail) {
       const { prefix } = splitBodyForSlash(body);
@@ -531,6 +608,8 @@ export function DocDocumentBox({
         className={
           "doc-new-content-box doc-new-content-box--resizable"
           + (isKnowledgeMode ? " doc-new-content-box--knowledge-notes" : "")
+          + (hasManualBoxHeight ? " doc-new-content-box--manual-height" : "")
+          + (contentBoxResizing ? " is-resizing" : "")
         }
       >
         <div
@@ -580,7 +659,6 @@ export function DocDocumentBox({
               onFocusBlock={setFocusBlockId}
               bodyPlaceholder={bodyPlaceholder}
               onBodyKeyDown={onBodyKeyDown}
-              onEnterNewLine={requestContentBoxGrow}
               onOpenNodeForBlock={onOpenNodeForBlock || onOpenNodeForH1}
               onOpenNodeForH1={onOpenNodeForH1}
               onEnsureNodeForBlock={onEnsureNodeForBlock}
@@ -604,9 +682,7 @@ export function DocDocumentBox({
                 value={body}
                 onChange={(v) => {
                   onBodyChange?.(v);
-                  requestAnimationFrame(syncBodyHeight);
                 }}
-                onAfterInput={requestContentBoxGrow}
                 onKeyDown={handleTextareaKeyDown}
                 onFocus={() => {
                   if (showKnowledgeNotesPlaceholder) dismissKnowledgeHint();
@@ -620,6 +696,18 @@ export function DocDocumentBox({
             </div>
           )}
         </div>
+        <button
+          type="button"
+          className={
+            "doc-new-content-shrink-handle"
+            + (contentFocusMode ? "" : " doc-new-content-shrink-handle--normal")
+            + (contentBoxResizing ? " is-active" : "")
+          }
+          onPointerDown={handleContentResizePointerDown}
+          onDoubleClick={resetContentBoxHeight}
+          aria-label="Resize content area"
+          title="Drag to resize · double-click to reset"
+        />
         <DocSlashCommandPicker
           onSelectCommand={insertSlashCommandFromPicker}
           isCommandEnabled={isSlashCommandEnabled}

@@ -48,11 +48,15 @@ function focusTextInputWithCamera(input, caretPos) {
     const pos = caretPos ?? input.value.length;
     input.setSelectionRange(pos, pos);
   }
-  if (input.tagName === "TEXTAREA") {
-    requestAnimationFrame(() => {
-      scrollTextareaCaretIntoCameraView(input, { behavior: "smooth" });
-    });
-  }
+}
+
+function scrollCaretAfterNewline(blockId) {
+  requestAnimationFrame(() => {
+    const textarea = document.querySelector(`[data-block-id="${blockId}"] textarea`);
+    if (textarea instanceof HTMLTextAreaElement) {
+      scrollTextareaCaretIntoCameraView(textarea, { behavior: "instant" });
+    }
+  });
 }
 
 // #region agent log
@@ -107,10 +111,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     root.querySelectorAll("textarea").forEach((textarea) => {
       textarea.style.height = "auto";
       const minH = textarea.classList.contains("doc-h1-block__input--multiline") ? 22 : 28;
-      textarea.style.height = `${Math.max(textarea.scrollHeight, minH)}px`;
-      textarea.style.overflowY = "hidden";
+      const next = Math.max(textarea.scrollHeight, minH);
+      if (Math.abs(textarea.offsetHeight - next) > 1) {
+        textarea.style.height = `${next}px`;
+      }
+      textarea.style.overflowY = textarea.scrollHeight > next + 1 ? "auto" : "hidden";
     });
   }, []);
+
+  const blocksStructureKey = blocks.map((b) => `${b.id}:${b.type}`).join("|");
 
   const isCollapsedPadWriteBlock = (blockId) => {
     if (!blockId) return false;
@@ -455,7 +464,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       cancelAnimationFrame(id1);
       if (id2) cancelAnimationFrame(id2);
     };
-  }, [blocks, collapsedContentByBlockId, collapsedPadWriteByOwnerId, resyncAllTextHeights]);
+  }, [blocksStructureKey, collapsedContentByBlockId, collapsedPadWriteByOwnerId, resyncAllTextHeights]);
 
   const setBlocks = (next) => {
     const merged = normalizeDocBlocks(next);
@@ -609,7 +618,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       syncAnswerBelowH1(next, blockIndex, nextText);
     }
     focusBlockCaret(blockId, caretStart + 1);
-    requestContentGrow();
+    scrollCaretAfterNewline(blockId);
   };
 
   const focusTodoItem = (blockId, itemId) => {
@@ -1166,7 +1175,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 onFocusBlock?.(block.id);
               }}
               onKeyDown={(e) => handleTextKeyDown(index, e)}
-              onAfterInput={requestContentGrow}
             />
           ) : null}
         </div>
@@ -1194,7 +1202,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   );
                   if (writeIndex >= 0) handleTextKeyDown(writeIndex, e);
                 }}
-                onAfterInput={requestContentGrow}
               />
             </div>
           </div>

@@ -3,7 +3,7 @@ export const PATHS = {
   home: '/',
   horizon: '/horizon',
   how: '/how',
-  marketplace: '/marketplace',
+  marketplace: '/horizon',
   blogs: '/blogs',
   welcome: '/welcome',
   app: '/app',

@@ -15,7 +15,7 @@ export const TINA_PREVIEW_ROUTES = {
   home: '/',
   horizon: '/horizon',
   how: '/how',
-  marketplace: '/marketplace',
+  marketplace: '/horizon',
   blogsPage: '/blogs',
 };
 

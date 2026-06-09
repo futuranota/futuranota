@@ -1,36 +1,128 @@
 import { Link } from 'react-router-dom';
-import { PATHS } from '../lib/paths.js';
+import { PATHS, blogPostPath } from '../lib/paths.js';
 import { getHorizon } from '../lib/content.js';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
-function OppCard({ o }) {
+const KIT_LABELS = {
+  'website-plugin': 'Website + plugin',
+  instructions: 'Instructions only',
+};
+
+function normalizeItem(raw = {}, index = 0) {
+  const org = Array.isArray(raw.org) ? raw.org.filter(Boolean) : [];
+  const includes = Array.isArray(raw.includes) ? raw.includes.filter(Boolean) : [];
+  const kitType = raw.kitType === 'website-plugin' ? 'website-plugin' : 'instructions';
+  const previewUrl = typeof raw.previewUrl === 'string' ? raw.previewUrl.trim() : '';
+  const blogSlug = typeof raw.blogSlug === 'string' ? raw.blogSlug.trim() : '';
+  const downloadUrl = raw.downloadUrl || '#';
+  const free = Boolean(raw.free) || raw.price === 'Free';
+
+  return {
+    key: raw.title || `horizon-item-${index}`,
+    tag: raw.tag || 'HORIZON',
+    title: raw.title || '',
+    desc: raw.desc || '',
+    org,
+    includes,
+    free,
+    price: raw.price || (free ? 'Free' : ''),
+    kitType,
+    kitLabel: KIT_LABELS[kitType],
+    rating: raw.rating || '',
+    reviews: raw.reviews ?? null,
+    downloads: raw.downloads || '',
+    trend: Boolean(raw.trend),
+    hot: Boolean(raw.hot),
+    downloadUrl,
+    previewUrl,
+    blogSlug,
+    readHref: blogSlug ? blogPostPath(blogSlug) : `${PATHS.blogs}?cat=Horizon`,
+  };
+}
+
+function HorizonCard({ item }) {
+  const showPreview = Boolean(item.previewUrl);
+  const stat = item.free
+    ? (item.downloads ? `★ ${item.downloads} downloads` : '')
+    : [
+        item.rating ? `★ ${item.rating}` : '',
+        item.reviews != null ? `${item.reviews} reviews` : '',
+      ].filter(Boolean).join(' · ');
+
   return (
-    <article className="opp card" data-screen-label={`opp-${o.title}`}>
-      <div className="opp__illu ph" style={{ aspectRatio: '16 / 9' }}>
-        <span className="ph__tag">illustration · {o.tag.toLowerCase()}</span>
+    <article className="horizon-card card" data-screen-label={`horizon-${item.title}`}>
+      <div className="horizon-card__preview ph" style={{ aspectRatio: '16 / 10' }}>
+        <span className="ph__tag">kit preview · {item.tag.toLowerCase()}</span>
+        {item.free && <span className="chip chip--signal horizon-card__badge">Free</span>}
+        {item.hot && !item.free && (
+          <span className="chip chip--accent horizon-card__badge">
+            <span className="pulse" style={{ background: 'var(--accent)' }} />Best seller
+          </span>
+        )}
+        {item.trend && !item.hot && (
+          <span className="chip chip--signal horizon-card__badge"><span className="pulse" />Trending</span>
+        )}
       </div>
-      <div className="opp__body">
+      <div className="horizon-card__body">
         <div className="eyebrow-row">
-          <span className="chip chip--accent">{o.tag}</span>
-          {o.trend && <span className="chip chip--signal"><span className="pulse" />Trending</span>}
+          <span className="chip chip--accent">{item.tag}</span>
+          <span className="chip">{item.kitLabel}</span>
         </div>
-        <h3 className="h3 opp__title">{o.title}</h3>
-        <p className="muted opp__desc">{o.desc}</p>
-        <div className="opp__org" style={{ fontFamily: 'Helvetica' }}>
-          <div className="opp__org-head mono-sm faint">// how it organizes in futura</div>
-          <div className="opp__nodes">
-            {o.org.map((n, i) => {
-              const [hash, ...rest] = n.split('  ');
-              return <div className="node" key={i}><span className="node__hash">{hash}</span>{rest.join('  ')}</div>;
-            })}
+        <h3 className="h3 horizon-card__title">{item.title}</h3>
+        <p className="muted horizon-card__desc">{item.desc}</p>
+
+        {item.org.length > 0 && (
+          <div className="opp__org" style={{ fontFamily: 'Helvetica' }}>
+            <div className="opp__org-head mono-sm faint">// how it organizes in futura</div>
+            <div className="opp__nodes">
+              {item.org.map((n, i) => {
+                const [hash, ...rest] = n.split('  ');
+                return (
+                  <div className="node" key={i}>
+                    <span className="node__hash">{hash}</span>
+                    {rest.join('  ')}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
-        <div className="opp__foot">
-          <div className="opp__cta">
-            <a href="#" className="btn btn-primary btn-sm">Download prototype</a>
-            <Link to={PATHS.app} className="btn btn-ghost btn-sm">Open in Futura</Link>
+        )}
+
+        {item.includes.length > 0 && (
+          <div className="horizon-card__includes">
+            {item.includes.map((label) => (
+              <span className="chip" key={label}>{label}</span>
+            ))}
           </div>
-          <span className="opp__stat mono-sm faint">★ {o.downloads} downloads</span>
+        )}
+
+        <div className="horizon-card__foot">
+          <div className="horizon-card__meta">
+            <span className="horizon-card__price">{item.price}</span>
+            {stat ? <span className="mono-sm faint">{stat}</span> : null}
+          </div>
+          <div className="horizon-card__cta">
+            <a href={item.downloadUrl} className="btn btn-sm btn-primary">
+              Download &amp; import
+            </a>
+            {showPreview ? (
+              <a
+                href={item.previewUrl}
+                className="btn btn-ghost btn-sm"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Preview
+              </a>
+            ) : (
+              <span className="btn btn-ghost btn-sm is-disabled" aria-disabled="true" title="Preview available on website + plugin kits">
+                Preview
+              </span>
+            )}
+            <Link to={item.readHref} className="btn btn-ghost btn-sm">
+              Read
+            </Link>
+          </div>
         </div>
       </div>
     </article>
@@ -39,10 +131,13 @@ function OppCard({ o }) {
 
 export function Horizon() {
   const pageTina = usePageTina();
-  const { header, opportunities } = pageTina?.document ?? getHorizon();
+  const raw = pageTina?.document ?? getHorizon();
+  const fallback = getHorizon();
+  const header = { ...fallback.header, ...raw.header };
+  const items = (raw.opportunities ?? fallback.opportunities ?? []).map(normalizeItem);
 
   return (
-    <section className="section" id="horizon" data-screen-label="horizon">
+    <section className="section horizon" id="horizon" data-screen-label="horizon">
       <div className="container">
         <div className="block-head">
           <div className="section-head">
@@ -50,10 +145,14 @@ export function Horizon() {
             <h2 className="h2" {...pageTinaProps('header.title')}>{header.title}</h2>
             <p className="lead" {...pageTinaProps('header.lead')}>{header.lead}</p>
           </div>
-          <Link to={PATHS.marketplace} className="link-arrow block-head__link">{header.linkLabel} <span className="arrow">→</span></Link>
+          <a href="#horizon-grid" className="link-arrow block-head__link">
+            {header.linkLabel} <span className="arrow">→</span>
+          </a>
         </div>
-        <div className="opp-grid grid">
-          {opportunities.map((o) => <OppCard key={o.title} o={o} />)}
+        <div className="horizon-grid grid" id="horizon-grid">
+          {items.map((item) => (
+            <HorizonCard key={item.key} item={item} />
+          ))}
         </div>
       </div>
     </section>

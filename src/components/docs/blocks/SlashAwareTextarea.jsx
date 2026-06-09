@@ -7,7 +7,6 @@ const CARET_CAMERA_KEYS = new Set([
   "ArrowDown",
   "ArrowLeft",
   "ArrowRight",
-  "Enter",
   "PageUp",
   "PageDown",
   "Home",
@@ -49,7 +48,7 @@ export function SlashAwareTextarea({
   const caretCameraRafRef = useRef(null);
   const [hintIndex, setHintIndex] = useState(0);
 
-  const scheduleCaretCameraScroll = useCallback((behavior = "smooth") => {
+  const scheduleCaretCameraScroll = useCallback(() => {
     if (caretCameraRafRef.current) {
       cancelAnimationFrame(caretCameraRafRef.current);
     }
@@ -57,7 +56,7 @@ export function SlashAwareTextarea({
       caretCameraRafRef.current = null;
       const el = textareaRef.current;
       if (!el) return;
-      scrollTextareaCaretIntoCameraView(el, { behavior });
+      scrollTextareaCaretIntoCameraView(el, { behavior: "instant" });
     });
   }, [textareaRef]);
 
@@ -120,32 +119,24 @@ export function SlashAwareTextarea({
     if (!el) return;
     if (!force && !isFieldVisible(el)) return;
     el.style.height = "auto";
-    const next = Math.min(el.scrollHeight, heightCap);
-    el.style.height = `${Math.max(next, minHeightPx)}px`;
-    el.style.overflowY = el.scrollHeight > heightCap ? "auto" : "hidden";
+    const measured = el.scrollHeight;
+    const next = Math.min(Math.max(measured, minHeightPx), heightCap);
+    if (Math.abs(el.offsetHeight - next) > 1) {
+      el.style.height = `${next}px`;
+    }
+    el.style.overflowY = measured > next + 1 ? "auto" : "hidden";
   }, [heightCap, isFieldVisible, minHeightPx, textareaRef]);
 
   useLayoutEffect(() => {
     syncHeight(true);
-    const id = requestAnimationFrame(() => syncHeight(true));
-    return () => cancelAnimationFrame(id);
   }, [value, syncHeight]);
-
-  useLayoutEffect(() => {
-    const el = textareaRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return undefined;
-    const observer = new ResizeObserver(() => syncHeight());
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [syncHeight, textareaRef]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el || typeof IntersectionObserver === "undefined") return undefined;
     const observer = new IntersectionObserver((entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return;
-      el.style.height = "auto";
-      requestAnimationFrame(() => syncHeight(true));
+      syncHeight(true);
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -185,18 +176,6 @@ export function SlashAwareTextarea({
         rows={1}
         onChange={(e) => {
           onChange(collapseDuplicateSlashTail(e.target.value));
-          requestAnimationFrame(() => {
-            syncHeight();
-            onAfterInput?.();
-            scheduleCaretCameraScroll();
-          });
-        }}
-        onPaste={() => {
-          requestAnimationFrame(() => {
-            syncHeight();
-            onAfterInput?.();
-            scheduleCaretCameraScroll();
-          });
         }}
         onKeyDown={(e) => {
           onKeyDown?.(e);
@@ -204,17 +183,9 @@ export function SlashAwareTextarea({
             scheduleCaretCameraScroll();
           }
         }}
-        onKeyUp={(e) => {
-          if (CARET_CAMERA_KEYS.has(e.key)) {
-            scheduleCaretCameraScroll();
-          }
-        }}
-        onClick={() => scheduleCaretCameraScroll()}
         onBlur={onBlur}
         onFocus={(e) => {
-          syncHeight();
           onFocus?.(e);
-          scheduleCaretCameraScroll();
         }}
         spellCheck={false}
         aria-label={ariaLabel}

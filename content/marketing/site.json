@@ -1,14 +1,13 @@
 {
   "nav": {
     "links": [
-      { "label": "Horizon", "path": "/horizon" },
-      { "label": "Marketplace", "path": "/marketplace" }
+      { "label": "Horizon", "path": "/horizon" }
     ]
   },
   "footer": {
     "columns": [
       { "heading": "Product", "links": ["Features", "Pricing", "Documentation", "Changelog"] },
-      { "heading": "Learn", "links": ["Blogs", "Marketplace", "Horizon", "How it works"] },
+      { "heading": "Learn", "links": ["Blogs", "Horizon", "How it works"] },
       { "heading": "Community", "links": ["GitHub", "Twitter / X", "Discord", "Contact"] },
       { "heading": "Legal", "links": ["Privacy", "Terms", "Cookies"] }
     ],
@@ -22,30 +21,26 @@
       "cards": [
         { "title": "Marketing", "description": "Resources and ideas to put modern makers ahead of the curve", "href": "/blogs?cat=Marketing" },
         { "title": "Sales", "description": "Strategies to help you elevate your sales efforts", "href": "/blogs?cat=Sales" },
-        { "title": "Branding", "description": "Build a brand that ships before the window closes", "href": "/blogs?cat=Branding" },
-        { "title": "Website", "description": "Tutorials and how-tos to build better launches online", "href": "/blogs?cat=Website" }
+        { "title": "Commerce", "description": "Tutorials and how-tos to build better launches online", "href": "/blogs?cat=Commerce" },
+        { "title": "Horizon", "description": "Opportunities, signals, and windows worth building before they close", "href": "/blogs?cat=Horizon" }
       ]
     },
     {
       "id": "topics",
       "label": "Topics",
       "cards": [
-        { "title": "Marketing Automation", "description": "Personalize campaigns, nurture leads, and drive growth", "href": "/blogs?cat=Marketing" },
         { "title": "Customer Service", "description": "Deliver seamless support and memorable experiences", "href": "/blogs?cat=Sales" },
-        { "title": "Website & Content", "description": "High-performing sites and content that convert", "href": "/blogs?cat=Website" },
+        { "title": "Commerce & Content", "description": "High-performing sites and content that convert", "href": "/blogs?cat=Commerce" },
         { "title": "Data & Analytics", "description": "Measure performance and turn data into action", "href": "/blogs?cat=Trends" },
-        { "title": "AI & Automation", "description": "Use AI to streamline work and scale smarter efforts", "href": "/blogs?cat=Trends" },
-        { "title": "Ecommerce", "description": "Selling online and optimizing the digital buying experience", "href": "/blogs?cat=Ecommerce" }
+        { "title": "AI & Automation", "description": "Use AI to streamline work and scale smarter efforts", "href": "/blogs?cat=Trends" }
       ]
     },
     {
       "id": "insights",
       "label": "Insights",
       "cards": [
-        { "title": "Case Studies", "description": "Success stories from makers using Futura Nota", "href": "/blogs?cat=Validation" },
         { "title": "Newsletters", "description": "Subscribe to industry signals in your inbox", "href": "/blogs" },
-        { "title": "Company News", "description": "Latest updates from Futura Nota", "href": "/blogs" },
-        { "title": "Resources & Templates", "description": "Free tools and templates for your next window", "href": "/blogs" }
+        { "title": "Company News", "description": "Latest updates from Futura Nota", "href": "/blogs" }
       ]
     }
   ]
