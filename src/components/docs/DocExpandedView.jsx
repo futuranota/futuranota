@@ -167,8 +167,6 @@ export function DocExpandedView({
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
   const [nodeInitialSnapshot, setNodeInitialSnapshot] = useState(null);
-  const [nodeSavedHint, setNodeSavedHint] = useState(false);
-  const [docSavedHint, setDocSavedHint] = useState(false);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
   const [pendingNavigateDocId, setPendingNavigateDocId] = useState(null);
@@ -202,8 +200,6 @@ export function DocExpandedView({
     setDraftTemplateKind(normalized.templateKind ?? null);
     setDraftSubcategoryDocIds(normalized.subcategoryDocIds ?? []);
     setDraftKnowledgeImport(normalized.knowledgeImport ?? null);
-    setNodeSavedHint(false);
-    setDocSavedHint(false);
     setInitialSnapshot(
       buildDocPersistSnapshot({
         title: isProductDoc(normalized)
@@ -363,7 +359,6 @@ export function DocExpandedView({
     if (createdNode && onInsertToCanvas) {
       onInsertToCanvas(createdNode, { center: true });
     }
-    setDocSavedHint(false);
   };
 
   const handleSave = () => {
@@ -412,8 +407,6 @@ export function DocExpandedView({
       linkDocToObject(doc.id, draftParentId || null);
     }
     setInitialSnapshot(savedSnapshot);
-    setDocSavedHint(true);
-    setNodeSavedHint(false);
     onAfterDocSave?.(doc.id, savedSnapshot.blocks);
   };
 
@@ -488,14 +481,12 @@ export function DocExpandedView({
     const trimmed = trimmedVersion.trim();
     if (!trimmed) {
       setDraftVersion("");
-      setDocSavedHint(false);
       return;
     }
 
     const category = draftCategory.trim();
     if (!category) {
       setDraftVersion(trimmed);
-      setDocSavedHint(false);
       return;
     }
 
@@ -758,7 +749,6 @@ export function DocExpandedView({
       if (answer.trim()) blockContent = answer;
     }
 
-    setNodeSavedHint(false);
     setActiveNodeContext({
       blockId: block.id,
       blockIndex,
@@ -865,7 +855,6 @@ export function DocExpandedView({
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
     setNodeInitialSnapshot(null);
-    setNodeSavedHint(true);
   };
 
   const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
@@ -873,7 +862,6 @@ export function DocExpandedView({
       setDraftTitle(importTitle);
     }
     if (nextImport) setDraftKnowledgeImport(nextImport);
-    setDocSavedHint(false);
   };
 
   return (
@@ -885,7 +873,6 @@ export function DocExpandedView({
           onTitleChange={(v) => {
             setDraftTitle(v);
             if (isProductMode) setDraftCategory(v);
-            setDocSavedHint(false);
           }}
           titlePlaceholder={
             isProductMode
@@ -897,44 +884,36 @@ export function DocExpandedView({
           body={draftBody}
           onBodyChange={(v) => {
             setDraftBody(v);
-            setDocSavedHint(false);
           }}
           blocks={draftBlocks}
           onBlocksChange={(next) => {
             setDraftBlocks(next);
-            setDocSavedHint(false);
           }}
           createdDate={draftCreatedDate}
           onCreatedDateChange={(v) => {
             setDraftCreatedDate(v);
-            setDocSavedHint(false);
           }}
           version={isTemplate ? "" : draftVersion}
           onVersionChange={isTemplate ? undefined : (v) => {
             setDraftVersion(v);
-            setDocSavedHint(false);
           }}
           onVersionCommit={isTemplate ? undefined : handleVersionCommit}
           category={isTemplate ? "" : draftCategory}
           onCategoryChange={isTemplate ? undefined : (v) => {
             setDraftCategory(v);
             if (isProductMode) setDraftTitle(v);
-            setDocSavedHint(false);
           }}
           launchDate={isTemplate ? "" : draftLaunchDate}
           onLaunchDateChange={isTemplate ? undefined : (v) => {
             setDraftLaunchDate(v);
-            setDocSavedHint(false);
           }}
           campaignActive={draftCampaignActive}
           onCampaignActiveChange={isTemplate ? undefined : (v) => {
             setDraftCampaignActive(v);
-            setDocSavedHint(false);
           }}
           parentId={draftParentId}
           onParentIdChange={isKnowledgeMode ? undefined : (v) => {
             setDraftParentId(v);
-            setDocSavedHint(false);
           }}
           docKind={draftDocKind}
           metaMode={metaMode}
@@ -942,14 +921,12 @@ export function DocExpandedView({
           subcategoryDocIds={draftSubcategoryDocIds}
           onSubcategoryDocIdsChange={(ids) => {
             setDraftSubcategoryDocIds(ids);
-            setDocSavedHint(false);
           }}
           allDocs={allDocs}
           docId={doc.id}
           nodeLinkColor={draftNodeLinkColor}
           onNodeLinkColorChange={(v) => {
             setDraftNodeLinkColor(v);
-            setDocSavedHint(false);
           }}
           objects={objectList}
           onDelete={handleDeleteDoc}
@@ -968,19 +945,6 @@ export function DocExpandedView({
           initialFocusBlockId={initialFocusBlockId}
         />
       </div>
-      {docSavedHint ? (
-        <span className="notes-doc-editor-hint notes-doc-editor-hint--node-saved">
-          Documento guardado. El editor sigue abierto.
-        </span>
-      ) : nodeSavedHint ? (
-        <span className="notes-doc-editor-hint notes-doc-editor-hint--node-saved">
-          Nodo guardado en el documento. Pulsa save del documento para persistir todo.
-        </span>
-      ) : (
-        <span className="notes-doc-editor-hint">
-          Clic derecho con texto seleccionado → crear nodo
-        </span>
-      )}
       {selectionModal && (
         <NodeFromSelectionModal
           query={selectionModal.query}

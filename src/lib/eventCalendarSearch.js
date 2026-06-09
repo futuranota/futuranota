@@ -162,3 +162,48 @@ export function buildEventNodeTitle(fetchResult) {
   const title = fetchResult.event?.title;
   return title ? `Event · ${title}` : `Event · ${fetchResult.uiDate || "—"}`;
 }
+
+/**
+ * @param {unknown} content
+ * @returns {object|null}
+ */
+export function parseCalendarEventNodeContent(content) {
+  if (content == null || content === "") return null;
+
+  let parsed = content;
+  if (typeof content === "string") {
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object" || parsed.kind !== "calendar-event") {
+    return null;
+  }
+
+  return parsed;
+}
+
+/**
+ * @param {object|null|undefined} payload
+ */
+export function calendarEventPayloadToResult(payload) {
+  if (!payload) return null;
+
+  return {
+    uiDate: payload.uiDate || "",
+    rangeLabel: payload.rangeLabel || null,
+    sourceLabel: payload.scheduleLabel || "",
+    event: {
+      id: payload.eventId || null,
+      title: payload.title || "",
+      summary: payload.summary || "",
+      date: payload.date || "",
+      dateEnd: payload.dateEnd || null,
+      source: payload.source || "",
+      type: payload.type || "",
+    },
+  };
+}

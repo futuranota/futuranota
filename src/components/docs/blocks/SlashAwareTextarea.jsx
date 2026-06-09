@@ -88,41 +88,18 @@ export function SlashAwareTextarea({
   const syncHeight = useCallback((force = false) => {
     const el = textareaRef.current;
     if (!el) return;
-    const visible = isFieldVisible(el);
-    if (!visible && !force) return;
+    if (!force && !isFieldVisible(el)) return;
     el.style.height = "auto";
     const next = Math.min(el.scrollHeight, heightCap);
     el.style.height = `${Math.max(next, minHeightPx)}px`;
     el.style.overflowY = el.scrollHeight > heightCap ? "auto" : "hidden";
-    // #region agent log
-    fetch("http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "a58ec5" },
-      body: JSON.stringify({
-        sessionId: "a58ec5",
-        runId: "post-fix-v2",
-        location: "SlashAwareTextarea.jsx:syncHeight",
-        message: "synced",
-        data: {
-          valueLen: el.value.length,
-          clientHeight: el.clientHeight,
-          scrollHeight: el.scrollHeight,
-          visible,
-          force,
-        },
-        hypothesisId: "D",
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
   }, [heightCap, isFieldVisible, minHeightPx, textareaRef]);
 
   useLayoutEffect(() => {
-    const el = textareaRef.current;
-    if (!el || !isFieldVisible(el)) return;
-    el.style.height = "auto";
-    requestAnimationFrame(() => syncHeight());
-  }, [value, syncHeight, isFieldVisible]);
+    syncHeight(true);
+    const id = requestAnimationFrame(() => syncHeight(true));
+    return () => cancelAnimationFrame(id);
+  }, [value, syncHeight]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;

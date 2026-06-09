@@ -10,6 +10,11 @@ import {
 import { formatScheduleLabelFromIso } from './lib/nodeAnchor.js';
 import { resolveConnectionLinkColor } from './lib/docNodeLinkColors.js';
 import { resolveVideoEmbedFromNodeContent } from './lib/videoEmbed.js';
+import {
+  calendarEventPayloadToResult,
+  parseCalendarEventNodeContent,
+} from './lib/eventCalendarSearch.js';
+import { CalendarEventResultBox } from './components/intel/CalendarEventResultBox.jsx';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
 import {
   isContentDoc,
@@ -395,6 +400,17 @@ function CanvasNode({
     }
     if (node.dataType === "text") {
       const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+      const calendarPayload = parseCalendarEventNodeContent(entity?.content ?? node.content);
+      if (calendarPayload) {
+        const calendarResult = calendarEventPayloadToResult(calendarPayload);
+        if (calendarResult?.event) {
+          return (
+            <div className="cnode-v cnode-v--compact cnode-v--calendar-event">
+              <CalendarEventResultBox result={calendarResult} showInsert={false} />
+            </div>
+          );
+        }
+      }
       const anchorIso = entity?.anchorAt || node.anchorAt;
       const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
       const parentTag = resolveCanvasParentDocTag(node, nodeEntitiesById, docsById);
@@ -487,6 +503,12 @@ function CanvasNode({
       ? resolveCanvasDocTitle(node, docsById)
       : node.title;
 
+  const calendarEventPayload = node.dataType === "text"
+    ? parseCalendarEventNodeContent(
+      (node.noteId ? nodeEntitiesById[node.noteId] : null)?.content ?? node.content,
+    )
+    : null;
+
   const cls = ["cnode"];
   if (selected && timelineQueueMode) cls.push("cnode--timeline-pick");
   else if (selected) cls.push("selected");
@@ -494,6 +516,8 @@ function CanvasNode({
   if (node.hidden) cls.push("hidden");
   if (knowledgeCorpus) {
     cls.push("cnode--knowledge-corpus", "cnode--card-compact");
+  } else if (calendarEventPayload) {
+    cls.push("cnode--calendar-event", "cnode--card-compact");
   } else if (node.dataType === "text" || node.dataType === "document") {
     cls.push("cnode--card-compact");
   } else if (node.dataType === "video") {
@@ -524,7 +548,7 @@ function CanvasNode({
       onMouseUp={(e) => { if (isConnectingFrom && isConnectingFrom !== node.id) onPortMouseUp(node.id); }}
     >
       <div className="cnode-h">
-        {editing === "title" ? (
+        {calendarEventPayload ? null : editing === "title" ? (
           <input
             className="cnode-k"
             autoFocus
