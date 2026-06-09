@@ -1838,7 +1838,6 @@
   color: color-mix(in oklab, #dcb2a6 70%, var(--dim));
 }
 
-.doc-new-content-scroll--hint-active .doc-body-field-wrap,
 .doc-new-content-scroll--hint-active .doc-block-stack {
   pointer-events: none;
 }
