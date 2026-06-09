@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DOC_SLASH_GHOST_HINTS, getSlashTail, splitBodyForSlash } from "../../../lib/docBlockSlash.js";
+import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
+
+const CARET_CAMERA_KEYS = new Set([
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Enter",
+  "PageUp",
+  "PageDown",
+  "Home",
+  "End",
+]);
 
 function collapseDuplicateSlashTail(value) {
   const tail = getSlashTail(value);
@@ -33,7 +46,24 @@ export function SlashAwareTextarea({
 }) {
   const internalRef = useRef(null);
   const textareaRef = externalRef || internalRef;
+  const caretCameraRafRef = useRef(null);
   const [hintIndex, setHintIndex] = useState(0);
+
+  const scheduleCaretCameraScroll = useCallback((behavior = "smooth") => {
+    if (caretCameraRafRef.current) {
+      cancelAnimationFrame(caretCameraRafRef.current);
+    }
+    caretCameraRafRef.current = requestAnimationFrame(() => {
+      caretCameraRafRef.current = null;
+      const el = textareaRef.current;
+      if (!el) return;
+      scrollTextareaCaretIntoCameraView(el, { behavior });
+    });
+  }, [textareaRef]);
+
+  useEffect(() => () => {
+    if (caretCameraRafRef.current) cancelAnimationFrame(caretCameraRafRef.current);
+  }, []);
 
   const { prefix, slash } = splitBodyForSlash(value);
   const slashActive = Boolean(slash);
@@ -158,19 +188,33 @@ export function SlashAwareTextarea({
           requestAnimationFrame(() => {
             syncHeight();
             onAfterInput?.();
+            scheduleCaretCameraScroll();
           });
         }}
         onPaste={() => {
           requestAnimationFrame(() => {
             syncHeight();
             onAfterInput?.();
+            scheduleCaretCameraScroll();
           });
         }}
-        onKeyDown={onKeyDown}
+        onKeyDown={(e) => {
+          onKeyDown?.(e);
+          if (!e.defaultPrevented && CARET_CAMERA_KEYS.has(e.key)) {
+            scheduleCaretCameraScroll();
+          }
+        }}
+        onKeyUp={(e) => {
+          if (CARET_CAMERA_KEYS.has(e.key)) {
+            scheduleCaretCameraScroll();
+          }
+        }}
+        onClick={() => scheduleCaretCameraScroll()}
         onBlur={onBlur}
         onFocus={(e) => {
           syncHeight();
           onFocus?.(e);
+          scheduleCaretCameraScroll();
         }}
         spellCheck={false}
         aria-label={ariaLabel}
