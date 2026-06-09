@@ -156,7 +156,9 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       embedSrc,
       ownerH1Id: patch.ownerH1Id || undefined,
       parseError: patch.parseError ?? parsed?.error ?? null,
-      embedSaved: Boolean(patch.embedSaved ?? embedSrc),
+      embedSaved: patch.embedSaved !== undefined
+        ? Boolean(patch.embedSaved)
+        : Boolean(embedSrc),
     };
   }
 

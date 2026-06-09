@@ -2538,6 +2538,7 @@
 }
 
 .doc-new-content-box--resizable {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: auto;
@@ -2606,11 +2607,11 @@
 
 .doc-new-content-scroll {
   position: relative;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 72px;
   overflow-y: visible;
   overflow-x: hidden;
-  padding: 6px 32px 40px 0;
+  padding: 6px 32px 12px 0;
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.28) var(--doc-body-track);
@@ -3362,7 +3363,7 @@
 .doc-slash-command-picker--floating {
   position: absolute;
   right: 12px;
-  bottom: 10px;
+  bottom: 6px;
   z-index: 6;
 }
 

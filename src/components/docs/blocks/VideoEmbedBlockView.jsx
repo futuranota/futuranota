@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { parseVideoEmbedInput } from "../../../lib/videoEmbed.js";
+import {
+  normalizeEmbedSrcForPlayback,
+  parseVideoEmbedInput,
+} from "../../../lib/videoEmbed.js";
 
 export function VideoEmbedBlockView({ block, onChange, onDelete }) {
   const [draft, setDraft] = useState(block?.rawInput || "");
@@ -102,11 +105,11 @@ export function VideoEmbedBlockView({ block, onChange, onDelete }) {
             ×
           </button>
           <iframe
-            src={block.embedSrc}
+            src={normalizeEmbedSrcForPlayback(block.embedSrc)}
             title={block.provider === "vimeo" ? "Vimeo preview" : "YouTube preview"}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
-            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
           />
         </div>
       )}

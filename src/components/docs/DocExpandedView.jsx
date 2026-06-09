@@ -709,11 +709,13 @@ export function DocExpandedView({
 
   const handleEnsureNodeForBlock = (blockIndex, block) => ensureBlockNode(blockIndex, block);
 
-  const handleVideoEmbedSync = (videoIndex) => {
-    setDraftBlocks((prev) => {
-      syncVideoNodeFromVideoBlock(prev, videoIndex, {}, updateNode);
-      return prev;
-    });
+  const handleVideoEmbedSync = (videoIndex, videoPatch = {}, blocksSnapshot) => {
+    syncVideoNodeFromVideoBlock(
+      blocksSnapshot ?? draftBlocks,
+      videoIndex,
+      videoPatch,
+      updateNode,
+    );
   };
 
   const handleVideoEmbedH1TitleChange = (h1Index) => {
