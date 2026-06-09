@@ -1,4 +1,4 @@
-export function CalendarEventResultBox({ result, onInsert }) {
+export function CalendarEventResultBox({ result, onInsert, showInsert = true }) {
   const event = result?.event;
   if (!event) return null;
 
@@ -23,13 +23,15 @@ export function CalendarEventResultBox({ result, onInsert }) {
           <p className="cal-event-result__source-name">{event.source}</p>
         ) : null}
       </div>
-      <button
-        type="button"
-        className="cal-event-result__insert btn xs"
-        onClick={onInsert}
-      >
-        Insert node
-      </button>
+      {showInsert && onInsert ? (
+        <button
+          type="button"
+          className="cal-event-result__insert btn xs"
+          onClick={onInsert}
+        >
+          Insert node
+        </button>
+      ) : null}
     </div>
   );
 }

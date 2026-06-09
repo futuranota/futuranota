@@ -1,4 +1,13 @@
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, Fragment, forwardRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+  Fragment,
+  forwardRef,
+} from "react";
 import {
   createDocBlock,
   createTodoItem,
@@ -72,10 +81,22 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
+  const stackRef = useRef(null);
 
   useLayoutEffect(() => {
     blocksRef.current = blocks;
   }, [blocks]);
+
+  const resyncAllTextHeights = useCallback(() => {
+    const root = stackRef.current;
+    if (!root) return;
+    root.querySelectorAll("textarea").forEach((textarea) => {
+      textarea.style.height = "auto";
+      const minH = textarea.classList.contains("doc-h1-block__input--multiline") ? 22 : 28;
+      textarea.style.height = `${Math.max(textarea.scrollHeight, minH)}px`;
+      textarea.style.overflowY = "hidden";
+    });
+  }, []);
 
   const isCollapsedPadWriteBlock = (blockId) => {
     if (!blockId) return false;
@@ -418,6 +439,17 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   useLayoutEffect(() => {
     requestContentGrow();
   }, [collapsedContentByBlockId, collapsedPadWriteByOwnerId]);
+
+  useLayoutEffect(() => {
+    let id2;
+    const id1 = requestAnimationFrame(() => {
+      id2 = requestAnimationFrame(resyncAllTextHeights);
+    });
+    return () => {
+      cancelAnimationFrame(id1);
+      if (id2) cancelAnimationFrame(id2);
+    };
+  }, [blocks, collapsedContentByBlockId, collapsedPadWriteByOwnerId, resyncAllTextHeights]);
 
   const setBlocks = (next) => {
     const merged = normalizeDocBlocks(next);
@@ -893,10 +925,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   useImperativeHandle(ref, () => ({
     insertSlashCommand: insertSlashCommandAtFocus,
+    resyncTextHeights: resyncAllTextHeights,
   }));
 
   return (
-    <div className="doc-block-stack">
+    <div className="doc-block-stack" ref={stackRef}>
       {blocks.map((block, index) => {
         const itemHidden =
           block.type === DOC_BLOCK_TYPES.TEXT && isTextHiddenByParentCollapse(index);

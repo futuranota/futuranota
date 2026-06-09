@@ -1739,6 +1739,23 @@ textarea.field {
   text-overflow: ellipsis;
 }
 
+.cnode--calendar-event {
+  min-width: 268px;
+  max-width: 308px;
+  padding: 0;
+}
+.cnode--calendar-event .cnode-h {
+  display: none;
+}
+.cnode--calendar-event .cnode-v--calendar-event {
+  padding: 0;
+}
+.cnode--calendar-event .cal-event-result {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+
 .cnode--video {
   min-width: 280px;
   max-width: 360px;

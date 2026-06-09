@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DOC_SLASH_COMMANDS } from "../../../lib/docBlockSlash.js";
 
-const COMMAND_ICON_DEFAULT = "/uploads/botones/command-hover.svg";
-const COMMAND_ICON_ACTIVE = "/uploads/botones/command-hover.svg";
-
 /** Floating slash-command picker — default access to block commands. */
 export function DocSlashCommandPicker({
   onSelectCommand,
@@ -11,7 +8,6 @@ export function DocSlashCommandPicker({
   variant = "floating",
 }) {
   const [open, setOpen] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const rootRef = useRef(null);
   const rootClass = [
     "doc-slash-command-picker",
@@ -68,17 +64,8 @@ export function DocSlashCommandPicker({
           event.stopPropagation();
           setOpen((value) => !value);
         }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setHovered(true)}
-        onBlur={() => setHovered(false)}
       >
-        <img
-          src={hovered || open ? COMMAND_ICON_ACTIVE : COMMAND_ICON_DEFAULT}
-          alt=""
-          aria-hidden
-          className="doc-slash-command-picker__icon"
-        />
+        <span className="doc-slash-command-picker__glyph" aria-hidden>+</span>
       </button>
     </div>
   );

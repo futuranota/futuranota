@@ -56,7 +56,6 @@ export function DocDocumentBox({
   parentId,
   onParentIdChange,
   objects = null,
-  onDelete,
   onSave,
   onCloseExpand,
   onTitleKeyDown,
@@ -309,11 +308,18 @@ export function DocDocumentBox({
 
   useLayoutEffect(() => {
     if (!hasBlocks) return;
-    requestAnimationFrame(() => {
-      syncContentBoxHeight();
-      requestAnimationFrame(syncContentBoxHeight);
+    let id2;
+    const id1 = requestAnimationFrame(() => {
+      id2 = requestAnimationFrame(() => {
+        blockStackRef.current?.resyncTextHeights?.();
+        syncContentBoxHeight();
+      });
     });
-  }, [normalizedBlocks, hasBlocks, syncContentBoxHeight]);
+    return () => {
+      cancelAnimationFrame(id1);
+      if (id2) cancelAnimationFrame(id2);
+    };
+  }, [docId, normalizedBlocks, hasBlocks, syncContentBoxHeight]);
 
   const isSlashCommandEnabled = useCallback((cmd) => {
     const parsed = parseSlashQuery(cmd.aliases[0]);
@@ -597,9 +603,6 @@ export function DocDocumentBox({
       </div>
 
       <div className="doc-new-actions">
-        <button type="button" className="doc-new-action doc-new-action--delete" onClick={onDelete}>
-          delete
-        </button>
         <button
           type="button"
           className="doc-new-action doc-new-action--save"
