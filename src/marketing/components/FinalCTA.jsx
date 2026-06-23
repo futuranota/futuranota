@@ -16,7 +16,7 @@ export function FinalCTA() {
           <h2 className="display cta__title" {...pageTinaProps('finalCta.title')}>{finalCta.title}</h2>
           <p className="lead cta__lead" {...pageTinaProps('finalCta.lead')}>{finalCta.lead}</p>
           <div className="cta__buttons">
-            <Link to={authPath()} className="btn btn-primary">{finalCta.primaryCta} <span className="arrow">→</span></Link>
+            <Link to={authPath(undefined, { plan: 'free' })} className="btn btn-primary">{finalCta.primaryCta} <span className="arrow">→</span></Link>
             <Link to={authPath('signin')} className="btn btn-ghost">{finalCta.secondaryCta}</Link>
           </div>
           <div className="cta__trust">

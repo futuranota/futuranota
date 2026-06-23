@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Nav } from '../components/Nav.jsx';
 import { Footer } from '../components/Footer.jsx';
 import { SiteTinaProvider } from '../context/TinaVisualEditing.jsx';
@@ -10,6 +10,8 @@ import '../styles/sections.css';
 const DEFAULT_THEME = { accent: 'terracotta', texture: 'on' };
 
 export function MarketingLayout() {
+  const { hash } = useLocation();
+
   useEffect(() => {
     applyMarketingTheme(DEFAULT_THEME);
     document.body.classList.add('marketing-body');
@@ -17,6 +19,13 @@ export function MarketingLayout() {
       document.body.classList.remove('marketing-body');
     };
   }, []);
+
+  useEffect(() => {
+    if (!hash) return;
+    const id = hash.slice(1);
+    const target = document.getElementById(id);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [hash]);
 
   return (
     <SiteTinaProvider>

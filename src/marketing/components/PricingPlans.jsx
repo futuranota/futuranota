@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { authPath } from '../lib/paths.js';
@@ -39,6 +39,7 @@ function FeatureList({ plan, index, variant }) {
 
 export function PricingPlans() {
   const reduceMotion = useReducedMotion();
+  const [billing, setBilling] = useState('monthly');
   const pageTina = usePageTina();
   const { pricing } = pageTina?.document ?? getHome();
   const rawPlans = pricing?.plans?.length ? pricing.plans : PRICING_PLANS_DEFAULT;
@@ -55,8 +56,12 @@ export function PricingPlans() {
   }, [rawPlans]);
 
   const section = { ...PRICING_SECTION_DEFAULT, ...pricing };
+  const isAnnual = billing === 'annual';
+  const proPriceValue = isAnnual ? (proPlan.annualPrice ?? proPlan.price) : proPlan.price;
+  const proPriceSuffix = isAnnual ? (proPlan.annualPriceSuffix ?? proPlan.priceSuffix) : proPlan.priceSuffix;
+  const proBillingNote = isAnnual ? (proPlan.annualBillingNote ?? proPlan.billingNote) : proPlan.billingNote;
   const freeTo = authPath(undefined, { plan: 'free' });
-  const proTo = authPath(undefined, { plan: 'pro' });
+  const proTo = authPath(undefined, { plan: 'pro', billing });
 
   const motionProps = (delay) => reduceMotion
     ? {}
@@ -134,20 +139,43 @@ export function PricingPlans() {
                       </span>
                     ) : null}
                   </div>
+
+                  <div className="pricing-billing-toggle" role="group" aria-label="Billing cycle">
+                    <button
+                      type="button"
+                      className={`pricing-billing-toggle__btn${!isAnnual ? ' is-active' : ''}`}
+                      aria-pressed={!isAnnual}
+                      onClick={() => setBilling('monthly')}
+                    >
+                      Monthly
+                    </button>
+                    <button
+                      type="button"
+                      className={`pricing-billing-toggle__btn${isAnnual ? ' is-active' : ''}`}
+                      aria-pressed={isAnnual}
+                      onClick={() => setBilling('annual')}
+                    >
+                      Annual · Save 50%
+                    </button>
+                  </div>
+
                   <div className="pricing-chart-grid__price">
                     <span className="pricing-chart-grid__currency">$</span>
-                    <span className="pricing-chart-grid__amount" {...pageTinaProps(`pricing.plans.${proIndex}.price`)}>
-                      {proPlan.price}
+                    <span className="pricing-chart-grid__amount">
+                      {proPriceValue}
                     </span>
-                    {proPlan.priceSuffix ? (
-                      <span className="faint pricing-chart-grid__suffix" {...pageTinaProps(`pricing.plans.${proIndex}.priceSuffix`)}>
-                        {proPlan.priceSuffix}
+                    {proPriceSuffix ? (
+                      <span className="faint pricing-chart-grid__suffix">
+                        {proPriceSuffix}
                       </span>
                     ) : null}
                   </div>
                   <p className="muted pricing-chart-grid__desc" {...pageTinaProps(`pricing.plans.${proIndex}.desc`)}>
                     {proPlan.desc}
                   </p>
+                  {proBillingNote ? (
+                    <p className="faint pricing-chart-grid__billing-note">{proBillingNote}</p>
+                  ) : null}
                 </div>
                 <div className="pricing-chart-grid__chart-wrap">
                   <PricingInterestChart />

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { AuthSignupCard } from '../components/AuthSignupCard.jsx';
 import { PATHS } from '../lib/paths.js';
 import { applyMarketingTheme } from '../lib/theme.js';
+import { getHome } from '../lib/content.js';
+import { PRICING_PLANS_DEFAULT } from '../lib/pricingDefaults.js';
 import { useAuthStore } from '../../stores/authStore.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
@@ -10,6 +12,7 @@ import '../styles/sections.css';
 export function WelcomePage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { signIn, signUp, signInWithGoogle } = useAuthStore();
 
   const initial = location.pathname === '/login' || location.hash === '#signin' ? 'signin' : 'signup';
@@ -18,6 +21,24 @@ export function WelcomePage() {
   const [pendingEmail, setPendingEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+
+  const planId = searchParams.get('plan');
+  const billing = searchParams.get('billing');
+
+  const selectedPlan = useMemo(() => {
+    if (!planId) return null;
+    const plans = getHome().pricing?.plans?.length ? getHome().pricing.plans : PRICING_PLANS_DEFAULT;
+    const plan = plans.find((p) => p.id === planId);
+    if (!plan) return null;
+    const isAnnual = billing === 'annual' && plan.annualPrice;
+    const price = isAnnual ? plan.annualPrice : plan.price;
+    const priceSuffix = isAnnual ? plan.annualPriceSuffix : plan.priceSuffix;
+    return {
+      id: plan.id,
+      label: plan.shortName || plan.name,
+      priceLabel: `$${price}${priceSuffix || ''}`,
+    };
+  }, [planId, billing]);
 
   useEffect(() => {
     applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
@@ -36,7 +57,8 @@ export function WelcomePage() {
     setErrorMessage(null);
     setTab(next);
     if (history.replaceState) {
-      history.replaceState(null, '', next === 'signin' ? PATHS.login : PATHS.signup);
+      const base = next === 'signin' ? PATHS.login : PATHS.signup;
+      history.replaceState(null, '', `${base}${location.search}`);
     }
   };
 
@@ -48,6 +70,8 @@ export function WelcomePage() {
         await signUp(form.email, form.password, {
           first_name: form.firstName,
           last_name: form.lastName,
+          plan: selectedPlan?.id ?? 'free',
+          ...(billing ? { billing } : {}),
         });
         setPendingEmail(form.email);
         setSent(true);
@@ -92,6 +116,7 @@ export function WelcomePage() {
           onGoogleSignIn={handleGoogleSignIn}
           loading={loading}
           errorMessage={errorMessage}
+          selectedPlan={selectedPlan}
         />
       )}
     </div>

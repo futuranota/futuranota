@@ -47,6 +47,7 @@ export function AuthSignupCard({
   onGoogleSignIn,
   loading = false,
   errorMessage = null,
+  selectedPlan = null,
 }) {
   const isSignup = mode === 'signup';
   const [showPassword, setShowPassword] = useState(false);
@@ -136,6 +137,15 @@ export function AuthSignupCard({
             </button>
           </p>
         </div>
+
+        {isSignup && selectedPlan ? (
+          <div className="auth-split-plan-chip">
+            Plan selected: <strong>{selectedPlan.label}</strong> ({selectedPlan.priceLabel})
+            <Link to={`${PATHS.home}#pricing`} className="auth-split-form__link auth-split-form__link--inline">
+              Change
+            </Link>
+          </div>
+        ) : null}
 
         <button
           type="button"

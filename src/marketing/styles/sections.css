@@ -728,6 +728,23 @@
   color: oklch(0.72 0.012 85);
 }
 
+.auth-split-plan-chip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border: 1px solid oklch(1 0 0 / 0.12);
+  border-radius: 10px;
+  background: oklch(1 0 0 / 0.04);
+  font-size: 12.5px;
+  color: oklch(0.84 0.012 85);
+}
+.auth-split-plan-chip strong {
+  color: oklch(0.96 0.006 85);
+}
+
 .auth-split-form__head {
   display: flex;
   flex-direction: column;
@@ -1317,6 +1334,32 @@ a.blog.card:hover {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+.pricing-billing-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 12px;
+  padding: 3px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface) 60%, transparent);
+}
+.pricing-billing-toggle__btn {
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+  white-space: nowrap;
+}
+.pricing-billing-toggle__btn.is-active {
+  background: var(--text);
+  color: var(--bg);
 }
 .pricing-chart-grid__pro-main {
   display: flex;

@@ -18,8 +18,13 @@ export function sectionPath(slug) {
   return PATHS[slug] ?? `/${slug}`;
 }
 
-export function authPath(mode) {
-  return mode === 'signin' ? PATHS.login : PATHS.signup;
+export function authPath(mode, opts) {
+  const base = mode === 'signin' ? PATHS.login : PATHS.signup;
+  const params = new URLSearchParams();
+  if (opts?.plan) params.set('plan', opts.plan);
+  if (opts?.billing) params.set('billing', opts.billing);
+  const qs = params.toString();
+  return qs ? `${base}?${qs}` : base;
 }
 
 /** @param {string} slug */

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { authPath, PATHS } from '../lib/paths.js';
+import { PATHS } from '../lib/paths.js';
 import { getHome } from '../lib/content.js';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 import { HeroMarquee } from './HeroMarquee.jsx';
@@ -96,8 +96,8 @@ export function Hero({ heroMode = 'maker' }) {
           )}
           <p className="lead hero__lead" {...pageTinaProps(`hero.${modeKey}.lead`)}>{c.lead}</p>
           <div className="hero__cta">
-            <Link to={authPath()} className="btn btn-primary">
-              {c.primaryCta || 'Get Started'} <span className="arrow">→</span>
+            <Link to={`${PATHS.home}#pricing`} className="btn btn-primary">
+              {c.primaryCta || 'See Plans'} <span className="arrow">→</span>
             </Link>
             <Link to={PATHS.how} className="btn btn-ghost">{c.secondaryCta || 'Watch how it works'}</Link>
           </div>

@@ -5,7 +5,7 @@ export const PRICING_SECTION_DEFAULT = {
   eyebrow: 'PRICING',
   title: 'Pricing that Scales with You',
   lead: 'Choose the right plan to unlock powerful tools and insights. Transparent pricing built for makers and founders.',
-  trust: 'No credit card on Starter · Pro is $9.99/mo · Cancel anytime',
+  trust: 'No credit card on Starter · Pro is $20/mo · Cancel anytime',
 };
 
 /** @type {Record<string, unknown>[]} */
@@ -20,25 +20,25 @@ export const PRICING_PLANS_DEFAULT = [
     billingNote: 'No credit card is required',
     cta: 'Get Started',
     bullets: [
-      '2 Main Objects · 100 MB storage',
-      '10 AI search credits per month',
-      'Basic Calendar & Forecast',
+      '1 Main Object · 54 MB storage',
+      '10 AI search credits (one time usage)',
+      'Basic Calendar & Forecast (one time usage)',
     ],
     featureGroups: [
       {
         title: 'Features & tools',
         features: [
-          { title: 'Objects & Storage', detail: '2 Main Objects Max / 100 MB' },
-          { title: 'AI Search Credits', detail: '10 credits per month (Renewable)' },
+          { title: 'Objects & Storage', detail: '1 Main Object Max / 54 MB' },
+          { title: 'AI Search Credits', detail: '10 credits total (one time usage)' },
           {
             title: 'Calendar',
             tagline: 'Anticipate Every Opportunity: The Ultimate Calendar for Brands That Make a Difference',
-            detail: 'Basic monthly event view.',
+            detail: 'One time usage.',
           },
           {
             title: 'Forecast (Weather API)',
             tagline: 'Anticipate Every Opportunity: The Ultimate weather API that gets you ahead of any event.',
-            detail: 'Current day weather data.',
+            detail: 'One time usage — current day weather data.',
           },
           { title: 'Launch Radar', detail: 'Locked (Demo preview only).', locked: true },
           { title: 'Market Hype & Active Campaigns', detail: 'Shows general Hype Score only.' },
@@ -53,8 +53,11 @@ export const PRICING_PLANS_DEFAULT = [
     name: 'Pro',
     shortName: 'Pro Monthly',
     desc: 'Perfect for makers & founders shipping on every campaign window.',
-    price: '9.99',
+    price: '20.00',
     priceSuffix: '/mo',
+    annualPrice: '99.00',
+    annualPriceSuffix: '/yr',
+    annualBillingNote: 'Billed annually — save 50%',
     billingNote: 'Recommended for rapid traction',
     badge: 'Recommended',
     cta: 'Get Started',
