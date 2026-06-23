@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { URL_EXTRACT_SAMPLE } from './data.jsx';
 import { NavPreferences } from './components/shared/NavPreferences.jsx';
+import { UserMenu } from './components/shared/UserMenu.jsx';
 import { useI18n } from './i18n/useI18n.js';
 
 /* dashboard.jsx — TopBar, MetaBar, ScanOverlay, UrlModal, Toast */
@@ -24,6 +25,7 @@ function TopBar({ onBack, scanState, onScan, onScanBlogs, onPasteUrl, onAltSeed 
       </div>
 
       <div className="topbar-end">
+        <UserMenu />
         <NavPreferences />
         <button className="btn sm" onClick={onScanBlogs} disabled={scanState === "scanning-blogs"}>
           {scanState === "scanning-blogs" ? t('topbar.scanningBlogs') : t('topbar.scanBlogs')}

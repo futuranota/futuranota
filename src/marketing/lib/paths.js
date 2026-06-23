@@ -6,6 +6,10 @@ export const PATHS = {
   marketplace: '/horizon',
   blogs: '/blogs',
   welcome: '/welcome',
+  login: '/login',
+  signup: '/signup',
+  forgotPassword: '/forgot-password',
+  resetPassword: '/reset-password',
   app: '/app',
 };
 
@@ -15,7 +19,7 @@ export function sectionPath(slug) {
 }
 
 export function authPath(mode) {
-  return mode === 'signin' ? `${PATHS.welcome}#signin` : PATHS.welcome;
+  return mode === 'signin' ? PATHS.login : PATHS.signup;
 }
 
 /** @param {string} slug */

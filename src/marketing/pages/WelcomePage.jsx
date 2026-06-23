@@ -1,15 +1,23 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AuthSignupCard } from '../components/AuthSignupCard.jsx';
 import { PATHS } from '../lib/paths.js';
 import { applyMarketingTheme } from '../lib/theme.js';
+import { useAuthStore } from '../../stores/authStore.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
 export function WelcomePage() {
-  const initial = typeof location !== 'undefined' && location.hash === '#signin' ? 'signin' : 'signup';
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { signIn, signUp, signInWithGoogle } = useAuthStore();
+
+  const initial = location.pathname === '/login' || location.hash === '#signin' ? 'signin' : 'signup';
   const [tab, setTab] = useState(initial);
   const [sent, setSent] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   useEffect(() => {
     applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
@@ -25,9 +33,41 @@ export function WelcomePage() {
 
   const go = (next) => {
     setSent(false);
+    setErrorMessage(null);
     setTab(next);
     if (history.replaceState) {
-      history.replaceState(null, '', next === 'signin' ? '#signin' : PATHS.welcome);
+      history.replaceState(null, '', next === 'signin' ? PATHS.login : PATHS.signup);
+    }
+  };
+
+  const handleSubmit = async (form) => {
+    setErrorMessage(null);
+    setLoading(true);
+    try {
+      if (tab === 'signup') {
+        await signUp(form.email, form.password, {
+          first_name: form.firstName,
+          last_name: form.lastName,
+        });
+        setPendingEmail(form.email);
+        setSent(true);
+      } else {
+        await signIn(form.email, form.password);
+        navigate(PATHS.app, { replace: true });
+      }
+    } catch (err) {
+      setErrorMessage(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage(null);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      setErrorMessage(err.message);
     }
   };
 
@@ -36,19 +76,22 @@ export function WelcomePage() {
       {sent ? (
         <div className="auth-split-success card">
           <span className="auth-done__mark"><span className="back-link__arrow" style={{ transform: 'none' }}>✓</span></span>
-          <h2 className="h2">{tab === 'signup' ? 'Account ready to go.' : "You're signed in."}</h2>
+          <h2 className="h2">Check your inbox.</h2>
           <p className="muted" style={{ fontSize: 15 }}>
-            This is a prototype — no account was actually created. Wire it to your auth backend to make it live.
+            We sent a confirmation link to {pendingEmail || 'your email'}. Click it to activate your account, then sign in.
           </p>
-          <Link to={PATHS.app} className="btn btn-primary">
-            Enter Futura <span className="arrow">→</span>
-          </Link>
+          <button type="button" className="btn btn-primary" onClick={() => go('signin')}>
+            Back to sign in <span className="arrow">→</span>
+          </button>
         </div>
       ) : (
         <AuthSignupCard
           mode={tab}
           onModeChange={go}
-          onSubmitSuccess={() => setSent(true)}
+          onSubmit={handleSubmit}
+          onGoogleSignIn={handleGoogleSignIn}
+          loading={loading}
+          errorMessage={errorMessage}
         />
       )}
     </div>

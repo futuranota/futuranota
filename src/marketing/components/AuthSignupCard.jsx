@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { GoogleIcon } from './AuthOAuthIcons.jsx';
 import { PATHS } from '../lib/paths.js';
 
@@ -43,9 +43,11 @@ function IconEye({ off = false }) {
 export function AuthSignupCard({
   mode = 'signup',
   onModeChange,
-  onSubmitSuccess,
+  onSubmit,
+  onGoogleSignIn,
+  loading = false,
+  errorMessage = null,
 }) {
-  const navigate = useNavigate();
   const isSignup = mode === 'signup';
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
@@ -66,11 +68,7 @@ export function AuthSignupCard({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!isSignup) {
-      navigate(PATHS.app, { replace: true });
-      return;
-    }
-    onSubmitSuccess?.(form);
+    onSubmit?.(form);
   };
 
   return (
@@ -139,7 +137,12 @@ export function AuthSignupCard({
           </p>
         </div>
 
-        <button type="button" className="auth-split-google">
+        <button
+          type="button"
+          className="auth-split-google"
+          onClick={onGoogleSignIn}
+          disabled={loading}
+        >
           <GoogleIcon />
           Continue with Google
         </button>
@@ -222,6 +225,16 @@ export function AuthSignupCard({
             </div>
           </label>
 
+          {!isSignup ? (
+            <Link
+              to={PATHS.forgotPassword}
+              className="auth-split-form__link auth-split-form__link--inline"
+              style={{ alignSelf: 'flex-end' }}
+            >
+              Forgot password?
+            </Link>
+          ) : null}
+
           {isSignup ? (
             <label className="auth-split-terms" htmlFor="agreeToTerms">
               <input
@@ -241,8 +254,14 @@ export function AuthSignupCard({
             </label>
           ) : null}
 
-          <button type="submit" className="btn auth-split-submit">
-            {isSignup ? 'Create Account' : 'Sign in'}
+          {errorMessage ? (
+            <div style={{ fontSize: 12, color: 'var(--warm)', padding: '6px 10px', background: 'var(--warm-soft)', borderRadius: 6 }}>
+              {errorMessage}
+            </div>
+          ) : null}
+
+          <button type="submit" className="btn auth-split-submit" disabled={loading}>
+            {loading ? 'Loading…' : isSignup ? 'Create Account' : 'Sign in'}
           </button>
         </form>
       </div>
