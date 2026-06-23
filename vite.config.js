@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-  envPrefix: ['VITE_', 'TINA_'],
+  envPrefix: ['VITE_', 'TINA_', 'SUPABASE_'],
   plugins: [react(), tailwindcss(), brandCadenceApiPlugin(env)],
   server: {
     port: 5173,

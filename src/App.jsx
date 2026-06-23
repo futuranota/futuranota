@@ -47,6 +47,9 @@ import {
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
+import { supabase } from './lib/supabaseClient';
+
+
 
 const DOC_CHILD_OFFSET_X = CANVAS_DOC_CHILD_OFFSET_X;
 const DOC_CHILD_ROW_STEP = 88;
@@ -253,8 +256,24 @@ function Dashboard({ company, onBack }) {
     [timelineQueueMode, handleTimelineCanvasSelect],
   );
 
+
+  //modified 
+
+
+useEffect(() => {
+  supabase.from('companies').select('*').limit(1).then(({ data, error }) => {
+    if (error) console.error('SUPABASE ERROR:', error.message);
+    else console.log('SUPABASE OK desde browser:', data);
+  });
+}, []);
+///////
+
+
+
+
   const prevTimelineQueueMode = useRef(timelineQueueMode);
   useEffect(() => {
+
     const wasQueue = prevTimelineQueueMode.current;
     prevTimelineQueueMode.current = timelineQueueMode;
     if (!wasQueue || timelineQueueMode) return;

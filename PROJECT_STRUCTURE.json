@@ -1,0 +1,161 @@
+{
+  "project": "Futura Nota",
+  "generated_at": "2026-06-23",
+  "purpose": "Brief completo de arquitectura para implementar paso a paso la integración Supabase + despliegue Vercel.",
+
+  "stack": {
+    "frontend": "React 18 + Vite 6",
+    "state": "Zustand 5 (stores nuevos) + estado local legacy en App.jsx",
+    "styles": "CSS vanilla + TailwindCSS v4 (@tailwindcss/vite)",
+    "database": "Supabase (Postgres 15) — EN PROGRESO, no commiteado",
+    "auth": "Supabase Auth — NO implementado aún",
+    "cms_marketing": "Tina CMS (blog) + WordPress REST como alternativa",
+    "deploy": "Vercel (objetivo) — actualmente solo dev server local, sin funciones serverless reales en /api"
+  },
+
+  "estado_actual": {
+    "resumen": "Existe un primer intento de integración Supabase sin commitear: cliente, script de prueba, middleware de persistencia modificado para leer/escribir en Supabase con fallback a localStorage, y un schema SQL completo. Falta: probar conexión real, crear .env con credenciales, decidir estrategia de sync (actualmente hace polling completo + upsert + delete en cada cambio, no es eficiente ni seguro para multiusuario), y migrar /server middlewares a funciones serverless de Vercel.",
+    "archivos_sin_commitear": [
+      "package.json (agrega @supabase/supabase-js)",
+      "vite.config.js (agrega prefijo SUPABASE_ a envPrefix)",
+      "src/stores/middleware/persistenceMiddleware.js (reescrito: Supabase + localStorage fallback)",
+      "src/lib/supabaseClient.js (nuevo, usa import.meta.env)",
+      "src/lib/testConnection.js (nuevo, script node de prueba, usa process.env — INCONSISTENTE con supabaseClient.js)",
+      "supabase_schema_upgrade.sql (nuevo, schema completo con ALTER TABLE incrementales)",
+      "TECH_BRIEF.md (nuevo, doc de arquitectura)"
+    ],
+    "problemas_detectados": [
+      "supabaseClient.js usa import.meta.env.SUPABASE_* (funciona en browser vía Vite) pero testConnection.js usa process.env.SUPABASE_* (solo funciona si se corre con node y dotenv, o con variables exportadas en shell) — no hay .env real verificado.",
+      "persistenceMiddleware hace DELETE de filas no presentes en el upsert actual en cada cambio de store — riesgo de borrar datos si el estado local está incompleto al momento del sync.",
+      "No hay autenticación ni RLS real (políticas públicas temporales para desarrollo).",
+      "No existen funciones serverless en /api para Vercel — los endpoints actuales (brandCadenceHandler, translateHandler) son middleware de Vite, solo funcionan en `npm run dev`, no en producción Vercel."
+    ]
+  },
+
+  "estructura_carpetas": {
+    "src/App.jsx": "Núcleo del Dashboard — maneja notes, nodes, blueprints, connections en estado React local (fuente de verdad actual).",
+    "src/pages/": ["LandingPage.jsx", "CompanySelectorPage.jsx", "DashboardPage.jsx (stub, pendiente extraer Dashboard de App.jsx)"],
+    "src/stores/": {
+      "objectsStore.js": "Objetos padre / Companies (contenedores)",
+      "docsStore.js": "Documentos / Campaigns vinculados a objetos",
+      "nodesStore.js": "Nodos de datos tipados (date, metric, text...)",
+      "canvasStore.js": "Canvas nodes, conexiones, groupings, pan/zoom",
+      "timelineStore.js": "Timelines por tier (primary, tactical, strategic, nodes)",
+      "themeStore.js": "Tema UI",
+      "uiStateStore.js": "Estado UI transversal",
+      "middleware/persistenceMiddleware.js": "Persistencia — en migración a Supabase, fallback localStorage",
+      "middleware/syncMiddleware.js": "Sync entre stores",
+      "middleware/canvasUndoRedo.js": "Undo/redo del canvas"
+    },
+    "src/components/": "folders/ (ObjectsFolder, DocsFolder, NodesFolder), canvas/, docs/ (+ blocks/), nodes/, timeline/, sidebar/, intel/, templates/, packs/, shared/, analytics/, left/",
+    "src/lib/": "ids, sync, dates, textToNode, canvasMath, canvasHelpers, docHelpers, storeSanitize, supabaseClient, testConnection, pack/ (export/import de paquetes .zip)",
+    "src/types/": "JSDoc typedefs (canvas, docs, nodes, objects, timeline, common)",
+    "src/hooks/": "useCanvas, useDocs, useNodes, useObjects, useSelection, useSyncState, useTimeline",
+    "src/marketing/": "Landing/blog (Tina CMS) — independiente del Dashboard",
+    "src/api/": {
+      "client.js": "fetch wrapper genérico apiClient()",
+      "routes.js": "Mapa de rutas: scanCampaign, scanBlogs, extractUrl, intel, brandCadence"
+    },
+    "server/": {
+      "brandCadenceHandler.js": "Middleware Vite-only para POST /api/analytics/brand-cadence (usa GROQ/GEMINI/GOOGLE_API_KEY)",
+      "translateHandler.js": "Middleware Vite-only para POST /api/translate (usa GOOGLE_TRANSLATE_API_KEY)",
+      "nota": "Estos NO son funciones serverless de Vercel — solo corren dentro de vite.config.js plugins. Para producción en Vercel hay que migrarlos a /api/*.js (Vercel Functions, formato (req,res) o Edge)."
+    }
+  },
+
+  "supabase_schema": {
+    "extension": "uuid-ossp",
+    "tablas": {
+      "companies": {
+        "pk": "id VARCHAR(50)",
+        "columnas": ["name", "sector", "campaigns_count", "signal_strength", "status", "description", "brand", "color", "role", "created_at", "updated_at"],
+        "mapea_a_store": "objectsStore"
+      },
+      "campaigns": {
+        "pk": "id VARCHAR(50)",
+        "fk": "company_id -> companies.id (CASCADE)",
+        "columnas": ["name", "source", "verification_score", "announcement_date", "launch_date", "market_gap", "content", "body", "blocks(jsonb)", "data_properties(jsonb)", "tags(text[])", "doc_kind", "template_kind", "subcategory_doc_ids(jsonb)", "version", "category", "launch_at", "campaign_active", "node_link_color", "knowledge_import(jsonb)", "created_at", "updated_at"],
+        "mapea_a_store": "docsStore"
+      },
+      "nodes": {
+        "pk": "id VARCHAR(50)",
+        "fk": "parent_doc_id -> campaigns.id (CASCADE)",
+        "columnas": ["title", "data_type", "content(jsonb)", "source_query", "reference(jsonb)", "linked_to_canvas", "canvas_node_id", "created_at", "updated_at"],
+        "mapea_a_store": "nodesStore"
+      },
+      "canvas_nodes": {
+        "pk": "id VARCHAR(50)",
+        "fk": "campaign_id -> campaigns.id (CASCADE)",
+        "columnas": ["title", "data_type CHECK IN (text,date,metric,checkbox,video)", "content(jsonb)", "x_pos", "y_pos", "color_theme", "node_id", "hidden", "selected", "created_at", "updated_at"],
+        "mapea_a_store": "canvasStore.canvasNodes"
+      },
+      "canvas_connections": {
+        "pk": "id UUID",
+        "fk": ["campaign_id -> campaigns.id", "source_id -> canvas_nodes.id", "target_id -> canvas_nodes.id"],
+        "columnas": ["label", "from_canvas_node_id", "to_canvas_node_id", "created_at", "updated_at"],
+        "mapea_a_store": "canvasStore.canvasConnections"
+      },
+      "groupings": {
+        "pk": "id VARCHAR(50)",
+        "fk": "parent_doc_id -> campaigns.id (CASCADE)",
+        "columnas": ["name", "canvas_node_ids(jsonb)", "created_at", "updated_at"],
+        "mapea_a_store": "canvasStore.groupings"
+      },
+      "timelines": {
+        "pk": "id UUID",
+        "fk": "campaign_id -> campaigns.id (CASCADE)",
+        "columnas": ["title", "target_date", "tier CHECK IN (primary,tactical,strategic,nodes)", "notes", "entries(jsonb default [])", "name", "created_at", "updated_at"],
+        "mapea_a_store": "timelineStore"
+      },
+      "intel_signals": {
+        "pk": "id VARCHAR(50)",
+        "fk": "campaign_id -> campaigns.id (CASCADE)",
+        "columnas": ["source", "title", "category", "confidence CHECK 0-100", "created_at"],
+        "mapea_a_store": "no implementado aún en stores (sección Feed/IntelPanel)"
+      }
+    },
+    "rls": "Habilitado en todas las tablas. Políticas actuales: lectura/escritura pública temporal para desarrollo — PENDIENTE definir políticas reales por usuario/organización antes de producción.",
+    "archivo_fuente": "supabase_schema_upgrade.sql"
+  },
+
+  "apis_externas": {
+    "/api/analytics/brand-cadence": { "metodo": "POST", "proveedor": "GROQ_API_KEY | GEMINI_API_KEY | GOOGLE_API_KEY", "handler_actual": "server/brandCadenceHandler.js (solo dev)", "fallback": "mock determinístico si no hay key" },
+    "/api/translate": { "metodo": "POST", "proveedor": "GOOGLE_TRANSLATE_API_KEY (Google Cloud Translation API)", "handler_actual": "server/translateHandler.js (solo dev)" },
+    "/jina": { "tipo": "proxy en vite.config.js", "destino": "https://r.jina.ai", "uso": "Extracción de contenido de URLs en tarjetas del canvas" },
+    "wordpress_rest": { "uso": "Blog headless, consumido en /blogs y /blogs/:slug", "estado": "alternativa a Tina CMS, opcional" },
+    "tina_cms": { "vars": ["TINA_PUBLIC_CLIENT_ID", "TINA_TOKEN", "TINA_SEARCH_TOKEN", "TINA_BRANCH", "TINA_PREVIEW_URL"] },
+    "rutas_definidas_no_implementadas": ["/api/scan/campaign", "/api/scan/blogs", "/api/extract/url", "/api/intel"]
+  },
+
+  "env_vars": {
+    "actuales_env_local": ["GROQ_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_TRANSLATE_API_KEY", "TINA_PUBLIC_CLIENT_ID", "TINA_TOKEN", "TINA_SEARCH_TOKEN", "TINA_BRANCH", "TINA_PREVIEW_URL"],
+    "faltan_definir": ["SUPABASE_PROJECT_URL", "SUPABASE_ANON_KEY", "(producción) SUPABASE_SERVICE_ROLE_KEY si se migran writes a funciones serverless"],
+    "nota_vite": "vite.config.js ya tiene envPrefix incluyendo 'SUPABASE_', así que SUPABASE_PROJECT_URL y SUPABASE_ANON_KEY quedan expuestos al cliente vía import.meta.env — correcto solo si son anon/public keys, NUNCA service_role."
+  },
+
+  "roadmap_pendiente": {
+    "migracion_dashboard": [
+      "Extraer Dashboard de App.jsx -> DashboardPage.jsx",
+      "Conectar Sidebar al Dashboard real",
+      "Migrar estado local de App.jsx (notes, nodes, blueprints, connections) a los Zustand stores",
+      "Canvas legacy (canvas.jsx) -> usar useCanvasStore",
+      "Timeline 3 tiers completamente integrada con useTimelineStore"
+    ],
+    "integracion_supabase": [
+      "Crear proyecto en Supabase y ejecutar supabase_schema_upgrade.sql",
+      "Definir .env.local con SUPABASE_PROJECT_URL y SUPABASE_ANON_KEY",
+      "Corregir testConnection.js para usar las mismas env vars que supabaseClient.js (o moverlo a un script separado con dotenv)",
+      "Validar conexión real con npm run + script de prueba",
+      "Revisar estrategia de sync en persistenceMiddleware.js: reemplazar el patrón 'upsert todo + delete lo no presente' por sync incremental (solo filas cambiadas) para evitar pérdida de datos y reducir tráfico",
+      "Definir políticas RLS reales (por ahora son públicas/temporales)",
+      "Implementar Supabase Auth si se requiere multiusuario/organizaciones"
+    ],
+    "despliegue_vercel": [
+      "Migrar server/brandCadenceHandler.js y server/translateHandler.js de middleware Vite a funciones serverless reales en /api/*.js (formato Vercel Functions)",
+      "Crear vercel.json si se necesita configuración de rutas/rewrites",
+      "Configurar variables de entorno en el dashboard de Vercel (todas las de env_vars + Supabase)",
+      "Conectar dominio público",
+      "Verificar límite de 10s de ejecución en plan Hobby para las funciones serverless"
+    ]
+  }
+}
