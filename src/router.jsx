@@ -10,6 +10,7 @@ import { WelcomePage } from './marketing/pages/WelcomePage.jsx';
 import { ForgotPasswordPage } from './marketing/pages/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from './marketing/pages/ResetPasswordPage.jsx';
 import { AuthCallbackPage } from './pages/AuthCallbackPage.jsx';
+import { AdminPage } from './admin/AdminPage.jsx';
 import { useAuthStore } from './stores/authStore.js';
 import { useEffect } from 'react';
 import App from './App.jsx';
@@ -55,6 +56,7 @@ export default function AppRouter() {
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="auth/callback" element={<AuthCallbackPage />} />
+        <Route path="admin" element={<AdminPage />} />
 
         <Route path="app/*" element={
           <ProtectedRoute>

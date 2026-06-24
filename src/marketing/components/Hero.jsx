@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PATHS } from '../lib/paths.js';
 import { getHome } from '../lib/content.js';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 import { HeroMarquee } from './HeroMarquee.jsx';
 import { HeroAccentTypewriter } from './HeroAccentTypewriter.jsx';
+import { fetchActiveSignal, timeAgoLabel } from '../../lib/signals.js';
 
 function HeroFrame({ frame }) {
   return (
@@ -64,8 +66,25 @@ export function Hero({ heroMode = 'maker' }) {
   const pageTina = usePageTina();
   const { hero } = pageTina?.document ?? getHome();
   const c = hero[heroMode] || hero.maker;
-  const frame = hero.frame;
   const modeKey = heroMode === 'founder' ? 'founder' : 'maker';
+
+  const [liveSignal, setLiveSignal] = useState(null);
+  useEffect(() => {
+    fetchActiveSignal().then(setLiveSignal).catch(() => {});
+  }, []);
+
+  const frame = liveSignal
+    ? {
+        detectedLabel: liveSignal.detected_label,
+        ago: timeAgoLabel(liveSignal.created_at),
+        campaignName: liveSignal.campaign_name,
+        windowLabel: liveSignal.window_label,
+        windowProgress: liveSignal.window_progress,
+        opens: liveSignal.opens_label,
+        closes: liveSignal.closes_label,
+        nodes: liveSignal.nodes || [],
+      }
+    : hero.frame;
 
   return (
     <section className="hero section" id="top" data-screen-label="hero">

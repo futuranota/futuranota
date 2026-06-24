@@ -11,6 +11,7 @@ export const PATHS = {
   forgotPassword: '/forgot-password',
   resetPassword: '/reset-password',
   app: '/app',
+  admin: '/admin',
 };
 
 export function sectionPath(slug) {
