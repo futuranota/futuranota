@@ -5,10 +5,8 @@ import { sanitizePersistedSnapshot } from "../../lib/storeSanitize.js";
 const STORAGE_KEY = "futura-nota-v1";
 
 let initialized = false;
-let saveTimer = null;
-let isSyncedWithRemote = false; // True only if we successfully connected and loaded from Supabase
+let isSyncedWithRemote = false;
 
-// Helper to debounce database writes
 function debounce(fn, delay) {
   let timer = null;
   return (...args) => {
@@ -40,12 +38,9 @@ export function initPersistenceMiddleware(stores) {
     currentTier: useTimelineStore.getState().currentTier,
   });
 
-  // Apply state to local stores
   const applyStateToStores = (data) => {
     if (!data) return;
-
     useObjectsStore.setState({ objects: data.objects || {} });
-    
     const normalizedDocs = {};
     if (data.docs) {
       for (const [id, doc] of Object.entries(data.docs)) {
@@ -67,56 +62,58 @@ export function initPersistenceMiddleware(stores) {
     }
   };
 
-  // Load from local storage fallback
   const loadLocalFallback = () => {
-    console.log("Loading fallback state from LocalStorage...");
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         const data = sanitizePersistedSnapshot(parsed);
-        if (data) {
-          applyStateToStores(data);
-        }
+        if (data) applyStateToStores(data);
       }
     } catch (e) {
       console.error("Failed to read from localStorage:", e);
     }
   };
 
-  // Load from Supabase
   const loadFromSupabase = async () => {
-    console.log("Synchronizing state from Supabase...");
     try {
-      // 1. Fetch all companies/objects
-      const { data: dbCompanies, error: compErr } = await supabase.from("companies").select("*");
+      // Verificar sesión antes de cargar
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        console.log("No session — loading from localStorage.");
+        loadLocalFallback();
+        return;
+      }
+
+      const userId = session.user.id;
+
+      const [
+        { data: dbCompanies, error: compErr },
+        { data: dbCampaigns, error: campErr },
+        { data: dbNodes, error: nodeErr },
+        { data: dbCanvasNodes, error: cnErr },
+        { data: dbCanvasConnections, error: ccErr },
+        { data: dbGroupings, error: grpErr },
+        { data: dbTimelines, error: tlErr },
+      ] = await Promise.all([
+        supabase.from("companies").select("*").eq("user_id", userId),
+        supabase.from("campaigns").select("*").eq("user_id", userId),
+        supabase.from("nodes").select("*").eq("user_id", userId),
+        supabase.from("canvas_nodes").select("*").eq("user_id", userId),
+        supabase.from("canvas_connections").select("*").eq("user_id", userId),
+        supabase.from("groupings").select("*").eq("user_id", userId),
+        supabase.from("timelines").select("*").eq("user_id", userId),
+      ]);
+
       if (compErr) throw compErr;
-
-      // 2. Fetch all campaigns/docs
-      const { data: dbCampaigns, error: campErr } = await supabase.from("campaigns").select("*");
       if (campErr) throw campErr;
-
-      // 3. Fetch all nodes
-      const { data: dbNodes, error: nodeErr } = await supabase.from("nodes").select("*");
       if (nodeErr) throw nodeErr;
-
-      // 4. Fetch canvas nodes
-      const { data: dbCanvasNodes, error: cnErr } = await supabase.from("canvas_nodes").select("*");
       if (cnErr) throw cnErr;
-
-      // 5. Fetch canvas connections
-      const { data: dbCanvasConnections, error: ccErr } = await supabase.from("canvas_connections").select("*");
       if (ccErr) throw ccErr;
-
-      // 6. Fetch groupings
-      const { data: dbGroupings, error: grpErr } = await supabase.from("groupings").select("*");
       if (grpErr) throw grpErr;
-
-      // 7. Fetch timelines
-      const { data: dbTimelines, error: tlErr } = await supabase.from("timelines").select("*");
       if (tlErr) throw tlErr;
 
-      // Reconstruct Zustand Objects (Companies)
+      // Reconstruct objects (companies)
       const objects = {};
       dbCompanies.forEach((co) => {
         objects[co.id] = {
@@ -126,18 +123,17 @@ export function initPersistenceMiddleware(stores) {
           brand: co.brand || co.name,
           color: co.color || "mint",
           role: co.role || "satellite",
-          children: [], // Populated below from campaigns
+          children: [],
           createdAt: co.created_at,
           updatedAt: co.updated_at || co.created_at,
         };
       });
 
-      // Reconstruct Zustand Docs (Campaigns)
+      // Reconstruct docs (campaigns)
       const docs = {};
       dbCampaigns.forEach((camp) => {
-        const docId = camp.id;
-        docs[docId] = {
-          id: docId,
+        docs[camp.id] = {
+          id: camp.id,
           title: camp.name,
           parentObjectId: camp.company_id,
           content: camp.content || "",
@@ -145,7 +141,7 @@ export function initPersistenceMiddleware(stores) {
           blocks: camp.blocks || [],
           dataProperties: camp.data_properties || [],
           tags: camp.tags || [],
-          nodeIds: [], // Populated below from nodes
+          nodeIds: [],
           syncedWithCanvas: camp.campaign_active !== false,
           createdAt: camp.created_at,
           updatedAt: camp.updated_at || camp.created_at,
@@ -160,14 +156,12 @@ export function initPersistenceMiddleware(stores) {
           nodeLinkColor: camp.node_link_color || "mint",
           knowledgeImport: camp.knowledge_import || null,
         };
-
-        // Link to parent company object children array
         if (camp.company_id && objects[camp.company_id]) {
-          objects[camp.company_id].children.push(docId);
+          objects[camp.company_id].children.push(camp.id);
         }
       });
 
-      // Reconstruct Zustand Nodes
+      // Reconstruct nodes
       const nodes = {};
       dbNodes.forEach((node) => {
         nodes[node.id] = {
@@ -183,14 +177,12 @@ export function initPersistenceMiddleware(stores) {
           createdAt: node.created_at,
           updatedAt: node.updated_at,
         };
-
-        // Link back to doc's nodeIds list
         if (node.parent_doc_id && docs[node.parent_doc_id]) {
           docs[node.parent_doc_id].nodeIds.push(node.id);
         }
       });
 
-      // Reconstruct Canvas Nodes
+      // Reconstruct canvas nodes
       const canvasNodes = {};
       dbCanvasNodes.forEach((cn) => {
         canvasNodes[cn.id] = {
@@ -206,7 +198,7 @@ export function initPersistenceMiddleware(stores) {
         };
       });
 
-      // Reconstruct Canvas Connections
+      // Reconstruct canvas connections
       const canvasConnections = {};
       dbCanvasConnections.forEach((cc) => {
         canvasConnections[cc.id] = {
@@ -219,7 +211,7 @@ export function initPersistenceMiddleware(stores) {
         };
       });
 
-      // Reconstruct Groupings
+      // Reconstruct groupings
       const groupings = {};
       dbGroupings.forEach((grp) => {
         groupings[grp.id] = {
@@ -231,7 +223,7 @@ export function initPersistenceMiddleware(stores) {
         };
       });
 
-      // Reconstruct Timelines
+      // Reconstruct timelines
       const timelines = {};
       dbTimelines.forEach((tl) => {
         timelines[tl.id] = {
@@ -243,63 +235,57 @@ export function initPersistenceMiddleware(stores) {
         };
       });
 
-      applyStateToStores({
-        objects,
-        docs,
-        nodes,
-        canvasNodes,
-        canvasConnections,
-        groupings,
-        timelines,
-        currentTier: "all",
-      });
-
+      applyStateToStores({ objects, docs, nodes, canvasNodes, canvasConnections, groupings, timelines, currentTier: "all" });
       isSyncedWithRemote = true;
-      console.log("Supabase synchronization successfully loaded.");
-
-      // Store a backup in localstorage
+      console.log("Supabase sync loaded for user:", userId);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
     } catch (err) {
-      console.warn("Supabase connection failed. Falling back to LocalStorage.", err.message || err);
+      console.warn("Supabase load failed — falling back to localStorage.", err.message || err);
       loadLocalFallback();
     }
   };
 
-  // Sync state back to Supabase
   const syncToSupabase = async (state) => {
-    if (!isSyncedWithRemote) {
-      console.log("Skipping Supabase sync because connection wasn't established successfully on startup.");
+    if (!isSyncedWithRemote) return;
+
+    // Obtener sesión activa
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    if (!userId) {
+      console.warn("No authenticated user — skipping Supabase sync.");
       return;
     }
 
-    console.log("Syncing changes to Supabase...");
     try {
-      // 1. Sync Companies (Objects)
+      const now = new Date().toISOString();
+
+      // 1. Companies
       const companiesRows = Object.values(state.objects).map((co) => ({
         id: co.id,
+        user_id: userId,
         name: co.name,
         sector: co.description || "",
         description: co.description || "",
         brand: co.brand || co.name,
         color: co.color || "mint",
         role: co.role || "satellite",
-        created_at: co.createdAt || new Date().toISOString(),
-        updated_at: co.updatedAt || new Date().toISOString(),
+        created_at: co.createdAt || now,
+        updated_at: now,
       }));
 
       if (companiesRows.length > 0) {
         const { error } = await supabase.from("companies").upsert(companiesRows);
         if (error) console.error("Error upserting companies:", error.message);
-        // Clear deleted companies
-        const coIds = companiesRows.map(r => r.id);
-        await supabase.from("companies").delete().not("id", "in", `(${coIds.join(",")})`);
-      } else {
-        await supabase.from("companies").delete().neq("id", "");
+        const coIds = companiesRows.map((r) => r.id);
+        await supabase.from("companies").delete()
+          .eq("user_id", userId)
+          .not("id", "in", `(${coIds.join(",")})`);
       }
 
-      // 2. Sync Campaigns (Docs)
+      // 2. Campaigns
       const campaignsRows = Object.values(state.docs).map((doc) => ({
         id: doc.id,
+        user_id: userId,
         company_id: doc.parentObjectId,
         name: doc.title,
         source: doc.knowledgeImport?.sourceUrl || "",
@@ -318,22 +304,23 @@ export function initPersistenceMiddleware(stores) {
         campaign_active: doc.campaignActive !== false,
         node_link_color: doc.nodeLinkColor || "mint",
         knowledge_import: doc.knowledgeImport || null,
-        created_at: doc.createdAt || new Date().toISOString(),
-        updated_at: doc.updatedAt || new Date().toISOString(),
+        created_at: doc.createdAt || now,
+        updated_at: now,
       }));
 
       if (campaignsRows.length > 0) {
         const { error } = await supabase.from("campaigns").upsert(campaignsRows);
         if (error) console.error("Error upserting campaigns:", error.message);
-        const campIds = campaignsRows.map(r => r.id);
-        await supabase.from("campaigns").delete().not("id", "in", `(${campIds.join(",")})`);
-      } else {
-        await supabase.from("campaigns").delete().neq("id", "");
+        const campIds = campaignsRows.map((r) => r.id);
+        await supabase.from("campaigns").delete()
+          .eq("user_id", userId)
+          .not("id", "in", `(${campIds.join(",")})`);
       }
 
-      // 3. Sync Nodes
+      // 3. Nodes
       const nodesRows = Object.values(state.nodes).map((node) => ({
         id: node.id,
+        user_id: userId,
         parent_doc_id: node.parentDocId,
         title: node.title,
         data_type: node.dataType,
@@ -342,24 +329,26 @@ export function initPersistenceMiddleware(stores) {
         reference: node.reference || {},
         linked_to_canvas: node.linkedToCanvas || false,
         canvas_node_id: node.canvasNodeId || null,
-        created_at: node.createdAt || new Date().toISOString(),
-        updated_at: node.updatedAt || new Date().toISOString(),
+        created_at: node.createdAt || now,
+        updated_at: now,
       }));
 
       if (nodesRows.length > 0) {
         const { error } = await supabase.from("nodes").upsert(nodesRows);
         if (error) console.error("Error upserting nodes:", error.message);
-        const nodeIds = nodesRows.map(r => r.id);
-        await supabase.from("nodes").delete().not("id", "in", `(${nodeIds.join(",")})`);
-      } else {
-        await supabase.from("nodes").delete().neq("id", "");
+        const nodeIds = nodesRows.map((r) => r.id);
+        await supabase.from("nodes").delete()
+          .eq("user_id", userId)
+          .not("id", "in", `(${nodeIds.join(",")})`);
       }
 
-      // 4. Sync Canvas Nodes
+      // 4. Canvas nodes
       const canvasNodesRows = Object.values(state.canvasNodes).map((cn) => ({
         id: cn.id,
-        campaign_id: useDocsStore.getState().getDoc(useNodesStore.getState().getNode(cn.nodeId)?.parentDocId)?.id || 
-                     Object.keys(state.docs)[0] || null, // fallback campaign_id
+        user_id: userId,
+        campaign_id: useDocsStore.getState().getDoc?.(
+          useNodesStore.getState().getNode?.(cn.nodeId)?.parentDocId
+        )?.id || Object.keys(state.docs)[0] || null,
         title: cn.title,
         data_type: cn.dataType || "text",
         content: cn.content,
@@ -369,107 +358,119 @@ export function initPersistenceMiddleware(stores) {
         node_id: cn.nodeId,
         hidden: cn.hidden || false,
         selected: cn.selected || false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: now,
+        updated_at: now,
       }));
 
       if (canvasNodesRows.length > 0) {
         const { error } = await supabase.from("canvas_nodes").upsert(canvasNodesRows);
         if (error) console.error("Error upserting canvas_nodes:", error.message);
-        const cnIds = canvasNodesRows.map(r => r.id);
-        await supabase.from("canvas_nodes").delete().not("id", "in", `(${cnIds.join(",")})`);
-      } else {
-        await supabase.from("canvas_nodes").delete().neq("id", "");
+        const cnIds = canvasNodesRows.map((r) => r.id);
+        await supabase.from("canvas_nodes").delete()
+          .eq("user_id", userId)
+          .not("id", "in", `(${cnIds.join(",")})`);
       }
 
-      // 5. Sync Canvas Connections
+      // 5. Canvas connections
       const connectionsRows = Object.values(state.canvasConnections).map((cc) => ({
         id: cc.id,
-        campaign_id: Object.keys(state.docs)[0] || null, // placeholder parent relationship
+        user_id: userId,
+        campaign_id: Object.keys(state.docs)[0] || null,
         source_id: cc.from || cc.fromCanvasNodeId,
         target_id: cc.to || cc.toCanvasNodeId,
         from_canvas_node_id: cc.from || cc.fromCanvasNodeId,
         to_canvas_node_id: cc.to || cc.toCanvasNodeId,
-        created_at: cc.createdAt || new Date().toISOString(),
+        created_at: cc.createdAt || now,
+        updated_at: now,
       }));
 
       if (connectionsRows.length > 0) {
         const { error } = await supabase.from("canvas_connections").upsert(connectionsRows);
         if (error) console.error("Error upserting canvas_connections:", error.message);
-        const ccIds = connectionsRows.map(r => r.id);
-        await supabase.from("canvas_connections").delete().not("id", "in", `(${ccIds.map(id => `'${id}'`).join(",")})`);
-      } else {
-        await supabase.from("canvas_connections").delete().neq("id", '00000000-0000-0000-0000-000000000000');
+        const ccIds = connectionsRows.map((r) => `'${r.id}'`);
+        await supabase.from("canvas_connections").delete()
+          .eq("user_id", userId)
+          .not("id", "in", `(${ccIds.join(",")})`);
       }
 
-      // 6. Sync Groupings
+      // 6. Groupings
       const groupingsRows = Object.values(state.groupings).map((grp) => ({
         id: grp.id,
+        user_id: userId,
         name: grp.name,
         canvas_node_ids: grp.canvasNodeIds || [],
         parent_doc_id: grp.parentDocId,
-        created_at: grp.createdAt || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: grp.createdAt || now,
+        updated_at: now,
       }));
 
       if (groupingsRows.length > 0) {
         const { error } = await supabase.from("groupings").upsert(groupingsRows);
         if (error) console.error("Error upserting groupings:", error.message);
-        const grpIds = groupingsRows.map(r => r.id);
-        await supabase.from("groupings").delete().not("id", "in", `(${grpIds.join(",")})`);
-      } else {
-        await supabase.from("groupings").delete().neq("id", "");
+        const grpIds = groupingsRows.map((r) => r.id);
+        await supabase.from("groupings").delete()
+          .eq("user_id", userId)
+          .not("id", "in", `(${grpIds.join(",")})`);
       }
 
-      // 7. Sync Timelines
+      // 7. Timelines
       const timelinesRows = Object.values(state.timelines).map((tl) => ({
         id: tl.id,
-        campaign_id: Object.keys(state.docs)[0] || null, // parent relation
+        user_id: userId,
+        campaign_id: Object.keys(state.docs)[0] || null,
         title: tl.name || tl.title,
         name: tl.name || tl.title,
-        target_date: tl.entries?.[0]?.date ? tl.entries[0].date.split("T")[0] : new Date().toISOString().split("T")[0],
+        target_date: tl.entries?.[0]?.date
+          ? tl.entries[0].date.split("T")[0]
+          : now.split("T")[0],
         tier: tl.tier || "primary",
         entries: tl.entries || [],
-        created_at: tl.createdAt || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: tl.createdAt || now,
+        updated_at: now,
       }));
 
       if (timelinesRows.length > 0) {
         const { error } = await supabase.from("timelines").upsert(timelinesRows);
         if (error) console.error("Error upserting timelines:", error.message);
-        const tlIds = timelinesRows.map(r => r.id);
-        await supabase.from("timelines").delete().not("id", "in", `(${tlIds.map(id => `'${id}'`).join(",")})`);
-      } else {
-        await supabase.from("timelines").delete().neq("id", '00000000-0000-0000-0000-000000000000');
+        const tlIds = timelinesRows.map((r) => `'${r.id}'`);
+        await supabase.from("timelines").delete()
+          .eq("user_id", userId)
+          .not("id", "in", `(${tlIds.join(",")})`);
       }
 
-      console.log("Supabase sync complete.");
+      console.log("Supabase sync complete for user:", userId);
     } catch (err) {
       console.error("Supabase write failed:", err.message || err);
     }
   };
 
-  // Setup initial load
+  // Cargar datos al iniciar
   loadFromSupabase();
 
-  // Schedule local and remote saves
-  const debouncedRemoteSync = debounce(syncToSupabase, 1000);
+  // Escuchar cambios de sesión — recargar datos cuando el usuario cambia
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === "SIGNED_IN") {
+      isSyncedWithRemote = false;
+      loadFromSupabase();
+    }
+    if (event === "SIGNED_OUT") {
+      isSyncedWithRemote = false;
+      applyStateToStores({ objects: {}, docs: {}, nodes: {}, canvasNodes: {}, canvasConnections: {}, groupings: {}, timelines: {} });
+    }
+  });
+
+  const debouncedRemoteSync = debounce(syncToSupabase, 1500);
 
   const handleStoreChange = () => {
     const currentState = getLocalState();
-    
-    // Save to localStorage immediately
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
     } catch (e) {
       // quota / private mode
     }
-
-    // Schedule remote sync to Supabase
     debouncedRemoteSync(currentState);
   };
 
-  // Subscribe to changes in all 5 core stores
   [
     useObjectsStore,
     useDocsStore,
