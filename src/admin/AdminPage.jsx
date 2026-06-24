@@ -32,7 +32,7 @@ export function AdminPage() {
   useEffect(() => {
     if (!loading && user && !isAdmin) {
       signOut();
-      setErrorMessage('This account is not allowed to access /admin.');
+      setErrorMessage('This account is not allowed to access /panel.');
     }
   }, [loading, user, isAdmin]);
 

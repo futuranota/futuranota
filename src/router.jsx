@@ -56,7 +56,7 @@ export default function AppRouter() {
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="auth/callback" element={<AuthCallbackPage />} />
-        <Route path="admin" element={<AdminPage />} />
+        <Route path="panel" element={<AdminPage />} />
 
         <Route path="app/*" element={
           <ProtectedRoute>
