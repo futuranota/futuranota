@@ -5,6 +5,8 @@ import { useUIStateStore } from "../stores/uiStateStore.js";
 
 /**
  * Ensures a business object exists for a company target selection.
+ * NOTE: Company selection has no plan limit by design — free and pro users
+ * can select/switch companies freely. Do not add plan gating here.
  * @param {{ name?: string, sector?: string }} company
  * @returns {string} object id
  */

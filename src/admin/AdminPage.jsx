@@ -3,13 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore.js';
 import { applyMarketingTheme } from '../marketing/lib/theme.js';
 import { SignalsAdminPanel } from './SignalsAdminPanel.jsx';
+import { CampaignDetectorAdminPanel } from './CampaignDetectorAdminPanel.jsx';
 import '../marketing/styles/marketing.css';
 import '../marketing/styles/sections.css';
 import './admin.css';
 
 const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
 
-const TABS = [{ id: 'signals', label: 'Signals' }];
+const TABS = [
+  { id: 'signals', label: 'Signals' },
+  { id: 'campaigns', label: 'Campaign Detector' },
+];
 
 export function AdminPage() {
   const navigate = useNavigate();
@@ -135,6 +139,7 @@ export function AdminPage() {
 
         <main className="admin-content">
           {tab === 'signals' ? <SignalsAdminPanel /> : null}
+          {tab === 'campaigns' ? <CampaignDetectorAdminPanel /> : null}
         </main>
       </div>
     </div>

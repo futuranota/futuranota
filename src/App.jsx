@@ -16,7 +16,11 @@ import {
   useObjectsStore,
   useTimelineStore,
   useUIStateStore,
+  usePlanStore,
+  useUpgradeModalStore,
+  FREE_LIMITS,
 } from './stores/index.js';
+import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { useNavigate } from 'react-router-dom';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
@@ -180,8 +184,10 @@ function Dashboard({ company, onBack }) {
   const knowledgeFolderActive = useUIStateStore((s) => s.knowledgeFolderActive);
   const timelines = useTimelineStore((s) => s.timelines);
   const prevTimelineAlertsEnabled = useRef(false);
-  const tokenCurrent = 0;
-  const tokenMax = 10;
+  const planProfile = usePlanStore((s) => s.profile);
+  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
+  const tokenCurrent = planProfile.plan === "pro" ? 0 : planProfile.searchCount;
+  const tokenMax = planProfile.plan === "pro" ? Infinity : FREE_LIMITS.maxSearches;
 
   const metaBarMetadata = useMemo(
     () =>
@@ -738,7 +744,18 @@ useEffect(() => {
             intel={intel}
             addedIds={[]}
             loadingIds={[]}
-            onGetOverview={() => {}}
+            onGetOverview={() => {
+              const { profile } = usePlanStore.getState();
+              if (profile.plan === "free" && profile.searchCount >= FREE_LIMITS.maxSearches) {
+                showUpgradeModal("search");
+                return;
+              }
+              if (profile.plan === "free") {
+                usePlanStore.getState().incrementSearchCount();
+              }
+              // Nota: la búsqueda/overview real con IA aún no está implementada (era un no-op);
+              // este gate solo aplica el tope de 10, la lógica de fetch queda pendiente.
+            }}
             onScanBlogs={scanBlogs}
             hasScannedBlogs={hasScannedBlogs}
             tokenCurrent={tokenCurrent}
@@ -815,6 +832,9 @@ function App() {
   const theme = useThemeStore((s) => s.theme);
   const [screen, setScreen] = useState("selector");
   const [company, setCompany] = useState(null);
+  const upgradeOpen = useUpgradeModalStore((s) => s.open);
+  const upgradeReason = useUpgradeModalStore((s) => s.reason);
+  const hideUpgradeModal = useUpgradeModalStore((s) => s.hide);
 
   useEffect(() => {
     initStores();
@@ -831,6 +851,8 @@ function App() {
       {screen === "selector" && (
         <CompanySelectorPage
           onSelect={(c) => {
+            // Selección de compañía sin límite de plan por diseño — free y pro pueden
+            // escoger/cambiar de compañía libremente. No agregar gate aquí.
             ensureCompanyObject(c);
             setCompany(c);
             setScreen("dashboard");
@@ -841,6 +863,8 @@ function App() {
       {screen === "dashboard" && company && (
         <Dashboard company={company} onBack={() => setScreen("selector")} />
       )}
+
+      <UpgradeModal open={upgradeOpen} reason={upgradeReason} onClose={hideUpgradeModal} />
 
       <TweaksPanel title="Futura Nota">
         <TweakSection label="Theme" />

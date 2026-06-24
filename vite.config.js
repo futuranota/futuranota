@@ -10,6 +10,7 @@ function brandCadenceApiPlugin(env) {
       applyServerEnv(env);
       server.middlewares.use(createBrandCadenceMiddleware());
       server.middlewares.use(createTranslateMiddleware());
+      server.middlewares.use(createCampaignDetectorMiddleware());
     },
   };
 }

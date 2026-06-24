@@ -26,6 +26,7 @@ import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.js
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
 import { useI18n } from './i18n/useI18n.js';
+import { useUpgradeModalStore } from './stores/upgradeModalStore.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
 
@@ -572,7 +573,12 @@ function NotesPanel({
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 9.5, color: "var(--dim)", whiteSpace: "nowrap" }}>
           <span>{manualCount} manual · {aiCount} AI</span>
-          <span style={{ color: "var(--warm)", cursor: "pointer" }}>Upgrade →</span>
+          <span
+            style={{ color: "var(--warm)", cursor: "pointer" }}
+            onClick={() => useUpgradeModalStore.getState().show("search")}
+          >
+            Upgrade →
+          </span>
         </div>
       </div>
     </>

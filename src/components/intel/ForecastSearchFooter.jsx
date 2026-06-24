@@ -49,11 +49,21 @@ export function ForecastSearchFooter({
   );
 
   const handleSearch = async () => {
+    const { profile } = usePlanStore.getState();
+    if (profile.plan === "free" && profile.weatherUsed) {
+      useUpgradeModalStore.getState().show("weather");
+      return;
+    }
+
     const node = resolveNode();
     setStatus("loading");
     const next = await fetchForecastForNode(node);
     setResult(next);
     setStatus(next.status === "success" ? "success" : "unavailable");
+
+    if (profile.plan === "free") {
+      usePlanStore.getState().markFeatureUsed("weather");
+    }
   };
 
   const handleInsert = () => {
