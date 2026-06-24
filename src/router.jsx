@@ -11,7 +11,9 @@ import { ForgotPasswordPage } from './marketing/pages/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from './marketing/pages/ResetPasswordPage.jsx';
 import { AuthCallbackPage } from './pages/AuthCallbackPage.jsx';
 import { AdminPage } from './admin/AdminPage.jsx';
+import { PlansPage } from './pages/PlansPage.jsx';
 import { useAuthStore } from './stores/authStore.js';
+import { usePlanStore } from './stores/planStore.js';
 import { useEffect } from 'react';
 import App from './App.jsx';
 
@@ -31,10 +33,15 @@ function ProtectedRoute({ children }) {
 
 export default function AppRouter() {
   const init = useAuthStore((s) => s.init);
+  const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
     init();
   }, []);
+
+  useEffect(() => {
+    if (user) usePlanStore.getState().fetchProfile();
+  }, [user]);
 
   return (
     <>
@@ -57,6 +64,12 @@ export default function AppRouter() {
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="auth/callback" element={<AuthCallbackPage />} />
         <Route path="panel" element={<AdminPage />} />
+
+        <Route path="app/plans" element={
+          <ProtectedRoute>
+            <PlansPage />
+          </ProtectedRoute>
+        } />
 
         <Route path="app/*" element={
           <ProtectedRoute>

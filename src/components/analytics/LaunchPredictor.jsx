@@ -7,7 +7,19 @@ import {
 } from "../../lib/launchCadenceMath.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { useDocsStore } from "../../stores/docsStore.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
+import { useTimelineStore } from "../../stores/timelineStore.js";
+import { generateId } from "../../lib/ids.js";
 import "../../styles/launch-predictor.css";
+
+function toIsoDateString(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Launch cadence module — reads brand from current corpus, no user input.
@@ -99,6 +111,26 @@ export function LaunchPredictor({ today = new Date() }) {
 
   if (!projection) return null;
 
+  const handleTrackOnTimeline = () => {
+    const dateStr = toIsoDateString(projection.estimatedLaunchDate);
+    const docs = useDocsStore.getState().getDocsByObject(currentCorpus.id);
+    const parentDocId = docs[0]?.id || null;
+
+    const nodeId = useNodesStore.getState().addNode(
+      `Est. Launch · ${currentCorpus.brandName}`,
+      "date",
+      dateStr,
+      parentDocId,
+    );
+
+    useTimelineStore.getState().addExternalEvent({
+      id: nodeId,
+      title: `Est. Launch · ${currentCorpus.brandName}`,
+      date: dateStr,
+      source: "launch-radar",
+    });
+  };
+
   const intervalLabel = Number.isInteger(cadence.averageIntervalMonths)
     ? cadence.averageIntervalMonths
     : cadence.averageIntervalMonths.toFixed(1);
@@ -137,6 +169,10 @@ export function LaunchPredictor({ today = new Date() }) {
         {projection.monthsRemaining === 1 ? "" : "s"}.{" "}
         Announcements usually begin about three months before.
       </p>
+
+      <button type="button" className="btn sm primary" onClick={handleTrackOnTimeline}>
+        Track on timeline
+      </button>
     </div>
   );
 }

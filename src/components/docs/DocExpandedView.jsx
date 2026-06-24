@@ -4,6 +4,9 @@ import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { usePlanStore, FREE_LIMITS } from "../../stores/planStore.js";
+import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
+import { normalizeKnowledgeImport } from "../../lib/knowledgeImport.js";
 import { Modal } from "../shared/Modal.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
@@ -174,6 +177,8 @@ export function DocExpandedView({
   const nodeAutosaveTimerRef = useRef(null);
   const objects = useObjectsStore((s) => s.objects);
   const allDocs = useDocsStore((s) => s.docs);
+  const planProfile = usePlanStore((s) => s.profile);
+  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
 
   useEffect(() => {
     const d = useDocsStore.getState().docs[docId];
@@ -860,6 +865,17 @@ export function DocExpandedView({
   };
 
   const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
+    const incomingBytes = normalizeKnowledgeImport(nextImport)?.sizeBytes || 0;
+    if (planProfile.plan === "free" && incomingBytes > 0) {
+      const totalBytes = Object.values(allDocs).reduce((sum, d) => {
+        if (d.id === docId) return sum;
+        return sum + (normalizeKnowledgeImport(d.knowledgeImport)?.sizeBytes || 0);
+      }, 0);
+      if (totalBytes + incomingBytes > FREE_LIMITS.maxImportBytes) {
+        showUpgradeModal("import_size");
+        return;
+      }
+    }
     if (importTitle && !draftTitle.trim()) {
       setDraftTitle(importTitle);
     }

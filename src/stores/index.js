@@ -4,6 +4,8 @@ export { useNodesStore } from "./nodesStore.js";
 export { useCanvasStore } from "./canvasStore.js";
 export { useTimelineStore } from "./timelineStore.js";
 export { useUIStateStore } from "./uiStateStore.js";
+export { usePlanStore, FREE_LIMITS } from "./planStore.js";
+export { useUpgradeModalStore } from "./upgradeModalStore.js";
 export { initStores } from "./initStores.js";
 export { initSyncMiddleware } from "./middleware/syncMiddleware.js";
 export { initPersistenceMiddleware } from "./middleware/persistenceMiddleware.js";

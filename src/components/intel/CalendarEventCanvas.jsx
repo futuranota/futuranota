@@ -11,6 +11,8 @@ import {
 import { CalendarEventResultBox } from "./CalendarEventResultBox.jsx";
 import { EventCalendarRangeSwitch } from "./EventCalendarRangeSwitch.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
+import { usePlanStore } from "../../stores/planStore.js";
+import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 
 const CALENDAR_EVENT_ILLUSTRATION = "/uploads/botones/e-c.svg";
 const DEFAULT_RANGE_ID = "week";
@@ -85,9 +87,19 @@ export function CalendarEventCanvas({
   const runSearch = useCallback(async () => {
     if (!canSearch) return;
 
+    const { profile } = usePlanStore.getState();
+    if (profile.plan === "free" && profile.calendarUsed) {
+      useUpgradeModalStore.getState().show("calendar");
+      return;
+    }
+
     setPhase("loading");
     const next = await fetchEventsForNode(activeNode, today, rangeId);
     setResult(next);
+
+    if (profile.plan === "free") {
+      usePlanStore.getState().markFeatureUsed("calendar");
+    }
 
     if (next.status === "success") {
       setPhase("result");

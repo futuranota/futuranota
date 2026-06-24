@@ -3,11 +3,16 @@ import { URL_EXTRACT_SAMPLE } from './data.jsx';
 import { NavPreferences } from './components/shared/NavPreferences.jsx';
 import { UserMenu } from './components/shared/UserMenu.jsx';
 import { useI18n } from './i18n/useI18n.js';
+import { useThemeStore } from './stores/themeStore.js';
 
 /* dashboard.jsx — TopBar, MetaBar, ScanOverlay, UrlModal, Toast */
 
 function TopBar({ onBack, scanState, onScan, onScanBlogs, onPasteUrl, onAltSeed }) {
   const { t } = useI18n();
+  const theme = useThemeStore((s) => s.theme);
+  const logoSrc = theme === 'dark'
+    ? '/screenshots/futuranota-white.svg'
+    : '/screenshots/futuranota-logo-1svg.svg';
 
   return (
     <div className="topbar">
@@ -20,8 +25,7 @@ function TopBar({ onBack, scanState, onScan, onScanBlogs, onPasteUrl, onAltSeed 
       </div>
 
       <div className="topbar-center brand brand--centered">
-        <div className="brand-mark" aria-hidden />
-        <span className="brand-name">Futura Nota</span>
+        <img className="brand-mark" src={logoSrc} alt="Futura Nota" />
       </div>
 
       <div className="topbar-end">

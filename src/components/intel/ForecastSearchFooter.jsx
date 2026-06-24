@@ -7,6 +7,8 @@ import {
 } from "../../lib/forecastSearch.js";
 import { ForecastConditionIcon, ForecastIconRain, ForecastIconWind } from "./ForecastIcons.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
+import { usePlanStore } from "../../stores/planStore.js";
+import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 
 const FORECAST_SEARCH_ICON = "/uploads/botones/search-active.svg";
 

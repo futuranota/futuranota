@@ -6,6 +6,9 @@ import {
   useNodesStore,
   useUIStateStore,
   useTimelineStore,
+  usePlanStore,
+  useUpgradeModalStore,
+  FREE_LIMITS,
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
@@ -796,6 +799,8 @@ export function LeftPanel({
   const objects    = useObjectsStore(s => s.objects);
   const addObject  = useObjectsStore(s => s.addObject);
   const updateObject = useObjectsStore(s => s.updateObject);
+  const planProfile = usePlanStore(s => s.profile);
+  const showUpgradeModal = useUpgradeModalStore(s => s.show);
   const docs       = useDocsStore(s => s.docs);
   const addDoc     = useDocsStore(s => s.addDoc);
   const deleteDoc  = useDocsStore(s => s.deleteDoc);
@@ -990,6 +995,10 @@ export function LeftPanel({
 
   const handleCreate = (data) => {
     if (panelType === "Objects") {
+      if (planProfile.plan === "free" && Object.keys(objects).length >= FREE_LIMITS.maxObjects) {
+        showUpgradeModal("object_limit");
+        return;
+      }
       const newObjectId = addObject(data.name, data.description, data.color, data.brand);
       if (newObjectId) {
         setActiveId(newObjectId);
@@ -1543,7 +1552,7 @@ export function LeftPanel({
         </div>
         <div className="lp-tokens-meta">
           <span>{t("sidebar.manualAiFooter", { manual: nodeList.length, ai: 0 })}</span>
-          <button type="button" className="btn xs ghost">{t("sidebar.upgrade")}</button>
+          <button type="button" className="btn xs ghost" onClick={() => showUpgradeModal("generic")}>{t("sidebar.upgrade")}</button>
         </div>
       </div>
 
