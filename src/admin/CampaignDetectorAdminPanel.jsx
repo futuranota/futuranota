@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { fetchCampaignDetection } from '../lib/fetchCampaignDetection.js';
+import { fetchCampaignDetection, shouldIncludeInBatchScan } from '../lib/fetchCampaignDetection.js';
+import { fetchScanSourcesWithFallback } from '../lib/scanSources.js';
 import { fetchCompanyBrandCandidates } from '../lib/companyBrands.js';
-import { isWithinFourMonthWindow, DEFAULT_RANGE_DAYS } from '../lib/campaignWindow.js';
+import { DEFAULT_RANGE_DAYS } from '../lib/campaignWindow.js';
 import {
   EMPTY_CAMPAIGN_SIGNAL_FIELDS,
   campaignSignalFieldsFromDetection,
@@ -9,15 +10,14 @@ import {
   campaignSignalFieldsToPayload,
 } from '../lib/campaignSignalFields.js';
 import {
-  fetchAllCampaignSignals,
+  fetchPendingCampaignSignals,
   createCampaignSignal,
   updateCampaignSignal,
   deleteCampaignSignal,
-  setActiveCampaignSignal,
+  promoteCampaignSignal,
 } from '../lib/campaignSignals.js';
 import { CampaignSignalForm } from './CampaignSignalForm.jsx';
 import { CampaignSignalList } from './CampaignSignalList.jsx';
-import { publishCampaignSignalToHero } from '../lib/publishToHero.js';
 
 const SCAN_CONCURRENCY = 3;
 
@@ -58,18 +58,21 @@ export function CampaignDetectorAdminPanel() {
   const [scanProgress, setScanProgress] = useState({ done: 0, total: 0 });
   const [scanError, setScanError] = useState(null);
   const [scanResults, setScanResults] = useState([]);
+  const [scanDiscarded, setScanDiscarded] = useState([]);
   const [rangeDays, setRangeDays] = useState(DEFAULT_RANGE_DAYS);
+  const [scanSources, setScanSources] = useState([]);
 
   const [signals, setSignals] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [publishNotice, setPublishNotice] = useState(null);
 
   const load = async () => {
     setLoadingList(true);
     try {
-      setSignals(await fetchAllCampaignSignals());
+      setSignals(await fetchPendingCampaignSignals());
     } catch (err) {
       setErrorMessage(err.message);
     } finally {
@@ -79,6 +82,7 @@ export function CampaignDetectorAdminPanel() {
 
   useEffect(() => {
     load();
+    fetchScanSourcesWithFallback().then(setScanSources).catch(() => setScanSources([]));
   }, []);
 
   function loadResultIntoPreview(brandName, result) {
@@ -95,7 +99,14 @@ export function CampaignDetectorAdminPanel() {
     setDetecting(true);
     setDetectError(null);
     try {
-      const result = await fetchCampaignDetection({ brandName });
+      const result = await fetchCampaignDetection({
+        brandName,
+        rangeDays,
+        sources: scanSources.filter((s) => s.enabled !== false),
+      });
+      if (result.error && result.noData) {
+        setDetectError(result.error);
+      }
       loadResultIntoPreview(brandName, result);
     } catch (err) {
       setDetectError(err.message);
@@ -107,18 +118,26 @@ export function CampaignDetectorAdminPanel() {
   async function handleScanRecent() {
     setScanError(null);
     setScanResults([]);
+    setScanDiscarded([]);
     setScanning(true);
     try {
       const brands = await fetchCompanyBrandCandidates();
+      const activeSources = scanSources.filter((s) => s.enabled !== false);
       setScanProgress({ done: 0, total: brands.length });
 
       const hits = [];
+      const discarded = [];
       await runWithConcurrency(brands, SCAN_CONCURRENCY, async (brandName) => {
         try {
-          const result = await fetchCampaignDetection({ brandName });
-          // Active campaigns always surface; otherwise only if recent within the chosen range.
-          if (result.campaignActive || isWithinFourMonthWindow(result, rangeDays)) {
+          const result = await fetchCampaignDetection({
+            brandName,
+            rangeDays,
+            sources: activeSources,
+          });
+          if (shouldIncludeInBatchScan(result)) {
             hits.push({ brandName, ...result });
+          } else if (result.cadenceStatus === 'discard') {
+            discarded.push({ brandName, ...result });
           }
         } catch {
           // Skip brands that fail detection — don't block the whole scan.
@@ -128,6 +147,7 @@ export function CampaignDetectorAdminPanel() {
       });
 
       setScanResults(hits);
+      setScanDiscarded(discarded);
     } catch (err) {
       setScanError(err.message);
     } finally {
@@ -170,10 +190,13 @@ export function CampaignDetectorAdminPanel() {
 
   async function handleActivate(id) {
     setBusyId(id);
+    setPublishNotice(null);
     try {
       const signal = signals.find((s) => s.id === id);
-      await setActiveCampaignSignal(id);
-      if (signal) await publishCampaignSignalToHero(signal);
+      if (!signal) return;
+      await promoteCampaignSignal(signal);
+      setScanResults((prev) => prev.filter((h) => h.brandName !== signal.brand_name));
+      setPublishNotice(`${signal.brand_name} published to Signals — removed from scan queue.`);
       await load();
     } catch (err) {
       setErrorMessage(err.message);
@@ -201,9 +224,11 @@ export function CampaignDetectorAdminPanel() {
         <div>
           <h2 className="h3">Campaign Detector</h2>
           <p className="muted" style={{ fontSize: 14, marginTop: 4 }}>
-            Escaneá las marcas ya cargadas en la app y detectá cuáles tienen una campaña
-            reciente, o metés una marca puntual abajo. Groq busca, revisás/editás
-            el resultado y lo guardás como señal para Signal.
+            Pass A: validación de campaña confirmada (Serper + Groq extract-only).
+            Pass B: si no hay campaña, análisis de cadencia con meses restantes desde hoy.
+          </p>
+          <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+            {scanSources.filter((s) => s.enabled !== false).length} fuentes curadas activas · contexto Groq: detector-de-campanas.md
           </p>
         </div>
       </div>
@@ -213,9 +238,8 @@ export function CampaignDetectorAdminPanel() {
           <div>
             <h3 className="h4" style={{ margin: 0 }}>Scan recent campaigns</h3>
             <p className="muted" style={{ fontSize: 12, margin: '2px 0 0' }}>
-              Revisa todas las marcas de companies. Incluye cualquier lanzamiento futuro confirmado
-              (sin tope, aunque sea el próximo año) y los lanzamientos de los últimos {rangeDays} días
-              cuyo próximo ciclo todavía no venció.
+              Incluye campañas confirmadas y cadencia pendiente (~{Math.ceil(rangeDays / 30)} meses o menos).
+              Ventana larga → sección inferior (descartables).
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -239,9 +263,9 @@ export function CampaignDetectorAdminPanel() {
 
         {scanError ? <div className="admin-error" style={{ marginTop: 12 }}>{scanError}</div> : null}
 
-        {!scanning && scanResults.length === 0 && scanProgress.total > 0 ? (
+        {!scanning && scanResults.length === 0 && scanDiscarded.length === 0 && scanProgress.total > 0 ? (
           <p className="muted" style={{ marginTop: 12 }}>
-            No se encontraron campañas dentro de los últimos {rangeDays} días ni lanzamientos futuros entre {scanProgress.total} marcas.
+            No se encontraron campañas confirmadas ni cadencia pendiente entre {scanProgress.total} marcas.
           </p>
         ) : null}
 
@@ -252,11 +276,16 @@ export function CampaignDetectorAdminPanel() {
                 <div className="admin-card__main">
                   <p className="admin-card__title">
                     {hit.brandName}
-                    {hit.campaignActive ? <span className="pill" style={{ marginLeft: 8 }}>campaign active</span> : null}
+                    {hit.campaignActive ? <span className="pill ai" style={{ marginLeft: 8 }}>verified</span> : null}
+                    {hit.cadenceStatus === 'watch' ? (
+                      <span className="pill ai" style={{ marginLeft: 8 }}>
+                        pendiente ~{hit.monthsRemaining}mo
+                      </span>
+                    ) : null}
                   </p>
                   <p className="muted" style={{ fontSize: 12, margin: '2px 0 0' }}>
-                    {hit.launchDate ? `launch ${hit.launchDate}` : `last launch ${hit.lastLaunchDate || '—'}`}
-                    {' · '}{hit.overview}
+                    {hit.launchDate ? `launch ${hit.launchDate}` : hit.estimatedLaunchDate ? `est. ${hit.estimatedLaunchDate}` : `last ${hit.lastLaunchDate || '—'}`}
+                    {' · '}{hit.cadenceMessage || hit.overview}
                   </p>
                 </div>
                 <div className="admin-card__actions">
@@ -271,6 +300,36 @@ export function CampaignDetectorAdminPanel() {
               </div>
             ))}
           </div>
+        ) : null}
+
+        {scanDiscarded.length > 0 ? (
+          <>
+            <h4 className="h4" style={{ marginTop: 16, marginBottom: 8 }}>Ventana larga — podés descartar</h4>
+            <div className="admin-list">
+              {scanDiscarded.map((hit) => (
+                <div className="admin-card admin-card--row" key={`discard-${hit.brandName}`}>
+                  <div className="admin-card__main">
+                    <p className="admin-card__title">
+                      {hit.brandName}
+                      <span className="pill" style={{ marginLeft: 8 }}>~{hit.monthsRemaining}mo</span>
+                    </p>
+                    <p className="muted" style={{ fontSize: 12, margin: '2px 0 0' }}>
+                      {hit.cadenceMessage || hit.overview}
+                    </p>
+                  </div>
+                  <div className="admin-card__actions">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => loadResultIntoPreview(hit.brandName, hit)}
+                    >
+                      Review
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         ) : null}
       </div>
 
@@ -293,6 +352,9 @@ export function CampaignDetectorAdminPanel() {
 
       {detectError ? <div className="admin-error">{detectError}</div> : null}
       {errorMessage ? <div className="admin-error">{errorMessage}</div> : null}
+      {publishNotice ? (
+        <p className="muted" style={{ fontSize: 13, marginTop: 8, color: 'var(--hud)' }}>{publishNotice}</p>
+      ) : null}
 
       {hasPreview ? (
         <CampaignSignalForm
@@ -305,6 +367,7 @@ export function CampaignDetectorAdminPanel() {
         />
       ) : null}
 
+      <h3 className="h4" style={{ margin: '20px 0 8px' }}>Cola de revisión</h3>
       <CampaignSignalList
         signals={signals}
         loading={loadingList}
@@ -312,7 +375,7 @@ export function CampaignDetectorAdminPanel() {
         onActivate={handleActivate}
         onEdit={startEdit}
         onDelete={handleDelete}
-        emptyLabel="No campaign signals yet — detect one above to save it."
+        emptyLabel="No campaign signals in queue — detect one above to review it."
       />
     </div>
   );

@@ -5,11 +5,15 @@ function splitCampaignName(campaignName) {
   return { name: name || campaignName || 'Untitled', sector: sector || '' };
 }
 
+function extractNodeText(nodes, hash) {
+  const row = (nodes || []).find((n) => n.hash === hash);
+  return typeof row?.text === 'string' ? row.text.trim() : '';
+}
+
 /**
  * Companies/campaigns available to track in the in-app selector ("Which
- * company are you tracking?"). Backed entirely by hero_signals — anything
- * activated from Horizon Scan / Campaign Detector / the Signals tab shows up
- * here, replacing the old static demo list.
+ * company are you tracking?"). Backed by hero_signals — published campaigns
+ * inject cadence, overview, and dates into Launch Radar.
  */
 export async function fetchSignalCompanies() {
   const { data, error } = await supabase
@@ -19,14 +23,23 @@ export async function fetchSignalCompanies() {
   if (error) throw error;
 
   return (data ?? []).map((s) => {
-    const { name, sector } = splitCampaignName(s.campaign_name);
+    const parsed = splitCampaignName(s.campaign_name);
+    const name = (s.brand_name || parsed.name || '').trim() || 'Untitled';
+    const category = (extractNodeText(s.nodes, 'category') || parsed.sector || '').trim();
+    const overview = (extractNodeText(s.nodes, 'overview') || (typeof s.overview === 'string' ? s.overview.trim() : ''));
+
     return {
       id: s.id,
       name,
-      sector,
+      sector: category,
       status: s.active ? 'ACTIVE' : 'STANDBY',
       campaigns: 1,
       signal: s.window_progress ?? 0,
+      launchDate: s.launch_date || null,
+      announcementDate: s.announcement_date || null,
+      lastLaunchDate: s.last_launch_date || null,
+      averageIntervalMonths: s.average_interval_months ?? null,
+      overview,
     };
   });
 }

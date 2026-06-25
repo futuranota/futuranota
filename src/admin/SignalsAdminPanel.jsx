@@ -4,7 +4,7 @@ import {
   createSignal,
   updateSignal,
   deleteSignal,
-  setActiveSignal,
+  markSignalActive,
   timeAgoLabel,
 } from '../lib/signals.js';
 
@@ -94,7 +94,7 @@ export function SignalsAdminPanel() {
         // Activate step here. (Horizon Scan / Campaign Detector publish the
         // same way via publishCampaignSignalToHero.)
         const created = await createSignal(payload);
-        await setActiveSignal(created.id);
+        await markSignalActive(created.id);
       }
       setShowForm(false);
       await load();

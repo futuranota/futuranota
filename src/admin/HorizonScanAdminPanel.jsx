@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchHorizonScan } from '../lib/fetchHorizonScan.js';
+import { fetchScanSourcesWithFallback } from '../lib/scanSources.js';
 import {
   EMPTY_CAMPAIGN_SIGNAL_FIELDS,
   campaignSignalFieldsFromDetection,
@@ -7,15 +8,14 @@ import {
   campaignSignalFieldsToPayload,
 } from '../lib/campaignSignalFields.js';
 import {
-  fetchAllCampaignSignals,
+  fetchPendingCampaignSignals,
   createCampaignSignal,
   updateCampaignSignal,
   deleteCampaignSignal,
-  setActiveCampaignSignal,
+  promoteCampaignSignal,
 } from '../lib/campaignSignals.js';
 import { CampaignSignalForm } from './CampaignSignalForm.jsx';
 import { CampaignSignalList } from './CampaignSignalList.jsx';
-import { publishCampaignSignalToHero } from '../lib/publishToHero.js';
 
 const RANGE_OPTIONS = [
   { label: '30 días', days: 30 },
@@ -30,6 +30,8 @@ export function HorizonScanAdminPanel() {
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [hits, setHits] = useState([]);
+  const [scanMeta, setScanMeta] = useState(null);
+  const [scanSources, setScanSources] = useState([]);
   const [savedBrands, setSavedBrands] = useState([]);
 
   const [fields, setFields] = useState(EMPTY_CAMPAIGN_SIGNAL_FIELDS);
@@ -41,11 +43,12 @@ export function HorizonScanAdminPanel() {
   const [signals, setSignals] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [publishNotice, setPublishNotice] = useState(null);
 
   const load = async () => {
     setLoadingList(true);
     try {
-      setSignals(await fetchAllCampaignSignals());
+      setSignals(await fetchPendingCampaignSignals());
     } catch (err) {
       setErrorMessage(err.message);
     } finally {
@@ -55,17 +58,27 @@ export function HorizonScanAdminPanel() {
 
   useEffect(() => {
     load();
+    fetchScanSourcesWithFallback().then(setScanSources).catch(() => setScanSources([]));
   }, []);
 
   async function handleScan(e) {
     e.preventDefault();
     setScanError(null);
+    setScanMeta(null);
     setHits([]);
     setSavedBrands([]);
     setScanning(true);
     try {
-      const { companies } = await fetchHorizonScan({ rangeDays, industry: industry.trim() });
-      setHits(companies || []);
+      const response = await fetchHorizonScan({
+        rangeDays,
+        industry: industry.trim(),
+        sources: scanSources.filter((s) => s.enabled !== false),
+      });
+      setHits(response.companies || []);
+      setScanMeta(response.meta || null);
+      if (response.meta?.error) {
+        setScanError(response.meta.error);
+      }
     } catch (err) {
       setScanError(err.message);
     } finally {
@@ -115,10 +128,14 @@ export function HorizonScanAdminPanel() {
 
   async function handleActivate(id) {
     setBusyId(id);
+    setPublishNotice(null);
     try {
       const signal = signals.find((s) => s.id === id);
-      await setActiveCampaignSignal(id);
-      if (signal) await publishCampaignSignalToHero(signal);
+      if (!signal) return;
+      await promoteCampaignSignal(signal);
+      setHits((prev) => prev.filter((h) => h.brandName !== signal.brand_name));
+      setSavedBrands((prev) => prev.filter((b) => b !== signal.brand_name));
+      setPublishNotice(`${signal.brand_name} published to Signals — removed from scan queue.`);
       await load();
     } catch (err) {
       setErrorMessage(err.message);
@@ -146,22 +163,13 @@ export function HorizonScanAdminPanel() {
         <div>
           <h2 className="h3">Horizon Scan</h2>
           <p className="muted" style={{ fontSize: 14, marginTop: 4 }}>
-            Descubrimiento abierto: Groq busca compañías que <strong>no están en tu dashboard</strong>{' '}
-            con campaña o lanzamiento esperado dentro del rango elegido. Revisás y aprobás cada
-            hallazgo antes de que se guarde como señal.
+            Descubrimiento verificado: Serper + Groq extraen solo de snippets reales.
+            Campaña confirmada requiere confidence ≥ 80; cadencia solo ≥ 70.
+            Sin <code>SERPAPI_KEY</code> no se devuelven compañías.
           </p>
-          {hits.length > 0 && hits.some((h) => h.source?.includes('serpapi')) ? (
-            <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              <span className="pill ai" style={{ marginRight: 6 }}>live search</span>
-              Estos resultados vienen de búsqueda web real (Serper), calificados por Groq.
-            </p>
-          ) : (
-            <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-              Nota: esto usa el conocimiento de Groq, no scraping en vivo de la web — agregá
-              <code> SERPAPI_KEY</code> a tu entorno para activar búsqueda real (ver .env.example).
-              Product Hunt / Apify quedan para una próxima pasada.
-            </p>
-          )}
+          <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+            Contexto Groq: Detector de Detonadores ({scanSources.filter((s) => s.enabled !== false).length} fuentes curadas activas).
+          </p>
         </div>
       </div>
 
@@ -196,28 +204,86 @@ export function HorizonScanAdminPanel() {
 
       {scanError ? <div className="admin-error">{scanError}</div> : null}
       {errorMessage ? <div className="admin-error">{errorMessage}</div> : null}
+      {publishNotice ? (
+        <p className="muted" style={{ fontSize: 13, marginTop: 8, color: 'var(--hud)' }}>{publishNotice}</p>
+      ) : null}
 
       {!scanning && hits.length === 0 && !scanError ? (
         <p className="muted">Corré un scan para descubrir compañías fuera de tu dashboard.</p>
+      ) : null}
+
+      {!scanning && hits.length === 0 && !scanError && scanMeta?.message ? (
+        <p className="muted">{scanMeta.message}</p>
+      ) : null}
+
+      {scanMeta?.accepted != null && scanMeta?.rawCandidates != null ? (
+        <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+          Verificados: {scanMeta.accepted} de {scanMeta.rawCandidates} candidatos Groq
+          {scanMeta.cadenceDiscarded > 0
+            ? ` · ventana larga descartada: ${scanMeta.cadenceDiscarded}`
+            : ''}
+          {scanMeta.rejected && Object.keys(scanMeta.rejected).length > 0
+            ? ` · descartados: ${Object.entries(scanMeta.rejected).map(([k, v]) => `${k} (${v})`).join(', ')}`
+            : ''}
+        </p>
+      ) : null}
+
+      {scanMeta?.cadenceDiscardedBrands?.length > 0 ? (
+        <details style={{ marginTop: 8 }}>
+          <summary className="muted" style={{ fontSize: 12, cursor: 'pointer' }}>
+            {scanMeta.cadenceDiscardedBrands.length} marcas con ventana larga (podés descartar)
+          </summary>
+          <ul className="muted" style={{ fontSize: 12, marginTop: 6, paddingLeft: 18 }}>
+            {scanMeta.cadenceDiscardedBrands.map((d) => (
+              <li key={d.brandName}>
+                {d.brandName}
+                {d.monthsRemaining != null ? ` · ~${d.monthsRemaining}mo` : ''}
+                {d.cadenceMessage ? ` — ${d.cadenceMessage}` : ''}
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : null}
 
       {hits.length > 0 ? (
         <div className="admin-list">
           {hits.map((hit) => {
             const saved = savedBrands.includes(hit.brandName);
+            const modeLabel = hit.detectionMode === 'confirmed_campaign'
+              ? 'verified'
+              : hit.detectionMode === 'cadence_only'
+                ? 'cadence'
+                : null;
             return (
-              <div className="admin-card admin-card--row" key={hit.brandName}>
+              <div className="admin-card admin-card--row" key={`${hit.brandName}-${hit.evidenceUrl || hit.source}`}>
                 <div className="admin-card__main">
                   <p className="admin-card__title">
                     {hit.brandName}
+                    {modeLabel === 'verified' ? <span className="pill ai" style={{ marginLeft: 8 }}>verified ≥80</span> : null}
+                    {modeLabel === 'cadence' ? (
+                      <span className="pill" style={{ marginLeft: 8 }}>
+                        {hit.cadenceStatus === 'watch'
+                          ? `pendiente ~${hit.monthsRemaining}mo`
+                          : 'cadence ≥70'}
+                      </span>
+                    ) : null}
                     {hit.campaignActive ? <span className="pill" style={{ marginLeft: 8 }}>campaign active</span> : null}
                     {saved ? <span className="pill ai" style={{ marginLeft: 8 }}>saved</span> : null}
                   </p>
                   <p className="muted" style={{ fontSize: 12, margin: '2px 0 0' }}>
                     {hit.category || 'sin categoría'}
+                    {hit.announcementDate ? ` · announce ${hit.announcementDate}` : ''}
                     {hit.launchDate ? ` · launch ${hit.launchDate}` : ''}
-                    {' · '}{hit.overview}
+                    {hit.confidence != null ? ` · conf ${hit.confidence}` : ''}
                   </p>
+                  <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>{hit.overview}</p>
+                  {hit.evidenceUrl ? (
+                    <p style={{ fontSize: 11, margin: '4px 0 0' }}>
+                      <a href={hit.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--hud)' }}>
+                        fuente
+                      </a>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="admin-card__actions">
                   <button
@@ -246,7 +312,10 @@ export function HorizonScanAdminPanel() {
         />
       ) : null}
 
-      <h3 className="h4" style={{ margin: '24px 0 8px' }}>Señales guardadas</h3>
+      <h3 className="h4" style={{ margin: '24px 0 8px' }}>Cola de revisión</h3>
+      <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+        Guardá un hallazgo, revisalo y publicalo a Signals. Al publicar desaparece de esta cola.
+      </p>
       <CampaignSignalList
         signals={signals}
         loading={loadingList}
@@ -254,7 +323,7 @@ export function HorizonScanAdminPanel() {
         onActivate={handleActivate}
         onEdit={startEdit}
         onDelete={handleDelete}
-        emptyLabel="Todavía no guardaste ninguna señal — aprobá un hallazgo arriba para verlo acá."
+        emptyLabel="No hay campañas en cola — aprobá un hallazgo arriba para revisarlo aquí."
       />
     </div>
   );

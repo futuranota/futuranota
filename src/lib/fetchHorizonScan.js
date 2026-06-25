@@ -4,26 +4,31 @@ import { apiClient } from "../api/client.js";
 /**
  * @typedef {Object} HorizonScanHit
  * @property {string} brandName
+ * @property {"confirmed_campaign"|"cadence_only"} [detectionMode]
  * @property {string} category
  * @property {boolean} campaignActive
+ * @property {string|null} announcementDate
  * @property {string|null} launchDate
  * @property {string} overview
- * @property {number} averageIntervalMonths
- * @property {string} lastLaunchDate
+ * @property {number|null} averageIntervalMonths
+ * @property {string|null} lastLaunchDate
+ * @property {number} [confidence]
+ * @property {string} [evidenceUrl]
+ * @property {string} [ticketTier]
  * @property {string} [source]
  */
 
 /**
- * Open discovery — asks Groq for companies (not limited to any given list)
- * with a launch/campaign expected within `rangeDays` from today.
+ * Verified discovery — Serper snippets + Groq extract-only.
  * @param {Object} params
  * @param {number} params.rangeDays
  * @param {string} [params.industry]
- * @returns {Promise<{ companies: HorizonScanHit[] }>}
+ * @param {Array<{ domain: string, pathPrefix?: string, enabled?: boolean }>} [params.sources]
+ * @returns {Promise<{ companies: HorizonScanHit[], meta?: object }>}
  */
-export async function fetchHorizonScan({ rangeDays, industry }) {
+export async function fetchHorizonScan({ rangeDays, industry, sources }) {
   return apiClient(API_ROUTES.horizonScan, {
     method: "POST",
-    body: JSON.stringify({ rangeDays, industry }),
+    body: JSON.stringify({ rangeDays, industry, sources: sources || [] }),
   });
 }

@@ -1,5 +1,5 @@
 /**
- * Boolean web-search queries to surface pre-launch/announcement chatter.
+ * High-ticket launch discovery queries — announcement + physical/premium products.
  * @param {number} rangeDays
  * @param {string} [industry]
  * @returns {string[]}
@@ -8,14 +8,12 @@ export function buildLaunchQueries(rangeDays, industry) {
   const scope = industry ? ` ${industry}` : "";
   const year = new Date().getFullYear();
 
-  // Single exact phrase + free keywords (not all-quoted) — stacking 2-3 quoted
-  // phrases together makes Google AND all of them literally, which returns
-  // ~0 results almost always. One anchor phrase + loose terms gets recall.
   return [
-    `"expected to launch" ${year} pre-order${scope}`,
-    `"announces upcoming release" ${year}${scope}`,
-    `"shipping starts in" months${scope}`,
-    `"launches global campaign" ${year}${scope}`,
-    `"unveils new campaign" ${year}${scope}`,
+    `"announces" "launch date" pre-order premium${scope} ${year}`,
+    `"expected to launch" flagship hardware wearable${scope} ${year}`,
+    `"shipping starts" MSRP sports equipment${scope}`,
+    `"unveils" "global campaign" innovation limited edition${scope} ${year}`,
+    `"now available for pre-order" physical product${scope} ${year}`,
+    `"launching" "starting at" pro model${scope} ${year}`,
   ];
 }

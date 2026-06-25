@@ -1,0 +1,52 @@
+{
+  "sources": [
+    {
+      "label": "The Verge",
+      "domain": "theverge.com",
+      "pathPrefix": "",
+      "tier": "primary",
+      "categories": ["physical_tech", "innovation"],
+      "enabled": true
+    },
+    {
+      "label": "Engadget",
+      "domain": "engadget.com",
+      "pathPrefix": "",
+      "tier": "primary",
+      "categories": ["physical_tech"],
+      "enabled": true
+    },
+    {
+      "label": "Hypebeast",
+      "domain": "hypebeast.com",
+      "pathPrefix": "",
+      "tier": "primary",
+      "categories": ["physical", "innovation"],
+      "enabled": true
+    },
+    {
+      "label": "Apple Newsroom",
+      "domain": "apple.com",
+      "pathPrefix": "/newsroom",
+      "tier": "primary",
+      "categories": ["physical_tech", "innovation"],
+      "enabled": true
+    },
+    {
+      "label": "Nike News",
+      "domain": "news.nike.com",
+      "pathPrefix": "",
+      "tier": "primary",
+      "categories": ["sports", "physical"],
+      "enabled": true
+    },
+    {
+      "label": "GearJunkie",
+      "domain": "gearjunkie.com",
+      "pathPrefix": "",
+      "tier": "primary",
+      "categories": ["sports", "physical"],
+      "enabled": true
+    }
+  ]
+}

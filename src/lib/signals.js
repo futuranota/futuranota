@@ -43,6 +43,10 @@ export async function deleteSignal(id) {
   if (error) throw error;
 }
 
+export async function markSignalActive(id) {
+  return updateSignal(id, { active: true });
+}
+
 export async function setActiveSignal(id) {
   const { error } = await supabase.from('hero_signals').update({ active: false }).neq('id', id);
   if (error) throw error;

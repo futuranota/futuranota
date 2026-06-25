@@ -1,21 +1,47 @@
 import { formatWindowDays } from '../lib/docMetaBar.js';
 
+function detectionBadge(mode, cadenceStatus) {
+  if (mode === 'confirmed_campaign') return { label: 'Verified campaign', className: 'pill ai' };
+  if (mode === 'cadence_only' && cadenceStatus === 'watch') {
+    return { label: 'Pendiente · cadencia', className: 'pill ai' };
+  }
+  if (mode === 'cadence_only' && cadenceStatus === 'discard') {
+    return { label: 'Ventana larga', className: 'pill' };
+  }
+  if (mode === 'cadence_only') return { label: 'Cadence only', className: 'pill' };
+  if (cadenceStatus === 'no_data') return { label: 'Sin evidencia', className: 'pill' };
+  return null;
+}
+
 /**
- * Shared "DOC" preview/edit form — mirrors the campaign doc fields from the
- * dashboard (Company, Category, Campaign active/inactive, Launch, Window, Overview).
- * Used by both CampaignDetectorAdminPanel and HorizonScanAdminPanel so a
- * detected/scanned hit is always reviewed in the same shape before saving.
+ * Shared campaign review form for Horizon Scan / Campaign Detector.
  */
 export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel, saving, editId }) {
   const setField = (key, value) => onFieldsChange((p) => ({ ...p, [key]: value }));
+  const badge = detectionBadge(fields.detectionMode, fields.cadenceStatus);
 
   return (
     <form className="admin-card" onSubmit={onSubmit}>
-      <h3 className="h4" style={{ marginBottom: 4 }}>DOC</h3>
+      <h3 className="h4" style={{ marginBottom: 4 }}>
+        DOC
+        {badge ? <span className={badge.className} style={{ marginLeft: 8 }}>{badge.label}</span> : null}
+        {fields.confidence !== '' && fields.confidence != null ? (
+          <span className="pill" style={{ marginLeft: 8 }}>confidence {fields.confidence}</span>
+        ) : null}
+      </h3>
       <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-        Mismos campos que un doc Campaign en el dashboard — Groq ya los llenó, solo corregís
-        lo que haga falta antes de guardar.
+        Datos extraídos de fuentes web — revisá fechas y overview antes de guardar.
       </p>
+
+      {fields.cadenceMessage ? (
+        <p className="muted" style={{ fontSize: 13, marginBottom: 12, color: 'var(--hud)' }}>
+          {fields.cadenceMessage}
+          {fields.monthsRemaining !== '' && fields.monthsRemaining != null
+            ? ` · ~${fields.monthsRemaining} meses`
+            : ''}
+          {fields.estimatedLaunchDate ? ` · est. ${fields.estimatedLaunchDate}` : ''}
+        </p>
+      ) : null}
 
       <div className="admin-form-grid">
         <label className="admin-field">
@@ -33,7 +59,7 @@ export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel,
           <input
             className="auth-split-input"
             value={fields.category}
-            placeholder="e.g. product launch"
+            placeholder="sports · physical · physical_tech · innovation"
             onChange={(e) => setField('category', e.target.value)}
           />
         </label>
@@ -57,6 +83,16 @@ export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel,
             </button>
           </div>
         </div>
+
+        <label className="admin-field">
+          <span>Announce</span>
+          <input
+            className="auth-split-input"
+            type="date"
+            value={fields.announcementDate}
+            onChange={(e) => setField('announcementDate', e.target.value)}
+          />
+        </label>
 
         <label className="admin-field">
           <span>Launch</span>
@@ -87,9 +123,20 @@ export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel,
         />
       </label>
 
-      <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
-        avg cadence {fields.averageIntervalMonths || '—'}mo · last launch {fields.lastLaunchDate || '—'} · source {fields.source || '—'}
-      </p>
+      {fields.evidenceUrl ? (
+        <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+          Fuente:{' '}
+          <a href={fields.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--hud)' }}>
+            {fields.evidenceUrl}
+          </a>
+          {fields.ticketTier ? ` · tier ${fields.ticketTier}` : ''}
+          {' · '}avg {fields.averageIntervalMonths || '—'}mo · last {fields.lastLaunchDate || '—'}
+        </p>
+      ) : (
+        <p className="muted" style={{ fontSize: 11, marginTop: 8 }}>
+          avg cadence {fields.averageIntervalMonths || '—'}mo · last launch {fields.lastLaunchDate || '—'} · source {fields.source || '—'}
+        </p>
+      )}
 
       <div className="admin-form-actions">
         <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>

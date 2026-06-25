@@ -2,120 +2,55 @@ import { completeJson } from "./llmJson.js";
 import { searchWebMulti } from "./discovery/serpApiSearch.js";
 import { searchCuratedSitesMulti } from "./discovery/googleCseSearch.js";
 import { buildLaunchQueries } from "./discovery/launchQueries.js";
+import { buildCuratedSourceQueries } from "./discovery/curatedQueries.js";
+import { resolveScanSources } from "./scanSourcesStore.js";
+import {
+  SYSTEM_PROMPT_HORIZON_EXTRACT,
+  buildHorizonExtractPrompt,
+  filterVerifiedHorizonResults,
+} from "./campaignIntelSchema.js";
+import { partitionHorizonCompanies } from "./brandCampaignIntel.js";
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_RANGE_DAYS = 365;
 const MAX_RESULTS = 8;
-const MAX_SNIPPETS = 20;
+const MAX_SNIPPETS = 24;
 
-// Used when SERPAPI_KEY is missing — Groq invents candidates from its own training knowledge.
-const SYSTEM_PROMPT_INVENT = `You respond only with valid JSON. No markdown, no commentary.
-Schema: { "companies": [ { "brandName": string, "category": string, "campaignActive": boolean,
-"launchDate": "YYYY-MM-DD"|null, "overview": string, "averageIntervalMonths": number,
-"lastLaunchDate": "YYYY-MM-DD" } ] }
-Use realistic public knowledge. Discover companies OPEN — do not limit yourself to any
-previously-given list. Only include companies whose launchDate falls within the requested
-range from today. "overview" must be written in Spanish, 2-3 short sentences.
-Return at most ${MAX_RESULTS} companies, ranked by confidence.`;
-
-// Used when SERPAPI_KEY is present — Groq only extracts/qualifies from real search snippets.
-const SYSTEM_PROMPT_QUALIFY = `You respond only with valid JSON. No markdown, no commentary.
-Schema: { "companies": [ { "brandName": string, "category": string, "campaignActive": boolean,
-"launchDate": "YYYY-MM-DD"|null, "overview": string, "averageIntervalMonths": number,
-"lastLaunchDate": "YYYY-MM-DD" } ] }
-You will be given real web search snippets. For each snippet, decide: is there an identifiable
-company, is there a confirmed launch/campaign/pre-order event, and does the estimated launch
-date fall within the requested range from today? Discard snippets that don't clearly name a
-company or confirm an event — do not invent companies that aren't in the snippets.
-"overview" must be written in Spanish, 2-3 short sentences, grounded in the snippet content.
-Return at most ${MAX_RESULTS} companies, ranked by confidence.`;
+export const SERPER_REQUIRED_MESSAGE =
+  "Horizon Scan requiere SERPAPI_KEY (Serper) para datos verificados. "
+  + "Configurala en .env — sin búsqueda web no se devuelven compañías.";
 
 function todayIso() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/**
- * Deterministic fallback when no LLM keys are configured (local dev).
- * @param {number} rangeDays
- * @param {string} industry
- */
-function mockHorizonScan(rangeDays, industry) {
-  const seedLabel = industry || "tech";
-  const today = new Date();
-  const seeds = ["Nimbus Labs", "Quanta Forge", "Driftwave", "Verdant Systems"];
-
-  return seeds.map((brandName, i) => {
-    const daysAhead = Math.min(rangeDays, 10 + i * 20);
-    const launch = new Date(today);
-    launch.setDate(launch.getDate() + daysAhead);
-    const launchDate = `${launch.getFullYear()}-${String(launch.getMonth() + 1).padStart(2, "0")}-${String(launch.getDate()).padStart(2, "0")}`;
-    const last = new Date(today);
-    last.setMonth(last.getMonth() - (6 + i));
-    const lastLaunchDate = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
-    return {
-      brandName,
-      category: `${seedLabel} launch`,
-      campaignActive: true,
-      launchDate,
-      overview: `${brandName} parece tener un lanzamiento ${seedLabel} en preparación, estimado para el ${launchDate}.`,
-      averageIntervalMonths: 8 + i,
-      lastLaunchDate,
-      source: "mock",
-    };
-  });
-}
-
-function normalizeHit(hit) {
-  const brandName = typeof hit?.brandName === "string" ? hit.brandName.trim() : "";
-  if (!brandName) return null;
-
-  const avg = Number(hit?.averageIntervalMonths);
-  const last = typeof hit?.lastLaunchDate === "string" ? hit.lastLaunchDate.trim() : "";
-  if (!Number.isFinite(avg) || avg <= 0 || avg > 60) return null;
-  if (!ISO_DATE.test(last) || Number.isNaN(new Date(`${last}T12:00:00`).getTime())) return null;
-
-  const campaignActive = Boolean(hit?.campaignActive);
-  let launchDate = null;
-  if (campaignActive) {
-    const candidate = typeof hit?.launchDate === "string" ? hit.launchDate.trim() : "";
-    if (!ISO_DATE.test(candidate) || Number.isNaN(new Date(`${candidate}T12:00:00`).getTime())) return null;
-    launchDate = candidate;
-  }
-
-  return {
-    brandName,
-    category: typeof hit?.category === "string" ? hit.category.trim() : "",
-    campaignActive,
-    launchDate,
-    overview: typeof hit?.overview === "string" ? hit.overview.trim() : "",
-    averageIntervalMonths: Math.round(avg * 10) / 10,
-    lastLaunchDate: last,
-  };
-}
-
 function formatSnippetsCorpus(snippets) {
   return snippets
     .slice(0, MAX_SNIPPETS)
-    .map((s, i) => `[${i + 1}] ${s.title}\n${s.snippet}\n(${s.link}${s.date ? `, ${s.date}` : ""})`)
+    .map((s, i) => {
+      const tier = s._tier ? `[${s._tier}] ` : "";
+      return `[${i + 1}] ${tier}${s.title}\n${s.snippet}\nURL: ${s.link}${s.date ? `\nDate: ${s.date}` : ""}`;
+    })
     .join("\n\n");
 }
 
-/**
- * Merges SerpApi (whole web) + Google CSE (curated sites) snippets, deduped
- * by link. Either source can be disabled (null) independently.
- * @param {Array|null} serpHits
- * @param {Array|null} cseHits
- */
-function combineSnippetSources(serpHits, cseHits) {
+function tagSnippets(hits, tier) {
+  return (hits || []).map((h) => ({ ...h, _tier: tier }));
+}
+
+function combineSnippetSources(serpCurated, serpOpen, cseHits) {
   const enabledSources = [];
-  if (serpHits !== null) enabledSources.push("serpapi");
+  if (serpCurated !== null || serpOpen !== null) enabledSources.push("serper");
   if (cseHits !== null) enabledSources.push("cse");
 
   if (enabledSources.length === 0) return { snippets: null, sourceLabel: null };
 
   const seen = new Set();
-  const merged = [...(serpHits || []), ...(cseHits || [])].filter((s) => {
+  const merged = [
+    ...tagSnippets(serpCurated, "curated"),
+    ...tagSnippets(serpOpen, "open_web"),
+    ...tagSnippets(cseHits, "cse"),
+  ].filter((s) => {
     if (!s.link) return true;
     if (seen.has(s.link)) return false;
     seen.add(s.link);
@@ -128,58 +63,90 @@ function combineSnippetSources(serpHits, cseHits) {
 /**
  * @param {number} rangeDays
  * @param {string} industry
+ * @param {unknown[]} [clientSources]
  */
-async function scanHorizon(rangeDays, industry) {
+export async function scanHorizonVerified(rangeDays, industry, clientSources) {
+  const sources = resolveScanSources(clientSources);
   const industryClause = industry
-    ? `Enfocate en la industria/sector: ${industry}. `
-    : "Cualquier industria. ";
+    ? `Industry focus: ${industry}. `
+    : "Prefer sports, premium physical, physical+tech, innovation, and mass retail launches. ";
 
-  const queries = buildLaunchQueries(rangeDays, industry);
-  // Real web search first — sources resolve to null when their keys aren't configured.
-  const [serpHits, cseHits] = await Promise.all([
-    searchWebMulti(queries),
-    searchCuratedSitesMulti(queries),
+  const curatedQueries = buildCuratedSourceQueries(sources, rangeDays, industry);
+  const openQueries = buildLaunchQueries(rangeDays, industry);
+  const allQueries = [...curatedQueries, ...openQueries];
+
+  const [serpCurated, serpOpen, cseHits] = await Promise.all([
+    curatedQueries.length > 0 ? searchWebMulti(curatedQueries) : Promise.resolve([]),
+    searchWebMulti(openQueries),
+    searchCuratedSitesMulti(allQueries),
   ]);
-  const { snippets, sourceLabel } = combineSnippetSources(serpHits, cseHits);
-  const liveSearchEnabled = snippets !== null;
 
-  let prompt;
-  let systemPrompt;
-  if (liveSearchEnabled) {
-    if (snippets.length === 0) return [];
-    systemPrompt = SYSTEM_PROMPT_QUALIFY;
-    prompt =
-      `Hoy es ${todayIso()}. Rango pedido: incluí lanzamientos confirmados de los últimos ${rangeDays} `
-      + `días (lastLaunchDate) y cualquier lanzamiento futuro confirmado sin tope de tiempo, aunque sea `
-      + `dentro de varios meses. ${industryClause}`
-      + `Estos son resultados reales de búsqueda web:\n\n${formatSnippetsCorpus(snippets)}\n\n`
-      + 'Extraé y devolvé un JSON con: { "companies": [ { "brandName": string, "category": string, '
-      + '"campaignActive": boolean, "launchDate": "YYYY-MM-DD"|null, "overview": string, '
-      + '"averageIntervalMonths": número, "lastLaunchDate": "YYYY-MM-DD" } ] }';
-  } else {
-    systemPrompt = SYSTEM_PROMPT_INVENT;
-    prompt =
-      `Hoy es ${todayIso()}. Descubrí compañías o startups (sin que te las haya dado yo) que tengan `
-      + `una campaña de lanzamiento, teaser o pre-registro: ya sea lanzada en los últimos ${rangeDays} `
-      + `días, o con fecha de lanzamiento futura confirmada (sin tope de tiempo, aunque sea dentro de `
-      + `varios meses). ${industryClause}`
-      + 'Devuelve un JSON con: { "companies": [ { "brandName": string, "category": string, '
-      + '"campaignActive": boolean, "launchDate": "YYYY-MM-DD"|null, "overview": string, '
-      + '"averageIntervalMonths": número, "lastLaunchDate": "YYYY-MM-DD" } ] }';
+  const { snippets, sourceLabel } = combineSnippetSources(serpCurated, serpOpen, cseHits);
+
+  if (snippets === null) {
+    return {
+      companies: [],
+      meta: { liveSearch: false, error: SERPER_REQUIRED_MESSAGE },
+    };
   }
 
-  const llm = await completeJson(prompt, { system: systemPrompt });
+  if (snippets.length === 0) {
+    return {
+      companies: [],
+      meta: {
+        liveSearch: true,
+        rejected: {},
+        curatedSources: sources.length,
+        message: "Búsqueda web sin resultados para este rango/industria.",
+      },
+    };
+  }
+
+  const today = todayIso();
+  const corpus = formatSnippetsCorpus(snippets);
+  const prompt = buildHorizonExtractPrompt(today, rangeDays, industryClause, corpus);
+
+  const llm = await completeJson(prompt, { system: SYSTEM_PROMPT_HORIZON_EXTRACT });
   if (!llm) {
-    return mockHorizonScan(rangeDays, industry);
+    return {
+      companies: [],
+      meta: {
+        liveSearch: true,
+        error: "No hay LLM configurado (GROQ_API_KEY o GEMINI). No se inventan datos.",
+      },
+    };
   }
 
   const rawList = Array.isArray(llm.data?.companies) ? llm.data.companies : [];
-  const source = liveSearchEnabled ? `${sourceLabel}+${llm.provider}` : llm.provider;
-  return rawList
-    .map(normalizeHit)
-    .filter(Boolean)
-    .slice(0, MAX_RESULTS)
-    .map((hit) => ({ ...hit, source }));
+  const { companies: allVerified, rejected } = filterVerifiedHorizonResults(rawList, {
+    snippets,
+    todayIso: today,
+    rangeDays,
+    maxResults: MAX_RESULTS * 2,
+  });
+
+  const { main, discarded } = partitionHorizonCompanies(allVerified);
+  const companies = main.slice(0, MAX_RESULTS);
+
+  const source = `${sourceLabel}+${llm.provider}`;
+  return {
+    companies: companies.map((hit) => ({ ...hit, source })),
+    meta: {
+      liveSearch: true,
+      rejected,
+      rawCandidates: rawList.length,
+      accepted: companies.length,
+      curatedSources: sources.length,
+      curatedQueries: curatedQueries.length,
+      detectorContext: "content/admin/detector-de-campanas.md",
+      cadenceDiscarded: discarded.length,
+      cadenceDiscardedBrands: discarded.map((d) => ({
+        brandName: d.brandName,
+        monthsRemaining: d.monthsRemaining,
+        cadenceMessage: d.cadenceMessage,
+      })),
+    },
+  };
 }
 
 function readJsonBody(req) {
@@ -197,9 +164,6 @@ function readJsonBody(req) {
   });
 }
 
-/**
- * Vite / Node middleware for POST /api/analytics/horizon-scan
- */
 export function createHorizonScanMiddleware() {
   return async (req, res, next) => {
     if (req.url?.split("?")[0] !== "/api/analytics/horizon-scan") {
@@ -227,12 +191,13 @@ export function createHorizonScanMiddleware() {
       const body = await readJsonBody(req);
       const rangeDays = Math.min(MAX_RANGE_DAYS, Math.max(1, Number(body.rangeDays) || 90));
       const industry = typeof body.industry === "string" ? body.industry.trim() : "";
+      const sources = Array.isArray(body.sources) ? body.sources : [];
 
-      const companies = await scanHorizon(rangeDays, industry);
+      const result = await scanHorizonVerified(rangeDays, industry, sources);
 
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({ companies }));
+      res.end(JSON.stringify(result));
     } catch (err) {
       res.statusCode = 500;
       res.setHeader("Content-Type", "application/json");

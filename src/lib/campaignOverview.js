@@ -4,15 +4,39 @@ import {
 } from "./launchCadenceMath.js";
 
 /**
- * Builds the same Today → months left → Est. launch narrative shown in
- * Launch Radar (LaunchPredictor.jsx), so the Signal overview reads identically.
+ * Overview for cadence-only hits (no active announcement detected).
  * @param {Object} params
  * @param {string} params.brandName
- * @param {boolean} params.campaignActive
  * @param {number} params.averageIntervalMonths
- * @param {string} params.lastLaunchDate ISO YYYY-MM-DD
+ * @param {string} params.lastLaunchDate
  * @param {Date} [params.today]
  */
+export function buildCadenceOnlyOverview({
+  brandName,
+  averageIntervalMonths,
+  lastLaunchDate,
+  today = new Date(),
+}) {
+  const projection = computeLaunchCadenceProjection({
+    today,
+    averageIntervalMonths,
+    lastLaunchDate,
+  });
+
+  const intervalLabel = Number.isInteger(averageIntervalMonths)
+    ? averageIntervalMonths
+    : averageIntervalMonths.toFixed(1);
+
+  return (
+    `No se detectó anuncio activo para ${brandName}. `
+    + `Análisis de cadencia histórica (${formatReferenceMonthLabelEn(today)}): `
+    + `último lanzamiento ${lastLaunchDate}, ciclo promedio cada ${intervalLabel} meses. `
+    + `Estimación: ${projection.estimatedMonthLabel} (~${projection.monthsRemaining} meses). `
+    + `Sin evidencia de campaña confirmada en fuentes web.`
+  );
+}
+
+/** @deprecated Do not use for Horizon Scan — overwrites real extracted overviews. */
 export function buildCampaignOverview({
   brandName,
   campaignActive,
@@ -26,28 +50,10 @@ export function buildCampaignOverview({
       : `${brandName} no muestra señales de campaña activa por ahora.`;
   }
 
-  const projection = computeLaunchCadenceProjection({
-    today,
+  return buildCadenceOnlyOverview({
+    brandName,
     averageIntervalMonths,
     lastLaunchDate,
+    today,
   });
-
-  const intervalLabel = Number.isInteger(averageIntervalMonths)
-    ? averageIntervalMonths
-    : averageIntervalMonths.toFixed(1);
-
-  const status = campaignActive
-    ? `${brandName} tiene una campaña de lanzamiento activa ahora.`
-    : `${brandName} no tiene una campaña activa detectada en este momento.`;
-
-  return (
-    `${status} `
-    + `Today ${formatReferenceMonthLabelEn(today)}. `
-    + `${projection.monthsRemaining} month${projection.monthsRemaining === 1 ? "" : "s"} left. `
-    + `Est. launch ${projection.estimatedMonthLabel}. `
-    + `This company typically launches products every ${intervalLabel} months. `
-    + "They will likely launch their next product within the next "
-    + `${projection.monthsRemaining} month${projection.monthsRemaining === 1 ? "" : "s"}. `
-    + "Announcements usually begin about three months before."
-  );
 }
