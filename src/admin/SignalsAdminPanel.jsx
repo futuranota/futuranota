@@ -90,24 +90,16 @@ export function SignalsAdminPanel() {
       if (editId) {
         await updateSignal(editId, payload);
       } else {
-        await createSignal(payload);
+        // Everything that lands in this list is already "live" — no separate
+        // Activate step here. (Horizon Scan / Campaign Detector publish the
+        // same way via publishCampaignSignalToHero.)
+        const created = await createSignal(payload);
+        await setActiveSignal(created.id);
       }
       setShowForm(false);
       await load();
     } catch (err) {
       setErrorMessage(err.message);
-    }
-  }
-
-  async function handleActivate(id) {
-    setBusyId(id);
-    try {
-      await setActiveSignal(id);
-      await load();
-    } catch (err) {
-      setErrorMessage(err.message);
-    } finally {
-      setBusyId(null);
     }
   }
 
@@ -247,11 +239,6 @@ export function SignalsAdminPanel() {
                 </p>
               </div>
               <div className="admin-card__actions">
-                {!s.active ? (
-                  <button className="btn btn-ghost btn-sm" disabled={busyId === s.id} onClick={() => handleActivate(s.id)}>
-                    Activate
-                  </button>
-                ) : null}
                 <button className="btn btn-ghost btn-sm" onClick={() => startEdit(s)}>Edit</button>
                 <button className="btn btn-ghost btn-sm" disabled={busyId === s.id} onClick={() => handleDelete(s.id)}>Delete</button>
               </div>

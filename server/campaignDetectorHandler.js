@@ -2,11 +2,33 @@ import { completeJson } from "./llmJson.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
-const SYSTEM_PROMPT = `You respond only with valid JSON. No markdown, no commentary.
-Schema: { "campaignActive": boolean, "launchDate": "YYYY-MM-DD"|null, "overview": string, "averageIntervalMonths": number, "lastLaunchDate": "YYYY-MM-DD" }
-Use realistic public knowledge about the brand's product launches and any campaign currently in flight.
-"overview" must be written in Spanish, 2-3 short sentences. If campaignActive is false, launchDate must be null
-and overview must explain there is no detected active campaign right now.`;
+const MONTH_LABELS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function referenceMonthLabel() {
+  const now = new Date();
+  return `${MONTH_LABELS[now.getMonth()]} ${now.getFullYear()}`;
+}
+
+const SYSTEM_PROMPT = `You are a market intelligence analyst specialized in detecting active product launch campaigns from major brands. Today's date will be injected in every prompt — use it to calculate all dates correctly and never return dates from the past as future launch dates.
+
+Rules:
+- "campaignActive": true ONLY if launch is within 90 days from today
+- "phase": "upcoming" (60-90d), "imminent" (20-60d), "live" (0-20d) — null if no campaign
+- "launchDate": must be AFTER today, or null
+- "lastLaunchDate": most recent confirmed past launch
+- "overview": 2-3 sentences in the same language as the input
+- "confidence": 80-100 confirmed, 50-79 probable, 0-49 speculative
+- "category": tech | fashion | food | automotive | entertainment | retail | finance | health | other
+
+Respond ONLY with valid JSON. No markdown, no text outside JSON.
+Schema: { "campaignActive": boolean, "phase": "upcoming"|"imminent"|"live"|null, "launchDate": "YYYY-MM-DD"|null, "overview": string, "averageIntervalMonths": number, "lastLaunchDate": "YYYY-MM-DD", "confidence": number, "category": string }`;
 
 /**
  * Deterministic fallback when no LLM keys are configured (local dev).
@@ -38,6 +60,7 @@ function mockCampaignForBrand(brandName) {
 
   return {
     campaignActive,
+    category: "product launch",
     launchDate,
     overview,
     averageIntervalMonths,
@@ -64,20 +87,28 @@ function normalizeCampaignPayload(body) {
     throw new Error("Unparseable lastLaunchDate");
   }
 
-  const campaignActive = Boolean(body?.campaignActive);
+  let campaignActive = Boolean(body?.campaignActive);
   let launchDate = null;
   if (campaignActive) {
     const candidate = typeof body?.launchDate === "string" ? body.launchDate.trim() : "";
     if (!ISO_DATE.test(candidate) || Number.isNaN(new Date(`${candidate}T12:00:00`).getTime())) {
       throw new Error("Invalid launchDate");
     }
-    launchDate = candidate;
+    if (candidate < todayIso()) {
+      // Groq sometimes returns a past date as if it were the next launch —
+      // discard it rather than surface a stale "campaign active" signal.
+      campaignActive = false;
+    } else {
+      launchDate = candidate;
+    }
   }
 
   const overview = typeof body?.overview === "string" ? body.overview.trim() : "";
+  const category = typeof body?.category === "string" ? body.category.trim() : "";
 
   return {
     campaignActive,
+    category,
     launchDate,
     overview,
     averageIntervalMonths: Math.round(avg * 10) / 10,
@@ -90,12 +121,13 @@ function normalizeCampaignPayload(body) {
  */
 async function detectCampaign(brandName) {
   const prompt =
-    `Analiza la empresa ${brandName}. Determina si tienen una campaña de marketing o lanzamiento de `
+    `Today is ${referenceMonthLabel()} (${todayIso()}). `
+    + `Analiza la empresa ${brandName}. Determina si tienen una campaña de marketing o lanzamiento de `
     + "producto activa en este momento, y cuál sería la fecha estimada de lanzamiento. "
     + "También determina cada cuántos meses en promedio lanzan un producto importante y la fecha de "
     + 'su último lanzamiento masivo. Devuelve un JSON con: { "campaignActive": boolean, '
-    + '"launchDate": "YYYY-MM-DD"|null, "overview": string, "averageIntervalMonths": número, '
-    + '"lastLaunchDate": "YYYY-MM-DD" }';
+    + '"category": string, "launchDate": "YYYY-MM-DD"|null, "overview": string, '
+    + '"averageIntervalMonths": número, "lastLaunchDate": "YYYY-MM-DD" }';
 
   const llm = await completeJson(prompt, { system: SYSTEM_PROMPT });
   if (!llm) {

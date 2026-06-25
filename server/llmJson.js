@@ -88,9 +88,18 @@ export async function completeJsonWithGemini(prompt, options = {}) {
  * @param {{ system?: string }} [options]
  */
 export async function completeJson(prompt, options = {}) {
-  const groq = await completeJsonWithGroq(prompt, options);
-  if (groq) return { provider: "groq", data: groq };
-  const gemini = await completeJsonWithGemini(prompt, options);
-  if (gemini) return { provider: "gemini", data: gemini };
+  try {
+    const groq = await completeJsonWithGroq(prompt, options);
+    if (groq) return { provider: "groq", data: groq };
+  } catch (err) {
+    console.error("[llmJson] Groq failed, falling back to Gemini:", err.message || err);
+  }
+
+  try {
+    const gemini = await completeJsonWithGemini(prompt, options);
+    if (gemini) return { provider: "gemini", data: gemini };
+  } catch (err) {
+    console.error("[llmJson] Gemini failed, falling back to mock:", err.message || err);
+  }
   return null;
 }

@@ -1,16 +1,24 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-
+import { createBrandCadenceMiddleware } from './server/brandCadenceHandler.js';
+import { createTranslateMiddleware } from './server/translateHandler.js';
+import { createCampaignDetectorMiddleware } from './server/campaignDetectorHandler.js';
+import { createHorizonScanMiddleware } from './server/horizonScanHandler.js';
 
 function brandCadenceApiPlugin(env) {
   return {
     name: 'brand-cadence-api',
     configureServer(server) {
-      applyServerEnv(env);
+      // These handlers read process.env directly (Vercel Functions convention);
+      // mirror loadEnv() output onto process.env so the dev server sees the same keys.
+      for (const [key, value] of Object.entries(env)) {
+        if (process.env[key] === undefined) process.env[key] = value;
+      }
       server.middlewares.use(createBrandCadenceMiddleware());
       server.middlewares.use(createTranslateMiddleware());
       server.middlewares.use(createCampaignDetectorMiddleware());
+      server.middlewares.use(createHorizonScanMiddleware());
     },
   };
 }
@@ -20,7 +28,7 @@ export default defineConfig(({ mode }) => {
 
   return {
   envPrefix: ['VITE_', 'TINA_', 'SUPABASE_'],
-plugins: [react(), tailwindcss()],
+plugins: [react(), tailwindcss(), brandCadenceApiPlugin(env)],
   server: {
     port: 5173,
     // Keep port fixed so /admin URLs match; kill other Vite processes if this fails.

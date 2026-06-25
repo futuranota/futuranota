@@ -1,10 +1,31 @@
-import { useState } from "react";
-import { COMPANIES } from "../data.jsx";
+import { useEffect, useState } from "react";
+import { fetchSignalCompanies } from "../lib/fetchSignalCompanies.js";
 
 export function CompanySelectorPage({ onSelect, onBack }) {
-  const [picked, setPicked] = useState("voltway");
+  const [companies, setCompanies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [picked, setPicked] = useState(null);
   const [filter, setFilter] = useState("");
-  const list = COMPANIES.filter((c) =>
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSignalCompanies()
+      .then((list) => {
+        if (cancelled) return;
+        setCompanies(list);
+        setPicked(list[0]?.id ?? null);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const list = companies.filter((c) =>
     c.name.toLowerCase().includes(filter.toLowerCase())
     || c.sector.toLowerCase().includes(filter.toLowerCase()),
   );
@@ -17,7 +38,7 @@ export function CompanySelectorPage({ onSelect, onBack }) {
             <div className="label">Step 01 · Select target</div>
             <h2>Which company are you tracking?</h2>
           </div>
-          <span className="pill cool"><i className="dot" />{COMPANIES.length} available</span>
+          <span className="pill cool"><i className="dot" />{companies.length} available</span>
         </div>
         <div className="field" style={{ marginBottom: 14 }}>
           <input
@@ -28,6 +49,13 @@ export function CompanySelectorPage({ onSelect, onBack }) {
           />
           <span className="kbd">⌘K</span>
         </div>
+
+        {loading ? <p className="muted">Loading detected campaigns…</p> : null}
+        {loadError ? <div className="admin-error">{loadError}</div> : null}
+        {!loading && !loadError && list.length === 0 ? (
+          <p className="muted">No detected campaigns yet — activate one from /panel to see it here.</p>
+        ) : null}
+
         <div className="selector-grid">
           {list.map((c) => (
             <div
@@ -67,7 +95,7 @@ export function CompanySelectorPage({ onSelect, onBack }) {
             <button
               type="button"
               className="btn primary"
-              onClick={() => onSelect(COMPANIES.find((c) => c.id === picked))}
+              onClick={() => onSelect(companies.find((c) => c.id === picked))}
               disabled={!picked}
             >
               Lock target →

@@ -673,14 +673,7 @@ useEffect(() => {
 
   return (
     <div className="dash">
-      <TopBar
-        onBack={onBack}
-        scanState={scanState}
-        onScan={() => {}}
-        onScanBlogs={scanBlogs}
-        onPasteUrl={() => {}}
-        onAltSeed={null}
-      />
+      <TopBar onBack={onBack} onAltSeed={null} />
 
       <MetaBar metadata={metaBarMetadata} />
 
@@ -830,8 +823,17 @@ function App() {
   const navigate = useNavigate();
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const theme = useThemeStore((s) => s.theme);
-  const [screen, setScreen] = useState("selector");
-  const [company, setCompany] = useState(null);
+  const LAST_COMPANY_KEY = "fn_last_company";
+  const lastCompany = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(LAST_COMPANY_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+  const [screen, setScreen] = useState(lastCompany ? "dashboard" : "selector");
+  const [company, setCompany] = useState(lastCompany);
   const upgradeOpen = useUpgradeModalStore((s) => s.open);
   const upgradeReason = useUpgradeModalStore((s) => s.reason);
   const hideUpgradeModal = useUpgradeModalStore((s) => s.hide);
@@ -854,6 +856,7 @@ function App() {
             // Selección de compañía sin límite de plan por diseño — free y pro pueden
             // escoger/cambiar de compañía libremente. No agregar gate aquí.
             ensureCompanyObject(c);
+            localStorage.setItem(LAST_COMPANY_KEY, JSON.stringify(c));
             setCompany(c);
             setScreen("dashboard");
           }}

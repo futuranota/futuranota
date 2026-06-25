@@ -51,7 +51,12 @@ export const usePlanStore = create(
         if (error) {
           console.warn("planStore.fetchProfile error", error);
         }
-        set({ profile: rowToProfile(data), loading: false, loaded: true });
+        const profile = rowToProfile(data);
+        // Admin account always tests as Pro — no Stripe/credits flow exists yet.
+        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+        const isAdminUser = !!adminEmail && session.user.email?.toLowerCase() === adminEmail.toLowerCase();
+        if (isAdminUser) profile.plan = "pro";
+        set({ profile, loading: false, loaded: true });
       },
 
       setPlan: async (plan) => {

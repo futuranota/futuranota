@@ -157,6 +157,38 @@
   gap: 8px;
 }
 
+/* Bigger, higher-contrast buttons inside /panel — the marketing .btn defaults
+   to var(--text), which can land dark-on-dark depending on the global theme
+   var state. Force light text + larger hit area, scoped to admin only. */
+.admin-shell .btn {
+  min-height: 38px;
+  padding: 10px 18px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.admin-shell .btn.btn-sm {
+  min-height: 34px;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.admin-shell .btn-ghost {
+  color: #f5f5f5;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-shell .btn-ghost:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.admin-shell .btn-primary {
+  color: #fff;
+}
+
 @media (max-width: 720px) {
   .admin-body {
     flex-direction: column;

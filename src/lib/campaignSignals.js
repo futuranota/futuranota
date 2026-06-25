@@ -32,6 +32,7 @@ export async function deleteCampaignSignal(id) {
 }
 
 export async function setActiveCampaignSignal(id) {
-  await supabase.from('signal_campaigns').update({ active: false }).neq('id', id);
+  const { error } = await supabase.from('signal_campaigns').update({ active: false }).neq('id', id);
+  if (error) throw error;
   return updateCampaignSignal(id, { active: true });
 }

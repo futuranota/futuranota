@@ -44,7 +44,8 @@ export async function deleteSignal(id) {
 }
 
 export async function setActiveSignal(id) {
-  await supabase.from('hero_signals').update({ active: false }).neq('id', id);
+  const { error } = await supabase.from('hero_signals').update({ active: false }).neq('id', id);
+  if (error) throw error;
   return updateSignal(id, { active: true });
 }
 

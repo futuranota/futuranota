@@ -5,4 +5,5 @@ export const API_ROUTES = {
   intel: "/api/intel",
   brandCadence: "/api/analytics/brand-cadence",
   campaignDetect: "/api/analytics/campaign-detect",
+  horizonScan: "/api/analytics/horizon-scan",
 };

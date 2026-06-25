@@ -21,6 +21,8 @@ export function UserMenu() {
   if (!user) return null;
 
   const displayName = user.user_metadata?.first_name || user.email?.split("@")[0] || "Account";
+  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
+  const isAdmin = !!adminEmail && user.email?.toLowerCase() === adminEmail.toLowerCase();
 
   const handleLogout = async () => {
     setOpen(false);
@@ -43,6 +45,16 @@ export function UserMenu() {
       {open ? (
         <div className="user-menu__menu" role="menu">
           <div className="user-menu__email">{user.email}</div>
+          {isAdmin ? (
+            <button
+              type="button"
+              className="user-menu__item"
+              role="menuitem"
+              onClick={() => { setOpen(false); navigate("/panel"); }}
+            >
+              Admin panel
+            </button>
+          ) : null}
           <button type="button" className="user-menu__item" role="menuitem" onClick={handleLogout}>
             Log out
           </button>

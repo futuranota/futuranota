@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore.js';
 import { applyMarketingTheme } from '../marketing/lib/theme.js';
 import { SignalsAdminPanel } from './SignalsAdminPanel.jsx';
 import { CampaignDetectorAdminPanel } from './CampaignDetectorAdminPanel.jsx';
+import { HorizonScanAdminPanel } from './HorizonScanAdminPanel.jsx';
 import '../marketing/styles/marketing.css';
 import '../marketing/styles/sections.css';
 import './admin.css';
@@ -13,6 +14,7 @@ const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL;
 const TABS = [
   { id: 'signals', label: 'Signals' },
   { id: 'campaigns', label: 'Campaign Detector' },
+  { id: 'horizon', label: 'Horizon Scan' },
 ];
 
 export function AdminPage() {
@@ -119,6 +121,7 @@ export function AdminPage() {
       <header className="admin-topbar">
         <span className="admin-topbar__brand">Futura Nota · Admin</span>
         <div className="admin-topbar__actions">
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/app')}>Go to dashboard</button>
           <button className="btn btn-ghost btn-sm" onClick={() => navigate('/')}>View site</button>
           <button className="btn btn-ghost btn-sm" onClick={signOut}>Log out</button>
         </div>
@@ -140,6 +143,7 @@ export function AdminPage() {
         <main className="admin-content">
           {tab === 'signals' ? <SignalsAdminPanel /> : null}
           {tab === 'campaigns' ? <CampaignDetectorAdminPanel /> : null}
+          {tab === 'horizon' ? <HorizonScanAdminPanel /> : null}
         </main>
       </div>
     </div>

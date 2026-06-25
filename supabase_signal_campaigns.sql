@@ -6,6 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.signal_campaigns (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     brand_name TEXT NOT NULL,
+    category TEXT,
     campaign_active BOOLEAN NOT NULL DEFAULT FALSE,
     launch_date DATE,
     overview TEXT,
@@ -17,9 +18,12 @@ CREATE TABLE IF NOT EXISTS public.signal_campaigns (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- Columna añadida después de la creación inicial; idempotente para tablas ya existentes.
+ALTER TABLE public.signal_campaigns ADD COLUMN IF NOT EXISTS category TEXT;
+
 ALTER TABLE public.signal_campaigns ENABLE ROW LEVEL SECURITY;
 
--- Lectura pública solo de las señales activas (lo que eventualmente alimenta Signal).
+-- Lectura pública solo e las señales activas (lo que eventualmente alimenta Signal).
 DROP POLICY IF EXISTS "Lectura publica de campanas activas" ON public.signal_campaigns;
 CREATE POLICY "Lectura publica de campanas activas" ON public.signal_campaigns
     FOR SELECT USING (active = true);

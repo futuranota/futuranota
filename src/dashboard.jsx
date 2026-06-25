@@ -7,7 +7,7 @@ import { useThemeStore } from './stores/themeStore.js';
 
 /* dashboard.jsx — TopBar, MetaBar, ScanOverlay, UrlModal, Toast */
 
-function TopBar({ onBack, scanState, onScan, onScanBlogs, onPasteUrl, onAltSeed }) {
+function TopBar({ onBack, onAltSeed }) {
   const { t } = useI18n();
   const theme = useThemeStore((s) => s.theme);
   const logoSrc = theme === 'dark'
@@ -31,10 +31,7 @@ function TopBar({ onBack, scanState, onScan, onScanBlogs, onPasteUrl, onAltSeed 
       <div className="topbar-end">
         <UserMenu />
         <NavPreferences />
-        <button className="btn sm" onClick={onScanBlogs} disabled={scanState === "scanning-blogs"}>
-          {scanState === "scanning-blogs" ? t('topbar.scanningBlogs') : t('topbar.scanBlogs')}
-        </button>
-        <button className="btn sm" onClick={onPasteUrl}>{t('topbar.pasteUrl')}</button>
+        <button className="btn sm" onClick={onBack}>Library</button>
         {onAltSeed && (
           <button className="btn sm ghost" onClick={onAltSeed} title={t('topbar.altBlueprintTitle')}>
             {t('topbar.altBlueprint')}
