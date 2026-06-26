@@ -1,14 +1,27 @@
 import { API_ROUTES } from "../api/routes.js";
 
+const PROXY_TIMEOUT_MS = 25_000;
+
 /**
  * Build reverse-proxy URL for iframe / fetch.
- * Requires Authorization header (iframe src alone cannot send it — use fetchProxiedPage).
  * @param {string} targetUrl
  */
 export function buildWebProxyUrl(targetUrl) {
   const trimmed = (targetUrl || "").trim();
   if (!trimmed) return "";
   return `${API_ROUTES.webProxy}?url=${encodeURIComponent(trimmed)}`;
+}
+
+/**
+ * @param {Error} err
+ */
+function mapFetchError(err) {
+  if (!(err instanceof Error)) return "Preview request failed";
+  if (err.name === "AbortError") return "Preview request timed out";
+  if (/failed to fetch/i.test(err.message)) {
+    return "Could not reach preview service — showing fallback content";
+  }
+  return err.message;
 }
 
 /**
@@ -25,21 +38,30 @@ export async function fetchProxiedPage(targetUrl, accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  const res = await fetch(proxyUrl, { headers });
-  if (!res.ok) {
-    let message = `Could not load page (${res.status})`;
-    try {
-      const data = await res.json();
-      if (data?.error) message = data.error;
-    } catch {
-      /* html error body */
-    }
-    throw new Error(message);
-  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
 
-  const html = await res.text();
-  if (!html.trim()) throw new Error("Empty page response");
-  return html;
+  try {
+    const res = await fetch(proxyUrl, { headers, signal: controller.signal });
+    if (!res.ok) {
+      let message = `Could not load page (${res.status})`;
+      try {
+        const data = await res.json();
+        if (data?.error) message = data.error;
+      } catch {
+        /* html error body */
+      }
+      throw new Error(message);
+    }
+
+    const html = await res.text();
+    if (!html.trim()) throw new Error("Empty page response");
+    return html;
+  } catch (err) {
+    throw new Error(mapFetchError(err));
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

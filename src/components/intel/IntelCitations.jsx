@@ -35,6 +35,9 @@ function IntelCitationCard({ item, onSelect }) {
       <span className="intel-citation-body">
         <span className="intel-citation-src">{item.source}</span>
         <span className="intel-citation-title">{item.title}</span>
+        {item.body ? (
+          <span className="intel-citation-snippet">{item.body}</span>
+        ) : null}
       </span>
     </button>
   );

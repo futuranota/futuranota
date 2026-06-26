@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { citationFaviconUrl } from "../../lib/citationFavicon.js";
 import { supabase } from "../../lib/supabaseClient.js";
-import { createProxiedPageBlobUrl, fetchProxiedPage } from "../../lib/webProxy.js";
+import { loadSourcePreview } from "../../lib/sourcePreview.js";
+import { createProxiedPageBlobUrl } from "../../lib/webProxy.js";
 
 function ReaderFavicon({ domain }) {
   const [failed, setFailed] = useState(false);
@@ -22,7 +23,11 @@ function ReaderFavicon({ domain }) {
 
 export function CleanReader({ url, title, source, domain, snippet, onBack }) {
   const [status, setStatus] = useState("loading");
+  const [mode, setMode] = useState("html");
+  const [modeLabel, setModeLabel] = useState("");
+  const [fallbackNote, setFallbackNote] = useState("");
   const [iframeSrc, setIframeSrc] = useState("");
+  const [paragraphs, setParagraphs] = useState([]);
   const [error, setError] = useState("");
   const blobRef = useRef("");
 
@@ -32,6 +37,8 @@ export function CleanReader({ url, title, source, domain, snippet, onBack }) {
     setStatus("loading");
     setError("");
     setIframeSrc("");
+    setParagraphs([]);
+    setFallbackNote("");
     if (blobRef.current) {
       URL.revokeObjectURL(blobRef.current);
       blobRef.current = "";
@@ -40,11 +47,24 @@ export function CleanReader({ url, title, source, domain, snippet, onBack }) {
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const html = await fetchProxiedPage(url, session?.access_token);
+        const preview = await loadSourcePreview({
+          url,
+          snippet,
+          accessToken: session?.access_token,
+        });
         if (cancelled) return;
-        const nextBlob = createProxiedPageBlobUrl(html);
-        blobRef.current = nextBlob;
-        setIframeSrc(nextBlob);
+
+        setMode(preview.mode);
+        setModeLabel(preview.label);
+        setFallbackNote(preview.fallbackNote || "");
+
+        if (preview.mode === "html" && preview.html) {
+          const nextBlob = createProxiedPageBlobUrl(preview.html);
+          blobRef.current = nextBlob;
+          setIframeSrc(nextBlob);
+        } else {
+          setParagraphs(preview.paragraphs || []);
+        }
         setStatus("ready");
       } catch (err) {
         if (cancelled) return;
@@ -60,7 +80,7 @@ export function CleanReader({ url, title, source, domain, snippet, onBack }) {
         blobRef.current = "";
       }
     };
-  }, [url]);
+  }, [url, snippet]);
 
   const handleViewOriginal = () => {
     window.open(url, "_blank", "noopener,noreferrer");
@@ -89,25 +109,31 @@ export function CleanReader({ url, title, source, domain, snippet, onBack }) {
         </button>
       </header>
 
-      {snippet ? (
-        <p className="clean-reader__snippet">{snippet}</p>
+      {status === "ready" && modeLabel ? (
+        <div className="clean-reader__meta">
+          <span className={`clean-reader__mode clean-reader__mode--${mode}`}>{modeLabel}</span>
+          {fallbackNote && mode !== "html" ? (
+            <span className="clean-reader__fallback-note">{fallbackNote}</span>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="clean-reader__frame-wrap">
         {status === "loading" && (
           <p className="clean-reader__status" role="status">
-            Loading page…
+            Loading preview…
           </p>
         )}
         {status === "error" && (
           <div className="clean-reader__error">
             <p>{error}</p>
+            {snippet ? <p className="clean-reader__para">{snippet}</p> : null}
             <button type="button" className="btn sm primary" onClick={handleViewOriginal}>
               Open in browser
             </button>
           </div>
         )}
-        {status === "ready" && iframeSrc ? (
+        {status === "ready" && mode === "html" && iframeSrc ? (
           <iframe
             className="clean-reader__iframe"
             src={iframeSrc}
@@ -115,6 +141,13 @@ export function CleanReader({ url, title, source, domain, snippet, onBack }) {
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
             referrerPolicy="no-referrer"
           />
+        ) : null}
+        {status === "ready" && mode !== "html" ? (
+          <div className="clean-reader__scroll scroll">
+            {paragraphs.map((p, i) => (
+              <p key={i} className="clean-reader__para">{p}</p>
+            ))}
+          </div>
         ) : null}
       </div>
     </section>
