@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useI18n } from "../i18n/useI18n.js";
 import { fetchSignalCompanies } from "../lib/fetchSignalCompanies.js";
 import { fetchCampaignStudy } from "../lib/fetchCampaignStudy.js";
 
-export function CompanySelectorPage({ onSelect, onBack }) {
+export function CompanySelectorPage({ onSelect, onSkip, onBack }) {
+  const { t } = useI18n();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -112,6 +114,11 @@ export function CompanySelectorPage({ onSelect, onBack }) {
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <button type="button" className="btn ghost" onClick={onBack}>← Back</button>
+            {onSkip ? (
+              <button type="button" className="btn ghost" onClick={onSkip}>
+                {t("library.skip")}
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn primary"

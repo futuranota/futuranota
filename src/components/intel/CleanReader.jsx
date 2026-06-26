@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { fetchJinaArticle, splitReaderParagraphs } from "../../lib/jinaReader.js";
+import { useEffect, useRef, useState } from "react";
 import { citationFaviconUrl } from "../../lib/citationFavicon.js";
+import { supabase } from "../../lib/supabaseClient.js";
+import { createProxiedPageBlobUrl, fetchProxiedPage } from "../../lib/webProxy.js";
 
 function ReaderFavicon({ domain }) {
   const [failed, setFailed] = useState(false);
@@ -19,31 +20,45 @@ function ReaderFavicon({ domain }) {
   );
 }
 
-export function CleanReader({ url, title, source, domain, onBack }) {
+export function CleanReader({ url, title, source, domain, snippet, onBack }) {
   const [status, setStatus] = useState("loading");
-  const [paragraphs, setParagraphs] = useState([]);
+  const [iframeSrc, setIframeSrc] = useState("");
   const [error, setError] = useState("");
+  const blobRef = useRef("");
 
   useEffect(() => {
     let cancelled = false;
+
     setStatus("loading");
     setError("");
-    setParagraphs([]);
+    setIframeSrc("");
+    if (blobRef.current) {
+      URL.revokeObjectURL(blobRef.current);
+      blobRef.current = "";
+    }
 
-    fetchJinaArticle(url)
-      .then((text) => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const html = await fetchProxiedPage(url, session?.access_token);
         if (cancelled) return;
-        setParagraphs(splitReaderParagraphs(text));
+        const nextBlob = createProxiedPageBlobUrl(html);
+        blobRef.current = nextBlob;
+        setIframeSrc(nextBlob);
         setStatus("ready");
-      })
-      .catch((err) => {
+      } catch (err) {
         if (cancelled) return;
-        setError(err?.message || "Failed to load article");
+        setError(err instanceof Error ? err.message : "Failed to load page");
         setStatus("error");
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
+      if (blobRef.current) {
+        URL.revokeObjectURL(blobRef.current);
+        blobRef.current = "";
+      }
     };
   }, [url]);
 
@@ -74,20 +89,33 @@ export function CleanReader({ url, title, source, domain, onBack }) {
         </button>
       </header>
 
-      <div className="clean-reader__scroll scroll">
+      {snippet ? (
+        <p className="clean-reader__snippet">{snippet}</p>
+      ) : null}
+
+      <div className="clean-reader__frame-wrap">
         {status === "loading" && (
           <p className="clean-reader__status" role="status">
-            Loading article…
+            Loading page…
           </p>
         )}
         {status === "error" && (
           <div className="clean-reader__error">
             <p>{error}</p>
+            <button type="button" className="btn sm primary" onClick={handleViewOriginal}>
+              Open in browser
+            </button>
           </div>
         )}
-        {status === "ready" && paragraphs.map((p, i) => (
-          <p key={i} className="clean-reader__para">{p}</p>
-        ))}
+        {status === "ready" && iframeSrc ? (
+          <iframe
+            className="clean-reader__iframe"
+            src={iframeSrc}
+            title={title || "Source preview"}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+            referrerPolicy="no-referrer"
+          />
+        ) : null}
       </div>
     </section>
   );

@@ -122,6 +122,35 @@
   border-color: color-mix(in oklab, var(--hud) 35%, var(--hairline));
 }
 
+.clean-reader__snippet {
+  flex-shrink: 0;
+  margin: 0 14px 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+}
+
+.clean-reader__frame-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.clean-reader__iframe {
+  flex: 1;
+  width: 100%;
+  min-height: 240px;
+  border: none;
+  background: #fff;
+  border-radius: 0 0 8px 8px;
+}
+
 .clean-reader__scroll {
   flex: 1;
   min-height: 0;

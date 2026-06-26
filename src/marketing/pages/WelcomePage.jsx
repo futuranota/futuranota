@@ -6,6 +6,11 @@ import { applyMarketingTheme } from '../lib/theme.js';
 import { getHome } from '../lib/content.js';
 import { PRICING_PLANS_DEFAULT } from '../lib/pricingDefaults.js';
 import { useAuthStore } from '../../stores/authStore.js';
+import {
+  clearPendingLibrary,
+  markPendingLibrary,
+  OAUTH_MODE_KEY,
+} from '../../lib/onboardingFlow.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
@@ -73,10 +78,12 @@ export function WelcomePage() {
           plan: selectedPlan?.id ?? 'free',
           ...(billing ? { billing } : {}),
         });
+        markPendingLibrary();
         setPendingEmail(form.email);
         setSent(true);
       } else {
         await signIn(form.email, form.password);
+        clearPendingLibrary();
         navigate(PATHS.app, { replace: true });
       }
     } catch (err) {
@@ -89,8 +96,10 @@ export function WelcomePage() {
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
     try {
+      sessionStorage.setItem(OAUTH_MODE_KEY, tab);
       await signInWithGoogle();
     } catch (err) {
+      sessionStorage.removeItem(OAUTH_MODE_KEY);
       setErrorMessage(err.message);
     }
   };

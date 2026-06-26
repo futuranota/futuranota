@@ -10,4 +10,5 @@ export const API_ROUTES = {
   horizonScan: "/api/analytics/horizon-scan",
   weatherForecast: "/api/weather/forecast",
   integrationsHealth: "/api/health/integrations",
+  webProxy: "/api/proxy",
 };

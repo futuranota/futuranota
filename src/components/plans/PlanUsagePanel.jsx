@@ -1,6 +1,6 @@
 import { usePlanStore } from "../../stores/planStore.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
-import { formatTokenCount, getPlanFeatureRows } from "../../lib/planConfig.js";
+import { getPlanFeatureRows } from "../../lib/planConfig.js";
 
 /**
  * Sidebar / plans token usage panel.
@@ -8,9 +8,8 @@ import { formatTokenCount, getPlanFeatureRows } from "../../lib/planConfig.js";
  */
 export function PlanUsagePanel({ compact = false }) {
   const profile = usePlanStore((s) => s.profile);
-  const cap = usePlanStore((s) => s.getTokensCap());
-  const remaining = usePlanStore((s) => s.getTokensRemaining());
-  const used = usePlanStore((s) => s.getTokensUsed());
+  const cap = usePlanStore((s) => s.getCreditsCap());
+  const used = usePlanStore((s) => s.getCreditsUsed());
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
   const rows = getPlanFeatureRows(profile.plan);
   const pct = cap > 0 ? Math.max(0, Math.min(100, (used / cap) * 100)) : 0;
@@ -20,8 +19,8 @@ export function PlanUsagePanel({ compact = false }) {
       <div className="plan-usage__head">
         <span className="plan-usage__label">{profile.plan === "pro" ? "Pro" : "Starter"}</span>
         <span className="plan-usage__tokens">
-          {formatTokenCount(remaining)}
-          <span className="plan-usage__cap"> / {formatTokenCount(cap)}</span>
+          {used}
+          <span className="plan-usage__cap"> / {cap}</span>
         </span>
       </div>
       <div className="plan-usage__bar">

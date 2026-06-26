@@ -19,7 +19,6 @@ import {
   usePlanStore,
   useUpgradeModalStore,
   FREE_LIMITS,
-  formatTokenCount,
 } from './stores/index.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -53,6 +52,13 @@ import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
+import {
+  clearPendingLibrary,
+  getBlankWorkspace,
+  LAST_COMPANY_KEY,
+  readLastCompany,
+  resolveInitialAppState,
+} from './lib/onboardingFlow.js';
 
 
 
@@ -187,10 +193,8 @@ function Dashboard({ company, onBack }) {
   const prevTimelineAlertsEnabled = useRef(false);
   const planProfile = usePlanStore((s) => s.profile);
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
-  const tokenRemaining = usePlanStore((s) => s.getTokensRemaining());
-  const tokenCap = usePlanStore((s) => s.getTokensCap());
-  const tokenCurrent = formatTokenCount(tokenRemaining);
-  const tokenMax = formatTokenCount(tokenCap);
+  const creditUsed = usePlanStore((s) => s.getCreditsUsed());
+  const creditCap = usePlanStore((s) => s.getCreditsCap());
 
   const metaBarMetadata = useMemo(
     () =>
@@ -685,8 +689,8 @@ useEffect(() => {
           <LeftPanel
             onInsertToCanvas={insertNodeToCanvas}
             onOpenDocument={openDocumentOverlay}
-            tokenCurrent={tokenCurrent}
-            tokenMax={tokenMax}
+            tokenCurrent={creditUsed}
+            tokenMax={creditCap}
             onDocumentDeleted={handleDocumentDeleted}
             timelineCanvasSelection={selection}
             canvasNodesForQueue={canvasNodes}
@@ -745,8 +749,8 @@ useEffect(() => {
             }}
             onScanBlogs={scanBlogs}
             hasScannedBlogs={hasScannedBlogs}
-            tokenCurrent={tokenCurrent}
-            tokenMax={tokenMax}
+            tokenCurrent={creditUsed}
+            tokenMax={creditCap}
             today={today}
             launchDate={null}
             onSelectDate={(d) => {
@@ -817,17 +821,9 @@ function App() {
   const navigate = useNavigate();
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const theme = useThemeStore((s) => s.theme);
-  const LAST_COMPANY_KEY = "fn_last_company";
-  const lastCompany = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(LAST_COMPANY_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }, []);
-  const [screen, setScreen] = useState(lastCompany ? "dashboard" : "selector");
-  const [company, setCompany] = useState(lastCompany);
+  const initialApp = useMemo(() => resolveInitialAppState(), []);
+  const [screen, setScreen] = useState(initialApp.screen);
+  const [company, setCompany] = useState(initialApp.company);
   const upgradeOpen = useUpgradeModalStore((s) => s.open);
   const upgradeReason = useUpgradeModalStore((s) => s.reason);
   const hideUpgradeModal = useUpgradeModalStore((s) => s.hide);
@@ -849,9 +845,15 @@ function App() {
           onSelect={(c) => {
             // Selección de compañía sin límite de plan por diseño — free y pro pueden
             // escoger/cambiar de compañía libremente. No agregar gate aquí.
+            clearPendingLibrary();
             ensureCompanyObject(c);
             localStorage.setItem(LAST_COMPANY_KEY, JSON.stringify(c));
             setCompany(c);
+            setScreen("dashboard");
+          }}
+          onSkip={() => {
+            clearPendingLibrary();
+            setCompany(getBlankWorkspace());
             setScreen("dashboard");
           }}
           onBack={() => navigate("/")}
@@ -886,7 +888,7 @@ function App() {
           <TweakButton label="Landing"   secondary onClick={() => navigate("/")} />
           <TweakButton label="Selector"  secondary onClick={() => setScreen("selector")} />
           <TweakButton label="Dashboard" secondary onClick={() => {
-            if (!company) setCompany(COMPANIES[0]);
+            if (!company) setCompany(readLastCompany() || getBlankWorkspace());
             setScreen("dashboard");
           }} />
         </div>

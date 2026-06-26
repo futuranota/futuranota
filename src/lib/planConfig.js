@@ -59,6 +59,28 @@ export function getTokensCap(plan) {
   return getPlanLimits(plan).tokensCap;
 }
 
+/** User-facing credit cap (UI only — internal ledger stays in tokens). */
+/** @param {PlanId|string} plan */
+export function getCreditsCap(plan) {
+  const limits = getPlanLimits(plan);
+  return plan === 'pro' ? limits.maxLiveRunsPerMonth : limits.maxSearchesLifetime;
+}
+
+/**
+ * Credits used for display (used/cap). Free = Intel searches; Pro = tokens spent ÷ 10k.
+ * @param {{ plan?: string, searchCount?: number, tokensBalance?: number }} profile
+ */
+export function getCreditsUsed(profile) {
+  const plan = profile?.plan === 'pro' ? 'pro' : 'free';
+  if (plan === 'free') {
+    return Math.max(0, profile?.searchCount ?? 0);
+  }
+  const cap = getTokensCap('pro');
+  const balance = profile?.tokensBalance ?? cap;
+  const spent = Math.max(0, cap - balance);
+  return Math.min(getCreditsCap('pro'), Math.floor(spent / TOKEN_COSTS.campaignLive));
+}
+
 /** @param {number} n */
 export function formatTokenCount(n) {
   if (n == null || Number.isNaN(n)) return '—';
@@ -72,13 +94,13 @@ export function getPlanFeatureRows(plan) {
   const isPro = plan === 'pro';
   const f = getPlanLimits(plan);
   return [
-    { key: 'tokens', label: 'Tokens', value: isPro ? `${formatTokenCount(f.tokensCap)}/mo` : `${formatTokenCount(f.tokensCap)} welcome` },
+    { key: 'credits', label: 'AI credits', value: isPro ? `${f.maxLiveRunsPerMonth}/mo` : `${f.maxSearchesLifetime} lifetime` },
     { key: 'objects', label: 'Objects', value: isPro ? 'Unlimited' : String(f.maxObjects) },
     { key: 'storage', label: 'Storage', value: f.storageLabel },
     { key: 'searches', label: 'AI searches', value: isPro ? `${f.maxLiveRunsPerMonth} live/mo` : `${f.maxSearchesLifetime} lifetime` },
     { key: 'calendar', label: 'Calendar', value: isPro ? 'Advanced' : `${f.calendarUsesAllowed} use` },
     { key: 'weather', label: 'Forecast', value: isPro ? 'Unlimited' : `${f.weatherUsesAllowed} use` },
     { key: 'campaign', label: 'Campaign study', value: isPro ? `${f.maxLiveRunsPerMonth} live/mo` : `${f.campaignLiveRuns} live (frozen)` },
-    { key: 'library', label: 'Library switch', value: '0 tokens' },
+    { key: 'library', label: 'Library switch', value: '0 credits' },
   ];
 }

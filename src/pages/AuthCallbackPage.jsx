@@ -1,15 +1,30 @@
-// src/pages/AuthCallbackPage.jsx
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import {
+  clearPendingLibrary,
+  markPendingLibrary,
+  OAUTH_MODE_KEY,
+} from '../lib/onboardingFlow.js';
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) navigate('/app');
-      else navigate('/');
+      const oauthMode = sessionStorage.getItem(OAUTH_MODE_KEY);
+      sessionStorage.removeItem(OAUTH_MODE_KEY);
+
+      if (session) {
+        if (oauthMode === 'signup') {
+          markPendingLibrary();
+        } else {
+          clearPendingLibrary();
+        }
+        navigate('/app');
+      } else {
+        navigate('/');
+      }
     });
   }, [navigate]);
 

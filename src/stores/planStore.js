@@ -3,6 +3,8 @@ import { devtools } from "zustand/middleware";
 import { supabase } from "../lib/supabaseClient.js";
 import {
   FREE_LIMITS,
+  getCreditsCap,
+  getCreditsUsed,
   getPlanLimits,
   getTokensCap,
   TOKEN_COSTS,
@@ -76,6 +78,10 @@ export const usePlanStore = create(
       isPro: () => get().profile.plan === "pro",
 
       getTokensCap: () => getTokensCap(get().profile.plan),
+
+      getCreditsCap: () => getCreditsCap(get().profile.plan),
+
+      getCreditsUsed: () => getCreditsUsed(get().profile),
 
       getTokensRemaining: () => get().profile.tokensBalance,
 

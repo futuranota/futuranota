@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { citationFaviconUrl } from "../../lib/citationFavicon.js";
+import { useI18n } from "../../i18n/useI18n.js";
 import { IntelReferencePanel } from "./IntelReferencePanel.jsx";
 
 function CitationFavicon({ domain, className = "" }) {
@@ -44,13 +45,20 @@ export function IntelSourcesList({
   searchQuery = "",
   nodeId = null,
 }) {
+  const { t } = useI18n();
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     setSelected(null);
   }, [citations]);
 
-  if (!citations.length) return null;
+  if (!citations.length) {
+    return (
+      <p className="intel-citations-empty mute" style={{ fontSize: 12, margin: 0 }}>
+        {t("intel.noSources")}
+      </p>
+    );
+  }
 
   return (
     <>

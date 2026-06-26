@@ -33,6 +33,7 @@ export function IntelReferencePanel({ citation, searchQuery, nodeId, onClose }) 
           title={citation.title}
           source={citation.source}
           domain={citation.domain}
+          snippet={citation.body}
           onBack={onClose}
         />
         <NoteTaker searchQuery={searchQuery} nodeId={nodeId} />
