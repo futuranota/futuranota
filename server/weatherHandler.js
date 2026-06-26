@@ -1,11 +1,56 @@
 import { getAuthedUser } from "./supabaseServer.js";
 import {
+  DEFAULT_CITY,
+  fetchOpenWeatherDailyForecast,
   fetchOpenWeatherForecast,
+  WEATHER_ERROR_LOCATION_NOT_FOUND,
+  WeatherLocationNotFoundError,
   weatherCacheKey,
+  weatherDailyCacheKey,
   WEATHER_CACHE_TTL_MS,
 } from "./weather/openWeather.js";
 
-const DEFAULT_CITY = process.env.WEATHER_DEFAULT_CITY?.trim() || "New York,US";
+const FALLBACK_CITY = process.env.WEATHER_DEFAULT_CITY?.trim() || DEFAULT_CITY;
+
+function resolveWeatherLocation(url) {
+  const cityParam = url.searchParams.get("city")?.trim() || "";
+  const latParam = url.searchParams.get("lat");
+  const lonParam = url.searchParams.get("lon");
+  const lat = latParam != null && latParam !== "" ? Number(latParam) : null;
+  const lon = lonParam != null && lonParam !== "" ? Number(lonParam) : null;
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
+
+  return hasCoords
+    ? { lat, lon }
+    : { city: cityParam || FALLBACK_CITY };
+}
+
+async function readWeatherCache(supabase, token, cacheKey) {
+  if (!supabase || !token) return null;
+
+  const { data: cached } = await supabase
+    .from("weather_cache")
+    .select("payload, fetched_at")
+    .eq("cache_key", cacheKey)
+    .maybeSingle();
+
+  if (!cached?.fetched_at) return null;
+
+  const age = Date.now() - new Date(cached.fetched_at).getTime();
+  if (age >= WEATHER_CACHE_TTL_MS) return null;
+
+  return { ...cached.payload, fromCache: true };
+}
+
+async function writeWeatherCache(supabase, cacheKey, payload) {
+  if (!supabase) return;
+
+  await supabase.from("weather_cache").upsert({
+    cache_key: cacheKey,
+    payload,
+    fetched_at: new Date().toISOString(),
+  });
+}
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -14,49 +59,73 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+function weatherErrorResponse(err) {
+  if (err instanceof WeatherLocationNotFoundError) {
+    return {
+      status: 422,
+      body: { error: WEATHER_ERROR_LOCATION_NOT_FOUND },
+    };
+  }
+  throw err;
+}
+
+/**
+ * @param {{ method?: string, url?: string, headers?: Record<string, string|string[]|undefined> }} reqLike
+ */
+export async function processWeatherDailyRequest(reqLike) {
+  const url = new URL(reqLike.url || "", "http://localhost");
+  const location = resolveWeatherLocation(url);
+  const cacheKey = weatherDailyCacheKey(location);
+  const { supabase, token } = await getAuthedUser({ headers: reqLike.headers || {} });
+
+  const cached = await readWeatherCache(supabase, token, cacheKey);
+  if (cached) {
+    return { status: 200, body: cached };
+  }
+
+  try {
+    const forecast = await fetchOpenWeatherDailyForecast(location);
+    const payload = { ...forecast, fromCache: false };
+    await writeWeatherCache(supabase, cacheKey, payload);
+    return { status: 200, body: payload };
+  } catch (err) {
+    return weatherErrorResponse(err);
+  }
+}
+
 /**
  * @param {{ method?: string, url?: string, headers?: Record<string, string|string[]|undefined> }} reqLike
  */
 export async function processWeatherForecastRequest(reqLike) {
   const url = new URL(reqLike.url || "", "http://localhost");
-  const date = url.searchParams.get("date")?.trim() || "";
-  const city = url.searchParams.get("city")?.trim() || DEFAULT_CITY;
+  const mode = url.searchParams.get("mode")?.trim() || "";
 
+  if (mode === "daily") {
+    return processWeatherDailyRequest(reqLike);
+  }
+
+  const date = url.searchParams.get("date")?.trim() || "";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { status: 400, body: { error: "date query param required (YYYY-MM-DD)" } };
   }
 
-  const cacheKey = weatherCacheKey(city, date);
+  const location = resolveWeatherLocation(url);
+  const cacheKey = weatherCacheKey(location, date);
+  const { supabase, token } = await getAuthedUser({ headers: reqLike.headers || {} });
 
-  const { user, supabase, token } = await getAuthedUser({ headers: reqLike.headers || {} });
-
-  if (supabase && token) {
-    const { data: cached } = await supabase
-      .from("weather_cache")
-      .select("payload, fetched_at")
-      .eq("cache_key", cacheKey)
-      .maybeSingle();
-
-    if (cached?.fetched_at) {
-      const age = Date.now() - new Date(cached.fetched_at).getTime();
-      if (age < WEATHER_CACHE_TTL_MS) {
-        return { status: 200, body: { ...cached.payload, fromCache: true } };
-      }
-    }
+  const cached = await readWeatherCache(supabase, token, cacheKey);
+  if (cached) {
+    return { status: 200, body: cached };
   }
 
-  const forecast = await fetchOpenWeatherForecast(date, city);
-  const payload = { ...forecast, targetDate: date, fromCache: false };
-
-  if (supabase) {
-    await supabase.from("weather_cache").upsert({
-      cache_key: cacheKey,
-      payload,
-      fetched_at: new Date().toISOString(),
-    });
+  try {
+    const forecast = await fetchOpenWeatherForecast(date, location);
+    const payload = { ...forecast, targetDate: date, fromCache: false };
+    await writeWeatherCache(supabase, cacheKey, payload);
+    return { status: 200, body: payload };
+  } catch (err) {
+    return weatherErrorResponse(err);
   }
-
-  return { status: 200, body: payload };
 }
 
 export async function handleWeatherForecast(req, res) {

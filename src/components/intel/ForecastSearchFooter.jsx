@@ -1,10 +1,12 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   buildForecastNodePayload,
   buildForecastNodeTitle,
   fetchForecastForNode,
   resolveActiveForecastNode,
 } from "../../lib/forecastSearch.js";
+import { normalizeWeatherLocation } from "../../lib/weatherLocation.js";
+import { useWeatherLocationStore } from "../../stores/weatherLocationStore.js";
 import { ForecastConditionIcon, ForecastIconRain, ForecastIconWind } from "./ForecastIcons.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { usePlanStore } from "../../stores/planStore.js";
@@ -38,6 +40,16 @@ export function ForecastSearchFooter({
 }) {
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
+  const source = useWeatherLocationStore((s) => s.source);
+  const city = useWeatherLocationStore((s) => s.city);
+  const lat = useWeatherLocationStore((s) => s.lat);
+  const lon = useWeatherLocationStore((s) => s.lon);
+  const label = useWeatherLocationStore((s) => s.label);
+  const rememberResolvedLabel = useWeatherLocationStore((s) => s.rememberResolvedLabel);
+  const weatherLocation = useMemo(
+    () => normalizeWeatherLocation({ source, city, lat, lon, label }),
+    [source, city, lat, lon, label],
+  );
 
   const resolveNode = useCallback(
     () => resolveActiveForecastNode(
@@ -57,7 +69,10 @@ export function ForecastSearchFooter({
 
     const node = resolveNode();
     setStatus("loading");
-    const next = await fetchForecastForNode(node);
+    const next = await fetchForecastForNode(node, new Date(), weatherLocation);
+    if (next.status === "success" && next.location) {
+      rememberResolvedLabel(next.location);
+    }
     setResult(next);
     setStatus(next.status === "success" ? "success" : "unavailable");
 

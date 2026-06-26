@@ -8,6 +8,8 @@ import { formatScheduleLabelFromIso } from "./nodeAnchor.js";
 import { parseDate, startOfCalendarDay } from "../temporal.js";
 import { API_ROUTES } from "../api/routes.js";
 import { supabase } from "./supabaseClient.js";
+import { buildWeatherLocationQuery } from "./weatherLocation.js";
+import { WEATHER_ERROR_LOCATION_NOT_FOUND } from "./weatherErrors.js";
 
 export const FORECAST_HORIZON_DAYS = FORECAST_MOCK_HORIZON_DAYS;
 
@@ -15,6 +17,7 @@ export const FORECAST_MESSAGES = {
   noNode: "Select a node to fetch forecast",
   past: "Forecast no longer available",
   future: "data not available yet",
+  locationNotFound: "Location not found. Try City,Country (e.g. Houston,US) or use geolocation.",
 };
 
 /** @typedef {'available'|'past'|'future'|'invalid'} ForecastAvailability */
@@ -172,8 +175,9 @@ export function formatForecastUiDate(date) {
 /**
  * @param {object|null} node
  * @param {Date} [baseToday]
+ * @param {import('./weatherLocation.js').WeatherLocation} [weatherLocation]
  */
-export async function fetchForecastForNode(node, baseToday = new Date()) {
+export async function fetchForecastForNode(node, baseToday = new Date(), weatherLocation) {
   if (!node) {
     return {
       status: "error",
@@ -232,13 +236,32 @@ export async function fetchForecastForNode(node, baseToday = new Date()) {
     : {};
 
   let apiResult;
+  let locationError = "";
   try {
-    const res = await fetch(`${API_ROUTES.weatherForecast}?date=${dateIso}`, { headers });
+    const locationQuery = weatherLocation ? buildWeatherLocationQuery(weatherLocation) : "";
+    const query = locationQuery ? `&${locationQuery}` : "";
+    const res = await fetch(`${API_ROUTES.weatherForecast}?date=${dateIso}${query}`, { headers });
+    const body = await res.json().catch(() => ({}));
     if (res.ok) {
-      apiResult = await res.json();
+      apiResult = body;
+    } else if (body.error === WEATHER_ERROR_LOCATION_NOT_FOUND) {
+      locationError = FORECAST_MESSAGES.locationNotFound;
     }
   } catch {
     apiResult = null;
+  }
+
+  if (locationError) {
+    return {
+      status: "unavailable",
+      reason: "location",
+      message: locationError,
+      uiDate,
+      sourceLabel,
+      resolvedFrom,
+      targetDate: date,
+      node,
+    };
   }
 
   const dayPayload = apiResult?.day;
