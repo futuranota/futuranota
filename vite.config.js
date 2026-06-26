@@ -15,10 +15,11 @@ function brandCadenceApiPlugin(env) {
   return {
     name: 'brand-cadence-api',
     configureServer(server) {
-      // These handlers read process.env directly (Vercel Functions convention);
-      // mirror loadEnv() output onto process.env so the dev server sees the same keys.
+      // Prefer .env.local values so Tina/Vite child processes always see API keys.
       for (const [key, value] of Object.entries(env)) {
-        if (process.env[key] === undefined) process.env[key] = value;
+        if (value != null && String(value).length > 0) {
+          process.env[key] = String(value);
+        }
       }
       server.middlewares.use(createBrandCadenceMiddleware());
       server.middlewares.use(createTranslateMiddleware());

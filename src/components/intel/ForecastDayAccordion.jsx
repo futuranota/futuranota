@@ -30,6 +30,8 @@ export function ForecastDayAccordion({ day, defaultOpen = true }) {
   const wind = day.wind || {};
   const activePeriod = periodMode === "night" ? day.night : day.day;
   const activeMetrics = periodMode === "night" ? day.nightMetrics : day.dayMetrics;
+  const summaryIcon = activePeriod?.conditionIcon || day.conditionIcon;
+  const summaryCondition = activePeriod?.condition || day.condition;
 
   return (
     <article
@@ -49,8 +51,8 @@ export function ForecastDayAccordion({ day, defaultOpen = true }) {
               <TempPair high={day.high} low={day.low} />
             </span>
             <span className="forecast-summary__hide-when-open forecast-summary__wx">
-              <ForecastConditionIcon name={day.conditionIcon} size={24} />
-              <span className="forecast-summary__condition">{day.condition}</span>
+              <ForecastConditionIcon name={summaryIcon} size={24} />
+              <span className="forecast-summary__condition">{summaryCondition}</span>
             </span>
             <span className="forecast-summary__hide-when-open forecast-summary__precip">
               <ForecastIconRain size={12} />

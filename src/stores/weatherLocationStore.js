@@ -25,7 +25,8 @@ function readStoredLocation() {
 function persistLocation(location) {
   try {
     if (typeof localStorage === "undefined") return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(location));
+    const payload = normalizeWeatherLocation(location);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {
     /* ignore */
   }
@@ -37,6 +38,7 @@ export const useWeatherLocationStore = create(
       ...readStoredLocation(),
       geoLoading: false,
       error: "",
+      locationRevision: 0,
 
       setManualCity: (city) => {
         const trimmed = city.trim();
@@ -46,7 +48,11 @@ export const useWeatherLocationStore = create(
           label: trimmed,
         });
         persistLocation(next);
-        set({ ...next, error: "" });
+        set((state) => ({
+          ...next,
+          error: "",
+          locationRevision: state.locationRevision + 1,
+        }));
       },
 
       setGeolocation: ({ lat, lon, label }) => {
@@ -57,7 +63,11 @@ export const useWeatherLocationStore = create(
           label: label || formatCoordsLabel(lat, lon),
         });
         persistLocation(next);
-        set({ ...next, error: "" });
+        set((state) => ({
+          ...next,
+          error: "",
+          locationRevision: state.locationRevision + 1,
+        }));
       },
 
       detectGeolocation: async () => {

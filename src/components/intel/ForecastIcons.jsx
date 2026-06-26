@@ -157,9 +157,131 @@ export function ForecastIconShowersNight({ size = 36 }) {
   );
 }
 
+function CloudShape({ fill = "#9aa3b8", x = 0, y = 0, scale = 1 }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${scale})`}>
+      <path
+        fill={fill}
+        d="M12.737 4.018c1.28-.181 2.268-1.34 2.268-2.743 0-.97-1.01-1.965-2.31-2.126-.188-3.006-1.994-4.701-4.203-4.701-1.742 0-3.582 1.024-3.88 3.337-1.53.302-2.686 1.855-2.686 3.121 0 1.923 1.49 3.137 3.31 3.137h7.202z"
+      />
+    </g>
+  );
+}
+
+export function ForecastIconClearDay({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <circle cx="16" cy="8" r="4.5" fill="#ffc56b" />
+      <path fill="#ffc56b" d="M16 1.5v2.2M16 12.3v2.2M22.5 8h-2.2M11.7 8H9.5M20.6 3.4l-1.6 1.6M12 12l-1.6 1.6M20.6 12.6 19 11M12 4l-1.6-1.6" stroke="#ffc56b" strokeWidth="1.2" strokeLinecap="round" />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconClearNight({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <path fill="#c8d4e8" d="M14.8 4.2a6.2 6.2 0 1 0 5 10.8 4.8 4.8 0 1 1-5-10.8z" />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconPartlyCloudyDay({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <circle cx="17" cy="7" r="3.2" fill="#ffc56b" />
+      <CloudShape fill="#b8c0d0" x={2} y={8} scale={0.95} />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconPartlyCloudyNight({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <path fill="#aeb8ca" d="M17.2 5.8a4.8 4.8 0 1 0 3.8 8.2 3.6 3.6 0 1 1-3.8-8.2z" />
+      <CloudShape fill="#8a939f" x={2} y={9} scale={0.92} />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconCloudy({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <CloudShape fill="#9aa3b8" x={4} y={7} scale={1.05} />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconCloudyNight({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <path fill="#8a939f" d="M17 6.5a4.2 4.2 0 1 0 3.2 7.2 3.2 3.2 0 1 1-3.2-7.2z" />
+      <CloudShape fill="#727b8a" x={3} y={9} scale={1} />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconOvercast({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <CloudShape fill="#7a8494" x={1} y={6} scale={0.9} />
+      <CloudShape fill="#9aa3b8" x={5} y={9} scale={1.05} />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconRainDay({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <CloudShape fill="#9aa3b8" x={4} y={5} scale={1} />
+      <path fill="#5ec4ff" d="M9 16.5v3.2M13 16.5v3.2M17 16.5v3.2" stroke="#5ec4ff" strokeWidth="1.6" strokeLinecap="round" />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconShowers({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <CloudShape fill="#a8b2c4" x={3} y={5} scale={1} />
+      <path fill="#7be6e0" d="M8.5 16.2 7.6 19M12 16.2l-.9 2.8M15.5 16.2l-.9 2.8" stroke="#7be6e0" strokeWidth="1.4" strokeLinecap="round" />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconSnow({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <CloudShape fill="#b8c0d0" x={4} y={5} scale={1} />
+      <circle cx="9" cy="17" r="1" fill="#eef2ff" />
+      <circle cx="13" cy="18" r="1" fill="#eef2ff" />
+      <circle cx="17" cy="17" r="1" fill="#eef2ff" />
+    </IconWrap24>
+  );
+}
+
+export function ForecastIconFog({ size = 36 }) {
+  return (
+    <IconWrap24 size={size}>
+      <CloudShape fill="#9aa3b8" x={4} y={6} scale={0.95} />
+      <path stroke="#8a939f" strokeWidth="1.3" strokeLinecap="round" d="M6 16h12M5 18.5h14M7 21h10" />
+    </IconWrap24>
+  );
+}
+
 const CONDITION_ICONS = {
-  thunderstorms: ForecastIconThunderstorms,
+  "clear-day": ForecastIconClearDay,
+  "clear-night": ForecastIconClearNight,
+  "partly-cloudy-day": ForecastIconPartlyCloudyDay,
+  "partly-cloudy-night": ForecastIconPartlyCloudyNight,
+  cloudy: ForecastIconCloudy,
+  "cloudy-night": ForecastIconCloudyNight,
+  overcast: ForecastIconOvercast,
+  rain: ForecastIconRainDay,
+  "rain-night": ForecastIconShowersNight,
+  showers: ForecastIconShowers,
   "showers-night": ForecastIconShowersNight,
+  thunderstorms: ForecastIconThunderstorms,
+  snow: ForecastIconSnow,
+  fog: ForecastIconFog,
 };
 
 const METRIC_ICONS = {
@@ -172,9 +294,11 @@ const METRIC_ICONS = {
   "moon-phase": ForecastIconMoonPhase,
 };
 
+import { normalizeConditionIconKey } from "../../lib/weatherConditions.js";
+
 export function ForecastConditionIcon({ name, size = 36 }) {
-  const Cmp = CONDITION_ICONS[name];
-  if (!Cmp) return null;
+  const key = normalizeConditionIconKey(name);
+  const Cmp = CONDITION_ICONS[key] || CONDITION_ICONS.cloudy;
   return <Cmp size={size} />;
 }
 

@@ -63,6 +63,21 @@ export function hasWeatherLocation(location) {
 }
 
 /**
+ * Stable key for cache-busting and refetch triggers (ignores display label).
+ * @param {WeatherLocation} location
+ */
+export function getWeatherLocationKey(location) {
+  const normalized = normalizeWeatherLocation(location);
+  if (normalized.source === "geolocation" && normalized.lat != null && normalized.lon != null) {
+    return `geo:${normalized.lat.toFixed(4)},${normalized.lon.toFixed(4)}`;
+  }
+  if (normalized.city) {
+    return `city:${normalized.city.toLowerCase()}`;
+  }
+  return "";
+}
+
+/**
  * @param {WeatherLocation} location
  * @returns {string}
  */

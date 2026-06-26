@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getDataForSeoAuthHeader, isDataForSeoConfigured } from "./discovery/dataForSeoAuth.js";
+import { getOpenWeatherApiKey } from "./weather/env.js";
 
 /**
  * @typedef {{ ok: boolean, configured: boolean, message: string, latencyMs?: number }} ProbeResult
@@ -157,7 +158,7 @@ export async function probeApify(token = process.env.APIFY_API_TOKEN) {
   }
 }
 
-export async function probeOpenWeather(key = process.env.OPENWEATHER_API_KEY) {
+export async function probeOpenWeather(key = getOpenWeatherApiKey()) {
   if (!key?.trim()) {
     return { ok: false, configured: false, message: "OPENWEATHER_API_KEY not set" };
   }
@@ -270,7 +271,7 @@ export async function runAllIntegrationProbes(opts = {}) {
   const apify = live ? await probeApify() : statusOnly("APIFY_API_TOKEN", process.env.APIFY_API_TOKEN);
   const openweather = live
     ? await probeOpenWeather()
-    : statusOnly("OPENWEATHER_API_KEY", process.env.OPENWEATHER_API_KEY);
+    : statusOnly("OPENWEATHER_API_KEY", getOpenWeatherApiKey());
   const supabase = await probeSupabase();
 
   const steps = { groq, serper, dataforseo, apify, openweather, supabase };

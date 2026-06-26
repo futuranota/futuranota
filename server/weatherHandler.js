@@ -1,9 +1,12 @@
 import { getAuthedUser } from "./supabaseServer.js";
+import { getOpenWeatherApiKey } from "./weather/env.js";
 import {
   DEFAULT_CITY,
   fetchOpenWeatherDailyForecast,
   fetchOpenWeatherForecast,
+  resolveForecastLocation,
   WEATHER_ERROR_LOCATION_NOT_FOUND,
+  WEATHER_ERROR_NOT_CONFIGURED,
   WeatherLocationNotFoundError,
   weatherCacheKey,
   weatherDailyCacheKey,
@@ -12,7 +15,7 @@ import {
 
 const FALLBACK_CITY = process.env.WEATHER_DEFAULT_CITY?.trim() || DEFAULT_CITY;
 
-function resolveWeatherLocation(url) {
+function parseWeatherLocationFromUrl(url, { allowFallback = false } = {}) {
   const cityParam = url.searchParams.get("city")?.trim() || "";
   const latParam = url.searchParams.get("lat");
   const lonParam = url.searchParams.get("lon");
@@ -20,9 +23,14 @@ function resolveWeatherLocation(url) {
   const lon = lonParam != null && lonParam !== "" ? Number(lonParam) : null;
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
 
-  return hasCoords
-    ? { lat, lon }
-    : { city: cityParam || FALLBACK_CITY };
+  if (hasCoords) return { lat, lon };
+  if (cityParam) return { city: cityParam };
+  if (allowFallback) return { city: FALLBACK_CITY };
+  return null;
+}
+
+function resolveWeatherLocation(url) {
+  return parseWeatherLocationFromUrl(url, { allowFallback: true });
 }
 
 async function readWeatherCache(supabase, token, cacheKey) {
@@ -39,11 +47,14 @@ async function readWeatherCache(supabase, token, cacheKey) {
   const age = Date.now() - new Date(cached.fetched_at).getTime();
   if (age >= WEATHER_CACHE_TTL_MS) return null;
 
+  if (cached.payload?.source === "mock") return null;
+
   return { ...cached.payload, fromCache: true };
 }
 
 async function writeWeatherCache(supabase, cacheKey, payload) {
   if (!supabase) return;
+  if (payload?.source === "mock") return;
 
   await supabase.from("weather_cache").upsert({
     cache_key: cacheKey,
@@ -55,6 +66,7 @@ async function writeWeatherCache(supabase, cacheKey, payload) {
 function sendJson(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
+  res.setHeader("Cache-Control", "no-store");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.end(JSON.stringify(body));
 }
@@ -66,7 +78,32 @@ function weatherErrorResponse(err) {
       body: { error: WEATHER_ERROR_LOCATION_NOT_FOUND },
     };
   }
+  if (err?.code === WEATHER_ERROR_NOT_CONFIGURED || err?.message === WEATHER_ERROR_NOT_CONFIGURED) {
+    return {
+      status: 503,
+      body: { error: WEATHER_ERROR_NOT_CONFIGURED },
+    };
+  }
   throw err;
+}
+
+async function normalizeWeatherLocationForCache(location) {
+  const apiKey = getOpenWeatherApiKey();
+  if (!apiKey || (Number.isFinite(location.lat) && Number.isFinite(location.lon))) {
+    return location;
+  }
+
+  try {
+    const resolved = await resolveForecastLocation(location, apiKey);
+    return {
+      lat: resolved.lat,
+      lon: resolved.lon,
+      label: resolved.label,
+      city: location.city,
+    };
+  } catch {
+    return location;
+  }
 }
 
 /**
@@ -74,8 +111,16 @@ function weatherErrorResponse(err) {
  */
 export async function processWeatherDailyRequest(reqLike) {
   const url = new URL(reqLike.url || "", "http://localhost");
-  const location = resolveWeatherLocation(url);
-  const cacheKey = weatherDailyCacheKey(location);
+  const urlLocation = parseWeatherLocationFromUrl(url, { allowFallback: false });
+  if (!urlLocation) {
+    return { status: 400, body: { error: "location_required" } };
+  }
+
+  const location = await normalizeWeatherLocationForCache(urlLocation);
+  const cacheKey = weatherDailyCacheKey({
+    ...location,
+    city: urlLocation.city || location.city,
+  });
   const { supabase, token } = await getAuthedUser({ headers: reqLike.headers || {} });
 
   const cached = await readWeatherCache(supabase, token, cacheKey);
@@ -84,7 +129,7 @@ export async function processWeatherDailyRequest(reqLike) {
   }
 
   try {
-    const forecast = await fetchOpenWeatherDailyForecast(location);
+    const forecast = await fetchOpenWeatherDailyForecast(urlLocation);
     const payload = { ...forecast, fromCache: false };
     await writeWeatherCache(supabase, cacheKey, payload);
     return { status: 200, body: payload };
@@ -109,8 +154,16 @@ export async function processWeatherForecastRequest(reqLike) {
     return { status: 400, body: { error: "date query param required (YYYY-MM-DD)" } };
   }
 
-  const location = resolveWeatherLocation(url);
-  const cacheKey = weatherCacheKey(location, date);
+  const urlLocation = parseWeatherLocationFromUrl(url, { allowFallback: false });
+  if (!urlLocation) {
+    return { status: 400, body: { error: "location_required" } };
+  }
+
+  const location = await normalizeWeatherLocationForCache(urlLocation);
+  const cacheKey = weatherCacheKey(
+    { ...location, city: urlLocation.city || location.city },
+    date,
+  );
   const { supabase, token } = await getAuthedUser({ headers: reqLike.headers || {} });
 
   const cached = await readWeatherCache(supabase, token, cacheKey);
@@ -119,7 +172,7 @@ export async function processWeatherForecastRequest(reqLike) {
   }
 
   try {
-    const forecast = await fetchOpenWeatherForecast(date, location);
+    const forecast = await fetchOpenWeatherForecast(date, urlLocation);
     const payload = { ...forecast, targetDate: date, fromCache: false };
     await writeWeatherCache(supabase, cacheKey, payload);
     return { status: 200, body: payload };

@@ -1,8 +1,15 @@
+import { getOpenWeatherApiKey, isWeatherMockAllowed } from "./env.js";
+import { mapConditionIcon } from "../../src/lib/weatherConditions.js";
+
 const OPENWEATHER_URL = "https://api.openweathermap.org/data/2.5/forecast";
 const OPENWEATHER_GEO_URL = "https://api.openweathermap.org/geo/1.0/direct";
 export const DEFAULT_CITY = "New York,US";
 export const FORECAST_DAILY_HORIZON = 7;
+/** OpenWeather 2.5 /forecast returns 3-hour steps (~5 full days + partial 6th). */
+export const OPENWEATHER_MAX_DAILY_DAYS = 6;
+export const WEATHER_CACHE_VERSION = "v4";
 export const WEATHER_ERROR_LOCATION_NOT_FOUND = "location_not_found";
+export const WEATHER_ERROR_NOT_CONFIGURED = "openweather_not_configured";
 
 const US_STATE_NAMES = new Set([
   "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
@@ -122,9 +129,14 @@ export async function resolveForecastLocation(location = {}, apiKey) {
 }
 
 async function fetchOpenWeatherList(location = {}) {
-  const apiKey = process.env.OPENWEATHER_API_KEY?.trim();
+  const apiKey = getOpenWeatherApiKey();
   if (!apiKey) {
-    return { data: null, location, source: "mock", resolved: null };
+    if (isWeatherMockAllowed()) {
+      return { data: null, location, source: "mock", resolved: null };
+    }
+    const err = new Error(WEATHER_ERROR_NOT_CONFIGURED);
+    err.code = WEATHER_ERROR_NOT_CONFIGURED;
+    throw err;
   }
 
   let resolved;
@@ -162,63 +174,101 @@ function degToCompass(deg) {
   return dirs[Math.round(deg / 45) % 8];
 }
 
-function mapConditionIcon(weatherMain) {
-  const value = (weatherMain || "").toLowerCase();
-  if (value.includes("thunder")) return "thunderstorms";
-  return "showers-night";
-}
-
-function formatAsOfLabel(date = new Date()) {
-  const h = date.getHours();
-  const m = String(date.getMinutes()).padStart(2, "0");
+function formatAsOfLabel(date = new Date(), timezoneOffsetSec = 0) {
+  const shifted = new Date(date.getTime() + timezoneOffsetSec * 1000);
+  const h = shifted.getUTCHours();
+  const m = String(shifted.getUTCMinutes()).padStart(2, "0");
   const ampm = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 || 12;
   return `as of ${h12}:${m} ${ampm}`;
 }
 
-function weekdayShort(date) {
-  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
+function getCityDateIso(timezoneOffsetSec, unixMs = Date.now()) {
+  const shifted = new Date(unixMs + timezoneOffsetSec * 1000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-function dayLabelForOffset(offset, date) {
-  if (offset === 0) return "Today";
-  if (offset === 1) return "Tomorrow";
-  return weekdayShort(date);
+function weekdayShortFromIso(dateIso) {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day];
 }
 
-function aggregateDailyEntries(entries, dateIso) {
+function formatShortDate(dateIso) {
+  const month = Number(dateIso.slice(5, 7));
+  const day = Number(dateIso.slice(8, 10));
+  return `${month}/${day}`;
+}
+
+function dayLabelForDate(dateIso, cityTodayIso) {
+  const shortDate = formatShortDate(dateIso);
+  const todayMs = Date.parse(`${cityTodayIso}T00:00:00Z`);
+  const targetMs = Date.parse(`${dateIso}T00:00:00Z`);
+  const diffDays = Math.round((targetMs - todayMs) / 86400000);
+  if (diffDays === 0) return `Today · ${shortDate}`;
+  if (diffDays === 1) return `Tomorrow · ${shortDate}`;
+  return `${weekdayShortFromIso(dateIso)} · ${shortDate}`;
+}
+
+function filterEntriesByPeriod(entries, period) {
+  return entries.filter((entry) => {
+    const hour = Number(entry.dt_txt?.slice(11, 13));
+    if (Number.isNaN(hour)) return period === "all";
+    if (period === "day") return hour >= 6 && hour < 18;
+    if (period === "night") return hour < 6 || hour >= 18;
+    return true;
+  });
+}
+
+function pickRepresentativeEntry(entries, targetHour) {
+  let best = entries[0];
+  let bestDistance = Infinity;
+  for (const entry of entries) {
+    const hour = Number(entry.dt_txt?.slice(11, 13));
+    const distance = Math.abs(hour - targetHour);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = entry;
+    }
+  }
+  return best;
+}
+
+function aggregatePeriodEntries(entries, period, dateIso, displayPeriod = period) {
+  const scoped = filterEntriesByPeriod(entries, period);
+  if (!scoped.length) return null;
+
   let high = -Infinity;
   let low = Infinity;
   let maxPop = 0;
-  let noonEntry = entries[0];
-  let noonDistance = Infinity;
 
-  for (const entry of entries) {
+  for (const entry of scoped) {
     const main = entry.main || {};
     const temp = main.temp ?? main.temp_max ?? main.temp_min ?? 0;
-    high = Math.max(high, main.temp_max ?? temp);
-    low = Math.min(low, main.temp_min ?? temp);
+    high = Math.max(high, temp, main.temp_max ?? temp);
+    low = Math.min(low, temp, main.temp_min ?? temp);
     maxPop = Math.max(maxPop, entry.pop ?? 0);
-
-    const hour = Number(entry.dt_txt?.slice(11, 13));
-    const distance = Math.abs(hour - 12);
-    if (distance < noonDistance) {
-      noonDistance = distance;
-      noonEntry = entry;
-    }
   }
 
-  const weather = noonEntry?.weather?.[0] || {};
-  const wind = noonEntry?.wind || {};
-  const main = noonEntry?.main || {};
-  const date = new Date(`${dateIso}T12:00:00`);
+  const targetHour = displayPeriod === "night" ? 3 : displayPeriod === "day" ? 14 : 12;
+  const representative = pickRepresentativeEntry(scoped, targetHour);
+  const weather = representative?.weather?.[0] || {};
+  const wind = representative?.wind || {};
+  const main = representative?.main || {};
+  const displayTemp = displayPeriod === "night"
+    ? Math.round(Number.isFinite(low) ? low : main.temp ?? 0)
+    : Math.round(Number.isFinite(high) ? high : main.temp ?? 0);
 
   return {
     high: Math.round(Number.isFinite(high) ? high : main.temp ?? 0),
     low: Math.round(Number.isFinite(low) ? low : main.temp ?? 0),
+    temp: displayTemp,
     precipPct: Math.round(maxPop * 100),
     condition: weather.main || weather.description || "Unknown",
-    conditionIcon: mapConditionIcon(weather.main),
+    conditionIcon: mapConditionIcon(weather.main, weather.icon, displayPeriod),
     wind: {
       dir: degToCompass(wind.deg),
       speed: Math.round(wind.speed ?? 0),
@@ -226,16 +276,75 @@ function aggregateDailyEntries(entries, dateIso) {
     },
     description: weather.description || weather.main || "",
     humidity: main.humidity ?? null,
-    dateLabel: `${weekdayShort(date)} ${date.getDate()}`,
-    date,
+    dateLabel: `${weekdayShortFromIso(dateIso)} ${Number(dateIso.slice(8, 10))}`,
   };
 }
 
-function buildDailyPeriod(summary, periodLabel, temp) {
+function groupForecastEntries(list) {
+  const byDate = new Map();
+  for (const entry of list) {
+    const dateIso = entry.dt_txt?.slice(0, 10);
+    if (!dateIso) continue;
+    const bucket = byDate.get(dateIso) || [];
+    bucket.push(entry);
+    byDate.set(dateIso, bucket);
+  }
+  return byDate;
+}
+
+function entriesForNightPeriod(byDate, dateIso) {
+  const sameDay = byDate.get(dateIso) || [];
+  const nextDateIso = nextDateIsoString(dateIso);
+  const nextDayEarly = (byDate.get(nextDateIso) || []).filter((entry) => {
+    const hour = Number(entry.dt_txt?.slice(11, 13));
+    return hour < 6;
+  });
+  const sameDayLate = sameDay.filter((entry) => {
+    const hour = Number(entry.dt_txt?.slice(11, 13));
+    return hour >= 18;
+  });
+  return [...sameDayLate, ...nextDayEarly];
+}
+
+function nextDateIsoString(dateIso) {
+  const ms = Date.parse(`${dateIso}T00:00:00Z`) + 86400000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function aggregateDailyFromEntries(byDate, dateIso, timezoneOffsetSec) {
+  const entries = byDate.get(dateIso) || [];
+  if (!entries.length) return null;
+
+  const all = aggregatePeriodEntries(entries, "all", dateIso);
+  const day = aggregatePeriodEntries(entries, "day", dateIso) || all;
+  const nightEntries = entriesForNightPeriod(byDate, dateIso);
+  const night = (nightEntries.length
+    ? aggregatePeriodEntries(nightEntries, "all", dateIso, "night")
+    : null) || aggregatePeriodEntries(entries, "night", dateIso, "night") || all;
+  if (!all) return null;
+
+  const cityTodayIso = getCityDateIso(timezoneOffsetSec);
+  return {
+    high: all.high,
+    low: all.low,
+    precipPct: all.precipPct,
+    condition: day.condition,
+    conditionIcon: day.conditionIcon,
+    wind: day.wind,
+    description: day.description,
+    humidity: all.humidity,
+    label: dayLabelForDate(dateIso, cityTodayIso),
+    day,
+    night,
+  };
+}
+
+function buildDailyPeriod(summary, periodLabel) {
+  if (!summary) return null;
   return {
     dateLabel: summary.dateLabel,
     periodLabel,
-    temp,
+    temp: summary.temp,
     condition: summary.condition,
     conditionIcon: summary.conditionIcon,
     precipPct: summary.precipPct,
@@ -258,61 +367,52 @@ function buildDailyMetrics(summary) {
 }
 
 function mockDailyForecast(location = {}, horizonDays = FORECAST_DAILY_HORIZON) {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
+  const todayIso = getCityDateIso(0);
   const days = [];
 
   for (let offset = 0; offset < horizonDays; offset += 1) {
-    const date = new Date(today);
-    date.setDate(today.getDate() + offset);
-    const dateIso = date.toISOString().slice(0, 10);
+    const dateMs = Date.parse(`${todayIso}T00:00:00Z`) + offset * 86400000;
+    const dateIso = new Date(dateMs).toISOString().slice(0, 10);
     const single = mockForecast(dateIso, location);
-    const day = single.day;
-    days.push({
-      id: dateIso,
-      label: dayLabelForOffset(offset, date),
-      high: day.high,
-      low: day.low,
-      condition: day.condition,
-      conditionIcon: mapConditionIcon(day.condition),
-      precipPct: day.precipPct,
+    const dayPayload = single.day;
+    const dayIconCode = seed % 3 === 0 ? "11d" : seed % 2 === 0 ? "01d" : "03d";
+    const nightIconCode = dayIconCode.replace("d", "n");
+    const dayCondition = seed % 3 === 0 ? "Thunderstorm" : seed % 2 === 0 ? "Clear" : "Clouds";
+    const dayPeriod = {
+      dateLabel: `${weekdayShortFromIso(dateIso)} ${Number(dateIso.slice(8, 10))}`,
+      temp: dayPayload.high,
+      condition: dayCondition,
+      conditionIcon: mapConditionIcon(dayCondition, dayIconCode, "day"),
+      precipPct: dayPayload.precipPct,
       wind: {
-        dir: degToCompass(day.wind?.direction),
-        speed: day.wind?.speed ?? 0,
+        dir: degToCompass(dayPayload.wind?.direction),
+        speed: dayPayload.wind?.speed ?? 0,
         unit: "mph",
       },
-      day: buildDailyPeriod(
-        {
-          dateLabel: `${weekdayShort(date)} ${date.getDate()}`,
-          condition: day.condition,
-          conditionIcon: mapConditionIcon(day.condition),
-          precipPct: day.precipPct,
-          wind: {
-            dir: degToCompass(day.wind?.direction),
-            speed: day.wind?.speed ?? 0,
-            unit: "mph",
-          },
-          description: day.day?.description || day.condition,
-        },
-        "Day",
-        day.high,
-      ),
-      night: buildDailyPeriod(
-        {
-          dateLabel: `${weekdayShort(date)} ${date.getDate()}`,
-          condition: day.condition,
-          conditionIcon: mapConditionIcon(day.condition),
-          precipPct: Math.max(0, day.precipPct - 10),
-          wind: {
-            dir: degToCompass(day.wind?.direction),
-            speed: Math.max(0, (day.wind?.speed ?? 0) - 2),
-            unit: "mph",
-          },
-          description: day.day?.description || day.condition,
-        },
-        "Night",
-        day.low,
-      ),
+      description: dayPayload.day?.description || dayCondition,
+    };
+    const nightPeriod = {
+      ...dayPeriod,
+      temp: dayPayload.low,
+      conditionIcon: mapConditionIcon(dayCondition, nightIconCode, "night"),
+      precipPct: Math.max(0, dayPayload.precipPct - 10),
+      wind: {
+        ...dayPeriod.wind,
+        speed: Math.max(0, dayPeriod.wind.speed - 2),
+      },
+    };
+
+    days.push({
+      id: dateIso,
+      label: dayLabelForDate(dateIso, todayIso),
+      high: dayPayload.high,
+      low: dayPayload.low,
+      condition: dayCondition,
+      conditionIcon: dayPeriod.conditionIcon,
+      precipPct: dayPayload.precipPct,
+      wind: dayPeriod.wind,
+      day: buildDailyPeriod(dayPeriod, "Day"),
+      night: buildDailyPeriod(nightPeriod, "Night"),
       dayMetrics: [],
       nightMetrics: [],
     });
@@ -320,7 +420,7 @@ function mockDailyForecast(location = {}, horizonDays = FORECAST_DAILY_HORIZON) 
 
   return {
     location: cityLabel(location),
-    asOf: formatAsOfLabel(new Date()),
+    asOf: formatAsOfLabel(new Date(), 0),
     days,
     source: "mock",
   };
@@ -337,33 +437,33 @@ export async function fetchOpenWeatherDailyForecast(location = {}, horizonDays =
   }
 
   const list = Array.isArray(data?.list) ? data.list : [];
-  const grouped = new Map();
-  for (const entry of list) {
-    const dateIso = entry.dt_txt?.slice(0, 10);
-    if (!dateIso) continue;
-    const bucket = grouped.get(dateIso) || [];
-    bucket.push(entry);
-    grouped.set(dateIso, bucket);
-  }
+  const grouped = groupForecastEntries(list);
+  const timezoneOffsetSec = Number(data?.city?.timezone) || 0;
+  const cityTodayIso = getCityDateIso(timezoneOffsetSec);
+  const sortedDates = [...grouped.keys()]
+    .sort()
+    .filter((dateIso) => dateIso >= cityTodayIso);
+  const maxDays = Math.min(horizonDays, OPENWEATHER_MAX_DAILY_DAYS, sortedDates.length);
 
-  const sortedDates = [...grouped.keys()].sort();
-  const days = sortedDates.slice(0, horizonDays).map((dateIso, index) => {
-    const summary = aggregateDailyEntries(grouped.get(dateIso), dateIso);
+  const days = sortedDates.slice(0, maxDays).map((dateIso) => {
+    const summary = aggregateDailyFromEntries(grouped, dateIso, timezoneOffsetSec);
+    if (!summary) return null;
+
     return {
       id: dateIso,
-      label: dayLabelForOffset(index, summary.date),
+      label: summary.label,
       high: summary.high,
       low: summary.low,
       condition: summary.condition,
       conditionIcon: summary.conditionIcon,
       precipPct: summary.precipPct,
       wind: summary.wind,
-      day: buildDailyPeriod(summary, "Day", summary.high),
-      night: buildDailyPeriod(summary, "Night", summary.low),
-      dayMetrics: buildDailyMetrics(summary),
-      nightMetrics: buildDailyMetrics(summary),
+      day: buildDailyPeriod({ ...summary.day, temp: summary.high }, "Day"),
+      night: buildDailyPeriod({ ...summary.night, temp: summary.low }, "Night"),
+      dayMetrics: buildDailyMetrics(summary.day),
+      nightMetrics: buildDailyMetrics(summary.night),
     };
-  });
+  }).filter(Boolean);
 
   if (!days.length) {
     throw new Error("No forecast data available");
@@ -371,9 +471,10 @@ export async function fetchOpenWeatherDailyForecast(location = {}, horizonDays =
 
   return {
     location: data.city?.name || resolved?.label || cityLabel(resolvedLocation),
-    asOf: formatAsOfLabel(new Date()),
+    asOf: formatAsOfLabel(new Date(), timezoneOffsetSec),
     days,
     source,
+    horizonDays: maxDays,
     resolvedLocation: resolved ? { lat: resolved.lat, lon: resolved.lon, label: resolved.label } : null,
   };
 }
@@ -384,7 +485,7 @@ export async function fetchOpenWeatherDailyForecast(location = {}, horizonDays =
  */
 export async function fetchOpenWeatherForecast(dateIso, location = {}) {
   const daily = await fetchOpenWeatherDailyForecast(location, FORECAST_DAILY_HORIZON);
-  const dayEntry = daily.days.find((entry) => entry.id === dateIso) || daily.days[0];
+  const dayEntry = daily.days.find((entry) => entry.id === dateIso);
   if (!dayEntry) {
     throw new Error("No forecast data for date");
   }
@@ -420,9 +521,20 @@ function cityLabel(location = {}) {
   return location.city?.split(",")[0] || DEFAULT_CITY.split(",")[0];
 }
 
+function mockLocationSeed(location = {}) {
+  const bits = [];
+  if (Number.isFinite(location.lat)) bits.push(String(location.lat.toFixed(4)));
+  if (Number.isFinite(location.lon)) bits.push(String(location.lon.toFixed(4)));
+  if (location.city) bits.push(location.city.toLowerCase().trim());
+  const raw = bits.join("|") || DEFAULT_CITY.toLowerCase();
+  return raw.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+}
+
 function mockForecast(dateIso, location = {}) {
   const city = location.city?.trim() || DEFAULT_CITY;
-  const seed = dateIso.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+  const dateSeed = dateIso.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+  const locationSeed = mockLocationSeed(location);
+  const seed = dateSeed * 31 + locationSeed;
   const high = 55 + (seed % 25);
   const low = high - 8 - (seed % 5);
   return {
@@ -445,20 +557,29 @@ export function weatherCacheKey(location, dateIso) {
   const lat = Number.isFinite(location?.lat) ? location.lat : null;
   const lon = Number.isFinite(location?.lon) ? location.lon : null;
   if (lat != null && lon != null) {
-    return `geo:${lat.toFixed(3)},${lon.toFixed(3)}::${dateIso}`;
+    const cityPart = (location?.city || "").toLowerCase().trim();
+    const geo = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+    const base = cityPart ? `${geo}:${cityPart}` : geo;
+    return `${WEATHER_CACHE_VERSION}:date:${base}::${dateIso}`;
   }
   const city = (location?.city || DEFAULT_CITY).toLowerCase().trim();
-  return `${city}::${dateIso}`;
+  return `${WEATHER_CACHE_VERSION}:date:${city}::${dateIso}`;
 }
 
 export function weatherDailyCacheKey(location) {
+  const cityPart = (location?.city || "").toLowerCase().trim();
   const lat = Number.isFinite(location?.lat) ? location.lat : null;
   const lon = Number.isFinite(location?.lon) ? location.lon : null;
   if (lat != null && lon != null) {
-    return `daily:geo:${lat.toFixed(3)},${lon.toFixed(3)}`;
+    const geo = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+    return cityPart
+      ? `${WEATHER_CACHE_VERSION}:daily:geo:${geo}:${cityPart}`
+      : `${WEATHER_CACHE_VERSION}:daily:geo:${geo}`;
   }
-  const city = (location?.city || DEFAULT_CITY).toLowerCase().trim();
-  return `daily:${city}`;
+  if (cityPart) {
+    return `${WEATHER_CACHE_VERSION}:daily:${cityPart}`;
+  }
+  return `${WEATHER_CACHE_VERSION}:daily:${DEFAULT_CITY.toLowerCase()}`;
 }
 
 export const WEATHER_CACHE_TTL_MS = 45 * 60 * 1000;

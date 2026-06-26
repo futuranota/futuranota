@@ -2476,6 +2476,11 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   font-size: 9px;
   line-height: 1.35;
 }
+.forecast-panel__resolved {
+  margin: 0 0 4px;
+  font-size: 10px;
+  color: var(--text-1);
+}
 .forecast-panel__status {
   margin: 0 0 8px;
   font-size: 10px;

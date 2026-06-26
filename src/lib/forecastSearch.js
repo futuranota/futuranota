@@ -11,7 +11,8 @@ import { supabase } from "./supabaseClient.js";
 import { buildWeatherLocationQuery } from "./weatherLocation.js";
 import { WEATHER_ERROR_LOCATION_NOT_FOUND } from "./weatherErrors.js";
 
-export const FORECAST_HORIZON_DAYS = FORECAST_MOCK_HORIZON_DAYS;
+/** OpenWeather 2.5 /forecast covers up to ~5 days (3-hour steps). */
+export const FORECAST_HORIZON_DAYS = Math.min(FORECAST_MOCK_HORIZON_DAYS, 6);
 
 export const FORECAST_MESSAGES = {
   noNode: "Select a node to fetch forecast",
@@ -239,8 +240,23 @@ export async function fetchForecastForNode(node, baseToday = new Date(), weather
   let locationError = "";
   try {
     const locationQuery = weatherLocation ? buildWeatherLocationQuery(weatherLocation) : "";
-    const query = locationQuery ? `&${locationQuery}` : "";
-    const res = await fetch(`${API_ROUTES.weatherForecast}?date=${dateIso}${query}`, { headers });
+    if (!locationQuery) {
+      return {
+        status: "unavailable",
+        reason: "location",
+        message: FORECAST_MESSAGES.locationNotFound,
+        uiDate,
+        sourceLabel,
+        resolvedFrom,
+        targetDate: date,
+        node,
+      };
+    }
+    const query = `&${locationQuery}`;
+    const res = await fetch(`${API_ROUTES.weatherForecast}?date=${dateIso}${query}`, {
+      headers,
+      cache: "no-store",
+    });
     const body = await res.json().catch(() => ({}));
     if (res.ok) {
       apiResult = body;

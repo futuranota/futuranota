@@ -85,6 +85,12 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 
 ## Resueltos
 
+### 2026-06-25 — Weather forecast: mock idéntico para todas las ciudades
+
+- **Causa:** sin `OPENWEATHER_API_KEY` en el proceso del middleware, el servidor devolvía `source: "mock"` silenciosamente; Supabase podía cachear ese mock; el seed mock era débil por ciudad.
+- **Fix:** error `503 openweather_not_configured` si falta key (mock solo con `WEATHER_ALLOW_MOCK=1`); no leer/escribir caché mock; cache keys `v3`; `vite.config` fuerza env desde `.env.local`; UI avisa si llega mock.
+- **Verificar:** reiniciar `npm run dev`, Set ciudad (`Madrid,ES`), Network debe mostrar `source: "openweather"` y temps distintas por ciudad.
+
 ### 2026-06-25 — Launch Radar: inyección de campaña desde Librería
 
 - Al seleccionar compañía en Librería, `ensureCompanyObject` inyecta `cadence` (launch, announce −90d, overview, category).
