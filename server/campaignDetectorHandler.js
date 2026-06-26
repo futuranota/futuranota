@@ -59,10 +59,20 @@ export function createCampaignDetectorMiddleware() {
 
       const rangeDays = Number(body.rangeDays);
       const sources = Array.isArray(body.sources) ? body.sources : [];
+      const mode = body.mode === "deep" ? "deep" : undefined;
+      const officialDomain = typeof body.officialDomain === "string"
+        ? body.officialDomain.trim()
+        : "";
+      const userQuery = typeof body.userQuery === "string"
+        ? body.userQuery.trim()
+        : "";
 
       const result = await detectBrandIntel(brandName, {
         rangeDays: Number.isFinite(rangeDays) && rangeDays > 0 ? rangeDays : 90,
         sources,
+        mode,
+        officialDomain,
+        userQuery,
       });
 
       res.statusCode = 200;

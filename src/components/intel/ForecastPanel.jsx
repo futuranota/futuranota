@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import { fetchDailyForecastPanel } from "../../lib/forecastPanel.js";
+import { scheduleForecastAutoRefresh } from "../../lib/forecastRefresh.js";
 import {
   getWeatherLocationKey,
   hasWeatherLocation,
@@ -8,6 +9,7 @@ import {
 } from "../../lib/weatherLocation.js";
 import { weatherErrorMessage } from "../../lib/weatherErrors.js";
 import { useWeatherLocationStore } from "../../stores/weatherLocationStore.js";
+import { useForecastPanelStore } from "../../stores/forecastPanelStore.js";
 import { ForecastDayAccordion } from "./ForecastDayAccordion.jsx";
 import { ForecastLocationPicker } from "./ForecastLocationPicker.jsx";
 
@@ -19,6 +21,10 @@ export function ForecastPanel({ today = new Date() }) {
   const lon = useWeatherLocationStore((s) => s.lon);
   const locationRevision = useWeatherLocationStore((s) => s.locationRevision);
   const rememberResolvedLabel = useWeatherLocationStore((s) => s.rememberResolvedLabel);
+  const setPanelLoading = useForecastPanelStore((s) => s.setLoading);
+  const setPanelReady = useForecastPanelStore((s) => s.setReady);
+  const setPanelError = useForecastPanelStore((s) => s.setError);
+  const resetPanel = useForecastPanelStore((s) => s.reset);
 
   const locationKey = useMemo(
     () => getWeatherLocationKey(normalizeWeatherLocation({ source, city, lat, lon, label: "" })),
@@ -28,6 +34,51 @@ export function ForecastPanel({ today = new Date() }) {
   const [status, setStatus] = useState("idle");
   const [forecast, setForecast] = useState(null);
   const [error, setError] = useState("");
+  const timezoneOffsetSec = forecast?.timezoneOffsetSec ?? 0;
+
+  const locationRef = useRef({ source, city, lat, lon });
+  locationRef.current = { source, city, lat, lon };
+  const prevRevisionRef = useRef(locationRevision);
+
+  const applyForecastData = useCallback((data, key) => {
+    if (data.location) {
+      rememberResolvedLabel(data.location);
+    }
+    setForecast(data);
+    setStatus("ready");
+    setError("");
+    setPanelReady({
+      locationKey: key,
+      dayIds: (data.days || []).map((day) => day.id),
+      forecastLocation: data.location || "",
+    });
+  }, [rememberResolvedLabel, setPanelReady]);
+
+  const loadForecast = useCallback(async (key, { soft = false, fresh = false, cityApply = false, cancelled = () => false } = {}) => {
+    const location = normalizeWeatherLocation({ ...locationRef.current, label: "" });
+
+    if (!soft) {
+      setPanelLoading(key);
+      setStatus("loading");
+      setError("");
+      setForecast(null);
+    }
+
+    try {
+      const data = await fetchDailyForecastPanel(location, { fresh, cityApply });
+      if (cancelled()) return;
+      applyForecastData(data, key);
+    } catch (err) {
+      if (cancelled()) return;
+      if (!soft) {
+        setForecast(null);
+        const code = err instanceof Error ? err.message : "";
+        setError(weatherErrorMessage(code, t));
+        setStatus("error");
+        setPanelError(key);
+      }
+    }
+  }, [applyForecastData, setPanelError, setPanelLoading, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,34 +88,30 @@ export function ForecastPanel({ today = new Date() }) {
       setStatus("idle");
       setForecast(null);
       setError("");
+      resetPanel();
       return undefined;
     }
 
-    (async () => {
-      setStatus("loading");
-      setError("");
-      setForecast(null);
-      try {
-        const data = await fetchDailyForecastPanel(location);
-        if (cancelled) return;
-        if (data.location) {
-          rememberResolvedLabel(data.location);
-        }
-        setForecast(data);
-        setStatus("ready");
-      } catch (err) {
-        if (cancelled) return;
-        setForecast(null);
-        const code = err instanceof Error ? err.message : "";
-        setError(weatherErrorMessage(code, t));
-        setStatus("error");
-      }
-    })();
+    const cityApply = locationRevision > prevRevisionRef.current;
+    prevRevisionRef.current = locationRevision;
+
+    loadForecast(locationKey, { cancelled: () => cancelled, cityApply });
 
     return () => {
       cancelled = true;
     };
-  }, [locationKey, locationRevision, source, city, lat, lon, rememberResolvedLabel, t]);
+  }, [locationKey, locationRevision, source, city, lat, lon, loadForecast, resetPanel]);
+
+  useEffect(() => {
+    if (status !== "ready" || !locationKey) return undefined;
+
+    return scheduleForecastAutoRefresh(
+      (opts = {}) => {
+        loadForecast(locationKey, { soft: true, fresh: Boolean(opts.fresh) });
+      },
+      { timezoneOffsetSec },
+    );
+  }, [status, locationKey, timezoneOffsetSec, loadForecast]);
 
   void today;
 
@@ -83,7 +130,6 @@ export function ForecastPanel({ today = new Date() }) {
         {forecast?.asOf ? (
           <p className="forecast-panel__location">
             {forecast.asOf}
-            {forecast.source === "openweather" ? ` · ${t("intel.forecastSourceNote")}` : ""}
             {forecast.source === "mock" ? ` · ${t("intel.forecastMockWarning")}` : ""}
             {forecast.fromCache ? ` · ${t("intel.forecastCached")}` : ""}
           </p>

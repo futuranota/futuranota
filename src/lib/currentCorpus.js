@@ -33,3 +33,17 @@ export function resolveCurrentCorpus(objectsById = {}, selectedObjectId = null) 
     brandName,
   };
 }
+
+/**
+ * Brand label for Intel Campaign tab — prefers sidebar selection, then corpus.
+ * @param {Record<string, { brand?: string, name?: string, role?: string }>} objectsById
+ * @param {string|null} selectedObjectId
+ */
+export function resolveIntelCampaignBrand(objectsById = {}, selectedObjectId = null) {
+  const selected = selectedObjectId ? objectsById[selectedObjectId] : null;
+  const selectedBrand = (selected?.brand || "").trim();
+  if (selectedBrand) return selectedBrand;
+
+  const { brandName } = resolveCurrentCorpus(objectsById, selectedObjectId);
+  return brandName;
+}

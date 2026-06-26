@@ -1,6 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { getDataForSeoAuthHeader, isDataForSeoConfigured } from "./discovery/dataForSeoAuth.js";
+import { createServiceSupabase } from "./supabaseServer.js";
 import { getOpenWeatherApiKey } from "./weather/env.js";
+import { isWeatherCacheConfigured } from "./weather/weatherCache.js";
 
 /**
  * @typedef {{ ok: boolean, configured: boolean, message: string, latencyMs?: number }} ProbeResult
@@ -218,8 +220,14 @@ export async function probeSupabase() {
     };
   }
   const start = Date.now();
-  const supabase = createClient(url, key);
+  const supabase = createServiceSupabase() || createClient(url, key);
   const checks = [];
+  const cacheConfigured = isWeatherCacheConfigured();
+  if (cacheConfigured) {
+    checks.push("weather_cache service role OK");
+  } else {
+    checks.push("weather_cache: set FUTURA_SUPABASE_SERVICE_ROLE_KEY for shared cache");
+  }
 
   const { error: profilesErr } = await supabase
     .from("profiles")

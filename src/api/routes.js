@@ -4,6 +4,7 @@ export const API_ROUTES = {
   extractUrl: "/api/extract/url",
   intel: "/api/intel",
   intelOverview: "/api/intel/overview",
+  intelModels: "/api/intel/models",
   brandCadence: "/api/analytics/brand-cadence",
   campaignDetect: "/api/analytics/campaign-detect",
   campaignStudy: "/api/analytics/campaign-study",

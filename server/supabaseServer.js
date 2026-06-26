@@ -21,6 +21,28 @@ function getSupabaseAnonKey() {
   ).trim();
 }
 
+function getSupabaseServiceRoleKey() {
+  return (
+    process.env.FUTURA_SUPABASE_SERVICE_ROLE_KEY
+    || process.env.SUPABASE_SERVICE_ROLE_KEY
+    || process.env.SUPABASE_SERVICE_KEY
+    || ""
+  ).trim();
+}
+
+/**
+ * Server-only Supabase client (bypasses RLS). Used for shared weather cache.
+ * Requires SUPABASE_SERVICE_ROLE_KEY — never expose to the client.
+ */
+export function createServiceSupabase() {
+  const url = getSupabaseUrl();
+  const key = getSupabaseServiceRoleKey();
+  if (!url || !key) return null;
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 /**
  * @param {string} accessToken
  */

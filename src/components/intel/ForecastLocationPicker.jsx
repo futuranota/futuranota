@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
 import { hasWeatherLocation } from "../../lib/weatherLocation.js";
+import { getCityChangeCooldownRemainingMs } from "../../lib/weatherCityRateLimit.js";
+import { getWeatherCityChangeCap } from "../../lib/planConfig.js";
 import { useWeatherLocationStore } from "../../stores/weatherLocationStore.js";
+import { usePlanStore } from "../../stores/planStore.js";
 
 export function ForecastLocationPicker() {
   const { t } = useI18n();
+  const isPro = usePlanStore((s) => s.isPro());
+  const plan = usePlanStore((s) => s.profile.plan);
+  const cityChangesUsed = useWeatherLocationStore((s) => s.cityChangesUsedToday);
+  const cityChangeCap = getWeatherCityChangeCap(plan);
   const source = useWeatherLocationStore((s) => s.source);
   const city = useWeatherLocationStore((s) => s.city);
   const lat = useWeatherLocationStore((s) => s.lat);
@@ -15,12 +22,41 @@ export function ForecastLocationPicker() {
   const setManualCity = useWeatherLocationStore((s) => s.setManualCity);
   const detectGeolocation = useWeatherLocationStore((s) => s.detectGeolocation);
   const clearError = useWeatherLocationStore((s) => s.clearError);
+  const refreshCityChangesUsed = useWeatherLocationStore((s) => s.refreshCityChangesUsed);
+
+  const [cooldownSec, setCooldownSec] = useState(0);
+
+  useEffect(() => {
+    refreshCityChangesUsed();
+  }, [refreshCityChangesUsed]);
+
+  useEffect(() => {
+    const tick = () => {
+      const ms = getCityChangeCooldownRemainingMs();
+      setCooldownSec(ms > 0 ? Math.ceil(ms / 1000) : 0);
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
+  }, [cityChangesUsed, error]);
 
   const location = { source, city, lat, lon, label };
   const saved = hasWeatherLocation(location);
   const activeLabel = source === "geolocation"
     ? (label || t("intel.forecastLocationGeo"))
     : (label || city || t("intel.forecastLocationDefault"));
+
+  const limitMessage = (() => {
+    if (error === "weather_city_daily_limit") {
+      return isPro
+        ? t("intel.weatherCityChangeLimitPro", { used: String(cityChangesUsed), cap: String(cityChangeCap) })
+        : t("intel.weatherCityChangeLimit", { used: String(cityChangesUsed), cap: String(cityChangeCap) });
+    }
+    if (error === "weather_city_cooldown") {
+      return t("intel.weatherCityChangeCooldown", { seconds: String(cooldownSec || 3) });
+    }
+    return error;
+  })();
 
   const [editing, setEditing] = useState(!saved);
   const [draft, setDraft] = useState(city || label);
@@ -37,10 +73,12 @@ export function ForecastLocationPicker() {
     }
   }, [saved]);
 
-  const handleApply = () => {
+  const handleApply = async () => {
     clearError();
-    setManualCity(draft);
-    setEditing(false);
+    const result = await setManualCity(draft);
+    if (result?.ok) {
+      setEditing(false);
+    }
   };
 
   const handleCancel = () => {
@@ -57,6 +95,8 @@ export function ForecastLocationPicker() {
       /* error stored in zustand */
     }
   };
+
+  const applyDisabled = !draft.trim() || cooldownSec > 0;
 
   if (saved && !editing) {
     return (
@@ -75,7 +115,11 @@ export function ForecastLocationPicker() {
             {t("intel.forecastLocationEdit")}
           </button>
         </div>
-        {error ? <p className="forecast-location__error" role="alert">{error}</p> : null}
+        {error ? (
+          <p className="forecast-location__error" role="alert">
+            {limitMessage}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -107,7 +151,7 @@ export function ForecastLocationPicker() {
           type="button"
           className="btn xs forecast-location__apply"
           onClick={handleApply}
-          disabled={!draft.trim()}
+          disabled={applyDisabled}
         >
           {t("intel.forecastLocationApply")}
         </button>
@@ -115,7 +159,7 @@ export function ForecastLocationPicker() {
           type="button"
           className="btn xs ghost forecast-location__geo"
           onClick={handleGeolocation}
-          disabled={geoLoading}
+          disabled={geoLoading || cooldownSec > 0}
           aria-busy={geoLoading}
           aria-label={geoLoading ? t("intel.forecastLocationDetecting") : t("intel.forecastLocationUseGeo")}
           title={t("intel.forecastLocationUseGeo")}
@@ -134,7 +178,9 @@ export function ForecastLocationPicker() {
       </div>
 
       {error ? (
-        <p className="forecast-location__error" role="alert">{error}</p>
+        <p className="forecast-location__error" role="alert">
+          {limitMessage}
+        </p>
       ) : null}
     </div>
   );

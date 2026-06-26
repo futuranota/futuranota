@@ -4,10 +4,15 @@
 
 /** @typedef {'free'|'pro'} PlanId */
 
+import { CREDIT_TOKEN_UNIT } from "./intelModels.js";
+
+export { CREDIT_TOKEN_UNIT };
+
 export const TOKEN_COSTS = {
   campaignLive: 10_000,
   cadenceLive: 1_000,
-  searchOverview: 1_000,
+  /** Legacy flat cost — Intel search uses per-model tokenCost in intelModels.js */
+  searchOverview: 10_000,
   aiChat: 500,
 };
 
@@ -22,6 +27,8 @@ export const PLAN_LIMITS = {
     maxSearchesLifetime: 10,
     calendarUsesAllowed: 1,
     weatherUsesAllowed: 1,
+    weatherNodeActionsCap: 2,
+    weatherCityChangesCap: 5,
     campaignLiveRuns: 1,
     storageLabel: '54 MB',
     storageBytes: 54 * 1024 * 1024,
@@ -36,6 +43,8 @@ export const PLAN_LIMITS = {
     maxLiveRunsPerMonth: 150,
     calendarUsesAllowed: Infinity,
     weatherUsesAllowed: Infinity,
+    weatherNodeActionsCap: 50,
+    weatherCityChangesCap: 50,
     storageLabel: '5 GB',
     storageBytes: 5 * 1024 * 1024 * 1024,
   },
@@ -48,6 +57,16 @@ export const FREE_LIMITS = {
   calendarUsesAllowed: PLAN_LIMITS.free.calendarUsesAllowed,
   weatherUsesAllowed: PLAN_LIMITS.free.weatherUsesAllowed,
 };
+
+/** @param {PlanId|string} plan */
+export function getWeatherCityChangeCap(plan) {
+  return getPlanLimits(plan).weatherCityChangesCap;
+}
+
+/** @param {PlanId|string} plan */
+export function getWeatherActionCap(plan) {
+  return getPlanLimits(plan).weatherNodeActionsCap;
+}
 
 /** @param {PlanId|string} plan */
 export function getPlanLimits(plan) {
@@ -78,7 +97,7 @@ export function getCreditsUsed(profile) {
   const cap = getTokensCap('pro');
   const balance = profile?.tokensBalance ?? cap;
   const spent = Math.max(0, cap - balance);
-  return Math.min(getCreditsCap('pro'), Math.floor(spent / TOKEN_COSTS.campaignLive));
+  return Math.min(getCreditsCap('pro'), Math.floor(spent / CREDIT_TOKEN_UNIT));
 }
 
 /** @param {number} n */
@@ -99,7 +118,7 @@ export function getPlanFeatureRows(plan) {
     { key: 'storage', label: 'Storage', value: f.storageLabel },
     { key: 'searches', label: 'AI searches', value: isPro ? `${f.maxLiveRunsPerMonth} live/mo` : `${f.maxSearchesLifetime} lifetime` },
     { key: 'calendar', label: 'Calendar', value: isPro ? 'Advanced' : `${f.calendarUsesAllowed} use` },
-    { key: 'weather', label: 'Forecast', value: isPro ? 'Unlimited' : `${f.weatherUsesAllowed} use` },
+    { key: 'weather', label: 'Forecast', value: isPro ? `${f.weatherNodeActionsCap} nodes · ${f.weatherCityChangesCap} cities/day` : `${f.weatherNodeActionsCap} nodes · ${f.weatherCityChangesCap} cities/day` },
     { key: 'campaign', label: 'Campaign study', value: isPro ? `${f.maxLiveRunsPerMonth} live/mo` : `${f.campaignLiveRuns} live (frozen)` },
     { key: 'library', label: 'Library switch', value: '0 credits' },
   ];

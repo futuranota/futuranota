@@ -5,11 +5,19 @@ const MAX_CACHE_ENTRIES = 4000;
 /** @type {Map<string, string>} */
 const serverCache = new Map();
 
+/** @type {boolean} */
+let loggedGoogleTranslateFailure = false;
+
 function resolveTranslateApiKey() {
   return process.env.GOOGLE_TRANSLATE_API_KEY
     || process.env.GOOGLE_API_KEY
-    || process.env.GEMINI_API_KEY
     || null;
+}
+
+function logGoogleTranslateFailure(message) {
+  if (loggedGoogleTranslateFailure) return;
+  loggedGoogleTranslateFailure = true;
+  console.warn(`[translate] ${message} — returning original text (passthrough). Enable Cloud Translation API for GOOGLE_TRANSLATE_API_KEY in GCP.`);
 }
 
 /**
@@ -52,7 +60,8 @@ function readJsonBody(req) {
 /**
  * @param {string[]} texts
  * @param {string} target
- * @param {string} source
+ * @param {string | null} source
+ * @returns {Promise<string[] | null>}
  */
 async function callGoogleTranslate(texts, target, source) {
   const apiKey = resolveTranslateApiKey();
@@ -62,26 +71,33 @@ async function callGoogleTranslate(texts, target, source) {
   const body = { q: texts, target, format: "text" };
   if (source) body.source = source;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Google Translate ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      logGoogleTranslateFailure(`Google API HTTP ${res.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
+      return null;
+    }
+
+    const payload = await res.json();
+    const items = payload?.data?.translations;
+    if (!Array.isArray(items)) {
+      logGoogleTranslateFailure("Unexpected Google Translate response shape");
+      return null;
+    }
+
+    return items.map((item) => (typeof item?.translatedText === "string"
+      ? item.translatedText
+      : ""));
+  } catch (err) {
+    logGoogleTranslateFailure(err instanceof Error ? err.message : "request failed");
+    return null;
   }
-
-  const payload = await res.json();
-  const items = payload?.data?.translations;
-  if (!Array.isArray(items)) {
-    throw new Error("Unexpected Google Translate response");
-  }
-
-  return items.map((item) => (typeof item?.translatedText === "string"
-    ? item.translatedText
-    : ""));
 }
 
 /**
@@ -130,16 +146,21 @@ export async function translateTexts(texts, target, source = "en") {
     return { translations: results, source: "passthrough" };
   }
 
+  let googleSucceeded = false;
+  let googleFailed = false;
+
   for (let offset = 0; offset < pending.length; offset += MAX_BATCH) {
     const chunk = pending.slice(offset, offset + MAX_BATCH);
     const chunkIndexes = pendingIndexes.slice(offset, offset + MAX_BATCH);
     const translated = await callGoogleTranslate(chunk, target, source);
     if (!translated) {
+      googleFailed = true;
       chunk.forEach((text, i) => {
         results[chunkIndexes[i]] = text;
       });
       continue;
     }
+    googleSucceeded = true;
     translated.forEach((text, i) => {
       const original = chunk[i];
       results[chunkIndexes[i]] = text;
@@ -148,7 +169,37 @@ export async function translateTexts(texts, target, source = "en") {
   }
 
   trimCache();
-  return { translations: results, source: "google" };
+
+  const sourceKind = googleFailed && !googleSucceeded
+    ? "passthrough"
+    : googleSucceeded
+      ? (googleFailed ? "partial" : "google")
+      : "passthrough";
+
+  return { translations: results, source: sourceKind };
+}
+
+/**
+ * Shared POST handler for dev middleware and Vercel function.
+ * @param {Record<string, unknown>} body
+ */
+export async function handleTranslatePost(body) {
+  const target = typeof body.target === "string" ? body.target.trim() : "";
+  const source = typeof body.source === "string" && body.source.trim()
+    ? body.source.trim()
+    : null;
+  const texts = Array.isArray(body.texts) ? body.texts : [];
+
+  if (!target) {
+    return { status: 400, body: { error: "target is required" } };
+  }
+
+  if (texts.length > 500) {
+    return { status: 400, body: { error: "Too many texts (max 500)" } };
+  }
+
+  const result = await translateTexts(texts, target, source);
+  return { status: 200, body: result };
 }
 
 /**
@@ -179,31 +230,11 @@ export function createTranslateMiddleware() {
 
     try {
       const body = await readJsonBody(req);
-      const target = typeof body.target === "string" ? body.target.trim() : "";
-      const source = typeof body.source === "string" && body.source.trim()
-        ? body.source.trim()
-        : null;
-      const texts = Array.isArray(body.texts) ? body.texts : [];
+      const outcome = await handleTranslatePost(body);
 
-      if (!target) {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ error: "target is required" }));
-        return;
-      }
-
-      if (texts.length > 500) {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ error: "Too many texts (max 500)" }));
-        return;
-      }
-
-      const result = await translateTexts(texts, target, source);
-
-      res.statusCode = 200;
+      res.statusCode = outcome.status;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(result));
+      res.end(JSON.stringify(outcome.body));
     } catch (err) {
       res.statusCode = 500;
       res.setHeader("Content-Type", "application/json");

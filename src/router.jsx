@@ -43,6 +43,15 @@ export default function AppRouter() {
     if (user) usePlanStore.getState().fetchProfile();
   }, [user]);
 
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      window.__resetForecastUsage = async () => {
+        await usePlanStore.getState().resetWeatherActions();
+        window.location.reload();
+      };
+    }
+  }, []);
+
   return (
     <>
       <DomPageTranslator />

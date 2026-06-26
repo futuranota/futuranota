@@ -1,17 +1,21 @@
-import { getAuthedUser } from "./supabaseServer.js";
 import { getOpenWeatherApiKey } from "./weather/env.js";
 import {
   DEFAULT_CITY,
   fetchOpenWeatherDailyForecast,
-  fetchOpenWeatherForecast,
   resolveForecastLocation,
+  sliceDailyForecastForDate,
   WEATHER_ERROR_LOCATION_NOT_FOUND,
   WEATHER_ERROR_NOT_CONFIGURED,
   WeatherLocationNotFoundError,
-  weatherCacheKey,
   weatherDailyCacheKey,
-  WEATHER_CACHE_TTL_MS,
 } from "./weather/openWeather.js";
+import { readWeatherCache, writeWeatherCache } from "./weather/weatherCache.js";
+import { getAuthedUser, loadUserProfile } from "./supabaseServer.js";
+import {
+  checkServerCityChangeLimit,
+  recordServerCityChange,
+  WEATHER_ERROR_LOCATION_RATE_LIMITED,
+} from "./weather/locationRateLimit.js";
 
 const FALLBACK_CITY = process.env.WEATHER_DEFAULT_CITY?.trim() || DEFAULT_CITY;
 
@@ -29,39 +33,6 @@ function parseWeatherLocationFromUrl(url, { allowFallback = false } = {}) {
   return null;
 }
 
-function resolveWeatherLocation(url) {
-  return parseWeatherLocationFromUrl(url, { allowFallback: true });
-}
-
-async function readWeatherCache(supabase, token, cacheKey) {
-  if (!supabase || !token) return null;
-
-  const { data: cached } = await supabase
-    .from("weather_cache")
-    .select("payload, fetched_at")
-    .eq("cache_key", cacheKey)
-    .maybeSingle();
-
-  if (!cached?.fetched_at) return null;
-
-  const age = Date.now() - new Date(cached.fetched_at).getTime();
-  if (age >= WEATHER_CACHE_TTL_MS) return null;
-
-  if (cached.payload?.source === "mock") return null;
-
-  return { ...cached.payload, fromCache: true };
-}
-
-async function writeWeatherCache(supabase, cacheKey, payload) {
-  if (!supabase) return;
-  if (payload?.source === "mock") return;
-
-  await supabase.from("weather_cache").upsert({
-    cache_key: cacheKey,
-    payload,
-    fetched_at: new Date().toISOString(),
-  });
-}
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -106,10 +77,62 @@ async function normalizeWeatherLocationForCache(location) {
   }
 }
 
+function readCityApplyHeader(reqLike) {
+  const raw = reqLike.headers?.["x-futura-city-apply"]
+    || reqLike.headers?.["X-Futura-City-Apply"];
+  return raw === "1" || raw === 1;
+}
+
+function clientIp(reqLike) {
+  const forwarded = reqLike.headers?.["x-forwarded-for"];
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded.split(",")[0].trim();
+  }
+  return "anon";
+}
+
+/**
+ * @param {import('http').IncomingMessage} reqLike
+ */
+async function enforceCityApplyRateLimit(reqLike) {
+  if (!readCityApplyHeader(reqLike)) return null;
+
+  const { user, supabase } = await getAuthedUser(reqLike);
+  const subject = user?.id || clientIp(reqLike);
+  let plan = "free";
+
+  if (user && supabase) {
+    try {
+      const profile = await loadUserProfile(supabase, user.id);
+      plan = profile?.plan === "pro" ? "pro" : "free";
+    } catch {
+      plan = "free";
+    }
+  }
+
+  const check = checkServerCityChangeLimit(subject, plan);
+  if (!check.ok) {
+    return {
+      status: 429,
+      body: {
+        error: WEATHER_ERROR_LOCATION_RATE_LIMITED,
+        used: check.used,
+        cap: check.cap,
+      },
+    };
+  }
+
+  recordServerCityChange(subject);
+  return null;
+}
+
 /**
  * @param {{ method?: string, url?: string, headers?: Record<string, string|string[]|undefined> }} reqLike
  */
 export async function processWeatherDailyRequest(reqLike) {
+  const rateLimited = await enforceCityApplyRateLimit(reqLike);
+  if (rateLimited) return rateLimited;
+
   const url = new URL(reqLike.url || "", "http://localhost");
   const urlLocation = parseWeatherLocationFromUrl(url, { allowFallback: false });
   if (!urlLocation) {
@@ -121,9 +144,9 @@ export async function processWeatherDailyRequest(reqLike) {
     ...location,
     city: urlLocation.city || location.city,
   });
-  const { supabase, token } = await getAuthedUser({ headers: reqLike.headers || {} });
+  const fresh = url.searchParams.get("fresh") === "1";
 
-  const cached = await readWeatherCache(supabase, token, cacheKey);
+  const cached = fresh ? null : await readWeatherCache(cacheKey);
   if (cached) {
     return { status: 200, body: cached };
   }
@@ -131,10 +154,58 @@ export async function processWeatherDailyRequest(reqLike) {
   try {
     const forecast = await fetchOpenWeatherDailyForecast(urlLocation);
     const payload = { ...forecast, fromCache: false };
-    await writeWeatherCache(supabase, cacheKey, payload);
+    await writeWeatherCache(cacheKey, payload);
     return { status: 200, body: payload };
   } catch (err) {
     return weatherErrorResponse(err);
+  }
+}
+
+/**
+ * @param {{ method?: string, url?: string, headers?: Record<string, string|string[]|undefined> }} reqLike
+ */
+export async function processWeatherDateRequest(reqLike) {
+  const url = new URL(reqLike.url || "", "http://localhost");
+  const date = url.searchParams.get("date")?.trim() || "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return { status: 400, body: { error: "date query param required (YYYY-MM-DD)" } };
+  }
+
+  const urlLocation = parseWeatherLocationFromUrl(url, { allowFallback: false });
+  if (!urlLocation) {
+    return { status: 400, body: { error: "location_required" } };
+  }
+
+  const location = await normalizeWeatherLocationForCache(urlLocation);
+  const dailyCacheKey = weatherDailyCacheKey({
+    ...location,
+    city: urlLocation.city || location.city,
+  });
+
+  let dailyPayload = await readWeatherCache(dailyCacheKey);
+  let fromCache = true;
+
+  if (!dailyPayload) {
+    try {
+      dailyPayload = await fetchOpenWeatherDailyForecast(urlLocation);
+      fromCache = false;
+      await writeWeatherCache(dailyCacheKey, { ...dailyPayload, fromCache: false });
+    } catch (err) {
+      return weatherErrorResponse(err);
+    }
+  }
+
+  try {
+    const forecast = sliceDailyForecastForDate(dailyPayload, date);
+    return {
+      status: 200,
+      body: {
+        ...forecast,
+        fromCache: fromCache || Boolean(dailyPayload.fromCache),
+      },
+    };
+  } catch {
+    return { status: 404, body: { error: "no_forecast_for_date" } };
   }
 }
 
@@ -150,35 +221,11 @@ export async function processWeatherForecastRequest(reqLike) {
   }
 
   const date = url.searchParams.get("date")?.trim() || "";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return { status: 400, body: { error: "date query param required (YYYY-MM-DD)" } };
+  if (date) {
+    return processWeatherDateRequest(reqLike);
   }
 
-  const urlLocation = parseWeatherLocationFromUrl(url, { allowFallback: false });
-  if (!urlLocation) {
-    return { status: 400, body: { error: "location_required" } };
-  }
-
-  const location = await normalizeWeatherLocationForCache(urlLocation);
-  const cacheKey = weatherCacheKey(
-    { ...location, city: urlLocation.city || location.city },
-    date,
-  );
-  const { supabase, token } = await getAuthedUser({ headers: reqLike.headers || {} });
-
-  const cached = await readWeatherCache(supabase, token, cacheKey);
-  if (cached) {
-    return { status: 200, body: cached };
-  }
-
-  try {
-    const forecast = await fetchOpenWeatherForecast(date, urlLocation);
-    const payload = { ...forecast, targetDate: date, fromCache: false };
-    await writeWeatherCache(supabase, cacheKey, payload);
-    return { status: 200, body: payload };
-  } catch (err) {
-    return weatherErrorResponse(err);
-  }
+  return { status: 400, body: { error: "date query param required (YYYY-MM-DD) or mode=daily" } };
 }
 
 export async function handleWeatherForecast(req, res) {

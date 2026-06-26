@@ -85,6 +85,111 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 
 ## Resueltos
 
+### 2026-06-25 — Selector modelo Intel + créditos por consumo
+
+**Feature:** Dropdown en Intel (Gemini Flash/Pro, Groq Llama 70B/8B). Costo 1–2 créditos/búsqueda; Pro `0/150`, Free `0/10`.
+
+**Archivos:** [`server/intelModels.js`](server/intelModels.js), [`src/components/intel/IntelModelSelect.jsx`](src/components/intel/IntelModelSelect.jsx), [`server/intelOverviewHandler.js`](server/intelOverviewHandler.js), [`server/llmJson.js`](server/llmJson.js) (`completeJsonForProvider`).
+
+### 2026-06-25 — Campaign Intel simplificado (plantillas + overview inline)
+
+**Problema:** Campaign tab usaba pipeline deep (`campaign-detect`) → doc automático y panel vacío; search “no devolvía nada”.
+
+**Solución:** Plantillas en [`content/admin/campaign-search-starters.json`](content/admin/campaign-search-starters.json) + mismo flujo que News (`runIntelSearch` → `/api/intel/overview`) → overview + sources **inline** en Campaign tab.
+
+**Archivos:** [`src/lib/campaignSearchStarters.js`](src/lib/campaignSearchStarters.js), [`src/panels.jsx`](src/panels.jsx), blueprint [`campaign-search-simple.md`](.cursor/skills/architect-blueprint/references/campaign-search-simple.md). Deep scan (`runCampaignScanForCorpus`) queda para admin/legacy.
+
+### 2026-06-25 — `/api/translate` 500 (Google Translation API bloqueada)
+
+**Problema:** Al cambiar idioma a ES, `POST /api/translate` devolvía 500. Logs: Google HTTP **403** — `TranslateService.TranslateText are blocked` (Cloud Translation API no habilitada o key restringida en GCP).
+
+**Cambios:**
+- [`server/translateHandler.js`](server/translateHandler.js) — fallback **passthrough** (200 + texto original) si Google falla; sin fallback a `GEMINI_API_KEY`.
+- [`api/translate.js`](api/translate.js) — función Vercel en la ruta que usa el cliente.
+- [`api/analytics/translate.js`](api/analytics/translate.js) — re-export del handler canónico.
+
+**Para traducción real:** en GCP → APIs & Services → habilitar **Cloud Translation API** → API key con acceso a esa API + billing activo.
+
+### 2026-06-25 — Forecast Intel + planes (límites, anti-bot, OpenWeather)
+
+Implementación completa del tab **Forecast** en Intel con límites Free/Pro, contador de nodos, anti-bot de ciudad silencioso, caché OpenWeather y UX de búsqueda/inserción en canvas.
+
+#### Límites de producto (canónico — `src/lib/planConfig.js`)
+
+| Recurso | Free | Pro | ¿Visible en UI? |
+|---------|------|-----|-----------------|
+| **Insert node** (canvas) | **2** lifetime (`weatherNodeActionsCap`) | **50** lifetime | Sí — footer `0/2` · `0/50` |
+| **Cambio de ciudad** (input Enter/Set/geo) | **5** / día (`weatherCityChangesCap`) | **50** / día | No — anti-bot silencioso; mensaje solo al tope |
+| **Ver panel** 5–6 días | Ilimitado | Ilimitado | — |
+| **Search preview** (botón lupa) | Ilimitado | Ilimitado | — |
+
+- Cooldown entre cambios de ciudad **distintos:** 3 s (`WEATHER_CITY_COOLDOWN_MS`).
+- **Misma ciudad** re-aplicada: no cuenta ni cooldown ni revisión de panel (`locationRevision` no sube).
+- Panel auto-refresh cada 45 min + medianoche ciudad (`fresh=1`) **no** consume contador de nodos ni de ciudad.
+
+#### Qué cuenta como “call” de negocio vs coste OpenWeather
+
+| Acción | Contador nodos | Anti-bot ciudad | OpenWeather real |
+|--------|----------------|-----------------|------------------|
+| Enter / Set / geo (ciudad nueva) | No | Sí (+1/día) | Sí si cache miss (~45 min/ciudad) |
+| Ver panel / refresh | No | No | Reusa cache |
+| Search forecast nodo | No | No | Reusa cache diaria del panel |
+| **Insert node** | **Sí (+1)** | No | **No** (solo escribe payload en canvas) |
+
+#### Archivos clave
+
+| Área | Archivos |
+|------|----------|
+| Límites plan | `src/lib/planConfig.js` — `weatherNodeActionsCap`, `weatherCityChangesCap`, `getPlanFeatureRows()` |
+| Ledger nodos | `src/stores/planStore.js` — `weatherActionsCount`, `incrementWeatherAction()`, `resetWeatherActions()` |
+| Anti-bot ciudad (cliente) | `src/lib/weatherCityRateLimit.js` — daily localStorage + cooldown |
+| Anti-bot ciudad (servidor) | `server/weather/locationRateLimit.js` — header `X-Futura-City-Apply: 1` |
+| Ubicación | `src/stores/weatherLocationStore.js` — `setManualCity`, `setGeolocation` |
+| Panel | `src/components/intel/ForecastPanel.jsx`, `src/lib/forecastPanel.js` |
+| Search + insert | `src/components/intel/ForecastSearchFooter.jsx`, `src/lib/forecastSearch.js` |
+| Picker ciudad | `src/components/intel/ForecastLocationPicker.jsx` |
+| API + cache | `server/weatherHandler.js`, `server/weather/openWeather.js`, `server/weather/weatherCache.js` |
+| Refresh panel | `src/lib/forecastRefresh.js` (45 min + medianoche TZ ciudad) |
+| i18n | `src/i18n/messages.js` — `forecastSearchInstruction`, `weatherActionLimit*`, `weatherCityChange*` |
+| SQL perfil | `supabase_weather_actions.sql` — columna `weather_actions_count` |
+| SQL cache | `supabase_weather_cache.sql` |
+
+#### UX implementada
+
+- **Instrucción onboarding** (`forecastSearchInstruction`): solo si el usuario **nunca insertó** un nodo forecast (`futuranota-forecast-node-inserted` en localStorage). Tras primer Insert node desaparece.
+- **Footer search:** botón deshabilitado hasta ciudad + panel ready + nodo en ventana; hint dinámico (loading, past, outOfRange, ready).
+- **Contador nodos** siempre visible en footer (`formatWeatherActionCounter`).
+- **Panel:** solo hora `as of H:MM AM/PM` — eliminado copy OpenWeather compare.
+- **Límite nodos Pro:** mensaje inline, **sin** modal upgrade. Free: modal upgrade + mensaje.
+- **Límite ciudad:** mensaje inline al tope diario; Free también puede ver modal upgrade vía `reasonWeather`.
+
+#### Persistencia contador nodos
+
+- Logueado: `profiles.weather_actions_count` (+ legacy `weather_used`).
+- Anónimo / fallback: `localStorage` `futuranota-weather-actions-used`.
+- Al `fetchProfile`: DB es source of truth; sync a localStorage (no merge max local→DB).
+
+#### Dev / reset
+
+```js
+await window.__resetForecastUsage() // solo dev — limpia nodos + ciudad + reload
+```
+
+Definido en `src/router.jsx`; llama `planStore.resetWeatherActions()`.
+
+#### Env servidor
+
+- `OPENWEATHER_API_KEY` — obligatorio en dev real (sin key → `503 openweather_not_configured`).
+- `FUTURA_SUPABASE_SERVICE_ROLE_KEY` — cache global Supabase 45 min (sin esto: cache in-memory por proceso).
+
+#### Pendiente al unificar plan completo
+
+- Alinear fila **Weather** en tabla “Límites objetivo” abajo (hoy dice “1 uso / ilimitado” — **obsoleto**).
+- `weatherUsesAllowed` / `weather_used` legacy — conviven con `weather_actions_count`; considerar deprecar en copy Stripe/pricing.
+- Rate limit servidor es in-memory por proceso — en multi-instancia Vercel usar Redis/Upstash si hace falta enforcement global.
+
+---
+
 ### 2026-06-25 — Weather forecast: mock idéntico para todas las ciudades
 
 - **Causa:** sin `OPENWEATHER_API_KEY` en el proceso del middleware, el servidor devolvía `source: "mock"` silenciosamente; Supabase podía cachear ese mock; el seed mock era débil por ciudad.
@@ -132,7 +237,7 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 - Token ledger: `planStore.js` + `planConfig.js` — debito servidor en `/api/analytics/campaign-study` y `/api/intel/overview`
 - Pipeline usuario: DataForSEO PAA + Apify hype + Groq → `campaign_studies` cache; switch Librería = 0 tokens
 - Intel: `POST /api/intel/overview` (Serper + Groq); Free = 10 searches, Pro = 1k tokens/search
-- Weather: `GET /api/weather/forecast` + cache Supabase 45 min
+- Weather: `GET /api/weather/forecast` + cache Supabase 45 min; **límites forecast** nodos 2/50 + ciudad 5/50 día (ver sección Resueltos)
 - UI: `PlanUsagePanel` en sidebar + `/app/plans`; export JSON gated Pro
 - Verificación integraciones: `npm run verify:apis` · `GET /api/health/integrations`
 
@@ -157,7 +262,7 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 | Storage | 1 GB (Gemini) / **54 MB** (código hoy) | **5 GB** |
 | Búsquedas AI | 10 lifetime | 150 live/mes (unificado con overview) |
 | Calendario | 1 uso | Avanzado + eventos corporativos |
-| Weather | 1 uso / estático | Ilimitado (cache 45 min) |
+| Weather | 2 nodos canvas + 5 cambios ciudad/día | 50 nodos + 50 cambios ciudad/día; panel ilimitado |
 | Campaña Signar | 1 live run, frozen | Live + Social Hype + Search Intent |
 | Tokens | 10k bienvenida | 1.5M/mes |
 
@@ -168,6 +273,7 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 | Precio Pro | TBD ($15–19) | `pricingDefaults.js`: **TBD** (Stripe no conectado) |
 | Storage Pro | 5 GB | **5 GB** en `planConfig.js` ✓ |
 | Token ledger | 10k / 1.5M | **`profiles.tokens_balance`** + server debit ✓ |
+| Weather forecast | 2 inserts + 5 city/day | 50 inserts + 50 city/day; panel/search ilimitados | **`planConfig` + anti-bot** ✓ |
 | Campaña live | DataForSEO + Apify + Groq | **`/api/analytics/campaign-study`** ✓ |
 | Billing | Stripe | **`setPlan` manual** — pendiente |
 

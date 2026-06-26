@@ -49,6 +49,9 @@ export const useUIStateStore = create(
       /** Active search meta while loading or for last run */
       intelSearchMeta: null,
 
+      /** Intel overview LLM selection (gemini-flash, gemini-pro, groq-llama-70b, …) */
+      intelSelectedModelId: "gemini-flash",
+
       /** Live doc meta while document overlay is open (syncs MetaBar). */
       activeDocMetaDraft: null,
 
@@ -150,6 +153,9 @@ export const useUIStateStore = create(
           intelSearchStatus: "error",
           intelSearchError: message || "Search failed",
         }),
+
+      setIntelSelectedModelId: (modelId) =>
+        set({ intelSelectedModelId: modelId || "gemini-flash" }),
 
       clearIntelSearch: () =>
         set({

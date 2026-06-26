@@ -423,6 +423,7 @@ function mockDailyForecast(location = {}, horizonDays = FORECAST_DAILY_HORIZON) 
     asOf: formatAsOfLabel(new Date(), 0),
     days,
     source: "mock",
+    timezoneOffsetSec: 0,
   };
 }
 
@@ -475,24 +476,26 @@ export async function fetchOpenWeatherDailyForecast(location = {}, horizonDays =
     days,
     source,
     horizonDays: maxDays,
+    timezoneOffsetSec,
     resolvedLocation: resolved ? { lat: resolved.lat, lon: resolved.lon, label: resolved.label } : null,
   };
 }
 
 /**
- * @param {{ city?: string, lat?: number|null, lon?: number|null }} location
+ * @param {Record<string, unknown>} dailyPayload
  * @param {string} dateIso YYYY-MM-DD
  */
-export async function fetchOpenWeatherForecast(dateIso, location = {}) {
-  const daily = await fetchOpenWeatherDailyForecast(location, FORECAST_DAILY_HORIZON);
-  const dayEntry = daily.days.find((entry) => entry.id === dateIso);
+export function sliceDailyForecastForDate(dailyPayload, dateIso) {
+  const days = Array.isArray(dailyPayload?.days) ? dailyPayload.days : [];
+  const dayEntry = days.find((entry) => entry.id === dateIso);
   if (!dayEntry) {
     throw new Error("No forecast data for date");
   }
 
   return {
-    location: daily.location,
-    asOf: daily.asOf,
+    location: dailyPayload.location,
+    asOf: dailyPayload.asOf,
+    targetDate: dateIso,
     day: {
       condition: dayEntry.condition,
       conditionIcon: dayEntry.conditionIcon,
@@ -510,8 +513,17 @@ export async function fetchOpenWeatherForecast(dateIso, location = {}) {
         unit: dayEntry.wind?.unit || "mph",
       },
     },
-    source: daily.source,
+    source: dailyPayload.source,
   };
+}
+
+/**
+ * @param {{ city?: string, lat?: number|null, lon?: number|null }} location
+ * @param {string} dateIso YYYY-MM-DD
+ */
+export async function fetchOpenWeatherForecast(dateIso, location = {}) {
+  const daily = await fetchOpenWeatherDailyForecast(location, FORECAST_DAILY_HORIZON);
+  return sliceDailyForecastForDate(daily, dateIso);
 }
 
 function cityLabel(location = {}) {

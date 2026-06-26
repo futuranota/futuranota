@@ -7,7 +7,8 @@ const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 const GROQ_FALLBACK_MODEL = process.env.GROQ_FALLBACK_MODEL || "llama-3.1-8b-instant";
 const GROQ_MODELS = [...new Set([GROQ_MODEL, GROQ_FALLBACK_MODEL])];
 
-const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_FLASH_MODEL = process.env.GEMINI_FLASH_MODEL || "gemini-2.0-flash";
+const GEMINI_DEFAULT_MODEL = GEMINI_FLASH_MODEL;
 const GROQ_MAX_RETRIES = 3;
 const GROQ_BASE_DELAY_MS = 1500;
 
@@ -20,7 +21,20 @@ function sleep(ms) {
 
 function isRateLimitError(err) {
   const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes("429") || msg.toLowerCase().includes("rate limit");
+  const lower = msg.toLowerCase();
+  return msg.includes("429")
+    || lower.includes("rate limit")
+    || lower.includes("quota")
+    || lower.includes("resource exhausted");
+}
+
+/** @param {string} detail */
+function isRateLimitDetail(detail) {
+  const lower = detail.toLowerCase();
+  return detail.includes("429")
+    || lower.includes("rate limit")
+    || lower.includes("quota")
+    || lower.includes("resource exhausted");
 }
 
 function retryDelayMs(err, attempt) {
@@ -112,12 +126,14 @@ export async function completeJsonWithGroq(prompt, options = {}) {
  * Uses GEMINI_API_KEY only — GOOGLE_API_KEY is for Translate/CSE, not Generative Language.
  * @param {string} prompt
  * @param {{ system?: string }} [options]
+ * @param {string} [apiModel]
  */
-export async function completeJsonWithGemini(prompt, options = {}) {
+export async function completeJsonWithGemini(prompt, options = {}, apiModel = GEMINI_DEFAULT_MODEL) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const model = apiModel || GEMINI_DEFAULT_MODEL;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
   const parts = [];
   if (options.system) {
     parts.push({ text: options.system });
@@ -147,7 +163,7 @@ export async function completeJsonWithGemini(prompt, options = {}) {
   return JSON.parse(raw);
 }
 
-/** @type {{ code: string, detail: string } | null} */
+/** @type {{ code: string, detail: string, provider?: string } | null} */
 let lastLlmFailure = null;
 
 export function getLastLlmFailure() {
@@ -174,25 +190,67 @@ export function describeLlmUnavailable() {
     );
   }
 
-  const detail = lastLlmFailure?.detail || "";
+  const failure = lastLlmFailure;
+  const detail = failure?.detail || "";
+  const provider = failure?.provider;
+  const code = failure?.code || "";
+  const rateLimited = code === "rate_limit" || isRateLimitDetail(detail);
 
-  if (detail.includes("429") || detail.toLowerCase().includes("rate limit")) {
+  if (rateLimited) {
+    const geminiHit = provider === "gemini"
+      || (code === "gemini_error" && detail.toLowerCase().includes("gemini"));
+    const groqHit = provider === "groq"
+      || code === "groq_error"
+      || detail.toLowerCase().includes("groq");
+
+    if (geminiHit && !groqHit) {
+      return (
+        "Gemini: cuota o límite de requests alcanzado. "
+        + "Revisá billing en Google AI Studio, esperá 1–2 minutos, o elegí Groq Llama en el selector de modelo. "
+        + "No se inventan datos."
+      );
+    }
+
+    if (groqHit && !geminiHit) {
+      return (
+        "Groq: rate limit alcanzado (demasiadas requests seguidas). "
+        + "Esperá 1–2 minutos, elegí Gemini Flash, probá una marca puntual, o reducí el batch scan. "
+        + "No se inventan datos."
+      );
+    }
+  }
+
+  if (code === "missing_keys") {
+    if (detail.includes("GEMINI")) {
+      return (
+        "GEMINI_API_KEY no configurada para el modelo Gemini seleccionado. "
+        + "Copiá .env.example → .env.local y reiniciá `npm run dev`. No se inventan datos."
+      );
+    }
+    if (detail.includes("GROQ")) {
+      return (
+        "GROQ_API_KEY no configurada para el modelo Groq seleccionado. "
+        + "Copiá .env.example → .env.local y reiniciá `npm run dev`. No se inventan datos."
+      );
+    }
+  }
+
+  if (code === "gemini_error" && provider === "gemini") {
     return (
-      "Groq rate limit alcanzado (demasiadas requests seguidas). "
-      + "Esperá 1–2 minutos, probá una marca puntual, o reducí el batch scan. "
-      + "No se inventan datos."
+      `Gemini falló (${detail.slice(0, 160)}). `
+      + "Probá otro modelo o revisá GEMINI_API_KEY. No se inventan datos."
     );
   }
 
-  if (lastLlmFailure?.code === "groq_error" && !hasGeminiKey()) {
+  if (code === "groq_error" && !hasGeminiKey()) {
     return (
-      `Groq falló (${lastLlmFailure.detail.slice(0, 160)}). `
+      `Groq falló (${detail.slice(0, 160)}). `
       + "Opcional: añadí GEMINI_API_KEY como fallback. No se inventan datos."
     );
   }
 
-  if (lastLlmFailure?.code === "all_failed") {
-    return `${lastLlmFailure.detail.slice(0, 280)} No se inventan datos.`;
+  if (code === "all_failed") {
+    return `${detail.slice(0, 280)} No se inventan datos.`;
   }
 
   return "No se pudo extraer con LLM (Groq/Gemini). No se inventan datos.";
@@ -200,10 +258,14 @@ export function describeLlmUnavailable() {
 
 /**
  * @param {string} prompt
- * @param {{ system?: string }} [options]
+ * @param {{ system?: string, provider?: string, model?: string, allowFallback?: boolean }} [options]
  */
 export async function completeJson(prompt, options = {}) {
   lastLlmFailure = null;
+
+  if (options.provider && options.model) {
+    return completeJsonForProvider(prompt, options);
+  }
 
   if (!hasGroqKey() && !hasGeminiKey()) {
     lastLlmFailure = { code: "missing_keys", detail: "sin claves en process.env" };
@@ -217,6 +279,7 @@ export async function completeJson(prompt, options = {}) {
     const detail = err instanceof Error ? err.message : String(err);
     lastLlmFailure = {
       code: isRateLimitError(err) ? "rate_limit" : "groq_error",
+      provider: "groq",
       detail,
     };
     console.error("[llmJson] Groq failed, falling back to Gemini:", detail);
@@ -229,7 +292,10 @@ export async function completeJson(prompt, options = {}) {
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       lastLlmFailure = {
-        code: lastLlmFailure ? "all_failed" : "gemini_error",
+        code: lastLlmFailure
+          ? "all_failed"
+          : (isRateLimitError(err) ? "rate_limit" : "gemini_error"),
+        provider: lastLlmFailure ? undefined : "gemini",
         detail: lastLlmFailure
           ? `Groq: ${lastLlmFailure.detail.slice(0, 120)} · Gemini: ${detail.slice(0, 120)}`
           : detail,
@@ -240,6 +306,70 @@ export async function completeJson(prompt, options = {}) {
 
   if (!lastLlmFailure) {
     lastLlmFailure = { code: "empty_response", detail: "Groq y Gemini devolvieron vacío" };
+  }
+
+  return null;
+}
+
+/**
+ * Explicit provider/model path for Intel overview (no auto-fallback unless allowFallback).
+ * @param {string} prompt
+ * @param {{ system?: string, provider?: string, model?: string, allowFallback?: boolean }} options
+ */
+export async function completeJsonForProvider(prompt, options = {}) {
+  lastLlmFailure = null;
+  const provider = options.provider === "groq" ? "groq" : "gemini";
+  const apiModel = options.model || (provider === "groq"
+    ? GROQ_MODEL
+    : GEMINI_DEFAULT_MODEL);
+
+  if (provider === "groq") {
+    if (!hasGroqKey()) {
+      lastLlmFailure = { code: "missing_keys", detail: "GROQ_API_KEY not set" };
+      return null;
+    }
+    try {
+      const data = await completeJsonWithGroqModel(prompt, options, apiModel);
+      return { provider: "groq", data, model: apiModel };
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      lastLlmFailure = {
+        code: isRateLimitError(err) ? "rate_limit" : "groq_error",
+        provider: "groq",
+        detail,
+      };
+      if (!options.allowFallback || !hasGeminiKey()) return null;
+    }
+  } else if (!hasGeminiKey()) {
+    lastLlmFailure = { code: "missing_keys", detail: "GEMINI_API_KEY not set" };
+    return null;
+  }
+
+  if (provider === "gemini" || options.allowFallback) {
+    try {
+      const fallbackModel = provider === "gemini"
+        ? apiModel
+        : GEMINI_DEFAULT_MODEL;
+      const data = await completeJsonWithGemini(prompt, options, fallbackModel);
+      if (data) {
+        return {
+          provider: "gemini",
+          data,
+          model: fallbackModel,
+        };
+      }
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      lastLlmFailure = {
+        code: lastLlmFailure
+          ? "all_failed"
+          : (isRateLimitError(err) ? "rate_limit" : "gemini_error"),
+        provider: "gemini",
+        detail: lastLlmFailure
+          ? `${lastLlmFailure.detail.slice(0, 120)} · Gemini: ${detail.slice(0, 120)}`
+          : detail,
+      };
+    }
   }
 
   return null;

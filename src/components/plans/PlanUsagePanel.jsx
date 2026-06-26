@@ -1,6 +1,6 @@
 import { usePlanStore } from "../../stores/planStore.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
-import { getPlanFeatureRows } from "../../lib/planConfig.js";
+import { getCreditsCap, getCreditsUsed, getPlanFeatureRows } from "../../lib/planConfig.js";
 
 /**
  * Sidebar / plans token usage panel.
@@ -8,8 +8,8 @@ import { getPlanFeatureRows } from "../../lib/planConfig.js";
  */
 export function PlanUsagePanel({ compact = false }) {
   const profile = usePlanStore((s) => s.profile);
-  const cap = usePlanStore((s) => s.getCreditsCap());
-  const used = usePlanStore((s) => s.getCreditsUsed());
+  const used = usePlanStore((s) => getCreditsUsed(s.profile));
+  const cap = usePlanStore((s) => getCreditsCap(s.profile.plan));
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
   const rows = getPlanFeatureRows(profile.plan);
   const pct = cap > 0 ? Math.max(0, Math.min(100, (used / cap) * 100)) : 0;

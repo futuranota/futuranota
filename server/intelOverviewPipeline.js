@@ -1,7 +1,11 @@
-import { completeJson } from "./llmJson.js";
+import { completeJsonForProvider, describeLlmUnavailable, getLastLlmFailure } from "./llmJson.js";
 import { searchWebMulti } from "./discovery/serpApiSearch.js";
+import {
+  DEFAULT_INTEL_MODEL_ID,
+  getIntelModel,
+  resolveIntelModelApiModel,
+} from "./intelModels.js";
 
-const TOKEN_COST = 1_000;
 const MAX_CITATIONS = 8;
 const SYSTEM_PROMPT = `You respond only with valid JSON. No markdown.
 Schema:
@@ -78,39 +82,33 @@ function citationsFromSnippets(snippets) {
  * @param {unknown[]} raw
  * @param {Set<string>|null} allowedUrlKeys — when set, only URLs from Serper pass through
  */
-function citationsFromLlm(raw, allowedUrlKeys) {
+function citationsFromLlm(raw, allowedUrlKeys = null) {
   if (!Array.isArray(raw)) return [];
-
   const items = raw
-    .map((c, i) => {
-      const url = typeof c?.url === "string" ? c.url.trim() : "";
-      if (!url || url === "#") return null;
-      const key = normalizeUrlKey(url);
-      if (allowedUrlKeys && !allowedUrlKeys.has(key)) return null;
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const url = typeof item.url === "string" ? item.url.trim() : "";
+      if (!url) return null;
+      if (allowedUrlKeys && !allowedUrlKeys.has(normalizeUrlKey(url))) return null;
       const domain = domainFromUrl(url);
       return {
-        id: `cite-${i + 1}`,
-        title: (c.title || domain || "Source").trim(),
+        id: `cite-llm-${index + 1}`,
+        title: (item.title || domain || "Source").trim(),
         url,
         domain,
-        source: (c.source || domain).trim(),
-        body: (c.snippet || c.title || "").trim(),
+        source: (item.source || domain).trim(),
+        body: (item.snippet || item.title || "").trim(),
       };
     })
     .filter(Boolean);
-
-  return dedupeCitations(items).slice(0, MAX_CITATIONS).map((c, i) => ({
-    ...c,
-    id: `cite-${i + 1}`,
-  }));
+  return dedupeCitations(items).slice(0, MAX_CITATIONS);
 }
 
 /**
- * Prefer verified Serper hits; fall back to LLM citations (validated when Serper had hits).
  * @param {SearchHit[]|null|undefined} snippets
  * @param {unknown[]} llmCitations
  */
-function buildCitations(snippets, llmCitations) {
+export function buildCitations(snippets, llmCitations) {
   const fromSerper = citationsFromSnippets(snippets);
   if (fromSerper.length) return fromSerper;
 
@@ -132,10 +130,14 @@ function buildCitations(snippets, llmCitations) {
 /**
  * @param {string} query
  * @param {Array<{ title?: string, dataType?: string, content?: unknown }>} contextNodes
+ * @param {{ modelId?: string }} [options]
  */
-export async function runIntelOverviewPipeline(query, contextNodes = []) {
+export async function runIntelOverviewPipeline(query, contextNodes = [], options = {}) {
   const q = query.trim();
   if (!q) throw new Error("query is required");
+
+  const modelDef = getIntelModel(options.modelId || DEFAULT_INTEL_MODEL_ID);
+  const apiModel = resolveIntelModelApiModel(modelDef);
 
   const contextBlock = contextNodes.length
     ? contextNodes.map((n, i) => `${i + 1}. ${n.title}: ${String(n.content ?? "").slice(0, 200)}`).join("\n")
@@ -156,9 +158,19 @@ export async function runIntelOverviewPipeline(query, contextNodes = []) {
     + `Web snippets:\n${corpus}\n\n`
     + "Write overview and citations JSON.";
 
-  const llm = await completeJson(prompt, { system: SYSTEM_PROMPT });
+  const llm = await completeJsonForProvider(prompt, {
+    system: SYSTEM_PROMPT,
+    provider: modelDef.provider,
+    model: apiModel,
+  });
+
   if (!llm?.data) {
-    throw new Error("Intel overview unavailable — configure GROQ_API_KEY and SERPAPI_KEY");
+    const failure = getLastLlmFailure();
+    const err = new Error(describeLlmUnavailable());
+    if (failure?.code === "rate_limit") {
+      err.code = "rate_limit";
+    }
+    throw err;
   }
 
   const citations = buildCitations(
@@ -169,10 +181,12 @@ export async function runIntelOverviewPipeline(query, contextNodes = []) {
   return {
     overview: typeof llm.data.overview === "string" ? llm.data.overview : q,
     citations,
-    tokensUsed: TOKEN_COST,
-    model: llm.provider || "groq",
-    source: snippets?.length ? "serper+groq" : "groq",
+    tokensUsed: modelDef.tokenCost,
+    modelId: modelDef.id,
+    modelLabel: modelDef.label,
+    provider: llm.provider || modelDef.provider,
+    source: snippets?.length ? `serper+${llm.provider || modelDef.provider}` : (llm.provider || modelDef.provider),
   };
 }
 
-export { TOKEN_COST as INTEL_OVERVIEW_TOKEN_COST };
+export { citationsFromSnippets };

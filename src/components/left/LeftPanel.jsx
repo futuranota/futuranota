@@ -765,8 +765,6 @@ export function LeftPanel({
   onDocumentDeleted,
   timelineCanvasSelection = [],
   canvasNodesForQueue = [],
-  tokenCurrent = 0,
-  tokenMax = 10,
 }) {
   const { t } = useI18n();
   const panelTypeLabel = usePanelTypeLabels();

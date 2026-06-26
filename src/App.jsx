@@ -193,8 +193,6 @@ function Dashboard({ company, onBack }) {
   const prevTimelineAlertsEnabled = useRef(false);
   const planProfile = usePlanStore((s) => s.profile);
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
-  const creditUsed = usePlanStore((s) => s.getCreditsUsed());
-  const creditCap = usePlanStore((s) => s.getCreditsCap());
 
   const metaBarMetadata = useMemo(
     () =>
@@ -689,8 +687,6 @@ useEffect(() => {
           <LeftPanel
             onInsertToCanvas={insertNodeToCanvas}
             onOpenDocument={openDocumentOverlay}
-            tokenCurrent={creditUsed}
-            tokenMax={creditCap}
             onDocumentDeleted={handleDocumentDeleted}
             timelineCanvasSelection={selection}
             canvasNodesForQueue={canvasNodes}
@@ -749,8 +745,6 @@ useEffect(() => {
             }}
             onScanBlogs={scanBlogs}
             hasScannedBlogs={hasScannedBlogs}
-            tokenCurrent={creditUsed}
-            tokenMax={creditCap}
             today={today}
             launchDate={null}
             onSelectDate={(d) => {
@@ -764,6 +758,8 @@ useEffect(() => {
             canvasNodes={canvasNodes}
             onInsertForecastNode={handleInsertForecastNode}
             onInsertEventNode={handleInsertEventNode}
+            objectsById={objects}
+            selectedObjectId={selectedObjectId}
           />
         </div>
       </div>

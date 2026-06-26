@@ -22,6 +22,10 @@ export default async function handler(req, res) {
     });
     res.status(result.status).json(result.body);
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Intel search failed" });
+    const status = err?.code === "rate_limit" ? 429 : 500;
+    res.status(status).json({
+      error: err instanceof Error ? err.message : "Intel search failed",
+      code: err?.code || undefined,
+    });
   }
 }

@@ -1,7 +1,12 @@
 import { getAuthedUser, loadUserProfile } from "./supabaseServer.js";
-import { INTEL_OVERVIEW_TOKEN_COST, runIntelOverviewPipeline } from "./intelOverviewPipeline.js";
+import { runIntelOverviewPipeline } from "./intelOverviewPipeline.js";
+import {
+  CREDIT_TOKEN_UNIT,
+  DEFAULT_INTEL_MODEL_ID,
+  resolveIntelModelForPlan,
+} from "./intelModels.js";
 
-const FREE_MAX_SEARCHES = 10;
+const FREE_MAX_CREDITS = 10;
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -32,6 +37,9 @@ export async function processIntelOverviewRequest(reqLike) {
   const body = reqLike.body && typeof reqLike.body === "object" ? reqLike.body : {};
   const query = typeof body.query === "string" ? body.query.trim() : "";
   const contextNodes = Array.isArray(body.contextNodes) ? body.contextNodes : [];
+  const modelId = typeof body.modelId === "string" && body.modelId.trim()
+    ? body.modelId.trim()
+    : DEFAULT_INTEL_MODEL_ID;
 
   if (!query) {
     return { status: 400, body: { error: "query is required" } };
@@ -47,26 +55,37 @@ export async function processIntelOverviewRequest(reqLike) {
     return { status: 404, body: { error: "Profile not found" } };
   }
 
-  const plan = profile.plan === "pro" ? "pro" : "free";
+  const adminEmail = (
+    process.env.VITE_ADMIN_EMAIL
+    || process.env.ADMIN_EMAIL
+    || ""
+  ).trim().toLowerCase();
+  const isAdminUser = Boolean(
+    adminEmail && user.email?.toLowerCase() === adminEmail,
+  );
+
+  const plan = isAdminUser || profile.plan === "pro" ? "pro" : "free";
+  const model = resolveIntelModelForPlan(modelId, plan);
+
   if (plan === "free") {
-    const count = profile.search_count ?? 0;
-    if (count >= FREE_MAX_SEARCHES) {
+    const used = profile.search_count ?? 0;
+    if (used + model.creditCost > FREE_MAX_CREDITS) {
       return { status: 403, body: { error: "Free search limit reached", code: "search" } };
     }
-  } else {
+  } else if (!isAdminUser) {
     const balance = profile.tokens_balance ?? 0;
-    if (balance < INTEL_OVERVIEW_TOKEN_COST) {
+    if (balance < model.tokenCost) {
       return { status: 403, body: { error: "Insufficient tokens", code: "tokens" } };
     }
   }
 
-  const result = await runIntelOverviewPipeline(query, contextNodes);
+  const result = await runIntelOverviewPipeline(query, contextNodes, { modelId: model.id });
 
   const patch = { updated_at: new Date().toISOString() };
   if (plan === "free") {
-    patch.search_count = (profile.search_count ?? 0) + 1;
+    patch.search_count = (profile.search_count ?? 0) + model.creditCost;
   } else {
-    patch.tokens_balance = (profile.tokens_balance ?? 0) - INTEL_OVERVIEW_TOKEN_COST;
+    patch.tokens_balance = (profile.tokens_balance ?? 0) - model.tokenCost;
   }
 
   const { data: updated, error } = await supabase
@@ -82,9 +101,13 @@ export async function processIntelOverviewRequest(reqLike) {
     status: 200,
     body: {
       ...result,
-      tokensDebited: plan === "pro" ? INTEL_OVERVIEW_TOKEN_COST : 0,
+      tokensDebited: plan === "pro" ? model.tokenCost : 0,
+      creditsDebited: model.creditCost,
       tokensBalance: updated.tokens_balance,
       searchCount: updated.search_count,
+      modelId: model.id,
+      modelLabel: model.label,
+      creditUnit: CREDIT_TOKEN_UNIT,
     },
   };
 }
@@ -111,7 +134,11 @@ export async function handleIntelOverview(req, res) {
     sendJson(res, result.status, result.body);
     return true;
   } catch (err) {
-    sendJson(res, 500, { error: err instanceof Error ? err.message : "Intel search failed" });
+    const status = err?.code === "rate_limit" ? 429 : 500;
+    sendJson(res, status, {
+      error: err instanceof Error ? err.message : "Intel search failed",
+      code: err?.code || undefined,
+    });
     return true;
   }
 }

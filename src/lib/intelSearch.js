@@ -5,7 +5,8 @@ import { useNodesStore } from "../stores/nodesStore.js";
 import { useDocsStore } from "../stores/docsStore.js";
 import { usePlanStore } from "../stores/planStore.js";
 import { useUpgradeModalStore } from "../stores/upgradeModalStore.js";
-import { FREE_LIMITS, TOKEN_COSTS } from "./planConfig.js";
+import { FREE_LIMITS } from "./planConfig.js";
+import { DEFAULT_INTEL_MODEL_ID, getIntelModel, resolveIntelModelForPlan } from "./intelModels.js";
 
 /** @typedef {{ id: string, title: string, dataType: string, content: unknown, anchorAt?: string|null, order: number }} ContextNode */
 
@@ -147,10 +148,14 @@ export function collectUpstreamContext(payload) {
   return [];
 }
 
-export async function fetchIntelSearch(query, contextNodes) {
+export async function fetchIntelSearch(query, contextNodes, modelId) {
   return authedFetch(API_ROUTES.intelOverview, {
     method: "POST",
-    body: JSON.stringify({ query, contextNodes }),
+    body: JSON.stringify({
+      query,
+      contextNodes,
+      modelId: modelId || DEFAULT_INTEL_MODEL_ID,
+    }),
   });
 }
 
@@ -164,29 +169,40 @@ export async function runIntelSearch(payload) {
     nodeEntities,
     canvasNodes,
     canvasConnections,
+    modelId: payloadModelId = null,
   } = payload;
 
   const q = (query || "").trim();
   if (!q) return;
 
+  const uiState = useUIStateStore.getState();
+  const requestedModelId = payloadModelId || uiState.intelSelectedModelId || DEFAULT_INTEL_MODEL_ID;
+
   const planStore = usePlanStore.getState();
   const { profile } = planStore;
-  if (profile.plan === "free" && profile.searchCount >= FREE_LIMITS.maxSearches) {
-    useUpgradeModalStore.getState().show("search");
-    return;
+  const model = resolveIntelModelForPlan(requestedModelId, profile.plan);
+
+  if (model.id !== requestedModelId) {
+    uiState.setIntelSelectedModelId(model.id);
   }
-  if (profile.plan === "pro" && !planStore.canSpendTokens(TOKEN_COSTS.searchOverview)) {
+
+  if (profile.plan === "free") {
+    if ((profile.searchCount ?? 0) + model.creditCost > FREE_LIMITS.maxSearches) {
+      useUpgradeModalStore.getState().show("search");
+      return;
+    }
+  } else if (!planStore.canSpendTokens(model.tokenCost)) {
     useUpgradeModalStore.getState().show("tokens");
     return;
   }
 
-  const store = useUIStateStore.getState();
-  store.setIntelSearchLoading({
+  uiState.setIntelSearchLoading({
     query: q,
     queryNodeEntityId,
     queryCanvasNodeId,
     docId,
     blockIndex,
+    modelId: model.id,
   });
 
   try {
@@ -200,21 +216,21 @@ export async function runIntelSearch(payload) {
       canvasConnections,
     });
 
-    const result = await fetchIntelSearch(q, contextNodes);
+    const result = await fetchIntelSearch(q, contextNodes, model.id);
 
-    if (result.tokensBalance != null) {
-      planStore.applyServerTokenDebit(result.tokensBalance);
-    } else if (result.searchCount != null) {
-      usePlanStore.setState((state) => ({
-        profile: { ...state.profile, searchCount: result.searchCount },
-      }));
-    }
+    planStore.applyServerIntelUsage({
+      tokensBalance: result.tokensBalance,
+      searchCount: result.searchCount,
+    });
 
-    store.setIntelSearchSuccess({
+    uiState.setIntelSearchSuccess({
       overview: result.overview,
       citations: result.citations,
       tokensUsed: result.tokensDebited ?? result.tokensUsed,
-      model: result.model || "Ai 1.0",
+      creditsDebited: result.creditsDebited ?? model.creditCost,
+      modelId: result.modelId ?? model.id,
+      modelLabel: result.modelLabel ?? model.label,
+      model: result.modelLabel ?? model.label,
       query: q,
       queryNodeEntityId,
       queryCanvasNodeId,
@@ -226,7 +242,9 @@ export async function runIntelSearch(payload) {
   } catch (err) {
     if (err?.code === "search" || err?.code === "tokens") {
       useUpgradeModalStore.getState().show(err.code);
+    } else if (err?.code === "model") {
+      useUpgradeModalStore.getState().show("search");
     }
-    store.setIntelSearchError(err?.message || "Search failed");
+    uiState.setIntelSearchError(err?.message || "Search failed");
   }
 }

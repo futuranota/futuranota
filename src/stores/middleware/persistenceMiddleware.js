@@ -4,6 +4,20 @@ import { sanitizePersistedSnapshot } from "../../lib/storeSanitize.js";
 
 const STORAGE_KEY = "futura-nota-v1";
 
+/** Coerce app doc version strings to int4/null for Supabase (version column is integer). */
+function docVersionToDbInt(version) {
+  const raw = String(version ?? "").trim();
+  if (!raw) return null;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Read version from DB int/text into app string field. */
+function docVersionFromDb(version) {
+  if (version === null || version === undefined || version === "") return "";
+  return String(version);
+}
+
 let initialized = false;
 let isSyncedWithRemote = false;
 
@@ -149,7 +163,7 @@ export function initPersistenceMiddleware(stores) {
           templateKind: camp.template_kind || null,
           templateSubcategoryDocIds: camp.subcategory_doc_ids || [],
           subcategoryDocIds: camp.subcategory_doc_ids || [],
-          version: camp.version || "",
+          version: docVersionFromDb(camp.version),
           category: camp.category || "",
           launchAt: camp.launch_at || null,
           campaignActive: camp.campaign_active !== false,
@@ -289,7 +303,7 @@ export function initPersistenceMiddleware(stores) {
         company_id: doc.parentObjectId,
         name: doc.title,
         source: doc.knowledgeImport?.sourceUrl || "",
-        verification_score: doc.version ? parseInt(doc.version) || 0 : 0,
+        verification_score: docVersionToDbInt(doc.version) ?? 0,
         content: doc.content || "",
         body: doc.body || "",
         blocks: doc.blocks || [],
@@ -298,7 +312,7 @@ export function initPersistenceMiddleware(stores) {
         doc_kind: doc.docKind || "standard",
         template_kind: doc.templateKind || null,
         subcategory_doc_ids: doc.subcategoryDocIds || [],
-        version: doc.version || "",
+        version: docVersionToDbInt(doc.version),
         category: doc.category || "",
         launch_at: doc.launchAt || null,
         campaign_active: doc.campaignActive !== false,

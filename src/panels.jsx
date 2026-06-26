@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { daysBetween, fmtDate, timelineWindowDays } from './data.jsx';
 import { Sidebar } from './components/sidebar/Sidebar.jsx';
 import { FuturaCanvas } from './components/canvas/FuturaCanvas.jsx';
@@ -23,8 +23,11 @@ import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
 import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
 import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.jsx';
+import { IntelModelSelect } from './components/intel/IntelModelSelect.jsx';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
+import { getDefaultCampaignSearchQuery } from './lib/campaignSearchStarters.js';
+import { resolveIntelCampaignBrand } from './lib/currentCorpus.js';
 import { useI18n } from './i18n/useI18n.js';
 import { useUpgradeModalStore } from './stores/upgradeModalStore.js';
 
@@ -802,8 +805,6 @@ function IntelPanel({
   onGetOverview,
   onScanBlogs,
   hasScannedBlogs,
-  tokenCurrent = 0,
-  tokenMax = 10,
   today,
   launchDate,
   onSelectDate,
@@ -814,6 +815,8 @@ function IntelPanel({
   canvasNodes = [],
   onInsertForecastNode,
   onInsertEventNode,
+  objectsById = {},
+  selectedObjectId = null,
 }) {
   const { t } = useI18n();
   const tabOptions = useIntelTabOptions();
@@ -828,8 +831,15 @@ function IntelPanel({
   const intelSearchResult = useUIStateStore((s) => s.intelSearchResult);
   const intelSearchError = useUIStateStore((s) => s.intelSearchError);
   const intelSearchMeta = useUIStateStore((s) => s.intelSearchMeta);
+  const intelSelectedModelId = useUIStateStore((s) => s.intelSelectedModelId);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
   const clearIntelSearch = useUIStateStore((s) => s.clearIntelSearch);
+  const setIntelSearchError = useUIStateStore((s) => s.setIntelSearchError);
+
+  const { brandName: corpusBrandName } = useMemo(
+    () => ({ brandName: resolveIntelCampaignBrand(objectsById, selectedObjectId) }),
+    [objectsById, selectedObjectId],
+  );
 
   const syncIntelQueryHeight = () => {
     const el = intelQueryRef.current;
@@ -841,21 +851,49 @@ function IntelPanel({
     el.style.overflowY = el.scrollHeight > maxPx ? "auto" : "hidden";
   };
 
+  const injectCampaignQuery = useCallback(() => {
+    const brandLabel = corpusBrandName || t("intel.campaignScanBrandPlaceholder");
+    const seed = getDefaultCampaignSearchQuery(corpusBrandName, () =>
+      t("intel.campaignScanQuerySeed", { brand: brandLabel }),
+    );
+    setIntelQuery(seed);
+  }, [corpusBrandName, t]);
+
+  useEffect(() => {
+    if (tab !== "campaign") return;
+    injectCampaignQuery();
+  }, [tab, injectCampaignQuery]);
+
   useEffect(() => {
     syncIntelQueryHeight();
   }, [intelQuery]);
 
   useEffect(() => {
+    if (tab === "campaign") return;
     setIntelQuery(intelSearchSeed || "");
     requestAnimationFrame(() => syncIntelQueryHeight());
-  }, [intelSearchRequest, intelSearchSeed]);
+  }, [intelSearchRequest, intelSearchSeed, tab]);
 
-  const handleIntelSearchSubmit = () => {
-    const q = intelQuery.trim();
-    if (!q || intelSearchStatus === "loading") return;
+  const handleIntelSearchSubmit = async () => {
+    if (intelSearchStatus === "loading") return;
+
+    if (tab === "campaign" && !corpusBrandName) {
+      setIntelSearchError(t("intel.campaignScanNoBrand"));
+      return;
+    }
+
+    let q = intelQuery.trim();
+    if (tab === "campaign" && !q) {
+      q = getDefaultCampaignSearchQuery(corpusBrandName, () =>
+        t("intel.campaignScanQuerySeed", { brand: corpusBrandName }),
+      ).trim();
+    }
+    if (!q) return;
+
     triggerIntelSearchFromNode(q);
     runIntelSearch({
       query: q,
+      modelId: intelSelectedModelId,
       queryNodeEntityId: intelSearchMeta?.queryNodeEntityId ?? null,
       queryCanvasNodeId: intelSearchMeta?.queryCanvasNodeId ?? null,
       docId: intelSearchMeta?.docId ?? null,
@@ -867,6 +905,13 @@ function IntelPanel({
     if (intelSearchStatus === "loading") return;
     setIntelQuery("");
     clearIntelSearch();
+    if (tab === "campaign") {
+      requestAnimationFrame(() => {
+        injectCampaignQuery();
+        syncIntelQueryHeight();
+      });
+      return;
+    }
     requestAnimationFrame(() => syncIntelQueryHeight());
   };
 
@@ -911,14 +956,14 @@ function IntelPanel({
             />
           </div>
           <div className="intel-search-bottom">
-            <span className="intel-meta-kv intel-bottom-item">{t("intel.tokens")}:<b>{tokenCurrent}/{tokenMax}</b></span>
-            <span className="intel-meta-kv intel-bottom-item">{t("intel.model")}:<b>Ai 1.0</b></span>
+            <IntelModelSelect disabled={isSearchLoading} />
             {tabOptions.map((option) => (
               <button
                 key={option.id}
                 type="button"
                 className="intel-tab-chip intel-bottom-item"
                 data-on={tab === option.id ? "1" : "0"}
+                aria-pressed={tab === option.id}
                 onClick={() => setTab(option.id)}
               >
                 {option.label}
@@ -951,8 +996,10 @@ function IntelPanel({
         {isSearchLoading && (
           <div className="intel-search-loading" role="status" aria-live="polite">
             <div className="intel-search-loading-pulse" />
-            <b>{t("intel.searchingWeb")}</b>
-            <p className="mute">{t("intel.readingNodes")}</p>
+            <b>{tab === "campaign" ? t("intel.campaignScanning") : t("intel.searchingWeb")}</b>
+            <p className="mute">
+              {tab === "campaign" ? t("intel.campaignScanHint") : t("intel.readingNodes")}
+            </p>
           </div>
         )}
 
@@ -1003,7 +1050,7 @@ function IntelPanel({
           </div>
         )}
 
-        {!isSearchLoading && !hasSearchResult && intelSearchStatus !== "error" && !hasScannedBlogs && intel.length === 0 && (
+        {!isSearchLoading && !hasSearchResult && intelSearchStatus !== "error" && !hasScannedBlogs && intel.length === 0 && tab !== "campaign" && (
           <div className="empty-block">
             <b>Ask anything</b>
             <p className="mute" style={{ marginTop: 6 }}>
@@ -1012,7 +1059,7 @@ function IntelPanel({
           </div>
         )}
 
-        {!hasSearchResult && !isSearchLoading && hasScannedBlogs && filtered.length === 0 && (
+        {!hasSearchResult && !isSearchLoading && hasScannedBlogs && filtered.length === 0 && tab !== "campaign" && (
           <div className="empty-block">
             <b>No {tab} signals</b>
             Try another tab or run scan again.

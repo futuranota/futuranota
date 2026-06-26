@@ -7,8 +7,14 @@ import {
   getCreditsUsed,
   getPlanLimits,
   getTokensCap,
+  getWeatherActionCap,
   TOKEN_COSTS,
 } from "../lib/planConfig.js";
+import {
+  persistLocalWeatherActionsUsed,
+  readLocalWeatherActionsUsed,
+  resetLocalWeatherUsage,
+} from "../lib/weatherUsage.js";
 
 export { FREE_LIMITS, TOKEN_COSTS } from "../lib/planConfig.js";
 
@@ -16,6 +22,7 @@ const DEFAULT_PROFILE = {
   plan: "free",
   calendarUsed: false,
   weatherUsed: false,
+  weatherActionsCount: 0,
   searchCount: 0,
   tokensBalance: getTokensCap("free"),
   tokensPeriodStart: null,
@@ -44,6 +51,12 @@ function rowToProfile(row) {
     plan,
     calendarUsed: Boolean(row.calendar_used),
     weatherUsed: Boolean(row.weather_used),
+    weatherActionsCount: (() => {
+      const raw = row.weather_actions_count;
+      const n = typeof raw === "number" ? raw : Number(raw);
+      if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+      return row.weather_used ? 1 : 0;
+    })(),
     searchCount: row.search_count ?? 0,
     tokensBalance,
     tokensPeriodStart: periodStart,
@@ -85,6 +98,95 @@ export const usePlanStore = create(
 
       getTokensRemaining: () => get().profile.tokensBalance,
 
+      getWeatherActionCap: () => getWeatherActionCap(get().profile.plan),
+
+      getWeatherActionsUsed: () => {
+        const { profile, loaded } = get();
+        if (loaded && profile.weatherActionsCount != null) {
+          return profile.weatherActionsCount;
+        }
+        return readLocalWeatherActionsUsed();
+      },
+
+      canUseWeatherAction: () => {
+        const used = get().getWeatherActionsUsed();
+        return used < get().getWeatherActionCap();
+      },
+
+      incrementWeatherAction: async () => {
+        const { profile } = get();
+        if (!get().canUseWeatherAction()) return false;
+
+        const next = get().getWeatherActionsUsed() + 1;
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+
+        if (!userId) {
+          persistLocalWeatherActionsUsed(next);
+          set((state) => ({
+            profile: {
+              ...state.profile,
+              weatherActionsCount: next,
+              weatherUsed: next >= 1,
+            },
+          }));
+          return true;
+        }
+
+        const patch = {
+          weather_actions_count: next,
+          weather_used: next >= 1,
+        };
+        const error = await persistProfilePatch(userId, patch);
+        if (error) {
+          console.warn("planStore.incrementWeatherAction error", error);
+          persistLocalWeatherActionsUsed(next);
+          set((state) => ({
+            profile: {
+              ...state.profile,
+              weatherActionsCount: next,
+              weatherUsed: next >= 1,
+            },
+          }));
+          return true;
+        }
+
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            weatherActionsCount: next,
+            weatherUsed: next >= 1,
+          },
+        }));
+        persistLocalWeatherActionsUsed(next);
+        return true;
+      },
+
+      resetWeatherActions: async () => {
+        resetLocalWeatherUsage();
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+
+        if (userId) {
+          const error = await persistProfilePatch(userId, {
+            weather_actions_count: 0,
+            weather_used: false,
+          });
+          if (error) {
+            console.warn("planStore.resetWeatherActions error", error);
+          }
+        }
+
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            weatherActionsCount: 0,
+            weatherUsed: false,
+          },
+        }));
+        return true;
+      },
+
       getTokensUsed: () => {
         const cap = get().getTokensCap();
         return Math.max(0, cap - get().getTokensRemaining());
@@ -105,7 +207,15 @@ export const usePlanStore = create(
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         if (!userId) {
-          set({ profile: { ...DEFAULT_PROFILE }, loading: false, loaded: true });
+          set({
+            profile: {
+              ...DEFAULT_PROFILE,
+              weatherActionsCount: readLocalWeatherActionsUsed(),
+              weatherUsed: readLocalWeatherActionsUsed() >= 1,
+            },
+            loading: false,
+            loaded: true,
+          });
           return;
         }
         const { data, error } = await supabase
@@ -125,6 +235,7 @@ export const usePlanStore = create(
         }
 
         let profile = rowToProfile(data);
+        persistLocalWeatherActionsUsed(profile.weatherActionsCount);
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
         const isAdminUser = !!adminEmail && session.user.email?.toLowerCase() === adminEmail.toLowerCase();
         if (isAdminUser) {
@@ -185,6 +296,16 @@ export const usePlanStore = create(
             ...state.profile,
             tokensBalance,
             campaignLiveUsed: campaignLiveUsed ?? state.profile.campaignLiveUsed,
+          },
+        }));
+      },
+
+      applyServerIntelUsage: ({ tokensBalance, searchCount }) => {
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            ...(tokensBalance != null ? { tokensBalance } : {}),
+            ...(searchCount != null ? { searchCount } : {}),
           },
         }));
       },

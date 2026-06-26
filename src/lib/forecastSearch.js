@@ -173,6 +173,102 @@ export function formatForecastUiDate(date) {
   return `${mm}/${dd}`;
 }
 
+/** @param {Date|null|undefined} date */
+export function toForecastDateIso(date) {
+  const d = startOfCalendarDay(date);
+  if (!d) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** @param {string[]} dayIds ISO dates YYYY-MM-DD */
+export function formatForecastWindowLabel(dayIds) {
+  if (!dayIds?.length) return "";
+  const fmt = (iso) => {
+    const mm = iso.slice(5, 7);
+    const dd = iso.slice(8, 10);
+    return `${mm}/${dd}`;
+  };
+  if (dayIds.length === 1) return fmt(dayIds[0]);
+  return `${fmt(dayIds[0])}–${fmt(dayIds[dayIds.length - 1])}`;
+}
+
+/**
+ * Gate for the node forecast search button.
+ * @param {{
+ *   hasLocation: boolean,
+ *   panelStatus: string,
+ *   panelLocationKey: string,
+ *   locationKey: string,
+ *   dayIds: string[],
+ *   node: object|null,
+ * }} params
+ */
+export function getForecastSearchGate({
+  hasLocation,
+  panelStatus,
+  panelLocationKey,
+  locationKey,
+  dayIds,
+  node,
+}) {
+  if (!hasLocation) {
+    return { enabled: false, reason: "location" };
+  }
+  if (panelStatus === "loading") {
+    return { enabled: false, reason: "loading" };
+  }
+  if (panelStatus !== "ready" || panelLocationKey !== locationKey || !dayIds?.length) {
+    return { enabled: false, reason: "panel" };
+  }
+
+  if (!node) {
+    return {
+      enabled: false,
+      reason: "noNode",
+      windowLabel: formatForecastWindowLabel(dayIds),
+    };
+  }
+
+  const { date } = resolveForecastTargetDate(node);
+  const dateIso = toForecastDateIso(date);
+  if (!dateIso) {
+    return {
+      enabled: false,
+      reason: "noNode",
+      windowLabel: formatForecastWindowLabel(dayIds),
+    };
+  }
+
+  if (dayIds.includes(dateIso)) {
+    return {
+      enabled: true,
+      reason: "ready",
+      dateIso,
+      windowLabel: formatForecastWindowLabel(dayIds),
+    };
+  }
+
+  const availability = getForecastAvailability(date, new Date(), dayIds.length - 1);
+  if (availability === "past") {
+    return {
+      enabled: false,
+      reason: "past",
+      dateIso,
+      windowLabel: formatForecastWindowLabel(dayIds),
+    };
+  }
+
+  return {
+    enabled: false,
+    reason: "outOfRange",
+    dateIso,
+    windowLabel: formatForecastWindowLabel(dayIds),
+  };
+}
+
 /**
  * @param {object|null} node
  * @param {Date} [baseToday]

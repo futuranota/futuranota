@@ -1,15 +1,23 @@
 import { completeJson, describeLlmUnavailable } from "./llmJson.js";
 import { searchWebMulti } from "./discovery/serpApiSearch.js";
 import { buildBrandCampaignQueries } from "./discovery/brandLaunchQueries.js";
+import {
+  buildBrandDeepCampaignQueries,
+  buildUserQuerySerperQueries,
+} from "./discovery/brandDeepCampaignQueries.js";
 import { buildBrandCadenceQueries } from "./discovery/cadenceQueries.js";
 import { buildCuratedSourceQueries } from "./discovery/curatedQueries.js";
 import { resolveScanSources } from "./scanSourcesStore.js";
+import { buildCitations } from "./intelOverviewPipeline.js";
 import {
   SYSTEM_PROMPT_HORIZON_EXTRACT,
+  SYSTEM_PROMPT_BRAND_RESEARCH,
   buildBrandCampaignExtractPrompt,
   buildBrandCadenceExtractPrompt,
+  buildBrandDeepExtractPrompt,
   filterVerifiedHorizonResults,
   matchBrandName,
+  normalizeBrandResearchReport,
 } from "./campaignIntelSchema.js";
 
 const MAX_SNIPPETS = 24;
@@ -43,7 +51,7 @@ function pickBrandHit(hits, brandName) {
   );
 }
 
-function noDataResult(brandName, message, source = "serper") {
+function noDataResult(brandName, message, source = "serper", extra = {}) {
   return {
     brandName,
     campaignActive: false,
@@ -51,6 +59,7 @@ function noDataResult(brandName, message, source = "serper") {
     cadenceStatus: "no_data",
     cadenceMessage: message,
     overview: message,
+    deepReport: "",
     launchDate: null,
     announcementDate: null,
     lastLaunchDate: null,
@@ -61,16 +70,111 @@ function noDataResult(brandName, message, source = "serper") {
     evidenceUrl: null,
     category: null,
     ticketTier: null,
+    launchSignals: [],
+    citations: [],
     source,
+    ...extra,
+  };
+}
+
+/**
+ * Deep single-brand campaign study for Intel Campaign tab (report-first).
+ * @param {string} brandName
+ * @param {{ rangeDays?: number, sources?: unknown[], officialDomain?: string, userQuery?: string }} [options]
+ */
+export async function detectBrandIntelDeep(brandName, {
+  rangeDays = 90,
+  sources: clientSources = [],
+  officialDomain = "",
+  userQuery = "",
+} = {}) {
+  const name = brandName.trim();
+  if (!name) throw new Error("brandName is required");
+
+  const sources = resolveScanSources(clientSources);
+  const today = todayIso();
+  const curatedForBrand = buildCuratedSourceQueries(sources, rangeDays, name)
+    .slice(0, 5)
+    .map((q) => `${name} ${q}`);
+
+  const queries = [
+    ...buildUserQuerySerperQueries(userQuery, name),
+    ...buildBrandDeepCampaignQueries(name, rangeDays, officialDomain),
+    ...buildBrandCampaignQueries(name, rangeDays),
+    ...curatedForBrand,
+  ];
+
+  const snippets = await searchWebMulti(queries);
+  if (snippets === null) {
+    return {
+      ...noDataResult(name, SERPER_REQUIRED_MESSAGE, "none"),
+      error: SERPER_REQUIRED_MESSAGE,
+      noData: true,
+      mode: "deep",
+    };
+  }
+
+  if (!snippets.length) {
+    return {
+      ...noDataResult(name, `Sin resultados web para ${name}.`, "serper"),
+      mode: "deep",
+    };
+  }
+
+  const citations = buildCitations(snippets, []);
+  const reportCtx = {
+    snippets,
+    todayIso: today,
+    rangeDays,
+    brandName: name,
+    userQuery,
+  };
+
+  const prompt = buildBrandDeepExtractPrompt(
+    today,
+    rangeDays,
+    name,
+    userQuery,
+    formatSnippetsCorpus(snippets),
+  );
+  const llm = await completeJson(prompt, { system: SYSTEM_PROMPT_BRAND_RESEARCH });
+
+  if (!llm) {
+    const fallback = normalizeBrandResearchReport({}, reportCtx);
+    return {
+      ...fallback,
+      citations,
+      source: "serper+fallback",
+      mode: "deep",
+    };
+  }
+
+  const report = normalizeBrandResearchReport(llm.data, reportCtx);
+  const llmCitations = buildCitations(
+    snippets,
+    Array.isArray(llm.data?.citations) ? llm.data.citations : [],
+  );
+
+  return {
+    ...report,
+    brandName: report.brandName || name,
+    citations: llmCitations.length ? llmCitations : citations,
+    source: `serper+${llm.provider}`,
+    mode: "deep",
   };
 }
 
 /**
  * Two-pass verified brand intel: Pass A campaign validation, Pass B cadence analysis.
  * @param {string} brandName
- * @param {{ rangeDays?: number, sources?: unknown[] }} [options]
+ * @param {{ rangeDays?: number, sources?: unknown[], mode?: string, officialDomain?: string, userQuery?: string }} [options]
  */
-export async function detectBrandIntel(brandName, { rangeDays = 90, sources: clientSources = [] } = {}) {
+export async function detectBrandIntel(brandName, options = {}) {
+  if (options.mode === "deep") {
+    return detectBrandIntelDeep(brandName, options);
+  }
+
+  const { rangeDays = 90, sources: clientSources = [] } = options;
   const name = brandName.trim();
   if (!name) throw new Error("brandName is required");
 

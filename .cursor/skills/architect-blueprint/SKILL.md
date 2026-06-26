@@ -98,3 +98,16 @@ At start of a complex task:
 1. Read `memoria.md` **Problema activo**
 2. Treat the user's latest message as the current problem if it updates scope
 3. On resolution (user confirms), append to **Resueltos** with date, problem, and changes applied
+
+---
+
+## Saved blueprints (this project)
+
+Full STEP 1 specs live under `references/`. Read the relevant file before implementing.
+
+| Feature | Blueprint |
+|---------|-----------|
+| Intel Campaign tab → deep brand scan → Content doc (Opción B) | [brand-campaign-deep-scan-blueprint.md](references/brand-campaign-deep-scan-blueprint.md) |
+| Fix: sin informe → report-first (userQuery + Groq + doc siempre) | [campaign-report-first-fix.md](references/campaign-report-first-fix.md) |
+| Campaign tab simplificado → plantillas + Intel overview inline | [campaign-search-simple.md](references/campaign-search-simple.md) |
+| Selector modelo Intel + créditos por consumo | [intel-model-credits.md](references/intel-model-credits.md) |

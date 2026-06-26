@@ -2,14 +2,35 @@ import { API_ROUTES } from "../api/routes.js";
 import { apiClient } from "../api/client.js";
 
 /**
+ * @typedef {Object} CampaignLaunchSignal
+ * @property {string} phrase
+ * @property {string|null} dateHint
+ * @property {string} url
+ * @property {string} quote
+ */
+
+/**
+ * @typedef {Object} CampaignCitation
+ * @property {string} id
+ * @property {string} title
+ * @property {string} url
+ * @property {string} domain
+ * @property {string} source
+ * @property {string} body
+ */
+
+/**
  * @typedef {Object} CampaignDetectionResponse
  * @property {boolean} campaignActive
  * @property {string|null} launchDate
  * @property {string} overview
+ * @property {string} [deepReport]
+ * @property {CampaignLaunchSignal[]} [launchSignals]
+ * @property {CampaignCitation[]} [citations]
  * @property {number|null} averageIntervalMonths
  * @property {string|null} lastLaunchDate
  * @property {string} [source]
- * @property {"confirmed_campaign"|"cadence_only"|null} [detectionMode]
+ * @property {"confirmed_campaign"|"cadence_only"|"no_data"|null} [detectionMode]
  * @property {"watch"|"discard"|"no_data"|null} [cadenceStatus]
  * @property {string|null} [cadenceMessage]
  * @property {number|null} [monthsRemaining]
@@ -18,6 +39,7 @@ import { apiClient } from "../api/client.js";
  * @property {string|null} [evidenceUrl]
  * @property {string|null} [error]
  * @property {boolean} [noData]
+ * @property {"deep"} [mode]
  */
 
 /**
@@ -25,15 +47,27 @@ import { apiClient } from "../api/client.js";
  * @param {string} params.brandName
  * @param {number} [params.rangeDays]
  * @param {Array<{ domain: string, enabled?: boolean }>} [params.sources]
+ * @param {"deep"} [params.mode]
+ * @param {string} [params.officialDomain]
  * @returns {Promise<CampaignDetectionResponse>}
  */
-export async function fetchCampaignDetection({ brandName, rangeDays, sources }) {
+export async function fetchCampaignDetection({
+  brandName,
+  rangeDays,
+  sources,
+  mode,
+  officialDomain,
+  userQuery,
+}) {
   return apiClient(API_ROUTES.campaignDetect, {
     method: "POST",
     body: JSON.stringify({
       brandName,
       rangeDays,
       sources: sources || [],
+      mode,
+      officialDomain,
+      userQuery,
     }),
   });
 }

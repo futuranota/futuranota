@@ -94,6 +94,296 @@ export function buildBrandCadenceExtractPrompt(todayIso, rangeDays, brandName, s
 }
 
 /**
+ * @param {string} todayIso
+ * @param {number} rangeDays
+ * @param {string} brandName
+ * @param {string} userQuery
+ * @param {string} snippetsCorpus
+ */
+export function buildBrandDeepExtractPrompt(
+  todayIso,
+  rangeDays,
+  brandName,
+  userQuery,
+  snippetsCorpus,
+) {
+  const request = (userQuery || "").trim()
+    || `investigar sobre campañas recientes de ${brandName}`;
+  const technicalTask = (
+    `Today is ${todayIso}. Single brand research study: "${brandName}". Scan window: past ${rangeDays} days.\n\n`
+    + `SOLICITUD DEL USUARIO (responde esto con los snippets):\n"${request}"\n\n`
+    + "Web search snippets (ONLY source of truth):\n\n"
+    + `${snippetsCorpus}\n\n`
+    + `Produce the JSON report for "${brandName}". Prioridad: deepReport que responda la solicitud del usuario.`
+  );
+  return buildGroqUserPrompt(technicalTask, "brand-deep", brandName);
+}
+
+/**
+ * @param {{ title?: string, snippet?: string }} snippet
+ * @param {string} brandName
+ */
+function snippetMentionsBrand(snippet, brandName) {
+  const haystack = `${snippet?.title || ""} ${snippet?.snippet || ""}`.toLowerCase();
+  const brand = brandName.trim().toLowerCase();
+  if (!brand) return false;
+  return haystack.includes(brand);
+}
+
+/**
+ * @param {Array<{ title?: string, snippet?: string, link?: string }>} snippets
+ * @param {string} brandName
+ * @param {string} userQuery
+ */
+function buildSnippetFallbackReport(snippets, brandName, userQuery) {
+  const relevant = snippets.filter((s) => snippetMentionsBrand(s, brandName));
+  const list = relevant.length ? relevant : snippets.slice(0, 8);
+  const intro = userQuery.trim()
+    ? `Informe compilado desde fuentes web para: ${userQuery.trim()}\n\n`
+    : `Informe compilado desde fuentes web sobre ${brandName}.\n\n`;
+  const body = list.map((s, i) => (
+    `${i + 1}. ${(s.title || "Fuente").trim()}\n${(s.snippet || "").trim()}\nFuente: ${s.link || ""}`
+  )).join("\n\n");
+  return `${intro}${body}`.trim();
+}
+
+/**
+ * Report-first normalizer for Intel Campaign deep scan (NOT Horizon rules).
+ * @param {unknown} raw
+ * @param {{ snippets: Array<{ title?: string, snippet?: string, link?: string }>, todayIso: string, brandName: string, userQuery?: string }} ctx
+ */
+export function normalizeBrandResearchReport(raw, ctx) {
+  const brandName = ctx.brandName.trim();
+  const snippets = ctx.snippets || [];
+  const userQuery = (ctx.userQuery || "").trim();
+
+  let overview = typeof raw?.overview === "string" ? raw.overview.trim() : "";
+  let deepReport = typeof raw?.deepReport === "string" ? raw.deepReport.trim() : "";
+
+  if (!deepReport && snippets.length > 0) {
+    deepReport = buildSnippetFallbackReport(snippets, brandName, userQuery);
+  }
+  if (!overview && deepReport) {
+    overview = deepReport.split("\n\n").find((p) => p.trim())?.slice(0, 400) || "";
+  }
+  if (!overview && snippets.length > 0) {
+    overview = `Informe de campañas recientes de ${brandName} basado en ${snippets.length} fuentes web consultadas.`;
+  }
+
+  const launchDate = parseIsoDate(raw?.launchDate);
+  const announcementDate = parseIsoDate(raw?.announcementDate);
+  const campaignActive = raw?.campaignActive === true
+    || Boolean(launchDate && launchDate > ctx.todayIso);
+  const detectionMode = raw?.detectionMode === "confirmed_campaign"
+    ? "confirmed_campaign"
+    : "research_report";
+
+  let evidenceUrl = typeof raw?.evidenceUrl === "string" ? raw.evidenceUrl.trim() : "";
+  if (!evidenceUrl || !evidenceUrlInSnippets(snippets, evidenceUrl)) {
+    const first = snippets.find((s) => snippetMentionsBrand(s, brandName)) || snippets[0];
+    evidenceUrl = (first?.link || "").trim();
+  }
+
+  const evidenceQuote = typeof raw?.evidenceQuote === "string"
+    ? raw.evidenceQuote.trim().slice(0, 200)
+    : "";
+
+  const launchSignals = Array.isArray(raw?.launchSignals)
+    ? raw.launchSignals
+      .map((sig) => {
+        const url = typeof sig?.url === "string" ? sig.url.trim() : "";
+        if (!url || !evidenceUrlInSnippets(snippets, url)) return null;
+        return {
+          phrase: typeof sig?.phrase === "string" ? sig.phrase.trim() : "",
+          dateHint: parseIsoDate(sig?.dateHint),
+          url,
+          quote: typeof sig?.quote === "string" ? sig.quote.trim().slice(0, 200) : "",
+        };
+      })
+      .filter(Boolean)
+    : [];
+
+  const confidence = Number(raw?.confidence);
+
+  return {
+    brandName,
+    detectionMode,
+    campaignActive: Boolean(campaignActive),
+    announcementDate,
+    launchDate,
+    lastLaunchDate: parseIsoDate(raw?.lastLaunchDate),
+    averageIntervalMonths: null,
+    overview,
+    deepReport,
+    confidence: Number.isFinite(confidence) ? Math.round(confidence) : null,
+    evidenceUrl: evidenceUrl || null,
+    evidenceQuote,
+    category: null,
+    ticketTier: null,
+    cadenceStatus: null,
+    cadenceMessage: null,
+    launchSignals,
+  };
+}
+
+/**
+ * @param {unknown} raw
+ * @param {{ snippets: Array<{ link?: string }>, todayIso: string, rangeDays: number, brandName: string }} ctx
+ */
+export function normalizeDeepBrandResult(raw, ctx) {
+  const brandName = ctx.brandName.trim();
+  const detectionMode = raw?.detectionMode === "confirmed_campaign"
+    ? "confirmed_campaign"
+    : raw?.detectionMode === "cadence_only"
+      ? "cadence_only"
+      : "no_data";
+
+  const overview = typeof raw?.overview === "string" ? raw.overview.trim() : "";
+  const deepReport = typeof raw?.deepReport === "string" ? raw.deepReport.trim() : "";
+  const confidence = Number(raw?.confidence);
+
+  if (detectionMode === "no_data" || !overview) {
+    return {
+      brandName,
+      detectionMode: "no_data",
+      campaignActive: false,
+      announcementDate: null,
+      launchDate: null,
+      lastLaunchDate: null,
+      averageIntervalMonths: null,
+      overview: overview || `Sin evidencia web verificada de campaña para ${brandName}.`,
+      deepReport: deepReport || "",
+      confidence: 0,
+      evidenceUrl: null,
+      evidenceQuote: "",
+      category: null,
+      ticketTier: null,
+      cadenceStatus: "no_data",
+      cadenceMessage: null,
+      launchSignals: [],
+      citations: [],
+    };
+  }
+
+  const evidenceUrl = typeof raw?.evidenceUrl === "string" ? raw.evidenceUrl.trim() : "";
+  if (!evidenceUrl || !evidenceUrlInSnippets(ctx.snippets, evidenceUrl)) {
+    return {
+      brandName,
+      detectionMode: "no_data",
+      campaignActive: false,
+      overview: overview || `Sin URL de evidencia verificada para ${brandName}.`,
+      deepReport,
+      confidence: 0,
+      evidenceUrl: null,
+      cadenceStatus: "no_data",
+      launchSignals: [],
+      citations: [],
+    };
+  }
+
+  const evidenceQuote = typeof raw?.evidenceQuote === "string"
+    ? raw.evidenceQuote.trim().slice(0, 200)
+    : "";
+
+  const launchSignals = Array.isArray(raw?.launchSignals)
+    ? raw.launchSignals
+      .map((sig) => {
+        const url = typeof sig?.url === "string" ? sig.url.trim() : "";
+        if (!url || !evidenceUrlInSnippets(ctx.snippets, url)) return null;
+        return {
+          phrase: typeof sig?.phrase === "string" ? sig.phrase.trim() : "",
+          dateHint: parseIsoDate(sig?.dateHint),
+          url,
+          quote: typeof sig?.quote === "string" ? sig.quote.trim().slice(0, 200) : "",
+        };
+      })
+      .filter(Boolean)
+    : [];
+
+  if (detectionMode === "confirmed_campaign") {
+    if (!Number.isFinite(confidence) || confidence < CONFIDENCE_MIN_CAMPAIGN) {
+      return { rejectReason: "low_confidence_campaign" };
+    }
+    const launchDate = parseIsoDate(raw?.launchDate);
+    if (!launchDate || launchDate <= ctx.todayIso) {
+      return { rejectReason: "invalid_launch_date" };
+    }
+    const announcementDate = parseIsoDate(raw?.announcementDate);
+    const avg = raw?.averageIntervalMonths != null ? Number(raw.averageIntervalMonths) : null;
+    return {
+      hit: {
+        brandName,
+        detectionMode: "confirmed_campaign",
+        campaignActive: true,
+        announcementDate,
+        launchDate,
+        lastLaunchDate: parseIsoDate(raw?.lastLaunchDate),
+        averageIntervalMonths: Number.isFinite(avg) && avg > 0 ? Math.round(avg * 10) / 10 : null,
+        overview,
+        deepReport,
+        confidence: Math.round(confidence),
+        evidenceUrl,
+        evidenceQuote,
+        category: typeof raw?.category === "string" ? raw.category.trim().toLowerCase() : "other",
+        ticketTier: typeof raw?.ticketTier === "string" ? raw.ticketTier.trim().toLowerCase() : "medium",
+        cadenceStatus: null,
+        cadenceMessage: null,
+        launchSignals,
+      },
+      rejectReason: null,
+    };
+  }
+
+  if (detectionMode === "cadence_only") {
+    if (!Number.isFinite(confidence) || confidence < CONFIDENCE_MIN_CADENCE) {
+      return { rejectReason: "low_confidence_cadence" };
+    }
+    const avg = Number(raw?.averageIntervalMonths);
+    const lastLaunchDate = parseIsoDate(raw?.lastLaunchDate);
+    if (!Number.isFinite(avg) || avg <= 0 || !lastLaunchDate) {
+      return { rejectReason: "invalid_cadence_fields" };
+    }
+    const windowHit = {
+      brandName,
+      detectionMode: "cadence_only",
+      campaignActive: false,
+      announcementDate: null,
+      launchDate: null,
+      lastLaunchDate,
+      averageIntervalMonths: Math.round(avg * 10) / 10,
+      overview,
+      deepReport,
+      confidence: Math.round(confidence),
+      evidenceUrl,
+      evidenceQuote,
+      category: typeof raw?.category === "string" ? raw.category.trim().toLowerCase() : "other",
+      ticketTier: typeof raw?.ticketTier === "string" ? raw.ticketTier.trim().toLowerCase() : "medium",
+      launchSignals,
+    };
+    return {
+      hit: enrichCadenceHit(windowHit, ctx.todayIso, ctx.rangeDays),
+      rejectReason: null,
+    };
+  }
+
+  return {
+    hit: {
+      brandName,
+      detectionMode: "no_data",
+      campaignActive: false,
+      overview,
+      deepReport,
+      confidence: Number.isFinite(confidence) ? Math.round(confidence) : 0,
+      evidenceUrl,
+      evidenceQuote,
+      cadenceStatus: "no_data",
+      launchSignals,
+    },
+    rejectReason: null,
+  };
+}
+
+/**
  * Loose brand name match for single-brand detection.
  * @param {string|null|undefined} hitName
  * @param {string} targetName
@@ -255,3 +545,44 @@ export function filterVerifiedHorizonResults(rawList, ctx) {
 }
 
 export { ISO_DATE };
+
+export const SYSTEM_PROMPT_BRAND_RESEARCH = `You are a single-brand campaign research analyst for Futura Nota. Answer the user's request using ONLY the provided web search snippets. Never invent dates, products, or URLs.
+
+Respond ONLY with valid JSON. No markdown.
+Schema: {
+  "overview": string,
+  "deepReport": string,
+  "campaignActive": boolean,
+  "announcementDate": "YYYY-MM-DD"|null,
+  "launchDate": "YYYY-MM-DD"|null,
+  "detectionMode": "research_report" | "confirmed_campaign",
+  "launchSignals": [{
+    "phrase": string,
+    "dateHint": "YYYY-MM-DD"|null,
+    "url": string,
+    "quote": string
+  }],
+  "citations": [{
+    "title": string,
+    "url": string,
+    "snippet": string,
+    "sourceType": "official"|"news"|"blog"
+  }],
+  "confidence": number|null,
+  "evidenceUrl": string,
+  "evidenceQuote": string
+}
+
+Rules:
+- Ignore other brands unless the snippet compares them to the target brand.
+- Respond to the user's request (SOLICITUD DEL USUARIO) in overview and deepReport.
+- overview: 2-3 sentences in Spanish, grounded ONLY in snippets.
+- deepReport: multi-paragraph Spanish report; MUST NOT be empty when snippets mention the brand.
+- detectionMode "confirmed_campaign" only when snippet shows explicit future launch or active pre-order; otherwise "research_report".
+- campaignActive / launchDate: optional metadata; do not skip the report when uncertain.
+- evidenceUrl: copy from a snippet link; evidenceQuote max 200 chars from that snippet.
+- launchSignals: when snippet contains launch phrasing (ES/EN).
+- citations: up to 10; each url MUST exist in snippet links.`;
+
+/** @deprecated Use SYSTEM_PROMPT_BRAND_RESEARCH — kept for reference only */
+export const SYSTEM_PROMPT_BRAND_DEEP = SYSTEM_PROMPT_BRAND_RESEARCH;
