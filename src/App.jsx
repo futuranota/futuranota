@@ -19,6 +19,7 @@ import {
   usePlanStore,
   useUpgradeModalStore,
   FREE_LIMITS,
+  formatTokenCount,
 } from './stores/index.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -186,8 +187,10 @@ function Dashboard({ company, onBack }) {
   const prevTimelineAlertsEnabled = useRef(false);
   const planProfile = usePlanStore((s) => s.profile);
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
-  const tokenCurrent = planProfile.plan === "pro" ? 0 : planProfile.searchCount;
-  const tokenMax = planProfile.plan === "pro" ? Infinity : FREE_LIMITS.maxSearches;
+  const tokenRemaining = usePlanStore((s) => s.getTokensRemaining());
+  const tokenCap = usePlanStore((s) => s.getTokensCap());
+  const tokenCurrent = formatTokenCount(tokenRemaining);
+  const tokenMax = formatTokenCount(tokenCap);
 
   const metaBarMetadata = useMemo(
     () =>
@@ -738,16 +741,7 @@ useEffect(() => {
             addedIds={[]}
             loadingIds={[]}
             onGetOverview={() => {
-              const { profile } = usePlanStore.getState();
-              if (profile.plan === "free" && profile.searchCount >= FREE_LIMITS.maxSearches) {
-                showUpgradeModal("search");
-                return;
-              }
-              if (profile.plan === "free") {
-                usePlanStore.getState().incrementSearchCount();
-              }
-              // Nota: la búsqueda/overview real con IA aún no está implementada (era un no-op);
-              // este gate solo aplica el tope de 10, la lógica de fetch queda pendiente.
+              showUpgradeModal("search");
             }}
             onScanBlogs={scanBlogs}
             hasScannedBlogs={hasScannedBlogs}

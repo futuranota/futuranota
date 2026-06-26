@@ -1,4 +1,4 @@
-import { completeJson } from "./llmJson.js";
+import { completeJson, describeLlmUnavailable } from "./llmJson.js";
 import { searchWebMulti } from "./discovery/serpApiSearch.js";
 import { buildBrandCampaignQueries } from "./discovery/brandLaunchQueries.js";
 import { buildBrandCadenceQueries } from "./discovery/cadenceQueries.js";
@@ -145,8 +145,8 @@ export async function detectBrandIntel(brandName, { rangeDays = 90, sources: cli
   const llmCadence = await completeJson(cadencePrompt, { system: SYSTEM_PROMPT_HORIZON_EXTRACT });
   if (!llmCadence) {
     return {
-      ...noDataResult(name, "No hay LLM configurado (GROQ_API_KEY). No se inventan datos.", "serper"),
-      error: "No hay LLM configurado (GROQ_API_KEY).",
+      ...noDataResult(name, describeLlmUnavailable(), "serper"),
+      error: describeLlmUnavailable(),
       noData: true,
     };
   }

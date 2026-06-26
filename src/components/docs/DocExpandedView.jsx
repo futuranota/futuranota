@@ -4,7 +4,8 @@ import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
-import { usePlanStore, FREE_LIMITS } from "../../stores/planStore.js";
+import { usePlanStore } from "../../stores/planStore.js";
+import { getPlanLimits } from "../../lib/planConfig.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { normalizeKnowledgeImport } from "../../lib/knowledgeImport.js";
 import { Modal } from "../shared/Modal.jsx";
@@ -866,12 +867,13 @@ export function DocExpandedView({
 
   const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
     const incomingBytes = normalizeKnowledgeImport(nextImport)?.sizeBytes || 0;
-    if (planProfile.plan === "free" && incomingBytes > 0) {
+    const maxBytes = getPlanLimits(planProfile.plan).maxImportBytes;
+    if (incomingBytes > 0) {
       const totalBytes = Object.values(allDocs).reduce((sum, d) => {
         if (d.id === docId) return sum;
         return sum + (normalizeKnowledgeImport(d.knowledgeImport)?.sizeBytes || 0);
       }, 0);
-      if (totalBytes + incomingBytes > FREE_LIMITS.maxImportBytes) {
+      if (totalBytes + incomingBytes > maxBytes) {
         showUpgradeModal("import_size");
         return;
       }

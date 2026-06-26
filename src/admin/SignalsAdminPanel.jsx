@@ -18,7 +18,7 @@ const EMPTY_FORM = {
   nodes: [{ hash: '', text: '' }],
 };
 
-export function SignalsAdminPanel() {
+export function SignalsAdminPanel({ refreshToken = 0 }) {
   const [signals, setSignals] = useState([]);
   const [loadingList, setLoadingList] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -40,7 +40,7 @@ export function SignalsAdminPanel() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [refreshToken]);
 
   function startCreate() {
     setEditId(null);

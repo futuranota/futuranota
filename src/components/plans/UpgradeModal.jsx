@@ -9,6 +9,9 @@ const REASON_MESSAGE_KEYS = {
   calendar: "upgrade.reasonCalendar",
   weather: "upgrade.reasonWeather",
   search: "upgrade.reasonSearch",
+  tokens: "upgrade.reasonTokens",
+  campaign_frozen: "upgrade.reasonCampaignFrozen",
+  export: "upgrade.reasonExport",
   generic: "upgrade.reasonGeneric",
 };
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatWindowDays } from '../lib/docMetaBar.js';
 
 function detectionBadge(mode, cadenceStatus) {
@@ -16,12 +17,33 @@ function detectionBadge(mode, cadenceStatus) {
 /**
  * Shared campaign review form for Horizon Scan / Campaign Detector.
  */
-export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel, saving, editId }) {
+export function CampaignSignalForm({
+  fields,
+  onFieldsChange,
+  onSubmit,
+  onCancel,
+  saving,
+  editId,
+  submitLabel,
+  saveError,
+}) {
+  const [localError, setLocalError] = useState('');
   const setField = (key, value) => onFieldsChange((p) => ({ ...p, [key]: value }));
   const badge = detectionBadge(fields.detectionMode, fields.cadenceStatus);
+  const displayError = saveError || localError;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLocalError('');
+    if (!fields.brandName?.trim()) {
+      setLocalError('Ingresá el nombre de la compañía.');
+      return;
+    }
+    await onSubmit(e);
+  }
 
   return (
-    <form className="admin-card" onSubmit={onSubmit}>
+    <form className="admin-card" onSubmit={handleSubmit} noValidate>
       <h3 className="h4" style={{ marginBottom: 4 }}>
         DOC
         {badge ? <span className={badge.className} style={{ marginLeft: 8 }}>{badge.label}</span> : null}
@@ -32,6 +54,10 @@ export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel,
       <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
         Datos extraídos de fuentes web — revisá fechas y overview antes de guardar.
       </p>
+
+      {displayError ? (
+        <div className="admin-error" style={{ marginBottom: 12 }}>{displayError}</div>
+      ) : null}
 
       {fields.cadenceMessage ? (
         <p className="muted" style={{ fontSize: 13, marginBottom: 12, color: 'var(--hud)' }}>
@@ -66,7 +92,7 @@ export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel,
 
         <div className="admin-field">
           <span>Campaign</span>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div className="admin-segmented">
             <button
               type="button"
               className={`btn btn-sm ${fields.campaignActive ? 'btn-primary' : 'btn-ghost'}`}
@@ -100,7 +126,7 @@ export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel,
             className="auth-split-input"
             type="date"
             value={fields.launchDate}
-            disabled={!fields.campaignActive}
+            disabled={!fields.campaignActive && fields.detectionMode !== 'cadence_only'}
             onChange={(e) => setField('launchDate', e.target.value)}
           />
         </label>
@@ -108,7 +134,9 @@ export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel,
         <div className="admin-field">
           <span>Window</span>
           <span className="muted" style={{ fontSize: 13 }}>
-            {fields.launchDate ? formatWindowDays(new Date(), fields.launchDate) : '—'}
+            {(fields.launchDate || fields.estimatedLaunchDate)
+              ? formatWindowDays(new Date(), fields.launchDate || fields.estimatedLaunchDate)
+              : '—'}
           </span>
         </div>
       </div>
@@ -140,9 +168,11 @@ export function CampaignSignalForm({ fields, onFieldsChange, onSubmit, onCancel,
 
       <div className="admin-form-actions">
         <button type="submit" className="btn btn-primary btn-sm" disabled={saving}>
-          {saving ? 'Saving…' : editId ? 'Save changes' : 'Save signal'}
+          {saving ? 'Publicando…' : (submitLabel || (editId ? 'Save changes' : 'Save signal'))}
         </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={saving}>
+          Cancel
+        </button>
       </div>
     </form>
   );

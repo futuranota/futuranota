@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { usePlanStore } from "../stores/planStore.js";
 import { PRICING_PLANS_DEFAULT, planBullets } from "../marketing/lib/pricingDefaults.js";
+import { PlanUsagePanel } from "../components/plans/PlanUsagePanel.jsx";
 import { useI18n } from "../i18n/useI18n.js";
 
 export function PlansPage() {
@@ -18,6 +19,10 @@ export function PlansPage() {
       <p>
         {t("plans.currentLabel")}: <strong>{profile.plan === "pro" ? t("plans.pro") : t("plans.free")}</strong>
       </p>
+
+      <div style={{ marginTop: 16, marginBottom: 24 }}>
+        <PlanUsagePanel />
+      </div>
 
       <div className="plans-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginTop: 16 }}>
         {PRICING_PLANS_DEFAULT.map((plan) => (

@@ -5,14 +5,12 @@ import {
   EMPTY_CAMPAIGN_SIGNAL_FIELDS,
   campaignSignalFieldsFromDetection,
   campaignSignalFieldsFromRow,
-  campaignSignalFieldsToPayload,
 } from '../lib/campaignSignalFields.js';
 import {
   fetchPendingCampaignSignals,
-  createCampaignSignal,
-  updateCampaignSignal,
   deleteCampaignSignal,
   promoteCampaignSignal,
+  saveAndPublishCampaignFields,
 } from '../lib/campaignSignals.js';
 import { CampaignSignalForm } from './CampaignSignalForm.jsx';
 import { CampaignSignalList } from './CampaignSignalList.jsx';
@@ -24,12 +22,13 @@ const RANGE_OPTIONS = [
   { label: '120 días (4 meses)', days: 120 },
 ];
 
-export function HorizonScanAdminPanel() {
+export function HorizonScanAdminPanel({ onPublishedToSignals }) {
   const [rangeDays, setRangeDays] = useState(90);
   const [industry, setIndustry] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
   const [hits, setHits] = useState([]);
+  const [discardedHits, setDiscardedHits] = useState([]);
   const [scanMeta, setScanMeta] = useState(null);
   const [scanSources, setScanSources] = useState([]);
   const [savedBrands, setSavedBrands] = useState([]);
@@ -66,6 +65,7 @@ export function HorizonScanAdminPanel() {
     setScanError(null);
     setScanMeta(null);
     setHits([]);
+    setDiscardedHits([]);
     setSavedBrands([]);
     setScanning(true);
     try {
@@ -75,6 +75,7 @@ export function HorizonScanAdminPanel() {
         sources: scanSources.filter((s) => s.enabled !== false),
       });
       setHits(response.companies || []);
+      setDiscardedHits(response.discardedCompanies || []);
       setScanMeta(response.meta || null);
       if (response.meta?.error) {
         setScanError(response.meta.error);
@@ -88,6 +89,7 @@ export function HorizonScanAdminPanel() {
 
   function loadHitIntoPreview(hit) {
     setEditId(null);
+    setErrorMessage(null);
     setFields(campaignSignalFieldsFromDetection(hit.brandName, hit));
     setHasPreview(true);
   }
@@ -107,18 +109,18 @@ export function HorizonScanAdminPanel() {
   async function handleSave(e) {
     e.preventDefault();
     setErrorMessage(null);
-    const payload = campaignSignalFieldsToPayload(fields);
+    setPublishNotice(null);
 
     setSaving(true);
     try {
-      if (editId) {
-        await updateCampaignSignal(editId, payload);
-      } else {
-        await createCampaignSignal(payload);
-        setSavedBrands((prev) => [...prev, payload.brand_name]);
-      }
+      const signal = await saveAndPublishCampaignFields(fields, editId);
+      const brandName = signal.brand_name || fields.brandName.trim();
+      setHits((prev) => prev.filter((h) => h.brandName !== brandName));
+      setDiscardedHits((prev) => prev.filter((h) => h.brandName !== brandName));
+      setSavedBrands((prev) => prev.filter((b) => b !== brandName));
       cancelPreview();
       await load();
+      onPublishedToSignals?.(brandName);
     } catch (err) {
       setErrorMessage(err.message);
     } finally {
@@ -134,6 +136,7 @@ export function HorizonScanAdminPanel() {
       if (!signal) return;
       await promoteCampaignSignal(signal);
       setHits((prev) => prev.filter((h) => h.brandName !== signal.brand_name));
+      setDiscardedHits((prev) => prev.filter((h) => h.brandName !== signal.brand_name));
       setSavedBrands((prev) => prev.filter((b) => b !== signal.brand_name));
       setPublishNotice(`${signal.brand_name} published to Signals — removed from scan queue.`);
       await load();
@@ -155,6 +158,63 @@ export function HorizonScanAdminPanel() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  function renderHitRow(hit) {
+    const saved = savedBrands.includes(hit.brandName);
+    const modeLabel = hit.detectionMode === 'confirmed_campaign'
+      ? 'verified'
+      : hit.detectionMode === 'cadence_only'
+        ? 'cadence'
+        : null;
+    const isLongWindow = hit.detectionMode === 'cadence_only' && hit.cadenceStatus === 'discard';
+
+    return (
+      <div className="admin-card admin-card--row" key={`${hit.brandName}-${hit.evidenceUrl || hit.source || hit.cadenceStatus}`}>
+        <div className="admin-card__main">
+          <p className="admin-card__title">
+            {hit.brandName}
+            {modeLabel === 'verified' ? <span className="pill ai" style={{ marginLeft: 8 }}>verified ≥80</span> : null}
+            {modeLabel === 'cadence' && !isLongWindow ? (
+              <span className="pill" style={{ marginLeft: 8 }}>
+                {hit.cadenceStatus === 'watch'
+                  ? `pendiente ~${hit.monthsRemaining}mo`
+                  : 'cadence ≥70'}
+              </span>
+            ) : null}
+            {isLongWindow ? (
+              <span className="pill" style={{ marginLeft: 8 }}>ventana larga · ~{hit.monthsRemaining}mo</span>
+            ) : null}
+            {hit.campaignActive ? <span className="pill" style={{ marginLeft: 8 }}>campaign active</span> : null}
+            {saved ? <span className="pill ai" style={{ marginLeft: 8 }}>saved</span> : null}
+          </p>
+          <p className="muted" style={{ fontSize: 12, margin: '2px 0 0' }}>
+            {hit.category || 'sin categoría'}
+            {hit.announcementDate ? ` · announce ${hit.announcementDate}` : ''}
+            {hit.launchDate ? ` · launch ${hit.launchDate}` : hit.estimatedLaunchDate ? ` · est. ${hit.estimatedLaunchDate}` : ''}
+            {hit.confidence != null ? ` · conf ${hit.confidence}` : ''}
+          </p>
+          <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>{hit.overview || hit.cadenceMessage}</p>
+          {hit.evidenceUrl ? (
+            <p style={{ fontSize: 11, margin: '4px 0 0' }}>
+              <a href={hit.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--hud)' }}>
+                fuente
+              </a>
+            </p>
+          ) : null}
+        </div>
+        <div className="admin-card__actions">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={saved}
+            onClick={() => loadHitIntoPreview(hit)}
+          >
+            {saved ? 'Reviewed' : 'Review'}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -208,7 +268,7 @@ export function HorizonScanAdminPanel() {
         <p className="muted" style={{ fontSize: 13, marginTop: 8, color: 'var(--hud)' }}>{publishNotice}</p>
       ) : null}
 
-      {!scanning && hits.length === 0 && !scanError ? (
+      {!scanning && hits.length === 0 && discardedHits.length === 0 && !scanError ? (
         <p className="muted">Corré un scan para descubrir compañías fuera de tu dashboard.</p>
       ) : null}
 
@@ -228,76 +288,23 @@ export function HorizonScanAdminPanel() {
         </p>
       ) : null}
 
-      {scanMeta?.cadenceDiscardedBrands?.length > 0 ? (
-        <details style={{ marginTop: 8 }}>
-          <summary className="muted" style={{ fontSize: 12, cursor: 'pointer' }}>
-            {scanMeta.cadenceDiscardedBrands.length} marcas con ventana larga (podés descartar)
-          </summary>
-          <ul className="muted" style={{ fontSize: 12, marginTop: 6, paddingLeft: 18 }}>
-            {scanMeta.cadenceDiscardedBrands.map((d) => (
-              <li key={d.brandName}>
-                {d.brandName}
-                {d.monthsRemaining != null ? ` · ~${d.monthsRemaining}mo` : ''}
-                {d.cadenceMessage ? ` — ${d.cadenceMessage}` : ''}
-              </li>
-            ))}
-          </ul>
-        </details>
+      {discardedHits.length > 0 ? (
+        <>
+          <h3 className="h4" style={{ marginTop: 16, marginBottom: 8 }}>
+            Ventana larga — podés descartar ({discardedHits.length})
+          </h3>
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+            Revisá con <strong>Review</strong> para ver fechas, overview y enviar a Signals si querés guardarlo igual.
+          </p>
+          <div className="admin-list">
+            {discardedHits.map((hit) => renderHitRow(hit))}
+          </div>
+        </>
       ) : null}
 
       {hits.length > 0 ? (
         <div className="admin-list">
-          {hits.map((hit) => {
-            const saved = savedBrands.includes(hit.brandName);
-            const modeLabel = hit.detectionMode === 'confirmed_campaign'
-              ? 'verified'
-              : hit.detectionMode === 'cadence_only'
-                ? 'cadence'
-                : null;
-            return (
-              <div className="admin-card admin-card--row" key={`${hit.brandName}-${hit.evidenceUrl || hit.source}`}>
-                <div className="admin-card__main">
-                  <p className="admin-card__title">
-                    {hit.brandName}
-                    {modeLabel === 'verified' ? <span className="pill ai" style={{ marginLeft: 8 }}>verified ≥80</span> : null}
-                    {modeLabel === 'cadence' ? (
-                      <span className="pill" style={{ marginLeft: 8 }}>
-                        {hit.cadenceStatus === 'watch'
-                          ? `pendiente ~${hit.monthsRemaining}mo`
-                          : 'cadence ≥70'}
-                      </span>
-                    ) : null}
-                    {hit.campaignActive ? <span className="pill" style={{ marginLeft: 8 }}>campaign active</span> : null}
-                    {saved ? <span className="pill ai" style={{ marginLeft: 8 }}>saved</span> : null}
-                  </p>
-                  <p className="muted" style={{ fontSize: 12, margin: '2px 0 0' }}>
-                    {hit.category || 'sin categoría'}
-                    {hit.announcementDate ? ` · announce ${hit.announcementDate}` : ''}
-                    {hit.launchDate ? ` · launch ${hit.launchDate}` : ''}
-                    {hit.confidence != null ? ` · conf ${hit.confidence}` : ''}
-                  </p>
-                  <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>{hit.overview}</p>
-                  {hit.evidenceUrl ? (
-                    <p style={{ fontSize: 11, margin: '4px 0 0' }}>
-                      <a href={hit.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--hud)' }}>
-                        fuente
-                      </a>
-                    </p>
-                  ) : null}
-                </div>
-                <div className="admin-card__actions">
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    disabled={saved}
-                    onClick={() => loadHitIntoPreview(hit)}
-                  >
-                    {saved ? 'Reviewed' : 'Review'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          {hits.map((hit) => renderHitRow(hit))}
         </div>
       ) : null}
 
@@ -309,12 +316,14 @@ export function HorizonScanAdminPanel() {
           onCancel={cancelPreview}
           saving={saving}
           editId={editId}
+          submitLabel={editId ? 'Guardar y enviar a Signals' : 'Guardar → Signals'}
+          saveError={hasPreview ? errorMessage : null}
         />
       ) : null}
 
       <h3 className="h4" style={{ margin: '24px 0 8px' }}>Cola de revisión</h3>
       <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
-        Guardá un hallazgo, revisalo y publicalo a Signals. Al publicar desaparece de esta cola.
+        Guardá un hallazgo para publicarlo en Signals (Hero + Librería). Al guardar te llevamos a la pestaña Signals.
       </p>
       <CampaignSignalList
         signals={signals}

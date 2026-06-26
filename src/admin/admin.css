@@ -7,6 +7,10 @@
 
 .admin-shell {
   min-height: 100vh;
+  --admin-blue: #7ec8ff;
+  --admin-blue-strong: #b3deff;
+  --admin-blue-soft: rgba(126, 200, 255, 0.14);
+  --admin-blue-border: rgba(126, 200, 255, 0.45);
 }
 
 .admin-topbar {
@@ -38,31 +42,52 @@
 .admin-tabs {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 160px;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 180px;
 }
 
 .admin-tabs__btn {
   text-align: left;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: transparent;
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  color: var(--muted);
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.admin-tabs__btn:hover {
   color: var(--text);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .admin-tabs__btn.is-active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
+  background: var(--admin-blue-soft);
+  border-color: var(--admin-blue-border);
+  color: var(--admin-blue);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(126, 200, 255, 0.12) inset;
 }
 
 .admin-content {
   flex: 1;
   min-width: 0;
+}
+
+/* Keep scan panels mounted so results survive tab switches */
+.admin-panel-view.is-hidden {
+  display: none;
 }
 
 .admin-panel__head {
@@ -155,16 +180,28 @@
 .admin-form-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
-/* Bigger, higher-contrast buttons inside /panel — the marketing .btn defaults
-   to var(--text), which can land dark-on-dark depending on the global theme
-   var state. Force light text + larger hit area, scoped to admin only. */
+/* Segmented toggles (Active / inactive, etc.) */
+.admin-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-segmented .btn {
+  min-width: 88px;
+  justify-content: center;
+}
+
+/* Admin buttons — pill wrap like marketing .btn defaults, visible on dark canvas */
 .admin-shell .btn {
   min-height: 38px;
   padding: 10px 18px;
   font-size: 14px;
-  color: #fff;
+  border-radius: 999px;
+  border: 1px solid var(--line);
 }
 
 .admin-shell .btn.btn-sm {
@@ -174,19 +211,35 @@
 }
 
 .admin-shell .btn-ghost {
-  color: #f5f5f5;
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--line);
 }
 
 .admin-shell .btn-ghost:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .admin-shell .btn-primary {
-  color: #fff;
+  background: var(--admin-blue-soft);
+  border-color: var(--admin-blue-border);
+  color: var(--admin-blue);
+}
+
+.admin-shell .btn-primary:hover {
+  background: rgba(126, 200, 255, 0.22);
+  border-color: var(--admin-blue);
+  color: var(--admin-blue-strong);
+  transform: translateY(-1px);
+}
+
+.admin-shell .btn-primary:disabled,
+.admin-shell .btn-ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
 }
 
 @media (max-width: 720px) {
@@ -195,6 +248,11 @@
   }
   .admin-tabs {
     flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .admin-tabs__btn {
+    width: auto;
   }
   .admin-form-grid {
     grid-template-columns: 1fr;

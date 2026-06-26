@@ -5,6 +5,10 @@ import { createBrandCadenceMiddleware } from './server/brandCadenceHandler.js';
 import { createTranslateMiddleware } from './server/translateHandler.js';
 import { createCampaignDetectorMiddleware } from './server/campaignDetectorHandler.js';
 import { createHorizonScanMiddleware } from './server/horizonScanHandler.js';
+import { createCampaignStudyMiddleware } from './server/campaignStudyHandler.js';
+import { createIntelOverviewMiddleware } from './server/intelOverviewHandler.js';
+import { createWeatherForecastMiddleware } from './server/weatherHandler.js';
+import { createIntegrationsHealthMiddleware } from './server/integrationsHealthHandler.js';
 
 function brandCadenceApiPlugin(env) {
   return {
@@ -19,6 +23,10 @@ function brandCadenceApiPlugin(env) {
       server.middlewares.use(createTranslateMiddleware());
       server.middlewares.use(createCampaignDetectorMiddleware());
       server.middlewares.use(createHorizonScanMiddleware());
+      server.middlewares.use(createCampaignStudyMiddleware());
+      server.middlewares.use(createIntelOverviewMiddleware());
+      server.middlewares.use(createWeatherForecastMiddleware());
+      server.middlewares.use(createIntegrationsHealthMiddleware());
     },
   };
 }

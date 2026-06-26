@@ -1,20 +1,32 @@
 import { useEffect, useState } from "react";
 import { fetchSignalCompanies } from "../lib/fetchSignalCompanies.js";
+import { fetchCampaignStudy } from "../lib/fetchCampaignStudy.js";
 
 export function CompanySelectorPage({ onSelect, onBack }) {
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [picked, setPicked] = useState(null);
+  const [cachedBrands, setCachedBrands] = useState({});
   const [filter, setFilter] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     fetchSignalCompanies()
-      .then((list) => {
+      .then(async (list) => {
         if (cancelled) return;
         setCompanies(list);
         setPicked(list[0]?.id ?? null);
+        const cacheMap = {};
+        await Promise.all(list.slice(0, 12).map(async (c) => {
+          try {
+            const study = await fetchCampaignStudy({ brandName: c.name });
+            if (study) cacheMap[c.name] = study;
+          } catch {
+            /* ignore per-brand cache errors */
+          }
+        }));
+        if (!cancelled) setCachedBrands(cacheMap);
       })
       .catch((err) => {
         if (!cancelled) setLoadError(err.message);
@@ -67,6 +79,14 @@ export function CompanySelectorPage({ onSelect, onBack }) {
                 <span className="co-name">{c.name}</span>
                 <span className="pill" style={{
                   padding: "1px 6px", fontSize: 9.5,
+                  color: cachedBrands[c.name] ? "var(--hud)" : "var(--dim)",
+                  background: cachedBrands[c.name] ? "var(--hud-soft)" : "var(--panel-3)",
+                  borderColor: cachedBrands[c.name] ? "color-mix(in oklab,var(--hud) 30%,transparent)" : "var(--glass-border)",
+                }}>
+                  {cachedBrands[c.name] ? "cached · 0 tok" : "library · 0 tok"}
+                </span>
+                <span className="pill" style={{
+                  padding: "1px 6px", fontSize: 9.5,
                   color: c.status === "ACTIVE" ? "var(--hud)" : c.status === "STANDBY" ? "var(--warm)" : "var(--dim)",
                   background: c.status === "ACTIVE" ? "var(--hud-soft)" : c.status === "STANDBY" ? "var(--warm-soft)" : "var(--panel-3)",
                   borderColor: c.status === "ACTIVE" ? "color-mix(in oklab,var(--hud) 30%,transparent)"
@@ -95,7 +115,10 @@ export function CompanySelectorPage({ onSelect, onBack }) {
             <button
               type="button"
               className="btn primary"
-              onClick={() => onSelect(companies.find((c) => c.id === picked))}
+              onClick={() => onSelect({
+                ...companies.find((c) => c.id === picked),
+                campaignStudy: cachedBrands[companies.find((c) => c.id === picked)?.name] || null,
+              })}
               disabled={!picked}
             >
               Lock target →

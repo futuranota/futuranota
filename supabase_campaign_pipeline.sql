@@ -119,3 +119,5 @@ SELECT
     true,
     'NovaBrew'
 WHERE NOT EXISTS (SELECT 1 FROM public.hero_signals LIMIT 1);
+
+NOTIFY pgrst, 'reload schema';

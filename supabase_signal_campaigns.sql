@@ -1,5 +1,5 @@
--- Tabla para las señales de campaña detectadas por Groq desde /panel (Campaign Detector).
--- Fuente de datos futura para las cards de Signal en la app. Ejecutar una sola vez en el SQL editor de Supabase.
+-- Tabla para las señales de campaña detectadas desde /panel.
+-- ⚠️ Preferí supabase_campaign_pipeline.sql (completo) o supabase_signal_campaigns_repair.sql si la tabla ya existe sin columnas nuevas.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -9,17 +9,28 @@ CREATE TABLE IF NOT EXISTS public.signal_campaigns (
     category TEXT,
     campaign_active BOOLEAN NOT NULL DEFAULT FALSE,
     launch_date DATE,
+    announcement_date DATE,
     overview TEXT,
     average_interval_months NUMERIC,
     last_launch_date DATE,
     source TEXT,
+    detection_mode TEXT,
+    confidence INT,
+    evidence_url TEXT,
+    ticket_tier TEXT,
     active BOOLEAN NOT NULL DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- Columna añadida después de la creación inicial; idempotente para tablas ya existentes.
 ALTER TABLE public.signal_campaigns ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE public.signal_campaigns ADD COLUMN IF NOT EXISTS announcement_date DATE;
+ALTER TABLE public.signal_campaigns ADD COLUMN IF NOT EXISTS detection_mode TEXT;
+ALTER TABLE public.signal_campaigns ADD COLUMN IF NOT EXISTS confidence INT;
+ALTER TABLE public.signal_campaigns ADD COLUMN IF NOT EXISTS evidence_url TEXT;
+ALTER TABLE public.signal_campaigns ADD COLUMN IF NOT EXISTS ticket_tier TEXT;
+ALTER TABLE public.signal_campaigns ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
 
 ALTER TABLE public.signal_campaigns ENABLE ROW LEVEL SECURITY;
 

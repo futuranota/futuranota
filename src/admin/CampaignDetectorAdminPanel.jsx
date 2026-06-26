@@ -7,19 +7,18 @@ import {
   EMPTY_CAMPAIGN_SIGNAL_FIELDS,
   campaignSignalFieldsFromDetection,
   campaignSignalFieldsFromRow,
-  campaignSignalFieldsToPayload,
 } from '../lib/campaignSignalFields.js';
 import {
   fetchPendingCampaignSignals,
-  createCampaignSignal,
-  updateCampaignSignal,
   deleteCampaignSignal,
   promoteCampaignSignal,
+  saveAndPublishCampaignFields,
 } from '../lib/campaignSignals.js';
 import { CampaignSignalForm } from './CampaignSignalForm.jsx';
 import { CampaignSignalList } from './CampaignSignalList.jsx';
 
-const SCAN_CONCURRENCY = 3;
+const SCAN_CONCURRENCY = 1;
+const SCAN_BRAND_DELAY_MS = 1200;
 
 const RANGE_OPTIONS = [
   { label: '30 días', days: 30 },
@@ -45,7 +44,7 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
-export function CampaignDetectorAdminPanel() {
+export function CampaignDetectorAdminPanel({ onPublishedToSignals }) {
   const [brandInput, setBrandInput] = useState('');
   const [detecting, setDetecting] = useState(false);
   const [detectError, setDetectError] = useState(null);
@@ -87,6 +86,7 @@ export function CampaignDetectorAdminPanel() {
 
   function loadResultIntoPreview(brandName, result) {
     setEditId(null);
+    setErrorMessage(null);
     setFields(campaignSignalFieldsFromDetection(brandName, result));
     setHasPreview(true);
   }
@@ -143,6 +143,9 @@ export function CampaignDetectorAdminPanel() {
           // Skip brands that fail detection — don't block the whole scan.
         } finally {
           setScanProgress((p) => ({ ...p, done: p.done + 1 }));
+          if (SCAN_BRAND_DELAY_MS > 0) {
+            await new Promise((r) => setTimeout(r, SCAN_BRAND_DELAY_MS));
+          }
         }
       });
 
@@ -170,17 +173,17 @@ export function CampaignDetectorAdminPanel() {
   async function handleSave(e) {
     e.preventDefault();
     setErrorMessage(null);
-    const payload = campaignSignalFieldsToPayload(fields);
+    setPublishNotice(null);
 
     setSaving(true);
     try {
-      if (editId) {
-        await updateCampaignSignal(editId, payload);
-      } else {
-        await createCampaignSignal(payload);
-      }
+      const signal = await saveAndPublishCampaignFields(fields, editId);
+      const brandName = signal.brand_name || fields.brandName.trim();
+      setScanResults((prev) => prev.filter((h) => h.brandName !== brandName));
+      setScanDiscarded((prev) => prev.filter((h) => h.brandName !== brandName));
       cancelPreview();
       await load();
+      onPublishedToSignals?.(brandName);
     } catch (err) {
       setErrorMessage(err.message);
     } finally {
@@ -364,10 +367,15 @@ export function CampaignDetectorAdminPanel() {
           onCancel={cancelPreview}
           saving={saving}
           editId={editId}
+          submitLabel={editId ? 'Guardar y enviar a Signals' : 'Guardar → Signals'}
+          saveError={hasPreview ? errorMessage : null}
         />
       ) : null}
 
       <h3 className="h4" style={{ margin: '20px 0 8px' }}>Cola de revisión</h3>
+      <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>
+        Items pendientes de publicar. Usá <strong>Guardar → Signals</strong> en el formulario o Publish aquí.
+      </p>
       <CampaignSignalList
         signals={signals}
         loading={loadingList}

@@ -36,6 +36,7 @@ import {
   contentDocMatchesProductFilter,
   productDocMatchesCategoryFilter,
 } from "../../lib/contentProductFilter.js";
+import { PlanUsagePanel } from "../plans/PlanUsagePanel.jsx";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
 import { TranslatedText } from "../shared/TranslatedText.jsx";
@@ -1534,26 +1535,9 @@ export function LeftPanel({
 
       </div>
 
-      {/* ── Footer: tokens ── */}
+      {/* ── Footer: plan usage ── */}
       <div className="lp-footer">
-        <div className="lp-tokens-row">
-          <span className="lp-tokens-label">{t("sidebar.tokensLabel")}</span>
-          <div className="lp-tokens-value">
-            <span className="lp-tokens-num">{tokenCurrent}</span>
-            <span className="lp-tokens-sep"> / </span>
-            <span className="lp-tokens-max">{tokenMax}</span>
-          </div>
-        </div>
-        <div className="lp-tokens-bar">
-          <div
-            className="lp-tokens-fill"
-            style={{ width: `${Math.max(0, Math.min(100, (tokenCurrent / Math.max(tokenMax, 1)) * 100))}%` }}
-          />
-        </div>
-        <div className="lp-tokens-meta">
-          <span>{t("sidebar.manualAiFooter", { manual: nodeList.length, ai: 0 })}</span>
-          <button type="button" className="btn xs ghost" onClick={() => showUpgradeModal("generic")}>{t("sidebar.upgrade")}</button>
-        </div>
+        <PlanUsagePanel compact />
       </div>
 
       {/* ── Create modals ── */}

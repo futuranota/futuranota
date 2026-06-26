@@ -1,32 +1,34 @@
-import { INTEL } from "../data.jsx";
-import { citationPageUrl, citationSourceDomain } from "./citationFavicon.js";
+import { API_ROUTES } from "../api/routes.js";
+import { supabase } from "./supabaseClient.js";
 import { useUIStateStore } from "../stores/uiStateStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
 import { useDocsStore } from "../stores/docsStore.js";
-
-const MOCK_SEARCH_MS = 2200;
+import { usePlanStore } from "../stores/planStore.js";
+import { useUpgradeModalStore } from "../stores/upgradeModalStore.js";
+import { FREE_LIMITS, TOKEN_COSTS } from "./planConfig.js";
 
 /** @typedef {{ id: string, title: string, dataType: string, content: unknown, anchorAt?: string|null, order: number }} ContextNode */
 
-function formatContentForPrompt(content, dataType) {
-  if (content == null) return "";
-  if (dataType === "metric" && typeof content === "object") {
-    const v = content.value ?? "";
-    const u = content.unit ? ` ${content.unit}` : "";
-    return `${v}${u}`.trim();
+async function authedFetch(url, init = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(init.headers || {}),
+  };
+  if (session?.access_token) {
+    headers.Authorization = `Bearer ${session.access_token}`;
   }
-  if (dataType === "date" && typeof content === "object") {
-    const d = content.date || "";
-    const t = content.time ? ` ${content.time}` : "";
-    return `${d}${t}`.trim();
+  const res = await fetch(url, { ...init, headers });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    let parsed;
+    try { parsed = JSON.parse(body); } catch { parsed = null; }
+    const err = new Error(parsed?.error || body.slice(0, 200) || res.statusText);
+    err.status = res.status;
+    err.code = parsed?.code;
+    throw err;
   }
-  if (dataType === "checkbox") return content === true || content === "true" ? "yes" : "no";
-  if (typeof content === "string") return content;
-  try {
-    return JSON.stringify(content);
-  } catch {
-    return String(content);
-  }
+  return res.json();
 }
 
 function canvasNodeToEntityId(canvasNode, nodeEntities) {
@@ -47,10 +49,6 @@ function entityToContextSlice(entity, order) {
   };
 }
 
-/**
- * Walk canvas wires backward (incoming edges to the query canvas node).
- * @returns {ContextNode[]}
- */
 export function collectUpstreamFromCanvas({
   queryCanvasNodeId,
   queryNodeEntityId,
@@ -105,9 +103,6 @@ export function collectUpstreamFromCanvas({
     .filter(Boolean);
 }
 
-/**
- * Fallback: nodes in the same document before the active block (by index).
- */
 export function collectUpstreamFromDoc({ docId, queryNodeEntityId, blockIndex }) {
   const doc = useDocsStore.getState().docs[docId];
   if (!doc?.blocks?.length) return [];
@@ -152,68 +147,13 @@ export function collectUpstreamContext(payload) {
   return [];
 }
 
-function buildMockOverview(query, contextNodes) {
-  const ctxLines = contextNodes
-    .map((n, i) => `${i + 1}. **${n.title}** (${n.dataType}): ${formatContentForPrompt(n.content, n.dataType) || "—"}`)
-    .join("\n");
-
-  const ctxBlock = contextNodes.length
-    ? `Using ${contextNodes.length} connected input node(s) as context:\n${ctxLines}\n\n`
-    : "";
-
-  return `${ctxBlock}**Answer:** ${query}\n\nBased on current web signals and your node graph, here is a synthesized overview. Key themes include product timing, supplier activity, and market reception. Use the citations below to verify sources and drill into details.`;
-}
-
-function buildMockCitationBody(item) {
-  return [
-    `${item.title} — reported by ${item.src}.`,
-    `Signal category: ${item.category || "general"}. Corroborated from web mentions and supplier chatter.`,
-    "This preview is simulated locally. A live intel fetch will replace this text with extracted article content.",
-  ];
-}
-
-function intelToCitations(intelItems) {
-  return intelItems.slice(0, 8).map((item, i) => {
-    const id = item.id || `cite-${i + 1}`;
-    const domain = citationSourceDomain(item.src);
-    return {
-      id,
-      title: item.title,
-      url: citationPageUrl(item.src, id),
-      domain,
-      source: item.src,
-      category: item.category,
-      body: buildMockCitationBody(item),
-    };
-  });
-}
-
-/**
- * Mock API — replace with POST /api/intel/search when backend exists.
- */
 export async function fetchIntelSearch(query, contextNodes) {
-  await new Promise((r) => setTimeout(r, MOCK_SEARCH_MS));
-  const filtered = INTEL.filter((s) => {
-    const q = query.toLowerCase();
-    if (!q) return true;
-    return (
-      s.title.toLowerCase().includes(q)
-      || s.src.toLowerCase().includes(q)
-      || (contextNodes.some((n) => String(n.title).toLowerCase().includes(q)))
-    );
+  return authedFetch(API_ROUTES.intelOverview, {
+    method: "POST",
+    body: JSON.stringify({ query, contextNodes }),
   });
-  const citations = intelToCitations(filtered.length ? filtered : INTEL);
-  return {
-    overview: buildMockOverview(query, contextNodes),
-    citations,
-    tokensUsed: 1,
-    model: "Ai 1.0",
-  };
 }
 
-/**
- * Run full intel search pipeline (upstream context + model + store update).
- */
 export async function runIntelSearch(payload) {
   const {
     query,
@@ -228,6 +168,17 @@ export async function runIntelSearch(payload) {
 
   const q = (query || "").trim();
   if (!q) return;
+
+  const planStore = usePlanStore.getState();
+  const { profile } = planStore;
+  if (profile.plan === "free" && profile.searchCount >= FREE_LIMITS.maxSearches) {
+    useUpgradeModalStore.getState().show("search");
+    return;
+  }
+  if (profile.plan === "pro" && !planStore.canSpendTokens(TOKEN_COSTS.searchOverview)) {
+    useUpgradeModalStore.getState().show("tokens");
+    return;
+  }
 
   const store = useUIStateStore.getState();
   store.setIntelSearchLoading({
@@ -250,8 +201,20 @@ export async function runIntelSearch(payload) {
     });
 
     const result = await fetchIntelSearch(q, contextNodes);
+
+    if (result.tokensBalance != null) {
+      planStore.applyServerTokenDebit(result.tokensBalance);
+    } else if (result.searchCount != null) {
+      usePlanStore.setState((state) => ({
+        profile: { ...state.profile, searchCount: result.searchCount },
+      }));
+    }
+
     store.setIntelSearchSuccess({
-      ...result,
+      overview: result.overview,
+      citations: result.citations,
+      tokensUsed: result.tokensDebited ?? result.tokensUsed,
+      model: result.model || "Ai 1.0",
       query: q,
       queryNodeEntityId,
       queryCanvasNodeId,
@@ -261,6 +224,9 @@ export async function runIntelSearch(payload) {
       ranAt: new Date().toISOString(),
     });
   } catch (err) {
+    if (err?.code === "search" || err?.code === "tokens") {
+      useUpgradeModalStore.getState().show(err.code);
+    }
     store.setIntelSearchError(err?.message || "Search failed");
   }
 }

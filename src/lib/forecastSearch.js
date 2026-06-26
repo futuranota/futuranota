@@ -3,9 +3,11 @@
  * Replace fetchForecastForNode mock body with GET /api/weather/forecast?date=YYYY-MM-DD.
  */
 import { daysBetween } from "../data.jsx";
-import { getForecastForDate, FORECAST_MOCK_HORIZON_DAYS } from "../data/forecastMock.js";
+import { FORECAST_MOCK_HORIZON_DAYS } from "../data/forecastMock.js";
 import { formatScheduleLabelFromIso } from "./nodeAnchor.js";
 import { parseDate, startOfCalendarDay } from "../temporal.js";
+import { API_ROUTES } from "../api/routes.js";
+import { supabase } from "./supabaseClient.js";
 
 export const FORECAST_HORIZON_DAYS = FORECAST_MOCK_HORIZON_DAYS;
 
@@ -221,10 +223,26 @@ export async function fetchForecastForNode(node, baseToday = new Date()) {
     };
   }
 
-  await new Promise((r) => setTimeout(r, 400));
+  await new Promise((r) => setTimeout(r, 200));
 
-  const result = getForecastForDate(date, baseToday);
-  if (!result) {
+  const dateIso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers = session?.access_token
+    ? { Authorization: `Bearer ${session.access_token}` }
+    : {};
+
+  let apiResult;
+  try {
+    const res = await fetch(`${API_ROUTES.weatherForecast}?date=${dateIso}`, { headers });
+    if (res.ok) {
+      apiResult = await res.json();
+    }
+  } catch {
+    apiResult = null;
+  }
+
+  const dayPayload = apiResult?.day;
+  if (!dayPayload) {
     return {
       status: "unavailable",
       reason: "future",
@@ -236,6 +254,12 @@ export async function fetchForecastForNode(node, baseToday = new Date()) {
       node,
     };
   }
+
+  const result = {
+    location: apiResult.location || "Default",
+    asOf: apiResult.asOf || new Date().toISOString(),
+    day: dayPayload,
+  };
 
   return {
     status: "success",

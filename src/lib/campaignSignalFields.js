@@ -37,11 +37,15 @@ export function campaignSignalFieldsFromDetection(brandName, result) {
     });
   }
 
+  const isCadenceOnly = result.detectionMode === 'cadence_only';
+  const launchDate = result.launchDate
+    || (isCadenceOnly && result.estimatedLaunchDate ? result.estimatedLaunchDate : '');
+
   return {
     brandName: name,
     category: result.category || '',
     campaignActive: Boolean(result.campaignActive),
-    launchDate: result.launchDate || '',
+    launchDate,
     announcementDate: result.announcementDate || '',
     overview,
     averageIntervalMonths: result.averageIntervalMonths ?? '',
@@ -83,7 +87,9 @@ export function campaignSignalFieldsToPayload(fields) {
     brand_name: fields.brandName.trim(),
     category: fields.category.trim() || null,
     campaign_active: fields.campaignActive,
-    launch_date: fields.campaignActive && fields.launchDate ? fields.launchDate : null,
+    launch_date: (fields.campaignActive || fields.detectionMode === 'cadence_only') && fields.launchDate
+      ? fields.launchDate
+      : null,
     announcement_date: fields.announcementDate || null,
     overview: fields.overview.trim(),
     average_interval_months: fields.averageIntervalMonths === '' ? null : Number(fields.averageIntervalMonths),

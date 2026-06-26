@@ -201,7 +201,10 @@ export const messages = {
       reasonImportSize: "Free plan storage limit (54 MB) reached. Upgrade to Pro for more storage.",
       reasonCalendar: "Calendar is a one-time feature on the free plan. Upgrade to Pro for unlimited usage.",
       reasonWeather: "Forecast is a one-time feature on the free plan. Upgrade to Pro for unlimited usage.",
-      reasonSearch: "You've used all 10 free AI search credits. Upgrade to Pro for unlimited usage.",
+      reasonSearch: "You've used all 10 free AI search credits. Upgrade to Pro for more tokens.",
+      reasonTokens: "Not enough tokens for this action. Upgrade to Pro for 1.5M tokens per month.",
+      reasonCampaignFrozen: "Your free campaign study is frozen after one live run. Upgrade to Pro to refresh live data.",
+      reasonExport: "Technical export (JSON/PDF) is available on Pro. Upgrade to unlock exports.",
       reasonGeneric: "Upgrade to Pro to unlock unlimited usage.",
     },
     plans: {
@@ -265,7 +268,10 @@ export const messages = {
       reasonImportSize: "Alcanzaste el límite de almacenamiento del plan gratis (54 MB). Mejora a Pro para más almacenamiento.",
       reasonCalendar: "Calendar es de un solo uso en el plan gratis. Mejora a Pro para uso ilimitado.",
       reasonWeather: "Forecast es de un solo uso en el plan gratis. Mejora a Pro para uso ilimitado.",
-      reasonSearch: "Usaste tus 10 créditos de búsqueda con IA del plan gratis. Mejora a Pro para uso ilimitado.",
+      reasonSearch: "Usaste tus 10 créditos de búsqueda con IA del plan gratis. Mejora a Pro para más tokens.",
+      reasonTokens: "No hay tokens suficientes para esta acción. Mejora a Pro para 1.5M tokens al mes.",
+      reasonCampaignFrozen: "Tu estudio de campaña gratis queda congelado tras un run live. Mejora a Pro para actualizar datos en vivo.",
+      reasonExport: "La exportación técnica (JSON/PDF) está en Pro. Mejora para desbloquear exports.",
       reasonGeneric: "Mejora a Pro para desbloquear uso ilimitado.",
     },
     plans: {

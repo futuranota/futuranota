@@ -1,27 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { resolveCurrentCorpus } from "../../lib/currentCorpus.js";
 import { OBJECT_ROLE_CORPUS } from "../../lib/objectColors.js";
 import { fetchBrandCadence } from "../../lib/fetchBrandCadence.js";
+import { fetchCampaignStudy, refreshCampaignStudy } from "../../lib/fetchCampaignStudy.js";
 import {
   computeCampaignWindowProjection,
   computeLaunchCadenceProjection,
   formatReferenceMonthLabelEn,
   toIsoDateString,
 } from "../../lib/launchCadenceMath.js";
+import { TOKEN_COSTS } from "../../lib/planConfig.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useTimelineStore } from "../../stores/timelineStore.js";
+import { usePlanStore } from "../../stores/planStore.js";
+import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import "../../styles/launch-predictor.css";
 
 /**
- * Launch cadence module — reads brand + injected campaign intel from corpus.
+ * Launch cadence module — hero_signal cadence (0 tokens), cached study, or live run.
  * @param {{ today?: Date }} props
  */
 export function LaunchPredictor({ today = new Date() }) {
   const objects = useObjectsStore((s) => s.objects);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const canRunLive = usePlanStore((s) => s.canRunCampaignLive());
+  const applyServerTokenDebit = usePlanStore((s) => s.applyServerTokenDebit);
+  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
 
   const { currentCorpus, brandName, storedCadence } = useMemo(() => {
     const { currentCorpus: corpus, brandName: brand } = resolveCurrentCorpus(objects, selectedObjectId);
@@ -39,6 +46,8 @@ export function LaunchPredictor({ today = new Date() }) {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState(null);
   const [cadence, setCadence] = useState(null);
+  const [study, setStudy] = useState(null);
+  const [runningLive, setRunningLive] = useState(false);
 
   const referenceMonthLabel = useMemo(
     () => formatReferenceMonthLabelEn(today),
@@ -49,11 +58,13 @@ export function LaunchPredictor({ today = new Date() }) {
     if (!brandName) {
       setStatus("empty");
       setCadence(null);
+      setStudy(null);
       setError(null);
       return;
     }
 
     if (storedCadence?.launchDate) {
+      setStudy(null);
       setCadence({
         mode: "campaign",
         launchDate: storedCadence.launchDate,
@@ -69,10 +80,8 @@ export function LaunchPredictor({ today = new Date() }) {
       return;
     }
 
-    if (
-      storedCadence?.lastLaunchDate
-      && storedCadence?.averageIntervalMonths != null
-    ) {
+    if (storedCadence?.lastLaunchDate && storedCadence?.averageIntervalMonths != null) {
+      setStudy(null);
       setCadence({
         mode: "cadence",
         averageIntervalMonths: Number(storedCadence.averageIntervalMonths),
@@ -89,24 +98,63 @@ export function LaunchPredictor({ today = new Date() }) {
     let cancelled = false;
     setStatus("loading");
     setError(null);
+    setCadence(null);
 
-    fetchBrandCadence({ brandName, referenceMonthLabel })
-      .then((data) => {
+    fetchCampaignStudy({ brandName })
+      .then((cached) => {
         if (cancelled) return;
-        setCadence({ mode: "cadence", ...data });
-        setStatus("ready");
+        if (cached) {
+          setStudy(cached);
+          setStatus("study");
+          return;
+        }
+        if (import.meta.env.DEV) {
+          return fetchBrandCadence({ brandName, referenceMonthLabel }).then((data) => {
+            if (cancelled) return;
+            setCadence({ mode: "cadence", ...data, source: data.source || "dev-cadence" });
+            setStatus("ready");
+          });
+        }
+        setStudy(null);
+        setStatus("study-empty");
       })
       .catch((err) => {
         if (cancelled) return;
-        setCadence(null);
+        setStudy(null);
         setStatus("error");
-        setError(err instanceof Error ? err.message : "Could not load cadence");
+        setError(err instanceof Error ? err.message : "Could not load campaign study");
       });
 
     return () => {
       cancelled = true;
     };
   }, [brandName, referenceMonthLabel, storedCadence]);
+
+  const handleRunLive = useCallback(async () => {
+    if (!brandName || runningLive) return;
+    if (!canRunLive) {
+      showUpgradeModal(study?.fromCache ? "campaign_frozen" : "tokens");
+      return;
+    }
+    setRunningLive(true);
+    setError(null);
+    try {
+      const result = await refreshCampaignStudy({ brandName });
+      if (result.tokensBalance != null) {
+        applyServerTokenDebit(result.tokensBalance, result.campaignLiveUsed);
+      }
+      setStudy(result);
+      setCadence(null);
+      setStatus("study");
+    } catch (err) {
+      if (err?.code === "campaign_frozen" || err?.code === "tokens") {
+        showUpgradeModal(err.code);
+      }
+      setError(err instanceof Error ? err.message : "Live study failed");
+    } finally {
+      setRunningLive(false);
+    }
+  }, [brandName, runningLive, canRunLive, showUpgradeModal, applyServerTokenDebit, study?.fromCache]);
 
   const campaignWindow = useMemo(() => {
     if (!cadence || cadence.mode !== "campaign" || !cadence.launchDate) return null;
@@ -151,6 +199,9 @@ export function LaunchPredictor({ today = new Date() }) {
     return (
       <div className="launch-predictor launch-predictor--error">
         <p className="launch-predictor__status">{error}</p>
+        <button type="button" className="btn sm ghost" onClick={handleRunLive} disabled={runningLive}>
+          Retry live study
+        </button>
       </div>
     );
   }
@@ -176,7 +227,101 @@ export function LaunchPredictor({ today = new Date() }) {
     );
   }
 
+  if (status === "study" && study) {
+    return (
+      <CampaignStudyView
+        brandName={brandName}
+        study={study}
+        onRefresh={handleRunLive}
+        refreshing={runningLive}
+        canRefresh={canRunLive}
+        refreshCost={TOKEN_COSTS.campaignLive}
+      />
+    );
+  }
+
+  if (status === "study-empty") {
+    return (
+      <CampaignStudyView
+        brandName={brandName}
+        study={null}
+        onRefresh={handleRunLive}
+        refreshing={runningLive}
+        canRefresh={canRunLive}
+        refreshCost={TOKEN_COSTS.campaignLive}
+      />
+    );
+  }
+
   return null;
+}
+
+function CampaignStudyView({
+  brandName,
+  study,
+  onRefresh,
+  refreshing,
+  canRefresh,
+  refreshCost,
+}) {
+  const hype = study?.socialHype || {};
+  const paa = study?.peopleAlsoAsk || [];
+
+  return (
+    <div className="launch-predictor">
+      <header className="launch-predictor__head">
+        <span className="launch-predictor__kicker">Campaign study</span>
+        <h4 className="launch-predictor__brand">{brandName}</h4>
+        {study?.status ? (
+          <span className="launch-predictor__category">{study.status}</span>
+        ) : null}
+      </header>
+
+      {study?.overview ? (
+        <p className="launch-predictor__overview">{study.overview}</p>
+      ) : (
+        <p className="launch-predictor__overview">
+          Run a live campaign study to load overview, PAA, and social hype for {brandName}.
+        </p>
+      )}
+
+      {study?.note ? (
+        <p className="launch-predictor__note">{study.note}</p>
+      ) : null}
+
+      {hype.hypeScore != null ? (
+        <p className="launch-predictor__note">
+          Social hype {hype.hypeScore}/100 · {hype.mentions ?? 0} mentions
+        </p>
+      ) : null}
+
+      {paa.length > 0 ? (
+        <ul className="launch-predictor__paa">
+          {paa.slice(0, 4).map((item) => (
+            <li key={item.question}>{item.question}</li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="launch-predictor__actions">
+        <button
+          type="button"
+          className="btn sm primary"
+          onClick={onRefresh}
+          disabled={refreshing}
+        >
+          {refreshing
+            ? "Running study…"
+            : study
+              ? `Refresh study · ${(refreshCost / 1000).toFixed(0)}k tokens`
+              : `Run study · ${(refreshCost / 1000).toFixed(0)}k tokens`}
+        </button>
+        {study?.fromCache ? (
+          <span className="launch-predictor__cache-badge">Cached · 0 tokens</span>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function CampaignWindowView({ brandName, corpusId, window }) {

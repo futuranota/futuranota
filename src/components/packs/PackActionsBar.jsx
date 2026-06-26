@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { exportObjectPack } from "../../lib/pack/packExport.js";
 import { exportObjectPackV2 } from "../../lib/pack/packV2Export.js";
+import { usePlanStore } from "../../stores/planStore.js";
+import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 
 /**
@@ -23,11 +25,17 @@ export function PackActionsBar({
   onFilterChange,
 }) {
   const { t } = useI18n();
+  const isPro = usePlanStore((s) => s.isPro());
+  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
   const [exporting, setExporting] = useState(false);
   const [exportingV2, setExportingV2] = useState(false);
 
   const handleExport = async () => {
     if (!exportObjectId || exporting || exportingV2) return;
+    if (!isPro) {
+      showUpgradeModal("export");
+      return;
+    }
     setExporting(true);
     try {
       await exportObjectPack(exportObjectId, { includeGraph: false });
@@ -38,6 +46,10 @@ export function PackActionsBar({
 
   const handleExportV2 = async () => {
     if (!exportObjectId || exporting || exportingV2) return;
+    if (!isPro) {
+      showUpgradeModal("export");
+      return;
+    }
     setExportingV2(true);
     try {
       await exportObjectPackV2(exportObjectId, { includeGraph: false });

@@ -24,7 +24,7 @@ import { apiClient } from "../api/client.js";
  * @param {number} params.rangeDays
  * @param {string} [params.industry]
  * @param {Array<{ domain: string, pathPrefix?: string, enabled?: boolean }>} [params.sources]
- * @returns {Promise<{ companies: HorizonScanHit[], meta?: object }>}
+ * @returns {Promise<{ companies: HorizonScanHit[], discardedCompanies?: HorizonScanHit[], meta?: object }>}
  */
 export async function fetchHorizonScan({ rangeDays, industry, sources }) {
   return apiClient(API_ROUTES.horizonScan, {

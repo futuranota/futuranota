@@ -41,7 +41,13 @@ hero_signals (múltiples active OK)  →  Hero + Librería (selector)
 Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Groq fallback)
 ```
 
-**Migración SQL requerida:** ejecutar [`supabase_campaign_pipeline.sql`](supabase_campaign_pipeline.sql) en Supabase (crea tablas + columnas + RLS). Si ves `relation "signal_campaigns" does not exist`, usa ese archivo completo — no solo ALTERs.
+**Migración SQL requerida** (Supabase → SQL Editor, en orden):
+
+0. **Error al guardar `announcement_date` / PGRST204** → [`supabase_signal_campaigns_repair.sql`](supabase_signal_campaigns_repair.sql) (solo ALTER columnas; 30 s)
+1. [`supabase_campaign_pipeline.sql`](supabase_campaign_pipeline.sql) — `signal_campaigns` + `hero_signals` (proyecto nuevo)
+2. [`supabase_intel_columns.sql`](supabase_intel_columns.sql) — columnas intel
+3. [`supabase_intel_scan_sources.sql`](supabase_intel_scan_sources.sql) — fuentes curadas (opcional)
+4. [`supabase_plans.sql`](supabase_plans.sql) — tabla `profiles` (plan free/pro; sin esto: `PGRST205` en consola)
 
 ---
 
@@ -107,6 +113,59 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 ---
 
 ## Referencia
+
+### Planes, costos y propuesta comercial
+
+**Doc canónico:** [`docs/planes-costos-propuesta.md`](docs/planes-costos-propuesta.md) · CSV: [`docs/integraciones_futura_nota.csv`](docs/integraciones_futura_nota.csv)  
+**Fuente:** [Gemini — Planes Futura Nota: Costos y Propuesta](https://share.gemini.google/UtadGr2vnMxI) (2026-06-25)  
+**Estado:** **implementado en dashboard** (fases 0–8 del blueprint `.cursor/plans/dashboard_apis_roadmap_d7e54a9e.plan.md`) — **Stripe pendiente** (fase 10)
+
+#### Implementado (2026-06-25)
+
+- SQL: `supabase_plans_tokens.sql`, `supabase_campaign_studies.sql`, `supabase_weather_cache.sql` (ejecutar en Supabase SQL Editor)
+- Token ledger: `planStore.js` + `planConfig.js` — debito servidor en `/api/analytics/campaign-study` y `/api/intel/overview`
+- Pipeline usuario: DataForSEO PAA + Apify hype + Groq → `campaign_studies` cache; switch Librería = 0 tokens
+- Intel: `POST /api/intel/overview` (Serper + Groq); Free = 10 searches, Pro = 1k tokens/search
+- Weather: `GET /api/weather/forecast` + cache Supabase 45 min
+- UI: `PlanUsagePanel` en sidebar + `/app/plans`; export JSON gated Pro
+- Verificación integraciones: `npm run verify:apis` · `GET /api/health/integrations`
+
+#### Pendiente
+
+- Stripe checkout → `plan = pro` + reset `tokens_balance = 1_500_000`
+- Precio Pro marketing (TBD en `pricingDefaults.js`)
+
+#### Resumen ejecutivo
+
+- **Moneda propuesta:** tokens — 1 estudio de campaña live = **10,000 tokens** (~$0.005 COGS).
+- **Gratis (Gemini):** 10k tokens bienvenida = 1 campaña live; datos congelados; switch bloqueado.
+- **Pro (Gemini):** **$15–19/mes**, **1.5M tokens/mes** ≈ 150 estudios live; switch Librería = 0 tokens.
+- **COGS/usuario:** ~$0.08 (Gratis) · ~$0.93–1.30 (Pro muy activo) → margen >90% a $15–19.
+- **APIs recomendadas:** Groq, Serper/DataForSEO, Apify, OpenWeather, Supabase. **No Brand24.**
+
+#### Límites objetivo (fundador, conversación Gemini)
+
+| Feature | Gratis (objetivo) | Pro (objetivo) |
+|---------|-------------------|----------------|
+| Objetos | 1 | Ilimitados |
+| Storage | 1 GB (Gemini) / **54 MB** (código hoy) | **5 GB** |
+| Búsquedas AI | 10 lifetime | 150 live/mes (unificado con overview) |
+| Calendario | 1 uso | Avanzado + eventos corporativos |
+| Weather | 1 uso / estático | Ilimitado (cache 45 min) |
+| Campaña Signar | 1 live run, frozen | Live + Social Hype + Search Intent |
+| Tokens | 10k bienvenida | 1.5M/mes |
+
+#### Delta vs código actual
+
+| Tema | Objetivo | Repo hoy |
+|------|----------|----------|
+| Precio Pro | TBD ($15–19) | `pricingDefaults.js`: **TBD** (Stripe no conectado) |
+| Storage Pro | 5 GB | **5 GB** en `planConfig.js` ✓ |
+| Token ledger | 10k / 1.5M | **`profiles.tokens_balance`** + server debit ✓ |
+| Campaña live | DataForSEO + Apify + Groq | **`/api/analytics/campaign-study`** ✓ |
+| Billing | Stripe | **`setPlan` manual** — pendiente |
+
+---
 
 - Skill de arquitectura: [`.cursor/skills/architect-blueprint/SKILL.md`](.cursor/skills/architect-blueprint/SKILL.md)
 - Migración pipeline: [`supabase_campaign_pipeline.sql`](supabase_campaign_pipeline.sql)

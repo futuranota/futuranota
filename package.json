@@ -9,7 +9,9 @@
     "build": "tinacms build --local --skip-cloud-checks && vite build",
     "build:tina": "dotenv -e .env.local -- tinacms build",
     "preview": "vite preview",
-    "start": "npm run dev"
+    "start": "npm run dev",
+    "verify:apis": "dotenv -e .env.local -- node scripts/verify-integrations.mjs",
+    "verify:apis:config": "dotenv -e .env.local -- node scripts/verify-integrations.mjs --config-only"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

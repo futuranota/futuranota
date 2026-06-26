@@ -1,6 +1,15 @@
--- Tabla de plan y contadores de uso lifetime por usuario (free/pro, sin Stripe por ahora)
+-- Futura Nota: profiles (plan free/pro + contadores lifetime)
+-- IMPORTANTE: seleccioná TODO el archivo y ejecutalo de una sola vez (Run).
 
-CREATE TABLE IF NOT EXISTS public.profiles (
+-- 1) Quitar trigger/función que referencian profiles
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user();
+
+-- 2) Borrar tabla legacy (solo plan/contadores; no afecta signals ni canvas)
+DROP TABLE IF EXISTS public.profiles CASCADE;
+
+-- 3) Crear esquema correcto
+CREATE TABLE public.profiles (
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     plan VARCHAR(10) NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro')),
     calendar_used BOOLEAN NOT NULL DEFAULT FALSE,
@@ -9,6 +18,30 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+-- 4) Reparación idempotente por si DROP/CREATE no corrió (script parcial previo)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'profiles'
+  ) AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'id'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'user_id'
+  ) THEN
+    ALTER TABLE public.profiles RENAME COLUMN id TO user_id;
+  END IF;
+END $$;
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS plan VARCHAR(10) NOT NULL DEFAULT 'free';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS calendar_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS weather_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS search_count INT NOT NULL DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now());
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc'::text, now());
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
@@ -25,9 +58,6 @@ CREATE POLICY "insert own profile" ON public.profiles
 CREATE POLICY "update own profile" ON public.profiles
   FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Sin política DELETE: profiles no se borran desde el cliente.
-
--- Crea automáticamente una fila de perfil free al registrarse un usuario nuevo.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -38,12 +68,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Backfill para usuarios existentes (correr una sola vez después de crear la tabla):
 INSERT INTO public.profiles (user_id, plan)
 SELECT id, 'free' FROM auth.users
 ON CONFLICT (user_id) DO NOTHING;
+
+NOTIFY pgrst, 'reload schema';

@@ -1,30 +1,69 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { supabase } from "../lib/supabaseClient.js";
+import {
+  FREE_LIMITS,
+  getPlanLimits,
+  getTokensCap,
+  TOKEN_COSTS,
+} from "../lib/planConfig.js";
+
+export { FREE_LIMITS, TOKEN_COSTS } from "../lib/planConfig.js";
 
 const DEFAULT_PROFILE = {
   plan: "free",
   calendarUsed: false,
   weatherUsed: false,
   searchCount: 0,
+  tokensBalance: getTokensCap("free"),
+  tokensPeriodStart: null,
+  campaignLiveUsed: false,
 };
 
-export const FREE_LIMITS = {
-  maxObjects: 1,
-  maxImportBytes: 54 * 1024 * 1024,
-  maxSearches: 10,
-  calendarUsesAllowed: 1,
-  weatherUsesAllowed: 1,
-};
+function isSameUtcMonth(a, b) {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
+}
 
 function rowToProfile(row) {
   if (!row) return { ...DEFAULT_PROFILE };
+  const plan = row.plan === "pro" ? "pro" : "free";
+  const cap = getTokensCap(plan);
+  let tokensBalance = row.tokens_balance ?? cap;
+  const periodStart = row.tokens_period_start || row.created_at || null;
+
+  if (plan === "pro" && periodStart) {
+    const start = new Date(periodStart);
+    if (!isSameUtcMonth(start, new Date())) {
+      tokensBalance = cap;
+    }
+  }
+
   return {
-    plan: row.plan === "pro" ? "pro" : "free",
+    plan,
     calendarUsed: Boolean(row.calendar_used),
     weatherUsed: Boolean(row.weather_used),
     searchCount: row.search_count ?? 0,
+    tokensBalance,
+    tokensPeriodStart: periodStart,
+    campaignLiveUsed: Boolean(row.campaign_live_used),
   };
+}
+
+function isMissingProfilesTable(error) {
+  const msg = String(error?.message || "");
+  return error?.code === "PGRST205"
+    || error?.code === "PGRST204"
+    || msg.includes("public.profiles")
+    || msg.includes('column "user_id"')
+    || msg.includes("tokens_balance");
+}
+
+async function persistProfilePatch(userId, patch) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("user_id", userId);
+  return error;
 }
 
 export const usePlanStore = create(
@@ -35,6 +74,26 @@ export const usePlanStore = create(
       loaded: false,
 
       isPro: () => get().profile.plan === "pro",
+
+      getTokensCap: () => getTokensCap(get().profile.plan),
+
+      getTokensRemaining: () => get().profile.tokensBalance,
+
+      getTokensUsed: () => {
+        const cap = get().getTokensCap();
+        return Math.max(0, cap - get().getTokensRemaining());
+      },
+
+      canSpendTokens: (amount) => {
+        if (amount <= 0) return true;
+        return get().profile.tokensBalance >= amount;
+      },
+
+      canRunCampaignLive: () => {
+        const { profile } = get();
+        if (profile.plan === "free" && profile.campaignLiveUsed) return false;
+        return get().canSpendTokens(TOKEN_COSTS.campaignLive);
+      },
 
       fetchProfile: async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -48,14 +107,39 @@ export const usePlanStore = create(
           .select("*")
           .eq("user_id", userId)
           .maybeSingle();
+
         if (error) {
-          console.warn("planStore.fetchProfile error", error);
+          if (isMissingProfilesTable(error)) {
+            console.info(
+              "planStore: ejecutá supabase_plans.sql + supabase_plans_tokens.sql en Supabase.",
+            );
+          } else {
+            console.warn("planStore.fetchProfile error", error);
+          }
         }
-        const profile = rowToProfile(data);
-        // Admin account always tests as Pro — no Stripe/credits flow exists yet.
+
+        let profile = rowToProfile(data);
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
         const isAdminUser = !!adminEmail && session.user.email?.toLowerCase() === adminEmail.toLowerCase();
-        if (isAdminUser) profile.plan = "pro";
+        if (isAdminUser) {
+          profile = { ...profile, plan: "pro", tokensBalance: getTokensCap("pro") };
+        }
+
+        if (data && profile.plan === "pro" && profile.tokensPeriodStart) {
+          const start = new Date(profile.tokensPeriodStart);
+          if (!isSameUtcMonth(start, new Date())) {
+            const cap = getTokensCap("pro");
+            const now = new Date().toISOString();
+            const resetErr = await persistProfilePatch(userId, {
+              tokens_balance: cap,
+              tokens_period_start: now,
+            });
+            if (!resetErr) {
+              profile = { ...profile, tokensBalance: cap, tokensPeriodStart: now };
+            }
+          }
+        }
+
         set({ profile, loading: false, loaded: true });
       },
 
@@ -63,18 +147,78 @@ export const usePlanStore = create(
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         if (!userId) return;
+        const cap = getTokensCap(plan);
+        const now = new Date().toISOString();
         const { error } = await supabase
           .from("profiles")
-          .update({ plan, updated_at: new Date().toISOString() })
+          .update({
+            plan,
+            tokens_balance: cap,
+            tokens_period_start: now,
+            updated_at: now,
+          })
           .eq("user_id", userId);
         if (error) {
           console.warn("planStore.setPlan error", error);
           return;
         }
-        set((state) => ({ profile: { ...state.profile, plan } }));
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            plan,
+            tokensBalance: cap,
+            tokensPeriodStart: now,
+            campaignLiveUsed: plan === "free" ? state.profile.campaignLiveUsed : false,
+          },
+        }));
       },
 
-      /** Marks a one-shot lifetime feature as used (calendar | weather). No-op on pro. */
+      applyServerTokenDebit: (tokensBalance, campaignLiveUsed) => {
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            tokensBalance,
+            campaignLiveUsed: campaignLiveUsed ?? state.profile.campaignLiveUsed,
+          },
+        }));
+      },
+
+      spendTokens: async (amount, opts = {}) => {
+        const { profile } = get();
+        if (amount <= 0) return true;
+        if (opts.markCampaignLive && profile.plan === "free" && profile.campaignLiveUsed) {
+          return false;
+        }
+        if (!get().canSpendTokens(amount)) return false;
+
+        const nextBalance = profile.tokensBalance - amount;
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) return false;
+
+        const patch = { tokens_balance: nextBalance };
+        if (opts.markCampaignLive && profile.plan === "free") {
+          patch.campaign_live_used = true;
+        }
+
+        const error = await persistProfilePatch(userId, patch);
+        if (error) {
+          console.warn("planStore.spendTokens error", error);
+          return false;
+        }
+
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            tokensBalance: nextBalance,
+            campaignLiveUsed: opts.markCampaignLive && profile.plan === "free"
+              ? true
+              : state.profile.campaignLiveUsed,
+          },
+        }));
+        return true;
+      },
+
       markFeatureUsed: async (feature) => {
         const { profile } = get();
         if (profile.plan === "pro") return;
@@ -83,10 +227,7 @@ export const usePlanStore = create(
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         if (!userId) return;
-        const { error } = await supabase
-          .from("profiles")
-          .update({ [column]: true, updated_at: new Date().toISOString() })
-          .eq("user_id", userId);
+        const error = await persistProfilePatch(userId, { [column]: true });
         if (error) {
           console.warn("planStore.markFeatureUsed error", error);
           return;
@@ -94,18 +235,19 @@ export const usePlanStore = create(
         set((state) => ({ profile: { ...state.profile, [stateKey]: true } }));
       },
 
-      /** Increments lifetime search_count by 1, returns the new count. No-op on pro (returns -1). */
       incrementSearchCount: async () => {
         const { profile } = get();
-        if (profile.plan === "pro") return -1;
+        if (profile.plan === "pro") {
+          return get().spendTokens(TOKEN_COSTS.searchOverview) ? -1 : profile.searchCount;
+        }
+        if (profile.searchCount >= getPlanLimits("free").maxSearchesLifetime) {
+          return profile.searchCount;
+        }
         const next = profile.searchCount + 1;
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         if (!userId) return profile.searchCount;
-        const { error } = await supabase
-          .from("profiles")
-          .update({ search_count: next, updated_at: new Date().toISOString() })
-          .eq("user_id", userId);
+        const error = await persistProfilePatch(userId, { search_count: next });
         if (error) {
           console.warn("planStore.incrementSearchCount error", error);
           return profile.searchCount;

@@ -1,4 +1,4 @@
-import { completeJson } from "./llmJson.js";
+import { completeJson, describeLlmUnavailable } from "./llmJson.js";
 import { searchWebMulti } from "./discovery/serpApiSearch.js";
 import { searchCuratedSitesMulti } from "./discovery/googleCseSearch.js";
 import { buildLaunchQueries } from "./discovery/launchQueries.js";
@@ -112,7 +112,7 @@ export async function scanHorizonVerified(rangeDays, industry, clientSources) {
       companies: [],
       meta: {
         liveSearch: true,
-        error: "No hay LLM configurado (GROQ_API_KEY o GEMINI). No se inventan datos.",
+        error: describeLlmUnavailable(),
       },
     };
   }
@@ -129,8 +129,10 @@ export async function scanHorizonVerified(rangeDays, industry, clientSources) {
   const companies = main.slice(0, MAX_RESULTS);
 
   const source = `${sourceLabel}+${llm.provider}`;
+  const discardedCompanies = discarded.map((hit) => ({ ...hit, source }));
   return {
     companies: companies.map((hit) => ({ ...hit, source })),
+    discardedCompanies,
     meta: {
       liveSearch: true,
       rejected,
@@ -140,7 +142,7 @@ export async function scanHorizonVerified(rangeDays, industry, clientSources) {
       curatedQueries: curatedQueries.length,
       detectorContext: "content/admin/detector-de-campanas.md",
       cadenceDiscarded: discarded.length,
-      cadenceDiscardedBrands: discarded.map((d) => ({
+      cadenceDiscardedBrands: discardedCompanies.map((d) => ({
         brandName: d.brandName,
         monthsRemaining: d.monthsRemaining,
         cadenceMessage: d.cadenceMessage,

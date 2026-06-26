@@ -6,8 +6,8 @@ import { useUIStateStore } from "../stores/uiStateStore.js";
 
 /**
  * Ensures a business object exists for a company target selection and injects
- * campaign intel (dates, overview) for Launch Radar.
- * @param {{ name?: string, sector?: string, launchDate?: string|null, announcementDate?: string|null, lastLaunchDate?: string|null, averageIntervalMonths?: number|null, overview?: string|null }} company
+ * campaign intel (dates, overview, cached study) for Launch Radar.
+ * @param {{ name?: string, sector?: string, launchDate?: string|null, announcementDate?: string|null, lastLaunchDate?: string|null, averageIntervalMonths?: number|null, overview?: string|null, campaignStudy?: object|null }} company
  * @returns {string} object id
  */
 export function ensureCompanyObject(company) {
@@ -24,12 +24,14 @@ export function ensureCompanyObject(company) {
     objectId = addObject(name, description, undefined, name);
   }
 
+  const study = company.campaignStudy || null;
   const launchDate = company.launchDate || null;
   const hasCadence = launchDate
     || company.announcementDate
     || company.lastLaunchDate
     || company.averageIntervalMonths != null
-    || company.overview;
+    || company.overview
+    || study?.overview;
 
   if (hasCadence) {
     updateObject(objectId, {
@@ -38,9 +40,17 @@ export function ensureCompanyObject(company) {
         announcementDate: company.announcementDate || (launchDate ? deriveAnnouncementDateIso(launchDate) : null),
         lastLaunchDate: company.lastLaunchDate || null,
         averageIntervalMonths: company.averageIntervalMonths ?? null,
-        overview: company.overview?.trim() || null,
+        overview: (study?.overview || company.overview)?.trim() || null,
         category: company.sector?.trim() || null,
-        source: "hero_signal",
+        source: study ? "campaign_study_cache" : "hero_signal",
+        campaignStudy: study ? {
+          status: study.status,
+          note: study.note,
+          peopleAlsoAsk: study.peopleAlsoAsk,
+          socialHype: study.socialHype,
+          searchIntent: study.searchIntent,
+          fromCache: study.fromCache,
+        } : null,
       },
     });
   }

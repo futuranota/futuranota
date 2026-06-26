@@ -28,6 +28,20 @@ export function AdminPage() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [tab, setTab] = useState('signals');
+  const [flashMessage, setFlashMessage] = useState(null);
+  const [signalsRefreshToken, setSignalsRefreshToken] = useState(0);
+
+  function handlePublishedToSignals(brandName) {
+    setSignalsRefreshToken((n) => n + 1);
+    setTab('signals');
+    setFlashMessage(`${brandName} guardado y publicado en Signals.`);
+  }
+
+  function switchTab(nextTab) {
+    setTab(nextTab);
+    if (nextTab === 'signals') setSignalsRefreshToken((n) => n + 1);
+    if (nextTab !== 'signals') setFlashMessage(null);
+  }
 
   useEffect(() => {
     applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
@@ -135,18 +149,32 @@ export function AdminPage() {
             <button
               key={t.id}
               className={`admin-tabs__btn ${tab === t.id ? 'is-active' : ''}`}
-              onClick={() => setTab(t.id)}
+              onClick={() => switchTab(t.id)}
             >
               {t.label}
             </button>
           ))}
         </nav>
 
+        {flashMessage ? (
+          <p className="muted" style={{ fontSize: 13, marginBottom: 12, color: 'var(--hud)' }}>
+            {flashMessage}
+          </p>
+        ) : null}
+
         <main className="admin-content">
-          {tab === 'signals' ? <SignalsAdminPanel /> : null}
-          {tab === 'campaigns' ? <CampaignDetectorAdminPanel /> : null}
-          {tab === 'horizon' ? <HorizonScanAdminPanel /> : null}
-          {tab === 'sources' ? <ScanSourcesAdminPanel /> : null}
+          <div className={`admin-panel-view${tab === 'signals' ? '' : ' is-hidden'}`}>
+            <SignalsAdminPanel refreshToken={signalsRefreshToken} />
+          </div>
+          <div className={`admin-panel-view${tab === 'campaigns' ? '' : ' is-hidden'}`}>
+            <CampaignDetectorAdminPanel onPublishedToSignals={handlePublishedToSignals} />
+          </div>
+          <div className={`admin-panel-view${tab === 'horizon' ? '' : ' is-hidden'}`}>
+            <HorizonScanAdminPanel onPublishedToSignals={handlePublishedToSignals} />
+          </div>
+          <div className={`admin-panel-view${tab === 'sources' ? '' : ' is-hidden'}`}>
+            <ScanSourcesAdminPanel />
+          </div>
         </main>
       </div>
     </div>
