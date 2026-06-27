@@ -29,6 +29,13 @@ export function resolveBlockNodeLinkColor(block) {
   return normalizeNodeLinkColorId(block?.nodeLinkColor ?? NO_NODE_LINK_COLOR_ID);
 }
 
+/** Node→doc sync: inherit doc color, or mint when the doc has node links disabled. */
+export function resolveAdoptedBlockNodeLinkColor(doc) {
+  const docColor = normalizeNodeLinkColorId(doc?.nodeLinkColor);
+  if (!isNoNodeLinkMode(docColor)) return docColor;
+  return "mint";
+}
+
 function linkColorFromEntity(entity, docsById) {
   if (!entity?.parentDocId) return null;
   const doc = docsById[entity.parentDocId];

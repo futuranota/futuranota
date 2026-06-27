@@ -294,6 +294,19 @@ export function DocExpandedView({
   }, [docId]);
 
   useEffect(() => {
+    if (!doc || !isDraftReady || !initialSnapshot) return;
+
+    const blocksDirty = JSON.stringify(initialSnapshot.blocks) !== JSON.stringify(draftBlocks);
+    if (blocksDirty) return;
+
+    const storeBlocks = normalizeDocBlocks(doc.blocks || []);
+    if (JSON.stringify(draftBlocks) === JSON.stringify(storeBlocks)) return;
+
+    setDraftBlocks(storeBlocks);
+    setInitialSnapshot((prev) => (prev ? { ...prev, blocks: storeBlocks } : prev));
+  }, [doc, doc?.updatedAt, isDraftReady, initialSnapshot, draftBlocks]);
+
+  useEffect(() => {
     if (!docId || !isDraftReady) return undefined;
     const persistDraft = () => {
       useUIStateStore.getState().setDocEditorDraft(

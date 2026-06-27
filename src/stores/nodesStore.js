@@ -16,7 +16,8 @@ import {
   buildCalendarEmbeddedBlockFields,
   getCalendarEventDisplayText,
 } from "../lib/calendarEventDisplay.js";
-import { unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
+import { ensureContinuationAfterLinkedOwner, unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
+import { resolveAdoptedBlockNodeLinkColor } from "../lib/docNodeLinkColors.js";
 
 function stringifyNodeContent(dataType, content) {
   if (dataType === "date") {
@@ -61,6 +62,25 @@ function buildSyncedTextBlockFields(node) {
     if (embedded) return embedded;
   }
   return { text: buildSyncedNodeText(node) };
+}
+
+function linkedBlockFields(doc, extra = {}) {
+  return {
+    queryEnabled: true,
+    nodeLinkColor: resolveAdoptedBlockNodeLinkColor(doc),
+    ...extra,
+  };
+}
+
+function finalizeSyncedDocBlocks(blocks, doc, ownerBlockId = null) {
+  let next = blocks;
+  if (ownerBlockId) {
+    const ownerIndex = next.findIndex((b) => b.id === ownerBlockId);
+    if (ownerIndex >= 0) {
+      next = ensureContinuationAfterLinkedOwner(next, ownerIndex);
+    }
+  }
+  return ensureWritableDocTail(next);
 }
 
 export const useNodesStore = create(
@@ -262,6 +282,7 @@ export const useNodesStore = create(
               sourceQuery: syncedTitle,
               items: items.length ? items : block.items,
               nodeId: node.id,
+              ...linkedBlockFields(doc),
               ...anchorFields,
             };
           });
@@ -279,6 +300,7 @@ export const useNodesStore = create(
                 title: syncedTitle,
                 sourceQuery: syncedTitle,
                 nodeId: node.id,
+                ...linkedBlockFields(doc),
                 ...anchorFields,
               };
             }
@@ -310,6 +332,7 @@ export const useNodesStore = create(
                   title: syncedTitle,
                   sourceQuery: syncedTitle,
                   nodeId: node.id,
+                  ...linkedBlockFields(doc),
                   ...anchorFields,
                 };
               }
@@ -370,7 +393,7 @@ export const useNodesStore = create(
               listTitle: syncedTitle,
               sourceQuery: syncedTitle,
               nodeId: node.id,
-              queryEnabled: true,
+              ...linkedBlockFields(doc),
               items: [createTodoItem({ checked: Boolean(node.content) })],
               ...anchorFields,
             });
@@ -381,7 +404,7 @@ export const useNodesStore = create(
               title: syncedTitle,
               sourceQuery: syncedTitle,
               nodeId: node.id,
-              queryEnabled: true,
+              ...linkedBlockFields(doc),
               ...anchorFields,
             });
             const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, {
@@ -394,7 +417,9 @@ export const useNodesStore = create(
           }
         }
 
-        useDocsStore.getState().updateDoc(docId, { blocks: ensureWritableDocTail(nextBlocks) });
+        useDocsStore.getState().updateDoc(docId, {
+          blocks: finalizeSyncedDocBlocks(nextBlocks, doc, sourceBlockId),
+        });
         get().updateNode(nodeId, {
           parentDocId: docId,
           linkedToDoc: true,

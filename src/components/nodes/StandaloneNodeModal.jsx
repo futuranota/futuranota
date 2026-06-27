@@ -200,7 +200,7 @@ export function StandaloneNodeModal({
       createdDate={createdDate || todayDateInputValue()}
       onCreatedDateChange={setCreatedDate}
       parentDocId={parentDocId}
-      onParentDocIdChange={queryCanvasNodeId ? undefined : setParentDocId}
+      onParentDocIdChange={setParentDocId}
       docs={docList}
       parentObjectId={parentObjectId}
       anchorDate={anchorDate}
