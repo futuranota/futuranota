@@ -717,6 +717,8 @@ export function DocDocumentBox({
           onSelectCommand={insertSlashCommandFromPicker}
           isCommandEnabled={isSlashCommandEnabled}
           variant="floating"
+          nodeLinkColor={metaStripNodeLinkColor}
+          onNodeLinkColorChange={isKnowledgeMode ? undefined : handleMetaNodeLinkColorChange}
         />
       </div>
 

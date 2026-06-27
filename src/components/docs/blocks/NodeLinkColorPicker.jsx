@@ -8,7 +8,7 @@ export function NodeLinkColorPicker({
   label = "Nodes colors",
   variant = "block",
 }) {
-  if (!onChange) return null;
+  if (!onChange && variant !== "inline") return null;
 
   const swatches = (
     <div className="doc-node-link-colors" role="radiogroup" aria-label={label}>
@@ -22,14 +22,19 @@ export function NodeLinkColorPicker({
           title={colorLabel}
           className={"doc-node-link-color" + (value === id ? " is-on" : "")}
           style={{ "--node-link-swatch": stroke }}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            onChange(id);
+            onChange?.(id);
           }}
         />
       ))}
     </div>
   );
+
+  if (variant === "inline") {
+    return swatches;
+  }
 
   if (variant === "meta") {
     return (
