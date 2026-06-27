@@ -171,7 +171,7 @@ export function normalizeEmbedSrcForPlayback(src) {
   return src;
 }
 
-export function buildVideoNodeContent(videoBlock, description = "") {
+export function buildVideoNodeContent(videoBlock, description = "", notes = "") {
   const embedSrc = normalizeEmbedSrcForPlayback(videoBlock?.embedSrc || "");
   return {
     kind: "embedded-video",
@@ -180,10 +180,11 @@ export function buildVideoNodeContent(videoBlock, description = "") {
     embedSrc,
     rawInput: videoBlock?.rawInput || "",
     description: description || "",
+    notes: typeof notes === "string" ? notes : "",
   };
 }
 
-export function resolveVideoEmbedFromNodeContent(content) {
+export function getVideoNodePayload(content) {
   let payload = content;
   if (typeof content === "string") {
     try {
@@ -192,8 +193,35 @@ export function resolveVideoEmbedFromNodeContent(content) {
       return null;
     }
   }
-  if (!payload || typeof payload !== "object") return null;
-  if (payload.kind !== "embedded-video") return null;
+  if (!payload || typeof payload !== "object" || payload.kind !== "embedded-video") {
+    return null;
+  }
+  return payload;
+}
+
+export function getVideoNodeNotes(content) {
+  return getVideoNodePayload(content)?.notes || "";
+}
+
+/** Merge patch into embedded-video content while preserving other fields. */
+export function mergeVideoNodeContent(content, patch = {}) {
+  const base = getVideoNodePayload(content) || buildVideoNodeContent(null, "", "");
+  const nextBlock = {
+    rawInput: patch.rawInput ?? base.rawInput ?? "",
+    provider: patch.provider ?? base.provider ?? "unknown",
+    videoId: patch.videoId ?? base.videoId ?? "",
+    embedSrc: patch.embedSrc ?? base.embedSrc ?? "",
+  };
+  return buildVideoNodeContent(
+    nextBlock,
+    patch.description ?? base.description ?? "",
+    patch.notes ?? base.notes ?? "",
+  );
+}
+
+export function resolveVideoEmbedFromNodeContent(content) {
+  const payload = getVideoNodePayload(content);
+  if (!payload) return null;
   const embedSrc = normalizeEmbedSrcForPlayback(payload.embedSrc);
   if (!isAllowedEmbedSrc(embedSrc)) return null;
   return { ...payload, embedSrc };

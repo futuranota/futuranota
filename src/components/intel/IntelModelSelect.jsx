@@ -91,9 +91,8 @@ export function IntelModelSelect({ disabled = false, className = "" }) {
   return (
     <div
       ref={rootRef}
-      className={`intel-meta-kv intel-bottom-item intel-model-select${className ? ` ${className}` : ""}`}
+      className={`intel-bottom-item intel-model-select${className ? ` ${className}` : ""}`}
     >
-      <span>{t("intel.model")}:</span>
       <div className="intel-model-select__control">
         <button
           type="button"

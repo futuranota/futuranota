@@ -26,6 +26,7 @@ import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
+import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
 import { resolveActiveTimelineAlert } from './lib/resolveTimelineAlert.js';
 import {
@@ -889,18 +890,30 @@ useEffect(() => {
         </div>
       )}
       {expandedNodeId && nodeEntities[expandedNodeId] ? (
-        <StandaloneNodeModal
-          defaultExpanded
-          node={nodeEntities[expandedNodeId]}
-          docs={Object.values(docs)}
-          parentObjectId={filterObjectId || selectedObjectId || null}
-          queryCanvasNodeId={
-            canvasNodes.find((n) => n.noteId === expandedNodeId)?.id ?? null
-          }
-          onClose={() => setExpandedNodeId(null)}
-          onSaved={() => setExpandedNodeId(null)}
-          onDeleted={() => setExpandedNodeId(null)}
-        />
+        nodeEntities[expandedNodeId].dataType === "video" ? (
+          <VideoReferencePanel
+            nodeId={expandedNodeId}
+            searchQuery={
+              (nodeEntities[expandedNodeId].sourceQuery
+                || nodeEntities[expandedNodeId].title
+                || "").trim()
+            }
+            onClose={() => setExpandedNodeId(null)}
+          />
+        ) : (
+          <StandaloneNodeModal
+            defaultExpanded
+            node={nodeEntities[expandedNodeId]}
+            docs={Object.values(docs)}
+            parentObjectId={filterObjectId || selectedObjectId || null}
+            queryCanvasNodeId={
+              canvasNodes.find((n) => n.noteId === expandedNodeId)?.id ?? null
+            }
+            onClose={() => setExpandedNodeId(null)}
+            onSaved={() => setExpandedNodeId(null)}
+            onDeleted={() => setExpandedNodeId(null)}
+          />
+        )
       ) : null}
 
       {adoptPrompt ? (

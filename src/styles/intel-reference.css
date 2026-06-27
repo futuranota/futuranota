@@ -337,3 +337,235 @@
   cursor: not-allowed;
   box-shadow: none;
 }
+
+/* ── Video panel (YouTube / Vimeo) ── */
+.intel-ref-panel--video {
+  height: min(620px, calc(100vh - 80px));
+}
+
+.video-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 50%;
+  min-height: 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.video-screen__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 10px;
+  flex-shrink: 0;
+}
+
+.video-screen__back {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.video-screen__back:hover {
+  color: #fff;
+}
+
+.video-screen__title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.video-screen__title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.video-screen__stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #0b0e12;
+}
+
+.video-screen__iframe {
+  flex: 1;
+  width: 100%;
+  min-height: 180px;
+  border: none;
+  background: #000;
+}
+
+.video-screen__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.video-screen__provider {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-family: var(--mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--warm);
+  border: 1px solid color-mix(in oklab, var(--warm) 35%, var(--hairline));
+  background: var(--warm-soft);
+}
+
+.video-embed-bar {
+  flex-shrink: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hairline);
+  background: #141a21;
+}
+
+.video-embed-bar__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.video-embed-bar__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.video-embed-bar__input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-1);
+  font-family: var(--sans);
+  font-size: 12px;
+  outline: none;
+}
+
+.video-embed-bar__input:focus {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.video-embed-bar__load {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-1);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.video-embed-bar__load:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.video-embed-bar__load:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.video-embed-bar__error {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--warm);
+}
+
+.intel-folder-panel--youtube {
+  min-height: 120px;
+}
+
+.intel-col-body--youtube {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.video-workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: #151515;
+}
+
+.video-workspace--embedded {
+  flex: 1;
+  min-height: min(520px, calc(100vh - 280px));
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+}
+
+.video-workspace--embedded .video-screen {
+  flex: 1 1 52%;
+}
+
+.video-workspace--embedded .note-taker {
+  flex: 0 0 38%;
+  max-height: 42%;
+  min-height: 140px;
+}
+
+.youtube-folder-panel {
+  padding: 8px 2px 4px;
+}
+
+.youtube-folder-panel__hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.youtube-folder-panel__open {
+  width: 100%;
+}
+
+.youtube-folder-panel__note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.intel-folder-panel--youtube {
+  min-height: 120px;
+}

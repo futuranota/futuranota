@@ -149,6 +149,8 @@ export const messages = {
       forecast: "Forecast",
       launchRadar: "Launch radar",
       marketHype: "Market Hype",
+      youtube: "YouTube",
+      youtubeHint: "Paste any YouTube or Vimeo link, watch it here, and take notes.",
       foldersAria: "Intel folders",
       describeSearch: "Describe your search",
       searchAria: "Simulated intelligence query",

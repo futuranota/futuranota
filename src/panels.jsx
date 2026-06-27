@@ -22,6 +22,7 @@ import { LaunchPredictor } from './components/analytics/LaunchPredictor.jsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
 import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
+import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.jsx';
 import { IntelModelSelect } from './components/intel/IntelModelSelect.jsx';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
@@ -610,6 +611,7 @@ function useIntelTabOptions() {
   const { t } = useI18n();
   return useMemo(() => ([
     { id: "news", label: t("intel.news") },
+    { id: "youtube", label: t("intel.youtube") },
     { id: "campaign", label: t("intel.campaign") },
   ]), [t]);
 }
@@ -838,6 +840,7 @@ function IntelPanel({
   const tabOptions = useIntelTabOptions();
   const pluralS = (n) => (n === 1 ? "" : "s");
   const [tab, setTab] = useState("news");
+  const [youtubePanelOpen, setYoutubePanelOpen] = useState(false);
   const [intelFolderTab, setIntelFolderTab] = useState("calendar");
   const [intelQuery, setIntelQuery] = useState("");
   const intelQueryRef = useRef(null);
@@ -921,6 +924,8 @@ function IntelPanel({
     if (intelSearchStatus === "loading") return;
     setIntelQuery("");
     clearIntelSearch();
+    setYoutubePanelOpen(false);
+    if (tab === "youtube") setTab("news");
     if (tab === "campaign") {
       requestAnimationFrame(() => {
         injectCampaignQuery();
@@ -934,6 +939,32 @@ function IntelPanel({
   const isSearchLoading = intelSearchStatus === "loading";
   const hasSearchResult = intelSearchStatus === "success" && intelSearchResult;
   const contextCount = intelSearchResult?.contextNodes?.length ?? 0;
+  const youtubeNodeId = intelSearchMeta?.queryNodeEntityId ?? null;
+  const youtubeSearchQuery = intelSearchResult?.query ?? intelQuery;
+  const youtubeFallbackNode = useMemo(
+    () => resolveActiveForecastNode(
+      nodeEntities,
+      { expandedNodeId, selection, canvasNodes },
+      docsById,
+    ),
+    [nodeEntities, docsById, expandedNodeId, selection, canvasNodes],
+  );
+  const youtubeResolvedNodeId = youtubeNodeId || youtubeFallbackNode?.id || null;
+
+  const handleIntelTabChange = (nextTab) => {
+    if (nextTab === "youtube") {
+      setTab("youtube");
+      setYoutubePanelOpen(true);
+      return;
+    }
+    setYoutubePanelOpen(false);
+    setTab(nextTab);
+  };
+
+  const handleYoutubePanelClose = () => {
+    setYoutubePanelOpen(false);
+    setTab("news");
+  };
 
   const normalizedQuery = intelQuery.trim().toLowerCase();
   const filtered = intel.filter((s) => {
@@ -948,6 +979,13 @@ function IntelPanel({
 
   return (
     <>
+      {youtubePanelOpen ? (
+        <VideoReferencePanel
+          nodeId={youtubeResolvedNodeId}
+          searchQuery={youtubeSearchQuery}
+          onClose={handleYoutubePanelClose}
+        />
+      ) : null}
       <div className="col-header intel-header">
         <div className="intel-search-card">
           <div className="intel-search-top">
@@ -980,7 +1018,7 @@ function IntelPanel({
                 className="intel-tab-chip intel-bottom-item"
                 data-on={tab === option.id ? "1" : "0"}
                 aria-pressed={tab === option.id}
-                onClick={() => setTab(option.id)}
+                onClick={() => handleIntelTabChange(option.id)}
               >
                 {option.label}
               </button>

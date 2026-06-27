@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import {
+  getVideoNodeNotes,
+  mergeVideoNodeContent,
+} from "../../lib/videoEmbed.js";
 
 const NOTE_PANEL_ICON = "/uploads/botones/PencilCircle.svg";
 const AUTO_SAVE_MS = 700;
 
 function initialNotes(node) {
   if (!node) return "";
+  if (node.dataType === NODE_DATA_TYPES.VIDEO) {
+    return getVideoNodeNotes(node.content);
+  }
   if (node.dataType === "text" && typeof node.content === "string") {
     return node.content;
   }
@@ -46,7 +54,13 @@ export function NoteTaker({ searchQuery = "", nodeId = null, onClose }) {
 
       setSaving(true);
       try {
-        updateNode(nodeId, { content: trimmed });
+        if (liveNode.dataType === NODE_DATA_TYPES.VIDEO) {
+          updateNode(nodeId, {
+            content: mergeVideoNodeContent(liveNode.content, { notes: trimmed }),
+          });
+        } else {
+          updateNode(nodeId, { content: trimmed });
+        }
         if (liveNode.parentDocId) {
           syncNodeToParentDoc(nodeId, liveNode.parentDocId);
         }
@@ -77,7 +91,13 @@ export function NoteTaker({ searchQuery = "", nodeId = null, onClose }) {
       if (!nodeId || !trimmed) return;
       const liveNode = useNodesStore.getState().nodes[nodeId];
       if (!liveNode) return;
-      useNodesStore.getState().updateNode(nodeId, { content: trimmed });
+      if (liveNode.dataType === NODE_DATA_TYPES.VIDEO) {
+        useNodesStore.getState().updateNode(nodeId, {
+          content: mergeVideoNodeContent(liveNode.content, { notes: trimmed }),
+        });
+      } else {
+        useNodesStore.getState().updateNode(nodeId, { content: trimmed });
+      }
       if (liveNode.parentDocId) {
         useNodesStore.getState().syncNodeToParentDoc(nodeId, liveNode.parentDocId);
       }
