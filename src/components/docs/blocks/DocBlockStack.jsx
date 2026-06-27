@@ -32,7 +32,7 @@ import {
   parseSlashQuery,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
-import { getH1IndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText } from "../../../lib/docNodeSync.js";
+import { getH1IndexForTextBlock, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, isDocBlockLinkedToNode } from "../../../lib/docNodeSync.js";
 import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
@@ -96,6 +96,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   onEnsureNodeForBlock,
   onVideoEmbedSync,
   onVideoEmbedH1TitleChange,
+  onDetachFromNode,
 }, ref) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
@@ -166,8 +167,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const blockLinkColor = (block) => resolveBlockNodeLinkColor(block);
   const blockLinksEnabled = (block) => !isNoNodeLinkMode(blockLinkColor(block));
 
-  const showScheduleForBlock = (block) =>
-    blockLinksEnabled(block) && Boolean(block.queryEnabled) && Boolean(block.anchorFromNode);
+  const showScheduleForBlock = () => false;
 
   const isContentExpanded = (blockId) => !collapsedContentByBlockId[blockId];
 
@@ -1140,17 +1140,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 if (collapsedPadWriteByOwnerId[block.id]) return;
                 onFocusBlock?.(block.id);
               }}
-              anchorFromNode={Boolean(block.anchorFromNode)}
-              anchorDate={block.anchorDate || ""}
-              anchorTime={block.anchorTime || ""}
               onQueryHandleClick={() => handleQueryHandleClick(index)}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
-              contentExpanded={isContentExpanded(block.id)}
-              onContentToggle={
-                showScheduleForBlock(block)
-                  ? () => toggleBlockContent(block.id)
-                  : undefined
-              }
             />
           ) : null}
 
@@ -1232,9 +1223,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 if (collapsedPadWriteByOwnerId[block.id]) return;
                 onFocusBlock?.(block.id);
               }}
-              anchorFromNode={Boolean(block.anchorFromNode)}
-              anchorDate={block.anchorDate || ""}
-              anchorTime={block.anchorTime || ""}
               items={block.items || []}
               focusItemId={todoFocusItemId}
               onItemsChange={(items) => updateAt(index, { items })}
@@ -1247,11 +1235,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               onDragHandlePointerDown={handleDragPointerDown}
               onQueryHandleClick={() => handleQueryHandleClick(index)}
               onListTitleKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
-              contentExpanded={isContentExpanded(block.id)}
-              onContentToggle={
-                showScheduleForBlock(block)
-                  ? () => toggleBlockContent(block.id)
-                  : undefined
+              onDetachFromNode={
+                isDocBlockLinkedToNode(block) && onDetachFromNode
+                  ? () => onDetachFromNode(index)
+                  : null
               }
             />
           ) : null}
@@ -1264,6 +1251,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 const h1Index = getH1IndexForTextBlock(blocks, index);
                 return h1Index >= 0 ? blocks[h1Index]?.nodeId || null : null;
               })()}
+              onDetachFromNode={
+                getLinkedOwnerIndexForTextBlock(blocks, index) >= 0 && onDetachFromNode
+                  ? () => onDetachFromNode(getLinkedOwnerIndexForTextBlock(blocks, index))
+                  : null
+              }
               onRemoveEmbedded={
                 block.embedded?.kind === "calendar-event" || isCalendarEventNodeContent(block.text)
                   ? () => handleRemoveEmbeddedBlock(index)

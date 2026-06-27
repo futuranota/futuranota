@@ -1,5 +1,6 @@
 import { SlashAwareTextarea } from "./SlashAwareTextarea.jsx";
 import { EmbeddedCalendarBlockView } from "./EmbeddedCalendarBlockView.jsx";
+import { LinkedNodeDocActions } from "./LinkedNodeDocActions.jsx";
 import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
 import { getCalendarEventDisplayModel } from "../../../lib/calendarEventDisplay.js";
 import { useI18n } from "../../../i18n/useI18n.js";
@@ -18,6 +19,8 @@ export function TextBlockView({
   linkedNodeId = null,
   onRemoveEmbedded = null,
   onEditEmbedded = null,
+  onDetachFromNode = null,
+  detachFromNodeLabel,
 }) {
   const { t } = useI18n();
   const legacyCalendarModel = !embedded?.displayModel && isCalendarEventNodeContent(value)
@@ -70,6 +73,12 @@ export function TextBlockView({
         minHeightPx={28}
         maxHeightPx={maxHeightPx}
       />
+      {onDetachFromNode ? (
+        <LinkedNodeDocActions
+          onDetach={onDetachFromNode}
+          label={detachFromNodeLabel || t("canvas.removeFromNode")}
+        />
+      ) : null}
     </div>
   );
 }

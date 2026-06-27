@@ -5,6 +5,7 @@ import {
   getVideoEmbedBlockAfterH1,
   h1HasVideoEmbedSibling,
   insertBlockAfter,
+  normalizeDocBlock,
   normalizeDocBlocks,
   updateBlockAt,
 } from "./docBlocks.js";
@@ -25,6 +26,11 @@ import {
   resolveBlockAnchor,
   resolveBlockAnchorFields,
 } from "./nodeAnchor.js";
+import {
+  isNoNodeLinkMode,
+  NO_NODE_LINK_COLOR_ID,
+  resolveBlockNodeLinkColor,
+} from "./docNodeLinkColors.js";
 
 export {
   anchorAtFromBlock,
@@ -398,6 +404,78 @@ export function ensureNodeForDocBlock({
 }
 
 /** Zustand node ids still referenced by saved doc blocks (h1, todo, date, metric, …). */
+export function isDocBlockLinkedToNode(block) {
+  if (!block?.nodeId || !block.queryEnabled) return false;
+  return !isNoNodeLinkMode(resolveBlockNodeLinkColor(block));
+}
+
+/** H1 index when textBlockIndex is the primary answer slot under a linked H1, else -1. */
+export function getLinkedOwnerIndexForTextBlock(blocks, textBlockIndex) {
+  const h1Index = getH1IndexForTextBlock(blocks, textBlockIndex);
+  if (h1Index < 0) return -1;
+  const normalized = normalizeDocBlocks(blocks);
+  const h1 = normalized[h1Index];
+  if (!isDocBlockLinkedToNode(h1)) return -1;
+  const owned = getOwnedTextBlockIndices(normalized, h1Index);
+  return owned[0] === textBlockIndex ? h1Index : -1;
+}
+
+const UNLINK_BLOCK_PATCH = {
+  nodeId: undefined,
+  queryEnabled: false,
+  nodeLinkColor: NO_NODE_LINK_COLOR_ID,
+  anchorFromNode: false,
+  anchorDate: "",
+  anchorTime: "",
+  sourceQuery: undefined,
+};
+
+/** Detach node link: keep doc content as local copy, drop color + schedule on owner block. */
+export function unlinkNodeFromDocBlocks(blocks, ownerIndex, node = null) {
+  const normalized = normalizeDocBlocks(blocks);
+  const owner = normalized[ownerIndex];
+  if (!owner?.nodeId) return normalized;
+
+  const fallbackText = node ? nodeContentAsString(node) : "";
+
+  if (owner.type === DOC_BLOCK_TYPES.H1) {
+    const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
+    const primaryTextIndex = owned[0] ?? -1;
+
+    return normalized.map((block, i) => {
+      if (i === ownerIndex) {
+        return normalizeDocBlock({ ...block, ...UNLINK_BLOCK_PATCH });
+      }
+      if (i === primaryTextIndex) {
+        const text = block.text || fallbackText;
+        const patch = { text };
+        if (block.embedded?.kind === "calendar-event") {
+          patch.embedded = { ...block.embedded, linkedNodeId: null };
+        }
+        return normalizeDocBlock({ ...block, ...patch });
+      }
+      return block;
+    });
+  }
+
+  if (owner.type === DOC_BLOCK_TYPES.TODO && node) {
+    const checked = typeof node.content === "boolean" ? node.content : false;
+    return normalized.map((block, i) => {
+      if (i !== ownerIndex) return block;
+      const items = (block.items || []).map((item, idx) =>
+        idx === 0 ? { ...item, checked } : item,
+      );
+      return normalizeDocBlock({ ...block, ...UNLINK_BLOCK_PATCH, items });
+    });
+  }
+
+  return normalized.map((block, i) =>
+    i === ownerIndex
+      ? normalizeDocBlock({ ...block, ...UNLINK_BLOCK_PATCH })
+      : block,
+  );
+}
+
 export function collectNodeIdsReferencedByBlocks(blocks) {
   const ids = new Set();
   for (const block of normalizeDocBlocks(blocks)) {

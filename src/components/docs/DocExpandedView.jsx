@@ -52,6 +52,7 @@ import {
   setContentForNodeBlock,
   syncVideoNodeFromH1Blocks,
   syncVideoNodeFromVideoBlock,
+  unlinkNodeFromDocBlocks,
 } from "../../lib/docNodeSync.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
@@ -185,6 +186,7 @@ export function DocExpandedView({
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
   const updateNode = useNodesStore((s) => s.updateNode);
   const deleteNode = useNodesStore((s) => s.deleteNode);
+  const deleteNodeEntity = useNodesStore((s) => s.deleteNodeEntity);
 
   const [selectionModal, setSelectionModal] = useState(null);
   const [draftTitle, setDraftTitle] = useState("");
@@ -696,6 +698,25 @@ export function DocExpandedView({
     }
   };
 
+  const handleDetachFromNode = (ownerIndex) => {
+    const block = draftBlocks[ownerIndex];
+    const nodeId = block?.nodeId;
+    if (!nodeId) return;
+
+    const node = getNode(nodeId);
+    const next = unlinkNodeFromDocBlocks(draftBlocks, ownerIndex, node);
+    setDraftBlocks(next);
+    deleteNodeEntity(nodeId);
+
+    if (activeNodeContext?.nodeId === nodeId) {
+      setActiveNodeContext(null);
+      setNodeDraftContent("");
+      setNodeDraftAnchorDate("");
+      setNodeDraftAnchorTime("");
+      setNodeInitialSnapshot(null);
+    }
+  };
+
   const persistNodeContentDebounced = (content, context, anchorDate, anchorTime) => {
     if (isNoNodeLinkMode(resolveBlockNodeLinkColor(draftBlocks[context.blockIndex]))) return;
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
@@ -1074,6 +1095,7 @@ export function DocExpandedView({
           onEnsureNodeForBlock={handleEnsureNodeForBlock}
           onAnswerBelowH1Change={handleAnswerBelowH1Change}
           onBlockAnchorChange={handleBlockAnchorChange}
+          onDetachFromNode={handleDetachFromNode}
           onInsertProductToCanvas={handleInsertProductToCanvas}
           onVideoEmbedSync={handleVideoEmbedSync}
           onVideoEmbedH1TitleChange={handleVideoEmbedH1TitleChange}

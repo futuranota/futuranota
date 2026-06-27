@@ -16,6 +16,7 @@ import {
   buildCalendarEmbeddedBlockFields,
   getCalendarEventDisplayText,
 } from "../lib/calendarEventDisplay.js";
+import { unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
 
 function stringifyNodeContent(dataType, content) {
   if (dataType === "date") {
@@ -410,31 +411,45 @@ export const useNodesStore = create(
         if (!doc) return;
 
         const normalized = normalizeDocBlocks(doc.blocks);
-        let nextBlocks = normalized.map((block) => {
-          if (block.id === node.sourceBlockId) {
-            return { ...block, nodeId: null };
-          }
-          if (block.id === node.sourceTextBlockId) {
-            if (block.embedded?.kind === "calendar-event") {
-              return {
-                ...block,
-                text: block.text || getCalendarEventDisplayText(node.content),
-                embedded: {
-                  ...block.embedded,
-                  linkedNodeId: null,
-                },
-              };
+        const ownerIndex = node.sourceBlockId
+          ? normalized.findIndex((b) => b.id === node.sourceBlockId)
+          : -1;
+
+        const nextBlocks = ownerIndex >= 0
+          ? unlinkNodeFromDocBlocks(normalized, ownerIndex, node)
+          : normalized.map((block) => {
+            if (block.id === node.sourceBlockId) {
+              return { ...block, nodeId: null };
             }
-            return {
-              ...block,
-              text: block.text || buildSyncedNodeText(node),
-            };
-          }
-          return block;
-        });
+            if (block.id === node.sourceTextBlockId) {
+              if (block.embedded?.kind === "calendar-event") {
+                return {
+                  ...block,
+                  text: block.text || getCalendarEventDisplayText(node.content),
+                  embedded: { ...block.embedded, linkedNodeId: null },
+                };
+              }
+              return { ...block, text: block.text || buildSyncedNodeText(node) };
+            }
+            return block;
+          });
 
         useDocsStore.getState().updateDoc(node.parentDocId, { blocks: nextBlocks });
         useDocsStore.getState().removeNodeFromDoc(node.parentDocId, nodeId);
+      },
+
+      /** Remove node entity + doc.nodeIds entry without mutating doc blocks (draft editor handles blocks). */
+      deleteNodeEntity: (nodeId) => {
+        const node = get().nodes[nodeId];
+        if (node?.parentDocId) {
+          useDocsStore.getState().removeNodeFromDoc(node.parentDocId, nodeId);
+        }
+        set((state) => {
+          if (!state.nodes[nodeId]) return state;
+          const next = { ...state.nodes };
+          delete next[nodeId];
+          return { nodes: next };
+        });
       },
 
       deleteNodeAndDocBlocks: (nodeId) => {

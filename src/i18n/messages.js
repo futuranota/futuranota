@@ -34,6 +34,7 @@ export const messages = {
       assignParentConfirm: "Link to document",
       adoptSuccess: "Linked \"{orphan}\" to \"{doc}\"",
       removeFromDoc: "Remove from document",
+      removeFromNode: "Remove from node",
       editAsText: "Edit as text",
     },
     topbar: {
@@ -318,6 +319,7 @@ export const messages = {
       assignParentConfirm: "Vincular al documento",
       adoptSuccess: "Vinculado \"{orphan}\" a \"{doc}\"",
       removeFromDoc: "Eliminar del documento",
+      removeFromNode: "Eliminar del nodo",
       editAsText: "Editar como texto",
     },
     topbar: {

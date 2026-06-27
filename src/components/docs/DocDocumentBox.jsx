@@ -74,6 +74,7 @@ export function DocDocumentBox({
   onInsertProductToCanvas,
   onVideoEmbedSync,
   onVideoEmbedH1TitleChange,
+  onDetachFromNode,
   headerLabel,
   version = "",
   onVersionChange,
@@ -668,6 +669,7 @@ export function DocDocumentBox({
               onInsertProductToCanvas={onInsertProductToCanvas}
               onVideoEmbedSync={onVideoEmbedSync}
               onVideoEmbedH1TitleChange={onVideoEmbedH1TitleChange}
+              onDetachFromNode={onDetachFromNode}
             />
           ) : (
             <div

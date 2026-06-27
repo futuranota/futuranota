@@ -1,5 +1,4 @@
 import { DocQueryHandleRow } from "./DocQueryHandleRow.jsx";
-import { BlockAnchorFields } from "./BlockAnchorFields.jsx";
 
 export function H1BlockView({
   value,
@@ -7,19 +6,12 @@ export function H1BlockView({
   queryEnabled = false,
   nodeLinkColor = "dark",
   linksEnabled = true,
-  anchorFromNode = false,
-  anchorDate = "",
-  anchorTime = "",
   onKeyDown,
   autoFocus = false,
   onQueryHandleClick,
   onFocus,
-  contentExpanded = true,
-  onContentToggle,
   placeholder = "Create a new query or title ",
 }) {
-  const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
-
   return (
     <div className="doc-h1-block">
       <DocQueryHandleRow
@@ -36,16 +28,6 @@ export function H1BlockView({
         ariaLabel="Title block query or title"
         multiline
       />
-      {showSchedule ? (
-        <BlockAnchorFields
-          readOnly
-          showContentToggle={Boolean(onContentToggle)}
-          contentExpanded={contentExpanded}
-          onContentToggle={onContentToggle}
-          anchorDate={anchorDate}
-          anchorTime={anchorTime}
-        />
-      ) : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { DOC_TODO_HEADER_ICON } from "../../../lib/docMediumAssets.js";
-import { BlockAnchorFields } from "./BlockAnchorFields.jsx";
 import { DocQueryHandleButton } from "./DocQueryHandleRow.jsx";
+import { LinkedNodeDocActions } from "./LinkedNodeDocActions.jsx";
 
 export function TodoBlockView({
   listTitle,
@@ -9,9 +9,6 @@ export function TodoBlockView({
   queryEnabled = false,
   nodeLinkColor = "dark",
   linksEnabled = true,
-  anchorFromNode = false,
-  anchorDate = "",
-  anchorTime = "",
   items,
   focusItemId = null,
   onItemsChange,
@@ -21,11 +18,10 @@ export function TodoBlockView({
   onQueryHandleClick,
   onFocus,
   onListTitleKeyDown,
-  contentExpanded = true,
-  onContentToggle,
+  onDetachFromNode = null,
+  detachFromNodeLabel = "Eliminar del nodo",
 }) {
   const inputRefs = useRef({});
-  const showSchedule = linksEnabled && queryEnabled && anchorFromNode;
 
   useEffect(() => {
     if (!focusItemId) return;
@@ -82,18 +78,6 @@ export function TodoBlockView({
         </button>
       </div>
 
-      {showSchedule ? (
-        <BlockAnchorFields
-          readOnly
-          showContentToggle={Boolean(onContentToggle)}
-          contentExpanded={contentExpanded}
-          onContentToggle={onContentToggle}
-          anchorDate={anchorDate}
-          anchorTime={anchorTime}
-          className="doc-todo-block__anchor"
-        />
-      ) : null}
-
       <div className="doc-todo-block__rows">
         {items.map((item, index) => (
           <div className="doc-todo-block__row" key={item.id}>
@@ -120,6 +104,9 @@ export function TodoBlockView({
           </div>
         ))}
       </div>
+      {onDetachFromNode ? (
+        <LinkedNodeDocActions onDetach={onDetachFromNode} label={detachFromNodeLabel} />
+      ) : null}
     </div>
   );
 }
