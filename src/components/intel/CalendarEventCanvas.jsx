@@ -4,6 +4,8 @@ import {
   buildEventNodeTitle,
   fetchEventsForNode,
 } from "../../lib/eventCalendarSearch.js";
+import { buildEventCalendarScopeBrief } from "../../lib/eventCalendarScopeBrief.js";
+import { useLocaleStore } from "../../i18n/localeStore.js";
 import {
   formatForecastUiDate,
   resolveForecastTargetDate,
@@ -65,6 +67,8 @@ export function CalendarEventCanvas({
   const [rangeId, setRangeId] = useState(DEFAULT_RANGE_ID);
   const skipRangeResearchRef = useRef(true);
   const prevRangeIdRef = useRef(DEFAULT_RANGE_ID);
+  const locale = useLocaleStore((s) => s.locale);
+  const translationRevision = useLocaleStore((s) => s.translationRevision);
 
   const targetKey = useMemo(() => {
     if (!activeNode) return "";
@@ -94,21 +98,21 @@ export function CalendarEventCanvas({
     }
 
     setPhase("loading");
-    const next = await fetchEventsForNode(activeNode, today, rangeId);
+    const next = await fetchEventsForNode(activeNode, today, rangeId, locale);
     setResult(next);
 
     if (profile.plan === "free") {
       usePlanStore.getState().markFeatureUsed("calendar");
     }
 
-    if (next.status === "success") {
+    if (next.status === "success" && next.scopeBrief?.hasData !== false) {
       setPhase("result");
-    } else if (next.status === "empty") {
+    } else if (next.status === "empty" || next.scopeBrief?.hasData === false) {
       setPhase("noEvent");
     } else {
       setPhase("error");
     }
-  }, [activeNode, canSearch, rangeId, today]);
+  }, [activeNode, canSearch, locale, rangeId, today]);
 
   const handleSearch = useCallback(async () => {
     if (!canSearch || phase === "loading") return;
@@ -178,27 +182,39 @@ export function CalendarEventCanvas({
     </div>
   );
 
-  const isSuccessView = result?.status === "success"
+  const displayResult = useMemo(() => {
+    if (!result) return null;
+    return {
+      ...result,
+      scopeBrief: buildEventCalendarScopeBrief(result, { locale }),
+    };
+  }, [result, locale, translationRevision]);
+
+  const isSuccessView = displayResult?.status === "success"
+    && displayResult?.scopeBrief?.hasData
     && (phase === "result" || phase === "loading");
-  const isMessageView = result
-    && result.status !== "success"
+  const isMessageView = displayResult
+    && displayResult.status !== "success"
     && (phase === "noEvent" || phase === "error" || phase === "loading");
 
   if (isSuccessView) {
     return (
       <div className="cal-event-canvas cal-event-canvas--result" aria-label="Event calendar result">
         {controlsRow}
-        <CalendarEventResultBox result={result} onInsert={handleInsert} />
+        <CalendarEventResultBox result={displayResult} onInsert={handleInsert} />
       </div>
     );
   }
 
   if (isMessageView) {
+    const scopeBrief = displayResult?.scopeBrief;
     return (
       <div className="cal-event-canvas cal-event-canvas--result" aria-label="Event calendar">
         {controlsRow}
         <div className="cal-event-result cal-event-result--message" role="status">
-          <p className="cal-event-result__message">{result?.message}</p>
+          <p className="cal-event-result__message cal-event-result__scope-body">
+            {scopeBrief?.body || displayResult?.message}
+          </p>
         </div>
       </div>
     );

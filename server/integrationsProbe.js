@@ -44,6 +44,47 @@ export async function probeGroq(key = process.env.GROQ_API_KEY) {
   }
 }
 
+export async function probeGemini(key = process.env.GEMINI_API_KEY) {
+  if (!key?.trim()) {
+    return {
+      ok: true,
+      configured: false,
+      message: "GEMINI_API_KEY not set (optional — Groq or Gemini for LLM)",
+    };
+  }
+  const start = Date.now();
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key.trim())}`,
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      return {
+        ok: false,
+        configured: true,
+        message: `Gemini ${res.status}: ${text.slice(0, 120)}`,
+        latencyMs: ms(start),
+      };
+    }
+    const data = await res.json();
+    const count = data?.models?.length;
+    const extra = count != null ? ` (${count} models)` : "";
+    return {
+      ok: true,
+      configured: true,
+      message: `Gemini API reachable${extra}`,
+      latencyMs: ms(start),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      configured: true,
+      message: err instanceof Error ? err.message : "Gemini probe failed",
+      latencyMs: ms(start),
+    };
+  }
+}
+
 export async function probeSerper(key = process.env.SERPAPI_KEY) {
   if (!key?.trim()) {
     return { ok: false, configured: false, message: "SERPAPI_KEY not set (Serper)" };
@@ -268,10 +309,26 @@ export async function probeSupabase() {
   };
 }
 
+/**
+ * @param {string} [key]
+ * @returns {ProbeResult}
+ */
+function geminiStatusOnly(key = process.env.GEMINI_API_KEY) {
+  if (!key?.trim()) {
+    return {
+      ok: true,
+      configured: false,
+      message: "GEMINI_API_KEY not set (optional — Groq or Gemini for LLM)",
+    };
+  }
+  return { ok: true, configured: true, message: "GEMINI_API_KEY set (skipped live probe)" };
+}
+
 /** @param {{ live?: boolean }} [opts] live=true runs paid API calls (steps 1-5) */
 export async function runAllIntegrationProbes(opts = {}) {
   const live = opts.live !== false;
   const groq = live ? await probeGroq() : statusOnly("GROQ_API_KEY", process.env.GROQ_API_KEY);
+  const gemini = live ? await probeGemini() : geminiStatusOnly();
   const serper = live ? await probeSerper() : statusOnly("SERPAPI_KEY", process.env.SERPAPI_KEY);
   const dataforseo = live
     ? await probeDataForSeo()
@@ -282,7 +339,7 @@ export async function runAllIntegrationProbes(opts = {}) {
     : statusOnly("OPENWEATHER_API_KEY", getOpenWeatherApiKey());
   const supabase = await probeSupabase();
 
-  const steps = { groq, serper, dataforseo, apify, openweather, supabase };
+  const steps = { groq, gemini, serper, dataforseo, apify, openweather, supabase };
   const allOk = Object.values(steps).every((s) => s.ok);
 
   return {

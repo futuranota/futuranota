@@ -10,6 +10,7 @@ export const API_ROUTES = {
   campaignStudy: "/api/analytics/campaign-study",
   horizonScan: "/api/analytics/horizon-scan",
   weatherForecast: "/api/weather/forecast",
+  events: "/api/events",
   integrationsHealth: "/api/health/integrations",
   webProxy: "/api/proxy",
 };

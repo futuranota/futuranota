@@ -1,7 +1,8 @@
 /**
  * Resolve schedule date from node and fetch calendar events for that day/range.
- * Replace fetchEventsForNode mock body with GET /api/events?from=&to=.
  */
+import { API_ROUTES } from "../api/routes.js";
+import { apiClient } from "../api/client.js";
 import { getEventsInRange } from "../data/eventCalendarMock.js";
 import {
   formatForecastUiDate,
@@ -9,6 +10,7 @@ import {
 } from "./forecastSearch.js";
 import { formatScheduleLabelFromIso } from "./nodeAnchor.js";
 import { startOfCalendarDay } from "../temporal.js";
+import { buildEventCalendarScopeBrief } from "./eventCalendarScopeBrief.js";
 
 export const EVENT_CALENDAR_RANGE_OPTIONS = [
   { id: "week", label: "7d", days: 7 },
@@ -69,12 +71,36 @@ function buildRangeMeta(targetDate, rangeId) {
   };
 }
 
+function toIsoDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * @param {Date} start
+ * @param {Date} end
+ * @param {string} [country]
+ */
+async function fetchEventsFromApi(start, end, country) {
+  const params = new URLSearchParams({
+    from: toIsoDate(start),
+    to: toIsoDate(end),
+  });
+  if (country) params.set("country", country);
+
+  const payload = await apiClient(`${API_ROUTES.events}?${params}`);
+  return Array.isArray(payload?.events) ? payload.events : [];
+}
+
 /**
  * @param {object|null} node
  * @param {Date} [baseToday]
  * @param {string} [rangeId]
+ * @param {'en'|'es'} [locale]
  */
-export async function fetchEventsForNode(node, baseToday = new Date(), rangeId = "week") {
+export async function fetchEventsForNode(node, baseToday = new Date(), rangeId = "week", locale = "en") {
   void baseToday;
 
   if (!node) {
@@ -96,7 +122,18 @@ export async function fetchEventsForNode(node, baseToday = new Date(), rangeId =
   await new Promise((r) => setTimeout(r, 400));
 
   const rangeMeta = buildRangeMeta(date, rangeId);
-  const events = getEventsInRange(date, rangeMeta.rangeDays);
+  let events = [];
+
+  try {
+    events = await fetchEventsFromApi(
+      rangeMeta.rangeStart,
+      rangeMeta.rangeEnd,
+      typeof node?.country === "string" ? node.country : undefined,
+    );
+  } catch {
+    events = getEventsInRange(date, rangeMeta.rangeDays);
+  }
+
   const uiDate = formatForecastUiDate(date);
   const sourceLabel = resolvedFrom === "schedule"
     ? (formatScheduleLabelFromIso(scheduleIso) || `schedule: ${uiDate}`)
@@ -115,18 +152,28 @@ export async function fetchEventsForNode(node, baseToday = new Date(), rangeId =
   };
 
   if (!events.length) {
-    return {
+    const emptyResult = {
       status: "empty",
       message: EVENT_MESSAGES.empty,
       ...baseFields,
+      events: [],
+    };
+    return {
+      ...emptyResult,
+      scopeBrief: buildEventCalendarScopeBrief(emptyResult, { locale }),
     };
   }
 
-  return {
+  const successResult = {
     status: "success",
     ...baseFields,
     event: events[0],
     events,
+  };
+
+  return {
+    ...successResult,
+    scopeBrief: buildEventCalendarScopeBrief(successResult, { locale }),
   };
 }
 
@@ -144,6 +191,8 @@ export function buildEventNodePayload(fetchResult) {
     rangeId: fetchResult.rangeId || null,
     rangeDays: fetchResult.rangeDays ?? null,
     rangeLabel: fetchResult.rangeLabel || null,
+    scopeHeadline: fetchResult.scopeBrief?.headline || null,
+    scopeBrief: fetchResult.scopeBrief?.body || null,
     eventId: event?.id || null,
     title: event?.title || null,
     summary: event?.summary || null,
@@ -196,6 +245,9 @@ export function calendarEventPayloadToResult(payload) {
     uiDate: payload.uiDate || "",
     rangeLabel: payload.rangeLabel || null,
     sourceLabel: payload.scheduleLabel || "",
+    scopeBrief: payload.scopeBrief
+      ? { headline: payload.scopeHeadline || "", body: payload.scopeBrief }
+      : null,
     event: {
       id: payload.eventId || null,
       title: payload.title || "",

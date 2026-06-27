@@ -10,6 +10,7 @@ import { createIntelOverviewMiddleware } from './server/intelOverviewHandler.js'
 import { createIntelModelsMiddleware } from './server/intelModelsHandler.js';
 import { createWeatherForecastMiddleware } from './server/weatherHandler.js';
 import { createIntegrationsHealthMiddleware } from './server/integrationsHealthHandler.js';
+import { createEventsMiddleware } from './server/eventsHandler.js';
 import { createWebProxyMiddleware } from './server/webProxyHandler.js';
 
 function brandCadenceApiPlugin(env) {
@@ -31,6 +32,7 @@ function brandCadenceApiPlugin(env) {
       server.middlewares.use(createIntelModelsMiddleware());
       server.middlewares.use(createWeatherForecastMiddleware());
       server.middlewares.use(createIntegrationsHealthMiddleware());
+      server.middlewares.use(createEventsMiddleware());
       server.middlewares.use(createWebProxyMiddleware());
     },
   };

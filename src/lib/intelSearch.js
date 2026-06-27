@@ -176,6 +176,8 @@ export async function runIntelSearch(payload) {
   if (!q) return;
 
   const uiState = useUIStateStore.getState();
+  if (uiState.intelSearchStatus === "loading") return;
+
   const requestedModelId = payloadModelId || uiState.intelSelectedModelId || DEFAULT_INTEL_MODEL_ID;
 
   const planStore = usePlanStore.getState();

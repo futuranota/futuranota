@@ -264,6 +264,17 @@ export const messages = {
     library: {
       skip: "Skip for now",
     },
+    eventCalendar: {
+      scopeIntro:
+        "Hi! I've scanned your schedule for the next {days} days. Here are the ecommerce and marketing moments on your radar, by season:",
+      eventLine: "Event [{index}]: {name} · {date}",
+      seasonWinter: "Winter",
+      seasonSpring: "Spring",
+      seasonSummer: "Summer",
+      seasonFall: "Fall",
+      noData: "Data not available for that scope!",
+      noSchedule: "Select a node with a schedule to scan events in the chosen window.",
+    },
   },
   // Manual ES overrides; missing keys → Google Translate from EN.
   es: {
@@ -383,6 +394,17 @@ export const messages = {
     },
     library: {
       skip: "Omitir por ahora",
+    },
+    eventCalendar: {
+      scopeIntro:
+        "¡Hola! He escaneado tu agenda para los próximos {days} días. Esto es lo que viene en tu radar — momentos de ecommerce y marketing, por estación:",
+      eventLine: "Evento [{index}]: {name} · {date}",
+      seasonWinter: "Invierno",
+      seasonSpring: "Primavera",
+      seasonSummer: "Verano",
+      seasonFall: "Otoño",
+      noData: "¡Datos no disponibles para ese alcance!",
+      noSchedule: "Seleccioná un nodo con schedule para escanear eventos en la ventana elegida.",
     },
   },
 };

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Steps 1–6 integration verifier.
+ * Steps 1–6 integration verifier (+ 1b Gemini optional).
  * Usage: npm run verify:apis
  *        npm run verify:apis -- --config-only   (no paid API calls)
  */
@@ -10,6 +10,7 @@ const configOnly = process.argv.includes("--config-only");
 
 const STEP_LABELS = {
   groq: "1 · Groq (LLM — campaign study, intel, admin)",
+  gemini: "1b · Gemini (LLM — intel, fallback)",
   serper: "2 · Serper (SERPAPI_KEY — intel + admin)",
   dataforseo: "3 · DataForSEO (PAA + search intent)",
   apify: "4 · Apify (social hype)",

@@ -1,42 +1,65 @@
 /**
- * Mock calendar events keyed by schedule date.
- * Replace getEventsInRange with GET /api/events?from=&to= when backend exists.
+ * Mock marketing-season events when /api/events is unavailable.
  */
 import { startOfCalendarDay } from "../temporal.js";
 
-/** @typedef {{ id: string, title: string, summary: string, date: string, dateEnd?: string|null, source: string, type: string }} CalendarEvent */
+/** @typedef {{ id: string, title: string, summary: string, date: string, dateEnd?: string|null, source: string, type: string, season?: string }} CalendarEvent */
 
-/** @type {{ offsetStart: number, offsetEnd?: number, event: Omit<CalendarEvent, "date"|"dateEnd"> }[]} */
-const EVENT_TEMPLATES = [
+/** @type {{ offsetStart: number, event: Omit<CalendarEvent, "date"|"dateEnd"> }[]} */
+const MARKETING_EVENT_TEMPLATES = [
   {
-    offsetStart: 0,
+    offsetStart: 14,
     event: {
-      id: "evt-launch-brief",
-      title: "Product launch briefing",
-      summary: "Internal sync on launch timeline, messaging, and press embargo.",
-      source: "Campaign calendar",
-      type: "internal",
+      id: "evt-valentines",
+      title: "Valentine's Day",
+      summary: "Gift and companion-product drop window.",
+      source: "Futura marketing calendar",
+      type: "retail",
+      season: "winter",
     },
   },
   {
-    offsetStart: 3,
+    offsetStart: 45,
     event: {
-      id: "evt-media-window",
-      title: "Media preview window",
-      summary: "Invited outlets receive embargoed assets and talking points.",
-      source: "PR schedule",
-      type: "media",
+      id: "evt-mothers-day",
+      title: "Mother's Day",
+      summary: "Short ship window for gift-led companion SKUs.",
+      source: "Futura marketing calendar",
+      type: "retail",
+      season: "spring",
     },
   },
   {
-    offsetStart: 7,
-    offsetEnd: 9,
+    offsetStart: 120,
     event: {
-      id: "evt-industry-summit",
-      title: "Industry summit",
-      summary: "Keynote slot and partner meetings across a three-day window.",
-      source: "Events DB",
-      type: "conference",
+      id: "evt-back-to-school",
+      title: "Back to School",
+      summary: "Late-summer retail push for supplies and companions.",
+      source: "Futura marketing calendar",
+      type: "seasonal",
+      season: "summer",
+    },
+  },
+  {
+    offsetStart: 200,
+    event: {
+      id: "evt-black-friday",
+      title: "Black Friday",
+      summary: "Peak discount window for bundles and attach rate.",
+      source: "Futura marketing calendar",
+      type: "retail",
+      season: "fall",
+    },
+  },
+  {
+    offsetStart: 230,
+    event: {
+      id: "evt-christmas",
+      title: "Christmas",
+      summary: "Peak gifting season — ship deadlines matter.",
+      source: "Futura marketing calendar",
+      type: "holiday",
+      season: "winter",
     },
   },
 ];
@@ -56,23 +79,8 @@ function addDays(date, days) {
   return startOfCalendarDay(next);
 }
 
-function rangesOverlap(aStart, aEnd, bStart, bEnd) {
-  return aStart.getTime() <= bEnd.getTime() && aEnd.getTime() >= bStart.getTime();
-}
-
-function buildEventFromTemplate(anchor, template) {
-  const offsetEnd = template.offsetEnd ?? template.offsetStart;
-  const eventStart = addDays(anchor, template.offsetStart);
-  const eventEnd = addDays(anchor, offsetEnd);
-  return {
-    ...template.event,
-    date: toIsoDate(eventStart),
-    dateEnd: offsetEnd !== template.offsetStart ? toIsoDate(eventEnd) : null,
-  };
-}
-
 /**
- * Events whose window overlaps [anchor, anchor + rangeDays].
+ * Marketing moments whose date falls inside [anchor, anchor + rangeDays].
  * @param {Date|null|undefined} anchorDate
  * @param {number} rangeDays
  * @returns {CalendarEvent[]}
@@ -81,16 +89,19 @@ export function getEventsInRange(anchorDate, rangeDays = 7) {
   const anchor = startOfCalendarDay(anchorDate);
   if (!anchor) return [];
 
+  const yearStart = new Date(anchor.getFullYear(), 0, 1, 12);
   const rangeStart = anchor;
   const rangeEnd = addDays(anchor, rangeDays);
   const results = [];
 
-  EVENT_TEMPLATES.forEach((template) => {
-    const offsetEnd = template.offsetEnd ?? template.offsetStart;
-    const eventStart = addDays(anchor, template.offsetStart);
-    const eventEnd = addDays(anchor, offsetEnd);
-    if (!rangesOverlap(eventStart, eventEnd, rangeStart, rangeEnd)) return;
-    results.push(buildEventFromTemplate(anchor, template));
+  MARKETING_EVENT_TEMPLATES.forEach((template) => {
+    const eventDate = addDays(yearStart, template.offsetStart);
+    if (eventDate < rangeStart || eventDate > rangeEnd) return;
+    results.push({
+      ...template.event,
+      date: toIsoDate(eventDate),
+      dateEnd: null,
+    });
   });
 
   return results.sort((a, b) => a.date.localeCompare(b.date));

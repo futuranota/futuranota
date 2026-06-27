@@ -11,9 +11,14 @@ const GEMINI_FLASH_MODEL = process.env.GEMINI_FLASH_MODEL || "gemini-2.0-flash";
 const GEMINI_DEFAULT_MODEL = GEMINI_FLASH_MODEL;
 const GROQ_MAX_RETRIES = 3;
 const GROQ_BASE_DELAY_MS = 1500;
+const GEMINI_MAX_RETRIES = 3;
+const GEMINI_BASE_DELAY_MS = 2000;
 
 /** Serializes Groq calls to avoid burst 429 during batch scans. */
 let groqChain = Promise.resolve();
+
+/** Serializes Gemini calls to avoid burst 429 during batch scans. */
+let geminiChain = Promise.resolve();
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -37,11 +42,18 @@ function isRateLimitDetail(detail) {
     || lower.includes("resource exhausted");
 }
 
+function providerRetryDelayMs(err, attempt, baseDelayMs) {
+  const msg = err instanceof Error ? err.message : String(err);
+  const match = msg.match(/retry(?:\s+after|\s+in)[^0-9]*(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const seconds = Number.parseFloat(match[1]);
+    if (seconds > 0) return Math.ceil(seconds * 1000);
+  }
+  return baseDelayMs * (2 ** attempt);
+}
+
 function retryDelayMs(err, attempt) {
-  const match = (err instanceof Error ? err.message : "").match(/retry.?after[^0-9]*(\d+)/i);
-  const headerSeconds = match ? Number(match[1]) : 0;
-  if (headerSeconds > 0) return headerSeconds * 1000;
-  return GROQ_BASE_DELAY_MS * (2 ** attempt);
+  return providerRetryDelayMs(err, attempt, GROQ_BASE_DELAY_MS);
 }
 
 /**
@@ -126,13 +138,12 @@ export async function completeJsonWithGroq(prompt, options = {}) {
  * Uses GEMINI_API_KEY only — GOOGLE_API_KEY is for Translate/CSE, not Generative Language.
  * @param {string} prompt
  * @param {{ system?: string }} [options]
- * @param {string} [apiModel]
+ * @param {string} model
  */
-export async function completeJsonWithGemini(prompt, options = {}, apiModel = GEMINI_DEFAULT_MODEL) {
+async function completeJsonWithGeminiModel(prompt, options, model) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const model = apiModel || GEMINI_DEFAULT_MODEL;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
   const parts = [];
   if (options.system) {
@@ -161,6 +172,78 @@ export async function completeJsonWithGemini(prompt, options = {}, apiModel = GE
   const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!raw) throw new Error("Gemini returned empty content");
   return JSON.parse(raw);
+}
+
+/**
+ * @param {string} prompt
+ * @param {{ system?: string }} [options]
+ * @param {string} [apiModel]
+ */
+export async function completeJsonWithGemini(prompt, options = {}, apiModel = GEMINI_DEFAULT_MODEL) {
+  if (!process.env.GEMINI_API_KEY?.trim()) return null;
+
+  const model = apiModel || GEMINI_DEFAULT_MODEL;
+  const run = async () => {
+    let lastError = null;
+
+    for (let attempt = 0; attempt < GEMINI_MAX_RETRIES; attempt += 1) {
+      try {
+        return await completeJsonWithGeminiModel(prompt, options, model);
+      } catch (err) {
+        lastError = err;
+        if (isRateLimitError(err) && attempt < GEMINI_MAX_RETRIES - 1) {
+          const wait = providerRetryDelayMs(err, attempt, GEMINI_BASE_DELAY_MS);
+          console.warn(
+            `[llmJson] Gemini 429 on ${model}, retry ${attempt + 1}/${GEMINI_MAX_RETRIES} in ${wait}ms`,
+          );
+          await sleep(wait);
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    throw lastError || new Error("Gemini request failed");
+  };
+
+  const result = geminiChain.then(run, run);
+  geminiChain = result.catch(() => {});
+  return result;
+}
+
+/**
+ * Groq JSON completion for a single model with exponential backoff on 429.
+ * @param {string} prompt
+ * @param {{ system?: string }} [options]
+ * @param {string} model
+ */
+async function completeJsonWithGroqForModel(prompt, options, model) {
+  const run = async () => {
+    let lastError = null;
+
+    for (let attempt = 0; attempt < GROQ_MAX_RETRIES; attempt += 1) {
+      try {
+        return await completeJsonWithGroqModel(prompt, options, model);
+      } catch (err) {
+        lastError = err;
+        if (isRateLimitError(err) && attempt < GROQ_MAX_RETRIES - 1) {
+          const wait = retryDelayMs(err, attempt);
+          console.warn(
+            `[llmJson] Groq 429 on ${model}, retry ${attempt + 1}/${GROQ_MAX_RETRIES} in ${wait}ms`,
+          );
+          await sleep(wait);
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    throw lastError || new Error("Groq request failed");
+  };
+
+  const result = groqChain.then(run, run);
+  groqChain = result.catch(() => {});
+  return result;
 }
 
 /** @type {{ code: string, detail: string, provider?: string } | null} */
@@ -329,7 +412,7 @@ export async function completeJsonForProvider(prompt, options = {}) {
       return null;
     }
     try {
-      const data = await completeJsonWithGroqModel(prompt, options, apiModel);
+      const data = await completeJsonWithGroqForModel(prompt, options, apiModel);
       return { provider: "groq", data, model: apiModel };
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);

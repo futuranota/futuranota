@@ -3173,6 +3173,78 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
 .cal-event-result__insert {
   margin-top: 10px;
 }
+.cal-event-result__scope {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.cal-event-result__scope-headline {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.92);
+}
+.cal-event-result__scope-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+  color: rgba(255, 255, 255, 0.72);
+}
+.cal-event-result__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cal-event-result__group-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+.cal-event-result__group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cal-event-result__group-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.cal-event-result__item-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.94);
+}
+.cal-event-result__item-when {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.58);
+}
+.cal-event-result__item-summary {
+  margin: 0 0 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.72);
+}
+.cal-event-result__item-source {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.48);
+}
 .cal-event-result__message {
   margin: 0;
   font-size: 11px;
