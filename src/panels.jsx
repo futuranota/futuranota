@@ -28,6 +28,8 @@ import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
 import { getDefaultCampaignSearchQuery } from './lib/campaignSearchStarters.js';
 import { resolveIntelCampaignBrand } from './lib/currentCorpus.js';
+import { isCalendarEventNodeContent } from './lib/eventCalendarSearch.js';
+import { CalendarEventNodeView } from './components/intel/CalendarEventNodeView.jsx';
 import { useI18n } from './i18n/useI18n.js';
 import { useUpgradeModalStore } from './stores/upgradeModalStore.js';
 
@@ -182,6 +184,8 @@ function NoteCard({
     if (note.dataType === "metric") {
       const num = Number(editContent);
       content = { value: isNaN(num) ? editContent : num, unit: editMetricUnit };
+    } else if (note.dataType === "text" && isCalendarEventNodeContent(note.content)) {
+      content = note.content;
     }
     onUpdate({ ...note, title: editTitle.trim(), content });
     setEditing(false);
@@ -200,12 +204,16 @@ function NoteCard({
             placeholder="Title"
           />
           {note.dataType === "text" && (
-            <textarea
-              className="note-form-field"
-              rows={3}
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-            />
+            isCalendarEventNodeContent(note.content) ? (
+              <CalendarEventNodeView content={note.content} />
+            ) : (
+              <textarea
+                className="note-form-field"
+                rows={3}
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+              />
+            )
           )}
           {note.dataType === "date" && (
             <input
@@ -248,6 +256,14 @@ function NoteCard({
     }
     // Manual typed note
     if (note.dataType === "text") {
+      if (isCalendarEventNodeContent(note.content)) {
+        return (
+          <>
+            <div className="note-title" title={note.title}>{note.title}</div>
+            <CalendarEventNodeView content={note.content} className="note-body" />
+          </>
+        );
+      }
       return (
         <>
           <div className="note-title" title={note.title}>{note.title}</div>

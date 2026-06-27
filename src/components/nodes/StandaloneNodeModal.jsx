@@ -9,6 +9,9 @@ import {
   todayDateInputValue,
 } from "../../lib/docDates.js";
 import { NodeQueryModal } from "./NodeQueryModal.jsx";
+import {
+  parseCalendarEventNodeContent,
+} from "../../lib/eventCalendarSearch.js";
 
 function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "").trim();
@@ -126,7 +129,10 @@ export function StandaloneNodeModal({
 
   const handleSave = () => {
     const title = query.trim() || "Untitled query";
-    const payload = parseContentForSave(content, dataType);
+    let payload = parseContentForSave(content, dataType);
+    if (node && dataType === NODE_DATA_TYPES.TEXT && parseCalendarEventNodeContent(node.content)) {
+      payload = node.content;
+    }
     const parentId = parentDocId || null;
     const createdAt = isoFromDateInput(createdDate);
     const anchorAt =

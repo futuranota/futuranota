@@ -53,6 +53,7 @@ import {
   syncVideoNodeFromH1Blocks,
   syncVideoNodeFromVideoBlock,
 } from "../../lib/docNodeSync.js";
+import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 
@@ -826,12 +827,22 @@ export function DocExpandedView({
       ? isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorTime)
       : null;
 
+    const existingNode = nodeId ? getNode(nodeId) : null;
+    let contentToSave = nodeDraftContent;
+    if (
+      existingNode
+      && dataType === NODE_DATA_TYPES.TEXT
+      && parseCalendarEventNodeContent(existingNode.content)
+    ) {
+      contentToSave = existingNode.content;
+    }
+
     const newNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
       docId: doc.id,
       blockId,
       query: queryText,
-      content: nodeDraftContent,
+      content: contentToSave,
       dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
       anchorAt,
@@ -849,12 +860,12 @@ export function DocExpandedView({
     }
 
     let nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
-    nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, nodeDraftContent, dataType);
+    nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, contentToSave, dataType);
     if (dataType === NODE_DATA_TYPES.TEXT) {
       nextBlocks = setAnswerBelowH1(
         nextBlocks,
         blockIndex,
-        typeof nodeDraftContent === "string" ? nodeDraftContent : "",
+        typeof contentToSave === "string" ? contentToSave : "",
       );
     }
     setDraftBlocks(nextBlocks);

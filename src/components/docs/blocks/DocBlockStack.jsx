@@ -32,8 +32,10 @@ import {
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText } from "../../../lib/docNodeSync.js";
+import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
+import { useNodesStore } from "../../../stores/nodesStore.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { TodoBlockView } from "./TodoBlockView.jsx";
@@ -97,6 +99,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
   const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
+  const deleteNodeAndDocBlocks = useNodesStore((s) => s.deleteNodeAndDocBlocks);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
   const stackRef = useRef(null);
@@ -475,6 +478,35 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const updateAt = (index, patch) => {
     setBlocks(updateBlockAt(blocksRef.current, index, patch));
   };
+
+  const handleRemoveEmbeddedBlock = useCallback((blockIndex) => {
+    const current = blocksRef.current;
+    const block = current[blockIndex];
+    const isCalendar = block?.embedded?.kind === "calendar-event"
+      || isCalendarEventNodeContent(block?.text);
+    if (!isCalendar) return;
+
+    const h1Index = getH1IndexForTextBlock(current, blockIndex);
+    const h1 = h1Index >= 0 ? current[h1Index] : null;
+    const nodeId = block.embedded?.linkedNodeId || h1?.nodeId || null;
+
+    if (nodeId) {
+      deleteNodeAndDocBlocks(nodeId);
+      return;
+    }
+
+    if (h1Index >= 0) {
+      let next = removeBlockAt(current, blockIndex);
+      next = removeBlockAt(next, h1Index);
+      if (!next.length) {
+        next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+      }
+      setBlocks(next);
+      return;
+    }
+
+    updateAt(blockIndex, { embedded: null, text: block.text || "" });
+  }, [deleteNodeAndDocBlocks]);
 
   const removeEmbedVideoSection = (videoIndex) => {
     const h1Index = videoIndex - 1;
@@ -1152,6 +1184,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.TEXT && !isCollapsedPadWriteBlock(block.id) ? (
             <TextBlockView
               value={block.text || ""}
+              embedded={block.embedded || null}
+              linkedNodeId={(() => {
+                const h1Index = getH1IndexForTextBlock(blocks, index);
+                return h1Index >= 0 ? blocks[h1Index]?.nodeId || null : null;
+              })()}
+              onRemoveEmbedded={
+                block.embedded?.kind === "calendar-event" || isCalendarEventNodeContent(block.text)
+                  ? () => handleRemoveEmbeddedBlock(index)
+                  : null
+              }
               onChange={(text) => {
                 updateAt(index, { text });
                 const h1Index = getH1IndexForTextBlock(blocks, index);

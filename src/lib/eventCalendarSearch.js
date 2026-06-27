@@ -193,6 +193,7 @@ export function buildEventNodePayload(fetchResult) {
     rangeLabel: fetchResult.rangeLabel || null,
     scopeHeadline: fetchResult.scopeBrief?.headline || null,
     scopeBrief: fetchResult.scopeBrief?.body || null,
+    displayModel: fetchResult.scopeBrief?.displayModel || null,
     eventId: event?.id || null,
     title: event?.title || null,
     summary: event?.summary || null,
@@ -236,26 +237,45 @@ export function parseCalendarEventNodeContent(content) {
 }
 
 /**
+ * @param {unknown} content
+ * @returns {boolean}
+ */
+export function isCalendarEventNodeContent(content) {
+  return Boolean(parseCalendarEventNodeContent(content));
+}
+
+/**
  * @param {object|null|undefined} payload
  */
 export function calendarEventPayloadToResult(payload) {
   if (!payload) return null;
 
+  const hasScopeBrief = typeof payload.scopeBrief === "string" && payload.scopeBrief.trim();
+  const hasEvent = Boolean(payload.title || payload.date);
+  const hasDisplayModel = payload.displayModel
+    && Array.isArray(payload.displayModel.sections)
+    && payload.displayModel.sections.length > 0;
+
+  if (!hasScopeBrief && !hasEvent && !hasDisplayModel) return null;
+
   return {
     uiDate: payload.uiDate || "",
     rangeLabel: payload.rangeLabel || null,
     sourceLabel: payload.scheduleLabel || "",
-    scopeBrief: payload.scopeBrief
-      ? { headline: payload.scopeHeadline || "", body: payload.scopeBrief }
+    displayModel: payload.displayModel || null,
+    scopeBrief: hasScopeBrief
+      ? { headline: payload.scopeHeadline || "", body: payload.scopeBrief.trim() }
       : null,
-    event: {
-      id: payload.eventId || null,
-      title: payload.title || "",
-      summary: payload.summary || "",
-      date: payload.date || "",
-      dateEnd: payload.dateEnd || null,
-      source: payload.source || "",
-      type: payload.type || "",
-    },
+    event: hasEvent
+      ? {
+          id: payload.eventId || null,
+          title: payload.title || "",
+          summary: payload.summary || "",
+          date: payload.date || "",
+          dateEnd: payload.dateEnd || null,
+          source: payload.source || "",
+          type: payload.type || "",
+        }
+      : null,
   };
 }

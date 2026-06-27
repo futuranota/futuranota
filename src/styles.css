@@ -2192,6 +2192,53 @@ textarea.field {
 .cnode--timeline-pick .cnode-del { display: flex; }
 .cnode-del:hover { transform: scale(1.1); }
 
+.cnode-assign-parent {
+  position: absolute;
+  top: -8px;
+  right: 14px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: none;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--accent);
+}
+.cnode.selected .cnode-assign-parent,
+.cnode--timeline-pick .cnode-assign-parent { display: flex; }
+.cnode-assign-parent:hover {
+  color: var(--hud);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  transform: scale(1.1);
+}
+
+.adopt-node-modal__body {
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.adopt-node-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.adopt-node-modal__select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--text) 12%, transparent);
+  background: color-mix(in oklab, var(--text) 4%, transparent);
+  color: var(--text);
+  font: inherit;
+}
+.adopt-node-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* ── focus ring resets ───────────── */
 input:focus, textarea:focus, button:focus, select:focus { outline: none; }
 
@@ -3194,6 +3241,76 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   line-height: 1.5;
   white-space: pre-line;
   color: rgba(255, 255, 255, 0.72);
+}
+.cal-event-display {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cal-event-display__intro {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text, rgba(255, 255, 255, 0.88));
+  letter-spacing: -0.005em;
+}
+.cal-event-display__season-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cal-event-display__season {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+.cal-event-display__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cal-event-display__item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.cal-event-display__name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.35;
+  color: var(--text, rgba(255, 255, 255, 0.92));
+}
+.cal-event-display__date {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--dim, rgba(255, 255, 255, 0.55));
+}
+.cal-event-node-view.node-query-modal__calendar-body,
+.cal-event-display.node-query-modal__calendar-body {
+  min-height: 120px;
+  padding: 10px 12px;
+}
+.cal-event-node-view.note-body,
+.cal-event-display.note-body {
+  margin-top: 6px;
+}
+.cnode--calendar-event .cal-event-display__intro {
+  color: rgba(255, 255, 255, 0.88);
+}
+.cnode--calendar-event .cal-event-display__name {
+  color: rgba(255, 255, 255, 0.92);
 }
 .cal-event-result__groups {
   display: flex;

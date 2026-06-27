@@ -11,6 +11,8 @@ import {
   FREE_LIMITS,
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import { getCalendarEventDisplayText } from "../../lib/calendarEventDisplay.js";
+import { isCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
@@ -340,9 +342,11 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
   const icon = DATA_TYPE_ICONS[node.dataType] || "◯";
   const iconAsset = DATA_TYPE_ICON_ASSETS[node.dataType] || null;
   const displayTitle = getNodeDisplayTitle(node);
-  const contentPreview = typeof node.content === "string"
-    ? node.content.slice(0, 80)
-    : node.content != null ? JSON.stringify(node.content).slice(0, 60) : "";
+  const contentPreview = isCalendarEventNodeContent(node.content)
+    ? getCalendarEventDisplayText(node.content).slice(0, 80)
+    : typeof node.content === "string"
+      ? node.content.slice(0, 80)
+      : node.content != null ? JSON.stringify(node.content).slice(0, 60) : "";
 
   return (
     <div className="lp-node-card">

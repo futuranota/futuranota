@@ -15,6 +15,7 @@ import {
   parseCalendarEventNodeContent,
 } from './lib/eventCalendarSearch.js';
 import { CalendarEventResultBox } from './components/intel/CalendarEventResultBox.jsx';
+import { CalendarEventNodeView } from './components/intel/CalendarEventNodeView.jsx';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
 import {
   isContentDoc,
@@ -23,7 +24,11 @@ import {
   resolveLinkedProductCategories,
 } from './lib/templateDoc.js';
 
-import { FLOPPY_DISK_ICON } from './lib/knowledgeImport.js';
+import {
+  detectDocAdoptionOnConnect,
+  isOrphanEntityNode,
+} from './lib/nodeParentAdoption.js';
+import { useI18n } from './i18n/useI18n.js';
 import {
   filterSelectableCanvasNodeIds,
   isKnowledgeCanvasNode,
@@ -236,10 +241,12 @@ function CanvasNode({
   objectsById = {},
   onAddToSelection, onTapToggle, onMove, onEdit, onDelete, onStartConnect, onPortMouseUp,
   onConnectHover, onStartRewire, getWorldFromClient, onOpen,
+  onAssignParent,
   timelineSelectable = true,
   timelineQueueMode = false,
 }) {
   const ref = useRef(null);
+  const { t } = useI18n();
   const [editing, setEditing] = useState(null); // 'title' | 'content' | null
   const TAP_THRESHOLD = 5;
 
@@ -286,6 +293,15 @@ function CanvasNode({
   const renderContent = () => {
     if (editing === "content") {
       if (node.dataType === "text") {
+        const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+        const rawContent = entity?.content ?? node.content;
+        if (parseCalendarEventNodeContent(rawContent)) {
+          return (
+            <div className="cnode-v cnode-v--compact cnode-v--calendar-event">
+              <CalendarEventNodeView content={rawContent} />
+            </div>
+          );
+        }
         return (
           <textarea
             autoFocus
@@ -403,7 +419,7 @@ function CanvasNode({
       const calendarPayload = parseCalendarEventNodeContent(entity?.content ?? node.content);
       if (calendarPayload) {
         const calendarResult = calendarEventPayloadToResult(calendarPayload);
-        if (calendarResult?.event) {
+        if (calendarResult?.scopeBrief?.body || calendarResult?.displayModel || calendarResult?.event) {
           return (
             <div className="cnode-v cnode-v--compact cnode-v--calendar-event">
               <CalendarEventResultBox result={calendarResult} showInsert={false} />
@@ -526,6 +542,9 @@ function CanvasNode({
 
   if (blueprintColor) cls.push("cnode-in-bp");
 
+  const showAssignParent = Boolean(onAssignParent)
+    && isOrphanEntityNode(node, nodeEntitiesById);
+
   return (
     <div
       ref={ref}
@@ -601,6 +620,20 @@ function CanvasNode({
         }}
       />
       <button type="button" className="cnode-del icon-del-btn" onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}>×</button>
+      {showAssignParent ? (
+        <button
+          type="button"
+          className="cnode-assign-parent icon-del-btn"
+          title={t("canvas.assignParent")}
+          aria-label={t("canvas.assignParent")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAssignParent(node.id);
+          }}
+        >
+          ↗
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -620,6 +653,8 @@ function BlueprintCanvas({
   onTimelineCanvasSelect,
   onTimelineCanvasSelectMany,
   onNotify,
+  onRequestDocAdoption,
+  onAssignParent,
 }) {
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
   const traceFunixMode = useTimelineStore((s) => s.traceFunixMode);
@@ -1289,49 +1324,95 @@ function BlueprintCanvas({
   }, [nodes, docsById, nodeEntitiesById, objectsById]);
 
   const handlePortMouseUp = (portNodeId) => {
+    const clearConnectState = () => {
+      setConnectingFrom(null);
+      setHoverConnect(null);
+      setConnectHoverTarget(null);
+    };
+
+    const applyAdoptionAndConnect = async (fromId, toId, excludeConnectionId, addOrUpdateConn) => {
+      if (!validateEdge(fromId, toId, excludeConnectionId)) {
+        clearConnectState();
+        setRewiring(null);
+        return;
+      }
+
+      const fromNode = nodes.find((n) => n.id === fromId);
+      const toNode = nodes.find((n) => n.id === toId);
+      const adoption = detectDocAdoptionOnConnect(
+        fromNode,
+        toNode,
+        nodeEntitiesById,
+        docsById,
+      );
+
+      if (adoption && onRequestDocAdoption) {
+        await onRequestDocAdoption(adoption);
+      }
+
+      setConnections(addOrUpdateConn);
+      clearConnectState();
+      setRewiring(null);
+    };
+
     if (rewiring) {
       const { connId, end } = rewiring;
-      setConnections((conns) => {
-        const c = conns.find((x) => x.id === connId);
-        if (!c) return conns;
-        let next = { ...c };
-        if (end === "from") {
-          if (portNodeId === c.to) return conns;
-          next.from = portNodeId;
-        } else {
-          if (portNodeId === c.from) return conns;
-          next.to = portNodeId;
+      const c = connections.find((x) => x.id === connId);
+      if (!c) {
+        setRewiring(null);
+        setHoverConnect(null);
+        setConnectHoverTarget(null);
+        return;
+      }
+      let nextFrom = c.from;
+      let nextTo = c.to;
+      if (end === "from") {
+        if (portNodeId === c.to) {
+          setRewiring(null);
+          setHoverConnect(null);
+          setConnectHoverTarget(null);
+          return;
         }
-        if (conns.some((x) => x.id !== connId && x.from === next.from && x.to === next.to)) {
-          return conns;
+        nextFrom = portNodeId;
+      } else {
+        if (portNodeId === c.from) {
+          setRewiring(null);
+          setHoverConnect(null);
+          setConnectHoverTarget(null);
+          return;
         }
-        if (!validateEdge(next.from, next.to, connId)) return conns;
-        return conns.map((x) => (x.id === connId ? next : x));
+        nextTo = portNodeId;
+      }
+      if (connections.some((x) => x.id !== connId && x.from === nextFrom && x.to === nextTo)) {
+        setRewiring(null);
+        setHoverConnect(null);
+        setConnectHoverTarget(null);
+        return;
+      }
+      void applyAdoptionAndConnect(nextFrom, nextTo, connId, (conns) => {
+        const existing = conns.find((x) => x.id === connId);
+        if (!existing) return conns;
+        return conns.map((x) => (x.id === connId ? { ...x, from: nextFrom, to: nextTo } : x));
       });
-      setRewiring(null);
-      setHoverConnect(null);
-      setConnectHoverTarget(null);
       return;
     }
+
     if (!connectingFrom || connectingFrom === portNodeId) {
-      setConnectingFrom(null);
-      setHoverConnect(null);
-      setConnectHoverTarget(null);
+      clearConnectState();
       return;
     }
-    if (!validateEdge(connectingFrom, portNodeId)) {
-      setConnectingFrom(null);
-      setHoverConnect(null);
-      setConnectHoverTarget(null);
+
+    const fromId = connectingFrom;
+    const toId = portNodeId;
+    if (connections.some((c) => c.from === fromId && c.to === toId)) {
+      clearConnectState();
       return;
     }
-    setConnections((conns) => {
-      if (conns.some((c) => c.from === connectingFrom && c.to === portNodeId)) return conns;
-      return [...conns, { from: connectingFrom, to: portNodeId, id: shortId("CN") }];
+
+    void applyAdoptionAndConnect(fromId, toId, null, (conns) => {
+      if (conns.some((c) => c.from === fromId && c.to === toId)) return conns;
+      return [...conns, { from: fromId, to: toId, id: shortId("CN") }];
     });
-    setConnectingFrom(null);
-    setHoverConnect(null);
-    setConnectHoverTarget(null);
   };
 
   /* connection path helpers */
@@ -1915,6 +1996,7 @@ function BlueprintCanvas({
             docsById={docsById}
             objectsById={objectsById}
             onOpen={handleOpenNode}
+            onAssignParent={onAssignParent}
           />
           );
         })}

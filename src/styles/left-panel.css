@@ -4416,6 +4416,68 @@ body.doc-content-resizing * {
   background: var(--doc-body-track, rgb(22, 26, 29));
 }
 
+.doc-text-block--embedded {
+  cursor: default;
+  padding: 2px 21px 8px 15px;
+}
+
+.doc-embedded-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doc-text-block .cal-event-display {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.35;
+  letter-spacing: 0.39px;
+  color: #fff;
+}
+
+.doc-text-block .cal-event-display__intro {
+  margin: 0 0 12px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.doc-text-block .cal-event-display__season {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.doc-text-block .cal-event-display__item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.doc-text-block .cal-event-display__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.doc-text-block .cal-event-display__date {
+  font-family: var(--sans);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.doc-embedded-calendar__remove {
+  align-self: flex-start;
+  opacity: 0.72;
+}
+
+.doc-embedded-calendar__remove:hover {
+  opacity: 1;
+}
+
 .doc-new-body-field {
   display: block;
   width: 100%;
@@ -4950,6 +5012,34 @@ body.doc-content-resizing * {
   border-radius: 6px;
   overflow: hidden;
   background: #151515;
+}
+
+.node-query-modal__content-box--calendar {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2b323d #0b0e12;
+}
+
+.node-query-modal__content-box--calendar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.node-query-modal__content-box--calendar::-webkit-scrollbar-track {
+  background: #0b0e12;
+  border-radius: 4px;
+}
+
+.node-query-modal__content-box--calendar::-webkit-scrollbar-thumb {
+  background: #2b323d;
+  border-radius: 4px;
+}
+
+.node-query-modal__content-box--calendar .cal-event-node-view,
+.node-query-modal__content-box--calendar .cal-event-display {
+  min-height: 0;
+  max-height: none;
+  height: auto;
 }
 
 .node-query-modal__date-editor {

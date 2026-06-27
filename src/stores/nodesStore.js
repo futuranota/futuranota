@@ -5,10 +5,16 @@ import { useDocsStore } from "./docsStore.js";
 import { injectNodeAnswerIntoDocBody } from "../lib/sync.js";
 import {
   createDocBlock,
+  createTodoItem,
   DOC_BLOCK_TYPES,
   normalizeDocBlocks,
 } from "../lib/docBlocks.js";
 import { anchorFieldsFromIso } from "../lib/nodeAnchor.js";
+import { parseCalendarEventNodeContent } from "../lib/eventCalendarSearch.js";
+import {
+  buildCalendarEmbeddedBlockFields,
+  getCalendarEventDisplayText,
+} from "../lib/calendarEventDisplay.js";
 
 function stringifyNodeContent(dataType, content) {
   if (dataType === "date") {
@@ -41,9 +47,18 @@ function stringifyNodeContent(dataType, content) {
 }
 
 function buildSyncedNodeText(node) {
-  const title = (node.sourceQuery || node.title || "Untitled query").trim() || "Untitled query";
-  const detail = stringifyNodeContent(node.dataType, node.content);
-  return detail;
+  if (node?.dataType === "text" && parseCalendarEventNodeContent(node.content)) {
+    return getCalendarEventDisplayText(node.content);
+  }
+  return stringifyNodeContent(node.dataType, node.content);
+}
+
+function buildSyncedTextBlockFields(node) {
+  if (node?.dataType === "text" && parseCalendarEventNodeContent(node.content)) {
+    const embedded = buildCalendarEmbeddedBlockFields(node);
+    if (embedded) return embedded;
+  }
+  return { text: buildSyncedNodeText(node) };
 }
 
 export const useNodesStore = create(
@@ -186,7 +201,8 @@ export const useNodesStore = create(
 
         const normalized = normalizeDocBlocks(doc.blocks);
         const syncedTitle = (node.sourceQuery || node.title || "Untitled").trim() || "Untitled";
-        const syncedText = buildSyncedNodeText(node);
+        const syncedTextFields = buildSyncedTextBlockFields(node);
+        const syncedText = syncedTextFields.text;
         const sourceBlockIndex = node.sourceBlockId
           ? normalized.findIndex((b) => b.id === node.sourceBlockId)
           : -1;
@@ -296,13 +312,20 @@ export const useNodesStore = create(
                 };
               }
               if (existingTextIndex >= 0 && i === existingTextIndex) {
-                return { ...block, text: syncedText };
+                return {
+                  ...block,
+                  text: syncedText,
+                  ...(syncedTextFields.embedded ? { embedded: syncedTextFields.embedded } : {}),
+                };
               }
               return block;
             });
 
             if (existingTextIndex < 0) {
-              const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: syncedText });
+              const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, {
+                text: syncedText,
+                ...(syncedTextFields.embedded ? { embedded: syncedTextFields.embedded } : {}),
+              });
               sourceTextBlockId = textBlock.id;
               nextBlocks = [
                 ...nextBlocks.slice(0, existingH1Index + 1),
@@ -310,13 +333,59 @@ export const useNodesStore = create(
                 ...nextBlocks.slice(existingH1Index + 1),
               ];
             }
+          } else if (node.dataType === "date") {
+            const dateContent =
+              node.content && typeof node.content === "object"
+                ? node.content
+                : { date: String(node.content ?? ""), time: "" };
+            const dateBlock = createDocBlock(DOC_BLOCK_TYPES.DATE, {
+              title: syncedTitle,
+              sourceQuery: syncedTitle,
+              nodeId: node.id,
+              date: dateContent.date || "",
+              time: dateContent.time || "",
+              queryEnabled: true,
+            });
+            sourceBlockId = dateBlock.id;
+            nextBlocks = [...normalized, dateBlock];
+          } else if (node.dataType === "metric") {
+            const metricContent =
+              node.content && typeof node.content === "object"
+                ? node.content
+                : { value: node.content ?? "", unit: "" };
+            const metricBlock = createDocBlock(DOC_BLOCK_TYPES.METRIC, {
+              title: syncedTitle,
+              sourceQuery: syncedTitle,
+              nodeId: node.id,
+              value: metricContent.value ?? "",
+              unit: metricContent.unit || "",
+              queryEnabled: true,
+            });
+            sourceBlockId = metricBlock.id;
+            nextBlocks = [...normalized, metricBlock];
+          } else if (node.dataType === "checkbox") {
+            const todoBlock = createDocBlock(DOC_BLOCK_TYPES.TODO, {
+              listTitle: syncedTitle,
+              sourceQuery: syncedTitle,
+              nodeId: node.id,
+              queryEnabled: true,
+              items: [createTodoItem({ checked: Boolean(node.content) })],
+              ...anchorFields,
+            });
+            sourceBlockId = todoBlock.id;
+            nextBlocks = [...normalized, todoBlock];
           } else {
             const h1Block = createDocBlock(DOC_BLOCK_TYPES.H1, {
               title: syncedTitle,
               sourceQuery: syncedTitle,
               nodeId: node.id,
+              queryEnabled: true,
+              ...anchorFields,
             });
-            const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: syncedText });
+            const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, {
+              text: syncedText,
+              ...(syncedTextFields.embedded ? { embedded: syncedTextFields.embedded } : {}),
+            });
             sourceBlockId = h1Block.id;
             sourceTextBlockId = textBlock.id;
             nextBlocks = [...normalized, h1Block, textBlock];
@@ -329,6 +398,55 @@ export const useNodesStore = create(
           linkedToDoc: true,
           sourceBlockId: sourceBlockId || undefined,
           sourceTextBlockId: sourceTextBlockId || undefined,
+        });
+      },
+
+      detachNodeFromDocAsCopy: (nodeId) => {
+        const node = get().nodes[nodeId];
+        if (!node?.parentDocId) return;
+
+        const doc = useDocsStore.getState().getDoc(node.parentDocId);
+        if (!doc) return;
+
+        const normalized = normalizeDocBlocks(doc.blocks);
+        let nextBlocks = normalized.map((block) => {
+          if (block.id === node.sourceBlockId) {
+            return { ...block, nodeId: null };
+          }
+          if (block.id === node.sourceTextBlockId) {
+            if (block.embedded?.kind === "calendar-event") {
+              return {
+                ...block,
+                text: block.text || getCalendarEventDisplayText(node.content),
+                embedded: {
+                  ...block.embedded,
+                  linkedNodeId: null,
+                },
+              };
+            }
+            return {
+              ...block,
+              text: block.text || buildSyncedNodeText(node),
+            };
+          }
+          return block;
+        });
+
+        useDocsStore.getState().updateDoc(node.parentDocId, { blocks: nextBlocks });
+        useDocsStore.getState().removeNodeFromDoc(node.parentDocId, nodeId);
+      },
+
+      deleteNodeAndDocBlocks: (nodeId) => {
+        const node = get().nodes[nodeId];
+        if (!node) return;
+        get().removeNodeSyncFromDoc(nodeId, node.parentDocId || null);
+        if (node.parentDocId) {
+          useDocsStore.getState().removeNodeFromDoc(node.parentDocId, nodeId);
+        }
+        set((state) => {
+          const next = { ...state.nodes };
+          delete next[nodeId];
+          return { nodes: next };
         });
       },
 
@@ -407,8 +525,9 @@ export const useNodesStore = create(
 
       deleteNode: (id) => {
         const node = get().nodes[id];
-        get().removeNodeSyncFromDoc(id, node?.parentDocId || null);
-        if (node?.parentDocId) {
+        if (node?.parentDocId && (node.sourceBlockId || node.sourceTextBlockId)) {
+          get().detachNodeFromDocAsCopy(id);
+        } else if (node?.parentDocId) {
           useDocsStore.getState().removeNodeFromDoc(node.parentDocId, id);
         }
         set((state) => {

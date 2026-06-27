@@ -12,6 +12,12 @@ import { nodeDataTypeForBlock } from "./docBlockSlash.js";
 import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
 import { buildVideoNodeContent } from "./videoEmbed.js";
 import {
+  getCalendarEventDisplayText,
+} from "./calendarEventDisplay.js";
+import {
+  isCalendarEventNodeContent,
+} from "./eventCalendarSearch.js";
+import {
   anchorAtFromBlock,
   anchorFieldsFromIso,
   isoFromAnchorFields,
@@ -129,6 +135,9 @@ export function findLinkableBlockIndexForFocus(blocks, focusBlockId) {
 
 export function nodeContentAsString(node) {
   if (!node) return "";
+  if (isCalendarEventNodeContent(node.content)) {
+    return getCalendarEventDisplayText(node.content);
+  }
   if (typeof node.content === "string") return node.content;
   return JSON.stringify(node.content ?? "");
 }

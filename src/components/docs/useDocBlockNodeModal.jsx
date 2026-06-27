@@ -23,6 +23,7 @@ import {
   syncVideoNodeFromH1Blocks,
   syncVideoNodeFromVideoBlock,
 } from "../../lib/docNodeSync.js";
+import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
@@ -295,12 +296,22 @@ export function useDocBlockNodeModal({
       ? isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorTime)
       : null;
 
+    const existingNode = nodeId ? getNode(nodeId) : null;
+    let contentToSave = nodeDraftContent;
+    if (
+      existingNode
+      && dataType === NODE_DATA_TYPES.TEXT
+      && parseCalendarEventNodeContent(existingNode.content)
+    ) {
+      contentToSave = existingNode.content;
+    }
+
     const newNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
       docId,
       blockId,
       query: queryText,
-      content: nodeDraftContent,
+      content: contentToSave,
       dataType,
       docCreatedAt: isoFromDateInput(createdDate),
       anchorAt,
@@ -328,12 +339,12 @@ export function useDocBlockNodeModal({
     }
 
     let nextBlocks = updateBlockAt(blocks, blockIndex, patch);
-    nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, nodeDraftContent, dataType);
+    nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, contentToSave, dataType);
     if (dataType === NODE_DATA_TYPES.TEXT) {
       nextBlocks = setAnswerBelowH1(
         nextBlocks,
         blockIndex,
-        typeof nodeDraftContent === "string" ? nodeDraftContent : "",
+        typeof contentToSave === "string" ? contentToSave : "",
       );
     }
     setBlocks(nextBlocks);

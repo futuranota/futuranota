@@ -2,6 +2,7 @@ import { formatForecastUiDate } from "./forecastSearch.js";
 import { EVENT_CALENDAR_RANGES } from "./eventCalendarSearch.js";
 import { startOfCalendarDay } from "../temporal.js";
 import { translate } from "../i18n/useI18n.js";
+import { beautifyCalendarDate, beautifyCalendarEventName } from "./calendarEventFormat.js";
 
 /** @typedef {{ id?: string, title?: string, summary?: string, date?: string, dateEnd?: string|null, source?: string, type?: string, rank?: number, season?: string }} CalendarEvent */
 
@@ -53,7 +54,7 @@ function formatEventWhen(event, locale) {
   const end = formatIsoUi(event.dateEnd);
   if (!start) return "";
   if (end && end !== start) {
-    return locale === "es" ? `${start} → ${end}` : `${start}–${end}`;
+    return locale === "es" ? `${start} a ${end}` : `${start} to ${end}`;
   }
   return start;
 }
@@ -94,7 +95,7 @@ function resolveEventSeason(event) {
  * @param {CalendarEvent[]} scoped
  * @param {'en'|'es'} locale
  */
-function buildSeasonGroupedLines(scoped, locale) {
+function buildSeasonGroupedSections(scoped, locale) {
   /** @type {Map<MarketingSeason, CalendarEvent[]>} */
   const bySeason = new Map();
   scoped.forEach((event) => {
@@ -109,21 +110,37 @@ function buildSeasonGroupedLines(scoped, locale) {
     return aDate.localeCompare(bDate);
   });
 
+  return seasons.map((season) => ({
+    season: translate(
+      `eventCalendar.season${season.charAt(0).toUpperCase()}${season.slice(1)}`,
+      locale,
+    ),
+    events: [...(bySeason.get(season) || [])]
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+      .map((event) => ({
+        name: beautifyCalendarEventName((event.title || "").trim() || "—"),
+        date: beautifyCalendarDate(formatEventWhen(event, locale)),
+      })),
+  })).filter((section) => section.events.length > 0);
+}
+
+/**
+ * @param {CalendarEvent[]} scoped
+ * @param {'en'|'es'} locale
+ */
+function buildSeasonGroupedLines(scoped, locale) {
   /** @type {string[]} */
   const blocks = [];
   let index = 0;
 
-  seasons.forEach((season) => {
-    const group = [...(bySeason.get(season) || [])].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    if (!group.length) return;
-
-    blocks.push(translate(`eventCalendar.season${season.charAt(0).toUpperCase()}${season.slice(1)}`, locale));
-    group.forEach((event) => {
+  buildSeasonGroupedSections(scoped, locale).forEach((section) => {
+    blocks.push(section.season);
+    section.events.forEach((event) => {
       index += 1;
       blocks.push(translate("eventCalendar.eventLine", locale, {
         index,
-        name: (event.title || "").trim() || "—",
-        date: formatEventWhen(event, locale),
+        name: event.name,
+        date: event.date,
       }));
     });
     blocks.push("");
@@ -170,11 +187,13 @@ export function buildEventCalendarScopeBrief(fetchResult, options = {}) {
   }
 
   const intro = translate("eventCalendar.scopeIntro", locale, { days: rangeDays });
+  const sections = buildSeasonGroupedSections(scoped, locale);
   const seasonLines = buildSeasonGroupedLines(scoped, locale);
 
   return {
     headline: "",
     body: [intro, "", ...seasonLines].join("\n"),
+    displayModel: { intro, sections },
     eventCount: scoped.length,
     hasData: true,
     events: scoped,

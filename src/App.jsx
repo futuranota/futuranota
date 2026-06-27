@@ -34,7 +34,12 @@ import {
   collectNodeIdsReferencedByBlocks,
   findOrphanNodeIdsForDoc,
 } from './lib/docNodeSync.js';
-import { collectCanvasNodeIdsForEntityIds } from './lib/canvasDocSync.js';
+import {
+  adoptOrphanNodeToDocument,
+} from './lib/nodeParentAdoption.js';
+import { AdoptNodeConfirmModal } from './components/nodes/AdoptNodeConfirmModal.jsx';
+import { AssignParentDocModal } from './components/nodes/AssignParentDocModal.jsx';
+import { useI18n } from './i18n/useI18n.js';
 import { normalizeDocBlocks } from './lib/docBlocks.js';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
 import {
@@ -46,6 +51,7 @@ import {
   buildLaunchDateCanvasNode,
   CANVAS_DOC_CHILD_OFFSET_X,
   collectCanvasNodeIdsForDoc,
+  collectCanvasNodeIdsForEntityIds,
   syncContentDocCanvasNodes,
 } from './lib/canvasDocSync.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
@@ -174,6 +180,9 @@ function Dashboard({ company, onBack }) {
   const [expandedDocId, setExpandedDocId] = useState(null);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
   const [expandedNodeId, setExpandedNodeId] = useState(null);
+  const [adoptPrompt, setAdoptPrompt] = useState(null);
+  const [assignParentTarget, setAssignParentTarget] = useState(null);
+  const { t } = useI18n();
   const docs = useDocsStore((s) => s.docs);
   const objects = useObjectsStore((s) => s.objects);
   const nodeEntities = useNodesStore((s) => s.nodes);
@@ -427,17 +436,21 @@ useEffect(() => {
   };
 
   const handleInsertEventNode = ({ title, payload, sourceNode, anchorAt }) => {
+    const parentDocId = sourceNode?.parentDocId || null;
     const addNode = useNodesStore.getState().addNode;
     const nodeId = addNode(
       title,
       "text",
       JSON.stringify(payload),
-      sourceNode?.parentDocId || null,
+      parentDocId,
       {
         anchorAt: anchorAt || null,
         sourceQuery: title,
       },
     );
+    if (parentDocId) {
+      useNodesStore.getState().syncNodeToParentDoc(nodeId, parentDocId);
+    }
     const created = useNodesStore.getState().getNode(nodeId);
     if (created) insertNodeToCanvas(created, { center: true });
   };
@@ -658,6 +671,72 @@ useEffect(() => {
     setDocOpenFocusBlockId(options.focusBlockId ?? null);
   };
 
+  const patchCanvasNode = useCallback((canvasNodeId, patch) => {
+    setCanvasNodes((all) => all.map((n) => (
+      n.id === canvasNodeId ? { ...n, ...patch } : n
+    )));
+  }, []);
+
+  const runAdoption = useCallback((payload) => {
+    const ok = adoptOrphanNodeToDocument({
+      nodeEntityId: payload.orphanEntityId,
+      docId: payload.docId,
+      canvasNodeId: payload.orphanCanvasNodeId,
+      patchCanvasNode,
+    });
+    if (ok) {
+      setToast({
+        message: t("canvas.adoptSuccess", {
+          orphan: payload.orphanTitle,
+          doc: payload.docTitle,
+        }),
+        kind: "ok",
+      });
+    }
+    return ok;
+  }, [patchCanvasNode, t]);
+
+  const handleRequestDocAdoption = useCallback((payload) => new Promise((resolve) => {
+    setAdoptPrompt({ payload, resolve });
+  }), []);
+
+  const handleAdoptPromptYes = useCallback(() => {
+    if (!adoptPrompt) return;
+    runAdoption(adoptPrompt.payload);
+    adoptPrompt.resolve("adopt");
+    setAdoptPrompt(null);
+  }, [adoptPrompt, runAdoption]);
+
+  const handleAdoptPromptNo = useCallback(() => {
+    if (!adoptPrompt) return;
+    adoptPrompt.resolve("wire-only");
+    setAdoptPrompt(null);
+  }, [adoptPrompt]);
+
+  const handleAssignParent = useCallback((canvasNodeId) => {
+    const canvasNode = canvasNodes.find((n) => n.id === canvasNodeId);
+    if (!canvasNode?.noteId) return;
+    const entity = nodeEntities[canvasNode.noteId];
+    setAssignParentTarget({
+      canvasNodeId,
+      orphanEntityId: canvasNode.noteId,
+      orphanTitle: (entity?.sourceQuery || entity?.title || canvasNode.title || "").trim(),
+    });
+  }, [canvasNodes, nodeEntities]);
+
+  const handleAssignParentConfirm = useCallback((docId) => {
+    if (!assignParentTarget) return;
+    const doc = docs[docId];
+    runAdoption({
+      orphanEntityId: assignParentTarget.orphanEntityId,
+      docId,
+      orphanCanvasNodeId: assignParentTarget.canvasNodeId,
+      orphanTitle: assignParentTarget.orphanTitle,
+      docTitle: (doc?.title || "Untitled").trim(),
+    });
+    setAssignParentTarget(null);
+  }, [assignParentTarget, docs, runAdoption]);
+
   const openCanvasEntity = (noteId, canvasNode = null) => {
     if (!noteId && !canvasNode) return;
     const targetDocId = noteId && docs[noteId] ? noteId : canvasNode?.docId;
@@ -720,6 +799,8 @@ useEffect(() => {
             onOpenNote={openCanvasEntity}
             onRemoveBlueprintFromCanvas={() => {}}
             onCanvasDrop={handleCanvasDrop}
+            onRequestDocAdoption={handleRequestDocAdoption}
+            onAssignParent={handleAssignParent}
           />
           {scanState === "scanning-blogs" && (
             <ScanOverlay logs={scanLogs} kind="blogs" />
@@ -804,6 +885,24 @@ useEffect(() => {
           onClose={() => setExpandedNodeId(null)}
           onSaved={() => setExpandedNodeId(null)}
           onDeleted={() => setExpandedNodeId(null)}
+        />
+      ) : null}
+
+      {adoptPrompt ? (
+        <AdoptNodeConfirmModal
+          docTitle={adoptPrompt.payload.docTitle}
+          orphanTitle={adoptPrompt.payload.orphanTitle}
+          onAdopt={handleAdoptPromptYes}
+          onWireOnly={handleAdoptPromptNo}
+        />
+      ) : null}
+
+      {assignParentTarget ? (
+        <AssignParentDocModal
+          docs={docs}
+          orphanTitle={assignParentTarget.orphanTitle}
+          onConfirm={handleAssignParentConfirm}
+          onClose={() => setAssignParentTarget(null)}
         />
       ) : null}
 

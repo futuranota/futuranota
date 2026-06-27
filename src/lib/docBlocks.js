@@ -266,6 +266,9 @@ export function normalizeDocBlock(block) {
   return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
     id: block.id,
     text: block.text || "",
+    embedded: block.embedded && typeof block.embedded === "object"
+      ? block.embedded
+      : undefined,
   });
 }
 
@@ -276,6 +279,8 @@ function mergeAdjacentTextBlocks(blocks) {
     if (
       block.type === DOC_BLOCK_TYPES.TEXT
       && prev?.type === DOC_BLOCK_TYPES.TEXT
+      && !block.embedded
+      && !prev.embedded
     ) {
       merged[merged.length - 1] = {
         ...prev,
@@ -294,7 +299,9 @@ export function normalizeDocBlocks(blocks) {
 }
 
 export function isEmptyTextBlock(block) {
-  return block?.type === DOC_BLOCK_TYPES.TEXT && !(block.text || "").trim();
+  if (block?.type !== DOC_BLOCK_TYPES.TEXT) return false;
+  if (block.embedded?.kind) return false;
+  return !(block.text || "").trim();
 }
 
 /** Drop unfocused empty text rows so they do not occupy layout space. */

@@ -1,4 +1,7 @@
 import { SlashAwareTextarea } from "./SlashAwareTextarea.jsx";
+import { EmbeddedCalendarBlockView } from "./EmbeddedCalendarBlockView.jsx";
+import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
+import { getCalendarEventDisplayModel } from "../../../lib/calendarEventDisplay.js";
 
 export function TextBlockView({
   value,
@@ -10,7 +13,38 @@ export function TextBlockView({
   autoFocus = false,
   showPlaceholder = true,
   maxHeightPx = null,
+  embedded = null,
+  linkedNodeId = null,
+  onRemoveEmbedded = null,
 }) {
+  const legacyCalendarModel = !embedded?.displayModel && isCalendarEventNodeContent(value)
+    ? getCalendarEventDisplayModel(value)
+    : null;
+
+  if (embedded?.kind === "calendar-event" && embedded.displayModel) {
+    return (
+      <div className="doc-text-block doc-text-block--embedded">
+        <EmbeddedCalendarBlockView
+          displayModel={embedded.displayModel}
+          linkedNodeId={linkedNodeId ?? embedded.linkedNodeId ?? null}
+          onRemove={onRemoveEmbedded}
+        />
+      </div>
+    );
+  }
+
+  if (legacyCalendarModel) {
+    return (
+      <div className="doc-text-block doc-text-block--embedded">
+        <EmbeddedCalendarBlockView
+          displayModel={legacyCalendarModel}
+          linkedNodeId={linkedNodeId}
+          onRemove={onRemoveEmbedded}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="doc-text-block">
       <SlashAwareTextarea

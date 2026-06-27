@@ -12,6 +12,8 @@ import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
+import { CalendarEventNodeView } from "../intel/CalendarEventNodeView.jsx";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "metric", "checkbox"];
 
@@ -84,6 +86,9 @@ export function NodeQueryModal({
   const showScheduleAnchor =
     Boolean(onAnchorDateChange)
     && (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX);
+
+  const calendarPayload =
+    dataType === NODE_DATA_TYPES.TEXT ? parseCalendarEventNodeContent(content) : null;
 
   useEffect(() => {
     bodyRef.current?.focus();
@@ -253,7 +258,12 @@ export function NodeQueryModal({
           </div>
         </header>
 
-        <div className="node-query-modal__content-box">
+        <div
+          className={
+            "node-query-modal__content-box"
+            + (calendarPayload ? " node-query-modal__content-box--calendar" : "")
+          }
+        >
           {dataType === "date" ? (
             <div className="node-query-modal__date-editor">
               <input
@@ -296,6 +306,11 @@ export function NodeQueryModal({
               />
               <span>Checked</span>
             </label>
+          ) : calendarPayload ? (
+            <CalendarEventNodeView
+              content={content}
+              className="node-query-modal__calendar-body"
+            />
           ) : (
             <textarea
               ref={bodyRef}

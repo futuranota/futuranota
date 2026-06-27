@@ -1,10 +1,23 @@
+import { CalendarEventDisplay } from "./CalendarEventDisplay.jsx";
+import {
+  getCalendarEventDisplayModel,
+  parseScopeBriefText,
+} from "../../lib/calendarEventDisplay.js";
+
 export function CalendarEventResultBox({ result, onInsert, showInsert = true }) {
-  const scopeBrief = result?.scopeBrief;
-  if (!scopeBrief?.body) return null;
+  const model = result?.displayModel
+    || result?.scopeBrief?.displayModel
+    || (result?.scopeBrief?.body ? parseScopeBriefText(result.scopeBrief.body) : null);
+
+  if (!model && !result?.scopeBrief?.body) return null;
 
   return (
     <div className="cal-event-result" role="status">
-      <p className="cal-event-result__scope-body">{scopeBrief.body}</p>
+      {model ? (
+        <CalendarEventDisplay model={model} />
+      ) : (
+        <p className="cal-event-result__scope-body">{result.scopeBrief.body}</p>
+      )}
       {showInsert && onInsert && result?.event ? (
         <button
           type="button"
