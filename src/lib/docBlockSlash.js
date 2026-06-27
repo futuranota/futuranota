@@ -4,7 +4,10 @@ import {
   createTodoItem,
   DOC_BLOCK_TYPES,
 } from "./docBlocks.js";
+import { getSlashTail, splitBodyForSlash } from "./docSlashTail.js";
 import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
+
+export { getSlashTail, splitBodyForSlash };
 
 export const DOC_SLASH_COMMANDS = [
   {
@@ -56,22 +59,6 @@ export const DOC_SLASH_COMMANDS = [
 export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
 );
-
-export function getSlashTail(value) {
-  const m = String(value ?? "").match(/(?:^|\n)(\/[^\n]*)$/);
-  return m ? m[1] : null;
-}
-
-export function splitBodyForSlash(body) {
-  const slash = getSlashTail(body);
-  if (!slash) {
-    return { prefix: String(body ?? ""), slash: null };
-  }
-  return {
-    prefix: String(body ?? "").slice(0, body.length - slash.length),
-    slash,
-  };
-}
 
 export function parseSlashQuery(query) {
   const normalized = String(query ?? "")

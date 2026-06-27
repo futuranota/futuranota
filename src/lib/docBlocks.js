@@ -1,5 +1,6 @@
 import { generateId } from "./ids.js";
 import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
+import { splitBodyForSlash } from "./docSlashTail.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
 import { parseVideoEmbedInput } from "./videoEmbed.js";
 
@@ -404,9 +405,7 @@ export function replaceBlocksFromSlashWithEmbedVideo(blocks, blockIndex, textVal
   const block = normalized[blockIndex];
   if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return normalized;
 
-  const raw = String(textValue ?? "");
-  const slashIdx = raw.search(/\/[^\n]*$/);
-  const prefix = slashIdx >= 0 ? raw.slice(0, slashIdx) : raw;
+  const { prefix } = splitBodyForSlash(textValue);
   const [h1Block, videoBlock] = createEmbedVideoBlocks();
 
   const next = [...normalized];
@@ -601,9 +600,7 @@ export function replaceBlocksFromSlashInText(blocks, blockIndex, textValue, newB
   const block = normalized[blockIndex];
   if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return normalized;
 
-  const raw = String(textValue ?? "");
-  const slashIdx = raw.search(/\/[^\n]*$/);
-  const prefix = slashIdx >= 0 ? raw.slice(0, slashIdx) : raw;
+  const { prefix } = splitBodyForSlash(textValue);
 
   const next = [...normalized];
   const newNormalized = normalizeDocBlock(newBlock);
@@ -633,9 +630,7 @@ export function replaceBlockFromSlashInLinkable(blocks, blockIndex, fieldValue, 
     return normalized;
   }
 
-  const raw = String(fieldValue ?? "");
-  const slashIdx = raw.search(/\/[^\n]*$/);
-  const prefix = slashIdx >= 0 ? raw.slice(0, slashIdx) : raw;
+  const { prefix } = splitBodyForSlash(fieldValue);
   const titleField = block.type === DOC_BLOCK_TYPES.TODO ? "listTitle" : "title";
 
   const next = [...normalized];

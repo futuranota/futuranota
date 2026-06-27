@@ -1974,8 +1974,7 @@
 }
 
 .doc-body-field-wrap--knowledge .doc-new-body-field,
-.doc-body-field-wrap--knowledge .doc-body-field-wrap__slash textarea,
-.doc-body-field-wrap--knowledge .doc-body-field-wrap__slash .doc-slash-field__mirror {
+.doc-body-field-wrap--knowledge .doc-body-field-wrap__slash textarea {
   position: relative;
   z-index: 2;
   background: transparent;
@@ -3085,7 +3084,7 @@ body.doc-content-resizing * {
   min-height: 72px;
 }
 
-/* Slash command mirror + transparent field (slash-instructions.png) */
+/* Slash command field — text in textarea only; ghost hint floats at caret */
 .doc-slash-field {
   position: relative;
   width: 100%;
@@ -3093,30 +3092,12 @@ body.doc-content-resizing * {
   cursor: text;
 }
 
-.doc-slash-field__mirror {
+.doc-slash-field__ghost-overlay {
   position: absolute;
-  inset: 0;
-  z-index: 0;
+  z-index: 2;
   pointer-events: none;
-  overflow: hidden;
-  white-space: pre-wrap;
-  word-break: normal;
-  overflow-wrap: break-word;
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.35;
-  letter-spacing: 0.39px;
-  box-sizing: border-box;
-}
-
-.doc-slash-field__plain,
-.doc-slash-field__command {
-  color: #fff;
-}
-
-.doc-slash-field__ghost {
   color: #565656;
+  white-space: pre;
   animation: docSlashGhostIn 0.2s ease;
 }
 
@@ -3140,11 +3121,6 @@ body.doc-content-resizing * {
   line-height: 1.35;
   letter-spacing: 0.39px;
   color: #fff;
-}
-
-.doc-slash-field__input--slash-mode {
-  color: transparent;
-  caret-color: #fff;
 }
 
 .doc-slash-ghost-hints {
@@ -3211,14 +3187,6 @@ body.doc-content-resizing * {
 .doc-h1-block__slash-wrap {
   flex: 1;
   min-width: 0;
-}
-
-.doc-h1-block__header--multiline .doc-slash-field__mirror {
-  padding: 2px 0;
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: 0.68px;
-  line-height: 1.15;
 }
 
 .doc-h1-block__input::placeholder {
@@ -4366,12 +4334,27 @@ body.doc-content-resizing * {
   min-height: 28px;
 }
 
-.doc-text-block__wrap .doc-slash-field__mirror {
-  padding: 2px 21px 2px 15px;
+.doc-text-block__wrap .doc-slash-field__ghost-overlay {
+  margin-left: 0;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.39px;
 }
 
-.doc-body-field-wrap__slash .doc-slash-field__mirror {
-  padding: 24px 21px 24px 15px;
+.doc-body-field-wrap__slash .doc-slash-field__ghost-overlay {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.39px;
+}
+
+.doc-h1-block__slash-wrap .doc-slash-field__ghost-overlay {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.68px;
+  line-height: 1.15;
 }
 
 .doc-text-block__field {

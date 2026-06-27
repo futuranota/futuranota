@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DOC_SLASH_GHOST_HINTS, getSlashTail, splitBodyForSlash } from "../../../lib/docBlockSlash.js";
-import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
+import {
+  resolveSlashGhostOverlayPosition,
+  scrollTextareaCaretIntoCameraView,
+} from "../../../lib/textareaSelectionRect.js";
 
 const CARET_CAMERA_KEYS = new Set([
   "ArrowUp",
@@ -22,9 +25,9 @@ function collapseDuplicateSlashTail(value) {
 }
 
 /**
- * Textarea with mirror layer for slash commands at end of text (slash-instructions.png).
- * When a slash tail is active, typed text is drawn in the mirror; the field uses a transparent
- * color so ghost hints do not overlap the "/" character.
+ * Textarea for slash commands at end of a line.
+ * Text always renders in the field (single source of truth). Ghost hints float
+ * beside the caret via resolveSlashGhostOverlayPosition — no mirror layer.
  */
 export function SlashAwareTextarea({
   value,
@@ -44,9 +47,14 @@ export function SlashAwareTextarea({
   onAfterInput,
 }) {
   const internalRef = useRef(null);
+  const wrapRef = useRef(null);
   const textareaRef = externalRef || internalRef;
   const caretCameraRafRef = useRef(null);
   const [hintIndex, setHintIndex] = useState(0);
+  const [ghostPos, setGhostPos] = useState(null);
+
+  const { slash } = splitBodyForSlash(value);
+  const showGhost = Boolean(slash) && /^\/\s*$/.test(slash);
 
   const scheduleCaretCameraScroll = useCallback(() => {
     if (caretCameraRafRef.current) {
@@ -60,13 +68,20 @@ export function SlashAwareTextarea({
     });
   }, [textareaRef]);
 
+  const syncGhostPosition = useCallback(() => {
+    if (!showGhost) {
+      setGhostPos(null);
+      return;
+    }
+    const el = textareaRef.current;
+    const wrap = wrapRef.current;
+    if (!el || !wrap) return;
+    setGhostPos(resolveSlashGhostOverlayPosition(el, wrap));
+  }, [showGhost, textareaRef]);
+
   useEffect(() => () => {
     if (caretCameraRafRef.current) cancelAnimationFrame(caretCameraRafRef.current);
   }, []);
-
-  const { prefix, slash } = splitBodyForSlash(value);
-  const slashActive = Boolean(slash);
-  const showGhost = slashActive && /^\/\s*$/.test(slash);
 
   useEffect(() => {
     if (!showGhost) {
@@ -79,6 +94,33 @@ export function SlashAwareTextarea({
     }, 2000);
     return () => clearInterval(interval);
   }, [showGhost, slash]);
+
+  useLayoutEffect(() => {
+    syncGhostPosition();
+  }, [value, showGhost, hintIndex, syncGhostPosition]);
+
+  useLayoutEffect(() => {
+    if (!showGhost) return undefined;
+    const el = textareaRef.current;
+    if (!el) return undefined;
+
+    const onScroll = () => syncGhostPosition();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+
+    let ro;
+    if (typeof ResizeObserver !== "undefined" && wrapRef.current) {
+      ro = new ResizeObserver(onScroll);
+      ro.observe(wrapRef.current);
+      ro.observe(el);
+    }
+
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      ro?.disconnect();
+    };
+  }, [showGhost, syncGhostPosition, textareaRef]);
 
   const ghostHint = DOC_SLASH_GHOST_HINTS[hintIndex] ?? DOC_SLASH_GHOST_HINTS[0];
 
@@ -129,7 +171,8 @@ export function SlashAwareTextarea({
 
   useLayoutEffect(() => {
     syncHeight(true);
-  }, [value, syncHeight]);
+    syncGhostPosition();
+  }, [value, syncHeight, syncGhostPosition]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -137,37 +180,24 @@ export function SlashAwareTextarea({
     const observer = new IntersectionObserver((entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return;
       syncHeight(true);
+      syncGhostPosition();
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [syncHeight, textareaRef]);
+  }, [syncHeight, syncGhostPosition, textareaRef]);
 
   useLayoutEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
   }, [autoFocus, textareaRef]);
 
-  const fieldClass = [
-    "doc-slash-field__input",
-    slashActive ? "doc-slash-field__input--slash-mode" : "",
-    className,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const fieldClass = ["doc-slash-field__input", className].filter(Boolean).join(" ");
 
   return (
     <div
+      ref={wrapRef}
       className={`doc-slash-field ${wrapClassName}`.trim()}
       onMouseDown={handleWrapPointerDown}
     >
-      {slashActive ? (
-        <div className="doc-slash-field__mirror" aria-hidden>
-          <span className="doc-slash-field__plain">{prefix}</span>
-          <span className="doc-slash-field__command">{slash}</span>
-          {showGhost ? (
-            <span className="doc-slash-field__ghost">{ghostHint}</span>
-          ) : null}
-        </div>
-      ) : null}
       <textarea
         ref={textareaRef}
         className={fieldClass}
@@ -176,6 +206,7 @@ export function SlashAwareTextarea({
         rows={1}
         onChange={(e) => {
           onChange(collapseDuplicateSlashTail(e.target.value));
+          onAfterInput?.();
         }}
         onKeyDown={(e) => {
           onKeyDown?.(e);
@@ -183,13 +214,30 @@ export function SlashAwareTextarea({
             scheduleCaretCameraScroll();
           }
         }}
+        onSelect={syncGhostPosition}
+        onKeyUp={syncGhostPosition}
+        onClick={syncGhostPosition}
         onBlur={onBlur}
         onFocus={(e) => {
           onFocus?.(e);
+          syncGhostPosition();
         }}
         spellCheck={false}
         aria-label={ariaLabel}
       />
+      {showGhost && ghostPos ? (
+        <span
+          className="doc-slash-field__ghost-overlay"
+          aria-hidden
+          style={{
+            left: `${ghostPos.left}px`,
+            top: `${ghostPos.top}px`,
+            lineHeight: `${ghostPos.lineHeight}px`,
+          }}
+        >
+          {ghostHint}
+        </span>
+      ) : null}
     </div>
   );
 }

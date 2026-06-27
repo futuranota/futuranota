@@ -13,7 +13,7 @@ function copyTextareaStyle(textarea, mirror) {
   mirror.style.overflow = "hidden";
 }
 
-function getCaretClientRect(textarea, position) {
+export function getCaretClientRect(textarea, position) {
   const value = textarea.value ?? "";
   const pos = Math.max(0, Math.min(position, value.length));
   const fieldRect = textarea.getBoundingClientRect();
@@ -69,6 +69,22 @@ export function resolveTextSelectionToolbarPosition(textarea, selectionStart, se
   }
 
   return { left, top, btnSize };
+}
+
+/** Position for slash ghost hint immediately after the caret, relative to wrapEl. */
+export function resolveSlashGhostOverlayPosition(textarea, wrapEl) {
+  if (!textarea?.isConnected || !wrapEl) return null;
+
+  const pos = textarea.selectionStart ?? textarea.value.length;
+  const caretRect = getCaretClientRect(textarea, pos);
+  const wrapRect = wrapEl.getBoundingClientRect();
+  const lineHeight = parseFloat(window.getComputedStyle(textarea).lineHeight) || 18;
+
+  return {
+    left: caretRect.right - wrapRect.left,
+    top: caretRect.top - wrapRect.top,
+    lineHeight,
+  };
 }
 
 /**
