@@ -568,10 +568,12 @@
   width: 100%;
   aspect-ratio: 5 / 3;
   border-radius: var(--radius-sm);
-  object-fit: cover;
+  object-fit: contain;
+  padding: 12%;
+  box-sizing: border-box;
   pointer-events: none;
   flex-shrink: 0;
-  background: #eaf2ff;
+  background: var(--panel-solid);
 }
 
 .obj-thumb:hover {

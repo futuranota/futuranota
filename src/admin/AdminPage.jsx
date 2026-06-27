@@ -6,6 +6,7 @@ import { SignalsAdminPanel } from './SignalsAdminPanel.jsx';
 import { CampaignDetectorAdminPanel } from './CampaignDetectorAdminPanel.jsx';
 import { HorizonScanAdminPanel } from './HorizonScanAdminPanel.jsx';
 import { ScanSourcesAdminPanel } from './ScanSourcesAdminPanel.jsx';
+import { ManagementAdminPanel } from './ManagementAdminPanel.jsx';
 import '../marketing/styles/marketing.css';
 import '../marketing/styles/sections.css';
 import './admin.css';
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'campaigns', label: 'Campaign Detector' },
   { id: 'horizon', label: 'Horizon Scan' },
   { id: 'sources', label: 'Scan Sources' },
+  { id: 'management', label: 'Management' },
 ];
 
 export function AdminPage() {
@@ -174,6 +176,9 @@ export function AdminPage() {
           </div>
           <div className={`admin-panel-view${tab === 'sources' ? '' : ' is-hidden'}`}>
             <ScanSourcesAdminPanel />
+          </div>
+          <div className={`admin-panel-view${tab === 'management' ? '' : ' is-hidden'}`}>
+            <ManagementAdminPanel />
           </div>
         </main>
       </div>

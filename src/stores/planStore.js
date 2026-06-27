@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { supabase } from "../lib/supabaseClient.js";
 import {
+  CREDIT_TOKEN_UNIT,
   FREE_LIMITS,
   getCreditsCap,
   getCreditsUsed,
@@ -62,6 +63,12 @@ function rowToProfile(row) {
     tokensPeriodStart: periodStart,
     campaignLiveUsed: Boolean(row.campaign_live_used),
   };
+}
+
+function toFiniteNumber(value, fallback = null) {
+  if (value == null || value === "") return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
 }
 
 function isMissingProfilesTable(error) {
@@ -239,7 +246,7 @@ export const usePlanStore = create(
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
         const isAdminUser = !!adminEmail && session.user.email?.toLowerCase() === adminEmail.toLowerCase();
         if (isAdminUser) {
-          profile = { ...profile, plan: "pro", tokensBalance: getTokensCap("pro") };
+          profile = { ...profile, plan: "pro" };
         }
 
         if (data && profile.plan === "pro" && profile.tokensPeriodStart) {
@@ -300,14 +307,54 @@ export const usePlanStore = create(
         }));
       },
 
-      applyServerIntelUsage: ({ tokensBalance, searchCount }) => {
+      chargeIntelSearchCredit: ({ creditCost = 1, tokenCost = CREDIT_TOKEN_UNIT } = {}) => {
+        const { profile } = get();
+        const snapshot = {
+          searchCount: profile.searchCount,
+          tokensBalance: profile.tokensBalance,
+        };
+        get().applyServerIntelUsage({
+          creditsDebited: creditCost,
+          tokenCost,
+        });
+        return snapshot;
+      },
+
+      rollbackIntelSearchCredit: (snapshot) => {
+        if (!snapshot) return;
         set((state) => ({
           profile: {
             ...state.profile,
-            ...(tokensBalance != null ? { tokensBalance } : {}),
-            ...(searchCount != null ? { searchCount } : {}),
+            searchCount: snapshot.searchCount,
+            tokensBalance: snapshot.tokensBalance,
           },
         }));
+      },
+
+      applyServerIntelUsage: ({ tokensBalance, searchCount, creditsDebited, tokenCost }) => {
+        set((state) => {
+          const profile = { ...state.profile };
+          const debited = toFiniteNumber(creditsDebited, 0);
+          const cost = toFiniteNumber(tokenCost, debited * CREDIT_TOKEN_UNIT);
+          const parsedSearchCount = toFiniteNumber(searchCount);
+          const parsedTokenBalance = toFiniteNumber(tokensBalance);
+
+          if (parsedSearchCount != null) {
+            profile.searchCount = parsedSearchCount;
+          } else if (debited > 0 && profile.plan !== "pro") {
+            profile.searchCount = (profile.searchCount ?? 0) + debited;
+          }
+
+          if (parsedTokenBalance != null) {
+            profile.tokensBalance = parsedTokenBalance;
+          } else if (cost > 0 && profile.plan === "pro") {
+            const cap = getTokensCap("pro");
+            const current = toFiniteNumber(profile.tokensBalance, cap);
+            profile.tokensBalance = Math.max(0, current - cost);
+          }
+
+          return { profile };
+        });
       },
 
       spendTokens: async (amount, opts = {}) => {

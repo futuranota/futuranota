@@ -53,6 +53,12 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+### Management panel `/panel` (implementado 2026-06-26)
+
+Tab **Management** en Admin: catálogo APIs (estado env), KPIs, pie charts (Recharts), tabla usuarios (fase 1: cuenta admin Futura Nota), recent calls desde `api_usage_events`. SQL: [`supabase_management.sql`](supabase_management.sql). Seed: `npm run seed:management`. Instrumentación: Intel overview + campaign study.
+
+**Pendiente:** créditos sidebar 0/150 sin descuento visible (problema aparte).
+
 ### Campaign Detector — pipeline verificado 2-pass (implementado)
 
 **Pass A:** Serper + Groq extract-only → `confirmed_campaign` (confidence ≥ 80).  

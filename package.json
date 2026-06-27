@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "start": "npm run dev",
     "verify:apis": "dotenv -e .env.local -- node scripts/verify-integrations.mjs",
-    "verify:apis:config": "dotenv -e .env.local -- node scripts/verify-integrations.mjs --config-only"
+    "verify:apis:config": "dotenv -e .env.local -- node scripts/verify-integrations.mjs --config-only",
+    "seed:management": "dotenv -e .env.local -- node scripts/seed-management-futuranota.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.108.2",

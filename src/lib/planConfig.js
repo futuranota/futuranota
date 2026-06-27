@@ -89,13 +89,22 @@ export function getCreditsCap(plan) {
  * Credits used for display (used/cap). Free = Intel searches; Pro = tokens spent ÷ 10k.
  * @param {{ plan?: string, searchCount?: number, tokensBalance?: number }} profile
  */
+function toFiniteNumber(value, fallback = null) {
+  if (value == null || value === '') return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function getCreditsUsed(profile) {
   const plan = profile?.plan === 'pro' ? 'pro' : 'free';
   if (plan === 'free') {
-    return Math.max(0, profile?.searchCount ?? 0);
+    return Math.min(
+      getCreditsCap('free'),
+      Math.max(0, toFiniteNumber(profile?.searchCount, 0)),
+    );
   }
   const cap = getTokensCap('pro');
-  const balance = profile?.tokensBalance ?? cap;
+  const balance = toFiniteNumber(profile?.tokensBalance, cap);
   const spent = Math.max(0, cap - balance);
   return Math.min(getCreditsCap('pro'), Math.floor(spent / CREDIT_TOKEN_UNIT));
 }

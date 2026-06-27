@@ -8,8 +8,10 @@ import { getCreditsCap, getCreditsUsed, getPlanFeatureRows } from "../../lib/pla
  */
 export function PlanUsagePanel({ compact = false }) {
   const profile = usePlanStore((s) => s.profile);
-  const used = usePlanStore((s) => getCreditsUsed(s.profile));
-  const cap = usePlanStore((s) => getCreditsCap(s.profile.plan));
+  const searchCount = usePlanStore((s) => s.profile.searchCount);
+  const tokensBalance = usePlanStore((s) => s.profile.tokensBalance);
+  const used = getCreditsUsed({ ...profile, searchCount, tokensBalance });
+  const cap = getCreditsCap(profile.plan);
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
   const rows = getPlanFeatureRows(profile.plan);
   const pct = cap > 0 ? Math.max(0, Math.min(100, (used / cap) * 100)) : 0;

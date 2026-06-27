@@ -12,5 +12,7 @@ export const API_ROUTES = {
   weatherForecast: "/api/weather/forecast",
   events: "/api/events",
   integrationsHealth: "/api/health/integrations",
+  managementOverview: "/api/admin/management/overview",
+  managementIntegration: "/api/admin/management/integration",
   webProxy: "/api/proxy",
 };

@@ -7,6 +7,7 @@ import {
   upsertCampaignStudy,
 } from "./supabaseServer.js";
 import { pipelineKeysConfigured, runCampaignStudyPipeline } from "./campaignStudyPipeline.js";
+import { logApiUsageEvents } from "./management/logApiUsage.js";
 
 const TOKEN_COST = 10_000;
 
@@ -124,6 +125,35 @@ export async function processCampaignStudyRequest(reqLike) {
   });
 
   const debit = await debitTokens(supabase, { ...profile, user_id: user.id }, TOKEN_COST);
+
+  void logApiUsageEvents([
+    {
+      userId: user.id,
+      userEmail: user.email,
+      provider: "dataforseo",
+      endpoint: "analytics/campaign-study",
+      routeLabel: "Campaign Study",
+      meta: { brandName, keyword: keyword || brandName, source: "live" },
+    },
+    {
+      userId: user.id,
+      userEmail: user.email,
+      provider: "apify",
+      endpoint: "analytics/campaign-study",
+      routeLabel: "Campaign Study",
+      meta: { brandName, keyword: keyword || brandName, source: "live" },
+    },
+    {
+      userId: user.id,
+      userEmail: user.email,
+      provider: "groq",
+      endpoint: "analytics/campaign-study",
+      routeLabel: "Campaign Study",
+      creditsDebited: 1,
+      tokensDebited: TOKEN_COST,
+      meta: { brandName, keyword: keyword || brandName, source: "live" },
+    },
+  ]);
 
   return {
     status: 200,

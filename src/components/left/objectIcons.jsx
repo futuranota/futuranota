@@ -34,12 +34,7 @@ export function createPlaceholderImage({
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-export const OBJECT_THUMB_SRC = createPlaceholderImage({
-  accentColor: "#0B1E47",
-  endColor: "#CDE2FF",
-  startColor: "#EAF2FF",
-  showTitle: false,
-});
+export const OBJECT_THUMB_SRC = "/uploads/new-company.svg";
 
 export function ObjectIcon({ variant = "md", className = "" }) {
   const src = variant === "sm" ? CUBE_SMALL_SRC : CUBE_M_SRC;

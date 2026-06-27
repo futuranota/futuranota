@@ -182,21 +182,32 @@ export async function runIntelSearch(payload) {
 
   const planStore = usePlanStore.getState();
   const { profile } = planStore;
-  const model = resolveIntelModelForPlan(requestedModelId, profile.plan);
+  const { data: { session } } = await supabase.auth.getSession();
+  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLowerCase();
+  const isAdminUser = Boolean(
+    adminEmail && session?.user?.email?.toLowerCase() === adminEmail,
+  );
+  const effectivePlan = isAdminUser || profile.plan === "pro" ? "pro" : "free";
+  const model = resolveIntelModelForPlan(requestedModelId, effectivePlan);
 
   if (model.id !== requestedModelId) {
     uiState.setIntelSelectedModelId(model.id);
   }
 
-  if (profile.plan === "free") {
+  if (effectivePlan === "free") {
     if ((profile.searchCount ?? 0) + model.creditCost > FREE_LIMITS.maxSearches) {
       useUpgradeModalStore.getState().show("search");
       return;
     }
-  } else if (!planStore.canSpendTokens(model.tokenCost)) {
+  } else if (!isAdminUser && !planStore.canSpendTokens(model.tokenCost)) {
     useUpgradeModalStore.getState().show("tokens");
     return;
   }
+
+  const usageSnapshot = planStore.chargeIntelSearchCredit({
+    creditCost: model.creditCost,
+    tokenCost: model.tokenCost,
+  });
 
   uiState.setIntelSearchLoading({
     query: q,
@@ -242,6 +253,7 @@ export async function runIntelSearch(payload) {
       ranAt: new Date().toISOString(),
     });
   } catch (err) {
+    planStore.rollbackIntelSearchCredit(usageSnapshot);
     if (err?.code === "search" || err?.code === "tokens") {
       useUpgradeModalStore.getState().show(err.code);
     } else if (err?.code === "model") {

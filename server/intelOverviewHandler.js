@@ -5,8 +5,11 @@ import {
   DEFAULT_INTEL_MODEL_ID,
   resolveIntelModelForPlan,
 } from "./intelModels.js";
+import { getTokensCap } from "../src/lib/planConfig.js";
+import { logApiUsageEvents } from "./management/logApiUsage.js";
 
 const FREE_MAX_CREDITS = 10;
+const PRO_TOKENS_CAP = getTokensCap("pro");
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -73,7 +76,7 @@ export async function processIntelOverviewRequest(reqLike) {
       return { status: 403, body: { error: "Free search limit reached", code: "search" } };
     }
   } else if (!isAdminUser) {
-    const balance = profile.tokens_balance ?? 0;
+    const balance = profile.tokens_balance ?? PRO_TOKENS_CAP;
     if (balance < model.tokenCost) {
       return { status: 403, body: { error: "Insufficient tokens", code: "tokens" } };
     }
@@ -85,7 +88,8 @@ export async function processIntelOverviewRequest(reqLike) {
   if (plan === "free") {
     patch.search_count = (profile.search_count ?? 0) + model.creditCost;
   } else {
-    patch.tokens_balance = (profile.tokens_balance ?? 0) - model.tokenCost;
+    const balance = profile.tokens_balance ?? PRO_TOKENS_CAP;
+    patch.tokens_balance = balance - model.tokenCost;
   }
 
   const { data: updated, error } = await supabase
@@ -97,14 +101,35 @@ export async function processIntelOverviewRequest(reqLike) {
 
   if (error) throw new Error(error.message);
 
+  void logApiUsageEvents([
+    {
+      userId: user.id,
+      userEmail: user.email,
+      provider: "serper",
+      endpoint: "intel/overview",
+      routeLabel: "Intel Search",
+      meta: { query, modelId: model.id, source: "live" },
+    },
+    {
+      userId: user.id,
+      userEmail: user.email,
+      provider: "groq",
+      endpoint: "intel/overview",
+      routeLabel: "Intel Search",
+      creditsDebited: model.creditCost,
+      tokensDebited: plan === "pro" ? model.tokenCost : 0,
+      meta: { query, modelId: model.id, source: "live" },
+    },
+  ]);
+
   return {
     status: 200,
     body: {
       ...result,
       tokensDebited: plan === "pro" ? model.tokenCost : 0,
       creditsDebited: model.creditCost,
-      tokensBalance: updated.tokens_balance,
-      searchCount: updated.search_count,
+      tokensBalance: Number(updated.tokens_balance),
+      searchCount: Number(updated.search_count),
       modelId: model.id,
       modelLabel: model.label,
       creditUnit: CREDIT_TOKEN_UNIT,
