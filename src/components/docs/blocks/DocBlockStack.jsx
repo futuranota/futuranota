@@ -676,6 +676,45 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     scrollCaretAfterNewline(blockId);
   };
 
+  const isCaretOnEmptyH1Line = (title, caret) => {
+    const lineStart = title.lastIndexOf("\n", Math.max(0, caret - 1)) + 1;
+    const nextBreak = title.indexOf("\n", caret);
+    const lineEnd = nextBreak === -1 ? title.length : nextBreak;
+    return !title.slice(lineStart, lineEnd).trim();
+  };
+
+  const shouldExitH1ToBodyOnEnter = (title, caretStart, caretEnd) => {
+    if (caretStart !== caretEnd) return false;
+    if (caretEnd >= title.length) return true;
+    return isCaretOnEmptyH1Line(title, caretStart);
+  };
+
+  const exitH1ToBodyBelow = (h1Index, rawTitle) => {
+    const cleanedTitle = rawTitle.replace(/\n+$/, "").trimEnd();
+    const current = updateBlockAt(blocksRef.current, h1Index, { title: cleanedTitle });
+    insertTextAfter(h1Index, "", current);
+  };
+
+  const handleH1EnterKey = (index, block, e) => {
+    const fieldValue = e.currentTarget?.value ?? "";
+    const rawTitle = fieldValue || block.title || "";
+
+    if (!rawTitle.trim()) {
+      removeEmptyH1AndFocusBody(index);
+      return;
+    }
+
+    const caretStart = e.currentTarget.selectionStart ?? 0;
+    const caretEnd = e.currentTarget.selectionEnd ?? caretStart;
+
+    if (shouldExitH1ToBodyOnEnter(rawTitle, caretStart, caretEnd)) {
+      exitH1ToBodyBelow(index, rawTitle);
+      return;
+    }
+
+    insertNewlineAtCaret(index, e, "title");
+  };
+
   const focusTodoItem = (blockId, itemId) => {
     if (!blockId || !itemId) return;
     setTodoFocusItemId(itemId);
@@ -887,16 +926,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             removeEmptyH1AndFocusBody(index);
             return;
           }
-          insertNewlineAtCaret(index, e, "title");
+          handleH1EnterKey(index, block, e);
           return;
         }
 
-        const title = fieldValue || block.title || "";
-        if (!title.trim()) {
-          removeEmptyH1AndFocusBody(index);
-          return;
-        }
-        insertNewlineAtCaret(index, e, "title");
+        handleH1EnterKey(index, block, e);
         return;
       }
 

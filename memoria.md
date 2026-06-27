@@ -85,6 +85,67 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 
 ## Resueltos
 
+### 2026-06-26 — Enter en bloque H1: multilínea dentro del título (sin pasar a body)
+
+**Problema:** Al pulsar Enter en un H1 (`/title`), el comportamiento era incorrecto en cadena:
+1. Placeholder H1 vacío visible mientras el texto quedaba en body abajo.
+2. Enter partía el título y lo **movía al bloque TEXT** (pierde estilo H1).
+3. Enter solo **bajaba el cursor** al body; el texto del H1 no se movía ni se partía en la misma celda.
+
+**Comportamiento deseado (confirmado por usuario):** Enter debe actuar **dentro del H1** — insertar salto de línea en `block.title`, partiendo o bajando el texto en la misma celda multilínea. El título **no** debe convertirse en body text.
+
+| Posición del cursor | Resultado |
+|---------------------|-----------|
+| Inicio del título | Línea vacía arriba; el texto **baja** a la segunda línea del H1 |
+| Medio del título (línea con texto) | Parte en dos líneas **dentro del H1** (ej. `Nuevo ` / `doc`) |
+| **Final del título** o **línea vacía** dentro del H1 | El título **permanece en H1**; el foco baja al párrafo **TEXT regular** de abajo |
+| H1 vacío + Enter | Baja al párrafo TEXT de abajo; elimina H1 vacío (salvo `nodeId` o par `/embedvideo`) |
+
+**Archivo principal:** [`src/components/docs/blocks/DocBlockStack.jsx`](src/components/docs/blocks/DocBlockStack.jsx)
+
+#### Pasos implementados en código
+
+1. **`insertNewlineAtCaret(blockIndex, e, field)`** (ya existía, ~L660):
+   - Inserta `\n` en la posición del caret.
+   - Con `field: "title"` actualiza `block.title` vía `updateBlockAt` + `setBlocks`.
+   - **No** llama `syncAnswerBelowH1` (solo aplica a `field === "text"`).
+   - Reposiciona el caret en la nueva línea con `focusBlockCaret` + `scrollCaretAfterNewline`.
+
+2. **`removeEmptyH1AndFocusBody(h1Index)`** (~L823):
+   - Caso excepcional: H1 sin texto + Enter.
+   - Si tiene `nodeId` o hermano `VIDEO_EMBED` → `insertTextAfter(h1Index, "")` (foco al body sin borrar H1).
+   - Si no → `removeBlockAt(h1Index)`, asegura cola TEXT writable, foco al párrafo de abajo.
+
+3. **`handleLinkableBlockKeyDown` — rama H1 + Enter** (~L873–900):
+   - Eliminada la lógica anterior de split `head`/`tail` → body y `handleH1Enter` / `demoteH1TailToBody` / `focusBodyBelowH1`.
+   - **`handleH1EnterKey`** decide entre partitura interna vs salida al body:
+     - `shouldExitH1ToBodyOnEnter(title, caret)` → `true` si el caret está al **final del string** o en una **línea vacía** del título → `exitH1ToBodyBelow` (guarda título en H1, foco en TEXT abajo).
+     - Si no → `insertNewlineAtCaret(index, e, "title")` (parte dentro del H1).
+   - **H1 vacío:** `removeEmptyH1AndFocusBody(index)`.
+   - **H1 + VIDEO_EMBED:** si el video no está guardado → foco al input URL; si está listo → misma lógica `handleH1EnterKey`.
+
+4. **Helpers añadidos** (~L679–715):
+   - `isCaretOnEmptyH1Line` — detecta línea vacía en título multilínea.
+   - `shouldExitH1ToBodyOnEnter` — final del string o línea vacía.
+   - `exitH1ToBodyBelow` — persiste título (sin `\n` finales) + `insertTextAfter(h1Index, "")`.
+
+5. **UI H1 multilínea:** [`H1BlockView.jsx`](src/components/docs/blocks/H1BlockView.jsx) ya usa `SlashAwareTextarea` con `multiline` en `DocQueryHandleRow` — los `\n` en `title` se renderizan en el mismo bloque H1.
+
+#### Qué se descartó (iteraciones previas en la misma sesión)
+
+- Enter → `insertTextAfter` con tail en TEXT (convertía H1 en body).
+- Enter → solo foco al body manteniendo título estático (cursor bajaba, texto no).
+- Blueprint Fase 1 (`pruneEmptyBlocks`, Enter estilo Notion en TEXT) — **revertido** a petición del usuario; no forma parte de esta resolución.
+
+#### Verificación manual
+
+1. `/title` → escribir `Nuevo doc` → Enter al inicio → texto baja una línea, sigue en H1.
+2. Cursor antes de `doc` → Enter → `Nuevo ` arriba, `doc` abajo, ambos H1.
+3. `Nuevo doc` → Enter **al final** → título queda en H1; cursor en celda TEXT regular abajo.
+4. H1 vacío → Enter → foco en body, sin placeholder H1 huérfano (sin nodo vinculado).
+
+**Blueprint de referencia (auditoría más amplia, no aplicada):** [`.cursor/plans/notes_block_architecture_fix_053c776f.plan.md`](.cursor/plans/notes_block_architecture_fix_053c776f.plan.md)
+
 ### 2026-06-25 — Selector modelo Intel + créditos por consumo
 
 **Feature:** Dropdown en Intel (Gemini Flash/Pro, Groq Llama 70B/8B). Costo 1–2 créditos/búsqueda; Pro `0/150`, Free `0/10`.
