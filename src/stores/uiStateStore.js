@@ -49,8 +49,8 @@ export const useUIStateStore = create(
       /** Active search meta while loading or for last run */
       intelSearchMeta: null,
 
-      /** Intel overview LLM selection (gemini-flash, gemini-pro, groq-llama-70b, …) */
-      intelSelectedModelId: "gemini-flash",
+      /** Intel overview LLM selection (groq-llama-70b, groq-llama-8b) */
+      intelSelectedModelId: "groq-llama-70b",
 
       /** Live doc meta while document overlay is open (syncs MetaBar). */
       activeDocMetaDraft: null,
@@ -155,7 +155,7 @@ export const useUIStateStore = create(
         }),
 
       setIntelSelectedModelId: (modelId) =>
-        set({ intelSelectedModelId: modelId || "gemini-flash" }),
+        set({ intelSelectedModelId: modelId || "groq-llama-70b" }),
 
       clearIntelSearch: () =>
         set({

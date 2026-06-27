@@ -669,6 +669,15 @@ export function ensureEmptyTextBlockAfter(blocks, blockIndex) {
   );
 }
 
+/** Ensure the document ends with an empty text block so the user can keep writing. */
+export function ensureWritableDocTail(blocks) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (!normalized.length) {
+    return [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+  }
+  return ensureEmptyTextBlockAfter(normalized, normalized.length - 1);
+}
+
 /** @deprecated Use full blocks stack instead */
 export function getActiveContentBlock(blocks) {
   const normalized = normalizeDocBlocks(blocks);

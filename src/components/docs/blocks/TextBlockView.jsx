@@ -2,6 +2,7 @@ import { SlashAwareTextarea } from "./SlashAwareTextarea.jsx";
 import { EmbeddedCalendarBlockView } from "./EmbeddedCalendarBlockView.jsx";
 import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
 import { getCalendarEventDisplayModel } from "../../../lib/calendarEventDisplay.js";
+import { useI18n } from "../../../i18n/useI18n.js";
 
 export function TextBlockView({
   value,
@@ -16,7 +17,9 @@ export function TextBlockView({
   embedded = null,
   linkedNodeId = null,
   onRemoveEmbedded = null,
+  onEditEmbedded = null,
 }) {
+  const { t } = useI18n();
   const legacyCalendarModel = !embedded?.displayModel && isCalendarEventNodeContent(value)
     ? getCalendarEventDisplayModel(value)
     : null;
@@ -28,6 +31,9 @@ export function TextBlockView({
           displayModel={embedded.displayModel}
           linkedNodeId={linkedNodeId ?? embedded.linkedNodeId ?? null}
           onRemove={onRemoveEmbedded}
+          onEditAsText={onEditEmbedded}
+          removeLabel={t("canvas.removeFromDoc")}
+          editLabel={t("canvas.editAsText")}
         />
       </div>
     );
@@ -40,6 +46,9 @@ export function TextBlockView({
           displayModel={legacyCalendarModel}
           linkedNodeId={linkedNodeId}
           onRemove={onRemoveEmbedded}
+          onEditAsText={onEditEmbedded}
+          removeLabel={t("canvas.removeFromDoc")}
+          editLabel={t("canvas.editAsText")}
         />
       </div>
     );

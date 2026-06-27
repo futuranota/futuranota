@@ -1,5 +1,5 @@
 /** @typedef {'free'|'pro'} PlanId */
-/** @typedef {'gemini'|'groq'} IntelModelProvider */
+/** @typedef {'groq'} IntelModelProvider */
 
 /**
  * @typedef {Object} IntelModelDef
@@ -12,30 +12,12 @@
  * @property {PlanId[]} plansAllowed
  */
 
-export const DEFAULT_INTEL_MODEL_ID = "gemini-flash";
+export const DEFAULT_INTEL_MODEL_ID = "groq-llama-70b";
 
 export const CREDIT_TOKEN_UNIT = 10_000;
 
 /** @type {IntelModelDef[]} */
 export const INTEL_MODELS = [
-  {
-    id: "gemini-flash",
-    label: "Gemini 2.0 Flash",
-    provider: "gemini",
-    apiModel: "gemini-2.0-flash",
-    creditCost: 1,
-    tokenCost: 10_000,
-    plansAllowed: ["free", "pro"],
-  },
-  {
-    id: "gemini-pro",
-    label: "Gemini 2.5 Pro",
-    provider: "gemini",
-    apiModel: "gemini-2.5-pro",
-    creditCost: 2,
-    tokenCost: 20_000,
-    plansAllowed: ["pro"],
-  },
   {
     id: "groq-llama-70b",
     label: "Groq Llama 3.3 70B",

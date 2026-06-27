@@ -13,6 +13,7 @@ import {
   createTodoItem,
   DOC_BLOCK_TYPES,
   ensureEmptyTextBlockAfter,
+  ensureWritableDocTail,
   hasProductCardBlock,
   h1HasVideoEmbedSibling,
   insertBlockAfter,
@@ -490,23 +491,45 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const h1 = h1Index >= 0 ? current[h1Index] : null;
     const nodeId = block.embedded?.linkedNodeId || h1?.nodeId || null;
 
+    const applyLocalRemoval = () => {
+      let next = current;
+      if (h1Index >= 0) {
+        next = removeBlockAt(next, blockIndex);
+        next = removeBlockAt(next, h1Index);
+      } else {
+        next = removeBlockAt(next, blockIndex);
+      }
+      next = ensureWritableDocTail(next);
+      setBlocks(next);
+      const focusId = next[Math.min(blockIndex, next.length - 1)]?.id;
+      if (focusId) {
+        onFocusBlock?.(focusId);
+        focusBlockCaret(focusId);
+      }
+    };
+
     if (nodeId) {
       deleteNodeAndDocBlocks(nodeId);
+      applyLocalRemoval();
       return;
     }
 
     if (h1Index >= 0) {
-      let next = removeBlockAt(current, blockIndex);
-      next = removeBlockAt(next, h1Index);
-      if (!next.length) {
-        next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-      }
-      setBlocks(next);
+      applyLocalRemoval();
       return;
     }
 
     updateAt(blockIndex, { embedded: null, text: block.text || "" });
-  }, [deleteNodeAndDocBlocks]);
+  }, [deleteNodeAndDocBlocks, onFocusBlock]);
+
+  const handleEditEmbeddedAsText = useCallback((blockIndex) => {
+    const block = blocksRef.current[blockIndex];
+    if (!block) return;
+    const text = block.text || "";
+    updateAt(blockIndex, { embedded: null, text });
+    onFocusBlock?.(block.id);
+    requestAnimationFrame(() => focusBlockCaret(block.id, text.length));
+  }, [onFocusBlock]);
 
   const removeEmbedVideoSection = (videoIndex) => {
     const h1Index = videoIndex - 1;
@@ -797,6 +820,31 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     onBodyKeyDown?.(e);
   };
 
+  const removeEmptyH1AndFocusBody = (h1Index) => {
+    const current = blocksRef.current;
+    const h1 = current[h1Index];
+    if (!h1 || h1.type !== DOC_BLOCK_TYPES.H1) return;
+
+    if (h1.nodeId || h1HasVideoEmbedSibling(current, h1Index)) {
+      insertTextAfter(h1Index, "", current);
+      return;
+    }
+
+    const nextBlock = current[h1Index + 1];
+    let next = removeBlockAt(current, h1Index);
+    if (!next.length) {
+      next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+    } else if (!isEmptyTextBlock(nextBlock) && nextBlock?.type !== DOC_BLOCK_TYPES.TEXT) {
+      next = ensureEmptyTextBlockAfter(next, Math.max(0, h1Index - 1));
+    }
+
+    setBlocks(next);
+    const focusIndex = Math.min(h1Index, next.length - 1);
+    const focusId = next[focusIndex]?.id;
+    if (focusId) focusBlockCaret(focusId, 0);
+    requestContentGrow();
+  };
+
   const handleLinkableBlockKeyDown = (index, block, e) => {
     const fieldValue = e.currentTarget?.value ?? "";
 
@@ -834,28 +882,21 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             return;
           }
 
-          const el = e.currentTarget;
-          const caretStart = el.selectionStart ?? 0;
-          const caretEnd = el.selectionEnd ?? caretStart;
           const title = fieldValue || block.title || "";
-          const head = title.slice(0, caretStart);
-          const tail = title.slice(caretEnd);
-          const current = updateBlockAt(blocksRef.current, index, { title: head });
-
-          insertTextAfter(index + 1, tail, current);
+          if (!title.trim()) {
+            removeEmptyH1AndFocusBody(index);
+            return;
+          }
+          insertNewlineAtCaret(index, e, "title");
           return;
         }
 
-        const el = e.currentTarget;
-        const caretStart = el.selectionStart ?? 0;
-        const caretEnd = el.selectionEnd ?? caretStart;
         const title = fieldValue || block.title || "";
-        const head = title.slice(0, caretStart);
-        const tail = title.slice(caretEnd);
-        const current = updateBlockAt(blocksRef.current, index, { title: head });
-
-        if (tail) onAnswerBelowH1Change?.(index, tail);
-        insertTextAfter(index, tail, current);
+        if (!title.trim()) {
+          removeEmptyH1AndFocusBody(index);
+          return;
+        }
+        insertNewlineAtCaret(index, e, "title");
         return;
       }
 
@@ -1192,6 +1233,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               onRemoveEmbedded={
                 block.embedded?.kind === "calendar-event" || isCalendarEventNodeContent(block.text)
                   ? () => handleRemoveEmbeddedBlock(index)
+                  : null
+              }
+              onEditEmbedded={
+                block.embedded?.kind === "calendar-event" || isCalendarEventNodeContent(block.text)
+                  ? () => handleEditEmbeddedAsText(index)
                   : null
               }
               onChange={(text) => {

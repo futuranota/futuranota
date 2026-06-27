@@ -7,6 +7,7 @@ import {
   createDocBlock,
   createTodoItem,
   DOC_BLOCK_TYPES,
+  ensureWritableDocTail,
   normalizeDocBlocks,
 } from "../lib/docBlocks.js";
 import { anchorFieldsFromIso } from "../lib/nodeAnchor.js";
@@ -392,7 +393,7 @@ export const useNodesStore = create(
           }
         }
 
-        useDocsStore.getState().updateDoc(docId, { blocks: nextBlocks });
+        useDocsStore.getState().updateDoc(docId, { blocks: ensureWritableDocTail(nextBlocks) });
         get().updateNode(nodeId, {
           parentDocId: docId,
           linkedToDoc: true,
@@ -466,7 +467,9 @@ export const useNodesStore = create(
         );
         if (nextBlocks.length === normalized.length) return;
 
-        useDocsStore.getState().updateDoc(targetDocId, { blocks: nextBlocks });
+        useDocsStore.getState().updateDoc(targetDocId, {
+          blocks: ensureWritableDocTail(nextBlocks),
+        });
         get().updateNode(nodeId, { sourceBlockId: undefined, sourceTextBlockId: undefined });
       },
 

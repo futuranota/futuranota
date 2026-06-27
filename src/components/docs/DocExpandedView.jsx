@@ -233,6 +233,14 @@ export function DocExpandedView({
   }, [docId]);
 
   useEffect(() => {
+    if (!doc?.updatedAt) return;
+    const loadedBlocks = normalizeDocBlocks(
+      doc.blocks?.length ? doc.blocks : docBlocksFromBody(doc.body ?? doc.content ?? ""),
+    );
+    setDraftBlocks(loadedBlocks);
+  }, [doc?.updatedAt, doc?.blocks, doc?.body, doc?.content]);
+
+  useEffect(() => {
     if (!docId) return undefined;
     const launchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
     useUIStateStore.getState().setActiveDocMetaDraft({

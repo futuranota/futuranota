@@ -33,6 +33,8 @@ export const messages = {
       assignParentEmpty: "No documents available",
       assignParentConfirm: "Link to document",
       adoptSuccess: "Linked \"{orphan}\" to \"{doc}\"",
+      removeFromDoc: "Remove from document",
+      editAsText: "Edit as text",
     },
     topbar: {
       back: "Back",
@@ -315,6 +317,8 @@ export const messages = {
       assignParentEmpty: "No hay documentos disponibles",
       assignParentConfirm: "Vincular al documento",
       adoptSuccess: "Vinculado \"{orphan}\" a \"{doc}\"",
+      removeFromDoc: "Eliminar del documento",
+      editAsText: "Editar como texto",
     },
     topbar: {
       back: "Volver",

@@ -20,8 +20,6 @@ export {
 };
 
 const API_MODEL_ENV = {
-  "gemini-flash": process.env.GEMINI_FLASH_MODEL,
-  "gemini-pro": process.env.GEMINI_PRO_MODEL,
   "groq-llama-70b": process.env.GROQ_MODEL,
   "groq-llama-8b": process.env.GROQ_FALLBACK_MODEL,
 };
@@ -37,13 +35,8 @@ export const INTEL_MODELS = BASE_INTEL_MODELS.map((model) => ({
  */
 export function filterIntelModelsByConfiguredProviders(models = INTEL_MODELS) {
   const hasGroq = Boolean(process.env.GROQ_API_KEY?.trim());
-  const hasGemini = Boolean(process.env.GEMINI_API_KEY?.trim());
 
-  return models.filter((model) => {
-    if (model.provider === "groq") return hasGroq;
-    if (model.provider === "gemini") return hasGemini;
-    return false;
-  });
+  return models.filter((model) => model.provider === "groq" && hasGroq);
 }
 
 /**

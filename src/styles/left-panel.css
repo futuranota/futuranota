@@ -4469,11 +4469,19 @@ body.doc-content-resizing * {
   color: rgba(255, 255, 255, 0.55);
 }
 
+.doc-embedded-calendar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.doc-embedded-calendar__edit,
 .doc-embedded-calendar__remove {
   align-self: flex-start;
   opacity: 0.72;
 }
 
+.doc-embedded-calendar__edit:hover,
 .doc-embedded-calendar__remove:hover {
   opacity: 1;
 }
