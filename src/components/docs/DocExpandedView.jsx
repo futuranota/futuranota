@@ -93,6 +93,40 @@ function resolvePersistTitle({
   return draftTitle ?? "";
 }
 
+function buildDocEditorDraft({
+  title,
+  body,
+  blocks,
+  createdDate,
+  version,
+  category,
+  launchDate,
+  campaignActive,
+  nodeLinkColor,
+  parentId,
+  docKind,
+  templateKind,
+  subcategoryDocIds,
+  knowledgeImport,
+}) {
+  return {
+    title: title ?? "",
+    body: body ?? "",
+    blocks: normalizeDocBlocks(blocks),
+    createdDate: createdDate ?? "",
+    version: version ?? "",
+    category: category ?? "",
+    launchDate: launchDate ?? "",
+    campaignActive: Boolean(campaignActive),
+    nodeLinkColor: nodeLinkColor ?? "dark",
+    parentId: parentId ?? "",
+    docKind: docKind ?? "standard",
+    templateKind: templateKind ?? null,
+    subcategoryDocIds: Array.isArray(subcategoryDocIds) ? subcategoryDocIds : [],
+    knowledgeImport: knowledgeImport ?? null,
+  };
+}
+
 function buildDocPersistSnapshot({
   title,
   blocks,
@@ -173,6 +207,7 @@ export function DocExpandedView({
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
   const [nodeInitialSnapshot, setNodeInitialSnapshot] = useState(null);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
+  const [isDraftReady, setIsDraftReady] = useState(false);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
   const [pendingNavigateDocId, setPendingNavigateDocId] = useState(null);
   const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
@@ -183,38 +218,61 @@ export function DocExpandedView({
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
 
   useEffect(() => {
+    setIsDraftReady(false);
     const d = useDocsStore.getState().docs[docId];
     if (!d) return;
+    const cached = useUIStateStore.getState().docEditorDrafts[docId];
     const loadedBlocks = normalizeDocBlocks(
       d.blocks?.length ? d.blocks : docBlocksFromBody(d.body ?? d.content ?? ""),
     );
     const normalized = normalizeDoc(d);
-    setDraftTitle(
-      isProductDoc(normalized)
-        ? (normalized.category?.trim() || normalized.title?.trim() || "")
-        : (d.title ?? ""),
-    );
-    setDraftBlocks(loadedBlocks);
-    setDraftBody(loadedBlocks.length ? "" : (d.body ?? d.content ?? ""));
-    setDraftCreatedDate(dateInputFromIso(normalized.createdAt));
-    setDraftVersion(normalized.version ?? "");
-    setDraftCategory(normalized.category ?? "");
-    setDraftLaunchDate(launchDateInputFromIso(normalized.launchAt));
-    setDraftCampaignActive(Boolean(normalized.campaignActive));
-    setDraftNodeLinkColor(normalized.nodeLinkColor ?? "dark");
-    setDraftParentId(d.parentObjectId ?? "");
-    setDraftDocKind(normalized.docKind ?? "standard");
-    setDraftTemplateKind(normalized.templateKind ?? null);
-    setDraftSubcategoryDocIds(normalized.subcategoryDocIds ?? []);
-    setDraftKnowledgeImport(normalized.knowledgeImport ?? null);
+    const savedTitle = isProductDoc(normalized)
+      ? (normalized.category?.trim() || normalized.title?.trim() || "")
+      : (d.title ?? "");
+
+    if (cached) {
+      setDraftTitle(cached.title ?? savedTitle);
+      setDraftBlocks(
+        cached.blocks?.length
+          ? normalizeDocBlocks(cached.blocks)
+          : loadedBlocks,
+      );
+      setDraftBody(cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")));
+      setDraftCreatedDate(cached.createdDate ?? dateInputFromIso(normalized.createdAt));
+      setDraftVersion(cached.version ?? normalized.version ?? "");
+      setDraftCategory(cached.category ?? normalized.category ?? "");
+      setDraftLaunchDate(cached.launchDate ?? launchDateInputFromIso(normalized.launchAt));
+      setDraftCampaignActive(
+        cached.campaignActive ?? Boolean(normalized.campaignActive),
+      );
+      setDraftNodeLinkColor(cached.nodeLinkColor ?? normalized.nodeLinkColor ?? "dark");
+      setDraftParentId(cached.parentId ?? d.parentObjectId ?? "");
+      setDraftDocKind(cached.docKind ?? normalized.docKind ?? "standard");
+      setDraftTemplateKind(cached.templateKind ?? normalized.templateKind ?? null);
+      setDraftSubcategoryDocIds(
+        cached.subcategoryDocIds ?? normalized.subcategoryDocIds ?? [],
+      );
+      setDraftKnowledgeImport(cached.knowledgeImport ?? normalized.knowledgeImport ?? null);
+    } else {
+      setDraftTitle(savedTitle);
+      setDraftBlocks(loadedBlocks);
+      setDraftBody(loadedBlocks.length ? "" : (d.body ?? d.content ?? ""));
+      setDraftCreatedDate(dateInputFromIso(normalized.createdAt));
+      setDraftVersion(normalized.version ?? "");
+      setDraftCategory(normalized.category ?? "");
+      setDraftLaunchDate(launchDateInputFromIso(normalized.launchAt));
+      setDraftCampaignActive(Boolean(normalized.campaignActive));
+      setDraftNodeLinkColor(normalized.nodeLinkColor ?? "dark");
+      setDraftParentId(d.parentObjectId ?? "");
+      setDraftDocKind(normalized.docKind ?? "standard");
+      setDraftTemplateKind(normalized.templateKind ?? null);
+      setDraftSubcategoryDocIds(normalized.subcategoryDocIds ?? []);
+      setDraftKnowledgeImport(normalized.knowledgeImport ?? null);
+    }
+
     setInitialSnapshot(
       buildDocPersistSnapshot({
-        title: isProductDoc(normalized)
-          ? (formatProductDocTitle(normalized.category, normalized.version)
-            || normalized.category?.trim()
-            || normalized.title?.trim()
-            || "")
-          : (normalized.title ?? ""),
+        title: savedTitle,
         blocks: loadedBlocks,
         body: d.body ?? d.content ?? "",
         createdDate: dateInputFromIso(normalized.createdAt),
@@ -230,15 +288,52 @@ export function DocExpandedView({
         knowledgeImport: normalized.knowledgeImport ?? null,
       }),
     );
+    setIsDraftReady(true);
   }, [docId]);
 
   useEffect(() => {
-    if (!doc?.updatedAt) return;
-    const loadedBlocks = normalizeDocBlocks(
-      doc.blocks?.length ? doc.blocks : docBlocksFromBody(doc.body ?? doc.content ?? ""),
-    );
-    setDraftBlocks(loadedBlocks);
-  }, [doc?.updatedAt, doc?.blocks, doc?.body, doc?.content]);
+    if (!docId || !isDraftReady) return undefined;
+    const persistDraft = () => {
+      useUIStateStore.getState().setDocEditorDraft(
+        docId,
+        buildDocEditorDraft({
+          title: draftTitle,
+          body: draftBody,
+          blocks: draftBlocks,
+          createdDate: draftCreatedDate,
+          version: draftVersion,
+          category: draftCategory,
+          launchDate: draftLaunchDate,
+          campaignActive: draftCampaignActive,
+          nodeLinkColor: draftNodeLinkColor,
+          parentId: draftParentId,
+          docKind: draftDocKind,
+          templateKind: draftTemplateKind,
+          subcategoryDocIds: draftSubcategoryDocIds,
+          knowledgeImport: draftKnowledgeImport,
+        }),
+      );
+    };
+    persistDraft();
+    return persistDraft;
+  }, [
+    docId,
+    isDraftReady,
+    draftTitle,
+    draftBody,
+    draftBlocks,
+    draftCreatedDate,
+    draftVersion,
+    draftCategory,
+    draftLaunchDate,
+    draftCampaignActive,
+    draftNodeLinkColor,
+    draftParentId,
+    draftDocKind,
+    draftTemplateKind,
+    draftSubcategoryDocIds,
+    draftKnowledgeImport,
+  ]);
 
   useEffect(() => {
     if (!docId) return undefined;
@@ -337,6 +432,7 @@ export function DocExpandedView({
       setNodeDraftContent("");
     }
     onDocumentDeleted?.(docId);
+    useUIStateStore.getState().clearDocEditorDraft(docId);
     deleteDoc(docId);
 
     if (nextDocId) {
@@ -422,6 +518,7 @@ export function DocExpandedView({
       linkDocToObject(doc.id, draftParentId || null);
     }
     setInitialSnapshot(savedSnapshot);
+    useUIStateStore.getState().clearDocEditorDraft(doc.id);
     onAfterDocSave?.(doc.id, savedSnapshot.blocks);
   };
 
@@ -1055,6 +1152,7 @@ export function DocExpandedView({
                     type="button"
                     className="doc-unsaved-confirm__btn"
                     onClick={() => {
+                      useUIStateStore.getState().clearDocEditorDraft(docId);
                       setShowUnsavedConfirm(false);
                       if (pendingNavigateDocId) {
                         navigateToDoc(pendingNavigateDocId);

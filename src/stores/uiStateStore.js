@@ -55,6 +55,9 @@ export const useUIStateStore = create(
       /** Live doc meta while document overlay is open (syncs MetaBar). */
       activeDocMetaDraft: null,
 
+      /** In-memory doc editor drafts (session only, keyed by docId). */
+      docEditorDrafts: {},
+
       setExpandedFolder: (folder) => set({ expandedFolder: folder }),
       setExpandedObject: (id) => set({ expandedObjectId: id }),
       setExpandedDoc: (id) => set({ expandedDocId: id }),
@@ -167,6 +170,26 @@ export const useUIStateStore = create(
 
       setActiveDocMetaDraft: (draft) => set({ activeDocMetaDraft: draft }),
       clearActiveDocMetaDraft: () => set({ activeDocMetaDraft: null }),
+
+      setDocEditorDraft: (docId, draft) => {
+        if (!docId || !draft) return;
+        set((state) => ({
+          docEditorDrafts: {
+            ...state.docEditorDrafts,
+            [docId]: draft,
+          },
+        }));
+      },
+
+      clearDocEditorDraft: (docId) => {
+        if (!docId) return;
+        set((state) => {
+          if (!state.docEditorDrafts[docId]) return state;
+          const next = { ...state.docEditorDrafts };
+          delete next[docId];
+          return { docEditorDrafts: next };
+        });
+      },
     }),
     { name: "UIStateStore" },
   ),

@@ -31,7 +31,7 @@ export function DocsFolder() {
       </div>
 
       {expandedDocId && (
-        <DocExpandedView docId={expandedDocId} onClose={() => setExpandedDoc(null)} />
+        <DocExpandedView key={expandedDocId} docId={expandedDocId} onClose={() => setExpandedDoc(null)} />
       )}
 
       <button type="button" className="btn xs solid fn-btn-add" onClick={() => setShowForm(true)}>

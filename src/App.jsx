@@ -861,6 +861,7 @@ useEffect(() => {
         <div className="doc-overlay-global">
           <div className="doc-overlay-global-card" onClick={(e) => e.stopPropagation()}>
             <DocExpandedView
+              key={expandedDocId}
               docId={expandedDocId}
               initialFocusBlockId={docOpenFocusBlockId}
               onClose={() => {
