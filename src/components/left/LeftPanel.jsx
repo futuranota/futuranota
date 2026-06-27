@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   useObjectsStore,
@@ -11,8 +11,6 @@ import {
   FREE_LIMITS,
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
-import { getCalendarEventDisplayText } from "../../lib/calendarEventDisplay.js";
-import { isCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
@@ -77,7 +75,7 @@ function SelectorTypeIcon({ type, className = "lp-item-icon" }) {
 const OBJECT_LONG_PRESS_MS = 550;
 
 /* Objects grid: cube + name below, draggable */
-function ObjectThumb({ object, menuOpen, onOpen, onMenuOpen, onDelete, onEdit }) {
+function ObjectThumb({ object, menuOpen, selected = false, onEnter, onMenuOpen, onDelete, onEdit }) {
   const longPressTimer = useRef(null);
   const suppressClickRef = useRef(false);
   const pointerStartRef = useRef({ x: 0, y: 0 });
@@ -113,27 +111,33 @@ function ObjectThumb({ object, menuOpen, onOpen, onMenuOpen, onDelete, onEdit })
     if (e.detail > 1) return;
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
-      return;
     }
-    onOpen?.();
+  };
+
+  const handleDoubleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (suppressClickRef.current) return;
+    onEnter?.();
   };
 
   useEffect(() => () => clearLongPress(), []);
 
   return (
-    <div className={"obj-thumb-cell" + (menuOpen ? " is-menu-open" : "")}>
+    <div className={"obj-thumb-cell" + (menuOpen ? " is-menu-open" : "") + (selected ? " is-selected" : "")}>
       <button
         type="button"
-        className="obj-thumb"
+        className={"obj-thumb" + (selected ? " is-selected" : "")}
         draggable
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerUp}
         onDragStart={(e) => startObjectDrag(e, object.id)}
-        title="Click for documents · hold for edit or delete · drag to canvas"
+        title="Double-click to open documents · hold for edit or delete · drag to canvas"
       >
         <ObjectThumbPreview />
         <span className="obj-thumb-name">{object.name}</span>
@@ -183,12 +187,12 @@ function ClickFolderBox({ variant, onClick, label }) {
   );
 }
 
-function ClickFolderBack({ onBack, label, lowercase = false, iconOnly = false }) {
+function ClickFolderBack({ onBack, label, lowercase = false, iconOnly = false, inline = false }) {
   const ariaLabel = label ? `Back — ${label}` : "Back";
   return (
     <button
       type="button"
-      className="lp-click-folder-back"
+      className={"lp-click-folder-back" + (inline ? " lp-click-folder-back--inline" : "")}
       onClick={onBack}
       aria-label={ariaLabel}
       title={ariaLabel}
@@ -336,21 +340,15 @@ function getNodeDisplayTitle(node) {
   return (node.sourceQuery || node.title || "Untitled query").trim() || "Untitled query";
 }
 
-function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
+function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
   const { t } = useI18n();
-  const parentDoc = node.parentDocId ? docs[node.parentDocId] : null;
   const icon = DATA_TYPE_ICONS[node.dataType] || "◯";
   const iconAsset = DATA_TYPE_ICON_ASSETS[node.dataType] || null;
   const displayTitle = getNodeDisplayTitle(node);
-  const contentPreview = isCalendarEventNodeContent(node.content)
-    ? getCalendarEventDisplayText(node.content).slice(0, 80)
-    : typeof node.content === "string"
-      ? node.content.slice(0, 80)
-      : node.content != null ? JSON.stringify(node.content).slice(0, 60) : "";
 
   return (
-    <div className="lp-node-card">
-      <div className="lp-node-card-head" onClick={onClick}>
+    <div className="lp-doc-nodes-block__node">
+      <button type="button" className="lp-doc-nodes-block__node-main" onClick={onClick}>
         <span className="lp-node-type-icon">
           {iconAsset ? (
             <img src={iconAsset} alt="" aria-hidden className="lp-node-type-icon-img" />
@@ -358,21 +356,147 @@ function NodeListCard({ node, docs, onClick, onInsert, onDelete }) {
             icon
           )}
         </span>
-        <span className="lp-node-parent">
-          {parentDoc ? <TranslatedText text={parentDoc.title} /> : t("common.noParent")}
-        </span>
-        <button type="button" className="lp-expand-btn" onClick={(e) => { e.stopPropagation(); onClick(); }}>↗</button>
-      </div>
-      <div className="lp-node-card-body" onClick={onClick}>
-        <b className="lp-node-title">{displayTitle}</b>
-        {contentPreview && <p className="lp-node-preview">{contentPreview}</p>}
-      </div>
-      <div className="lp-node-card-foot">
-        <button type="button" className="btn xs ghost danger-text" onClick={onDelete}>{t("common.delete")}</button>
-        <button type="button" className="btn xs solid" onClick={onInsert}>{t("sidebar.insertNode")}</button>
+        <span className="lp-doc-nodes-block__node-title">{displayTitle}</span>
+      </button>
+      <div className="lp-doc-nodes-block__node-actions">
+        <button
+          type="button"
+          className="btn xs ghost danger-text"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete?.();
+          }}
+        >
+          {t("common.delete")}
+        </button>
+        <button
+          type="button"
+          className="btn xs solid"
+          onClick={(e) => {
+            e.stopPropagation();
+            onInsert?.();
+          }}
+        >
+          {t("sidebar.insertNode")}
+        </button>
       </div>
     </div>
   );
+}
+
+function DocNodesBlockCard({
+  doc,
+  nodes,
+  objects,
+  onOpenDoc,
+  onNodeClick,
+  onNodeInsert,
+  onNodeDelete,
+  defaultExpanded = true,
+  orphan = false,
+}) {
+  const { t } = useI18n();
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const parent = doc?.parentObjectId ? objects[doc.parentObjectId] : null;
+  const isKnowledge = doc ? isKnowledgeDoc(doc) : false;
+  const isTemplate = doc ? isTemplateDoc(doc) : false;
+  const displayTitle = orphan
+    ? t("sidebar.unlinkedNodes")
+    : isKnowledge
+      ? resolveKnowledgeDocDisplayTitle(doc)
+      : resolveProductDocDisplayTitle(doc);
+
+  if (!nodes.length) return null;
+
+  return (
+    <article className={"lp-doc-nodes-block" + (orphan ? " lp-doc-nodes-block--orphan" : "")}>
+      <div className="lp-doc-nodes-block__head">
+        <button
+          type="button"
+          className="lp-doc-nodes-block__head-main"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+        >
+          {!orphan ? (
+            <span className="lp-doc-icon">
+              <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
+            </span>
+          ) : (
+            <span className="lp-doc-icon">
+              <SelectorTypeIcon type="Nodes" />
+            </span>
+          )}
+          <div className="fn-card-body">
+            <b>{displayTitle}</b>
+            <span className="fn-card-meta">
+              {t("sidebar.nodesInBlock", { count: nodes.length })}
+              {!orphan && isTemplate ? " · template" : ""}
+              {!orphan && isKnowledge
+                ? (doc.knowledgeImport?.fileName ? " · file imported" : " · knowledge")
+                : ""}
+              {!orphan && parent ? ` · ↳ ${parent.name}` : ""}
+            </span>
+          </div>
+          <span className="lp-doc-nodes-block__chevron" aria-hidden>{expanded ? "▾" : "▸"}</span>
+        </button>
+        {!orphan ? (
+          <button
+            type="button"
+            className="lp-expand-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDoc?.();
+            }}
+            aria-label={t("sidebar.openDocument")}
+          >
+            ↗
+          </button>
+        ) : null}
+      </div>
+      {expanded ? (
+        <div className="lp-doc-nodes-block__body">
+          {nodes.map((node) => (
+            <NodeCompactRow
+              key={node.id}
+              node={node}
+              onClick={() => onNodeClick?.(node)}
+              onInsert={() => onNodeInsert?.(node)}
+              onDelete={() => onNodeDelete?.(node)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
+function groupNodesByDocument(filteredNodes, docs) {
+  const byDoc = new Map();
+  const orphans = [];
+
+  for (const node of filteredNodes) {
+    const docId = node.parentDocId;
+    if (!docId || !docs[docId]) {
+      orphans.push(node);
+      continue;
+    }
+    if (!byDoc.has(docId)) byDoc.set(docId, []);
+    byDoc.get(docId).push(node);
+  }
+
+  const sections = [...byDoc.entries()]
+    .map(([docId, nodes]) => ({ doc: docs[docId], nodes }))
+    .sort((a, b) => {
+      const titleA = (isKnowledgeDoc(a.doc)
+        ? resolveKnowledgeDocDisplayTitle(a.doc)
+        : resolveProductDocDisplayTitle(a.doc)).toLowerCase();
+      const titleB = (isKnowledgeDoc(b.doc)
+        ? resolveKnowledgeDocDisplayTitle(b.doc)
+        : resolveProductDocDisplayTitle(b.doc)).toLowerCase();
+      return titleA.localeCompare(titleB);
+    });
+
+  return { sections, orphans };
 }
 
 /* ─────────────────────────────────────────────
@@ -665,44 +789,89 @@ function DocCreateModal({
 ───────────────────────────────────────────── */
 function Dropdown({ label, open, onToggle, children }) {
   const ref = useRef(null);
+  const menuRef = useRef(null);
   const leaveTimerRef = useRef(null);
+  const [menuStyle, setMenuStyle] = useState(null);
+
+  const clearLeaveTimer = useCallback(() => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    if (!open) return;
+    clearLeaveTimer();
+    leaveTimerRef.current = setTimeout(() => {
+      onToggle();
+      leaveTimerRef.current = null;
+    }, 180);
+  }, [clearLeaveTimer, onToggle, open]);
+
+  const hoverHandlers = {
+    onMouseEnter: clearLeaveTimer,
+    onMouseLeave: scheduleClose,
+  };
+
+  const updateMenuPosition = useCallback(() => {
+    const btn = ref.current?.querySelector(".lp-dropdown-btn");
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    setMenuStyle({
+      top: rect.bottom + 4,
+      left: rect.left,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setMenuStyle(null);
+      return undefined;
+    }
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [open, updateMenuPosition]);
+
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onToggle();
+      if (ref.current?.contains(e.target)) return;
+      if (menuRef.current?.contains(e.target)) return;
+      onToggle();
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open, onToggle]);
 
-  useEffect(
-    () => () => {
-      if (leaveTimerRef.current) {
-        clearTimeout(leaveTimerRef.current);
-      }
-    },
-    [],
-  );
+  useEffect(() => () => clearLeaveTimer(), [clearLeaveTimer]);
+
+  const menu =
+    open && menuStyle && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="lp-dropdown-menu lp-dropdown-menu--portal"
+            role="menu"
+            style={{
+              top: menuStyle.top,
+              left: menuStyle.left,
+            }}
+            {...hoverHandlers}
+          >
+            {children}
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
-    <div
-      className="lp-dropdown-wrap"
-      ref={ref}
-      onMouseEnter={() => {
-        if (leaveTimerRef.current) {
-          clearTimeout(leaveTimerRef.current);
-          leaveTimerRef.current = null;
-        }
-      }}
-      onMouseLeave={() => {
-        if (!open) return;
-        if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-        leaveTimerRef.current = setTimeout(() => {
-          onToggle();
-          leaveTimerRef.current = null;
-        }, 180);
-      }}
-    >
+    <div className="lp-dropdown-wrap" ref={ref} {...hoverHandlers}>
       <button
         type="button"
         className="lp-dropdown-btn"
@@ -710,7 +879,7 @@ function Dropdown({ label, open, onToggle, children }) {
       >
         {label}
       </button>
-      {open && <div className="lp-dropdown-menu">{children}</div>}
+      {menu}
     </div>
   );
 }
@@ -778,20 +947,16 @@ export function LeftPanel({
   const [showCreate, setShowCreate] = useState(false);
   const [editObjectId, setEditObjectId] = useState(null);
   const [folderOpen, setFolderOpen] = useState(false);
-  const [previewPanelType, setPreviewPanelType] = useState("Objects");
-  const [hoveredPanelType, setHoveredPanelType] = useState(null);
+  const [objectWorkspaceActive, setObjectWorkspaceActive] = useState(false);
   const [nodeEditId, setNodeEditId] = useState(null);
   const [nodeSearch, setNodeSearch] = useState("");
-  const [objectScopeId, setObjectScopeId] = useState(null);
   const [clickFolderView, setClickFolderView] = useState(null);
   const [packImportActive, setPackImportActive] = useState(false);
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
-  const filterDocId = useUIStateStore((s) => s.filterDocId);
   const setFilterObjectId = useUIStateStore((s) => s.setFilterObjectId);
   const setSelectedObjectId = useUIStateStore((s) => s.setSelectedObjectId);
-  const setFilterDocId = useUIStateStore((s) => s.setFilterDocId);
   const setKnowledgeFolderActive = useUIStateStore((s) => s.setKnowledgeFolderActive);
   const productCategoryFilter = useUIStateStore((s) => s.productCategoryFilter);
   const setProductCategoryFilter = useUIStateStore((s) => s.setProductCategoryFilter);
@@ -811,7 +976,6 @@ export function LeftPanel({
   const deleteObjectWithCascade = useObjectsStore(s => s.deleteObjectWithCascade);
   const nodes      = useNodesStore(s => s.nodes);
   const addNode    = useNodesStore(s => s.addNode);
-  const getNodesByDoc = useNodesStore(s => s.getNodesByDoc);
   const deleteNode = useNodesStore(s => s.deleteNode);
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
@@ -834,16 +998,23 @@ export function LeftPanel({
   const objList  = Object.values(objects);
   const docList  = Object.values(docs);
   const nodeList = Object.values(nodes);
+  const activeObjectId = selectedObjectId || filterObjectId || null;
+  const activeObject = activeObjectId ? objects[activeObjectId] : null;
 
   const docsWithoutParent = docList.filter((doc) => !doc.parentObjectId);
-  const filteredObjectList = objectScopeId
-    ? objList.filter((obj) => obj.id === objectScopeId)
-    : objList;
+  const filteredObjectList = objList;
   const filteredDocList = filterObjectId ? getDocsByObject(filterObjectId) : docsWithoutParent;
   const objectDocSections = objList
     .map((obj) => ({ object: obj, docs: getDocsByObject(obj.id) }))
     .filter((section) => section.docs.length > 0);
-  const filteredNodeList = (filterDocId ? getNodesByDoc(filterDocId) : nodeList).filter((node) => {
+
+  const objectScopedNodes = useMemo(() => {
+    if (!activeObjectId) return [];
+    const docIds = new Set(getDocsByObject(activeObjectId).map((doc) => doc.id));
+    return nodeList.filter((node) => node.parentDocId && docIds.has(node.parentDocId));
+  }, [activeObjectId, nodeList, docs, getDocsByObject]);
+
+  const filteredNodeList = objectScopedNodes.filter((node) => {
     const q = nodeSearch.trim().toLowerCase();
     if (!q) return true;
     const title = (node.sourceQuery || node.title || "").toLowerCase();
@@ -852,8 +1023,18 @@ export function LeftPanel({
     return title.includes(q) || content.includes(q);
   });
 
+  const groupedNodeViews = useMemo(
+    () => groupNodesByDocument(filteredNodeList, docs),
+    [filteredNodeList, docs],
+  );
+
+  const defaultNodeParentDocId = useMemo(() => {
+    if (!activeObjectId) return "";
+    const objectDocs = getDocsByObject(activeObjectId);
+    return objectDocs[0]?.id || "";
+  }, [activeObjectId, docs, getDocsByObject]);
+
   const filterObject = filterObjectId ? objects[filterObjectId] : null;
-  const filterDoc = filterDocId ? docs[filterDocId] : null;
 
   const productDocs = useMemo(
     () => (filterObjectId ? listProductDocs(docs, filterObjectId) : []),
@@ -936,23 +1117,50 @@ export function LeftPanel({
     removeTimelineDocFromQueue(doc.id);
     deleteDoc(doc.id);
     if (activeId === doc.id) setActiveId(null);
-    if (filterDocId === doc.id) setFilterDocId(null);
+  };
+
+  const selectObject = (objectId) => {
+    setObjectMenuId(null);
+    setSelectedObjectId(objectId);
+    setFilterObjectId(objectId);
+    setActiveId(objectId);
+  };
+
+  const enterObjectWorkspace = (objectId) => {
+    selectObject(objectId);
+    setObjectWorkspaceActive(true);
+    setPanelType("Documents");
+    setClickFolderView(null);
+    setPackImportActive(false);
+    setShowCreate(false);
+    setFolderOpen(false);
+  };
+
+  const exitObjectWorkspace = () => {
+    setObjectWorkspaceActive(false);
+    setPanelType("Objects");
+    setClickFolderView(null);
+    setPackImportActive(false);
+    setSelectedObjectId(null);
+    setFilterObjectId(null);
+    setActiveId(null);
+    setNodeSearch("");
   };
 
   const openDocumentsForObject = (objectId) => {
-    setObjectMenuId(null);
-    setFilterObjectId(objectId);
-    setSelectedObjectId(objectId);
-    setPanelType("Documents");
-    setActiveId(null);
-    setShowCreate(false);
-    setFolderOpen(false);
+    enterObjectWorkspace(objectId);
   };
 
   const handlePackImported = ({ rootObjectId }) => {
     closePackImportView();
     if (rootObjectId) openDocumentsForObject(rootObjectId);
   };
+
+  useEffect(() => {
+    if (!objectWorkspaceActive && panelType !== "Objects") {
+      setPanelType("Objects");
+    }
+  }, [objectWorkspaceActive, panelType]);
 
   useEffect(() => {
     if (!objectMenuId) return;
@@ -965,9 +1173,14 @@ export function LeftPanel({
   }, [objectMenuId]);
 
   const switchType = (t) => {
+    if (!objectWorkspaceActive && t !== "Objects") return;
+    if (objectWorkspaceActive && activeObjectId) {
+      setFilterObjectId(activeObjectId);
+    }
     setPanelType(t);
-    setPreviewPanelType(t);
     setActiveId(null);
+    setClickFolderView(null);
+    setFolderOpen(false);
   };
 
   const handleDeleteObject = (objectId) => {
@@ -984,6 +1197,9 @@ export function LeftPanel({
     if (filterObjectId === objectId) setFilterObjectId(null);
     if (selectedObjectId === objectId) setSelectedObjectId(null);
     if (editObjectId === objectId) setEditObjectId(null);
+    if (objectWorkspaceActive && activeObjectId === objectId) {
+      exitObjectWorkspace();
+    }
   };
 
   const handleUpdateObject = (data) => {
@@ -1005,7 +1221,6 @@ export function LeftPanel({
       const newObjectId = addObject(data.name, data.description, data.color, data.brand);
       if (newObjectId) {
         setActiveId(newObjectId);
-        setSelectedObjectId(newObjectId);
       }
     } else if (panelType === "Documents") {
       const parentId = data.parentObjectId || null;
@@ -1043,40 +1258,28 @@ export function LeftPanel({
     setShowCreate(false);
   };
 
-  const folderScopeLabel =
-    panelType === "Objects"
-      ? objectScopeId
-        ? objects[objectScopeId]?.name || "object"
-        : "object"
-      : panelType === "Documents"
-        ? filterObjectId
-          ? filterObject?.name || "object"
-          : "document"
-        : filterDoc
-          ? filterDoc.title || "node"
-          : "node";
-
-  const folderLabel = `${panelType.slice(0, -1).toLowerCase()} : ${folderScopeLabel}`;
+  const dropdownPanelTypes = objectWorkspaceActive ? PANEL_TYPES : ["Objects"];
+  const folderLabel = objectWorkspaceActive
+    ? `${panelTypeLabel(panelType).toLowerCase()} : ${activeObject?.name || ""}`
+    : panelTypeLabel("Objects").toLowerCase();
 
   const handleNewByFolder = () => {
+    if (!objectWorkspaceActive && panelType !== "Objects") return;
+    if (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId) return;
     if (panelType === "Documents" && !clickFolderView) return;
     setShowCreate(true);
     setFolderOpen(false);
   };
 
-  const newDisabled = panelType === "Documents" && !clickFolderView;
+  const newDisabled =
+    (!objectWorkspaceActive && panelType !== "Objects")
+    || (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId)
+    || (panelType === "Documents" && !clickFolderView);
   const docCreateMode = clickFolderView === "groups"
     ? "product"
     : clickFolderView === "knowledge"
       ? "knowledge"
       : "content";
-
-  const commitPreviewType = () => {
-    if (panelType !== previewPanelType) {
-      setPanelType(previewPanelType);
-      setActiveId(null);
-    }
-  };
 
   return (
     <div className="left-panel">
@@ -1091,158 +1294,24 @@ export function LeftPanel({
             </span>
           }
           open={folderOpen}
-          onToggle={() =>
-            setFolderOpen((o) => {
-              const next = !o;
-              if (next) setPreviewPanelType(panelType);
-              return next;
-            })
-          }
+          onToggle={() => setFolderOpen((open) => !open)}
         >
-          <div
-            className="lp-dropdown-flyout"
-            onMouseLeave={() => {
-              setPreviewPanelType(panelType);
-              setHoveredPanelType(null);
-            }}
-          >
-            <div className="lp-dropdown-pane lp-dropdown-pane--types">
-              {PANEL_TYPES.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  className={
-                    "lp-dropdown-item lp-dropdown-item--type"
-                    + (panelType === type ? " active" : "")
-                    + (hoveredPanelType === type ? " preview" : "")
-                  }
-                  onMouseEnter={() => {
-                    setPreviewPanelType(type);
-                    setHoveredPanelType(type);
-                  }}
-                  onFocus={() => {
-                    setPreviewPanelType(type);
-                    setHoveredPanelType(type);
-                  }}
-                  onClick={() => switchType(type)}
-                >
-                  <SelectorTypeIcon type={type} />
-                  {panelTypeLabel(type)}
-                </button>
-              ))}
-            </div>
-            <div className="lp-dropdown-pane lp-dropdown-pane--items">
-              {previewPanelType === "Objects" && (
-                <>
-                  <button
-                    type="button"
-                    className={"lp-dropdown-item" + (!objectScopeId ? " checked" : "")}
-                    onClick={() => {
-                      commitPreviewType();
-                      setObjectScopeId(null);
-                      setActiveId(null);
-                      setFolderOpen(false);
-                    }}
-                  >
-                    <img
-                      src="/uploads/botones/all-objects.svg"
-                      alt=""
-                      aria-hidden
-                      className="lp-item-icon lp-item-icon-img"
-                    />
-                    <span className="lp-item-label">{t("sidebar.allObjects")}</span>
-                    {!objectScopeId && <span className="lp-check">✓</span>}
-                  </button>
-                  {objList.map((obj) => (
-                    <button
-                      key={obj.id}
-                      type="button"
-                      className={"lp-dropdown-item" + (obj.id === objectScopeId ? " checked" : "")}
-                      onClick={() => {
-                        commitPreviewType();
-                        setObjectScopeId(obj.id);
-                        setActiveId(obj.id);
-                        setFolderOpen(false);
-                      }}
-                    >
-                      <SelectorTypeIcon type="Objects" />
-                      <span className="lp-item-label"><TranslatedText text={obj.name} /></span>
-                      {obj.id === objectScopeId && <span className="lp-check">✓</span>}
-                    </button>
-                  ))}
-                </>
-              )}
-              {previewPanelType === "Documents" && (
-                <>
-                  <button
-                    type="button"
-                    className={"lp-dropdown-item" + (!filterObjectId ? " checked" : "")}
-                    onClick={() => {
-                      commitPreviewType();
-                      setFilterObjectId(null);
-                      setActiveId(null);
-                      setFolderOpen(false);
-                    }}
-                  >
-                    <SelectorTypeIcon type="Documents" />
-                    <span className="lp-item-label">{t("sidebar.allDocuments")}</span>
-                    {!filterObjectId && <span className="lp-check">✓</span>}
-                  </button>
-                  {objList.map((obj) => (
-                    <button
-                      key={obj.id}
-                      type="button"
-                      className={"lp-dropdown-item" + (obj.id === filterObjectId ? " checked" : "")}
-                      onClick={() => {
-                        commitPreviewType();
-                        setFilterObjectId(obj.id);
-                        setActiveId(null);
-                        setFolderOpen(false);
-                      }}
-                    >
-                      <SelectorTypeIcon type="Objects" />
-                      <span className="lp-item-label"><TranslatedText text={obj.name} /></span>
-                      {obj.id === filterObjectId && <span className="lp-check">✓</span>}
-                    </button>
-                  ))}
-                </>
-              )}
-              {previewPanelType === "Nodes" && (
-                <>
-                  <button
-                    type="button"
-                    className={"lp-dropdown-item" + (!filterDocId ? " checked" : "")}
-                    onClick={() => {
-                      commitPreviewType();
-                      setFilterDocId(null);
-                      setActiveId(null);
-                      setFolderOpen(false);
-                    }}
-                  >
-                    <SelectorTypeIcon type="Nodes" />
-                    <span className="lp-item-label">{t("sidebar.allNodes")}</span>
-                    {!filterDocId && <span className="lp-check">✓</span>}
-                  </button>
-                  {docList.map((doc) => (
-                    <button
-                      key={doc.id}
-                      type="button"
-                      className={"lp-dropdown-item" + (doc.id === filterDocId ? " checked" : "")}
-                      onClick={() => {
-                        commitPreviewType();
-                        setFilterDocId(doc.id);
-                        setActiveId(null);
-                        setFolderOpen(false);
-                      }}
-                    >
-                      <SelectorTypeIcon type="Documents" />
-                      <span className="lp-item-label">{resolveProductDocDisplayTitle(doc)}</span>
-                      {doc.id === filterDocId && <span className="lp-check">✓</span>}
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
+          <div className="lp-dropdown-pane lp-dropdown-pane--types-only" role="group" aria-label="Panel type">
+            {dropdownPanelTypes.map((type) => (
+              <button
+                key={type}
+                type="button"
+                role="menuitem"
+                className={
+                  "lp-dropdown-item lp-dropdown-item--type"
+                  + (panelType === type ? " active" : "")
+                }
+                onClick={() => switchType(type)}
+              >
+                <SelectorTypeIcon type={type} />
+                <span className="lp-item-label">{panelTypeLabel(type)}</span>
+              </button>
+            ))}
           </div>
         </Dropdown>
 
@@ -1266,6 +1335,13 @@ export function LeftPanel({
         {/* OBJECTS */}
         {panelType === "Objects" && (
           <>
+            {objectWorkspaceActive ? (
+              <ClickFolderBack
+                inline
+                onBack={exitObjectWorkspace}
+                label={t("sidebar.allCompanies")}
+              />
+            ) : null}
             <PackActionsBar
               placement="objects"
               onOpenImport={() => {
@@ -1283,8 +1359,9 @@ export function LeftPanel({
                 <ObjectThumb
                   key={obj.id}
                   object={obj}
+                  selected={objectWorkspaceActive && obj.id === activeObjectId}
                   menuOpen={obj.id === objectMenuId}
-                  onOpen={() => openDocumentsForObject(obj.id)}
+                  onEnter={() => enterObjectWorkspace(obj.id)}
                   onMenuOpen={() => setObjectMenuId(
                     (prev) => (prev === obj.id ? null : obj.id),
                   )}
@@ -1300,8 +1377,8 @@ export function LeftPanel({
               ))}
               {filteredObjectList.length === 0 && (
                 <div className="lp-empty">
-                  <p>{objectScopeId ? t("sidebar.noObjectInFilter") : t("sidebar.noObjectsYet")}</p>
-                  <p className="dim">{objectScopeId ? t("sidebar.chooseSubfolder") : t("sidebar.createFirstModel")}</p>
+                  <p>{t("sidebar.noObjectsYet")}</p>
+                  <p className="dim">{t("sidebar.createFirstModel")}</p>
                 </div>
               )}
             </div>
@@ -1309,13 +1386,8 @@ export function LeftPanel({
         )}
 
         {/* DOCUMENTS — click folder navigation */}
-        {panelType === "Documents" && (
-          <div
-            className={
-              "lp-click-folders-stack"
-              + (filterObjectId ? " lp-click-folders-stack--has-back" : "")
-            }
-          >
+        {panelType === "Documents" && objectWorkspaceActive && (
+          <div className="lp-click-folders-stack">
             {packImportActive ? (
               <ImportPackWizard
                 mergeTargetObjectId={filterObjectId}
@@ -1326,17 +1398,11 @@ export function LeftPanel({
 
             {!packImportActive && clickFolderView === null ? (
               <>
-                {filterObjectId ? (
-                  <ClickFolderBack
-                    iconOnly
-                    onBack={() => {
-                      setClickFolderView(null);
-                      setFilterObjectId(null);
-                      setPanelType("Objects");
-                    }}
-                    label={filterObject?.name || "Objects"}
-                  />
-                ) : null}
+                <ClickFolderBack
+                  inline
+                  onBack={exitObjectWorkspace}
+                  label={t("sidebar.allCompanies")}
+                />
                 <PackActionsBar
                   placement="documents"
                   exportObjectId={filterObjectId}
@@ -1498,8 +1564,8 @@ export function LeftPanel({
           </div>
         )}
 
-        {/* NODES — list */}
-        {panelType === "Nodes" && !nodeEditId && (
+        {/* NODES — grouped by document */}
+        {panelType === "Nodes" && objectWorkspaceActive && !nodeEditId && (
           <>
             <input
               type="text"
@@ -1508,30 +1574,46 @@ export function LeftPanel({
               value={nodeSearch}
               onChange={(e) => setNodeSearch(e.target.value)}
             />
-            {filterDoc ? (
-              <p className="lp-context-label">{filterDoc.title}</p>
-            ) : (
-              <p className="lp-context-label dim">{t("sidebar.allNodesLabel")}</p>
-            )}
-            {filteredNodeList.map((node) => (
-              <NodeListCard
-                key={node.id}
-                node={node}
-                docs={docs}
-                onClick={() => {
-                  setActiveId(node.id);
-                  setNodeEditId(node.id);
-                }}
-                onInsert={() => onInsertToCanvas?.(node)}
-                onDelete={() => deleteNode(node.id)}
-              />
-            ))}
-            {filteredNodeList.length === 0 && (
+            {objectWorkspaceActive && activeObject ? (
+              <p className="lp-context-label"><TranslatedText text={activeObject.name} /></p>
+            ) : null}
+            <div className="lp-doc-nodes-stack">
+              {groupedNodeViews.sections.map(({ doc, nodes: docNodes }) => (
+                <DocNodesBlockCard
+                  key={doc.id}
+                  doc={doc}
+                  nodes={docNodes}
+                  objects={objects}
+                  onOpenDoc={() => handleOpenFolderDoc(doc.id)}
+                  onNodeClick={(node) => {
+                    setActiveId(node.id);
+                    setNodeEditId(node.id);
+                  }}
+                  onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                  onNodeDelete={(node) => deleteNode(node.id)}
+                />
+              ))}
+              {groupedNodeViews.orphans.length ? (
+                <DocNodesBlockCard
+                  doc={null}
+                  orphan
+                  nodes={groupedNodeViews.orphans}
+                  objects={objects}
+                  onNodeClick={(node) => {
+                    setActiveId(node.id);
+                    setNodeEditId(node.id);
+                  }}
+                  onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                  onNodeDelete={(node) => deleteNode(node.id)}
+                />
+              ) : null}
+            </div>
+            {!groupedNodeViews.sections.length && !groupedNodeViews.orphans.length ? (
               <div className="lp-empty">
-                <p>{filterDocId ? t("sidebar.noNodesInDoc") : t("sidebar.noNodesYet")}</p>
+                <p>{t("sidebar.noNodesYet")}</p>
                 <p className="dim">{t("sidebar.createNewNodeAbove")}</p>
               </div>
-            )}
+            ) : null}
           </>
         )}
 
@@ -1569,7 +1651,7 @@ export function LeftPanel({
       {showCreate && panelType === "Nodes" && typeof document !== "undefined" && createPortal(
         <StandaloneNodeModal
           docs={docList}
-          defaultParentDocId={filterDocId || ""}
+          defaultParentDocId={defaultNodeParentDocId}
           onClose={() => setShowCreate(false)}
           onSaved={() => setShowCreate(false)}
         />,
@@ -1579,7 +1661,7 @@ export function LeftPanel({
         <StandaloneNodeModal
           node={nodes[nodeEditId]}
           docs={docList}
-          defaultParentDocId={filterDocId || ""}
+          defaultParentDocId={defaultNodeParentDocId}
           onClose={() => {
             setNodeEditId(null);
             setActiveId(null);
