@@ -34,7 +34,10 @@ function fail(msg) {
 
 if (!ADMIN_EMAIL) fail("Set VITE_ADMIN_EMAIL or ADMIN_EMAIL in .env.local");
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  fail("Set SUPABASE_PROJECT_URL + FUTURA_SUPABASE_SERVICE_ROLE_KEY in .env.local");
+  fail(
+    "Set SUPABASE_PROJECT_URL + FUTURA_SUPABASE_SERVICE_ROLE_KEY in .env.local "
+    + "(Supabase → Settings → API → service_role)",
+  );
 }
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
@@ -67,6 +70,18 @@ function computeUsedCredits(profile) {
 
 async function main() {
   console.log("seed:management — Futura Nota admin seed");
+
+  const { error: allowErr } = await supabase
+    .from("admin_allowlist")
+    .upsert({ email: ADMIN_EMAIL }, { onConflict: "email" });
+  if (allowErr) {
+    if (allowErr.message.includes("admin_allowlist")) {
+      fail("Run supabase_management.sql first (admin_allowlist + RPC)");
+    }
+    fail(allowErr.message);
+  }
+  console.log(`  admin_allowlist: ${ADMIN_EMAIL}`);
+
   const user = await findAdminUserId();
   console.log(`  Admin: ${user.email} (${user.id})`);
 

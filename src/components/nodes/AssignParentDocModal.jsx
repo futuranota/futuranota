@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { Modal } from "../shared/Modal.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
-import { listAdoptableDocs } from "../../lib/nodeParentAdoption.js";
+import { listAdoptableDocs, resolveAdoptableDocLabel } from "../../lib/nodeParentAdoption.js";
 
 /**
  * Pick a parent document for an orphan canvas node.
  */
 export function AssignParentDocModal({
   docs,
+  parentObjectId = null,
   orphanTitle,
   onConfirm,
   onClose,
 }) {
   const { t } = useI18n();
-  const docList = listAdoptableDocs(docs);
+  const docList = listAdoptableDocs(docs, { parentObjectId });
   const [selectedDocId, setSelectedDocId] = useState(docList[0]?.id || "");
 
   const handleConfirm = () => {
@@ -43,7 +44,7 @@ export function AssignParentDocModal({
           ) : (
             docList.map((doc) => (
               <option key={doc.id} value={doc.id}>
-                {doc.title || t("canvas.adoptNodeUntitled")}
+                {resolveAdoptableDocLabel(doc)}
               </option>
             ))
           )}

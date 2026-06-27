@@ -348,8 +348,13 @@ function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
 
   return (
     <div className="lp-doc-nodes-block__node">
-      <button type="button" className="lp-doc-nodes-block__node-main" onClick={onClick}>
-        <span className="lp-node-type-icon">
+      <button
+        type="button"
+        className="lp-doc-nodes-block__node-main"
+        onClick={onClick}
+        title={displayTitle}
+      >
+        <span className="lp-node-type-icon lp-node-type-icon--compact">
           {iconAsset ? (
             <img src={iconAsset} alt="" aria-hidden className="lp-node-type-icon-img" />
           ) : (
@@ -361,23 +366,32 @@ function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
       <div className="lp-doc-nodes-block__node-actions">
         <button
           type="button"
-          className="btn xs ghost danger-text"
+          className="lp-node-row-action lp-node-row-action--delete icon-del-btn"
+          title={t("common.delete")}
+          aria-label={t("common.delete")}
           onClick={(e) => {
             e.stopPropagation();
             onDelete?.();
           }}
         >
-          {t("common.delete")}
+          ×
         </button>
         <button
           type="button"
-          className="btn xs solid"
+          className="lp-node-row-action lp-node-row-action--insert"
+          title={t("sidebar.insertNode")}
+          aria-label={t("sidebar.insertNode")}
           onClick={(e) => {
             e.stopPropagation();
             onInsert?.();
           }}
         >
-          {t("sidebar.insertNode")}
+          <img
+            src="/uploads/botones/StackPlus.svg"
+            alt=""
+            aria-hidden
+            className="lp-node-row-action__icon"
+          />
         </button>
       </div>
     </div>
@@ -1651,6 +1665,7 @@ export function LeftPanel({
       {showCreate && panelType === "Nodes" && typeof document !== "undefined" && createPortal(
         <StandaloneNodeModal
           docs={docList}
+          parentObjectId={activeObjectId}
           defaultParentDocId={defaultNodeParentDocId}
           onClose={() => setShowCreate(false)}
           onSaved={() => setShowCreate(false)}
@@ -1661,6 +1676,7 @@ export function LeftPanel({
         <StandaloneNodeModal
           node={nodes[nodeEditId]}
           docs={docList}
+          parentObjectId={activeObjectId}
           defaultParentDocId={defaultNodeParentDocId}
           onClose={() => {
             setNodeEditId(null);

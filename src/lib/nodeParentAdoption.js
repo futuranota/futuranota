@@ -1,17 +1,32 @@
 import { useDocsStore } from "../stores/docsStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
-import { isKnowledgeDoc } from "./templateDoc.js";
+import {
+  isContentDoc,
+  isKnowledgeDoc,
+  isProductDoc,
+  isTemplateDoc,
+  listContentDocs,
+  listProductDocs,
+  resolveProductDocDisplayTitle,
+} from "./templateDoc.js";
+
+/**
+ * Entity-backed canvas node (text, date, metric, checkbox) — not document/object/launch.
+ */
+export function isEntityMacroNode(canvasNode, nodeEntitiesById = {}) {
+  if (!canvasNode?.noteId) return false;
+  if (canvasNode.canvasKind === "document" || canvasNode.canvasKind === "object") return false;
+  if (canvasNode.canvasKind === "launch") return false;
+  if (canvasNode.dataType === "document" || canvasNode.dataType === "object") return false;
+  return Boolean(nodeEntitiesById[canvasNode.noteId]);
+}
 
 /**
  * Canvas node backed by a Zustand entity with no parent document.
  */
 export function isOrphanEntityNode(canvasNode, nodeEntitiesById = {}) {
-  if (!canvasNode?.noteId) return false;
-  if (canvasNode.canvasKind === "document" || canvasNode.canvasKind === "object") return false;
-  if (canvasNode.canvasKind === "launch") return false;
-  if (canvasNode.dataType === "document" || canvasNode.dataType === "object") return false;
+  if (!isEntityMacroNode(canvasNode, nodeEntitiesById)) return false;
   const entity = nodeEntitiesById[canvasNode.noteId];
-  if (!entity) return false;
   return !entity.parentDocId && !entity.linkedToDoc;
 }
 
@@ -88,6 +103,7 @@ export function adoptOrphanNodeToDocument({
   patchCanvasNode = null,
 }) {
   if (!nodeEntityId || !docId) return false;
+  if (!isValidParentDoc(docId, useDocsStore.getState().docs)) return false;
 
   const nodesStore = useNodesStore.getState();
   const docsStore = useDocsStore.getState();
@@ -109,9 +125,136 @@ export function adoptOrphanNodeToDocument({
 }
 
 /**
- * Content docs eligible for parent assignment (excludes knowledge corpus).
+ * Orphan entity nodes currently placed on the canvas.
  */
-export function listAdoptableDocs(docs = {}) {
-  const list = Array.isArray(docs) ? docs : Object.values(docs || {});
-  return list.filter((doc) => doc?.id && !isKnowledgeDoc(doc));
+export function listOrphanEntityCanvasNodes(canvasNodes = [], nodeEntitiesById = {}) {
+  return canvasNodes.filter((n) => isOrphanEntityNode(n, nodeEntitiesById));
+}
+
+/**
+ * Assign, change, or clear the parent document for an entity node.
+ */
+export function setEntityNodeParentDocument({
+  nodeEntityId,
+  docId = null,
+  canvasNodeId = null,
+  patchCanvasNode = null,
+}) {
+  const nodesStore = useNodesStore.getState();
+  const docsStore = useDocsStore.getState();
+  const node = nodesStore.getNode(nodeEntityId);
+  if (!node) return false;
+
+  const prevParent = node.parentDocId || null;
+  const nextParent = docId || null;
+
+  if (prevParent === nextParent) return true;
+
+  if (prevParent) {
+    nodesStore.removeNodeSyncFromDoc(nodeEntityId, prevParent);
+    docsStore.removeNodeFromDoc(prevParent, nodeEntityId);
+    nodesStore.updateNode(nodeEntityId, {
+      parentDocId: null,
+      linkedToDoc: false,
+      sourceBlockId: undefined,
+      sourceTextBlockId: undefined,
+    });
+    if (canvasNodeId && patchCanvasNode) {
+      patchCanvasNode(canvasNodeId, { parentDocId: null });
+    }
+  }
+
+  if (!nextParent) return true;
+
+  if (!isValidParentDoc(nextParent, docsStore.docs)) return false;
+
+  return adoptOrphanNodeToDocument({
+    nodeEntityId,
+    docId: nextParent,
+    canvasNodeId,
+    patchCanvasNode,
+  });
+}
+
+/**
+ * True when doc exists in store and can be assigned as a node parent.
+ */
+export function isValidParentDoc(docId, docsById = {}) {
+  if (!docId) return false;
+  const doc = docsById[docId];
+  return Boolean(doc?.id) && !isKnowledgeDoc(doc);
+}
+
+/**
+ * Resolve parent doc id only if the document still exists.
+ */
+export function resolveNodeParentDocId(entity, canvasNode, docsById = {}, options = {}) {
+  const candidate = entity?.parentDocId || canvasNode?.parentDocId || null;
+  if (!isValidParentDoc(candidate, docsById)) return "";
+  const { parentObjectId } = options;
+  if (!parentObjectId) return candidate;
+  const adoptableIds = new Set(
+    listAdoptableDocs(docsById, { parentObjectId }).map((doc) => doc.id),
+  );
+  return adoptableIds.has(candidate) ? candidate : "";
+}
+
+/** Product/content docs under a company object — eligible node parent targets. */
+export function isCompanyParentDoc(doc, parentObjectId) {
+  if (!doc?.id || !parentObjectId) return false;
+  if (doc.parentObjectId !== parentObjectId) return false;
+  if (isKnowledgeDoc(doc) || isTemplateDoc(doc)) return false;
+  return isContentDoc(doc) || isProductDoc(doc);
+}
+
+export function resolveAdoptableDocLabel(doc) {
+  if (!doc) return "Untitled";
+  if (isProductDoc(doc)) return resolveProductDocDisplayTitle(doc);
+  return doc.title?.trim() || "Untitled";
+}
+
+/**
+ * Company-scoped product/content docs eligible for parent assignment.
+ */
+export function listAdoptableDocs(docs = {}, { parentObjectId } = {}) {
+  const byId = Array.isArray(docs)
+    ? Object.fromEntries(docs.filter((d) => d?.id).map((d) => [d.id, d]))
+    : docs || {};
+  if (!parentObjectId) return [];
+
+  const seen = new Set();
+  const merged = [];
+  for (const doc of [
+    ...listContentDocs(byId, parentObjectId),
+    ...listProductDocs(byId, parentObjectId),
+  ]) {
+    if (!doc?.id || seen.has(doc.id)) continue;
+    seen.add(doc.id);
+    merged.push(doc);
+  }
+
+  return merged.sort((a, b) =>
+    resolveAdoptableDocLabel(a).localeCompare(resolveAdoptableDocLabel(b)),
+  );
+}
+
+/**
+ * Clear parentDocId on nodes whose document no longer exists.
+ * @returns {string[]} node entity ids that were released
+ */
+export function releaseStaleNodeParentRefs(docsById = {}) {
+  const nodesStore = useNodesStore.getState();
+  const released = [];
+  for (const node of nodesStore.getAllNodes()) {
+    if (!node.parentDocId) continue;
+    if (isValidParentDoc(node.parentDocId, docsById)) continue;
+    nodesStore.updateNode(node.id, {
+      parentDocId: null,
+      linkedToDoc: false,
+      sourceBlockId: undefined,
+      sourceTextBlockId: undefined,
+    });
+    released.push(node.id);
+  }
+  return released;
 }

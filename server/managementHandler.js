@@ -156,43 +156,240 @@ async function loadRecentEvents(service, opts = {}) {
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} service
+ */
+async function loadAllAuthEmails(service) {
+  /** @type {Map<string, string|null>} */
+  const map = new Map();
+  let page = 1;
+  const perPage = 200;
+
+  while (page <= 50) {
+    const { data, error } = await service.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.warn("loadAllAuthEmails:", error.message);
+      return map;
+    }
+    for (const user of data.users) {
+      map.set(user.id, user.email ?? null);
+    }
+    if (data.users.length < perPage) break;
+    page += 1;
+  }
+
+  return map;
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} service
+ */
+async function loadUsageByUserId(service) {
+  /** @type {Map<string, number>} */
+  const counts = new Map();
+  /** @type {Map<string, string>} */
+  const lastCall = new Map();
+
+  const { data, error } = await service
+    .from("api_usage_events")
+    .select("user_id, created_at");
+
+  if (error) {
+    if (error.message.includes("api_usage_events")) {
+      return { counts, lastCall };
+    }
+    throw error;
+  }
+
+  for (const row of data || []) {
+    if (!row.user_id) continue;
+    counts.set(row.user_id, (counts.get(row.user_id) || 0) + 1);
+    const prev = lastCall.get(row.user_id);
+    if (!prev || row.created_at > prev) {
+      lastCall.set(row.user_id, row.created_at);
+    }
+  }
+
+  return { counts, lastCall };
+}
+
+function buildUserRow(row, emailById, usage, adminEmail) {
+  const userId = row.user_id;
+  const email = row.email || emailById.get(userId) || userId;
+  const view = rowToProfileView(row);
+  const creditsUsed = view?.creditsUsed ?? 0;
+  const creditsCap = view?.creditsCap ?? getCreditsCap("free");
+  const isAdmin = Boolean(adminEmail && email?.toLowerCase() === adminEmail);
+
+  return {
+    userId,
+    email,
+    plan: view?.plan || "free",
+    creditsUsed,
+    creditsCap,
+    creditsLabel: `${creditsUsed}/${creditsCap}`,
+    tokensBalance: view?.tokensBalance ?? null,
+    tokensCap: view?.tokensCap ?? null,
+    totalCalls: usage.counts.get(userId) ?? 0,
+    lastCallAt: usage.lastCall.get(userId) ?? null,
+    isAdmin,
+    profileCreatedAt: row.created_at ?? null,
+  };
+}
+
+/**
+ * All registered users from profiles + auth emails, with plan and credits.
+ * @param {import('@supabase/supabase-js').SupabaseClient} service
+ * @param {{ id: string, email?: string|null }} adminUser
+ */
+async function loadUsersOverview(service, adminUser) {
+  const adminEmail = getAdminEmail();
+
+  const { data: profileRows, error: profilesErr } = await service
+    .from("profiles")
+    .select("user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at")
+    .order("created_at", { ascending: false });
+
+  if (profilesErr) throw new Error(profilesErr.message);
+
+  const emailById = await loadAllAuthEmails(service);
+  const usage = await loadUsageByUserId(service);
+
+  const seen = new Set();
+  const users = (profileRows || []).map((row) => {
+    seen.add(row.user_id);
+    return buildUserRow(row, emailById, usage, adminEmail);
+  });
+
+  for (const [userId, email] of emailById) {
+    if (seen.has(userId)) continue;
+    const creditsCap = getCreditsCap("free");
+    users.push({
+      userId,
+      email: email || userId,
+      plan: "free",
+      creditsUsed: 0,
+      creditsCap,
+      creditsLabel: `0/${creditsCap}`,
+      tokensBalance: getTokensCap("free"),
+      tokensCap: getTokensCap("free"),
+      totalCalls: usage.counts.get(userId) ?? 0,
+      lastCallAt: usage.lastCall.get(userId) ?? null,
+      isAdmin: Boolean(adminEmail && email?.toLowerCase() === adminEmail),
+      profileCreatedAt: null,
+    });
+  }
+
+  users.sort((a, b) => {
+    if (a.isAdmin && !b.isAdmin) return -1;
+    if (!a.isAdmin && b.isAdmin) return 1;
+    return String(b.profileCreatedAt || "").localeCompare(String(a.profileCreatedAt || ""));
+  });
+
+  if (users.length === 0 && adminUser?.id) {
+    const row = profileRows?.find((p) => p.user_id === adminUser.id);
+    if (row) {
+      users.push(buildUserRow(row, emailById, usage, adminEmail));
+    } else {
+      users.push({
+        userId: adminUser.id,
+        email: adminUser.email || adminUser.id,
+        plan: "free",
+        creditsUsed: 0,
+        creditsCap: getCreditsCap("free"),
+        creditsLabel: `0/${getCreditsCap("free")}`,
+        tokensBalance: null,
+        tokensCap: getTokensCap("free"),
+        totalCalls: usage.counts.get(adminUser.id) ?? 0,
+        lastCallAt: usage.lastCall.get(adminUser.id) ?? null,
+        isAdmin: true,
+        profileCreatedAt: null,
+      });
+    }
+  }
+
+  return users;
+}
+
+/**
+ * List all profiles via Supabase RPC (admin JWT + admin_allowlist). No service role.
  * @param {import('@supabase/supabase-js').SupabaseClient} userSupabase
  * @param {{ id: string, email?: string|null }} adminUser
  */
-async function loadUsersOverview(service, userSupabase, adminUser) {
-  const users = [];
+async function loadUsersOverviewViaRpc(userSupabase, adminUser) {
+  const adminEmail = getAdminEmail();
+  const { data, error } = await userSupabase.rpc("admin_list_users_overview");
+  if (error) throw error;
 
-  const profileRow = await loadUserProfile(userSupabase, adminUser.id);
-  const view = rowToProfileView(profileRow);
+  const usage = { counts: new Map(), lastCall: new Map() };
+  const emailById = new Map();
 
-  const { count: callCount } = await service
-    .from("api_usage_events")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", adminUser.id);
-
-  const { data: lastEvent } = await service
-    .from("api_usage_events")
-    .select("created_at")
-    .eq("user_id", adminUser.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  users.push({
-    userId: adminUser.id,
-    email: adminUser.email || adminUser.id,
-    plan: view?.plan || "free",
-    creditsUsed: view?.creditsUsed ?? 0,
-    creditsCap: view?.creditsCap ?? getCreditsCap("free"),
-    creditsLabel: `${view?.creditsUsed ?? 0}/${view?.creditsCap ?? getCreditsCap("free")}`,
-    tokensBalance: view?.tokensBalance ?? null,
-    tokensCap: view?.tokensCap ?? null,
-    totalCalls: callCount ?? 0,
-    lastCallAt: lastEvent?.created_at ?? null,
-    isAdmin: true,
+  const users = (data || []).map((row) => {
+    if (row.user_id && row.email) emailById.set(row.user_id, row.email);
+    return buildUserRow(row, emailById, usage, adminEmail);
   });
 
+  if (users.length === 0 && adminUser?.id) {
+    return loadUsersOverviewFromSession(userSupabase, adminUser);
+  }
+
   return users;
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} userSupabase
+ * @param {{ id: string, email?: string|null }} adminUser
+ */
+async function loadUsersOverviewFromSession(userSupabase, adminUser) {
+  const adminEmail = getAdminEmail();
+  const row = await loadUserProfile(userSupabase, adminUser.id);
+  const usage = { counts: new Map(), lastCall: new Map() };
+  const emailById = new Map([[adminUser.id, adminUser.email ?? null]]);
+
+  if (!row) {
+    const creditsCap = getCreditsCap("free");
+    return [{
+      userId: adminUser.id,
+      email: adminUser.email || adminUser.id,
+      plan: "free",
+      creditsUsed: 0,
+      creditsCap,
+      creditsLabel: `0/${creditsCap}`,
+      tokensBalance: null,
+      tokensCap: getTokensCap("free"),
+      totalCalls: 0,
+      lastCallAt: null,
+      isAdmin: true,
+      profileCreatedAt: null,
+    }];
+  }
+
+  return [buildUserRow({ ...row, user_id: adminUser.id }, emailById, usage, adminEmail)];
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient|null} service
+ * @param {import('@supabase/supabase-js').SupabaseClient} userSupabase
+ * @param {{ id: string, email?: string|null }} adminUser
+ */
+async function resolveUsersOverview(service, userSupabase, adminUser) {
+  if (service) {
+    return { users: await loadUsersOverview(service, adminUser), usersSource: "service_role" };
+  }
+
+  try {
+    const users = await loadUsersOverviewViaRpc(userSupabase, adminUser);
+    return { users, usersSource: "rpc" };
+  } catch (rpcErr) {
+    const msg = rpcErr instanceof Error ? rpcErr.message : String(rpcErr);
+    const users = await loadUsersOverviewFromSession(userSupabase, adminUser);
+    return {
+      users,
+      usersSource: "session",
+      usersWarning: msg.includes("admin_list_users_overview") || msg.includes("allowlist")
+        ? "Para ver todas las cuentas: añade FUTURA_SUPABASE_SERVICE_ROLE_KEY en .env.local "
+          + "O ejecuta supabase_management.sql e INSERT INTO admin_allowlist (email) VALUES ('tu-email');"
+        : msg,
+    };
+  }
 }
 
 /**
@@ -214,11 +411,25 @@ export async function processManagementOverviewRequest(reqLike) {
   let stats = { totals: { today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 }, byProvider: [], byEndpoint: [] };
   let recentEvents = [];
   let users = [];
+  let usersSource = "none";
+  let usersWarning = null;
   let dbWarning = null;
 
+  try {
+    const resolved = await resolveUsersOverview(service, auth.supabase, auth.user);
+    users = resolved.users;
+    usersSource = resolved.usersSource;
+    usersWarning = resolved.usersWarning ?? null;
+  } catch (err) {
+    usersWarning = err instanceof Error ? err.message : "Failed to load users";
+  }
+
   if (!service) {
-    dbWarning = "FUTURA_SUPABASE_SERVICE_ROLE_KEY not set — users/events unavailable.";
-  } else {
+    dbWarning = "FUTURA_SUPABASE_SERVICE_ROLE_KEY no configurada — call logs limitados. "
+      + "Supabase → Settings → API → service_role → añade FUTURA_SUPABASE_SERVICE_ROLE_KEY en .env.local";
+  }
+
+  if (service) {
     try {
       const { data: integrationRows, error: intErr } = await service
         .from("api_integrations")
@@ -227,7 +438,9 @@ export async function processManagementOverviewRequest(reqLike) {
 
       if (intErr) {
         if (intErr.message.includes("api_integrations")) {
-          dbWarning = "Run supabase_management.sql in Supabase SQL Editor.";
+          if (!dbWarning) {
+            dbWarning = "Run supabase_management.sql for API catalog and call logs.";
+          }
         } else {
           throw intErr;
         }
@@ -235,13 +448,20 @@ export async function processManagementOverviewRequest(reqLike) {
         integrations = integrationRows || [];
       }
 
-      if (!intErr) {
+      try {
         stats = await loadUsageStats(service, { includeSeed });
         recentEvents = await loadRecentEvents(service, { includeSeed });
-        users = await loadUsersOverview(service, auth.supabase, auth.user);
+      } catch (statsErr) {
+        if (!dbWarning && statsErr instanceof Error && statsErr.message.includes("api_usage_events")) {
+          dbWarning = "Run supabase_management.sql for call history.";
+        } else if (!dbWarning) {
+          dbWarning = statsErr instanceof Error ? statsErr.message : "Failed to load usage stats";
+        }
       }
     } catch (err) {
-      dbWarning = err instanceof Error ? err.message : "Management DB error";
+      if (!dbWarning) {
+        dbWarning = err instanceof Error ? err.message : "Management DB error";
+      }
     }
   }
 
@@ -270,6 +490,8 @@ export async function processManagementOverviewRequest(reqLike) {
     body: {
       serviceConfigured,
       dbWarning,
+      usersSource,
+      usersWarning,
       stats,
       integrations: integrationCards,
       users,

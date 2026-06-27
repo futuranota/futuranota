@@ -36,9 +36,9 @@ import {
 } from './lib/docNodeSync.js';
 import {
   adoptOrphanNodeToDocument,
+  releaseStaleNodeParentRefs,
 } from './lib/nodeParentAdoption.js';
 import { AdoptNodeConfirmModal } from './components/nodes/AdoptNodeConfirmModal.jsx';
-import { AssignParentDocModal } from './components/nodes/AssignParentDocModal.jsx';
 import { useI18n } from './i18n/useI18n.js';
 import { normalizeDocBlocks } from './lib/docBlocks.js';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
@@ -181,7 +181,6 @@ function Dashboard({ company, onBack }) {
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
   const [expandedNodeId, setExpandedNodeId] = useState(null);
   const [adoptPrompt, setAdoptPrompt] = useState(null);
-  const [assignParentTarget, setAssignParentTarget] = useState(null);
   const { t } = useI18n();
   const docs = useDocsStore((s) => s.docs);
   const objects = useObjectsStore((s) => s.objects);
@@ -363,6 +362,18 @@ useEffect(() => {
       activeDocMetaDraft,
     }));
   }, [docs, expandedDocId, activeDocMetaDraft]);
+
+  useEffect(() => {
+    const releasedNodeIds = releaseStaleNodeParentRefs(docs);
+    if (!releasedNodeIds.length) return;
+    const releasedSet = new Set(releasedNodeIds);
+    setCanvasNodes((prev) => prev.map((cn) => {
+      const staleCanvasParent = cn.parentDocId && !docs[cn.parentDocId];
+      const staleEntityParent = cn.noteId && releasedSet.has(cn.noteId);
+      if (!staleCanvasParent && !staleEntityParent) return cn;
+      return { ...cn, parentDocId: null };
+    }));
+  }, [docs]);
 
   /* ── SCAN BLOGS ─ */
   const scanBlogs = () => {
@@ -713,29 +724,22 @@ useEffect(() => {
     setAdoptPrompt(null);
   }, [adoptPrompt]);
 
-  const handleAssignParent = useCallback((canvasNodeId) => {
-    const canvasNode = canvasNodes.find((n) => n.id === canvasNodeId);
-    if (!canvasNode?.noteId) return;
-    const entity = nodeEntities[canvasNode.noteId];
-    setAssignParentTarget({
-      canvasNodeId,
-      orphanEntityId: canvasNode.noteId,
-      orphanTitle: (entity?.sourceQuery || entity?.title || canvasNode.title || "").trim(),
-    });
-  }, [canvasNodes, nodeEntities]);
-
-  const handleAssignParentConfirm = useCallback((docId) => {
-    if (!assignParentTarget) return;
-    const doc = docs[docId];
+  const handleDocumentAdoptOrphan = useCallback((docCanvasNodeId, orphanCanvasNodeId) => {
+    const docNode = canvasNodes.find((n) => n.id === docCanvasNodeId);
+    const orphanNode = canvasNodes.find((n) => n.id === orphanCanvasNodeId);
+    if (!docNode || !orphanNode?.noteId) return;
+    const docId = docNode.docId || docNode.noteId;
+    if (!docId || !docs[docId]) return;
     runAdoption({
-      orphanEntityId: assignParentTarget.orphanEntityId,
+      orphanEntityId: orphanNode.noteId,
       docId,
-      orphanCanvasNodeId: assignParentTarget.canvasNodeId,
-      orphanTitle: assignParentTarget.orphanTitle,
-      docTitle: (doc?.title || "Untitled").trim(),
+      orphanCanvasNodeId: orphanNode.id,
+      orphanTitle: (nodeEntities[orphanNode.noteId]?.sourceQuery
+        || nodeEntities[orphanNode.noteId]?.title
+        || orphanNode.title || "").trim(),
+      docTitle: (docs[docId]?.title || "Untitled").trim(),
     });
-    setAssignParentTarget(null);
-  }, [assignParentTarget, docs, runAdoption]);
+  }, [canvasNodes, nodeEntities, docs, runAdoption]);
 
   const openCanvasEntity = (noteId, canvasNode = null) => {
     if (!noteId && !canvasNode) return;
@@ -800,7 +804,7 @@ useEffect(() => {
             onRemoveBlueprintFromCanvas={() => {}}
             onCanvasDrop={handleCanvasDrop}
             onRequestDocAdoption={handleRequestDocAdoption}
-            onAssignParent={handleAssignParent}
+            onDocumentAdoptOrphan={handleDocumentAdoptOrphan}
           />
           {scanState === "scanning-blogs" && (
             <ScanOverlay logs={scanLogs} kind="blogs" />
@@ -880,6 +884,7 @@ useEffect(() => {
         <StandaloneNodeModal
           node={nodeEntities[expandedNodeId]}
           docs={Object.values(docs)}
+          parentObjectId={filterObjectId || selectedObjectId || null}
           queryCanvasNodeId={
             canvasNodes.find((n) => n.noteId === expandedNodeId)?.id ?? null
           }
@@ -895,15 +900,6 @@ useEffect(() => {
           orphanTitle={adoptPrompt.payload.orphanTitle}
           onAdopt={handleAdoptPromptYes}
           onWireOnly={handleAdoptPromptNo}
-        />
-      ) : null}
-
-      {assignParentTarget ? (
-        <AssignParentDocModal
-          docs={docs}
-          orphanTitle={assignParentTarget.orphanTitle}
-          onConfirm={handleAssignParentConfirm}
-          onClose={() => setAssignParentTarget(null)}
         />
       ) : null}
 

@@ -167,9 +167,34 @@ export function ManagementAdminPanel() {
 
       {errorMessage ? <div className="admin-error">{errorMessage}</div> : null}
       {dbWarning ? (
-        <div className="admin-error" style={{ color: "var(--hud)", background: "rgba(126, 200, 255, 0.1)" }}>
-          {dbWarning}
+        <div className="mgmt-setup-banner">
+          <strong>Configuración requerida</strong>
+          <p>{dbWarning}</p>
+          <ol className="mgmt-setup-steps">
+            <li>
+              Supabase → <strong>Settings → API</strong> → copia la clave <code>service_role</code>
+            </li>
+            <li>
+              Pégala en <code>.env.local</code> como <code>FUTURA_SUPABASE_SERVICE_ROLE_KEY=...</code>
+            </li>
+            <li>Reinicia <code>npm run dev</code> y pulsa Refresh</li>
+          </ol>
+          <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+            Alternativa sin service role: ejecuta <code>supabase_management.sql</code> y en SQL Editor:
+            <code> INSERT INTO admin_allowlist (email) VALUES (&apos;tu-email-admin&apos;);</code>
+          </p>
         </div>
+      ) : null}
+      {data?.usersWarning ? (
+        <div className="mgmt-setup-banner mgmt-setup-banner--warn">
+          <strong>Solo se muestra tu cuenta</strong>
+          <p>{data.usersWarning}</p>
+        </div>
+      ) : null}
+      {data?.usersSource === "rpc" && (data?.users?.length ?? 0) > 0 ? (
+        <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+          {data.users.length} cuentas cargadas vía admin_allowlist (sin service role).
+        </p>
       ) : null}
 
       <section className="mgmt-kpi-row admin-card">
@@ -283,7 +308,15 @@ export function ManagementAdminPanel() {
       </section>
 
       <section className="admin-card">
-        <h2 className="mgmt-section-title">Users</h2>
+        <h2 className="mgmt-section-title">
+          Users
+          {data?.users?.length ? (
+            <span className="mgmt-count-badge">{data.users.length}</span>
+          ) : null}
+        </h2>
+        <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+          All accounts from Supabase — plan and credits from <code>profiles</code>.
+        </p>
         <div className="mgmt-table-wrap">
           <table className="mgmt-table">
             <thead>
@@ -299,7 +332,9 @@ export function ManagementAdminPanel() {
             <tbody>
               {(data?.users || []).length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="muted">No users — configure service role + run supabase_management.sql</td>
+                  <td colSpan={6} className="muted">
+                    No users — set FUTURA_SUPABASE_SERVICE_ROLE_KEY and ensure profiles exist in Supabase.
+                  </td>
                 </tr>
               ) : (
                 data.users.map((u) => (

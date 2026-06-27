@@ -14,7 +14,6 @@ export function NodesFolder() {
   const docs = useDocsStore((s) => s.docs);
   const addNode = useNodesStore((s) => s.addNode);
   const deleteNode = useNodesStore((s) => s.deleteNode);
-  const addCanvasNode = useCanvasStore((s) => s.addCanvasNode);
   const getCanvasNodesByNodeId = useCanvasStore((s) => s.getCanvasNodesByNodeId);
   const expandedNodeId = useUIStateStore((s) => s.expandedNodeId);
   const setExpandedNode = useUIStateStore((s) => s.setExpandedNode);
@@ -52,11 +51,6 @@ export function NodesFolder() {
                 onClick={() => setExpandedNode(expandedNodeId === node.id ? null : node.id)}
               />
               <div className="fn-node-row-actions">
-                {!onCanvas && (
-                  <button type="button" className="btn xs ghost" onClick={() => addCanvasNode(node.id)}>
-                    Canvas
-                  </button>
-                )}
                 <button
                   type="button"
                   className="icon-del-btn notes-folder-del"

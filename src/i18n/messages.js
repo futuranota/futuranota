@@ -37,6 +37,11 @@ export const messages = {
       removeFromNode: "Remove from node",
       linkedContinuationPlaceholder: "Next line: keep writing or type /title for another query",
       editAsText: "Edit as text",
+      parentDocLabel: "Parent document",
+      noParentDoc: "No parent",
+      linkOrphanNode: "Link orphan node",
+      linkOrphanPlaceholder: "Select node to integrate…",
+      expandNode: "Expand node",
     },
     topbar: {
       back: "Back",
@@ -329,6 +334,11 @@ export const messages = {
       removeFromNode: "Eliminar del nodo",
       linkedContinuationPlaceholder: "Siguiente línea: sigue escribiendo o /title para otra query",
       editAsText: "Editar como texto",
+      parentDocLabel: "Documento padre",
+      noParentDoc: "Sin padre",
+      linkOrphanNode: "Vincular nodo suelto",
+      linkOrphanPlaceholder: "Elegir nodo para integrar…",
+      expandNode: "Ampliar nodo",
     },
     topbar: {
       back: "Volver",

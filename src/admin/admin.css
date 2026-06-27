@@ -408,6 +408,55 @@
   cursor: pointer;
 }
 
+.mgmt-setup-banner {
+  border: 1px solid var(--admin-blue-border);
+  background: var(--admin-blue-soft);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mgmt-setup-banner strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--admin-blue-strong);
+}
+
+.mgmt-setup-banner--warn {
+  border-color: rgba(255, 209, 102, 0.45);
+  background: rgba(255, 209, 102, 0.08);
+}
+
+.mgmt-setup-banner--warn strong {
+  color: #ffd166;
+}
+
+.mgmt-setup-steps {
+  margin: 8px 0 12px;
+  padding-left: 20px;
+}
+
+.mgmt-setup-steps code,
+.mgmt-setup-banner code {
+  font-family: var(--mono, monospace);
+  font-size: 11px;
+}
+
+.mgmt-count-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--admin-blue-soft);
+  border: 1px solid var(--admin-blue-border);
+  color: var(--admin-blue);
+  vertical-align: middle;
+}
+
 @media (max-width: 900px) {
   .mgmt-kpi-row {
     grid-template-columns: 1fr 1fr;

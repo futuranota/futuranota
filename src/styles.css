@@ -2192,7 +2192,8 @@ textarea.field {
 .cnode--timeline-pick .cnode-del { display: flex; }
 .cnode-del:hover { transform: scale(1.1); }
 
-.cnode-assign-parent {
+.cnode-assign-parent,
+.cnode-expand {
   position: absolute;
   top: -8px;
   right: 14px;
@@ -2205,11 +2206,46 @@ textarea.field {
   color: var(--accent);
 }
 .cnode.selected .cnode-assign-parent,
-.cnode--timeline-pick .cnode-assign-parent { display: flex; }
-.cnode-assign-parent:hover {
+.cnode--timeline-pick .cnode-assign-parent,
+.cnode.selected .cnode-expand,
+.cnode--timeline-pick .cnode-expand { display: flex; }
+.cnode-assign-parent:hover,
+.cnode-expand:hover {
   color: var(--hud);
   background: color-mix(in oklab, var(--accent) 12%, transparent);
   transform: scale(1.1);
+}
+
+.cnode-parent-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in oklab, var(--text) 8%, transparent);
+}
+.cnode-parent-field__label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+.cnode-parent-select {
+  width: 100%;
+  max-width: 100%;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in oklab, var(--text) 12%, transparent);
+  background: color-mix(in oklab, var(--text) 4%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+}
+.cnode-parent-field--inverse {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: none;
 }
 
 .adopt-node-modal__body {

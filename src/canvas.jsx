@@ -26,7 +26,10 @@ import {
 
 import {
   detectDocAdoptionOnConnect,
+  isEntityMacroNode,
   isOrphanEntityNode,
+  listOrphanEntityCanvasNodes,
+  resolveNodeParentDocId,
 } from './lib/nodeParentAdoption.js';
 import { useI18n } from './i18n/useI18n.js';
 import {
@@ -153,8 +156,9 @@ function resolveCanvasDisplayTitle(node, nodeEntitiesById = {}) {
 
 function resolveCanvasParentDocTag(node, nodeEntitiesById = {}, docsById = {}) {
   const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
-  if (!entity?.parentDocId) return null;
-  const doc = docsById[entity.parentDocId];
+  const docId = resolveNodeParentDocId(entity, node, docsById);
+  if (!docId) return null;
+  const doc = docsById[docId];
   return {
     kind: "Document",
     name: (doc?.title || "Untitled").trim(),
@@ -240,8 +244,9 @@ function CanvasNode({
   docsById = {},
   objectsById = {},
   onAddToSelection, onTapToggle, onMove, onEdit, onDelete, onStartConnect, onPortMouseUp,
-  onConnectHover, onStartRewire, getWorldFromClient, onOpen,
-  onAssignParent,
+  onConnectHover, onStartRewire, getWorldFromClient,   onOpen,
+  onDocumentAdoptOrphan,
+  orphanEntityCanvasNodes = [],
   timelineSelectable = true,
   timelineQueueMode = false,
 }) {
@@ -259,7 +264,9 @@ function CanvasNode({
 
   const onPointerDown = (e) => {
     if (e.target.closest('.cnode-port') || e.target.closest('.cnode-del')) return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.target.closest('.cnode-expand') || e.target.closest('.cnode-parent-select')) return;
+    if (e.target.closest('.cnode-adopt-orphan')) return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -542,8 +549,53 @@ function CanvasNode({
 
   if (blueprintColor) cls.push("cnode-in-bp");
 
-  const showAssignParent = Boolean(onAssignParent)
-    && isOrphanEntityNode(node, nodeEntitiesById);
+  const isEntityNode = isEntityMacroNode(node, nodeEntitiesById);
+  const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+  const docCanvasId = node.dataType === "document" ? (node.docId || node.noteId) : null;
+  const showOrphanLinker = Boolean(
+    onDocumentAdoptOrphan
+    && docCanvasId
+    && !knowledgeCorpus
+    && node.dataType === "document"
+    && orphanEntityCanvasNodes.length > 0,
+  );
+
+  const renderOrphanLinker = () => {
+    if (!showOrphanLinker) return null;
+    return (
+      <label className="cnode-parent-field cnode-parent-field--inverse" onPointerDown={(e) => e.stopPropagation()}>
+        <span className="cnode-parent-field__label">{t("canvas.linkOrphanNode")}</span>
+        <select
+          className="cnode-parent-select cnode-adopt-orphan"
+          defaultValue=""
+          onChange={(e) => {
+            e.stopPropagation();
+            const orphanCanvasNodeId = e.target.value;
+            if (!orphanCanvasNodeId) return;
+            onDocumentAdoptOrphan(node.id, orphanCanvasNodeId);
+            e.target.value = "";
+          }}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={t("canvas.linkOrphanNode")}
+        >
+          <option value="">{t("canvas.linkOrphanPlaceholder")}</option>
+          {orphanEntityCanvasNodes.map((orphanNode) => {
+            const orphanEntity = orphanNode.noteId ? nodeEntitiesById[orphanNode.noteId] : null;
+            const label = (orphanEntity?.sourceQuery || orphanEntity?.title || orphanNode.title || t("canvas.adoptNodeUntitled")).trim();
+            return (
+              <option key={orphanNode.id} value={orphanNode.id}>
+                {label}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+    );
+  };
+
+  const showExpand = Boolean(onOpen) && (
+    isEntityNode || (node.dataType === "document" && !knowledgeCorpus)
+  );
 
   return (
     <div
@@ -586,6 +638,7 @@ function CanvasNode({
         </span>
       </div>
       {renderContent()}
+      {renderOrphanLinker()}
       {blueprintColor && (
         <div className="cnode-foot">
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -620,15 +673,15 @@ function CanvasNode({
         }}
       />
       <button type="button" className="cnode-del icon-del-btn" onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}>×</button>
-      {showAssignParent ? (
+      {showExpand ? (
         <button
           type="button"
-          className="cnode-assign-parent icon-del-btn"
-          title={t("canvas.assignParent")}
-          aria-label={t("canvas.assignParent")}
+          className="cnode-expand icon-del-btn"
+          title={t("canvas.expandNode")}
+          aria-label={t("canvas.expandNode")}
           onClick={(e) => {
             e.stopPropagation();
-            onAssignParent(node.id);
+            onOpen(node.id);
           }}
         >
           ↗
@@ -654,7 +707,7 @@ function BlueprintCanvas({
   onTimelineCanvasSelectMany,
   onNotify,
   onRequestDocAdoption,
-  onAssignParent,
+  onDocumentAdoptOrphan,
 }) {
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
   const traceFunixMode = useTimelineStore((s) => s.traceFunixMode);
@@ -662,6 +715,10 @@ function BlueprintCanvas({
   const toggleTraceFunixMode = useTimelineStore((s) => s.toggleTraceFunixMode);
   const toggleInheritObjMode = useTimelineStore((s) => s.toggleInheritObjMode);
   const temporalMeta = { docsById, nodeEntitiesById, objectsById };
+  const orphanEntityCanvasNodes = useMemo(
+    () => listOrphanEntityCanvasNodes(nodes, nodeEntitiesById),
+    [nodes, nodeEntitiesById],
+  );
   const canvasRef = useRef(null);
   const importInputRef = useRef(null);
   const wrapRef = useRef(null);
@@ -1996,7 +2053,8 @@ function BlueprintCanvas({
             docsById={docsById}
             objectsById={objectsById}
             onOpen={handleOpenNode}
-            onAssignParent={onAssignParent}
+            onDocumentAdoptOrphan={onDocumentAdoptOrphan}
+            orphanEntityCanvasNodes={orphanEntityCanvasNodes}
           />
           );
         })}

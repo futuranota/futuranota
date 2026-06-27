@@ -1145,10 +1145,11 @@
 }
 
 .lp-doc-nodes-block__node {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  padding: 2px;
+  gap: 0;
+  padding: 1px 2px;
   border-radius: 4px;
 }
 
@@ -1161,14 +1162,25 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 6px;
+  padding: 5px 8px;
   border: none;
   background: transparent;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.lp-doc-nodes-block__node .lp-node-type-icon--compact {
+  width: 13px;
+  min-width: 13px;
+  height: 13px;
+}
+
+.lp-doc-nodes-block__node .lp-node-type-icon--compact .lp-node-type-icon-img {
+  width: 13px;
+  height: 13px;
 }
 
 .lp-doc-nodes-block__node-title {
@@ -1179,15 +1191,87 @@
   white-space: nowrap;
   font-size: 11px;
   font-weight: 500;
+  line-height: 1.35;
   color: var(--text);
 }
 
 .lp-doc-nodes-block__node-actions {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0;
   flex-shrink: 0;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    max-width 0.16s ease,
+    opacity 0.12s ease,
+    gap 0.12s ease;
+}
+
+.lp-doc-nodes-block__node:hover .lp-doc-nodes-block__node-actions,
+.lp-doc-nodes-block__node:focus-within .lp-doc-nodes-block__node-actions {
+  max-width: 52px;
+  opacity: 1;
+  gap: 1px;
   padding-right: 4px;
+  pointer-events: auto;
+}
+
+.lp-node-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mute);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.lp-node-row-action__icon {
+  display: block;
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  opacity: 0.88;
+}
+
+.lp-node-row-action--delete {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.lp-node-row-action--delete:hover {
+  color: var(--danger, #e55);
+  background: color-mix(in oklab, var(--danger, #e55) 10%, transparent);
+}
+
+.lp-node-row-action--insert:hover {
+  color: var(--text-2);
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+.lp-node-row-action--insert:hover .lp-node-row-action__icon {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .lp-doc-nodes-block__node-actions {
+    max-width: 52px;
+    opacity: 1;
+    gap: 1px;
+    padding-right: 4px;
+    pointer-events: auto;
+  }
 }
 
 .lp-footer {

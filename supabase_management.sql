@@ -63,4 +63,58 @@ ON CONFLICT (id) DO UPDATE SET
   notes = EXCLUDED.notes,
   updated_at = timezone('utc'::text, now());
 
+-- Admin allowlist: lets /panel list all users without service role (via RPC + admin JWT).
+CREATE TABLE IF NOT EXISTS public.admin_allowlist (
+  email TEXT PRIMARY KEY
+);
+
+CREATE OR REPLACE FUNCTION public.admin_list_users_overview()
+RETURNS TABLE (
+  user_id UUID,
+  email TEXT,
+  plan VARCHAR,
+  search_count INT,
+  tokens_balance INT,
+  tokens_period_start TIMESTAMPTZ,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  jwt_email TEXT := lower(trim(coalesce(auth.jwt() ->> 'email', '')));
+BEGIN
+  IF jwt_email = '' THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.admin_allowlist a WHERE lower(a.email) = jwt_email
+  ) THEN
+    RAISE EXCEPTION 'Admin allowlist only — INSERT your email into admin_allowlist';
+  END IF;
+  RETURN QUERY
+  SELECT
+    p.user_id,
+    u.email::TEXT,
+    p.plan,
+    p.search_count,
+    p.tokens_balance,
+    p.tokens_period_start,
+    p.created_at,
+    p.updated_at
+  FROM public.profiles p
+  LEFT JOIN auth.users u ON u.id = p.user_id
+  ORDER BY p.created_at DESC;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_list_users_overview() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_list_users_overview() TO authenticated;
+GRANT SELECT ON public.admin_allowlist TO authenticated;
+
+-- Replace with your admin email (must match VITE_ADMIN_EMAIL):
+-- INSERT INTO public.admin_allowlist (email) VALUES ('admin@example.com') ON CONFLICT DO NOTHING;
+
 NOTIFY pgrst, 'reload schema';

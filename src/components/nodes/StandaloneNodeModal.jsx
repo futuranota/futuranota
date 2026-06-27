@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import { listAdoptableDocs, resolveNodeParentDocId } from "../../lib/nodeParentAdoption.js";
 import { anchorFieldsFromIso, isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import {
   dateInputFromIso,
@@ -97,6 +98,7 @@ function parseContentForSave(text, dataType) {
 export function StandaloneNodeModal({
   node = null,
   docs,
+  parentObjectId = null,
   defaultParentDocId = "",
   queryCanvasNodeId = null,
   onClose,
@@ -111,10 +113,15 @@ export function StandaloneNodeModal({
   const removeNodeFromDoc = useDocsStore((s) => s.removeNodeFromDoc);
 
   const isNew = !node;
+  const docList = listAdoptableDocs(docs, { parentObjectId });
   const [query, setQuery] = useState(() => getNodeDisplayTitle(node) || "");
   const [dataType, setDataType] = useState(node?.dataType || NODE_DATA_TYPES.TEXT);
   const [content, setContent] = useState(() => contentToString(node?.content, node?.dataType));
-  const [parentDocId, setParentDocId] = useState(node?.parentDocId || defaultParentDocId || "");
+  const docsById = Object.fromEntries(docList.map((d) => [d.id, d]));
+  const [parentDocId, setParentDocId] = useState(() =>
+    resolveNodeParentDocId(node, null, docsById, { parentObjectId })
+    || (defaultParentDocId && docsById[defaultParentDocId] ? defaultParentDocId : ""),
+  );
   const [createdDate, setCreatedDate] = useState(() =>
     dateInputFromIso(node?.createdAt),
   );
@@ -176,8 +183,6 @@ export function StandaloneNodeModal({
     onClose?.();
   };
 
-  const docList = Array.isArray(docs) ? docs : Object.values(docs || {});
-
   return (
     <NodeQueryModal
       query={query}
@@ -195,8 +200,9 @@ export function StandaloneNodeModal({
       createdDate={createdDate || todayDateInputValue()}
       onCreatedDateChange={setCreatedDate}
       parentDocId={parentDocId}
-      onParentDocIdChange={setParentDocId}
+      onParentDocIdChange={queryCanvasNodeId ? undefined : setParentDocId}
       docs={docList}
+      parentObjectId={parentObjectId}
       anchorDate={anchorDate}
       anchorTime={anchorTime}
       onAnchorDateChange={setAnchorDate}

@@ -14,6 +14,12 @@ import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { CalendarEventNodeView } from "../intel/CalendarEventNodeView.jsx";
+import {
+  listAdoptableDocs,
+  resolveAdoptableDocLabel,
+  resolveNodeParentDocId,
+} from "../../lib/nodeParentAdoption.js";
+import { useI18n } from "../../i18n/useI18n.js";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "metric", "checkbox"];
 
@@ -35,23 +41,33 @@ export function NodeQueryModal({
   parentDocId = "",
   onParentDocIdChange,
   docs = [],
+  parentObjectId = null,
   onClose,
   onSave,
   onBackToDocument,
   onSendToIntelSearch,
-  onInsertToCanvas,
+  onInsertToCanvas: _onInsertToCanvas,
   intelSearchMeta = null,
   anchorDate = "",
   anchorTime = "",
   onAnchorDateChange,
   onAnchorTimeChange,
 }) {
+  const { t } = useI18n();
   const bodyRef = useRef(null);
   const queryInputRef = useRef(null);
   const displayQuery = (query || "").trim() || "Untitled";
   const queryEditable = Boolean(onQueryChange);
   const typeEditable = Boolean(onDataTypeChange);
   const parentSelectable = Boolean(onParentDocIdChange);
+  const adoptableDocs = listAdoptableDocs(docs, { parentObjectId });
+  const adoptableDocsById = Object.fromEntries(adoptableDocs.map((d) => [d.id, d]));
+  const resolvedParentDocId = resolveNodeParentDocId(
+    parentDocId ? { parentDocId } : null,
+    null,
+    adoptableDocsById,
+    { parentObjectId },
+  );
   const dateEditable = Boolean(onCreatedDateChange);
   const handleDismiss = onBackToDocument || onClose;
   const showCloseButton = Boolean(handleDismiss);
@@ -162,14 +178,14 @@ export function NodeQueryModal({
             {parentSelectable ? (
               <select
                 className="node-query-modal__parent-select"
-                value={parentDocId || ""}
+                value={resolvedParentDocId}
                 onChange={(e) => onParentDocIdChange(e.target.value || null)}
-                aria-label="Assign to document"
+                aria-label={t("canvas.parentDocLabel")}
               >
-                <option value="">node</option>
-                {docs.map((d) => (
+                <option value="">{t("canvas.noParentDoc")}</option>
+                {adoptableDocs.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.title}
+                    {resolveAdoptableDocLabel(d)}
                   </option>
                 ))}
               </select>
@@ -343,16 +359,6 @@ export function NodeQueryModal({
             >
               <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
               <span className="node-query-modal__save-text">save</span>
-            </button>
-          ) : null}
-          {onInsertToCanvas ? (
-            <button
-              type="button"
-              className="node-query-modal__action node-query-modal__action--canvas"
-              onClick={onInsertToCanvas}
-              title="Place this node on the canvas"
-            >
-              Canvas
             </button>
           ) : null}
           <IntelSearchButton
