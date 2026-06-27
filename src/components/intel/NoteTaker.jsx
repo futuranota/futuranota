@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 
 const NOTE_PANEL_ICON = "/uploads/botones/PencilCircle.svg";
+const AUTO_SAVE_MS = 700;
 
 function initialNotes(node) {
   if (!node) return "";
@@ -12,7 +13,7 @@ function initialNotes(node) {
   return "";
 }
 
-export function NoteTaker({ searchQuery = "", nodeId = null }) {
+export function NoteTaker({ searchQuery = "", nodeId = null, onClose }) {
   const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] : null));
   const updateNode = useNodesStore((s) => s.updateNode);
   const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
@@ -20,15 +21,68 @@ export function NoteTaker({ searchQuery = "", nodeId = null }) {
 
   const [notes, setNotes] = useState(() => initialNotes(node));
   const [saving, setSaving] = useState(false);
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
 
   useEffect(() => {
     setNotes(initialNotes(node));
-  }, [nodeId]);
+  }, [nodeId, node?.id, node?.content, node?.dataType]);
 
   const label = (searchQuery || node?.sourceQuery || node?.title || "Untitled").trim();
   const canSave = Boolean(nodeId && node);
   const hasNotes = notes.trim().length > 0;
   const saveEnabled = hasNotes && !saving;
+
+  const persistNotes = useCallback(
+    async (text, { silent = false, closeAfter = false } = {}) => {
+      const trimmed = text.trim();
+      if (!trimmed) return false;
+
+      const liveNode = nodeId ? useNodesStore.getState().nodes[nodeId] : null;
+      if (!nodeId || !liveNode) {
+        if (!silent) showToast("Run search from a node to save notes", "info");
+        return false;
+      }
+
+      setSaving(true);
+      try {
+        updateNode(nodeId, { content: trimmed });
+        if (liveNode.parentDocId) {
+          syncNodeToParentDoc(nodeId, liveNode.parentDocId);
+        }
+        if (!silent) showToast("Saved to node", "success");
+        if (closeAfter) onClose?.();
+        return true;
+      } catch {
+        if (!silent) showToast("Could not save notes", "error");
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [nodeId, updateNode, syncNodeToParentDoc, showToast, onClose],
+  );
+
+  useEffect(() => {
+    if (!canSave || !notes.trim()) return undefined;
+    const timer = window.setTimeout(() => {
+      persistNotes(notes, { silent: true });
+    }, AUTO_SAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [notes, canSave, persistNotes]);
+
+  useEffect(() => {
+    return () => {
+      const trimmed = notesRef.current.trim();
+      if (!nodeId || !trimmed) return;
+      const liveNode = useNodesStore.getState().nodes[nodeId];
+      if (!liveNode) return;
+      useNodesStore.getState().updateNode(nodeId, { content: trimmed });
+      if (liveNode.parentDocId) {
+        useNodesStore.getState().syncNodeToParentDoc(nodeId, liveNode.parentDocId);
+      }
+    };
+  }, [nodeId]);
 
   const keepTextareaFocus = (e) => {
     if (
@@ -39,24 +93,9 @@ export function NoteTaker({ searchQuery = "", nodeId = null }) {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!saveEnabled) return;
-    if (!canSave) {
-      showToast("Run search from a node to save notes", "info");
-      return;
-    }
-    setSaving(true);
-    try {
-      updateNode(nodeId, { content: notes.trim() });
-      if (node.parentDocId) {
-        syncNodeToParentDoc(nodeId, node.parentDocId);
-      }
-      showToast("Saved to node", "success");
-    } catch {
-      showToast("Could not save notes", "error");
-    } finally {
-      setSaving(false);
-    }
+    persistNotes(notes, { closeAfter: true });
   };
 
   return (
