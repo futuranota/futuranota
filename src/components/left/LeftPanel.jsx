@@ -340,7 +340,7 @@ function getNodeDisplayTitle(node) {
   return (node.sourceQuery || node.title || "Untitled query").trim() || "Untitled query";
 }
 
-function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
+function NodeCompactRow({ node, onClick, onInsert, onDelete, onExpand }) {
   const { t } = useI18n();
   const icon = DATA_TYPE_ICONS[node.dataType] || "◯";
   const iconAsset = DATA_TYPE_ICON_ASSETS[node.dataType] || null;
@@ -364,6 +364,18 @@ function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
         <span className="lp-doc-nodes-block__node-title">{displayTitle}</span>
       </button>
       <div className="lp-doc-nodes-block__node-actions">
+        <button
+          type="button"
+          className="lp-node-row-action lp-node-row-action--expand"
+          title={t("canvas.expandNode")}
+          aria-label={t("canvas.expandNode")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onExpand?.();
+          }}
+        >
+          ↗
+        </button>
         <button
           type="button"
           className="lp-node-row-action lp-node-row-action--delete icon-del-btn"
@@ -406,6 +418,7 @@ function DocNodesBlockCard({
   onNodeClick,
   onNodeInsert,
   onNodeDelete,
+  onNodeExpand,
   defaultExpanded = true,
   orphan = false,
 }) {
@@ -476,6 +489,7 @@ function DocNodesBlockCard({
               onClick={() => onNodeClick?.(node)}
               onInsert={() => onNodeInsert?.(node)}
               onDelete={() => onNodeDelete?.(node)}
+              onExpand={() => onNodeExpand?.(node)}
             />
           ))}
         </div>
@@ -949,6 +963,7 @@ function TimelineDocQueue({
 export function LeftPanel({
   onInsertToCanvas,
   onOpenDocument,
+  onExpandNode,
   onDocumentDeleted,
   timelineCanvasSelection = [],
   canvasNodesForQueue = [],
@@ -1605,6 +1620,7 @@ export function LeftPanel({
                   }}
                   onNodeInsert={(node) => onInsertToCanvas?.(node)}
                   onNodeDelete={(node) => deleteNode(node.id)}
+                  onNodeExpand={(node) => onExpandNode?.(node.id)}
                 />
               ))}
               {groupedNodeViews.orphans.length ? (
@@ -1619,6 +1635,7 @@ export function LeftPanel({
                   }}
                   onNodeInsert={(node) => onInsertToCanvas?.(node)}
                   onNodeDelete={(node) => deleteNode(node.id)}
+                  onNodeExpand={(node) => onExpandNode?.(node.id)}
                 />
               ) : null}
             </div>

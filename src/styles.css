@@ -5677,6 +5677,21 @@ textarea.note-form-field {
   min-height: 0;
 }
 
+.node-overlay-global-card {
+  width: min(537px, calc(100vw - 48px));
+  padding: 18px 12px 14px;
+}
+
+.node-overlay-global-card .lp-modal.node-query-modal {
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
 .doc-overlay-global-card:has(.doc-new-inner--content-focus) {
   display: flex;
   flex-direction: column;

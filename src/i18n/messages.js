@@ -42,6 +42,8 @@ export const messages = {
       linkOrphanNode: "Link orphan node",
       linkOrphanPlaceholder: "Select node to integrate…",
       expandNode: "Expand node",
+      returnToDocument: "return",
+      expandNodeShort: "expand",
     },
     topbar: {
       back: "Back",
@@ -339,6 +341,8 @@ export const messages = {
       linkOrphanNode: "Vincular nodo suelto",
       linkOrphanPlaceholder: "Elegir nodo para integrar…",
       expandNode: "Ampliar nodo",
+      returnToDocument: "return",
+      expandNodeShort: "expand",
     },
     topbar: {
       back: "Volver",

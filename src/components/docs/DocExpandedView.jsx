@@ -170,6 +170,7 @@ export function DocExpandedView({
   docId,
   onClose,
   onInsertToCanvas,
+  onExpandNode,
   onNavigateToDoc,
   onDocumentDeleted,
   onAfterDocSave,
@@ -213,6 +214,7 @@ export function DocExpandedView({
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
   const [pendingNavigateDocId, setPendingNavigateDocId] = useState(null);
   const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
+  const [nodeEditorExpanded, setNodeEditorExpanded] = useState(false);
   const nodeAutosaveTimerRef = useRef(null);
   const objects = useObjectsStore((s) => s.objects);
   const allDocs = useDocsStore((s) => s.docs);
@@ -547,6 +549,7 @@ export function DocExpandedView({
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
     setNodeInitialSnapshot(null);
+    setNodeEditorExpanded(false);
   };
 
   const normalizeNodeContent = (value) => {
@@ -1015,6 +1018,19 @@ export function DocExpandedView({
     setNodeInitialSnapshot(null);
   };
 
+  const handleExpandActiveNode = () => {
+    if (!activeNodeContext) return;
+    if (nodeAutosaveTimerRef.current) {
+      clearTimeout(nodeAutosaveTimerRef.current);
+      nodeAutosaveTimerRef.current = null;
+    }
+    const { blockIndex } = activeNodeContext;
+    const block = draftBlocks[blockIndex];
+    if (!block) return;
+    ensureBlockNode(blockIndex, block, nodeDraftContent);
+    setNodeEditorExpanded(true);
+  };
+
   const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
     const incomingBytes = normalizeKnowledgeImport(nextImport)?.sizeBytes || 0;
     const maxBytes = getPlanLimits(planProfile.plan).maxImportBytes;
@@ -1137,6 +1153,8 @@ export function DocExpandedView({
           parentDocLabel={parentDocLabel}
           onSave={handleNodeModalSave}
           onBackToDocument={handleRequestCloseNodeModal}
+          onExpand={handleExpandActiveNode}
+          expanded={nodeEditorExpanded}
           anchorDate={nodeDraftAnchorDate}
           anchorTime={nodeDraftAnchorTime}
           onAnchorDateChange={handleNodeAnchorDateChange}

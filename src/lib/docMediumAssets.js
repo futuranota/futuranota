@@ -11,3 +11,4 @@ export const NODE_ICON = `${MEDIUM_ASSETS}/node-icon.svg`;
 export const NODE_LOCK_ICON = `${MEDIUM_ASSETS}/node-lock.svg`;
 export const NODE_SEARCH_ICON = `${MEDIUM_ASSETS}/node-search.svg`;
 export const NODE_SAVE_ARCHIVE_ICON = `${MEDIUM_ASSETS}/doc-save-archive.svg`;
+export const ARROWS_OUT_ICON = "/arrowsout.svg";

@@ -101,6 +101,8 @@ export function StandaloneNodeModal({
   parentObjectId = null,
   defaultParentDocId = "",
   queryCanvasNodeId = null,
+  embedded = false,
+  defaultExpanded = false,
   onClose,
   onSaved,
   onDeleted,
@@ -128,6 +130,7 @@ export function StandaloneNodeModal({
   const initialAnchor = anchorFieldsFromIso(node?.anchorAt);
   const [anchorDate, setAnchorDate] = useState(initialAnchor.anchorDate);
   const [anchorTime, setAnchorTime] = useState(initialAnchor.anchorTime);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   const handleDataTypeChange = (nextType) => {
     setDataType(nextType);
@@ -207,8 +210,11 @@ export function StandaloneNodeModal({
       anchorTime={anchorTime}
       onAnchorDateChange={setAnchorDate}
       onAnchorTimeChange={setAnchorTime}
+      expanded={expanded}
+      onExpand={() => setExpanded(true)}
       onSave={handleSave}
       onClose={onClose}
+      embedded={embedded}
       intelSearchMeta={
         node?.id
           ? {

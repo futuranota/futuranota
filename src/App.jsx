@@ -682,6 +682,12 @@ useEffect(() => {
     setDocOpenFocusBlockId(options.focusBlockId ?? null);
   };
 
+  const openNodeOverlay = useCallback((nodeId) => {
+    if (!nodeId || !nodeEntities[nodeId]) return;
+    setExpandedDocId(null);
+    setExpandedNodeId(nodeId);
+  }, [nodeEntities]);
+
   const patchCanvasNode = useCallback((canvasNodeId, patch) => {
     setCanvasNodes((all) => all.map((n) => (
       n.id === canvasNodeId ? { ...n, ...patch } : n
@@ -770,6 +776,7 @@ useEffect(() => {
           <LeftPanel
             onInsertToCanvas={insertNodeToCanvas}
             onOpenDocument={openDocumentOverlay}
+            onExpandNode={openNodeOverlay}
             onDocumentDeleted={handleDocumentDeleted}
             timelineCanvasSelection={selection}
             canvasNodesForQueue={canvasNodes}
@@ -868,6 +875,7 @@ useEffect(() => {
               key={expandedDocId}
               docId={expandedDocId}
               initialFocusBlockId={docOpenFocusBlockId}
+              onExpandNode={openNodeOverlay}
               onClose={() => {
                 setExpandedDocId(null);
                 setDocOpenFocusBlockId(null);
@@ -882,6 +890,7 @@ useEffect(() => {
       )}
       {expandedNodeId && nodeEntities[expandedNodeId] ? (
         <StandaloneNodeModal
+          defaultExpanded
           node={nodeEntities[expandedNodeId]}
           docs={Object.values(docs)}
           parentObjectId={filterObjectId || selectedObjectId || null}

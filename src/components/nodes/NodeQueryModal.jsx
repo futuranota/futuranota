@@ -1,13 +1,12 @@
 import { useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
-  DOC_TIMER_ICON,
   NODE_ICON,
   NODE_SAVE_ARCHIVE_ICON,
+  ARROWS_OUT_ICON,
 } from "../../lib/docMediumAssets.js";
 import { IntelSearchButton } from "../shared/IntelSearchButton.jsx";
 import { runIntelSearch } from "../../lib/intelSearch.js";
-import { DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
@@ -45,6 +44,8 @@ export function NodeQueryModal({
   onClose,
   onSave,
   onBackToDocument,
+  onExpand,
+  expanded = false,
   onSendToIntelSearch,
   onInsertToCanvas: _onInsertToCanvas,
   intelSearchMeta = null,
@@ -52,13 +53,13 @@ export function NodeQueryModal({
   anchorTime = "",
   onAnchorDateChange,
   onAnchorTimeChange,
+  embedded = false,
 }) {
   const { t } = useI18n();
   const bodyRef = useRef(null);
   const queryInputRef = useRef(null);
   const displayQuery = (query || "").trim() || "Untitled";
   const queryEditable = Boolean(onQueryChange);
-  const typeEditable = Boolean(onDataTypeChange);
   const parentSelectable = Boolean(onParentDocIdChange);
   const adoptableDocs = listAdoptableDocs(docs, { parentObjectId });
   const adoptableDocsById = Object.fromEntries(adoptableDocs.map((d) => [d.id, d]));
@@ -70,7 +71,9 @@ export function NodeQueryModal({
   );
   const dateEditable = Boolean(onCreatedDateChange);
   const handleDismiss = onBackToDocument || onClose;
-  const showCloseButton = Boolean(handleDismiss);
+  const showCloseButton = Boolean(onClose && !onBackToDocument);
+  const showReturnLink = Boolean(onBackToDocument);
+  const showExpandButton = Boolean(onExpand && !expanded);
   const setActiveNodeQueryDraft = useUIStateStore((s) => s.setActiveNodeQueryDraft);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
   const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
@@ -156,13 +159,12 @@ export function NodeQueryModal({
     onClose?.();
   };
 
-  const modal = (
-    <div
-      className="node-query-overlay lp-overlay--solid lp-overlay--center"
-      role="presentation"
-    >
+  const modalCard = (
       <div
-        className="lp-modal node-query-modal"
+        className={
+          "lp-modal node-query-modal"
+          + (expanded ? " node-query-modal--expanded" : "")
+        }
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="node-query-modal-title"
@@ -171,7 +173,7 @@ export function NodeQueryModal({
           <div
             className={
               "node-query-modal__head-top"
-              + (showCloseButton ? " node-query-modal__head-top--closable" : "")
+              + ((showCloseButton || showReturnLink || showExpandButton) ? " node-query-modal__head-top--closable" : "")
             }
           >
             <img className="node-query-modal__node-icon" src={NODE_ICON} alt="" aria-hidden />
@@ -190,29 +192,45 @@ export function NodeQueryModal({
                 ))}
               </select>
             ) : (
-              <>
-                <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
-                {onBackToDocument ? (
-                  <button
-                    type="button"
-                    className="node-query-modal__back-link"
-                    onClick={onBackToDocument}
-                  >
-                    ← return
-                  </button>
-                ) : null}
-              </>
+              <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
             )}
-            {showCloseButton ? (
-              <button
-                type="button"
-                className="doc-new-head-expand-btn node-query-modal__close"
-                onClick={handleDismiss}
-                aria-label="Close"
-              >
-                <span className="doc-new-head-close-x" aria-hidden>×</span>
-              </button>
-            ) : null}
+            <div className="node-query-modal__head-actions">
+              {showReturnLink ? (
+                <button
+                  type="button"
+                  className="node-query-modal__back-link"
+                  onClick={onBackToDocument}
+                >
+                  {t("canvas.returnToDocument")}
+                </button>
+              ) : null}
+              {showExpandButton ? (
+                <button
+                  type="button"
+                  className="node-query-modal__expand-btn"
+                  onClick={onExpand}
+                  title={t("canvas.expandNode")}
+                  aria-label={t("canvas.expandNode")}
+                >
+                  <img
+                    className="node-query-modal__expand-btn-icon"
+                    src={ARROWS_OUT_ICON}
+                    alt=""
+                    aria-hidden
+                  />
+                </button>
+              ) : null}
+              {showCloseButton ? (
+                <button
+                  type="button"
+                  className="doc-new-head-expand-btn node-query-modal__close"
+                  onClick={handleDismiss}
+                  aria-label="Close"
+                >
+                  <span className="doc-new-head-close-x" aria-hidden>×</span>
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {queryEditable ? (
@@ -237,40 +255,17 @@ export function NodeQueryModal({
             </h2>
           )}
 
-          <div className="node-query-modal__meta">
-            <div className="node-query-modal__row">
-              <img className="node-query-modal__meta-icon" src={NODE_ICON} alt="" aria-hidden />
-              <span className="node-query-modal__key">Type:</span>
-              {typeEditable ? (
-                <select
-                  className="node-query-modal__type-select"
-                  value={dataType}
-                  onChange={(e) => onDataTypeChange(e.target.value)}
-                  aria-label="Data type"
-                >
-                  {dataTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {DATA_TYPE_LABELS[t] || t}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="node-query-modal__val">{DATA_TYPE_LABELS[dataType] || dataType}</span>
-              )}
-            </div>
-            <div className="node-query-modal__row">
-              <img className="node-query-modal__meta-icon" src={DOC_TIMER_ICON} alt="" aria-hidden />
-              <span className="node-query-modal__key">Created:</span>
-              <input
-                type="date"
-                className="node-query-modal__date"
-                value={createdDate}
-                readOnly={!dateEditable}
-                tabIndex={dateEditable ? 0 : -1}
-                aria-readonly={!dateEditable}
-                onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
-              />
-            </div>
+          <div className="node-query-modal__created-row">
+            <span className="node-query-modal__key">Created:</span>
+            <input
+              type="date"
+              className="node-query-modal__date"
+              value={createdDate}
+              readOnly={!dateEditable}
+              tabIndex={dateEditable ? 0 : -1}
+              aria-readonly={!dateEditable}
+              onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
+            />
           </div>
         </header>
 
@@ -340,37 +335,55 @@ export function NodeQueryModal({
           )}
         </div>
 
-        {showScheduleAnchor ? (
-          <BlockAnchorFields
-            className="node-query-modal__schedule"
-            anchorDate={anchorDate}
-            anchorTime={anchorTime}
-            onAnchorDateChange={onAnchorDateChange}
-            onAnchorTimeChange={onAnchorTimeChange}
-          />
-        ) : null}
-
-        <footer className="node-query-modal__actions">
-          {onSave && !onBackToDocument ? (
-            <button
-              type="button"
-              className="node-query-modal__action node-query-modal__action--save"
-              onClick={onSave}
-            >
-              <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
-              <span className="node-query-modal__save-text">save</span>
-            </button>
-          ) : null}
-          <IntelSearchButton
-            variant="modal"
-            loading={intelSearchStatus === "loading"}
-            onClick={handleSearchClick}
-            title="Send query to Intel search and close"
-          />
+        <footer className="node-query-modal__footer-row">
+          <div className="node-query-modal__footer-start">
+            {onSave && !onBackToDocument ? (
+              <button
+                type="button"
+                className="node-query-modal__action node-query-modal__action--save"
+                onClick={onSave}
+              >
+                <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
+                <span className="node-query-modal__save-text">save</span>
+              </button>
+            ) : null}
+            {showScheduleAnchor ? (
+              <BlockAnchorFields
+                className="node-query-modal__schedule"
+                anchorDate={anchorDate}
+                anchorTime={anchorTime}
+                onAnchorDateChange={onAnchorDateChange}
+                onAnchorTimeChange={onAnchorTimeChange}
+              />
+            ) : null}
+          </div>
+          <div className="node-query-modal__footer-search">
+            <IntelSearchButton
+              variant="modal"
+              loading={intelSearchStatus === "loading"}
+              onClick={handleSearchClick}
+              title="Send query to Intel search and close"
+            />
+          </div>
         </footer>
       </div>
-    </div>
   );
 
-  return createPortal(modal, document.body);
+  if (embedded) {
+    return modalCard;
+  }
+
+  const overlayClass = [
+    "node-query-overlay",
+    "lp-overlay--solid",
+    "lp-overlay--center",
+    expanded ? "node-query-overlay--expanded" : "",
+  ].filter(Boolean).join(" ");
+
+  return createPortal(
+    <div className={overlayClass} role="presentation">
+      {modalCard}
+    </div>,
+    document.body,
+  );
 }
