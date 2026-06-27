@@ -1,8 +1,10 @@
+import { useRef } from "react";
 import { SlashAwareTextarea } from "./SlashAwareTextarea.jsx";
 import { EmbeddedCalendarBlockView } from "./EmbeddedCalendarBlockView.jsx";
 import { LinkedNodeDocActions } from "./LinkedNodeDocActions.jsx";
 import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
 import { getCalendarEventDisplayModel } from "../../../lib/calendarEventDisplay.js";
+import { splitBodyForSlash } from "../../../lib/docBlockSlash.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 
 export function TextBlockView({
@@ -21,11 +23,47 @@ export function TextBlockView({
   onEditEmbedded = null,
   onDetachFromNode = null,
   detachFromNodeLabel,
+  wrapClassName = "",
+  continuationValue = null,
+  onContinuationChange = null,
+  onContinuationKeyDown = null,
+  onContinuationFocus = null,
+  continuationPlaceholder = "",
+  continuationAutoFocus = false,
 }) {
   const { t } = useI18n();
+  const continuationRef = useRef(null);
+  const hasInlineContinuation = onContinuationChange != null;
+
   const legacyCalendarModel = !embedded?.displayModel && isCalendarEventNodeContent(value)
     ? getCalendarEventDisplayModel(value)
     : null;
+
+  const focusContinuation = () => {
+    const el = continuationRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    if ("setSelectionRange" in el) {
+      const pos = el.value.length;
+      el.setSelectionRange(pos, pos);
+    }
+  };
+
+  const handleAnswerKeyDown = (e) => {
+    if (hasInlineContinuation && e.key === "Enter" && !e.shiftKey) {
+      const el = e.currentTarget;
+      const caretStart = el.selectionStart ?? 0;
+      const caretEnd = el.selectionEnd ?? caretStart;
+      const atEnd = caretStart === el.value.length && caretEnd === el.value.length;
+      const { slash } = splitBodyForSlash(el.value ?? "");
+      if (atEnd && !slash) {
+        e.preventDefault();
+        focusContinuation();
+        return;
+      }
+    }
+    onKeyDown?.(e);
+  };
 
   if (embedded?.kind === "calendar-event" && embedded.displayModel) {
     return (
@@ -57,19 +95,26 @@ export function TextBlockView({
     );
   }
 
+  const rootClass = [
+    "doc-text-block",
+    hasInlineContinuation ? "doc-text-block--linked-bundle" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="doc-text-block">
+    <div className={rootClass}>
       <SlashAwareTextarea
         value={value}
         onChange={onChange}
-        onKeyDown={onKeyDown}
+        onKeyDown={handleAnswerKeyDown}
         onFocus={onFocus}
         onAfterInput={onAfterInput}
         placeholder={placeholder}
         showPlaceholder={showPlaceholder}
         autoFocus={autoFocus}
-        wrapClassName="doc-text-block__wrap"
-        className="doc-text-block__field"
+        wrapClassName={`doc-text-block__wrap${wrapClassName ? ` ${wrapClassName}` : ""}`.trim()}
+        className="doc-text-block__field doc-text-block__field--node-answer"
         minHeightPx={28}
         maxHeightPx={maxHeightPx}
       />
@@ -77,6 +122,22 @@ export function TextBlockView({
         <LinkedNodeDocActions
           onDetach={onDetachFromNode}
           label={detachFromNodeLabel || t("canvas.removeFromNode")}
+        />
+      ) : null}
+      {hasInlineContinuation ? (
+        <SlashAwareTextarea
+          inputRef={continuationRef}
+          value={continuationValue ?? ""}
+          onChange={onContinuationChange}
+          onKeyDown={onContinuationKeyDown}
+          onFocus={onContinuationFocus}
+          placeholder={continuationPlaceholder}
+          showPlaceholder
+          autoFocus={continuationAutoFocus}
+          wrapClassName="doc-text-block__wrap doc-text-block__wrap--continuation"
+          className="doc-text-block__field doc-text-block__field--continuation"
+          minHeightPx={28}
+          maxHeightPx={maxHeightPx}
         />
       ) : null}
     </div>

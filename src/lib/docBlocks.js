@@ -14,7 +14,7 @@ const DOC_BLOCK_TYPES = {
   VIDEO_EMBED: "video_embed",
 };
 
-const DEFAULT_CHECKBOX_LIST_TITLE = "Checkbox:";
+const DEFAULT_CHECKBOX_LIST_TITLE = "Todo list:";
 
 export function createTodoItem(patch = {}) {
   return {

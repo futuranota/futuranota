@@ -2,9 +2,11 @@ import {
   createDocBlock,
   createTodoItem,
   DOC_BLOCK_TYPES,
+  ensureEmptyTextBlockAfter,
   getVideoEmbedBlockAfterH1,
   h1HasVideoEmbedSibling,
   insertBlockAfter,
+  isEmptyTextBlock,
   normalizeDocBlock,
   normalizeDocBlocks,
   updateBlockAt,
@@ -418,6 +420,60 @@ export function getLinkedOwnerIndexForTextBlock(blocks, textBlockIndex) {
   if (!isDocBlockLinkedToNode(h1)) return -1;
   const owned = getOwnedTextBlockIndices(normalized, h1Index);
   return owned[0] === textBlockIndex ? h1Index : -1;
+}
+
+/** Empty TEXT slot directly after a linked H1/Todo answer — for continued writing / new blocks. */
+export function ensureContinuationAfterLinkedOwner(blocks, ownerIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  const owner = normalized[ownerIndex];
+  if (!owner || !isDocBlockLinkedToNode(owner)) return normalized;
+  if (owner.type !== DOC_BLOCK_TYPES.H1 && owner.type !== DOC_BLOCK_TYPES.TODO) {
+    return normalized;
+  }
+
+  const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
+  const insertAfterIndex = owned.length > 0 ? owned[owned.length - 1] : ownerIndex;
+  return ensureEmptyTextBlockAfter(normalized, insertAfterIndex);
+}
+
+/** True when this TEXT block holds the node-linked answer (syncs to node). */
+export function isPrimaryAnswerTextForLinkedOwner(blocks, textBlockIndex) {
+  return getLinkedOwnerIndexForTextBlock(blocks, textBlockIndex) >= 0;
+}
+
+/** True when this empty TEXT block is the writable tail below a linked owner. */
+export function isLinkedOwnerContinuationSlot(blocks, textBlockIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[textBlockIndex];
+  if (!block || block.type !== DOC_BLOCK_TYPES.TEXT || !isEmptyTextBlock(block)) return false;
+
+  for (let ownerIndex = 0; ownerIndex < normalized.length; ownerIndex++) {
+    const owner = normalized[ownerIndex];
+    if (
+      (owner.type !== DOC_BLOCK_TYPES.H1 && owner.type !== DOC_BLOCK_TYPES.TODO)
+      || !isDocBlockLinkedToNode(owner)
+    ) {
+      continue;
+    }
+    const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
+    const tailIndex = owned.length > 0 ? owned[owned.length - 1] + 1 : ownerIndex + 1;
+    if (tailIndex === textBlockIndex) return true;
+  }
+  return false;
+}
+
+/** TEXT index of the writable tail below a linked owner, or -1. */
+export function getLinkedContinuationTextIndex(blocks, ownerIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  const owner = normalized[ownerIndex];
+  if (!owner || !isDocBlockLinkedToNode(owner)) return -1;
+  if (owner.type !== DOC_BLOCK_TYPES.H1 && owner.type !== DOC_BLOCK_TYPES.TODO) {
+    return -1;
+  }
+
+  const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
+  const tailIndex = owned.length > 0 ? owned[owned.length - 1] + 1 : ownerIndex + 1;
+  return isLinkedOwnerContinuationSlot(normalized, tailIndex) ? tailIndex : -1;
 }
 
 const UNLINK_BLOCK_PATCH = {

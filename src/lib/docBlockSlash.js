@@ -18,12 +18,12 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Checkbox",
-    ghostHint: "checkbox",
-    aliases: ["checkbox", "todo", "to-do"],
+    label: "Todo list",
+    ghostHint: "todo",
+    aliases: ["todo", "todolist", "todo-list", "checkbox", "to-do"],
     blockType: DOC_BLOCK_TYPES.TODO,
     nodeDataType: NODE_DATA_TYPES.CHECKBOX,
-    defaultListTitle: "Checkbox:",
+    defaultListTitle: "Todo list:",
   },
   {
     label: "Date",

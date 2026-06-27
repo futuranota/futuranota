@@ -35,6 +35,7 @@ export const messages = {
       adoptSuccess: "Linked \"{orphan}\" to \"{doc}\"",
       removeFromDoc: "Remove from document",
       removeFromNode: "Remove from node",
+      linkedContinuationPlaceholder: "Next line: keep writing or type /title for another query",
       editAsText: "Edit as text",
     },
     topbar: {
@@ -320,6 +321,7 @@ export const messages = {
       adoptSuccess: "Vinculado \"{orphan}\" a \"{doc}\"",
       removeFromDoc: "Eliminar del documento",
       removeFromNode: "Eliminar del nodo",
+      linkedContinuationPlaceholder: "Siguiente línea: sigue escribiendo o /title para otra query",
       editAsText: "Editar como texto",
     },
     topbar: {

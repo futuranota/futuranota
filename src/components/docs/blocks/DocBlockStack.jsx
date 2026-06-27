@@ -32,14 +32,14 @@ import {
   parseSlashQuery,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
-import { getH1IndexForTextBlock, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, isDocBlockLinkedToNode } from "../../../lib/docNodeSync.js";
+import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner } from "../../../lib/docNodeSync.js";
 import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
-import { TodoBlockView } from "./TodoBlockView.jsx";
+import { DocTodoPlanBlockView } from "./DocTodoPlanBlockView.jsx";
 import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
@@ -97,6 +97,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   onVideoEmbedSync,
   onVideoEmbedH1TitleChange,
   onDetachFromNode,
+  continuationPlaceholder = "Keep writing, or type / for a new block",
 }, ref) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
@@ -125,6 +126,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   }, []);
 
   const blocksStructureKey = blocks.map((b) => `${b.id}:${b.type}`).join("|");
+  const linkedOwnersKey = blocks
+    .map((b) => `${b.id}:${Boolean(b.nodeId)}:${Boolean(b.queryEnabled)}:${b.nodeLinkColor ?? ""}`)
+    .join("|");
 
   const isCollapsedPadWriteBlock = (blockId) => {
     if (!blockId) return false;
@@ -407,9 +411,32 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     e.currentTarget.selectionStart === 0 && e.currentTarget.selectionEnd === 0;
 
   const syncAnswerBelowH1 = (blocksList, textBlockIndex, text) => {
+    if (!isPrimaryAnswerTextForLinkedOwner(blocksList, textBlockIndex)) return;
     const h1Index = getH1IndexForTextBlock(blocksList, textBlockIndex);
     if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, text);
   };
+
+  useLayoutEffect(() => {
+    const current = blocksRef.current;
+    let next = current;
+    let changed = false;
+
+    for (let i = 0; i < next.length; i++) {
+      const block = next[i];
+      if (
+        (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
+        && isDocBlockLinkedToNode(block)
+      ) {
+        const ensured = ensureContinuationAfterLinkedOwner(next, i);
+        if (ensured.length !== next.length) {
+          next = ensured;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) setBlocks(next);
+  }, [linkedOwnersKey, blocksStructureKey]);
 
   const requestContentGrow = () => {
     onEnterNewLine?.();
@@ -601,7 +628,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       const patch = { queryEnabled: true };
       const ensuredNodeId = onEnsureNodeForBlock?.(index, block);
       if (ensuredNodeId) patch.nodeId = ensuredNodeId;
-      updateAt(index, patch);
+      let next = updateBlockAt(blocksRef.current, index, patch);
+      next = ensureContinuationAfterLinkedOwner(next, index);
+      setBlocks(next);
       return;
     }
 
@@ -1019,7 +1048,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       focusBlockCaret(block.id);
       requestAnimationFrame(() => {
         const el = document.querySelector(`[data-block-id="${block.id}"]`);
-        const titleInput = el?.querySelector(".doc-todo-block__title-input");
+        const titleInput = el?.querySelector(".doc-todo-plan__title-input");
         if (titleInput && "setSelectionRange" in titleInput) {
           titleInput.focus();
           titleInput.setSelectionRange(titleInput.value.length, titleInput.value.length);
@@ -1107,6 +1136,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             runId: "post-fix-v4",
           }, "F");
           // #endregion
+        }
+
+        if (block.type === DOC_BLOCK_TYPES.TEXT && isLinkedOwnerContinuationSlot(blocks, index)) {
+          return null;
         }
 
         return (
@@ -1213,8 +1246,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           ) : null}
 
           {block.type === DOC_BLOCK_TYPES.TODO ? (
-            <TodoBlockView
-              listTitle={block.listTitle ?? "Checkbox:"}
+            <DocTodoPlanBlockView
+              listTitle={block.listTitle ?? "Todo list:"}
               onListTitleChange={(listTitle) => updateAt(index, { listTitle })}
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={blockLinkColor(block)}
@@ -1244,6 +1277,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           ) : null}
 
           {block.type === DOC_BLOCK_TYPES.TEXT && !isCollapsedPadWriteBlock(block.id) ? (
+            (() => {
+              const linkedOwnerIndex = getLinkedOwnerIndexForTextBlock(blocks, index);
+              const continuationIndex = linkedOwnerIndex >= 0
+                ? getLinkedContinuationTextIndex(blocks, linkedOwnerIndex)
+                : -1;
+              const continuationBlock = continuationIndex >= 0
+                ? blocks[continuationIndex]
+                : null;
+
+              return (
             <TextBlockView
               value={block.text || ""}
               embedded={block.embedded || null}
@@ -1252,10 +1295,30 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 return h1Index >= 0 ? blocks[h1Index]?.nodeId || null : null;
               })()}
               onDetachFromNode={
-                getLinkedOwnerIndexForTextBlock(blocks, index) >= 0 && onDetachFromNode
-                  ? () => onDetachFromNode(getLinkedOwnerIndexForTextBlock(blocks, index))
+                linkedOwnerIndex >= 0 && onDetachFromNode
+                  ? () => onDetachFromNode(linkedOwnerIndex)
                   : null
               }
+              continuationValue={
+                continuationBlock ? continuationBlock.text || "" : null
+              }
+              onContinuationChange={
+                continuationIndex >= 0
+                  ? (text) => updateAt(continuationIndex, { text })
+                  : null
+              }
+              onContinuationKeyDown={
+                continuationIndex >= 0
+                  ? (e) => handleTextKeyDown(continuationIndex, e)
+                  : null
+              }
+              onContinuationFocus={
+                continuationIndex >= 0
+                  ? () => onFocusBlock?.(continuationBlock.id)
+                  : null
+              }
+              continuationPlaceholder={continuationPlaceholder}
+              continuationAutoFocus={focusBlockId === continuationBlock?.id && !itemHidden}
               onRemoveEmbedded={
                 block.embedded?.kind === "calendar-event" || isCalendarEventNodeContent(block.text)
                   ? () => handleRemoveEmbeddedBlock(index)
@@ -1268,28 +1331,30 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }
               onChange={(text) => {
                 updateAt(index, { text });
-                const h1Index = getH1IndexForTextBlock(blocks, index);
-                const ownerBlock = h1Index >= 0 ? blocks[h1Index] : null;
-                const parentCollapsed = ownerBlock
-                  && collapsedContentByBlockId[ownerBlock.id];
-                if (h1Index >= 0 && !parentCollapsed) {
-                  onAnswerBelowH1Change?.(h1Index, text);
+                if (isPrimaryAnswerTextForLinkedOwner(blocks, index)) {
+                  const h1Index = getH1IndexForTextBlock(blocks, index);
+                  const ownerBlock = h1Index >= 0 ? blocks[h1Index] : null;
+                  const parentCollapsed = ownerBlock
+                    && collapsedContentByBlockId[ownerBlock.id];
+                  if (h1Index >= 0 && !parentCollapsed) {
+                    onAnswerBelowH1Change?.(h1Index, text);
+                  }
                 }
               }}
               placeholder={bodyPlaceholder}
               showPlaceholder={index === 0 && blocks.length === 1}
               autoFocus={focusBlockId === block.id && !itemHidden}
               onFocus={() => {
-                // #region agent log
                 debugLog("DocBlockStack.jsx:textFocus", "textarea-focus", {
                   blockId: block.id,
                   textLen: (block.text || "").length,
                 }, "B");
-                // #endregion
                 onFocusBlock?.(block.id);
               }}
               onKeyDown={(e) => handleTextKeyDown(index, e)}
             />
+              );
+            })()
           ) : null}
         </div>
         {showCollapsedWritePad && collapsedActiveWriteId ? (

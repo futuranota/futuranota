@@ -3075,6 +3075,210 @@ body.doc-content-resizing * {
   padding: 0;
 }
 
+/* Plan-style todo block — macro node title + animated subtask list */
+.doc-todo-plan {
+  padding: 11px 21px 14px 15px;
+  box-sizing: border-box;
+}
+
+.doc-todo-plan__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 21px;
+  margin-bottom: 10px;
+}
+
+.doc-todo-plan__title-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.68px;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.doc-todo-plan__new-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.44px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.doc-todo-plan__new-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.doc-todo-plan__card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.doc-todo-plan__macro-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.doc-todo-plan__macro-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-todo-plan__macro-title {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.48px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-todo-plan__macro-meta {
+  flex-shrink: 0;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.doc-todo-plan__chevron {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.45);
+  transform: rotate(90deg);
+  transition: transform 0.2s ease;
+}
+
+.doc-todo-plan__chevron.is-open {
+  transform: rotate(-90deg);
+}
+
+.doc-todo-plan__list-wrap {
+  position: relative;
+  padding: 0 8px 8px 4px;
+}
+
+.doc-todo-plan__guide {
+  position: absolute;
+  top: 0;
+  bottom: 8px;
+  left: 18px;
+  border-left: 2px dashed rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+}
+
+.doc-todo-plan__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-todo-plan__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.doc-todo-plan__item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-todo-plan__status-btn {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.doc-todo-plan__status-icon {
+  display: block;
+}
+
+.doc-todo-plan__status-icon--pending {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.doc-todo-plan__status-icon--in-progress {
+  color: #7eb8ff;
+}
+
+.doc-todo-plan__status-icon--completed {
+  color: #6dd4a0;
+}
+
+.doc-todo-plan__status-icon--need-help {
+  color: #f0c96b;
+}
+
+.doc-todo-plan__status-icon--failed {
+  color: #f08a8a;
+}
+
+.doc-todo-plan__item-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.44px;
+  line-height: 1.3;
+  color: #fff;
+  padding: 0;
+}
+
+.doc-todo-plan__item-input--done {
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: line-through;
+}
+
 .doc-body-field-wrap {
   position: relative;
   min-height: 100%;
@@ -4330,6 +4534,34 @@ body.doc-content-resizing * {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.doc-text-block--linked-bundle {
+  gap: 8px;
+}
+
+.doc-text-block--linked-bundle .doc-linked-node-actions {
+  margin-bottom: 2px;
+}
+
+.doc-text-block__field--continuation,
+.doc-text-block__wrap--continuation .doc-slash-field__input {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.doc-text-block__field--continuation::placeholder,
+.doc-text-block__wrap--continuation .doc-slash-field__input::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.doc-text-block--continuation {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.doc-text-block--continuation .doc-text-block__field::placeholder {
+  color: rgba(255, 255, 255, 0.28);
 }
 
 .doc-text-block .doc-linked-node-actions,

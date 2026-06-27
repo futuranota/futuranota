@@ -29,6 +29,7 @@ import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { hasKnowledgeImport } from "../../lib/knowledgeImport.js";
+import { useI18n } from "../../i18n/useI18n.js";
 
 const SAVE_LOADING_MIN_MS = 400;
 
@@ -101,6 +102,7 @@ export function DocDocumentBox({
   onKnowledgeFileImport,
   knowledgeImport = null,
 }) {
+  const { t } = useI18n();
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
   const isProductMode = metaMode === "product";
   const isContentMode = metaMode === "content";
@@ -659,6 +661,7 @@ export function DocDocumentBox({
               focusBlockId={focusBlockId}
               onFocusBlock={setFocusBlockId}
               bodyPlaceholder={bodyPlaceholder}
+              continuationPlaceholder={t("canvas.linkedContinuationPlaceholder")}
               onBodyKeyDown={onBodyKeyDown}
               onOpenNodeForBlock={onOpenNodeForBlock || onOpenNodeForH1}
               onOpenNodeForH1={onOpenNodeForH1}
