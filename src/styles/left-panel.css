@@ -5005,17 +5005,21 @@ body.doc-content-resizing * {
 
 .doc-text-block__wrap .doc-slash-field__ghost-overlay {
   margin-left: 0;
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.39px;
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  font-optical-sizing: auto;
+  letter-spacing: 0.02em;
+  line-height: 1.45;
 }
 
 .doc-body-field-wrap__slash .doc-slash-field__ghost-overlay {
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.39px;
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  font-optical-sizing: auto;
+  letter-spacing: 0.02em;
+  line-height: 1.45;
 }
 
 .doc-h1-block__slash-wrap .doc-slash-field__ghost-overlay {
@@ -5038,11 +5042,12 @@ body.doc-content-resizing * {
   overflow: hidden;
   field-sizing: content;
   background: transparent;
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.35;
-  letter-spacing: 0.39px;
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  font-optical-sizing: auto;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
   color: #fff;
   outline: none;
   word-break: normal;
@@ -5150,11 +5155,12 @@ body.doc-content-resizing * {
   resize: none;
   overflow-y: auto;
   background: transparent;
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.35;
-  letter-spacing: 0.39px;
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  font-optical-sizing: auto;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
   color: #fff;
   outline: none;
   scrollbar-width: thin;

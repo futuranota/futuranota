@@ -16,10 +16,14 @@ export function useAnimatedText(text, delimiter = "") {
     }
 
     const parts = text.split(delimiter);
+    const msPerUnit =
+      delimiter === "" ? 20 :
+      delimiter === " " ? 80 :
+      120;
     const duration =
-      delimiter === "" ? 8 :
-      delimiter === " " ? 4 :
-      2;
+      delimiter === "" ? Math.max(8, (parts.length * msPerUnit) / 1000) :
+      delimiter === " " ? Math.max(4, (parts.length * msPerUnit) / 1000) :
+      Math.max(2, (parts.length * msPerUnit) / 1000);
 
     const controls = animate(startingCursor, parts.length, {
       duration,

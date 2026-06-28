@@ -126,9 +126,9 @@ The renderer builds the doc (greeting + ## sections). You fill JSON:
 - **whatsComing**: future only; date, days left, hype window (90–120 days before).
 - **strategicRecommendation**: "My recommendation" block — feature/trend opportunities; never tell user what product to sell.
 - **marketContext**: verified data only. If `marketInterest.source === "dataforseo"`, you may cite % and regions from it. Otherwise do not invent percentages.
-- **sources**: `{ url, type, label }` — label = short headline.
+- **sources**: `{ url, type, label }` — label = short headline. Renderer outputs `· domain · Title (official|media)` + markdown link `[domain](url)`. Do not use em-dash (—) as a separator.
 
-FORBIDDEN in visible fields: "Intel —" headers, Groq/fallback meta, confidenceReason in prose.
+FORBIDDEN in visible fields: "Intel —" headers, Groq/fallback meta, confidenceReason in prose. Do not use em-dash (—) as decorative separators in prose; prefer commas or periods.
 
 Do NOT use "##" in JSON — the renderer adds sections.
 

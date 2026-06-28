@@ -127,9 +127,9 @@ El doc lo arma el renderer (saludo + secciones ##). Tú llenas JSON:
 - **whatsComing**: solo futuro; fecha, días restantes, ventana de hype (90–120 días antes).
 - **strategicRecommendation**: bloque "Mi recomendación" — oportunidades en features/tendencias; nunca digas qué producto vender.
 - **marketContext**: solo datos verificados. Si `marketInterest.source === "dataforseo"`, puedes citar % y regiones de ahí. Si no, no inventes porcentajes.
-- **sources**: `{ url, tipo, label }` — label = titular breve.
+- **sources**: `{ url, tipo, label }` — label = titular breve. El renderer formatea como `· domain · Título (oficial|medio)` + link markdown `[domain](url)`. No uses em-dash (—) como separador.
 
-PROHIBIDO en campos visibles: headers "Intel —", meta Groq/fallback, confidenceReason en prosa.
+PROHIBIDO en campos visibles: headers "Intel —", meta Groq/fallback, confidenceReason en prosa. No uses em-dash (—) como separador decorativo en prosa; preferí comas o puntos.
 
 NO uses "##" en JSON — el renderer agrega secciones.
 

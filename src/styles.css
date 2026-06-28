@@ -40,6 +40,10 @@
   --mono: "JetBrains Mono", "Geist Mono", ui-monospace, Menlo, monospace;
   --font-display: "Space Grotesk", system-ui, sans-serif;
   --font-body: "Hanken Grotesk", system-ui, sans-serif;
+  --font-report: "Quicksand", system-ui, sans-serif;
+  --font-doc: var(--font-report);
+  --font-doc-size: 16px;
+  --font-doc-weight: 400;
 
   --radius-sm: 6px;
   --radius: 10px;
@@ -5809,6 +5813,60 @@ textarea.note-form-field {
 }
 .intel-overview-text p {
   margin: 0 0 8px;
+}
+.doc-analyst-report {
+  font-family: var(--font-doc);
+  font-optical-sizing: auto;
+  font-weight: var(--font-doc-weight);
+  font-size: var(--font-doc-size);
+  font-style: normal;
+  line-height: 1.45;
+  color: var(--text-1);
+}
+.doc-analyst-report h2 {
+  font-family: var(--font-doc);
+  font-weight: 600;
+  font-size: calc(var(--font-doc-size) + 1px);
+  line-height: 1.35;
+  margin: 18px 0 8px;
+  color: var(--text-0);
+}
+.doc-analyst-report h2:first-child {
+  margin-top: 0;
+}
+.doc-analyst-report p {
+  margin: 0 0 10px;
+}
+.doc-analyst-report a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.doc-analyst-report a:hover {
+  color: var(--text-0);
+}
+.doc-analyst-report-animated {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 2px 8px 0;
+}
+.doc-analyst-report-cursor {
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--accent);
+  animation: doc-report-cursor-blink 1s step-end infinite;
+}
+@keyframes doc-report-cursor-blink {
+  50% { opacity: 0; }
+}
+.doc-text-block__field.doc-analyst-report,
+.doc-text-block__wrap.doc-analyst-report .doc-text-block__field {
+  font-family: var(--font-doc);
+  font-optical-sizing: auto;
+  font-weight: var(--font-doc-weight);
+  font-size: var(--font-doc-size);
+  line-height: 1.45;
 }
 .intel-context-badge {
   font-family: var(--mono);

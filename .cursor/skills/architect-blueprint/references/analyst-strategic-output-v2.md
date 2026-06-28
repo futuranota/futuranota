@@ -25,9 +25,16 @@ Hey, {buenos días|buenas tardes|buenas noches}, aquí te dejo el reporte de lo 
 {launchRadarClosing — si launchDate futuro}
 
 ## Fuentes
-— domain.com — Título (oficial|medio)
-  https://url-completa
+· domain.com · Título (oficial|medio)
+  [domain.com](https://url-completa)
 ```
+
+## Presentación UX (post-run)
+
+1. `applyAnalystReportToDoc` escribe el cuerpo y setea `reportPresentation: { kind: "analyst-strategic-v2", animateOnOpen: true }`.
+2. Tras run exitoso, la app auto-expande el doc (`setExpandedDocId`).
+3. Al abrir, `AnimatedReportText` reproduce el reporte con typewriter (Quicksand), headings `##` y links clicables en fuentes.
+4. Al terminar la animación, el doc pasa a textarea editable con la misma tipografía; `animateOnOpen` queda en `false` para no re-animar.
 
 ## Private (never render)
 
@@ -51,12 +58,13 @@ Hey, {buenos días|buenas tardes|buenas noches}, aquí te dejo el reporte de lo 
 
 **Bad:** Internal header, query echo, confidence meta, numbered bare URLs, invented 340% without API.
 
-**Good:** Greeting, countdown voice, sections with ##, recommendation block, Trends from DataForSEO, sources with domain + full URL, Launch Radar closing when `launchDate` is future.
+**Good:** Greeting, countdown voice, sections with ##, recommendation block, Trends from DataForSEO, sources with `· domain · title` + markdown link, Launch Radar closing when `launchDate` is future.
 
 ## Renderer
 
 - [`buildStrategicReportBody.js`](../../../src/lib/agents/buildStrategicReportBody.js)
 - [`applyAnalystReportToDoc.js`](../../../src/lib/agents/applyAnalystReportToDoc.js)
+- [`AnimatedReportText.jsx`](../../../src/components/intel/AnimatedReportText.jsx)
 
 ## marketInterest (detection)
 

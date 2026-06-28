@@ -85,7 +85,7 @@ export function formatSourceLine(citation, brandName, lang) {
     || (isOfficialUrl(url, brandHost) ? (lang === "es" ? "oficial" : "official") : (lang === "es" ? "medio" : "media"));
   const typeLabel = formatSourceType(tipo, lang);
 
-  return `— ${domain} — ${title} (${typeLabel})\n  ${url}`;
+  return `· ${domain} · ${title} (${typeLabel})\n  [${domain}](${url})`;
 }
 
 /**
@@ -141,7 +141,7 @@ export function formatLaunchRadarClosing(brandName, launchDate, lang) {
 
   if (lang === "es") {
     return [
-      "El siguiente paso: voy a incrustar estas fechas directamente en tu Launch Radar para que puedas seguir la evolución de esta señal en tiempo real. El timeline ya tiene los datos — solo necesitas abrirlo.",
+      "El siguiente paso: voy a incrustar estas fechas directamente en tu Launch Radar para que puedas seguir la evolución de esta señal en tiempo real. El timeline ya tiene los datos; solo necesitas abrirlo.",
       "Ok, listo — ya ha sido agregado.",
     ].join("\n\n");
   }

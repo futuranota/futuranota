@@ -2,6 +2,7 @@ import { createDocBlock } from "../docBlocks.js";
 import { campaignSignalFieldsFromDetection } from "../campaignSignalFields.js";
 import { isoFromDateInput } from "../docDates.js";
 import { useDocsStore } from "../../stores/docsStore.js";
+import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { buildStrategicReportBody } from "./buildStrategicReportBody.js";
 
 const CATEGORY_LABELS = {
@@ -95,7 +96,14 @@ export function applyAnalystReportToDoc(docId, report, detection, brandName, loc
     campaignActive: meta.campaignActive,
     launchAt: meta.launchAt,
     category: meta.category,
+    reportPresentation: {
+      kind: "analyst-strategic-v2",
+      animateOnOpen: true,
+      animatedAt: null,
+    },
   });
+
+  useUIStateStore.getState().clearDocEditorDraft(docId);
 
   return true;
 }

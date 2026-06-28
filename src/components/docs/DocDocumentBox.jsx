@@ -101,6 +101,8 @@ export function DocDocumentBox({
   initialFocusBlockId = null,
   onKnowledgeFileImport,
   knowledgeImport = null,
+  reportPresentation = null,
+  onReportAnimationComplete = null,
 }) {
   const { t } = useI18n();
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
@@ -673,6 +675,8 @@ export function DocDocumentBox({
               onVideoEmbedSync={onVideoEmbedSync}
               onVideoEmbedH1TitleChange={onVideoEmbedH1TitleChange}
               onDetachFromNode={onDetachFromNode}
+              reportPresentation={reportPresentation}
+              onReportAnimationComplete={onReportAnimationComplete}
             />
           ) : (
             <div

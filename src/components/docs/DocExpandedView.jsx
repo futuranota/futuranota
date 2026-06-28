@@ -233,8 +233,10 @@ export function DocExpandedView({
     const savedTitle = isProductDoc(normalized)
       ? (normalized.category?.trim() || normalized.title?.trim() || "")
       : (d.title ?? "");
+    const preferStoreContent = Boolean(normalized.reportPresentation?.animateOnOpen);
+    const useCachedDraft = cached && !preferStoreContent;
 
-    if (cached) {
+    if (useCachedDraft) {
       setDraftTitle(cached.title ?? savedTitle);
       setDraftBlocks(
         cached.blocks?.length
@@ -296,17 +298,30 @@ export function DocExpandedView({
   }, [docId]);
 
   useEffect(() => {
-    if (!doc || !isDraftReady || !initialSnapshot) return;
+    if (!doc || !isDraftReady) return;
+
+    const storeBlocks = normalizeDocBlocks(
+      doc.blocks?.length ? doc.blocks : docBlocksFromBody(doc.body ?? doc.content ?? ""),
+    );
+    const storeHasText = storeBlocks.some((b) => (b.text || "").trim());
+    const draftHasText = draftBlocks.some((b) => (b.text || "").trim());
+
+    if (doc.reportPresentation?.animateOnOpen && storeHasText && !draftHasText) {
+      setDraftBlocks(storeBlocks);
+      setInitialSnapshot((prev) => (prev ? { ...prev, blocks: storeBlocks } : prev));
+      return;
+    }
+
+    if (!initialSnapshot) return;
 
     const blocksDirty = JSON.stringify(initialSnapshot.blocks) !== JSON.stringify(draftBlocks);
     if (blocksDirty) return;
 
-    const storeBlocks = normalizeDocBlocks(doc.blocks || []);
     if (JSON.stringify(draftBlocks) === JSON.stringify(storeBlocks)) return;
 
     setDraftBlocks(storeBlocks);
     setInitialSnapshot((prev) => (prev ? { ...prev, blocks: storeBlocks } : prev));
-  }, [doc, doc?.updatedAt, isDraftReady, initialSnapshot, draftBlocks]);
+  }, [doc, doc?.updatedAt, doc?.reportPresentation?.animateOnOpen, isDraftReady, initialSnapshot, draftBlocks]);
 
   useEffect(() => {
     if (!docId || !isDraftReady) return undefined;
@@ -1050,6 +1065,18 @@ export function DocExpandedView({
     if (nextImport) setDraftKnowledgeImport(nextImport);
   };
 
+  const handleReportAnimationComplete = () => {
+    const current = useDocsStore.getState().docs[docId];
+    if (!current?.reportPresentation?.animateOnOpen) return;
+    updateDoc(docId, {
+      reportPresentation: {
+        ...current.reportPresentation,
+        animateOnOpen: false,
+        animatedAt: new Date().toISOString(),
+      },
+    });
+  };
+
   return (
     <>
       <div onContextMenu={handleContextMenu}>
@@ -1131,6 +1158,8 @@ export function DocExpandedView({
           onKnowledgeFileImport={isKnowledgeMode ? handleKnowledgeFileImport : undefined}
           knowledgeImport={isKnowledgeMode ? draftKnowledgeImport : null}
           initialFocusBlockId={initialFocusBlockId}
+          reportPresentation={doc?.reportPresentation ?? null}
+          onReportAnimationComplete={handleReportAnimationComplete}
         />
       </div>
       {selectionModal && (

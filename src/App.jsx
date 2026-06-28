@@ -182,6 +182,7 @@ function Dashboard({ company, onBack }) {
   const [selection, setSelection]     = useState([]);
   const [blueprints, setBlueprints]   = useState([]);
   const [expandedDocId, setExpandedDocId] = useState(null);
+  const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
   const [expandedNodeId, setExpandedNodeId] = useState(null);
   const [adoptPrompt, setAdoptPrompt] = useState(null);
@@ -773,6 +774,10 @@ useEffect(() => {
         agentStatus: "done",
         agentError: "",
       });
+      if (result.docId) {
+        setDocViewGeneration((n) => n + 1);
+        setExpandedDocId(result.docId);
+      }
       setToast({
         message: result.userFacingMessage
           || translate("agents.runSuccess", locale, { brand: result.brandName }),
@@ -968,7 +973,7 @@ useEffect(() => {
         <div className="doc-overlay-global">
           <div className="doc-overlay-global-card" onClick={(e) => e.stopPropagation()}>
             <DocExpandedView
-              key={expandedDocId}
+              key={`${expandedDocId}:${docViewGeneration}`}
               docId={expandedDocId}
               initialFocusBlockId={docOpenFocusBlockId}
               onExpandNode={openNodeOverlay}

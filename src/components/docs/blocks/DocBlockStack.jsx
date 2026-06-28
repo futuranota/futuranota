@@ -81,6 +81,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   onVideoEmbedH1TitleChange,
   onDetachFromNode,
   continuationPlaceholder = "Keep writing, or type / for a new block",
+  reportPresentation = null,
+  onReportAnimationComplete = null,
 }, ref) {
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
@@ -153,6 +155,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   const blockLinkColor = (block) => resolveBlockNodeLinkColor(block);
   const blockLinksEnabled = (block) => !isNoNodeLinkMode(blockLinkColor(block));
+  const isAnalystReport = reportPresentation?.kind === "analyst-strategic-v2";
+  const shouldAnimateReport = Boolean(reportPresentation?.animateOnOpen);
 
   const showScheduleForBlock = () => false;
 
@@ -1190,10 +1194,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               const continuationBlock = continuationIndex >= 0
                 ? blocks[continuationIndex]
                 : null;
+              const isPrimaryReportBlock = isAnalystReport
+                && index === blocks.findIndex((b) => b.type === DOC_BLOCK_TYPES.TEXT);
 
               return (
             <TextBlockView
               value={block.text || ""}
+              analystReportStyle={isAnalystReport && isPrimaryReportBlock}
+              reportAnimate={shouldAnimateReport && isPrimaryReportBlock}
+              onReportAnimationComplete={onReportAnimationComplete}
               embedded={block.embedded || null}
               linkedNodeId={(() => {
                 const h1Index = getH1IndexForTextBlock(blocks, index);
