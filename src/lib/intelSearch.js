@@ -5,7 +5,7 @@ import { useNodesStore } from "../stores/nodesStore.js";
 import { useDocsStore } from "../stores/docsStore.js";
 import { usePlanStore } from "../stores/planStore.js";
 import { useUpgradeModalStore } from "../stores/upgradeModalStore.js";
-import { FREE_LIMITS } from "./planConfig.js";
+import { canSpendCredits } from "./planConfig.js";
 import { DEFAULT_INTEL_MODEL_ID, getIntelModel, resolveIntelModelForPlan } from "./intelModels.js";
 
 /** @typedef {{ id: string, title: string, dataType: string, content: unknown, anchorAt?: string|null, order: number }} ContextNode */
@@ -194,13 +194,8 @@ export async function runIntelSearch(payload) {
     uiState.setIntelSelectedModelId(model.id);
   }
 
-  if (effectivePlan === "free") {
-    if ((profile.searchCount ?? 0) + model.creditCost > FREE_LIMITS.maxSearches) {
-      useUpgradeModalStore.getState().show("search");
-      return;
-    }
-  } else if (!isAdminUser && !planStore.canSpendTokens(model.tokenCost)) {
-    useUpgradeModalStore.getState().show("tokens");
+  if (!canSpendCredits(profile, model.creditCost)) {
+    useUpgradeModalStore.getState().show(effectivePlan === "free" ? "search" : "tokens");
     return;
   }
 

@@ -20,6 +20,7 @@ export const CONNECTION_KIND_IGNORED = "ignored-for-timeline";
  */
 export function resolveTimelineWireType(node) {
   if (!node) return "other";
+  if (node.canvasKind === "agent" || node.dataType === "agent") return "agent";
   if (isTacticalDocumentNode(node)) return "document";
   if (node.dataType === "date") return "date";
   if (node.dataType === "metric") return "metric";
@@ -114,6 +115,17 @@ export function validateCanvasConnectionAttempt({
   const to = nodeById.get(toNodeId);
   if (!from || !to) {
     return { ok: false, message: "Missing node." };
+  }
+
+  if (isAgentCanvasNode(from) || isAgentCanvasNode(to)) {
+    const classified = classifyCanvasConnection(
+      { id: "draft", from: fromNodeId, to: toNodeId },
+      nodeById,
+      docsById,
+      nodeEntitiesById,
+      objectsById,
+    );
+    return { ok: true, classified };
   }
 
   const classified = classifyCanvasConnection(
@@ -226,6 +238,11 @@ function isTacticalDocumentNode(node) {
   return node.canvasKind === "document" || node.dataType === "document";
 }
 
+/** @param {object | null | undefined} node */
+export function isAgentCanvasNode(node) {
+  return Boolean(node && (node.canvasKind === "agent" || node.dataType === "agent"));
+}
+
 /**
  * @param {object} conn
  * @param {Map<string, object>} nodeById
@@ -256,6 +273,12 @@ export function classifyCanvasConnection(
   };
 
   if (!from || !to) return base;
+
+  if (isAgentCanvasNode(from) || isAgentCanvasNode(to)) {
+    base.kind = CONNECTION_KIND_IGNORED;
+    base.wireType = "other";
+    return base;
+  }
 
   const wireType = resolveTimelineWireType(from);
   const toWireType = resolveTimelineWireType(to);

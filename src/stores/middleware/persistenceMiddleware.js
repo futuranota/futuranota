@@ -1,4 +1,4 @@
-import { supabase } from "../../lib/supabaseClient.js";
+import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import { sanitizePersistedSnapshot } from "../../lib/storeSanitize.js";
 
@@ -20,6 +20,116 @@ function docVersionFromDb(version) {
 
 let initialized = false;
 let isSyncedWithRemote = false;
+let lastSyncWarnAt = 0;
+
+function warnSyncOnce(message) {
+  const now = Date.now();
+  if (now - lastSyncWarnAt < 15_000) return;
+  lastSyncWarnAt = now;
+  console.warn(message);
+}
+
+/**
+ * Ensure we have a fresh authenticated session before writes.
+ * @returns {Promise<string|null>} user id or null
+ */
+async function resolveSyncUserId() {
+  const configErr = getSupabaseConfigError();
+  if (configErr) {
+    warnSyncOnce(configErr);
+    return null;
+  }
+
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error) {
+    warnSyncOnce(`Supabase session error: ${error.message}`);
+    return null;
+  }
+  if (!session?.user?.id) return null;
+
+  const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
+  const expiresSoon = expiresAt > 0 && expiresAt - Date.now() < 60_000;
+  if (expiresSoon) {
+    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
+    if (refreshErr) {
+      warnSyncOnce(
+        `Supabase session refresh failed (${refreshErr.message}). `
+        + "Reiniciá sesión en /panel — los datos quedan en localStorage.",
+      );
+      return null;
+    }
+    return refreshed.session?.user?.id || null;
+  }
+
+  return session.user.id;
+}
+
+/**
+ * Delete remote rows for this user that are no longer in the local id set.
+ * @param {string} table
+ * @param {string} userId
+ * @param {string[]} localIds
+ */
+async function deleteOrphanRows(table, userId, localIds) {
+  const { data: remoteRows, error: selectErr } = await supabase
+    .from(table)
+    .select("id")
+    .eq("user_id", userId);
+
+  if (selectErr) {
+    console.error(formatSupabaseError(selectErr, `Select ${table} for cleanup`));
+    return;
+  }
+
+  const localSet = new Set(localIds);
+  const orphanIds = (remoteRows || [])
+    .map((row) => row.id)
+    .filter((id) => id && !localSet.has(id));
+
+  if (!orphanIds.length) return;
+
+  const { error: deleteErr } = await supabase
+    .from(table)
+    .delete()
+    .eq("user_id", userId)
+    .in("id", orphanIds);
+
+  if (deleteErr) {
+    console.error(formatSupabaseError(deleteErr, `Delete orphans in ${table}`));
+  }
+}
+
+/**
+ * @param {string} action
+ * @param {Promise<{ error: unknown }>} promise
+ */
+async function runUpsert(action, promise) {
+  try {
+    const { error } = await promise;
+    if (error) {
+      const msg = formatSupabaseError(error, action);
+      console.error(msg);
+      if (String(error.message || "").includes("Failed to fetch")) {
+        warnSyncOnce(
+          "Red o Supabase inaccesible al guardar. Verificá conexión, "
+          + "SUPABASE_PROJECT_URL en .env.local, y que el proyecto no esté pausado.",
+        );
+      }
+      return false;
+    }
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`${action} failed:`, message);
+    if (message.includes("Failed to fetch")) {
+      warnSyncOnce(
+        "Failed to fetch al contactar Supabase. Revisá .env.local, reiniciá `npm run dev`, "
+        + "o iniciá sesión de nuevo en /panel.",
+      );
+    }
+    return false;
+  }
+}
 
 function debounce(fn, delay) {
   let timer = null;
@@ -91,15 +201,19 @@ export function initPersistenceMiddleware(stores) {
 
   const loadFromSupabase = async () => {
     try {
-      // Verificar sesión antes de cargar
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.id) {
-        console.log("No session — loading from localStorage.");
+      const configErr = getSupabaseConfigError();
+      if (configErr) {
+        console.log(configErr);
         loadLocalFallback();
         return;
       }
 
-      const userId = session.user.id;
+      const userId = await resolveSyncUserId();
+      if (!userId) {
+        console.log("No session — loading from localStorage.");
+        loadLocalFallback();
+        return;
+      }
 
       const [
         { data: dbCompanies, error: compErr },
@@ -254,7 +368,14 @@ export function initPersistenceMiddleware(stores) {
       console.log("Supabase sync loaded for user:", userId);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
     } catch (err) {
-      console.warn("Supabase load failed — falling back to localStorage.", err.message || err);
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn("Supabase load failed — falling back to localStorage.", message);
+      if (message.includes("Failed to fetch")) {
+        warnSyncOnce(
+          "No se pudo cargar desde Supabase (Failed to fetch). "
+          + "Usando localStorage. Revisá SUPABASE_PROJECT_URL y reiniciá `npm run dev`.",
+        );
+      }
       loadLocalFallback();
     }
   };
@@ -262,9 +383,7 @@ export function initPersistenceMiddleware(stores) {
   const syncToSupabase = async (state) => {
     if (!isSyncedWithRemote) return;
 
-    // Obtener sesión activa
-    const { data: { session } } = await supabase.auth.getSession();
-    const userId = session?.user?.id;
+    const userId = await resolveSyncUserId();
     if (!userId) {
       console.warn("No authenticated user — skipping Supabase sync.");
       return;
@@ -272,6 +391,7 @@ export function initPersistenceMiddleware(stores) {
 
     try {
       const now = new Date().toISOString();
+      const upsertOpts = { onConflict: "id" };
 
       // 1. Companies
       const companiesRows = Object.values(state.objects).map((co) => ({
@@ -288,12 +408,13 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       if (companiesRows.length > 0) {
-        const { error } = await supabase.from("companies").upsert(companiesRows);
-        if (error) console.error("Error upserting companies:", error.message);
-        const coIds = companiesRows.map((r) => r.id);
-        await supabase.from("companies").delete()
-          .eq("user_id", userId)
-          .not("id", "in", `(${coIds.join(",")})`);
+        const ok = await runUpsert(
+          "Upsert companies",
+          supabase.from("companies").upsert(companiesRows, upsertOpts),
+        );
+        if (ok) {
+          await deleteOrphanRows("companies", userId, companiesRows.map((r) => r.id));
+        }
       }
 
       // 2. Campaigns
@@ -323,12 +444,13 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       if (campaignsRows.length > 0) {
-        const { error } = await supabase.from("campaigns").upsert(campaignsRows);
-        if (error) console.error("Error upserting campaigns:", error.message);
-        const campIds = campaignsRows.map((r) => r.id);
-        await supabase.from("campaigns").delete()
-          .eq("user_id", userId)
-          .not("id", "in", `(${campIds.join(",")})`);
+        const ok = await runUpsert(
+          "Upsert campaigns",
+          supabase.from("campaigns").upsert(campaignsRows, upsertOpts),
+        );
+        if (ok) {
+          await deleteOrphanRows("campaigns", userId, campaignsRows.map((r) => r.id));
+        }
       }
 
       // 3. Nodes
@@ -348,12 +470,13 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       if (nodesRows.length > 0) {
-        const { error } = await supabase.from("nodes").upsert(nodesRows);
-        if (error) console.error("Error upserting nodes:", error.message);
-        const nodeIds = nodesRows.map((r) => r.id);
-        await supabase.from("nodes").delete()
-          .eq("user_id", userId)
-          .not("id", "in", `(${nodeIds.join(",")})`);
+        const ok = await runUpsert(
+          "Upsert nodes",
+          supabase.from("nodes").upsert(nodesRows, upsertOpts),
+        );
+        if (ok) {
+          await deleteOrphanRows("nodes", userId, nodesRows.map((r) => r.id));
+        }
       }
 
       // 4. Canvas nodes
@@ -377,12 +500,13 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       if (canvasNodesRows.length > 0) {
-        const { error } = await supabase.from("canvas_nodes").upsert(canvasNodesRows);
-        if (error) console.error("Error upserting canvas_nodes:", error.message);
-        const cnIds = canvasNodesRows.map((r) => r.id);
-        await supabase.from("canvas_nodes").delete()
-          .eq("user_id", userId)
-          .not("id", "in", `(${cnIds.join(",")})`);
+        const ok = await runUpsert(
+          "Upsert canvas_nodes",
+          supabase.from("canvas_nodes").upsert(canvasNodesRows, upsertOpts),
+        );
+        if (ok) {
+          await deleteOrphanRows("canvas_nodes", userId, canvasNodesRows.map((r) => r.id));
+        }
       }
 
       // 5. Canvas connections
@@ -399,12 +523,13 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       if (connectionsRows.length > 0) {
-        const { error } = await supabase.from("canvas_connections").upsert(connectionsRows);
-        if (error) console.error("Error upserting canvas_connections:", error.message);
-        const ccIds = connectionsRows.map((r) => `'${r.id}'`);
-        await supabase.from("canvas_connections").delete()
-          .eq("user_id", userId)
-          .not("id", "in", `(${ccIds.join(",")})`);
+        const ok = await runUpsert(
+          "Upsert canvas_connections",
+          supabase.from("canvas_connections").upsert(connectionsRows, upsertOpts),
+        );
+        if (ok) {
+          await deleteOrphanRows("canvas_connections", userId, connectionsRows.map((r) => r.id));
+        }
       }
 
       // 6. Groupings
@@ -419,12 +544,13 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       if (groupingsRows.length > 0) {
-        const { error } = await supabase.from("groupings").upsert(groupingsRows);
-        if (error) console.error("Error upserting groupings:", error.message);
-        const grpIds = groupingsRows.map((r) => r.id);
-        await supabase.from("groupings").delete()
-          .eq("user_id", userId)
-          .not("id", "in", `(${grpIds.join(",")})`);
+        const ok = await runUpsert(
+          "Upsert groupings",
+          supabase.from("groupings").upsert(groupingsRows, upsertOpts),
+        );
+        if (ok) {
+          await deleteOrphanRows("groupings", userId, groupingsRows.map((r) => r.id));
+        }
       }
 
       // 7. Timelines
@@ -444,12 +570,13 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       if (timelinesRows.length > 0) {
-        const { error } = await supabase.from("timelines").upsert(timelinesRows);
-        if (error) console.error("Error upserting timelines:", error.message);
-        const tlIds = timelinesRows.map((r) => `'${r.id}'`);
-        await supabase.from("timelines").delete()
-          .eq("user_id", userId)
-          .not("id", "in", `(${tlIds.join(",")})`);
+        const ok = await runUpsert(
+          "Upsert timelines",
+          supabase.from("timelines").upsert(timelinesRows, upsertOpts),
+        );
+        if (ok) {
+          await deleteOrphanRows("timelines", userId, timelinesRows.map((r) => r.id));
+        }
       }
 
       console.log("Supabase sync complete for user:", userId);

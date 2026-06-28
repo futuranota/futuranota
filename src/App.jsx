@@ -9,6 +9,7 @@ import { useThemeStore } from './stores/themeStore.js';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakRadio, TweakSelect, TweakButton,
 } from './tweaks-panel.jsx';
+import { useLocaleStore } from './i18n/localeStore.js';
 import {
   initStores,
   useDocsStore,
@@ -40,7 +41,7 @@ import {
   releaseStaleNodeParentRefs,
 } from './lib/nodeParentAdoption.js';
 import { AdoptNodeConfirmModal } from './components/nodes/AdoptNodeConfirmModal.jsx';
-import { useI18n } from './i18n/useI18n.js';
+import { useI18n, translate } from './i18n/useI18n.js';
 import { normalizeDocBlocks } from './lib/docBlocks.js';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
 import {
@@ -57,6 +58,8 @@ import {
 } from './lib/canvasDocSync.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
+import { AGENT_CAMPAIGN_ANALYST, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
+import { runCampaignAnalyst } from './lib/agents/runCampaignAnalyst.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
 import {
@@ -467,6 +470,32 @@ useEffect(() => {
     if (created) insertNodeToCanvas(created, { center: true });
   };
 
+  const insertAgentToCanvas = (agentId, options = null) => {
+    if (!agentId) return;
+    const preferredX = options?.center ? 320 : options?.x;
+    const preferredY = options?.center ? 190 : options?.y;
+    const { x, y } = nextCanvasPosition(preferredX, preferredY);
+    const newNode = {
+      id: shortId("CN"),
+      canvasKind: "agent",
+      agentId,
+      title: getAgentCanvasTitle(agentId),
+      dataType: "agent",
+      content: "",
+      agentStatus: "idle",
+      agentError: "",
+      x,
+      y,
+    };
+    setCanvasNodes((all) => [...all, newNode]);
+    setSelection([newNode.id]);
+    setToast({ message: `Agent placed · "${newNode.title}"`, kind: "ok" });
+  };
+
+  const handleInsertAgent = useCallback((agentId) => {
+    insertAgentToCanvas(agentId, { center: true });
+  }, [canvasNodes]);
+
   const insertObjectToCanvas = (object, worldX, worldY) => {
     const { x, y } = nextCanvasPosition(
       worldX != null ? worldX - 50 : undefined,
@@ -479,7 +508,7 @@ useEffect(() => {
       noteId: object.id,
       title: (object.name || "OBJECT").toUpperCase().slice(0, 20),
       dataType: "object",
-      content: object.description || object.name || "",
+      content: "",
       x, y,
     };
     setCanvasNodes((all) => [...all, newNode]);
@@ -583,6 +612,10 @@ useEffect(() => {
       const doc = docs[payload.docId];
       if (!doc) return;
       insertDocToCanvas(doc, world.x, world.y);
+      return;
+    }
+    if (payload?.kind === "agent" && payload.agentId) {
+      insertAgentToCanvas(payload.agentId, { x: world.x, y: world.y });
     }
   };
 
@@ -695,6 +728,66 @@ useEffect(() => {
     )));
   }, []);
 
+  const handleRunAgent = useCallback(async (canvasNodeId) => {
+    const agentNode = canvasNodes.find((n) => n.id === canvasNodeId);
+    if (!agentNode || (agentNode.canvasKind !== "agent" && agentNode.dataType !== "agent")) return;
+    if (agentNode.agentStatus === "running") return;
+
+    patchCanvasNode(canvasNodeId, { agentStatus: "running", agentError: "" });
+
+    const selectedObjectId = useUIStateStore.getState().selectedObjectId;
+    const locale = useLocaleStore.getState().locale;
+    const agentId = agentNode.agentId || AGENT_CAMPAIGN_ANALYST;
+
+    if (!isAgentEnabled(agentId)) {
+      patchCanvasNode(canvasNodeId, {
+        agentStatus: "error",
+        agentError: translate("agents.orchestrator.disabled", locale),
+      });
+      setToast({ message: translate("agents.orchestrator.disabled", locale), kind: "warm" });
+      return;
+    }
+
+    if (agentId !== AGENT_CAMPAIGN_ANALYST) {
+      patchCanvasNode(canvasNodeId, {
+        agentStatus: "error",
+        agentError: translate("agents.errors.generic", locale),
+      });
+      setToast({ message: translate("agents.errors.generic", locale), kind: "warm" });
+      return;
+    }
+
+    const result = await runCampaignAnalyst({
+      agentCanvasNodeId: canvasNodeId,
+      canvasNodes,
+      connections: canvasConns,
+      docsById: docs,
+      objectsById: objects,
+      nodeEntitiesById: nodeEntities,
+      selectedObjectId,
+      locale,
+    });
+
+    if (result.status === "success") {
+      patchCanvasNode(canvasNodeId, {
+        agentStatus: "done",
+        agentError: "",
+      });
+      setToast({
+        message: result.userFacingMessage
+          || translate("agents.runSuccess", locale, { brand: result.brandName }),
+        kind: "ok",
+      });
+      return;
+    }
+
+    patchCanvasNode(canvasNodeId, {
+      agentStatus: "error",
+      agentError: result.message,
+    });
+    setToast({ message: result.message, kind: "warm" });
+  }, [canvasNodes, canvasConns, docs, objects, nodeEntities, patchCanvasNode]);
+
   const runAdoption = useCallback((payload) => {
     const ok = adoptOrphanNodeToDocument({
       nodeEntityId: payload.orphanEntityId,
@@ -776,6 +869,7 @@ useEffect(() => {
         <div className="dash-col">
           <LeftPanel
             onInsertToCanvas={insertNodeToCanvas}
+            onInsertAgent={handleInsertAgent}
             onOpenDocument={openDocumentOverlay}
             onExpandNode={openNodeOverlay}
             onDocumentDeleted={handleDocumentDeleted}
@@ -813,6 +907,7 @@ useEffect(() => {
             onCanvasDrop={handleCanvasDrop}
             onRequestDocAdoption={handleRequestDocAdoption}
             onDocumentAdoptOrphan={handleDocumentAdoptOrphan}
+            onRunAgent={handleRunAgent}
           />
           {scanState === "scanning-blogs" && (
             <ScanOverlay logs={scanLogs} kind="blogs" />

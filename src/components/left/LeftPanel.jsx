@@ -12,6 +12,8 @@ import {
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
+import { AGENTS } from "../../lib/agents/registry.js";
+import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
@@ -218,6 +220,20 @@ function ClickFolderIcon({ variant, className = "lp-click-folder-box-icon" }) {
         aria-hidden
         className={`${className} lp-click-folder-box-icon-img`}
       />
+    );
+  }
+
+  if (variant === "agents") {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+        <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
+        <path
+          d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      </svg>
     );
   }
 
@@ -962,6 +978,7 @@ function TimelineDocQueue({
 
 export function LeftPanel({
   onInsertToCanvas,
+  onInsertAgent,
   onOpenDocument,
   onExpandNode,
   onDocumentDeleted,
@@ -1445,6 +1462,11 @@ export function LeftPanel({
                     label={t("sidebar.knowledge")}
                     onClick={() => setClickFolderView("knowledge")}
                   />
+                  <ClickFolderBox
+                    variant="agents"
+                    label={t("sidebar.agents")}
+                    onClick={() => setClickFolderView("agents")}
+                  />
                 </div>
               </>
             ) : null}
@@ -1531,6 +1553,25 @@ export function LeftPanel({
                       <p className="dim">{t("sidebar.useNewKnowledge")}</p>
                     </div>
                   )}
+                </div>
+              </div>
+            ) : null}
+
+            {!packImportActive && clickFolderView === "agents" ? (
+              <div className="lp-click-folder-detail">
+                <ClickFolderBack
+                  iconOnly
+                  onBack={() => setClickFolderView(null)}
+                  label={t("sidebar.agentsTitle")}
+                />
+                <div className="lp-click-folder-detail-list">
+                  {AGENTS.map((agent) => (
+                    <AgentListCard
+                      key={agent.id}
+                      agent={agent}
+                      onInsert={(agentId) => onInsertAgent?.(agentId)}
+                    />
+                  ))}
                 </div>
               </div>
             ) : null}

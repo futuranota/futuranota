@@ -3061,6 +3061,17 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   min-height: 120px;
   overflow: visible;
 }
+.cal-event-canvas__controls-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
 .cal-event-canvas__controls {
   position: relative;
   z-index: 1;
@@ -3068,7 +3079,14 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  margin-top: 4px;
+}
+.cal-event-canvas__counter {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-2);
+  opacity: 0.85;
 }
 .cal-event-canvas__search-pill {
   position: relative;
@@ -3185,7 +3203,7 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   padding: 3px 5px;
   line-height: 1.2;
 }
-.cal-event-canvas--result .cal-event-canvas__controls {
+.cal-event-canvas--result .cal-event-canvas__controls-row {
   align-self: stretch;
   justify-content: flex-start;
   margin-bottom: 6px;

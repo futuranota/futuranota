@@ -51,16 +51,28 @@ export async function searchWeb(query) {
 
 /**
  * Runs several queries in parallel and flattens the results into one corpus.
- * A bad individual query is logged and skipped — it doesn't kill the whole
- * scan, but the error is never silent.
  * @param {string[]} queries
+ * @param {{ maxQueries?: number }} [opts]
  * @returns {Promise<SearchHit[]|null>} null if SERPAPI_KEY is not configured
  */
-export async function searchWebMulti(queries) {
+export async function searchWebMulti(queries, opts = {}) {
   if (!process.env.SERPAPI_KEY) return null;
 
+  const maxQueries = opts.maxQueries ?? 8;
+  const seen = new Set();
+  const capped = [];
+  for (const raw of queries) {
+    const q = typeof raw === "string" ? raw.trim() : "";
+    if (!q) continue;
+    const key = q.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    capped.push(q);
+    if (capped.length >= maxQueries) break;
+  }
+
   const results = await Promise.all(
-    queries.map(async (q) => {
+    capped.map(async (q) => {
       try {
         const hits = await searchWeb(q);
         console.log(`[horizon-scan] serper "${q}" → ${hits.length} hits`);

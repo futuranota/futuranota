@@ -27,44 +27,43 @@ export function buildCampaignDocFromDetection(result, brandName, parentObjectId 
   const citations = Array.isArray(result.citations) ? result.citations : [];
 
   const blocks = [];
-
   const overview = (fields.overview || result.overview || "").trim();
-  if (overview) {
-    blocks.push(createDocBlock("h1", { title: "Resumen" }));
-    blocks.push(createDocBlock("text", { text: overview }));
-  }
-
   let deepReport = (result.deepReport || "").trim();
+
   if (!deepReport && citations.length > 0) {
     deepReport = buildInformeFromCitations(citations);
   }
 
-  if (deepReport) {
-    blocks.push(createDocBlock("h1", { title: "Informe" }));
-    blocks.push(createDocBlock("text", { text: deepReport }));
-  }
+  const bodyParts = [];
+  const statusLine = fields.campaignActive
+    ? `Campaña activa — ${name}${fields.launchDate ? ` · ${fields.launchDate}` : ""}`
+    : `Campaña inactiva — ${name}`;
+  bodyParts.push(statusLine);
+  if (overview) bodyParts.push(overview);
+  if (deepReport && deepReport !== overview) bodyParts.push(deepReport);
 
   const signals = Array.isArray(result.launchSignals) ? result.launchSignals : [];
   if (signals.length > 0) {
-    blocks.push(createDocBlock("h1", { title: "Señales de lanzamiento" }));
     const signalLines = signals.map((sig, idx) => {
       const datePart = sig.dateHint ? ` (${sig.dateHint})` : "";
       const quote = sig.quote ? `: "${sig.quote}"` : "";
       return `${idx + 1}. ${sig.phrase || "Señal"}${datePart}${quote}\n${sig.url || ""}`;
     });
-    blocks.push(createDocBlock("text", { text: signalLines.join("\n\n") }));
+    bodyParts.push(signalLines.join("\n\n"));
   }
 
   if (citations.length > 0) {
-    blocks.push(createDocBlock("h1", { title: "Fuentes" }));
-    blocks.push(createDocBlock("text", { text: buildInformeFromCitations(citations) }));
+    bodyParts.push(buildInformeFromCitations(citations));
   }
 
-  if (blocks.length === 0 && overview) {
-    blocks.push(createDocBlock("text", { text: overview }));
+  const bodyText = bodyParts.filter(Boolean).join("\n\n");
+  if (bodyText) {
+    blocks.push(createDocBlock("text", { text: bodyText }));
   }
 
-  const launchAt = fields.launchDate || null;
+  const launchAt = fields.campaignActive && fields.launchDate
+    ? fields.launchDate
+    : null;
 
   return {
     title,

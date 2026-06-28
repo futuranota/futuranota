@@ -139,8 +139,8 @@ function buildSnippetFallbackReport(snippets, brandName, userQuery) {
   const relevant = snippets.filter((s) => snippetMentionsBrand(s, brandName));
   const list = relevant.length ? relevant : snippets.slice(0, 8);
   const intro = userQuery.trim()
-    ? `Informe compilado desde fuentes web para: ${userQuery.trim()}\n\n`
-    : `Informe compilado desde fuentes web sobre ${brandName}.\n\n`;
+    ? `Resumen desde ${list.length} fuentes web sobre: ${userQuery.trim()}\n\n`
+    : `Resumen desde ${list.length} fuentes web sobre ${brandName}.\n\n`;
   const body = list.map((s, i) => (
     `${i + 1}. ${(s.title || "Fuente").trim()}\n${(s.snippet || "").trim()}\nFuente: ${s.link || ""}`
   )).join("\n\n");

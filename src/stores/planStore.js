@@ -5,10 +5,16 @@ import {
   CREDIT_TOKEN_UNIT,
   FREE_LIMITS,
   getCreditsCap,
+  getCreditsDisplay,
+  getCreditsRemaining,
   getCreditsUsed,
+  canSpendCredits,
   getPlanLimits,
   getTokensCap,
   getWeatherActionCap,
+  canUseCalendarSearch,
+  getCalendarSearchesCap,
+  getCalendarSearchesUsed,
   TOKEN_COSTS,
 } from "../lib/planConfig.js";
 import {
@@ -16,12 +22,19 @@ import {
   readLocalWeatherActionsUsed,
   resetLocalWeatherUsage,
 } from "../lib/weatherUsage.js";
+import {
+  getAdminProTokenCap,
+  isAdminSessionEmail,
+  shouldBootstrapAdminCredits,
+} from "../lib/adminPlanCredits.js";
 
 export { FREE_LIMITS, TOKEN_COSTS } from "../lib/planConfig.js";
 
 const DEFAULT_PROFILE = {
   plan: "free",
   calendarUsed: false,
+  calendarSearchesCount: 0,
+  calendarPeriodStart: null,
   weatherUsed: false,
   weatherActionsCount: 0,
   searchCount: 0,
@@ -48,9 +61,20 @@ function rowToProfile(row) {
     }
   }
 
+  let calendarSearchesCount = row.calendar_searches_count ?? 0;
+  let calendarPeriodStart = row.calendar_period_start || null;
+  if (plan === "pro" && calendarPeriodStart) {
+    const calStart = new Date(calendarPeriodStart);
+    if (!isSameUtcMonth(calStart, new Date())) {
+      calendarSearchesCount = 0;
+    }
+  }
+
   return {
     plan,
     calendarUsed: Boolean(row.calendar_used),
+    calendarSearchesCount,
+    calendarPeriodStart,
     weatherUsed: Boolean(row.weather_used),
     weatherActionsCount: (() => {
       const raw = row.weather_actions_count;
@@ -102,6 +126,12 @@ export const usePlanStore = create(
       getCreditsCap: () => getCreditsCap(get().profile.plan),
 
       getCreditsUsed: () => getCreditsUsed(get().profile),
+
+      getCreditsRemaining: () => getCreditsRemaining(get().profile),
+
+      getCreditsDisplay: () => getCreditsDisplay(get().profile),
+
+      canSpendCredits: (amount = 1) => canSpendCredits(get().profile, amount),
 
       getTokensRemaining: () => get().profile.tokensBalance,
 
@@ -243,13 +273,53 @@ export const usePlanStore = create(
 
         let profile = rowToProfile(data);
         persistLocalWeatherActionsUsed(profile.weatherActionsCount);
-        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL;
-        const isAdminUser = !!adminEmail && session.user.email?.toLowerCase() === adminEmail.toLowerCase();
+        const isAdminUser = isAdminSessionEmail(session.user.email);
+
         if (isAdminUser) {
           profile = { ...profile, plan: "pro" };
+          const proCap = getAdminProTokenCap();
+          const needsFullCredits = shouldBootstrapAdminCredits(profile, data);
+
+          if (needsFullCredits) {
+            const now = new Date().toISOString();
+            const patch = {
+              plan: "pro",
+              tokens_balance: proCap,
+              tokens_period_start: now,
+              search_count: 0,
+              updated_at: now,
+            };
+
+            if (!data) {
+              const { error: upsertErr } = await supabase.from("profiles").upsert({
+                user_id: userId,
+                ...patch,
+              });
+              if (!upsertErr) {
+                profile = {
+                  ...profile,
+                  tokensBalance: proCap,
+                  searchCount: 0,
+                  tokensPeriodStart: now,
+                };
+              }
+            } else {
+              const resetErr = await persistProfilePatch(userId, patch);
+              if (!resetErr) {
+                profile = {
+                  ...profile,
+                  tokensBalance: proCap,
+                  searchCount: 0,
+                  tokensPeriodStart: now,
+                };
+              }
+            }
+          } else if (data?.plan !== "pro") {
+            await persistProfilePatch(userId, { plan: "pro" });
+          }
         }
 
-        if (data && profile.plan === "pro" && profile.tokensPeriodStart) {
+        if (data && profile.plan === "pro" && profile.tokensPeriodStart && !isAdminUser) {
           const start = new Date(profile.tokensPeriodStart);
           if (!isSameUtcMonth(start, new Date())) {
             const cap = getTokensCap("pro");
@@ -260,6 +330,24 @@ export const usePlanStore = create(
             });
             if (!resetErr) {
               profile = { ...profile, tokensBalance: cap, tokensPeriodStart: now };
+            }
+          }
+        }
+
+        if (data && profile.plan === "pro" && profile.calendarPeriodStart) {
+          const calStart = new Date(profile.calendarPeriodStart);
+          if (!isSameUtcMonth(calStart, new Date())) {
+            const now = new Date().toISOString();
+            const resetErr = await persistProfilePatch(userId, {
+              calendar_searches_count: 0,
+              calendar_period_start: now,
+            });
+            if (!resetErr) {
+              profile = {
+                ...profile,
+                calendarSearchesCount: 0,
+                calendarPeriodStart: now,
+              };
             }
           }
         }
@@ -295,6 +383,37 @@ export const usePlanStore = create(
             campaignLiveUsed: plan === "free" ? state.profile.campaignLiveUsed : false,
           },
         }));
+      },
+
+      /** Reset Pro ledger to full 150 credits (admin plan testing). */
+      refillCreditsToFull: async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) return false;
+
+        const cap = getTokensCap("pro");
+        const now = new Date().toISOString();
+        const error = await persistProfilePatch(userId, {
+          plan: "pro",
+          tokens_balance: cap,
+          tokens_period_start: now,
+          search_count: 0,
+        });
+        if (error) {
+          console.warn("planStore.refillCreditsToFull error", error);
+          return false;
+        }
+
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            plan: "pro",
+            tokensBalance: cap,
+            tokensPeriodStart: now,
+            searchCount: 0,
+          },
+        }));
+        return true;
       },
 
       applyServerTokenDebit: (tokensBalance, campaignLiveUsed) => {
@@ -357,6 +476,31 @@ export const usePlanStore = create(
         });
       },
 
+      /**
+       * Debit user-facing credits (−1 per call). Pro: tokens DB; Free: search_count.
+       * @param {number} [creditCost]
+       * @param {{ tokenCost?: number }} [opts]
+       */
+      debitCredits: async (creditCost = 1, opts = {}) => {
+        const credits = Math.max(1, Math.floor(Number(creditCost) || 1));
+        const tokenUnit = opts.tokenCost ?? CREDIT_TOKEN_UNIT;
+        const totalTokens = credits * tokenUnit;
+        const { profile } = get();
+
+        if (!canSpendCredits(profile, credits)) return false;
+
+        if (profile.plan === "pro") {
+          return get().spendTokens(totalTokens);
+        }
+
+        for (let i = 0; i < credits; i += 1) {
+          const before = get().profile.searchCount;
+          const next = await get().incrementSearchCount();
+          if (next === before) return false;
+        }
+        return true;
+      },
+
       spendTokens: async (amount, opts = {}) => {
         const { profile } = get();
         if (amount <= 0) return true;
@@ -388,6 +532,56 @@ export const usePlanStore = create(
             campaignLiveUsed: opts.markCampaignLive && profile.plan === "free"
               ? true
               : state.profile.campaignLiveUsed,
+          },
+        }));
+        return true;
+      },
+
+      getCalendarSearchesCap: () => getCalendarSearchesCap(get().profile.plan),
+
+      getCalendarSearchesUsed: () => getCalendarSearchesUsed(get().profile),
+
+      canUseCalendarSearch: () => canUseCalendarSearch(get().profile),
+
+      incrementCalendarSearch: async () => {
+        if (!get().canUseCalendarSearch()) return false;
+
+        const { profile } = get();
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) return false;
+
+        if (profile.plan !== "pro") {
+          await get().markFeatureUsed("calendar");
+          return true;
+        }
+
+        const now = new Date().toISOString();
+        let count = profile.calendarSearchesCount ?? 0;
+        let periodStart = profile.calendarPeriodStart;
+
+        if (periodStart && !isSameUtcMonth(new Date(periodStart), new Date())) {
+          count = 0;
+          periodStart = now;
+        } else if (!periodStart) {
+          periodStart = now;
+        }
+
+        const next = count + 1;
+        const error = await persistProfilePatch(userId, {
+          calendar_searches_count: next,
+          calendar_period_start: periodStart,
+        });
+        if (error) {
+          console.warn("planStore.incrementCalendarSearch error", error);
+          return false;
+        }
+
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            calendarSearchesCount: next,
+            calendarPeriodStart: periodStart,
           },
         }));
         return true;

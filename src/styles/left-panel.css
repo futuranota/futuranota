@@ -1363,11 +1363,41 @@
 
 .plan-usage__cta {
   width: 100%;
+  margin-top: 2px;
+}
+
+.plan-usage__expired {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--warm) 35%, var(--hairline));
+  background: color-mix(in oklab, var(--warm) 8%, var(--panel-2));
+}
+
+.plan-usage__expired-title {
+  margin: 0 0 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--warm);
+}
+
+.plan-usage__expired-body {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--dim);
+}
+
+.plan-usage--expired .plan-usage__fill {
+  background: var(--panel-3);
+}
+
+.plan-usage--expired .plan-usage__tokens {
+  color: var(--warm);
 }
 
 .plan-usage--compact .plan-usage__table,
-.plan-usage--compact .plan-usage__hint,
-.plan-usage--compact .plan-usage__cta {
+.plan-usage--compact .plan-usage__hint {
   display: none;
 }
 

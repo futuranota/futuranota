@@ -14,7 +14,8 @@ import { CalendarEventResultBox } from "./CalendarEventResultBox.jsx";
 import { EventCalendarRangeSwitch } from "./EventCalendarRangeSwitch.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { usePlanStore } from "../../stores/planStore.js";
-import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
+import { formatCalendarSearchCounter, notifyCalendarSearchLimit } from "../../lib/calendarUsage.js";
+import { useI18n } from "../../i18n/useI18n.js";
 
 const CALENDAR_EVENT_ILLUSTRATION = "/uploads/botones/e-c.svg";
 const DEFAULT_RANGE_ID = "week";
@@ -69,6 +70,16 @@ export function CalendarEventCanvas({
   const prevRangeIdRef = useRef(DEFAULT_RANGE_ID);
   const locale = useLocaleStore((s) => s.locale);
   const translationRevision = useLocaleStore((s) => s.translationRevision);
+  const { t } = useI18n();
+  const plan = usePlanStore((s) => s.profile.plan);
+  const isPro = usePlanStore((s) => s.isPro());
+  const calendarSearchesUsed = usePlanStore((s) => s.getCalendarSearchesUsed());
+  const calendarSearchCap = usePlanStore((s) => s.getCalendarSearchesCap());
+  const canUseCalendar = usePlanStore((s) => s.canUseCalendarSearch());
+  const actionCounter = formatCalendarSearchCounter(calendarSearchesUsed, plan);
+  const limitMessage = isPro
+    ? t("intel.calendarSearchLimitPro", { used: String(calendarSearchesUsed), cap: String(calendarSearchCap) })
+    : t("intel.calendarSearchLimit", { used: String(calendarSearchesUsed), cap: String(calendarSearchCap) });
 
   const targetKey = useMemo(() => {
     if (!activeNode) return "";
@@ -91,9 +102,8 @@ export function CalendarEventCanvas({
   const runSearch = useCallback(async () => {
     if (!canSearch) return;
 
-    const { profile } = usePlanStore.getState();
-    if (profile.plan === "free" && profile.calendarUsed) {
-      useUpgradeModalStore.getState().show("calendar");
+    if (!canUseCalendar) {
+      notifyCalendarSearchLimit();
       return;
     }
 
@@ -101,8 +111,8 @@ export function CalendarEventCanvas({
     const next = await fetchEventsForNode(activeNode, today, rangeId, locale);
     setResult(next);
 
-    if (profile.plan === "free") {
-      usePlanStore.getState().markFeatureUsed("calendar");
+    if (next.status === "success" || next.status === "empty") {
+      await usePlanStore.getState().incrementCalendarSearch();
     }
 
     if (next.status === "success" && next.scopeBrief?.hasData !== false) {
@@ -112,7 +122,7 @@ export function CalendarEventCanvas({
     } else {
       setPhase("error");
     }
-  }, [activeNode, canSearch, locale, rangeId, today]);
+  }, [activeNode, canSearch, canUseCalendar, locale, rangeId, today]);
 
   const handleSearch = useCallback(async () => {
     if (!canSearch || phase === "loading") return;
@@ -142,43 +152,54 @@ export function CalendarEventCanvas({
   };
 
   const controlsRow = (
-    <div className="cal-event-canvas__controls">
-      <button
-        type="button"
-        className={
-          "cal-event-canvas__search-pill"
-          + (phase === "loading" ? " is-loading" : "")
-          + (pillDate ? " has-date" : "")
-          + (phase !== "empty" ? " cal-event-canvas__search-pill--compact" : "")
-        }
-        onClick={handleSearch}
-        disabled={!canSearch || phase === "loading"}
-        aria-busy={phase === "loading"}
-        aria-label={
-          phase === "loading"
-            ? "Searching events"
-            : "Search events for schedule date"
-        }
+    <div className="cal-event-canvas__controls-row">
+      <div className="cal-event-canvas__controls">
+        <button
+          type="button"
+          className={
+            "cal-event-canvas__search-pill"
+            + (phase === "loading" ? " is-loading" : "")
+            + (pillDate ? " has-date" : "")
+            + (phase !== "empty" ? " cal-event-canvas__search-pill--compact" : "")
+            + (!canUseCalendar ? " is-disabled" : "")
+          }
+          onClick={handleSearch}
+          disabled={!canSearch || phase === "loading"}
+          aria-busy={phase === "loading"}
+          aria-label={
+            phase === "loading"
+              ? "Searching events"
+              : "Search events for schedule date"
+          }
+          title={!canUseCalendar ? limitMessage : undefined}
+        >
+          {phase === "loading" ? (
+            <SearchSpinner size={14} />
+          ) : (
+            <>
+              <span
+                className={
+                  "cal-event-canvas__date tnum"
+                  + (pillDate ? "" : " cal-event-canvas__date--placeholder")
+                }
+              >
+                {pillDate || "month/day"}
+              </span>
+              {!pillDate ? (
+                <SearchIcon className="cal-event-canvas__search-icon" size={14} />
+              ) : null}
+            </>
+          )}
+        </button>
+        <RangeSwitchRow value={rangeId} onChange={setRangeId} disabled={!canSearch} />
+      </div>
+      <span
+        className="cal-event-canvas__counter tnum"
+        title={t("intel.calendarSearchCounterHint")}
+        aria-label={t("intel.calendarSearchCounterHint")}
       >
-        {phase === "loading" ? (
-          <SearchSpinner size={14} />
-        ) : (
-          <>
-            <span
-              className={
-                "cal-event-canvas__date tnum"
-                + (pillDate ? "" : " cal-event-canvas__date--placeholder")
-              }
-            >
-              {pillDate || "month/day"}
-            </span>
-            {!pillDate ? (
-              <SearchIcon className="cal-event-canvas__search-icon" size={14} />
-            ) : null}
-          </>
-        )}
-      </button>
-      <RangeSwitchRow value={rangeId} onChange={setRangeId} disabled={!canSearch} />
+        {actionCounter}
+      </span>
     </div>
   );
 

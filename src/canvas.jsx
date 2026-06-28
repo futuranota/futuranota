@@ -32,6 +32,11 @@ import {
   resolveNodeParentDocId,
 } from './lib/nodeParentAdoption.js';
 import { useI18n } from './i18n/useI18n.js';
+import { AgentIcon } from './components/agents/AgentIcon.jsx';
+import { getAgentById, getAgentLabel, isAgentEnabled } from './lib/agents/registry.js';
+import { getAgentCreditCost } from './lib/agents/agentCreditCosts.js';
+import { usePlanStore } from './stores/planStore.js';
+import { getCreditsDisplay } from './lib/planConfig.js';
 import {
   filterSelectableCanvasNodeIds,
   isKnowledgeCanvasNode,
@@ -249,9 +254,18 @@ function CanvasNode({
   orphanEntityCanvasNodes = [],
   timelineSelectable = true,
   timelineQueueMode = false,
+  onRunAgent,
 }) {
   const ref = useRef(null);
   const { t } = useI18n();
+  const planProfile = usePlanStore((s) => s.profile);
+  const planSearchCount = usePlanStore((s) => s.profile.searchCount);
+  const planTokensBalance = usePlanStore((s) => s.profile.tokensBalance);
+  const creditsDisplay = getCreditsDisplay({
+    ...planProfile,
+    searchCount: planSearchCount,
+    tokensBalance: planTokensBalance,
+  });
   const [editing, setEditing] = useState(null); // 'title' | 'content' | null
   const TAP_THRESHOLD = 5;
 
@@ -372,9 +386,6 @@ function CanvasNode({
       return (
         <div className="cnode-v cnode-object-ref">
           <img src="/uploads/cube-m.png" alt="" className="cnode-object-img" draggable={false} />
-          {node.content ? (
-            <p className="cnode-object-desc">{String(node.content)}</p>
-          ) : null}
         </div>
       );
     }
@@ -517,14 +528,73 @@ function CanvasNode({
         </div>
       );
     }
+    if (node.canvasKind === "agent" || node.dataType === "agent") {
+      const status = node.agentStatus || "idle";
+      const isRunning = status === "running";
+      const statusClass = status === "error"
+        ? "is-error"
+        : status === "done"
+          ? "is-done"
+          : "";
+      const agentDef = getAgentById(node.agentId || "orchestrator");
+      const agentEnabled = isAgentEnabled(node.agentId || "orchestrator");
+      const creditCost = getAgentCreditCost(node.agentId);
+      const { counter: creditsCounter, remaining: creditsRemaining } = creditsDisplay;
+      return (
+        <div className="cnode-agent" onPointerDown={(e) => e.stopPropagation()}>
+          <div className={`cnode-agent__avatar${isRunning ? " is-running" : ""}`}>
+            <AgentIcon
+              variant={agentDef?.icon || node.agentId || "orchestrator"}
+              className="cnode-agent__avatar-svg"
+            />
+          </div>
+          <div className="cnode-agent__run-row">
+            <button
+              type="button"
+              className="cnode-agent__run"
+              disabled={isRunning || !onRunAgent || !agentEnabled || creditsRemaining < creditCost}
+              title={!agentEnabled ? t("agents.orchestrator.disabled") : undefined}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!agentEnabled) return;
+                onRunAgent?.(node.id);
+              }}
+            >
+              {isRunning ? t("agents.running") : t("agents.run")}
+            </button>
+            <span
+              className="cnode-agent__counter"
+              aria-label={t("plans.creditsCounter", { count: creditsCounter })}
+              title={t("plans.creditsCounterHint")}
+            >
+              {creditsCounter}
+            </span>
+          </div>
+          {status !== "idle" ? (
+            <span
+              className={`cnode-agent__status ${statusClass}`}
+              title={node.agentError || undefined}
+            >
+              {status === "error"
+                ? t("agents.error")
+                : status === "done"
+                  ? t("agents.done")
+                  : status}
+            </span>
+          ) : null}
+        </div>
+      );
+    }
     return null;
   };
 
-  const displayTitle = node.dataType === "text"
-    ? resolveCanvasDisplayTitle(node, nodeEntitiesById)
-    : node.dataType === "document"
-      ? resolveCanvasDocTitle(node, docsById)
-      : node.title;
+  const displayTitle = node.canvasKind === "agent" || node.dataType === "agent"
+    ? getAgentLabel(node.agentId || "orchestrator", t).toUpperCase()
+    : node.dataType === "text"
+      ? resolveCanvasDisplayTitle(node, nodeEntitiesById)
+      : node.dataType === "document"
+        ? resolveCanvasDocTitle(node, docsById)
+        : node.title;
 
   const calendarEventPayload = node.dataType === "text"
     ? parseCalendarEventNodeContent(
@@ -545,6 +615,8 @@ function CanvasNode({
     cls.push("cnode--card-compact");
   } else if (node.dataType === "video") {
     cls.push("cnode--video");
+  } else if (node.canvasKind === "agent" || node.dataType === "agent") {
+    cls.push("cnode--agent", "cnode--card-compact");
   }
 
   if (blueprintColor) cls.push("cnode-in-bp");
@@ -708,6 +780,7 @@ function BlueprintCanvas({
   onNotify,
   onRequestDocAdoption,
   onDocumentAdoptOrphan,
+  onRunAgent,
 }) {
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
   const traceFunixMode = useTimelineStore((s) => s.traceFunixMode);
@@ -2055,6 +2128,7 @@ function BlueprintCanvas({
             onOpen={handleOpenNode}
             onDocumentAdoptOrphan={onDocumentAdoptOrphan}
             orphanEntityCanvasNodes={orphanEntityCanvasNodes}
+            onRunAgent={onRunAgent}
           />
           );
         })}

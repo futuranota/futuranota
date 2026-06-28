@@ -1,4 +1,5 @@
 import { detectBrandIntel } from "./brandCampaignIntel.js";
+import { DEFAULT_RANGE_DAYS } from "../src/lib/campaignWindow.js";
 
 /**
  * @param {import('http').IncomingMessage} req
@@ -66,13 +67,19 @@ export function createCampaignDetectorMiddleware() {
       const userQuery = typeof body.userQuery === "string"
         ? body.userQuery.trim()
         : "";
+      const analystBrief = typeof body.analystBrief === "string"
+        ? body.analystBrief.trim()
+        : "";
+      const locale = body.locale === "en" ? "en" : "es";
 
       const result = await detectBrandIntel(brandName, {
-        rangeDays: Number.isFinite(rangeDays) && rangeDays > 0 ? rangeDays : 90,
+        rangeDays: Number.isFinite(rangeDays) && rangeDays > 0 ? rangeDays : DEFAULT_RANGE_DAYS,
         sources,
         mode,
         officialDomain,
         userQuery,
+        analystBrief,
+        locale,
       });
 
       res.statusCode = 200;

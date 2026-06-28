@@ -64,6 +64,7 @@ function hitToCitation(hit, index) {
     domain,
     source: domain,
     body: (hit.snippet || hit.title || "").trim(),
+    date: hit.date || null,
   };
 }
 

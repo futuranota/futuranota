@@ -1,7 +1,8 @@
 // api/analytics/campaign-detect.js
-// Vercel Function — espejo de server/brandCampaignIntel.js para producción.
+// Vercel Function — espejo de server/campaignDetectorHandler.js para producción.
 
 import { detectBrandIntel } from "../../server/brandCampaignIntel.js";
+import { DEFAULT_RANGE_DAYS } from "../../src/lib/campaignWindow.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -31,10 +32,26 @@ export default async function handler(req, res) {
 
     const rangeDays = Number(body.rangeDays);
     const sources = Array.isArray(body.sources) ? body.sources : [];
+    const mode = body.mode === "deep" ? "deep" : undefined;
+    const officialDomain = typeof body.officialDomain === "string"
+      ? body.officialDomain.trim()
+      : "";
+    const userQuery = typeof body.userQuery === "string"
+      ? body.userQuery.trim()
+      : "";
+    const analystBrief = typeof body.analystBrief === "string"
+      ? body.analystBrief.trim()
+      : "";
+    const locale = body.locale === "en" ? "en" : "es";
 
     const result = await detectBrandIntel(brandName, {
-      rangeDays: Number.isFinite(rangeDays) && rangeDays > 0 ? rangeDays : 90,
+      rangeDays: Number.isFinite(rangeDays) && rangeDays > 0 ? rangeDays : DEFAULT_RANGE_DAYS,
       sources,
+      mode,
+      officialDomain,
+      userQuery,
+      analystBrief,
+      locale,
     });
 
     res.status(200).json(result);

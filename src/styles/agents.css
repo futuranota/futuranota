@@ -1,0 +1,173 @@
+.lp-agent-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.lp-agent-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--accent) 12%, var(--panel-3));
+  color: var(--accent);
+}
+
+.lp-agent-card__icon-svg {
+  width: 22px;
+  height: 22px;
+}
+
+.lp-agent-card__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.lp-agent-card__desc {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.lp-agent-card__insert {
+  align-self: flex-start;
+}
+
+.lp-agent-card--disabled {
+  opacity: 0.72;
+}
+
+.lp-agent-card--disabled .lp-agent-card__icon {
+  background: color-mix(in oklab, var(--dim) 12%, var(--panel-3));
+  color: var(--dim);
+}
+
+.lp-agent-card__disabled {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.cnode--agent {
+  min-width: 168px;
+}
+
+.cnode-agent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px 2px;
+}
+
+.cnode-agent__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--accent) 14%, var(--panel-3));
+  color: var(--accent);
+}
+
+.cnode-agent__avatar-svg {
+  width: 24px;
+  height: 24px;
+}
+
+.cnode-agent__avatar.is-running {
+  animation: cnode-agent-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes cnode-agent-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.65; transform: scale(0.96); }
+}
+
+.cnode-agent__run-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.cnode-agent__run {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, var(--hairline));
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.cnode-agent__run:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+.cnode-agent__run:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cnode-agent__cost {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--warm);
+  white-space: nowrap;
+}
+
+.cnode-agent__counter {
+  flex-shrink: 0;
+  min-width: 2.2em;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.cnode-agent__balance {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
+.cnode-agent__status {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.cnode-agent__status.is-error {
+  color: var(--warm);
+}
+
+.cnode-agent__status.is-done {
+  color: var(--accent);
+}

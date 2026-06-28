@@ -11,9 +11,16 @@ export { CREDIT_TOKEN_UNIT };
 export const TOKEN_COSTS = {
   campaignLive: 10_000,
   cadenceLive: 1_000,
-  /** Legacy flat cost — Intel search uses per-model tokenCost in intelModels.js */
+  /** Intel search + agent runs — 1 user credit each (10k internal tokens). */
   searchOverview: 10_000,
+  agentOrchestrator: 10_000,
+  agentAnalyst: 10_000,
   aiChat: 500,
+};
+
+export const CALENDAR_LIMITS = {
+  freeLifetime: 1,
+  proPerMonth: 30,
 };
 
 export const PLAN_LIMITS = {
@@ -25,7 +32,8 @@ export const PLAN_LIMITS = {
     maxObjects: 1,
     maxImportBytes: 54 * 1024 * 1024,
     maxSearchesLifetime: 10,
-    calendarUsesAllowed: 1,
+    calendarUsesAllowed: CALENDAR_LIMITS.freeLifetime,
+    calendarSearchesCap: CALENDAR_LIMITS.freeLifetime,
     weatherUsesAllowed: 1,
     weatherNodeActionsCap: 2,
     weatherCityChangesCap: 5,
@@ -42,6 +50,7 @@ export const PLAN_LIMITS = {
     maxImportBytes: 5 * 1024 * 1024 * 1024,
     maxLiveRunsPerMonth: 150,
     calendarUsesAllowed: Infinity,
+    calendarSearchesCap: CALENDAR_LIMITS.proPerMonth,
     weatherUsesAllowed: Infinity,
     weatherNodeActionsCap: 50,
     weatherCityChangesCap: 50,
@@ -57,6 +66,9 @@ export const FREE_LIMITS = {
   calendarUsesAllowed: PLAN_LIMITS.free.calendarUsesAllowed,
   weatherUsesAllowed: PLAN_LIMITS.free.weatherUsesAllowed,
 };
+
+/** User-facing Pro monthly credit pool (150 calls × 1 credit). */
+export const PRO_MONTHLY_CREDITS = PLAN_LIMITS.pro.maxLiveRunsPerMonth;
 
 /** @param {PlanId|string} plan */
 export function getWeatherCityChangeCap(plan) {
@@ -109,12 +121,62 @@ export function getCreditsUsed(profile) {
   return Math.min(getCreditsCap('pro'), Math.floor(spent / CREDIT_TOKEN_UNIT));
 }
 
+/** User-facing credits left (150 → 149 → … after each −1 call). */
+export function getCreditsRemaining(profile) {
+  const plan = profile?.plan === 'pro' ? 'pro' : 'free';
+  const cap = getCreditsCap(plan);
+  return Math.max(0, cap - getCreditsUsed(profile));
+}
+
+/**
+ * Single counter for UI: one integer (150 → 149 → …).
+ * @param {{ plan?: string, searchCount?: number, tokensBalance?: number }} profile
+ */
+export function getCreditsDisplay(profile) {
+  const plan = profile?.plan === 'pro' ? 'pro' : 'free';
+  const cap = getCreditsCap(plan);
+  const remaining = getCreditsRemaining(profile);
+  return {
+    cap,
+    remaining,
+    counter: remaining,
+    used: cap - remaining,
+  };
+}
+
+/** @param {{ plan?: string, searchCount?: number, tokensBalance?: number }} profile */
+export function canSpendCredits(profile, amount = 1) {
+  const cost = Math.max(1, Math.floor(Number(amount) || 1));
+  return getCreditsRemaining(profile) >= cost;
+}
+
 /** @param {number} n */
 export function formatTokenCount(n) {
   if (n == null || Number.isNaN(n)) return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 10_000) return `${Math.round(n / 1000)}k`;
   return String(Math.round(n));
+}
+
+/** @param {PlanId|string} plan */
+export function getCalendarSearchesCap(plan) {
+  return getPlanLimits(plan).calendarSearchesCap;
+}
+
+/** @param {{ plan?: string, calendarUsed?: boolean, calendarSearchesCount?: number }} profile */
+export function getCalendarSearchesUsed(profile) {
+  const plan = profile?.plan === 'pro' ? 'pro' : 'free';
+  if (plan === 'free') {
+    return profile?.calendarUsed ? 1 : 0;
+  }
+  return Math.max(0, profile?.calendarSearchesCount ?? 0);
+}
+
+/** @param {{ plan?: string, calendarUsed?: boolean, calendarSearchesCount?: number }} profile */
+export function canUseCalendarSearch(profile) {
+  const plan = profile?.plan === 'pro' ? 'pro' : 'free';
+  const cap = getCalendarSearchesCap(plan);
+  return getCalendarSearchesUsed(profile) < cap;
 }
 
 /** @param {PlanId|string} plan */
@@ -126,7 +188,7 @@ export function getPlanFeatureRows(plan) {
     { key: 'objects', label: 'Objects', value: isPro ? 'Unlimited' : String(f.maxObjects) },
     { key: 'storage', label: 'Storage', value: f.storageLabel },
     { key: 'searches', label: 'AI searches', value: isPro ? `${f.maxLiveRunsPerMonth} live/mo` : `${f.maxSearchesLifetime} lifetime` },
-    { key: 'calendar', label: 'Calendar', value: isPro ? 'Advanced' : `${f.calendarUsesAllowed} use` },
+    { key: 'calendar', label: 'Calendar', value: isPro ? `${f.calendarSearchesCap}/mo` : `${f.calendarSearchesCap} use` },
     { key: 'weather', label: 'Forecast', value: isPro ? `${f.weatherNodeActionsCap} nodes · ${f.weatherCityChangesCap} cities/day` : `${f.weatherNodeActionsCap} nodes · ${f.weatherCityChangesCap} cities/day` },
     { key: 'campaign', label: 'Campaign study', value: isPro ? `${f.maxLiveRunsPerMonth} live/mo` : `${f.campaignLiveRuns} live (frozen)` },
     { key: 'library', label: 'Library switch', value: '0 credits' },

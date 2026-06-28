@@ -1,9 +1,9 @@
 {
   "defaultIndex": 0,
   "starters": [
-    "investigar campañas recientes de {brand}",
+    "qué hay de nuevo en {brand}, próximos lanzamientos futuros y noticias del último año",
+    "¿Qué productos concretos lanza {brand}? Detalla innovación, tamaño y oportunidad según fuentes",
     "{brand} product launch campaign announcement",
-    "{brand} marketing campaign 2026 news",
-    "último lanzamiento {brand} fechas anuncio"
+    "último lanzamiento {brand} fechas anuncio newsroom"
   ]
 }

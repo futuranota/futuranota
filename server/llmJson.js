@@ -58,12 +58,14 @@ function retryDelayMs(err, attempt) {
 
 /**
  * @param {string} prompt
- * @param {{ system?: string }} [options]
+ * @param {{ system?: string, temperature?: number }} [options]
  * @param {string} model
  */
 async function completeJsonWithGroqModel(prompt, options, model) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
+
+  const temperature = typeof options.temperature === "number" ? options.temperature : 0.2;
 
   const res = await fetch(GROQ_URL, {
     method: "POST",
@@ -73,7 +75,7 @@ async function completeJsonWithGroqModel(prompt, options, model) {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.2,
+      temperature,
       response_format: { type: "json_object" },
       messages: [
         ...(options.system
@@ -137,12 +139,14 @@ export async function completeJsonWithGroq(prompt, options = {}) {
 /**
  * Uses GEMINI_API_KEY only — GOOGLE_API_KEY is for Translate/CSE, not Generative Language.
  * @param {string} prompt
- * @param {{ system?: string }} [options]
+ * @param {{ system?: string, temperature?: number }} [options]
  * @param {string} model
  */
 async function completeJsonWithGeminiModel(prompt, options, model) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return null;
+
+  const temperature = typeof options.temperature === "number" ? options.temperature : 0.2;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
   const parts = [];
@@ -157,7 +161,7 @@ async function completeJsonWithGeminiModel(prompt, options, model) {
     body: JSON.stringify({
       contents: [{ role: "user", parts }],
       generationConfig: {
-        temperature: 0.2,
+        temperature,
         responseMimeType: "application/json",
       },
     }),

@@ -75,7 +75,7 @@ export async function processIntelOverviewRequest(reqLike) {
     if (used + model.creditCost > FREE_MAX_CREDITS) {
       return { status: 403, body: { error: "Free search limit reached", code: "search" } };
     }
-  } else if (!isAdminUser) {
+  } else {
     const balance = profile.tokens_balance ?? PRO_TOKENS_CAP;
     if (balance < model.tokenCost) {
       return { status: 403, body: { error: "Insufficient tokens", code: "tokens" } };

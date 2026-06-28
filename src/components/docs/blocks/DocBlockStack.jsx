@@ -62,23 +62,6 @@ function scrollCaretAfterNewline(blockId) {
   });
 }
 
-// #region agent log
-const debugLog = (location, message, data, hypothesisId) => {
-  fetch("http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "a58ec5" },
-    body: JSON.stringify({
-      sessionId: "a58ec5",
-      location,
-      message,
-      data,
-      hypothesisId,
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-};
-// #endregion
-
 export const DocBlockStack = forwardRef(function DocBlockStack({
   blocks,
   onBlocksChange,
@@ -177,15 +160,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   const toggleBlockContent = (blockId) => {
     const willCollapse = !collapsedContentByBlockId[blockId];
-
-    // #region agent log
-    debugLog("DocBlockStack.jsx:toggleBlockContent", "toggle", {
-      blockId,
-      willCollapse,
-      activeWrite: collapsedPadWriteByOwnerId[blockId] ?? null,
-      runId: "post-fix-v4",
-    }, "A,F");
-    // #endregion
 
     setCollapsedContentByBlockId((prev) => ({
       ...prev,
@@ -342,24 +316,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           return;
         }
         if (!input || !("focus" in input)) {
-          // #region agent log
-          debugLog("DocBlockStack.jsx:focusPadTextarea", "no-input", {
-            blockId,
-            tries,
-            runId: "post-fix-v4",
-          }, "B");
-          // #endregion
           return;
         }
         focusTextInputWithCamera(input, caretPos);
-        // #region agent log
-        debugLog("DocBlockStack.jsx:focusPadTextarea", "focused", {
-          blockId,
-          valueLen: input.value?.length ?? 0,
-          clientHeight: input.clientHeight,
-          runId: "post-fix-v4",
-        }, "B");
-        // #endregion
       });
     };
     attempt();
@@ -381,27 +340,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           return;
         }
         if (!input || !("focus" in input)) {
-          // #region agent log
-          debugLog("DocBlockStack.jsx:focusBlockCaret", "no-input", {
-            blockId,
-            tries,
-            itemHidden: el?.closest(".doc-block-stack__item")?.hasAttribute("hidden"),
-          }, "B");
-          // #endregion
           return;
         }
         focusTextInputWithCamera(input, caretPos);
-        // #region agent log
-        debugLog("DocBlockStack.jsx:focusBlockCaret", "focused", {
-          blockId,
-          tag: input.tagName,
-          valueLen: input.value?.length ?? 0,
-          clientHeight: input.clientHeight,
-          scrollHeight: input.scrollHeight,
-          activeTag: document.activeElement?.tagName,
-          activeClass: document.activeElement?.className,
-        }, "B,D");
-        // #endregion
       });
     };
     attempt();
@@ -1102,42 +1043,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           ? resolveBlockById(collapsedActiveWriteId)
           : null;
 
-        if (block.type === DOC_BLOCK_TYPES.TEXT && !itemHidden) {
-          const ownerIdx = getOwningScheduleBlockIndexForText(blocks, index);
-          const ownerId = ownerIdx >= 0 ? blocks[ownerIdx]?.id : null;
-          // #region agent log
-          debugLog("DocBlockStack.jsx:renderText", "visible-text", {
-            blockId: block.id,
-            index,
-            textLen: (block.text || "").length,
-            itemHidden,
-            isActiveWrite: ownerId
-              ? collapsedPadWriteByOwnerId[ownerId]?.blockId === block.id
-              : false,
-            collapsed: ownerId ? Boolean(collapsedContentByBlockId[ownerId]) : false,
-            runId: "post-fix-v4",
-          }, "A,C");
-          // #endregion
-        }
-
-        if (
-          (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
-          && showScheduleForBlock(block)
-        ) {
-          // #region agent log
-          debugLog("DocBlockStack.jsx:renderOwner", "schedule-owner", {
-            blockId: block.id,
-            type: block.type,
-            collapsed: Boolean(collapsedContentByBlockId[block.id]),
-            showCollapsedWritePad,
-            activeWrite: collapsedActiveWriteId,
-            collapsedWriteIndex,
-            hasWriteBlock: Boolean(collapsedWriteBlock),
-            runId: "post-fix-v4",
-          }, "F");
-          // #endregion
-        }
-
         if (block.type === DOC_BLOCK_TYPES.TEXT && isLinkedOwnerContinuationSlot(blocks, index)) {
           return null;
         }
@@ -1345,10 +1250,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               showPlaceholder={index === 0 && blocks.length === 1}
               autoFocus={focusBlockId === block.id && !itemHidden}
               onFocus={() => {
-                debugLog("DocBlockStack.jsx:textFocus", "textarea-focus", {
-                  blockId: block.id,
-                  textLen: (block.text || "").length,
-                }, "B");
                 onFocusBlock?.(block.id);
               }}
               onKeyDown={(e) => handleTextKeyDown(index, e)}

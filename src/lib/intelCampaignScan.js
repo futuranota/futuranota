@@ -2,9 +2,8 @@ import { resolveCurrentCorpus, resolveIntelCampaignBrand } from "./currentCorpus
 import { fetchCampaignDetection } from "./fetchCampaignDetection.js";
 import { buildCampaignDocFromDetection } from "./campaignDocFromDetection.js";
 import { useDocsStore } from "../stores/docsStore.js";
-import { usePlanStore } from "../stores/planStore.js";
-import { useUpgradeModalStore } from "../stores/upgradeModalStore.js";
-import { FREE_LIMITS, TOKEN_COSTS } from "./planConfig.js";
+import { checkIntelCreditGate } from "./intelPlanGate.js";
+import { debitIntelCredit } from "./debitIntelCredit.js";
 import { DEFAULT_RANGE_DAYS } from "./campaignWindow.js";
 
 /**
@@ -48,15 +47,15 @@ export async function runCampaignScanForCorpus({
     };
   }
 
-  const planStore = usePlanStore.getState();
-  const { profile } = planStore;
-  if (profile.plan === "free" && profile.searchCount >= FREE_LIMITS.maxSearches) {
-    useUpgradeModalStore.getState().show("search");
-    return { status: "error", code: "gate", message: "Search limit reached." };
-  }
-  if (profile.plan === "pro" && !planStore.canSpendTokens(TOKEN_COSTS.searchOverview)) {
-    useUpgradeModalStore.getState().show("tokens");
-    return { status: "error", code: "gate", message: "Insufficient credits." };
+  const planGate = await checkIntelCreditGate();
+  if (!planGate.ok) {
+    return {
+      status: "error",
+      code: "gate",
+      message: planGate.code === "gate_search"
+        ? "Search limit reached."
+        : "Insufficient credits.",
+    };
   }
 
   try {
@@ -101,6 +100,19 @@ export async function runCampaignScanForCorpus({
 
     if (!docId) {
       return { status: "error", code: "api", message: "Could not create document." };
+    }
+
+    const debit = await debitIntelCredit({
+      routeLabel: "Campaign Scan",
+      endpoint: "analytics/campaign-detect",
+      meta: { brandName: scanBrand, docId },
+    });
+    if (!debit.ok) {
+      return {
+        status: "error",
+        code: "gate",
+        message: "Insufficient credits.",
+      };
     }
 
     return {

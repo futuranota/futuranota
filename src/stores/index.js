@@ -8,7 +8,10 @@ export { usePlanStore, FREE_LIMITS, TOKEN_COSTS } from "./planStore.js";
 export {
   formatTokenCount,
   getCreditsCap,
+  getCreditsDisplay,
+  getCreditsRemaining,
   getCreditsUsed,
+  canSpendCredits,
   getPlanFeatureRows,
   getPlanLimits,
 } from "../lib/planConfig.js";

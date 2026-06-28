@@ -8,6 +8,7 @@ import './styles/parte3.css';
 import './styles/left-panel.css';
 import './styles/intel-reference.css';
 import './styles/pack-wizard.css';
+import './styles/agents.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

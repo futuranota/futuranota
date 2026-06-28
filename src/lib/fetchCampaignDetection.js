@@ -49,6 +49,9 @@ import { apiClient } from "../api/client.js";
  * @param {Array<{ domain: string, enabled?: boolean }>} [params.sources]
  * @param {"deep"} [params.mode]
  * @param {string} [params.officialDomain]
+ * @param {string} [params.userQuery]
+ * @param {string} [params.analystBrief]
+ * @param {'en' | 'es'} [params.locale]
  * @returns {Promise<CampaignDetectionResponse>}
  */
 export async function fetchCampaignDetection({
@@ -58,6 +61,8 @@ export async function fetchCampaignDetection({
   mode,
   officialDomain,
   userQuery,
+  analystBrief,
+  locale,
 }) {
   return apiClient(API_ROUTES.campaignDetect, {
     method: "POST",
@@ -68,6 +73,8 @@ export async function fetchCampaignDetection({
       mode,
       officialDomain,
       userQuery,
+      analystBrief,
+      locale: locale === "es" ? "es" : "en",
     }),
   });
 }
