@@ -436,17 +436,24 @@ useEffect(() => {
   };
 
   const handleInsertForecastNode = ({ title, payload, sourceNode, anchorAt }) => {
+    const parentDocId = sourceNode?.parentDocId || null;
     const addNode = useNodesStore.getState().addNode;
     const nodeId = addNode(
       title,
       "text",
       JSON.stringify(payload),
-      sourceNode?.parentDocId || null,
+      parentDocId,
       {
         anchorAt: anchorAt || null,
         sourceQuery: title,
       },
     );
+    if (parentDocId) {
+      useNodesStore.getState().syncNodeToParentDoc(nodeId, parentDocId);
+      if (expandedDocId === parentDocId) {
+        setDocViewGeneration((n) => n + 1);
+      }
+    }
     const created = useNodesStore.getState().getNode(nodeId);
     if (created) insertNodeToCanvas(created, { center: true });
   };
@@ -466,6 +473,9 @@ useEffect(() => {
     );
     if (parentDocId) {
       useNodesStore.getState().syncNodeToParentDoc(nodeId, parentDocId);
+      if (expandedDocId === parentDocId) {
+        setDocViewGeneration((n) => n + 1);
+      }
     }
     const created = useNodesStore.getState().getNode(nodeId);
     if (created) insertNodeToCanvas(created, { center: true });
@@ -1002,7 +1012,6 @@ useEffect(() => {
           />
         ) : (
           <StandaloneNodeModal
-            defaultExpanded
             node={nodeEntities[expandedNodeId]}
             docs={Object.values(docs)}
             parentObjectId={filterObjectId || selectedObjectId || null}

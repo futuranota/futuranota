@@ -30,7 +30,9 @@ import { runIntelSearch } from './lib/intelSearch.js';
 import { getDefaultCampaignSearchQuery } from './lib/campaignSearchStarters.js';
 import { resolveIntelCampaignBrand } from './lib/currentCorpus.js';
 import { isCalendarEventNodeContent } from './lib/eventCalendarSearch.js';
+import { isWeatherForecastNodeContent } from './lib/forecastSearch.js';
 import { CalendarEventNodeView } from './components/intel/CalendarEventNodeView.jsx';
+import { ForecastNodeView } from './components/intel/ForecastNodeView.jsx';
 import { useI18n } from './i18n/useI18n.js';
 import { useUpgradeModalStore } from './stores/upgradeModalStore.js';
 
@@ -187,6 +189,8 @@ function NoteCard({
       content = { value: isNaN(num) ? editContent : num, unit: editMetricUnit };
     } else if (note.dataType === "text" && isCalendarEventNodeContent(note.content)) {
       content = note.content;
+    } else if (note.dataType === "text" && isWeatherForecastNodeContent(note.content)) {
+      content = note.content;
     }
     onUpdate({ ...note, title: editTitle.trim(), content });
     setEditing(false);
@@ -207,6 +211,8 @@ function NoteCard({
           {note.dataType === "text" && (
             isCalendarEventNodeContent(note.content) ? (
               <CalendarEventNodeView content={note.content} />
+            ) : isWeatherForecastNodeContent(note.content) ? (
+              <ForecastNodeView content={note.content} />
             ) : (
               <textarea
                 className="note-form-field"
@@ -262,6 +268,14 @@ function NoteCard({
           <>
             <div className="note-title" title={note.title}>{note.title}</div>
             <CalendarEventNodeView content={note.content} className="note-body" />
+          </>
+        );
+      }
+      if (isWeatherForecastNodeContent(note.content)) {
+        return (
+          <>
+            <div className="note-title" title={note.title}>{note.title}</div>
+            <ForecastNodeView content={note.content} className="note-body" />
           </>
         );
       }

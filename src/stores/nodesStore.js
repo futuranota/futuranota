@@ -16,8 +16,29 @@ import {
   buildCalendarEmbeddedBlockFields,
   getCalendarEventDisplayText,
 } from "../lib/calendarEventDisplay.js";
+import {
+  buildForecastEmbeddedBlockFields,
+  getForecastDisplayText,
+} from "../lib/forecastNodeDisplay.js";
+import { parseWeatherForecastNodeContent } from "../lib/forecastSearch.js";
 import { ensureContinuationAfterLinkedOwner, unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
 import { resolveAdoptedBlockNodeLinkColor } from "../lib/docNodeLinkColors.js";
+import { getVideoNodePayload } from "../lib/videoEmbed.js";
+
+function resolveVideoContentForDocSync(node) {
+  return getVideoNodePayload(node?.content) || {};
+}
+
+function buildVideoEmbedDocBlock(videoContent, patch = {}) {
+  return createDocBlock(DOC_BLOCK_TYPES.VIDEO_EMBED, {
+    rawInput: videoContent.rawInput ?? "",
+    provider: videoContent.provider ?? "unknown",
+    videoId: videoContent.videoId ?? "",
+    embedSrc: videoContent.embedSrc ?? "",
+    parseError: null,
+    ...patch,
+  });
+}
 
 function stringifyNodeContent(dataType, content) {
   if (dataType === "date") {
@@ -53,12 +74,19 @@ function buildSyncedNodeText(node) {
   if (node?.dataType === "text" && parseCalendarEventNodeContent(node.content)) {
     return getCalendarEventDisplayText(node.content);
   }
+  if (node?.dataType === "text" && parseWeatherForecastNodeContent(node.content)) {
+    return getForecastDisplayText(node.content);
+  }
   return stringifyNodeContent(node.dataType, node.content);
 }
 
 function buildSyncedTextBlockFields(node) {
   if (node?.dataType === "text" && parseCalendarEventNodeContent(node.content)) {
     const embedded = buildCalendarEmbeddedBlockFields(node);
+    if (embedded) return embedded;
+  }
+  if (node?.dataType === "text" && parseWeatherForecastNodeContent(node.content)) {
+    const embedded = buildForecastEmbeddedBlockFields(node);
     if (embedded) return embedded;
   }
   return { text: buildSyncedNodeText(node) };
@@ -290,8 +318,7 @@ export const useNodesStore = create(
           sourceBlock?.type === DOC_BLOCK_TYPES.H1
           && normalized[sourceBlockIndex + 1]?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
         ) {
-          const videoContent =
-            node.content && typeof node.content === "object" ? node.content : {};
+          const videoContent = resolveVideoContentForDocSync(node);
           const anchorFields = anchorFieldsFromIso(node.anchorAt);
           nextBlocks = normalized.map((block, i) => {
             if (i === sourceBlockIndex) {
@@ -307,15 +334,16 @@ export const useNodesStore = create(
             if (i === sourceBlockIndex + 1) {
               return {
                 ...block,
-                rawInput: videoContent.rawInput || block.rawInput || "",
-                provider: videoContent.provider || block.provider || "unknown",
-                videoId: videoContent.videoId || block.videoId || "",
-                embedSrc: videoContent.embedSrc || block.embedSrc || "",
+                rawInput: videoContent.rawInput ?? "",
+                provider: videoContent.provider ?? "unknown",
+                videoId: videoContent.videoId ?? "",
+                embedSrc: videoContent.embedSrc ?? "",
                 parseError: null,
               };
             }
             return block;
           });
+          sourceTextBlockId = null;
         } else {
           const existingH1Index =
             sourceBlock?.type === DOC_BLOCK_TYPES.H1 ? sourceBlockIndex : -1;
@@ -324,7 +352,45 @@ export const useNodesStore = create(
             : -1;
           const anchorFields = anchorFieldsFromIso(node.anchorAt);
 
-          if (existingH1Index >= 0) {
+          if (existingH1Index >= 0 && node.dataType === "video") {
+            const videoContent = resolveVideoContentForDocSync(node);
+            const h1Id = normalized[existingH1Index].id;
+            sourceTextBlockId = null;
+
+            const mapped = normalized.map((block, i) => {
+              if (i === existingH1Index) {
+                return {
+                  ...block,
+                  title: syncedTitle,
+                  sourceQuery: syncedTitle,
+                  nodeId: node.id,
+                  ...linkedBlockFields(doc),
+                  ...anchorFields,
+                };
+              }
+              if (i === existingH1Index + 1) {
+                return buildVideoEmbedDocBlock(videoContent, {
+                  id: block.id,
+                  ownerH1Id: h1Id,
+                });
+              }
+              if (block.id === node.sourceTextBlockId && block.type === DOC_BLOCK_TYPES.TEXT) {
+                return null;
+              }
+              return block;
+            }).filter(Boolean);
+
+            if (normalized[existingH1Index + 1]) {
+              nextBlocks = mapped;
+            } else {
+              const videoBlock = buildVideoEmbedDocBlock(videoContent, { ownerH1Id: h1Id });
+              nextBlocks = [
+                ...mapped.slice(0, existingH1Index + 1),
+                videoBlock,
+                ...mapped.slice(existingH1Index + 1),
+              ];
+            }
+          } else if (existingH1Index >= 0) {
             nextBlocks = normalized.map((block, i) => {
               if (i === existingH1Index) {
                 return {
@@ -399,6 +465,21 @@ export const useNodesStore = create(
             });
             sourceBlockId = todoBlock.id;
             nextBlocks = [...normalized, todoBlock];
+          } else if (node.dataType === "video") {
+            const videoContent = resolveVideoContentForDocSync(node);
+            const h1Block = createDocBlock(DOC_BLOCK_TYPES.H1, {
+              title: syncedTitle,
+              sourceQuery: syncedTitle,
+              nodeId: node.id,
+              ...linkedBlockFields(doc),
+              ...anchorFields,
+            });
+            const videoBlock = buildVideoEmbedDocBlock(videoContent, {
+              ownerH1Id: h1Block.id,
+            });
+            sourceBlockId = h1Block.id;
+            sourceTextBlockId = null;
+            nextBlocks = [...normalized, h1Block, videoBlock];
           } else {
             const h1Block = createDocBlock(DOC_BLOCK_TYPES.H1, {
               title: syncedTitle,
@@ -451,6 +532,13 @@ export const useNodesStore = create(
                 return {
                   ...block,
                   text: block.text || getCalendarEventDisplayText(node.content),
+                  embedded: { ...block.embedded, linkedNodeId: null },
+                };
+              }
+              if (block.embedded?.kind === "weather-forecast") {
+                return {
+                  ...block,
+                  text: block.text || getForecastDisplayText(node.content),
                   embedded: { ...block.embedded, linkedNodeId: null },
                 };
               }

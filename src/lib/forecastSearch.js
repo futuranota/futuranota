@@ -442,3 +442,57 @@ export function buildForecastNodePayload(fetchResult) {
 export function buildForecastNodeTitle(uiDate) {
   return `Forecast · ${uiDate || "—"}`;
 }
+
+/**
+ * @param {unknown} content
+ * @returns {object|null}
+ */
+export function parseWeatherForecastNodeContent(content) {
+  if (content == null || content === "") return null;
+
+  let parsed = content;
+  if (typeof content === "string") {
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object" || parsed.kind !== "weather-forecast") {
+    return null;
+  }
+
+  return parsed;
+}
+
+/**
+ * @param {unknown} content
+ * @returns {boolean}
+ */
+export function isWeatherForecastNodeContent(content) {
+  return Boolean(parseWeatherForecastNodeContent(content));
+}
+
+/**
+ * @param {object|null|undefined} payload
+ */
+export function forecastPayloadToResult(payload) {
+  if (!payload) return null;
+
+  return {
+    uiDate: payload.uiDate || "",
+    sourceLabel: payload.scheduleLabel || "",
+    location: payload.location || "",
+    day: {
+      high: payload.high,
+      low: payload.low,
+      condition: payload.condition,
+      conditionIcon: payload.conditionIcon,
+      precipPct: payload.precipPct,
+      wind: payload.wind || {},
+      day: { description: payload.summary || payload.condition },
+    },
+    disclaimer: payload.disclaimer || "",
+  };
+}

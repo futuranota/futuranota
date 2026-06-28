@@ -1940,6 +1940,122 @@ textarea.field {
   background: rgba(255, 255, 255, 0.02);
 }
 
+.cnode--weather-forecast {
+  min-width: 220px;
+  max-width: 268px;
+  padding: 0;
+}
+.cnode--weather-forecast .cnode-h {
+  display: none;
+}
+.cnode--weather-forecast .cnode-v--weather-forecast {
+  padding: 0;
+}
+.cnode--weather-forecast .forecast-node-view {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.forecast-node-view {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.forecast-node-view--compact {
+  padding: 8px 10px;
+  gap: 5px;
+}
+.forecast-node-view__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-2);
+}
+.forecast-node-view__date {
+  font-family: var(--mono);
+  letter-spacing: 0.02em;
+}
+.forecast-node-view__location {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.forecast-node-view__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.forecast-node-view__copy {
+  flex: 1;
+  min-width: 0;
+}
+.forecast-node-view__headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-1);
+}
+.forecast-node-view__temps {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+.forecast-node-view__summary {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-2);
+}
+.forecast-node-view__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 9.5px;
+  color: var(--text-2);
+}
+.forecast-node-view__stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.forecast-node-view__source {
+  font-size: 9px;
+  color: var(--mute);
+}
+
+.doc-embedded-forecast__actions,
+.doc-embedded-calendar__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.doc-widget-snapshot {
+  margin: 6px 0 2px;
+}
+
+.doc-widget-snapshot__img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+}
+
+.doc-widget-snapshot__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
 .cnode--video {
   min-width: 280px;
   max-width: 360px;

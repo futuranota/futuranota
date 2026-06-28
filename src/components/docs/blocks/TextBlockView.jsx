@@ -1,6 +1,9 @@
 import { useRef } from "react";
 import { SlashAwareTextarea } from "./SlashAwareTextarea.jsx";
 import { EmbeddedCalendarBlockView } from "./EmbeddedCalendarBlockView.jsx";
+import { EmbeddedForecastBlockView } from "./EmbeddedForecastBlockView.jsx";
+import { EmbeddedWidgetSnapshotView } from "./EmbeddedWidgetSnapshotView.jsx";
+import { isWidgetSnapshotEmbedded } from "../../../lib/captureWidgetSnapshot.js";
 import { LinkedNodeDocActions } from "./LinkedNodeDocActions.jsx";
 import { AnimatedReportText } from "../../intel/AnimatedReportText.jsx";
 import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
@@ -69,16 +72,38 @@ export function TextBlockView({
     onKeyDown?.(e);
   };
 
+  if (isWidgetSnapshotEmbedded(embedded)) {
+    return (
+      <div className="doc-text-block doc-text-block--embedded">
+        <EmbeddedWidgetSnapshotView
+          src={embedded.src}
+          alt={embedded.alt || t("canvas.widgetSnapshotAlt")}
+          onRemove={onRemoveEmbedded}
+          removeLabel={t("canvas.removeWidgetSnapshot")}
+        />
+      </div>
+    );
+  }
+
   if (embedded?.kind === "calendar-event" && embedded.displayModel) {
     return (
       <div className="doc-text-block doc-text-block--embedded">
         <EmbeddedCalendarBlockView
           displayModel={embedded.displayModel}
-          linkedNodeId={linkedNodeId ?? embedded.linkedNodeId ?? null}
           onRemove={onRemoveEmbedded}
-          onEditAsText={onEditEmbedded}
-          removeLabel={t("canvas.removeFromDoc")}
-          editLabel={t("canvas.editAsText")}
+          removeLabel={t("canvas.detachFromDoc")}
+        />
+      </div>
+    );
+  }
+
+  if (embedded?.kind === "weather-forecast" && embedded.payload) {
+    return (
+      <div className="doc-text-block doc-text-block--embedded">
+        <EmbeddedForecastBlockView
+          payload={embedded.payload}
+          onRemove={onRemoveEmbedded}
+          removeLabel={t("canvas.detachFromDoc")}
         />
       </div>
     );
@@ -89,11 +114,8 @@ export function TextBlockView({
       <div className="doc-text-block doc-text-block--embedded">
         <EmbeddedCalendarBlockView
           displayModel={legacyCalendarModel}
-          linkedNodeId={linkedNodeId}
           onRemove={onRemoveEmbedded}
-          onEditAsText={onEditEmbedded}
-          removeLabel={t("canvas.removeFromDoc")}
-          editLabel={t("canvas.editAsText")}
+          removeLabel={t("canvas.detachFromDoc")}
         />
       </div>
     );

@@ -2,28 +2,18 @@ import { CalendarEventDisplay } from "../../intel/CalendarEventDisplay.jsx";
 
 export function EmbeddedCalendarBlockView({
   displayModel,
-  linkedNodeId = null,
   onRemove,
-  onEditAsText,
-  removeLabel = "Remove from document",
-  editLabel = "Edit as text",
+  removeLabel = "Desvincular del documento",
 }) {
   if (!displayModel) return null;
 
   return (
     <div className="doc-embedded-calendar">
-      <CalendarEventDisplay model={displayModel} className="doc-embedded-calendar__body" />
-      <div className="doc-embedded-calendar__actions">
-        {onEditAsText ? (
-          <button
-            type="button"
-            className="doc-embedded-calendar__edit btn xs ghost"
-            onClick={onEditAsText}
-          >
-            {editLabel}
-          </button>
-        ) : null}
-        {onRemove ? (
+      <div className="doc-embedded-calendar__capture" data-widget-capture-root>
+        <CalendarEventDisplay model={displayModel} className="doc-embedded-calendar__body" />
+      </div>
+      {onRemove ? (
+        <div className="doc-embedded-calendar__actions">
           <button
             type="button"
             className="doc-embedded-calendar__remove btn xs ghost"
@@ -31,8 +21,8 @@ export function EmbeddedCalendarBlockView({
           >
             {removeLabel}
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

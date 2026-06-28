@@ -21,6 +21,12 @@ import {
   isCalendarEventNodeContent,
 } from "./eventCalendarSearch.js";
 import {
+  getForecastDisplayText,
+} from "./forecastNodeDisplay.js";
+import {
+  isWeatherForecastNodeContent,
+} from "./forecastSearch.js";
+import {
   anchorAtFromBlock,
   anchorFieldsFromIso,
   isoFromAnchorFields,
@@ -145,6 +151,9 @@ export function nodeContentAsString(node) {
   if (!node) return "";
   if (isCalendarEventNodeContent(node.content)) {
     return getCalendarEventDisplayText(node.content);
+  }
+  if (isWeatherForecastNodeContent(node.content)) {
+    return getForecastDisplayText(node.content);
   }
   if (typeof node.content === "string") return node.content;
   return JSON.stringify(node.content ?? "");
@@ -504,11 +513,7 @@ export function unlinkNodeFromDocBlocks(blocks, ownerIndex, node = null) {
       }
       if (i === primaryTextIndex) {
         const text = block.text || fallbackText;
-        const patch = { text };
-        if (block.embedded?.kind === "calendar-event") {
-          patch.embedded = { ...block.embedded, linkedNodeId: null };
-        }
-        return normalizeDocBlock({ ...block, ...patch });
+        return normalizeDocBlock({ ...block, text, embedded: undefined });
       }
       return block;
     });

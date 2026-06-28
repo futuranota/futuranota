@@ -19,6 +19,7 @@ import {
   insertBlockAfter,
   isEmptyTextBlock,
   normalizeDocBlocks,
+  normalizeDocBlock,
   removeBlockAt,
   removeEmbedVideoPairAt,
   removeEmbedVideoPairFromVideoIndex,
@@ -34,9 +35,16 @@ import {
 } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner } from "../../../lib/docNodeSync.js";
 import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
-import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
+import { isWeatherForecastNodeContent } from "../../../lib/forecastSearch.js";
+import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
+import {
+  buildWidgetSnapshotEmbedded,
+  captureElementToPngDataUrl,
+  WIDGET_SNAPSHOT_KIND,
+} from "../../../lib/captureWidgetSnapshot.js";
 import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
+import { useDocsStore } from "../../../stores/docsStore.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { DocTodoPlanBlockView } from "./DocTodoPlanBlockView.jsx";
@@ -44,6 +52,24 @@ import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 import { VideoEmbedBlockView } from "./VideoEmbedBlockView.jsx";
+
+function resolveEmbeddedWidgetKind(block) {
+  if (block?.embedded?.kind === "weather-forecast") return "weather-forecast";
+  if (block?.embedded?.kind === "calendar-event") return "calendar-event";
+  if (isWeatherForecastNodeContent(block?.text)) return "weather-forecast";
+  if (isCalendarEventNodeContent(block?.text)) return "calendar-event";
+  return "unknown";
+}
+
+const UNLINK_H1_PATCH = {
+  nodeId: undefined,
+  queryEnabled: false,
+  nodeLinkColor: NO_NODE_LINK_COLOR_ID,
+  anchorFromNode: false,
+  anchorDate: "",
+  anchorTime: "",
+  sourceQuery: undefined,
+};
 
 function focusTextInputWithCamera(input, caretPos) {
   input.focus({ preventScroll: true });
@@ -87,7 +113,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
   const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
-  const deleteNodeAndDocBlocks = useNodesStore((s) => s.deleteNodeAndDocBlocks);
+  const updateNode = useNodesStore((s) => s.updateNode);
+  const getNode = useNodesStore((s) => s.getNode);
+  const removeNodeFromDoc = useDocsStore((s) => s.removeNodeFromDoc);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
   const stackRef = useRef(null);
@@ -452,47 +480,83 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     setBlocks(updateBlockAt(blocksRef.current, index, patch));
   };
 
-  const handleRemoveEmbeddedBlock = useCallback((blockIndex) => {
+  const handleRemoveEmbeddedBlock = useCallback(async (blockIndex) => {
     const current = blocksRef.current;
     const block = current[blockIndex];
-    const isCalendar = block?.embedded?.kind === "calendar-event"
-      || isCalendarEventNodeContent(block?.text);
-    if (!isCalendar) return;
+    const isEmbeddedNode = block?.embedded?.kind === "calendar-event"
+      || block?.embedded?.kind === "weather-forecast"
+      || isCalendarEventNodeContent(block?.text)
+      || isWeatherForecastNodeContent(block?.text);
+    if (!isEmbeddedNode) return;
 
     const h1Index = getH1IndexForTextBlock(current, blockIndex);
     const h1 = h1Index >= 0 ? current[h1Index] : null;
     const nodeId = block.embedded?.linkedNodeId || h1?.nodeId || null;
+    const widgetKind = resolveEmbeddedWidgetKind(block);
 
-    const applyLocalRemoval = () => {
-      let next = current;
-      if (h1Index >= 0) {
-        next = removeBlockAt(next, blockIndex);
-        next = removeBlockAt(next, h1Index);
-      } else {
-        next = removeBlockAt(next, blockIndex);
-      }
-      next = ensureWritableDocTail(next);
-      setBlocks(next);
-      const focusId = next[Math.min(blockIndex, next.length - 1)]?.id;
-      if (focusId) {
-        onFocusBlock?.(focusId);
-        focusBlockCaret(focusId);
-      }
-    };
+    const captureEl = document.querySelector(
+      `[data-block-id="${block.id}"] [data-widget-capture-root]`,
+    );
+    let snapshotSrc = null;
+    if (captureEl instanceof HTMLElement) {
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+      snapshotSrc = await captureElementToPngDataUrl(captureEl);
+    }
 
     if (nodeId) {
-      deleteNodeAndDocBlocks(nodeId);
-      applyLocalRemoval();
-      return;
+      const node = getNode(nodeId);
+      if (node?.parentDocId) {
+        removeNodeFromDoc(node.parentDocId, nodeId);
+      }
+      updateNode(nodeId, {
+        parentDocId: null,
+        linkedToDoc: false,
+        sourceBlockId: undefined,
+        sourceTextBlockId: undefined,
+      });
     }
 
-    if (h1Index >= 0) {
-      applyLocalRemoval();
-      return;
-    }
+    const nextEmbedded = snapshotSrc
+      ? buildWidgetSnapshotEmbedded(snapshotSrc, widgetKind, block.text || "")
+      : block.embedded
+        ? { ...block.embedded, linkedNodeId: null }
+        : null;
 
-    updateAt(blockIndex, { embedded: null, text: block.text || "" });
-  }, [deleteNodeAndDocBlocks, onFocusBlock]);
+    let next = current.map((b, i) => {
+      if (i === h1Index && h1Index >= 0) {
+        return normalizeDocBlock({ ...b, ...UNLINK_H1_PATCH });
+      }
+      if (i === blockIndex) {
+        return normalizeDocBlock({
+          ...b,
+          text: b.text || "",
+          embedded: nextEmbedded,
+        });
+      }
+      return b;
+    });
+
+    next = ensureWritableDocTail(next);
+    setBlocks(next);
+    onFocusBlock?.(block.id);
+  }, [getNode, updateNode, removeNodeFromDoc, onFocusBlock]);
+
+  const handleRemoveWidgetSnapshot = useCallback((blockIndex) => {
+    const current = blocksRef.current;
+    const block = current[blockIndex];
+    if (block?.embedded?.kind !== WIDGET_SNAPSHOT_KIND) return;
+
+    let next = removeBlockAt(current, blockIndex);
+    next = ensureWritableDocTail(next);
+    setBlocks(next);
+    const focusId = next[Math.min(blockIndex, next.length - 1)]?.id;
+    if (focusId) {
+      onFocusBlock?.(focusId);
+      focusBlockCaret(focusId);
+    }
+  }, [onFocusBlock]);
 
   const handleEditEmbeddedAsText = useCallback((blockIndex) => {
     const block = blocksRef.current[blockIndex];
@@ -1234,13 +1298,13 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               continuationPlaceholder={continuationPlaceholder}
               continuationAutoFocus={focusBlockId === continuationBlock?.id && !itemHidden}
               onRemoveEmbedded={
-                block.embedded?.kind === "calendar-event" || isCalendarEventNodeContent(block.text)
-                  ? () => handleRemoveEmbeddedBlock(index)
-                  : null
-              }
-              onEditEmbedded={
-                block.embedded?.kind === "calendar-event" || isCalendarEventNodeContent(block.text)
-                  ? () => handleEditEmbeddedAsText(index)
+                block.embedded?.kind === WIDGET_SNAPSHOT_KIND
+                  ? () => handleRemoveWidgetSnapshot(index)
+                  : block.embedded?.kind === "calendar-event"
+                || block.embedded?.kind === "weather-forecast"
+                || isCalendarEventNodeContent(block.text)
+                || isWeatherForecastNodeContent(block.text)
+                  ? () => { void handleRemoveEmbeddedBlock(index); }
                   : null
               }
               onChange={(text) => {

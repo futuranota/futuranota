@@ -14,8 +14,12 @@ import {
   calendarEventPayloadToResult,
   parseCalendarEventNodeContent,
 } from './lib/eventCalendarSearch.js';
+import {
+  parseWeatherForecastNodeContent,
+} from './lib/forecastSearch.js';
 import { CalendarEventResultBox } from './components/intel/CalendarEventResultBox.jsx';
 import { CalendarEventNodeView } from './components/intel/CalendarEventNodeView.jsx';
+import { ForecastNodeView } from './components/intel/ForecastNodeView.jsx';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
 import {
   isContentDoc,
@@ -323,6 +327,13 @@ function CanvasNode({
             </div>
           );
         }
+        if (parseWeatherForecastNodeContent(rawContent)) {
+          return (
+            <div className="cnode-v cnode-v--compact cnode-v--weather-forecast">
+              <ForecastNodeView content={rawContent} />
+            </div>
+          );
+        }
         return (
           <textarea
             autoFocus
@@ -444,6 +455,14 @@ function CanvasNode({
             </div>
           );
         }
+      }
+      const forecastPayload = parseWeatherForecastNodeContent(entity?.content ?? node.content);
+      if (forecastPayload) {
+        return (
+          <div className="cnode-v cnode-v--compact cnode-v--weather-forecast">
+            <ForecastNodeView payload={forecastPayload} />
+          </div>
+        );
       }
       const anchorIso = entity?.anchorAt || node.anchorAt;
       const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
@@ -602,6 +621,22 @@ function CanvasNode({
     )
     : null;
 
+  const weatherForecastPayload = node.dataType === "text" && !calendarEventPayload
+    ? parseWeatherForecastNodeContent(
+      (node.noteId ? nodeEntitiesById[node.noteId] : null)?.content ?? node.content,
+    )
+    : null;
+
+  const videoEmbedPayload = node.dataType === "video"
+    ? resolveVideoEmbedFromNodeContent(
+      (node.noteId ? nodeEntitiesById[node.noteId] : null)?.content ?? node.content,
+    )
+    : null;
+
+  const isCompactWidgetNode = Boolean(
+    calendarEventPayload || weatherForecastPayload || videoEmbedPayload?.embedSrc,
+  );
+
   const cls = ["cnode"];
   if (selected && timelineQueueMode) cls.push("cnode--timeline-pick");
   else if (selected) cls.push("selected");
@@ -611,6 +646,8 @@ function CanvasNode({
     cls.push("cnode--knowledge-corpus", "cnode--card-compact");
   } else if (calendarEventPayload) {
     cls.push("cnode--calendar-event", "cnode--card-compact");
+  } else if (weatherForecastPayload) {
+    cls.push("cnode--weather-forecast", "cnode--card-compact");
   } else if (node.dataType === "text" || node.dataType === "document") {
     cls.push("cnode--card-compact");
   } else if (node.dataType === "video") {
@@ -665,7 +702,7 @@ function CanvasNode({
     );
   };
 
-  const showExpand = Boolean(onOpen) && (
+  const showExpand = Boolean(onOpen) && !isCompactWidgetNode && (
     isEntityNode || (node.dataType === "document" && !knowledgeCorpus)
   );
 
