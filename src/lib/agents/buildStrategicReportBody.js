@@ -127,59 +127,42 @@ export function formatMarketInterestBlock(marketInterest, lang) {
 }
 
 /**
+ * Recommendation copy for Launch Radar (manual step — not auto-applied by Analyst).
  * @param {string} brandName
  * @param {import("../fetchCampaignDetection.js").CampaignDetectionResponse|null|undefined} detection
  * @param {'en' | 'es'} lang
  */
-export function formatLaunchRadarClosing(brandName, detection, lang) {
+export function formatLaunchRadarRecommendation(brandName, detection, lang) {
   const mode = detection?.detectionMode;
+  const brand = (brandName || "").trim() || "la marca";
 
   if (mode === "confirmed_campaign") {
     const launchDate = detection?.launchDate;
     if (!launchDate || !isFutureLaunchDate(launchDate)) return "";
 
-    if (lang === "es") {
-      return [
-        "Ejecutá Launch Radar para escanear fechas y ver la cuenta regresiva.",
-        "Ok, listo — ya ha sido agregado.",
-      ].join("\n\n");
-    }
-
-    return [
-      "Run Launch Radar to scan launch dates and see the countdown.",
-      "Done — it's already been added.",
-    ].join("\n\n");
+    return lang === "es"
+      ? `Te recomiendo activar **Launch Radar** (Intel → Launch radar) para validar la fecha de lanzamiento detectada (${launchDate}) y seguir la cuenta regresiva. Es un paso manual: este informe no lo ejecuta por vos.`
+      : `I recommend turning on **Launch Radar** (Intel → Launch radar) to validate the detected launch date (${launchDate}) and track the countdown. It's a manual step — this report does not run it for you.`;
   }
 
   if (mode === "cadence_only") {
-    if (lang === "es") {
-      return [
-        "Sin lanzamiento oficial confirmado — ejecutá Launch Radar para estimar cadencia.",
-        "Abrí el panel Launch Radar y ejecutá el escaneo para ver el próximo ciclo.",
-      ].join("\n\n");
-    }
-
-    return [
-      "No official launch confirmed yet — run Launch Radar for a cadence estimate.",
-      "Open Launch Radar and run the scan to see the estimated next cycle.",
-    ].join("\n\n");
+    return lang === "es"
+      ? `Te recomiendo **Launch Radar** cuando quieras proyectar el próximo ciclo por cadencia histórica de ${brand}. No reemplaza un anuncio oficial; activalo manualmente en Intel cuando te sirva.`
+      : `I recommend **Launch Radar** when you want to project ${brand}'s next cycle from historical cadence. It does not replace an official announcement — turn it on manually in Intel when useful.`;
   }
 
   if (mode === "heuristic_estimate") {
-    if (lang === "es") {
-      return [
-        "Sin lanzamiento verificado — ejecutá Launch Radar para una estimación por intervalo.",
-        "Abrí el panel Launch Radar y ejecutá el escaneo para ver la ventana pendiente.",
-      ].join("\n\n");
-    }
-
-    return [
-      "No verified launch yet — run Launch Radar for a pending interval estimate.",
-      "Open Launch Radar and run the scan to see the pending window.",
-    ].join("\n\n");
+    return lang === "es"
+      ? `Te recomiendo **Launch Radar** para contrastar esta estimación heurística y revisar si la ventana pendiente sigue vigente. Activá el switch en Intel cuando quieras escanear.`
+      : `I recommend **Launch Radar** to cross-check this heuristic estimate and see if the pending window still holds. Flip the switch in Intel when you want to scan.`;
   }
 
   return "";
+}
+
+/** @deprecated Use formatLaunchRadarRecommendation */
+export function formatLaunchRadarClosing(brandName, detection, lang) {
+  return formatLaunchRadarRecommendation(brandName, detection, lang);
 }
 
 /**
@@ -231,9 +214,12 @@ export function buildStrategicReportBody(report, detection, brandName, lang) {
     parts.push(marketBlock);
   }
 
-  const radarClosing = formatLaunchRadarClosing(brandName, detection, lang);
-  if (hasText(radarClosing)) {
-    parts.push(radarClosing);
+  const radarRecommendation = formatLaunchRadarRecommendation(brandName, detection, lang);
+  if (hasText(radarRecommendation)) {
+    const label = lang === "es"
+      ? "## Recomendación · Launch Radar"
+      : "## Recommendation · Launch Radar";
+    parts.push(`${label}\n\n${radarRecommendation}`);
   }
 
   const reportSources = report?.sources?.length

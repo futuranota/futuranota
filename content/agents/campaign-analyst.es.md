@@ -176,10 +176,7 @@ especializada, o en redes sociales — y hacia dónde deberías
 orientar tu atención.
 
 📡 LAUNCH RADAR
-Usa Launch Radar para seguir la evolución de esta señal. 
-Los lanzamientos raramente llegan solos — donde hay uno, 
-hay patrón. Mantener {brand} en tu radar te da anticipación 
-sobre el próximo movimiento antes de que sea noticia."
+Te recomiendo activar Launch Radar en Intel cuando quieras escanear fechas y ver countdown o cadencia. Es un paso manual tuyo — este informe no lo ejecuta automáticamente. Mantener {brand} en radar te da anticipación sobre el próximo movimiento antes de que sea noticia."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

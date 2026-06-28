@@ -18,6 +18,16 @@ function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "").trim();
 }
 
+function resolveNodeBlockIndex(node, docs) {
+  if (!node?.parentDocId || !node?.sourceBlockId) return null;
+  const doc = Array.isArray(docs)
+    ? docs.find((d) => d?.id === node.parentDocId)
+    : docs?.[node.parentDocId];
+  if (!doc?.blocks?.length) return null;
+  const idx = doc.blocks.findIndex((b) => b?.id === node.sourceBlockId);
+  return idx >= 0 ? idx : null;
+}
+
 function contentToString(content, dataType) {
   if (dataType === "date") {
     if (content && typeof content === "object") {
@@ -218,7 +228,11 @@ export function StandaloneNodeModal({
           ? {
               queryNodeEntityId: node.id,
               queryCanvasNodeId,
-              docId: parentDocId || null,
+              docId: parentDocId || node.parentDocId || null,
+              blockIndex:
+                (parentDocId || node.parentDocId) === node.parentDocId
+                  ? resolveNodeBlockIndex(node, docs)
+                  : null,
             }
           : null
       }

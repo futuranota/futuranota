@@ -174,10 +174,7 @@ potential customers live — YouTube, specialized press,
 or social — and where to focus your attention.
 
 📡 LAUNCH RADAR
-Use Launch Radar to track how this signal evolves. 
-Launches rarely arrive alone — where there is one, 
-there is a pattern. Keeping {brand} on your radar 
-gives you anticipation before it becomes news."
+I recommend turning on Launch Radar in Intel when you want to scan dates and see a countdown or cadence estimate. It's a manual step on your side — this report does not run it automatically. Keeping {brand} on radar helps you spot the next move before it becomes news."
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

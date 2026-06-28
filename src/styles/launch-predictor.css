@@ -9,7 +9,7 @@
     color-mix(in oklab, #12171d 92%, #1a1418 8%) 0%,
     #0f1218 100%
   );
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid transparent;
 }
 
 .launch-predictor--empty,
@@ -59,6 +59,25 @@
   align-items: center;
   gap: 6px;
   padding: 4px 0 8px;
+}
+
+.launch-predictor__control-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+}
+
+.launch-predictor__credit-cost {
+  margin: 0 0 0.15em;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--dim);
+  opacity: 0.72;
+  white-space: nowrap;
+  user-select: none;
 }
 
 .launch-predictor__control-status {
@@ -117,7 +136,7 @@
   padding: 8px 10px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
 }
 
 .launch-predictor__compare-row {
@@ -254,7 +273,7 @@
   text-transform: uppercase;
   color: #c4a35a;
   background: rgba(196, 163, 90, 0.12);
-  border: 1px solid rgba(196, 163, 90, 0.25);
+  border: 1px solid transparent;
   vertical-align: middle;
 }
 

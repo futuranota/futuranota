@@ -3,6 +3,7 @@ import { API_ROUTES } from "../api/routes.js";
 import { usePlanStore } from "../stores/planStore.js";
 import { TOKEN_COSTS } from "./planConfig.js";
 import { CREDIT_TOKEN_UNIT } from "./intelModels.js";
+import { creditsToTokens } from "./planConfig.js";
 
 /**
  * @typedef {Object} DebitIntelCreditOptions
@@ -49,7 +50,7 @@ async function logClientApiUsage({
  * @returns {Promise<{ ok: boolean, creditsDebited: number }>}
  */
 export async function debitIntelCredit(opts = {}) {
-  const creditCost = opts.creditCost ?? 1;
+  const creditCost = Math.max(0.01, Number(opts.creditCost ?? 1));
   const tokenCost = opts.tokenCost ?? TOKEN_COSTS.searchOverview;
   const routeLabel = opts.routeLabel ?? "Intel Search";
   const endpoint = opts.endpoint ?? "intel/overview";
@@ -58,7 +59,7 @@ export async function debitIntelCredit(opts = {}) {
   const planStore = usePlanStore.getState();
   const { profile } = planStore;
   const isPro = profile.plan === "pro";
-  const totalTokens = tokenCost * creditCost;
+  const totalTokens = creditsToTokens(creditCost);
 
   const ok = await planStore.debitCredits(creditCost, { tokenCost });
   if (!ok) return { ok: false, creditsDebited: 0 };

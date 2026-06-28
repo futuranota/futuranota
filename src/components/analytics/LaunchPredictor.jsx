@@ -1,20 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { resolveCurrentCorpus, resolveIntelCampaignBrand } from "../../lib/currentCorpus.js";
 import {
   computeCampaignWindowProjection,
   computeLaunchCadenceProjection,
-  toIsoDateString,
 } from "../../lib/launchCadenceMath.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
-import { useDocsStore } from "../../stores/docsStore.js";
-import { useNodesStore } from "../../stores/nodesStore.js";
-import { useTimelineStore } from "../../stores/timelineStore.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { runLaunchRadarAnalysis } from "../../lib/agents/runLaunchRadar.js";
+import { AGENT_RUN_CREDIT_COST, formatCreditAmount } from "../../lib/planConfig.js";
 import { LaunchRadarToggle } from "./LaunchRadarToggle.jsx";
+import { useLaunchRadarPanelStore } from "../../stores/launchRadarPanelStore.js";
 import "../../styles/launch-predictor.css";
+
+const EMPTY_LAUNCH_RADAR_SESSION = {
+  status: "idle",
+  cadence: null,
+  toggleOn: false,
+  actionError: null,
+};
 
 function formatTodayLabel(date, locale) {
   const lang = locale === "es" ? "es-ES" : "en-US";
@@ -108,28 +113,30 @@ function LaunchRadarPanelHeader({ brandName, reportKind }) {
 }
 
 function LaunchRadarControl({
-  brandName,
   running,
   toggleOn,
   onToggleChange,
 }) {
   const { t } = useI18n();
+  const creditLabel = t("agents.creditCost", {
+    cost: formatCreditAmount(AGENT_RUN_CREDIT_COST),
+  });
 
   return (
     <div className="launch-predictor__control">
-      <LaunchRadarToggle
-        checked={toggleOn}
-        disabled={running}
-        onCheckedChange={onToggleChange}
-        ariaLabel={t("intel.launchRadarKicker")}
-      />
+      <div className="launch-predictor__control-row">
+        <LaunchRadarToggle
+          checked={toggleOn}
+          disabled={running}
+          onCheckedChange={onToggleChange}
+          ariaLabel={t("intel.launchRadarKicker")}
+        />
+        <span className="launch-predictor__credit-cost" aria-hidden={running}>
+          {creditLabel}
+        </span>
+      </div>
       {running ? (
         <p className="launch-predictor__control-status">{t("intel.launchRadarRunning")}</p>
-      ) : null}
-      {!brandName && !running ? (
-        <p className="launch-predictor__control-status launch-predictor__control-status--warn">
-          {t("intel.launchRadarNeedBrand")}
-        </p>
       ) : null}
     </div>
   );
@@ -152,79 +159,84 @@ export function LaunchPredictor({ today = new Date() }) {
   }, [objects, selectedObjectId]);
 
   const corpusId = currentCorpus?.id || selectedObjectId || null;
+  const scopeKey = useMemo(
+    () => `${corpusId || "none"}::${(brandName || "").trim().toLowerCase() || "none"}`,
+    [corpusId, brandName],
+  );
 
-  const [status, setStatus] = useState("idle");
-  const [cadence, setCadence] = useState(null);
-  const [actionError, setActionError] = useState(null);
+  const session = useLaunchRadarPanelStore(
+    (s) => s.sessions[scopeKey] ?? EMPTY_LAUNCH_RADAR_SESSION,
+  );
+  const patchSession = useLaunchRadarPanelStore((s) => s.patchSession);
+
+  const { status, cadence, toggleOn, actionError } = session;
   const [running, setRunning] = useState(false);
-  const [toggleOn, setToggleOn] = useState(false);
-
-  useEffect(() => {
-    setCadence(null);
-    setStatus("idle");
-    setActionError(null);
-    setToggleOn(false);
-  }, [brandName, corpusId]);
 
   const applyCadenceResult = useCallback((result) => {
     if (!result?.ok || !result.cadence) {
-      setActionError(result?.message || t("intel.launchRadarActionError"));
-      setToggleOn(false);
+      const message = result?.message || t("intel.launchRadarActionError");
+      patchSession(corpusId, brandName, {
+        status: "idle",
+        cadence: null,
+        toggleOn: false,
+        actionError: message,
+      });
       return false;
     }
     const view = cadenceRecordToView(result.cadence);
     if (view) {
-      setCadence(view);
-      setStatus("ready");
-      setActionError(null);
-      setToggleOn(true);
+      patchSession(corpusId, brandName, {
+        status: "ready",
+        cadence: view,
+        toggleOn: true,
+        actionError: null,
+      });
       return true;
     }
-    setActionError(t("intel.launchRadarActionError"));
-    setToggleOn(false);
+    patchSession(corpusId, brandName, {
+      status: "idle",
+      cadence: null,
+      toggleOn: false,
+      actionError: t("intel.launchRadarActionError"),
+    });
     return false;
-  }, [t]);
+  }, [t, patchSession, corpusId, brandName]);
 
   const handleRun = useCallback(async () => {
     if (!brandName || running) return false;
     setRunning(true);
-    setActionError(null);
+    patchSession(corpusId, brandName, { actionError: null });
     try {
       const result = await runLaunchRadarAnalysis({
         brandName,
         corpusId,
         locale: locale === "es" ? "es" : "en",
       });
-      if (result.code === "gate_tokens") {
-        showUpgradeModal("tokens");
+      if (result.code === "gate_tokens" || result.code === "gate_search") {
+        showUpgradeModal(result.code === "gate_search" ? "search" : "tokens");
       }
       return applyCadenceResult(result);
     } finally {
       setRunning(false);
     }
-  }, [brandName, corpusId, running, locale, applyCadenceResult, showUpgradeModal]);
+  }, [brandName, corpusId, running, locale, applyCadenceResult, showUpgradeModal, patchSession]);
 
   const handleToggleChange = useCallback(async (next) => {
     if (running) return;
 
     if (!next) {
-      setToggleOn(false);
-      setCadence(null);
-      setStatus("idle");
-      setActionError(null);
+      patchSession(corpusId, brandName, { ...EMPTY_LAUNCH_RADAR_SESSION });
       return;
     }
 
     if (!brandName) {
-      setActionError(t("intel.launchRadarNeedBrand"));
-      setToggleOn(false);
+      patchSession(corpusId, brandName, { ...EMPTY_LAUNCH_RADAR_SESSION });
       return;
     }
 
-    setToggleOn(true);
-    const ok = await handleRun();
-    if (!ok) setToggleOn(false);
-  }, [brandName, running, handleRun, t]);
+    patchSession(corpusId, brandName, { toggleOn: true, actionError: null });
+    await handleRun();
+  }, [brandName, running, handleRun, t, patchSession, corpusId]);
 
   const headerProps = { brandName, reportKind: null };
 
@@ -274,7 +286,6 @@ export function LaunchPredictor({ today = new Date() }) {
         <LaunchRadarControl {...controlProps} />
         <CampaignWindowView
           brandName={brandName}
-          corpusId={corpusId}
           window={campaignWindow}
           embedded
         />
@@ -289,7 +300,6 @@ export function LaunchPredictor({ today = new Date() }) {
         <LaunchRadarControl {...controlProps} />
         <CadenceEstimateView
           brandName={brandName}
-          corpusId={corpusId}
           cadence={cadence}
           projection={cadenceProjection}
           today={today}
@@ -325,26 +335,8 @@ function LaunchRadarIdleView({
   );
 }
 
-function CampaignWindowView({ brandName, corpusId, window, embedded = false }) {
+function CampaignWindowView({ brandName, window, embedded = false }) {
   const { t } = useI18n();
-  const handleTrackOnTimeline = () => {
-    const docs = useDocsStore.getState().getDocsByObject(corpusId);
-    const parentDocId = docs[0]?.id || null;
-
-    const nodeId = useNodesStore.getState().addNode(
-      `Launch · ${brandName}`,
-      "date",
-      window.launchDate,
-      parentDocId,
-    );
-
-    useTimelineStore.getState().addExternalEvent({
-      id: nodeId,
-      title: `Launch · ${brandName}`,
-      date: window.launchDate,
-      source: "launch-radar",
-    });
-  };
 
   const announceBridgeDays = window.daysUntilAnnouncement != null && window.daysUntilAnnouncement > 0
     ? window.daysUntilAnnouncement
@@ -427,17 +419,12 @@ function CampaignWindowView({ brandName, corpusId, window, embedded = false }) {
             : null}
         </p>
       ) : null}
-
-      <button type="button" className="btn sm primary" onClick={handleTrackOnTimeline}>
-        {t("intel.launchRadarTrackTimeline")}
-      </button>
     </div>
   );
 }
 
 function CadenceEstimateView({
   brandName,
-  corpusId,
   cadence,
   projection,
   today = new Date(),
@@ -446,26 +433,6 @@ function CadenceEstimateView({
 }) {
   const { t, locale } = useI18n();
   const isHeuristic = variant === "heuristic";
-  const handleTrackOnTimeline = () => {
-    const dateStr = toIsoDateString(projection.estimatedLaunchDate);
-    const docs = useDocsStore.getState().getDocsByObject(corpusId);
-    const parentDocId = docs[0]?.id || null;
-
-    const nodeId = useNodesStore.getState().addNode(
-      isHeuristic ? `Est. Launch · ${brandName}` : `Est. Launch · ${brandName}`,
-      "date",
-      dateStr,
-      parentDocId,
-    );
-
-    useTimelineStore.getState().addExternalEvent({
-      id: nodeId,
-      title: `Est. Launch · ${brandName}`,
-      date: dateStr,
-      source: "launch-radar",
-    });
-  };
-
   const intervalLabel = Number.isInteger(cadence.averageIntervalMonths)
     ? cadence.averageIntervalMonths
     : cadence.averageIntervalMonths.toFixed(1);
@@ -528,10 +495,6 @@ function CadenceEstimateView({
       <p className="launch-predictor__note launch-predictor__note--pending">
         {t("intel.launchRadarPendingWindow")}
       </p>
-
-      <button type="button" className="btn sm primary" onClick={handleTrackOnTimeline}>
-        {t("intel.launchRadarTrackTimeline")}
-      </button>
     </div>
   );
 }

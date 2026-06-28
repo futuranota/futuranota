@@ -38,6 +38,7 @@ export const messages = {
       linkedContinuationPlaceholder: "Next line: keep writing or type /title for another query",
       editAsText: "Edit as text",
       parentDocLabel: "Parent document",
+      parentDocPlaceholder: "Choose document…",
       noParentDoc: "No parent",
       linkOrphanNode: "Link orphan node",
       linkOrphanPlaceholder: "Select node to integrate…",
@@ -159,7 +160,8 @@ export const messages = {
       running: "Running…",
       comingSoon: "Coming soon",
       creditCost: "−{cost} cr",
-      creditCostHint: "Costs {cost} credit per run",
+      creditCostHint: "Costs {cost} credits per run",
+      launchRadarCreditCost: "{cost} credits per run",
       creditsRemaining: "{n} left",
       done: "Done",
       error: "Error",
@@ -238,11 +240,11 @@ export const messages = {
       launchRadarPendingWindow:
         "Stay pending during this window — dates may shift until a campaign is confirmed.",
       launchRadarVerifiedClosing:
-        "Run Launch Radar to scan launch dates and see the countdown.",
+        "Recommendation: run Launch Radar manually in Intel to validate launch dates and track the countdown.",
       launchRadarEstimatedClosing:
-        "No official launch confirmed yet — run Launch Radar for a cadence estimate.",
+        "Recommendation: use Launch Radar in Intel when you want a cadence-based estimate — not an automatic step from this report.",
       launchRadarHeuristicClosing:
-        "No verified launch yet — run Launch Radar for a pending interval estimate.",
+        "Recommendation: run Launch Radar in Intel to cross-check this heuristic estimate when you are ready.",
       launchRadarRole:
         "Run manually to scan launch dates. Uses Campaign Analyst context when available.",
       launchRadarSelectBrand:
@@ -411,6 +413,7 @@ export const messages = {
       linkedContinuationPlaceholder: "Siguiente línea: sigue escribiendo o /title para otra query",
       editAsText: "Editar como texto",
       parentDocLabel: "Documento padre",
+      parentDocPlaceholder: "Elegir documento…",
       noParentDoc: "Sin padre",
       linkOrphanNode: "Vincular nodo suelto",
       linkOrphanPlaceholder: "Elegir nodo para integrar…",
@@ -469,11 +472,11 @@ export const messages = {
       launchRadarPendingWindow:
         "Mantener pendiente durante esta ventana — las fechas pueden moverse hasta confirmar campaña.",
       launchRadarVerifiedClosing:
-        "Ejecutá Launch Radar para escanear fechas y ver la cuenta regresiva.",
+        "Recomendación: activá Launch Radar manualmente en Intel para validar fechas y seguir la cuenta regresiva.",
       launchRadarEstimatedClosing:
-        "Sin lanzamiento oficial confirmado — ejecutá Launch Radar para estimar cadencia.",
+        "Recomendación: usá Launch Radar en Intel cuando quieras una estimación por cadencia — no es un paso automático de este informe.",
       launchRadarHeuristicClosing:
-        "Sin lanzamiento verificado — ejecutá Launch Radar para una estimación por intervalo.",
+        "Recomendación: ejecutá Launch Radar en Intel para contrastar esta estimación heurística cuando te sirva.",
       launchRadarRole:
         "Ejecutá manualmente para escanear fechas de lanzamiento. Usa contexto del Analyst si existe.",
       launchRadarSelectBrand:
@@ -550,7 +553,8 @@ export const messages = {
       running: "Ejecutando…",
       comingSoon: "Próximamente",
       creditCost: "−{cost} cr",
-      creditCostHint: "Cuesta {cost} crédito por ejecución",
+      creditCostHint: "Cuesta {cost} créditos por ejecución",
+      launchRadarCreditCost: "{cost} créditos por ejecución",
       creditsRemaining: "{n} restantes",
       done: "Listo",
       error: "Error",

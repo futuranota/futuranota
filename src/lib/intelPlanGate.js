@@ -1,6 +1,6 @@
 import { usePlanStore } from "../stores/planStore.js";
 import { useUpgradeModalStore } from "../stores/upgradeModalStore.js";
-import { FREE_LIMITS, TOKEN_COSTS, canSpendCredits } from "./planConfig.js";
+import { FREE_LIMITS, TOKEN_COSTS, canSpendCredits, creditsToTokens } from "./planConfig.js";
 
 /**
  * Pre-flight gate: one user credit (−1) per action.
@@ -8,7 +8,7 @@ import { FREE_LIMITS, TOKEN_COSTS, canSpendCredits } from "./planConfig.js";
  * @returns {Promise<{ ok: true } | { ok: false, code: "gate_search" | "gate_tokens" }>}
  */
 export async function checkIntelCreditGate(opts = {}) {
-  const creditCost = Math.max(1, Math.floor(Number(opts.creditCost) || 1));
+  const creditCost = Math.max(0.01, Number(opts.creditCost ?? 1));
   const tokenCost = opts.tokenCost ?? TOKEN_COSTS.searchOverview;
   const planStore = usePlanStore.getState();
   const { profile } = planStore;
@@ -22,7 +22,7 @@ export async function checkIntelCreditGate(opts = {}) {
     return { ok: false, code: "gate_tokens" };
   }
 
-  if (profile.plan === "pro" && !planStore.canSpendTokens(tokenCost * creditCost)) {
+  if (profile.plan === "pro" && !planStore.canSpendTokens(creditsToTokens(creditCost))) {
     useUpgradeModalStore.getState().show("tokens");
     return { ok: false, code: "gate_tokens" };
   }

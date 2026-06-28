@@ -1,13 +1,14 @@
 import { fetchCampaignDetection } from "../fetchCampaignDetection.js";
 import { DEFAULT_RANGE_DAYS } from "../campaignWindow.js";
-import { TOKEN_COSTS } from "../planConfig.js";
-import { usePlanStore } from "../../stores/planStore.js";
+import { checkIntelCreditGate } from "../intelPlanGate.js";
+import { debitIntelCredit } from "../debitIntelCredit.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { mapDetectionToCadence } from "./mapDetectionToCadence.js";
 import { resolveLaunchRadarObjectId } from "./resolveLaunchRadarObjectId.js";
+import { getLaunchRadarRunCost } from "./agentCreditCosts.js";
 import {
   buildLaunchRadarSnapshot,
   findLatestAnalystDocForCorpus,
@@ -175,18 +176,23 @@ export async function runLaunchRadarAnalysis({
   locale = "es",
 }) {
   const lang = locale === "es" ? "es" : "en";
-  const tokenCost = TOKEN_COSTS.cadenceLive;
-  const planStore = usePlanStore.getState();
+  const runCost = getLaunchRadarRunCost();
 
-  if (!planStore.canSpendTokens(tokenCost)) {
-    useUpgradeModalStore.getState().show("tokens");
+  const planGate = await checkIntelCreditGate({
+    creditCost: runCost.creditCost,
+    tokenCost: runCost.tokenCost,
+  });
+  if (!planGate.ok) {
+    if (planGate.code === "gate_search" || planGate.code === "gate_tokens") {
+      useUpgradeModalStore.getState().show(planGate.code === "gate_search" ? "search" : "tokens");
+    }
     return {
       ok: false,
       cadence: null,
       snapshot: null,
       docId: null,
-      message: lang === "es" ? "Tokens insuficientes." : "Insufficient tokens.",
-      code: "gate_tokens",
+      message: lang === "es" ? "Créditos insuficientes." : "Insufficient credits.",
+      code: planGate.code === "gate_search" ? "gate_search" : "gate_tokens",
     };
   }
 
@@ -214,15 +220,21 @@ export async function runLaunchRadarAnalysis({
     };
   }
 
-  const spent = await planStore.spendTokens(tokenCost);
-  if (!spent) {
+  const debit = await debitIntelCredit({
+    creditCost: runCost.creditCost,
+    tokenCost: runCost.tokenCost,
+    routeLabel: runCost.routeLabel,
+    endpoint: runCost.endpoint,
+    meta: { brandName, corpusId },
+  });
+  if (!debit.ok) {
     useUpgradeModalStore.getState().show("tokens");
     return {
       ok: false,
       cadence: null,
       snapshot: null,
       docId: null,
-      message: lang === "es" ? "No se pudieron debitar tokens." : "Could not debit tokens.",
+      message: lang === "es" ? "No se pudieron debitar créditos." : "Could not debit credits.",
       code: "gate_tokens",
     };
   }

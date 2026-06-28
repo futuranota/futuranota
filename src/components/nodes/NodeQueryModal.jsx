@@ -184,16 +184,16 @@ export function NodeQueryModal({
                 onChange={(e) => onParentDocIdChange(e.target.value || null)}
                 aria-label={t("canvas.parentDocLabel")}
               >
-                <option value="">{t("canvas.noParentDoc")}</option>
+                <option value="">{t("canvas.parentDocPlaceholder")}</option>
                 {adoptableDocs.map((d) => (
                   <option key={d.id} value={d.id}>
                     {resolveAdoptableDocLabel(d)}
                   </option>
                 ))}
               </select>
-            ) : (
+            ) : parentDocLabel ? (
               <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
-            )}
+            ) : null}
             <div className="node-query-modal__head-actions">
               {showReturnLink ? (
                 <button

@@ -16,6 +16,7 @@ import {
   getCalendarSearchesCap,
   getCalendarSearchesUsed,
   TOKEN_COSTS,
+  creditsToTokens,
 } from "../lib/planConfig.js";
 import {
   persistLocalWeatherActionsUsed,
@@ -82,7 +83,7 @@ function rowToProfile(row) {
       if (Number.isFinite(n) && n >= 0) return Math.floor(n);
       return row.weather_used ? 1 : 0;
     })(),
-    searchCount: row.search_count ?? 0,
+    searchCount: toFiniteNumber(row.search_count, 0) ?? 0,
     tokensBalance,
     tokensPeriodStart: periodStart,
     campaignLiveUsed: Boolean(row.campaign_live_used),
@@ -482,9 +483,9 @@ export const usePlanStore = create(
        * @param {{ tokenCost?: number }} [opts]
        */
       debitCredits: async (creditCost = 1, opts = {}) => {
-        const credits = Math.max(1, Math.floor(Number(creditCost) || 1));
+        const credits = Math.max(0.01, Number(creditCost) || 1);
         const tokenUnit = opts.tokenCost ?? CREDIT_TOKEN_UNIT;
-        const totalTokens = credits * tokenUnit;
+        const totalTokens = creditsToTokens(credits);
         const { profile } = get();
 
         if (!canSpendCredits(profile, credits)) return false;
@@ -493,11 +494,25 @@ export const usePlanStore = create(
           return get().spendTokens(totalTokens);
         }
 
-        for (let i = 0; i < credits; i += 1) {
-          const before = get().profile.searchCount;
-          const next = await get().incrementSearchCount();
-          if (next === before) return false;
+        const nextSearch = (profile.searchCount ?? 0) + credits;
+        if (nextSearch > getPlanLimits("free").maxSearchesLifetime) return false;
+
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) return false;
+
+        const error = await persistProfilePatch(userId, { search_count: nextSearch });
+        if (error) {
+          console.warn("planStore.debitCredits error", error);
+          return false;
         }
+
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            searchCount: nextSearch,
+          },
+        }));
         return true;
       },
 

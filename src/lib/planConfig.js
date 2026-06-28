@@ -8,6 +8,21 @@ import { CREDIT_TOKEN_UNIT } from "./intelModels.js";
 
 export { CREDIT_TOKEN_UNIT };
 
+/** User-facing credits per agent run and Launch Radar scan. */
+export const AGENT_RUN_CREDIT_COST = 2.5;
+
+/** @param {number} credits */
+export function creditsToTokens(credits) {
+  return Math.round(Number(credits) * CREDIT_TOKEN_UNIT);
+}
+
+/** @param {number} credits */
+export function formatCreditAmount(credits) {
+  const n = Number(credits);
+  if (!Number.isFinite(n)) return "—";
+  return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, "");
+}
+
 export const TOKEN_COSTS = {
   campaignLive: 10_000,
   cadenceLive: 1_000,
@@ -118,14 +133,15 @@ export function getCreditsUsed(profile) {
   const cap = getTokensCap('pro');
   const balance = toFiniteNumber(profile?.tokensBalance, cap);
   const spent = Math.max(0, cap - balance);
-  return Math.min(getCreditsCap('pro'), Math.floor(spent / CREDIT_TOKEN_UNIT));
+  return Math.min(getCreditsCap('pro'), spent / CREDIT_TOKEN_UNIT);
 }
 
-/** User-facing credits left (150 → 149 → … after each −1 call). */
+/** User-facing credits left (supports fractional, e.g. 147.5). */
 export function getCreditsRemaining(profile) {
   const plan = profile?.plan === 'pro' ? 'pro' : 'free';
   const cap = getCreditsCap(plan);
-  return Math.max(0, cap - getCreditsUsed(profile));
+  const remaining = cap - getCreditsUsed(profile);
+  return Math.max(0, Math.round(remaining * 10) / 10);
 }
 
 /**
@@ -136,17 +152,18 @@ export function getCreditsDisplay(profile) {
   const plan = profile?.plan === 'pro' ? 'pro' : 'free';
   const cap = getCreditsCap(plan);
   const remaining = getCreditsRemaining(profile);
+  const counter = Number.isInteger(remaining) ? remaining : remaining.toFixed(1).replace(/\.0$/, "");
   return {
     cap,
     remaining,
-    counter: remaining,
-    used: cap - remaining,
+    counter,
+    used: Math.round((cap - remaining) * 10) / 10,
   };
 }
 
 /** @param {{ plan?: string, searchCount?: number, tokensBalance?: number }} profile */
 export function canSpendCredits(profile, amount = 1) {
-  const cost = Math.max(1, Math.floor(Number(amount) || 1));
+  const cost = Math.max(0.01, Number(amount) || 1);
   return getCreditsRemaining(profile) >= cost;
 }
 

@@ -948,12 +948,11 @@ function IntelPanel({
     return intelSearchMeta;
   }, [intelSearchMeta, intelSearchResult?.query, intelQuery]);
 
-  const isDocLinkedIntel = Boolean(
-    activeIntelMeta?.docId && typeof activeIntelMeta?.blockIndex === "number",
-  );
-  const intelNodeId = isDocLinkedIntel ? (activeIntelMeta?.queryNodeEntityId ?? null) : null;
-  const intelParentDocId = isDocLinkedIntel ? activeIntelMeta.docId : null;
-  const intelBlockIndex = isDocLinkedIntel ? activeIntelMeta.blockIndex : null;
+  const intelNodeId = activeIntelMeta?.queryNodeEntityId ?? null;
+  const intelParentDocId = activeIntelMeta?.docId ?? null;
+  const intelBlockIndex = typeof activeIntelMeta?.blockIndex === "number"
+    ? activeIntelMeta.blockIndex
+    : null;
 
   const handleIntelTabChange = (nextTab) => {
     if (nextTab === "youtube") {

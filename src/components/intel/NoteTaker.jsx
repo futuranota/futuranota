@@ -85,8 +85,16 @@ export function NoteTaker({
         }
       }
 
-      const newId = addNode(UNTITLED_NODE_TITLE, NODE_DATA_TYPES.TEXT, trimmedNotes, null, {
-        sourceQuery: UNTITLED_NODE_TITLE,
+      const linkedNode = resolvedNodeId
+        ? useNodesStore.getState().nodes[resolvedNodeId]
+        : null;
+      const nodeTitle = linkedNode
+        ? ((linkedNode.sourceQuery || linkedNode.title || UNTITLED_NODE_TITLE).trim()
+          || UNTITLED_NODE_TITLE)
+        : UNTITLED_NODE_TITLE;
+
+      const newId = addNode(nodeTitle, NODE_DATA_TYPES.TEXT, trimmedNotes, null, {
+        sourceQuery: nodeTitle,
       });
       setResolvedNodeId(newId);
       useUIStateStore.getState().patchIntelSearchNodeId(newId);

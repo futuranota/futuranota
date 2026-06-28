@@ -32,9 +32,9 @@ export function VideoWorkspace({
   }, [activeEmbed?.embedSrc]);
 
   const title = (
-    searchQuery
-    || node?.sourceQuery
+    node?.sourceQuery
     || node?.title
+    || searchQuery
     || activeEmbed?.rawInput
     || "Video"
   ).trim();

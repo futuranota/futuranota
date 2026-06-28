@@ -169,7 +169,10 @@ export async function runOrchestrator({
 
   const agentRunCost = getAgentRunCost(AGENT_ORCHESTRATOR);
 
-  const planGate = await checkIntelCreditGate({ tokenCost: agentRunCost.tokenCost * agentRunCost.creditCost });
+  const planGate = await checkIntelCreditGate({
+    creditCost: agentRunCost.creditCost,
+    tokenCost: agentRunCost.tokenCost,
+  });
   if (!planGate.ok) {
     return {
       status: "error",
