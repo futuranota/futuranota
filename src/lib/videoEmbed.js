@@ -34,8 +34,26 @@ function buildYouTubeEmbedSrc(videoId) {
   return `https://www.youtube.com/embed/${videoId}`;
 }
 
+/** Normalize pasted URLs (missing protocol, mobile/music subdomains). */
+export function normalizeVideoInputUrl(raw) {
+  let text = String(raw ?? "").trim();
+  if (!text) return "";
+
+  if (text.startsWith("undefined")) {
+    text = text.slice("undefined".length).trim();
+  }
+
+  if (text.startsWith("<")) return text;
+
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(text)) {
+    text = `https://${text.replace(/^\/\//, "")}`;
+  }
+
+  return text;
+}
+
 function parseYouTube(input) {
-  const text = String(input ?? "").trim();
+  const text = normalizeVideoInputUrl(input);
   if (!text) return null;
 
   const iframeSrc = extractIframeSrc(text);
@@ -48,7 +66,11 @@ function parseYouTube(input) {
     return null;
   }
 
-  const host = url.hostname.replace(/^www\./, "");
+  let host = url.hostname.replace(/^www\./, "");
+  if (host === "m.youtube.com" || host === "music.youtube.com") {
+    host = "youtube.com";
+  }
+
   let videoId = "";
 
   if (host === "youtu.be") {
@@ -75,7 +97,7 @@ function parseYouTube(input) {
 }
 
 function parseVimeo(input) {
-  const text = String(input ?? "").trim();
+  const text = normalizeVideoInputUrl(input);
   if (!text) return null;
 
   const iframeSrc = extractIframeSrc(text);
@@ -113,7 +135,7 @@ function parseVimeo(input) {
  * @param {string} raw
  */
 export function parseVideoEmbedInput(raw) {
-  const input = String(raw ?? "").trim();
+  const input = normalizeVideoInputUrl(raw);
   if (!input) {
     return {
       provider: "unknown",

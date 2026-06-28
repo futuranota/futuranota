@@ -1,0 +1,170 @@
+/* Skeuomorphic toggle — adapted from CodePen WNaqEgp (design @sanbronliong) */
+
+.launch-radar-toggle {
+  --lr-knob-size: 1.75em;
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  padding: 2.75em 0 0.35em;
+}
+
+.launch-radar-toggle[data-disabled="1"] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.launch-radar-toggle .toggle-container {
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.launch-radar-toggle .toggle-input {
+  position: absolute;
+  z-index: 2;
+  bottom: 132.5%;
+  border-radius: 50%;
+  transform: rotate(-25deg);
+  transform-origin: 50% 4.75em;
+  width: var(--lr-knob-size);
+  height: var(--lr-knob-size);
+  opacity: 0;
+  transition: transform 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+  cursor: pointer;
+}
+
+.launch-radar-toggle .toggle-input:checked {
+  transform: rotate(25deg);
+}
+
+.launch-radar-toggle .toggle-input:focus-visible + .toggle-handle-wrapper .toggle-handle-knob {
+  outline: 2px solid color-mix(in oklab, var(--hud) 70%, white);
+  outline-offset: 3px;
+}
+
+.launch-radar-toggle .toggle-handle-wrapper {
+  position: absolute;
+  z-index: 1;
+  bottom: -135%;
+  -webkit-mask-image: linear-gradient(to bottom, #000 62.125%, transparent 50%);
+  mask-image: linear-gradient(to bottom, #000 62.125%, transparent 50%);
+  width: 200%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.launch-radar-toggle .toggle-handle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: rotate(-25deg);
+  transform-origin: bottom center;
+  transition: transform 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+}
+
+.launch-radar-toggle .toggle-input:checked + .toggle-handle-wrapper > .toggle-handle {
+  transform: rotate(25deg);
+}
+
+.launch-radar-toggle .toggle-handle-knob {
+  position: relative;
+  z-index: 1;
+  border-radius: 50%;
+  width: var(--lr-knob-size);
+  height: var(--lr-knob-size);
+  background-image: radial-gradient(
+    farthest-corner at 70% 30%,
+    #fedee2 4%,
+    #d63534 12% 24%,
+    #a81a1a 50% 65%,
+    #d63534 75%
+  );
+  transition: transform 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+}
+
+.launch-radar-toggle .toggle-input:checked + .toggle-handle-wrapper .toggle-handle-knob {
+  transform: rotate(-90deg);
+}
+
+.launch-radar-toggle .toggle-handle-knob::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: inherit;
+  width: 100%;
+  height: 100%;
+  box-shadow: inset 0 0 8px 2px rgb(255 255 255 / 0.4);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+@media (hover: hover) {
+  .launch-radar-toggle .toggle-input:hover + .toggle-handle-wrapper .toggle-handle-knob::after,
+  .launch-radar-toggle .toggle-input:focus-visible + .toggle-handle-wrapper .toggle-handle-knob::after {
+    opacity: 1;
+  }
+}
+
+.launch-radar-toggle .toggle-handle-bar-wrapper {
+  position: relative;
+  width: 0.5em;
+  height: 3em;
+}
+
+.launch-radar-toggle .toggle-handle-bar {
+  position: absolute;
+  top: calc(var(--lr-knob-size) / -2);
+  left: 0;
+  width: 100%;
+  height: calc(100% + calc(var(--lr-knob-size) / 2));
+  background-image: linear-gradient(to right, #777475, #a4a4a4, #fff 45% 55%, #a4a4a4, #777475);
+  background-position-x: 0.06125em;
+  transition: background-position-x 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+  box-shadow: inset 0 1em 0.25em rgb(0 0 0 / 0.4);
+}
+
+.launch-radar-toggle .toggle-input:checked + .toggle-handle-wrapper .toggle-handle-bar {
+  background-position-x: -0.06125em;
+}
+
+.launch-radar-toggle .toggle-base {
+  position: relative;
+  border-radius: 3.125em;
+  padding: 0.25em;
+  width: 3.5em;
+  height: 1.125em;
+  background-color: #fff;
+  background-image: linear-gradient(to bottom, #fff, #d7d7d7);
+  box-shadow:
+    0 -0.25em 0.5em #fff,
+    0 0.25em 0.5em #d7d7d7;
+}
+
+.launch-radar-toggle .toggle-base-inside {
+  position: relative;
+  border-radius: inherit;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(to bottom, #a6a6a6, #7d7d7d);
+  box-shadow:
+    inset 0 0.0625em rgb(255 255 255 / 0.2),
+    inset 0 -0.03125em rgb(255 255 255 / 1),
+    inset 0 -0.0625em 0.25em rgb(0 0 0 / 0.1);
+}
+
+.launch-radar-toggle .toggle-base-inside::after {
+  content: "";
+  position: absolute;
+  border-radius: inherit;
+  width: 100%;
+  height: 100%;
+  background-image: linear-gradient(to bottom, #5ab054, #438c3c);
+  box-shadow: inherit;
+  opacity: 0;
+  transition: opacity 0.24s cubic-bezier(0.65, 1.35, 0.5, 1);
+}
+
+.launch-radar-toggle .toggle-input:checked ~ .toggle-base .toggle-base-inside::after {
+  opacity: 1;
+}

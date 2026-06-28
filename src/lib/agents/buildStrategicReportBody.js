@@ -1,4 +1,4 @@
-import { daysUntilLaunch, isFutureLaunchDate } from "../campaignWindow.js";
+import { isFutureLaunchDate } from "../campaignWindow.js";
 
 /**
  * @param {'en' | 'es'} locale
@@ -128,28 +128,58 @@ export function formatMarketInterestBlock(marketInterest, lang) {
 
 /**
  * @param {string} brandName
- * @param {string|null|undefined} launchDate
+ * @param {import("../fetchCampaignDetection.js").CampaignDetectionResponse|null|undefined} detection
  * @param {'en' | 'es'} lang
  */
-export function formatLaunchRadarClosing(brandName, launchDate, lang) {
-  if (!launchDate || !isFutureLaunchDate(launchDate)) return "";
+export function formatLaunchRadarClosing(brandName, detection, lang) {
+  const mode = detection?.detectionMode;
 
-  const days = daysUntilLaunch(launchDate);
-  const daysPart = days !== null
-    ? (lang === "es" ? ` (${days} días restantes)` : ` (${days} days remaining)`)
-    : "";
+  if (mode === "confirmed_campaign") {
+    const launchDate = detection?.launchDate;
+    if (!launchDate || !isFutureLaunchDate(launchDate)) return "";
 
-  if (lang === "es") {
+    if (lang === "es") {
+      return [
+        "Ejecutá Launch Radar para escanear fechas y ver la cuenta regresiva.",
+        "Ok, listo — ya ha sido agregado.",
+      ].join("\n\n");
+    }
+
     return [
-      "El siguiente paso: voy a incrustar estas fechas directamente en tu Launch Radar para que puedas seguir la evolución de esta señal en tiempo real. El timeline ya tiene los datos; solo necesitas abrirlo.",
-      "Ok, listo — ya ha sido agregado.",
+      "Run Launch Radar to scan launch dates and see the countdown.",
+      "Done — it's already been added.",
     ].join("\n\n");
   }
 
-  return [
-    `Next step: these dates are synced to your Launch Radar for ${brandName}${daysPart} so you can track this signal in real time. Open the timeline when you're ready.`,
-    "Done — it's already been added.",
-  ].join("\n\n");
+  if (mode === "cadence_only") {
+    if (lang === "es") {
+      return [
+        "Sin lanzamiento oficial confirmado — ejecutá Launch Radar para estimar cadencia.",
+        "Abrí el panel Launch Radar y ejecutá el escaneo para ver el próximo ciclo.",
+      ].join("\n\n");
+    }
+
+    return [
+      "No official launch confirmed yet — run Launch Radar for a cadence estimate.",
+      "Open Launch Radar and run the scan to see the estimated next cycle.",
+    ].join("\n\n");
+  }
+
+  if (mode === "heuristic_estimate") {
+    if (lang === "es") {
+      return [
+        "Sin lanzamiento verificado — ejecutá Launch Radar para una estimación por intervalo.",
+        "Abrí el panel Launch Radar y ejecutá el escaneo para ver la ventana pendiente.",
+      ].join("\n\n");
+    }
+
+    return [
+      "No verified launch yet — run Launch Radar for a pending interval estimate.",
+      "Open Launch Radar and run the scan to see the pending window.",
+    ].join("\n\n");
+  }
+
+  return "";
 }
 
 /**
@@ -201,8 +231,7 @@ export function buildStrategicReportBody(report, detection, brandName, lang) {
     parts.push(marketBlock);
   }
 
-  const launchDate = detection?.launchDate || detection?.estimatedLaunchDate || "";
-  const radarClosing = formatLaunchRadarClosing(brandName, launchDate, lang);
+  const radarClosing = formatLaunchRadarClosing(brandName, detection, lang);
   if (hasText(radarClosing)) {
     parts.push(radarClosing);
   }

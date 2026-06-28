@@ -47,6 +47,8 @@
  * @property {string} [category]
  * @property {string|null} [launchAt]
  * @property {boolean} [campaignActive]
+ * @property {import('../lib/launchRadarSnapshot.js').LaunchRadarSnapshot} [launchRadarSnapshot]
+ * @property {{ kind?: string, animateOnOpen?: boolean, animatedAt?: string|null }} [reportPresentation]
  */
 
 export {};

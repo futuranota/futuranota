@@ -99,7 +99,6 @@ export function StandaloneNodeModal({
   node = null,
   docs,
   parentObjectId = null,
-  defaultParentDocId = "",
   queryCanvasNodeId = null,
   embedded = false,
   defaultExpanded = false,
@@ -121,8 +120,7 @@ export function StandaloneNodeModal({
   const [content, setContent] = useState(() => contentToString(node?.content, node?.dataType));
   const docsById = Object.fromEntries(docList.map((d) => [d.id, d]));
   const [parentDocId, setParentDocId] = useState(() =>
-    resolveNodeParentDocId(node, null, docsById, { parentObjectId })
-    || (defaultParentDocId && docsById[defaultParentDocId] ? defaultParentDocId : ""),
+    resolveNodeParentDocId(node, null, docsById, { parentObjectId }) || "",
   );
   const [createdDate, setCreatedDate] = useState(() =>
     dateInputFromIso(node?.createdAt),

@@ -222,6 +222,37 @@ export const messages = {
       noResults: "No results for this query.",
       noSources: "No web references for this query. Try a broader search term.",
       launchIn: "Launch in {days}d",
+      launchRadarKicker: "Launch radar",
+      launchRadarTrackTimeline: "Track on timeline",
+      launchRadarToday: "Today",
+      launchRadarMonthsLeft: "{count} months left",
+      launchRadarEstLaunch: "Est. launch",
+      launchRadarHeuristicBadge: "Pending estimate",
+      launchRadarCadenceNote:
+        "Based on historical cadence, {brand} typically launches every {interval} months. "
+        + "Today ({today}) there are about {remaining} month(s) until a possible next launch ({estimatedMonth}). "
+        + "Announcements usually begin about three months before.",
+      launchRadarHeuristicNote:
+        "No official launch confirmed yet. Using average interval (~{interval} months) from the analyst study: "
+        + "from today ({today}) to a possible next launch ({estimatedMonth}) is about {remaining} month(s).",
+      launchRadarPendingWindow:
+        "Stay pending during this window — dates may shift until a campaign is confirmed.",
+      launchRadarVerifiedClosing:
+        "Run Launch Radar to scan launch dates and see the countdown.",
+      launchRadarEstimatedClosing:
+        "No official launch confirmed yet — run Launch Radar for a cadence estimate.",
+      launchRadarHeuristicClosing:
+        "No verified launch yet — run Launch Radar for a pending interval estimate.",
+      launchRadarRole:
+        "Run manually to scan launch dates. Uses Campaign Analyst context when available.",
+      launchRadarSelectBrand:
+        "Select a brand or corpus object in the sidebar to run Launch Radar.",
+      launchRadarNeedBrand:
+        "Set a brand on your sidebar object, then flip the switch to scan.",
+      launchRadarRunning: "Running Launch Radar…",
+      launchRadarActiveReport: "Active campaign — time until launch",
+      launchRadarInactiveReport: "No active campaign — average launch interval",
+      launchRadarActionError: "Could not update Launch Radar.",
       forecastLocationLabel: "Forecast location",
       forecastLocationLabelShort: "Loc",
       forecastLocationPlaceholder: "Madrid,ES",
@@ -422,6 +453,37 @@ export const messages = {
     },
     intel: {
       noSources: "Sin referencias web para esta búsqueda. Probá un término más amplio.",
+      launchRadarKicker: "Launch radar",
+      launchRadarTrackTimeline: "Agregar al timeline",
+      launchRadarToday: "Hoy",
+      launchRadarMonthsLeft: "{count} meses restantes",
+      launchRadarEstLaunch: "Lanzamiento est.",
+      launchRadarHeuristicBadge: "Estimación pendiente",
+      launchRadarCadenceNote:
+        "Según la cadencia histórica, {brand} suele lanzar cada {interval} meses. "
+        + "Hoy ({today}) faltan aproximadamente {remaining} mes(es) para un posible próximo lanzamiento ({estimatedMonth}). "
+        + "Los anuncios suelen empezar unos tres meses antes.",
+      launchRadarHeuristicNote:
+        "Sin lanzamiento oficial confirmado. Con intervalo promedio (~{interval} meses) del estudio del analista: "
+        + "de hoy ({today}) al posible próximo lanzamiento ({estimatedMonth}) faltan ~{remaining} mes(es).",
+      launchRadarPendingWindow:
+        "Mantener pendiente durante esta ventana — las fechas pueden moverse hasta confirmar campaña.",
+      launchRadarVerifiedClosing:
+        "Ejecutá Launch Radar para escanear fechas y ver la cuenta regresiva.",
+      launchRadarEstimatedClosing:
+        "Sin lanzamiento oficial confirmado — ejecutá Launch Radar para estimar cadencia.",
+      launchRadarHeuristicClosing:
+        "Sin lanzamiento verificado — ejecutá Launch Radar para una estimación por intervalo.",
+      launchRadarRole:
+        "Ejecutá manualmente para escanear fechas de lanzamiento. Usa contexto del Analyst si existe.",
+      launchRadarSelectBrand:
+        "Seleccioná una marca u objeto corpus en la barra lateral para ejecutar Launch Radar.",
+      launchRadarNeedBrand:
+        "Definí una marca en el objeto del sidebar y activá el switch para escanear.",
+      launchRadarRunning: "Ejecutando Launch Radar…",
+      launchRadarActiveReport: "Campaña activa — tiempo hasta el lanzamiento",
+      launchRadarInactiveReport: "Sin campaña activa — intervalo promedio de lanzamiento",
+      launchRadarActionError: "No se pudo actualizar Launch Radar.",
       forecastLocationLabel: "Ubicación del forecast",
       forecastLocationLabelShort: "Loc",
       forecastLocationPlaceholder: "Madrid,ES",

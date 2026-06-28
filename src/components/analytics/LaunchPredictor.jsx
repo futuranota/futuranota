@@ -1,160 +1,239 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { resolveCurrentCorpus } from "../../lib/currentCorpus.js";
-import { OBJECT_ROLE_CORPUS } from "../../lib/objectColors.js";
-import { fetchBrandCadence } from "../../lib/fetchBrandCadence.js";
-import { fetchCampaignStudy, refreshCampaignStudy } from "../../lib/fetchCampaignStudy.js";
+import { resolveCurrentCorpus, resolveIntelCampaignBrand } from "../../lib/currentCorpus.js";
 import {
   computeCampaignWindowProjection,
   computeLaunchCadenceProjection,
-  formatReferenceMonthLabelEn,
   toIsoDateString,
 } from "../../lib/launchCadenceMath.js";
-import { TOKEN_COSTS } from "../../lib/planConfig.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useTimelineStore } from "../../stores/timelineStore.js";
-import { usePlanStore } from "../../stores/planStore.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
+import { useI18n } from "../../i18n/useI18n.js";
+import { runLaunchRadarAnalysis } from "../../lib/agents/runLaunchRadar.js";
+import { LaunchRadarToggle } from "./LaunchRadarToggle.jsx";
 import "../../styles/launch-predictor.css";
 
+function formatTodayLabel(date, locale) {
+  const lang = locale === "es" ? "es-ES" : "en-US";
+  return new Intl.DateTimeFormat(lang, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date instanceof Date ? date : new Date(date));
+}
+
+function storedCadenceToMode(storedCadence) {
+  if (!storedCadence) return null;
+
+  const hasVerifiedLaunch = Boolean(
+    storedCadence.launchDate
+    && (
+      storedCadence.detectionMode === "confirmed_campaign"
+      || (
+        storedCadence.launchConfidence !== "estimated"
+        && storedCadence.detectionMode !== "cadence_only"
+      )
+    ),
+  );
+
+  if (hasVerifiedLaunch) {
+    return {
+      mode: "campaign",
+      launchDate: storedCadence.launchDate,
+      announcementDate: storedCadence.announcementDate || null,
+      lastLaunchDate: storedCadence.lastLaunchDate || null,
+      averageIntervalMonths: storedCadence.averageIntervalMonths ?? null,
+      overview: storedCadence.overview || "",
+      category: storedCadence.category || "",
+      source: storedCadence.source || "hero_signal",
+    };
+  }
+
+  const hasCadenceEstimate = Boolean(
+    storedCadence.lastLaunchDate
+    && storedCadence.averageIntervalMonths != null
+    && (
+      storedCadence.detectionMode === "cadence_only"
+      || storedCadence.detectionMode === "heuristic_estimate"
+      || storedCadence.launchConfidence === "estimated"
+      || storedCadence.launchConfidence === "speculative"
+      || !storedCadence.launchDate
+    ),
+  );
+
+  if (hasCadenceEstimate) {
+    return {
+      mode: storedCadence.detectionMode === "heuristic_estimate" ? "heuristic" : "cadence",
+      averageIntervalMonths: Number(storedCadence.averageIntervalMonths),
+      lastLaunchDate: storedCadence.lastLaunchDate,
+      overview: storedCadence.overview || storedCadence.cadenceMessage || "",
+      category: storedCadence.category || "",
+      source: storedCadence.source || "hero_signal",
+      detectionMode: storedCadence.detectionMode || "cadence_only",
+      launchConfidence: storedCadence.launchConfidence || null,
+    };
+  }
+
+  return null;
+}
+
+function cadenceRecordToView(cadenceRecord) {
+  return storedCadenceToMode(cadenceRecord);
+}
+
+function LaunchRadarPanelHeader({ brandName, reportKind }) {
+  const { t } = useI18n();
+
+  return (
+    <header className="launch-predictor__head">
+      <h4 className="launch-predictor__title">{t("intel.launchRadarKicker")}</h4>
+      <p className="launch-predictor__role">{t("intel.launchRadarRole")}</p>
+      <p className="launch-predictor__role launch-predictor__role--secondary">
+        {t("intel.launchRadarSelectBrand")}
+      </p>
+      {brandName ? (
+        <p className="launch-predictor__brand">{brandName}</p>
+      ) : null}
+      {reportKind === "active" ? (
+        <p className="launch-predictor__report-kind">{t("intel.launchRadarActiveReport")}</p>
+      ) : null}
+      {reportKind === "inactive" ? (
+        <p className="launch-predictor__report-kind">{t("intel.launchRadarInactiveReport")}</p>
+      ) : null}
+    </header>
+  );
+}
+
+function LaunchRadarControl({
+  brandName,
+  running,
+  toggleOn,
+  onToggleChange,
+}) {
+  const { t } = useI18n();
+
+  return (
+    <div className="launch-predictor__control">
+      <LaunchRadarToggle
+        checked={toggleOn}
+        disabled={running}
+        onCheckedChange={onToggleChange}
+        ariaLabel={t("intel.launchRadarKicker")}
+      />
+      {running ? (
+        <p className="launch-predictor__control-status">{t("intel.launchRadarRunning")}</p>
+      ) : null}
+      {!brandName && !running ? (
+        <p className="launch-predictor__control-status launch-predictor__control-status--warn">
+          {t("intel.launchRadarNeedBrand")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * Launch cadence module — hero_signal cadence (0 tokens), cached study, or live run.
+ * Launch Radar — manual run only (no auto-load).
  * @param {{ today?: Date }} props
  */
 export function LaunchPredictor({ today = new Date() }) {
+  const { t, locale } = useI18n();
   const objects = useObjectsStore((s) => s.objects);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
-  const canRunLive = usePlanStore((s) => s.canRunCampaignLive());
-  const applyServerTokenDebit = usePlanStore((s) => s.applyServerTokenDebit);
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
 
-  const { currentCorpus, brandName, storedCadence } = useMemo(() => {
-    const { currentCorpus: corpus, brandName: brand } = resolveCurrentCorpus(objects, selectedObjectId);
-    const focusId = selectedObjectId && objects[selectedObjectId]?.role === OBJECT_ROLE_CORPUS
-      ? selectedObjectId
-      : corpus?.id;
-    const focus = focusId ? objects[focusId] : null;
-    return {
-      currentCorpus: corpus,
-      brandName: brand,
-      storedCadence: focus?.cadence ?? null,
-    };
+  const { currentCorpus, brandName } = useMemo(() => {
+    const { currentCorpus: corpus, brandName: corpusBrand } = resolveCurrentCorpus(objects, selectedObjectId);
+    const brand = corpusBrand || resolveIntelCampaignBrand(objects, selectedObjectId);
+    return { currentCorpus: corpus, brandName: brand };
   }, [objects, selectedObjectId]);
 
-  const [status, setStatus] = useState("idle");
-  const [error, setError] = useState(null);
-  const [cadence, setCadence] = useState(null);
-  const [study, setStudy] = useState(null);
-  const [runningLive, setRunningLive] = useState(false);
+  const corpusId = currentCorpus?.id || selectedObjectId || null;
 
-  const referenceMonthLabel = useMemo(
-    () => formatReferenceMonthLabelEn(today),
-    [today],
-  );
+  const [status, setStatus] = useState("idle");
+  const [cadence, setCadence] = useState(null);
+  const [actionError, setActionError] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [toggleOn, setToggleOn] = useState(false);
 
   useEffect(() => {
-    if (!brandName) {
-      setStatus("empty");
-      setCadence(null);
-      setStudy(null);
-      setError(null);
-      return;
-    }
-
-    if (storedCadence?.launchDate) {
-      setStudy(null);
-      setCadence({
-        mode: "campaign",
-        launchDate: storedCadence.launchDate,
-        announcementDate: storedCadence.announcementDate || null,
-        lastLaunchDate: storedCadence.lastLaunchDate || null,
-        averageIntervalMonths: storedCadence.averageIntervalMonths ?? null,
-        overview: storedCadence.overview || "",
-        category: storedCadence.category || "",
-        source: storedCadence.source || "hero_signal",
-      });
-      setStatus("ready");
-      setError(null);
-      return;
-    }
-
-    if (storedCadence?.lastLaunchDate && storedCadence?.averageIntervalMonths != null) {
-      setStudy(null);
-      setCadence({
-        mode: "cadence",
-        averageIntervalMonths: Number(storedCadence.averageIntervalMonths),
-        lastLaunchDate: storedCadence.lastLaunchDate,
-        overview: storedCadence.overview || "",
-        category: storedCadence.category || "",
-        source: storedCadence.source || "hero_signal",
-      });
-      setStatus("ready");
-      setError(null);
-      return;
-    }
-
-    let cancelled = false;
-    setStatus("loading");
-    setError(null);
     setCadence(null);
+    setStatus("idle");
+    setActionError(null);
+    setToggleOn(false);
+  }, [brandName, corpusId]);
 
-    fetchCampaignStudy({ brandName })
-      .then((cached) => {
-        if (cancelled) return;
-        if (cached) {
-          setStudy(cached);
-          setStatus("study");
-          return;
-        }
-        if (import.meta.env.DEV) {
-          return fetchBrandCadence({ brandName, referenceMonthLabel }).then((data) => {
-            if (cancelled) return;
-            setCadence({ mode: "cadence", ...data, source: data.source || "dev-cadence" });
-            setStatus("ready");
-          });
-        }
-        setStudy(null);
-        setStatus("study-empty");
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setStudy(null);
-        setStatus("error");
-        setError(err instanceof Error ? err.message : "Could not load campaign study");
+  const applyCadenceResult = useCallback((result) => {
+    if (!result?.ok || !result.cadence) {
+      setActionError(result?.message || t("intel.launchRadarActionError"));
+      setToggleOn(false);
+      return false;
+    }
+    const view = cadenceRecordToView(result.cadence);
+    if (view) {
+      setCadence(view);
+      setStatus("ready");
+      setActionError(null);
+      setToggleOn(true);
+      return true;
+    }
+    setActionError(t("intel.launchRadarActionError"));
+    setToggleOn(false);
+    return false;
+  }, [t]);
+
+  const handleRun = useCallback(async () => {
+    if (!brandName || running) return false;
+    setRunning(true);
+    setActionError(null);
+    try {
+      const result = await runLaunchRadarAnalysis({
+        brandName,
+        corpusId,
+        locale: locale === "es" ? "es" : "en",
       });
+      if (result.code === "gate_tokens") {
+        showUpgradeModal("tokens");
+      }
+      return applyCadenceResult(result);
+    } finally {
+      setRunning(false);
+    }
+  }, [brandName, corpusId, running, locale, applyCadenceResult, showUpgradeModal]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [brandName, referenceMonthLabel, storedCadence]);
+  const handleToggleChange = useCallback(async (next) => {
+    if (running) return;
 
-  const handleRunLive = useCallback(async () => {
-    if (!brandName || runningLive) return;
-    if (!canRunLive) {
-      showUpgradeModal(study?.fromCache ? "campaign_frozen" : "tokens");
+    if (!next) {
+      setToggleOn(false);
+      setCadence(null);
+      setStatus("idle");
+      setActionError(null);
       return;
     }
-    setRunningLive(true);
-    setError(null);
-    try {
-      const result = await refreshCampaignStudy({ brandName });
-      if (result.tokensBalance != null) {
-        applyServerTokenDebit(result.tokensBalance, result.campaignLiveUsed);
-      }
-      setStudy(result);
-      setCadence(null);
-      setStatus("study");
-    } catch (err) {
-      if (err?.code === "campaign_frozen" || err?.code === "tokens") {
-        showUpgradeModal(err.code);
-      }
-      setError(err instanceof Error ? err.message : "Live study failed");
-    } finally {
-      setRunningLive(false);
+
+    if (!brandName) {
+      setActionError(t("intel.launchRadarNeedBrand"));
+      setToggleOn(false);
+      return;
     }
-  }, [brandName, runningLive, canRunLive, showUpgradeModal, applyServerTokenDebit, study?.fromCache]);
+
+    setToggleOn(true);
+    const ok = await handleRun();
+    if (!ok) setToggleOn(false);
+  }, [brandName, running, handleRun, t]);
+
+  const headerProps = { brandName, reportKind: null };
+
+  const controlProps = {
+    brandName,
+    running,
+    toggleOn,
+    onToggleChange: handleToggleChange,
+  };
 
   const campaignWindow = useMemo(() => {
     if (!cadence || cadence.mode !== "campaign" || !cadence.launchDate) return null;
@@ -168,7 +247,9 @@ export function LaunchPredictor({ today = new Date() }) {
   }, [cadence, today]);
 
   const cadenceProjection = useMemo(() => {
-    if (!cadence || cadence.mode !== "cadence" || !cadence.lastLaunchDate) return null;
+    if (!cadence || (cadence.mode !== "cadence" && cadence.mode !== "heuristic") || !cadence.lastLaunchDate) {
+      return null;
+    }
     return computeLaunchCadenceProjection({
       today,
       averageIntervalMonths: cadence.averageIntervalMonths,
@@ -176,155 +257,76 @@ export function LaunchPredictor({ today = new Date() }) {
     });
   }, [cadence, today]);
 
-  if (!currentCorpus || !brandName) {
+  if (status === "idle") {
     return (
-      <div className="launch-predictor launch-predictor--empty">
-        <p className="launch-predictor__empty-title">Launch radar</p>
-        <p className="launch-predictor__empty-copy">
-          Select a campaign from the Library to load launch dates and analysis here.
-        </p>
-      </div>
-    );
-  }
-
-  if (status === "loading") {
-    return (
-      <div className="launch-predictor launch-predictor--loading">
-        <p className="launch-predictor__status">Analyzing {brandName}…</p>
-      </div>
-    );
-  }
-
-  if (status === "error") {
-    return (
-      <div className="launch-predictor launch-predictor--error">
-        <p className="launch-predictor__status">{error}</p>
-        <button type="button" className="btn sm ghost" onClick={handleRunLive} disabled={runningLive}>
-          Retry live study
-        </button>
-      </div>
+      <LaunchRadarIdleView
+        headerProps={headerProps}
+        controlProps={controlProps}
+        actionError={actionError}
+      />
     );
   }
 
   if (campaignWindow) {
     return (
-      <CampaignWindowView
-        brandName={currentCorpus.brandName}
-        corpusId={currentCorpus.id}
-        window={campaignWindow}
-      />
+      <div className="launch-predictor">
+        <LaunchRadarPanelHeader {...headerProps} reportKind="active" />
+        <LaunchRadarControl {...controlProps} />
+        <CampaignWindowView
+          brandName={brandName}
+          corpusId={corpusId}
+          window={campaignWindow}
+          embedded
+        />
+      </div>
     );
   }
 
   if (cadenceProjection && cadence) {
     return (
-      <CadenceEstimateView
-        brandName={currentCorpus.brandName}
-        corpusId={currentCorpus.id}
-        cadence={cadence}
-        projection={cadenceProjection}
-      />
+      <div className="launch-predictor">
+        <LaunchRadarPanelHeader {...headerProps} reportKind="inactive" />
+        <LaunchRadarControl {...controlProps} />
+        <CadenceEstimateView
+          brandName={brandName}
+          corpusId={corpusId}
+          cadence={cadence}
+          projection={cadenceProjection}
+          today={today}
+          variant={cadence.mode === "heuristic" ? "heuristic" : "cadence"}
+          embedded
+        />
+      </div>
     );
   }
-
-  if (status === "study" && study) {
-    return (
-      <CampaignStudyView
-        brandName={brandName}
-        study={study}
-        onRefresh={handleRunLive}
-        refreshing={runningLive}
-        canRefresh={canRunLive}
-        refreshCost={TOKEN_COSTS.campaignLive}
-      />
-    );
-  }
-
-  if (status === "study-empty") {
-    return (
-      <CampaignStudyView
-        brandName={brandName}
-        study={null}
-        onRefresh={handleRunLive}
-        refreshing={runningLive}
-        canRefresh={canRunLive}
-        refreshCost={TOKEN_COSTS.campaignLive}
-      />
-    );
-  }
-
-  return null;
-}
-
-function CampaignStudyView({
-  brandName,
-  study,
-  onRefresh,
-  refreshing,
-  canRefresh,
-  refreshCost,
-}) {
-  const hype = study?.socialHype || {};
-  const paa = study?.peopleAlsoAsk || [];
 
   return (
+    <LaunchRadarIdleView
+      headerProps={headerProps}
+      controlProps={controlProps}
+      actionError={actionError}
+    />
+  );
+}
+
+function LaunchRadarIdleView({
+  headerProps,
+  controlProps,
+  actionError,
+}) {
+  return (
     <div className="launch-predictor">
-      <header className="launch-predictor__head">
-        <span className="launch-predictor__kicker">Campaign study</span>
-        <h4 className="launch-predictor__brand">{brandName}</h4>
-        {study?.status ? (
-          <span className="launch-predictor__category">{study.status}</span>
-        ) : null}
-      </header>
-
-      {study?.overview ? (
-        <p className="launch-predictor__overview">{study.overview}</p>
-      ) : (
-        <p className="launch-predictor__overview">
-          Run a live campaign study to load overview, PAA, and social hype for {brandName}.
-        </p>
-      )}
-
-      {study?.note ? (
-        <p className="launch-predictor__note">{study.note}</p>
+      <LaunchRadarPanelHeader {...headerProps} reportKind={null} />
+      <LaunchRadarControl {...controlProps} />
+      {actionError ? (
+        <p className="launch-predictor__note launch-predictor__note--pending">{actionError}</p>
       ) : null}
-
-      {hype.hypeScore != null ? (
-        <p className="launch-predictor__note">
-          Social hype {hype.hypeScore}/100 · {hype.mentions ?? 0} mentions
-        </p>
-      ) : null}
-
-      {paa.length > 0 ? (
-        <ul className="launch-predictor__paa">
-          {paa.slice(0, 4).map((item) => (
-            <li key={item.question}>{item.question}</li>
-          ))}
-        </ul>
-      ) : null}
-
-      <div className="launch-predictor__actions">
-        <button
-          type="button"
-          className="btn sm primary"
-          onClick={onRefresh}
-          disabled={refreshing}
-        >
-          {refreshing
-            ? "Running study…"
-            : study
-              ? `Refresh study · ${(refreshCost / 1000).toFixed(0)}k tokens`
-              : `Run study · ${(refreshCost / 1000).toFixed(0)}k tokens`}
-        </button>
-        {study?.fromCache ? (
-          <span className="launch-predictor__cache-badge">Cached · 0 tokens</span>
-        ) : null}
-      </div>
     </div>
   );
 }
 
-function CampaignWindowView({ brandName, corpusId, window }) {
+function CampaignWindowView({ brandName, corpusId, window, embedded = false }) {
+  const { t } = useI18n();
   const handleTrackOnTimeline = () => {
     const docs = useDocsStore.getState().getDocsByObject(corpusId);
     const parentDocId = docs[0]?.id || null;
@@ -350,14 +352,16 @@ function CampaignWindowView({ brandName, corpusId, window }) {
   const launchBridgeDays = Math.max(0, window.rangeDaysRemaining);
 
   return (
-    <div className="launch-predictor">
-      <header className="launch-predictor__head">
-        <span className="launch-predictor__kicker">Launch radar</span>
-        <h4 className="launch-predictor__brand">{brandName}</h4>
-        {window.category ? (
-          <span className="launch-predictor__category">{window.category}</span>
-        ) : null}
-      </header>
+    <div className={embedded ? "launch-predictor__body" : "launch-predictor"}>
+      {!embedded ? (
+        <header className="launch-predictor__head">
+          <span className="launch-predictor__kicker">{t("intel.launchRadarKicker")}</span>
+          <h4 className="launch-predictor__brand">{brandName}</h4>
+          {window.category ? (
+            <span className="launch-predictor__category">{window.category}</span>
+          ) : null}
+        </header>
+      ) : null}
 
       {window.overview ? (
         <p className="launch-predictor__overview">{window.overview}</p>
@@ -425,20 +429,30 @@ function CampaignWindowView({ brandName, corpusId, window }) {
       ) : null}
 
       <button type="button" className="btn sm primary" onClick={handleTrackOnTimeline}>
-        Track on timeline
+        {t("intel.launchRadarTrackTimeline")}
       </button>
     </div>
   );
 }
 
-function CadenceEstimateView({ brandName, corpusId, cadence, projection }) {
+function CadenceEstimateView({
+  brandName,
+  corpusId,
+  cadence,
+  projection,
+  today = new Date(),
+  variant = "cadence",
+  embedded = false,
+}) {
+  const { t, locale } = useI18n();
+  const isHeuristic = variant === "heuristic";
   const handleTrackOnTimeline = () => {
     const dateStr = toIsoDateString(projection.estimatedLaunchDate);
     const docs = useDocsStore.getState().getDocsByObject(corpusId);
     const parentDocId = docs[0]?.id || null;
 
     const nodeId = useNodesStore.getState().addNode(
-      `Est. Launch · ${brandName}`,
+      isHeuristic ? `Est. Launch · ${brandName}` : `Est. Launch · ${brandName}`,
       "date",
       dateStr,
       parentDocId,
@@ -455,16 +469,28 @@ function CadenceEstimateView({ brandName, corpusId, cadence, projection }) {
   const intervalLabel = Number.isInteger(cadence.averageIntervalMonths)
     ? cadence.averageIntervalMonths
     : cadence.averageIntervalMonths.toFixed(1);
+  const todayLabel = formatTodayLabel(today, locale);
+
+  const noteKey = isHeuristic ? "intel.launchRadarHeuristicNote" : "intel.launchRadarCadenceNote";
 
   return (
-    <div className="launch-predictor">
-      <header className="launch-predictor__head">
-        <span className="launch-predictor__kicker">Launch radar</span>
-        <h4 className="launch-predictor__brand">{brandName}</h4>
-        {cadence.category ? (
-          <span className="launch-predictor__category">{cadence.category}</span>
-        ) : null}
-      </header>
+    <div className={embedded ? "launch-predictor__body" : "launch-predictor"}>
+      {!embedded ? (
+        <header className="launch-predictor__head">
+          <span className="launch-predictor__kicker">{t("intel.launchRadarKicker")}</span>
+          {isHeuristic ? (
+            <span className="launch-predictor__badge">{t("intel.launchRadarHeuristicBadge")}</span>
+          ) : null}
+          <h4 className="launch-predictor__brand">{brandName}</h4>
+          {cadence.category ? (
+            <span className="launch-predictor__category">{cadence.category}</span>
+          ) : null}
+        </header>
+      ) : null}
+
+      {isHeuristic ? (
+        <span className="launch-predictor__badge">{t("intel.launchRadarHeuristicBadge")}</span>
+      ) : null}
 
       {cadence.overview ? (
         <p className="launch-predictor__overview">{cadence.overview}</p>
@@ -472,34 +498,39 @@ function CadenceEstimateView({ brandName, corpusId, cadence, projection }) {
 
       <div className="launch-predictor__timeline" aria-label="Launch cadence timeline">
         <div className="launch-predictor__node launch-predictor__node--today">
-          <span className="launch-predictor__node-label">Today</span>
-          <span className="launch-predictor__node-date">{projection.todayLabel}</span>
+          <span className="launch-predictor__node-label">{t("intel.launchRadarToday")}</span>
+          <span className="launch-predictor__node-date">{todayLabel}</span>
         </div>
 
         <div className="launch-predictor__bridge">
           <span className="launch-predictor__bridge-line" aria-hidden />
           <span className="launch-predictor__bridge-caption">
-            {projection.monthsRemaining} month
-            {projection.monthsRemaining === 1 ? "" : "s"} left
+            {t("intel.launchRadarMonthsLeft", { count: projection.monthsRemaining })}
           </span>
         </div>
 
         <div className="launch-predictor__node launch-predictor__node--estimate">
-          <span className="launch-predictor__node-label">Est. launch</span>
+          <span className="launch-predictor__node-label">{t("intel.launchRadarEstLaunch")}</span>
           <span className="launch-predictor__node-date">{projection.estimatedMonthLabel}</span>
         </div>
       </div>
 
       <p className="launch-predictor__note">
-        This company typically launches products every {intervalLabel} months.{" "}
-        They will likely launch their next product within the next{" "}
-        {projection.monthsRemaining} month
-        {projection.monthsRemaining === 1 ? "" : "s"}.{" "}
-        Announcements usually begin about three months before.
+        {t(noteKey, {
+          brand: brandName,
+          interval: intervalLabel,
+          today: todayLabel,
+          remaining: projection.monthsRemaining,
+          estimatedMonth: projection.estimatedMonthLabel,
+        })}
+      </p>
+
+      <p className="launch-predictor__note launch-predictor__note--pending">
+        {t("intel.launchRadarPendingWindow")}
       </p>
 
       <button type="button" className="btn sm primary" onClick={handleTrackOnTimeline}>
-        Track on timeline
+        {t("intel.launchRadarTrackTimeline")}
       </button>
     </div>
   );

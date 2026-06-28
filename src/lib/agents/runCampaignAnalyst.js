@@ -5,11 +5,12 @@ import { checkIntelCreditGate } from "../intelPlanGate.js";
 import { debitIntelCredit } from "../debitIntelCredit.js";
 import { translate } from "../../i18n/useI18n.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
+import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { DEFAULT_RANGE_DAYS } from "../campaignWindow.js";
 import { resolveAgentGraph, isOrchestratorTargetDoc } from "./resolveAgentGraph.js";
 import { buildCanvasContextSummary } from "./buildCanvasContextSummary.js";
 import { applyAnalystReportToDoc } from "./applyAnalystReportToDoc.js";
-import { mapDetectionToCadence } from "./mapDetectionToCadence.js";
+import { resolveLaunchRadarObjectId } from "./resolveLaunchRadarObjectId.js";
 import { getAgentRunCost } from "./agentCreditCosts.js";
 import { AGENT_CAMPAIGN_ANALYST } from "./registry.js";
 import { isDeliverableAnalystReport, slimDetectionForAnalyst } from "./analystReportQuality.js";
@@ -244,11 +245,14 @@ export async function runCampaignAnalyst({
       return { status: "error", code: "api", message: analystErrorMessage("api", lang) };
     }
 
-    const targetObjectId = targetDoc?.parentObjectId || graph.targetObjectId;
-    if (detection && targetObjectId) {
-      const object = useObjectsStore.getState().objects[targetObjectId];
-      const cadence = mapDetectionToCadence(detection, brandName, object?.cadence || {});
-      useObjectsStore.getState().updateObject(targetObjectId, { cadence });
+    const targetObjectId = resolveLaunchRadarObjectId(
+      useObjectsStore.getState().objects,
+      brandName,
+      targetDoc?.parentObjectId || graph.targetObjectId,
+    );
+    if (targetObjectId) {
+      useUIStateStore.getState().setSelectedObjectId(targetObjectId);
+      useUIStateStore.getState().setFilterObjectId(targetObjectId);
     }
 
     const debit = await debitIntelCredit({

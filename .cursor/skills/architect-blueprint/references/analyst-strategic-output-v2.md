@@ -22,12 +22,24 @@ Hey, {buenos días|buenas tardes|buenas noches}, aquí te dejo el reporte de lo 
 
 {marketInterest — solo si DataForSEO respondió}
 
-{launchRadarClosing — si launchDate futuro}
+{launchRadarClosing — si detectionMode confirmed_campaign o cadence_only}
 
 ## Fuentes
 · domain.com · Título (oficial|medio)
   [domain.com](https://url-completa)
 ```
+
+## Launch Radar injection (post-run)
+
+Tras un run exitoso del analista:
+
+1. `detectBrandIntelDeep` corre Pass B de cadencia si no hay `confirmed_campaign` con launch futuro.
+2. `mapDetectionToCadence` escribe `object.cadence` con modo explícito:
+   - **verified:** `detectionMode: confirmed_campaign`, `launchConfidence: verified`, fechas reales.
+   - **estimated:** `detectionMode: cadence_only`, `launchConfidence: estimated`, `lastLaunchDate` + `averageIntervalMonths` (sin `launchDate`).
+3. `runCampaignAnalyst` selecciona el corpus (`setSelectedObjectId`) para que el panel Launch Radar muestre la marca.
+4. [`LaunchPredictor.jsx`](../../../src/components/analytics/LaunchPredictor.jsx) renderiza `CampaignWindowView` (verificado) o `CadenceEstimateView` (estimado).
+5. **No** auto-timeline: el usuario usa **Track on timeline** desde Launch Radar.
 
 ## Presentación UX (post-run)
 
@@ -58,7 +70,7 @@ Hey, {buenos días|buenas tardes|buenas noches}, aquí te dejo el reporte de lo 
 
 **Bad:** Internal header, query echo, confidence meta, numbered bare URLs, invented 340% without API.
 
-**Good:** Greeting, countdown voice, sections with ##, recommendation block, Trends from DataForSEO, sources with `· domain · title` + markdown link, Launch Radar closing when `launchDate` is future.
+**Good:** Greeting, countdown voice, sections with ##, recommendation block, Trends from DataForSEO, sources with `· domain · title` + markdown link, Launch Radar closing when `detectionMode` is `confirmed_campaign` or `cadence_only`.
 
 ## Renderer
 

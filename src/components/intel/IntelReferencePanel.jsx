@@ -2,7 +2,14 @@ import { createPortal } from "react-dom";
 import { CleanReader } from "./CleanReader.jsx";
 import { NoteTaker } from "./NoteTaker.jsx";
 
-export function IntelReferencePanel({ citation, searchQuery, nodeId, onClose }) {
+export function IntelReferencePanel({
+  citation,
+  searchQuery,
+  nodeId,
+  parentDocId = null,
+  blockIndex = null,
+  onClose,
+}) {
   if (!citation) return null;
 
   return createPortal(
@@ -25,7 +32,12 @@ export function IntelReferencePanel({ citation, searchQuery, nodeId, onClose }) 
           snippet={citation.body}
           onBack={onClose}
         />
-        <NoteTaker searchQuery={searchQuery} nodeId={nodeId} onClose={onClose} />
+        <NoteTaker
+          nodeId={nodeId}
+          parentDocId={parentDocId}
+          blockIndex={blockIndex}
+          onClose={onClose}
+        />
       </div>
     </div>,
     document.body,

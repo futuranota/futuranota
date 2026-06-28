@@ -1,5 +1,6 @@
 import { normalizeKnowledgeImport } from "./knowledgeImport.js";
 import { normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
+import { readLaunchRadarFromDoc } from "./launchRadarSnapshot.js";
 import {
   DOC_KIND_CONTENT,
   DOC_KIND_KNOWLEDGE,
@@ -20,6 +21,8 @@ export function emptyDocCampaignFields() {
     campaignActive: false,
     nodeLinkColor: "dark",
     knowledgeImport: null,
+    launchRadarSnapshot: null,
+    reportPresentation: null,
   };
 }
 
@@ -36,7 +39,7 @@ function normalizeDocKind(doc) {
 export function normalizeDoc(doc) {
   if (!doc) return null;
   const base = emptyDocCampaignFields();
-  return {
+  const normalized = {
     ...doc,
     docKind: normalizeDocKind(doc),
     templateKind: doc.templateKind ?? base.templateKind,
@@ -51,5 +54,8 @@ export function normalizeDoc(doc) {
     campaignActive: Boolean(doc.campaignActive),
     nodeLinkColor: normalizeNodeLinkColorId(doc.nodeLinkColor ?? base.nodeLinkColor),
     knowledgeImport: normalizeKnowledgeImport(doc.knowledgeImport),
+    reportPresentation: doc.reportPresentation ?? base.reportPresentation,
+    launchRadarSnapshot: doc.launchRadarSnapshot ?? readLaunchRadarFromDoc(doc) ?? base.launchRadarSnapshot,
   };
+  return normalized;
 }

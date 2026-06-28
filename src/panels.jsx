@@ -913,10 +913,10 @@ function IntelPanel({
     runIntelSearch({
       query: q,
       modelId: intelSelectedModelId,
-      queryNodeEntityId: intelSearchMeta?.queryNodeEntityId ?? null,
-      queryCanvasNodeId: intelSearchMeta?.queryCanvasNodeId ?? null,
-      docId: intelSearchMeta?.docId ?? null,
-      blockIndex: intelSearchMeta?.blockIndex ?? null,
+      queryNodeEntityId: null,
+      queryCanvasNodeId: null,
+      docId: null,
+      blockIndex: null,
     });
   };
 
@@ -939,17 +939,21 @@ function IntelPanel({
   const isSearchLoading = intelSearchStatus === "loading";
   const hasSearchResult = intelSearchStatus === "success" && intelSearchResult;
   const contextCount = intelSearchResult?.contextNodes?.length ?? 0;
-  const youtubeNodeId = intelSearchMeta?.queryNodeEntityId ?? null;
   const youtubeSearchQuery = intelSearchResult?.query ?? intelQuery;
-  const youtubeFallbackNode = useMemo(
-    () => resolveActiveForecastNode(
-      nodeEntities,
-      { expandedNodeId, selection, canvasNodes },
-      docsById,
-    ),
-    [nodeEntities, docsById, expandedNodeId, selection, canvasNodes],
+  const activeIntelMeta = useMemo(() => {
+    if (!intelSearchMeta) return null;
+    const metaQuery = (intelSearchMeta.query || "").trim();
+    const currentQuery = (intelSearchResult?.query ?? intelQuery).trim();
+    if (metaQuery && currentQuery && metaQuery !== currentQuery) return null;
+    return intelSearchMeta;
+  }, [intelSearchMeta, intelSearchResult?.query, intelQuery]);
+
+  const isDocLinkedIntel = Boolean(
+    activeIntelMeta?.docId && typeof activeIntelMeta?.blockIndex === "number",
   );
-  const youtubeResolvedNodeId = youtubeNodeId || youtubeFallbackNode?.id || null;
+  const intelNodeId = isDocLinkedIntel ? (activeIntelMeta?.queryNodeEntityId ?? null) : null;
+  const intelParentDocId = isDocLinkedIntel ? activeIntelMeta.docId : null;
+  const intelBlockIndex = isDocLinkedIntel ? activeIntelMeta.blockIndex : null;
 
   const handleIntelTabChange = (nextTab) => {
     if (nextTab === "youtube") {
@@ -981,8 +985,10 @@ function IntelPanel({
     <>
       {youtubePanelOpen ? (
         <VideoReferencePanel
-          nodeId={youtubeResolvedNodeId}
+          nodeId={intelNodeId}
           searchQuery={youtubeSearchQuery}
+          parentDocId={intelParentDocId}
+          blockIndex={intelBlockIndex}
           onClose={handleYoutubePanelClose}
         />
       ) : null}
@@ -1098,7 +1104,9 @@ function IntelPanel({
               <IntelSourcesList
                 citations={intelSearchResult.citations || []}
                 searchQuery={intelSearchResult.query ?? intelQuery}
-                nodeId={intelSearchMeta?.queryNodeEntityId ?? null}
+                nodeId={intelNodeId}
+                parentDocId={intelParentDocId}
+                blockIndex={intelBlockIndex}
               />
             </section>
           </div>

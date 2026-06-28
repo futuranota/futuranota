@@ -32,7 +32,11 @@ export default async function handler(req, res) {
 
     const rangeDays = Number(body.rangeDays);
     const sources = Array.isArray(body.sources) ? body.sources : [];
-    const mode = body.mode === "deep" ? "deep" : undefined;
+    const mode = body.mode === "deep"
+      ? "deep"
+      : body.mode === "radar"
+        ? "radar"
+        : undefined;
     const officialDomain = typeof body.officialDomain === "string"
       ? body.officialDomain.trim()
       : "";

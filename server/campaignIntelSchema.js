@@ -212,7 +212,10 @@ export function normalizeBrandResearchReport(raw, ctx) {
     announcementDate,
     launchDate,
     lastLaunchDate: parseIsoDate(raw?.lastLaunchDate),
-    averageIntervalMonths: null,
+    averageIntervalMonths: (() => {
+      const avg = Number(raw?.averageIntervalMonths);
+      return Number.isFinite(avg) && avg > 0 && avg <= 60 ? Math.round(avg * 10) / 10 : null;
+    })(),
     overview,
     deepReport,
     confidence: Number.isFinite(confidence) ? Math.round(confidence) : null,
@@ -555,6 +558,8 @@ Schema: {
   "campaignActive": boolean,
   "announcementDate": "YYYY-MM-DD"|null,
   "launchDate": "YYYY-MM-DD"|null,
+  "lastLaunchDate": "YYYY-MM-DD"|null,
+  "averageIntervalMonths": number|null,
   "detectionMode": "research_report" | "confirmed_campaign",
   "launchSignals": [{
     "phrase": string,
@@ -580,6 +585,7 @@ Rules:
 - deepReport: multi-paragraph Spanish report; MUST NOT be empty when snippets mention the brand.
 - detectionMode "confirmed_campaign" only when snippet shows explicit future launch or active pre-order; otherwise "research_report".
 - campaignActive / launchDate: optional metadata; do not skip the report when uncertain.
+- lastLaunchDate / averageIntervalMonths: optional; include when snippets mention past launch dates or recurring launch cycles.
 - evidenceUrl: copy from a snippet link; evidenceQuote max 200 chars from that snippet.
 - launchSignals: when snippet contains launch phrasing (ES/EN).
 - citations: up to 10; each url MUST exist in snippet links.`;

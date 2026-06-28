@@ -1008,6 +1008,8 @@ export function LeftPanel({
   const setProductCategoryFilter = useUIStateStore((s) => s.setProductCategoryFilter);
   const contentProductFilter = useUIStateStore((s) => s.contentProductFilter);
   const setContentProductFilter = useUIStateStore((s) => s.setContentProductFilter);
+  const leftPanelNavigateRequest = useUIStateStore((s) => s.leftPanelNavigateRequest);
+  const clearLeftPanelNavigateRequest = useUIStateStore((s) => s.clearLeftPanelNavigateRequest);
 
   /* stores */
   const objects    = useObjectsStore(s => s.objects);
@@ -1057,7 +1059,10 @@ export function LeftPanel({
   const objectScopedNodes = useMemo(() => {
     if (!activeObjectId) return [];
     const docIds = new Set(getDocsByObject(activeObjectId).map((doc) => doc.id));
-    return nodeList.filter((node) => node.parentDocId && docIds.has(node.parentDocId));
+    return nodeList.filter((node) => {
+      if (!node.parentDocId) return true;
+      return docIds.has(node.parentDocId);
+    });
   }, [activeObjectId, nodeList, docs, getDocsByObject]);
 
   const filteredNodeList = objectScopedNodes.filter((node) => {
@@ -1073,12 +1078,6 @@ export function LeftPanel({
     () => groupNodesByDocument(filteredNodeList, docs),
     [filteredNodeList, docs],
   );
-
-  const defaultNodeParentDocId = useMemo(() => {
-    if (!activeObjectId) return "";
-    const objectDocs = getDocsByObject(activeObjectId);
-    return objectDocs[0]?.id || "";
-  }, [activeObjectId, docs, getDocsByObject]);
 
   const filterObject = filterObjectId ? objects[filterObjectId] : null;
 
@@ -1228,6 +1227,23 @@ export function LeftPanel({
     setClickFolderView(null);
     setFolderOpen(false);
   };
+
+  useEffect(() => {
+    if (!leftPanelNavigateRequest || !objectWorkspaceActive) return;
+
+    const { panel, docId = null, nodeId = null } = leftPanelNavigateRequest;
+
+    if (panel === "Nodes") {
+      switchType("Nodes");
+      if (nodeId) setActiveId(nodeId);
+    } else if (panel === "Documents" && docId) {
+      switchType("Documents");
+      setClickFolderView(null);
+      handleOpenFolderDoc(docId);
+    }
+
+    clearLeftPanelNavigateRequest();
+  }, [leftPanelNavigateRequest, objectWorkspaceActive, clearLeftPanelNavigateRequest]);
 
   const handleDeleteObject = (objectId) => {
     const obj = objects[objectId];
@@ -1724,7 +1740,6 @@ export function LeftPanel({
         <StandaloneNodeModal
           docs={docList}
           parentObjectId={activeObjectId}
-          defaultParentDocId={defaultNodeParentDocId}
           onClose={() => setShowCreate(false)}
           onSaved={() => setShowCreate(false)}
         />,
@@ -1735,7 +1750,6 @@ export function LeftPanel({
           node={nodes[nodeEditId]}
           docs={docList}
           parentObjectId={activeObjectId}
-          defaultParentDocId={defaultNodeParentDocId}
           onClose={() => {
             setNodeEditId(null);
             setActiveId(null);

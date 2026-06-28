@@ -3,6 +3,7 @@ import { useNodesStore } from "../../stores/nodesStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
   mergeVideoNodeContent,
+  normalizeVideoInputUrl,
   parseVideoEmbedInput,
   resolveVideoEmbedFromNodeContent,
 } from "../../lib/videoEmbed.js";
@@ -17,40 +18,58 @@ export function VideoEmbedBar({ nodeId = null, onEmbedChange }) {
 
   const [draft, setDraft] = useState(savedEmbed?.rawInput || "");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     setDraft(savedEmbed?.rawInput || "");
     setError("");
   }, [nodeId, savedEmbed?.rawInput, savedEmbed?.embedSrc]);
 
-  const commitEmbed = () => {
-    const parsed = parseVideoEmbedInput(draft);
-    if (parsed.error || !parsed.embedSrc) {
-      setError(parsed.error || "Paste a valid YouTube or Vimeo URL.");
-      return;
+  const commitEmbed = async () => {
+    if (loading) return;
+
+    const normalizedDraft = normalizeVideoInputUrl(draft);
+    if (normalizedDraft !== draft.trim()) {
+      setDraft(normalizedDraft);
     }
 
+    setLoading(true);
     setError("");
 
-    if (isVideoNode && nodeId) {
-      const liveNode = useNodesStore.getState().nodes[nodeId];
-      const nextContent = mergeVideoNodeContent(liveNode?.content, {
-        rawInput: parsed.rawInput,
-        provider: parsed.provider,
-        videoId: parsed.videoId,
-        embedSrc: parsed.embedSrc,
-      });
-      updateNode(nodeId, { content: nextContent });
-      if (liveNode?.parentDocId) {
-        syncNodeToParentDoc(nodeId, liveNode.parentDocId);
-      }
-    }
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, 180));
 
-    onEmbedChange?.(parsed);
+      const parsed = parseVideoEmbedInput(normalizedDraft);
+      if (parsed.error || !parsed.embedSrc) {
+        setError(parsed.error || "Paste a valid YouTube or Vimeo URL.");
+        return;
+      }
+
+      if (isVideoNode && nodeId) {
+        const liveNode = useNodesStore.getState().nodes[nodeId];
+        const nextContent = mergeVideoNodeContent(liveNode?.content, {
+          rawInput: parsed.rawInput,
+          provider: parsed.provider,
+          videoId: parsed.videoId,
+          embedSrc: parsed.embedSrc,
+        });
+        updateNode(nodeId, { content: nextContent });
+        if (liveNode?.parentDocId) {
+          syncNodeToParentDoc(nodeId, liveNode.parentDocId);
+        }
+      }
+
+      onEmbedChange?.(parsed);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="video-embed-bar">
+    <div
+      className="video-embed-bar"
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <label className="video-embed-bar__label" htmlFor="video-embed-bar-input">
         Embed link
       </label>
@@ -61,6 +80,7 @@ export function VideoEmbedBar({ nodeId = null, onEmbedChange }) {
           className="video-embed-bar__input"
           value={draft}
           placeholder="https:// or <iframe …>"
+          disabled={loading}
           onChange={(e) => {
             setDraft(e.target.value);
             if (error) setError("");
@@ -75,10 +95,11 @@ export function VideoEmbedBar({ nodeId = null, onEmbedChange }) {
         <button
           type="button"
           className="video-embed-bar__load"
-          disabled={!draft.trim()}
+          disabled={!draft.trim() || loading}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={commitEmbed}
         >
-          Load
+          {loading ? "Loading…" : "Load"}
         </button>
       </div>
       {error ? (

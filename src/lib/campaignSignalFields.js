@@ -37,9 +37,9 @@ export function campaignSignalFieldsFromDetection(brandName, result) {
     });
   }
 
-  const isCadenceOnly = result.detectionMode === 'cadence_only';
-  const launchDate = result.launchDate
-    || (isCadenceOnly && result.estimatedLaunchDate ? result.estimatedLaunchDate : '');
+  const launchDate = result.detectionMode === "confirmed_campaign"
+    ? (result.launchDate || "")
+    : "";
 
   return {
     brandName: name,

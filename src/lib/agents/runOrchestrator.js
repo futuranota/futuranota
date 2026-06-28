@@ -9,7 +9,7 @@ import { DEFAULT_RANGE_DAYS } from "../campaignWindow.js";
 import { resolveAgentGraph, isOrchestratorTargetDoc } from "./resolveAgentGraph.js";
 import { buildCanvasContextSummary } from "./buildCanvasContextSummary.js";
 import { applyAnalystReportToDoc } from "./applyAnalystReportToDoc.js";
-import { mapDetectionToCadence } from "./mapDetectionToCadence.js";
+import { resolveLaunchRadarObjectId } from "./resolveLaunchRadarObjectId.js";
 import { getAgentRunCost } from "./agentCreditCosts.js";
 import { AGENT_ORCHESTRATOR } from "./registry.js";
 
@@ -248,11 +248,14 @@ export async function runOrchestrator({
       };
     }
 
-    const targetObjectId = targetDoc?.parentObjectId || graph.targetObjectId;
+    const targetObjectId = resolveLaunchRadarObjectId(
+      useObjectsStore.getState().objects,
+      brandName,
+      targetDoc?.parentObjectId || graph.targetObjectId,
+    );
     if (detection && targetObjectId) {
-      const object = useObjectsStore.getState().objects[targetObjectId];
-      const cadence = mapDetectionToCadence(detection, brandName, object?.cadence || {});
-      useObjectsStore.getState().updateObject(targetObjectId, { cadence });
+      useUIStateStore.getState().setSelectedObjectId(targetObjectId);
+      useUIStateStore.getState().setFilterObjectId(targetObjectId);
     }
 
     const debit = await debitIntelCredit({

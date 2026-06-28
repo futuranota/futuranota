@@ -1,7 +1,13 @@
 import { createPortal } from "react-dom";
 import { VideoWorkspace } from "./VideoWorkspace.jsx";
 
-export function VideoReferencePanel({ nodeId = null, searchQuery = "", onClose }) {
+export function VideoReferencePanel({
+  nodeId = null,
+  searchQuery = "",
+  parentDocId = null,
+  blockIndex = null,
+  onClose,
+}) {
   return createPortal(
     <div
       className="lp-overlay lp-overlay--solid lp-overlay--center intel-ref-overlay"
@@ -17,6 +23,8 @@ export function VideoReferencePanel({ nodeId = null, searchQuery = "", onClose }
         <VideoWorkspace
           nodeId={nodeId}
           searchQuery={searchQuery}
+          parentDocId={parentDocId}
+          blockIndex={blockIndex}
           onClose={onClose}
         />
       </div>

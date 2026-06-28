@@ -39,7 +39,7 @@ import { apiClient } from "../api/client.js";
  * @property {number|null} averageIntervalMonths
  * @property {string|null} lastLaunchDate
  * @property {string} [source]
- * @property {"confirmed_campaign"|"cadence_only"|"no_data"|null} [detectionMode]
+ * @property {"confirmed_campaign"|"cadence_only"|"heuristic_estimate"|"research_report"|"no_data"|null} [detectionMode]
  * @property {"watch"|"discard"|"no_data"|null} [cadenceStatus]
  * @property {string|null} [cadenceMessage]
  * @property {number|null} [monthsRemaining]
@@ -48,7 +48,7 @@ import { apiClient } from "../api/client.js";
  * @property {string|null} [evidenceUrl]
  * @property {string|null} [error]
  * @property {boolean} [noData]
- * @property {"deep"} [mode]
+ * @property {"deep"|"radar"} [mode]
  */
 
 /**
@@ -56,7 +56,7 @@ import { apiClient } from "../api/client.js";
  * @param {string} params.brandName
  * @param {number} [params.rangeDays]
  * @param {Array<{ domain: string, enabled?: boolean }>} [params.sources]
- * @param {"deep"} [params.mode]
+ * @param {"deep"|"radar"} [params.mode]
  * @param {string} [params.officialDomain]
  * @param {string} [params.userQuery]
  * @param {string} [params.analystBrief]

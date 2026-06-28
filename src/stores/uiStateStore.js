@@ -168,6 +168,24 @@ export const useUIStateStore = create(
           intelSearchMeta: null,
         }),
 
+      /** After saving intel notes to a newly created node, keep meta in sync. */
+      patchIntelSearchNodeId: (nodeId) =>
+        set((state) => {
+          if (!nodeId || !state.intelSearchMeta) return state;
+          return {
+            intelSearchMeta: {
+              ...state.intelSearchMeta,
+              queryNodeEntityId: nodeId,
+            },
+          };
+        }),
+
+      /** One-shot request for LeftPanel to switch folder after intel note save. */
+      leftPanelNavigateRequest: null,
+      requestLeftPanelNavigate: (payload) =>
+        set({ leftPanelNavigateRequest: { ...payload, ts: Date.now() } }),
+      clearLeftPanelNavigateRequest: () => set({ leftPanelNavigateRequest: null }),
+
       setActiveDocMetaDraft: (draft) => set({ activeDocMetaDraft: draft }),
       clearActiveDocMetaDraft: () => set({ activeDocMetaDraft: null }),
 

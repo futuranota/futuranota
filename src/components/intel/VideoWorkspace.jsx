@@ -9,6 +9,8 @@ import { NoteTaker } from "./NoteTaker.jsx";
 export function VideoWorkspace({
   nodeId = null,
   searchQuery = "",
+  parentDocId = null,
+  blockIndex = null,
   embedded = false,
   onClose,
 }) {
@@ -62,8 +64,9 @@ export function VideoWorkspace({
         <VideoEmbedBar nodeId={nodeId} onEmbedChange={handleEmbedLoaded} />
       ) : null}
       <NoteTaker
-        searchQuery={searchQuery}
         nodeId={nodeId}
+        parentDocId={parentDocId}
+        blockIndex={blockIndex}
         onClose={embedded ? undefined : onClose}
       />
     </div>

@@ -338,6 +338,11 @@
   box-shadow: none;
 }
 
+.note-taker__save--loading {
+  opacity: 0.75;
+  cursor: wait;
+}
+
 /* ── Video panel (YouTube / Vimeo) ── */
 .intel-ref-panel--video {
   height: min(620px, calc(100vh - 80px));

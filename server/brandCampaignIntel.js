@@ -29,6 +29,12 @@ import {
   matchBrandName,
   normalizeBrandResearchReport,
 } from "./campaignIntelSchema.js";
+import { enrichCadenceHit } from "./cadenceProjection.js";
+import {
+  buildHeuristicCadenceFromDetection,
+  mapSoftCadenceToHeuristic,
+} from "../src/lib/heuristicCadence.js";
+import { parseIsoDate } from "../src/lib/launchCadenceMath.js";
 
 const MAX_SNIPPETS = 24;
 
@@ -213,6 +219,102 @@ function pickBrandHit(hits, brandName) {
   );
 }
 
+/**
+ * @param {unknown[]} rawList
+ * @param {string} brandName
+ */
+function pickSoftCadenceHit(rawList, brandName) {
+  const candidates = rawList.filter((raw) => {
+    const lastLaunchDate = parseIsoDate(raw?.lastLaunchDate);
+    const avg = Number(raw?.averageIntervalMonths);
+    return lastLaunchDate && Number.isFinite(avg) && avg > 0 && avg <= 60;
+  });
+
+  return pickBrandHit(candidates, brandName);
+}
+
+/**
+ * Pass B: historical cadence when no confirmed future campaign.
+ * @param {string} brandName
+ * @param {string} todayIso
+ * @param {number} rangeDays
+ * @returns {Promise<{ kind: "verified"|"soft", data: object, source: string }|null>}
+ */
+async function runCadencePassB(brandName, todayIso, rangeDays) {
+  const cadenceQueries = buildBrandCadenceQueries(brandName, rangeDays);
+  const cadenceSnippets = await searchWebMulti(cadenceQueries);
+
+  if (!cadenceSnippets?.length) return null;
+
+  const cadencePrompt = buildBrandCadenceExtractPrompt(
+    todayIso,
+    rangeDays,
+    brandName,
+    formatSnippetsCorpus(cadenceSnippets),
+  );
+  const llmCadence = await completeJson(cadencePrompt, { system: SYSTEM_PROMPT_HORIZON_EXTRACT });
+  if (!llmCadence) return null;
+
+  const rawCadence = Array.isArray(llmCadence.data?.companies) ? llmCadence.data.companies : [];
+  const source = `serper+${llmCadence.provider}`;
+  const { companies: cadenceHits } = filterVerifiedHorizonResults(rawCadence, {
+    snippets: cadenceSnippets,
+    todayIso,
+    rangeDays,
+    maxResults: 5,
+  });
+
+  const cadenceHit = pickBrandHit(
+    cadenceHits.filter((c) => c.detectionMode === "cadence_only"),
+    brandName,
+  );
+
+  if (cadenceHit) {
+    return {
+      kind: "verified",
+      data: enrichCadenceHit(cadenceHit, todayIso, rangeDays),
+      source,
+    };
+  }
+
+  const softRaw = pickSoftCadenceHit(rawCadence, brandName);
+  if (!softRaw) return null;
+
+  const softHit = {
+    brandName: typeof softRaw.brandName === "string" ? softRaw.brandName.trim() : brandName,
+    detectionMode: "cadence_only",
+    campaignActive: false,
+    announcementDate: null,
+    launchDate: null,
+    lastLaunchDate: parseIsoDate(softRaw.lastLaunchDate),
+    averageIntervalMonths: Math.round(Number(softRaw.averageIntervalMonths) * 10) / 10,
+    overview: typeof softRaw.overview === "string" ? softRaw.overview.trim() : "",
+    confidence: Number.isFinite(Number(softRaw.confidence)) ? Math.round(Number(softRaw.confidence)) : null,
+    evidenceUrl: typeof softRaw.evidenceUrl === "string" ? softRaw.evidenceUrl.trim() : null,
+    category: typeof softRaw.category === "string" ? softRaw.category.trim().toLowerCase() : null,
+    ticketTier: typeof softRaw.ticketTier === "string" ? softRaw.ticketTier.trim().toLowerCase() : null,
+  };
+
+  if (!softHit.lastLaunchDate) return null;
+
+  return {
+    kind: "soft",
+    data: enrichCadenceHit(softHit, todayIso, rangeDays),
+    source,
+  };
+}
+
+/**
+ * @param {object} report
+ * @param {string} todayIso
+ */
+function isVerifiedConfirmedCampaign(report, todayIso) {
+  return report?.detectionMode === "confirmed_campaign"
+    && Boolean(report?.campaignActive)
+    && typeof report?.launchDate === "string"
+    && report.launchDate > todayIso;
+}
+
 function noDataResult(brandName, message, source = "serper", extra = {}) {
   return {
     brandName,
@@ -323,14 +425,70 @@ export async function detectBrandIntelDeep(brandName, {
   const report = extracted.report;
   const lang = locale === "en" ? "en" : "es";
 
-  const forwardSignals = filterForwardLaunchSignals(report.launchSignals || []);
+  const allLaunchSignals = Array.isArray(report.launchSignals) ? report.launchSignals : [];
+  const forwardSignals = filterForwardLaunchSignals(allLaunchSignals);
   const normalizedReport = {
     ...report,
     launchSignals: forwardSignals,
+    allLaunchSignals,
   };
+
+  let launchRadarMerge = {};
+  if (!isVerifiedConfirmedCampaign(normalizedReport, today)) {
+    const cadenceResult = await runCadencePassB(name, today, rangeDays);
+    if (cadenceResult?.kind === "verified") {
+      const verified = cadenceResult.data;
+      launchRadarMerge = {
+        detectionMode: "cadence_only",
+        campaignActive: false,
+        launchDate: null,
+        announcementDate: null,
+        lastLaunchDate: verified.lastLaunchDate,
+        averageIntervalMonths: verified.averageIntervalMonths,
+        monthsRemaining: verified.monthsRemaining,
+        estimatedLaunchDate: verified.estimatedLaunchDate,
+        cadenceStatus: verified.cadenceStatus,
+        cadenceMessage: verified.cadenceMessage,
+        overview: verified.overview || normalizedReport.overview,
+        category: verified.category || normalizedReport.category,
+        confidence: verified.confidence ?? normalizedReport.confidence,
+        evidenceUrl: verified.evidenceUrl || normalizedReport.evidenceUrl,
+        launchConfidence: "estimated",
+      };
+    } else if (cadenceResult?.kind === "soft") {
+      const heuristic = mapSoftCadenceToHeuristic(cadenceResult.data, today, lang);
+      if (heuristic) {
+        launchRadarMerge = {
+          ...heuristic,
+          overview: heuristic.overview || cadenceResult.data.overview || normalizedReport.overview,
+          category: cadenceResult.data.category || normalizedReport.category,
+          evidenceUrl: cadenceResult.data.evidenceUrl || normalizedReport.evidenceUrl,
+        };
+      }
+    }
+
+    if (!launchRadarMerge.detectionMode) {
+      const heuristic = buildHeuristicCadenceFromDetection({
+        brandName: name,
+        todayIso: today,
+        rangeDays,
+        report: normalizedReport,
+        allLaunchSignals,
+        lang,
+      });
+      if (heuristic) {
+        launchRadarMerge = {
+          ...heuristic,
+          overview: heuristic.overview || normalizedReport.overview,
+          category: normalizedReport.category,
+        };
+      }
+    }
+  }
 
   return {
     ...normalizedReport,
+    ...launchRadarMerge,
     brandName: report.brandName || name,
     citations: extracted.citations,
     retrievalSnippets: snippets.slice(0, MAX_SNIPPETS),
@@ -344,6 +502,75 @@ export async function detectBrandIntelDeep(brandName, {
 }
 
 /**
+ * Launch Radar scan — Serper Pass A (confirmed campaign) + Pass B cadence + heuristic fallback.
+ * No Tavily deep report or analyst Groq pass.
+ * @param {string} brandName
+ * @param {{ rangeDays?: number, sources?: unknown[], locale?: 'en'|'es' }} [options]
+ */
+export async function detectBrandIntelRadar(brandName, options = {}) {
+  const {
+    rangeDays = DEFAULT_RANGE_DAYS,
+    sources: clientSources = [],
+    locale = "es",
+    userQuery = "",
+    analystBrief = "",
+  } = options;
+  const name = brandName.trim();
+  if (!name) throw new Error("brandName is required");
+
+  const lang = locale === "en" ? "en" : "es";
+  const today = todayIso();
+  const base = await detectBrandIntel(name, {
+    rangeDays,
+    sources: clientSources,
+    locale: lang,
+    userQuery,
+    analystBrief,
+  });
+
+  if (
+    base.detectionMode === "confirmed_campaign"
+    || base.detectionMode === "cadence_only"
+    || base.detectionMode === "heuristic_estimate"
+  ) {
+    return {
+      ...base,
+      brandName: base.brandName || name,
+      mode: "radar",
+    };
+  }
+
+  const heuristic = buildHeuristicCadenceFromDetection({
+    brandName: name,
+    todayIso: today,
+    rangeDays,
+    report: base,
+    allLaunchSignals: base.allLaunchSignals || base.launchSignals || [],
+    lang,
+  });
+
+  if (heuristic) {
+    return {
+      ...heuristic,
+      brandName: name,
+      mode: "radar",
+      source: base.source || "radar-heuristic",
+    };
+  }
+
+  return {
+    ...noDataResult(
+      name,
+      lang === "es"
+        ? `Launch Radar no encontró fechas verificadas para ${name}.`
+        : `Launch Radar found no verified dates for ${name}.`,
+      base.source || "serper",
+    ),
+    mode: "radar",
+  };
+}
+
+/**
  * Two-pass verified brand intel: Pass A campaign validation, Pass B cadence analysis.
  * @param {string} brandName
  * @param {{ rangeDays?: number, sources?: unknown[], mode?: string, officialDomain?: string, userQuery?: string }} [options]
@@ -351,6 +578,9 @@ export async function detectBrandIntelDeep(brandName, {
 export async function detectBrandIntel(brandName, options = {}) {
   if (options.mode === "deep") {
     return detectBrandIntelDeep(brandName, options);
+  }
+  if (options.mode === "radar") {
+    return detectBrandIntelRadar(brandName, options);
   }
 
   const { rangeDays = DEFAULT_RANGE_DAYS, sources: clientSources = [] } = options;
@@ -409,57 +639,38 @@ export async function detectBrandIntel(brandName, options = {}) {
     }
   }
 
-  const cadenceQueries = buildBrandCadenceQueries(name, rangeDays);
-  const cadenceSnippets = await searchWebMulti(cadenceQueries);
+  const cadenceResult = await runCadencePassB(name, today, rangeDays);
 
-  if (!cadenceSnippets || cadenceSnippets.length === 0) {
-    return noDataResult(
-      name,
-      `Sin evidencia web de ciclo de lanzamiento para ${name}.`,
-    );
-  }
-
-  const cadencePrompt = buildBrandCadenceExtractPrompt(
-    today,
-    rangeDays,
-    name,
-    formatSnippetsCorpus(cadenceSnippets),
-  );
-  const llmCadence = await completeJson(cadencePrompt, { system: SYSTEM_PROMPT_HORIZON_EXTRACT });
-  if (!llmCadence) {
-    return {
-      ...noDataResult(name, describeLlmUnavailable(), "serper"),
-      error: describeLlmUnavailable(),
-      noData: true,
-    };
-  }
-
-  const rawCadence = Array.isArray(llmCadence.data?.companies) ? llmCadence.data.companies : [];
-  const { companies: cadenceHits } = filterVerifiedHorizonResults(rawCadence, {
-    snippets: cadenceSnippets,
-    todayIso: today,
-    rangeDays,
-    maxResults: 5,
-  });
-
-  const cadenceHit = pickBrandHit(
-    cadenceHits.filter((c) => c.detectionMode === "cadence_only"),
-    name,
-  );
-
-  if (!cadenceHit) {
+  if (!cadenceResult) {
     return noDataResult(
       name,
       `Sin evidencia verificada de cadencia para ${name} en fuentes web.`,
-      `serper+${llmCadence.provider}`,
+      "serper",
     );
   }
 
-  return {
-    ...cadenceHit,
-    brandName: cadenceHit.brandName || name,
-    source: `serper+${llmCadence.provider}`,
-  };
+  if (cadenceResult.kind === "verified") {
+    return {
+      ...cadenceResult.data,
+      brandName: cadenceResult.data.brandName || name,
+      source: cadenceResult.source,
+    };
+  }
+
+  const heuristic = mapSoftCadenceToHeuristic(cadenceResult.data, today, "es");
+  if (heuristic) {
+    return {
+      ...heuristic,
+      brandName: name,
+      source: cadenceResult.source,
+    };
+  }
+
+  return noDataResult(
+    name,
+    `Sin evidencia verificada de cadencia para ${name} en fuentes web.`,
+    "serper",
+  );
 }
 
 /**

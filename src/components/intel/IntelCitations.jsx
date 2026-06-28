@@ -47,6 +47,8 @@ export function IntelSourcesList({
   citations = [],
   searchQuery = "",
   nodeId = null,
+  parentDocId = null,
+  blockIndex = null,
 }) {
   const { t } = useI18n();
   const [selected, setSelected] = useState(null);
@@ -75,6 +77,8 @@ export function IntelSourcesList({
           citation={selected}
           searchQuery={searchQuery}
           nodeId={nodeId}
+          parentDocId={parentDocId}
+          blockIndex={blockIndex}
           onClose={() => setSelected(null)}
         />
       ) : null}
