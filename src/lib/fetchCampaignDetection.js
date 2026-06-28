@@ -20,6 +20,14 @@ import { apiClient } from "../api/client.js";
  */
 
 /**
+ * @typedef {Object} MarketInterest
+ * @property {string} keyword
+ * @property {number|null} interestChangePercent
+ * @property {string[]} topRegions
+ * @property {"dataforseo"|"unavailable"} source
+ */
+
+/**
  * @typedef {Object} CampaignDetectionResponse
  * @property {boolean} campaignActive
  * @property {string|null} launchDate
@@ -27,6 +35,7 @@ import { apiClient } from "../api/client.js";
  * @property {string} [deepReport]
  * @property {CampaignLaunchSignal[]} [launchSignals]
  * @property {CampaignCitation[]} [citations]
+ * @property {MarketInterest} [marketInterest]
  * @property {number|null} averageIntervalMonths
  * @property {string|null} lastLaunchDate
  * @property {string} [source]

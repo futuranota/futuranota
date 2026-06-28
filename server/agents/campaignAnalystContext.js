@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { formatCitationsForPrompt, formatResultsForPrompt } from "../discovery/brandIntelligenceSearch.js";
-import { DEFAULT_RANGE_DAYS } from "../../src/lib/campaignWindow.js";
+import { DEFAULT_RANGE_DAYS, daysUntilLaunch, isFutureLaunchDate } from "../../src/lib/campaignWindow.js";
 import { filterForwardLaunchSignals } from "../../src/lib/intelSnippetFilter.js";
 import { trimCorpusForPrompt, trimSnippetsForPrompt } from "./intelPromptLimits.js";
 
@@ -81,24 +81,26 @@ OUTPUT — valid JSON only (no markdown wrapper). All text fields in English.
   ],
   "whatsNew": string,
   "whatsComing": string,
+  "strategicRecommendation": string,
   "businessOpportunities": string[],
   "customerMarkets": string,
   "launchCadence": string,
-  "sources": [{ "url": string, "type": "official"|"media"|"rumor"|"" }],
+  "sources": [{ "url": string, "type": "official"|"media"|"rumor"|"", "label": string }],
   "overallConfidence": "High"|"Medium"|"Low"|"",
   "confidenceReason": string,
   "marketContext": string,
-  "toolGuide": string,
   "launchScenario": "A"|"B"|"C"|"none"|""
 }
 
 Rules:
 - Phases 2–6 only; search results are in the user message.
-- openingBrief is required — natural prose, 2–4 paragraphs, direct voice.
-- Empty string "" or [] when no evidence. NEVER use "No confirmed data in this period."
-- whatsComing: FUTURE launches only (date after today). State weeks/months remaining when known.
-- businessOpportunities: 0–5 items; minimum 2 only when evidence supports it.
-- toolGuide: full Phase 6 block text only if launchScenario is A, B, or C; otherwise "".
+- openingBrief: strategic hook, 2–4 paragraphs. NEVER repeat the user's question verbatim.
+- strategicRecommendation: "My recommendation" block — opportunities, features, direction; never tell user what to sell.
+- NEVER include in text fields: "Intel —", "I reviewed X focusing on", Groq/fallback/confidence meta (confidence fields are internal only).
+- whatsComing: FUTURE launches only. State days/weeks remaining when known.
+- marketContext: ONLY verified data from search corpus or detection.marketInterest (if source is dataforseo). Never invent Trends %.
+- sources: include url, type, short label (headline).
+- Empty string "" when no evidence. NEVER use "No confirmed data in this period."
 - Never invent models, dates, or specs absent from search results.
 `.trim(),
   es: `
@@ -118,24 +120,26 @@ SALIDA — solo JSON válido (sin markdown). Texto en español.
   ],
   "whatsNew": string,
   "whatsComing": string,
+  "strategicRecommendation": string,
   "businessOpportunities": string[],
   "customerMarkets": string,
   "launchCadence": string,
-  "sources": [{ "url": string, "tipo": "oficial"|"medio"|"rumor"|"" }],
+  "sources": [{ "url": string, "tipo": "oficial"|"medio"|"rumor"|"", "label": string }],
   "overallConfidence": "Alta"|"Media"|"Baja"|"",
   "confidenceReason": string,
   "marketContext": string,
-  "toolGuide": string,
   "launchScenario": "A"|"B"|"C"|"none"|""
 }
 
 Reglas:
 - Fases 2–6 solamente; los resultados de búsqueda vienen en el mensaje de usuario.
-- openingBrief es obligatorio — prosa natural, 2–4 párrafos, voz directa.
-- String vacío "" o [] sin evidencia. NUNCA uses "Sin datos confirmados en este período."
-- whatsComing: solo lanzamientos FUTUROS (fecha posterior a hoy). Indica semanas/meses restantes si hay fecha.
-- businessOpportunities: 0–5 ítems; mínimo 2 solo si la evidencia lo permite.
-- toolGuide: bloque completo Fase 6 solo si launchScenario es A, B o C; si no, "".
+- openingBrief: gancho estratégico, 2–4 párrafos. NUNCA repitas la pregunta del usuario textualmente.
+- strategicRecommendation: bloque "Mi recomendación" — oportunidades, features, dirección; nunca digas qué vender.
+- NUNCA incluyas en campos de texto: "Intel —", "Revisé X con foco en", meta de Groq/fallback/confianza (confidence es interno).
+- whatsComing: solo lanzamientos FUTUROS. Indica días/semanas restantes si hay fecha.
+- marketContext: SOLO datos verificados del corpus o detection.marketInterest (si source es dataforseo). Nunca inventes % de Trends.
+- sources: url, tipo, label breve (titular).
+- String vacío "" sin evidencia. NUNCA uses "Sin datos confirmados en este período."
 - Nunca inventes modelos, fechas ni specs ausentes en los resultados de búsqueda.
 `.trim(),
 };
@@ -200,6 +204,7 @@ export function buildCampaignAnalystPrompt(locale, {
         body: (c.body || "").slice(0, 200),
       })),
       source: detection?.source || "",
+      marketInterest: detection?.marketInterest || null,
     },
   };
 

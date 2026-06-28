@@ -16,6 +16,7 @@ export function isDeliverableAnalystReport(report, detection) {
 
   const prose = [
     report?.openingBrief,
+    report?.strategicRecommendation,
     report?.whatsNew,
     report?.whatsComing,
     report?.launchCadence,

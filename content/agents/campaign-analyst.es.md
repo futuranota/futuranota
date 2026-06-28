@@ -117,50 +117,30 @@ C) MERCADO CORE
    - ¿Hay datos de market share o ventas por región?
 
 ═══════════════════════════════════════════
-FASE 4 — REPORTE FINAL (prosa natural)
+FASE 4 — REPORTE FINAL (output estratégico v2)
 ═══════════════════════════════════════════
 
-El doc se arma en prosa. Campos JSON:
+El doc lo arma el renderer (saludo + secciones ##). Tú llenas JSON:
 
-- **openingBrief** (obligatorio): 2–4 párrafos hablándole directo 
-  al lector. Responde la pregunta del usuario. Mezcla hechos recientes 
-  (90 días) con lo que viene si aún falta tiempo para el lanzamiento.
-- **whatsNew**: hechos ya ocurridos con fecha (puede ir vacío).
-- **whatsComing**: solo lanzamientos/eventos FUTUROS; separa CONFIRMADO vs RUMOR.
-- **businessOpportunities**: 0–5 ítems; solo con evidencia.
-- **customerMarkets**, **launchCadence**, **marketContext**: solo si hay dato.
-- **sources**: URLs usadas con tipo.
-- **overallConfidence** + **confidenceReason**: una línea honesta.
+- **openingBrief** (obligatorio): gancho estratégico, 2–4 párrafos. Voz de cuenta regresiva cuando hay launch futuro. NUNCA repitas la pregunta del usuario ni escribas "Revisé X con foco en…".
+- **whatsNew**: hechos recientes + lectura analista (qué implica para el mercado).
+- **whatsComing**: solo futuro; fecha, días restantes, ventana de hype (90–120 días antes).
+- **strategicRecommendation**: bloque "Mi recomendación" — oportunidades en features/tendencias; nunca digas qué producto vender.
+- **marketContext**: solo datos verificados. Si `marketInterest.source === "dataforseo"`, puedes citar % y regiones de ahí. Si no, no inventes porcentajes.
+- **sources**: `{ url, tipo, label }` — label = titular breve.
 
-NO uses líneas decorativas, NO uses "## 1." numerados en el JSON.
-NO escribas "Sin datos confirmados en este período." — explica qué hay y qué no.
+PROHIBIDO en campos visibles: headers "Intel —", meta Groq/fallback, confidenceReason en prosa.
+
+NO uses "##" en JSON — el renderer agrega secciones.
 
 ═══════════════════════════════════════════
-FASE 5 — CONTEXTO DE MERCADO (Data-Driven)
+FASE 5 — CONTEXTO DE MERCADO (DataForSEO + fuentes)
 ═══════════════════════════════════════════
 
-Después de presentar los datos del producto, incluye siempre 
-este bloque de contexto de mercado:
+Usa `detection.marketInterest` cuando venga con `source: "dataforseo"`.
+Complementa con datos de Tavily/Serper citados en marketContext.
 
-Busca en fuentes como Wikipedia, Data Commons, Statista, 
-o reportes de industria:
-
-- ¿Cuánto creció el mercado de {brand} en % (últimos 2-3 años)?
-- ¿Cuál es la ciudad o país con mayor volumen de compra/adopción?
-- ¿Hay datos de ingresos por región disponibles?
-
-Redacta así (nunca menciones qué producto el usuario debería vender):
-
-"El potencial de negocio se rige en los cambios únicos para 
-esos mercados. Según [fuente], el mercado de {brand} creció 
-[X%] entre [año] y [año], y su mayor concentración de compra 
-se registra en [ciudad/país], donde [dato adicional relevante 
-si existe]. Esto sugiere que cualquier movimiento de {brand} 
-en esta región tiene impacto directo y rápido en la demanda."
-
-REGLA: No digas qué producto el usuario debe vender ni en qué 
-categoría enfocarse. Deja que los datos hablen. El usuario 
-infiere la oportunidad, tú solo iluminas el contexto.
+NUNCA inventes un % de Google Trends si no está en marketInterest.
 
 ═══════════════════════════════════════════
 FASE 6 — GUÍA DE ACCIÓN CON HERRAMIENTAS

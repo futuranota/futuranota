@@ -18,6 +18,7 @@ import { buildCitations } from "./intelOverviewPipeline.js";
 import { DEFAULT_RANGE_DAYS } from "../src/lib/campaignWindow.js";
 import { filterIntelSnippets, filterForwardLaunchSignals } from "../src/lib/intelSnippetFilter.js";
 import { trimSnippetsForPrompt, trimCorpusForPrompt } from "./agents/intelPromptLimits.js";
+import { fetchDataForSeoTrends } from "./discovery/dataForSeoTrends.js";
 import {
   SYSTEM_PROMPT_HORIZON_EXTRACT,
   SYSTEM_PROMPT_BRAND_RESEARCH,
@@ -257,14 +258,22 @@ export async function detectBrandIntelDeep(brandName, {
   const sources = resolveScanSources(clientSources);
   const today = todayIso();
 
-  const pass1 = await runIntelPass1(name, {
-    userQuery,
-    analystBrief,
-    locale,
-    rangeDays,
-    sources,
-    officialDomain,
-  });
+  const [pass1, marketInterest] = await Promise.all([
+    runIntelPass1(name, {
+      userQuery,
+      analystBrief,
+      locale,
+      rangeDays,
+      sources,
+      officialDomain,
+    }),
+    fetchDataForSeoTrends(name, userQuery).catch(() => ({
+      keyword: name,
+      interestChangePercent: null,
+      topRegions: [],
+      source: "unavailable",
+    })),
+  ]);
 
   if (pass1.snippets === null) {
     return {
@@ -328,6 +337,7 @@ export async function detectBrandIntelDeep(brandName, {
     sourceCount: snippets.length,
     searchCorpus: trimCorpusForPrompt(formatResultsForPrompt(trimSnippetsForPrompt(snippets, 10), lang)),
     rangeDays,
+    marketInterest,
     source: `${retrievalSource}+${extracted.provider}`,
     mode: "deep",
   };

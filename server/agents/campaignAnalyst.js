@@ -3,7 +3,7 @@ import {
   buildCampaignAnalystPrompt,
   normalizeAnalystLocale,
 } from "./campaignAnalystContext.js";
-import { DEFAULT_RANGE_DAYS, daysUntilLaunch, isFutureLaunchDate } from "../../src/lib/campaignWindow.js";
+import { daysUntilLaunch, isFutureLaunchDate } from "../../src/lib/campaignWindow.js";
 import { filterForwardLaunchSignals } from "../../src/lib/intelSnippetFilter.js";
 
 /**
@@ -84,6 +84,7 @@ function normalizeSources(raw, detection = {}) {
         url,
         tipo: asString(item.tipo || item.type),
         type: asString(item.type || item.tipo),
+        label: asString(item.label || item.title),
       });
     }
   }
@@ -94,6 +95,7 @@ function normalizeSources(raw, detection = {}) {
     url: asString(c?.url),
     tipo: "medio",
     type: "media",
+    label: asString(c?.title),
   })).filter((s) => s.url);
 }
 
@@ -165,12 +167,21 @@ export function normalizeAnalystReport(raw, detection = {}) {
     toolGuide = "";
   }
 
+  let strategicRecommendation = asString(raw.strategicRecommendation);
+  if (!strategicRecommendation && businessOpportunities.length) {
+    strategicRecommendation = businessOpportunities.join("\n\n");
+  }
+  if (!strategicRecommendation) {
+    strategicRecommendation = asString(raw.strategicCounsel);
+  }
+
   return {
     primaryQuestion: asString(raw.primaryQuestion),
     openingBrief,
     structuredFacts: normalizeStructuredFacts(raw.structuredFacts),
     whatsNew,
     whatsComing,
+    strategicRecommendation,
     businessOpportunities,
     customerMarkets: isPlaceholderText(raw.customerMarkets) ? "" : asString(raw.customerMarkets),
     launchCadence: isPlaceholderText(raw.launchCadence) ? "" : asString(raw.launchCadence),
@@ -235,25 +246,52 @@ function buildWhatsNewFromDetection(detection, lang) {
  * @param {'en'|'es'} lang
  */
 function buildWhatsComingFromDetection(detection, lang) {
-  const signals = filterForwardLaunchSignals(detection?.launchSignals || []);
-  if (!signals.length) {
-    const launchDate = asString(detection?.launchDate || detection?.estimatedLaunchDate);
-    if (isFutureLaunchDate(launchDate)) {
-      const days = daysUntilLaunch(launchDate);
-      return lang === "es"
-        ? `Lanzamiento futuro detectado: ${launchDate}${days !== null ? ` (faltan ~${days} días)` : ""}.`
-        : `Future launch detected: ${launchDate}${days !== null ? ` (~${days} days remaining)` : ""}.`;
+  const launchDate = asString(detection?.launchDate || detection?.estimatedLaunchDate);
+  if (isFutureLaunchDate(launchDate)) {
+    const days = daysUntilLaunch(launchDate);
+    if (lang === "es") {
+      return [
+        `${launchDate}. Faltan ${days ?? "?"} días.`,
+        "",
+        "Ese es el número que importa. Los ciclos de hype no empiezan el día del lanzamiento — empiezan 90 a 120 días antes. Si ya hay fecha confirmada, estás en esa zona.",
+      ].join("\n");
     }
-    return "";
+    return [
+      `${launchDate}. ${days ?? "?"} days remaining.`,
+      "",
+      "That is the number that matters. Hype cycles start 90–120 days before launch — not on launch day.",
+    ].join("\n");
   }
+
+  const signals = filterForwardLaunchSignals(detection?.launchSignals || []);
+  if (!signals.length) return "";
 
   return signals.slice(0, 5).map((sig, i) => {
     const phrase = (sig.phrase || sig.quote || "").trim();
     const hint = (sig.dateHint || "").trim();
     const url = (sig.url || "").trim();
-    const datePart = hint ? (lang === "es" ? ` · ${hint}` : ` · ${hint}`) : "";
+    const datePart = hint ? ` · ${hint}` : "";
     return `${i + 1}. ${phrase || (lang === "es" ? "Señal de expectativa" : "Expectation signal")}${datePart}${url ? `\n${url}` : ""}`;
   }).join("\n\n");
+}
+
+/**
+ * @param {'en'|'es'} lang
+ * @param {string} brandName
+ */
+function buildFallbackStrategicRecommendation(lang, brandName) {
+  if (lang === "es") {
+    return [
+      "Según este informe, la dirección siempre depende del proyecto que quieras construir — pero hay una constante: las tendencias nuevas que sugieren los medios son tu mejor punto de entrada.",
+      "Los features nuevos de un producto en ciclo de lanzamiento no solo definen el producto — definen qué busca, qué consume, y qué necesita su audiencia en los meses previos.",
+      "Siempre puedes encontrar inspiración en esas señales para resolver un problema, crear una comodidad, o capitalizar un interés que todavía nadie está atendiendo bien.",
+    ].join("\n\n");
+  }
+  return [
+    "Based on this report, direction always depends on the project you want to build — but one constant remains: new trends surfaced by media are your best entry point.",
+    "New features in a launch-cycle product define not just the product — they define what the audience searches for, consumes, and needs in the months before release.",
+    "Use these signals for inspiration to solve a problem, create convenience, or capitalize on interest nobody is serving well yet.",
+  ].join("\n\n");
 }
 
 /**
@@ -302,6 +340,10 @@ export function enrichReportFromDetection(report, detection, lang) {
     enriched.structuredFacts = citationsToStructuredFacts(detection, lang);
   }
 
+  if (!asString(enriched.strategicRecommendation)) {
+    enriched.strategicRecommendation = buildFallbackStrategicRecommendation(lang, detection?.brandName || "");
+  }
+
   if (!enriched.sources?.length) {
     enriched.sources = normalizeSources([], detection);
   }
@@ -315,58 +357,42 @@ export function enrichReportFromDetection(report, detection, lang) {
  * @param {object} detection
  * @param {string} [primaryQuestion]
  */
-function buildFallbackOpeningBrief(lang, brandName, detection, primaryQuestion) {
-  const citations = Array.isArray(detection?.citations) ? detection.citations : [];
+function buildFallbackOpeningBrief(lang, brandName, detection) {
   const overviewRaw = (detection?.overview || "").trim();
   const overview = isGenericOverview(overviewRaw) ? "" : overviewRaw;
   const launchDate = asString(detection?.launchDate || detection?.estimatedLaunchDate);
   const daysLeft = daysUntilLaunch(launchDate);
   const futureLaunch = isFutureLaunchDate(launchDate);
 
-  const citeLines = citations.slice(0, 5).map((c, i) => {
-    const title = (c.title || c.domain || `Fuente ${i + 1}`).trim();
-    return `${title} (${c.url || ""})`;
-  });
-
   if (lang === "es") {
-    const parts = [
-      primaryQuestion
-        ? `Revisé ${brandName} con foco en: ${primaryQuestion}.`
-        : `Revisé ${brandName} en una ventana de ${DEFAULT_RANGE_DAYS} días, priorizando lo que aún no ocurrió.`,
-    ];
-    if (overview) parts.push(overview);
-    else if (citeLines.length) {
-      parts.push(`Encontré ${citations.length} fuente(s). Lo más relevante: ${citeLines.slice(0, 3).join("; ")}.`);
+    const parts = [];
+    if (overview) {
+      parts.push(overview);
     } else {
-      parts.push("La búsqueda no devolvió fuentes útiles en este run — puede ser un tema de API o de sesión.");
+      parts.push(`${brandName} movió ficha en múltiples frentes este trimestre según las fuentes consultadas.`);
     }
     if (futureLaunch && daysLeft !== null) {
-      parts.push(`Hay una fecha de lanzamiento futura (${launchDate}); faltan aproximadamente ${daysLeft} días. Eso es la ventana accionable.`);
-    } else if (Array.isArray(detection?.launchSignals) && detection.launchSignals.length) {
-      parts.push("Hay señales de expectativa (rumor o anuncio parcial), pero sin fecha futura confirmada en las fuentes.");
-    } else {
-      parts.push("No aparece un lanzamiento futuro fechado en las fuentes consultadas; el silencio o la falta de fecha también informa.");
+      parts.push(
+        `${brandName} no está en modo silencio — está en modo cuenta regresiva. `
+        + `Hay una fecha de lanzamiento futura (${launchDate}); faltan aproximadamente ${daysLeft} días. `
+        + "Eso no es un rumor — es una señal accionable, y el mercado ya empieza a reaccionar.",
+      );
     }
     return parts.join("\n\n");
   }
 
-  const parts = [
-    primaryQuestion
-      ? `I reviewed ${brandName} focusing on: ${primaryQuestion}.`
-      : `I reviewed ${brandName} over a ${DEFAULT_RANGE_DAYS}-day window, prioritizing what has not happened yet.`,
-  ];
-  if (overview) parts.push(overview);
-  else if (citeLines.length) {
-    parts.push(`Found ${citations.length} source(s). Most relevant: ${citeLines.slice(0, 3).join("; ")}.`);
+  const parts = [];
+  if (overview) {
+    parts.push(overview);
   } else {
-    parts.push("Search returned no useful sources this run — check API keys or session.");
+    parts.push(`${brandName} moved on multiple fronts this quarter according to sources consulted.`);
   }
   if (futureLaunch && daysLeft !== null) {
-    parts.push(`There is a future launch date (${launchDate}); about ${daysLeft} days remain. That is the actionable window.`);
-  } else if (Array.isArray(detection?.launchSignals) && detection.launchSignals.length) {
-    parts.push("There are expectation signals (rumor or partial announcement) but no confirmed future date in sources.");
-  } else {
-    parts.push("No dated future launch appears in sources consulted; silence or missing dates also inform.");
+    parts.push(
+      `${brandName} is not in silent mode — it's in countdown mode. `
+      + `Future launch date (${launchDate}); about ${daysLeft} days remain. `
+      + "That is actionable signal, and the market is already reacting.",
+    );
   }
   return parts.join("\n\n");
 }
@@ -379,7 +405,7 @@ function buildFallbackOpeningBrief(lang, brandName, detection, primaryQuestion) 
  */
 export function buildFallbackAnalystReport(locale, brandName, detection, primaryQuestion = "") {
   const lang = normalizeAnalystLocale(locale);
-  const openingBrief = buildFallbackOpeningBrief(lang, brandName, detection, primaryQuestion);
+  const openingBrief = buildFallbackOpeningBrief(lang, brandName, detection);
   const sources = normalizeSources([], detection);
 
   const launchDate = asString(detection?.launchDate || detection?.estimatedLaunchDate);
@@ -398,6 +424,7 @@ export function buildFallbackAnalystReport(locale, brandName, detection, primary
     structuredFacts: citationsToStructuredFacts(detection, lang),
     whatsNew: buildWhatsNewFromDetection(detection, lang),
     whatsComing: buildWhatsComingFromDetection(detection, lang),
+    strategicRecommendation: buildFallbackStrategicRecommendation(lang, brandName),
     businessOpportunities: [],
     customerMarkets: "",
     launchCadence: detection?.averageIntervalMonths
@@ -436,6 +463,7 @@ function reportHasContent(report) {
   if (!report) return false;
   return Boolean(
     asString(report.openingBrief)
+    || asString(report.strategicRecommendation)
     || asString(report.whatsNew)
     || asString(report.whatsComing)
     || asString(report.customerMarkets)

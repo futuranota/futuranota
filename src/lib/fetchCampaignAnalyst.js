@@ -20,6 +20,7 @@ import { apiClient } from "../api/client.js";
  * @property {string} url
  * @property {string} [tipo]
  * @property {string} [type]
+ * @property {string} [label]
  */
 
 /**
@@ -29,6 +30,7 @@ import { apiClient } from "../api/client.js";
  * @property {StructuredFact[]} structuredFacts
  * @property {string} whatsNew
  * @property {string} whatsComing
+ * @property {string} strategicRecommendation
  * @property {string[]} businessOpportunities
  * @property {string} customerMarkets
  * @property {string} launchCadence
