@@ -38,6 +38,11 @@ import {
   contentDocMatchesProductFilter,
   productDocMatchesCategoryFilter,
 } from "../../lib/contentProductFilter.js";
+import {
+  groupContentDocsForSidebar,
+  groupProductDocsFromList,
+} from "../../lib/docListGrouping.js";
+import { DocGroupBlockCard } from "./DocGroupBlockCard.jsx";
 import { PlanUsagePanel } from "../plans/PlanUsagePanel.jsx";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
@@ -1112,6 +1117,16 @@ export function LeftPanel({
     [contentDocs, docs, contentProductFilter],
   );
 
+  const groupedProductDocs = useMemo(
+    () => groupProductDocsFromList(filteredProductDocs, t("sidebar.docGroupUncategorized")),
+    [filteredProductDocs, t],
+  );
+
+  const groupedContentDocs = useMemo(
+    () => groupContentDocsForSidebar(filteredContentDocs, t("sidebar.docGroupUncategorized")),
+    [filteredContentDocs, t],
+  );
+
   useEffect(() => {
     setClickFolderView(null);
     setPackImportActive(false);
@@ -1513,17 +1528,25 @@ export function LeftPanel({
                   onOpenDocument={onOpenDocument}
                   onDeleteDoc={handleDeleteDoc}
                 />
-                <div className="lp-click-folder-detail-list">
-                  {filteredProductDocs.length ? (
-                    filteredProductDocs.map((doc) => (
-                      <DocListCard
-                        key={doc.id}
-                        doc={doc}
-                        objects={objects}
-                        active={activeId === doc.id}
-                        onSelect={() => handleSelectFolderDoc(doc.id)}
-                        onOpen={() => handleOpenFolderDoc(doc.id)}
-                        onDelete={() => handleDeleteDoc(doc)}
+                <div className="lp-click-folder-detail-list lp-doc-groups-stack">
+                  {groupedProductDocs.length ? (
+                    groupedProductDocs.map((group) => (
+                      <DocGroupBlockCard
+                        key={group.id}
+                        groupLabel={group.label}
+                        groupMeta={t("sidebar.docsInBlock", { count: group.docs.length })}
+                        docs={group.docs}
+                        renderDoc={(doc) => (
+                          <DocListCard
+                            key={doc.id}
+                            doc={doc}
+                            objects={objects}
+                            active={activeId === doc.id}
+                            onSelect={() => handleSelectFolderDoc(doc.id)}
+                            onOpen={() => handleOpenFolderDoc(doc.id)}
+                            onDelete={() => handleDeleteDoc(doc)}
+                          />
+                        )}
                       />
                     ))
                   ) : (
@@ -1618,17 +1641,25 @@ export function LeftPanel({
                   onOpenDocument={onOpenDocument}
                   onDeleteDoc={handleDeleteDoc}
                 />
-                <div className="lp-click-folder-detail-list">
-                  {filteredContentDocs.length ? (
-                    filteredContentDocs.map((doc) => (
-                      <DocListCard
-                        key={doc.id}
-                        doc={doc}
-                        objects={objects}
-                        active={activeId === doc.id}
-                        onSelect={() => handleSelectFolderDoc(doc.id)}
-                        onOpen={() => handleOpenFolderDoc(doc.id)}
-                        onDelete={() => handleDeleteDoc(doc)}
+                <div className="lp-click-folder-detail-list lp-doc-groups-stack">
+                  {groupedContentDocs.length ? (
+                    groupedContentDocs.map((group) => (
+                      <DocGroupBlockCard
+                        key={group.id}
+                        groupLabel={group.label}
+                        groupMeta={t("sidebar.docsInBlock", { count: group.docs.length })}
+                        docs={group.docs}
+                        renderDoc={(doc) => (
+                          <DocListCard
+                            key={doc.id}
+                            doc={doc}
+                            objects={objects}
+                            active={activeId === doc.id}
+                            onSelect={() => handleSelectFolderDoc(doc.id)}
+                            onOpen={() => handleOpenFolderDoc(doc.id)}
+                            onDelete={() => handleDeleteDoc(doc)}
+                          />
+                        )}
                       />
                     ))
                   ) : (

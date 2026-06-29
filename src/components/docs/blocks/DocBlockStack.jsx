@@ -1297,7 +1297,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               value={block.text || ""}
               analystReportStyle={isAnalystReport && isPrimaryReportBlock}
               reportAnimate={shouldAnimateReport && isPrimaryReportBlock}
-              reportStaticView={isMarketingGuideReport && isPrimaryReportBlock}
+              reportStaticView={
+                isPrimaryReportBlock
+                && (isMarketingGuideReport || (isAnalystReport && !shouldAnimateReport))
+              }
               onReportAnimationComplete={onReportAnimationComplete}
               embedded={block.embedded || null}
               linkedNodeId={(() => {

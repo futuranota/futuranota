@@ -5,11 +5,14 @@ import {
   computeLaunchCadenceProjection,
 } from "../../lib/launchCadenceMath.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
+import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
-import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
-import { runLaunchRadarAnalysis } from "../../lib/agents/runLaunchRadar.js";
-import { AGENT_RUN_CREDIT_COST, formatCreditAmount } from "../../lib/planConfig.js";
+import { syncLaunchRadarFromAnalystDoc } from "../../lib/agents/runLaunchRadar.js";
+import {
+  launchRadarSnapshotHasData,
+  resolveLaunchRadarSnapshotForCorpus,
+} from "../../lib/launchRadarSnapshot.js";
 import { LaunchRadarToggle } from "./LaunchRadarToggle.jsx";
 import { useLaunchRadarPanelStore } from "../../stores/launchRadarPanelStore.js";
 import "../../styles/launch-predictor.css";
@@ -116,24 +119,23 @@ function LaunchRadarControl({
   running,
   toggleOn,
   onToggleChange,
+  disabled,
+  showCreditHint,
 }) {
   const { t } = useI18n();
-  const creditLabel = t("agents.creditCost", {
-    cost: formatCreditAmount(AGENT_RUN_CREDIT_COST),
-  });
 
   return (
     <div className="launch-predictor__control">
       <div className="launch-predictor__control-row">
         <LaunchRadarToggle
           checked={toggleOn}
-          disabled={running}
+          disabled={disabled || running}
           onCheckedChange={onToggleChange}
           ariaLabel={t("intel.launchRadarKicker")}
         />
-        <span className="launch-predictor__credit-cost" aria-hidden={running}>
-          {creditLabel}
-        </span>
+        {showCreditHint ? (
+          <span className="launch-predictor__credit-cost">{t("intel.launchRadarFromReport")}</span>
+        ) : null}
       </div>
       {running ? (
         <p className="launch-predictor__control-status">{t("intel.launchRadarRunning")}</p>
@@ -149,8 +151,8 @@ function LaunchRadarControl({
 export function LaunchPredictor({ today = new Date() }) {
   const { t, locale } = useI18n();
   const objects = useObjectsStore((s) => s.objects);
+  const docs = useDocsStore((s) => s.docs);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
-  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
 
   const { currentCorpus, brandName } = useMemo(() => {
     const { currentCorpus: corpus, brandName: corpusBrand } = resolveCurrentCorpus(objects, selectedObjectId);
@@ -163,6 +165,13 @@ export function LaunchPredictor({ today = new Date() }) {
     () => `${corpusId || "none"}::${(brandName || "").trim().toLowerCase() || "none"}`,
     [corpusId, brandName],
   );
+
+  const reportSnapshot = useMemo(
+    () => resolveLaunchRadarSnapshotForCorpus(docs, corpusId, brandName || ""),
+    [docs, corpusId, brandName],
+  );
+
+  const hasReportData = launchRadarSnapshotHasData(reportSnapshot);
 
   const session = useLaunchRadarPanelStore(
     (s) => s.sessions[scopeKey] ?? EMPTY_LAUNCH_RADAR_SESSION,
@@ -202,24 +211,21 @@ export function LaunchPredictor({ today = new Date() }) {
     return false;
   }, [t, patchSession, corpusId, brandName]);
 
-  const handleRun = useCallback(async () => {
-    if (!brandName || running) return false;
+  const handleLoadFromReport = useCallback(async () => {
+    if (!brandName || !corpusId || running || !hasReportData) return false;
     setRunning(true);
     patchSession(corpusId, brandName, { actionError: null });
     try {
-      const result = await runLaunchRadarAnalysis({
-        brandName,
+      const result = syncLaunchRadarFromAnalystDoc({
         corpusId,
+        brandName,
         locale: locale === "es" ? "es" : "en",
       });
-      if (result.code === "gate_tokens" || result.code === "gate_search") {
-        showUpgradeModal(result.code === "gate_search" ? "search" : "tokens");
-      }
       return applyCadenceResult(result);
     } finally {
       setRunning(false);
     }
-  }, [brandName, corpusId, running, locale, applyCadenceResult, showUpgradeModal, patchSession]);
+  }, [brandName, corpusId, running, hasReportData, locale, applyCadenceResult, patchSession]);
 
   const handleToggleChange = useCallback(async (next) => {
     if (running) return;
@@ -229,14 +235,14 @@ export function LaunchPredictor({ today = new Date() }) {
       return;
     }
 
-    if (!brandName) {
+    if (!brandName || !hasReportData) {
       patchSession(corpusId, brandName, { ...EMPTY_LAUNCH_RADAR_SESSION });
       return;
     }
 
     patchSession(corpusId, brandName, { toggleOn: true, actionError: null });
-    await handleRun();
-  }, [brandName, running, handleRun, t, patchSession, corpusId]);
+    await handleLoadFromReport();
+  }, [brandName, running, handleLoadFromReport, patchSession, corpusId, hasReportData]);
 
   const headerProps = { brandName, reportKind: null };
 
@@ -245,7 +251,15 @@ export function LaunchPredictor({ today = new Date() }) {
     running,
     toggleOn,
     onToggleChange: handleToggleChange,
+    disabled: !brandName || !hasReportData,
+    showCreditHint: hasReportData,
   };
+
+  const panelHint = !hasReportData
+    ? t("intel.launchRadarRunAgentFirst")
+    : status === "idle" && !toggleOn
+      ? t("intel.launchRadarInsertHint")
+      : null;
 
   const campaignWindow = useMemo(() => {
     if (!cadence || cadence.mode !== "campaign" || !cadence.launchDate) return null;
@@ -275,6 +289,7 @@ export function LaunchPredictor({ today = new Date() }) {
         headerProps={headerProps}
         controlProps={controlProps}
         actionError={actionError}
+        panelHint={panelHint}
       />
     );
   }
@@ -315,6 +330,7 @@ export function LaunchPredictor({ today = new Date() }) {
       headerProps={headerProps}
       controlProps={controlProps}
       actionError={actionError}
+      panelHint={panelHint}
     />
   );
 }
@@ -323,11 +339,15 @@ function LaunchRadarIdleView({
   headerProps,
   controlProps,
   actionError,
+  panelHint,
 }) {
   return (
     <div className="launch-predictor">
       <LaunchRadarPanelHeader {...headerProps} reportKind={null} />
       <LaunchRadarControl {...controlProps} />
+      {panelHint ? (
+        <p className="launch-predictor__note launch-predictor__note--pending">{panelHint}</p>
+      ) : null}
       {actionError ? (
         <p className="launch-predictor__note launch-predictor__note--pending">{actionError}</p>
       ) : null}

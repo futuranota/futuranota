@@ -110,6 +110,18 @@ export function deriveLaunchRadarFromDocMeta(doc, brandName) {
 }
 
 /**
+ * @param {LaunchRadarSnapshot|null|undefined} snapshot
+ */
+export function launchRadarSnapshotHasData(snapshot) {
+  if (!snapshot) return false;
+  if (snapshot.launchDate) return true;
+  return Boolean(
+    snapshot.lastLaunchDate
+    && snapshot.averageIntervalMonths != null,
+  );
+}
+
+/**
  * @param {LaunchRadarSnapshot} snapshot
  * @param {import("../types/docs.js").DataProperty[]} [existingProps]
  */

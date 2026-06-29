@@ -4,6 +4,13 @@ const MD_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/;
 const BARE_URL_RE = /https?:\/\/[^\s)\]>]+/;
 
 /**
+ * @param {string} url
+ */
+function normalizeBareUrl(url) {
+  return url.replace(/[.,;:!?]+$/g, "");
+}
+
+/**
  * @param {string} text
  * @param {string} [keyPrefix]
  * @returns {import("react").ReactNode}
@@ -57,14 +64,15 @@ export function linkifyReportText(text, keyPrefix = "line") {
       );
       remaining = remaining.slice(mdMatch.index + mdMatch[0].length);
     } else if (kind === "url" && urlMatch) {
+      const href = normalizeBareUrl(urlMatch[0]);
       nodes.push(
         <a
           key={`${keyPrefix}-url-${partIndex}`}
-          href={urlMatch[0]}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
         >
-          {urlMatch[0]}
+          {href}
         </a>,
       );
       remaining = remaining.slice(urlMatch.index + urlMatch[0].length);

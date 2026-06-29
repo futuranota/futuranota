@@ -2,8 +2,15 @@ import { createDocBlock } from "../docBlocks.js";
 import { campaignSignalFieldsFromDetection } from "../campaignSignalFields.js";
 import { isoFromDateInput } from "../docDates.js";
 import { useDocsStore } from "../../stores/docsStore.js";
+import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { buildStrategicReportBody } from "./buildStrategicReportBody.js";
+import { mapDetectionToCadence } from "./mapDetectionToCadence.js";
+import {
+  buildLaunchRadarSnapshot,
+  launchRadarSnapshotHasData,
+  writeLaunchRadarToDoc,
+} from "../launchRadarSnapshot.js";
 
 const CATEGORY_LABELS = {
   en: {
@@ -102,6 +109,16 @@ export function applyAnalystReportToDoc(docId, report, detection, brandName, loc
       animatedAt: null,
     },
   });
+
+  const parentObjectId = doc.parentObjectId || null;
+  const parentObject = parentObjectId
+    ? useObjectsStore.getState().objects[parentObjectId]
+    : null;
+  const cadence = mapDetectionToCadence(detection, brandName, parentObject?.cadence || {});
+  const snapshot = buildLaunchRadarSnapshot(cadence, detection, brandName, "analyst-doc");
+  if (launchRadarSnapshotHasData(snapshot)) {
+    writeLaunchRadarToDoc(docId, snapshot);
+  }
 
   useUIStateStore.getState().clearDocEditorDraft(docId);
 

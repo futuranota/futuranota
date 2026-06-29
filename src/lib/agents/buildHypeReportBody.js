@@ -4,9 +4,24 @@
 /** @typedef {import("./fetchSocialHypeAnalyst.js").SocialHypeAnalystSections} SocialHypeAnalystSections */
 
 /**
- * @param {HypeDistributionV1|null|undefined} hypeDistribution
- * @returns {MarketHypeData|null}
+ * @param {{ platform?: string, text?: string, url?: string }} post
  */
+function formatHypeSampleLine(post) {
+  const platform = (post.platform || "Source").trim();
+  const text = (post.text || "").trim();
+  const url = (post.url || "").trim();
+  if (!url) return `- [${platform}] ${text}`;
+
+  let label = platform;
+  try {
+    label = new URL(url).hostname.replace(/^www\./i, "");
+  } catch {
+    // keep platform label
+  }
+
+  return `- [${platform}] ${text}\n  [${label}](${url})`;
+}
+
 export function marketHypeDataFromHypeDistribution(hypeDistribution) {
   if (!hypeDistribution?.socialHype) return null;
 
@@ -106,7 +121,7 @@ export function buildHypeReportBody(hypeDistribution, sections, lang = "en") {
   const themes = (sections?.themes || []).map((theme) => `- ${theme}`).join("\n");
   const samples = (hypeDistribution.socialHype?.samplePosts || [])
     .slice(0, 6)
-    .map((post) => `- [${post.platform}] ${post.text}${post.url ? `\n  ${post.url}` : ""}`)
+    .map((post) => formatHypeSampleLine(post))
     .join("\n");
 
   if (lang === "es") {

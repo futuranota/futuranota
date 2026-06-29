@@ -167,6 +167,8 @@ export const messages = {
       noNodesYet: "No nodes yet",
       createNewNodeAbove: "Create new node above",
       nodesInBlock: "{count} nodes",
+      docsInBlock: "{count} docs",
+      docGroupUncategorized: "Uncategorized",
       unlinkedNodes: "Unlinked nodes",
       openDocument: "Open document",
       selectObject: "select company",
@@ -302,6 +304,9 @@ export const messages = {
       launchRadarNeedBrand:
         "Set a brand on your sidebar object, then flip the switch to scan.",
       launchRadarRunning: "Running Launch Radar…",
+      launchRadarFromReport: "From analyst report",
+      launchRadarRunAgentFirst: "Run the Campaign Analyst first to generate launch data.",
+      launchRadarInsertHint: "Your report is ready. Turn on the switch to load Launch Radar from the analyst report.",
       launchRadarActiveReport: "Active campaign — time until launch",
       launchRadarInactiveReport: "No active campaign — average launch interval",
       launchRadarActionError: "Could not update Launch Radar.",
@@ -564,6 +569,9 @@ export const messages = {
       launchRadarNeedBrand:
         "Definí una marca en el objeto del sidebar y activá el switch para escanear.",
       launchRadarRunning: "Ejecutando Launch Radar…",
+      launchRadarFromReport: "Desde informe del analista",
+      launchRadarRunAgentFirst: "Ejecutá primero el Campaign Analyst para generar datos de lanzamiento.",
+      launchRadarInsertHint: "Tu informe ya está listo. Activá el switch para cargar Launch Radar desde el informe del analista.",
       launchRadarActiveReport: "Campaña activa — tiempo hasta el lanzamiento",
       launchRadarInactiveReport: "Sin campaña activa — intervalo promedio de lanzamiento",
       launchRadarActionError: "No se pudo actualizar Launch Radar.",

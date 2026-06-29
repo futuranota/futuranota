@@ -6034,6 +6034,31 @@ textarea.note-form-field {
   margin: 0 0 12px;
   color: var(--text-0);
 }
+.doc-analyst-report__h3 {
+  font-family: var(--font-doc);
+  font-weight: 600;
+  font-size: calc(var(--font-doc-size) + 1px);
+  line-height: 1.35;
+  margin: 14px 0 8px;
+  color: var(--text-0);
+}
+.doc-analyst-report__list-item {
+  padding-left: 10px;
+  margin-bottom: 6px;
+}
+.doc-analyst-report__table-row {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: calc(var(--font-doc-size) - 1px);
+  letter-spacing: -0.01em;
+}
+.doc-analyst-report a {
+  color: #8ec5ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.doc-analyst-report a:hover {
+  color: #b8daff;
+}
 .doc-analyst-report-static {
   flex: 1;
   min-height: 0;

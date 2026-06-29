@@ -134,27 +134,27 @@ export function formatMarketInterestBlock(marketInterest, lang) {
  */
 export function formatLaunchRadarRecommendation(brandName, detection, lang) {
   const mode = detection?.detectionMode;
-  const brand = (brandName || "").trim() || "la marca";
+  const brand = (brandName || "").trim() || (lang === "es" ? "la marca" : "the brand");
 
   if (mode === "confirmed_campaign") {
     const launchDate = detection?.launchDate;
     if (!launchDate || !isFutureLaunchDate(launchDate)) return "";
 
     return lang === "es"
-      ? `Te recomiendo activar **Launch Radar** (Intel → Launch radar) para validar la fecha de lanzamiento detectada (${launchDate}) y seguir la cuenta regresiva. Es un paso manual: este informe no lo ejecuta por vos.`
-      : `I recommend turning on **Launch Radar** (Intel → Launch radar) to validate the detected launch date (${launchDate}) and track the countdown. It's a manual step — this report does not run it for you.`;
+      ? `Ok — ya recopilé fechas de lanzamiento para **${brand}** (${launchDate}). Para activar la cuenta regresiva en **Launch Radar**, andá a Intel → **Launch radar** y activá el switch. Ahí vas a ver el timeline con los datos de este informe.`
+      : `Ok — I already collected launch dates for **${brand}** (${launchDate}). To activate the countdown in **Launch Radar**, open Intel → **Launch radar** and turn on the switch. You'll see the timeline with data from this report.`;
   }
 
   if (mode === "cadence_only") {
     return lang === "es"
-      ? `Te recomiendo **Launch Radar** cuando quieras proyectar el próximo ciclo por cadencia histórica de ${brand}. No reemplaza un anuncio oficial; activalo manualmente en Intel cuando te sirva.`
-      : `I recommend **Launch Radar** when you want to project ${brand}'s next cycle from historical cadence. It does not replace an official announcement — turn it on manually in Intel when useful.`;
+      ? `Ok — ya estimé la cadencia histórica de **${brand}**. Para proyectar el próximo ciclo en **Launch Radar**, andá a Intel → **Launch radar** y activá el switch cuando quieras cargar estos datos.`
+      : `Ok — I already estimated **${brand}**'s historical cadence. To project the next cycle in **Launch Radar**, open Intel → **Launch radar** and turn on the switch when you want to load this data.`;
   }
 
   if (mode === "heuristic_estimate") {
     return lang === "es"
-      ? `Te recomiendo **Launch Radar** para contrastar esta estimación heurística y revisar si la ventana pendiente sigue vigente. Activá el switch en Intel cuando quieras escanear.`
-      : `I recommend **Launch Radar** to cross-check this heuristic estimate and see if the pending window still holds. Flip the switch in Intel when you want to scan.`;
+      ? `Ok — hay una estimación heurística de ventana para **${brand}**. Para contrastarla en **Launch Radar**, andá a Intel → **Launch radar** y activá el switch.`
+      : `Ok — there is a heuristic window estimate for **${brand}**. To cross-check it in **Launch Radar**, open Intel → **Launch radar** and turn on the switch.`;
   }
 
   return "";
@@ -264,8 +264,8 @@ export function buildStrategicReportBody(report, detection, brandName, lang) {
   const radarRecommendation = formatLaunchRadarRecommendation(brandName, detection, lang);
   if (hasText(radarRecommendation)) {
     const label = lang === "es"
-      ? "## Recomendación · Launch Radar"
-      : "## Recommendation · Launch Radar";
+      ? "## Siguiente paso · Launch Radar"
+      : "## Next step · Launch Radar";
     parts.push(`${label}\n\n${radarRecommendation}`);
   }
 

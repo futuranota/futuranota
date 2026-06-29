@@ -1102,6 +1102,23 @@
   border-style: dashed;
 }
 
+.lp-doc-nodes-block--docs .lp-doc-nodes-block__head {
+  border-bottom: none;
+}
+
+.lp-doc-nodes-block__body--docs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.lp-doc-groups-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .lp-doc-nodes-block__head {
   display: flex;
   align-items: stretch;

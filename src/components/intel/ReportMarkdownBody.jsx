@@ -44,6 +44,32 @@ export function renderReportMarkdownLine(line, index, keyPrefix = "", options = 
     );
   }
 
+  if (line.startsWith("### ")) {
+    return (
+      <h3 key={key} className="doc-analyst-report__h3">
+        {linkifyReportText(line.slice(4), `h3-${key}`)}
+      </h3>
+    );
+  }
+
+  if (line.startsWith("- ")) {
+    return (
+      <p key={key} className="doc-analyst-report__list-item">
+        {linkifyReportText(line.slice(2), `li-${key}`)}
+      </p>
+    );
+  }
+
+  const trimmed = line.trim();
+  if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+    if (/^\|\s*[-:|]+\s*\|$/.test(trimmed)) return null;
+    return (
+      <p key={key} className="doc-analyst-report__table-row">
+        {linkifyReportText(trimmed, `tbl-${key}`)}
+      </p>
+    );
+  }
+
   if (!line.trim()) {
     return null;
   }
