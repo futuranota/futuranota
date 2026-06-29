@@ -327,6 +327,29 @@
   flex-shrink: 0;
 }
 
+.note-taker__writing-stack {
+  flex: 1;
+  min-height: 72px;
+}
+
+.note-taker__writing-stack .node-writing-text-field {
+  color: var(--text-1);
+  min-height: 72px;
+}
+
+.note-taker__writing-stack .doc-h1-block__input {
+  color: var(--text-1);
+}
+
+.note-taker__writing-stack .doc-h1-block__input::placeholder {
+  color: rgba(129, 89, 91, 0.65);
+}
+
+.note-taker__writing-stack .doc-todo-plan__card {
+  background: rgba(0, 0, 0, 0.14);
+  border-color: rgba(129, 89, 91, 0.22);
+}
+
 .note-taker__input {
   flex: 1;
   min-height: 0;
@@ -337,15 +360,20 @@
   border-radius: 6px;
   background: rgba(129, 89, 91, 0.12);
   color: var(--text-1);
-  font-family: var(--sans);
-  font-size: 13px;
-  line-height: 1.5;
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  font-optical-sizing: auto;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
 }
 
 .note-taker__input::placeholder {
   color: #81595b;
-  font-size: 13px;
-  font-weight: 400;
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  opacity: 0.75;
 }
 
 .note-taker__input:focus {

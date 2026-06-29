@@ -5,56 +5,50 @@ import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { getBlockQueryText } from "../../lib/docNodeSync.js";
 import {
-  createInlineTodoBlock,
-  inlineTodoBlocksHaveContent,
-  normalizeInlineTodoBlocks,
+  appendNodeWritingBlockFromSlash,
+  createEmptyTextBlock,
+  NODE_BLOCK_TYPES,
+  normalizeWritingBlocks,
+  nodeWritingBlocksHaveContent,
   parseNodeWritingBody,
   serializeNodeWritingBody,
 } from "../../lib/nodeInlineContent.js";
 import {
-  getVideoNodeNotes,
-  getVideoNodeTodoBlocks,
+  getVideoWritingBody,
   mergeVideoNodeContent,
 } from "../../lib/videoEmbed.js";
 import { DocSlashCommandPicker } from "../docs/blocks/DocSlashCommandPicker.jsx";
-import { NodeInlineTodoStack } from "../nodes/NodeInlineTodoStack.jsx";
+import { NodeWritingBlockStack } from "../nodes/NodeWritingBlockStack.jsx";
 import {
   isNodeSlashCommandEnabled,
   NODE_SLASH_COMMANDS,
   parseNodeSlashQuery,
-  splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
+import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 
 const NOTE_PANEL_ICON = "/uploads/botones/PencilCircle.svg";
 const UNTITLED_LABEL = "Untitled";
 const UNTITLED_NODE_TITLE = "Untitled query";
 const SAVE_MIN_MS = 450;
 
-function readPanelDraft(node, inlineTodosEnabled) {
+function readPanelDraft(node, inlineWritingEnabled) {
   if (!node) {
-    return { notes: "", todoBlocks: [] };
+    return parseNodeWritingBody("");
   }
 
   if (node.dataType === NODE_DATA_TYPES.VIDEO) {
-    return {
-      notes: getVideoNodeNotes(node.content),
-      todoBlocks: getVideoNodeTodoBlocks(node.content),
-    };
+    return getVideoWritingBody(node.content);
   }
 
-  if (inlineTodosEnabled && node.dataType === NODE_DATA_TYPES.TEXT) {
-    const body = parseNodeWritingBody(node.content);
-    return {
-      notes: body.text,
-      todoBlocks: body.todoBlocks,
-    };
+  if (inlineWritingEnabled && node.dataType === NODE_DATA_TYPES.TEXT) {
+    return parseNodeWritingBody(node.content);
   }
 
   if (node.dataType === NODE_DATA_TYPES.TEXT && typeof node.content === "string") {
-    return { notes: node.content, todoBlocks: [] };
+    return parseNodeWritingBody(node.content);
   }
 
-  return { notes: "", todoBlocks: [] };
+  return parseNodeWritingBody("");
 }
 
 function wait(ms) {
@@ -78,9 +72,8 @@ export function NoteTaker({
   const node = useNodesStore((s) => (resolvedNodeId ? s.nodes[resolvedNodeId] : null));
 
   const initialDraft = readPanelDraft(node, inlineTodosEnabled);
-  const [notes, setNotes] = useState(() => initialDraft.notes);
-  const [todoBlocks, setTodoBlocks] = useState(() => initialDraft.todoBlocks);
-  const [todoFocusTarget, setTodoFocusTarget] = useState(null);
+  const [writingBody, setWritingBody] = useState(() => initialDraft);
+  const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -88,35 +81,47 @@ export function NoteTaker({
   }, [nodeIdProp]);
 
   useEffect(() => {
-    const draft = readPanelDraft(node, inlineTodosEnabled);
-    setNotes(draft.notes);
-    setTodoBlocks(draft.todoBlocks);
-    setTodoFocusTarget(null);
+    setWritingBody(readPanelDraft(node, inlineTodosEnabled));
+    setWritingFocusTarget(null);
   }, [inlineTodosEnabled, resolvedNodeId, node?.id, node?.content, node?.dataType]);
 
   const label = node
     ? ((node.sourceQuery || node.title || UNTITLED_LABEL).trim() || UNTITLED_LABEL)
     : UNTITLED_LABEL;
-  const hasNotes = notes.trim().length > 0;
-  const hasTodoContent = inlineTodoBlocksHaveContent(todoBlocks);
-  const saveEnabled = (hasNotes || hasTodoContent) && !saving;
-  const showInlineTodoTools = inlineTodosEnabled;
+  const hasContent = nodeWritingBlocksHaveContent(writingBody.blocks);
+  const saveEnabled = hasContent && !saving;
+  const showInlineWritingTools = inlineTodosEnabled;
 
-  const addInlineTodoBlock = useCallback(() => {
-    setTodoBlocks((prev) => {
-      const nextBlock = createInlineTodoBlock();
-      setTodoFocusTarget({ blockIndex: prev.length, itemId: nextBlock.items[0]?.id ?? null });
-      return [...prev, nextBlock];
-    });
-  }, []);
+  const appendBlockFromPicker = useCallback((alias) => {
+    const parsed = parseNodeSlashQuery(alias);
+    if (!parsed) return;
+    const normalized = normalizeWritingBlocks(writingBody.blocks);
+    const lastTextIndex = normalized
+      .map((block) => block.type)
+      .lastIndexOf(NODE_BLOCK_TYPES.TEXT);
+    const nextBlocks = appendNodeWritingBlockFromSlash(normalized, parsed);
+    setWritingBody({ blocks: nextBlocks });
+    const insertedIndex = lastTextIndex >= 0 ? lastTextIndex : Math.max(0, nextBlocks.length - 2);
+    if (parsed.type === DOC_BLOCK_TYPES.TODO) {
+      const todoBlock = nextBlocks[insertedIndex];
+      setWritingFocusTarget({
+        blockIndex: insertedIndex,
+        itemId: todoBlock?.items?.[0]?.id ?? null,
+      });
+    } else {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
+    }
+  }, [writingBody.blocks]);
 
   const createIntelNode = useCallback(
-    (draftNotes, draftTodos = []) => {
-      const trimmedNotes = draftNotes.trim();
-      const normalizedTodos = normalizeInlineTodoBlocks(draftTodos);
-      const textPayload = inlineTodosEnabled
-        ? serializeNodeWritingBody({ text: trimmedNotes, todoBlocks: normalizedTodos })
-        : trimmedNotes;
+    (draftBody) => {
+      const serialized = serializeNodeWritingBody(draftBody);
+      const plainText = draftBody.blocks
+        ?.filter((block) => block.type === NODE_BLOCK_TYPES.TEXT)
+        .map((block) => block.text)
+        .join("\n\n")
+        .trim() || "";
+      const textPayload = inlineTodosEnabled ? serialized : plainText;
 
       if (parentDocId && typeof blockIndex === "number") {
         const doc = useDocsStore.getState().getDoc(parentDocId);
@@ -166,18 +171,14 @@ export function NoteTaker({
 
   const persistNotes = useCallback(
     async (
-      text,
+      draftBody,
       {
         allowCreate = false,
         closeAfter = false,
-        todoSnapshot = todoBlocks,
       } = {},
     ) => {
-      const trimmed = text.trim();
-      const normalizedTodos = normalizeInlineTodoBlocks(todoSnapshot);
-      const hasPersistableTodo = inlineTodoBlocksHaveContent(normalizedTodos);
-
-      if (!trimmed && !hasPersistableTodo) return false;
+      const serialized = serializeNodeWritingBody(draftBody);
+      if (!serialized) return false;
 
       const startedAt = Date.now();
       setSaving(true);
@@ -191,7 +192,7 @@ export function NoteTaker({
             showToast("Escribe texto y pulsa save", "info");
             return false;
           }
-          targetNodeId = createIntelNode(trimmed, normalizedTodos);
+          targetNodeId = createIntelNode(draftBody);
           liveNode = useNodesStore.getState().nodes[targetNodeId];
           if (!liveNode) {
             showToast("No se pudo guardar", "error");
@@ -199,20 +200,17 @@ export function NoteTaker({
           }
         } else if (liveNode.dataType === NODE_DATA_TYPES.VIDEO) {
           updateNode(targetNodeId, {
-            content: mergeVideoNodeContent(liveNode.content, {
-              notes: trimmed,
-              todoBlocks: hasPersistableTodo ? normalizedTodos : [],
-            }),
+            content: mergeVideoNodeContent(liveNode.content, { writing: serialized }),
           });
         } else if (inlineTodosEnabled) {
-          updateNode(targetNodeId, {
-            content: serializeNodeWritingBody({
-              text: trimmed,
-              todoBlocks: normalizedTodos,
-            }),
-          });
+          updateNode(targetNodeId, { content: serialized });
         } else {
-          updateNode(targetNodeId, { content: trimmed });
+          const plainText = draftBody.blocks
+            ?.filter((block) => block.type === NODE_BLOCK_TYPES.TEXT)
+            .map((block) => block.text)
+            .join("\n\n")
+            .trim() || "";
+          updateNode(targetNodeId, { content: plainText });
         }
 
         const parentId = liveNode.parentDocId || parentDocId || null;
@@ -243,7 +241,6 @@ export function NoteTaker({
       resolvedNodeId,
       showToast,
       syncNodeToParentDoc,
-      todoBlocks,
       updateNode,
     ],
   );
@@ -252,29 +249,12 @@ export function NoteTaker({
     e.preventDefault();
     e.stopPropagation();
     if (!saveEnabled) return;
-    persistNotes(notes, { allowCreate: true, closeAfter: true, todoSnapshot: todoBlocks });
-  };
-
-  const confirmSlashInNotes = useCallback(() => {
-    const { prefix, slash } = splitBodyForSlash(notes);
-    if (!slash || !parseNodeSlashQuery(slash.slice(1))) return false;
-    setNotes(prefix);
-    addInlineTodoBlock();
-    return true;
-  }, [addInlineTodoBlock, notes]);
-
-  const handleNotesKeyDown = (e) => {
-    if (!showInlineTodoTools) return;
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
-    const { slash } = splitBodyForSlash(notes);
-    if (!slash || !parseNodeSlashQuery(slash.slice(1))) return;
-    e.preventDefault();
-    confirmSlashInNotes();
+    persistNotes(writingBody, { allowCreate: true, closeAfter: true });
   };
 
   const keepTextareaFocus = (e) => {
     if (
-      !e.target.closest(".note-taker__input")
+      !e.target.closest(".note-taker__writing-stack")
       && !e.target.closest(".note-taker__save")
       && !e.target.closest(".note-taker__content-box")
       && !e.target.closest(".note-taker__content-scroll")
@@ -288,7 +268,7 @@ export function NoteTaker({
     <section
       className={
         "note-taker"
-        + (showInlineTodoTools ? " note-taker--inline-todos" : "")
+        + (showInlineWritingTools ? " note-taker--inline-todos" : "")
       }
       aria-label="Notes"
       onMouseDown={keepTextareaFocus}
@@ -300,40 +280,35 @@ export function NoteTaker({
         </span>
       </header>
       <div className="note-taker__input-wrap">
-        {showInlineTodoTools ? (
+        {showInlineWritingTools ? (
           <div className="note-taker__content-box">
             <div className="note-taker__content-scroll">
-              {todoBlocks.length ? (
-                <NodeInlineTodoStack
-                  className="note-taker__todo-stack"
-                  todoBlocks={todoBlocks}
-                  onTodoBlocksChange={setTodoBlocks}
-                  focusTarget={todoFocusTarget}
-                  onFocusTargetChange={setTodoFocusTarget}
-                />
-              ) : null}
-              <textarea
-                className="note-taker__input note-taker__input--embedded"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                onKeyDown={handleNotesKeyDown}
-                placeholder="Escribe aquí, o /todo para añadir lista"
-                spellCheck
-                disabled={saving}
+              <NodeWritingBlockStack
+                className="note-taker__writing-stack"
+                blocks={writingBody.blocks}
+                onBlocksChange={(blocks) => setWritingBody({ blocks })}
+                focusTarget={writingFocusTarget}
+                onFocusTargetChange={setWritingFocusTarget}
+                slashEnabled
+                textPlaceholder="Escribe aquí, o /title o /todo"
               />
             </div>
             <DocSlashCommandPicker
               variant="pad"
               commands={NODE_SLASH_COMMANDS}
-              onSelectCommand={addInlineTodoBlock}
+              onSelectCommand={appendBlockFromPicker}
               isCommandEnabled={isNodeSlashCommandEnabled}
             />
           </div>
         ) : (
           <textarea
             className="note-taker__input"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            value={
+              writingBody.blocks?.find((block) => block.type === NODE_BLOCK_TYPES.TEXT)?.text || ""
+            }
+            onChange={(e) => setWritingBody({
+              blocks: [{ ...createEmptyTextBlock(e.target.value) }],
+            })}
             placeholder="Untitled"
             spellCheck
             disabled={saving}

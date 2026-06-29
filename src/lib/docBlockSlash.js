@@ -74,7 +74,7 @@ export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
 
 /** Slash commands available in standalone node editors (not full documents). */
 export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
-  (cmd) => cmd.blockType === DOC_BLOCK_TYPES.TODO,
+  (cmd) => cmd.blockType === DOC_BLOCK_TYPES.H1 || cmd.blockType === DOC_BLOCK_TYPES.TODO,
 );
 
 export function parseSlashQuery(query) {

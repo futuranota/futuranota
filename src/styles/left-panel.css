@@ -6052,6 +6052,56 @@ body.doc-content-resizing * {
   margin: 0;
 }
 
+.node-writing-block-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.node-writing-text-field {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  font-optical-sizing: auto;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  color: inherit;
+}
+
+.node-writing-text-field::placeholder {
+  opacity: 0.55;
+}
+
+.node-writing-block-stack__h1 .doc-h1-block {
+  padding: 4px 0 2px;
+}
+
+.node-query-modal__writing-stack {
+  flex: 1;
+  min-height: 72px;
+}
+
+.node-query-modal__writing-stack .node-writing-text-field,
+.node-query-modal__writing-stack .doc-h1-block__input {
+  color: #fff;
+}
+
+.node-query-modal__writing-stack .doc-h1-block__input::placeholder {
+  color: rgba(255, 255, 255, 0.16);
+}
+
 .node-query-modal__content-box--calendar {
   overflow-x: hidden;
   overflow-y: auto;

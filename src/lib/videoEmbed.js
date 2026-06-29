@@ -1,4 +1,10 @@
-import { normalizeInlineTodoBlocks } from "./nodeInlineContent.js";
+import {
+  getNodeWritingPlainText,
+  isNodeWritingBody,
+  NODE_BODY_KIND,
+  normalizeInlineTodoBlocks,
+  parseNodeWritingBody,
+} from "./nodeInlineContent.js";
 
 const ALLOWED_EMBED_HOSTS = new Set([
   "www.youtube.com",
@@ -195,7 +201,7 @@ export function normalizeEmbedSrcForPlayback(src) {
   return src;
 }
 
-export function buildVideoNodeContent(videoBlock, description = "", notes = "", todoBlocks = undefined) {
+export function buildVideoNodeContent(videoBlock, description = "", notes = "", writingExtra = undefined) {
   const embedSrc = normalizeEmbedSrcForPlayback(videoBlock?.embedSrc || "");
   const content = {
     kind: "embedded-video",
@@ -206,8 +212,11 @@ export function buildVideoNodeContent(videoBlock, description = "", notes = "", 
     description: description || "",
     notes: typeof notes === "string" ? notes : "",
   };
-  if (Array.isArray(todoBlocks) && todoBlocks.length) {
-    content.todoBlocks = todoBlocks;
+  if (writingExtra && isNodeWritingBody(writingExtra)) {
+    content.writing = writingExtra;
+    content.notes = getNodeWritingPlainText(writingExtra.blocks || []);
+  } else if (Array.isArray(writingExtra) && writingExtra.length) {
+    content.todoBlocks = normalizeInlineTodoBlocks(writingExtra);
   }
   return content;
 }
@@ -228,13 +237,29 @@ export function getVideoNodePayload(content) {
 }
 
 export function getVideoNodeNotes(content) {
-  return getVideoNodePayload(content)?.notes || "";
+  const payload = getVideoNodePayload(content);
+  if (!payload) return "";
+  if (payload.writing) return getNodeWritingPlainText(payload.writing.blocks || []);
+  return payload.notes || "";
 }
 
-export function getVideoNodeTodoBlocks(content) {
+export function getVideoWritingBody(content) {
   const payload = getVideoNodePayload(content);
-  if (!payload?.todoBlocks?.length) return [];
-  return normalizeInlineTodoBlocks(payload.todoBlocks);
+  if (!payload) return parseNodeWritingBody("");
+  if (payload.writing) return parseNodeWritingBody(payload.writing);
+  if (payload.notes || payload.todoBlocks?.length) {
+    return parseNodeWritingBody({
+      kind: NODE_BODY_KIND,
+      text: payload.notes || "",
+      todoBlocks: payload.todoBlocks || [],
+    });
+  }
+  return parseNodeWritingBody("");
+}
+
+/** @deprecated */
+export function getVideoNodeTodoBlocks(content) {
+  return getVideoWritingBody(content).blocks.filter((block) => block.type === "todo");
 }
 
 /** Merge patch into embedded-video content while preserving other fields. */
@@ -246,15 +271,23 @@ export function mergeVideoNodeContent(content, patch = {}) {
     videoId: patch.videoId ?? base.videoId ?? "",
     embedSrc: patch.embedSrc ?? base.embedSrc ?? "",
   };
-  const nextTodoBlocks = patch.todoBlocks !== undefined
-    ? patch.todoBlocks
-    : base.todoBlocks;
-  return buildVideoNodeContent(
+  const nextWriting = patch.writing !== undefined ? patch.writing : base.writing;
+  const nextNotes = patch.notes ?? base.notes ?? "";
+  const merged = buildVideoNodeContent(
     nextBlock,
     patch.description ?? base.description ?? "",
-    patch.notes ?? base.notes ?? "",
-    nextTodoBlocks?.length ? normalizeInlineTodoBlocks(nextTodoBlocks) : undefined,
+    nextNotes,
+    nextWriting || undefined,
   );
+  if (nextWriting) {
+    merged.writing = nextWriting;
+    merged.notes = getNodeWritingPlainText(nextWriting.blocks || []);
+  } else if (patch.todoBlocks !== undefined) {
+    merged.todoBlocks = patch.todoBlocks?.length
+      ? normalizeInlineTodoBlocks(patch.todoBlocks)
+      : undefined;
+  }
+  return merged;
 }
 
 export function resolveVideoEmbedFromNodeContent(content) {

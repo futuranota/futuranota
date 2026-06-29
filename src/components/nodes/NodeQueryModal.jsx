@@ -12,19 +12,19 @@ import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
 import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
 import { DocSlashCommandPicker } from "../docs/blocks/DocSlashCommandPicker.jsx";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
-import { NodeInlineTodoStack } from "./NodeInlineTodoStack.jsx";
-import { createTodoItem } from "../../lib/docBlocks.js";
+import { NodeWritingBlockStack } from "./NodeWritingBlockStack.jsx";
+import { createTodoItem, DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 import {
-  applySlashTailToNodeField,
   initialNodeShapeFromSlash,
   isNodeSlashCommandEnabled,
   NODE_SLASH_COMMANDS,
   parseNodeSlashQuery,
-  splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
-  createInlineTodoBlock,
+  appendNodeWritingBlockFromSlash,
+  NODE_BLOCK_TYPES,
+  normalizeWritingBlocks,
   parseNodeWritingBody,
   serializeNodeWritingBody,
 } from "../../lib/nodeInlineContent.js";
@@ -84,7 +84,7 @@ export function NodeQueryModal({
   const contentScrollRef = useRef(null);
   const [contentFocusMode, setContentFocusMode] = useState(initialContentFocus);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
-  const [inlineTodoFocusTarget, setInlineTodoFocusTarget] = useState(null);
+  const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const displayQuery = (query || "").trim() || "Untitled";
   const queryEditable = Boolean(onQueryChange);
   const parentSelectable = Boolean(onParentDocIdChange);
@@ -170,36 +170,35 @@ export function NodeQueryModal({
 
   const slashCommandsEnabled = Boolean(onDataTypeChange);
 
-  const updateWritingBody = useCallback((patch) => {
+  const updateWritingBlocks = useCallback((blocks) => {
+    onContentChange(serializeNodeWritingBody({ blocks }));
+  }, [onContentChange]);
+
+  const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
+    const parsed = parseNodeSlashQuery(alias);
+    if (!parsed) return;
     const current = parseNodeWritingBody(content);
-    onContentChange(serializeNodeWritingBody({
-      text: patch.text ?? current.text,
-      todoBlocks: patch.todoBlocks ?? current.todoBlocks,
-    }));
+    const normalized = normalizeWritingBlocks(current.blocks);
+    const lastTextIndex = normalized
+      .map((block) => block.type)
+      .lastIndexOf(NODE_BLOCK_TYPES.TEXT);
+    const nextBlocks = appendNodeWritingBlockFromSlash(normalized, parsed, textPrefix);
+    onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
+    const insertedIndex = lastTextIndex >= 0 ? lastTextIndex : Math.max(0, nextBlocks.length - 2);
+    if (parsed.type === DOC_BLOCK_TYPES.TODO) {
+      const todoBlock = nextBlocks[insertedIndex];
+      setWritingFocusTarget({
+        blockIndex: insertedIndex,
+        itemId: todoBlock?.items?.[0]?.id ?? null,
+      });
+    } else {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
+    }
   }, [content, onContentChange]);
 
-  const appendInlineTodoBlock = useCallback((textOverride) => {
-    const current = parseNodeWritingBody(content);
-    const nextBlock = createInlineTodoBlock();
-    const nextBlocks = [...current.todoBlocks, nextBlock];
-    updateWritingBody({
-      text: textOverride ?? current.text,
-      todoBlocks: nextBlocks,
-    });
-    setInlineTodoFocusTarget({
-      blockIndex: nextBlocks.length - 1,
-      itemId: nextBlock.items[0]?.id ?? null,
-    });
-  }, [content, updateWritingBody]);
-
   const applySlashFromAlias = useCallback((alias, textPrefix = "") => {
-    const parsed = parseNodeSlashQuery(alias);
-    if (
-      parsed?.nodeDataType === NODE_DATA_TYPES.CHECKBOX
-      && dataType === NODE_DATA_TYPES.TEXT
-      && !calendarPayload
-    ) {
-      appendInlineTodoBlock(textPrefix);
+    if (dataType === NODE_DATA_TYPES.TEXT && !calendarPayload) {
+      appendBlockFromPicker(alias, textPrefix);
       return;
     }
     if (!onDataTypeChange) return;
@@ -211,7 +210,7 @@ export function NodeQueryModal({
       onQueryChange(shape.defaultTitle);
     }
   }, [
-    appendInlineTodoBlock,
+    appendBlockFromPicker,
     calendarPayload,
     dataType,
     onContentChange,
@@ -219,50 +218,6 @@ export function NodeQueryModal({
     onQueryChange,
     query,
   ]);
-
-  const confirmSlashInText = useCallback(() => {
-    const current = parseNodeWritingBody(content);
-    const { prefix, slash } = splitBodyForSlash(current.text);
-    if (!slash) return false;
-    const parsed = parseNodeSlashQuery(slash.slice(1));
-    if (!parsed) return false;
-    if (
-      parsed.nodeDataType === NODE_DATA_TYPES.CHECKBOX
-      && dataType === NODE_DATA_TYPES.TEXT
-      && !calendarPayload
-    ) {
-      appendInlineTodoBlock(prefix);
-      return true;
-    }
-    const shape = applySlashTailToNodeField(current.text);
-    if (!shape) return false;
-    onDataTypeChange?.(shape.dataType);
-    onContentChange(shape.content);
-    if (shape.defaultTitle && onQueryChange && !(query || "").trim()) {
-      onQueryChange(shape.defaultTitle);
-    }
-    return true;
-  }, [
-    appendInlineTodoBlock,
-    calendarPayload,
-    content,
-    dataType,
-    onContentChange,
-    onDataTypeChange,
-    onQueryChange,
-    query,
-  ]);
-
-  const handleTextSlashKeyDown = useCallback((e) => {
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
-    const text = textWritingBody?.text ?? "";
-    const { slash } = splitBodyForSlash(text);
-    if (!slash) return;
-    const parsed = parseNodeSlashQuery(slash.slice(1));
-    if (!parsed) return;
-    e.preventDefault();
-    confirmSlashInText();
-  }, [confirmSlashInText, textWritingBody?.text]);
 
   useEffect(() => {
     if (dataType === "checkbox") return;
@@ -530,26 +485,18 @@ export function NodeQueryModal({
             </div>
           ) : dataType === NODE_DATA_TYPES.TEXT && !calendarPayload ? (
             <div className="node-query-modal__field-shell">
-              {textWritingBody?.todoBlocks?.length ? (
-                <NodeInlineTodoStack
-                  className="node-query-modal__todo-stack"
-                  todoBlocks={textWritingBody.todoBlocks}
-                  onTodoBlocksChange={(todoBlocks) => updateWritingBody({ todoBlocks })}
-                  focusTarget={inlineTodoFocusTarget}
-                  onFocusTargetChange={setInlineTodoFocusTarget}
-                />
-              ) : null}
-              <SlashAwareTextarea
-                inputRef={bodyRef}
-                className="node-query-modal__body node-query-modal__body--embedded"
-                wrapClassName="node-query-modal__slash-wrap node-query-modal__slash-wrap--embedded"
-                value={textWritingBody?.text ?? ""}
-                placeholder={slashCommandsEnabled ? "Type your text here, or /todo for lists" : "Type your text here"}
-                onChange={(value) => updateWritingBody({ text: value })}
-                onKeyDown={slashCommandsEnabled ? handleTextSlashKeyDown : undefined}
-                minHeightPx={72}
-                maxHeightPx={320}
-                ariaLabel="Contenido del nodo"
+              <NodeWritingBlockStack
+                className="node-query-modal__writing-stack"
+                blocks={textWritingBody?.blocks ?? []}
+                onBlocksChange={updateWritingBlocks}
+                focusTarget={writingFocusTarget}
+                onFocusTargetChange={setWritingFocusTarget}
+                slashEnabled={slashCommandsEnabled}
+                textPlaceholder={
+                  slashCommandsEnabled
+                    ? "Escribe aquí, o /title o /todo"
+                    : "Escribe aquí"
+                }
               />
             </div>
           ) : calendarPayload ? (

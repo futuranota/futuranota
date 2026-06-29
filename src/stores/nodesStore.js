@@ -23,7 +23,12 @@ import {
 import { parseWeatherForecastNodeContent } from "../lib/forecastSearch.js";
 import { ensureContinuationAfterLinkedOwner, unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
 import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/nodeTodoContent.js";
-import { isNodeWritingBody, parseNodeWritingBody } from "../lib/nodeInlineContent.js";
+import {
+  getNodeWritingPlainText,
+  isNodeWritingBody,
+  NODE_BLOCK_TYPES,
+  parseNodeWritingBody,
+} from "../lib/nodeInlineContent.js";
 import { resolveAdoptedBlockNodeLinkColor } from "../lib/docNodeLinkColors.js";
 import { getVideoNodePayload } from "../lib/videoEmbed.js";
 
@@ -66,9 +71,11 @@ function stringifyNodeContent(dataType, content) {
   }
 
   if (dataType === "text" && isNodeWritingBody(content)) {
-    const { text, todoBlocks } = parseNodeWritingBody(content);
-    const lists = todoBlocks.length ? ` · ${todoBlocks.length} todo` : "";
-    return `${(text || "").trim()}${lists}`.trim();
+    const { blocks } = parseNodeWritingBody(content);
+    const text = getNodeWritingPlainText(blocks);
+    const todoCount = blocks.filter((block) => block.type === NODE_BLOCK_TYPES.TODO).length;
+    const lists = todoCount ? ` · ${todoCount} todo` : "";
+    return `${text}${lists}`.trim();
   }
 
   if (dataType === "video" && content && typeof content === "object") {
