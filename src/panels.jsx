@@ -35,6 +35,9 @@ import { isWeatherForecastNodeContent } from './lib/forecastSearch.js';
 import { CalendarEventNodeView } from './components/intel/CalendarEventNodeView.jsx';
 import { ForecastNodeView } from './components/intel/ForecastNodeView.jsx';
 import { useI18n } from './i18n/useI18n.js';
+import { usePlanStore } from './stores/planStore.js';
+import { isIntelPanelLocked } from './lib/planConfig.js';
+import { PlanFeatureGate } from './components/plans/PlanFeatureGate.jsx';
 import { useUpgradeModalStore } from './stores/upgradeModalStore.js';
 
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
@@ -860,6 +863,8 @@ function IntelPanel({
   selectedObjectId = null,
 }) {
   const { t } = useI18n();
+  const planProfile = usePlanStore((s) => s.profile);
+  const intelLocked = isIntelPanelLocked(planProfile);
   const tabOptions = useIntelTabOptions();
   const pluralS = (n) => (n === 1 ? "" : "s");
   const [tab, setTab] = useState("news");
@@ -892,6 +897,12 @@ function IntelPanel({
         || resolveLaunchRadarObjectId(objectsById, stableBrand, null),
     };
   }, [objectsById, selectedObjectId]);
+
+  useEffect(() => {
+    if (!intelLocked) return;
+    setYoutubePanelOpen(false);
+    if (tab === "youtube") setTab("news");
+  }, [intelLocked, tab]);
 
   const syncIntelQueryHeight = () => {
     const el = intelQueryRef.current;
@@ -927,7 +938,7 @@ function IntelPanel({
   }, [intelSearchRequest, intelSearchSeed, tab]);
 
   const handleIntelSearchSubmit = async () => {
-    if (intelSearchStatus === "loading") return;
+    if (intelLocked || intelSearchStatus === "loading") return;
 
     if (tab === "campaign" && !corpusBrandName) {
       setIntelSearchError(t("intel.campaignScanNoBrand"));
@@ -988,6 +999,7 @@ function IntelPanel({
     : null;
 
   const handleIntelTabChange = (nextTab) => {
+    if (intelLocked) return;
     if (nextTab === "youtube") {
       setTab("youtube");
       setYoutubePanelOpen(true);
@@ -1014,7 +1026,16 @@ function IntelPanel({
   });
 
   return (
-    <>
+    <div className={"intel-panel-wrap" + (intelLocked ? " is-locked" : "")}>
+      {intelLocked ? (
+        <div className="intel-panel-wrap__lock">
+          <PlanFeatureGate
+            title={t("plans.creditsExpired")}
+            body={t("plans.creditsExpiredHint")}
+          />
+        </div>
+      ) : null}
+      <div className="intel-panel-wrap__content">
       {youtubePanelOpen ? (
         <VideoReferencePanel
           nodeId={intelNodeId}
@@ -1032,6 +1053,7 @@ function IntelPanel({
               ref={intelQueryRef}
               className="intel-query-input"
               value={intelQuery}
+              disabled={intelLocked}
               onChange={(e) => {
                 setIntelQuery(e.target.value);
                 syncIntelQueryHeight();
@@ -1044,6 +1066,7 @@ function IntelPanel({
             <IntelSearchButton
               variant="intel"
               loading={isSearchLoading}
+              disabled={intelLocked}
               onClick={handleIntelSearchSubmit}
               title={t("intel.runSearch")}
             />
@@ -1057,6 +1080,7 @@ function IntelPanel({
                 className="intel-tab-chip intel-bottom-item"
                 data-on={tab === option.id ? "1" : "0"}
                 aria-pressed={tab === option.id}
+                disabled={intelLocked}
                 onClick={() => handleIntelTabChange(option.id)}
               >
                 {option.label}
@@ -1185,7 +1209,8 @@ function IntelPanel({
           selectedObjectId={selectedObjectId}
         />
       </div>
-    </>
+      </div>
+    </div>
   );
 }
 

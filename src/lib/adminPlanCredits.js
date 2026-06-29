@@ -8,13 +8,13 @@ export function isAdminSessionEmail(email) {
   return Boolean(adminEmail && email?.toLowerCase() === adminEmail);
 }
 
-/** Full Pro token ledger (= 150 user credits). */
+/** Full Pro token ledger (= 200 user credits). */
 export function getAdminProTokenCap() {
   return getTokensCap("pro");
 }
 
 /**
- * Admin plan-testing: treat as Pro with a real 150-credit ledger (not unlimited).
+ * Admin plan-testing: treat as Pro with a real 200-credit ledger (not unlimited).
  * @param {object} profile
  * @param {{ plan?: string, tokens_balance?: number|null, search_count?: number }} [row]
  */

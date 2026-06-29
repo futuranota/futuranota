@@ -53,6 +53,7 @@ import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 import { VideoEmbedBlockView } from "./VideoEmbedBlockView.jsx";
 import { ImageBlockView } from "./ImageBlockView.jsx";
+import { CodeBlockView } from "./CodeBlockView.jsx";
 
 const UNLINK_H1_PATCH = {
   nodeId: undefined,
@@ -605,7 +606,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       textValue,
       newBlock,
     );
-    if (parsed.type === DOC_BLOCK_TYPES.IMAGE) {
+    if (parsed.type === DOC_BLOCK_TYPES.IMAGE || parsed.type === DOC_BLOCK_TYPES.CODE) {
       const newIndex = next.findIndex((b) => b.id === newBlock.id);
       const withTail = newIndex >= 0
         ? ensureEmptyTextBlockAfter(next, newIndex)
@@ -797,7 +798,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       fieldValue,
       newBlock,
     );
-    if (parsed.type === DOC_BLOCK_TYPES.IMAGE) {
+    if (parsed.type === DOC_BLOCK_TYPES.IMAGE || parsed.type === DOC_BLOCK_TYPES.CODE) {
       const newIndex = next.findIndex((b) => b.id === newBlock.id);
       const withTail = newIndex >= 0
         ? ensureEmptyTextBlockAfter(next, newIndex)
@@ -1238,6 +1239,43 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onDelete={() => {
                 if (!window.confirm(t("doc.imageBlock.deleteConfirm"))) return;
+                let next = removeBlockAt(blocksRef.current, index);
+                if (!next.length) {
+                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+                }
+                setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.CODE ? (
+            <CodeBlockView
+              language={block.language}
+              code={block.code || ""}
+              codeSaved={Boolean(block.codeSaved)}
+              autoFocus={focusBlockId === block.id && !block.codeSaved}
+              onLanguageChange={(language) => updateAt(index, { language, codeSaved: false })}
+              onCodeChange={(code) => updateAt(index, { code, codeSaved: false })}
+              onSave={() => {
+                if (!(block.code || "").trim()) return;
+                let next = updateBlockAt(blocksRef.current, index, { codeSaved: true });
+                next = ensureEmptyTextBlockAfter(next, index);
+                setBlocks(next);
+                const textBlock = next[index + 1];
+                if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {
+                  onFocusBlock?.(textBlock.id);
+                  focusBlockCaret(textBlock.id, 0);
+                }
+                requestContentGrow();
+              }}
+              onEdit={() => {
+                updateAt(index, { codeSaved: false });
+                onFocusBlock?.(block.id);
+              }}
+              onDelete={() => {
+                if (!window.confirm("¿Eliminar este bloque de código?")) return;
                 let next = removeBlockAt(blocksRef.current, index);
                 if (!next.length) {
                   next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];

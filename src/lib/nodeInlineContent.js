@@ -1,4 +1,5 @@
 import { createTodoItem, DOC_BLOCK_TYPES } from "./docBlocks.js";
+import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
 import {
@@ -13,6 +14,7 @@ export const NODE_BLOCK_TYPES = {
   TEXT: "text",
   H1: "h1",
   TODO: "todo",
+  CODE: "code",
 };
 
 export function isNodeWritingBody(content) {
@@ -47,6 +49,17 @@ export function createInlineTodoBlock(listTitle) {
     type: NODE_BLOCK_TYPES.TODO,
     listTitle: todo.listTitle,
     items: todo.items,
+  };
+}
+
+export function createInlineCodeBlock(language = DEFAULT_CODE_LANGUAGE, code = "") {
+  const trimmed = String(code || "");
+  return {
+    id: generateId("NCD"),
+    type: NODE_BLOCK_TYPES.CODE,
+    language: normalizeCodeLanguage(language),
+    code: trimmed,
+    codeSaved: Boolean(trimmed.trim()),
   };
 }
 
@@ -87,6 +100,17 @@ export function normalizeWritingBlocks(blocks) {
     }
     if (block?.type === NODE_BLOCK_TYPES.TODO || block?.items) {
       return normalizeTodoBlock(block);
+    }
+    if (block?.type === NODE_BLOCK_TYPES.CODE) {
+      const code = block.code || "";
+      const hasCode = Boolean(code.trim());
+      return {
+        id: block.id || generateId("NCD"),
+        type: NODE_BLOCK_TYPES.CODE,
+        language: normalizeCodeLanguage(block.language),
+        code,
+        codeSaved: Boolean(block?.codeSaved ?? hasCode) && hasCode,
+      };
     }
     return {
       id: block?.id || generateId("NTX"),
@@ -133,6 +157,9 @@ export function nodeWritingBlocksHaveContent(blocks) {
     if (block.type === NODE_BLOCK_TYPES.TODO) {
       return block.listTitle.trim()
         || block.items.some((item) => (item.text || "").trim());
+    }
+    if (block.type === NODE_BLOCK_TYPES.CODE) {
+      return Boolean(block.codeSaved && block.code?.trim());
     }
     return block.text.trim();
   });
@@ -203,6 +230,9 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
   }
   if (parsed.type === DOC_BLOCK_TYPES.TODO) {
     return createInlineTodoBlock();
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.CODE) {
+    return createInlineCodeBlock();
   }
   return null;
 }

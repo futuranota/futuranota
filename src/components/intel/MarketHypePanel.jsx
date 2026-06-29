@@ -5,6 +5,8 @@ import { marketHypeDataFromHypeDistribution } from "../../lib/agents/buildHypeRe
 import { useI18n } from "../../i18n/useI18n.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
+import { usePlanStore } from "../../stores/planStore.js";
+import { PlanFeatureGate } from "../plans/PlanFeatureGate.jsx";
 import {
   resolveHypeSnapshotForCorpus,
   findLatestHypeDocForScope,
@@ -29,6 +31,7 @@ export function MarketHypePanel({
   today = new Date(),
 }) {
   const { t } = useI18n();
+  const isPro = usePlanStore((s) => s.isPro());
   const objects = useObjectsStore((s) => s.objects);
   const docs = useDocsStore((s) => s.docs);
 
@@ -99,29 +102,18 @@ export function MarketHypePanel({
     return buildPayloadFromSnapshot();
   }, [canActivate, isSaved, panelCleared, buildPayloadFromSnapshot]);
 
-  const [widgetData, setWidgetData] = useState(/** @type {import("../../types/marketHype.ts").MarketHypeData|null} */ (null));
-  const [preferredChannel, setPreferredChannel] = useState("");
-  const [greetingIntro, setGreetingIntro] = useState("");
-  const [primaryReading, setPrimaryReading] = useState("");
-  const [channelNuance, setChannelNuance] = useState("");
+  const savedPayload = useMemo(() => {
+    if (!isSaved || !persistedPanel?.widgetData) return null;
+    return {
+      widgetData: persistedPanel.widgetData,
+      preferredChannel: persistedPanel.preferredChannel || "",
+      greetingIntro: persistedPanel.greetingIntro || "",
+      primaryReading: persistedPanel.primaryReading || "",
+      channelNuance: persistedPanel.channelNuance || "",
+    };
+  }, [isSaved, persistedPanel]);
 
-  useEffect(() => {
-    if (!persistedPanel?.widgetData) return;
-    setWidgetData(persistedPanel.widgetData);
-    setPreferredChannel(persistedPanel.preferredChannel || "");
-    setGreetingIntro(persistedPanel.greetingIntro || "");
-    setPrimaryReading(persistedPanel.primaryReading || "");
-    setChannelNuance(persistedPanel.channelNuance || "");
-  }, [persistedPanel]);
-
-  useEffect(() => {
-    if (isSaved) return;
-    setWidgetData(null);
-    setPreferredChannel("");
-    setGreetingIntro("");
-    setPrimaryReading("");
-    setChannelNuance("");
-  }, [isSaved, panelCorpusId]);
+  const activePayload = savedPayload || livePayload;
 
   const handleSave = useCallback(() => {
     if (!canActivate || !panelCorpusId || isSaved) return;
@@ -143,27 +135,22 @@ export function MarketHypePanel({
     if (!panelCorpusId) return;
     clearMarketHypePanelSaved(panelCorpusId);
     setPanelCleared(true);
-    setWidgetData(null);
-    setPreferredChannel("");
-    setGreetingIntro("");
-    setPrimaryReading("");
-    setChannelNuance("");
   }, [panelCorpusId]);
 
-  const savedPayload = isSaved
-    ? {
-      widgetData: widgetData || persistedPanel?.widgetData || null,
-      preferredChannel: preferredChannel || persistedPanel?.preferredChannel || "",
-      greetingIntro: greetingIntro || persistedPanel?.greetingIntro || "",
-      primaryReading: primaryReading || persistedPanel?.primaryReading || "",
-      channelNuance: channelNuance || persistedPanel?.channelNuance || "",
-    }
-    : null;
-
-  const activePayload = savedPayload || livePayload;
   const animateTexts = Boolean(canActivate && livePayload && !isSaved);
   const showVerdict = Boolean(activePayload?.widgetData);
-  const displayWidgetData = isSaved ? (savedPayload?.widgetData || null) : null;
+  const displayWidgetData = savedPayload?.widgetData || null;
+
+  if (!isPro) {
+    return (
+      <div className="intel-market-hype-panel intel-market-hype-panel--gated">
+        <PlanFeatureGate
+          title={t("intel.marketHypeProOnlyTitle")}
+          body={t("intel.marketHypeProOnlyBody")}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="intel-market-hype-panel">

@@ -386,7 +386,7 @@ export const usePlanStore = create(
         }));
       },
 
-      /** Reset Pro ledger to full 150 credits (admin plan testing). */
+      /** Reset Pro ledger to full 200 credits (admin plan testing). */
       refillCreditsToFull: async () => {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;

@@ -5,10 +5,12 @@ import { getCityChangeCooldownRemainingMs } from "../../lib/weatherCityRateLimit
 import { getWeatherCityChangeCap } from "../../lib/planConfig.js";
 import { useWeatherLocationStore } from "../../stores/weatherLocationStore.js";
 import { usePlanStore } from "../../stores/planStore.js";
+import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 
 export function ForecastLocationPicker() {
   const { t } = useI18n();
   const isPro = usePlanStore((s) => s.isPro());
+  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
   const plan = usePlanStore((s) => s.profile.plan);
   const cityChangesUsed = useWeatherLocationStore((s) => s.cityChangesUsedToday);
   const cityChangeCap = getWeatherCityChangeCap(plan);
@@ -47,6 +49,9 @@ export function ForecastLocationPicker() {
     : (label || city || t("intel.forecastLocationDefault"));
 
   const limitMessage = (() => {
+    if (error === "weather_city_locked") {
+      return t("intel.weatherCityLockedFree");
+    }
     if (error === "weather_city_daily_limit") {
       return isPro
         ? t("intel.weatherCityChangeLimitPro", { used: String(cityChangesUsed), cap: String(cityChangeCap) })
@@ -57,6 +62,15 @@ export function ForecastLocationPicker() {
     }
     return error;
   })();
+
+  const handleEditRequest = () => {
+    if (!isPro && saved) {
+      showUpgradeModal("weather");
+      return;
+    }
+    setDraft(city || label);
+    setEditing(true);
+  };
 
   const [editing, setEditing] = useState(!saved);
   const [draft, setDraft] = useState(city || label);
@@ -107,14 +121,14 @@ export function ForecastLocationPicker() {
           <button
             type="button"
             className="btn xs ghost forecast-location__edit"
-            onClick={() => {
-              setDraft(city || label);
-              setEditing(true);
-            }}
+            onClick={handleEditRequest}
           >
             {t("intel.forecastLocationEdit")}
           </button>
         </div>
+        {!isPro && saved ? (
+          <p className="forecast-location__locked-note">{t("intel.forecastCityLockedHint")}</p>
+        ) : null}
         {error ? (
           <p className="forecast-location__error" role="alert">
             {limitMessage}

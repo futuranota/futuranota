@@ -14,9 +14,9 @@ SET tokens_balance = 10000
 WHERE plan = 'free' AND (tokens_balance IS NULL OR tokens_balance < 0);
 
 UPDATE public.profiles
-SET tokens_balance = 1500000,
+SET tokens_balance = 2000000,
     tokens_period_start = timezone('utc'::text, now())
-WHERE plan = 'pro' AND tokens_balance < 1500000;
+WHERE plan = 'pro' AND tokens_balance < 2000000;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$

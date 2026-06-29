@@ -10,6 +10,7 @@ import {
 } from "../../lib/nodeInlineContent.js";
 import { H1BlockView } from "../docs/blocks/H1BlockView.jsx";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
+import { CodeBlockView } from "../docs/blocks/CodeBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 
 function syncTextareaHeight(el) {
@@ -114,6 +115,8 @@ export function NodeWritingBlockStack({
         blockIndex: insertedIndex,
         itemId: todoBlock?.items?.[0]?.id ?? null,
       });
+    } else if (parsed.type === DOC_BLOCK_TYPES.CODE) {
+      onFocusTargetChange?.({ blockIndex: insertedIndex, focusCode: true });
     } else {
       onFocusTargetChange?.({ blockIndex: insertedIndex, focusH1: true });
     }
@@ -192,6 +195,36 @@ export function NodeWritingBlockStack({
                 }}
                 onDetachFromNode={() => removeBlockAt(blockIndex)}
                 detachFromNodeLabel="Eliminar lista"
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.CODE) {
+          return (
+            <div key={block.id} className="node-writing-block-stack__code">
+              <CodeBlockView
+                language={block.language}
+                code={block.code}
+                codeSaved={Boolean(block.codeSaved)}
+                compact
+                autoFocus={
+                  focusTarget?.blockIndex === blockIndex
+                  && focusTarget?.focusCode
+                  && !block.codeSaved
+                }
+                onLanguageChange={(language) => updateBlockAt(blockIndex, { language, codeSaved: false })}
+                onCodeChange={(code) => updateBlockAt(blockIndex, { code, codeSaved: false })}
+                onSave={() => {
+                  if (!(block.code || "").trim()) return;
+                  updateBlockAt(blockIndex, { codeSaved: true });
+                  onFocusTargetChange?.(null);
+                }}
+                onEdit={() => {
+                  updateBlockAt(blockIndex, { codeSaved: false });
+                  onFocusTargetChange?.({ blockIndex, focusCode: true });
+                }}
+                onDelete={() => removeBlockAt(blockIndex)}
               />
             </div>
           );

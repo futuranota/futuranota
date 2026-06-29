@@ -192,6 +192,8 @@ export function NodeQueryModal({
         blockIndex: insertedIndex,
         itemId: todoBlock?.items?.[0]?.id ?? null,
       });
+    } else if (parsed.type === DOC_BLOCK_TYPES.CODE) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusCode: true });
     } else {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
     }
@@ -495,7 +497,7 @@ export function NodeQueryModal({
                 slashEnabled={slashCommandsEnabled}
                 textPlaceholder={
                   slashCommandsEnabled
-                    ? "Escribe aquí, o /title o /todo"
+                    ? "Escribe aquí, o /title, /todo o /code"
                     : "Escribe aquí"
                 }
               />

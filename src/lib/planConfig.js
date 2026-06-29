@@ -8,8 +8,11 @@ import { CREDIT_TOKEN_UNIT } from "./intelModels.js";
 
 export { CREDIT_TOKEN_UNIT };
 
-/** User-facing credits per agent run and Launch Radar scan. */
-export const AGENT_RUN_CREDIT_COST = 2.5;
+/** User-facing credits per agent run. */
+export const AGENT_RUN_CREDIT_COST = 3;
+
+/** User-facing credits per Launch Radar panel scan (Pro). */
+export const LAUNCH_RADAR_CREDIT_COST = 2;
 
 /** @param {number} credits */
 export function creditsToTokens(credits) {
@@ -45,30 +48,30 @@ export const PLAN_LIMITS = {
     tokensCap: 10_000,
     tokensRenewable: false,
     maxObjects: 1,
-    maxImportBytes: 54 * 1024 * 1024,
+    maxImportBytes: 5 * 1024 * 1024,
     maxSearchesLifetime: 10,
     calendarUsesAllowed: CALENDAR_LIMITS.freeLifetime,
     calendarSearchesCap: CALENDAR_LIMITS.freeLifetime,
     weatherUsesAllowed: 1,
-    weatherNodeActionsCap: 2,
-    weatherCityChangesCap: 5,
+    weatherNodeActionsCap: 1,
+    weatherCityChangesCap: 0,
     campaignLiveRuns: 1,
-    storageLabel: '54 MB',
-    storageBytes: 54 * 1024 * 1024,
+    storageLabel: '5 MB',
+    storageBytes: 5 * 1024 * 1024,
   },
   pro: {
     id: 'pro',
     label: 'Pro',
-    tokensCap: 1_500_000,
+    tokensCap: 2_000_000,
     tokensRenewable: true,
     maxObjects: Infinity,
     maxImportBytes: 5 * 1024 * 1024 * 1024,
-    maxLiveRunsPerMonth: 150,
+    maxLiveRunsPerMonth: 200,
     calendarUsesAllowed: Infinity,
     calendarSearchesCap: CALENDAR_LIMITS.proPerMonth,
     weatherUsesAllowed: Infinity,
     weatherNodeActionsCap: 50,
-    weatherCityChangesCap: 50,
+    weatherCityChangesCap: Infinity,
     storageLabel: '5 GB',
     storageBytes: 5 * 1024 * 1024 * 1024,
   },
@@ -82,8 +85,17 @@ export const FREE_LIMITS = {
   weatherUsesAllowed: PLAN_LIMITS.free.weatherUsesAllowed,
 };
 
-/** User-facing Pro monthly credit pool (150 calls × 1 credit). */
+/** User-facing Pro monthly credit pool (200 credits × 1 credit unit). */
 export const PRO_MONTHLY_CREDITS = PLAN_LIMITS.pro.maxLiveRunsPerMonth;
+
+/**
+ * Free plan: Intel search panel disabled when lifetime credits are exhausted.
+ * @param {{ plan?: string, searchCount?: number, tokensBalance?: number }} profile
+ */
+export function isIntelPanelLocked(profile) {
+  if (profile?.plan === 'pro') return false;
+  return getCreditsRemaining(profile) <= 0;
+}
 
 /** @param {PlanId|string} plan */
 export function getWeatherCityChangeCap(plan) {
@@ -145,7 +157,7 @@ export function getCreditsRemaining(profile) {
 }
 
 /**
- * Single counter for UI: one integer (150 → 149 → …).
+ * Single counter for UI: one integer (200 → 199 → …).
  * @param {{ plan?: string, searchCount?: number, tokensBalance?: number }} profile
  */
 export function getCreditsDisplay(profile) {
@@ -204,10 +216,11 @@ export function getPlanFeatureRows(plan) {
     { key: 'credits', label: 'AI credits', value: isPro ? `${f.maxLiveRunsPerMonth}/mo` : `${f.maxSearchesLifetime} lifetime` },
     { key: 'objects', label: 'Objects', value: isPro ? 'Unlimited' : String(f.maxObjects) },
     { key: 'storage', label: 'Storage', value: f.storageLabel },
-    { key: 'searches', label: 'AI searches', value: isPro ? `${f.maxLiveRunsPerMonth} live/mo` : `${f.maxSearchesLifetime} lifetime` },
+    { key: 'agents', label: 'Agents', value: '3 credits/call' },
     { key: 'calendar', label: 'Calendar', value: isPro ? `${f.calendarSearchesCap}/mo` : `${f.calendarSearchesCap} use` },
-    { key: 'weather', label: 'Forecast', value: isPro ? `${f.weatherNodeActionsCap} nodes · ${f.weatherCityChangesCap} cities/day` : `${f.weatherNodeActionsCap} nodes · ${f.weatherCityChangesCap} cities/day` },
-    { key: 'campaign', label: 'Campaign study', value: isPro ? `${f.maxLiveRunsPerMonth} live/mo` : `${f.campaignLiveRuns} live (frozen)` },
-    { key: 'library', label: 'Library switch', value: '0 credits' },
+    { key: 'weather', label: 'Forecast', value: isPro ? 'Unlimited · 50 inserts' : '1 city · 1 insert' },
+    { key: 'launchRadar', label: 'Launch Radar', value: isPro ? '2 credits/scan' : 'Demo' },
+    { key: 'marketHype', label: 'Market Hype', value: isPro ? 'Social Hype agent' : 'Pro only' },
+    { key: 'youtube', label: 'YouTube notes', value: isPro ? 'Included' : 'While credits last' },
   ];
 }

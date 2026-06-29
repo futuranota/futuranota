@@ -1,4 +1,4 @@
-import { AGENT_RUN_CREDIT_COST, TOKEN_COSTS } from "../planConfig.js";
+import { AGENT_RUN_CREDIT_COST, LAUNCH_RADAR_CREDIT_COST, TOKEN_COSTS } from "../planConfig.js";
 import { CREDIT_TOKEN_UNIT } from "../intelModels.js";
 import { AGENT_CAMPAIGN_ANALYST, AGENT_MARKETING_GUIDE, AGENT_ORCHESTRATOR, AGENT_SOCIAL_HYPE_ANALYST } from "./registry.js";
 
@@ -33,7 +33,7 @@ const AGENT_RUN_COSTS = {
     endpoint: "agents/social-hype-analyst",
   },
   "launch-radar": {
-    creditCost: SHARED_RUN_CREDIT,
+    creditCost: LAUNCH_RADAR_CREDIT_COST,
     tokenCost: TOKEN_COSTS.searchOverview,
     routeLabel: "Launch Radar",
     endpoint: "campaign-detect/radar",

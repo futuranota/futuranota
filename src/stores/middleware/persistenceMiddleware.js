@@ -30,6 +30,47 @@ function warnSyncOnce(message) {
 }
 
 /**
+ * @param {Record<string, unknown>|null|undefined} remoteCadence
+ * @param {Record<string, unknown>|null|undefined} localCadence
+ */
+function mergeObjectCadence(remoteCadence, localCadence) {
+  const remote = remoteCadence && typeof remoteCadence === "object" ? remoteCadence : {};
+  const local = localCadence && typeof localCadence === "object" ? localCadence : {};
+  return {
+    ...local,
+    ...remote,
+    marketHypePanelSaved: remote.marketHypePanelSaved || local.marketHypePanelSaved,
+    launchRadarPanelSaved: remote.launchRadarPanelSaved || local.launchRadarPanelSaved,
+  };
+}
+
+/**
+ * Merge Intel panel cadence from localStorage when remote rows omit it.
+ * @param {Record<string, object>} objects
+ */
+function mergeLocalCadenceIntoObjects(objects) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return objects;
+    const parsed = JSON.parse(raw);
+    const localObjects = parsed?.objects;
+    if (!localObjects || typeof localObjects !== "object") return objects;
+
+    const merged = { ...objects };
+    for (const [id, localObj] of Object.entries(localObjects)) {
+      if (!merged[id]?.cadence && !localObj?.cadence) continue;
+      merged[id] = {
+        ...merged[id],
+        cadence: mergeObjectCadence(merged[id]?.cadence, localObj?.cadence),
+      };
+    }
+    return merged;
+  } catch {
+    return objects;
+  }
+}
+
+/**
  * Ensure we have a fresh authenticated session before writes.
  * @returns {Promise<string|null>} user id or null
  */
@@ -252,6 +293,7 @@ export function initPersistenceMiddleware(stores) {
           color: co.color || "mint",
           role: co.role || "satellite",
           children: [],
+          cadence: co.cadence && typeof co.cadence === "object" ? co.cadence : {},
           createdAt: co.created_at,
           updatedAt: co.updated_at || co.created_at,
         };
@@ -363,7 +405,16 @@ export function initPersistenceMiddleware(stores) {
         };
       });
 
-      applyStateToStores({ objects, docs, nodes, canvasNodes, canvasConnections, groupings, timelines, currentTier: "all" });
+      applyStateToStores({
+        objects: mergeLocalCadenceIntoObjects(objects),
+        docs,
+        nodes,
+        canvasNodes,
+        canvasConnections,
+        groupings,
+        timelines,
+        currentTier: "all",
+      });
       isSyncedWithRemote = true;
       console.log("Supabase sync loaded for user:", userId);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
@@ -403,6 +454,7 @@ export function initPersistenceMiddleware(stores) {
         brand: co.brand || co.name,
         color: co.color || "mint",
         role: co.role || "satellite",
+        cadence: co.cadence && typeof co.cadence === "object" ? co.cadence : {},
         created_at: co.createdAt || now,
         updated_at: now,
       }));

@@ -86,34 +86,35 @@
         "id": "free",
         "name": "Starter",
         "shortName": "Free",
-        "desc": "Best for testing & understanding your first launch window.",
+        "desc": "Best for testing your first launch window — while credits last.",
         "price": "0",
         "priceSuffix": "/mo",
         "billingNote": "No credit card is required",
         "cta": "Get Started",
         "bullets": [
-          "1 Main Object · 54 MB storage",
-          "10 AI search credits (one time usage)",
-          "Basic Calendar & Forecast (one time usage)"
+          "1 Object · 5 MB storage",
+          "10 AI search credits (one-time)",
+          "YouTube note taker while credits last",
+          "Calendar & Forecast — one use each",
+          "Launch Radar demo · Market Hype locked"
         ],
         "featureGroups": [
           {
             "title": "Features & tools",
             "features": [
-              { "title": "Objects & Storage", "detail": "1 Main Object Max / 54 MB" },
-              { "title": "AI Search Credits", "detail": "10 credits total (one time usage)" },
+              { "title": "Objects & Storage", "detail": "1 Object Max / 5 MB" },
+              { "title": "AI Search Credits", "detail": "10 credits total (one-time)" },
+              { "title": "YouTube Note Taker", "detail": "Available while credits remain." },
               {
                 "title": "Calendar",
-                "tagline": "Anticipate Every Opportunity: The Ultimate Calendar for Brands That Make a Difference",
-                "detail": "One time usage."
+                "detail": "One-time use (0/1)."
               },
               {
                 "title": "Forecast (Weather API)",
-                "tagline": "Anticipate Every Opportunity: The Ultimate weather API that gets you ahead of any event.",
-                "detail": "One time usage — current day weather data."
+                "detail": "One fixed city · one node insert (0/1)."
               },
-              { "title": "Launch Radar", "detail": "Locked (Demo preview only).", "locked": true },
-              { "title": "Market Hype & Active Campaigns", "detail": "Shows general Hype Score only." },
+              { "title": "Launch Radar", "detail": "Demo preview only.", "locked": true },
+              { "title": "Market Hype & Active Campaigns", "detail": "Pro only.", "locked": true },
               { "title": "Search Intent & Keywords", "detail": "Locked.", "locked": true },
               { "title": "Technical Export", "detail": "Not available.", "locked": true }
             ]
@@ -135,44 +136,44 @@
         "cta": "Get Started",
         "secondaryCta": "Start free trial",
         "bullets": [
-          "Unlimited Objects · 10 GB storage",
-          "500 AI search credits + top-up option",
+          "Unlimited Objects · 5 GB storage",
+          "200 AI search credits + top-up option",
           "Advanced Calendar cross-referencing",
-          "10-Day Forecast with canvas risk alerts",
+          "Unlimited Forecast with canvas risk alerts",
           "Active Launch Radar & release predictions",
           "Deep Market Hype & campaign ingestion",
           "Google Trends & search spike detection",
-          "Technical export to JSON/CSV for CAD"
+          "Technical export and import."
         ],
         "featureGroups": [
           {
             "title": "Features & tools",
             "features": [
-              { "title": "Objects & Storage", "detail": "Unlimited Objects / 10 GB Storage (For assets & renders)" },
-              { "title": "AI Search Credits", "detail": "500 credits per month + top-up option" },
+              { "title": "Objects & Storage", "detail": "Unlimited Objects / 5 GB storage" },
+              { "title": "AI Search Credits", "detail": "200 credits per month + top-up option" },
               {
                 "title": "Calendar",
-                "detail": "Advanced Cross-Referencing: Automatically cross-references events with competitor roadmaps."
+                "detail": "Advanced Calendar cross-referencing."
               },
               {
                 "title": "Forecast (Weather API)",
-                "detail": "10-Day Deep Forecast: Triggers automated environment and material risk alerts directly on the canvas."
+                "detail": "Unlimited Forecast with canvas risk alerts."
               },
               {
                 "title": "Launch Radar",
-                "detail": "Active Predictive Radar: Tracks release frequencies (e.g., \"This company typically launches every 17 months. Next launch likely within 14 months\")."
+                "detail": "Active Launch Radar & release predictions."
               },
               {
                 "title": "Market Hype & Active Campaigns",
-                "detail": "Deep Ingestion: Visualizes where the latest campaign is investing its money and on which social networks to track where customers spend their time."
+                "detail": "Deep Market Hype & campaign ingestion."
               },
               {
                 "title": "Search Intent & Keywords",
-                "detail": "Google Trends Integration: Visualizes the most used words when a user searches for that product, highlighting search spikes (+450% Breakout)."
+                "detail": "Google Trends & search spike detection."
               },
               {
-                "title": "Technical Export",
-                "detail": "Clean export of engineering specifications to JSON/CSV for CAD mapping."
+                "title": "Technical Export & Import",
+                "detail": "Technical export and import."
               }
             ]
           }

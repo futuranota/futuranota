@@ -49,7 +49,9 @@ function applyLocationUpdate(next, getCurrent) {
   const check = checkCityChangeAllowed(prev, next, plan);
 
   if (!check.ok) {
-    if (check.reason === "daily_limit" && !usePlanStore.getState().isPro()) {
+    if (check.reason === "free_city_locked") {
+      useUpgradeModalStore.getState().show("weather");
+    } else if (check.reason === "daily_limit" && !usePlanStore.getState().isPro()) {
       useUpgradeModalStore.getState().show("weather");
     }
     return { ok: false, reason: check.reason, ...check };
@@ -60,9 +62,10 @@ function applyLocationUpdate(next, getCurrent) {
     return { ok: true, reason: "same" };
   }
 
-  const used = recordCityChangeApply();
+  const isPro = plan === "pro";
+  const used = isPro ? recordCityChangeApply() : undefined;
   persistLocation(next);
-  return { ok: true, reason: "consume", cityChangesUsed: used };
+  return { ok: true, reason: isPro ? "consume" : "first_set", cityChangesUsed: used };
 }
 
 export const useWeatherLocationStore = create(
@@ -87,6 +90,8 @@ export const useWeatherLocationStore = create(
         if (!result.ok) {
           if (result.reason === "daily_limit") {
             set({ error: "weather_city_daily_limit" });
+          } else if (result.reason === "free_city_locked") {
+            set({ error: "weather_city_locked" });
           } else if (result.reason === "cooldown") {
             set({ error: "weather_city_cooldown" });
           }
@@ -96,7 +101,7 @@ export const useWeatherLocationStore = create(
         set((state) => ({
           ...next,
           error: "",
-          locationRevision: result.reason === "consume"
+          locationRevision: result.reason === "consume" || result.reason === "first_set"
             ? state.locationRevision + 1
             : state.locationRevision,
           cityChangesUsedToday: result.cityChangesUsed ?? readCityChangesUsedToday(),
@@ -115,6 +120,8 @@ export const useWeatherLocationStore = create(
         if (!result.ok) {
           if (result.reason === "daily_limit") {
             set({ error: "weather_city_daily_limit" });
+          } else if (result.reason === "free_city_locked") {
+            set({ error: "weather_city_locked" });
           } else if (result.reason === "cooldown") {
             set({ error: "weather_city_cooldown" });
           }
@@ -124,7 +131,7 @@ export const useWeatherLocationStore = create(
         set((state) => ({
           ...next,
           error: "",
-          locationRevision: result.reason === "consume"
+          locationRevision: result.reason === "consume" || result.reason === "first_set"
             ? state.locationRevision + 1
             : state.locationRevision,
           cityChangesUsedToday: result.cityChangesUsed ?? readCityChangesUsedToday(),
@@ -140,6 +147,8 @@ export const useWeatherLocationStore = create(
           if (!result.ok) {
             const code = result.reason === "daily_limit"
               ? "weather_city_daily_limit"
+              : result.reason === "free_city_locked"
+                ? "weather_city_locked"
               : result.reason === "cooldown"
                 ? "weather_city_cooldown"
                 : "geolocation_failed";

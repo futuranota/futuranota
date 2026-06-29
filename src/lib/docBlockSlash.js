@@ -66,6 +66,13 @@ export const DOC_SLASH_COMMANDS = [
     blockType: DOC_BLOCK_TYPES.IMAGE,
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
+  {
+    label: "Código",
+    ghostHint: "code",
+    aliases: ["code", "codigo", "snippet", "codeblock"],
+    blockType: DOC_BLOCK_TYPES.CODE,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
 ];
 
 export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
@@ -74,7 +81,9 @@ export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
 
 /** Slash commands available in standalone node editors (not full documents). */
 export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
-  (cmd) => cmd.blockType === DOC_BLOCK_TYPES.H1 || cmd.blockType === DOC_BLOCK_TYPES.TODO,
+  (cmd) => cmd.blockType === DOC_BLOCK_TYPES.H1
+    || cmd.blockType === DOC_BLOCK_TYPES.TODO
+    || cmd.blockType === DOC_BLOCK_TYPES.CODE,
 );
 
 export function parseSlashQuery(query) {
@@ -142,6 +151,10 @@ export function createDocBlockFromSlash(parsed) {
 
   if (parsed.type === DOC_BLOCK_TYPES.IMAGE) {
     return createDocBlock(DOC_BLOCK_TYPES.IMAGE, { openFilePicker: true });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.CODE) {
+    return createDocBlock(DOC_BLOCK_TYPES.CODE);
   }
 
   return createDocBlock();

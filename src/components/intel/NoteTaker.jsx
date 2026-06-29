@@ -108,6 +108,8 @@ export function NoteTaker({
         blockIndex: insertedIndex,
         itemId: todoBlock?.items?.[0]?.id ?? null,
       });
+    } else if (parsed.type === DOC_BLOCK_TYPES.CODE) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusCode: true });
     } else {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
     }
@@ -256,6 +258,8 @@ export function NoteTaker({
     if (
       e.target.closest(".doc-todo-plan")
       || e.target.closest(".node-writing-block-stack__h1")
+      || e.target.closest(".node-writing-block-stack__code")
+      || e.target.closest(".doc-code-block")
       || e.target.closest(".node-writing-text-field")
       || e.target.closest(".note-taker__writing-stack")
       || e.target.closest(".note-taker__save")
@@ -294,7 +298,7 @@ export function NoteTaker({
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
                 slashEnabled
-                textPlaceholder="Escribe aquí, o /title o /todo"
+                textPlaceholder="Escribe aquí, o /title, /todo o /code"
               />
             </div>
             <DocSlashCommandPicker

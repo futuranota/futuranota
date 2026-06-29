@@ -74,9 +74,16 @@ export function checkCityChangeAllowed(prevLocation, nextLocation, plan) {
     };
   }
 
+  if (plan !== "pro") {
+    if (prevKey) {
+      return { ok: false, reason: "free_city_locked" };
+    }
+    return { ok: true, reason: "allowed" };
+  }
+
   const used = readCityChangesUsedToday();
   const cap = getWeatherCityChangeCap(plan);
-  if (used >= cap) {
+  if (Number.isFinite(cap) && used >= cap) {
     return { ok: false, reason: "daily_limit", used, cap };
   }
 
@@ -96,6 +103,7 @@ export function recordCityChangeApply() {
  */
 export function formatCityChangeCounter(used, plan) {
   const cap = getWeatherCityChangeCap(plan);
+  if (!Number.isFinite(cap)) return String(Math.max(0, used));
   const safeUsed = Math.max(0, Math.min(used, cap));
   return `${safeUsed}/${cap}`;
 }

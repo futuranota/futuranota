@@ -1,3 +1,4 @@
+import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
@@ -13,6 +14,7 @@ const DOC_BLOCK_TYPES = {
   PRODUCT_CARD: "product_card",
   VIDEO_EMBED: "video_embed",
   IMAGE: "image",
+  CODE: "code",
 };
 
 const DEFAULT_CHECKBOX_LIST_TITLE = "Todo list:";
@@ -90,6 +92,16 @@ function normalizeImageBlock(block) {
     height: Number.isFinite(block?.height) ? block.height : 0,
     imageSaved: Boolean(block?.imageSaved && block?.src),
     openFilePicker: Boolean(block?.openFilePicker),
+  };
+}
+
+function normalizeCodeBlock(block) {
+  const code = block?.code || "";
+  const hasCode = Boolean(code.trim());
+  return {
+    language: normalizeCodeLanguage(block?.language),
+    code,
+    codeSaved: Boolean(block?.codeSaved ?? hasCode) && hasCode,
   };
 }
 
@@ -181,6 +193,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     return {
       ...base,
       type: DOC_BLOCK_TYPES.IMAGE,
+      ...normalized,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.CODE) {
+    const normalized = normalizeCodeBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.CODE,
       ...normalized,
     };
   }
@@ -296,6 +317,13 @@ export function normalizeDocBlock(block) {
       height: block.height,
       imageSaved: block.imageSaved,
       openFilePicker: block.openFilePicker,
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.CODE) {
+    return createDocBlock(DOC_BLOCK_TYPES.CODE, {
+      id: block.id,
+      ...normalizeCodeBlock(block),
     });
   }
 
@@ -481,6 +509,22 @@ function parseImageSection(section) {
   }
 }
 
+function parseCodeSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::code")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) {
+    return createDocBlock(DOC_BLOCK_TYPES.CODE, { language: DEFAULT_CODE_LANGUAGE, code: "" });
+  }
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.CODE, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.CODE, { language: DEFAULT_CODE_LANGUAGE, code: payload });
+  }
+}
+
 export function docBlocksFromBody(body) {
   const raw = String(body ?? "").trim();
   if (!raw) return [];
@@ -525,6 +569,12 @@ export function docBlocksFromBody(body) {
     const imageBlock = parseImageSection(section);
     if (imageBlock) {
       blocks.push(imageBlock);
+      continue;
+    }
+
+    const codeBlock = parseCodeSection(section);
+    if (codeBlock) {
+      blocks.push(codeBlock);
       continue;
     }
 
@@ -602,6 +652,13 @@ export function docBlocksToBody(blocks) {
           width: block.width || 0,
           height: block.height || 0,
           imageSaved: Boolean(block.imageSaved),
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.CODE) {
+        return `::code\n${JSON.stringify({
+          language: normalizeCodeLanguage(block.language),
+          code: block.code || "",
+          codeSaved: Boolean(block.codeSaved),
         })}`;
       }
       return block.text || "";
@@ -751,6 +808,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.PRODUCT_CARD
     || block.type === DOC_BLOCK_TYPES.VIDEO_EMBED
     || block.type === DOC_BLOCK_TYPES.IMAGE
+    || block.type === DOC_BLOCK_TYPES.CODE
   ) {
     return block;
   }

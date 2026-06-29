@@ -45,7 +45,7 @@ async function logClientApiUsage({
 }
 
 /**
- * −1 user credit per successful call (150 → 149 → …). Same ledger as Intel search.
+ * −1 user credit per successful call (200 → 199 → …). Same ledger as Intel search.
  * @param {DebitIntelCreditOptions} [opts]
  * @returns {Promise<{ ok: boolean, creditsDebited: number }>}
  */

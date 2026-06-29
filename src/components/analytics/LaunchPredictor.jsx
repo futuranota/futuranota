@@ -24,6 +24,7 @@ import {
 } from "../../lib/panelAgentLoop.js";
 import { getLaunchRadarRunCost } from "../../lib/agents/agentCreditCosts.js";
 import { formatCreditAmount } from "../../lib/planConfig.js";
+import { usePlanStore } from "../../stores/planStore.js";
 import { LaunchRadarToggle } from "./LaunchRadarToggle.jsx";
 import { useLaunchRadarPanelStore, launchRadarScopeKey } from "../../stores/launchRadarPanelStore.js";
 import { cadenceRecordToPanelView } from "../../lib/launchRadarPanelView.js";
@@ -50,12 +51,15 @@ function cadenceRecordToView(cadenceRecord) {
   return cadenceRecordToPanelView(cadenceRecord);
 }
 
-function LaunchRadarPanelHeader({ brandName, reportKind }) {
+function LaunchRadarPanelHeader({ brandName, reportKind, demo = false }) {
   const { t } = useI18n();
 
   return (
     <header className="launch-predictor__head">
-      <h4 className="launch-predictor__title">{t("intel.launchRadarKicker")}</h4>
+      <h4 className="launch-predictor__title">
+        {t("intel.launchRadarKicker")}
+        {demo ? <span className="launch-predictor__demo-badge">{t("intel.launchRadarDemo")}</span> : null}
+      </h4>
       <p className="launch-predictor__role">{t("intel.launchRadarRole")}</p>
       <p className="launch-predictor__role launch-predictor__role--secondary">
         {t("intel.launchRadarSelectBrand")}
@@ -108,6 +112,8 @@ function LaunchRadarControl({
  */
 export function LaunchPredictor({ today = new Date() }) {
   const { t, locale } = useI18n();
+  const isPro = usePlanStore((s) => s.isPro());
+  const isDemo = !isPro;
   const objects = useObjectsStore((s) => s.objects);
   const docs = useDocsStore((s) => s.docs);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
@@ -248,6 +254,10 @@ export function LaunchPredictor({ today = new Date() }) {
 
   const handleRunScan = useCallback(async () => {
     if (!brandName || running) return false;
+    if (isDemo) {
+      showUpgradeModal("generic");
+      return false;
+    }
     setRunning(true);
     patchSession(panelCorpusId, brandName, { actionError: null, reportReady: true });
     try {
@@ -271,11 +281,17 @@ export function LaunchPredictor({ today = new Date() }) {
     applyCadenceResult,
     patchSession,
     showUpgradeModal,
+    isDemo,
   ]);
 
   const handleToggleChange = useCallback(async (next) => {
     if (running) return;
     if (panelLocked && !next) return;
+
+    if (isDemo && next) {
+      showUpgradeModal("generic");
+      return;
+    }
 
     if (!next) {
       patchSession(panelCorpusId, brandName, {
@@ -316,17 +332,21 @@ export function LaunchPredictor({ today = new Date() }) {
     hasReportData,
     handleLoadFromReport,
     handleRunScan,
+    isDemo,
+    showUpgradeModal,
   ]);
 
   const effectiveToggleOn = panelLocked || toggleOn;
   const effectiveStatus = panelLocked || status === "ready" ? "ready" : status;
   const effectiveCadence = panelLocked ? persistedPanel.cadenceView : cadence;
 
-  const headerProps = { brandName, reportKind: null };
+  const headerProps = { brandName, reportKind: null, demo: isDemo };
 
-  const scanCreditLabel = t("intel.launchRadarCreditCost", {
-    cost: formatCreditAmount(getLaunchRadarRunCost().creditCost),
-  });
+  const scanCreditLabel = isDemo
+    ? t("intel.launchRadarDemoHint")
+    : t("intel.launchRadarCreditCost", {
+      cost: formatCreditAmount(getLaunchRadarRunCost().creditCost),
+    });
 
   const controlProps = {
     brandName,
@@ -341,11 +361,13 @@ export function LaunchPredictor({ today = new Date() }) {
         : null,
   };
 
-  const panelHint = panelLocked
-    ? t("intel.launchRadarSavedHint")
-    : hasReportData && effectiveStatus === "idle" && !effectiveToggleOn
-      ? t("intel.launchRadarInsertHint")
-      : null;
+  const panelHint = isDemo
+    ? t("intel.launchRadarDemoHint")
+    : panelLocked
+      ? t("intel.launchRadarSavedHint")
+      : hasReportData && effectiveStatus === "idle" && !effectiveToggleOn
+        ? t("intel.launchRadarInsertHint")
+        : null;
 
   const campaignWindow = useMemo(() => {
     if (!effectiveCadence || effectiveCadence.mode !== "campaign" || !effectiveCadence.launchDate) return null;
@@ -368,6 +390,28 @@ export function LaunchPredictor({ today = new Date() }) {
       lastLaunchDate: effectiveCadence.lastLaunchDate,
     });
   }, [effectiveCadence, today]);
+
+  if (isDemo && effectiveStatus === "idle" && !panelLocked) {
+    return (
+      <div className="launch-predictor launch-predictor--demo">
+        <LaunchRadarIdleView
+          headerProps={headerProps}
+          controlProps={{
+            brandName,
+            running,
+            toggleOn: false,
+            onToggleChange: handleToggleChange,
+            disabled: !brandName || running,
+            creditHint: scanCreditLabel,
+          }}
+          actionError={null}
+          panelHint={panelHint}
+          previewOverview={previewOverview}
+          animatePreview={Boolean(previewOverview)}
+        />
+      </div>
+    );
+  }
 
   if (effectiveStatus === "idle") {
     return (
