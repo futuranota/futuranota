@@ -46,6 +46,7 @@ export const messages = {
       linkOrphanNode: "Link orphan node",
       linkOrphanPlaceholder: "Select node to integrate…",
       expandNode: "Expand node",
+      collapseNode: "Back to node",
       returnToDocument: "return",
       expandNodeShort: "expand",
       organize: "Organize",
@@ -199,7 +200,7 @@ export const messages = {
       done: "Done",
       error: "Error",
       runSuccess: "Campaign report applied · {brand}",
-      playbookSuccess: "Playbook ready · {brand}",
+      playbookSuccess: "Marketing Guide ready",
       errors: {
         no_brand: "Connect a company object to the Orchestrator or set a brand on your corpus.",
         no_target_doc: "Connect a campaign document to the Orchestrator output port.",
@@ -455,6 +456,7 @@ export const messages = {
       linkOrphanNode: "Vincular nodo suelto",
       linkOrphanPlaceholder: "Elegir nodo para integrar…",
       expandNode: "Ampliar nodo",
+      collapseNode: "Volver al nodo",
       returnToDocument: "return",
       expandNodeShort: "expand",
       organize: "Organizar",
@@ -626,7 +628,7 @@ export const messages = {
       done: "Listo",
       error: "Error",
       runSuccess: "Informe aplicado · {brand}",
-      playbookSuccess: "Playbook listo · {brand}",
+      playbookSuccess: "Marketing Guide listo",
       errors: {
         no_brand: "Conectá un objeto compañía al Orquestador o definí la marca en el corpus.",
         no_target_doc: "Conectá un documento campaña a la salida del Orquestador.",

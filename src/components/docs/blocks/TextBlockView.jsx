@@ -6,6 +6,7 @@ import { EmbeddedWidgetSnapshotView } from "./EmbeddedWidgetSnapshotView.jsx";
 import { isWidgetSnapshotEmbedded } from "../../../lib/captureWidgetSnapshot.js";
 import { LinkedNodeDocActions } from "./LinkedNodeDocActions.jsx";
 import { AnimatedReportText } from "../../intel/AnimatedReportText.jsx";
+import { ReportMarkdownBody } from "../../intel/ReportMarkdownBody.jsx";
 import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
 import { getCalendarEventDisplayModel } from "../../../lib/calendarEventDisplay.js";
 import { splitBodyForSlash } from "../../../lib/docBlockSlash.js";
@@ -37,6 +38,7 @@ export function TextBlockView({
   analystReportStyle = false,
   reportAnimate = false,
   onReportAnimationComplete = null,
+  reportStaticView = false,
 }) {
   const { t } = useI18n();
   const continuationRef = useRef(null);
@@ -154,6 +156,18 @@ export function TextBlockView({
         <AnimatedReportText
           text={value || ""}
           onComplete={onReportAnimationComplete}
+        />
+      </div>
+    );
+  }
+
+  if (reportStaticView) {
+    return (
+      <div className={rootClass}>
+        <ReportMarkdownBody
+          text={value || ""}
+          className="doc-marketing-guide"
+          imageFillWidth
         />
       </div>
     );

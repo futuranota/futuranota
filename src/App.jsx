@@ -60,6 +60,9 @@ import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 import { AGENT_CAMPAIGN_ANALYST, AGENT_MARKETING_GUIDE, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
+import { initialNodeShapeFromSlash } from './lib/docBlockSlash.js';
+import { mergeVideoNodeContent } from './lib/videoEmbed.js';
+import { NODE_DATA_TYPES } from './lib/nodeDataTypes.js';
 import { runCampaignAnalyst } from './lib/agents/runCampaignAnalyst.js';
 import { runMarketingGuideAgent } from './lib/agents/runMarketingGuideAgent.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
@@ -187,6 +190,7 @@ function Dashboard({ company, onBack }) {
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
   const [expandedNodeId, setExpandedNodeId] = useState(null);
+  const [expandedNodeContentFocus, setExpandedNodeContentFocus] = useState(false);
   const [adoptPrompt, setAdoptPrompt] = useState(null);
   const { t } = useI18n();
   const docs = useDocsStore((s) => s.docs);
@@ -439,6 +443,23 @@ useEffect(() => {
     setCanvasNodes((all) => [...all, newNode]);
     setToast({ message: `Node added · "${newNode.title}"`, kind: "ok" });
   };
+
+  const createNodeFromSlashAndInsert = useCallback((alias, embedPrefill = null) => {
+    const shape = initialNodeShapeFromSlash(alias);
+    if (!shape) return;
+    let content = shape.content;
+    if (embedPrefill?.embedSrc && shape.dataType === NODE_DATA_TYPES.VIDEO) {
+      content = mergeVideoNodeContent(content, embedPrefill);
+    }
+    const title = (shape.defaultTitle || "Untitled query").trim();
+    const nodeId = useNodesStore.getState().addNode(title, shape.dataType, content, null, {
+      sourceQuery: title,
+    });
+    const entity = useNodesStore.getState().getNode(nodeId);
+    if (!entity) return;
+    insertNodeToCanvas(entity, { center: true });
+    setToast({ message: `Node added · "${title}"`, kind: "ok" });
+  }, [insertNodeToCanvas]);
 
   const handleInsertForecastNode = ({ title, payload, sourceNode, anchorAt }) => {
     const parentDocId = sourceNode?.parentDocId || null;
@@ -740,9 +761,10 @@ useEffect(() => {
     setDocOpenFocusBlockId(options.focusBlockId ?? null);
   };
 
-  const openNodeOverlay = useCallback((nodeId) => {
+  const openNodeOverlay = useCallback((nodeId, options = {}) => {
     if (!nodeId || !nodeEntities[nodeId]) return;
     setExpandedDocId(null);
+    setExpandedNodeContentFocus(Boolean(options.contentFocus));
     setExpandedNodeId(nodeId);
   }, [nodeEntities]);
 
@@ -884,7 +906,7 @@ useEffect(() => {
     });
   }, [canvasNodes, nodeEntities, docs, runAdoption]);
 
-  const openCanvasEntity = (noteId, canvasNode = null) => {
+  const openCanvasEntity = (noteId, canvasNode = null, options = {}) => {
     if (!noteId && !canvasNode) return;
     const targetDocId = noteId && docs[noteId] ? noteId : canvasNode?.docId;
     if (targetDocId && docs[targetDocId]) {
@@ -898,6 +920,7 @@ useEffect(() => {
 
     if (noteId && nodeEntities[noteId]) {
       setExpandedDocId(null);
+      setExpandedNodeContentFocus(Boolean(options?.contentFocus));
       setExpandedNodeId(noteId);
     }
   };
@@ -990,6 +1013,7 @@ useEffect(() => {
             canvasNodes={canvasNodes}
             onInsertForecastNode={handleInsertForecastNode}
             onInsertEventNode={handleInsertEventNode}
+            onSlashCreateNode={createNodeFromSlashAndInsert}
             objectsById={objects}
             selectedObjectId={selectedObjectId}
           />
@@ -1038,6 +1062,7 @@ useEffect(() => {
                 || "").trim()
             }
             onClose={() => setExpandedNodeId(null)}
+            onSlashCreateNode={createNodeFromSlashAndInsert}
           />
         ) : (
           <StandaloneNodeModal
@@ -1047,9 +1072,19 @@ useEffect(() => {
             queryCanvasNodeId={
               canvasNodes.find((n) => n.noteId === expandedNodeId)?.id ?? null
             }
-            onClose={() => setExpandedNodeId(null)}
-            onSaved={() => setExpandedNodeId(null)}
-            onDeleted={() => setExpandedNodeId(null)}
+            initialContentFocus={expandedNodeContentFocus}
+            onClose={() => {
+              setExpandedNodeId(null);
+              setExpandedNodeContentFocus(false);
+            }}
+            onSaved={() => {
+              setExpandedNodeId(null);
+              setExpandedNodeContentFocus(false);
+            }}
+            onDeleted={() => {
+              setExpandedNodeId(null);
+              setExpandedNodeContentFocus(false);
+            }}
           />
         )
       ) : null}

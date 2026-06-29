@@ -7,6 +7,7 @@ export function VideoReferencePanel({
   parentDocId = null,
   blockIndex = null,
   onClose,
+  onSlashCreateNode,
 }) {
   return createPortal(
     <div
@@ -26,6 +27,7 @@ export function VideoReferencePanel({
           parentDocId={parentDocId}
           blockIndex={blockIndex}
           onClose={onClose}
+          onSlashCreateNode={onSlashCreateNode}
         />
       </div>
     </div>,

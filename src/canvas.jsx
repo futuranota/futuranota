@@ -1387,7 +1387,7 @@ function BlueprintCanvas({
   const handleOpenNode = (id) => {
     const node = nodes.find((n) => n.id === id);
     if (!node || !onOpenNote) return;
-    onOpenNote(node.noteId, node);
+    onOpenNote(node.noteId, node, { contentFocus: true });
   };
   const handleMove = (id, x, y) => {
     setNodes((all) => all.map((n) => (n.id === id ? { ...n, x, y } : n)));

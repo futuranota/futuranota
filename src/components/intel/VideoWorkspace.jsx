@@ -68,6 +68,7 @@ export function VideoWorkspace({
         parentDocId={parentDocId}
         blockIndex={blockIndex}
         onClose={embedded ? undefined : onClose}
+        inlineTodosEnabled
       />
     </div>
   );

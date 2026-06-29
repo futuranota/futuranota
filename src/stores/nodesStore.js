@@ -22,6 +22,8 @@ import {
 } from "../lib/forecastNodeDisplay.js";
 import { parseWeatherForecastNodeContent } from "../lib/forecastSearch.js";
 import { ensureContinuationAfterLinkedOwner, unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
+import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/nodeTodoContent.js";
+import { isNodeWritingBody, parseNodeWritingBody } from "../lib/nodeInlineContent.js";
 import { resolveAdoptedBlockNodeLinkColor } from "../lib/docNodeLinkColors.js";
 import { getVideoNodePayload } from "../lib/videoEmbed.js";
 
@@ -58,7 +60,15 @@ function stringifyNodeContent(dataType, content) {
   }
 
   if (dataType === "checkbox") {
-    return content ? "true" : "false";
+    const todo = normalizeNodeTodoContent(content);
+    const done = todo.items.filter((item) => item.checked).length;
+    return `${done}/${todo.items.length}`;
+  }
+
+  if (dataType === "text" && isNodeWritingBody(content)) {
+    const { text, todoBlocks } = parseNodeWritingBody(content);
+    const lists = todoBlocks.length ? ` · ${todoBlocks.length} todo` : "";
+    return `${(text || "").trim()}${lists}`.trim();
   }
 
   if (dataType === "video" && content && typeof content === "object") {
@@ -177,7 +187,7 @@ export const useNodesStore = create(
           dataType,
           content: content ?? (
             dataType === "checkbox"
-              ? false
+              ? createDefaultNodeTodoContent()
               : dataType === "date"
                 ? { date: "", time: "" }
                 : dataType === "metric"
@@ -455,12 +465,15 @@ export const useNodesStore = create(
             sourceBlockId = metricBlock.id;
             nextBlocks = [...normalized, metricBlock];
           } else if (node.dataType === "checkbox") {
+            const todoContent = normalizeNodeTodoContent(node.content, syncedTitle);
             const todoBlock = createDocBlock(DOC_BLOCK_TYPES.TODO, {
-              listTitle: syncedTitle,
+              listTitle: todoContent.listTitle || syncedTitle,
               sourceQuery: syncedTitle,
               nodeId: node.id,
               ...linkedBlockFields(doc),
-              items: [createTodoItem({ checked: Boolean(node.content) })],
+              items: todoContent.items?.length
+                ? todoContent.items
+                : [createTodoItem()],
               ...anchorFields,
             });
             sourceBlockId = todoBlock.id;

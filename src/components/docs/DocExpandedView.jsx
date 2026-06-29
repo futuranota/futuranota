@@ -1190,7 +1190,6 @@ export function DocExpandedView({
           parentDocLabel={parentDocLabel}
           onSave={handleNodeModalSave}
           onBackToDocument={handleRequestCloseNodeModal}
-          expanded={false}
           anchorDate={nodeDraftAnchorDate}
           anchorTime={nodeDraftAnchorTime}
           onAnchorDateChange={handleNodeAnchorDateChange}

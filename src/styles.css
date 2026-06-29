@@ -5963,6 +5963,39 @@ textarea.note-form-field {
 .doc-analyst-report h2:first-child {
   margin-top: 0;
 }
+.doc-analyst-report__h1 {
+  font-family: var(--font-doc);
+  font-weight: 600;
+  font-size: calc(var(--font-doc-size) + 3px);
+  line-height: 1.3;
+  margin: 0 0 12px;
+  color: var(--text-0);
+}
+.doc-analyst-report-static {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 2px 8px 0;
+}
+.doc-marketing-guide {
+  --marketing-guide-image-inset: 16px;
+}
+.doc-marketing-guide .doc-analyst-report__figure {
+  display: block;
+  width: 100%;
+  margin: 18px 0 14px;
+  padding: 0 var(--marketing-guide-image-inset);
+  box-sizing: border-box;
+  text-align: center;
+}
+.doc-marketing-guide .doc-analyst-report__img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+  object-fit: contain;
+}
 .doc-analyst-report p {
   margin: 0 0 10px;
 }

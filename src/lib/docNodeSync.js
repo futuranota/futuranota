@@ -13,6 +13,12 @@ import {
 } from "./docBlocks.js";
 import { nodeDataTypeForBlock } from "./docBlockSlash.js";
 import { NODE_DATA_TYPES } from "./nodeDataTypes.js";
+import {
+  blockTodoToNodeContent,
+  isNodeTodoContent,
+  normalizeNodeTodoContent,
+  nodeTodoMacroChecked,
+} from "./nodeTodoContent.js";
 import { buildVideoNodeContent } from "./videoEmbed.js";
 import {
   getCalendarEventDisplayText,
@@ -159,12 +165,6 @@ export function nodeContentAsString(node) {
   return JSON.stringify(node.content ?? "");
 }
 
-function todoItemsToCheckboxContent(items) {
-  const list = Array.isArray(items) ? items : [];
-  if (list.length === 0) return false;
-  return list.some((item) => item.checked);
-}
-
 function normalizeDateContent(content) {
   if (content && typeof content === "object") {
     return { date: content.date || "", time: content.time || "" };
@@ -201,7 +201,7 @@ export function getContentForNodeBlock(block, blocks = [], blockIndex = -1) {
   }
 
   if (block.type === DOC_BLOCK_TYPES.TODO) {
-    return todoItemsToCheckboxContent(block.items);
+    return blockTodoToNodeContent(block);
   }
 
   if (block.type === DOC_BLOCK_TYPES.DATE) {
@@ -229,6 +229,13 @@ export function setContentForNodeBlock(blocks, blockIndex, content, dataType) {
   }
 
   if (block.type === DOC_BLOCK_TYPES.TODO && dataType === NODE_DATA_TYPES.CHECKBOX) {
+    if (isNodeTodoContent(content)) {
+      const normalized = normalizeNodeTodoContent(content, block.listTitle);
+      return updateBlockAt(blocks, blockIndex, {
+        listTitle: normalized.listTitle,
+        items: normalized.items,
+      });
+    }
     const checked = Boolean(content);
     const items = (block.items || []).map((item, i) =>
       i === 0 ? { ...item, checked } : item,
@@ -269,15 +276,20 @@ export function resolveNodeDraftFromDoc(blockContent, node, dataType) {
     if (typeof blockContent === "string" && blockContent.trim() !== "") {
       return blockContent;
     }
-    if (dataType === NODE_DATA_TYPES.CHECKBOX && typeof blockContent === "boolean") {
-      return blockContent;
+    if (dataType === NODE_DATA_TYPES.CHECKBOX) {
+      if (isNodeTodoContent(blockContent)) return blockContent;
+      if (typeof blockContent === "boolean") {
+        return normalizeNodeTodoContent(blockContent);
+      }
     }
   }
 
   if (!node) {
     if (dataType === NODE_DATA_TYPES.DATE) return { date: "", time: "" };
     if (dataType === NODE_DATA_TYPES.METRIC) return { value: "", unit: "" };
-    if (dataType === NODE_DATA_TYPES.CHECKBOX) return false;
+    if (dataType === NODE_DATA_TYPES.CHECKBOX) {
+      return normalizeNodeTodoContent(false);
+    }
     if (dataType === NODE_DATA_TYPES.VIDEO) {
       return buildVideoNodeContent(null, "");
     }
@@ -291,8 +303,11 @@ export function resolveNodeDraftFromDoc(blockContent, node, dataType) {
     return normalizeMetricContent(node.content);
   }
   if (dataType === NODE_DATA_TYPES.CHECKBOX) {
-    if (typeof node.content === "boolean") return node.content;
-    return false;
+    if (isNodeTodoContent(node.content)) return node.content;
+    if (typeof node.content === "boolean") {
+      return normalizeNodeTodoContent(node.content);
+    }
+    return normalizeNodeTodoContent(false);
   }
   if (dataType === NODE_DATA_TYPES.VIDEO) {
     if (node.content && typeof node.content === "object") return node.content;
@@ -530,7 +545,19 @@ export function unlinkNodeFromDocBlocks(blocks, ownerIndex, node = null, options
   }
 
   if (owner.type === DOC_BLOCK_TYPES.TODO && node) {
-    const checked = typeof node.content === "boolean" ? node.content : false;
+    if (isNodeTodoContent(node.content)) {
+      const normalized = normalizeNodeTodoContent(node.content, owner.listTitle);
+      return normalized.map((block, i) => {
+        if (i !== ownerIndex) return block;
+        return normalizeDocBlock({
+          ...block,
+          ...UNLINK_BLOCK_PATCH,
+          listTitle: normalized.listTitle,
+          items: normalized.items,
+        });
+      });
+    }
+    const checked = typeof node.content === "boolean" ? node.content : nodeTodoMacroChecked(node.content);
     return normalized.map((block, i) => {
       if (i !== ownerIndex) return block;
       const items = (block.items || []).map((item, idx) =>

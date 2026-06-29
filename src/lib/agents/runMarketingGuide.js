@@ -1,10 +1,13 @@
+import { useAuthStore } from "../../stores/authStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { createDocBlock } from "../docBlocks.js";
 import {
   buildMarketingGuidePlaybookBodyAsync,
+  MARKETING_GUIDE_AGENT_NAME,
   MARKETING_GUIDE_REPORT_PRESENTATION,
   playbookDocTitle,
+  resolvePlaybookAccountName,
 } from "./marketingGuidePlaybook.js";
 import { buildMarketContextBundle } from "./marketContextBundle.js";
 
@@ -39,7 +42,11 @@ export async function runMarketingGuide({
   const bundle = marketContextBundle
     || buildMarketContextBundle(analystReport, detection, brand);
 
-  const bodyText = await buildMarketingGuidePlaybookBodyAsync(brand, lang, bundle);
+  const user = useAuthStore.getState().user;
+  const bodyText = await buildMarketingGuidePlaybookBodyAsync(brand, "es", bundle, {
+    accountName: resolvePlaybookAccountName(user, lang),
+    agentName: MARKETING_GUIDE_AGENT_NAME,
+  });
   if (!bodyText.trim()) {
     return {
       status: "error",
@@ -72,7 +79,7 @@ export async function runMarketingGuide({
     docId,
     brandName: brand,
     userFacingMessage: lang === "es"
-      ? `Playbook listo · ${brand}`
-      : `Playbook ready · ${brand}`,
+      ? "Marketing Guide listo"
+      : "Marketing Guide ready",
   };
 }

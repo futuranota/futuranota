@@ -44,6 +44,7 @@ export function DocTodoPlanBlockView({
   onListTitleKeyDown,
   onDetachFromNode = null,
   detachFromNodeLabel = "Eliminar del nodo",
+  showDragHandle = true,
 }) {
   const inputRefs = useRef({});
   const [expanded, setExpanded] = useState(true);
@@ -101,16 +102,18 @@ export function DocTodoPlanBlockView({
             }}
           />
         ) : null}
-        <button
-          type="button"
-          className="doc-block-drag-handle"
-          aria-label="Mover bloque"
-          title="Mover bloque"
-          draggable
-          onPointerDown={onDragHandlePointerDown}
-        >
-          <img src={DOC_TODO_HEADER_ICON} alt="" aria-hidden />
-        </button>
+        {showDragHandle ? (
+          <button
+            type="button"
+            className="doc-block-drag-handle"
+            aria-label="Mover bloque"
+            title="Mover bloque"
+            draggable
+            onPointerDown={onDragHandlePointerDown}
+          >
+            <img src={DOC_TODO_HEADER_ICON} alt="" aria-hidden />
+          </button>
+        ) : null}
         <input
           type="text"
           className="doc-todo-plan__title-input"

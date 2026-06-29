@@ -35,8 +35,8 @@ export function buildMarketingGuideBody(report, brandName, lang) {
   const parts = [];
 
   const header = lang === "es"
-    ? `# Playbook · ${brandName}\n\n*Cómo usar Futura Nota con esta señal — sin asumir qué producto vas a lanzar.*`
-    : `# Playbook · ${brandName}\n\n*How to use Futura Nota with this signal — without assuming what product you'll launch.*`;
+    ? `# Marketing Guide\n\n*Cómo usar Futura Nota con esta señal — sin asumir qué producto vas a lanzar.*`
+    : `# Marketing Guide\n\n*How to use Futura Nota with this signal — without assuming what product you'll launch.*`;
 
   parts.push(header);
 
@@ -85,7 +85,6 @@ export function buildMarketingGuideBody(report, brandName, lang) {
  * @param {string} brandName
  * @param {'en' | 'es'} lang
  */
-export function playbookDocTitle(brandName, lang) {
-  const brand = (brandName || "").trim() || (lang === "es" ? "marca" : "brand");
-  return `Playbook · ${brand}`;
+export function playbookDocTitle(_brandName, _lang) {
+  return "Marketing Guide";
 }

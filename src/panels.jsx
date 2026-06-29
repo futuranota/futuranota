@@ -847,6 +847,7 @@ function IntelPanel({
   canvasNodes = [],
   onInsertForecastNode,
   onInsertEventNode,
+  onSlashCreateNode,
   objectsById = {},
   selectedObjectId = null,
 }) {
@@ -1003,6 +1004,7 @@ function IntelPanel({
           parentDocId={intelParentDocId}
           blockIndex={intelBlockIndex}
           onClose={handleYoutubePanelClose}
+          onSlashCreateNode={onSlashCreateNode}
         />
       ) : null}
       <div className="col-header intel-header">

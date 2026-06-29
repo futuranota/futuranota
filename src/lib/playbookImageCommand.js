@@ -9,14 +9,8 @@ export const PLAYBOOK_IMAGE_COMMAND_RE = /^\[Imagen\s+([^\]]+)\]\(([^)]*)\)\s*$/
  * @type {Record<string, string>}
  */
 export const PLAYBOOK_IMAGE_REFERENCES = {
-  calendar: "/uploads/Calendar-conectex.svg",
-  forecast: "/uploads/calendar-product-idea.svg",
-  markethype: "/uploads/products-ideas.svg",
-  "tendenciasdebusqueda": "/uploads/products-ideas.svg",
-  "tendencias de búsqueda": "/uploads/products-ideas.svg",
-  "searchintent": "/uploads/products-ideas.svg",
-  "datosdemercado": "/uploads/Imagen-calendar-product.svg",
-  "marketdata": "/uploads/Imagen-calendar-product.svg",
+  product: "/uploads/product.png",
+  idea: "/uploads/idea.jpg",
 };
 
 /**
@@ -76,7 +70,8 @@ export function formatPlaybookImageCommand(label, src = "") {
 }
 
 /**
- * Converts any supported source (png, svg, jpg, …) to webp at the source's 1:1 pixel size.
+ * SVG assets keep their URL — rasterizing complex SVGs (patterns, filters) often fails in canvas.
+ * Raster formats still convert to embedded webp for persistence.
  * @param {{ label: string, src: string }} command
  * @param {{ quality?: number }} [options]
  * @returns {Promise<{ alt: string, src: string, width: number, height: number, markdown: string }|null>}
@@ -86,19 +81,26 @@ export async function insertPlaybookImageFromCommand(command, options = {}) {
   const src = command?.src?.trim();
   if (!label || !src) return null;
 
+  const useDirectSrc = /^\/uploads\//i.test(src)
+    || /\.(svg|jpe?g|png|webp)(\?.*)?$/i.test(src);
+  if (useDirectSrc) {
+    const markdown = `![${label}](${src})`;
+    return { alt: label, src, width: 0, height: 0, markdown };
+  }
+
   const converted = await convertImageSourceToWebp(src, {
     quality: options.quality,
     fileName: normalizePlaybookImageLabel(label) || "image",
     idPrefix: "PBIMG",
   });
-  if (!converted) return null;
 
-  const markdown = `![${label}](${converted.src})`;
+  const resolvedSrc = converted?.src || src;
+  const markdown = `![${label}](${resolvedSrc})`;
   return {
     alt: label,
-    src: converted.src,
-    width: converted.width,
-    height: converted.height,
+    src: resolvedSrc,
+    width: converted?.width || 0,
+    height: converted?.height || 0,
     markdown,
   };
 }
@@ -129,15 +131,15 @@ export async function resolvePlaybookImageCommandsInText(text, options = {}) {
 
     try {
       const inserted = await insertPlaybookImageFromCommand(command, options);
-      if (inserted) {
+      if (inserted?.markdown) {
         next.push(inserted.markdown);
       } else {
         options.onError?.({ label: command.label, src: command.src });
-        next.push(line);
+        next.push(`![${command.label}](${command.src})`);
       }
     } catch (error) {
       options.onError?.({ label: command.label, src: command.src }, error);
-      next.push(line);
+      next.push(`![${command.label}](${command.src})`);
     }
   }
 

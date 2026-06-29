@@ -1,8 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useAnimatedText } from "../../hooks/useAnimatedText.js";
-import { linkifyReportText } from "../../lib/linkifyReportText.jsx";
-
-const REPORT_IMAGE_MD_RE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
+import { renderReportMarkdownLine } from "./ReportMarkdownBody.jsx";
 
 /**
  * Typewriter presentation for analyst strategic reports (Quicksand + linkified sources).
@@ -44,37 +42,8 @@ export function AnimatedReportText({ text, onComplete }) {
       className="doc-analyst-report doc-analyst-report-animated"
       aria-live="polite"
     >
-      {lines.map((line, i) => {
-        if (line.startsWith("## ")) {
-          return (
-            <h2 key={i}>
-              {linkifyReportText(line.slice(3), `h2-${i}`)}
-            </h2>
-          );
-        }
-        if (!line.trim()) {
-          return <p key={i} className="doc-analyst-report__spacer">{"\u00A0"}</p>;
-        }
-        const imageMatch = line.match(REPORT_IMAGE_MD_RE);
-        if (imageMatch) {
-          const [, alt, src] = imageMatch;
-          return (
-            <figure key={i} className="doc-analyst-report__figure">
-              <img
-                className="doc-analyst-report__img"
-                src={src}
-                alt={alt || ""}
-                draggable={false}
-              />
-            </figure>
-          );
-        }
-        return (
-          <p key={i}>
-            {linkifyReportText(line, `p-${i}`)}
-          </p>
-        );
-      })}
+      {lines.map((line, i) => renderReportMarkdownLine(line, i, "a-", { imageScale: 1 }))
+        .filter(Boolean)}
       {!isComplete ? <span className="doc-analyst-report-cursor" aria-hidden>|</span> : null}
     </div>
   );

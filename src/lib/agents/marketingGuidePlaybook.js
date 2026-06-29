@@ -3,10 +3,10 @@ import playbookEs from "../../../content/marketing/playbook.es.md?raw";
 import { resolvePlaybookImageCommandsInText } from "../playbookImageCommand.js";
 import { pickPrimaryInterestRegion } from "./marketContextBundle.js";
 
-/** Same presentation kind as Campaign Analyst — triggers typewriter animation in DocBlockStack. */
+/** Same presentation kind as Campaign Analyst — static markdown view (no typewriter). */
 export const MARKETING_GUIDE_REPORT_PRESENTATION = {
-  kind: "analyst-strategic-v2",
-  animateOnOpen: true,
+  kind: "marketing-guide-v1",
+  animateOnOpen: false,
   animatedAt: null,
 };
 
@@ -21,8 +21,8 @@ export function sanitizePlaybookText(text) {
     .replace(/^-{3,}\s*$/gm, "")
     .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1")
     .replace(/\*/g, "")
-    .replace(/\n[ \t]+\n/g, "\n\n")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n[ \t]+\n/g, "\n")
+    .replace(/\n{2,}/g, "\n")
     .trim();
 }
 
@@ -50,24 +50,51 @@ export function buildBrandContextSection(brandName, lang, marketContextBundle) {
 }
 
 /**
+ * Display name for playbook greeting — first name, email local-part, or fallback.
+ * @param {{ user_metadata?: { first_name?: string }, email?: string } | null | undefined} user
+ * @param {'en' | 'es'} lang
+ */
+export function resolvePlaybookAccountName(user, lang = "en") {
+  const first = user?.user_metadata?.first_name?.trim();
+  if (first) return first;
+  const emailLocal = user?.email?.split("@")[0]?.trim();
+  if (emailLocal) return emailLocal;
+  return lang === "es" ? "equipo" : "there";
+}
+
+/** Default agent persona label until named agents ship. */
+export const MARKETING_GUIDE_AGENT_NAME = "bot";
+
+/**
  * Static Marketing Guide playbook — edit content/marketing/playbook.{en,es}.md
  * @param {string} brandName
  * @param {'en' | 'es'} [locale]
  * @param {import("./marketContextBundle.js").MarketContextBundle|null} [marketContextBundle]
+ * @param {{ accountName?: string, agentName?: string }} [persona]
  */
-function fillPlaybookTemplate(brandName, locale = "en", marketContextBundle = null) {
+function fillPlaybookTemplate(brandName, locale = "en", marketContextBundle = null, persona = {}) {
   const lang = locale === "es" ? "es" : "en";
   const brand = (brandName || "").trim() || (lang === "es" ? "marca" : "brand");
   const template = loadPlaybookTemplate(lang);
   const brandContextSection = buildBrandContextSection(brand, lang, marketContextBundle);
+  const accountName = (persona.accountName || "").trim()
+    || resolvePlaybookAccountName(null, lang);
+  const agentName = (persona.agentName || "").trim() || MARKETING_GUIDE_AGENT_NAME;
 
   return template
     .replace(/\{brand\}/g, brand)
+    .replace(/\{accountName\}/g, accountName)
+    .replace(/\{agentName\}/g, agentName)
     .replace(/\{brandContextSection\}/g, brandContextSection);
 }
 
-export function buildMarketingGuidePlaybookBody(brandName, locale = "en", marketContextBundle = null) {
-  return sanitizePlaybookText(fillPlaybookTemplate(brandName, locale, marketContextBundle));
+export function buildMarketingGuidePlaybookBody(
+  brandName,
+  locale = "en",
+  marketContextBundle = null,
+  persona = {},
+) {
+  return sanitizePlaybookText(fillPlaybookTemplate(brandName, locale, marketContextBundle, persona));
 }
 
 /**
@@ -83,8 +110,12 @@ export async function buildMarketingGuidePlaybookBodyAsync(
   marketContextBundle = null,
   options = {},
 ) {
-  const filled = fillPlaybookTemplate(brandName, locale, marketContextBundle);
-  const withImages = await resolvePlaybookImageCommandsInText(filled, options);
+  const { accountName, agentName, ...imageOptions } = options;
+  const filled = fillPlaybookTemplate(brandName, locale, marketContextBundle, {
+    accountName,
+    agentName,
+  });
+  const withImages = await resolvePlaybookImageCommandsInText(filled, imageOptions);
   return sanitizePlaybookText(withImages);
 }
 
@@ -92,7 +123,6 @@ export async function buildMarketingGuidePlaybookBodyAsync(
  * @param {string} brandName
  * @param {'en' | 'es'} lang
  */
-export function playbookDocTitle(brandName, lang) {
-  const brand = (brandName || "").trim() || (lang === "es" ? "marca" : "brand");
-  return `Playbook · ${brand}`;
+export function playbookDocTitle(_brandName, _lang) {
+  return "Marketing Guide";
 }

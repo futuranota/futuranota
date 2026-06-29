@@ -177,8 +177,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   const blockLinkColor = (block) => resolveBlockNodeLinkColor(block);
   const blockLinksEnabled = (block) => !isNoNodeLinkMode(blockLinkColor(block));
-  const isAnalystReport = reportPresentation?.kind === "analyst-strategic-v2";
-  const shouldAnimateReport = Boolean(reportPresentation?.animateOnOpen);
+  const isMarketingGuideReport = reportPresentation?.kind === "marketing-guide-v1";
+  const isAnalystReport = reportPresentation?.kind === "analyst-strategic-v2" || isMarketingGuideReport;
+  const shouldAnimateReport = Boolean(reportPresentation?.animateOnOpen) && !isMarketingGuideReport;
 
   const showScheduleForBlock = () => false;
 
@@ -1293,6 +1294,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               value={block.text || ""}
               analystReportStyle={isAnalystReport && isPrimaryReportBlock}
               reportAnimate={shouldAnimateReport && isPrimaryReportBlock}
+              reportStaticView={isMarketingGuideReport && isPrimaryReportBlock}
               onReportAnimationComplete={onReportAnimationComplete}
               embedded={block.embedded || null}
               linkedNodeId={(() => {

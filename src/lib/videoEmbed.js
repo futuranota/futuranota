@@ -1,3 +1,5 @@
+import { normalizeInlineTodoBlocks } from "./nodeInlineContent.js";
+
 const ALLOWED_EMBED_HOSTS = new Set([
   "www.youtube.com",
   "youtube.com",
@@ -193,9 +195,9 @@ export function normalizeEmbedSrcForPlayback(src) {
   return src;
 }
 
-export function buildVideoNodeContent(videoBlock, description = "", notes = "") {
+export function buildVideoNodeContent(videoBlock, description = "", notes = "", todoBlocks = undefined) {
   const embedSrc = normalizeEmbedSrcForPlayback(videoBlock?.embedSrc || "");
-  return {
+  const content = {
     kind: "embedded-video",
     provider: videoBlock?.provider || "unknown",
     videoId: videoBlock?.videoId || "",
@@ -204,6 +206,10 @@ export function buildVideoNodeContent(videoBlock, description = "", notes = "") 
     description: description || "",
     notes: typeof notes === "string" ? notes : "",
   };
+  if (Array.isArray(todoBlocks) && todoBlocks.length) {
+    content.todoBlocks = todoBlocks;
+  }
+  return content;
 }
 
 export function getVideoNodePayload(content) {
@@ -225,6 +231,12 @@ export function getVideoNodeNotes(content) {
   return getVideoNodePayload(content)?.notes || "";
 }
 
+export function getVideoNodeTodoBlocks(content) {
+  const payload = getVideoNodePayload(content);
+  if (!payload?.todoBlocks?.length) return [];
+  return normalizeInlineTodoBlocks(payload.todoBlocks);
+}
+
 /** Merge patch into embedded-video content while preserving other fields. */
 export function mergeVideoNodeContent(content, patch = {}) {
   const base = getVideoNodePayload(content) || buildVideoNodeContent(null, "", "");
@@ -234,10 +246,14 @@ export function mergeVideoNodeContent(content, patch = {}) {
     videoId: patch.videoId ?? base.videoId ?? "",
     embedSrc: patch.embedSrc ?? base.embedSrc ?? "",
   };
+  const nextTodoBlocks = patch.todoBlocks !== undefined
+    ? patch.todoBlocks
+    : base.todoBlocks;
   return buildVideoNodeContent(
     nextBlock,
     patch.description ?? base.description ?? "",
     patch.notes ?? base.notes ?? "",
+    nextTodoBlocks?.length ? normalizeInlineTodoBlocks(nextTodoBlocks) : undefined,
   );
 }
 

@@ -301,7 +301,7 @@ export async function runCampaignAnalyst({
     }
 
     const playbookHint = playbookDocId
-      ? (lang === "es" ? " · Playbook listo" : " · Playbook ready")
+      ? (lang === "es" ? " · Marketing Guide listo" : " · Marketing Guide ready")
       : "";
 
     return {

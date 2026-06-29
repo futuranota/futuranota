@@ -13,6 +13,17 @@ import { NodeQueryModal } from "./NodeQueryModal.jsx";
 import {
   parseCalendarEventNodeContent,
 } from "../../lib/eventCalendarSearch.js";
+import { buildVideoNodeContent } from "../../lib/videoEmbed.js";
+import {
+  createDefaultNodeTodoContent,
+  isNodeTodoContent,
+  normalizeNodeTodoContent,
+} from "../../lib/nodeTodoContent.js";
+import {
+  isNodeWritingBody,
+  parseNodeWritingBody,
+  serializeNodeWritingBody,
+} from "../../lib/nodeInlineContent.js";
 
 function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "").trim();
@@ -41,8 +52,23 @@ function contentToString(content, dataType) {
   if (dataType === "metric" && content != null && typeof content === "object") {
     return String(content.value ?? "");
   }
-  if (dataType === "checkbox" && typeof content === "boolean") {
-    return content ? "true" : "false";
+  if (dataType === "checkbox") {
+    return normalizeNodeTodoContent(content, getNodeDisplayTitle(node) || "Todo list:");
+  }
+  if (dataType === NODE_DATA_TYPES.TEXT) {
+    if (isNodeWritingBody(content)) return content;
+    if (typeof content === "string") return content;
+  }
+  if (dataType === "video") {
+    if (content && typeof content === "object") return content;
+    if (typeof content === "string") {
+      try {
+        return JSON.parse(content);
+      } catch {
+        return content;
+      }
+    }
+    return content ?? buildVideoNodeContent(null);
   }
   if (typeof content === "string") return content;
   if (content == null) return "";
@@ -67,8 +93,16 @@ function normalizeContentForType(nextType, prevContent) {
     return String(prevContent.value ?? "");
   }
 
-  if (nextType === "checkbox" && typeof prevContent === "boolean") {
-    return prevContent ? "true" : "false";
+  if (nextType === "checkbox") {
+    if (isNodeTodoContent(prevContent)) return prevContent;
+    if (typeof prevContent === "boolean") {
+      return normalizeNodeTodoContent(prevContent);
+    }
+    return createDefaultNodeTodoContent();
+  }
+  if (nextType === "video") {
+    if (prevContent && typeof prevContent === "object") return prevContent;
+    return buildVideoNodeContent(null);
   }
 
   return JSON.stringify(prevContent);
@@ -95,9 +129,16 @@ function parseContentForSave(text, dataType) {
     return { value: Number.isNaN(n) ? text : n, unit: "" };
   }
   if (dataType === "checkbox") {
-    if (typeof text === "boolean") return text;
-    const s = String(text).toLowerCase();
-    return s === "true" || s === "1" || s === "yes";
+    return normalizeNodeTodoContent(text);
+  }
+  if (dataType === NODE_DATA_TYPES.TEXT) {
+    if (isNodeWritingBody(text)) return text;
+    if (typeof text === "string") return text;
+    return serializeNodeWritingBody(parseNodeWritingBody(text));
+  }
+  if (dataType === "video") {
+    if (text && typeof text === "object") return text;
+    return buildVideoNodeContent(null);
   }
   return text;
 }
@@ -111,6 +152,7 @@ export function StandaloneNodeModal({
   parentObjectId = null,
   queryCanvasNodeId = null,
   embedded = false,
+  initialContentFocus = false,
   onClose,
   onSaved,
   onDeleted,
@@ -205,6 +247,7 @@ export function StandaloneNodeModal({
         NODE_DATA_TYPES.DATE,
         NODE_DATA_TYPES.METRIC,
         NODE_DATA_TYPES.CHECKBOX,
+        NODE_DATA_TYPES.VIDEO,
       ]}
       createdDate={createdDate || todayDateInputValue()}
       onCreatedDateChange={setCreatedDate}
@@ -219,6 +262,8 @@ export function StandaloneNodeModal({
       onSave={handleSave}
       onClose={onClose}
       embedded={embedded}
+      initialContentFocus={initialContentFocus}
+      entityNodeId={node?.id ?? null}
       intelSearchMeta={
         node?.id
           ? {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   NODE_ICON,
@@ -9,7 +9,30 @@ import { IntelSearchButton } from "../shared/IntelSearchButton.jsx";
 import { runIntelSearch } from "../../lib/intelSearch.js";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
+import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
+import { DocSlashCommandPicker } from "../docs/blocks/DocSlashCommandPicker.jsx";
+import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
+import { NodeInlineTodoStack } from "./NodeInlineTodoStack.jsx";
+import { createTodoItem } from "../../lib/docBlocks.js";
+import {
+  applySlashTailToNodeField,
+  initialNodeShapeFromSlash,
+  isNodeSlashCommandEnabled,
+  NODE_SLASH_COMMANDS,
+  parseNodeSlashQuery,
+  splitBodyForSlash,
+} from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import {
+  createInlineTodoBlock,
+  parseNodeWritingBody,
+  serializeNodeWritingBody,
+} from "../../lib/nodeInlineContent.js";
+import {
+  normalizeNodeTodoContent,
+} from "../../lib/nodeTodoContent.js";
+import { mergeVideoNodeContent } from "../../lib/videoEmbed.js";
+import { VideoEmbedBar } from "../intel/VideoEmbedBar.jsx";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { CalendarEventNodeView } from "../intel/CalendarEventNodeView.jsx";
@@ -44,10 +67,10 @@ export function NodeQueryModal({
   onClose,
   onSave,
   onBackToDocument,
-  onExpand,
-  expanded = false,
+  initialContentFocus = false,
   onSendToIntelSearch,
   onInsertToCanvas: _onInsertToCanvas,
+  entityNodeId = null,
   intelSearchMeta = null,
   anchorDate = "",
   anchorTime = "",
@@ -58,6 +81,10 @@ export function NodeQueryModal({
   const { t } = useI18n();
   const bodyRef = useRef(null);
   const queryInputRef = useRef(null);
+  const contentScrollRef = useRef(null);
+  const [contentFocusMode, setContentFocusMode] = useState(initialContentFocus);
+  const [todoFocusItemId, setTodoFocusItemId] = useState(null);
+  const [inlineTodoFocusTarget, setInlineTodoFocusTarget] = useState(null);
   const displayQuery = (query || "").trim() || "Untitled";
   const queryEditable = Boolean(onQueryChange);
   const parentSelectable = Boolean(onParentDocIdChange);
@@ -73,7 +100,10 @@ export function NodeQueryModal({
   const handleDismiss = onBackToDocument || onClose;
   const showCloseButton = Boolean(onClose && !onBackToDocument);
   const showReturnLink = Boolean(onBackToDocument);
-  const showExpandButton = Boolean(onExpand && !expanded);
+  const showExpandButton = !contentFocusMode;
+  const toggleContentFocus = useCallback(() => {
+    setContentFocusMode((value) => !value);
+  }, []);
   const setActiveNodeQueryDraft = useUIStateStore((s) => s.setActiveNodeQueryDraft);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
   const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
@@ -97,10 +127,34 @@ export function NodeQueryModal({
         : { value: content != null && content !== "" ? String(content) : "", unit: "" }
       : { value: "", unit: "" };
 
-  const checkboxChecked =
+  const checkboxTodoContent =
     dataType === "checkbox"
-      ? content === true || String(content).toLowerCase() === "true"
-      : false;
+      ? normalizeNodeTodoContent(content, displayQuery || "Todo list:")
+      : null;
+
+  const updateTodoContent = useCallback((patch) => {
+    if (!checkboxTodoContent) return;
+    onContentChange({ ...checkboxTodoContent, ...patch });
+  }, [checkboxTodoContent, onContentChange]);
+
+  const handleTodoItemKeyDown = useCallback((itemIndex, e) => {
+    if (!checkboxTodoContent) return;
+    const items = checkboxTodoContent.items || [];
+    const item = items[itemIndex];
+    if (!item) return;
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const newItem = createTodoItem({ text: "" });
+      const nextItems = [
+        ...items.slice(0, itemIndex + 1),
+        newItem,
+        ...items.slice(itemIndex + 1),
+      ];
+      updateTodoContent({ items: nextItems });
+      setTodoFocusItemId(newItem.id);
+    }
+  }, [checkboxTodoContent, updateTodoContent]);
 
   const showScheduleAnchor =
     Boolean(onAnchorDateChange)
@@ -109,9 +163,123 @@ export function NodeQueryModal({
   const calendarPayload =
     dataType === NODE_DATA_TYPES.TEXT ? parseCalendarEventNodeContent(content) : null;
 
+  const textWritingBody =
+    dataType === NODE_DATA_TYPES.TEXT && !calendarPayload
+      ? parseNodeWritingBody(content)
+      : null;
+
+  const slashCommandsEnabled = Boolean(onDataTypeChange);
+
+  const updateWritingBody = useCallback((patch) => {
+    const current = parseNodeWritingBody(content);
+    onContentChange(serializeNodeWritingBody({
+      text: patch.text ?? current.text,
+      todoBlocks: patch.todoBlocks ?? current.todoBlocks,
+    }));
+  }, [content, onContentChange]);
+
+  const appendInlineTodoBlock = useCallback((textOverride) => {
+    const current = parseNodeWritingBody(content);
+    const nextBlock = createInlineTodoBlock();
+    const nextBlocks = [...current.todoBlocks, nextBlock];
+    updateWritingBody({
+      text: textOverride ?? current.text,
+      todoBlocks: nextBlocks,
+    });
+    setInlineTodoFocusTarget({
+      blockIndex: nextBlocks.length - 1,
+      itemId: nextBlock.items[0]?.id ?? null,
+    });
+  }, [content, updateWritingBody]);
+
+  const applySlashFromAlias = useCallback((alias, textPrefix = "") => {
+    const parsed = parseNodeSlashQuery(alias);
+    if (
+      parsed?.nodeDataType === NODE_DATA_TYPES.CHECKBOX
+      && dataType === NODE_DATA_TYPES.TEXT
+      && !calendarPayload
+    ) {
+      appendInlineTodoBlock(textPrefix);
+      return;
+    }
+    if (!onDataTypeChange) return;
+    const shape = initialNodeShapeFromSlash(alias, textPrefix);
+    if (!shape) return;
+    onDataTypeChange(shape.dataType);
+    onContentChange(shape.content);
+    if (shape.defaultTitle && onQueryChange && !(query || "").trim()) {
+      onQueryChange(shape.defaultTitle);
+    }
+  }, [
+    appendInlineTodoBlock,
+    calendarPayload,
+    dataType,
+    onContentChange,
+    onDataTypeChange,
+    onQueryChange,
+    query,
+  ]);
+
+  const confirmSlashInText = useCallback(() => {
+    const current = parseNodeWritingBody(content);
+    const { prefix, slash } = splitBodyForSlash(current.text);
+    if (!slash) return false;
+    const parsed = parseNodeSlashQuery(slash.slice(1));
+    if (!parsed) return false;
+    if (
+      parsed.nodeDataType === NODE_DATA_TYPES.CHECKBOX
+      && dataType === NODE_DATA_TYPES.TEXT
+      && !calendarPayload
+    ) {
+      appendInlineTodoBlock(prefix);
+      return true;
+    }
+    const shape = applySlashTailToNodeField(current.text);
+    if (!shape) return false;
+    onDataTypeChange?.(shape.dataType);
+    onContentChange(shape.content);
+    if (shape.defaultTitle && onQueryChange && !(query || "").trim()) {
+      onQueryChange(shape.defaultTitle);
+    }
+    return true;
+  }, [
+    appendInlineTodoBlock,
+    calendarPayload,
+    content,
+    dataType,
+    onContentChange,
+    onDataTypeChange,
+    onQueryChange,
+    query,
+  ]);
+
+  const handleTextSlashKeyDown = useCallback((e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    const text = textWritingBody?.text ?? "";
+    const { slash } = splitBodyForSlash(text);
+    if (!slash) return;
+    const parsed = parseNodeSlashQuery(slash.slice(1));
+    if (!parsed) return;
+    e.preventDefault();
+    confirmSlashInText();
+  }, [confirmSlashInText, textWritingBody?.text]);
+
   useEffect(() => {
+    if (dataType === "checkbox") return;
     bodyRef.current?.focus();
   }, [dataType]);
+
+  useEffect(() => {
+    setContentFocusMode(initialContentFocus);
+  }, [initialContentFocus]);
+
+  useEffect(() => {
+    if (!contentFocusMode) return undefined;
+    const frame = requestAnimationFrame(() => {
+      contentScrollRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [contentFocusMode]);
 
   const syncQueryInputHeight = useCallback(() => {
     const el = queryInputRef.current;
@@ -163,7 +331,7 @@ export function NodeQueryModal({
       <div
         className={
           "lp-modal node-query-modal"
-          + (expanded ? " node-query-modal--expanded" : "")
+          + (contentFocusMode ? " node-query-modal--content-focus" : "")
         }
         onClick={(e) => e.stopPropagation()}
         role="dialog"
@@ -208,7 +376,7 @@ export function NodeQueryModal({
                 <button
                   type="button"
                   className="node-query-modal__expand-btn"
-                  onClick={onExpand}
+                  onClick={toggleContentFocus}
                   title={t("canvas.expandNode")}
                   aria-label={t("canvas.expandNode")}
                 >
@@ -273,9 +441,45 @@ export function NodeQueryModal({
           className={
             "node-query-modal__content-box"
             + (calendarPayload ? " node-query-modal__content-box--calendar" : "")
+            + (slashCommandsEnabled ? " node-query-modal__content-box--slash" : "")
+            + (dataType === "checkbox" ? " node-query-modal__content-box--todo" : "")
+            + (contentFocusMode ? " node-query-modal__content-box--focus" : "")
           }
         >
-          {dataType === "date" ? (
+          <div
+            ref={contentScrollRef}
+            tabIndex={-1}
+            className={
+              "node-query-modal__content-scroll"
+              + (contentFocusMode ? " node-query-modal__content-scroll--focus" : "")
+            }
+          >
+            <button
+              type="button"
+              className={
+                "doc-new-content-expand-btn node-query-modal__content-expand-btn"
+                + (contentFocusMode ? " is-focus" : "")
+              }
+              onClick={toggleContentFocus}
+              aria-label={contentFocusMode ? t("canvas.collapseNode") : t("canvas.expandNode")}
+              aria-pressed={contentFocusMode}
+              title={contentFocusMode ? t("canvas.collapseNode") : t("canvas.expandNode")}
+            >
+              <span className="doc-new-content-expand-btn__icon" aria-hidden />
+            </button>
+          {dataType === NODE_DATA_TYPES.VIDEO ? (
+            <VideoEmbedBar
+              nodeId={entityNodeId}
+              onEmbedChange={(parsed) => {
+                onContentChange(mergeVideoNodeContent(content, {
+                  rawInput: parsed.rawInput,
+                  provider: parsed.provider,
+                  videoId: parsed.videoId,
+                  embedSrc: parsed.embedSrc,
+                }));
+              }}
+            />
+          ) : dataType === "date" ? (
             <div className="node-query-modal__date-editor">
               <input
                 ref={bodyRef}
@@ -307,32 +511,74 @@ export function NodeQueryModal({
               }
             />
           ) : dataType === "checkbox" ? (
-            <label className="node-query-modal__checkbox-row">
-              <input
-                ref={bodyRef}
-                type="checkbox"
-                checked={checkboxChecked}
-                onChange={(e) => onContentChange(e.target.checked)}
-                aria-label="Checkbox value"
+            <div className="node-query-modal__todo">
+              <DocTodoPlanBlockView
+                listTitle={checkboxTodoContent.listTitle}
+                onListTitleChange={(listTitle) => updateTodoContent({ listTitle })}
+                linksEnabled={false}
+                showDragHandle={false}
+                items={checkboxTodoContent.items}
+                focusItemId={todoFocusItemId}
+                onItemsChange={(items) => updateTodoContent({ items })}
+                onItemKeyDown={handleTodoItemKeyDown}
+                onAddItem={() => {
+                  const newItem = createTodoItem({ text: "" });
+                  updateTodoContent({ items: [...checkboxTodoContent.items, newItem] });
+                  setTodoFocusItemId(newItem.id);
+                }}
               />
-              <span>Checked</span>
-            </label>
+            </div>
+          ) : dataType === NODE_DATA_TYPES.TEXT && !calendarPayload ? (
+            <div className="node-query-modal__field-shell">
+              {textWritingBody?.todoBlocks?.length ? (
+                <NodeInlineTodoStack
+                  className="node-query-modal__todo-stack"
+                  todoBlocks={textWritingBody.todoBlocks}
+                  onTodoBlocksChange={(todoBlocks) => updateWritingBody({ todoBlocks })}
+                  focusTarget={inlineTodoFocusTarget}
+                  onFocusTargetChange={setInlineTodoFocusTarget}
+                />
+              ) : null}
+              <SlashAwareTextarea
+                inputRef={bodyRef}
+                className="node-query-modal__body node-query-modal__body--embedded"
+                wrapClassName="node-query-modal__slash-wrap node-query-modal__slash-wrap--embedded"
+                value={textWritingBody?.text ?? ""}
+                placeholder={slashCommandsEnabled ? "Type your text here, or /todo for lists" : "Type your text here"}
+                onChange={(value) => updateWritingBody({ text: value })}
+                onKeyDown={slashCommandsEnabled ? handleTextSlashKeyDown : undefined}
+                minHeightPx={72}
+                maxHeightPx={320}
+                ariaLabel="Contenido del nodo"
+              />
+            </div>
           ) : calendarPayload ? (
             <CalendarEventNodeView
               content={content}
               className="node-query-modal__calendar-body"
             />
           ) : (
-            <textarea
-              ref={bodyRef}
+            <SlashAwareTextarea
+              inputRef={bodyRef}
               className="node-query-modal__body"
+              wrapClassName="node-query-modal__slash-wrap"
               value={typeof content === "string" ? content : ""}
               placeholder="Type your text here"
-              onChange={(e) => onContentChange(e.target.value)}
-              spellCheck={false}
-              aria-label="Contenido del nodo"
+              onChange={onContentChange}
+              minHeightPx={120}
+              maxHeightPx={320}
+              ariaLabel="Contenido del nodo"
             />
           )}
+          </div>
+          {slashCommandsEnabled ? (
+            <DocSlashCommandPicker
+              variant="floating"
+              commands={NODE_SLASH_COMMANDS}
+              onSelectCommand={applySlashFromAlias}
+              isCommandEnabled={isNodeSlashCommandEnabled}
+            />
+          ) : null}
         </div>
 
         <footer className="node-query-modal__footer-row">
@@ -377,7 +623,7 @@ export function NodeQueryModal({
     "node-query-overlay",
     "lp-overlay--solid",
     "lp-overlay--center",
-    expanded ? "node-query-overlay--expanded" : "",
+    contentFocusMode ? "node-query-overlay--content-focus" : "",
   ].filter(Boolean).join(" ");
 
   return createPortal(

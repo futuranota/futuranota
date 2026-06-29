@@ -4,6 +4,7 @@ import { NodeLinkColorPicker } from "./NodeLinkColorPicker.jsx";
 
 /** Floating slash-command picker — block commands + optional node link colors. */
 export function DocSlashCommandPicker({
+  commands = DOC_SLASH_COMMANDS,
   onSelectCommand,
   isCommandEnabled,
   variant = "floating",
@@ -34,7 +35,7 @@ export function DocSlashCommandPicker({
       {open ? (
         <div className="doc-slash-command-picker__menu" role="dialog" aria-label="Document tools">
           <div className="doc-slash-command-picker__commands" role="listbox" aria-label="Block commands">
-            {DOC_SLASH_COMMANDS.map((cmd) => {
+            {commands.map((cmd) => {
               const enabled = isCommandEnabled?.(cmd) !== false;
               const slashLabel = `/${cmd.aliases[0]}`;
               return (

@@ -995,6 +995,7 @@ export function LeftPanel({
   const [folderOpen, setFolderOpen] = useState(false);
   const [objectWorkspaceActive, setObjectWorkspaceActive] = useState(false);
   const [nodeEditId, setNodeEditId] = useState(null);
+  const [nodeEditContentFocus, setNodeEditContentFocus] = useState(false);
   const [nodeSearch, setNodeSearch] = useState("");
   const [clickFolderView, setClickFolderView] = useState(null);
   const [packImportActive, setPackImportActive] = useState(false);
@@ -1673,11 +1674,16 @@ export function LeftPanel({
                   onOpenDoc={() => handleOpenFolderDoc(doc.id)}
                   onNodeClick={(node) => {
                     setActiveId(node.id);
+                    setNodeEditContentFocus(false);
                     setNodeEditId(node.id);
                   }}
                   onNodeInsert={(node) => onInsertToCanvas?.(node)}
                   onNodeDelete={(node) => deleteNode(node.id)}
-                  onNodeExpand={(node) => onExpandNode?.(node.id)}
+                  onNodeExpand={(node) => {
+                    setActiveId(node.id);
+                    setNodeEditContentFocus(true);
+                    setNodeEditId(node.id);
+                  }}
                 />
               ))}
               {groupedNodeViews.orphans.length ? (
@@ -1688,11 +1694,16 @@ export function LeftPanel({
                   objects={objects}
                   onNodeClick={(node) => {
                     setActiveId(node.id);
+                    setNodeEditContentFocus(false);
                     setNodeEditId(node.id);
                   }}
                   onNodeInsert={(node) => onInsertToCanvas?.(node)}
                   onNodeDelete={(node) => deleteNode(node.id)}
-                  onNodeExpand={(node) => onExpandNode?.(node.id)}
+                  onNodeExpand={(node) => {
+                    setActiveId(node.id);
+                    setNodeEditContentFocus(true);
+                    setNodeEditId(node.id);
+                  }}
                 />
               ) : null}
             </div>
@@ -1752,8 +1763,10 @@ export function LeftPanel({
           parentObjectId={activeObjectId}
           onClose={() => {
             setNodeEditId(null);
+            setNodeEditContentFocus(false);
             setActiveId(null);
           }}
+          initialContentFocus={nodeEditContentFocus}
           onSaved={() => {}}
           onDeleted={(id) => {
             deleteNode(id);

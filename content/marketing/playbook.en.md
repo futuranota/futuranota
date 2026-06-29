@@ -1,4 +1,4 @@
-# Playbook · {brand}
+# Marketing Guide
 
 How to use Futura Nota with this signal. You do not need to know your product yet.
 
