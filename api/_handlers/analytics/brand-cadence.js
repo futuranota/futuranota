@@ -2,7 +2,7 @@
 // Vercel Function — migrada desde server/brandCadenceHandler.js
 // Usa process.env (no import.meta.env) — estándar de Vercel Functions
 
-import { completeJson } from "../../server/llmJson.js";
+import { completeJson } from "../../../server/llmJson.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 

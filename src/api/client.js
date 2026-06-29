@@ -11,7 +11,7 @@ export async function apiClient(url, init = {}) {
       throw new Error(
         `API 404 en ${url}. `
         + "En local usá `npm run dev` (no vite preview). "
-        + "En Vercel, verificá que exista api/analytics/*.js.",
+        + "En Vercel, verificá que exista api/analytics/[endpoint].js.",
       );
     }
     throw new Error(`API ${res.status} ${url}: ${detail}`);

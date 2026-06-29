@@ -1,4 +1,4 @@
-import { processManagementOverviewRequest } from "../../server/managementHandler.js";
+import { processWeatherForecastRequest } from "../../server/weatherHandler.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -16,14 +16,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await processManagementOverviewRequest({
+    const result = await processWeatherForecastRequest({
+      method: req.method,
+      url: req.url || "/api/weather/forecast",
       headers: req.headers,
-      url: req.url,
     });
     res.status(result.status).json(result.body);
   } catch (err) {
-    res.status(500).json({
-      error: err instanceof Error ? err.message : "Management overview failed",
-    });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Weather fetch failed" });
   }
 }

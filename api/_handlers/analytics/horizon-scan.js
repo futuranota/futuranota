@@ -1,7 +1,7 @@
 // api/analytics/horizon-scan.js
 // Vercel Function — verified scan via Serper + Groq extract-only.
 
-import { scanHorizonVerified } from "../../server/horizonScanHandler.js";
+import { scanHorizonVerified } from "../../../server/horizonScanHandler.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

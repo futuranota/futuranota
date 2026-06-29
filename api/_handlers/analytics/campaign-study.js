@@ -1,4 +1,4 @@
-import { processCampaignStudyRequest } from "../../server/campaignStudyHandler.js";
+import { processCampaignStudyRequest } from "../../../server/campaignStudyHandler.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

@@ -1,4 +1,4 @@
-import { processIntelOverviewRequest } from "../../server/intelOverviewHandler.js";
+import { processIntelOverviewRequest } from "../../../server/intelOverviewHandler.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

@@ -1,8 +1,8 @@
 // api/analytics/campaign-detect.js
 // Vercel Function — espejo de server/campaignDetectorHandler.js para producción.
 
-import { detectBrandIntel } from "../../server/brandCampaignIntel.js";
-import { DEFAULT_RANGE_DAYS } from "../../src/lib/campaignWindow.js";
+import { detectBrandIntel } from "../../../server/brandCampaignIntel.js";
+import { DEFAULT_RANGE_DAYS } from "../../../src/lib/campaignWindow.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

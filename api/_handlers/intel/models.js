@@ -1,4 +1,4 @@
-import { getActiveIntelModelsForPlan } from "../../server/intelModels.js";
+import { getActiveIntelModelsForPlan } from "../../../server/intelModels.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
