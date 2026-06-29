@@ -6,13 +6,13 @@ import { debitIntelCredit } from "../debitIntelCredit.js";
 import { translate } from "../../i18n/useI18n.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { useDocsStore } from "../../stores/docsStore.js";
 import { DEFAULT_RANGE_DAYS } from "../campaignWindow.js";
+import { TEMPLATE_KIND_CAMPAIGN } from "../templateDoc.js";
 import { resolveAgentGraph, isOrchestratorTargetDoc } from "./resolveAgentGraph.js";
 import { buildCanvasContextSummary } from "./buildCanvasContextSummary.js";
 import { applyAnalystReportToDoc } from "./applyAnalystReportToDoc.js";
 import { resolveLaunchRadarObjectId } from "./resolveLaunchRadarObjectId.js";
-import { runMarketingGuide } from "./runMarketingGuide.js";
-import { buildMarketContextBundle } from "./marketContextBundle.js";
 import { getAgentRunCost } from "./agentCreditCosts.js";
 import { AGENT_CAMPAIGN_ANALYST } from "./registry.js";
 import { isDeliverableAnalystReport, slimDetectionForAnalyst } from "./analystReportQuality.js";
@@ -24,7 +24,6 @@ import { isDeliverableAnalystReport, slimDetectionForAnalyst } from "./analystRe
  * @property {string} brandName
  * @property {import("../fetchCampaignDetection.js").CampaignDetectionResponse} detection
  * @property {import("../fetchCampaignAnalyst.js").CampaignAnalystReport} analystReport
- * @property {string} [playbookDocId]
  * @property {string} [userFacingMessage]
  */
 
@@ -116,20 +115,48 @@ export async function runCampaignAnalyst({
     locale: lang,
   });
 
-  const { brandName, targetDocId, targetDoc } = graph;
+  const { brandName, targetDocId: graphTargetDocId, targetDoc: graphTargetDoc } = graph;
 
   if (!brandName) {
     return { status: "error", code: "no_brand", message: analystErrorMessage("no_brand", lang) };
   }
-  if (!targetDocId) {
-    return { status: "error", code: "no_target_doc", message: analystErrorMessage("no_target_doc", lang) };
+
+  const objectInput = (graph.inputs || []).find(
+    (n) => n && (n.canvasKind === "object" || n.dataType === "object"),
+  );
+  const parentObjectId = graph.targetObjectId
+    || objectInput?.objectId
+    || selectedObjectId
+    || resolveLaunchRadarObjectId(objectsById, brandName, null);
+
+  let targetDocId = graphTargetDocId;
+  let targetDoc = graphTargetDoc;
+  let wireOutputDocCanvasNodeId = null;
+
+  if (targetDocId && !isOrchestratorTargetDoc(targetDoc)) {
+    targetDocId = null;
+    targetDoc = null;
   }
-  if (!isOrchestratorTargetDoc(targetDoc)) {
-    return {
-      status: "error",
-      code: "invalid_target_doc",
-      message: analystErrorMessage("invalid_target_doc", lang),
-    };
+
+  if (!targetDocId) {
+    const outputDocNode = (graph.outputs || []).find(
+      (n) => n && (n.canvasKind === "document" || n.dataType === "document"),
+    );
+    if (outputDocNode?.id) {
+      wireOutputDocCanvasNodeId = outputDocNode.id;
+    }
+
+    targetDocId = useDocsStore.getState().addDoc(
+      lang === "es" ? `Campaña · ${brandName}` : `Campaign · ${brandName}`,
+      parentObjectId,
+      [],
+      ["campaign", "intel"],
+      "",
+      null,
+      null,
+      { docKind: "template", templateKind: TEMPLATE_KIND_CAMPAIGN },
+    );
+    targetDoc = useDocsStore.getState().getDoc(targetDocId);
   }
 
   const agentRunCost = getAgentRunCost(AGENT_CAMPAIGN_ANALYST);
@@ -239,6 +266,11 @@ export async function runCampaignAnalyst({
       };
     }
 
+    targetDoc = useDocsStore.getState().getDoc(targetDocId) || targetDoc;
+    if (!targetDoc) {
+      return { status: "error", code: "api", message: analystErrorMessage("api", lang) };
+    }
+
     const wroteDoc = applyAnalystReportToDoc(
       targetDocId,
       analystReport,
@@ -278,42 +310,20 @@ export async function runCampaignAnalyst({
 
     const preview = (analystReport?.openingBrief || analystReport?.whatsNew || "").slice(0, 80);
 
-    const parentObjectId = targetDoc?.parentObjectId
-      || graph.targetObjectId
-      || resolveLaunchRadarObjectId(
-        useObjectsStore.getState().objects,
-        brandName,
-        targetDoc?.parentObjectId || graph.targetObjectId,
-      );
-
-    let playbookDocId = null;
-    const marketContextBundle = buildMarketContextBundle(analystReport, detection, brandName);
-    const guideResult = await runMarketingGuide({
-      brandName,
-      detection,
-      analystReport,
-      marketContextBundle,
-      parentObjectId,
-      locale: lang,
-    });
-    if (guideResult.status === "success") {
-      playbookDocId = guideResult.docId;
-    }
-
-    const playbookHint = playbookDocId
-      ? (lang === "es" ? " · Marketing Guide listo" : " · Marketing Guide ready")
-      : "";
+    const launchRadarHint = lang === "es"
+      ? " · Abrí Launch Radar en Intel para cargar los datos"
+      : " · Open Launch Radar in Intel to load the data";
 
     return {
       status: "success",
       docId: targetDocId,
-      playbookDocId,
       brandName,
       detection,
       analystReport,
+      wireOutputDocCanvasNodeId,
       userFacingMessage: lang === "es"
-        ? `Intel aplicado · ${brandName}${playbookHint}${preview ? ` · ${preview}${((analystReport?.openingBrief || analystReport?.whatsNew)?.length || 0) > 80 ? "…" : ""}` : ""}`
-        : `Intel applied · ${brandName}${playbookHint}${preview ? ` · ${preview}${((analystReport?.openingBrief || analystReport?.whatsNew)?.length || 0) > 80 ? "…" : ""}` : ""}`,
+        ? `Informe del analista · ${brandName}${launchRadarHint}${preview ? ` · ${preview}${((analystReport?.openingBrief || analystReport?.whatsNew)?.length || 0) > 80 ? "…" : ""}` : ""}`
+        : `Analyst report · ${brandName}${launchRadarHint}${preview ? ` · ${preview}${((analystReport?.openingBrief || analystReport?.whatsNew)?.length || 0) > 80 ? "…" : ""}` : ""}`,
     };
   } catch (err) {
     return {

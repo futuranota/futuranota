@@ -6,11 +6,34 @@ import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { buildStrategicReportBody } from "./buildStrategicReportBody.js";
 import { mapDetectionToCadence } from "./mapDetectionToCadence.js";
+import { resolveLaunchRadarObjectId } from "./resolveLaunchRadarObjectId.js";
+import { onCampaignAnalystLoopComplete } from "../panelAgentLoop.js";
 import {
   buildLaunchRadarSnapshot,
+  deriveLaunchRadarFromDocMeta,
   launchRadarSnapshotHasData,
   writeLaunchRadarToDoc,
 } from "../launchRadarSnapshot.js";
+
+/**
+ * @param {string|null|undefined} objectId
+ * @param {import("../launchRadarSnapshot.js").LaunchRadarSnapshot} snapshot
+ */
+function writeLaunchRadarToObject(objectId, snapshot) {
+  if (!objectId || !snapshot || !launchRadarSnapshotHasData(snapshot)) return;
+
+  const { objects, updateObject } = useObjectsStore.getState();
+  const object = objects[objectId];
+  if (!object) return;
+
+  updateObject(objectId, {
+    cadence: {
+      ...(object.cadence || {}),
+      launchRadarSnapshot: snapshot,
+      launchRadarSnapshotAt: snapshot.updatedAt || new Date().toISOString(),
+    },
+  });
+}
 
 const CATEGORY_LABELS = {
   en: {
@@ -98,8 +121,12 @@ export function applyAnalystReportToDoc(docId, report, detection, brandName, loc
 
   const meta = campaignMetaFromDetection(detection, report, brandName, doc, lang);
 
+  const textBlock = createDocBlock("text", { text: bodyText });
+
   store.updateDoc(docId, {
-    blocks: [createDocBlock("text", { text: bodyText })],
+    blocks: [textBlock],
+    content: bodyText,
+    body: bodyText,
     campaignActive: meta.campaignActive,
     launchAt: meta.launchAt,
     category: meta.category,
@@ -110,17 +137,38 @@ export function applyAnalystReportToDoc(docId, report, detection, brandName, loc
     },
   });
 
+  useUIStateStore.getState().clearDocEditorDraft(docId);
+
   const parentObjectId = doc.parentObjectId || null;
   const parentObject = parentObjectId
     ? useObjectsStore.getState().objects[parentObjectId]
     : null;
   const cadence = mapDetectionToCadence(detection, brandName, parentObject?.cadence || {});
   const snapshot = buildLaunchRadarSnapshot(cadence, detection, brandName, "analyst-doc");
-  if (launchRadarSnapshotHasData(snapshot)) {
-    writeLaunchRadarToDoc(docId, snapshot);
+  const updatedDoc = store.getDoc(docId);
+  const finalSnapshot = launchRadarSnapshotHasData(snapshot)
+    ? snapshot
+    : deriveLaunchRadarFromDocMeta(updatedDoc, brandName);
+
+  if (launchRadarSnapshotHasData(finalSnapshot)) {
+    writeLaunchRadarToDoc(docId, finalSnapshot);
+    const objectId = resolveLaunchRadarObjectId(
+      useObjectsStore.getState().objects,
+      brandName,
+      parentObjectId,
+    );
+    writeLaunchRadarToObject(objectId, finalSnapshot);
   }
 
-  useUIStateStore.getState().clearDocEditorDraft(docId);
+  const radarObjectId = resolveLaunchRadarObjectId(
+    useObjectsStore.getState().objects,
+    brandName,
+    parentObjectId,
+  );
+  onCampaignAnalystLoopComplete(radarObjectId);
+  if (parentObjectId && parentObjectId !== radarObjectId) {
+    onCampaignAnalystLoopComplete(parentObjectId);
+  }
 
   return true;
 }

@@ -28,7 +28,8 @@ import { IntelModelSelect } from './components/intel/IntelModelSelect.jsx';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
 import { getDefaultCampaignSearchQuery } from './lib/campaignSearchStarters.js';
-import { resolveIntelCampaignBrand } from './lib/currentCorpus.js';
+import { resolveCurrentCorpus, resolveIntelCampaignBrand } from './lib/currentCorpus.js';
+import { resolveLaunchRadarObjectId } from './lib/agents/resolveLaunchRadarObjectId.js';
 import { isCalendarEventNodeContent } from './lib/eventCalendarSearch.js';
 import { isWeatherForecastNodeContent } from './lib/forecastSearch.js';
 import { CalendarEventNodeView } from './components/intel/CalendarEventNodeView.jsx';
@@ -723,6 +724,7 @@ function IntelFoldersSection({
   onInsertForecastNode,
   onInsertEventNode,
   corpusBrandName = "",
+  corpusObjectId = null,
   selectedObjectId = null,
 }) {
   const { t } = useI18n();
@@ -785,7 +787,7 @@ function IntelFoldersSection({
           <div className="intel-market-hype-wrap">
             <MarketHypePanel
               brandName={corpusBrandName}
-              parentObjectId={selectedObjectId}
+              corpusObjectId={corpusObjectId}
               today={today}
             />
           </div>
@@ -880,6 +882,16 @@ function IntelPanel({
     () => ({ brandName: resolveIntelCampaignBrand(objectsById, selectedObjectId) }),
     [objectsById, selectedObjectId],
   );
+
+  const { corpusScopeBrand, corpusObjectId } = useMemo(() => {
+    const { currentCorpus, brandName } = resolveCurrentCorpus(objectsById, selectedObjectId);
+    const stableBrand = brandName || resolveIntelCampaignBrand(objectsById, selectedObjectId);
+    return {
+      corpusScopeBrand: stableBrand,
+      corpusObjectId: currentCorpus?.id
+        || resolveLaunchRadarObjectId(objectsById, stableBrand, null),
+    };
+  }, [objectsById, selectedObjectId]);
 
   const syncIntelQueryHeight = () => {
     const el = intelQueryRef.current;
@@ -1168,7 +1180,8 @@ function IntelPanel({
           canvasNodes={canvasNodes}
           onInsertForecastNode={onInsertForecastNode}
           onInsertEventNode={onInsertEventNode}
-          corpusBrandName={corpusBrandName}
+          corpusBrandName={corpusScopeBrand}
+          corpusObjectId={corpusObjectId}
           selectedObjectId={selectedObjectId}
         />
       </div>

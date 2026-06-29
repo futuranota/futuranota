@@ -1287,6 +1287,15 @@ textarea.field {
   color: rgba(255, 255, 255, 0.88);
   font-weight: 500;
 }
+
+.intel-market-hype-panel__footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
 .intel-folder-panel--with-search {
   display: flex;
   flex-direction: column;

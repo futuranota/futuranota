@@ -34,7 +34,7 @@ import {
   buildHeuristicCadenceFromDetection,
   mapSoftCadenceToHeuristic,
 } from "../src/lib/heuristicCadence.js";
-import { parseIsoDate } from "../src/lib/launchCadenceMath.js";
+import { parseIsoDate, toIsoDateString } from "../src/lib/launchCadenceMath.js";
 
 const MAX_SNIPPETS = 24;
 
@@ -219,13 +219,18 @@ function pickBrandHit(hits, brandName) {
   );
 }
 
+function toIsoLaunchDate(value) {
+  const parsed = parseIsoDate(value);
+  return parsed ? toIsoDateString(parsed) : null;
+}
+
 /**
  * @param {unknown[]} rawList
  * @param {string} brandName
  */
 function pickSoftCadenceHit(rawList, brandName) {
   const candidates = rawList.filter((raw) => {
-    const lastLaunchDate = parseIsoDate(raw?.lastLaunchDate);
+    const lastLaunchDate = toIsoLaunchDate(raw?.lastLaunchDate);
     const avg = Number(raw?.averageIntervalMonths);
     return lastLaunchDate && Number.isFinite(avg) && avg > 0 && avg <= 60;
   });
@@ -286,7 +291,7 @@ async function runCadencePassB(brandName, todayIso, rangeDays) {
     campaignActive: false,
     announcementDate: null,
     launchDate: null,
-    lastLaunchDate: parseIsoDate(softRaw.lastLaunchDate),
+    lastLaunchDate: toIsoLaunchDate(softRaw.lastLaunchDate),
     averageIntervalMonths: Math.round(Number(softRaw.averageIntervalMonths) * 10) / 10,
     overview: typeof softRaw.overview === "string" ? softRaw.overview.trim() : "",
     confidence: Number.isFinite(Number(softRaw.confidence)) ? Math.round(Number(softRaw.confidence)) : null,

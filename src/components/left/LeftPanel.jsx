@@ -83,6 +83,7 @@ const OBJECT_LONG_PRESS_MS = 550;
 
 /* Objects grid: cube + name below, draggable */
 function ObjectThumb({ object, menuOpen, selected = false, onEnter, onMenuOpen, onDelete, onEdit }) {
+  const { t } = useI18n();
   const longPressTimer = useRef(null);
   const suppressClickRef = useRef(false);
   const pointerStartRef = useRef({ x: 0, y: 0 });
@@ -144,7 +145,7 @@ function ObjectThumb({ object, menuOpen, selected = false, onEnter, onMenuOpen, 
         onPointerCancel={handlePointerCancel}
         onPointerLeave={handlePointerUp}
         onDragStart={(e) => startObjectDrag(e, object.id)}
-        title="Double-click to open documents · hold for edit or delete · drag to canvas"
+        title={t("sidebar.clickFolderDocs")}
       >
         <ObjectThumbPreview />
         <span className="obj-thumb-name">{object.name}</span>
@@ -159,7 +160,7 @@ function ObjectThumb({ object, menuOpen, selected = false, onEnter, onMenuOpen, 
               onDelete?.();
             }}
           >
-            delete
+            {t("common.delete")}
           </button>
           <button
             type="button"
@@ -169,7 +170,7 @@ function ObjectThumb({ object, menuOpen, selected = false, onEnter, onMenuOpen, 
               onEdit?.();
             }}
           >
-            edit
+            {t("sidebar.edit")}
           </button>
         </div>
       )}
@@ -271,6 +272,7 @@ function DocListCard({
   queueIndex = null,
   active = false,
 }) {
+  const { t } = useI18n();
   const parent = doc.parentObjectId ? objects[doc.parentObjectId] : null;
   const isTemplate = isTemplateDoc(doc);
   const isKnowledge = isKnowledgeDoc(doc);
@@ -304,7 +306,7 @@ function DocListCard({
             e.stopPropagation();
             startDocDrag(e, doc.id);
           }}
-          title="Drag document to canvas"
+          title={t("sidebar.dragDocToCanvas")}
         >
           ⋮⋮
         </span>
@@ -314,11 +316,11 @@ function DocListCard({
         <div className="fn-card-body">
           <b>{displayTitle}</b>
           <span className="fn-card-meta">
-            {isTemplate ? "template · " : ""}
+            {isTemplate ? t("sidebar.docTemplatePrefix") : ""}
             {isKnowledge
-              ? (doc.knowledgeImport?.fileName ? "file imported, knowledge" : "knowledge corpus")
-              : parent ? `↳ ${parent.name}` : "sin padre"}
-            {" · "}{(doc.nodeIds || []).length} nodos
+              ? (doc.knowledgeImport?.fileName ? t("sidebar.docMetaKnowledgeFile") : t("sidebar.docMetaKnowledge"))
+              : parent ? `↳ ${parent.name}` : t("common.noParent")}
+            {" · "}{t("sidebar.nodesInBlock", { count: (doc.nodeIds || []).length })}
           </span>
         </div>
         <span
@@ -348,7 +350,7 @@ function DocListCard({
           onDelete?.();
         }}
       >
-        delete
+        {t("common.delete")}
       </button>
     </div>
   );

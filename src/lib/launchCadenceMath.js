@@ -137,20 +137,31 @@ export function computeLaunchCadenceProjection({
   averageIntervalMonths,
   lastLaunchDate,
 }) {
-  const last = new Date(`${lastLaunchDate}T12:00:00`);
-  const monthsSinceLast = Math.max(0, monthsBetween(last, today));
+  const last = parseIsoDate(lastLaunchDate);
+  const todayDay = startOfCalendarDay(today);
+  if (!last || !todayDay || !Number.isFinite(averageIntervalMonths) || averageIntervalMonths <= 0) {
+    return {
+      monthsSinceLast: 0,
+      monthsRemaining: 0,
+      estimatedLaunchDate: todayDay,
+      estimatedMonthLabel: formatMonthYearEn(todayDay),
+      todayLabel: formatMonthYearEn(todayDay),
+    };
+  }
+
+  const monthsSinceLast = Math.max(0, monthsBetween(last, todayDay));
   const monthsRemaining = Math.max(
     0,
     Math.round((averageIntervalMonths - monthsSinceLast) * 10) / 10,
   );
-  const estimatedLaunchDate = addMonths(startOfCalendarMonth(today), Math.ceil(monthsRemaining));
+  const estimatedLaunchDate = addMonths(startOfCalendarMonth(todayDay), Math.ceil(monthsRemaining));
 
   return {
     monthsSinceLast,
     monthsRemaining: Math.ceil(monthsRemaining),
     estimatedLaunchDate,
     estimatedMonthLabel: formatMonthYearEn(estimatedLaunchDate),
-    todayLabel: formatMonthYearEn(today),
+    todayLabel: formatMonthYearEn(todayDay),
   };
 }
 

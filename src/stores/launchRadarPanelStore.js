@@ -8,6 +8,8 @@ const EMPTY_SESSION = {
   cadence: null,
   toggleOn: false,
   actionError: null,
+  /** Agent produced launch data at least once for this corpus scope. */
+  reportReady: false,
 };
 
 /**
@@ -23,6 +25,8 @@ export const useLaunchRadarPanelStore = create(
   devtools(
     (set, get) => ({
       sessions: {},
+      /** Campaign Analyst ran once for this corpus object. */
+      corpusReady: {},
 
       /**
        * @param {string|null|undefined} corpusId
@@ -57,6 +61,30 @@ export const useLaunchRadarPanelStore = create(
        */
       resetSession(corpusId, brandName) {
         get().patchSession(corpusId, brandName, { ...EMPTY_SESSION });
+      },
+
+      /**
+       * Sticky flag: Campaign Analyst (or equivalent) ran once for this scope.
+       * Keeps the toggle enabled even when sidebar focus moves to another file.
+       * @param {string|null|undefined} corpusId
+       * @param {string|null|undefined} brandName
+       */
+      markReportReady(corpusId, brandName) {
+        get().patchSession(corpusId, brandName, { reportReady: true });
+        get().markCorpusReady(corpusId);
+      },
+
+      /**
+       * @param {string|null|undefined} corpusObjectId
+       */
+      markCorpusReady(corpusObjectId) {
+        if (!corpusObjectId) return;
+        set((state) => ({
+          corpusReady: {
+            ...state.corpusReady,
+            [corpusObjectId]: true,
+          },
+        }));
       },
     }),
     { name: "LaunchRadarPanelStore" },

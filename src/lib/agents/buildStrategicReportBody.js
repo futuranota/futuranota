@@ -157,7 +157,22 @@ export function formatLaunchRadarRecommendation(brandName, detection, lang) {
       : `Ok — there is a heuristic window estimate for **${brand}**. To cross-check it in **Launch Radar**, open Intel → **Launch radar** and turn on the switch.`;
   }
 
-  return "";
+  const hasLaunchData = Boolean(
+    detection?.launchDate
+    || detection?.lastLaunchDate
+    || detection?.estimatedLaunchDate
+    || detection?.averageIntervalMonths != null,
+  );
+
+  if (hasLaunchData) {
+    return lang === "es"
+      ? `Ok — preparé datos de lanzamiento para **${brand}** en este informe. Abrí el panel **Launch Radar** en Intel y activá el switch para cargar lo que te dejé listo.`
+      : `Ok — I prepared launch data for **${brand}** in this report. Open the **Launch Radar** panel in Intel and turn on the switch to load what I saved for you.`;
+  }
+
+  return lang === "es"
+    ? `Ok — cuando quieras usar los datos de lanzamiento de este informe, abrí el panel **Launch Radar** en Intel y activá el switch.`
+    : `Ok — when you're ready to use this report's launch data, open the **Launch Radar** panel in Intel and turn on the switch.`;
 }
 
 /** @deprecated Use formatLaunchRadarRecommendation */
@@ -262,12 +277,10 @@ export function buildStrategicReportBody(report, detection, brandName, lang) {
   }
 
   const radarRecommendation = formatLaunchRadarRecommendation(brandName, detection, lang);
-  if (hasText(radarRecommendation)) {
-    const label = lang === "es"
-      ? "## Siguiente paso · Launch Radar"
-      : "## Next step · Launch Radar";
-    parts.push(`${label}\n\n${radarRecommendation}`);
-  }
+  const label = lang === "es"
+    ? "## Siguiente paso · Launch Radar"
+    : "## Next step · Launch Radar";
+  parts.push(`${label}\n\n${radarRecommendation}`);
 
   const reportSources = report?.sources?.length
     ? report.sources

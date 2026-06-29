@@ -64,6 +64,11 @@ import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js"
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 
+/** @param {object[]|null|undefined} blocks */
+function docBlocksHaveText(blocks) {
+  return Array.isArray(blocks) && blocks.some((b) => (b.text || "").trim());
+}
+
 function NodeFromSelectionModal({ query, onClose, onSave }) {
   return (
     <Modal onClose={onClose} title="NEW NOTE">
@@ -238,16 +243,18 @@ export function DocExpandedView({
     const savedTitle = isProductDoc(normalized)
       ? (normalized.category?.trim() || normalized.title?.trim() || "")
       : (d.title ?? "");
-    const preferStoreContent = Boolean(normalized.reportPresentation?.animateOnOpen);
-    const useCachedDraft = cached && !preferStoreContent;
+    const loadedHasText = docBlocksHaveText(loadedBlocks);
+    const cachedBlocks = cached?.blocks?.length ? normalizeDocBlocks(cached.blocks) : [];
+    const cachedHasText = docBlocksHaveText(cachedBlocks);
+    const preferStoreContent = Boolean(
+      normalized.reportPresentation?.animateOnOpen
+      || (normalized.reportPresentation?.kind === "analyst-strategic-v2" && loadedHasText),
+    );
+    const useCachedDraft = cached && !preferStoreContent && cachedHasText;
 
     if (useCachedDraft) {
       setDraftTitle(cached.title ?? savedTitle);
-      setDraftBlocks(
-        cached.blocks?.length
-          ? normalizeDocBlocks(cached.blocks)
-          : loadedBlocks,
-      );
+      setDraftBlocks(cachedBlocks);
       setDraftBody(cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")));
       setDraftCreatedDate(cached.createdDate ?? dateInputFromIso(normalized.createdAt));
       setDraftVersion(cached.version ?? normalized.version ?? "");
@@ -308,10 +315,11 @@ export function DocExpandedView({
     const storeBlocks = normalizeDocBlocks(
       doc.blocks?.length ? doc.blocks : docBlocksFromBody(doc.body ?? doc.content ?? ""),
     );
-    const storeHasText = storeBlocks.some((b) => (b.text || "").trim());
-    const draftHasText = draftBlocks.some((b) => (b.text || "").trim());
+    const storeHasText = docBlocksHaveText(storeBlocks);
+    const draftHasText = docBlocksHaveText(draftBlocks);
+    const isAgentReport = doc.reportPresentation?.kind === "analyst-strategic-v2";
 
-    if (doc.reportPresentation?.animateOnOpen && storeHasText && !draftHasText) {
+    if (storeHasText && !draftHasText && (doc.reportPresentation?.animateOnOpen || isAgentReport)) {
       setDraftBlocks(storeBlocks);
       setInitialSnapshot((prev) => (prev ? { ...prev, blocks: storeBlocks } : prev));
       return;
@@ -326,11 +334,27 @@ export function DocExpandedView({
 
     setDraftBlocks(storeBlocks);
     setInitialSnapshot((prev) => (prev ? { ...prev, blocks: storeBlocks } : prev));
-  }, [doc, doc?.updatedAt, doc?.reportPresentation?.animateOnOpen, isDraftReady, initialSnapshot, draftBlocks]);
+  }, [doc, doc?.reportPresentation?.animateOnOpen, isDraftReady, initialSnapshot, draftBlocks]);
 
   useEffect(() => {
     if (!docId || !isDraftReady) return undefined;
     const persistDraft = () => {
+      const storeDoc = useDocsStore.getState().docs[docId];
+      const storeBlocks = normalizeDocBlocks(
+        storeDoc?.blocks?.length
+          ? storeDoc.blocks
+          : docBlocksFromBody(storeDoc?.body ?? storeDoc?.content ?? ""),
+      );
+      const draftHasText = docBlocksHaveText(draftBlocks);
+      const storeHasText = docBlocksHaveText(storeBlocks);
+      if (
+        storeDoc?.reportPresentation?.kind === "analyst-strategic-v2"
+        && storeHasText
+        && !draftHasText
+      ) {
+        return;
+      }
+
       useUIStateStore.getState().setDocEditorDraft(
         docId,
         buildDocEditorDraft({
@@ -517,10 +541,23 @@ export function DocExpandedView({
       draftDocKind,
       draftSubcategoryDocIds,
     }).trim() || "New document";
+
+    let blocksToSave = draftBlocks;
+    const storeDoc = useDocsStore.getState().getDoc(doc.id);
+    const storeBlocks = normalizeDocBlocks(
+      storeDoc?.blocks?.length
+        ? storeDoc.blocks
+        : docBlocksFromBody(storeDoc?.body ?? storeDoc?.content ?? ""),
+    );
+    if (!docBlocksHaveText(blocksToSave) && docBlocksHaveText(storeBlocks)) {
+      blocksToSave = storeBlocks;
+      setDraftBlocks(storeBlocks);
+    }
+
     const savedSnapshot = buildDocPersistSnapshot({
       title,
-      blocks: draftBlocks,
-      body: draftBody,
+      blocks: blocksToSave,
+      body: draftBody || docBlocksToBody(blocksToSave) || storeDoc?.body || storeDoc?.content || "",
       createdDate: draftCreatedDate,
       version: draftVersion,
       category: draftCategory,

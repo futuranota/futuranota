@@ -811,7 +811,7 @@ useEffect(() => {
         agentCanvasNodeId: canvasNodeId,
         canvasNodes,
         connections: canvasConns,
-        docsById: docs,
+        docsById: useDocsStore.getState().docs,
         objectsById: objects,
         selectedObjectId,
         locale,
@@ -821,7 +821,7 @@ useEffect(() => {
           agentCanvasNodeId: canvasNodeId,
           canvasNodes,
           connections: canvasConns,
-          docsById: docs,
+          docsById: useDocsStore.getState().docs,
           objectsById: objects,
           selectedObjectId,
           locale,
@@ -830,7 +830,7 @@ useEffect(() => {
         agentCanvasNodeId: canvasNodeId,
         canvasNodes,
         connections: canvasConns,
-        docsById: docs,
+        docsById: useDocsStore.getState().docs,
         objectsById: objects,
         nodeEntitiesById: nodeEntities,
         selectedObjectId,
@@ -842,9 +842,26 @@ useEffect(() => {
         agentStatus: "done",
         agentError: "",
       });
-      const openDocId = agentId === AGENT_MARKETING_GUIDE || agentId === AGENT_SOCIAL_HYPE_ANALYST
-        ? result.docId
-        : (result.playbookDocId || result.docId);
+      const openDocId = result.docId;
+      if (result.wireOutputDocCanvasNodeId && openDocId) {
+        const savedDoc = useDocsStore.getState().getDoc(openDocId);
+        patchCanvasNode(result.wireOutputDocCanvasNodeId, {
+          docId: openDocId,
+          noteId: openDocId,
+          content: savedDoc?.body || savedDoc?.content || "",
+        });
+      } else if (openDocId) {
+        const savedDoc = useDocsStore.getState().getDoc(openDocId);
+        const docCanvasNode = canvasNodes.find(
+          (n) => (n.docId === openDocId || n.noteId === openDocId)
+            && (n.canvasKind === "document" || n.dataType === "document"),
+        );
+        if (docCanvasNode && savedDoc) {
+          patchCanvasNode(docCanvasNode.id, {
+            content: savedDoc.body || savedDoc.content || "",
+          });
+        }
+      }
       if (openDocId) {
         setDocViewGeneration((n) => n + 1);
         setExpandedDocId(openDocId);

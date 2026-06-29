@@ -9,6 +9,7 @@ import './styles/left-panel.css';
 import './styles/intel-reference.css';
 import './styles/pack-wizard.css';
 import './styles/agents.css';
+import './styles/plans.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

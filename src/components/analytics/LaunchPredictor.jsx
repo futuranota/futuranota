@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { resolveCurrentCorpus, resolveIntelCampaignBrand } from "../../lib/currentCorpus.js";
 import {
   computeCampaignWindowProjection,
@@ -7,14 +7,26 @@ import {
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
-import { syncLaunchRadarFromAnalystDoc } from "../../lib/agents/runLaunchRadar.js";
+import { syncLaunchRadarFromAnalystDoc, runLaunchRadarAnalysis } from "../../lib/agents/runLaunchRadar.js";
+import { resolveLaunchRadarObjectId } from "../../lib/agents/resolveLaunchRadarObjectId.js";
 import {
+  findLatestAnalystDocForScope,
   launchRadarSnapshotHasData,
   resolveLaunchRadarSnapshotForCorpus,
 } from "../../lib/launchRadarSnapshot.js";
+import { AnimatedIntelLine } from "../intel/AnimatedIntelLine.jsx";
+import {
+  resolvePanelCorpusObjectId,
+  readLaunchRadarPanelSaved,
+  writeLaunchRadarPanelSaved,
+} from "../../lib/panelAgentLoop.js";
+import { getLaunchRadarRunCost } from "../../lib/agents/agentCreditCosts.js";
+import { formatCreditAmount } from "../../lib/planConfig.js";
 import { LaunchRadarToggle } from "./LaunchRadarToggle.jsx";
-import { useLaunchRadarPanelStore } from "../../stores/launchRadarPanelStore.js";
+import { useLaunchRadarPanelStore, launchRadarScopeKey } from "../../stores/launchRadarPanelStore.js";
+import { cadenceRecordToPanelView } from "../../lib/launchRadarPanelView.js";
 import "../../styles/launch-predictor.css";
 
 const EMPTY_LAUNCH_RADAR_SESSION = {
@@ -22,6 +34,7 @@ const EMPTY_LAUNCH_RADAR_SESSION = {
   cadence: null,
   toggleOn: false,
   actionError: null,
+  reportReady: false,
 };
 
 function formatTodayLabel(date, locale) {
@@ -33,63 +46,8 @@ function formatTodayLabel(date, locale) {
   }).format(date instanceof Date ? date : new Date(date));
 }
 
-function storedCadenceToMode(storedCadence) {
-  if (!storedCadence) return null;
-
-  const hasVerifiedLaunch = Boolean(
-    storedCadence.launchDate
-    && (
-      storedCadence.detectionMode === "confirmed_campaign"
-      || (
-        storedCadence.launchConfidence !== "estimated"
-        && storedCadence.detectionMode !== "cadence_only"
-      )
-    ),
-  );
-
-  if (hasVerifiedLaunch) {
-    return {
-      mode: "campaign",
-      launchDate: storedCadence.launchDate,
-      announcementDate: storedCadence.announcementDate || null,
-      lastLaunchDate: storedCadence.lastLaunchDate || null,
-      averageIntervalMonths: storedCadence.averageIntervalMonths ?? null,
-      overview: storedCadence.overview || "",
-      category: storedCadence.category || "",
-      source: storedCadence.source || "hero_signal",
-    };
-  }
-
-  const hasCadenceEstimate = Boolean(
-    storedCadence.lastLaunchDate
-    && storedCadence.averageIntervalMonths != null
-    && (
-      storedCadence.detectionMode === "cadence_only"
-      || storedCadence.detectionMode === "heuristic_estimate"
-      || storedCadence.launchConfidence === "estimated"
-      || storedCadence.launchConfidence === "speculative"
-      || !storedCadence.launchDate
-    ),
-  );
-
-  if (hasCadenceEstimate) {
-    return {
-      mode: storedCadence.detectionMode === "heuristic_estimate" ? "heuristic" : "cadence",
-      averageIntervalMonths: Number(storedCadence.averageIntervalMonths),
-      lastLaunchDate: storedCadence.lastLaunchDate,
-      overview: storedCadence.overview || storedCadence.cadenceMessage || "",
-      category: storedCadence.category || "",
-      source: storedCadence.source || "hero_signal",
-      detectionMode: storedCadence.detectionMode || "cadence_only",
-      launchConfidence: storedCadence.launchConfidence || null,
-    };
-  }
-
-  return null;
-}
-
 function cadenceRecordToView(cadenceRecord) {
-  return storedCadenceToMode(cadenceRecord);
+  return cadenceRecordToPanelView(cadenceRecord);
 }
 
 function LaunchRadarPanelHeader({ brandName, reportKind }) {
@@ -120,7 +78,7 @@ function LaunchRadarControl({
   toggleOn,
   onToggleChange,
   disabled,
-  showCreditHint,
+  creditHint,
 }) {
   const { t } = useI18n();
 
@@ -129,12 +87,12 @@ function LaunchRadarControl({
       <div className="launch-predictor__control-row">
         <LaunchRadarToggle
           checked={toggleOn}
-          disabled={disabled || running}
+          disabled={disabled}
           onCheckedChange={onToggleChange}
           ariaLabel={t("intel.launchRadarKicker")}
         />
-        {showCreditHint ? (
-          <span className="launch-predictor__credit-cost">{t("intel.launchRadarFromReport")}</span>
+        {creditHint ? (
+          <span className="launch-predictor__credit-cost">{creditHint}</span>
         ) : null}
       </div>
       {running ? (
@@ -153,25 +111,73 @@ export function LaunchPredictor({ today = new Date() }) {
   const objects = useObjectsStore((s) => s.objects);
   const docs = useDocsStore((s) => s.docs);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
+  const [running, setRunning] = useState(false);
 
   const { currentCorpus, brandName } = useMemo(() => {
-    const { currentCorpus: corpus, brandName: corpusBrand } = resolveCurrentCorpus(objects, selectedObjectId);
-    const brand = corpusBrand || resolveIntelCampaignBrand(objects, selectedObjectId);
-    return { currentCorpus: corpus, brandName: brand };
+    const resolved = resolveCurrentCorpus(objects, selectedObjectId);
+    const brand = resolved.brandName || resolveIntelCampaignBrand(objects, selectedObjectId);
+    return { currentCorpus: resolved.currentCorpus, brandName: brand };
   }, [objects, selectedObjectId]);
 
   const corpusId = currentCorpus?.id || selectedObjectId || null;
+  const launchRadarObjectId = useMemo(
+    () => resolveLaunchRadarObjectId(objects, brandName || "", corpusId),
+    [objects, brandName, corpusId],
+  );
+  const panelCorpusId = useMemo(
+    () => resolvePanelCorpusObjectId(objects, corpusId || launchRadarObjectId),
+    [objects, corpusId, launchRadarObjectId],
+  );
+  const scopeIds = useMemo(
+    () => [...new Set([corpusId, launchRadarObjectId, panelCorpusId].filter(Boolean))],
+    [corpusId, launchRadarObjectId, panelCorpusId],
+  );
   const scopeKey = useMemo(
-    () => `${corpusId || "none"}::${(brandName || "").trim().toLowerCase() || "none"}`,
-    [corpusId, brandName],
+    () => launchRadarScopeKey(panelCorpusId, brandName),
+    [panelCorpusId, brandName],
+  );
+
+  const persistedPanel = useMemo(
+    () => readLaunchRadarPanelSaved(objects, panelCorpusId),
+    [objects, panelCorpusId],
   );
 
   const reportSnapshot = useMemo(
-    () => resolveLaunchRadarSnapshotForCorpus(docs, corpusId, brandName || ""),
-    [docs, corpusId, brandName],
+    () => resolveLaunchRadarSnapshotForCorpus(
+      docs,
+      panelCorpusId,
+      brandName || "",
+      scopeIds,
+      objects,
+    ),
+    [docs, panelCorpusId, brandName, scopeIds, objects],
   );
 
-  const hasReportData = launchRadarSnapshotHasData(reportSnapshot);
+  const hasReportData = useMemo(() => {
+    if (launchRadarSnapshotHasData(reportSnapshot)) return true;
+    if (!panelCorpusId) return false;
+    return Boolean(findLatestAnalystDocForScope(docs, {
+      corpusId: panelCorpusId,
+      scopeIds,
+      brandName: brandName || "",
+      objectsById: objects,
+    })?.doc);
+  }, [reportSnapshot, panelCorpusId, docs, scopeIds, brandName, objects]);
+
+  const panelLocked = Boolean(persistedPanel?.cadenceView);
+
+  const previewOverview = useMemo(() => {
+    if (!hasReportData || panelLocked || !panelCorpusId) return "";
+    const found = findLatestAnalystDocForScope(docs, {
+      corpusId: panelCorpusId,
+      scopeIds,
+      brandName: brandName || "",
+      objectsById: objects,
+    });
+    const snapshot = found?.snapshot || reportSnapshot;
+    return (snapshot?.overview || "").trim();
+  }, [hasReportData, panelLocked, panelCorpusId, docs, scopeIds, brandName, objects, reportSnapshot]);
 
   const session = useLaunchRadarPanelStore(
     (s) => s.sessions[scopeKey] ?? EMPTY_LAUNCH_RADAR_SESSION,
@@ -179,117 +185,199 @@ export function LaunchPredictor({ today = new Date() }) {
   const patchSession = useLaunchRadarPanelStore((s) => s.patchSession);
 
   const { status, cadence, toggleOn, actionError } = session;
-  const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    if (!persistedPanel?.cadenceView) return;
+    patchSession(panelCorpusId, brandName, {
+      status: "ready",
+      cadence: persistedPanel.cadenceView,
+      toggleOn: true,
+      actionError: null,
+      reportReady: true,
+    });
+  }, [persistedPanel, panelCorpusId, brandName, patchSession]);
 
   const applyCadenceResult = useCallback((result) => {
     if (!result?.ok || !result.cadence) {
       const message = result?.message || t("intel.launchRadarActionError");
-      patchSession(corpusId, brandName, {
+      patchSession(panelCorpusId, brandName, {
         status: "idle",
         cadence: null,
         toggleOn: false,
         actionError: message,
+        reportReady: true,
       });
       return false;
     }
     const view = cadenceRecordToView(result.cadence);
     if (view) {
-      patchSession(corpusId, brandName, {
+      writeLaunchRadarPanelSaved(panelCorpusId, {
+        cadenceView: view,
+        cadenceRecord: result.cadence,
+      });
+      patchSession(panelCorpusId, brandName, {
         status: "ready",
         cadence: view,
         toggleOn: true,
         actionError: null,
+        reportReady: true,
       });
       return true;
     }
-    patchSession(corpusId, brandName, {
+    patchSession(panelCorpusId, brandName, {
       status: "idle",
       cadence: null,
       toggleOn: false,
       actionError: t("intel.launchRadarActionError"),
+      reportReady: true,
     });
     return false;
-  }, [t, patchSession, corpusId, brandName]);
+  }, [t, patchSession, panelCorpusId, brandName]);
 
-  const handleLoadFromReport = useCallback(async () => {
-    if (!brandName || !corpusId || running || !hasReportData) return false;
+  const handleLoadFromReport = useCallback(() => {
+    if (!panelCorpusId || !brandName || !hasReportData) return false;
+    patchSession(panelCorpusId, brandName, { actionError: null, reportReady: true });
+    const result = syncLaunchRadarFromAnalystDoc({
+      corpusId: panelCorpusId,
+      brandName: brandName || "",
+      locale: locale === "es" ? "es" : "en",
+      scopeIds,
+    });
+    return applyCadenceResult(result);
+  }, [panelCorpusId, brandName, hasReportData, locale, scopeIds, applyCadenceResult, patchSession]);
+
+  const handleRunScan = useCallback(async () => {
+    if (!brandName || running) return false;
     setRunning(true);
-    patchSession(corpusId, brandName, { actionError: null });
+    patchSession(panelCorpusId, brandName, { actionError: null, reportReady: true });
     try {
-      const result = syncLaunchRadarFromAnalystDoc({
-        corpusId,
+      const result = await runLaunchRadarAnalysis({
         brandName,
+        corpusId: panelCorpusId,
         locale: locale === "es" ? "es" : "en",
       });
+      if (result.code === "gate_tokens" || result.code === "gate_search") {
+        showUpgradeModal(result.code === "gate_search" ? "search" : "tokens");
+      }
       return applyCadenceResult(result);
     } finally {
       setRunning(false);
     }
-  }, [brandName, corpusId, running, hasReportData, locale, applyCadenceResult, patchSession]);
+  }, [
+    brandName,
+    running,
+    panelCorpusId,
+    locale,
+    applyCadenceResult,
+    patchSession,
+    showUpgradeModal,
+  ]);
 
   const handleToggleChange = useCallback(async (next) => {
     if (running) return;
+    if (panelLocked && !next) return;
 
     if (!next) {
-      patchSession(corpusId, brandName, { ...EMPTY_LAUNCH_RADAR_SESSION });
+      patchSession(panelCorpusId, brandName, {
+        status: "idle",
+        cadence: null,
+        toggleOn: false,
+        actionError: null,
+        reportReady: true,
+      });
       return;
     }
 
-    if (!brandName || !hasReportData) {
-      patchSession(corpusId, brandName, { ...EMPTY_LAUNCH_RADAR_SESSION });
+    if (!brandName) {
+      patchSession(panelCorpusId, brandName, {
+        status: "idle",
+        cadence: null,
+        toggleOn: false,
+        actionError: null,
+        reportReady: true,
+      });
       return;
     }
 
-    patchSession(corpusId, brandName, { toggleOn: true, actionError: null });
-    await handleLoadFromReport();
-  }, [brandName, running, handleLoadFromReport, patchSession, corpusId, hasReportData]);
+    patchSession(panelCorpusId, brandName, { toggleOn: true, actionError: null, reportReady: true });
+
+    if (hasReportData) {
+      handleLoadFromReport();
+      return;
+    }
+
+    await handleRunScan();
+  }, [
+    running,
+    panelLocked,
+    patchSession,
+    panelCorpusId,
+    brandName,
+    hasReportData,
+    handleLoadFromReport,
+    handleRunScan,
+  ]);
+
+  const effectiveToggleOn = panelLocked || toggleOn;
+  const effectiveStatus = panelLocked || status === "ready" ? "ready" : status;
+  const effectiveCadence = panelLocked ? persistedPanel.cadenceView : cadence;
 
   const headerProps = { brandName, reportKind: null };
+
+  const scanCreditLabel = t("intel.launchRadarCreditCost", {
+    cost: formatCreditAmount(getLaunchRadarRunCost().creditCost),
+  });
 
   const controlProps = {
     brandName,
     running,
-    toggleOn,
+    toggleOn: effectiveToggleOn,
     onToggleChange: handleToggleChange,
-    disabled: !brandName || !hasReportData,
-    showCreditHint: hasReportData,
+    disabled: !brandName || running,
+    creditHint: hasReportData
+      ? t("intel.launchRadarFromReport")
+      : brandName
+        ? scanCreditLabel
+        : null,
   };
 
-  const panelHint = !hasReportData
-    ? t("intel.launchRadarRunAgentFirst")
-    : status === "idle" && !toggleOn
+  const panelHint = panelLocked
+    ? t("intel.launchRadarSavedHint")
+    : hasReportData && effectiveStatus === "idle" && !effectiveToggleOn
       ? t("intel.launchRadarInsertHint")
       : null;
 
   const campaignWindow = useMemo(() => {
-    if (!cadence || cadence.mode !== "campaign" || !cadence.launchDate) return null;
+    if (!effectiveCadence || effectiveCadence.mode !== "campaign" || !effectiveCadence.launchDate) return null;
     return computeCampaignWindowProjection({
       today,
-      launchDate: cadence.launchDate,
-      announcementDate: cadence.announcementDate,
-      overview: cadence.overview,
-      category: cadence.category,
+      launchDate: effectiveCadence.launchDate,
+      announcementDate: effectiveCadence.announcementDate,
+      overview: effectiveCadence.overview,
+      category: effectiveCadence.category,
     });
-  }, [cadence, today]);
+  }, [effectiveCadence, today]);
 
   const cadenceProjection = useMemo(() => {
-    if (!cadence || (cadence.mode !== "cadence" && cadence.mode !== "heuristic") || !cadence.lastLaunchDate) {
+    if (!effectiveCadence || (effectiveCadence.mode !== "cadence" && effectiveCadence.mode !== "heuristic") || !effectiveCadence.lastLaunchDate) {
       return null;
     }
     return computeLaunchCadenceProjection({
       today,
-      averageIntervalMonths: cadence.averageIntervalMonths,
-      lastLaunchDate: cadence.lastLaunchDate,
+      averageIntervalMonths: effectiveCadence.averageIntervalMonths,
+      lastLaunchDate: effectiveCadence.lastLaunchDate,
     });
-  }, [cadence, today]);
+  }, [effectiveCadence, today]);
 
-  if (status === "idle") {
+  if (effectiveStatus === "idle") {
     return (
       <LaunchRadarIdleView
         headerProps={headerProps}
         controlProps={controlProps}
         actionError={actionError}
         panelHint={panelHint}
+        previewOverview={previewOverview}
+        animatePreview={hasReportData && !panelLocked && Boolean(previewOverview)}
       />
     );
   }
@@ -308,17 +396,17 @@ export function LaunchPredictor({ today = new Date() }) {
     );
   }
 
-  if (cadenceProjection && cadence) {
+  if (cadenceProjection && effectiveCadence) {
     return (
       <div className="launch-predictor">
         <LaunchRadarPanelHeader {...headerProps} reportKind="inactive" />
         <LaunchRadarControl {...controlProps} />
         <CadenceEstimateView
           brandName={brandName}
-          cadence={cadence}
+          cadence={effectiveCadence}
           projection={cadenceProjection}
           today={today}
-          variant={cadence.mode === "heuristic" ? "heuristic" : "cadence"}
+          variant={effectiveCadence.mode === "heuristic" ? "heuristic" : "cadence"}
           embedded
         />
       </div>
@@ -340,11 +428,19 @@ function LaunchRadarIdleView({
   controlProps,
   actionError,
   panelHint,
+  previewOverview = "",
+  animatePreview = false,
 }) {
   return (
     <div className="launch-predictor">
       <LaunchRadarPanelHeader {...headerProps} reportKind={null} />
       <LaunchRadarControl {...controlProps} />
+      {animatePreview && previewOverview ? (
+        <AnimatedIntelLine
+          text={previewOverview}
+          className="launch-predictor__overview launch-predictor__overview--preview"
+        />
+      ) : null}
       {panelHint ? (
         <p className="launch-predictor__note launch-predictor__note--pending">{panelHint}</p>
       ) : null}
@@ -379,26 +475,26 @@ function CampaignWindowView({ brandName, window, embedded = false }) {
         <p className="launch-predictor__overview">{window.overview}</p>
       ) : null}
 
-      <div className="launch-predictor__compare" aria-label="Date comparison">
+      <div className="launch-predictor__compare" aria-label={t("intel.launchRadarDateCompare")}>
         <div className="launch-predictor__compare-row">
-          <span className="launch-predictor__compare-key">Today</span>
+          <span className="launch-predictor__compare-key">{t("intel.launchRadarToday")}</span>
           <span className="launch-predictor__compare-val">{window.todayLabel}</span>
         </div>
         {window.announcementLabel ? (
           <div className="launch-predictor__compare-row">
-            <span className="launch-predictor__compare-key">Announce</span>
+            <span className="launch-predictor__compare-key">{t("intel.launchRadarAnnounce")}</span>
             <span className="launch-predictor__compare-val">{window.announcementLabel}</span>
           </div>
         ) : null}
         <div className="launch-predictor__compare-row">
-          <span className="launch-predictor__compare-key">Launch</span>
+          <span className="launch-predictor__compare-key">{t("intel.launchRadarLaunch")}</span>
           <span className="launch-predictor__compare-val launch-predictor__compare-val--accent">{window.launchLabel}</span>
         </div>
       </div>
 
-      <div className="launch-predictor__timeline launch-predictor__timeline--campaign" aria-label="Campaign window timeline">
+      <div className="launch-predictor__timeline launch-predictor__timeline--campaign" aria-label={t("intel.launchRadarCampaignTimeline")}>
         <div className="launch-predictor__node launch-predictor__node--today">
-          <span className="launch-predictor__node-label">Today</span>
+          <span className="launch-predictor__node-label">{t("intel.launchRadarToday")}</span>
           <span className="launch-predictor__node-date">{window.todayLabel}</span>
         </div>
 
@@ -411,7 +507,7 @@ function CampaignWindowView({ brandName, window, embedded = false }) {
               </span>
             </div>
             <div className="launch-predictor__node">
-              <span className="launch-predictor__node-label">Announce</span>
+              <span className="launch-predictor__node-label">{t("intel.launchRadarAnnounce")}</span>
               <span className="launch-predictor__node-date">{window.announcementLabel}</span>
             </div>
           </>
@@ -420,12 +516,12 @@ function CampaignWindowView({ brandName, window, embedded = false }) {
         <div className="launch-predictor__bridge">
           <span className="launch-predictor__bridge-line" aria-hidden />
           <span className="launch-predictor__bridge-caption">
-            {launchBridgeDays} day{launchBridgeDays === 1 ? "" : "s"} left
+            {t("intel.launchRadarDaysLeft", { count: launchBridgeDays })}
           </span>
         </div>
 
         <div className="launch-predictor__node launch-predictor__node--estimate">
-          <span className="launch-predictor__node-label">Launch</span>
+          <span className="launch-predictor__node-label">{t("intel.launchRadarLaunch")}</span>
           <span className="launch-predictor__node-date">{window.launchLabel}</span>
         </div>
       </div>
@@ -433,9 +529,9 @@ function CampaignWindowView({ brandName, window, embedded = false }) {
       <p className="launch-predictor__range">{window.rangeLabel}</p>
       {window.windowTotalDays != null ? (
         <p className="launch-predictor__note">
-          Ship window: {window.windowTotalDays} day{window.windowTotalDays === 1 ? "" : "s"} from announcement to launch.
+          {t("intel.launchRadarShipWindow", { count: window.windowTotalDays })}
           {window.phase === "ship-window" && window.windowDaysRemaining != null
-            ? ` ${window.windowDaysRemaining} day${window.windowDaysRemaining === 1 ? "" : "s"} remaining in scope.`
+            ? ` ${t("intel.launchRadarScopeRemaining", { count: window.windowDaysRemaining })}`
             : null}
         </p>
       ) : null}

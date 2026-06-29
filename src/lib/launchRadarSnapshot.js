@@ -235,16 +235,47 @@ export function writeLaunchRadarToDoc(docId, snapshot) {
 }
 
 /**
+ * @param {import("../types/docs.js").Doc} doc
+ * @param {Set<string>} scopeSet
+ * @param {string} brandName
+ * @param {Record<string, { brand?: string, name?: string }>} [objectsById]
+ */
+function analystDocMatchesScope(doc, scopeSet, brandName, objectsById = {}) {
+  if (scopeSet.size && scopeSet.has(doc?.parentObjectId)) return true;
+
+  const brandLower = (brandName || "").trim().toLowerCase();
+  if (brandLower && doc?.parentObjectId && objectsById[doc.parentObjectId]) {
+    const parent = objectsById[doc.parentObjectId];
+    const parentBrand = (parent?.brand || parent?.name || "").trim().toLowerCase();
+    if (parentBrand && parentBrand === brandLower) return true;
+  }
+
+  if (!brandLower) return false;
+
+  const snapshot = readLaunchRadarFromDoc(doc)
+    || deriveLaunchRadarFromDocMeta(doc, brandName);
+  if (!snapshot) return false;
+
+  const snapBrand = (snapshot.brandName || "").trim().toLowerCase();
+  return Boolean(snapBrand && snapBrand === brandLower);
+}
+
+/**
  * @param {Record<string, import("../types/docs.js").Doc>} docsById
- * @param {string} corpusId
+ * @param {{ corpusId?: string|null, scopeIds?: string[], brandName?: string, objectsById?: Record<string, object> }} [options]
  * @returns {{ doc: import("../types/docs.js").Doc, snapshot: LaunchRadarSnapshot|null }|null}
  */
-export function findLatestAnalystDocForCorpus(docsById, corpusId) {
-  if (!corpusId) return null;
+export function findLatestAnalystDocForScope(docsById, options = {}) {
+  const { corpusId = null, scopeIds = [], brandName = "", objectsById = {} } = options;
+  const scopeSet = new Set([corpusId, ...(scopeIds || [])].filter(Boolean));
+  const brandLower = (brandName || "").trim().toLowerCase();
 
   const candidates = Object.values(docsById || {})
-    .filter((doc) => doc?.parentObjectId === corpusId)
     .filter((doc) => doc?.reportPresentation?.kind === "analyst-strategic-v2")
+    .filter((doc) => {
+      if (!scopeSet.size && !brandLower) return true;
+      return analystDocMatchesScope(doc, scopeSet, brandName, objectsById);
+    })
     .sort((a, b) => {
       const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
       const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
@@ -265,13 +296,60 @@ export function findLatestAnalystDocForCorpus(docsById, corpusId) {
 /**
  * @param {Record<string, import("../types/docs.js").Doc>} docsById
  * @param {string} corpusId
+ * @returns {{ doc: import("../types/docs.js").Doc, snapshot: LaunchRadarSnapshot|null }|null}
+ */
+export function findLatestAnalystDocForCorpus(docsById, corpusId) {
+  if (!corpusId) return null;
+  return findLatestAnalystDocForScope(docsById, { corpusId, scopeIds: [corpusId] });
+}
+
+/**
+ * @param {Record<string, import("../types/docs.js").Doc>} docsById
+ * @param {string} corpusId
  * @param {string} brandName
+ * @param {string[]} [scopeIds]
+ * @param {Record<string, object>} [objectsById]
  * @returns {LaunchRadarSnapshot|null}
  */
-export function resolveLaunchRadarSnapshotForCorpus(docsById, corpusId, brandName) {
-  const found = findLatestAnalystDocForCorpus(docsById, corpusId);
+export function resolveLaunchRadarSnapshotForCorpus(
+  docsById,
+  corpusId,
+  brandName,
+  scopeIds = [],
+  objectsById = {},
+) {
+  const found = findLatestAnalystDocForScope(docsById, {
+    corpusId,
+    scopeIds,
+    brandName,
+    objectsById,
+  });
   if (!found) return null;
 
   if (found.snapshot) return found.snapshot;
   return deriveLaunchRadarFromDocMeta(found.doc, brandName);
+}
+
+/**
+ * @param {Record<string, object>} objectsById
+ * @param {string|null|undefined} corpusObjectId
+ */
+export function corpusHasLaunchRadarReportReady(objectsById, corpusObjectId) {
+  if (!corpusObjectId) return false;
+  const object = objectsById[corpusObjectId];
+  return Boolean(
+    object?.cadence?.launchRadarAgentReadyAt
+    || object?.cadence?.launchRadarReportReadyAt,
+  );
+}
+
+/**
+ * @param {Record<string, import("../types/docs.js").Doc>} docsById
+ * @param {Record<string, object>} [objectsById]
+ */
+export function workspaceHasCampaignAnalystReport(docsById, objectsById = {}) {
+  if (Object.values(objectsById).some((obj) => corpusHasLaunchRadarReportReady(objectsById, obj?.id))) {
+    return true;
+  }
+  return Boolean(findLatestAnalystDocForScope(docsById, { objectsById })?.doc);
 }

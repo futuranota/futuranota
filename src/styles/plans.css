@@ -1,0 +1,174 @@
+/* ── Plans page — single Pro pricing card ─────────────────── */
+
+.plans-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 16px 48px;
+}
+
+.plans-page__head {
+  margin-top: 20px;
+}
+
+.plans-page__title {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.plans-page__current {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.plans-page__current strong {
+  color: var(--text);
+}
+
+.plans-page__usage {
+  margin: 20px 0 28px;
+}
+
+.plans-pricing-card {
+  overflow: hidden;
+}
+
+.plans-pricing-card__grid {
+  display: grid;
+  gap: 0;
+}
+
+.plans-pricing-card__pricing {
+  padding: clamp(28px, 4vw, 48px);
+  text-align: center;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.plans-pricing-card__plan-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.5vw, 26px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.plans-pricing-card__desc {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.plans-pricing-card__price {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  margin: 32px 0 24px;
+}
+
+.plans-pricing-card__currency {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 700;
+  color: var(--text-2);
+}
+
+.plans-pricing-card__amount {
+  font-family: var(--font-display);
+  font-size: clamp(44px, 6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.plans-pricing-card__suffix {
+  margin-left: 4px;
+  font-size: 15px;
+  color: var(--dim);
+}
+
+.plans-pricing-card__cta-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.plans-pricing-card__cta {
+  height: 40px;
+  padding: 0 24px;
+  font-size: 13px;
+}
+
+.plans-pricing-card__cta--cancel {
+  background: transparent;
+  border-color: var(--glass-border-2);
+  color: var(--text-2);
+}
+
+.plans-pricing-card__cta--cancel:hover {
+  background: var(--danger-soft);
+  border-color: color-mix(in oklab, var(--danger) 35%, transparent);
+  color: var(--danger);
+}
+
+.plans-pricing-card__note {
+  margin: 28px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
+.plans-pricing-card__features {
+  padding: clamp(28px, 4vw, 48px);
+}
+
+.plans-pricing-card__features-label {
+  margin: 0 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.plans-pricing-card__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.plans-pricing-card__list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.plans-pricing-card__check {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  color: var(--hud);
+}
+
+@media (min-width: 768px) {
+  .plans-pricing-card__grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+
+  .plans-pricing-card__pricing {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-bottom: 0;
+    border-right: 1px solid var(--glass-border);
+  }
+}

@@ -1,6 +1,8 @@
 import {
   computeLaunchCadenceProjection,
   formatReferenceMonthLabelEn,
+  parseIsoDate,
+  startOfCalendarDay,
   toIsoDateString,
 } from "../src/lib/launchCadenceMath.js";
 
@@ -77,11 +79,29 @@ export function buildCadenceStatusMessage({
  * @param {number} rangeDays
  */
 export function enrichCadenceHit(hit, todayIso, rangeDays) {
-  const today = new Date(`${todayIso}T12:00:00`);
+  const today = parseIsoDate(todayIso) || startOfCalendarDay(new Date());
+  const lastLaunchIso = typeof hit?.lastLaunchDate === "string"
+    ? hit.lastLaunchDate
+    : hit?.lastLaunchDate instanceof Date
+      ? toIsoDateString(hit.lastLaunchDate)
+      : null;
+
+  if (!parseIsoDate(lastLaunchIso) || hit.averageIntervalMonths == null) {
+    return {
+      ...hit,
+      lastLaunchDate: lastLaunchIso,
+      monthsRemaining: null,
+      estimatedLaunchDate: null,
+      cadenceStatus: "no_data",
+      cadenceMessage: hit.overview?.trim() || `Sin cadencia verificada para ${hit.brandName || "marca"}.`,
+      overview: hit.overview?.trim() || "",
+    };
+  }
+
   const projection = computeLaunchCadenceProjection({
     today,
     averageIntervalMonths: hit.averageIntervalMonths,
-    lastLaunchDate: hit.lastLaunchDate,
+    lastLaunchDate: lastLaunchIso,
   });
   const { cadenceStatus } = classifyCadenceWindow(projection, rangeDays);
   const cadenceMessage = buildCadenceStatusMessage({

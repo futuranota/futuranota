@@ -11,7 +11,7 @@ import { resolveLaunchRadarObjectId } from "./resolveLaunchRadarObjectId.js";
 import { getLaunchRadarRunCost } from "./agentCreditCosts.js";
 import {
   buildLaunchRadarSnapshot,
-  findLatestAnalystDocForCorpus,
+  findLatestAnalystDocForScope,
   resolveLaunchRadarSnapshotForCorpus,
   snapshotToDetection,
   writeLaunchRadarToDoc,
@@ -64,7 +64,7 @@ export function applyLaunchRadarResult({
 
   const snapshot = buildLaunchRadarSnapshot(cadence, detection, brandName, source);
   const targetDocId = docId
-    || findLatestAnalystDocForCorpus(useDocsStore.getState().docs, corpusId)?.doc?.id
+    || findLatestAnalystDocForScope(useDocsStore.getState().docs, { corpusId, scopeIds: [corpusId] })?.doc?.id
     || null;
 
   if (targetDocId) {
@@ -90,9 +90,15 @@ export function applyLaunchRadarResult({
  * @param {string} params.brandName
  * @param {'en'|'es'} [params.locale]
  */
-export function syncLaunchRadarFromAnalystDoc({ corpusId, brandName, locale = "es" }) {
+export function syncLaunchRadarFromAnalystDoc({ corpusId, brandName, locale = "es", scopeIds = [] }) {
   const docs = useDocsStore.getState().docs;
-  const found = findLatestAnalystDocForCorpus(docs, corpusId);
+  const objectsById = useObjectsStore.getState().objects;
+  const found = findLatestAnalystDocForScope(docs, {
+    corpusId,
+    scopeIds,
+    brandName,
+    objectsById,
+  });
 
   if (!found) {
     return {
@@ -107,7 +113,7 @@ export function syncLaunchRadarFromAnalystDoc({ corpusId, brandName, locale = "e
   }
 
   const snapshot = found.snapshot
-    || resolveLaunchRadarSnapshotForCorpus(docs, corpusId, brandName);
+    || resolveLaunchRadarSnapshotForCorpus(docs, corpusId, brandName, scopeIds, objectsById);
 
   if (!snapshot) {
     return {
@@ -197,7 +203,7 @@ export async function runLaunchRadarAnalysis({
   }
 
   const found = corpusId
-    ? findLatestAnalystDocForCorpus(useDocsStore.getState().docs, corpusId)
+    ? findLatestAnalystDocForScope(useDocsStore.getState().docs, { corpusId, brandName })
     : null;
   const userQuery = buildLaunchRadarInstructions(brandName, found?.doc, lang);
 

@@ -7,6 +7,8 @@ import {
   SOCIAL_HYPE_REPORT_PRESENTATION,
   socialHypeDocTitle,
 } from "./buildHypeReportBody.js";
+import { resolveLaunchRadarObjectId } from "./resolveLaunchRadarObjectId.js";
+import { onSocialHypeLoopComplete } from "../panelAgentLoop.js";
 
 /**
  * @param {string|null|undefined} objectId
@@ -70,7 +72,14 @@ export function applyHypeReportToDoc({
   );
 
   useUIStateStore.getState().clearDocEditorDraft(docId);
-  if (parentObjectId) writeHypeSnapshotToObject(parentObjectId, hypeDistribution, analystSections);
+  const objects = useObjectsStore.getState().objects;
+  const corpusObjectId = resolveLaunchRadarObjectId(objects, brand, parentObjectId);
+  const snapshotObjectId = corpusObjectId || parentObjectId;
+  if (snapshotObjectId) writeHypeSnapshotToObject(snapshotObjectId, hypeDistribution, analystSections);
+  onSocialHypeLoopComplete(snapshotObjectId);
+  if (parentObjectId && parentObjectId !== snapshotObjectId) {
+    onSocialHypeLoopComplete(parentObjectId);
+  }
 
   return docId;
 }
@@ -103,7 +112,15 @@ export function applyHypeReportToExistingDoc(docId, params) {
 
   useUIStateStore.getState().clearDocEditorDraft(docId);
   if (params.parentObjectId) {
-    writeHypeSnapshotToObject(params.parentObjectId, params.hypeDistribution);
+    const objects = useObjectsStore.getState().objects;
+    const brand = params.hypeDistribution?.brandName?.trim() || "";
+    const corpusObjectId = resolveLaunchRadarObjectId(objects, brand, params.parentObjectId);
+    const snapshotObjectId = corpusObjectId || params.parentObjectId;
+    writeHypeSnapshotToObject(snapshotObjectId, params.hypeDistribution, params.analystSections);
+    onSocialHypeLoopComplete(snapshotObjectId);
+    if (params.parentObjectId !== snapshotObjectId) {
+      onSocialHypeLoopComplete(params.parentObjectId);
+    }
   }
 
   return true;
