@@ -11,8 +11,9 @@ import {
 /**
  * @param {string|null|undefined} objectId
  * @param {object|null|undefined} hypeDistribution
+ * @param {object|null|undefined} [analystSections]
  */
-function writeHypeSnapshotToObject(objectId, hypeDistribution) {
+function writeHypeSnapshotToObject(objectId, hypeDistribution, analystSections = null) {
   if (!objectId || !hypeDistribution) return;
   const { objects, updateObject } = useObjectsStore.getState();
   const object = objects[objectId];
@@ -22,6 +23,7 @@ function writeHypeSnapshotToObject(objectId, hypeDistribution) {
     cadence: {
       ...(object.cadence || {}),
       hypeSnapshot: hypeDistribution,
+      hypeAnalystSections: analystSections || null,
       hypeSnapshotAt: hypeDistribution.collectedAt || new Date().toISOString(),
     },
   });
@@ -68,7 +70,7 @@ export function applyHypeReportToDoc({
   );
 
   useUIStateStore.getState().clearDocEditorDraft(docId);
-  if (parentObjectId) writeHypeSnapshotToObject(parentObjectId, hypeDistribution);
+  if (parentObjectId) writeHypeSnapshotToObject(parentObjectId, hypeDistribution, analystSections);
 
   return docId;
 }

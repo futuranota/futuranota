@@ -51,10 +51,13 @@ export function buildSocialHypeAnalystPrompt(locale, { brandName, hypeDistributi
     JSON.stringify(hypeDistribution, null, 2),
     "",
     "Problem to solve for the user:",
-    `- Understand where ${brand} publishes today`,
-    `- Recommend the same primary channel as the user's preferred medium when it helps them reach the same audience`,
+    `- Cordial greeting + educational report on where ${brand} invests social attention`,
+    `- Per-network conversation type (format, audience) — reflective tone, no orders`,
+    `- Distribution data will be rendered as a table by the app — interpret the mix in prose only`,
     "",
-    "Return JSON only with keys: channelVerdict, preferredChannel, whySameChannel, themes, companionAction, risks.",
+    "Tone reference: content/agents/social-hype-report-copy-reference.md",
+    "",
+    "Return JSON only with keys: greetingIntro, distributionSummary, channelInsights, primaryReading, preferredChannel, channelNuance, conversationIdea, themes.",
   ].join("\n");
 
   return { system, user };

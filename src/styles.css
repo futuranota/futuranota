@@ -1244,6 +1244,13 @@ textarea.field {
   color: #f0a68a;
 }
 
+.intel-market-hype-panel__hint {
+  margin: 0 0 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
 .intel-market-hype-panel__verdict {
   margin-bottom: 10px;
   padding: 10px 12px;

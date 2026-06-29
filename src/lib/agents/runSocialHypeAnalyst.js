@@ -103,7 +103,7 @@ export async function runSocialHypeAnalyst({
     hypeDistribution: payload.hypeDistribution,
     analystSections: payload.analystSections,
     userFacingMessage: lang === "es"
-      ? `Social Hype listo · ${brand} · canal preferido: ${payload.analystSections?.preferredChannel || "—"}`
-      : `Social Hype ready · ${brand} · preferred channel: ${payload.analystSections?.preferredChannel || "—"}`,
+      ? `Social Hype listo · ${brand} · mi lectura: ${payload.analystSections?.preferredChannel || "—"}`
+      : `Social Hype ready · ${brand} · my read: ${payload.analystSections?.preferredChannel || "—"}`,
   };
 }

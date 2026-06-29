@@ -178,7 +178,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const blockLinkColor = (block) => resolveBlockNodeLinkColor(block);
   const blockLinksEnabled = (block) => !isNoNodeLinkMode(blockLinkColor(block));
   const isMarketingGuideReport = reportPresentation?.kind === "marketing-guide-v1";
-  const isAnalystReport = reportPresentation?.kind === "analyst-strategic-v2" || isMarketingGuideReport;
+  const isSocialHypeReport = reportPresentation?.kind === "social-hype-v1";
+  const isAnalystReport = reportPresentation?.kind === "analyst-strategic-v2"
+    || isMarketingGuideReport
+    || isSocialHypeReport;
   const shouldAnimateReport = Boolean(reportPresentation?.animateOnOpen) && !isMarketingGuideReport;
 
   const showScheduleForBlock = () => false;

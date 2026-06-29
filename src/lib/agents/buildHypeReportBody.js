@@ -36,6 +36,44 @@ export function marketHypeDataFromHypeDistribution(hypeDistribution) {
 }
 
 /**
+ * @param {Array<{ platform: string, percentage: number }>} distribution
+ * @param {'en'|'es'} lang
+ */
+function buildDistributionTable(distribution, lang) {
+  if (!distribution.length) return "—";
+
+  const header = lang === "es"
+    ? "| Canal | Peso en la muestra |"
+    : "| Channel | Sample weight |";
+
+  return [
+    header,
+    "|-------|-------------------|",
+    ...distribution.map((row) => `| ${row.platform} | ${row.percentage}% |`),
+  ].join("\n");
+}
+
+/**
+ * @param {HypeDistributionV1|null|undefined} hypeDistribution
+ * @param {'en'|'es'} lang
+ */
+function buildSignalLine(hypeDistribution, lang) {
+  const score = hypeDistribution?.socialHype?.hypeScore ?? 0;
+  const confidence = hypeDistribution?.socialHype?.confidence || "—";
+  const statusLabel = hypeDistribution?.status?.label || "—";
+
+  const confidenceLabel = lang === "es"
+    ? (confidence === "high" ? "alta" : confidence === "medium" ? "media" : confidence === "low" ? "baja" : confidence)
+    : confidence;
+
+  if (lang === "es") {
+    return `**Señal:** ${statusLabel} · Score ${score}/100 · Confianza en la muestra: ${confidenceLabel}`;
+  }
+
+  return `**Signal:** ${statusLabel} · Score ${score}/100 · Sample confidence: ${confidenceLabel}`;
+}
+
+/**
  * @param {HypeDistributionV1|null|undefined} hypeDistribution
  * @param {SocialHypeAnalystSections|null|undefined} sections
  * @param {'en'|'es'} [lang]
@@ -44,85 +82,141 @@ export function buildHypeReportBody(hypeDistribution, sections, lang = "en") {
   if (!hypeDistribution) return "";
 
   const brand = hypeDistribution.brandName || "Brand";
-  const primary = hypeDistribution.channelIntel?.primaryChannel || sections?.preferredChannel || "—";
-  const share = hypeDistribution.channelIntel?.primaryShare ?? 0;
-  const preferred = sections?.preferredChannel || hypeDistribution.channelIntel?.preferredChannelForUser || primary;
+  const distribution = (hypeDistribution.socialHype?.socialDistribution || [])
+    .filter((row) => row.percentage > 0);
 
-  const distributionLines = (hypeDistribution.socialHype?.socialDistribution || [])
-    .map((row) => `- ${row.platform}: ${row.percentage}%`)
+  const distributionTable = buildDistributionTable(distribution, lang);
+
+  const channelBlocks = (sections?.channelInsights?.length
+    ? sections.channelInsights
+    : distribution.map((row) => ({
+      platform: row.platform,
+      percentage: row.percentage,
+      explanation: "",
+    }))
+  )
+    .map((row) => [
+      `### ${row.platform} (~${row.percentage}%)`,
+      "",
+      row.explanation || "—",
+      "",
+    ].join("\n"))
     .join("\n");
 
   const themes = (sections?.themes || []).map((theme) => `- ${theme}`).join("\n");
   const samples = (hypeDistribution.socialHype?.samplePosts || [])
-    .slice(0, 5)
-    .map((post) => `- [${post.platform}] ${post.text}${post.url ? ` (${post.url})` : ""}`)
+    .slice(0, 6)
+    .map((post) => `- [${post.platform}] ${post.text}${post.url ? `\n  ${post.url}` : ""}`)
     .join("\n");
 
   if (lang === "es") {
     return [
       `# Social Hype · ${brand}`,
       "",
-      `**Estado:** ${hypeDistribution.status?.label || "—"} · Score ${hypeDistribution.socialHype?.hypeScore ?? 0}/100 · Confianza ${hypeDistribution.socialHype?.confidence || "—"}`,
+      sections?.greetingIntro
+        || `Hola — gracias por pedir este informe. Resume dónde **${brand}** invierte atención social; tú eliges si entrar en alguna conversación o crear una paralela.`,
       "",
-      "## Dónde publica la marca",
-      sections?.channelVerdict || `${brand} concentra la señal en ${primary} (~${share}%).`,
+      buildSignalLine(hypeDistribution, lang),
       "",
-      "### Distribución por canal",
-      distributionLines || "—",
+      "## Distribución por canal",
       "",
-      "## Tu canal preferido (misma audiencia)",
-      `**Recomendado:** ${preferred}`,
+      distributionTable,
       "",
-      sections?.whySameChannel || `Publicar en ${preferred} te alinea con la inversión de atención de ${brand}.`,
+      sections?.distributionSummary || "—",
       "",
-      "## Acción companion",
-      sections?.companionAction || `Publicá contenido corto en ${preferred} esta semana.`,
+      "## Qué tipo de conversación vive en cada red",
       "",
-      "## Temas del buzz",
+      channelBlocks || "—",
+      "## Mi lectura principal",
+      "",
+      sections?.primaryReading || "—",
+      "",
+      "## Matices del mix",
+      "",
+      sections?.channelNuance || "—",
+      "",
+      "## Si quieres entrar en la conversación",
+      "",
+      sections?.conversationIdea || "—",
+      "",
+      "## Temas que aparecen en el buzz",
+      "",
       themes || "—",
       "",
-      "## Muestras",
+      "## Muestras (fuentes de la muestra)",
+      "",
       samples || "—",
       "",
-      "## Riesgos",
-      sections?.risks || "Evitá canales sin señal en el mix.",
+      buildMarketHypeNextStepSection(lang, brand),
     ].join("\n");
   }
 
   return [
     `# Social Hype · ${brand}`,
     "",
-    `**Status:** ${hypeDistribution.status?.label || "—"} · Score ${hypeDistribution.socialHype?.hypeScore ?? 0}/100 · Confidence ${hypeDistribution.socialHype?.confidence || "—"}`,
+    sections?.greetingIntro
+      || `Hi — thanks for requesting this report. It summarizes where **${brand}** invests social attention; you choose whether to join a conversation or start a parallel one.`,
     "",
-    "## Where the brand publishes",
-    sections?.channelVerdict || `${brand} concentrates signal on ${primary} (~${share}%).`,
+    buildSignalLine(hypeDistribution, lang),
     "",
-    "### Channel distribution",
-    distributionLines || "—",
+    "## Channel distribution",
     "",
-    "## Your preferred channel (same audience)",
-    `**Recommended:** ${preferred}`,
+    distributionTable,
     "",
-    sections?.whySameChannel || `Publishing on ${preferred} aligns you with where ${brand} invests attention.`,
+    sections?.distributionSummary || "—",
     "",
-    "## Companion action",
-    sections?.companionAction || `Post short-form content on ${preferred} this week.`,
+    "## What conversation lives on each network",
     "",
-    "## Buzz themes",
+    channelBlocks || "—",
+    "## My main read",
+    "",
+    sections?.primaryReading || "—",
+    "",
+    "## Mix nuances",
+    "",
+    sections?.channelNuance || "—",
+    "",
+    "## If you want to join the conversation",
+    "",
+    sections?.conversationIdea || "—",
+    "",
+    "## Themes in the buzz",
+    "",
     themes || "—",
     "",
-    "## Samples",
+    "## Samples (sources in the sample)",
+    "",
     samples || "—",
     "",
-    "## Risks",
-    sections?.risks || "Skip channels with no signal in the mix.",
+    buildMarketHypeNextStepSection(lang, brand),
   ].join("\n");
 }
 
 export const SOCIAL_HYPE_REPORT_PRESENTATION = {
   kind: "social-hype-v1",
-  animateOnOpen: false,
+  animateOnOpen: true,
+  animatedAt: null,
 };
+
+/**
+ * @param {'en'|'es'} lang
+ * @param {string} brand
+ */
+function buildMarketHypeNextStepSection(lang, brand) {
+  if (lang === "es") {
+    return [
+      "## Siguiente paso · Market Hype",
+      "",
+      `Ok — si querés llevar estos datos al panel **Market Hype** del selector Intel, andá a esa pestaña y tocá **Insertar datos del informe**. Ahí vas a ver la distribución, hashtags y keywords que acabo de recopilar para **${brand}**.`,
+    ].join("\n");
+  }
+
+  return [
+    "## Next step · Market Hype",
+    "",
+    `Ok — to bring this data into the **Market Hype** panel in the Intel selector, open that tab and tap **Insert report data**. You'll see the distribution, hashtags, and keywords I just collected for **${brand}**.`,
+  ].join("\n");
+}
 
 /**
  * @param {string} brandName

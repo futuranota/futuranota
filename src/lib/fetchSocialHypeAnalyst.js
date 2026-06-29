@@ -2,13 +2,22 @@ import { API_ROUTES } from "../api/routes.js";
 import { apiClient } from "../api/client.js";
 
 /**
+ * @typedef {Object} ChannelInsight
+ * @property {string} platform
+ * @property {number} percentage
+ * @property {string} explanation
+ */
+
+/**
  * @typedef {Object} SocialHypeAnalystSections
- * @property {string} channelVerdict
+ * @property {string} greetingIntro
+ * @property {string} distributionSummary
+ * @property {ChannelInsight[]} channelInsights
+ * @property {string} primaryReading
  * @property {string} preferredChannel
- * @property {string} whySameChannel
+ * @property {string} channelNuance
+ * @property {string} conversationIdea
  * @property {string[]} themes
- * @property {string} companionAction
- * @property {string} risks
  * @property {string} [source]
  */
 
