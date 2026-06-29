@@ -2,6 +2,7 @@
 
 export const AGENT_ORCHESTRATOR = "orchestrator";
 export const AGENT_CAMPAIGN_ANALYST = "campaign-analyst";
+export const AGENT_MARKETING_GUIDE = "marketing-guide";
 
 /** @type {AgentDefinition[]} */
 export const AGENTS = [
@@ -19,6 +20,14 @@ export const AGENTS = [
     labelKey: "agents.campaignAnalyst.name",
     descriptionKey: "agents.campaignAnalyst.description",
     canvasTitle: "CAMPAIGN ANALYST",
+    icon: "analyst",
+    enabled: true,
+  },
+  {
+    id: AGENT_MARKETING_GUIDE,
+    labelKey: "agents.marketingGuide.name",
+    descriptionKey: "agents.marketingGuide.description",
+    canvasTitle: "MARKETING GUIDE",
     icon: "analyst",
     enabled: true,
   },

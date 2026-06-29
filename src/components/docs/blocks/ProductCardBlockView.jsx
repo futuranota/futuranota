@@ -1,4 +1,5 @@
 import { ProductCard } from "../../products/ProductCard.tsx";
+import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
 
 function safeProductData(block) {
   const specs = block?.specs && typeof block.specs === "object" ? block.specs : {};
@@ -28,49 +29,6 @@ function safeProductData(block) {
   };
 }
 
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function fileToWebpData(file) {
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = await loadImage(objectUrl);
-    const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth || image.width;
-    canvas.height = image.naturalHeight || image.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
-    ctx.drawImage(image, 0, 0);
-    const blob = await new Promise((resolve) => {
-      canvas.toBlob((next) => resolve(next), "image/webp", 0.86);
-    });
-    if (!blob) return null;
-    const src = await blobToDataUrl(blob);
-    return {
-      id: `PRDIMG_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      src,
-      name: `${(file.name || "image").replace(/\.[^/.]+$/, "")}.webp`,
-    };
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
 export function ProductCardBlockView({ block, onChange, onInsertToCanvas, onDelete }) {
   const data = safeProductData(block);
 
@@ -93,7 +51,9 @@ export function ProductCardBlockView({ block, onChange, onInsertToCanvas, onDele
   const handleUploadImages = async (files) => {
     const list = files ? Array.from(files) : [];
     if (!list.length) return;
-    const converted = await Promise.all(list.map((file) => fileToWebpData(file)));
+    const converted = await Promise.all(
+      list.map((file) => convertFileToWebpData(file, { idPrefix: "PRDIMG" })),
+    );
     const nextImages = [...data.images, ...converted.filter(Boolean)];
     onChange?.({
       images: nextImages,

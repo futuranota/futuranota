@@ -110,11 +110,15 @@ B) CADENCIA HISTÓRICA
    - ¿Hay un mes del año donde concentran lanzamientos?
    Entrega esto como dato promedio con ejemplos reales.
 
-C) MERCADO CORE
-   Basado en datos disponibles:
-   - ¿En qué países/regiones está concentrada su base de clientes?
-   - ¿Qué segmento demográfico es su cliente más fiel?
-   - ¿Hay datos de market share o ventas por región?
+C) MERCADO CORE Y AUDIENCIA (web verificado)
+   Buscá en el corpus CUALQUIER dato verificable sobre:
+   - **Dónde están** los clientes que compran productos de {brand} (regiones, ciudades, países)
+   - **Señales de ventas o ingresos** cuando estén citadas (unidades, % crecimiento — nunca inventar)
+   - **Dónde picó el interés el año pasado** (picos geográficos o estacionales en Trends/noticias)
+   - Demografía solo si una fuente la nombra
+
+   Llená **marketAnalysis** estructurado (ver OUTPUT) solo con evidencia.
+   Si no hay dato, dejá campos vacíos y explicá el vacío en evidenceSummary — no adivines ciudades ni promedios.
 
 ═══════════════════════════════════════════
 FASE 4 — REPORTE FINAL (output estratégico v2)
@@ -126,7 +130,9 @@ El doc lo arma el renderer (saludo + secciones ##). Tú llenas JSON:
 - **whatsNew**: hechos recientes + lectura analista (qué implica para el mercado).
 - **whatsComing**: solo futuro; fecha, días restantes, ventana de hype (90–120 días antes).
 - **strategicRecommendation**: bloque "Mi recomendación" — oportunidades en features/tendencias; nunca digas qué producto vender.
-- **marketContext**: solo datos verificados. Si `marketInterest.source === "dataforseo"`, puedes citar % y regiones de ahí. Si no, no inventes porcentajes.
+- **marketContext**: Trends + snippets verificados. Nunca inventes %.
+- **customerMarkets**: resumen prosa de geografía / segmentos de compradores (solo verificado).
+- **marketAnalysis**: objeto estructurado para handoff a Marketing Guide (ver OUTPUT).
 - **sources**: `{ url, tipo, label }` — label = titular breve. El renderer formatea como `· domain · Título (oficial|medio)` + link markdown `[domain](url)`. No uses em-dash (—) como separador.
 
 PROHIBIDO en campos visibles: headers "Intel —", meta Groq/fallback, confidenceReason en prosa. No uses em-dash (—) como separador decorativo en prosa; preferí comas o puntos.
@@ -143,48 +149,19 @@ Complementa con datos de Tavily/Serper citados en marketContext.
 NUNCA inventes un % de Google Trends si no está en marketInterest.
 
 ═══════════════════════════════════════════
-FASE 6 — GUÍA DE ACCIÓN CON HERRAMIENTAS
+FASE 6 — SOLO LAUNCH RADAR (handoff de herramienta)
 ═══════════════════════════════════════════
 
-Esta sección se activa SOLO si detectaste alguno de estos 
-escenarios en Fase 1 y 2:
+NO escribas guías de Calendar, Forecast, Market Hype, YouTube 
+ni Search Intent — el agente **Marketing Guide** educa sobre 
+Futura Nota después de este informe.
 
-  ESCENARIO A: {brand} tiene un lanzamiento confirmado próximo
-  ESCENARIO B: {brand} tiene un lanzamiento esperado o rumoreado
-  ESCENARIO C: {brand} acaba de lanzar algo en los últimos 30 días
+Podés mencionar **Launch Radar** brevemente dentro de 
+strategicRecommendation cuando haya lanzamiento futuro o 
+ventana de cadencia (1–2 frases máximo):
+paso manual en Intel → Launch radar; este informe no lo ejecuta.
 
-Si aplica cualquiera de los tres, cierra el reporte con esto:
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🧭 CÓMO USAR ESTE MOMENTO
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-"Si {brand} te genera interés, lo siguiente es convertir 
-ese gap de tiempo en ventaja.
-
-📅 CALENDAR
-Usa Calendar para visualizar los eventos que surgen en este 
-timeframe — fechas de anuncio, lanzamiento, y el período 
-entre ambos. Ese intervalo es tu ventana de acción. 
-Los mercados se mueven antes del lanzamiento, no después.
-
-📊 MARKET HYPE
-Con Market Hype puedes estudiar en qué canal {brand} está 
-invirtiendo dinero en este momento. Eso te dice dónde viven 
-sus clientes potenciales — si están en YouTube, en prensa 
-especializada, o en redes sociales — y hacia dónde deberías 
-orientar tu atención.
-
-📡 LAUNCH RADAR
-Te recomiendo activar Launch Radar en Intel cuando quieras escanear fechas y ver countdown o cadencia. Es un paso manual tuyo — este informe no lo ejecuta automáticamente. Mantener {brand} en radar te da anticipación sobre el próximo movimiento antes de que sea noticia."
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-REGLA: Esta guía nunca dice qué vender ni qué hacer 
-con el negocio del usuario. Solo explica para qué sirve 
-cada herramienta en el contexto de esta señal específica.
-Si no hay lanzamiento detectado ni esperado, omite esta 
-sección completamente.
+Nunca incluyas una sección multi-herramienta "cómo usar este momento".
 
 ═══════════════════════════════════════════
 REGLAS GLOBALES

@@ -10,6 +10,7 @@ export const API_ROUTES = {
   campaignStudy: "/api/analytics/campaign-study",
   agentOrchestrate: "/api/agents/orchestrate",
   agentAnalyze: "/api/agents/analyze",
+  agentMarketingGuide: "/api/agents/marketing-guide",
   horizonScan: "/api/analytics/horizon-scan",
   weatherForecast: "/api/weather/forecast",
   events: "/api/events",

@@ -2037,6 +2037,19 @@ textarea.field {
   margin-top: 8px;
 }
 
+.doc-analyst-report__figure {
+  margin: 10px 0 4px;
+}
+
+.doc-analyst-report__img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+}
+
 .doc-widget-snapshot {
   margin: 6px 0 2px;
 }

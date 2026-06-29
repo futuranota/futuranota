@@ -1,4 +1,5 @@
 import { completeJson } from "../llmJson.js";
+import { normalizeMarketAnalysis } from "../../src/lib/agents/marketContextBundle.js";
 import {
   buildCampaignAnalystPrompt,
   normalizeAnalystLocale,
@@ -184,6 +185,7 @@ export function normalizeAnalystReport(raw, detection = {}) {
     strategicRecommendation,
     businessOpportunities,
     customerMarkets: isPlaceholderText(raw.customerMarkets) ? "" : asString(raw.customerMarkets),
+    marketAnalysis: normalizeMarketAnalysis(raw.marketAnalysis),
     launchCadence: isPlaceholderText(raw.launchCadence) ? "" : asString(raw.launchCadence),
     sources: normalizeSources(raw.sources, detection),
     overallConfidence: asString(raw.overallConfidence),
@@ -427,6 +429,7 @@ export function buildFallbackAnalystReport(locale, brandName, detection, primary
     strategicRecommendation: buildFallbackStrategicRecommendation(lang, brandName),
     businessOpportunities: [],
     customerMarkets: "",
+    marketAnalysis: normalizeMarketAnalysis(null),
     launchCadence: detection?.averageIntervalMonths
       ? (lang === "es"
         ? `Patrón histórico estimado: cada ${detection.averageIntervalMonths} meses (desde detección).`

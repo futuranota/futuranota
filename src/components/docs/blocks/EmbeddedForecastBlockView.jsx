@@ -9,7 +9,7 @@ export function EmbeddedForecastBlockView({
 
   return (
     <div className="doc-embedded-forecast">
-      <div className="doc-embedded-forecast__capture" data-widget-capture-root>
+      <div className="doc-embedded-forecast__capture" data-widget-capture-root data-widget-kind="weather-forecast">
         <ForecastNodeView payload={payload} compact={false} className="doc-embedded-forecast__body" />
       </div>
       {onRemove ? (

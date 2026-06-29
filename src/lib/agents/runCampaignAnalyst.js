@@ -11,6 +11,8 @@ import { resolveAgentGraph, isOrchestratorTargetDoc } from "./resolveAgentGraph.
 import { buildCanvasContextSummary } from "./buildCanvasContextSummary.js";
 import { applyAnalystReportToDoc } from "./applyAnalystReportToDoc.js";
 import { resolveLaunchRadarObjectId } from "./resolveLaunchRadarObjectId.js";
+import { runMarketingGuide } from "./runMarketingGuide.js";
+import { buildMarketContextBundle } from "./marketContextBundle.js";
 import { getAgentRunCost } from "./agentCreditCosts.js";
 import { AGENT_CAMPAIGN_ANALYST } from "./registry.js";
 import { isDeliverableAnalystReport, slimDetectionForAnalyst } from "./analystReportQuality.js";
@@ -22,6 +24,7 @@ import { isDeliverableAnalystReport, slimDetectionForAnalyst } from "./analystRe
  * @property {string} brandName
  * @property {import("../fetchCampaignDetection.js").CampaignDetectionResponse} detection
  * @property {import("../fetchCampaignAnalyst.js").CampaignAnalystReport} analystReport
+ * @property {string} [playbookDocId]
  * @property {string} [userFacingMessage]
  */
 
@@ -214,7 +217,7 @@ export async function runCampaignAnalyst({
       };
     }
 
-    const analystReport = await fetchCampaignAnalystReport({
+    const analystReportRaw = await fetchCampaignAnalystReport({
       locale: lang,
       brandName,
       analystBrief: brief,
@@ -222,6 +225,9 @@ export async function runCampaignAnalyst({
       detection: slimDetectionForAnalyst(detection),
       ignoredTopics: plan?.ignoredTopics || [],
     });
+
+    const analystReport = { ...analystReportRaw };
+    delete analystReport.marketingGuide;
 
     if (!isDeliverableAnalystReport(analystReport, detection)) {
       return {
@@ -272,15 +278,42 @@ export async function runCampaignAnalyst({
 
     const preview = (analystReport?.openingBrief || analystReport?.whatsNew || "").slice(0, 80);
 
+    const parentObjectId = targetDoc?.parentObjectId
+      || graph.targetObjectId
+      || resolveLaunchRadarObjectId(
+        useObjectsStore.getState().objects,
+        brandName,
+        targetDoc?.parentObjectId || graph.targetObjectId,
+      );
+
+    let playbookDocId = null;
+    const marketContextBundle = buildMarketContextBundle(analystReport, detection, brandName);
+    const guideResult = await runMarketingGuide({
+      brandName,
+      detection,
+      analystReport,
+      marketContextBundle,
+      parentObjectId,
+      locale: lang,
+    });
+    if (guideResult.status === "success") {
+      playbookDocId = guideResult.docId;
+    }
+
+    const playbookHint = playbookDocId
+      ? (lang === "es" ? " · Playbook listo" : " · Playbook ready")
+      : "";
+
     return {
       status: "success",
       docId: targetDocId,
+      playbookDocId,
       brandName,
       detection,
       analystReport,
       userFacingMessage: lang === "es"
-        ? `Intel aplicado · ${brandName}${preview ? ` · ${preview}${((analystReport?.openingBrief || analystReport?.whatsNew)?.length || 0) > 80 ? "…" : ""}` : ""}`
-        : `Intel applied · ${brandName}${preview ? ` · ${preview}${((analystReport?.openingBrief || analystReport?.whatsNew)?.length || 0) > 80 ? "…" : ""}` : ""}`,
+        ? `Intel aplicado · ${brandName}${playbookHint}${preview ? ` · ${preview}${((analystReport?.openingBrief || analystReport?.whatsNew)?.length || 0) > 80 ? "…" : ""}` : ""}`
+        : `Intel applied · ${brandName}${playbookHint}${preview ? ` · ${preview}${((analystReport?.openingBrief || analystReport?.whatsNew)?.length || 0) > 80 ? "…" : ""}` : ""}`,
     };
   } catch (err) {
     return {

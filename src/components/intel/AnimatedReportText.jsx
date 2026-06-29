@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { useAnimatedText } from "../../hooks/useAnimatedText.js";
 import { linkifyReportText } from "../../lib/linkifyReportText.jsx";
 
+const REPORT_IMAGE_MD_RE = /^!\[([^\]]*)\]\(([^)]+)\)\s*$/;
+
 /**
  * Typewriter presentation for analyst strategic reports (Quicksand + linkified sources).
  * Uses the same char-by-char cadence as Intel Overview, with auto-scroll while writing.
@@ -52,6 +54,20 @@ export function AnimatedReportText({ text, onComplete }) {
         }
         if (!line.trim()) {
           return <p key={i} className="doc-analyst-report__spacer">{"\u00A0"}</p>;
+        }
+        const imageMatch = line.match(REPORT_IMAGE_MD_RE);
+        if (imageMatch) {
+          const [, alt, src] = imageMatch;
+          return (
+            <figure key={i} className="doc-analyst-report__figure">
+              <img
+                className="doc-analyst-report__img"
+                src={src}
+                alt={alt || ""}
+                draggable={false}
+              />
+            </figure>
+          );
         }
         return (
           <p key={i}>

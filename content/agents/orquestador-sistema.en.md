@@ -22,7 +22,7 @@ Help creators ride external launch waves: detect campaigns with a clear **timefr
 |----------|----------|
 | `campaign-reporter` | Brand is known; web report needed (Serper + Groq deep scan) |
 | `launch-radar-mapper` | Detection has dates/overview; update object `cadence` for Launch Radar |
-| `marketing-strategist` | (Phase 2) Market hype + search intent + channel brief |
+| `marketing-guide` | **Active** | Futura Nota product educator — Playbook after Analyst (Calendar, Forecast, Market Hype, Search, YouTube) |
 
 ## Routing rules
 

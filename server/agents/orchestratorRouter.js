@@ -55,8 +55,8 @@ function normalizeOrchestratorPlan(plan, canvasContext, locale) {
   let resolvedBrief = analystBrief;
   if (!resolvedBrief && brandName && intent === "delegate_campaign_analysis") {
     resolvedBrief = lang === "es"
-      ? `Analizá campaña de ${brandName}. Educá sobre los 5 paneles del dashboard con datos del detection. Enfatizá qué hay de nuevo vs versión anterior si hay evidencia.`
-      : `Analyze ${brandName} campaign signals. Educate on all 5 dashboard panels using detection data. Emphasize what's new vs previous version when evidence exists.`;
+      ? `Analizá campaña de ${brandName}. Educá con datos del detection. Enfatizá qué hay de nuevo vs versión anterior si hay evidencia. No escribas guías de herramientas Intel — Marketing Guide las genera después.`
+      : `Analyze ${brandName} campaign signals. Educate using detection data. Emphasize what's new vs previous version when evidence exists. Do not write Intel tool guides — Marketing Guide generates those after.`;
   }
 
   return {
@@ -142,8 +142,8 @@ export function buildFallbackOrchestratorPlan(canvasContext, locale = "en") {
     brandName,
     targetDocId,
     analystBrief: lang === "es"
-      ? `Delegación al Analista: investigar ${brandName}. Contexto usuario: "${queryHint}". Escribir informe educativo en el doc campaña (5 paneles + analogía clima). Ignorar temas off-topic.`
-      : `Delegate to Analyst: research ${brandName}. User context: "${queryHint}". Write educational report into campaign doc (5 panels + weather analogy). Ignore off-topic threads.`,
+      ? `Delegación al Analista: investigar ${brandName}. Contexto usuario: "${queryHint}". Escribir informe estratégico en doc campaña (sin guías de herramientas — Marketing Guide corre después). Ignorar temas off-topic.`
+      : `Delegate to Analyst: research ${brandName}. User context: "${queryHint}". Write strategic report into campaign doc (no tool guides — Marketing Guide runs after). Ignore off-topic threads.`,
     delegateTo: "campaign-analyst",
     ignoredTopics: [],
     routingNote: lang === "es"

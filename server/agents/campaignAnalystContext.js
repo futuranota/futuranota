@@ -89,11 +89,21 @@ OUTPUT — valid JSON only (no markdown wrapper). All text fields in English.
   "overallConfidence": "High"|"Medium"|"Low"|"",
   "confidenceReason": string,
   "marketContext": string,
+  "customerMarkets": string,
+  "marketAnalysis": {
+    "customerLocations": string,
+    "salesMetrics": string,
+    "priorYearInterestPeak": string,
+    "topInterestRegions": string[],
+    "evidenceSummary": string
+  },
   "launchScenario": "A"|"B"|"C"|"none"|""
 }
 
 Rules:
-- Phases 2–6 only; search results are in the user message.
+- Phases 2–5 only; search results are in the user message.
+- Phase 6: Launch Radar handoff only — no Calendar/Forecast/Market Hype/YouTube guides (Marketing Guide agent).
+- marketAnalysis: ONLY from search corpus or detection.marketInterest. Empty strings if no evidence. topInterestRegions max 5 (e.g. "Palo Alto, California").
 - openingBrief: strategic hook, 2–4 paragraphs. NEVER repeat the user's question verbatim.
 - strategicRecommendation: "My recommendation" block — opportunities, features, direction; never tell user what to sell.
 - NEVER include in text fields: "Intel —", "I reviewed X focusing on", Groq/fallback/confidence meta (confidence fields are internal only).
@@ -128,11 +138,21 @@ SALIDA — solo JSON válido (sin markdown). Texto en español.
   "overallConfidence": "Alta"|"Media"|"Baja"|"",
   "confidenceReason": string,
   "marketContext": string,
+  "customerMarkets": string,
+  "marketAnalysis": {
+    "customerLocations": string,
+    "salesMetrics": string,
+    "priorYearInterestPeak": string,
+    "topInterestRegions": string[],
+    "evidenceSummary": string
+  },
   "launchScenario": "A"|"B"|"C"|"none"|""
 }
 
 Reglas:
-- Fases 2–6 solamente; los resultados de búsqueda vienen en el mensaje de usuario.
+- Fases 2–5 solamente; los resultados de búsqueda vienen en el mensaje de usuario.
+- Fase 6: solo handoff Launch Radar — sin guías Calendar/Forecast/Market Hype/YouTube (agente Marketing Guide).
+- marketAnalysis: SOLO del corpus o detection.marketInterest. Strings vacíos sin evidencia. topInterestRegions máx 5 (ej. "Palo Alto, California").
 - openingBrief: gancho estratégico, 2–4 párrafos. NUNCA repitas la pregunta del usuario textualmente.
 - strategicRecommendation: bloque "Mi recomendación" — oportunidades, features, dirección; nunca digas qué vender.
 - NUNCA incluyas en campos de texto: "Intel —", "Revisé X con foco en", meta de Groq/fallback/confianza (confidence es interno).

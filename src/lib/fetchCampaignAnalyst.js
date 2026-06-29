@@ -38,6 +38,9 @@ import { apiClient } from "../api/client.js";
  * @property {string} overallConfidence
  * @property {string} confidenceReason
  * @property {string} marketContext
+ * @property {string} customerMarkets
+ * @property {import("./marketContextBundle.js").MarketAnalysis} [marketAnalysis]
+ * @property {import("./fetchMarketingGuide.js").MarketingGuideReport} [marketingGuide]
  * @property {string} toolGuide
  * @property {string} launchScenario
  * @property {boolean} [campaignActive]

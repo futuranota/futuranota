@@ -53,6 +53,7 @@ import {
   validateCanvasConnectionAttempt,
 } from './lib/timelineGraph.js';
 import { useTimelineStore } from './stores/index.js';
+import { organizeCanvasNodes } from './lib/canvasMath.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
  * Notes ↔ Nodes ↔ Blueprints. Three-tier model:
@@ -60,7 +61,8 @@ import { useTimelineStore } from './stores/index.js';
  *   - Multi-select: tap nodes to add/remove; tap empty canvas to clear
  *   - "Create Blueprint" groups selected nodes (logical folder + colored frame)
  *   - "Metric bridge" — a metric node connected to two date nodes auto-computes day-diff
- *   - "Clear canvas" hides nodes (keeps data + blueprints intact)
+ *   - "Clear canvas" removes all nodes and connections (data in folders stays intact)
+ *   - "Organize" compacts visible nodes into a grid
  */
 
 function Icon({ name, size = 14 }) {
@@ -75,6 +77,7 @@ function Icon({ name, size = 14 }) {
     group:   <path d="M3 6h6v3M11 6h6v8H8V9" stroke="currentColor" strokeWidth="1.4" fill="none" />,
     show:    <path d="M10 5C5 5 2 10 2 10s3 5 8 5 8-5 8-5-3-5-8-5zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" stroke="currentColor" strokeWidth="1.2" fill="none" />,
     import:  <path d="M10 16V7m0 0l-3.5 3.5M10 7l3.5 3.5M4 4h12" stroke="currentColor" strokeWidth="1.4" fill="none" />,
+    grid:    <path d="M3 3h5v5H3V3zm9 0h5v5h-5V3zM3 12h5v5H3v-5zm9 0h5v5h-5v-5z" stroke="currentColor" strokeWidth="1.2" fill="none" />,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor">
@@ -807,7 +810,7 @@ function BlueprintCanvas({
   blueprints, setBlueprints, selection, setSelection,
   today, onInsertToTimeline, onDeleteNode, onEditNode, onFocusNote,
   onOpenNote,
-  onRemoveBlueprintFromCanvas, onCanvasDrop,
+  onRemoveBlueprintFromCanvas, onCanvasDrop, onClearCanvas,
   docsById = {}, nodeEntitiesById = {}, objectsById = {},
   timelineQueueMode = false,
   timelineSelectEnabled = true,
@@ -819,6 +822,7 @@ function BlueprintCanvas({
   onDocumentAdoptOrphan,
   onRunAgent,
 }) {
+  const { t } = useI18n();
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
   const traceFunixMode = useTimelineStore((s) => s.traceFunixMode);
   const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
@@ -1643,13 +1647,31 @@ function BlueprintCanvas({
   }, [nodes.length]);
 
   const handleClear = () => {
-    if (!window.confirm("Hide all nodes? Blueprints and data stay intact.")) return;
-    setNodes((all) => all.map((n) => ({ ...n, hidden: true })));
+    const visibleCount = nodes.filter((n) => !n.hidden).length;
+    if (!visibleCount && !connections.length && !strokes.length && !importedImage) return;
+    if (!window.confirm(t("canvas.clearConfirm"))) return;
+    if (onClearCanvas) {
+      onClearCanvas();
+    } else {
+      setNodes([]);
+      setConnections([]);
+      setBlueprints([]);
+    }
     setStrokes([]);
     setRulerPt1(null);
     setSelection([]);
     setSelectedStrokeIds([]);
+    setSelectedBlueprintId(null);
+    setSelectedConnectionId(null);
     setImportedImage(null);
+  };
+
+  const handleOrganize = () => {
+    const visibleCount = nodes.filter((n) => !n.hidden).length;
+    if (visibleCount < 2) return;
+    setNodes((all) => organizeCanvasNodes(all));
+    setSelection([]);
+    setSelectedBlueprintId(null);
   };
 
   const handleShowAll = () => {
@@ -1671,9 +1693,9 @@ function BlueprintCanvas({
   };
 
   const handleImportClick = () => {
-    const hasVisibleCards = nodes.some((n) => !n.hidden);
-    if (hasVisibleCards) {
-      window.alert("Clear the canvas cards first, then import an image.");
+    const hasCanvasCards = nodes.some((n) => !n.hidden);
+    if (hasCanvasCards) {
+      window.alert(t("canvas.importNeedsClear"));
       return;
     }
     importInputRef.current?.click();
@@ -1901,11 +1923,22 @@ function BlueprintCanvas({
           </>
         ) : null}
         {hiddenCount > 0 && (
-          <button className="btn xs" onClick={handleShowAll} title="Show all hidden nodes">
-            <Icon name="show" size={11} /> Show all
+          <button className="btn xs" onClick={handleShowAll} title={t("canvas.showAllTitle")}>
+            <Icon name="show" size={11} /> {t("canvas.showAll")}
           </button>
         )}
-        <button className="btn xs ghost" onClick={handleClear}><Icon name="clear" size={11} /> Clear</button>
+        <button
+          type="button"
+          className="btn xs"
+          onClick={handleOrganize}
+          disabled={visibleNodes.length < 2}
+          title={t("canvas.organizeTitle")}
+        >
+          <Icon name="grid" size={11} /> {t("canvas.organize")}
+        </button>
+        <button className="btn xs ghost" onClick={handleClear} title={t("canvas.clearTitle")}>
+          <Icon name="clear" size={11} /> {t("canvas.clear")}
+        </button>
         <button className="btn xs" onClick={handleImportClick}><Icon name="import" size={11} /> Import</button>
         <span className="canvas-tool-divider" />
         <button className="canvas-tool" title="Zoom out" onClick={() => {
@@ -2224,10 +2257,10 @@ function BlueprintCanvas({
         {nodes.length > 0 && visibleNodes.length === 0 && !importedImage && (
           <div className="canvas-empty">
             <div className="canvas-empty-card">
-              <div style={{ fontSize: 11, color: "var(--dim)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Canvas cleared</div>
-              <h3>{hiddenCount} nodes hidden</h3>
-              <p>Data + {blueprints.length} blueprints intact. Click "Show all" to restore.</p>
-              <button className="btn primary" onClick={handleShowAll}>Show all nodes</button>
+              <div style={{ fontSize: 11, color: "var(--dim)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{t("canvas.allHiddenTitle")}</div>
+              <h3>{t("canvas.allHiddenCount", { count: hiddenCount })}</h3>
+              <p>{t("canvas.allHiddenHint")}</p>
+              <button className="btn primary" onClick={handleShowAll}>{t("canvas.showAll")}</button>
             </div>
           </div>
         )}

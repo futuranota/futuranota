@@ -496,7 +496,7 @@ const UNLINK_BLOCK_PATCH = {
 };
 
 /** Detach node link: keep doc content as local copy, drop color + schedule on owner block. */
-export function unlinkNodeFromDocBlocks(blocks, ownerIndex, node = null) {
+export function unlinkNodeFromDocBlocks(blocks, ownerIndex, node = null, options = {}) {
   const normalized = normalizeDocBlocks(blocks);
   const owner = normalized[ownerIndex];
   if (!owner?.nodeId) return normalized;
@@ -513,6 +513,16 @@ export function unlinkNodeFromDocBlocks(blocks, ownerIndex, node = null) {
       }
       if (i === primaryTextIndex) {
         const text = block.text || fallbackText;
+        if (options.textBlockEmbedded !== undefined) {
+          return normalizeDocBlock({ ...block, text, embedded: options.textBlockEmbedded });
+        }
+        if (block.embedded?.kind === "calendar-event" || block.embedded?.kind === "weather-forecast") {
+          return normalizeDocBlock({
+            ...block,
+            text,
+            embedded: { ...block.embedded, linkedNodeId: null },
+          });
+        }
         return normalizeDocBlock({ ...block, text, embedded: undefined });
       }
       return block;

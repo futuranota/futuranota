@@ -22,7 +22,7 @@ Ayudar a creadores a montarse en olas de lanzamiento ajeno: detectar campañas c
 |-----------|--------|
 | `campaign-reporter` | Hay marca; hace falta informe web (Serper + Groq deep scan) |
 | `launch-radar-mapper` | La detección trae fechas/overview; actualizar `cadence` del objeto para Launch Radar |
-| `marketing-strategist` | (Fase 2) Market hype + search intent + brief de canal |
+| `marketing-guide` | **Activo** | Educador Futura Nota — Playbook tras Analista (Calendar, Forecast, Market Hype, Search, YouTube) |
 
 ## Reglas de routing
 

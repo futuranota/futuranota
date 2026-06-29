@@ -34,15 +34,15 @@ import {
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner } from "../../../lib/docNodeSync.js";
-import { isCalendarEventNodeContent } from "../../../lib/eventCalendarSearch.js";
-import { isWeatherForecastNodeContent } from "../../../lib/forecastSearch.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import {
-  buildWidgetSnapshotEmbedded,
-  captureElementToPngDataUrl,
+  buildDetachedWidgetEmbedded,
+  captureDocBlockWidgetSnapshot,
+  isEmbeddableWidgetBlock,
   WIDGET_SNAPSHOT_KIND,
 } from "../../../lib/captureWidgetSnapshot.js";
 import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
+import { useI18n } from "../../../i18n/useI18n.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
 import { useDocsStore } from "../../../stores/docsStore.js";
 import { H1BlockView } from "./H1BlockView.jsx";
@@ -52,14 +52,7 @@ import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 import { VideoEmbedBlockView } from "./VideoEmbedBlockView.jsx";
-
-function resolveEmbeddedWidgetKind(block) {
-  if (block?.embedded?.kind === "weather-forecast") return "weather-forecast";
-  if (block?.embedded?.kind === "calendar-event") return "calendar-event";
-  if (isWeatherForecastNodeContent(block?.text)) return "weather-forecast";
-  if (isCalendarEventNodeContent(block?.text)) return "calendar-event";
-  return "unknown";
-}
+import { ImageBlockView } from "./ImageBlockView.jsx";
 
 const UNLINK_H1_PATCH = {
   nodeId: undefined,
@@ -110,6 +103,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   reportPresentation = null,
   onReportAnimationComplete = null,
 }, ref) {
+  const { t } = useI18n();
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
   const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
@@ -483,27 +477,13 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const handleRemoveEmbeddedBlock = useCallback(async (blockIndex) => {
     const current = blocksRef.current;
     const block = current[blockIndex];
-    const isEmbeddedNode = block?.embedded?.kind === "calendar-event"
-      || block?.embedded?.kind === "weather-forecast"
-      || isCalendarEventNodeContent(block?.text)
-      || isWeatherForecastNodeContent(block?.text);
-    if (!isEmbeddedNode) return;
+    if (!isEmbeddableWidgetBlock(block)) return;
 
     const h1Index = getH1IndexForTextBlock(current, blockIndex);
     const h1 = h1Index >= 0 ? current[h1Index] : null;
     const nodeId = block.embedded?.linkedNodeId || h1?.nodeId || null;
-    const widgetKind = resolveEmbeddedWidgetKind(block);
 
-    const captureEl = document.querySelector(
-      `[data-block-id="${block.id}"] [data-widget-capture-root]`,
-    );
-    let snapshotSrc = null;
-    if (captureEl instanceof HTMLElement) {
-      await new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      });
-      snapshotSrc = await captureElementToPngDataUrl(captureEl);
-    }
+    const snapshotSrc = await captureDocBlockWidgetSnapshot(block.id);
 
     if (nodeId) {
       const node = getNode(nodeId);
@@ -518,11 +498,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       });
     }
 
-    const nextEmbedded = snapshotSrc
-      ? buildWidgetSnapshotEmbedded(snapshotSrc, widgetKind, block.text || "")
-      : block.embedded
-        ? { ...block.embedded, linkedNodeId: null }
-        : null;
+    const nextEmbedded = buildDetachedWidgetEmbedded(block, snapshotSrc);
 
     let next = current.map((b, i) => {
       if (i === h1Index && h1Index >= 0) {
@@ -625,6 +601,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       textValue,
       newBlock,
     );
+    if (parsed.type === DOC_BLOCK_TYPES.IMAGE) {
+      const newIndex = next.findIndex((b) => b.id === newBlock.id);
+      const withTail = newIndex >= 0
+        ? ensureEmptyTextBlockAfter(next, newIndex)
+        : next;
+      setBlocks(withTail);
+      onFocusBlock?.(newBlock.id);
+      requestContentGrow();
+      return newBlock.id;
+    }
     finalizeSlashInsert(next, newBlock.id);
     return newBlock.id;
   };
@@ -807,6 +793,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       fieldValue,
       newBlock,
     );
+    if (parsed.type === DOC_BLOCK_TYPES.IMAGE) {
+      const newIndex = next.findIndex((b) => b.id === newBlock.id);
+      const withTail = newIndex >= 0
+        ? ensureEmptyTextBlockAfter(next, newIndex)
+        : next;
+      setBlocks(withTail);
+      onFocusBlock?.(newBlock.id);
+      requestContentGrow();
+      return newBlock.id;
+    }
     finalizeSlashInsert(next, newBlock.id);
     return newBlock.id;
   };
@@ -1218,6 +1214,37 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             />
           ) : null}
 
+          {block.type === DOC_BLOCK_TYPES.IMAGE ? (
+            <ImageBlockView
+              block={block}
+              onChange={(patch) => {
+                let next = updateBlockAt(blocksRef.current, index, patch);
+                if (patch.imageSaved && patch.src) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
+                if (patch.imageSaved && patch.src) {
+                  const textBlock = next[index + 1];
+                  if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {
+                    onFocusBlock?.(textBlock.id);
+                    focusBlockCaret(textBlock.id, 0);
+                  }
+                  requestContentGrow();
+                }
+              }}
+              onDelete={() => {
+                if (!window.confirm(t("doc.imageBlock.deleteConfirm"))) return;
+                let next = removeBlockAt(blocksRef.current, index);
+                if (!next.length) {
+                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+                }
+                setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+              }}
+            />
+          ) : null}
+
           {block.type === DOC_BLOCK_TYPES.TODO ? (
             <DocTodoPlanBlockView
               listTitle={block.listTitle ?? "Todo list:"}
@@ -1300,10 +1327,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               onRemoveEmbedded={
                 block.embedded?.kind === WIDGET_SNAPSHOT_KIND
                   ? () => handleRemoveWidgetSnapshot(index)
-                  : block.embedded?.kind === "calendar-event"
-                || block.embedded?.kind === "weather-forecast"
-                || isCalendarEventNodeContent(block.text)
-                || isWeatherForecastNodeContent(block.text)
+                  : isEmbeddableWidgetBlock(block)
                   ? () => { void handleRemoveEmbeddedBlock(index); }
                   : null
               }

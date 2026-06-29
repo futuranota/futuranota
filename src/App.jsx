@@ -56,10 +56,12 @@ import {
   collectCanvasNodeIdsForEntityIds,
   syncContentDocCanvasNodes,
 } from './lib/canvasDocSync.js';
+import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
-import { AGENT_CAMPAIGN_ANALYST, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
+import { AGENT_CAMPAIGN_ANALYST, AGENT_MARKETING_GUIDE, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
 import { runCampaignAnalyst } from './lib/agents/runCampaignAnalyst.js';
+import { runMarketingGuideAgent } from './lib/agents/runMarketingGuideAgent.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
 import {
@@ -404,19 +406,22 @@ useEffect(() => {
   };
 
   const nextCanvasPosition = (preferredX, preferredY, extraOccupied = []) => {
-    const occupied = [
-      ...canvasNodes.map((n) => ({ x: n.x, y: n.y })),
-      ...extraOccupied,
-    ];
-    let x = preferredX ?? 30;
-    let y = preferredY ?? 30;
-    let guard = 0;
-    while (occupied.some((p) => Math.abs(p.x - x) < 60 && Math.abs(p.y - y) < 60) && guard < 80) {
-      x += 40;
-      if (x > 600) { x = 30; y += 110; }
-      guard += 1;
+    if (preferredX != null && preferredY != null) {
+      const occupied = [
+        ...canvasNodes.filter((n) => !n.hidden).map((n) => ({ x: n.x, y: n.y })),
+        ...extraOccupied,
+      ];
+      let x = preferredX;
+      let y = preferredY;
+      let guard = 0;
+      while (occupied.some((p) => Math.abs(p.x - x) < 60 && Math.abs(p.y - y) < 60) && guard < 80) {
+        x += 40;
+        if (x > 600) { x = 30; y += 110; }
+        guard += 1;
+      }
+      return { x, y };
     }
-    return { x, y };
+    return nextCompactPosition(canvasNodes, extraOccupied);
   };
 
   /* ── INSERT ZUSTAND NODE → canvas ─ */
@@ -685,6 +690,14 @@ useEffect(() => {
     }
   }, [removeCanvasNodesForEntityIds]);
 
+  const clearAllCanvasElements = useCallback(() => {
+    setCanvasNodes([]);
+    setCanvasConns([]);
+    setBlueprints([]);
+    setSelection([]);
+    setToast({ message: t("canvas.clearSuccess"), kind: "ok" });
+  }, [t]);
+
   const deleteCanvasNode = (nodeId) => {
     const nodeEntities = useNodesStore.getState().nodes;
     let idsToRemove = null;
@@ -759,7 +772,7 @@ useEffect(() => {
       return;
     }
 
-    if (agentId !== AGENT_CAMPAIGN_ANALYST) {
+    if (agentId !== AGENT_CAMPAIGN_ANALYST && agentId !== AGENT_MARKETING_GUIDE) {
       patchCanvasNode(canvasNodeId, {
         agentStatus: "error",
         agentError: translate("agents.errors.generic", locale),
@@ -768,29 +781,44 @@ useEffect(() => {
       return;
     }
 
-    const result = await runCampaignAnalyst({
-      agentCanvasNodeId: canvasNodeId,
-      canvasNodes,
-      connections: canvasConns,
-      docsById: docs,
-      objectsById: objects,
-      nodeEntitiesById: nodeEntities,
-      selectedObjectId,
-      locale,
-    });
+    const result = agentId === AGENT_MARKETING_GUIDE
+      ? await runMarketingGuideAgent({
+        agentCanvasNodeId: canvasNodeId,
+        canvasNodes,
+        connections: canvasConns,
+        docsById: docs,
+        objectsById: objects,
+        selectedObjectId,
+        locale,
+      })
+      : await runCampaignAnalyst({
+        agentCanvasNodeId: canvasNodeId,
+        canvasNodes,
+        connections: canvasConns,
+        docsById: docs,
+        objectsById: objects,
+        nodeEntitiesById: nodeEntities,
+        selectedObjectId,
+        locale,
+      });
 
     if (result.status === "success") {
       patchCanvasNode(canvasNodeId, {
         agentStatus: "done",
         agentError: "",
       });
-      if (result.docId) {
+      const openDocId = agentId === AGENT_MARKETING_GUIDE
+        ? result.docId
+        : (result.playbookDocId || result.docId);
+      if (openDocId) {
         setDocViewGeneration((n) => n + 1);
-        setExpandedDocId(result.docId);
+        setExpandedDocId(openDocId);
       }
       setToast({
         message: result.userFacingMessage
-          || translate("agents.runSuccess", locale, { brand: result.brandName }),
+          || (agentId === AGENT_MARKETING_GUIDE
+            ? translate("agents.playbookSuccess", locale, { brand: result.brandName })
+            : translate("agents.runSuccess", locale, { brand: result.brandName })),
         kind: "ok",
       });
       return;
@@ -915,6 +943,7 @@ useEffect(() => {
             onTimelineCanvasSelectMany={handleTimelineCanvasSelectMany}
             onNotify={(message, kind = "warm") => setToast({ message, kind })}
             onDeleteNode={deleteCanvasNode}
+            onClearCanvas={clearAllCanvasElements}
             onEditNode={() => {}}
             onFocusNote={() => {}}
             onOpenNote={openCanvasEntity}

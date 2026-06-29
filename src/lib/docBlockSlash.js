@@ -54,6 +54,13 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.VIDEO,
     compound: true,
   },
+  {
+    label: "Imagen",
+    ghostHint: "imagen",
+    aliases: ["imagen", "image", "img"],
+    blockType: DOC_BLOCK_TYPES.IMAGE,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
 ];
 
 export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
@@ -121,6 +128,10 @@ export function createDocBlockFromSlash(parsed) {
   if (parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
     const [, video] = createEmbedVideoBlocks();
     return video;
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.IMAGE) {
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE, { openFilePicker: true });
   }
 
   return createDocBlock();

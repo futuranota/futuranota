@@ -12,6 +12,7 @@ const DOC_BLOCK_TYPES = {
   METRIC: "metric",
   PRODUCT_CARD: "product_card",
   VIDEO_EMBED: "video_embed",
+  IMAGE: "image",
 };
 
 const DEFAULT_CHECKBOX_LIST_TITLE = "Todo list:";
@@ -77,6 +78,18 @@ function normalizeProductCard(block) {
         ? block.activeImageIndex
         : 0,
     specsSaved: Boolean(block?.specsSaved),
+  };
+}
+
+function normalizeImageBlock(block) {
+  return {
+    src: block?.src || "",
+    name: block?.name || "",
+    alt: block?.alt || "",
+    width: Number.isFinite(block?.width) ? block.width : 0,
+    height: Number.isFinite(block?.height) ? block.height : 0,
+    imageSaved: Boolean(block?.imageSaved && block?.src),
+    openFilePicker: Boolean(block?.openFilePicker),
   };
 }
 
@@ -160,6 +173,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       embedSaved: patch.embedSaved !== undefined
         ? Boolean(patch.embedSaved)
         : Boolean(embedSrc),
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.IMAGE) {
+    const normalized = normalizeImageBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.IMAGE,
+      ...normalized,
     };
   }
 
@@ -261,6 +283,19 @@ export function normalizeDocBlock(block) {
       ownerH1Id: block.ownerH1Id || undefined,
       parseError: block.parseError || null,
       embedSaved: Boolean(block.embedSaved ?? block.embedSrc),
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.IMAGE) {
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE, {
+      id: block.id,
+      src: block.src,
+      name: block.name,
+      alt: block.alt,
+      width: block.width,
+      height: block.height,
+      imageSaved: block.imageSaved,
+      openFilePicker: block.openFilePicker,
     });
   }
 
@@ -432,6 +467,20 @@ function parseProductCardSection(section) {
   }
 }
 
+function parseImageSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::image")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.IMAGE);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE);
+  }
+}
+
 export function docBlocksFromBody(body) {
   const raw = String(body ?? "").trim();
   if (!raw) return [];
@@ -470,6 +519,12 @@ export function docBlocksFromBody(body) {
     const productCardBlock = parseProductCardSection(section);
     if (productCardBlock) {
       blocks.push(productCardBlock);
+      continue;
+    }
+
+    const imageBlock = parseImageSection(section);
+    if (imageBlock) {
+      blocks.push(imageBlock);
       continue;
     }
 
@@ -537,6 +592,16 @@ export function docBlocksToBody(blocks) {
           embedSrc: block.embedSrc || "",
           ownerH1Id: block.ownerH1Id || null,
           embedSaved: Boolean(block.embedSaved),
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.IMAGE) {
+        return `::image\n${JSON.stringify({
+          src: block.src || "",
+          name: block.name || "",
+          alt: block.alt || "",
+          width: block.width || 0,
+          height: block.height || 0,
+          imageSaved: Boolean(block.imageSaved),
         })}`;
       }
       return block.text || "";
@@ -685,6 +750,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.METRIC
     || block.type === DOC_BLOCK_TYPES.PRODUCT_CARD
     || block.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+    || block.type === DOC_BLOCK_TYPES.IMAGE
   ) {
     return block;
   }

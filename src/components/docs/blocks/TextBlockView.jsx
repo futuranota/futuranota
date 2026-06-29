@@ -85,16 +85,19 @@ export function TextBlockView({
     );
   }
 
-  if (embedded?.kind === "calendar-event" && embedded.displayModel) {
-    return (
-      <div className="doc-text-block doc-text-block--embedded">
-        <EmbeddedCalendarBlockView
-          displayModel={embedded.displayModel}
-          onRemove={onRemoveEmbedded}
-          removeLabel={t("canvas.detachFromDoc")}
-        />
-      </div>
-    );
+  if (embedded?.kind === "calendar-event") {
+    const displayModel = embedded.displayModel || getCalendarEventDisplayModel(value);
+    if (displayModel) {
+      return (
+        <div className="doc-text-block doc-text-block--embedded">
+          <EmbeddedCalendarBlockView
+            displayModel={displayModel}
+            onRemove={onRemoveEmbedded}
+            removeLabel={t("canvas.detachFromDoc")}
+          />
+        </div>
+      );
+    }
   }
 
   if (embedded?.kind === "weather-forecast" && embedded.payload) {

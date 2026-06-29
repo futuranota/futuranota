@@ -53,7 +53,13 @@ import {
   syncVideoNodeFromH1Blocks,
   syncVideoNodeFromVideoBlock,
   unlinkNodeFromDocBlocks,
+  getOwnedTextBlockIndices,
 } from "../../lib/docNodeSync.js";
+import {
+  buildDetachedWidgetEmbedded,
+  captureDocBlockWidgetSnapshot,
+  isEmbeddableWidgetBlock,
+} from "../../lib/captureWidgetSnapshot.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
@@ -727,13 +733,30 @@ export function DocExpandedView({
     }
   };
 
-  const handleDetachFromNode = (ownerIndex) => {
+  const handleDetachFromNode = async (ownerIndex) => {
     const block = draftBlocks[ownerIndex];
     const nodeId = block?.nodeId;
     if (!nodeId) return;
 
     const node = getNode(nodeId);
-    const next = unlinkNodeFromDocBlocks(draftBlocks, ownerIndex, node);
+    let next = draftBlocks;
+
+    if (block?.type === DOC_BLOCK_TYPES.H1) {
+      const owned = getOwnedTextBlockIndices(draftBlocks, ownerIndex);
+      const primaryTextIndex = owned[0] ?? -1;
+      const primaryText = primaryTextIndex >= 0 ? draftBlocks[primaryTextIndex] : null;
+
+      if (primaryText && isEmbeddableWidgetBlock(primaryText)) {
+        const snapshotSrc = await captureDocBlockWidgetSnapshot(primaryText.id);
+        const textBlockEmbedded = buildDetachedWidgetEmbedded(primaryText, snapshotSrc);
+        next = unlinkNodeFromDocBlocks(draftBlocks, ownerIndex, node, { textBlockEmbedded });
+      } else {
+        next = unlinkNodeFromDocBlocks(draftBlocks, ownerIndex, node);
+      }
+    } else {
+      next = unlinkNodeFromDocBlocks(draftBlocks, ownerIndex, node);
+    }
+
     setDraftBlocks(next);
     deleteNodeEntity(nodeId);
 

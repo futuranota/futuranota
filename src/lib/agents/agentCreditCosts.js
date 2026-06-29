@@ -1,6 +1,6 @@
 import { AGENT_RUN_CREDIT_COST, TOKEN_COSTS } from "../planConfig.js";
 import { CREDIT_TOKEN_UNIT } from "../intelModels.js";
-import { AGENT_CAMPAIGN_ANALYST, AGENT_ORCHESTRATOR } from "./registry.js";
+import { AGENT_CAMPAIGN_ANALYST, AGENT_MARKETING_GUIDE, AGENT_ORCHESTRATOR } from "./registry.js";
 
 /** @typedef {{ creditCost: number, tokenCost: number, routeLabel: string, endpoint: string }} AgentRunCost */
 
@@ -19,6 +19,12 @@ const AGENT_RUN_COSTS = {
     tokenCost: TOKEN_COSTS.agentAnalyst,
     routeLabel: "Campaign Analyst",
     endpoint: "agents/analyze",
+  },
+  [AGENT_MARKETING_GUIDE]: {
+    creditCost: 0,
+    tokenCost: 0,
+    routeLabel: "Marketing Guide",
+    endpoint: "agents/marketing-guide",
   },
   "launch-radar": {
     creditCost: SHARED_RUN_CREDIT,

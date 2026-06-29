@@ -173,6 +173,47 @@ function hasText(text) {
 }
 
 /**
+ * @param {import("./marketContextBundle.js").MarketAnalysis} marketAnalysis
+ * @param {string} customerMarkets
+ * @param {'en' | 'es'} lang
+ */
+export function formatMarketAnalysisSection(marketAnalysis, customerMarkets, lang) {
+  /** @type {string[]} */
+  const lines = [];
+
+  if (customerMarkets.trim()) {
+    lines.push(customerMarkets.trim());
+  }
+
+  const ma = marketAnalysis || {};
+  if (ma.customerLocations?.trim()) {
+    lines.push(lang === "es"
+      ? `Ubicación de compradores: ${ma.customerLocations}`
+      : `Buyer locations: ${ma.customerLocations}`);
+  }
+  if (ma.salesMetrics?.trim()) {
+    lines.push(lang === "es"
+      ? `Señales de ventas: ${ma.salesMetrics}`
+      : `Sales signals: ${ma.salesMetrics}`);
+  }
+  if (ma.priorYearInterestPeak?.trim()) {
+    lines.push(lang === "es"
+      ? `Pico de interés (periodo anterior): ${ma.priorYearInterestPeak}`
+      : `Prior interest peak: ${ma.priorYearInterestPeak}`);
+  }
+  if (ma.topInterestRegions?.length) {
+    lines.push(lang === "es"
+      ? `Regiones de mayor interés: ${ma.topInterestRegions.join(", ")}`
+      : `Top interest regions: ${ma.topInterestRegions.join(", ")}`);
+  }
+  if (ma.evidenceSummary?.trim()) {
+    lines.push(ma.evidenceSummary.trim());
+  }
+
+  return lines.join("\n\n");
+}
+
+/**
  * @param {import("../fetchCampaignAnalyst.js").CampaignAnalystReport} report
  * @param {import("../fetchCampaignDetection.js").CampaignDetectionResponse} detection
  * @param {string} brandName
@@ -209,9 +250,15 @@ export function buildStrategicReportBody(report, detection, brandName, lang) {
 
   const marketFromReport = (report?.marketContext || "").trim();
   const marketFromApi = formatMarketInterestBlock(detection?.marketInterest, lang);
-  const marketBlock = [marketFromReport, marketFromApi].filter(hasText).join("\n\n");
+  const marketAnalysisBlock = formatMarketAnalysisSection(
+    report?.marketAnalysis,
+    report?.customerMarkets || "",
+    lang,
+  );
+  const marketBlock = [marketAnalysisBlock, marketFromReport, marketFromApi].filter(hasText).join("\n\n");
   if (hasText(marketBlock)) {
-    parts.push(marketBlock);
+    const label = lang === "es" ? "## Análisis de mercado" : "## Market analysis";
+    parts.push(`${label}\n\n${marketBlock}`);
   }
 
   const radarRecommendation = formatLaunchRadarRecommendation(brandName, detection, lang);

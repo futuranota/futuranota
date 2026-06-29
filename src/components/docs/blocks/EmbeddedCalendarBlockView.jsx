@@ -9,7 +9,7 @@ export function EmbeddedCalendarBlockView({
 
   return (
     <div className="doc-embedded-calendar">
-      <div className="doc-embedded-calendar__capture" data-widget-capture-root>
+      <div className="doc-embedded-calendar__capture" data-widget-capture-root data-widget-kind="calendar-event">
         <CalendarEventDisplay model={displayModel} className="doc-embedded-calendar__body" />
       </div>
       {onRemove ? (
