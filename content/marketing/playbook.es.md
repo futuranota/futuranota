@@ -1,18 +1,21 @@
 # Marketing Guide
 Hey hola {accountName}, soy {agentName}. Aquí te voy a comenzar a dar una guía de cómo tomar mayor provecho de las herramientas que te proporcionamos.La premisa es simple: un mercado siempre tendrá demanda de necesidades, y tú puedes descifrar cuáles son esas necesidades antes de que se vuelvan obvias para todos. No necesitas una idea revolucionaria. Necesitas timing, contexto, y saber conectar los puntos correctos.Aquí te explico cómo hacerlo con cada herramienta.
+Empecemos con algo concreto: imagina que haces una búsqueda simple de una categoría de producto, por ejemplo encendedores, accesorios de cocina o regalos navideños. No buscas la marca todavía; buscas entender qué productos aparecen, a qué precio, y qué problemas resuelven. Esa primera mirada te dice dónde hay demanda antes de que el resto lo note.
+[Imagen Product search](/uploads/PRODUCTSEARCH.png)
+Una vez que encuentres un problema o producto que te interese, comencemos con Calendar. El calendario conecta fechas y te permite descubrir oportunidades.
+[Imagen Calendar](/uploads/calendar.png)
 ## Calendar 🗓️
-Conecta fechas, descubre oportunidades:
-[Imagen Product](/uploads/product.png)
-El Calendar no es un calendario de eventos,  es un detector de coincidencias accionables. La primera recomendación siempre será elegir algo que sepas hacer. Puede ser una manualidad, algo artístico, cerámica, arte, madera, diseño; no importa el campo. Lo importante es que cuando conectas esa habilidad con una fecha de lanzamiento de una marca que te sirva de inspiración, empiezas a ver oportunidades que antes eran invisibles.
+El Calendar no es un calendario de eventos, es un detector de coincidencias accionables. La primera recomendación siempre será elegir algo que sepas hacer. Puede ser una manualidad, algo artístico, cerámica, arte, madera, diseño; no importa el campo. Lo importante es que cuando conectas esa habilidad con una fecha de lanzamiento de una marca que te sirva de inspiración, empiezas a ver oportunidades que antes eran invisibles.
 Así funciona:
 Cuando seleccionas una fecha de lanzamiento, o simplemente quieres conectar una fecha cualquiera de un evento que hayas guardado en tu documento, verás un timeframe a la derecha con opciones [7d] [15d] [31d]. Eso le indica al Calendar que busque todos los eventos e hitos importantes desde esa fecha hasta los próximos 7, 15 o 31 días de su radio. El objetivo es encontrar coincidencias.
 Por ejemplo:
 Si en una fecha seleccionada aparece el lanzamiento de un producto de una marca que sigues como referencia, y esa fecha coincide con una temporada como Navidad o Back to School, ahí tienes dos problemas resueltos en uno: el producto que inspira el diseño y la temporada que define la oportunidad de venta. No necesitas inventar el contexto; el contexto ya existe, solo hay que leerlo.
-[Imagen Idea](/uploads/idea.jpg)
+[Imagen Product](/uploads/product.png)
 ## Forecast 🌤️
 Contexto en tiempo real.
 El Forecast tiene una ventana de tiempo limitada: los próximos 5 días desde tu fecha actual. Eso no es una limitación, es una característica. Esta herramienta no es para planificar a largo plazo; es para actuar cuando la fecha de un evento ya está cerca y necesitas contexto inmediato.
 Cuando el momento de un lanzamiento o evento se acerque, el Forecast te dará el pulso de lo que está ocurriendo en tiempo real. Ideal para crear contenido de última hora, capitalizar tendencias emergentes, o simplemente entender el clima del mercado en ese momento exacto.
+[Imagen Weather](/uploads/weather.png)
 ## Market Hype
 Dónde está la atención. El panel de campañas te informará en qué plataforma la marca que seleccionaste ({brand}) está invirtiendo atención en este momento. Eso no es un dato menor: donde una marca invierte, ahí están sus usuarios más potenciales. Es uno de los índices más honestos para entender dónde vive tu cliente ideal. Úsalo así: una vez que tu producto esté definido, elige los canales donde la marca de referencia está activa, crea contenido en esos mismos canales, itera, y estudia qué piezas generaron mayor impacto y visualizaciones. Cuando identifiques el contenido ganador, invierte en él. Ese es el ciclo completo: del contexto a la conversión. Si tu interés es vender algo directamente relacionado con el lanzamiento de esa marca, para ese punto ya tendrás todas las piezas construidas.
 ## Tendencias de búsqueda

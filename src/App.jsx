@@ -59,12 +59,13 @@ import {
 import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
-import { AGENT_CAMPAIGN_ANALYST, AGENT_MARKETING_GUIDE, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
+import { AGENT_CAMPAIGN_ANALYST, AGENT_MARKETING_GUIDE, AGENT_SOCIAL_HYPE_ANALYST, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
 import { initialNodeShapeFromSlash } from './lib/docBlockSlash.js';
 import { mergeVideoNodeContent } from './lib/videoEmbed.js';
 import { NODE_DATA_TYPES } from './lib/nodeDataTypes.js';
 import { runCampaignAnalyst } from './lib/agents/runCampaignAnalyst.js';
 import { runMarketingGuideAgent } from './lib/agents/runMarketingGuideAgent.js';
+import { runSocialHypeAnalystAgent } from './lib/agents/runSocialHypeAnalystAgent.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
 import {
@@ -794,7 +795,9 @@ useEffect(() => {
       return;
     }
 
-    if (agentId !== AGENT_CAMPAIGN_ANALYST && agentId !== AGENT_MARKETING_GUIDE) {
+    if (agentId !== AGENT_CAMPAIGN_ANALYST
+      && agentId !== AGENT_MARKETING_GUIDE
+      && agentId !== AGENT_SOCIAL_HYPE_ANALYST) {
       patchCanvasNode(canvasNodeId, {
         agentStatus: "error",
         agentError: translate("agents.errors.generic", locale),
@@ -813,7 +816,17 @@ useEffect(() => {
         selectedObjectId,
         locale,
       })
-      : await runCampaignAnalyst({
+      : agentId === AGENT_SOCIAL_HYPE_ANALYST
+        ? await runSocialHypeAnalystAgent({
+          agentCanvasNodeId: canvasNodeId,
+          canvasNodes,
+          connections: canvasConns,
+          docsById: docs,
+          objectsById: objects,
+          selectedObjectId,
+          locale,
+        })
+        : await runCampaignAnalyst({
         agentCanvasNodeId: canvasNodeId,
         canvasNodes,
         connections: canvasConns,
@@ -829,7 +842,7 @@ useEffect(() => {
         agentStatus: "done",
         agentError: "",
       });
-      const openDocId = agentId === AGENT_MARKETING_GUIDE
+      const openDocId = agentId === AGENT_MARKETING_GUIDE || agentId === AGENT_SOCIAL_HYPE_ANALYST
         ? result.docId
         : (result.playbookDocId || result.docId);
       if (openDocId) {
@@ -840,7 +853,9 @@ useEffect(() => {
         message: result.userFacingMessage
           || (agentId === AGENT_MARKETING_GUIDE
             ? translate("agents.playbookSuccess", locale, { brand: result.brandName })
-            : translate("agents.runSuccess", locale, { brand: result.brandName })),
+            : agentId === AGENT_SOCIAL_HYPE_ANALYST
+              ? translate("agents.socialHypeSuccess", locale, { brand: result.brandName })
+              : translate("agents.runSuccess", locale, { brand: result.brandName })),
         kind: "ok",
       });
       return;

@@ -1,4 +1,5 @@
 import { runMarketingGuide } from "./agents/marketingGuide.js";
+import { processSocialHypeRequest } from "./socialHypeAnalystHandler.js";
 
 /**
  * @param {import('http').IncomingMessage} req
@@ -20,11 +21,27 @@ function readJsonBody(req) {
 }
 
 /**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ */
+async function handleSocialHypeAnalystRequest(req, res) {
+  await processSocialHypeRequest(req, res);
+}
+
+/**
  * Vite / Node middleware for POST /api/agents/marketing-guide
+ * and POST /api/agents/social-hype-analyst (same plugin registration).
  */
 export function createMarketingGuideMiddleware() {
   return async (req, res, next) => {
-    if (req.url?.split("?")[0] !== "/api/agents/marketing-guide") {
+    const path = req.url?.split("?")[0];
+
+    if (path === "/api/agents/social-hype-analyst") {
+      await handleSocialHypeAnalystRequest(req, res);
+      return;
+    }
+
+    if (path !== "/api/agents/marketing-guide") {
       next();
       return;
     }

@@ -8,6 +8,7 @@ import {
 } from "./supabaseServer.js";
 import { pipelineKeysConfigured, runCampaignStudyPipeline } from "./campaignStudyPipeline.js";
 import { logApiUsageEvents } from "./management/logApiUsage.js";
+import { processSocialHypeRequest } from "./socialHypeAnalystHandler.js";
 
 const TOKEN_COST = 10_000;
 
@@ -205,6 +206,12 @@ export async function handleCampaignStudy(req, res) {
 
 export function createCampaignStudyMiddleware() {
   return async (req, res, next) => {
+    const path = req.url?.split("?")[0];
+    if (path === "/api/analytics/social-hype") {
+      await processSocialHypeRequest(req, res);
+      return;
+    }
+
     const handled = await handleCampaignStudy(req, res);
     if (!handled) next();
   };

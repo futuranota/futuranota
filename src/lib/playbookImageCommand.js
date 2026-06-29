@@ -9,8 +9,10 @@ export const PLAYBOOK_IMAGE_COMMAND_RE = /^\[Imagen\s+([^\]]+)\]\(([^)]*)\)\s*$/
  * @type {Record<string, string>}
  */
 export const PLAYBOOK_IMAGE_REFERENCES = {
+  calendar: "/uploads/calendar.png",
   product: "/uploads/product.png",
-  idea: "/uploads/idea.jpg",
+  productsearch: "/uploads/PRODUCTSEARCH.png",
+  weather: "/uploads/weather.png",
 };
 
 /**

@@ -1224,6 +1224,62 @@ textarea.field {
 .intel-market-hype-wrap {
   width: 100%;
 }
+
+.intel-market-hype-panel__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.intel-market-hype-panel__brand {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.intel-market-hype-panel__error {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: #f0a68a;
+}
+
+.intel-market-hype-panel__verdict {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.intel-market-hype-panel__verdict-label {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.intel-market-hype-panel__verdict-channel {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.intel-market-hype-panel__verdict-copy,
+.intel-market-hype-panel__verdict-action {
+  margin: 0 0 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.intel-market-hype-panel__verdict-action {
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 500;
+}
 .intel-folder-panel--with-search {
   display: flex;
   flex-direction: column;

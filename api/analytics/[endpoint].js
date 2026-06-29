@@ -3,6 +3,7 @@ import brandCadence from "../_handlers/analytics/brand-cadence.js";
 import campaignDetect from "../_handlers/analytics/campaign-detect.js";
 import campaignStudy from "../_handlers/analytics/campaign-study.js";
 import horizonScan from "../_handlers/analytics/horizon-scan.js";
+import socialHype from "../_handlers/analytics/social-hype.js";
 import translate from "../_handlers/translate.js";
 
 const routes = {
@@ -10,6 +11,7 @@ const routes = {
   "campaign-detect": campaignDetect,
   "campaign-study": campaignStudy,
   "horizon-scan": horizonScan,
+  "social-hype": socialHype,
   translate,
 };
 

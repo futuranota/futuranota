@@ -3,6 +3,7 @@
 export const AGENT_ORCHESTRATOR = "orchestrator";
 export const AGENT_CAMPAIGN_ANALYST = "campaign-analyst";
 export const AGENT_MARKETING_GUIDE = "marketing-guide";
+export const AGENT_SOCIAL_HYPE_ANALYST = "social-hype-analyst";
 
 /** @type {AgentDefinition[]} */
 export const AGENTS = [
@@ -28,6 +29,14 @@ export const AGENTS = [
     labelKey: "agents.marketingGuide.name",
     descriptionKey: "agents.marketingGuide.description",
     canvasTitle: "MARKETING GUIDE",
+    icon: "analyst",
+    enabled: true,
+  },
+  {
+    id: AGENT_SOCIAL_HYPE_ANALYST,
+    labelKey: "agents.socialHypeAnalyst.name",
+    descriptionKey: "agents.socialHypeAnalyst.description",
+    canvasTitle: "SOCIAL HYPE",
     icon: "analyst",
     enabled: true,
   },

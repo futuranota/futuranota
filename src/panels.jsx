@@ -17,7 +17,7 @@ import { TacticalTimeline } from './components/timeline/TacticalTimeline.jsx';
 import { useTimelineStore, useUIStateStore } from './stores/index.js';
 import { IntelSearchButton } from './components/shared/IntelSearchButton.jsx';
 import { CalendarPanel, getScheduleHintForNode } from './components/intel/CalendarPanel.jsx';
-import { MarketHypeWidget } from './components/intel/MarketHypeWidget.tsx';
+import { MarketHypePanel } from './components/intel/MarketHypePanel.jsx';
 import { LaunchPredictor } from './components/analytics/LaunchPredictor.jsx';
 import { ForecastPanel } from './components/intel/ForecastPanel.jsx';
 import { ForecastSearchFooter } from './components/intel/ForecastSearchFooter.jsx';
@@ -722,6 +722,8 @@ function IntelFoldersSection({
   canvasNodes = [],
   onInsertForecastNode,
   onInsertEventNode,
+  corpusBrandName = "",
+  selectedObjectId = null,
 }) {
   const { t } = useI18n();
   const intelFolderTabs = useIntelFolderTabs();
@@ -781,7 +783,11 @@ function IntelFoldersSection({
         )}
         {folder === "market-hype" && (
           <div className="intel-market-hype-wrap">
-            <MarketHypeWidget today={today} />
+            <MarketHypePanel
+              brandName={corpusBrandName}
+              parentObjectId={selectedObjectId}
+              today={today}
+            />
           </div>
         )}
         {showForecastSearch ? (
@@ -1162,6 +1168,8 @@ function IntelPanel({
           canvasNodes={canvasNodes}
           onInsertForecastNode={onInsertForecastNode}
           onInsertEventNode={onInsertEventNode}
+          corpusBrandName={corpusBrandName}
+          selectedObjectId={selectedObjectId}
         />
       </div>
     </>
