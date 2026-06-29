@@ -6055,8 +6055,30 @@ body.doc-content-resizing * {
 .node-writing-block-stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   width: 100%;
+}
+
+.node-writing-block-stack__text + .node-writing-block-stack__h1,
+.node-writing-block-stack__text + .node-writing-block-stack__todo,
+.node-writing-block-stack__h1 + .node-writing-block-stack__todo,
+.node-writing-block-stack__h1 + .node-writing-block-stack__text,
+.node-writing-block-stack__todo + .node-writing-block-stack__text,
+.node-writing-block-stack__todo + .node-writing-block-stack__h1 {
+  margin-top: 10px;
+}
+
+.node-writing-block-stack__todo .doc-todo-plan,
+.node-writing-block-stack__h1 .doc-h1-block {
+  padding: 0;
+}
+
+.node-writing-block-stack__text + .node-writing-block-stack__text {
+  margin-top: 0;
+}
+
+.node-writing-block-stack__text:last-child .node-writing-text-field {
+  min-height: 72px;
 }
 
 .node-writing-text-field {
@@ -6095,6 +6117,11 @@ body.doc-content-resizing * {
 
 .node-query-modal__writing-stack .node-writing-text-field,
 .node-query-modal__writing-stack .doc-h1-block__input {
+  color: #fff;
+}
+
+.node-query-modal__writing-stack .doc-todo-plan__title-input,
+.node-query-modal__writing-stack .doc-todo-plan__item-input {
   color: #fff;
 }
 

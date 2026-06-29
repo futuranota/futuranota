@@ -334,6 +334,10 @@
 
 .note-taker__writing-stack .node-writing-text-field {
   color: var(--text-1);
+  min-height: 24px;
+}
+
+.note-taker__writing-stack .node-writing-block-stack__text:last-child .node-writing-text-field {
   min-height: 72px;
 }
 
@@ -348,6 +352,24 @@
 .note-taker__writing-stack .doc-todo-plan__card {
   background: rgba(0, 0, 0, 0.14);
   border-color: rgba(129, 89, 91, 0.22);
+}
+
+.note-taker__writing-stack .doc-todo-plan {
+  padding: 0;
+}
+
+.note-taker__writing-stack .doc-todo-plan__title-input,
+.note-taker__writing-stack .doc-todo-plan__item-input {
+  color: var(--text-1);
+}
+
+.note-taker__writing-stack .doc-todo-plan__title-input::placeholder,
+.note-taker__writing-stack .doc-todo-plan__item-input::placeholder {
+  color: rgba(129, 89, 91, 0.75);
+}
+
+.note-taker__writing-stack .doc-linked-node-actions__detach {
+  color: rgba(129, 89, 91, 0.95);
 }
 
 .note-taker__input {

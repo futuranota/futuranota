@@ -179,12 +179,13 @@ export function NodeQueryModal({
     if (!parsed) return;
     const current = parseNodeWritingBody(content);
     const normalized = normalizeWritingBlocks(current.blocks);
-    const lastTextIndex = normalized
-      .map((block) => block.type)
-      .lastIndexOf(NODE_BLOCK_TYPES.TEXT);
-    const nextBlocks = appendNodeWritingBlockFromSlash(normalized, parsed, textPrefix);
+    const { blocks: nextBlocks, insertedIndex } = appendNodeWritingBlockFromSlash(
+      normalized,
+      parsed,
+      textPrefix,
+    );
     onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
-    const insertedIndex = lastTextIndex >= 0 ? lastTextIndex : Math.max(0, nextBlocks.length - 2);
+    if (insertedIndex < 0) return;
     if (parsed.type === DOC_BLOCK_TYPES.TODO) {
       const todoBlock = nextBlocks[insertedIndex];
       setWritingFocusTarget({

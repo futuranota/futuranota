@@ -96,12 +96,12 @@ export function NoteTaker({
     const parsed = parseNodeSlashQuery(alias);
     if (!parsed) return;
     const normalized = normalizeWritingBlocks(writingBody.blocks);
-    const lastTextIndex = normalized
-      .map((block) => block.type)
-      .lastIndexOf(NODE_BLOCK_TYPES.TEXT);
-    const nextBlocks = appendNodeWritingBlockFromSlash(normalized, parsed);
+    const { blocks: nextBlocks, insertedIndex } = appendNodeWritingBlockFromSlash(
+      normalized,
+      parsed,
+    );
     setWritingBody({ blocks: nextBlocks });
-    const insertedIndex = lastTextIndex >= 0 ? lastTextIndex : Math.max(0, nextBlocks.length - 2);
+    if (insertedIndex < 0) return;
     if (parsed.type === DOC_BLOCK_TYPES.TODO) {
       const todoBlock = nextBlocks[insertedIndex];
       setWritingFocusTarget({
@@ -254,14 +254,18 @@ export function NoteTaker({
 
   const keepTextareaFocus = (e) => {
     if (
-      !e.target.closest(".note-taker__writing-stack")
-      && !e.target.closest(".note-taker__save")
-      && !e.target.closest(".note-taker__content-box")
-      && !e.target.closest(".note-taker__content-scroll")
-      && !e.target.closest(".doc-slash-command-picker")
+      e.target.closest(".doc-todo-plan")
+      || e.target.closest(".node-writing-block-stack__h1")
+      || e.target.closest(".node-writing-text-field")
+      || e.target.closest(".note-taker__writing-stack")
+      || e.target.closest(".note-taker__save")
+      || e.target.closest(".note-taker__content-box")
+      || e.target.closest(".note-taker__content-scroll")
+      || e.target.closest(".doc-slash-command-picker")
     ) {
-      e.preventDefault();
+      return;
     }
+    e.preventDefault();
   };
 
   return (

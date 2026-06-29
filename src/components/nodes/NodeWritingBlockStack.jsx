@@ -6,14 +6,44 @@ import {
   applySlashInTextBlock,
   NODE_BLOCK_TYPES,
   normalizeWritingBlocks,
+  removeWritingBlockAt,
 } from "../../lib/nodeInlineContent.js";
 import { H1BlockView } from "../docs/blocks/H1BlockView.jsx";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
+import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 
 function syncTextareaHeight(el) {
   if (!el) return;
   el.style.height = "auto";
   el.style.height = `${el.scrollHeight}px`;
+}
+
+function isAtInputStart(e) {
+  const target = e.target;
+  if (!target || !("selectionStart" in target)) return false;
+  return target.selectionStart === 0 && target.selectionEnd === 0;
+}
+
+function focusTextBlockAfter(inputRefs, blocks, afterIndex) {
+  for (let index = afterIndex + 1; index < blocks.length; index += 1) {
+    if (blocks[index]?.type !== NODE_BLOCK_TYPES.TEXT) continue;
+    const el = inputRefs.current[blocks[index].id];
+    if (el) {
+      el.focus();
+      return true;
+    }
+  }
+
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    if (blocks[index]?.type !== NODE_BLOCK_TYPES.TEXT) continue;
+    const el = inputRefs.current[blocks[index].id];
+    if (el) {
+      el.focus();
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function NodeWritingBlockStack({
@@ -26,22 +56,45 @@ export function NodeWritingBlockStack({
   textPlaceholder = "Escribe aquí, o /title o /todo",
 }) {
   const inputRefs = useRef({});
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
 
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
   }, [onBlocksChange]);
 
   const updateBlockAt = useCallback((index, patch) => {
-    updateBlocks(blocks.map((block, blockIndex) => (
+    const current = blocksRef.current;
+    updateBlocks(current.map((block, blockIndex) => (
       blockIndex === index ? { ...block, ...patch } : block
     )));
-  }, [blocks, updateBlocks]);
+  }, [updateBlocks]);
+
+  const removeBlockAt = useCallback((blockIndex) => {
+    updateBlocks(removeWritingBlockAt(blocksRef.current, blockIndex));
+    onFocusTargetChange?.(null);
+  }, [onFocusTargetChange, updateBlocks]);
+
+  const focusNextTextBlock = useCallback((afterIndex) => {
+    onFocusTargetChange?.(null);
+    requestAnimationFrame(() => {
+      const normalized = normalizeWritingBlocks(blocksRef.current);
+      focusTextBlockAfter(inputRefs, normalized, afterIndex);
+    });
+  }, [onFocusTargetChange]);
+
+  const handleH1KeyDown = useCallback((blockIndex, e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    e.currentTarget?.blur();
+    focusNextTextBlock(blockIndex);
+  }, [focusNextTextBlock]);
 
   const handleTextSlashKeyDown = useCallback((blockIndex, e) => {
     if (!slashEnabled) return;
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
 
-    const block = blocks[blockIndex];
+    const block = blocksRef.current[blockIndex];
     if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) return;
 
     const { slash } = splitBodyForSlash(block.text);
@@ -51,7 +104,7 @@ export function NodeWritingBlockStack({
     if (!parsed) return;
 
     e.preventDefault();
-    const nextBlocks = applySlashInTextBlock(blocks, blockIndex, parsed);
+    const nextBlocks = applySlashInTextBlock(blocksRef.current, blockIndex, parsed);
     updateBlocks(nextBlocks);
 
     const insertedIndex = blockIndex + 1;
@@ -64,10 +117,10 @@ export function NodeWritingBlockStack({
     } else {
       onFocusTargetChange?.({ blockIndex: insertedIndex, focusH1: true });
     }
-  }, [blocks, onFocusTargetChange, slashEnabled, updateBlocks]);
+  }, [onFocusTargetChange, slashEnabled, updateBlocks]);
 
   const handleTodoItemKeyDown = useCallback((blockIndex, itemIndex, e) => {
-    const block = blocks[blockIndex];
+    const block = blocksRef.current[blockIndex];
     if (!block || block.type !== NODE_BLOCK_TYPES.TODO) return;
 
     const items = block.items || [];
@@ -84,8 +137,19 @@ export function NodeWritingBlockStack({
       ];
       updateBlockAt(blockIndex, { items: nextItems });
       onFocusTargetChange?.({ blockIndex, itemId: newItem.id });
+      return;
     }
-  }, [blocks, onFocusTargetChange, updateBlockAt]);
+
+    const atStart = isAtInputStart(e);
+    const inputValue = e.currentTarget?.value ?? item.text ?? "";
+    if ((e.key === "Backspace" || e.key === "Delete") && !inputValue && atStart && items.length > 1) {
+      e.preventDefault();
+      const nextItems = items.filter((_, index) => index !== itemIndex);
+      updateBlockAt(blockIndex, { items: nextItems });
+      const focusTargetItem = nextItems[Math.min(itemIndex, nextItems.length - 1)];
+      onFocusTargetChange?.({ blockIndex, itemId: focusTargetItem?.id ?? null });
+    }
+  }, [onFocusTargetChange, updateBlockAt]);
 
   const normalizedBlocks = normalizeWritingBlocks(blocks);
 
@@ -98,6 +162,7 @@ export function NodeWritingBlockStack({
               <H1BlockView
                 value={block.title}
                 onChange={(title) => updateBlockAt(blockIndex, { title })}
+                onKeyDown={(e) => handleH1KeyDown(blockIndex, e)}
                 linksEnabled={false}
                 placeholder="Título"
                 autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusH1}
@@ -125,6 +190,8 @@ export function NodeWritingBlockStack({
                   updateBlockAt(blockIndex, { items: [...block.items, newItem] });
                   onFocusTargetChange?.({ blockIndex, itemId: newItem.id });
                 }}
+                onDetachFromNode={() => removeBlockAt(blockIndex)}
+                detachFromNodeLabel="Eliminar lista"
               />
             </div>
           );
@@ -150,6 +217,7 @@ export function NodeWritingBlockStack({
                 syncTextareaHeight(e.target);
               }}
               onKeyDown={(e) => handleTextSlashKeyDown(blockIndex, e)}
+              onMouseDown={(e) => e.stopPropagation()}
             />
           </div>
         );

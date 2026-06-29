@@ -1,8 +1,9 @@
-import { DOC_BLOCK_TYPES } from "./docBlocks.js";
+import { createTodoItem, DOC_BLOCK_TYPES } from "./docBlocks.js";
 import { generateId } from "./ids.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
 import {
   createDefaultNodeTodoContent,
+  DEFAULT_NODE_TODO_LIST_TITLE,
   normalizeNodeTodoContent,
 } from "./nodeTodoContent.js";
 
@@ -50,6 +51,18 @@ export function createInlineTodoBlock(listTitle) {
 }
 
 function normalizeTodoBlock(block) {
+  if (block?.type === NODE_BLOCK_TYPES.TODO || Array.isArray(block?.items)) {
+    const items = Array.isArray(block?.items) ? block.items : [];
+    return {
+      id: block?.id || generateId("NTB"),
+      type: NODE_BLOCK_TYPES.TODO,
+      listTitle: block?.listTitle || DEFAULT_NODE_TODO_LIST_TITLE,
+      items: items.length
+        ? items.map((item) => createTodoItem({ ...item }))
+        : [createTodoItem()],
+    };
+  }
+
   const normalized = normalizeNodeTodoContent(block, block?.listTitle);
   return {
     id: block?.id || generateId("NTB"),
@@ -144,17 +157,34 @@ export function getNodeWritingPlainText(blocks) {
     .trim();
 }
 
+function isEmptyTextBlock(block) {
+  return block?.type === NODE_BLOCK_TYPES.TEXT && !(block.text || "").trim();
+}
+
+/** Keep an empty text block at the end so the user can keep writing. */
+export function ensureNodeWritingTail(blocks) {
+  const normalized = normalizeWritingBlocks(blocks);
+  const last = normalized[normalized.length - 1];
+  if (isEmptyTextBlock(last)) return normalized;
+  return [...normalized, createEmptyTextBlock()];
+}
+
 export function appendNodeWritingBlock(blocks, newBlock) {
   const normalized = normalizeWritingBlocks(blocks);
-  const lastTextIndex = normalized.map((block) => block.type).lastIndexOf(NODE_BLOCK_TYPES.TEXT);
-  if (lastTextIndex < 0) {
-    return [...normalized, newBlock, createEmptyTextBlock()];
+  const last = normalized[normalized.length - 1];
+
+  if (isEmptyTextBlock(last)) {
+    if (normalized.length === 1) {
+      return ensureNodeWritingTail([newBlock]);
+    }
+    return ensureNodeWritingTail([
+      ...normalized.slice(0, -1),
+      newBlock,
+      last,
+    ]);
   }
-  return [
-    ...normalized.slice(0, lastTextIndex),
-    newBlock,
-    ...normalized.slice(lastTextIndex),
-  ];
+
+  return ensureNodeWritingTail([...normalized, newBlock]);
 }
 
 export function insertBlockAfterIndex(blocks, blockIndex, newBlock) {
@@ -192,13 +222,32 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed) {
   const updated = normalized.map((entry, index) => (
     index === blockIndex ? { ...entry, text: prefix } : entry
   ));
-  return insertBlockAfterIndex(updated, blockIndex, newBlock);
+  return ensureNodeWritingTail(insertBlockAfterIndex(updated, blockIndex, newBlock));
 }
 
 export function appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix = "") {
   const newBlock = createNodeWritingBlockFromSlash(parsed, textPrefix);
-  if (!newBlock) return normalizeWritingBlocks(blocks);
-  return appendNodeWritingBlock(blocks, newBlock);
+  if (!newBlock) {
+    return { blocks: normalizeWritingBlocks(blocks), insertedIndex: -1 };
+  }
+  const nextBlocks = appendNodeWritingBlock(blocks, newBlock);
+  const insertedIndex = nextBlocks.findIndex((block) => block.id === newBlock.id);
+  return { blocks: nextBlocks, insertedIndex };
+}
+
+export function removeWritingBlockAt(blocks, blockIndex) {
+  const normalized = normalizeWritingBlocks(blocks);
+  if (blockIndex < 0 || blockIndex >= normalized.length) return normalized;
+
+  const filtered = normalized.filter((_, index) => index !== blockIndex);
+  if (!filtered.length) return [createEmptyTextBlock()];
+
+  const hasTextBlock = filtered.some((block) => block.type === NODE_BLOCK_TYPES.TEXT);
+  if (!hasTextBlock) {
+    filtered.push(createEmptyTextBlock());
+  }
+
+  return ensureNodeWritingTail(filtered);
 }
 
 /** @deprecated use normalizeWritingBlocks todo entries */
