@@ -11,6 +11,7 @@ import {
   cancelProSubscription,
   fetchAffiliateLink,
   startProCheckout,
+  startProTestCheckout,
 } from "../lib/billingApi.js";
 import { clearStoredReferralCode } from "../lib/referralStorage.js";
 import { CancelPlanModal } from "../components/plans/CancelPlanModal.jsx";
@@ -55,6 +56,10 @@ export function PlansPage() {
   const [copied, setCopied] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
+  const isPro = profile.plan === "pro";
+  const testCheckoutEnabled = import.meta.env.VITE_STRIPE_TEST_CHECKOUT === "true";
+  const showTestCheckout = testCheckoutEnabled && !isPro;
+
   const proPlan = useMemo(() => {
     const { pricing } = getHome();
     const rawPlans = pricing?.plans?.length ? pricing.plans : PRICING_PLANS_DEFAULT;
@@ -62,7 +67,6 @@ export function PlansPage() {
   }, []);
 
   const bullets = planBullets(proPlan);
-  const isPro = profile.plan === "pro";
   const hasStripeSubscription = Boolean(profile.stripeSubscriptionId);
   const canCancelViaStripe = isPro && hasStripeSubscription;
   const isAnnual = billing === "annual";
@@ -104,6 +108,24 @@ export function PlansPage() {
     setError(null);
     try {
       const { url } = await startProCheckout(billing);
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+      throw new Error("Stripe checkout URL missing");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("plans.billingError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleTestCheckout = async () => {
+    if (busy || isPro) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { url } = await startProTestCheckout();
       if (url) {
         window.location.href = url;
         return;
@@ -266,7 +288,23 @@ export function PlansPage() {
                       : t("plans.upgradeToPro")}
                 </button>
               ) : null}
+              {showTestCheckout ? (
+                <button
+                  type="button"
+                  className="btn ghost plans-pricing-card__cta plans-pricing-card__cta--test"
+                  disabled={busy}
+                  onClick={handleTestCheckout}
+                >
+                  {busy ? t("plans.processing") : t("plans.adminLiveTestCheckout")}
+                </button>
+              ) : null}
             </div>
+
+            {showTestCheckout ? (
+              <p className="plans-pricing-card__note plans-pricing-card__note--muted">
+                {t("plans.adminLiveTestCheckoutHint")}
+              </p>
+            ) : null}
 
             {isPro && !hasStripeSubscription ? (
               <p className="plans-pricing-card__note plans-pricing-card__note--muted">

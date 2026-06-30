@@ -37,6 +37,14 @@ export async function startProCheckout(billing = "monthly") {
   });
 }
 
+/** Temporary: one-time live test checkout (admin-only UI; server gated by ENABLE_STRIPE_TEST_CHECKOUT). */
+export async function startProTestCheckout() {
+  return billingFetch("/api/billing/checkout", {
+    method: "POST",
+    body: JSON.stringify({ billing: "test" }),
+  });
+}
+
 export async function cancelProSubscription() {
   return billingFetch("/api/billing/cancel", { method: "POST" });
 }

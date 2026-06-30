@@ -91,7 +91,11 @@ export function VideoWorkspace({
         onBack={embedded ? undefined : onClose}
       />
       {showEmbedBar ? (
-        <VideoEmbedBar nodeId={nodeId} onEmbedChange={handleEmbedLoaded} />
+        <VideoEmbedBar
+          nodeId={nodeId}
+          activeEmbedSrc={activeEmbed?.embedSrc || ""}
+          onEmbedChange={handleEmbedLoaded}
+        />
       ) : null}
       <NoteTaker
         nodeId={nodeId}

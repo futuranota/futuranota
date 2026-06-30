@@ -5,9 +5,11 @@ import {
   createCheckoutSession,
   getAffiliateLinkForUser,
   getReferralHistoryForUser,
+  resolveCheckoutEmail,
   sendReferralInvitesForUser,
   verifyAndProcessWebhook,
 } from "./billing/billingActions.js";
+import { normalizeCheckoutBilling } from "./billing/stripeConfig.js";
 
 function sendJson(res, status, payload) {
   res.statusCode = status;
@@ -58,11 +60,11 @@ export function createBillingMiddleware() {
           return;
         }
         const body = await readJsonBody(req);
-        const billing = body.billing === "annual" ? "annual" : "monthly";
+        const billing = normalizeCheckoutBilling(body.billing);
         const referralCode = typeof body.referralCode === "string" ? body.referralCode : "";
         const result = await createCheckoutSession({
           userId: user.id,
-          email: user.email,
+          email: resolveCheckoutEmail(user),
           billing,
           referralCode,
           supabase,

@@ -93,7 +93,15 @@
 
 .plans-pricing-card__cta-wrap {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.plans-pricing-card__cta--test {
+  height: 36px;
+  padding: 0 18px;
+  font-size: 12px;
 }
 
 .plans-pricing-card__cta {

@@ -223,6 +223,6 @@ export function getPlanFeatureRows(plan) {
     { key: 'weather', label: 'Forecast', value: isPro ? 'Unlimited · 50 inserts' : '1 city · 1 insert' },
     { key: 'launchRadar', label: 'Launch Radar', value: isPro ? '2 credits/scan' : 'Demo' },
     { key: 'marketHype', label: 'Market Hype', value: isPro ? 'Social Hype agent' : 'Pro only' },
-    { key: 'youtube', label: 'YouTube notes', value: isPro ? 'Included' : 'While credits last' },
+    { key: 'youtube', label: 'YouTube notes', value: isPro ? 'Included' : '1 credit/embed' },
   ];
 }

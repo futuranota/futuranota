@@ -1,8 +1,8 @@
 import { getStripe } from "./stripeClient.js";
 import {
   getAppOrigin,
-  getStripePriceProAnnual,
-  getStripePriceProMonthly,
+  getStripePriceProTestOneTime,
+  isStripeTestCheckoutEnabled,
   resolveStripePriceId,
 } from "./stripeConfig.js";
 import {
@@ -17,11 +17,63 @@ import { getTokensCap } from "../../src/lib/planConfig.js";
 import { parseInviteEmails, sendReferralInviteEmails } from "./referralMail.js";
 
 /**
+ * @param {import('@supabase/supabase-js').User | null | undefined} user
+ */
+export function resolveCheckoutEmail(user) {
+  const fromUser = (user?.email || "").trim();
+  if (fromUser) return fromUser.toLowerCase();
+
+  const meta = user?.user_metadata || {};
+  const fromMeta = (
+    meta.email
+    || meta.preferred_email
+    || ""
+  ).trim();
+  if (fromMeta && fromMeta.includes("@")) return fromMeta.toLowerCase();
+
+  const identityEmail = (user?.identities || [])
+    .map((id) => id?.identity_data?.email)
+    .find((e) => typeof e === "string" && e.includes("@"));
+  if (identityEmail) return identityEmail.trim().toLowerCase();
+
+  return "";
+}
+
+/**
+ * @param {import('stripe').Stripe} stripe
+ * @param {string} customerId
+ * @param {string} email
+ */
+async function syncStripeCustomerContact(stripe, customerId, email) {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return;
+
+  const customer = await stripe.customers.retrieve(customerId);
+  if (customer.deleted) return;
+
+  const patch = /** @type {import('stripe').Stripe.CustomerUpdateParams} */ ({});
+  const currentEmail = (customer.email || "").trim().toLowerCase();
+  if (currentEmail !== normalized) {
+    patch.email = normalized;
+  }
+  if (customer.phone) {
+    patch.phone = "";
+  }
+
+  if (Object.keys(patch).length) {
+    await stripe.customers.update(customerId, patch);
+  }
+}
+
+/**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
  * @param {string} userId
  * @param {string} email
  */
 async function getOrCreateStripeCustomer(supabase, userId, email) {
+  const stripe = getStripe();
+  const normalizedEmail = email.trim().toLowerCase();
+
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("stripe_customer_id")
@@ -30,12 +82,12 @@ async function getOrCreateStripeCustomer(supabase, userId, email) {
   if (error) throw new Error(error.message);
 
   if (profile?.stripe_customer_id) {
+    await syncStripeCustomerContact(stripe, profile.stripe_customer_id, normalizedEmail);
     return profile.stripe_customer_id;
   }
 
-  const stripe = getStripe();
   const customer = await stripe.customers.create({
-    email: email || undefined,
+    email: normalizedEmail || undefined,
     metadata: { userId },
   });
 
@@ -59,6 +111,48 @@ export async function createCheckoutSession(params) {
   if (!supabase) {
     throw new Error("Authenticated Supabase client is required");
   }
+
+  const normalizedEmail = (email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error(
+      "Add an email to your account before upgrading (email/password signup or Google sign-in).",
+    );
+  }
+
+  const customerId = await getOrCreateStripeCustomer(supabase, userId, normalizedEmail);
+  const origin = getAppOrigin();
+  const stripe = getStripe();
+  const successUrl = `${origin}/app/plans?checkout=success`;
+  const cancelUrl = `${origin}/app/plans?checkout=canceled`;
+
+  if (billing === "test") {
+    if (!isStripeTestCheckoutEnabled()) {
+      throw new Error("Test checkout is disabled");
+    }
+    const testPriceId = getStripePriceProTestOneTime();
+    if (!testPriceId) {
+      throw new Error("STRIPE_PRICE_PRO_TEST_MONTHLY is not configured");
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      mode: "payment",
+      line_items: [{ price: testPriceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: userId,
+      payment_method_types: ["card"],
+      phone_number_collection: { enabled: false },
+      metadata: {
+        userId,
+        billingInterval: "monthly",
+        checkoutKind: "test_one_time",
+      },
+    });
+
+    return { url: session.url, sessionId: session.id };
+  }
+
   const priceId = resolveStripePriceId(billing);
   if (!priceId) {
     throw new Error(
@@ -67,8 +161,6 @@ export async function createCheckoutSession(params) {
         : "STRIPE_PRICE_PRO_MONTHLY is not configured",
     );
   }
-
-  const customerId = await getOrCreateStripeCustomer(supabase, userId, email || "");
 
   let referrerUserId = "";
   const code = String(referralCode || "").trim();
@@ -80,16 +172,16 @@ export async function createCheckoutSession(params) {
   }
 
   const billingInterval = billing === "annual" ? "annual" : "monthly";
-  const origin = getAppOrigin();
-  const stripe = getStripe();
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${origin}/app/plans?checkout=success`,
-    cancel_url: `${origin}/app/plans?checkout=canceled`,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
     client_reference_id: userId,
+    payment_method_types: ["card"],
+    phone_number_collection: { enabled: false },
     metadata: {
       userId,
       billingInterval,
@@ -227,7 +319,8 @@ export async function processStripeWebhookEvent(event) {
       const billingInterval = session.metadata?.billingInterval
         || await resolveBillingIntervalFromSubscription(subscriptionId);
       const referrerUserId = session.metadata?.referrerUserId || "";
-      if (referrerUserId) {
+      const isTestOneTime = session.metadata?.checkoutKind === "test_one_time";
+      if (referrerUserId && !isTestOneTime) {
         await grantReferralRewardIfEligible(supabase, {
           referrerUserId,
           referredUserId: userId,

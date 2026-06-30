@@ -4,8 +4,10 @@ import {
   createCheckoutSession,
   getAffiliateLinkForUser,
   getReferralHistoryForUser,
+  resolveCheckoutEmail,
   sendReferralInvitesForUser,
 } from "../../server/billing/billingActions.js";
+import { normalizeCheckoutBilling } from "../../server/billing/stripeConfig.js";
 
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -37,11 +39,11 @@ export async function handleCheckout(req, res) {
     }
 
     const body = req.body ?? {};
-    const billing = body.billing === "annual" ? "annual" : "monthly";
+    const billing = normalizeCheckoutBilling(body.billing);
     const referralCode = typeof body.referralCode === "string" ? body.referralCode : "";
     const result = await createCheckoutSession({
       userId: user.id,
-      email: user.email,
+      email: resolveCheckoutEmail(user),
       billing,
       referralCode,
       supabase,

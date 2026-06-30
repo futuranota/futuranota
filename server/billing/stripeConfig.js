@@ -22,6 +22,27 @@ export function getStripePriceProAnnual() {
   return (process.env.STRIPE_PRICE_PRO_ANNUAL || "").trim();
 }
 
+/** One-time live test price (e.g. $0.02) — STRIPE_PRICE_PRO_TEST_MONTHLY or STRIPE_PRICE_PRO_TEST_ONETIME */
+export function getStripePriceProTestOneTime() {
+  return (
+    process.env.STRIPE_PRICE_PRO_TEST_ONETIME
+    || process.env.STRIPE_PRICE_PRO_TEST_MONTHLY
+    || ""
+  ).trim();
+}
+
+/** @returns {boolean} */
+export function isStripeTestCheckoutEnabled() {
+  return (process.env.ENABLE_STRIPE_TEST_CHECKOUT || "").trim() === "true";
+}
+
+/** @param {unknown} raw */
+export function normalizeCheckoutBilling(raw) {
+  if (raw === "test") return "test";
+  if (raw === "annual") return "annual";
+  return "monthly";
+}
+
 /** @returns {string} */
 export function getAppOrigin() {
   const raw = (
