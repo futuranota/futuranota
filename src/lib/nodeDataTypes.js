@@ -27,11 +27,16 @@ export const DATA_TYPE_LABELS = {
   video: "Video",
 };
 
+/** Node types available when creating or switching type in editors. */
+export const NODE_CREATABLE_DATA_TYPES = Object.values(NODE_DATA_TYPES).filter(
+  (type) => type !== NODE_DATA_TYPES.METRIC,
+);
+
 export const isCompatibleConnection = (fromType, toType) => {
   const compatibilities = {
     date: ["text", "metric"],
     metric: ["date", "text"],
-    text: ["date", "metric", "checkbox"],
+    text: ["date", "checkbox"],
     checkbox: ["text"],
   };
   return compatibilities[fromType]?.includes(toType) || false;

@@ -285,7 +285,7 @@ function CanvasNode({
 
   const onPointerDown = (e) => {
     if (e.target.closest('.cnode-port') || e.target.closest('.cnode-del')) return;
-    if (e.target.closest('.cnode-expand') || e.target.closest('.cnode-parent-select')) return;
+    if (e.target.closest('.cnode-parent-select')) return;
     if (e.target.closest('.cnode-adopt-orphan')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
     e.stopPropagation();
@@ -705,10 +705,6 @@ function CanvasNode({
     );
   };
 
-  const showExpand = Boolean(onOpen) && !isCompactWidgetNode && (
-    isEntityNode || (node.dataType === "document" && !knowledgeCorpus)
-  );
-
   return (
     <div
       ref={ref}
@@ -785,20 +781,6 @@ function CanvasNode({
         }}
       />
       <button type="button" className="cnode-del icon-del-btn" onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}>×</button>
-      {showExpand ? (
-        <button
-          type="button"
-          className="cnode-expand icon-del-btn"
-          title={t("canvas.expandNode")}
-          aria-label={t("canvas.expandNode")}
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen(node.id);
-          }}
-        >
-          ↗
-        </button>
-      ) : null}
     </div>
   );
 }

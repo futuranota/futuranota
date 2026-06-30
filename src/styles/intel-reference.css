@@ -277,6 +277,29 @@
   letter-spacing: -0.01em;
 }
 
+.note-taker__title-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.note-taker__title-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.note-taker__title-input:focus {
+  color: #fff;
+}
+
 .note-taker__input-wrap {
   position: relative;
   flex: 1;
@@ -370,6 +393,10 @@
 
 .note-taker__writing-stack .doc-linked-node-actions__detach {
   color: rgba(129, 89, 91, 0.95);
+}
+
+.node-writing-block-stack__h1 .doc-linked-node-actions {
+  margin-top: 2px;
 }
 
 .note-taker__input {
@@ -518,6 +545,30 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.video-screen__title-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+}
+
+.video-screen__title-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.video-screen__title-input:focus {
+  color: #fff;
 }
 
 .video-screen__stage {

@@ -7,7 +7,7 @@ export function LinkVaultBlockView({
   entries = [],
   onEntriesChange,
   onDeleteVault,
-  autoFocus = false,
+  openAddForm = false,
   compact = false,
 }) {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -21,10 +21,11 @@ export function LinkVaultBlockView({
   }, [entries.length]);
 
   useEffect(() => {
-    if (!autoFocus || !isAdding) return;
+    if (!openAddForm) return;
+    setIsAdding(true);
     const timer = window.setTimeout(() => nameRef.current?.focus(), 0);
     return () => window.clearTimeout(timer);
-  }, [autoFocus, isAdding]);
+  }, [openAddForm]);
 
   const canSave = Boolean(draft.name.trim() && draft.url.trim());
 

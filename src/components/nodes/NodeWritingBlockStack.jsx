@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { createTodoItem } from "../../lib/docBlocks.js";
 import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 import { parseNodeSlashQuery, splitBodyForSlash } from "../../lib/docBlockSlash.js";
@@ -25,6 +25,49 @@ function isAtInputStart(e) {
   const target = e.target;
   if (!target || !("selectionStart" in target)) return false;
   return target.selectionStart === 0 && target.selectionEnd === 0;
+}
+
+function focusVaultTarget(parsed, blocks, blockIndex, onFocusTargetChange) {
+  const vaultNodeType = vaultNodeTypeForParsed(parsed);
+  if (vaultNodeType) {
+    const existingIndex = findLastVaultBlockIndex(blocks, vaultNodeType);
+    if (existingIndex >= 0) {
+      onFocusTargetChange?.({ blockIndex: existingIndex, focusVault: true });
+      return;
+    }
+  }
+
+  const insertedIndex = blockIndex + 1;
+  if (parsed.type === DOC_BLOCK_TYPES.TODO) {
+    const todoBlock = blocks[insertedIndex];
+    onFocusTargetChange?.({
+      blockIndex: insertedIndex,
+      itemId: todoBlock?.items?.[0]?.id ?? null,
+    });
+    return;
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.CODE) {
+    onFocusTargetChange?.({ blockIndex: insertedIndex, focusCode: true });
+    return;
+  }
+  if (vaultNodeType) {
+    onFocusTargetChange?.({ blockIndex: insertedIndex, focusVault: true });
+    return;
+  }
+  onFocusTargetChange?.({ blockIndex: insertedIndex, focusH1: true });
+}
+
+function vaultNodeTypeForParsed(parsed) {
+  if (parsed?.type === DOC_BLOCK_TYPES.PASSWORD_VAULT) return NODE_BLOCK_TYPES.PASSWORD_VAULT;
+  if (parsed?.type === DOC_BLOCK_TYPES.LINK_VAULT) return NODE_BLOCK_TYPES.LINK_VAULT;
+  return null;
+}
+
+function findLastVaultBlockIndex(blocks, vaultNodeType) {
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    if (blocks[index]?.type === vaultNodeType) return index;
+  }
+  return -1;
 }
 
 function focusTextBlockAfter(inputRefs, blocks, afterIndex) {
@@ -56,11 +99,46 @@ export function NodeWritingBlockStack({
   onFocusTargetChange,
   slashEnabled = false,
   className = "",
-  textPlaceholder = "Escribe aquí, o /title o /todo",
+  textPlaceholder = "Escribe aquí o /title",
 }) {
   const inputRefs = useRef({});
+  const stackRef = useRef(null);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
+
+  useEffect(() => {
+    if (focusTarget?.blockIndex == null) return undefined;
+    const block = normalizeWritingBlocks(blocks)[focusTarget.blockIndex];
+    if (!block?.id) return undefined;
+
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        const root = stackRef.current;
+        const scrollParent = root?.closest(".note-taker__content-scroll")
+          || root?.closest(".node-query-modal__content-scroll");
+        const blockEl = root?.querySelector(`[data-writing-block-id="${block.id}"]`);
+        if (blockEl && scrollParent) {
+          const blockRect = blockEl.getBoundingClientRect();
+          const rootRect = scrollParent.getBoundingClientRect();
+          if (blockRect.top < rootRect.top || blockRect.bottom > rootRect.bottom) {
+            blockEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+          }
+        }
+
+        if (focusTarget.focusH1) {
+          const input = blockEl?.querySelector("textarea, input");
+          input?.focus({ preventScroll: true });
+        }
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [blocks, focusTarget]);
 
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
@@ -86,12 +164,43 @@ export function NodeWritingBlockStack({
     });
   }, [onFocusTargetChange]);
 
+  const removeEmptyH1AndFocus = useCallback((h1Index) => {
+    const current = normalizeWritingBlocks(blocksRef.current);
+    const h1 = current[h1Index];
+    if (!h1 || h1.type !== NODE_BLOCK_TYPES.H1) return;
+
+    const next = removeWritingBlockAt(current, h1Index);
+    updateBlocks(next);
+    onFocusTargetChange?.(null);
+    requestAnimationFrame(() => {
+      focusTextBlockAfter(inputRefs, next, h1Index - 1);
+    });
+  }, [onFocusTargetChange, updateBlocks]);
+
   const handleH1KeyDown = useCallback((blockIndex, e) => {
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
-    e.preventDefault();
-    e.currentTarget?.blur();
-    focusNextTextBlock(blockIndex);
-  }, [focusNextTextBlock]);
+    const block = blocksRef.current[blockIndex];
+    if (!block || block.type !== NODE_BLOCK_TYPES.H1) return;
+
+    const fieldValue = e.currentTarget?.value ?? block.title ?? "";
+    const titleEmpty = !fieldValue.trim();
+    const atStart = isAtInputStart(e);
+
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      if (titleEmpty) {
+        removeEmptyH1AndFocus(blockIndex);
+        return;
+      }
+      e.currentTarget?.blur();
+      focusNextTextBlock(blockIndex);
+      return;
+    }
+
+    if ((e.key === "Backspace" || e.key === "Delete") && titleEmpty && atStart) {
+      e.preventDefault();
+      removeEmptyH1AndFocus(blockIndex);
+    }
+  }, [focusNextTextBlock, removeEmptyH1AndFocus]);
 
   const handleTextSlashKeyDown = useCallback((blockIndex, e) => {
     if (!slashEnabled) return;
@@ -109,24 +218,7 @@ export function NodeWritingBlockStack({
     e.preventDefault();
     const nextBlocks = applySlashInTextBlock(blocksRef.current, blockIndex, parsed);
     updateBlocks(nextBlocks);
-
-    const insertedIndex = blockIndex + 1;
-    if (parsed.type === DOC_BLOCK_TYPES.TODO) {
-      const todoBlock = nextBlocks[insertedIndex];
-      onFocusTargetChange?.({
-        blockIndex: insertedIndex,
-        itemId: todoBlock?.items?.[0]?.id ?? null,
-      });
-    } else if (parsed.type === DOC_BLOCK_TYPES.CODE) {
-      onFocusTargetChange?.({ blockIndex: insertedIndex, focusCode: true });
-    } else if (
-      parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
-      || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
-    ) {
-      onFocusTargetChange?.({ blockIndex: insertedIndex, focusVault: true });
-    } else {
-      onFocusTargetChange?.({ blockIndex: insertedIndex, focusH1: true });
-    }
+    focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
   }, [onFocusTargetChange, slashEnabled, updateBlocks]);
 
   const handleTodoItemKeyDown = useCallback((blockIndex, itemIndex, e) => {
@@ -164,11 +256,18 @@ export function NodeWritingBlockStack({
   const normalizedBlocks = normalizeWritingBlocks(blocks);
 
   return (
-    <div className={`node-writing-block-stack${className ? ` ${className}` : ""}`}>
+    <div
+      ref={stackRef}
+      className={`node-writing-block-stack${className ? ` ${className}` : ""}`}
+    >
       {normalizedBlocks.map((block, blockIndex) => {
         if (block.type === NODE_BLOCK_TYPES.H1) {
           return (
-            <div key={block.id} className="node-writing-block-stack__h1">
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__h1"
+            >
               <H1BlockView
                 value={block.title}
                 onChange={(title) => updateBlockAt(blockIndex, { title })}
@@ -177,13 +276,21 @@ export function NodeWritingBlockStack({
                 placeholder="Título"
                 autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusH1}
               />
+              <LinkedNodeDocActions
+                onDetach={() => removeBlockAt(blockIndex)}
+                label="Eliminar título"
+              />
             </div>
           );
         }
 
         if (block.type === NODE_BLOCK_TYPES.TODO) {
           return (
-            <div key={block.id} className="node-writing-block-stack__todo">
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__todo"
+            >
               <DocTodoPlanBlockView
                 listTitle={block.listTitle}
                 onListTitleChange={(listTitle) => updateBlockAt(blockIndex, { listTitle })}
@@ -209,7 +316,11 @@ export function NodeWritingBlockStack({
 
         if (block.type === NODE_BLOCK_TYPES.CODE) {
           return (
-            <div key={block.id} className="node-writing-block-stack__code">
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__code"
+            >
               <CodeBlockView
                 language={block.language}
                 code={block.code}
@@ -239,11 +350,15 @@ export function NodeWritingBlockStack({
 
         if (block.type === NODE_BLOCK_TYPES.PASSWORD_VAULT) {
           return (
-            <div key={block.id} className="node-writing-block-stack__vault">
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__vault"
+            >
               <PasswordVaultBlockView
                 entries={block.entries || []}
                 compact
-                autoFocus={
+                openAddForm={
                   focusTarget?.blockIndex === blockIndex && focusTarget?.focusVault
                 }
                 onEntriesChange={(entries) => updateBlockAt(blockIndex, { entries })}
@@ -255,11 +370,15 @@ export function NodeWritingBlockStack({
 
         if (block.type === NODE_BLOCK_TYPES.LINK_VAULT) {
           return (
-            <div key={block.id} className="node-writing-block-stack__vault">
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__vault"
+            >
               <LinkVaultBlockView
                 entries={block.entries || []}
                 compact
-                autoFocus={
+                openAddForm={
                   focusTarget?.blockIndex === blockIndex && focusTarget?.focusVault
                 }
                 onEntriesChange={(entries) => updateBlockAt(blockIndex, { entries })}
@@ -270,7 +389,11 @@ export function NodeWritingBlockStack({
         }
 
         return (
-          <div key={block.id} className="node-writing-block-stack__text">
+          <div
+            key={block.id}
+            data-writing-block-id={block.id}
+            className="node-writing-block-stack__text"
+          >
             <textarea
               ref={(el) => {
                 if (el) {

@@ -9,7 +9,7 @@ export function PasswordVaultBlockView({
   entries = [],
   onEntriesChange,
   onDeleteVault,
-  autoFocus = false,
+  openAddForm = false,
   compact = false,
 }) {
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -25,10 +25,11 @@ export function PasswordVaultBlockView({
   }, [entries.length]);
 
   useEffect(() => {
-    if (!autoFocus || !isAdding) return;
+    if (!openAddForm) return;
+    setIsAdding(true);
     const timer = window.setTimeout(() => descriptionRef.current?.focus(), 0);
     return () => window.clearTimeout(timer);
-  }, [autoFocus, isAdding]);
+  }, [openAddForm]);
 
   const canSave = Boolean(draft.description.trim() && draft.password.trim());
 

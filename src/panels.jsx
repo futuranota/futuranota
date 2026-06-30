@@ -43,9 +43,8 @@ import { useUpgradeModalStore } from './stores/upgradeModalStore.js';
 /* panels.jsx — Notes panel (left), Intel panel (right), Stacked Timelines */
 
 const DATA_TYPES = [
-  { id: "text",   label: "Text" },
-  { id: "date",   label: "Date" },
-  { id: "metric", label: "Metric" },
+  { id: "text", label: "Text" },
+  { id: "date", label: "Date" },
 ];
 
 /* ─── NEW NOTE FORM (inline) ───────────────────────── */
@@ -54,19 +53,13 @@ function NewNoteForm({ onSave, onCancel }) {
   const [title, setTitle] = useState("");
   const [dataType, setDataType] = useState("text");
   const [content, setContent] = useState("");
-  const [metricUnit, setMetricUnit] = useState("");
   const titleRef = useRef(null);
 
   useEffect(() => { titleRef.current?.focus(); }, []);
 
   const commit = () => {
     if (!title.trim()) { titleRef.current?.focus(); return; }
-    let payload = content;
-    if (dataType === "metric") {
-      const num = Number(content);
-      payload = { value: isNaN(num) ? content : num, unit: metricUnit };
-    }
-    onSave({ title: title.trim(), dataType, content: payload });
+    onSave({ title: title.trim(), dataType, content });
   };
 
   return (
@@ -115,27 +108,6 @@ function NewNoteForm({ onSave, onCancel }) {
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") onCancel(); }}
         />
-      )}
-      {dataType === "metric" && (
-        <div style={{ display: "flex", gap: 6 }}>
-          <input
-            type="number"
-            className="note-form-field"
-            placeholder="Value"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") onCancel(); }}
-            style={{ flex: 1 }}
-          />
-          <input
-            type="text"
-            className="note-form-field"
-            placeholder="Unit"
-            value={metricUnit}
-            onChange={(e) => setMetricUnit(e.target.value)}
-            style={{ width: 70 }}
-          />
-        </div>
       )}
       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
         <button className="btn xs ghost" onClick={onCancel}>Cancel</button>

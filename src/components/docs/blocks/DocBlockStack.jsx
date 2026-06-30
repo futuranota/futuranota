@@ -1302,7 +1302,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT ? (
             <PasswordVaultBlockView
               entries={block.entries || []}
-              autoFocus={focusBlockId === block.id}
+              openAddForm={focusBlockId === block.id}
               onEntriesChange={(entries) => {
                 let next = updateBlockAt(blocksRef.current, index, { entries });
                 if (entries.length > 0) {
@@ -1327,7 +1327,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.LINK_VAULT ? (
             <LinkVaultBlockView
               entries={block.entries || []}
-              autoFocus={focusBlockId === block.id}
+              openAddForm={focusBlockId === block.id}
               onEntriesChange={(entries) => {
                 let next = updateBlockAt(blocksRef.current, index, { entries });
                 if (entries.length > 0) {

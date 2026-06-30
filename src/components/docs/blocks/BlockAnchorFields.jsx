@@ -6,6 +6,7 @@ export function BlockAnchorFields({
   onAnchorTimeChange,
   readOnly = false,
   className = "",
+  hideLabel = false,
   showContentToggle = false,
   contentExpanded = true,
   onContentToggle,
@@ -34,7 +35,9 @@ export function BlockAnchorFields({
           <span className="doc-block-anchor__content-chevron" aria-hidden />
         </button>
       ) : null}
-      <span className="doc-block-anchor__label">Schedule</span>
+      {hideLabel ? null : (
+        <span className="doc-block-anchor__label">Schedule</span>
+      )}
       <input
         type="date"
         className="doc-block-anchor__date"

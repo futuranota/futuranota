@@ -61,6 +61,10 @@ export function NoteTaker({
   blockIndex = null,
   onClose,
   inlineTodosEnabled = false,
+  titleEditable = false,
+  draftTitle,
+  onDraftTitleChange,
+  onDraftTitleBlur,
 }) {
   const addNode = useNodesStore((s) => s.addNode);
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
@@ -88,6 +92,9 @@ export function NoteTaker({
   const label = node
     ? ((node.sourceQuery || node.title || UNTITLED_LABEL).trim() || UNTITLED_LABEL)
     : UNTITLED_LABEL;
+  const resolvedDraftTitle = titleEditable && draftTitle !== undefined
+    ? draftTitle
+    : label;
   const hasContent = nodeWritingBlocksHaveContent(writingBody.blocks);
   const saveEnabled = hasContent && !saving;
   const showInlineWritingTools = inlineTodosEnabled;
@@ -153,10 +160,12 @@ export function NoteTaker({
       const linkedNode = resolvedNodeId
         ? useNodesStore.getState().nodes[resolvedNodeId]
         : null;
-      const nodeTitle = linkedNode
-        ? ((linkedNode.sourceQuery || linkedNode.title || UNTITLED_NODE_TITLE).trim()
-          || UNTITLED_NODE_TITLE)
-        : UNTITLED_NODE_TITLE;
+      const nodeTitle = titleEditable
+        ? ((draftTitle || "").trim() || UNTITLED_NODE_TITLE)
+        : linkedNode
+          ? ((linkedNode.sourceQuery || linkedNode.title || UNTITLED_NODE_TITLE).trim()
+            || UNTITLED_NODE_TITLE)
+          : UNTITLED_NODE_TITLE;
 
       const newId = addNode(nodeTitle, NODE_DATA_TYPES.TEXT, textPayload, null, {
         sourceQuery: nodeTitle,
@@ -173,6 +182,8 @@ export function NoteTaker({
       parentDocId,
       resolvedNodeId,
       syncNodeToParentDoc,
+      draftTitle,
+      titleEditable,
     ],
   );
 
@@ -205,7 +216,20 @@ export function NoteTaker({
             showToast("No se pudo guardar", "error");
             return false;
           }
-        } else if (liveNode.dataType === NODE_DATA_TYPES.VIDEO) {
+        } else {
+          const trimmedTitle = titleEditable
+            ? ((draftTitle || "").trim() || UNTITLED_NODE_TITLE)
+            : null;
+          if (trimmedTitle && trimmedTitle !== (liveNode.sourceQuery || liveNode.title)) {
+            updateNode(targetNodeId, {
+              title: trimmedTitle,
+              sourceQuery: trimmedTitle,
+            });
+            liveNode = { ...liveNode, title: trimmedTitle, sourceQuery: trimmedTitle };
+          }
+        }
+
+        if (liveNode.dataType === NODE_DATA_TYPES.VIDEO) {
           updateNode(targetNodeId, {
             content: mergeVideoNodeContent(liveNode.content, { writing: serialized }),
           });
@@ -242,12 +266,14 @@ export function NoteTaker({
     },
     [
       createIntelNode,
+      draftTitle,
       inlineTodosEnabled,
       onClose,
       parentDocId,
       resolvedNodeId,
       showToast,
       syncNodeToParentDoc,
+      titleEditable,
       updateNode,
     ],
   );
@@ -272,6 +298,8 @@ export function NoteTaker({
       || e.target.closest(".note-taker__save")
       || e.target.closest(".note-taker__content-box")
       || e.target.closest(".note-taker__content-scroll")
+      || e.target.closest(".note-taker__title-input")
+      || e.target.closest(".doc-linked-node-actions")
       || e.target.closest(".doc-slash-command-picker")
     ) {
       return;
@@ -290,9 +318,25 @@ export function NoteTaker({
     >
       <header className="note-taker__header">
         <img className="note-taker__icon" src={NOTE_PANEL_ICON} alt="" aria-hidden />
-        <span className="note-taker__label" title={label}>
-          {label}
-        </span>
+        {titleEditable ? (
+          <input
+            type="text"
+            className="note-taker__title-input"
+            value={resolvedDraftTitle}
+            placeholder={UNTITLED_LABEL}
+            spellCheck={false}
+            disabled={saving}
+            onChange={(e) => onDraftTitleChange?.(e.target.value)}
+            onBlur={() => onDraftTitleBlur?.()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            aria-label="Note title"
+          />
+        ) : (
+          <span className="note-taker__label" title={label}>
+            {label}
+          </span>
+        )}
       </header>
       <div className="note-taker__input-wrap">
         {showInlineWritingTools ? (
@@ -305,7 +349,7 @@ export function NoteTaker({
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
                 slashEnabled
-                textPlaceholder="Escribe aquí, o /title, /todo, /code, /password o /link"
+                textPlaceholder="Escribe aquí o /title"
               />
             </div>
             <DocSlashCommandPicker

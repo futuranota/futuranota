@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import {
   NODE_ICON,
   NODE_SAVE_ARCHIVE_ICON,
-  ARROWS_OUT_ICON,
 } from "../../lib/docMediumAssets.js";
 import { IntelSearchButton } from "../shared/IntelSearchButton.jsx";
 import { runIntelSearch } from "../../lib/intelSearch.js";
@@ -43,7 +42,7 @@ import {
 } from "../../lib/nodeParentAdoption.js";
 import { useI18n } from "../../i18n/useI18n.js";
 
-const DEFAULT_DATA_TYPES = ["text", "date", "metric", "checkbox"];
+const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
 
 /**
  * Node editor modal — Figma 296:627.
@@ -100,7 +99,6 @@ export function NodeQueryModal({
   const handleDismiss = onBackToDocument || onClose;
   const showCloseButton = Boolean(onClose && !onBackToDocument);
   const showReturnLink = Boolean(onBackToDocument);
-  const showExpandButton = !contentFocusMode;
   const toggleContentFocus = useCallback(() => {
     setContentFocusMode((value) => !value);
   }, []);
@@ -304,7 +302,7 @@ export function NodeQueryModal({
           <div
             className={
               "node-query-modal__head-top"
-              + ((showCloseButton || showReturnLink || showExpandButton) ? " node-query-modal__head-top--closable" : "")
+              + ((showCloseButton || showReturnLink) ? " node-query-modal__head-top--closable" : "")
             }
           >
             <img className="node-query-modal__node-icon" src={NODE_ICON} alt="" aria-hidden />
@@ -333,22 +331,6 @@ export function NodeQueryModal({
                   onClick={onBackToDocument}
                 >
                   {t("canvas.returnToDocument")}
-                </button>
-              ) : null}
-              {showExpandButton ? (
-                <button
-                  type="button"
-                  className="node-query-modal__expand-btn"
-                  onClick={toggleContentFocus}
-                  title={t("canvas.expandNode")}
-                  aria-label={t("canvas.expandNode")}
-                >
-                  <img
-                    className="node-query-modal__expand-btn-icon"
-                    src={ARROWS_OUT_ICON}
-                    alt=""
-                    aria-hidden
-                  />
                 </button>
               ) : null}
               {showCloseButton ? (
@@ -502,7 +484,7 @@ export function NodeQueryModal({
                 slashEnabled={slashCommandsEnabled}
                 textPlaceholder={
                   slashCommandsEnabled
-                    ? "Escribe aquí, o /title, /todo, /code, /password o /link"
+                    ? "Escribe aquí o /title"
                     : "Escribe aquí"
                 }
               />
@@ -551,6 +533,7 @@ export function NodeQueryModal({
             {showScheduleAnchor ? (
               <BlockAnchorFields
                 className="node-query-modal__schedule"
+                hideLabel
                 anchorDate={anchorDate}
                 anchorTime={anchorTime}
                 onAnchorDateChange={onAnchorDateChange}

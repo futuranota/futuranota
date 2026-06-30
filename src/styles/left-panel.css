@@ -4004,13 +4004,14 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__schedule {
-  flex-shrink: 0;
+  flex-shrink: 1;
   margin: 0;
   padding-left: 0;
   padding-right: 0;
-  gap: 6px;
+  gap: 4px;
   justify-content: flex-start;
   flex-wrap: nowrap;
+  min-width: 0;
 }
 
 .node-query-modal__schedule.doc-block-anchor {
@@ -4018,11 +4019,20 @@ body.doc-content-resizing * {
   margin-top: 0;
 }
 
+.node-query-modal__schedule .doc-block-anchor__date,
+.node-query-modal__schedule .doc-block-anchor__time {
+  flex: 0 1 auto;
+  max-width: 108px;
+  min-width: 0;
+  font-size: 11px;
+  padding: 3px 5px;
+}
+
 .node-query-modal__footer-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
   padding-top: 8px;
 }
@@ -4030,14 +4040,15 @@ body.doc-content-resizing * {
 .node-query-modal__footer-start {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
   flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .node-query-modal__footer-search {
   flex-shrink: 0;
-  margin-left: 12px;
+  margin-left: 0;
 }
 
 .node-query-modal__footer-row .node-query-modal__action--save {
@@ -6347,7 +6358,24 @@ body.doc-content-resizing * {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2b323d #0b0e12;
+}
+
+.node-query-modal__content-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.node-query-modal__content-scroll::-webkit-scrollbar-track {
+  background: #0b0e12;
+  border-radius: 4px;
+}
+
+.node-query-modal__content-scroll::-webkit-scrollbar-thumb {
+  background: #2b323d;
+  border-radius: 4px;
 }
 
 .node-query-modal__content-scroll--focus {
@@ -6358,15 +6386,16 @@ body.doc-content-resizing * {
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 5;
+  z-index: 12;
 }
 
 .node-query-modal__content-box--todo {
-  overflow: visible;
+  overflow: hidden;
 }
 
 .node-query-modal__content-box--todo .node-query-modal__content-scroll {
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .node-query-modal__todo {
@@ -6511,12 +6540,12 @@ body.doc-content-resizing * {
   background: transparent;
   max-width: none;
   margin-left: 0;
-  padding: 0 18px 0 2px;
+  padding: 0 40px 0 2px;
   appearance: none;
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23d8d8d8' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 2px center;
+  background-position: right 20px center;
   background-size: 10px 6px;
 }
 
@@ -6554,11 +6583,13 @@ body.doc-content-resizing * {
   font-family: var(--sans);
   font-size: 13px;
   padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .node-query-modal__date:not([readonly]) {
   pointer-events: auto;
-  cursor: pointer;
+  cursor: text;
   color-scheme: dark;
 }
 
@@ -6567,17 +6598,14 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__date::-webkit-calendar-picker-indicator {
-  filter: brightness(0) invert(1);
-  opacity: 1;
-  cursor: pointer;
-}
-
-.node-query-modal__date[readonly]::-webkit-calendar-picker-indicator {
-  cursor: default;
+  display: none;
+  -webkit-appearance: none;
 }
 
 .node-query-modal__content-box {
   flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
   min-height: 210px;
   max-height: 210px;
   margin-left: -21px;
@@ -6590,7 +6618,7 @@ body.doc-content-resizing * {
 
 .node-query-modal__content-box--slash {
   position: relative;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .node-query-modal__content-box--slash .node-query-modal__slash-wrap {
@@ -6621,15 +6649,13 @@ body.doc-content-resizing * {
   flex-direction: column;
   gap: 10px;
   width: 100%;
-  min-height: 180px;
-  max-height: 100%;
-  overflow-y: auto;
+  min-height: 0;
   padding: 10px 12px 12px;
   box-sizing: border-box;
 }
 
 .node-query-modal__content-box--slash .node-query-modal__field-shell {
-  min-height: 180px;
+  min-height: 0;
 }
 
 .node-query-modal__todo-stack {
@@ -6735,8 +6761,8 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__writing-stack {
-  flex: 1;
-  min-height: 72px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .node-query-modal__writing-stack .node-writing-text-field,

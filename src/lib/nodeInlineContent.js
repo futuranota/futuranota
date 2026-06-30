@@ -204,9 +204,17 @@ export function nodeWritingBlocksHaveContent(blocks) {
   });
 }
 
+/** True when the stack has typed text or any structural block (todo, h1, code, vault). */
+export function nodeWritingBlocksHaveStructure(blocks) {
+  return normalizeWritingBlocks(blocks).some((block) => {
+    if (block.type !== NODE_BLOCK_TYPES.TEXT) return true;
+    return block.text.trim();
+  });
+}
+
 export function serializeNodeWritingBody({ blocks } = {}) {
   const normalized = normalizeWritingBlocks(blocks);
-  if (!nodeWritingBlocksHaveContent(normalized)) {
+  if (!nodeWritingBlocksHaveStructure(normalized)) {
     return "";
   }
   return {
@@ -288,6 +296,17 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed) {
   if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) return normalized;
 
   const { prefix } = splitBodyForSlash(block.text);
+  const vaultNodeType = vaultNodeTypeForParsed(parsed);
+  if (vaultNodeType) {
+    const existingIndex = findLastVaultBlockIndex(normalized, vaultNodeType);
+    if (existingIndex >= 0) {
+      const updated = normalized.map((entry, index) => (
+        index === blockIndex ? { ...entry, text: prefix } : entry
+      ));
+      return ensureNodeWritingTail(updated);
+    }
+  }
+
   const newBlock = createNodeWritingBlockFromSlash(
     parsed,
     parsed.type === DOC_BLOCK_TYPES.H1 ? prefix : "",
@@ -301,13 +320,45 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed) {
 }
 
 export function appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix = "") {
+  const vaultNodeType =
+    parsed?.type === DOC_BLOCK_TYPES.PASSWORD_VAULT ? NODE_BLOCK_TYPES.PASSWORD_VAULT
+      : parsed?.type === DOC_BLOCK_TYPES.LINK_VAULT ? NODE_BLOCK_TYPES.LINK_VAULT
+        : null;
+
+  if (vaultNodeType) {
+    const normalized = normalizeWritingBlocks(blocks);
+    for (let index = normalized.length - 1; index >= 0; index -= 1) {
+      if (normalized[index].type === vaultNodeType) {
+        return {
+          blocks: normalized,
+          insertedIndex: index,
+          reusedVault: true,
+        };
+      }
+    }
+  }
+
   const newBlock = createNodeWritingBlockFromSlash(parsed, textPrefix);
   if (!newBlock) {
-    return { blocks: normalizeWritingBlocks(blocks), insertedIndex: -1 };
+    return { blocks: normalizeWritingBlocks(blocks), insertedIndex: -1, reusedVault: false };
   }
   const nextBlocks = appendNodeWritingBlock(blocks, newBlock);
   const insertedIndex = nextBlocks.findIndex((block) => block.id === newBlock.id);
-  return { blocks: nextBlocks, insertedIndex };
+  return { blocks: nextBlocks, insertedIndex, reusedVault: false };
+}
+
+function findLastVaultBlockIndex(blocks, vaultNodeType) {
+  const normalized = normalizeWritingBlocks(blocks);
+  for (let index = normalized.length - 1; index >= 0; index -= 1) {
+    if (normalized[index].type === vaultNodeType) return index;
+  }
+  return -1;
+}
+
+function vaultNodeTypeForParsed(parsed) {
+  if (parsed?.type === DOC_BLOCK_TYPES.PASSWORD_VAULT) return NODE_BLOCK_TYPES.PASSWORD_VAULT;
+  if (parsed?.type === DOC_BLOCK_TYPES.LINK_VAULT) return NODE_BLOCK_TYPES.LINK_VAULT;
+  return null;
 }
 
 export function removeWritingBlockAt(blocks, blockIndex) {

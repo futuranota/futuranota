@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { NODE_DATA_TYPES, DATA_TYPE_LABELS } from "../../lib/nodeDataTypes.js";
+import {
+  NODE_DATA_TYPES,
+  NODE_CREATABLE_DATA_TYPES,
+  DATA_TYPE_LABELS,
+} from "../../lib/nodeDataTypes.js";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
 
 function initialMetricState(content) {
@@ -66,7 +70,10 @@ export function NodeForm({ onSubmit, onCancel, initialData = null }) {
           value={dataType}
           onChange={(e) => setDataType(e.target.value)}
         >
-          {Object.values(NODE_DATA_TYPES).map((type) => (
+          {(initialData?.dataType === NODE_DATA_TYPES.METRIC
+            ? [...NODE_CREATABLE_DATA_TYPES, NODE_DATA_TYPES.METRIC]
+            : NODE_CREATABLE_DATA_TYPES
+          ).map((type) => (
             <option key={type} value={type}>{DATA_TYPE_LABELS[type]}</option>
           ))}
         </select>

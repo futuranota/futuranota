@@ -45,13 +45,6 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "metric",
-    ghostHint: "metric",
-    aliases: ["metric"],
-    blockType: DOC_BLOCK_TYPES.METRIC,
-    nodeDataType: NODE_DATA_TYPES.METRIC,
-  },
-  {
     label: "Embedded video",
     ghostHint: "embedvideo",
     aliases: ["embedvideo", "embeddedvideo", "video", "embed"],
@@ -146,14 +139,6 @@ export function createDocBlockFromSlash(parsed) {
     });
   }
 
-  if (parsed.type === DOC_BLOCK_TYPES.METRIC) {
-    return createDocBlock(DOC_BLOCK_TYPES.METRIC, {
-      title: "",
-      value: "",
-      unit: "",
-    });
-  }
-
   if (parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
     return createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, {
       title: "ProductCard",
@@ -241,12 +226,6 @@ export function initialNodeShapeFromSlash(alias, prefix = "") {
       return {
         dataType: NODE_DATA_TYPES.DATE,
         content: { date: "", time: "" },
-        defaultTitle,
-      };
-    case NODE_DATA_TYPES.METRIC:
-      return {
-        dataType: NODE_DATA_TYPES.METRIC,
-        content: { value: "", unit: "" },
         defaultTitle,
       };
     case NODE_DATA_TYPES.VIDEO: {

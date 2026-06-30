@@ -245,7 +245,6 @@ export function StandaloneNodeModal({
       dataTypes={[
         NODE_DATA_TYPES.TEXT,
         NODE_DATA_TYPES.DATE,
-        NODE_DATA_TYPES.METRIC,
         NODE_DATA_TYPES.CHECKBOX,
         NODE_DATA_TYPES.VIDEO,
       ]}
