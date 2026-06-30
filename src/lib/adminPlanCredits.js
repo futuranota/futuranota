@@ -8,13 +8,26 @@ export function isAdminSessionEmail(email) {
   return Boolean(adminEmail && email?.toLowerCase() === adminEmail);
 }
 
+/**
+ * When true, admin login forces Pro and auto-refills credits below 1.
+ * Default (unset / not "true"): real billing UX — plan and balance come from Supabase only.
+ */
+export function isAdminAutoRefillEnabled() {
+  return import.meta.env.VITE_ADMIN_AUTO_REFILL === "true";
+}
+
+/** Admin gets implicit Pro on APIs/client when auto-refill bypass is on. */
+export function isAdminBillingBypassEnabled() {
+  return isAdminAutoRefillEnabled();
+}
+
 /** Full Pro token ledger (= 200 user credits). */
 export function getAdminProTokenCap() {
   return getTokensCap("pro");
 }
 
 /**
- * Admin plan-testing: treat as Pro with a real 200-credit ledger (not unlimited).
+ * Legacy auto-refill bypass: treat as Pro with a real 200-credit ledger (not unlimited).
  * @param {object} profile
  * @param {{ plan?: string, tokens_balance?: number|null, search_count?: number }} [row]
  */

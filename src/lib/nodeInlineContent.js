@@ -7,6 +7,7 @@ import {
   DEFAULT_NODE_TODO_LIST_TITLE,
   normalizeNodeTodoContent,
 } from "./nodeTodoContent.js";
+import { normalizeLinkEntries, normalizePasswordEntries } from "./vaultBlocks.js";
 
 export const NODE_BODY_KIND = "node-body";
 
@@ -15,6 +16,8 @@ export const NODE_BLOCK_TYPES = {
   H1: "h1",
   TODO: "todo",
   CODE: "code",
+  PASSWORD_VAULT: "password_vault",
+  LINK_VAULT: "link_vault",
 };
 
 export function isNodeWritingBody(content) {
@@ -60,6 +63,22 @@ export function createInlineCodeBlock(language = DEFAULT_CODE_LANGUAGE, code = "
     language: normalizeCodeLanguage(language),
     code: trimmed,
     codeSaved: Boolean(trimmed.trim()),
+  };
+}
+
+export function createInlinePasswordVaultBlock(entries = []) {
+  return {
+    id: generateId("NPW"),
+    type: NODE_BLOCK_TYPES.PASSWORD_VAULT,
+    entries: normalizePasswordEntries(entries),
+  };
+}
+
+export function createInlineLinkVaultBlock(entries = []) {
+  return {
+    id: generateId("NLK"),
+    type: NODE_BLOCK_TYPES.LINK_VAULT,
+    entries: normalizeLinkEntries(entries),
   };
 }
 
@@ -112,6 +131,20 @@ export function normalizeWritingBlocks(blocks) {
         codeSaved: Boolean(block?.codeSaved ?? hasCode) && hasCode,
       };
     }
+    if (block?.type === NODE_BLOCK_TYPES.PASSWORD_VAULT) {
+      return {
+        id: block.id || generateId("NPW"),
+        type: NODE_BLOCK_TYPES.PASSWORD_VAULT,
+        entries: normalizePasswordEntries(block.entries),
+      };
+    }
+    if (block?.type === NODE_BLOCK_TYPES.LINK_VAULT) {
+      return {
+        id: block.id || generateId("NLK"),
+        type: NODE_BLOCK_TYPES.LINK_VAULT,
+        entries: normalizeLinkEntries(block.entries),
+      };
+    }
     return {
       id: block?.id || generateId("NTX"),
       type: NODE_BLOCK_TYPES.TEXT,
@@ -160,6 +193,12 @@ export function nodeWritingBlocksHaveContent(blocks) {
     }
     if (block.type === NODE_BLOCK_TYPES.CODE) {
       return Boolean(block.codeSaved && block.code?.trim());
+    }
+    if (block.type === NODE_BLOCK_TYPES.PASSWORD_VAULT) {
+      return block.entries.length > 0;
+    }
+    if (block.type === NODE_BLOCK_TYPES.LINK_VAULT) {
+      return block.entries.length > 0;
     }
     return block.text.trim();
   });
@@ -233,6 +272,12 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
   }
   if (parsed.type === DOC_BLOCK_TYPES.CODE) {
     return createInlineCodeBlock();
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT) {
+    return createInlinePasswordVaultBlock();
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.LINK_VAULT) {
+    return createInlineLinkVaultBlock();
   }
   return null;
 }

@@ -4,6 +4,7 @@ import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkCo
 import { splitBodyForSlash } from "./docSlashTail.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
 import { parseVideoEmbedInput } from "./videoEmbed.js";
+import { normalizeLinkEntries, normalizePasswordEntries } from "./vaultBlocks.js";
 
 const DOC_BLOCK_TYPES = {
   TEXT: "text",
@@ -15,6 +16,8 @@ const DOC_BLOCK_TYPES = {
   VIDEO_EMBED: "video_embed",
   IMAGE: "image",
   CODE: "code",
+  PASSWORD_VAULT: "password_vault",
+  LINK_VAULT: "link_vault",
 };
 
 const DEFAULT_CHECKBOX_LIST_TITLE = "Todo list:";
@@ -102,6 +105,18 @@ function normalizeCodeBlock(block) {
     language: normalizeCodeLanguage(block?.language),
     code,
     codeSaved: Boolean(block?.codeSaved ?? hasCode) && hasCode,
+  };
+}
+
+function normalizePasswordVaultBlock(block) {
+  return {
+    entries: normalizePasswordEntries(block?.entries),
+  };
+}
+
+function normalizeLinkVaultBlock(block) {
+  return {
+    entries: normalizeLinkEntries(block?.entries),
   };
 }
 
@@ -202,6 +217,24 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     return {
       ...base,
       type: DOC_BLOCK_TYPES.CODE,
+      ...normalized,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.PASSWORD_VAULT) {
+    const normalized = normalizePasswordVaultBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.PASSWORD_VAULT,
+      ...normalized,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.LINK_VAULT) {
+    const normalized = normalizeLinkVaultBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.LINK_VAULT,
       ...normalized,
     };
   }
@@ -324,6 +357,20 @@ export function normalizeDocBlock(block) {
     return createDocBlock(DOC_BLOCK_TYPES.CODE, {
       id: block.id,
       ...normalizeCodeBlock(block),
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.PASSWORD_VAULT) {
+    return createDocBlock(DOC_BLOCK_TYPES.PASSWORD_VAULT, {
+      id: block.id,
+      ...normalizePasswordVaultBlock(block),
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.LINK_VAULT) {
+    return createDocBlock(DOC_BLOCK_TYPES.LINK_VAULT, {
+      id: block.id,
+      ...normalizeLinkVaultBlock(block),
     });
   }
 
@@ -525,6 +572,34 @@ function parseCodeSection(section) {
   }
 }
 
+function parsePasswordVaultSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::password")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.PASSWORD_VAULT);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.PASSWORD_VAULT, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.PASSWORD_VAULT);
+  }
+}
+
+function parseLinkVaultSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::link")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.LINK_VAULT);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.LINK_VAULT, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.LINK_VAULT);
+  }
+}
+
 export function docBlocksFromBody(body) {
   const raw = String(body ?? "").trim();
   if (!raw) return [];
@@ -575,6 +650,18 @@ export function docBlocksFromBody(body) {
     const codeBlock = parseCodeSection(section);
     if (codeBlock) {
       blocks.push(codeBlock);
+      continue;
+    }
+
+    const passwordVaultBlock = parsePasswordVaultSection(section);
+    if (passwordVaultBlock) {
+      blocks.push(passwordVaultBlock);
+      continue;
+    }
+
+    const linkVaultBlock = parseLinkVaultSection(section);
+    if (linkVaultBlock) {
+      blocks.push(linkVaultBlock);
       continue;
     }
 
@@ -659,6 +746,16 @@ export function docBlocksToBody(blocks) {
           language: normalizeCodeLanguage(block.language),
           code: block.code || "",
           codeSaved: Boolean(block.codeSaved),
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT) {
+        return `::password\n${JSON.stringify({
+          entries: normalizePasswordEntries(block.entries),
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.LINK_VAULT) {
+        return `::link\n${JSON.stringify({
+          entries: normalizeLinkEntries(block.entries),
         })}`;
       }
       return block.text || "";
@@ -809,6 +906,8 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.VIDEO_EMBED
     || block.type === DOC_BLOCK_TYPES.IMAGE
     || block.type === DOC_BLOCK_TYPES.CODE
+    || block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+    || block.type === DOC_BLOCK_TYPES.LINK_VAULT
   ) {
     return block;
   }

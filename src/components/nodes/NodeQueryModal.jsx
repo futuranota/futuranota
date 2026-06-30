@@ -194,6 +194,11 @@ export function NodeQueryModal({
       });
     } else if (parsed.type === DOC_BLOCK_TYPES.CODE) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusCode: true });
+    } else if (
+      parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+    ) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true });
     } else {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
     }
@@ -497,7 +502,7 @@ export function NodeQueryModal({
                 slashEnabled={slashCommandsEnabled}
                 textPlaceholder={
                   slashCommandsEnabled
-                    ? "Escribe aquí, o /title, /todo o /code"
+                    ? "Escribe aquí, o /title, /todo, /code, /password o /link"
                     : "Escribe aquí"
                 }
               />

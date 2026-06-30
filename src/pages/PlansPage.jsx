@@ -1,10 +1,18 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { usePlanStore } from "../stores/planStore.js";
+import { useAuthStore } from "../stores/authStore.js";
+import { isAdminSessionEmail } from "../lib/adminPlanCredits.js";
 import { getHome } from "../marketing/lib/content.js";
 import { PRICING_PLANS_DEFAULT, planBullets } from "../marketing/lib/pricingDefaults.js";
 import { PlanUsagePanel } from "../components/plans/PlanUsagePanel.jsx";
 import { useI18n } from "../i18n/useI18n.js";
+import {
+  cancelProSubscription,
+  fetchAffiliateLink,
+  startProCheckout,
+} from "../lib/billingApi.js";
+import { clearStoredReferralCode } from "../lib/referralStorage.js";
 
 function formatPlanPrice(price) {
   const raw = String(price ?? "").trim();
@@ -31,9 +39,19 @@ function CheckIcon() {
 export function PlansPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const profile = usePlanStore((s) => s.profile);
-  const setPlan = usePlanStore((s) => s.setPlan);
+  const fetchProfile = usePlanStore((s) => s.fetchProfile);
+  const refillCreditsToFull = usePlanStore((s) => s.refillCreditsToFull);
+  const refillFreeStarter = usePlanStore((s) => s.refillFreeStarter);
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = isAdminSessionEmail(user?.email);
   const [busy, setBusy] = useState(false);
+  const [refillBusy, setRefillBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [billing, setBilling] = useState("monthly");
+  const [affiliate, setAffiliate] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const proPlan = useMemo(() => {
     const { pricing } = getHome();
@@ -43,15 +61,81 @@ export function PlansPage() {
 
   const bullets = planBullets(proPlan);
   const isPro = profile.plan === "pro";
-  const priceValue = formatPlanPrice(proPlan.price);
+  const isAnnual = billing === "annual";
+  const priceValue = formatPlanPrice(isAnnual ? proPlan.annualPrice : proPlan.price);
+  const priceSuffix = isAnnual ? proPlan.annualPriceSuffix : proPlan.priceSuffix;
+  const billingNote = isAnnual ? proPlan.annualBillingNote : proPlan.billingNote;
+
+  useEffect(() => {
+    const checkout = searchParams.get("checkout");
+    if (checkout === "success") {
+      void fetchProfile();
+      clearStoredReferralCode();
+      setSearchParams({}, { replace: true });
+    } else if (checkout === "canceled") {
+      setSearchParams({}, { replace: true });
+    }
+  }, [fetchProfile, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAffiliateLink()
+      .then((data) => {
+        if (!cancelled) setAffiliate(data);
+      })
+      .catch(() => {
+        if (!cancelled) setAffiliate(null);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const handlePrimaryAction = async () => {
     if (busy) return;
     setBusy(true);
+    setError(null);
     try {
-      await setPlan(isPro ? "free" : "pro");
+      if (isPro) {
+        await cancelProSubscription();
+        await fetchProfile();
+      } else {
+        const { url } = await startProCheckout(billing);
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+        throw new Error("Stripe checkout URL missing");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("plans.billingError"));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleCopyReferral = async () => {
+    if (!affiliate?.url) return;
+    try {
+      await navigator.clipboard.writeText(affiliate.url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const handleRestoreCredits = async (mode = "pro") => {
+    if (refillBusy) return;
+    setRefillBusy(true);
+    setError(null);
+    try {
+      const ok = mode === "free"
+        ? await refillFreeStarter()
+        : await refillCreditsToFull();
+      if (!ok) throw new Error(t("plans.adminRestoreFailed"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("plans.adminRestoreFailed"));
+    } finally {
+      setRefillBusy(false);
     }
   };
 
@@ -73,17 +157,78 @@ export function PlansPage() {
         <PlanUsagePanel />
       </div>
 
+      {isAdmin ? (
+        <div className="plans-admin-tools glass">
+          <p className="plans-admin-tools__label">{t("plans.adminToolsTitle")}</p>
+          <p className="plans-admin-tools__hint">{t("plans.adminToolsHint")}</p>
+          <div className="plans-admin-tools__actions">
+            <button
+              type="button"
+              className="btn sm ghost"
+              disabled={refillBusy}
+              onClick={() => handleRestoreCredits("pro")}
+            >
+              {refillBusy ? t("plans.processing") : t("plans.adminRestore200")}
+            </button>
+            <button
+              type="button"
+              className="btn sm ghost"
+              disabled={refillBusy}
+              onClick={() => handleRestoreCredits("free")}
+            >
+              {refillBusy ? t("plans.processing") : t("plans.adminRestore10")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {affiliate?.url ? (
+        <div className="plans-referral glass">
+          <p className="plans-referral__label">{t("plans.referralTitle")}</p>
+          <p className="plans-referral__hint">{t("plans.referralHint")}</p>
+          <div className="plans-referral__row">
+            <code className="plans-referral__url">{affiliate.url}</code>
+            <button type="button" className="btn xs ghost" onClick={handleCopyReferral}>
+              {copied ? t("plans.referralCopied") : t("plans.referralCopy")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="plans-pricing-card glass">
         <div className="plans-pricing-card__grid">
           <div className="plans-pricing-card__pricing">
             <h2 className="plans-pricing-card__plan-name">{proPlan.name}</h2>
             <p className="plans-pricing-card__desc">{proPlan.desc}</p>
 
-            <div className="plans-pricing-card__price" aria-label={`$${priceValue}${proPlan.priceSuffix || ""}`}>
+            {!isPro ? (
+              <div className="plans-billing-toggle" role="tablist" aria-label={t("plans.billingToggle")}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!isAnnual}
+                  className={"plans-billing-toggle__btn" + (!isAnnual ? " is-active" : "")}
+                  onClick={() => setBilling("monthly")}
+                >
+                  {t("plans.billingMonthly")}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isAnnual}
+                  className={"plans-billing-toggle__btn" + (isAnnual ? " is-active" : "")}
+                  onClick={() => setBilling("annual")}
+                >
+                  {t("plans.billingAnnual")}
+                </button>
+              </div>
+            ) : null}
+
+            <div className="plans-pricing-card__price" aria-label={`$${priceValue}${priceSuffix || ""}`}>
               <span className="plans-pricing-card__currency">$</span>
               <span className="plans-pricing-card__amount">{priceValue}</span>
-              {proPlan.priceSuffix ? (
-                <span className="plans-pricing-card__suffix">{proPlan.priceSuffix}</span>
+              {priceSuffix ? (
+                <span className="plans-pricing-card__suffix">{priceSuffix}</span>
               ) : null}
             </div>
 
@@ -94,12 +239,26 @@ export function PlansPage() {
                 disabled={busy}
                 onClick={handlePrimaryAction}
               >
-                {isPro ? t("plans.cancelPlan") : t("plans.upgradeToPro")}
+                {busy
+                  ? t("plans.processing")
+                  : isPro
+                    ? t("plans.cancelPlan")
+                    : t("plans.upgradeToPro")}
               </button>
             </div>
 
-            {proPlan.billingNote ? (
-              <p className="plans-pricing-card__note">{proPlan.billingNote}</p>
+            {error ? (
+              <p className="plans-pricing-card__error" role="alert">{error}</p>
+            ) : null}
+
+            {billingNote ? (
+              <p className="plans-pricing-card__note">{billingNote}</p>
+            ) : null}
+
+            {!isPro && isAnnual ? (
+              <p className="plans-pricing-card__note plans-pricing-card__note--muted">
+                {t("plans.annualReferralNote")}
+              </p>
             ) : null}
           </div>
 

@@ -11,6 +11,8 @@ import {
 import { H1BlockView } from "../docs/blocks/H1BlockView.jsx";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
 import { CodeBlockView } from "../docs/blocks/CodeBlockView.jsx";
+import { PasswordVaultBlockView } from "../docs/blocks/PasswordVaultBlockView.jsx";
+import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 
 function syncTextareaHeight(el) {
@@ -117,6 +119,11 @@ export function NodeWritingBlockStack({
       });
     } else if (parsed.type === DOC_BLOCK_TYPES.CODE) {
       onFocusTargetChange?.({ blockIndex: insertedIndex, focusCode: true });
+    } else if (
+      parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+    ) {
+      onFocusTargetChange?.({ blockIndex: insertedIndex, focusVault: true });
     } else {
       onFocusTargetChange?.({ blockIndex: insertedIndex, focusH1: true });
     }
@@ -225,6 +232,38 @@ export function NodeWritingBlockStack({
                   onFocusTargetChange?.({ blockIndex, focusCode: true });
                 }}
                 onDelete={() => removeBlockAt(blockIndex)}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.PASSWORD_VAULT) {
+          return (
+            <div key={block.id} className="node-writing-block-stack__vault">
+              <PasswordVaultBlockView
+                entries={block.entries || []}
+                compact
+                autoFocus={
+                  focusTarget?.blockIndex === blockIndex && focusTarget?.focusVault
+                }
+                onEntriesChange={(entries) => updateBlockAt(blockIndex, { entries })}
+                onDeleteVault={() => removeBlockAt(blockIndex)}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.LINK_VAULT) {
+          return (
+            <div key={block.id} className="node-writing-block-stack__vault">
+              <LinkVaultBlockView
+                entries={block.entries || []}
+                compact
+                autoFocus={
+                  focusTarget?.blockIndex === blockIndex && focusTarget?.focusVault
+                }
+                onEntriesChange={(entries) => updateBlockAt(blockIndex, { entries })}
+                onDeleteVault={() => removeBlockAt(blockIndex)}
               />
             </div>
           );

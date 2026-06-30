@@ -18,6 +18,7 @@ import { createCampaignAnalystMiddleware } from './server/campaignAnalystHandler
 import { createMarketingGuideMiddleware } from './server/marketingGuideHandler.js';
 import { createSocialHypeAnalystMiddleware, createSocialHypeAnalyticsMiddleware } from './server/socialHypeAnalystHandler.js';
 import { createUsageLogMiddleware } from './server/usageLogHandler.js';
+import { createBillingMiddleware } from './server/billingHandler.js';
 
 function brandCadenceApiPlugin(env) {
   return {
@@ -45,6 +46,7 @@ function brandCadenceApiPlugin(env) {
       server.middlewares.use(createSocialHypeAnalystMiddleware());
       server.middlewares.use(createSocialHypeAnalyticsMiddleware());
       server.middlewares.use(createUsageLogMiddleware());
+      server.middlewares.use(createBillingMiddleware());
       server.middlewares.use(createEventsMiddleware());
       server.middlewares.use(createWebProxyMiddleware());
     },

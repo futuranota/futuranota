@@ -158,6 +158,103 @@
   color: var(--hud);
 }
 
+.plans-billing-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--glass-border) 40%, transparent);
+}
+
+.plans-billing-toggle__btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: transparent;
+  cursor: pointer;
+}
+
+.plans-billing-toggle__btn.is-active {
+  color: var(--text);
+  background: var(--glass-bg, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.plans-pricing-card__error {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--danger, #e05252);
+}
+
+.plans-pricing-card__note--muted {
+  opacity: 0.85;
+}
+
+.plans-referral {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+}
+
+.plans-referral__label {
+  margin: 0 0 4px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.plans-referral__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.plans-referral__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.plans-referral__url {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--glass-border) 35%, transparent);
+}
+
+.plans-admin-tools {
+  margin-bottom: 20px;
+  padding: 16px 20px;
+}
+
+.plans-admin-tools__label {
+  margin: 0 0 4px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.plans-admin-tools__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.plans-admin-tools__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (min-width: 768px) {
   .plans-pricing-card__grid {
     grid-template-columns: 1fr 1fr;

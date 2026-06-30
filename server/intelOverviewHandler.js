@@ -66,8 +66,13 @@ export async function processIntelOverviewRequest(reqLike) {
   const isAdminUser = Boolean(
     adminEmail && user.email?.toLowerCase() === adminEmail,
   );
+  const adminAutoRefill = (
+    process.env.VITE_ADMIN_AUTO_REFILL
+    || process.env.ADMIN_AUTO_REFILL
+    || ""
+  ).trim() === "true";
 
-  const plan = isAdminUser || profile.plan === "pro" ? "pro" : "free";
+  const plan = (isAdminUser && adminAutoRefill) || profile.plan === "pro" ? "pro" : "free";
   const model = resolveIntelModelForPlan(modelId, plan);
 
   if (plan === "free") {

@@ -11,6 +11,7 @@ import {
   markPendingLibrary,
   OAUTH_MODE_KEY,
 } from '../../lib/onboardingFlow.js';
+import { captureReferralFromSearch } from '../../lib/referralStorage.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
@@ -44,6 +45,10 @@ export function WelcomePage() {
       priceLabel: `$${price}${priceSuffix || ''}`,
     };
   }, [planId, billing]);
+
+  useEffect(() => {
+    captureReferralFromSearch(searchParams);
+  }, [searchParams]);
 
   useEffect(() => {
     applyMarketingTheme({ accent: 'terracotta', texture: 'on' });

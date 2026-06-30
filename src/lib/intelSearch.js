@@ -6,6 +6,7 @@ import { useDocsStore } from "../stores/docsStore.js";
 import { usePlanStore } from "../stores/planStore.js";
 import { useUpgradeModalStore } from "../stores/upgradeModalStore.js";
 import { canSpendCredits } from "./planConfig.js";
+import { isAdminBillingBypassEnabled, isAdminSessionEmail } from "./adminPlanCredits.js";
 import { DEFAULT_INTEL_MODEL_ID, getIntelModel, resolveIntelModelForPlan } from "./intelModels.js";
 
 /** @typedef {{ id: string, title: string, dataType: string, content: unknown, anchorAt?: string|null, order: number }} ContextNode */
@@ -183,11 +184,10 @@ export async function runIntelSearch(payload) {
   const planStore = usePlanStore.getState();
   const { profile } = planStore;
   const { data: { session } } = await supabase.auth.getSession();
-  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL?.trim().toLowerCase();
-  const isAdminUser = Boolean(
-    adminEmail && session?.user?.email?.toLowerCase() === adminEmail,
-  );
-  const effectivePlan = isAdminUser || profile.plan === "pro" ? "pro" : "free";
+  const isAdminUser = isAdminSessionEmail(session?.user?.email);
+  const effectivePlan = (isAdminUser && isAdminBillingBypassEnabled()) || profile.plan === "pro"
+    ? "pro"
+    : "free";
   const model = resolveIntelModelForPlan(requestedModelId, effectivePlan);
 
   if (model.id !== requestedModelId) {

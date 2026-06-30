@@ -26,6 +26,7 @@ import {
 import {
   getAdminProTokenCap,
   isAdminSessionEmail,
+  isAdminBillingBypassEnabled,
   shouldBootstrapAdminCredits,
 } from "../lib/adminPlanCredits.js";
 
@@ -42,6 +43,7 @@ const DEFAULT_PROFILE = {
   tokensBalance: getTokensCap("free"),
   tokensPeriodStart: null,
   campaignLiveUsed: false,
+  referralCreditsBalance: 0,
 };
 
 function isSameUtcMonth(a, b) {
@@ -87,6 +89,7 @@ function rowToProfile(row) {
     tokensBalance,
     tokensPeriodStart: periodStart,
     campaignLiveUsed: Boolean(row.campaign_live_used),
+    referralCreditsBalance: Math.max(0, toFiniteNumber(row.referral_credits_balance, 0) ?? 0),
   };
 }
 
@@ -103,6 +106,46 @@ function isMissingProfilesTable(error) {
     || msg.includes("public.profiles")
     || msg.includes('column "user_id"')
     || msg.includes("tokens_balance");
+}
+
+/**
+ * Pro rows must use tokens_balance (2M pool), not Free search_count / 10k tokens.
+ * @param {Record<string, unknown> | null | undefined} row
+ * @param {boolean} [isAdminUser]
+ */
+function needsProLedgerRepair(row, isAdminUser = false) {
+  if (!row || row.plan !== "pro") return false;
+  const freeCap = getTokensCap("free");
+  const proCap = getTokensCap("pro");
+  const balance = Number(row.tokens_balance);
+  const searches = Number(row.search_count) || 0;
+  if (!Number.isFinite(balance) || balance >= proCap) return false;
+  if (searches > 0) return true;
+  if (balance <= freeCap && isAdminUser && !row.stripe_subscription_id) return true;
+  return false;
+}
+
+/**
+ * @param {string} userId
+ * @param {Record<string, unknown> | null | undefined} row
+ * @param {boolean} [isAdminUser]
+ */
+async function repairProLedgerIfNeeded(userId, row, isAdminUser = false) {
+  if (!needsProLedgerRepair(row, isAdminUser)) return null;
+  const proCap = getTokensCap("pro");
+  const now = new Date().toISOString();
+  const patch = {
+    tokens_balance: proCap,
+    tokens_period_start: now,
+    search_count: 0,
+    updated_at: now,
+  };
+  const error = await persistProfilePatch(userId, patch);
+  if (error) {
+    console.warn("planStore.repairProLedger error", error);
+    return null;
+  }
+  return { ...patch, plan: "pro" };
 }
 
 async function persistProfilePatch(userId, patch) {
@@ -276,7 +319,20 @@ export const usePlanStore = create(
         persistLocalWeatherActionsUsed(profile.weatherActionsCount);
         const isAdminUser = isAdminSessionEmail(session.user.email);
 
-        if (isAdminUser) {
+        const repaired = await repairProLedgerIfNeeded(userId, data, isAdminUser);
+        if (repaired) {
+          profile = rowToProfile({ ...data, ...repaired });
+        }
+
+        if (isAdminUser && !isAdminBillingBypassEnabled() && !data) {
+          const seeded = await get().refillCreditsToFull();
+          if (seeded) {
+            set({ profile: get().profile, loading: false, loaded: true });
+            return;
+          }
+        }
+
+        if (isAdminUser && isAdminBillingBypassEnabled()) {
           profile = { ...profile, plan: "pro" };
           const proCap = getAdminProTokenCap();
           const needsFullCredits = shouldBootstrapAdminCredits(profile, data);
@@ -316,7 +372,14 @@ export const usePlanStore = create(
               }
             }
           } else if (data?.plan !== "pro") {
-            await persistProfilePatch(userId, { plan: "pro" });
+            const proCap = getAdminProTokenCap();
+            const now = new Date().toISOString();
+            await persistProfilePatch(userId, {
+              plan: "pro",
+              tokens_balance: proCap,
+              tokens_period_start: now,
+              search_count: 0,
+            });
           }
         }
 
@@ -357,6 +420,10 @@ export const usePlanStore = create(
       },
 
       setPlan: async (plan) => {
+        if (plan === "pro") {
+          console.warn("planStore.setPlan: use Stripe checkout to upgrade to Pro");
+          return;
+        }
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         if (!userId) return;
@@ -386,11 +453,15 @@ export const usePlanStore = create(
         }));
       },
 
-      /** Reset Pro ledger to full 200 credits (admin plan testing). */
+      /** Reset Pro ledger to full 200 credits (admin manual testing). */
       refillCreditsToFull: async () => {
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         if (!userId) return false;
+        if (!isAdminSessionEmail(session.user?.email)) {
+          console.warn("planStore.refillCreditsToFull: admin only");
+          return false;
+        }
 
         const cap = getTokensCap("pro");
         const now = new Date().toISOString();
@@ -412,6 +483,43 @@ export const usePlanStore = create(
             tokensBalance: cap,
             tokensPeriodStart: now,
             searchCount: 0,
+          },
+        }));
+        return true;
+      },
+
+      /** Reset Free ledger to full 10 lifetime credits (admin manual testing). */
+      refillFreeStarter: async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) return false;
+        if (!isAdminSessionEmail(session.user?.email)) {
+          console.warn("planStore.refillFreeStarter: admin only");
+          return false;
+        }
+
+        const cap = getTokensCap("free");
+        const now = new Date().toISOString();
+        const error = await persistProfilePatch(userId, {
+          plan: "free",
+          tokens_balance: cap,
+          tokens_period_start: now,
+          search_count: 0,
+          referral_credits_balance: 0,
+        });
+        if (error) {
+          console.warn("planStore.refillFreeStarter error", error);
+          return false;
+        }
+
+        set((state) => ({
+          profile: {
+            ...state.profile,
+            plan: "free",
+            tokensBalance: cap,
+            tokensPeriodStart: now,
+            searchCount: 0,
+            referralCreditsBalance: 0,
           },
         }));
         return true;
@@ -484,22 +592,49 @@ export const usePlanStore = create(
        */
       debitCredits: async (creditCost = 1, opts = {}) => {
         const credits = Math.max(0.01, Number(creditCost) || 1);
-        const tokenUnit = opts.tokenCost ?? CREDIT_TOKEN_UNIT;
-        const totalTokens = creditsToTokens(credits);
         const { profile } = get();
 
         if (!canSpendCredits(profile, credits)) return false;
 
-        if (profile.plan === "pro") {
-          return get().spendTokens(totalTokens);
-        }
-
-        const nextSearch = (profile.searchCount ?? 0) + credits;
-        if (nextSearch > getPlanLimits("free").maxSearchesLifetime) return false;
-
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         if (!userId) return false;
+
+        let remainingCost = credits;
+        let nextReferral = Math.max(0, profile.referralCreditsBalance ?? 0);
+        const referralPatch = {};
+
+        if (nextReferral > 0) {
+          const fromReferral = Math.min(nextReferral, remainingCost);
+          nextReferral = Math.round((nextReferral - fromReferral) * 100) / 100;
+          remainingCost = Math.round((remainingCost - fromReferral) * 100) / 100;
+          if (fromReferral > 0) {
+            referralPatch.referral_credits_balance = nextReferral;
+          }
+        }
+
+        if (Object.keys(referralPatch).length) {
+          const refErr = await persistProfilePatch(userId, referralPatch);
+          if (refErr) {
+            console.warn("planStore.debitCredits referral error", refErr);
+            return false;
+          }
+          set((state) => ({
+            profile: {
+              ...state.profile,
+              referralCreditsBalance: nextReferral,
+            },
+          }));
+        }
+
+        if (remainingCost <= 0) return true;
+
+        if (profile.plan === "pro") {
+          return get().spendTokens(creditsToTokens(remainingCost));
+        }
+
+        const nextSearch = (profile.searchCount ?? 0) + remainingCost;
+        if (nextSearch > getPlanLimits("free").maxSearchesLifetime) return false;
 
         const error = await persistProfilePatch(userId, { search_count: nextSearch });
         if (error) {

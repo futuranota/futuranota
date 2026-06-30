@@ -54,6 +54,8 @@ import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 import { VideoEmbedBlockView } from "./VideoEmbedBlockView.jsx";
 import { ImageBlockView } from "./ImageBlockView.jsx";
 import { CodeBlockView } from "./CodeBlockView.jsx";
+import { PasswordVaultBlockView } from "./PasswordVaultBlockView.jsx";
+import { LinkVaultBlockView } from "./LinkVaultBlockView.jsx";
 
 const UNLINK_H1_PATCH = {
   nodeId: undefined,
@@ -606,7 +608,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       textValue,
       newBlock,
     );
-    if (parsed.type === DOC_BLOCK_TYPES.IMAGE || parsed.type === DOC_BLOCK_TYPES.CODE) {
+    if (
+      parsed.type === DOC_BLOCK_TYPES.IMAGE
+      || parsed.type === DOC_BLOCK_TYPES.CODE
+      || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+    ) {
       const newIndex = next.findIndex((b) => b.id === newBlock.id);
       const withTail = newIndex >= 0
         ? ensureEmptyTextBlockAfter(next, newIndex)
@@ -798,7 +805,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       fieldValue,
       newBlock,
     );
-    if (parsed.type === DOC_BLOCK_TYPES.IMAGE || parsed.type === DOC_BLOCK_TYPES.CODE) {
+    if (
+      parsed.type === DOC_BLOCK_TYPES.IMAGE
+      || parsed.type === DOC_BLOCK_TYPES.CODE
+      || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+    ) {
       const newIndex = next.findIndex((b) => b.id === newBlock.id);
       const withTail = newIndex >= 0
         ? ensureEmptyTextBlockAfter(next, newIndex)
@@ -1276,6 +1288,56 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onDelete={() => {
                 if (!window.confirm("¿Eliminar este bloque de código?")) return;
+                let next = removeBlockAt(blocksRef.current, index);
+                if (!next.length) {
+                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+                }
+                setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT ? (
+            <PasswordVaultBlockView
+              entries={block.entries || []}
+              autoFocus={focusBlockId === block.id}
+              onEntriesChange={(entries) => {
+                let next = updateBlockAt(blocksRef.current, index, { entries });
+                if (entries.length > 0) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
+                requestContentGrow();
+              }}
+              onDeleteVault={() => {
+                if (!window.confirm("¿Eliminar este bloque de contraseñas?")) return;
+                let next = removeBlockAt(blocksRef.current, index);
+                if (!next.length) {
+                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+                }
+                setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.LINK_VAULT ? (
+            <LinkVaultBlockView
+              entries={block.entries || []}
+              autoFocus={focusBlockId === block.id}
+              onEntriesChange={(entries) => {
+                let next = updateBlockAt(blocksRef.current, index, { entries });
+                if (entries.length > 0) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
+                requestContentGrow();
+              }}
+              onDeleteVault={() => {
+                if (!window.confirm("¿Eliminar este bloque de links?")) return;
                 let next = removeBlockAt(blocksRef.current, index);
                 if (!next.length) {
                   next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];

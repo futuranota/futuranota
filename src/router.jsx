@@ -15,6 +15,8 @@ import { PlansPage } from './pages/PlansPage.jsx';
 import { useAuthStore } from './stores/authStore.js';
 import { usePlanStore } from './stores/planStore.js';
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { captureReferralFromLocation } from './lib/referralStorage.js';
 import App from './App.jsx';
 
 // Protege rutas que requieren sesión
@@ -34,6 +36,11 @@ function ProtectedRoute({ children }) {
 export default function AppRouter() {
   const init = useAuthStore((s) => s.init);
   const user = useAuthStore((s) => s.user);
+  const location = useLocation();
+
+  useEffect(() => {
+    captureReferralFromLocation(location.search);
+  }, [location.search]);
 
   useEffect(() => {
     init();

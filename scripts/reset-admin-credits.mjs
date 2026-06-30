@@ -24,7 +24,7 @@ const SERVICE_KEY = (
   || ""
 ).trim();
 
-const PRO_TOKENS_CAP = 1_500_000;
+const PRO_TOKENS_CAP = 2_000_000;
 
 function fail(msg) {
   console.error(`reset:credits — ${msg}`);

@@ -152,12 +152,14 @@ export function getCreditsUsed(profile) {
 export function getCreditsRemaining(profile) {
   const plan = profile?.plan === 'pro' ? 'pro' : 'free';
   const cap = getCreditsCap(plan);
-  const remaining = cap - getCreditsUsed(profile);
+  const mainRemaining = cap - getCreditsUsed(profile);
+  const referral = Math.max(0, toFiniteNumber(profile?.referralCreditsBalance, 0));
+  const remaining = mainRemaining + referral;
   return Math.max(0, Math.round(remaining * 10) / 10);
 }
 
 /**
- * Single counter for UI: one integer (200 → 199 → …).
+ * Single counter for UI: remaining / cap (Free 10→0, Pro 200→0).
  * @param {{ plan?: string, searchCount?: number, tokensBalance?: number }} profile
  */
 export function getCreditsDisplay(profile) {
