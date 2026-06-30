@@ -3,6 +3,8 @@ import {
   cancelUserSubscription,
   createCheckoutSession,
   getAffiliateLinkForUser,
+  getReferralHistoryForUser,
+  sendReferralInvitesForUser,
 } from "../../server/billing/billingActions.js";
 
 function cors(res) {
@@ -111,6 +113,78 @@ export async function handleAffiliate(req, res) {
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : "Affiliate lookup failed",
+    });
+  }
+}
+
+export async function handleReferralHistory(req, res) {
+  cors(res);
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  if (req.method !== "GET") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    const authHeader = req.headers.authorization;
+    const token = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : null;
+    const fakeReq = { headers: { authorization: token ? `Bearer ${token}` : "" } };
+    const { user, supabase } = await getAuthedUser(fakeReq);
+    if (!user || !supabase) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const result = await getReferralHistoryForUser(supabase, user.id);
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "Referral history failed",
+    });
+  }
+}
+
+export async function handleReferralInvite(req, res) {
+  cors(res);
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    const authHeader = req.headers.authorization;
+    const token = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : null;
+    const fakeReq = { headers: { authorization: token ? `Bearer ${token}` : "" } };
+    const { user } = await getAuthedUser(fakeReq);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const body = req.body ?? {};
+    const emails = typeof body.emails === "string" ? body.emails : "";
+    const referrerName = typeof body.referrerName === "string" ? body.referrerName : undefined;
+    const result = await sendReferralInvitesForUser({
+      userId: user.id,
+      emails,
+      referrerName,
+      referrerEmail: user.email,
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "Invite send failed",
     });
   }
 }

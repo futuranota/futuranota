@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePlanStore } from "../../stores/planStore.js";
+import { useReferralModalStore } from "../../stores/referralModalStore.js";
 import { getCreditsDisplay, getPlanFeatureRows } from "../../lib/planConfig.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { ReferralBanner } from "./ReferralBanner.jsx";
+import { isReferralBannerDismissed, dismissReferralBanner } from "../../lib/referralBannerStorage.js";
 
 /**
  * Sidebar / plans token usage panel.
@@ -10,6 +14,8 @@ import { useI18n } from "../../i18n/useI18n.js";
 export function PlanUsagePanel({ compact = false }) {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const showReferralModal = useReferralModalStore((s) => s.show);
+  const [bannerHidden, setBannerHidden] = useState(isReferralBannerDismissed);
   const profile = usePlanStore((s) => s.profile);
   const searchCount = usePlanStore((s) => s.profile.searchCount);
   const tokensBalance = usePlanStore((s) => s.profile.tokensBalance);
@@ -43,6 +49,15 @@ export function PlanUsagePanel({ compact = false }) {
       >
         {t("sidebar.upgrade")}
       </button>
+      {!bannerHidden ? (
+        <ReferralBanner
+          onOpen={showReferralModal}
+          onDismiss={() => {
+            dismissReferralBanner();
+            setBannerHidden(true);
+          }}
+        />
+      ) : null}
       {!compact ? (
         <table className="plan-usage__table">
           <tbody>

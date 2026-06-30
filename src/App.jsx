@@ -19,9 +19,11 @@ import {
   useUIStateStore,
   usePlanStore,
   useUpgradeModalStore,
+  useReferralModalStore,
   FREE_LIMITS,
 } from './stores/index.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
+import { ReferralModal } from './components/plans/ReferralModal.jsx';
 import { useNavigate } from 'react-router-dom';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
@@ -1146,6 +1148,8 @@ function App() {
   const upgradeOpen = useUpgradeModalStore((s) => s.open);
   const upgradeReason = useUpgradeModalStore((s) => s.reason);
   const hideUpgradeModal = useUpgradeModalStore((s) => s.hide);
+  const referralOpen = useReferralModalStore((s) => s.open);
+  const hideReferralModal = useReferralModalStore((s) => s.hide);
 
   useEffect(() => {
     initStores();
@@ -1183,6 +1187,7 @@ function App() {
       )}
 
       <UpgradeModal open={upgradeOpen} reason={upgradeReason} onClose={hideUpgradeModal} />
+      <ReferralModal open={referralOpen} onClose={hideReferralModal} />
 
       <TweaksPanel title="Futura Nota">
         <TweakSection label="Theme" />

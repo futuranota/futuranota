@@ -13,6 +13,7 @@ import {
   startProCheckout,
 } from "../lib/billingApi.js";
 import { clearStoredReferralCode } from "../lib/referralStorage.js";
+import { CancelPlanModal } from "../components/plans/CancelPlanModal.jsx";
 
 function formatPlanPrice(price) {
   const raw = String(price ?? "").trim();
@@ -52,6 +53,7 @@ export function PlansPage() {
   const [billing, setBilling] = useState("monthly");
   const [affiliate, setAffiliate] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const proPlan = useMemo(() => {
     const { pricing } = getHome();
@@ -61,6 +63,8 @@ export function PlansPage() {
 
   const bullets = planBullets(proPlan);
   const isPro = profile.plan === "pro";
+  const hasStripeSubscription = Boolean(profile.stripeSubscriptionId);
+  const canCancelViaStripe = isPro && hasStripeSubscription;
   const isAnnual = billing === "annual";
   const priceValue = formatPlanPrice(isAnnual ? proPlan.annualPrice : proPlan.price);
   const priceSuffix = isAnnual ? proPlan.annualPriceSuffix : proPlan.priceSuffix;
@@ -91,20 +95,35 @@ export function PlansPage() {
 
   const handlePrimaryAction = async () => {
     if (busy) return;
+    if (isPro) {
+      if (!hasStripeSubscription) return;
+      setCancelModalOpen(true);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      if (isPro) {
-        await cancelProSubscription();
-        await fetchProfile();
-      } else {
-        const { url } = await startProCheckout(billing);
-        if (url) {
-          window.location.href = url;
-          return;
-        }
-        throw new Error("Stripe checkout URL missing");
+      const { url } = await startProCheckout(billing);
+      if (url) {
+        window.location.href = url;
+        return;
       }
+      throw new Error("Stripe checkout URL missing");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("plans.billingError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await cancelProSubscription();
+      await fetchProfile();
+      setCancelModalOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("plans.billingError"));
     } finally {
@@ -233,19 +252,27 @@ export function PlansPage() {
             </div>
 
             <div className="plans-pricing-card__cta-wrap">
-              <button
-                type="button"
-                className={"btn plans-pricing-card__cta" + (isPro ? " plans-pricing-card__cta--cancel" : " primary")}
-                disabled={busy}
-                onClick={handlePrimaryAction}
-              >
-                {busy
-                  ? t("plans.processing")
-                  : isPro
-                    ? t("plans.cancelPlan")
-                    : t("plans.upgradeToPro")}
-              </button>
+              {!isPro || canCancelViaStripe ? (
+                <button
+                  type="button"
+                  className={"btn plans-pricing-card__cta" + (isPro ? " plans-pricing-card__cta--cancel" : " primary")}
+                  disabled={busy}
+                  onClick={handlePrimaryAction}
+                >
+                  {busy && !cancelModalOpen
+                    ? t("plans.processing")
+                    : isPro
+                      ? t("plans.cancelPlan")
+                      : t("plans.upgradeToPro")}
+                </button>
+              ) : null}
             </div>
+
+            {isPro && !hasStripeSubscription ? (
+              <p className="plans-pricing-card__note plans-pricing-card__note--muted">
+                {t("plans.proManagedNote")}
+              </p>
+            ) : null}
 
             {error ? (
               <p className="plans-pricing-card__error" role="alert">{error}</p>
@@ -275,6 +302,13 @@ export function PlansPage() {
           </div>
         </div>
       </div>
+
+      <CancelPlanModal
+        open={cancelModalOpen}
+        busy={busy}
+        onClose={() => setCancelModalOpen(false)}
+        onConfirm={handleConfirmCancel}
+      />
     </div>
   );
 }

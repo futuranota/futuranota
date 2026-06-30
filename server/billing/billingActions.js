@@ -14,6 +14,7 @@ import {
   grantReferralRewardIfEligible,
 } from "./applySubscription.js";
 import { getTokensCap } from "../../src/lib/planConfig.js";
+import { parseInviteEmails, sendReferralInviteEmails } from "./referralMail.js";
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} supabase
@@ -117,10 +118,7 @@ export async function cancelUserSubscription(userId) {
   if (error) throw new Error(error.message);
 
   if (!profile?.stripe_subscription_id) {
-    if (profile?.plan === "pro") {
-      await deactivateProSubscription(supabase, userId);
-    }
-    return { canceled: true, immediate: true };
+    throw new Error("No active Stripe subscription to cancel");
   }
 
   const stripe = getStripe();
@@ -138,6 +136,45 @@ export async function getAffiliateLinkForUser(userId) {
     code,
     url: `${origin}/signup?ref=${encodeURIComponent(code)}`,
   };
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ */
+export async function getReferralHistoryForUser(supabase, userId) {
+  const { data, error } = await supabase
+    .from("referrals")
+    .select("id, reward_credits, created_at")
+    .eq("referrer_user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) throw new Error(error.message);
+  return {
+    total: data?.length ?? 0,
+    items: data ?? [],
+  };
+}
+
+/**
+ * @param {{ userId: string, emails: string, referrerName?: string, referrerEmail?: string }} params
+ */
+export async function sendReferralInvitesForUser(params) {
+  const { userId, emails, referrerName, referrerEmail } = params;
+  const to = parseInviteEmails(emails);
+  if (!to.length) {
+    throw new Error("Enter at least one valid email address");
+  }
+  if (referrerEmail && to.some((e) => e === referrerEmail.toLowerCase())) {
+    throw new Error("You cannot invite your own email");
+  }
+
+  const { url } = await getAffiliateLinkForUser(userId);
+  return sendReferralInviteEmails({
+    to,
+    referralUrl: url,
+    referrerName: referrerName || referrerEmail?.split("@")[0],
+  });
 }
 
 /** @param {string} subscriptionId */

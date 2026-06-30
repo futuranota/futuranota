@@ -255,6 +255,32 @@
   gap: 8px;
 }
 
+.plans-cancel-modal__body {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.plans-cancel-modal__list {
+  margin: 0 0 20px;
+  padding-left: 1.2em;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.plans-cancel-modal__list li + li {
+  margin-top: 6px;
+}
+
+.plans-cancel-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 @media (min-width: 768px) {
   .plans-pricing-card__grid {
     grid-template-columns: 1fr 1fr;

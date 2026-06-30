@@ -44,6 +44,8 @@ const DEFAULT_PROFILE = {
   tokensPeriodStart: null,
   campaignLiveUsed: false,
   referralCreditsBalance: 0,
+  stripeSubscriptionId: null,
+  billingStatus: null,
 };
 
 function isSameUtcMonth(a, b) {
@@ -90,6 +92,8 @@ function rowToProfile(row) {
     tokensPeriodStart: periodStart,
     campaignLiveUsed: Boolean(row.campaign_live_used),
     referralCreditsBalance: Math.max(0, toFiniteNumber(row.referral_credits_balance, 0) ?? 0),
+    stripeSubscriptionId: row.stripe_subscription_id || null,
+    billingStatus: row.billing_status || null,
   };
 }
 

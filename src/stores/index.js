@@ -16,6 +16,7 @@ export {
   getPlanLimits,
 } from "../lib/planConfig.js";
 export { useUpgradeModalStore } from "./upgradeModalStore.js";
+export { useReferralModalStore } from "./referralModalStore.js";
 export { initStores } from "./initStores.js";
 export { initSyncMiddleware } from "./middleware/syncMiddleware.js";
 export { initPersistenceMiddleware } from "./middleware/persistenceMiddleware.js";

@@ -44,3 +44,15 @@ export async function cancelProSubscription() {
 export async function fetchAffiliateLink() {
   return billingFetch("/api/billing/affiliate", { method: "GET" });
 }
+
+export async function fetchReferralHistory() {
+  return billingFetch("/api/billing/referral-history", { method: "GET" });
+}
+
+/** @param {string} emails */
+export async function sendReferralInvites(emails) {
+  return billingFetch("/api/billing/referral-invite", {
+    method: "POST",
+    body: JSON.stringify({ emails }),
+  });
+}
