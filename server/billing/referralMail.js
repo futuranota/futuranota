@@ -3,7 +3,11 @@ import { getAppOrigin } from "./stripeConfig.js";
 import { REFERRAL_REWARD_CREDITS } from "./applySubscription.js";
 
 function getResendClient() {
-  const key = (process.env.RESEND_API_KEY || "").trim();
+  const key = (
+    process.env.RESEND_API_KEY
+    || process.env.RESEND_API
+    || ""
+  ).trim();
   if (!key) return null;
   return new Resend(key);
 }

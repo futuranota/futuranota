@@ -31,6 +31,24 @@ DROP POLICY IF EXISTS "select own affiliate" ON public.affiliates;
 CREATE POLICY "select own affiliate" ON public.affiliates
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "insert own affiliate" ON public.affiliates;
+CREATE POLICY "insert own affiliate" ON public.affiliates
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Resolve referral code → referrer user_id (checkout without service role)
+CREATE OR REPLACE FUNCTION public.resolve_affiliate_code(p_code TEXT)
+RETURNS UUID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT user_id FROM public.affiliates WHERE code = upper(trim(p_code)) LIMIT 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.resolve_affiliate_code(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_affiliate_code(TEXT) TO service_role;
+
 DROP POLICY IF EXISTS "select own referrals as referrer" ON public.referrals;
 CREATE POLICY "select own referrals as referrer" ON public.referrals
   FOR SELECT USING (auth.uid() = referrer_user_id);

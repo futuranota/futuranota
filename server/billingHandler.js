@@ -52,8 +52,8 @@ export function createBillingMiddleware() {
       }
 
       if (path === "/api/billing/checkout" && req.method === "POST") {
-        const { user } = await getAuthedUser(req);
-        if (!user) {
+        const { user, supabase } = await getAuthedUser(req);
+        if (!user || !supabase) {
           sendJson(res, 401, { error: "Unauthorized" });
           return;
         }
@@ -65,29 +65,30 @@ export function createBillingMiddleware() {
           email: user.email,
           billing,
           referralCode,
+          supabase,
         });
         sendJson(res, 200, result);
         return;
       }
 
       if (path === "/api/billing/cancel" && req.method === "POST") {
-        const { user } = await getAuthedUser(req);
-        if (!user) {
+        const { user, supabase } = await getAuthedUser(req);
+        if (!user || !supabase) {
           sendJson(res, 401, { error: "Unauthorized" });
           return;
         }
-        const result = await cancelUserSubscription(user.id);
+        const result = await cancelUserSubscription(user.id, supabase);
         sendJson(res, 200, result);
         return;
       }
 
       if (path === "/api/billing/affiliate" && req.method === "GET") {
-        const { user } = await getAuthedUser(req);
-        if (!user) {
+        const { user, supabase } = await getAuthedUser(req);
+        if (!user || !supabase) {
           sendJson(res, 401, { error: "Unauthorized" });
           return;
         }
-        const result = await getAffiliateLinkForUser(user.id);
+        const result = await getAffiliateLinkForUser(user.id, supabase);
         sendJson(res, 200, result);
         return;
       }
@@ -104,8 +105,8 @@ export function createBillingMiddleware() {
       }
 
       if (path === "/api/billing/referral-invite" && req.method === "POST") {
-        const { user } = await getAuthedUser(req);
-        if (!user) {
+        const { user, supabase } = await getAuthedUser(req);
+        if (!user || !supabase) {
           sendJson(res, 401, { error: "Unauthorized" });
           return;
         }
@@ -117,6 +118,7 @@ export function createBillingMiddleware() {
           emails,
           referrerName,
           referrerEmail: user.email,
+          supabase,
         });
         sendJson(res, 200, result);
         return;

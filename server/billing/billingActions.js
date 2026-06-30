@@ -10,8 +10,8 @@ import {
   deactivateProSubscription,
   ensureAffiliateCode,
   findAffiliateByCode,
-  getBillingSupabase,
   grantReferralRewardIfEligible,
+  requireServiceSupabase,
 } from "./applySubscription.js";
 import { getTokensCap } from "../../src/lib/planConfig.js";
 import { parseInviteEmails, sendReferralInviteEmails } from "./referralMail.js";
@@ -52,10 +52,13 @@ async function getOrCreateStripeCustomer(supabase, userId, email) {
 }
 
 /**
- * @param {{ userId: string, email?: string, billing?: string, referralCode?: string }} params
+ * @param {{ userId: string, email?: string, billing?: string, referralCode?: string, supabase: import('@supabase/supabase-js').SupabaseClient }} params
  */
 export async function createCheckoutSession(params) {
-  const { userId, email, billing = "monthly", referralCode = "" } = params;
+  const { userId, email, billing = "monthly", referralCode = "", supabase } = params;
+  if (!supabase) {
+    throw new Error("Authenticated Supabase client is required");
+  }
   const priceId = resolveStripePriceId(billing);
   if (!priceId) {
     throw new Error(
@@ -65,7 +68,6 @@ export async function createCheckoutSession(params) {
     );
   }
 
-  const supabase = getBillingSupabase();
   const customerId = await getOrCreateStripeCustomer(supabase, userId, email || "");
 
   let referrerUserId = "";
@@ -107,9 +109,11 @@ export async function createCheckoutSession(params) {
   return { url: session.url, sessionId: session.id };
 }
 
-/** @param {string} userId */
-export async function cancelUserSubscription(userId) {
-  const supabase = getBillingSupabase();
+/** @param {string} userId @param {import('@supabase/supabase-js').SupabaseClient} supabase */
+export async function cancelUserSubscription(userId, supabase) {
+  if (!supabase) {
+    throw new Error("Authenticated Supabase client is required");
+  }
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("stripe_subscription_id, plan")
@@ -127,9 +131,11 @@ export async function cancelUserSubscription(userId) {
   return { canceled: true, immediate: true };
 }
 
-/** @param {string} userId */
-export async function getAffiliateLinkForUser(userId) {
-  const supabase = getBillingSupabase();
+/** @param {string} userId @param {import('@supabase/supabase-js').SupabaseClient} supabase */
+export async function getAffiliateLinkForUser(userId, supabase) {
+  if (!supabase) {
+    throw new Error("Authenticated Supabase client is required");
+  }
   const code = await ensureAffiliateCode(supabase, userId);
   const origin = getAppOrigin();
   return {
@@ -157,10 +163,13 @@ export async function getReferralHistoryForUser(supabase, userId) {
 }
 
 /**
- * @param {{ userId: string, emails: string, referrerName?: string, referrerEmail?: string }} params
+ * @param {{ userId: string, emails: string, referrerName?: string, referrerEmail?: string, supabase: import('@supabase/supabase-js').SupabaseClient }} params
  */
 export async function sendReferralInvitesForUser(params) {
-  const { userId, emails, referrerName, referrerEmail } = params;
+  const { userId, emails, referrerName, referrerEmail, supabase } = params;
+  if (!supabase) {
+    throw new Error("Authenticated Supabase client is required");
+  }
   const to = parseInviteEmails(emails);
   if (!to.length) {
     throw new Error("Enter at least one valid email address");
@@ -169,7 +178,7 @@ export async function sendReferralInvitesForUser(params) {
     throw new Error("You cannot invite your own email");
   }
 
-  const { url } = await getAffiliateLinkForUser(userId);
+  const { url } = await getAffiliateLinkForUser(userId, supabase);
   return sendReferralInviteEmails({
     to,
     referralUrl: url,
@@ -197,7 +206,7 @@ async function resolveBillingIntervalFromSubscription(subscriptionId) {
  * @param {import('stripe').Stripe.Event} event
  */
 export async function processStripeWebhookEvent(event) {
-  const supabase = getBillingSupabase();
+  const supabase = requireServiceSupabase();
 
   switch (event.type) {
     case "checkout.session.completed": {

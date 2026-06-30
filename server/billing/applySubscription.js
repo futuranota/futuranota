@@ -54,6 +54,14 @@ export async function deactivateProSubscription(supabase, userId) {
 export async function findAffiliateByCode(supabase, code) {
   const normalized = String(code || "").trim().toUpperCase();
   if (!normalized) return null;
+
+  const { data: userId, error: rpcErr } = await supabase.rpc("resolve_affiliate_code", {
+    p_code: normalized,
+  });
+  if (!rpcErr && userId) {
+    return { code: normalized, user_id: userId };
+  }
+
   const { data, error } = await supabase
     .from("affiliates")
     .select("code, user_id")
@@ -157,10 +165,15 @@ export async function grantReferralRewardIfEligible(supabase, params) {
 }
 
 /** @returns {import('@supabase/supabase-js').SupabaseClient} */
-export function getBillingSupabase() {
+export function requireServiceSupabase() {
   const supabase = createServiceSupabase();
   if (!supabase) {
     throw new Error("Supabase service role is not configured");
   }
   return supabase;
+}
+
+/** Webhook-only — legacy alias */
+export function getBillingSupabase() {
+  return requireServiceSupabase();
 }

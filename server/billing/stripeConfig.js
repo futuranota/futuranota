@@ -1,6 +1,10 @@
 /** @returns {string} */
 export function getStripeSecretKey() {
-  return (process.env.STRIPE_SECRET_KEY || "").trim();
+  return (
+    process.env.STRIPE_SECRET_KEY
+    || process.env.STRIPE_API_KEY
+    || ""
+  ).trim();
 }
 
 /** @returns {string} */

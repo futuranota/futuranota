@@ -30,8 +30,8 @@ export async function handleCheckout(req, res) {
       ? authHeader.slice(7)
       : null;
     const fakeReq = { headers: { authorization: token ? `Bearer ${token}` : "" } };
-    const { user } = await getAuthedUser(fakeReq);
-    if (!user) {
+    const { user, supabase } = await getAuthedUser(fakeReq);
+    if (!user || !supabase) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
@@ -44,6 +44,7 @@ export async function handleCheckout(req, res) {
       email: user.email,
       billing,
       referralCode,
+      supabase,
     });
     res.status(200).json(result);
   } catch (err) {
@@ -70,13 +71,13 @@ export async function handleCancel(req, res) {
       ? authHeader.slice(7)
       : null;
     const fakeReq = { headers: { authorization: token ? `Bearer ${token}` : "" } };
-    const { user } = await getAuthedUser(fakeReq);
-    if (!user) {
+    const { user, supabase } = await getAuthedUser(fakeReq);
+    if (!user || !supabase) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    const result = await cancelUserSubscription(user.id);
+    const result = await cancelUserSubscription(user.id, supabase);
     res.status(200).json(result);
   } catch (err) {
     res.status(500).json({
@@ -102,13 +103,13 @@ export async function handleAffiliate(req, res) {
       ? authHeader.slice(7)
       : null;
     const fakeReq = { headers: { authorization: token ? `Bearer ${token}` : "" } };
-    const { user } = await getAuthedUser(fakeReq);
-    if (!user) {
+    const { user, supabase } = await getAuthedUser(fakeReq);
+    if (!user || !supabase) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    const result = await getAffiliateLinkForUser(user.id);
+    const result = await getAffiliateLinkForUser(user.id, supabase);
     res.status(200).json(result);
   } catch (err) {
     res.status(500).json({
@@ -166,8 +167,8 @@ export async function handleReferralInvite(req, res) {
       ? authHeader.slice(7)
       : null;
     const fakeReq = { headers: { authorization: token ? `Bearer ${token}` : "" } };
-    const { user } = await getAuthedUser(fakeReq);
-    if (!user) {
+    const { user, supabase } = await getAuthedUser(fakeReq);
+    if (!user || !supabase) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
@@ -180,6 +181,7 @@ export async function handleReferralInvite(req, res) {
       emails,
       referrerName,
       referrerEmail: user.email,
+      supabase,
     });
     res.status(200).json(result);
   } catch (err) {
