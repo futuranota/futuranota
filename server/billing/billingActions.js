@@ -1,8 +1,9 @@
 import { getStripe } from "./stripeClient.js";
 import {
   getAppOrigin,
-  getStripePriceProTestOneTime,
-  isStripeTestCheckoutEnabled,
+  getStripePriceProVerifyOneTime,
+  isStripeVerifyCheckoutAvailable,
+  isStripeVerifyCheckoutEnabled,
   resolveStripePriceId,
 } from "./stripeConfig.js";
 import {
@@ -40,6 +41,31 @@ export function resolveCheckoutEmail(user) {
 }
 
 /**
+ * @param {unknown} err
+ */
+function isStaleStripeCustomerError(err) {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return msg.includes("No such customer")
+    || msg.includes("similar object exists in live mode")
+    || msg.includes("similar object exists in test mode");
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @param {string} userId
+ */
+async function clearStripeCustomerId(supabase, userId) {
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      stripe_customer_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+}
+
+/**
  * @param {import('stripe').Stripe} stripe
  * @param {string} customerId
  * @param {string} email
@@ -49,7 +75,9 @@ async function syncStripeCustomerContact(stripe, customerId, email) {
   if (!normalized) return;
 
   const customer = await stripe.customers.retrieve(customerId);
-  if (customer.deleted) return;
+  if (customer.deleted) {
+    throw new Error("No such customer: deleted");
+  }
 
   const patch = /** @type {import('stripe').Stripe.CustomerUpdateParams} */ ({});
   const currentEmail = (customer.email || "").trim().toLowerCase();
@@ -82,8 +110,13 @@ async function getOrCreateStripeCustomer(supabase, userId, email) {
   if (error) throw new Error(error.message);
 
   if (profile?.stripe_customer_id) {
-    await syncStripeCustomerContact(stripe, profile.stripe_customer_id, normalizedEmail);
-    return profile.stripe_customer_id;
+    try {
+      await syncStripeCustomerContact(stripe, profile.stripe_customer_id, normalizedEmail);
+      return profile.stripe_customer_id;
+    } catch (err) {
+      if (!isStaleStripeCustomerError(err)) throw err;
+      await clearStripeCustomerId(supabase, userId);
+    }
   }
 
   const customer = await stripe.customers.create({
@@ -125,19 +158,19 @@ export async function createCheckoutSession(params) {
   const successUrl = `${origin}/app/plans?checkout=success`;
   const cancelUrl = `${origin}/app/plans?checkout=canceled`;
 
-  if (billing === "test") {
-    if (!isStripeTestCheckoutEnabled()) {
-      throw new Error("Test checkout is disabled");
+  if (billing === "verify") {
+    if (!isStripeVerifyCheckoutEnabled()) {
+      throw new Error("Pro verify checkout is disabled");
     }
-    const testPriceId = getStripePriceProTestOneTime();
-    if (!testPriceId) {
-      throw new Error("STRIPE_PRICE_PRO_TEST_MONTHLY is not configured");
+    const verifyPriceId = getStripePriceProVerifyOneTime();
+    if (!verifyPriceId) {
+      throw new Error("STRIPE_PRICE_PRO_VERIFY_ONETIME is not configured");
     }
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "payment",
-      line_items: [{ price: testPriceId, quantity: 1 }],
+      line_items: [{ price: verifyPriceId, quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
       client_reference_id: userId,
@@ -146,7 +179,7 @@ export async function createCheckoutSession(params) {
       metadata: {
         userId,
         billingInterval: "monthly",
-        checkoutKind: "test_one_time",
+        checkoutKind: "verify_one_time",
       },
     });
 
@@ -233,6 +266,8 @@ export async function getAffiliateLinkForUser(userId, supabase) {
   return {
     code,
     url: `${origin}/signup?ref=${encodeURIComponent(code)}`,
+    testCheckoutAvailable: isStripeVerifyCheckoutAvailable(),
+    verifyCheckoutAvailable: isStripeVerifyCheckoutAvailable(),
   };
 }
 
@@ -319,8 +354,9 @@ export async function processStripeWebhookEvent(event) {
       const billingInterval = session.metadata?.billingInterval
         || await resolveBillingIntervalFromSubscription(subscriptionId);
       const referrerUserId = session.metadata?.referrerUserId || "";
-      const isTestOneTime = session.metadata?.checkoutKind === "test_one_time";
-      if (referrerUserId && !isTestOneTime) {
+      const isVerifyOneTime = session.metadata?.checkoutKind === "verify_one_time"
+        || session.metadata?.checkoutKind === "test_one_time";
+      if (referrerUserId && !isVerifyOneTime) {
         await grantReferralRewardIfEligible(supabase, {
           referrerUserId,
           referredUserId: userId,

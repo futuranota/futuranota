@@ -22,23 +22,42 @@ export function getStripePriceProAnnual() {
   return (process.env.STRIPE_PRICE_PRO_ANNUAL || "").trim();
 }
 
-/** One-time live test price (e.g. $0.02) — STRIPE_PRICE_PRO_TEST_MONTHLY or STRIPE_PRICE_PRO_TEST_ONETIME */
-export function getStripePriceProTestOneTime() {
+/** Live one-time Pro price (e.g. $0.02) — real production charge, not Stripe test mode. */
+export function getStripePriceProVerifyOneTime() {
   return (
-    process.env.STRIPE_PRICE_PRO_TEST_ONETIME
+    process.env.STRIPE_PRICE_PRO_VERIFY_ONETIME
+    || process.env.STRIPE_PRICE_PRO_TEST_ONETIME
     || process.env.STRIPE_PRICE_PRO_TEST_MONTHLY
     || ""
   ).trim();
 }
 
+/** @deprecated use getStripePriceProVerifyOneTime */
+export const getStripePriceProTestOneTime = getStripePriceProVerifyOneTime;
+
 /** @returns {boolean} */
-export function isStripeTestCheckoutEnabled() {
-  return (process.env.ENABLE_STRIPE_TEST_CHECKOUT || "").trim() === "true";
+export function isStripeVerifyCheckoutEnabled() {
+  return (
+    process.env.ENABLE_STRIPE_VERIFY_CHECKOUT
+    || process.env.ENABLE_STRIPE_TEST_CHECKOUT
+    || ""
+  ).trim() === "true";
 }
+
+/** @deprecated use isStripeVerifyCheckoutEnabled */
+export const isStripeTestCheckoutEnabled = isStripeVerifyCheckoutEnabled;
+
+/** Server flag + one-time live price configured (safe to expose to client). */
+export function isStripeVerifyCheckoutAvailable() {
+  return isStripeVerifyCheckoutEnabled() && Boolean(getStripePriceProVerifyOneTime());
+}
+
+/** @deprecated use isStripeVerifyCheckoutAvailable */
+export const isStripeTestCheckoutAvailable = isStripeVerifyCheckoutAvailable;
 
 /** @param {unknown} raw */
 export function normalizeCheckoutBilling(raw) {
-  if (raw === "test") return "test";
+  if (raw === "verify" || raw === "test") return "verify";
   if (raw === "annual") return "annual";
   return "monthly";
 }

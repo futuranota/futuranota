@@ -9,7 +9,10 @@ import {
   sendReferralInvitesForUser,
   verifyAndProcessWebhook,
 } from "./billing/billingActions.js";
-import { normalizeCheckoutBilling } from "./billing/stripeConfig.js";
+import {
+  isStripeVerifyCheckoutAvailable,
+  normalizeCheckoutBilling,
+} from "./billing/stripeConfig.js";
 
 function sendJson(res, status, payload) {
   res.statusCode = status;
@@ -50,6 +53,12 @@ export function createBillingMiddleware() {
         const signature = req.headers["stripe-signature"];
         await verifyAndProcessWebhook(raw, signature);
         sendJson(res, 200, { received: true });
+        return;
+      }
+
+      if ((path === "/api/billing/verify-checkout" || path === "/api/billing/test-checkout")
+        && req.method === "GET") {
+        sendJson(res, 200, { available: isStripeVerifyCheckoutAvailable() });
         return;
       }
 

@@ -11,7 +11,7 @@ import {
   cancelProSubscription,
   fetchAffiliateLink,
   startProCheckout,
-  startProTestCheckout,
+  startProVerifyCheckout,
 } from "../lib/billingApi.js";
 import { clearStoredReferralCode } from "../lib/referralStorage.js";
 import { CancelPlanModal } from "../components/plans/CancelPlanModal.jsx";
@@ -57,8 +57,7 @@ export function PlansPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const isPro = profile.plan === "pro";
-  const testCheckoutEnabled = import.meta.env.VITE_STRIPE_TEST_CHECKOUT === "true";
-  const showTestCheckout = testCheckoutEnabled && !isPro;
+  const showVerifyCheckout = !isPro;
 
   const proPlan = useMemo(() => {
     const { pricing } = getHome();
@@ -120,12 +119,12 @@ export function PlansPage() {
     }
   };
 
-  const handleTestCheckout = async () => {
+  const handleVerifyCheckout = async () => {
     if (busy || isPro) return;
     setBusy(true);
     setError(null);
     try {
-      const { url } = await startProTestCheckout();
+      const { url } = await startProVerifyCheckout();
       if (url) {
         window.location.href = url;
         return;
@@ -288,21 +287,21 @@ export function PlansPage() {
                       : t("plans.upgradeToPro")}
                 </button>
               ) : null}
-              {showTestCheckout ? (
+              {showVerifyCheckout ? (
                 <button
                   type="button"
-                  className="btn ghost plans-pricing-card__cta plans-pricing-card__cta--test"
+                  className="btn ghost plans-pricing-card__cta plans-pricing-card__cta--verify"
                   disabled={busy}
-                  onClick={handleTestCheckout}
+                  onClick={handleVerifyCheckout}
                 >
-                  {busy ? t("plans.processing") : t("plans.adminLiveTestCheckout")}
+                  {busy ? t("plans.processing") : t("plans.proVerifyCheckout")}
                 </button>
               ) : null}
             </div>
 
-            {showTestCheckout ? (
+            {showVerifyCheckout ? (
               <p className="plans-pricing-card__note plans-pricing-card__note--muted">
-                {t("plans.adminLiveTestCheckoutHint")}
+                {t("plans.proVerifyCheckoutHint")}
               </p>
             ) : null}
 

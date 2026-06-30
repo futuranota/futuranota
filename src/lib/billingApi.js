@@ -37,13 +37,28 @@ export async function startProCheckout(billing = "monthly") {
   });
 }
 
-/** Temporary: one-time live test checkout (admin-only UI; server gated by ENABLE_STRIPE_TEST_CHECKOUT). */
-export async function startProTestCheckout() {
+/** Live production one-time Pro checkout (e.g. $0.02) — real charge, not Stripe test mode. */
+export async function startProVerifyCheckout() {
   return billingFetch("/api/billing/checkout", {
     method: "POST",
-    body: JSON.stringify({ billing: "test" }),
+    body: JSON.stringify({ billing: "verify" }),
   });
 }
+
+/** @deprecated use startProVerifyCheckout */
+export const startProTestCheckout = startProVerifyCheckout;
+
+export async function fetchVerifyCheckoutAvailable() {
+  for (const path of ["/api/billing/verify-checkout", "/api/billing/test-checkout"]) {
+    const res = await fetch(path);
+    const body = await res.json().catch(() => ({}));
+    if (res.ok && body.available) return { available: true };
+  }
+  return { available: false };
+}
+
+/** @deprecated use fetchVerifyCheckoutAvailable */
+export const fetchTestCheckoutAvailable = fetchVerifyCheckoutAvailable;
 
 export async function cancelProSubscription() {
   return billingFetch("/api/billing/cancel", { method: "POST" });

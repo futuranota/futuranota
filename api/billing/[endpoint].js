@@ -1,5 +1,12 @@
 import { dispatchEndpoint } from "../_lib/dispatch.js";
-import { handleAffiliate, handleCancel, handleCheckout, handleReferralHistory, handleReferralInvite } from "../_handlers/billing-routes.js";
+import {
+  handleAffiliate,
+  handleCancel,
+  handleCheckout,
+  handleReferralHistory,
+  handleReferralInvite,
+  handleVerifyCheckoutStatus,
+} from "../_handlers/billing-routes.js";
 
 const routes = {
   checkout: handleCheckout,
@@ -7,6 +14,8 @@ const routes = {
   affiliate: handleAffiliate,
   "referral-history": handleReferralHistory,
   "referral-invite": handleReferralInvite,
+  "verify-checkout": handleVerifyCheckoutStatus,
+  "test-checkout": handleVerifyCheckoutStatus,
 };
 
 export default async function handler(req, res) {
