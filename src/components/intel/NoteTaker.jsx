@@ -109,7 +109,9 @@ export function NoteTaker({
       .map((block) => block.text)
       .join("\n\n")
       .trim() || "";
-    const textPayload = hasStructuredContent || inlineTodosEnabled ? serialized : plainText;
+    const textPayload = hasStructuredContent || inlineTodosEnabled || dataType === NODE_DATA_TYPES.TEXT
+      ? serialized
+      : plainText;
 
     if (dataType === NODE_DATA_TYPES.VIDEO) {
       const base = existingNode?.dataType === NODE_DATA_TYPES.VIDEO && existingNode.content
@@ -136,18 +138,22 @@ export function NoteTaker({
     : label;
   const hasContent = nodeWritingBlocksHaveContent(writingBody.blocks);
   const saveEnabled = hasContent && !saving;
-  const showInlineWritingTools = inlineTodosEnabled;
+  const showInlineWritingTools = inlineTodosEnabled || node?.dataType === NODE_DATA_TYPES.TEXT;
 
   const appendBlockFromPicker = useCallback((alias) => {
     const parsed = parseNodeSlashQuery(alias);
     if (!parsed) return;
     const normalized = normalizeWritingBlocks(writingBody.blocks);
-    const { blocks: nextBlocks, insertedIndex } = appendNodeWritingBlockFromSlash(
+    const { blocks: nextBlocks, insertedIndex, reusedAgent } = appendNodeWritingBlockFromSlash(
       normalized,
       parsed,
     );
     setWritingBody({ blocks: nextBlocks });
     if (insertedIndex < 0) return;
+    if (reusedAgent) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
+      return;
+    }
     if (parsed.type === DOC_BLOCK_TYPES.TODO) {
       const todoBlock = nextBlocks[insertedIndex];
       setWritingFocusTarget({
@@ -161,6 +167,8 @@ export function NoteTaker({
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
     ) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true });
+    } else if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
     } else {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
     }
@@ -347,7 +355,9 @@ export function NoteTaker({
       e.target.closest(".doc-todo-plan")
       || e.target.closest(".node-writing-block-stack__h1")
       || e.target.closest(".node-writing-block-stack__code")
+      || e.target.closest(".node-writing-block-stack__agent")
       || e.target.closest(".node-writing-block-stack__vault")
+      || e.target.closest(".doc-agent-cell")
       || e.target.closest(".doc-code-block")
       || e.target.closest(".doc-vault-block")
       || e.target.closest(".node-writing-text-field")

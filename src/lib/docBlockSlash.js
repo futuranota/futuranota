@@ -10,6 +10,10 @@ import {
   createDefaultNodeTodoContent,
   DEFAULT_NODE_TODO_LIST_TITLE,
 } from "./nodeTodoContent.js";
+import {
+  createInlineAgentBlock,
+  serializeNodeWritingBody,
+} from "./nodeInlineContent.js";
 import { buildVideoNodeContent } from "./videoEmbed.js";
 
 export { getSlashTail, splitBodyForSlash };
@@ -80,6 +84,14 @@ export const DOC_SLASH_COMMANDS = [
     blockType: DOC_BLOCK_TYPES.LINK_VAULT,
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
+  {
+    label: "Agent",
+    ghostHint: "agent",
+    aliases: ["agent"],
+    blockType: DOC_BLOCK_TYPES.AGENT,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+    macroOnly: true,
+  },
 ];
 
 export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
@@ -92,7 +104,8 @@ export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
     || cmd.blockType === DOC_BLOCK_TYPES.TODO
     || cmd.blockType === DOC_BLOCK_TYPES.CODE
     || cmd.blockType === DOC_BLOCK_TYPES.PASSWORD_VAULT
-    || cmd.blockType === DOC_BLOCK_TYPES.LINK_VAULT,
+    || cmd.blockType === DOC_BLOCK_TYPES.LINK_VAULT
+    || cmd.blockType === DOC_BLOCK_TYPES.AGENT,
 );
 
 export function parseSlashQuery(query) {
@@ -166,6 +179,10 @@ export function createDocBlockFromSlash(parsed) {
     return createDocBlock(DOC_BLOCK_TYPES.LINK_VAULT);
   }
 
+  if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
+    return createDocBlock(DOC_BLOCK_TYPES.AGENT, { instruction: "" });
+  }
+
   return createDocBlock();
 }
 
@@ -205,6 +222,15 @@ export function initialNodeShapeFromSlash(alias, prefix = "") {
             images: [],
           }),
           defaultTitle: "ProductCard",
+        };
+      }
+      if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
+        return {
+          dataType: NODE_DATA_TYPES.TEXT,
+          content: serializeNodeWritingBody({
+            blocks: [createInlineAgentBlock(trimmedPrefix)],
+          }),
+          defaultTitle: trimmedPrefix || "Agent",
         };
       }
       return {

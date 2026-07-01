@@ -3704,6 +3704,105 @@ body.doc-content-resizing * {
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* Agent instruction cell — macro node /agent slash */
+.doc-agent-cell {
+  padding: 11px 21px 14px 15px;
+  box-sizing: border-box;
+}
+
+.doc-agent-cell--compact {
+  padding: 0 15px;
+}
+
+.doc-agent-cell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 21px;
+  margin-bottom: 8px;
+}
+
+.doc-agent-cell__label {
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.68px;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.doc-agent-cell__hover-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.doc-agent-cell:hover .doc-agent-cell__hover-actions,
+.doc-agent-cell:focus-within .doc-agent-cell__hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doc-agent-cell__delete {
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.44px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.doc-agent-cell__delete:hover {
+  color: #fff;
+  border-color: rgba(255, 120, 120, 0.45);
+  background: rgba(255, 80, 80, 0.08);
+}
+
+.doc-agent-cell__detach {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.doc-agent-cell__card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.doc-agent-cell__input {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  margin: 0;
+  padding: 10px 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0.2px;
+  color: #fff;
+  box-sizing: border-box;
+}
+
+.doc-agent-cell__input::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
 .doc-todo-plan__macro-title {
   flex: 1;
   min-width: 0;
@@ -6877,31 +6976,42 @@ body.doc-content-resizing * {
 .node-writing-block-stack__text + .node-writing-block-stack__todo,
 .node-writing-block-stack__text + .node-writing-block-stack__code,
 .node-writing-block-stack__text + .node-writing-block-stack__vault,
+.node-writing-block-stack__text + .node-writing-block-stack__agent,
 .node-writing-block-stack__h1 + .node-writing-block-stack__todo,
 .node-writing-block-stack__h1 + .node-writing-block-stack__text,
 .node-writing-block-stack__h1 + .node-writing-block-stack__code,
 .node-writing-block-stack__h1 + .node-writing-block-stack__vault,
+.node-writing-block-stack__h1 + .node-writing-block-stack__agent,
 .node-writing-block-stack__todo + .node-writing-block-stack__text,
 .node-writing-block-stack__todo + .node-writing-block-stack__h1,
 .node-writing-block-stack__todo + .node-writing-block-stack__code,
 .node-writing-block-stack__todo + .node-writing-block-stack__vault,
+.node-writing-block-stack__todo + .node-writing-block-stack__agent,
 .node-writing-block-stack__code + .node-writing-block-stack__text,
 .node-writing-block-stack__code + .node-writing-block-stack__h1,
 .node-writing-block-stack__code + .node-writing-block-stack__todo,
 .node-writing-block-stack__code + .node-writing-block-stack__vault,
+.node-writing-block-stack__code + .node-writing-block-stack__agent,
+.node-writing-block-stack__agent + .node-writing-block-stack__text,
+.node-writing-block-stack__agent + .node-writing-block-stack__h1,
+.node-writing-block-stack__agent + .node-writing-block-stack__todo,
+.node-writing-block-stack__agent + .node-writing-block-stack__code,
+.node-writing-block-stack__agent + .node-writing-block-stack__vault,
 .node-writing-block-stack__vault + .node-writing-block-stack__text,
 .node-writing-block-stack__vault + .node-writing-block-stack__h1,
 .node-writing-block-stack__vault + .node-writing-block-stack__todo,
 .node-writing-block-stack__vault + .node-writing-block-stack__code,
-.node-writing-block-stack__vault + .node-writing-block-stack__vault {
+.node-writing-block-stack__vault + .node-writing-block-stack__vault,
+.node-writing-block-stack__vault + .node-writing-block-stack__agent {
   margin-top: 10px;
 }
 
 .node-writing-block-stack__todo .doc-todo-plan,
 .node-writing-block-stack__h1 .doc-h1-block,
 .node-writing-block-stack__code .doc-code-block,
-.node-writing-block-stack__vault .doc-vault-block {
-  padding: 0;
+.node-writing-block-stack__vault .doc-vault-block,
+.node-writing-block-stack__agent .doc-agent-cell {
+  padding: 0 15px;
 }
 
 .node-writing-block-stack__text + .node-writing-block-stack__text {
@@ -6954,6 +7064,34 @@ body.doc-content-resizing * {
 .node-query-modal__writing-stack .doc-todo-plan__title-input,
 .node-query-modal__writing-stack .doc-todo-plan__item-input {
   color: #fff;
+}
+
+.node-query-modal__writing-stack .doc-agent-cell__input {
+  color: #fff;
+}
+
+.node-query-modal__writing-stack .doc-agent-cell__input::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.note-taker__writing-stack .doc-agent-cell__input {
+  color: #fff;
+}
+
+.note-taker__writing-stack .doc-agent-cell__input::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.doc-block-stack .doc-agent-cell {
+  padding: 8px 21px 12px 15px;
+}
+
+.doc-block-stack .doc-agent-cell__input {
+  color: #fff;
+}
+
+.doc-block-stack .doc-agent-cell__input::placeholder {
+  color: rgba(255, 255, 255, 0.38);
 }
 
 .node-query-modal__writing-stack .doc-h1-block__input::placeholder {

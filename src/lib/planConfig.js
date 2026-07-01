@@ -33,6 +33,7 @@ export const TOKEN_COSTS = {
   searchOverview: 10_000,
   agentOrchestrator: 10_000,
   agentAnalyst: 10_000,
+  agentContentCreator: 10_000,
   aiChat: 500,
 };
 

@@ -3,12 +3,14 @@ import analyze from "../_handlers/agents/analyze.js";
 import orchestrate from "../_handlers/agents/orchestrate.js";
 import marketingGuide from "../_handlers/agents/marketing-guide.js";
 import socialHypeAnalyst from "../_handlers/agents/social-hype-analyst.js";
+import contentCreator from "../_handlers/agents/content-creator.js";
 
 const routes = {
   analyze,
   orchestrate,
   "marketing-guide": marketingGuide,
   "social-hype-analyst": socialHypeAnalyst,
+  "content-creator": contentCreator,
 };
 
 export default async function handler(req, res) {

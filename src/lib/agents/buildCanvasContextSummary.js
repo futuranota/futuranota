@@ -1,6 +1,7 @@
 import { getDelegatableAgentIds } from "./registry.js";
 import { isOrchestratorTargetDoc } from "./resolveAgentGraph.js";
 import { isKnowledgeDoc } from "../templateDoc.js";
+import { extractAgentInstructionFromNodeContent } from "../resolveAgentInstruction.js";
 
 /**
  * @param {object} node
@@ -45,10 +46,12 @@ function summarizeCanvasNode(node, docsById, objectsById, nodeEntitiesById) {
 
   if (node.dataType === "text" || node.dataType === "checkbox") {
     const entity = node.noteId ? nodeEntitiesById[node.noteId] : null;
+    const agentInstruction = extractAgentInstructionFromNodeContent(entity?.content);
     const query = (entity?.sourceQuery || entity?.title || node.title || "").trim();
     return {
       ...base,
       query,
+      agentInstruction: agentInstruction || null,
       nodeEntityId: node.noteId || null,
     };
   }
@@ -83,6 +86,13 @@ export function buildCanvasContextSummary({
   const userMessages = inputSummaries
     .filter((n) => n && typeof n.query === "string" && n.query.trim())
     .map((n) => n.query.trim());
+  const agentInstructions = inputSummaries
+    .filter((n) => n && typeof n.agentInstruction === "string" && n.agentInstruction.trim())
+    .map((n) => ({
+      nodeEntityId: n.nodeEntityId || null,
+      canvasNodeId: n.canvasNodeId,
+      instruction: n.agentInstruction.trim(),
+    }));
 
   return {
     agentCanvasNodeId,
@@ -92,6 +102,8 @@ export function buildCanvasContextSummary({
     hasValidTargetDoc: Boolean(graph.targetDoc && isOrchestratorTargetDoc(graph.targetDoc)),
     userQuery: graph.userQuery || "",
     userMessages,
+    agentInstructions,
+    primaryAgentInstruction: agentInstructions[0]?.instruction || null,
     availableAgents: getDelegatableAgentIds(),
     inputs: inputSummaries,
     outputs: graph.outputs.map((n) => summarizeCanvasNode(n, docsById, objectsById, nodeEntitiesById)),

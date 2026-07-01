@@ -240,13 +240,17 @@ export function NodeQueryModal({
     if (!parsed) return;
     const current = parseNodeWritingBody(content);
     const normalized = normalizeWritingBlocks(current.blocks);
-    const { blocks: nextBlocks, insertedIndex } = appendNodeWritingBlockFromSlash(
+    const { blocks: nextBlocks, insertedIndex, reusedAgent } = appendNodeWritingBlockFromSlash(
       normalized,
       parsed,
       textPrefix,
     );
     onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
     if (insertedIndex < 0) return;
+    if (reusedAgent) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
+      return;
+    }
     if (parsed.type === DOC_BLOCK_TYPES.TODO) {
       const todoBlock = nextBlocks[insertedIndex];
       setWritingFocusTarget({
@@ -260,6 +264,8 @@ export function NodeQueryModal({
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
     ) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true });
+    } else if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
     } else {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
     }

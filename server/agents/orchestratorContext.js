@@ -53,7 +53,8 @@ Rules:
 - analystBrief, routingNote, userFacingMessage MUST be in English.
 - Filter off-topic noise into ignoredTopics (e.g. grapes when brand is Tesla).
 - When canvas has valid campaign doc output + brand → intent "delegate_campaign_analysis", delegateTo "campaign-analyst".
-- When user request is wholly off-topic with no campaign relevance → intent "ignore_off_topic".
+- When primaryAgentInstruction is set in canvas context, use it as the user task (ignore other text outside the /agent cell).
+- If the request is wholly off-topic → intent "ignore_off_topic".
 - errorCode only when intent is "error".
 `.trim(),
   es: `
@@ -74,6 +75,7 @@ Reglas:
 - analystBrief, routingNote, userFacingMessage DEBEN estar en español.
 - Filtra ruido off-topic en ignoredTopics (ej. uvas cuando la marca es Tesla).
 - Si el canvas tiene doc campaña válido en salida + marca → intent "delegate_campaign_analysis", delegateTo "campaign-analyst".
+- Si primaryAgentInstruction está en el contexto, úsala como tarea del usuario (ignora texto fuera de la celda /agent).
 - Si la petición es totalmente off-topic → intent "ignore_off_topic".
 - errorCode solo cuando intent es "error".
 `.trim(),

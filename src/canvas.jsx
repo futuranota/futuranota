@@ -1046,7 +1046,13 @@ function BlueprintCanvas({
   /* keyboard */
   useEffect(() => {
     const onKeyDown = (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      const tag = e.target?.tagName;
+      const inEditable = tag === "INPUT" || tag === "TEXTAREA"
+        || e.target?.isContentEditable
+        || e.target.closest?.(
+          ".doc-agent-cell__input, .doc-agent-cell, textarea, input, [contenteditable='true']",
+        );
+      if (inEditable) return;
       if (e.code === "Space") { e.preventDefault(); setSpaceHeld(true); }
       if (e.key === "v" || e.key === "V") setTool("select");
       else if (e.key === "p" || e.key === "P") setTool("pencil");
@@ -1081,6 +1087,13 @@ function BlueprintCanvas({
       }
     };
     const onKeyUp = (e) => {
+      const tag = e.target?.tagName;
+      const inEditable = tag === "INPUT" || tag === "TEXTAREA"
+        || e.target?.isContentEditable
+        || e.target.closest?.(
+          ".doc-agent-cell__input, .doc-agent-cell, textarea, input, [contenteditable='true']",
+        );
+      if (inEditable) return;
       if (e.code === "Space") setSpaceHeld(false);
     };
     window.addEventListener("keydown", onKeyDown);

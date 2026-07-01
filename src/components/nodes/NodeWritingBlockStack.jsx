@@ -14,6 +14,7 @@ import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
 import { CodeBlockView } from "../docs/blocks/CodeBlockView.jsx";
 import { PasswordVaultBlockView } from "../docs/blocks/PasswordVaultBlockView.jsx";
 import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
+import { AgentBlockView } from "../docs/blocks/AgentBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 
 function syncTextareaHeight(el) {
@@ -28,7 +29,14 @@ function isAtInputStart(e) {
 
 function focusVaultTarget(parsed, blocks, blockIndex, onFocusTargetChange) {
   const vaultNodeType = vaultNodeTypeForParsed(parsed);
-  if (vaultNodeType) {
+  if (vaultNodeType === NODE_BLOCK_TYPES.AGENT) {
+    const existingIndex = findLastAgentBlockIndex(blocks);
+    if (existingIndex >= 0) {
+      onFocusTargetChange?.({ blockIndex: existingIndex, focusAgent: true });
+      return;
+    }
+  }
+  if (vaultNodeType && vaultNodeType !== NODE_BLOCK_TYPES.AGENT) {
     const existingIndex = findLastVaultBlockIndex(blocks, vaultNodeType);
     if (existingIndex >= 0) {
       onFocusTargetChange?.({ blockIndex: existingIndex, focusVault: true });
@@ -49,6 +57,10 @@ function focusVaultTarget(parsed, blocks, blockIndex, onFocusTargetChange) {
     onFocusTargetChange?.({ blockIndex: insertedIndex, focusCode: true });
     return;
   }
+  if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
+    onFocusTargetChange?.({ blockIndex: insertedIndex, focusAgent: true });
+    return;
+  }
   if (vaultNodeType) {
     onFocusTargetChange?.({ blockIndex: insertedIndex, focusVault: true });
     return;
@@ -59,12 +71,20 @@ function focusVaultTarget(parsed, blocks, blockIndex, onFocusTargetChange) {
 function vaultNodeTypeForParsed(parsed) {
   if (parsed?.type === DOC_BLOCK_TYPES.PASSWORD_VAULT) return NODE_BLOCK_TYPES.PASSWORD_VAULT;
   if (parsed?.type === DOC_BLOCK_TYPES.LINK_VAULT) return NODE_BLOCK_TYPES.LINK_VAULT;
+  if (parsed?.type === DOC_BLOCK_TYPES.AGENT) return NODE_BLOCK_TYPES.AGENT;
   return null;
 }
 
 function findLastVaultBlockIndex(blocks, vaultNodeType) {
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     if (blocks[index]?.type === vaultNodeType) return index;
+  }
+  return -1;
+}
+
+function findLastAgentBlockIndex(blocks) {
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    if (blocks[index]?.type === NODE_BLOCK_TYPES.AGENT) return index;
   }
   return -1;
 }
@@ -128,6 +148,10 @@ export function NodeWritingBlockStack({
 
         if (focusTarget.focusH1) {
           const input = blockEl?.querySelector("textarea, input");
+          input?.focus({ preventScroll: true });
+        }
+        if (focusTarget.focusAgent) {
+          const input = blockEl?.querySelector(".doc-agent-cell__input");
           input?.focus({ preventScroll: true });
         }
       });
@@ -382,6 +406,26 @@ export function NodeWritingBlockStack({
                 }
                 onEntriesChange={(entries) => updateBlockAt(blockIndex, { entries })}
                 onDeleteVault={() => removeBlockAt(blockIndex)}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.AGENT) {
+          return (
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__agent"
+            >
+              <AgentBlockView
+                instruction={block.instruction || ""}
+                compact
+                autoFocus={
+                  focusTarget?.blockIndex === blockIndex && focusTarget?.focusAgent
+                }
+                onInstructionChange={(instruction) => updateBlockAt(blockIndex, { instruction })}
+                onDelete={() => removeBlockAt(blockIndex)}
               />
             </div>
           );

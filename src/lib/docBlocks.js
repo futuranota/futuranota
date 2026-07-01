@@ -18,7 +18,10 @@ const DOC_BLOCK_TYPES = {
   CODE: "code",
   PASSWORD_VAULT: "password_vault",
   LINK_VAULT: "link_vault",
+  AGENT: "agent",
 };
+
+export const DEFAULT_AGENT_BLOCK_TITLE = "Agent";
 
 const DEFAULT_CHECKBOX_LIST_TITLE = "Todo list:";
 
@@ -117,6 +120,12 @@ function normalizePasswordVaultBlock(block) {
 function normalizeLinkVaultBlock(block) {
   return {
     entries: normalizeLinkEntries(block?.entries),
+  };
+}
+
+function normalizeAgentBlock(block) {
+  return {
+    instruction: String(block?.instruction ?? ""),
   };
 }
 
@@ -236,6 +245,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       ...base,
       type: DOC_BLOCK_TYPES.LINK_VAULT,
       ...normalized,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.AGENT) {
+    const normalized = normalizeAgentBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.AGENT,
+      instruction: normalized.instruction,
     };
   }
 
@@ -371,6 +389,13 @@ export function normalizeDocBlock(block) {
     return createDocBlock(DOC_BLOCK_TYPES.LINK_VAULT, {
       id: block.id,
       ...normalizeLinkVaultBlock(block),
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.AGENT) {
+    return createDocBlock(DOC_BLOCK_TYPES.AGENT, {
+      id: block.id,
+      ...normalizeAgentBlock(block),
     });
   }
 
@@ -911,6 +936,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.CODE
     || block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
     || block.type === DOC_BLOCK_TYPES.LINK_VAULT
+    || block.type === DOC_BLOCK_TYPES.AGENT
   ) {
     return block;
   }

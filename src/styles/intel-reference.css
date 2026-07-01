@@ -403,6 +403,23 @@
   padding: 0;
 }
 
+.note-taker__writing-stack .doc-agent-cell__input {
+  color: var(--text-1);
+}
+
+.note-taker__writing-stack .doc-agent-cell__input::placeholder {
+  color: rgba(129, 89, 91, 0.75);
+}
+
+.note-taker__writing-stack .doc-agent-cell__label {
+  color: var(--text-1);
+}
+
+.note-taker__writing-stack .doc-agent-cell__card {
+  border-color: rgba(129, 89, 91, 0.22);
+  background: rgba(0, 0, 0, 0.14);
+}
+
 .note-taker__writing-stack .doc-todo-plan__title-input,
 .note-taker__writing-stack .doc-todo-plan__item-input {
   color: var(--text-1);

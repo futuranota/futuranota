@@ -1,6 +1,6 @@
 import { AGENT_RUN_CREDIT_COST, LAUNCH_RADAR_CREDIT_COST, TOKEN_COSTS } from "../planConfig.js";
 import { CREDIT_TOKEN_UNIT } from "../intelModels.js";
-import { AGENT_CAMPAIGN_ANALYST, AGENT_MARKETING_GUIDE, AGENT_ORCHESTRATOR, AGENT_SOCIAL_HYPE_ANALYST } from "./registry.js";
+import { AGENT_CAMPAIGN_ANALYST, AGENT_CONTENT_CREATOR, AGENT_MARKETING_GUIDE, AGENT_ORCHESTRATOR, AGENT_SOCIAL_HYPE_ANALYST } from "./registry.js";
 
 /** @typedef {{ creditCost: number, tokenCost: number, routeLabel: string, endpoint: string }} AgentRunCost */
 
@@ -31,6 +31,12 @@ const AGENT_RUN_COSTS = {
     tokenCost: TOKEN_COSTS.searchOverview,
     routeLabel: "Social Hype Analyst",
     endpoint: "agents/social-hype-analyst",
+  },
+  [AGENT_CONTENT_CREATOR]: {
+    creditCost: SHARED_RUN_CREDIT,
+    tokenCost: TOKEN_COSTS.agentContentCreator,
+    routeLabel: "Content Creator",
+    endpoint: "agents/content-creator",
   },
   "launch-radar": {
     creditCost: LAUNCH_RADAR_CREDIT_COST,

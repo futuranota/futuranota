@@ -4,6 +4,7 @@ export const AGENT_ORCHESTRATOR = "orchestrator";
 export const AGENT_CAMPAIGN_ANALYST = "campaign-analyst";
 export const AGENT_MARKETING_GUIDE = "marketing-guide";
 export const AGENT_SOCIAL_HYPE_ANALYST = "social-hype-analyst";
+export const AGENT_CONTENT_CREATOR = "content-creator";
 
 /** @type {AgentDefinition[]} */
 export const AGENTS = [
@@ -37,6 +38,14 @@ export const AGENTS = [
     labelKey: "agents.socialHypeAnalyst.name",
     descriptionKey: "agents.socialHypeAnalyst.description",
     canvasTitle: "SOCIAL HYPE",
+    icon: "analyst",
+    enabled: true,
+  },
+  {
+    id: AGENT_CONTENT_CREATOR,
+    labelKey: "agents.contentCreator.name",
+    descriptionKey: "agents.contentCreator.description",
+    canvasTitle: "CONTENT CREATOR",
     icon: "analyst",
     enabled: true,
   },

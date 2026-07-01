@@ -16,6 +16,7 @@ import { createManagementMiddleware } from './server/managementHandler.js';
 import { createOrchestratorMiddleware } from './server/orchestratorHandler.js';
 import { createCampaignAnalystMiddleware } from './server/campaignAnalystHandler.js';
 import { createMarketingGuideMiddleware } from './server/marketingGuideHandler.js';
+import { createContentCreatorMiddleware } from './server/contentCreatorHandler.js';
 import { createSocialHypeAnalystMiddleware, createSocialHypeAnalyticsMiddleware } from './server/socialHypeAnalystHandler.js';
 import { createUsageLogMiddleware } from './server/usageLogHandler.js';
 import { createBillingMiddleware } from './server/billingHandler.js';
@@ -43,6 +44,7 @@ function brandCadenceApiPlugin(env) {
       server.middlewares.use(createOrchestratorMiddleware());
       server.middlewares.use(createCampaignAnalystMiddleware());
       server.middlewares.use(createMarketingGuideMiddleware());
+      server.middlewares.use(createContentCreatorMiddleware());
       server.middlewares.use(createSocialHypeAnalystMiddleware());
       server.middlewares.use(createSocialHypeAnalyticsMiddleware());
       server.middlewares.use(createUsageLogMiddleware());

@@ -56,6 +56,7 @@ import { ImageBlockView } from "./ImageBlockView.jsx";
 import { CodeBlockView } from "./CodeBlockView.jsx";
 import { PasswordVaultBlockView } from "./PasswordVaultBlockView.jsx";
 import { LinkVaultBlockView } from "./LinkVaultBlockView.jsx";
+import { AgentBlockView } from "./AgentBlockView.jsx";
 
 const UNLINK_H1_PATCH = {
   nodeId: undefined,
@@ -613,6 +614,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.AGENT
     ) {
       const newIndex = next.findIndex((b) => b.id === newBlock.id);
       const withTail = newIndex >= 0
@@ -836,6 +838,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.AGENT
     ) {
       const newIndex = next.findIndex((b) => b.id === newBlock.id);
       const withTail = newIndex >= 0
@@ -1379,6 +1382,28 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 setBlocks(next);
                 const focusIndex = Math.min(index, next.length - 1);
                 onFocusBlock?.(next[focusIndex]?.id);
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.AGENT ? (
+            <AgentBlockView
+              instruction={block.instruction || ""}
+              autoFocus={focusBlockId === block.id}
+              onInstructionChange={(instruction) => {
+                const next = updateBlockAt(blocksRef.current, index, { instruction });
+                setBlocks(next);
+                requestContentGrow();
+              }}
+              onDelete={() => {
+                let next = removeBlockAt(blocksRef.current, index);
+                if (!next.length) {
+                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+                }
+                setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+                requestContentGrow();
               }}
             />
           ) : null}

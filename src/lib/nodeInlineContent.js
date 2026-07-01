@@ -18,6 +18,7 @@ export const NODE_BLOCK_TYPES = {
   CODE: "code",
   PASSWORD_VAULT: "password_vault",
   LINK_VAULT: "link_vault",
+  AGENT: "agent",
 };
 
 export function isNodeWritingBody(content) {
@@ -79,6 +80,14 @@ export function createInlineLinkVaultBlock(entries = []) {
     id: generateId("NLK"),
     type: NODE_BLOCK_TYPES.LINK_VAULT,
     entries: normalizeLinkEntries(entries),
+  };
+}
+
+export function createInlineAgentBlock(instruction = "") {
+  return {
+    id: generateId("NAG"),
+    type: NODE_BLOCK_TYPES.AGENT,
+    instruction: String(instruction ?? ""),
   };
 }
 
@@ -145,6 +154,13 @@ export function normalizeWritingBlocks(blocks) {
         entries: normalizeLinkEntries(block.entries),
       };
     }
+    if (block?.type === NODE_BLOCK_TYPES.AGENT) {
+      return {
+        id: block.id || generateId("NAG"),
+        type: NODE_BLOCK_TYPES.AGENT,
+        instruction: String(block.instruction ?? ""),
+      };
+    }
     return {
       id: block?.id || generateId("NTX"),
       type: NODE_BLOCK_TYPES.TEXT,
@@ -199,6 +215,9 @@ export function nodeWritingBlocksHaveContent(blocks) {
     }
     if (block.type === NODE_BLOCK_TYPES.LINK_VAULT) {
       return block.entries.length > 0;
+    }
+    if (block.type === NODE_BLOCK_TYPES.AGENT) {
+      return Boolean((block.instruction || "").trim());
     }
     return block.text.trim();
   });
@@ -316,6 +335,9 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
   if (parsed.type === DOC_BLOCK_TYPES.LINK_VAULT) {
     return createInlineLinkVaultBlock();
   }
+  if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
+    return createInlineAgentBlock(String(textPrefix || "").trim());
+  }
   return null;
 }
 
@@ -328,6 +350,16 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed) {
   const vaultNodeType = vaultNodeTypeForParsed(parsed);
   if (vaultNodeType) {
     const existingIndex = findLastVaultBlockIndex(normalized, vaultNodeType);
+    if (existingIndex >= 0) {
+      const updated = normalized.map((entry, index) => (
+        index === blockIndex ? { ...entry, text: prefix } : entry
+      ));
+      return ensureNodeWritingTail(updated);
+    }
+  }
+
+  if (parsed?.type === DOC_BLOCK_TYPES.AGENT) {
+    const existingIndex = findLastAgentBlockIndex(normalized);
     if (existingIndex >= 0) {
       const updated = normalized.map((entry, index) => (
         index === blockIndex ? { ...entry, text: prefix } : entry
@@ -367,19 +399,40 @@ export function appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix = "")
     }
   }
 
+  if (parsed?.type === DOC_BLOCK_TYPES.AGENT) {
+    const normalized = normalizeWritingBlocks(blocks);
+    for (let index = normalized.length - 1; index >= 0; index -= 1) {
+      if (normalized[index].type === NODE_BLOCK_TYPES.AGENT) {
+        return {
+          blocks: normalized,
+          insertedIndex: index,
+          reusedAgent: true,
+        };
+      }
+    }
+  }
+
   const newBlock = createNodeWritingBlockFromSlash(parsed, textPrefix);
   if (!newBlock) {
-    return { blocks: normalizeWritingBlocks(blocks), insertedIndex: -1, reusedVault: false };
+    return { blocks: normalizeWritingBlocks(blocks), insertedIndex: -1, reusedVault: false, reusedAgent: false };
   }
   const nextBlocks = appendNodeWritingBlock(blocks, newBlock);
   const insertedIndex = nextBlocks.findIndex((block) => block.id === newBlock.id);
-  return { blocks: nextBlocks, insertedIndex, reusedVault: false };
+  return { blocks: nextBlocks, insertedIndex, reusedVault: false, reusedAgent: false };
 }
 
 function findLastVaultBlockIndex(blocks, vaultNodeType) {
   const normalized = normalizeWritingBlocks(blocks);
   for (let index = normalized.length - 1; index >= 0; index -= 1) {
     if (normalized[index].type === vaultNodeType) return index;
+  }
+  return -1;
+}
+
+function findLastAgentBlockIndex(blocks) {
+  const normalized = normalizeWritingBlocks(blocks);
+  for (let index = normalized.length - 1; index >= 0; index -= 1) {
+    if (normalized[index].type === NODE_BLOCK_TYPES.AGENT) return index;
   }
   return -1;
 }
