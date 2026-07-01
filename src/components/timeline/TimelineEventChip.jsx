@@ -7,6 +7,7 @@ export function TimelineEventChip({
   variant = "sphere",
   compact = false,
   focused = false,
+  dataAnchor,
   onClick,
   onDoubleClick,
   onKeyDown,
@@ -31,6 +32,7 @@ export function TimelineEventChip({
           + (focused ? " is-focused" : "")
         }
         style={cardStyle}
+        data-tl-anchor={dataAnchor || undefined}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onKeyDown={onKeyDown}

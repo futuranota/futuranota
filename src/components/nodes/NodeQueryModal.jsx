@@ -44,6 +44,68 @@ import { useI18n } from "../../i18n/useI18n.js";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
 
+function FloppySaveIcon({ className = "" }) {
+  return (
+    <svg
+      className={className}
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M5 3h11l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 3v7h10V3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <rect
+        x="8"
+        y="14"
+        width="8"
+        height="7"
+        rx="0.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function NodeModalSaveButton({ compact = false, onSave, className = "" }) {
+  if (!onSave) return null;
+  const label = compact ? "Guardar nodo (⌘↵)" : "save";
+  return (
+    <button
+      type="button"
+      className={
+        "node-query-modal__action node-query-modal__action--save"
+        + (compact ? " node-query-modal__action--save-compact" : "")
+        + (className ? ` ${className}` : "")
+      }
+      onClick={onSave}
+      title={compact ? label : undefined}
+      aria-label={compact ? label : undefined}
+    >
+      {compact ? (
+        <FloppySaveIcon />
+      ) : (
+        <>
+          <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
+          <span className="node-query-modal__save-text">save</span>
+        </>
+      )}
+    </button>
+  );
+}
+
 /**
  * Node editor modal — Figma 296:627.
  * Doc H1 flow: read-only query/parent/type. Standalone: editable query, type, optional parent doc.
@@ -99,6 +161,7 @@ export function NodeQueryModal({
   const handleDismiss = onBackToDocument || onClose;
   const showCloseButton = Boolean(onClose && !onBackToDocument);
   const showReturnLink = Boolean(onBackToDocument);
+  const saveCompact = Boolean(onBackToDocument);
   const toggleContentFocus = useCallback(() => {
     setContentFocusMode((value) => !value);
   }, []);
@@ -264,11 +327,17 @@ export function NodeQueryModal({
       if (e.key === "Escape") {
         e.preventDefault();
         handleDismiss?.();
+        return;
       }
+      if (!onSave) return;
+      const isSaveShortcut = e.key === "Enter" && (e.metaKey || e.ctrlKey);
+      if (!isSaveShortcut) return;
+      e.preventDefault();
+      onSave();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleDismiss]);
+  }, [handleDismiss, onSave]);
 
   const handleSearchClick = () => {
     const queryText = (displayQuery || "").trim() || displayQuery;
@@ -412,6 +481,13 @@ export function NodeQueryModal({
             >
               <span className="doc-new-content-expand-btn__icon" aria-hidden />
             </button>
+            {contentFocusMode && onSave ? (
+              <NodeModalSaveButton
+                compact
+                onSave={onSave}
+                className="node-query-modal__content-save-btn"
+              />
+            ) : null}
           {dataType === NODE_DATA_TYPES.VIDEO ? (
             <VideoEmbedBar
               nodeId={entityNodeId}
@@ -520,16 +596,7 @@ export function NodeQueryModal({
 
         <footer className="node-query-modal__footer-row">
           <div className="node-query-modal__footer-start">
-            {onSave && !onBackToDocument ? (
-              <button
-                type="button"
-                className="node-query-modal__action node-query-modal__action--save"
-                onClick={onSave}
-              >
-                <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
-                <span className="node-query-modal__save-text">save</span>
-              </button>
-            ) : null}
+            <NodeModalSaveButton compact={saveCompact} onSave={onSave} />
             {showScheduleAnchor ? (
               <BlockAnchorFields
                 className="node-query-modal__schedule"

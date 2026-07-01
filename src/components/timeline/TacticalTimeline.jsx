@@ -2,7 +2,12 @@ import { useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { daysBetween, fmtDate } from "../../data.jsx";
 import { buildChipDisplay, startOfCalendarDay } from "../../temporal.js";
-import { buildTacticalObjectRows, resolveDaysLeftCenterPct } from "../../lib/tacticalTimelineView.js";
+import {
+  buildDocChildLinks,
+  buildTacticalObjectRows,
+  groupDisplayRowsByObject,
+  resolveDaysLeftCenterPct,
+} from "../../lib/tacticalTimelineView.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
 import { useTacticalRangeDrag } from "../../hooks/useTacticalRangeDrag.js";
@@ -10,6 +15,7 @@ import { useTranslatedText } from "../../hooks/useTranslatedText.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useTimelineStore } from "../../stores/index.js";
 import { TimelineEventChip } from "./TimelineEventChip.jsx";
+import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
 
 function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
   const family = resolveParentTagFamilyStyle(objectId, objectsById);
@@ -27,6 +33,63 @@ function resolveAnchorStatus(groupDate, today) {
   if (d.getTime() < t.getTime()) return "past";
   if (d.getTime() === t.getTime()) return "active";
   return "future";
+}
+
+function TacticalRowGroup({
+  group,
+  docChildLinks,
+  today,
+  grid,
+  trackItemsById,
+  docsById,
+  nodeEntitiesById,
+  objectsById,
+  connections,
+  focusedNoteId,
+  onChipClick,
+  onChipDoubleClick,
+  rangeDrag,
+  t,
+}) {
+  const groupRef = useRef(null);
+  const groupLinks = useMemo(
+    () => docChildLinks.filter((link) => link.objectId === group.objectId),
+    [docChildLinks, group.objectId],
+  );
+  const objectRow = group.rows.find((row) => row.rowKind === "object");
+  const accent = objectRow?.objectColor || "var(--hud)";
+  const familyAccent = resolveFamilyAccent(group.objectId, objectsById, accent);
+
+  return (
+    <div
+      className="tl-tactical-row-group"
+      ref={groupRef}
+      style={{ "--tl-accent": accent, "--tl-family-accent": familyAccent }}
+    >
+      <TimelineDocChildLinks links={groupLinks} containerRef={groupRef} />
+      {group.rows.map((row) => (
+        <TacticalObjectRow
+          key={row.id}
+          row={row}
+          today={today}
+          grid={grid}
+          trackItemsById={trackItemsById}
+          docsById={docsById}
+          nodeEntitiesById={nodeEntitiesById}
+          objectsById={objectsById}
+          connections={connections}
+          focusedNoteId={focusedNoteId}
+          onChipClick={onChipClick}
+          onChipDoubleClick={onChipDoubleClick}
+          enableRangeHandles={
+            row.rowKind === "object" && (row.rail?.nodeGroups?.length ?? 0) > 0
+          }
+          rangeDrag={rangeDrag}
+          t={t}
+        />
+      ))}
+    </div>
+  );
 }
 
 function TacticalObjectRow({
@@ -187,6 +250,7 @@ function TacticalObjectRow({
                     key={`dot-${group.columnKey}`}
                     className={handleClass}
                     style={{ left: `${group.leftPct}%` }}
+                    data-tl-anchor={`dot-${row.id}-${group.columnKey}`}
                     role={isRangeHandle ? "slider" : undefined}
                     aria-label={
                       isRangeStart
@@ -262,6 +326,9 @@ function TacticalObjectRow({
                       const chipName = marker.dataType && marker.dataType !== "document"
                         ? `${display.name} · ${marker.dataType}`
                         : display.name;
+                      const dataAnchor = marker.dataType === "document" && marker.docId
+                        ? `doc-${marker.docId}`
+                        : `node-${marker.nodeId}`;
 
                       return (
                         <TimelineEventChip
@@ -272,6 +339,7 @@ function TacticalObjectRow({
                           familyAccent={familyAccent}
                           objectTint={display.objectTint || accent}
                           focused={focusedNoteId === (item?.noteId || marker.nodeId)}
+                          dataAnchor={dataAnchor}
                           onClick={() => onChipClick(marker, row)}
                           onDoubleClick={() => onChipDoubleClick(marker, row)}
                           onKeyDown={(e) => {
@@ -371,15 +439,24 @@ export function TacticalTimeline({
   );
 
   const { displayRows, trackItemsById, grid } = view;
+  const rowGroups = useMemo(
+    () => groupDisplayRowsByObject(displayRows),
+    [displayRows],
+  );
+  const docChildLinks = useMemo(
+    () => buildDocChildLinks(displayRows, expandedDocIds),
+    [displayRows, expandedDocIds],
+  );
   const rangeDrag = useTacticalRangeDrag(grid);
   const hasQueue = timelineDocQueue.length > 0;
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
 
   const handleChipClick = (marker, row) => {
     const docId = marker.docId || null;
+    const willExpand = docId ? !expandedDocIds.includes(docId) : false;
     if (docId) toggleExpandedDocId(docId);
     setTimelineFocus({
-      level: docId && expandedDocIds.includes(docId) ? "children" : "doc",
+      level: docId && willExpand ? "children" : "doc",
       objectId: row.objectId,
       docId,
       canvasNodeId: marker.virtual ? null : marker.nodeId,
@@ -427,10 +504,11 @@ export function TacticalTimeline({
           </div>
 
           <div className="tl-tactical-body">
-            {displayRows.map((row) => (
-              <TacticalObjectRow
-                key={row.id}
-                row={row}
+            {rowGroups.map((group) => (
+              <TacticalRowGroup
+                key={group.objectId}
+                group={group}
+                docChildLinks={docChildLinks}
                 today={today}
                 grid={grid}
                 trackItemsById={trackItemsById}
@@ -441,9 +519,6 @@ export function TacticalTimeline({
                 focusedNoteId={focusedNoteId}
                 onChipClick={handleChipClick}
                 onChipDoubleClick={handleChipDoubleClick}
-                enableRangeHandles={
-                  row.rowKind === "object" && (row.rail?.nodeGroups?.length ?? 0) > 0
-                }
                 rangeDrag={rangeDrag}
                 t={t}
               />

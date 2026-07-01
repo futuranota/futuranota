@@ -723,6 +723,23 @@ useEffect(() => {
     setToast({ message: t("canvas.clearSuccess"), kind: "ok" });
   }, [t]);
 
+  const handleEditCanvasNode = useCallback((canvasNodeId, edits) => {
+    setCanvasNodes((all) => {
+      const target = all.find((n) => n.id === canvasNodeId);
+      const nextEdits = { ...edits };
+      if (edits.title != null) {
+        nextEdits.title = String(edits.title).trim() || "Untitled query";
+      }
+      if (target?.noteId && nextEdits.title != null) {
+        useNodesStore.getState().updateNode(target.noteId, {
+          title: nextEdits.title,
+          sourceQuery: nextEdits.title,
+        });
+      }
+      return all.map((n) => (n.id === canvasNodeId ? { ...n, ...nextEdits } : n));
+    });
+  }, []);
+
   const deleteCanvasNode = (nodeId) => {
     const nodeEntities = useNodesStore.getState().nodes;
     let idsToRemove = null;
@@ -1002,7 +1019,7 @@ useEffect(() => {
             onNotify={(message, kind = "warm") => setToast({ message, kind })}
             onDeleteNode={deleteCanvasNode}
             onClearCanvas={clearAllCanvasElements}
-            onEditNode={() => {}}
+            onEditNode={handleEditCanvasNode}
             onFocusNote={() => {}}
             onOpenNote={openCanvasEntity}
             onRemoveBlueprintFromCanvas={() => {}}

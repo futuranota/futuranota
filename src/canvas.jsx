@@ -618,6 +618,12 @@ function CanvasNode({
         ? resolveCanvasDocTitle(node, docsById)
         : node.title;
 
+  const canEditCanvasTitle = !knowledgeCorpus
+    && node.dataType !== "object"
+    && node.dataType !== "agent"
+    && node.canvasKind !== "document"
+    && node.canvasKind !== "agent";
+
   const calendarEventPayload = node.dataType === "text"
     ? parseCalendarEventNodeContent(
       (node.noteId ? nodeEntitiesById[node.noteId] : null)?.content ?? node.content,
@@ -731,13 +737,20 @@ function CanvasNode({
           <input
             className="cnode-k"
             autoFocus
-            defaultValue={node.title}
+            defaultValue={displayTitle}
             style={{ background: "transparent", border: "none", padding: 0 }}
             onBlur={(e) => { setEditing(null); onEdit(node.id, { title: e.target.value }); }}
             onKeyDown={(e) => { if (e.key === "Escape") setEditing(null); if (e.key === "Enter") e.target.blur(); }}
           />
         ) : (
-          <span className="cnode-k" title={displayTitle}>
+          <span
+            className="cnode-k"
+            title={displayTitle}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (canEditCanvasTitle) setEditing("title");
+            }}
+          >
             {displayTitle}
           </span>
         )}
@@ -1369,7 +1382,7 @@ function BlueprintCanvas({
   const handleOpenNode = (id) => {
     const node = nodes.find((n) => n.id === id);
     if (!node || !onOpenNote) return;
-    onOpenNote(node.noteId, node, { contentFocus: true });
+    onOpenNote(node.noteId, node);
   };
   const handleMove = (id, x, y) => {
     setNodes((all) => all.map((n) => (n.id === id ? { ...n, x, y } : n)));
@@ -1607,7 +1620,65 @@ function BlueprintCanvas({
       ? nodes.find((n) => n.id === c.to)
       : nodes.find((n) => n.id === c.from);
     if (!fixed) return null;
+    const layout = connectionLayoutFor(c.from, c.to);
+    if (layout === "vertical") {
+      return rewiring.end === "from"
+        ? nodeAnchor(fixed, "top")
+        : nodeAnchor(fixed, "bottom");
+    }
     return rewiring.end === "from" ? nodeAnchor(fixed, "left") : nodeAnchor(fixed, "right");
+  };
+
+  const renderPendingConnection = () => {
+    if (!(connectingFrom || rewiring) || !hoverConnect) return null;
+    let p1;
+    let p2;
+    let a;
+    let b;
+    if (rewiring) {
+      const fixed = getRewireAnchor();
+      if (!fixed) return null;
+      const c = connections.find((x) => x.id === rewiring.connId);
+      const target = connectHoverTarget ? nodes.find((n) => n.id === connectHoverTarget) : null;
+      if (rewiring.end === "from") {
+        const layout = target && c?.to ? connectionLayoutFor(target.id, c.to) : "horizontal";
+        p2 = fixed;
+        p1 = target
+          ? nodeAnchor(target, layout === "vertical" ? "bottom" : "right")
+          : hoverConnect;
+        a = target;
+        b = nodes.find((n) => n.id === c?.to);
+      } else {
+        const layout = c?.from && target ? connectionLayoutFor(c.from, target.id) : "horizontal";
+        p1 = fixed;
+        p2 = target
+          ? nodeAnchor(target, layout === "vertical" ? "top" : "left")
+          : hoverConnect;
+        a = nodes.find((n) => n.id === c?.from);
+        b = target;
+      }
+    } else {
+      a = nodes.find((n) => n.id === connectingFrom);
+      if (!a) return null;
+      const target = connectHoverTarget ? nodes.find((n) => n.id === connectHoverTarget) : null;
+      const layout = target ? connectionLayoutFor(a.id, target.id) : "horizontal";
+      p1 = nodeAnchor(a, layout === "vertical" ? "bottom" : "right");
+      p2 = target
+        ? nodeAnchor(target, layout === "vertical" ? "top" : "left")
+        : hoverConnect;
+      b = target;
+    }
+    const label = a && b
+      ? computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta)
+      : null;
+    const mid = bezierMidpoint(p1, p2);
+    const layout = a && b ? connectionLayoutFor(a.id, b.id) : "horizontal";
+    return (
+      <g>
+        <path className="conn pending" d={pathBetween(p1, p2, layout)} markerEnd="url(#arrow-pending)" />
+        {label && <ConnLabel x={mid.x} y={mid.y} text={label} pending />}
+      </g>
+    );
   };
 
   /* measure nodes for connection anchors */
@@ -2089,56 +2160,6 @@ function BlueprintCanvas({
               </g>
             );
           })}
-          {(connectingFrom || rewiring) && hoverConnect && (() => {
-            let p1;
-            let p2;
-            let a;
-            let b;
-            if (rewiring) {
-              const fixed = getRewireAnchor();
-              if (!fixed) return null;
-              const c = connections.find((x) => x.id === rewiring.connId);
-              const target = connectHoverTarget ? nodes.find((n) => n.id === connectHoverTarget) : null;
-              if (rewiring.end === "from") {
-                const layout = target && c?.to ? connectionLayoutFor(target.id, c.to) : "horizontal";
-                p2 = fixed;
-                p1 = target
-                  ? nodeAnchor(target, layout === "vertical" ? "bottom" : "right")
-                  : hoverConnect;
-                a = target;
-                b = nodes.find((n) => n.id === c?.to);
-              } else {
-                const layout = c?.from && target ? connectionLayoutFor(c.from, target.id) : "horizontal";
-                p1 = fixed;
-                p2 = target
-                  ? nodeAnchor(target, layout === "vertical" ? "top" : "left")
-                  : hoverConnect;
-                a = nodes.find((n) => n.id === c?.from);
-                b = target;
-              }
-            } else {
-              a = nodes.find((n) => n.id === connectingFrom);
-              if (!a) return null;
-              const target = connectHoverTarget ? nodes.find((n) => n.id === connectHoverTarget) : null;
-              const layout = target ? connectionLayoutFor(a.id, target.id) : "horizontal";
-              p1 = nodeAnchor(a, layout === "vertical" ? "bottom" : "right");
-              p2 = target
-                ? nodeAnchor(target, layout === "vertical" ? "top" : "left")
-                : hoverConnect;
-              b = target;
-            }
-            const label = a && b
-              ? computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta)
-              : null;
-            const mid = bezierMidpoint(p1, p2);
-            const layout = a && b ? connectionLayoutFor(a.id, b.id) : "horizontal";
-            return (
-              <g>
-                <path className="conn pending" d={pathBetween(p1, p2, layout)} markerEnd="url(#arrow-pending)" />
-                {label && <ConnLabel x={mid.x} y={mid.y} text={label} pending />}
-              </g>
-            );
-          })()}
         </svg>
 
         {/* nodes */}
@@ -2184,6 +2205,12 @@ function BlueprintCanvas({
           />
           );
         })}
+
+        {/* active wire preview — above nodes so pending/rewire lines stay visible */}
+        <svg className="canvas-svg canvas-svg--overlay" aria-hidden>
+          {renderPendingConnection()}
+        </svg>
+
         {marqueeRect && (() => {
           const r = normalizeRect(marqueeRect);
           return (

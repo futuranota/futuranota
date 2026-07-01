@@ -273,6 +273,75 @@ export function buildDocDimensionSegmentsByRow(
  * @param {import('./timelineChains.js').TimelineGrid | null | undefined} grid
  * @param {{ segments?: object[] }} [options]
  */
+/**
+ * Parent doc chip → macronodo links for expanded docs (SVG overlay).
+ * @param {object[]} orderedRows
+ * @param {string[]} expandedDocIds
+ * @returns {{ key: string, parentAnchorId: string, childAnchorId: string, objectId: string }[]}
+ */
+export function buildDocChildLinks(orderedRows, expandedDocIds = []) {
+  if (!expandedDocIds.length) return [];
+
+  const expandedSet = new Set(expandedDocIds);
+  /** @type {Map<string, { nodeId: string, docId: string, rowId: string, columnKey: string }>} */
+  const parentDocAnchors = new Map();
+
+  for (const row of orderedRows) {
+    if (row.rowKind !== "object") continue;
+    for (const col of row.columns || []) {
+      for (const item of col.items) {
+        if (item.dataType !== "document" || !item.docId) continue;
+        if (!expandedSet.has(item.docId)) continue;
+        if (!parentDocAnchors.has(item.docId)) {
+          parentDocAnchors.set(item.docId, {
+            nodeId: item.nodeId,
+            docId: item.docId,
+            rowId: row.id,
+            columnKey: col.columnKey,
+          });
+        }
+      }
+    }
+  }
+
+  /** @type {{ key: string, parentAnchorId: string, childAnchorId: string, objectId: string }[]} */
+  const links = [];
+  for (const row of orderedRows) {
+    if (row.rowKind !== "children" || !row.parentDocId) continue;
+    if (!expandedSet.has(row.parentDocId)) continue;
+    const parent = parentDocAnchors.get(row.parentDocId);
+    if (!parent) continue;
+
+    for (const col of row.columns || []) {
+      for (const item of col.items) {
+        links.push({
+          key: `doc-child-${row.parentDocId}-${item.nodeId}`,
+          parentAnchorId: `dot-${parent.rowId}-${parent.columnKey}`,
+          childAnchorId: `dot-${row.id}-${col.columnKey}`,
+          objectId: row.objectId,
+        });
+      }
+    }
+  }
+
+  return links;
+}
+
+/**
+ * Group ordered display rows by objectId for row-group rendering.
+ * @param {object[]} orderedRows
+ * @returns {{ objectId: string, rows: object[] }[]}
+ */
+export function groupDisplayRowsByObject(orderedRows) {
+  /** @type {Map<string, object[]>} */
+  const byObject = new Map();
+  for (const row of orderedRows) {
+    if (!byObject.has(row.objectId)) byObject.set(row.objectId, []);
+    byObject.get(row.objectId).push(row);
+  }
+  return [...byObject.entries()].map(([objectId, rows]) => ({ objectId, rows }));
+}
+
 export function buildRowTimelineRail(columns, grid, options = {}) {
   if (!columns?.length || !grid) {
     return { nodeGroups: [], segments: [] };
@@ -507,8 +576,18 @@ export function buildTacticalObjectRows(params) {
 
   const primaryRows = displayRows.filter((r) => r.rowKind === "object" && !r.isInheritLayer);
   const inheritRows = displayRows.filter((r) => r.rowKind === "object" && r.isInheritLayer);
-  const childRows = displayRows.filter((r) => r.rowKind === "children");
-  const orderedRows = [...primaryRows, ...inheritRows, ...childRows];
+  const childRowsByObjectId = new Map();
+  for (const row of displayRows.filter((r) => r.rowKind === "children")) {
+    if (!childRowsByObjectId.has(row.objectId)) childRowsByObjectId.set(row.objectId, []);
+    childRowsByObjectId.get(row.objectId).push(row);
+  }
+
+  /** @type {typeof displayRows} */
+  const orderedRows = [];
+  for (const objectRow of [...primaryRows, ...inheritRows]) {
+    orderedRows.push(objectRow);
+    orderedRows.push(...(childRowsByObjectId.get(objectRow.objectId) || []));
+  }
 
   const allMarkerDates = orderedRows.flatMap((row) =>
     (row.columns || []).map((col) => col.date),

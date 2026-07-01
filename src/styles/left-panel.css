@@ -6790,9 +6790,8 @@ body.doc-content-resizing * {
   flex-direction: column;
   min-height: 210px;
   max-height: 210px;
-  margin-left: -21px;
-  width: calc(100% + 21px);
-  margin-bottom: 10px;
+  margin: 0 0 10px;
+  width: 100%;
   border-radius: 6px;
   overflow: hidden;
   background: #151515;
@@ -6832,7 +6831,7 @@ body.doc-content-resizing * {
   gap: 10px;
   width: 100%;
   min-height: 0;
-  padding: 10px 12px 12px;
+  padding: 8px 12px 12px 0;
   box-sizing: border-box;
 }
 
@@ -6991,7 +6990,7 @@ body.doc-content-resizing * {
 
 .node-query-modal__date-editor {
   height: 100%;
-  padding: 24px 21px 24px 21px;
+  padding: 24px 21px 24px 0;
   box-sizing: border-box;
   display: flex;
   gap: 12px;
@@ -7028,7 +7027,7 @@ body.doc-content-resizing * {
   max-height: 210px;
   height: 210px;
   margin: 0;
-  padding: 24px 21px 24px 21px;
+  padding: 24px 21px 24px 0;
   box-sizing: border-box;
   border: none;
   resize: none;
@@ -7149,6 +7148,35 @@ body.doc-content-resizing * {
 .node-query-modal__action--save:hover img {
   opacity: 1;
   filter: brightness(1.15);
+}
+
+.node-query-modal__action--save-compact {
+  min-width: 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 6px;
+}
+
+.node-query-modal__action--save-compact .node-query-modal__save-text {
+  display: none;
+}
+
+.node-query-modal__action--save-compact img {
+  position: static;
+  transform: none;
+}
+
+.node-query-modal__action--save-compact svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.node-query-modal__content-save-btn {
+  position: absolute;
+  top: 8px;
+  right: 48px;
+  z-index: 12;
 }
 
 .node-query-modal__action--search {

@@ -1734,6 +1734,9 @@ textarea.field {
   pointer-events: none;
   overflow: visible;
 }
+.canvas-svg--overlay {
+  z-index: 3;
+}
 .canvas-svg .conn-group {
   pointer-events: all;
   cursor: pointer;
@@ -4430,14 +4433,46 @@ textarea.note-form-field {
   overflow-x: visible;
   max-height: min(42vh, 320px);
 }
+.tl-tactical-row-group {
+  position: relative;
+  overflow: visible;
+  border-bottom: 1px solid color-mix(in oklab, var(--hairline) 90%, transparent);
+}
+.tl-tactical-row-group:last-child {
+  border-bottom: none;
+}
+.tl-tactical-doc-child-links {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  overflow: visible;
+}
+.tl-tactical-doc-child-links__path {
+  fill: none;
+  stroke: color-mix(in oklab, var(--tl-family-accent, var(--tl-accent)) 65%, var(--hud));
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.85;
+  transition: stroke var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+.tl-tactical-row-group:hover .tl-tactical-doc-child-links__path {
+  opacity: 1;
+  stroke: color-mix(in oklab, var(--tl-family-accent, var(--tl-accent)) 80%, var(--hud));
+}
 .tl-tactical-row {
   display: grid;
   grid-template-columns: minmax(88px, 112px) minmax(0, 1fr);
   gap: 8px 12px;
   align-items: start;
   padding: 16px 2px 12px;
-  border-bottom: 1px solid color-mix(in oklab, var(--hairline) 90%, transparent);
+  border-bottom: none;
   overflow: visible;
+}
+.tl-tactical-row-group .tl-tactical-row.is-child-row {
+  padding-top: 4px;
+  padding-bottom: 10px;
 }
 .tl-tactical-row:last-child {
   border-bottom: none;
