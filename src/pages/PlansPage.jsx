@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { usePlanStore } from "../stores/planStore.js";
 import { useAuthStore } from "../stores/authStore.js";
 import { isAdminSessionEmail } from "../lib/adminPlanCredits.js";
@@ -13,7 +13,7 @@ import {
   startProCheckout,
   startProVerifyCheckout,
 } from "../lib/billingApi.js";
-import { clearStoredReferralCode } from "../lib/referralStorage.js";
+import { useStripeCheckoutReturn } from "../lib/useStripeCheckoutReturn.js";
 import { CancelPlanModal } from "../components/plans/CancelPlanModal.jsx";
 
 function formatPlanPrice(price) {
@@ -41,7 +41,6 @@ function CheckIcon() {
 export function PlansPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const profile = usePlanStore((s) => s.profile);
   const fetchProfile = usePlanStore((s) => s.fetchProfile);
   const refillCreditsToFull = usePlanStore((s) => s.refillCreditsToFull);
@@ -73,16 +72,7 @@ export function PlansPage() {
   const priceSuffix = isAnnual ? proPlan.annualPriceSuffix : proPlan.priceSuffix;
   const billingNote = isAnnual ? proPlan.annualBillingNote : proPlan.billingNote;
 
-  useEffect(() => {
-    const checkout = searchParams.get("checkout");
-    if (checkout === "success") {
-      void fetchProfile();
-      clearStoredReferralCode();
-      setSearchParams({}, { replace: true });
-    } else if (checkout === "canceled") {
-      setSearchParams({}, { replace: true });
-    }
-  }, [fetchProfile, searchParams, setSearchParams]);
+  useStripeCheckoutReturn();
 
   useEffect(() => {
     let cancelled = false;

@@ -60,6 +60,14 @@ export async function fetchVerifyCheckoutAvailable() {
 /** @deprecated use fetchVerifyCheckoutAvailable */
 export const fetchTestCheckoutAvailable = fetchVerifyCheckoutAvailable;
 
+/** Confirm paid Checkout Session and activate Pro (fallback if webhook is delayed). */
+export async function confirmCheckoutSession(sessionId) {
+  return billingFetch("/api/billing/confirm-checkout", {
+    method: "POST",
+    body: JSON.stringify({ sessionId }),
+  });
+}
+
 export async function cancelProSubscription() {
   return billingFetch("/api/billing/cancel", { method: "POST" });
 }

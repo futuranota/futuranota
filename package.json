@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "dotenv -e .env.local -- vite",
     "dev:tina": "dotenv -e .env.local -- tinacms dev -c \"vite\"",
-    "build": "tinacms build --local --skip-cloud-checks && vite build",
+     "build": "tinacms build && vite build",
     "build:full": "npm run build",
     "build:tina": "dotenv -e .env.local -- tinacms build",
     "preview": "vite preview",

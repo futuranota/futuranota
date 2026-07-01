@@ -155,7 +155,7 @@ export async function createCheckoutSession(params) {
   const customerId = await getOrCreateStripeCustomer(supabase, userId, normalizedEmail);
   const origin = getAppOrigin();
   const stripe = getStripe();
-  const successUrl = `${origin}/app/plans?checkout=success`;
+  const successUrl = `${origin}/app?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${origin}/app/plans?checkout=canceled`;
 
   if (billing === "verify") {
@@ -232,6 +232,43 @@ export async function createCheckoutSession(params) {
   });
 
   return { url: session.url, sessionId: session.id };
+}
+
+/**
+ * Fallback when webhook is delayed: verify paid Checkout Session and activate Pro.
+ * @param {string} userId
+ * @param {string} sessionId
+ */
+export async function confirmCheckoutSession(userId, sessionId) {
+  const id = String(sessionId || "").trim();
+  if (!id) throw new Error("session_id is required");
+
+  const stripe = getStripe();
+  const session = await stripe.checkout.sessions.retrieve(id);
+
+  const sessionUserId = session.metadata?.userId || session.client_reference_id;
+  if (!sessionUserId || sessionUserId !== userId) {
+    throw new Error("Checkout session does not belong to this account");
+  }
+
+  const paid = session.status === "complete"
+    && (session.payment_status === "paid" || session.payment_status === "no_payment_required");
+  if (!paid) {
+    throw new Error("Checkout is not completed yet");
+  }
+
+  const subscriptionId = typeof session.subscription === "string"
+    ? session.subscription
+    : session.subscription?.id;
+
+  const supabase = requireServiceSupabase();
+  await activateProSubscription(supabase, userId, {
+    customerId: typeof session.customer === "string" ? session.customer : session.customer?.id,
+    subscriptionId,
+    billingStatus: "active",
+  });
+
+  return { plan: "pro", confirmed: true };
 }
 
 /** @param {string} userId @param {import('@supabase/supabase-js').SupabaseClient} supabase */

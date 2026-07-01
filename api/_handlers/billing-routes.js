@@ -1,6 +1,7 @@
 import { getAuthedUser } from "../../server/supabaseServer.js";
 import {
   cancelUserSubscription,
+  confirmCheckoutSession,
   createCheckoutSession,
   getAffiliateLinkForUser,
   getReferralHistoryForUser,
@@ -71,6 +72,40 @@ export async function handleCheckout(req, res) {
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : "Checkout failed",
+    });
+  }
+}
+
+export async function handleConfirmCheckout(req, res) {
+  cors(res);
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    const authHeader = req.headers.authorization;
+    const token = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : null;
+    const fakeReq = { headers: { authorization: token ? `Bearer ${token}` : "" } };
+    const { user } = await getAuthedUser(fakeReq);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const body = req.body ?? {};
+    const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+    const result = await confirmCheckoutSession(user.id, sessionId);
+    res.status(200).json(result);
+  } catch (err) {
+    res.status(500).json({
+      error: err instanceof Error ? err.message : "Confirm checkout failed",
     });
   }
 }

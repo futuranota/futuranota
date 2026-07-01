@@ -3,6 +3,7 @@ import { readJsonBody, readRawBody } from "./billing/readBody.js";
 import {
   cancelUserSubscription,
   createCheckoutSession,
+  confirmCheckoutSession,
   getAffiliateLinkForUser,
   getReferralHistoryForUser,
   resolveCheckoutEmail,
@@ -78,6 +79,19 @@ export function createBillingMiddleware() {
           referralCode,
           supabase,
         });
+        sendJson(res, 200, result);
+        return;
+      }
+
+      if (path === "/api/billing/confirm-checkout" && req.method === "POST") {
+        const { user } = await getAuthedUser(req);
+        if (!user) {
+          sendJson(res, 401, { error: "Unauthorized" });
+          return;
+        }
+        const body = await readJsonBody(req);
+        const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+        const result = await confirmCheckoutSession(user.id, sessionId);
         sendJson(res, 200, result);
         return;
       }

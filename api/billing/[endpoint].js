@@ -3,6 +3,7 @@ import {
   handleAffiliate,
   handleCancel,
   handleCheckout,
+  handleConfirmCheckout,
   handleReferralHistory,
   handleReferralInvite,
   handleVerifyCheckoutStatus,
@@ -10,6 +11,7 @@ import {
 
 const routes = {
   checkout: handleCheckout,
+  "confirm-checkout": handleConfirmCheckout,
   cancel: handleCancel,
   affiliate: handleAffiliate,
   "referral-history": handleReferralHistory,

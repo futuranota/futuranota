@@ -25,6 +25,7 @@ import {
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { ReferralModal } from './components/plans/ReferralModal.jsx';
 import { useNavigate } from 'react-router-dom';
+import { useStripeCheckoutReturn } from './lib/useStripeCheckoutReturn.js';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
@@ -1140,6 +1141,7 @@ useEffect(() => {
 /* ── APP ROOT ──────────────────────────────────────── */
 function App() {
   const navigate = useNavigate();
+  useStripeCheckoutReturn();
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const theme = useThemeStore((s) => s.theme);
   const initialApp = useMemo(() => resolveInitialAppState(), []);
