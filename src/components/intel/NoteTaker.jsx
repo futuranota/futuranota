@@ -3,7 +3,7 @@ import { useNodesStore } from "../../stores/nodesStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
-import { getBlockQueryText } from "../../lib/docNodeSync.js";
+import { getBlockQueryText, blockDataType } from "../../lib/docNodeSync.js";
 import {
   appendNodeWritingBlockFromSlash,
   createEmptyTextBlock,
@@ -16,6 +16,7 @@ import {
 import {
   getVideoWritingBody,
   mergeVideoNodeContent,
+  buildVideoNodeContent,
 } from "../../lib/videoEmbed.js";
 import { DocSlashCommandPicker } from "../docs/blocks/DocSlashCommandPicker.jsx";
 import { NodeWritingBlockStack } from "../nodes/NodeWritingBlockStack.jsx";
@@ -85,6 +86,44 @@ export function NoteTaker({
   }, [nodeIdProp]);
 
   useEffect(() => {
+    if (nodeIdProp || resolvedNodeId) return;
+    if (!parentDocId || typeof blockIndex !== "number") return;
+    const doc = useDocsStore.getState().getDoc(parentDocId);
+    const blockNodeId = doc?.blocks?.[blockIndex]?.nodeId;
+    if (blockNodeId) setResolvedNodeId(blockNodeId);
+  }, [nodeIdProp, resolvedNodeId, parentDocId, blockIndex]);
+
+  const resolveTargetNodeId = useCallback(() => {
+    if (resolvedNodeId) return resolvedNodeId;
+    if (nodeIdProp) return nodeIdProp;
+    if (!parentDocId || typeof blockIndex !== "number") return null;
+    const doc = useDocsStore.getState().getDoc(parentDocId);
+    return doc?.blocks?.[blockIndex]?.nodeId || null;
+  }, [blockIndex, nodeIdProp, parentDocId, resolvedNodeId]);
+
+  const buildNodeContentPayload = useCallback((draftBody, dataType, existingNode = null) => {
+    const serialized = serializeNodeWritingBody(draftBody);
+    const hasStructuredContent = Boolean(serialized);
+    const plainText = draftBody.blocks
+      ?.filter((block) => block.type === NODE_BLOCK_TYPES.TEXT)
+      .map((block) => block.text)
+      .join("\n\n")
+      .trim() || "";
+    const textPayload = hasStructuredContent || inlineTodosEnabled ? serialized : plainText;
+
+    if (dataType === NODE_DATA_TYPES.VIDEO) {
+      const base = existingNode?.dataType === NODE_DATA_TYPES.VIDEO && existingNode.content
+        ? existingNode.content
+        : buildVideoNodeContent(null);
+      return hasStructuredContent
+        ? mergeVideoNodeContent(base, { writing: serialized })
+        : mergeVideoNodeContent(base, { notes: plainText });
+    }
+
+    return textPayload;
+  }, [inlineTodosEnabled]);
+
+  useEffect(() => {
     setWritingBody(readPanelDraft(node, inlineTodosEnabled));
     setWritingFocusTarget(null);
   }, [inlineTodosEnabled, resolvedNodeId, node?.id, node?.content, node?.dataType]);
@@ -129,27 +168,24 @@ export function NoteTaker({
 
   const createIntelNode = useCallback(
     (draftBody) => {
-      const serialized = serializeNodeWritingBody(draftBody);
-      const hasStructuredContent = Boolean(serialized);
-      const plainText = draftBody.blocks
-        ?.filter((block) => block.type === NODE_BLOCK_TYPES.TEXT)
-        .map((block) => block.text)
-        .join("\n\n")
-        .trim() || "";
-      const textPayload = hasStructuredContent || inlineTodosEnabled ? serialized : plainText;
-
       if (parentDocId && typeof blockIndex === "number") {
         const doc = useDocsStore.getState().getDoc(parentDocId);
         const block = doc?.blocks?.[blockIndex];
         if (block?.id) {
           const queryText = getBlockQueryText(block) || UNTITLED_NODE_TITLE;
+          const existingNodeId = resolveTargetNodeId() || block.nodeId || null;
+          const existingNode = existingNodeId
+            ? useNodesStore.getState().nodes[existingNodeId]
+            : null;
+          const dataType = blockDataType(block, doc.blocks, blockIndex);
+          const nodeContent = buildNodeContentPayload(draftBody, dataType, existingNode);
           const newId = createOrUpdateNodeFromDocBlock({
-            nodeId: resolvedNodeId || null,
+            nodeId: existingNodeId,
             docId: parentDocId,
             blockId: block.id,
             query: queryText,
-            content: textPayload,
-            dataType: NODE_DATA_TYPES.TEXT,
+            content: nodeContent,
+            dataType,
           });
           setResolvedNodeId(newId);
           useUIStateStore.getState().patchIntelSearchNodeId(newId);
@@ -158,8 +194,9 @@ export function NoteTaker({
         }
       }
 
-      const linkedNode = resolvedNodeId
-        ? useNodesStore.getState().nodes[resolvedNodeId]
+      const linkedNodeId = resolveTargetNodeId();
+      const linkedNode = linkedNodeId
+        ? useNodesStore.getState().nodes[linkedNodeId]
         : null;
       const nodeTitle = titleEditable
         ? ((draftTitle || "").trim() || UNTITLED_NODE_TITLE)
@@ -167,21 +204,33 @@ export function NoteTaker({
           ? ((linkedNode.sourceQuery || linkedNode.title || UNTITLED_NODE_TITLE).trim()
             || UNTITLED_NODE_TITLE)
           : UNTITLED_NODE_TITLE;
+      const dataType = linkedNode?.dataType || NODE_DATA_TYPES.TEXT;
+      const nodeContent = buildNodeContentPayload(draftBody, dataType, linkedNode);
 
-      const newId = addNode(nodeTitle, NODE_DATA_TYPES.TEXT, textPayload, null, {
-        sourceQuery: nodeTitle,
-      });
+      const newId = addNode(
+        nodeTitle,
+        dataType,
+        nodeContent,
+        parentDocId || null,
+        {
+          sourceQuery: nodeTitle,
+          sourceBlockId: linkedNode?.sourceBlockId || undefined,
+        },
+      );
       setResolvedNodeId(newId);
       useUIStateStore.getState().patchIntelSearchNodeId(newId);
+      if (parentDocId) {
+        syncNodeToParentDoc(newId, parentDocId);
+      }
       return newId;
     },
     [
       addNode,
       blockIndex,
+      buildNodeContentPayload,
       createOrUpdateNodeFromDocBlock,
-      inlineTodosEnabled,
       parentDocId,
-      resolvedNodeId,
+      resolveTargetNodeId,
       syncNodeToParentDoc,
       draftTitle,
       titleEditable,
@@ -206,7 +255,7 @@ export function NoteTaker({
       setSaving(true);
 
       try {
-        let targetNodeId = resolvedNodeId;
+        let targetNodeId = resolveTargetNodeId();
         let liveNode = targetNodeId ? useNodesStore.getState().nodes[targetNodeId] : null;
 
         if (!liveNode) {
@@ -239,16 +288,17 @@ export function NoteTaker({
           .join("\n\n")
           .trim() || "";
         const contentPayload = hasStructuredContent ? serialized : plainText;
+        const dataType = liveNode.dataType || NODE_DATA_TYPES.TEXT;
+        const nextContent = dataType === NODE_DATA_TYPES.VIDEO
+          ? buildNodeContentPayload(draftBody, NODE_DATA_TYPES.VIDEO, liveNode)
+          : contentPayload;
 
-        if (liveNode.dataType === NODE_DATA_TYPES.VIDEO) {
-          updateNode(targetNodeId, {
-            content: hasStructuredContent
-              ? mergeVideoNodeContent(liveNode.content, { writing: serialized })
-              : mergeVideoNodeContent(liveNode.content, { notes: contentPayload }),
-          });
-        } else {
-          updateNode(targetNodeId, { content: contentPayload });
-        }
+        updateNode(targetNodeId, {
+          content: nextContent,
+          ...(parentDocId && !liveNode.parentDocId
+            ? { parentDocId, linkedToDoc: true }
+            : {}),
+        });
 
         const parentId = liveNode.parentDocId || parentDocId || null;
         if (parentId) {
@@ -271,12 +321,13 @@ export function NoteTaker({
       }
     },
     [
+      buildNodeContentPayload,
       createIntelNode,
       draftTitle,
       inlineTodosEnabled,
       onClose,
       parentDocId,
-      resolvedNodeId,
+      resolveTargetNodeId,
       showToast,
       syncNodeToParentDoc,
       titleEditable,

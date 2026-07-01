@@ -20,6 +20,7 @@ import {
   nodeTodoMacroChecked,
 } from "./nodeTodoContent.js";
 import { buildVideoNodeContent } from "./videoEmbed.js";
+import { isNodeWritingBody } from "./nodeInlineContent.js";
 import {
   getCalendarEventDisplayText,
 } from "./calendarEventDisplay.js";
@@ -301,6 +302,10 @@ export function setContentForNodeBlock(blocks, blockIndex, content, dataType) {
 
 /** Opening the node from the doc: prefer block content when present, else node store. */
 export function resolveNodeDraftFromDoc(blockContent, node, dataType) {
+  if (isNodeWritingBody(blockContent)) {
+    return blockContent;
+  }
+
   if (blockContent != null && blockContent !== "") {
     if (dataType === NODE_DATA_TYPES.DATE && typeof blockContent === "object") {
       return normalizeDateContent(blockContent);
@@ -350,6 +355,10 @@ export function resolveNodeDraftFromDoc(blockContent, node, dataType) {
   if (dataType === NODE_DATA_TYPES.VIDEO) {
     if (node.content && typeof node.content === "object") return node.content;
     return buildVideoNodeContent(null, node.title || "");
+  }
+
+  if (isNodeWritingBody(node?.content)) {
+    return node.content;
   }
 
   return resolveTextNodeContent(node.content) ?? "";
