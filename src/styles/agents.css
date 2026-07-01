@@ -19,6 +19,16 @@
   color: var(--accent);
 }
 
+.lp-agent-card__icon--image {
+  width: 76px;
+  height: 62px;
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+  border-radius: 16px;
+  flex-shrink: 0;
+}
+
 .lp-agent-card__icon-svg {
   width: 22px;
   height: 22px;
@@ -34,7 +44,11 @@
 .lp-agent-card__desc {
   margin: 4px 0 0;
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .lp-agent-card__insert {
@@ -79,12 +93,61 @@
   color: var(--accent);
 }
 
+.cnode-agent__avatar--image {
+  width: 76px;
+  height: 62px;
+  margin-top: 0;
+  background: transparent;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+/* Agent illustration SVGs — orchestrator accent tone, slightly larger inside clip */
+.agent-avatar-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  transform: scale(1.18);
+  transform-origin: center center;
+  filter: var(--agent-avatar-filter);
+}
+
+:root {
+  --agent-avatar-filter:
+    sepia(0.16)
+    saturate(1.5)
+    hue-rotate(252deg)
+    brightness(1.06)
+    contrast(0.96);
+}
+
+:root[data-theme="light"] {
+  --agent-avatar-filter:
+    sepia(0.12)
+    saturate(1.42)
+    hue-rotate(255deg)
+    brightness(1.02)
+    contrast(1);
+}
+
+.lp-agent-card--disabled .agent-avatar-img {
+  filter: grayscale(0.35) sepia(0.08) saturate(0.85) hue-rotate(252deg) brightness(0.92);
+  opacity: 0.82;
+}
+
+.cnode-agent__avatar--image.is-running {
+  animation: cnode-agent-pulse 1.2s ease-in-out infinite;
+}
+
 .cnode-agent__avatar-svg {
   width: 24px;
   height: 24px;
 }
 
-.cnode-agent__avatar.is-running {
+.cnode-agent__avatar.is-running:not(.cnode-agent__avatar--image) {
   animation: cnode-agent-pulse 1.2s ease-in-out infinite;
 }
 

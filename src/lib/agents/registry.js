@@ -1,4 +1,6 @@
-/** @typedef {{ id: string, labelKey: string, descriptionKey: string, canvasTitle: string, icon: string | null, enabled?: boolean, disabledReasonKey?: string }} AgentDefinition */
+import { agentAvatarSrc } from "./agentAvatar.js";
+
+/** @typedef {{ id: string, labelKey: string, descriptionKey: string, canvasTitle: string, icon: string | null, avatarImage?: string | null, runUxMinMs?: number, enabled?: boolean, disabledReasonKey?: string }} AgentDefinition */
 
 export const AGENT_ORCHESTRATOR = "orchestrator";
 export const AGENT_CAMPAIGN_ANALYST = "campaign-analyst";
@@ -14,6 +16,7 @@ export const AGENTS = [
     descriptionKey: "agents.orchestrator.description",
     canvasTitle: "ORCHESTRATOR",
     icon: "orchestrator",
+    avatarImage: agentAvatarSrc("router.svg"),
     enabled: false,
     disabledReasonKey: "agents.orchestrator.disabled",
   },
@@ -23,6 +26,7 @@ export const AGENTS = [
     descriptionKey: "agents.campaignAnalyst.description",
     canvasTitle: "CAMPAIGN ANALYST",
     icon: "analyst",
+    avatarImage: agentAvatarSrc("analyst.svg"),
     enabled: true,
   },
   {
@@ -31,6 +35,7 @@ export const AGENTS = [
     descriptionKey: "agents.marketingGuide.description",
     canvasTitle: "MARKETING GUIDE",
     icon: "analyst",
+    avatarImage: agentAvatarSrc("marketing-guide.svg"),
     enabled: true,
   },
   {
@@ -39,6 +44,7 @@ export const AGENTS = [
     descriptionKey: "agents.socialHypeAnalyst.description",
     canvasTitle: "SOCIAL HYPE",
     icon: "analyst",
+    avatarImage: agentAvatarSrc("dash.svg"),
     enabled: true,
   },
   {
@@ -47,6 +53,8 @@ export const AGENTS = [
     descriptionKey: "agents.contentCreator.description",
     canvasTitle: "CONTENT CREATOR",
     icon: "analyst",
+    avatarImage: agentAvatarSrc("content-writer.svg"),
+    runUxMinMs: 18000,
     enabled: true,
   },
 ];

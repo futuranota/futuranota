@@ -62,7 +62,7 @@ import {
 import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
-import { AGENT_CAMPAIGN_ANALYST, AGENT_CONTENT_CREATOR, AGENT_MARKETING_GUIDE, AGENT_SOCIAL_HYPE_ANALYST, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
+import { AGENT_CAMPAIGN_ANALYST, AGENT_CONTENT_CREATOR, AGENT_MARKETING_GUIDE, AGENT_SOCIAL_HYPE_ANALYST, getAgentById, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
 import { initialNodeShapeFromSlash } from './lib/docBlockSlash.js';
 import { mergeVideoNodeContent } from './lib/videoEmbed.js';
 import { NODE_DATA_TYPES } from './lib/nodeDataTypes.js';
@@ -70,6 +70,11 @@ import { runCampaignAnalyst } from './lib/agents/runCampaignAnalyst.js';
 import { runMarketingGuideAgent } from './lib/agents/runMarketingGuideAgent.js';
 import { runSocialHypeAnalystAgent } from './lib/agents/runSocialHypeAnalystAgent.js';
 import { runContentCreatorAgent } from './lib/agents/runContentCreatorAgent.js';
+import {
+  formatScheduleAtLabel,
+  isScheduleNotDue,
+  resolveMacroScheduleAnchorAt,
+} from './lib/agents/agentScheduleGate.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
 import {
@@ -801,11 +806,10 @@ useEffect(() => {
     if (!agentNode || (agentNode.canvasKind !== "agent" && agentNode.dataType !== "agent")) return;
     if (agentNode.agentStatus === "running") return;
 
-    patchCanvasNode(canvasNodeId, { agentStatus: "running", agentError: "" });
-
     const selectedObjectId = useUIStateStore.getState().selectedObjectId;
     const locale = useLocaleStore.getState().locale;
     const agentId = agentNode.agentId || AGENT_CAMPAIGN_ANALYST;
+    const agentDef = getAgentById(agentId);
 
     if (!isAgentEnabled(agentId)) {
       patchCanvasNode(canvasNodeId, {
@@ -828,8 +832,27 @@ useEffect(() => {
       return;
     }
 
-    const result = agentId === AGENT_MARKETING_GUIDE
-      ? await runMarketingGuideAgent({
+    if (agentId === AGENT_CONTENT_CREATOR) {
+      const scheduleAnchorAt = resolveMacroScheduleAnchorAt({
+        agentCanvasNodeId: canvasNodeId,
+        canvasNodes,
+        connections: canvasConns,
+        nodeEntitiesById: nodeEntities,
+      });
+      if (isScheduleNotDue(scheduleAnchorAt)) {
+        const message = translate("agents.errors.schedule_not_due", locale, {
+          schedule: formatScheduleAtLabel(scheduleAnchorAt),
+        });
+        setToast({ message, kind: "warm" });
+        return;
+      }
+    }
+
+    patchCanvasNode(canvasNodeId, { agentStatus: "running", agentError: "" });
+
+    const minUxMs = agentDef?.runUxMinMs ?? 0;
+    const runAgent = () => (agentId === AGENT_MARKETING_GUIDE
+      ? runMarketingGuideAgent({
         agentCanvasNodeId: canvasNodeId,
         canvasNodes,
         connections: canvasConns,
@@ -839,7 +862,7 @@ useEffect(() => {
         locale,
       })
       : agentId === AGENT_SOCIAL_HYPE_ANALYST
-        ? await runSocialHypeAnalystAgent({
+        ? runSocialHypeAnalystAgent({
           agentCanvasNodeId: canvasNodeId,
           canvasNodes,
           connections: canvasConns,
@@ -849,7 +872,7 @@ useEffect(() => {
           locale,
         })
         : agentId === AGENT_CONTENT_CREATOR
-          ? await runContentCreatorAgent({
+          ? runContentCreatorAgent({
             agentCanvasNodeId: canvasNodeId,
             canvasNodes,
             connections: canvasConns,
@@ -859,16 +882,23 @@ useEffect(() => {
             selectedObjectId,
             locale,
           })
-          : await runCampaignAnalyst({
-        agentCanvasNodeId: canvasNodeId,
-        canvasNodes,
-        connections: canvasConns,
-        docsById: useDocsStore.getState().docs,
-        objectsById: objects,
-        nodeEntitiesById: nodeEntities,
-        selectedObjectId,
-        locale,
-      });
+          : runCampaignAnalyst({
+            agentCanvasNodeId: canvasNodeId,
+            canvasNodes,
+            connections: canvasConns,
+            docsById: useDocsStore.getState().docs,
+            objectsById: objects,
+            nodeEntitiesById: nodeEntities,
+            selectedObjectId,
+            locale,
+          }));
+
+    const [result] = await Promise.all([
+      runAgent(),
+      minUxMs > 0
+        ? new Promise((resolve) => { setTimeout(resolve, minUxMs); })
+        : Promise.resolve(),
+    ]);
 
     if (result.status === "success") {
       patchCanvasNode(canvasNodeId, {

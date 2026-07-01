@@ -36,7 +36,7 @@ import {
   resolveNodeParentDocId,
 } from './lib/nodeParentAdoption.js';
 import { useI18n } from './i18n/useI18n.js';
-import { AgentIcon } from './components/agents/AgentIcon.jsx';
+import { AgentCanvasAvatar } from './components/agents/AgentCanvasAvatar.jsx';
 import { getAgentById, getAgentLabel, isAgentEnabled } from './lib/agents/registry.js';
 import { getAgentCreditCost } from './lib/agents/agentCreditCosts.js';
 import { usePlanStore } from './stores/planStore.js';
@@ -562,12 +562,19 @@ function CanvasNode({
       const agentEnabled = isAgentEnabled(node.agentId || "orchestrator");
       const creditCost = getAgentCreditCost(node.agentId);
       const { counter: creditsCounter, remaining: creditsRemaining } = creditsDisplay;
+      const hasAvatarImage = Boolean(agentDef?.avatarImage);
       return (
         <div className="cnode-agent" onPointerDown={(e) => e.stopPropagation()}>
-          <div className={`cnode-agent__avatar${isRunning ? " is-running" : ""}`}>
-            <AgentIcon
-              variant={agentDef?.icon || node.agentId || "orchestrator"}
-              className="cnode-agent__avatar-svg"
+          <div
+            className={[
+              "cnode-agent__avatar",
+              hasAvatarImage ? "cnode-agent__avatar--image" : "",
+              isRunning ? "is-running" : "",
+            ].filter(Boolean).join(" ")}
+          >
+            <AgentCanvasAvatar
+              imageSrc={agentDef?.avatarImage}
+              iconVariant={agentDef?.icon || node.agentId || "orchestrator"}
             />
           </div>
           <div className="cnode-agent__run-row">

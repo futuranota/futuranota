@@ -186,24 +186,24 @@ export const messages = {
       insertToCanvas: "Insert to canvas",
       orchestrator: {
         name: "Orchestrator",
-        description: "Guides available agents on the canvas. Run filters intent and delegates to specialists (e.g. Campaign Analyst). Connect company + campaign doc.",
+        description: "Delegates runs to specialist agents. Connect company + campaign doc.",
         disabled: "Coming soon — use Campaign Analyst for now.",
       },
       campaignAnalyst: {
         name: "Campaign Analyst",
-        description: "Brand intelligence report into the connected doc — facts, launch window, weather analogy + Launch Radar handoff. Connect company → Analyst → campaign doc.",
+        description: "Brand intel report into the connected doc. Company → Analyst → campaign doc.",
       },
       marketingGuide: {
         name: "Marketing Guide",
-        description: "Teaches Futura Nota step by step — works with or without Analyst. Optional brand context from market data. Creates Playbook doc. Connect company → Marketing Guide.",
+        description: "Step-by-step Futura Nota playbook. Company → Marketing Guide.",
       },
       socialHypeAnalyst: {
         name: "Social Hype Analyst",
-        description: "Maps where the brand invests social attention with a cordial, educational report — per-network conversation types and mix nuances. Connect company → Social Hype → optional doc.",
+        description: "Maps social attention per network. Company → Social Hype → optional doc.",
       },
       contentCreator: {
         name: "Content Creator",
-        description: "Reads /agent in your content document OR macro node. Macro mode: writes a full blog draft inside the wired macro node using its title. Doc mode: content plan todo. Connect company + macro or doc → Content Creator.",
+        description: "Plans or writes from /agent in a doc or macro node. Company + doc/macro → Creator.",
       },
       run: "Run",
       running: "Running…",
@@ -238,6 +238,7 @@ export const messages = {
         content_creator_api: "Content Creator request failed.",
         content_creator_apply: "Could not write the content plan to the document.",
         content_creator_macro_apply: "Could not write the blog into the macro node.",
+        schedule_not_due: "Scheduled for {schedule}. Run unlocks at that date and time.",
       },
     },
     intel: {
@@ -755,24 +756,24 @@ export const messages = {
       insertToCanvas: "Insertar en canvas",
       orchestrator: {
         name: "Orquestador",
-        description: "Guía los agentes disponibles en el canvas. Run filtra intención y delega a especialistas (ej. Analista de campaña). Conectá compañía + doc campaña.",
+        description: "Delega ejecuciones a agentes especialistas. Conectá compañía + doc campaña.",
         disabled: "Próximamente — usá Analista de campaña por ahora.",
       },
       campaignAnalyst: {
         name: "Analista de campaña",
-        description: "Informe de inteligencia de marca en el doc conectado — hechos, ventana de lanzamiento, analogía clima + handoff Launch Radar. Conectá compañía → Analista → doc campaña.",
+        description: "Informe de inteligencia de marca en el doc. Compañía → Analista → doc campaña.",
       },
       marketingGuide: {
         name: "Marketing Guide",
-        description: "Enseña Futura Nota paso a paso — funciona con o sin Analista. Contexto opcional de mercado por marca. Crea doc Playbook. Conectá compañía → Marketing Guide.",
+        description: "Playbook paso a paso de Futura Nota. Compañía → Marketing Guide.",
       },
       socialHypeAnalyst: {
         name: "Analista Social Hype",
-        description: "Mapea dónde invierte atención social la marca con un informe cordial y educativo — conversación por red y matices del mix. Conectá compañía → Social Hype → doc opcional.",
+        description: "Mapa de atención social por red. Compañía → Social Hype → doc opcional.",
       },
       contentCreator: {
         name: "Content Creator",
-        description: "Lee /agent en tu documento content O en el macronodo. Modo macro: escribe el borrador del blog dentro del macronodo usando su título. Modo doc: plan todo. Conectá compañía + macro o doc → Content Creator.",
+        description: "Planifica o escribe desde /agent en doc o macronodo. Compañía + doc/macro → Creator.",
       },
       run: "Run",
       running: "Ejecutando…",
@@ -807,6 +808,7 @@ export const messages = {
         content_creator_api: "Falló la solicitud del Content Creator.",
         content_creator_apply: "No se pudo escribir el plan de contenido en el documento.",
         content_creator_macro_apply: "No se pudo escribir el blog en el macronodo.",
+        schedule_not_due: "Programado para {schedule}. Run se habilita en esa fecha y hora.",
       },
     },
     upgrade: {

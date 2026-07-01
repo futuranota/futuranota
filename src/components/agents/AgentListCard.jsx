@@ -1,6 +1,6 @@
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { useI18n } from "../../i18n/useI18n.js";
-import { AgentIcon } from "./AgentIcon.jsx";
+import { AgentCanvasAvatar } from "./AgentCanvasAvatar.jsx";
 
 /**
  * @param {{ agent: import("../../lib/agents/registry.js").AgentDefinition, onInsert: (agentId: string) => void }} props
@@ -12,8 +12,18 @@ export function AgentListCard({ agent, onInsert }) {
 
   return (
     <div className={"lp-agent-card fn-card" + (enabled ? "" : " lp-agent-card--disabled")}>
-      <div className="lp-agent-card__icon" aria-hidden>
-        <AgentIcon variant={agent.icon || agent.id} className="lp-agent-card__icon-svg" />
+      <div
+        className={[
+          "lp-agent-card__icon",
+          agent.avatarImage ? "lp-agent-card__icon--image" : "",
+        ].filter(Boolean).join(" ")}
+        aria-hidden
+      >
+        <AgentCanvasAvatar
+          imageSrc={agent.avatarImage}
+          iconVariant={agent.icon || agent.id}
+          imgClassName="lp-agent-card__avatar-img"
+        />
       </div>
       <div className="lp-agent-card__body">
         <p className="lp-agent-card__title">{t(agent.labelKey)}</p>
