@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTina } from 'tinacms/dist/react';
+import { BlogDocument } from '../../../tina/__generated__/types.js';
 import { getBlogArticleBySlug } from './content.js';
 import { fetchTinaBlogPost } from './tinaClient.js';
 
@@ -15,7 +16,7 @@ export function useTinaBlogPostLoader(slug) {
 
   const fallbackPayload = useMemo(
     () => ({
-      query: '',
+      query: BlogDocument,
       variables: { relativePath },
       data: { blog: staticArticle },
     }),

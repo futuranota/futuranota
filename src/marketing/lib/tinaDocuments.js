@@ -1,4 +1,12 @@
 import {
+  SiteDocument,
+  HomeDocument,
+  HorizonDocument,
+  HowDocument,
+  MarketplaceDocument,
+  BlogsPageDocument,
+} from '../../../tina/__generated__/types.js';
+import {
   getSite,
   getHome,
   getHorizon,
@@ -23,6 +31,7 @@ export const TINA_DOCUMENTS = {
   site: {
     relativePath: 'site.json',
     rootKey: 'site',
+    query: SiteDocument,
     getStatic: getSite,
     runQuery: (client, vars) => client.queries.site(vars),
     formPath: 'content/marketing/site.json',
@@ -31,6 +40,7 @@ export const TINA_DOCUMENTS = {
   home: {
     relativePath: 'home.json',
     rootKey: 'home',
+    query: HomeDocument,
     getStatic: getHome,
     runQuery: (client, vars) => client.queries.home(vars),
     formPath: 'content/marketing/home.json',
@@ -39,6 +49,7 @@ export const TINA_DOCUMENTS = {
   horizon: {
     relativePath: 'horizon.json',
     rootKey: 'horizon',
+    query: HorizonDocument,
     getStatic: getHorizon,
     runQuery: (client, vars) => client.queries.horizon(vars),
     formPath: 'content/marketing/horizon.json',
@@ -47,6 +58,7 @@ export const TINA_DOCUMENTS = {
   how: {
     relativePath: 'how.json',
     rootKey: 'how',
+    query: HowDocument,
     getStatic: getHow,
     runQuery: (client, vars) => client.queries.how(vars),
     formPath: 'content/marketing/how.json',
@@ -55,6 +67,7 @@ export const TINA_DOCUMENTS = {
   marketplace: {
     relativePath: 'marketplace.json',
     rootKey: 'marketplace',
+    query: MarketplaceDocument,
     getStatic: getMarketplace,
     runQuery: (client, vars) => client.queries.marketplace(vars),
     formPath: 'content/marketing/marketplace.json',
@@ -63,6 +76,7 @@ export const TINA_DOCUMENTS = {
   blogsPage: {
     relativePath: 'blogs-page.json',
     rootKey: 'blogsPage',
+    query: BlogsPageDocument,
     getStatic: getBlogsPage,
     runQuery: (client, vars) => client.queries.blogsPage(vars),
     formPath: 'content/marketing/blogs-page.json',

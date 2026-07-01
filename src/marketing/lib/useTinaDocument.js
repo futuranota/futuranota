@@ -5,7 +5,8 @@ import { TINA_DOCUMENTS } from './tinaDocuments.js';
 
 /**
  * Loads a Tina document and keeps it live inside the admin preview iframe.
- * In dev, waits for GraphQL before syncing with useTina (avoids empty-query race).
+ * Embeds the generated GraphQL query in production so the postMessage bridge
+ * hashes match Tina admin (live preview sync). In dev, fetches via GraphQL first.
  * @param {keyof typeof TINA_DOCUMENTS} docKey
  */
 export function useTinaDocument(docKey) {
@@ -15,11 +16,11 @@ export function useTinaDocument(docKey) {
   const staticDoc = useMemo(() => getStatic(), [docKey]);
   const fallbackPayload = useMemo(
     () => ({
-      query: '',
+      query: config.query,
       variables: { relativePath },
       data: { [rootKey]: staticDoc },
     }),
-    [relativePath, rootKey, staticDoc],
+    [config.query, relativePath, rootKey, staticDoc],
   );
 
   const [payload, setPayload] = useState(fallbackPayload);

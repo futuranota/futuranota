@@ -1,7 +1,9 @@
 /**
  * Tina GraphQL client — loaded only in dev (visual editing / admin preview).
- * Production builds use static JSON from content.js.
+ * Production builds embed static queries from tina/__generated__ for live preview sync.
  */
+
+import { BlogDocument } from '../../../tina/__generated__/types.js';
 
 let clientPromise = null;
 
@@ -43,7 +45,7 @@ export async function fetchTinaQuery(docKey, variables) {
   const { TINA_DOCUMENTS } = await import('./tinaDocuments.js');
   const config = TINA_DOCUMENTS[docKey];
   const staticPayload = {
-    query: '',
+    query: config.query,
     variables,
     data: { [config.rootKey]: config.getStatic() },
   };
@@ -71,7 +73,7 @@ export async function fetchTinaBlogPost(slug) {
   const relativePath = `${slug}.json`;
   const staticArticle = (await import('./content.js')).getBlogArticleBySlug(slug);
   const staticPayload = {
-    query: '',
+    query: BlogDocument,
     variables: { relativePath },
     data: { blog: staticArticle },
   };
