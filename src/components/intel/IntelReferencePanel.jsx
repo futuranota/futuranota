@@ -37,6 +37,7 @@ export function IntelReferencePanel({
           parentDocId={parentDocId}
           blockIndex={blockIndex}
           onClose={onClose}
+          inlineTodosEnabled
         />
       </div>
     </div>,

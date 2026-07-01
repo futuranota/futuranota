@@ -109,7 +109,9 @@ export function scrollTextareaCaretIntoCameraView(textarea, options = {}) {
     caretRect = readCaretRect();
   }
 
-  const contentScroll = textarea.closest(".doc-new-content-scroll");
+  const contentScroll = textarea.closest(".doc-new-content-scroll")
+    || textarea.closest(".note-taker__content-scroll")
+    || textarea.closest(".node-query-modal__content-scroll");
   if (!contentScroll) return;
 
   const box = contentScroll.getBoundingClientRect();
@@ -118,6 +120,44 @@ export function scrollTextareaCaretIntoCameraView(textarea, options = {}) {
     const delta = caretBottom - (box.bottom - clipPadding);
     contentScroll.scrollBy({ top: delta, behavior: "instant" });
   }
+}
+
+const WRITING_SCROLL_PARENT_SELECTORS = [
+  ".note-taker__content-scroll",
+  ".node-query-modal__content-scroll",
+];
+
+function findWritingScrollParent(textarea) {
+  if (!textarea) return null;
+  for (const selector of WRITING_SCROLL_PARENT_SELECTORS) {
+    const parent = textarea.closest(selector);
+    if (parent) return parent;
+  }
+  return null;
+}
+
+/** Auto-grow textarea height without jumping the outer scroll container. */
+export function syncAutoGrowTextareaHeight(textarea) {
+  if (!textarea) return;
+
+  const scrollParent = findWritingScrollParent(textarea);
+  const parentScrollTop = scrollParent?.scrollTop ?? null;
+  const prevParentScrollHeight = scrollParent?.scrollHeight ?? 0;
+  const wasPinnedToBottom = scrollParent
+    ? parentScrollTop + scrollParent.clientHeight >= prevParentScrollHeight - 2
+    : false;
+
+  textarea.style.height = "auto";
+  textarea.style.height = `${textarea.scrollHeight}px`;
+
+  if (!scrollParent || parentScrollTop === null) return;
+
+  if (wasPinnedToBottom) {
+    scrollParent.scrollTop = scrollParent.scrollHeight;
+    return;
+  }
+
+  scrollParent.scrollTop = parentScrollTop;
 }
 
 /** Reset inner + outer scroll after a large content deletion. */

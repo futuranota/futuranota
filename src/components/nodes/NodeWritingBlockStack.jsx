@@ -8,6 +8,7 @@ import {
   normalizeWritingBlocks,
   removeWritingBlockAt,
 } from "../../lib/nodeInlineContent.js";
+import { syncAutoGrowTextareaHeight } from "../../lib/textareaSelectionRect.js";
 import { H1BlockView } from "../docs/blocks/H1BlockView.jsx";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
 import { CodeBlockView } from "../docs/blocks/CodeBlockView.jsx";
@@ -16,9 +17,7 @@ import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 
 function syncTextareaHeight(el) {
-  if (!el) return;
-  el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
+  syncAutoGrowTextareaHeight(el);
 }
 
 function isAtInputStart(e) {
@@ -108,7 +107,7 @@ export function NodeWritingBlockStack({
 
   useEffect(() => {
     if (focusTarget?.blockIndex == null) return undefined;
-    const block = normalizeWritingBlocks(blocks)[focusTarget.blockIndex];
+    const block = normalizeWritingBlocks(blocksRef.current)[focusTarget.blockIndex];
     if (!block?.id) return undefined;
 
     let cancelled = false;
@@ -123,7 +122,7 @@ export function NodeWritingBlockStack({
           const blockRect = blockEl.getBoundingClientRect();
           const rootRect = scrollParent.getBoundingClientRect();
           if (blockRect.top < rootRect.top || blockRect.bottom > rootRect.bottom) {
-            blockEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            blockEl.scrollIntoView({ block: "nearest", behavior: "auto" });
           }
         }
 
@@ -138,7 +137,7 @@ export function NodeWritingBlockStack({
       cancelled = true;
       cancelAnimationFrame(frame);
     };
-  }, [blocks, focusTarget]);
+  }, [focusTarget]);
 
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));

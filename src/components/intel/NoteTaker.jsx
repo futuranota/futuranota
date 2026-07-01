@@ -40,11 +40,11 @@ function readPanelDraft(node, inlineWritingEnabled) {
     return getVideoWritingBody(node.content);
   }
 
-  if (inlineWritingEnabled && node.dataType === NODE_DATA_TYPES.TEXT) {
+  if (node.dataType === NODE_DATA_TYPES.TEXT) {
     return parseNodeWritingBody(node.content);
   }
 
-  if (node.dataType === NODE_DATA_TYPES.TEXT && typeof node.content === "string") {
+  if (inlineWritingEnabled) {
     return parseNodeWritingBody(node.content);
   }
 
@@ -130,12 +130,13 @@ export function NoteTaker({
   const createIntelNode = useCallback(
     (draftBody) => {
       const serialized = serializeNodeWritingBody(draftBody);
+      const hasStructuredContent = Boolean(serialized);
       const plainText = draftBody.blocks
         ?.filter((block) => block.type === NODE_BLOCK_TYPES.TEXT)
         .map((block) => block.text)
         .join("\n\n")
         .trim() || "";
-      const textPayload = inlineTodosEnabled ? serialized : plainText;
+      const textPayload = hasStructuredContent || inlineTodosEnabled ? serialized : plainText;
 
       if (parentDocId && typeof blockIndex === "number") {
         const doc = useDocsStore.getState().getDoc(parentDocId);
@@ -196,7 +197,10 @@ export function NoteTaker({
       } = {},
     ) => {
       const serialized = serializeNodeWritingBody(draftBody);
-      if (!serialized) return false;
+      const hasStructuredContent = Boolean(serialized);
+      if (!hasStructuredContent && !nodeWritingBlocksHaveContent(draftBody.blocks)) {
+        return false;
+      }
 
       const startedAt = Date.now();
       setSaving(true);
@@ -229,19 +233,21 @@ export function NoteTaker({
           }
         }
 
+        const plainText = draftBody.blocks
+          ?.filter((block) => block.type === NODE_BLOCK_TYPES.TEXT)
+          .map((block) => block.text)
+          .join("\n\n")
+          .trim() || "";
+        const contentPayload = hasStructuredContent ? serialized : plainText;
+
         if (liveNode.dataType === NODE_DATA_TYPES.VIDEO) {
           updateNode(targetNodeId, {
-            content: mergeVideoNodeContent(liveNode.content, { writing: serialized }),
+            content: hasStructuredContent
+              ? mergeVideoNodeContent(liveNode.content, { writing: serialized })
+              : mergeVideoNodeContent(liveNode.content, { notes: contentPayload }),
           });
-        } else if (inlineTodosEnabled) {
-          updateNode(targetNodeId, { content: serialized });
         } else {
-          const plainText = draftBody.blocks
-            ?.filter((block) => block.type === NODE_BLOCK_TYPES.TEXT)
-            .map((block) => block.text)
-            .join("\n\n")
-            .trim() || "";
-          updateNode(targetNodeId, { content: plainText });
+          updateNode(targetNodeId, { content: contentPayload });
         }
 
         const parentId = liveNode.parentDocId || parentDocId || null;
@@ -294,6 +300,7 @@ export function NoteTaker({
       || e.target.closest(".doc-code-block")
       || e.target.closest(".doc-vault-block")
       || e.target.closest(".node-writing-text-field")
+      || e.target.closest(".note-taker__input")
       || e.target.closest(".note-taker__writing-stack")
       || e.target.closest(".note-taker__save")
       || e.target.closest(".note-taker__content-box")
