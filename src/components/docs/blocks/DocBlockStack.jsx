@@ -33,7 +33,7 @@ import {
   parseSlashQuery,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
-import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner } from "../../../lib/docNodeSync.js";
+import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import {
   buildDetachedWidgetEmbedded,
@@ -402,7 +402,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         && isDocBlockLinkedToNode(block)
       ) {
         const ensured = ensureContinuationAfterLinkedOwner(next, i);
-        if (ensured.length !== next.length) {
+        if (ensured !== next) {
           next = ensured;
           changed = true;
         }
@@ -647,11 +647,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   const insertTextAfter = (index, initialText = "", sourceBlocks = null, options = {}) => {
     const { skipFocus = false } = options;
-    const current = sourceBlocks ?? blocksRef.current;
-    const nextBlock = current[index + 1];
-    const h1Index = current[index]?.type === DOC_BLOCK_TYPES.H1 ? index : -1;
+    let current = sourceBlocks ?? blocksRef.current;
+    const ownerBlock = current[index];
+    const h1Index = ownerBlock?.type === DOC_BLOCK_TYPES.H1 ? index : -1;
+    const linkedOwnerIndex = (
+      ownerBlock?.type === DOC_BLOCK_TYPES.H1
+      || ownerBlock?.type === DOC_BLOCK_TYPES.TODO
+    ) && isDocBlockLinkedToNode(ownerBlock)
+      ? index
+      : -1;
 
-    if (h1Index >= 0 && nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+    if (h1Index >= 0 && current[h1Index + 1]?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+      const nextBlock = current[h1Index + 1];
       const videoReady = Boolean(nextBlock.embedSaved && nextBlock.embedSrc);
       if (!videoReady) {
         if (!skipFocus) {
@@ -666,25 +673,44 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       return insertTextAfter(h1Index + 1, initialText, current, options);
     }
 
+    let targetIndex = linkedOwnerIndex >= 0
+      ? getWritableTextIndexBelowLinkedOwner(current, linkedOwnerIndex)
+      : index + 1;
+
+    if (linkedOwnerIndex >= 0) {
+      const ensured = ensureContinuationAfterLinkedOwner(current, linkedOwnerIndex);
+      if (ensured !== current) {
+        current = ensured;
+        setBlocks(ensured);
+      }
+      targetIndex = getWritableTextIndexBelowLinkedOwner(current, linkedOwnerIndex);
+    }
+
+    const nextBlock = current[targetIndex];
+
     if (isEmptyTextBlock(nextBlock)) {
       if (initialText) {
-        const next = updateBlockAt(current, index + 1, { text: initialText });
+        const next = updateBlockAt(current, targetIndex, { text: initialText });
         setBlocks(next);
-        if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, initialText);
-      } else {
-        setBlocks([...current]);
+        if (h1Index >= 0 && linkedOwnerIndex < 0) {
+          onAnswerBelowH1Change?.(h1Index, initialText);
+        }
+      } else if (current !== blocksRef.current) {
+        setBlocks(current);
       }
-      if (!skipFocus) {
+      if (!skipFocus && nextBlock?.id) {
         focusBlockCaret(nextBlock.id, initialText ? initialText.length : 0);
       }
       requestContentGrow();
-      return nextBlock.id;
+      return nextBlock?.id ?? null;
     }
 
     const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: initialText });
-    const next = insertBlockAfter(current, index, textBlock);
+    const next = insertBlockAfter(current, targetIndex, textBlock);
     setBlocks(next);
-    if (h1Index >= 0 && initialText) onAnswerBelowH1Change?.(h1Index, initialText);
+    if (h1Index >= 0 && initialText && linkedOwnerIndex < 0) {
+      onAnswerBelowH1Change?.(h1Index, initialText);
+    }
     if (!skipFocus) {
       onFocusBlock?.(textBlock.id);
       focusBlockCaret(textBlock.id, initialText.length);
@@ -1105,7 +1131,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     <div className="doc-block-stack" ref={stackRef}>
       {blocks.map((block, index) => {
         const itemHidden =
-          block.type === DOC_BLOCK_TYPES.TEXT && isTextHiddenByParentCollapse(index);
+          block.type === DOC_BLOCK_TYPES.TEXT
+          && (isTextHiddenByParentCollapse(index)
+            || isTextHiddenByLinkedMacroNode(blocks, index));
         const ownerIndexForBlock =
           block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO
             ? index
@@ -1125,6 +1153,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           : null;
 
         if (block.type === DOC_BLOCK_TYPES.TEXT && isLinkedOwnerContinuationSlot(blocks, index)) {
+          if (getLinkedOwnerForContinuationSlot(blocks, index) < 0) {
+            return null;
+          }
+        }
+
+        if (block.type === DOC_BLOCK_TYPES.TEXT && isTextHiddenByLinkedMacroNode(blocks, index)) {
           return null;
         }
 
@@ -1383,6 +1417,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.TEXT && !isCollapsedPadWriteBlock(block.id) ? (
             (() => {
               const linkedOwnerIndex = getLinkedOwnerIndexForTextBlock(blocks, index);
+              const continuationOwnerIndex = getLinkedOwnerForContinuationSlot(blocks, index);
+              const isLinkedContinuation = continuationOwnerIndex >= 0;
               const continuationIndex = linkedOwnerIndex >= 0
                 ? getLinkedContinuationTextIndex(blocks, linkedOwnerIndex)
                 : -1;
@@ -1391,6 +1427,20 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 : null;
               const isPrimaryReportBlock = isAnalystReport
                 && index === blocks.findIndex((b) => b.type === DOC_BLOCK_TYPES.TEXT);
+
+              if (isLinkedContinuation) {
+                return (
+                  <TextBlockView
+                    value={block.text || ""}
+                    placeholder={bodyPlaceholder}
+                    showPlaceholder={false}
+                    autoFocus={focusBlockId === block.id && !itemHidden}
+                    onFocus={() => onFocusBlock?.(block.id)}
+                    onChange={(text) => updateAt(index, { text })}
+                    onKeyDown={(e) => handleTextKeyDown(index, e)}
+                  />
+                );
+              }
 
               return (
             <TextBlockView

@@ -223,6 +223,35 @@ export function serializeNodeWritingBody({ blocks } = {}) {
   };
 }
 
+/** Plain string for Zustand when draft is text-only; keep node-body for structural blocks. */
+export function nodeDraftContentForStorage(content, dataType = "text") {
+  if (dataType !== "text") return content;
+  if (
+    content
+    && typeof content === "object"
+    && !Array.isArray(content)
+    && content.kind
+    && content.kind !== NODE_BODY_KIND
+  ) {
+    return content;
+  }
+  if (typeof content === "string") return content;
+  if (!isNodeWritingBody(content)) return content;
+
+  const { blocks } = parseNodeWritingBody(content);
+  const normalized = normalizeWritingBlocks(blocks);
+  const hasStructure = normalized.some((block) => block.type !== NODE_BLOCK_TYPES.TEXT);
+  if (hasStructure) {
+    return serializeNodeWritingBody({ blocks: normalized });
+  }
+
+  const textBlocks = normalized.filter((block) => block.type === NODE_BLOCK_TYPES.TEXT);
+  if (textBlocks.length <= 1) {
+    return textBlocks[0]?.text ?? "";
+  }
+  return textBlocks.map((block) => block.text).join("\n\n");
+}
+
 export function getNodeWritingPlainText(blocks) {
   return normalizeWritingBlocks(blocks)
     .filter((block) => block.type === NODE_BLOCK_TYPES.TEXT)

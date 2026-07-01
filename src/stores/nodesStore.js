@@ -26,6 +26,7 @@ import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/n
 import {
   getNodeWritingPlainText,
   isNodeWritingBody,
+  nodeDraftContentForStorage,
   NODE_BLOCK_TYPES,
   parseNodeWritingBody,
 } from "../lib/nodeInlineContent.js";
@@ -189,27 +190,30 @@ export const useNodesStore = create(
         anchorAt = undefined,
       }) => {
         const title = (query || "").trim() || "Untitled query";
+        const defaultContent = dataType === "checkbox"
+          ? createDefaultNodeTodoContent()
+          : dataType === "date"
+            ? { date: "", time: "" }
+            : dataType === "metric"
+              ? { value: "", unit: "" }
+              : dataType === "video"
+                ? {
+                    kind: "embedded-video",
+                    provider: "unknown",
+                    videoId: "",
+                    embedSrc: "",
+                    rawInput: "",
+                    description: "",
+                  }
+                : "";
+        const resolvedContent = dataType === "text"
+          ? nodeDraftContentForStorage(content ?? "", dataType)
+          : (content ?? defaultContent);
+
         const payload = {
           title,
           dataType,
-          content: content ?? (
-            dataType === "checkbox"
-              ? createDefaultNodeTodoContent()
-              : dataType === "date"
-                ? { date: "", time: "" }
-                : dataType === "metric"
-                  ? { value: "", unit: "" }
-                  : dataType === "video"
-                    ? {
-                        kind: "embedded-video",
-                        provider: "unknown",
-                        videoId: "",
-                        embedSrc: "",
-                        rawInput: "",
-                        description: "",
-                      }
-                    : ""
-          ),
+          content: resolvedContent,
           sourceBlockId: blockId,
           sourceQuery: query || title,
         };

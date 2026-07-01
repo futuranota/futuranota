@@ -22,6 +22,8 @@ import {
   setContentForNodeBlock,
   syncVideoNodeFromH1Blocks,
   syncVideoNodeFromVideoBlock,
+  isDocBlockLinkedToNode,
+  shouldMirrorNodeContentInDoc,
 } from "../../lib/docNodeSync.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
@@ -83,9 +85,15 @@ export function useDocBlockNodeModal({
   };
 
   const handleAnswerBelowH1Change = (h1Index, text) => {
+    const owner = blocks[h1Index];
+    if (owner && isDocBlockLinkedToNode(owner)) return;
     setBlocks((prev) => {
       const block = prev[h1Index];
-      if (block?.nodeId && !h1HasVideoEmbedSibling(prev, h1Index)) {
+      if (
+        block?.nodeId
+        && !h1HasVideoEmbedSibling(prev, h1Index)
+        && !isDocBlockLinkedToNode(block)
+      ) {
         const dataType = blockDataType(block, prev, h1Index);
         const queryText = getBlockQueryText(block) || "Untitled query";
         updateNode(block.nodeId, {
@@ -153,9 +161,15 @@ export function useDocBlockNodeModal({
       }
 
       let next = updateBlockAt(prev, blockIndex, patch);
-      next = setContentForNodeBlock(next, blockIndex, content, dataType);
-      if (dataType === NODE_DATA_TYPES.TEXT) {
-        next = setAnswerBelowH1(next, blockIndex, typeof content === "string" ? content : "");
+      if (shouldMirrorNodeContentInDoc(current)) {
+        next = setContentForNodeBlock(next, blockIndex, content, dataType);
+        if (dataType === NODE_DATA_TYPES.TEXT) {
+          next = setAnswerBelowH1(
+            next,
+            blockIndex,
+            typeof content === "string" ? content : "",
+          );
+        }
       }
       return next;
     });
@@ -246,7 +260,9 @@ export function useDocBlockNodeModal({
     const existing = (ensuredNodeId || block.nodeId) ? getNode(ensuredNodeId || block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block, blocks, blockIndex);
 
-    if (block.type === DOC_BLOCK_TYPES.H1 && dataType === NODE_DATA_TYPES.TEXT) {
+    if (isDocBlockLinkedToNode(block) && existing) {
+      blockContent = existing.content;
+    } else if (block.type === DOC_BLOCK_TYPES.H1 && dataType === NODE_DATA_TYPES.TEXT) {
       const answer = getAnswerBelowH1(blocks, blockIndex);
       if (answer.trim()) blockContent = answer;
     }
@@ -287,16 +303,12 @@ export function useDocBlockNodeModal({
       nodeAutosaveTimerRef.current = null;
     }
 
-    const { blockId, blockIndex, nodeId, query, dataType, blockType } = activeNodeContext;
+    const context = { ...activeNodeContext };
+    const { blockIndex, nodeId, dataType, blockType } = context;
     const block = blocks[blockIndex];
     if (!block || block.type !== blockType) return;
 
-    const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
-    const anchorAt = supportsScheduleAnchor(dataType)
-      ? isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorTime)
-      : null;
-
-    const existingNode = nodeId ? getNode(nodeId) : null;
+    const existingNode = (nodeId || block.nodeId) ? getNode(nodeId || block.nodeId) : null;
     let contentToSave = nodeDraftContent;
     if (
       existingNode
@@ -306,48 +318,12 @@ export function useDocBlockNodeModal({
       contentToSave = existingNode.content;
     }
 
-    const newNodeId = createOrUpdateNodeFromDocBlock({
-      nodeId: nodeId || block.nodeId || null,
-      docId,
-      blockId,
-      query: queryText,
-      content: contentToSave,
-      dataType,
-      docCreatedAt: isoFromDateInput(createdDate),
-      anchorAt,
-    });
-
-    const patch = {
-      nodeId: newNodeId,
-      sourceQuery: queryText,
-    };
-    if (
-      block.type === DOC_BLOCK_TYPES.H1
-      || block.type === DOC_BLOCK_TYPES.DATE
-      || block.type === DOC_BLOCK_TYPES.METRIC
-    ) {
-      patch.title = block.title || queryText;
-    }
-    if (block.type === DOC_BLOCK_TYPES.TODO) {
-      patch.listTitle = block.listTitle || queryText;
-    }
-    if (supportsScheduleAnchor(dataType)) {
-      patch.anchorDate = nodeDraftAnchorDate;
-      patch.anchorTime = nodeDraftAnchorTime;
-      patch.anchorFromNode = true;
-      patch.queryEnabled = true;
-    }
-
-    let nextBlocks = updateBlockAt(blocks, blockIndex, patch);
-    nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, contentToSave, dataType);
-    if (dataType === NODE_DATA_TYPES.TEXT) {
-      nextBlocks = setAnswerBelowH1(
-        nextBlocks,
-        blockIndex,
-        typeof contentToSave === "string" ? contentToSave : "",
-      );
-    }
-    setBlocks(nextBlocks);
+    persistNodeContentDebounced(
+      contentToSave,
+      context,
+      nodeDraftAnchorDate,
+      nodeDraftAnchorTime,
+    );
     resetNodeModal();
   };
 

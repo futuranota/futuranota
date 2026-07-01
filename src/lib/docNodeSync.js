@@ -46,6 +46,24 @@ import {
   resolveBlockNodeLinkColor,
 } from "./docNodeLinkColors.js";
 
+/** TEXT block roles under a linked macro-node owner — prevent merge + drive focus/hide. */
+export const MACRO_NODE_TEXT_SLOT = {
+  ANSWER: "macro-answer",
+  CONTINUATION: "macro-continuation",
+};
+
+function findMacroContinuationIndex(blocks, ownerIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  for (let index = ownerIndex + 1; index < normalized.length; index++) {
+    const block = normalized[index];
+    if (block?.type !== DOC_BLOCK_TYPES.TEXT) break;
+    if (block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.CONTINUATION) return index;
+    if (block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.ANSWER) continue;
+    if (getOwningScheduleBlockIndexForText(normalized, index) !== ownerIndex) break;
+  }
+  return -1;
+}
+
 export {
   anchorAtFromBlock,
   anchorFieldsFromIso,
@@ -112,11 +130,10 @@ export function getOwnedTextBlockIndices(blocks, ownerIndex) {
 
   const indices = [];
   for (let i = ownerIndex + 1; i < normalized.length; i++) {
-    if (normalized[i].type === DOC_BLOCK_TYPES.TEXT) {
-      indices.push(i);
-    } else {
-      break;
-    }
+    const textBlock = normalized[i];
+    if (textBlock?.type !== DOC_BLOCK_TYPES.TEXT) break;
+    if (textBlock.macroNodeSlot === MACRO_NODE_TEXT_SLOT.CONTINUATION) break;
+    indices.push(i);
   }
   return indices;
 }
@@ -162,7 +179,28 @@ export function nodeContentAsString(node) {
     return getForecastDisplayText(node.content);
   }
   if (typeof node.content === "string") return node.content;
+  if (node.dataType === NODE_DATA_TYPES.TEXT) {
+    const plain = resolveTextNodeContent(node.content);
+    if (plain !== null) return plain;
+  }
   return JSON.stringify(node.content ?? "");
+}
+
+/** Extract editable plain text from node store content (string or legacy node-body). */
+export function resolveTextNodeContent(content) {
+  if (typeof content === "string") return content;
+  if (
+    content
+    && typeof content === "object"
+    && content.kind === "node-body"
+    && Array.isArray(content.blocks)
+  ) {
+    const textBlocks = content.blocks.filter((block) => block?.type === "text");
+    if (!textBlocks.length) return "";
+    if (textBlocks.length === 1) return textBlocks[0].text ?? "";
+    return textBlocks.map((block) => block.text ?? "").join("\n\n");
+  }
+  return null;
 }
 
 function normalizeDateContent(content) {
@@ -314,7 +352,7 @@ export function resolveNodeDraftFromDoc(blockContent, node, dataType) {
     return buildVideoNodeContent(null, node.title || "");
   }
 
-  return nodeContentAsString(node);
+  return resolveTextNodeContent(node.content) ?? "";
 }
 
 export function getBlockQueryText(block) {
@@ -402,13 +440,20 @@ export function ensureNodeForDocBlock({
   if (!block.queryEnabled && !existingNodeId && !block.nodeId) return null;
   if (!createOrUpdateNodeFromDocBlock) return block.nodeId || existingNodeId || null;
 
+  const resolvedNodeId = existingNodeId || block.nodeId || null;
+  if (isDocBlockLinkedToNode(block) && resolvedNodeId && contentOverride === undefined) {
+    return resolvedNodeId;
+  }
+
   const dataType = blockDataType(block, blocks, blockIndex);
   let content = contentOverride !== undefined
     ? contentOverride
     : getContentForNodeBlock(block, blocks, blockIndex);
   if (block.type === DOC_BLOCK_TYPES.H1 && contentOverride === undefined && dataType === NODE_DATA_TYPES.TEXT) {
-    const answer = blockIndex >= 0 ? getAnswerBelowH1(blocks, blockIndex) : "";
-    if (answer.trim()) content = answer;
+    if (!isDocBlockLinkedToNode(block)) {
+      const answer = blockIndex >= 0 ? getAnswerBelowH1(blocks, blockIndex) : "";
+      if (answer.trim()) content = answer;
+    }
   }
 
   const query = getBlockQueryText(block) || "Untitled query";
@@ -427,6 +472,68 @@ export function ensureNodeForDocBlock({
     docCreatedAt,
     anchorAt,
   });
+}
+
+/** True when node body should not be mirrored into doc blocks (linked macro node). */
+export function shouldMirrorNodeContentInDoc(block) {
+  return !isDocBlockLinkedToNode(block);
+}
+
+/** Hide answer TEXT under a linked H1/TODO — content lives in the node entity only. */
+export function isTextHiddenByLinkedMacroNode(blocks, textBlockIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[textBlockIndex];
+  if (block?.type !== DOC_BLOCK_TYPES.TEXT) return false;
+  if (block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.ANSWER) {
+    const ownerIndex = getOwningScheduleBlockIndexForText(normalized, textBlockIndex);
+    return ownerIndex >= 0 && isDocBlockLinkedToNode(normalized[ownerIndex]);
+  }
+
+  const ownerIndex = getOwningScheduleBlockIndexForText(normalized, textBlockIndex);
+  if (ownerIndex < 0) return false;
+  const owner = normalized[ownerIndex];
+  if (!isDocBlockLinkedToNode(owner)) return false;
+
+  const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
+  return owned.includes(textBlockIndex);
+}
+
+/** Index of the visible writable TEXT slot below a linked owner (continuation), or owner+1. */
+export function getWritableTextIndexBelowLinkedOwner(blocks, ownerIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  const owner = normalized[ownerIndex];
+  if (!owner || !isDocBlockLinkedToNode(owner)) return ownerIndex + 1;
+
+  const ensured = ensureContinuationAfterLinkedOwner(normalized, ownerIndex);
+  const continuationIndex = findMacroContinuationIndex(ensured, ownerIndex);
+  if (continuationIndex >= 0) return continuationIndex;
+
+  const tailIndex = getLinkedContinuationTextIndex(ensured, ownerIndex);
+  return tailIndex >= 0 ? tailIndex : ownerIndex + 1;
+}
+
+/** Linked owner index when textBlockIndex is the writable continuation slot below a macro node. */
+export function getLinkedOwnerForContinuationSlot(blocks, textBlockIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[textBlockIndex];
+  if (block?.type !== DOC_BLOCK_TYPES.TEXT) return -1;
+
+  if (block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.CONTINUATION) {
+    const ownerIndex = getOwningScheduleBlockIndexForText(normalized, textBlockIndex);
+    if (ownerIndex >= 0 && isDocBlockLinkedToNode(normalized[ownerIndex])) {
+      return ownerIndex;
+    }
+  }
+
+  if (!isLinkedOwnerContinuationSlot(blocks, textBlockIndex)) return -1;
+  for (let ownerIndex = 0; ownerIndex < normalized.length; ownerIndex++) {
+    const owner = normalized[ownerIndex];
+    if (!isDocBlockLinkedToNode(owner)) continue;
+    if (getLinkedContinuationTextIndex(normalized, ownerIndex) === textBlockIndex) {
+      return ownerIndex;
+    }
+  }
+  return -1;
 }
 
 /** Zustand node ids still referenced by saved doc blocks (h1, todo, date, metric, …). */
@@ -455,9 +562,28 @@ export function ensureContinuationAfterLinkedOwner(blocks, ownerIndex) {
     return normalized;
   }
 
-  const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
+  let next = normalized;
+  const owned = getOwnedTextBlockIndices(next, ownerIndex);
+
+  for (const textIndex of owned) {
+    const textBlock = next[textIndex];
+    if (textBlock?.macroNodeSlot !== MACRO_NODE_TEXT_SLOT.ANSWER) {
+      next = updateBlockAt(next, textIndex, { macroNodeSlot: MACRO_NODE_TEXT_SLOT.ANSWER });
+    }
+  }
+
+  const existingContinuation = findMacroContinuationIndex(next, ownerIndex);
+  if (existingContinuation >= 0) return next;
+
   const insertAfterIndex = owned.length > 0 ? owned[owned.length - 1] : ownerIndex;
-  return ensureEmptyTextBlockAfter(normalized, insertAfterIndex);
+  return insertBlockAfter(
+    next,
+    insertAfterIndex,
+    createDocBlock(DOC_BLOCK_TYPES.TEXT, {
+      text: "",
+      macroNodeSlot: MACRO_NODE_TEXT_SLOT.CONTINUATION,
+    }),
+  );
 }
 
 /** True when this TEXT block holds the node-linked answer (syncs to node). */
@@ -469,7 +595,14 @@ export function isPrimaryAnswerTextForLinkedOwner(blocks, textBlockIndex) {
 export function isLinkedOwnerContinuationSlot(blocks, textBlockIndex) {
   const normalized = normalizeDocBlocks(blocks);
   const block = normalized[textBlockIndex];
-  if (!block || block.type !== DOC_BLOCK_TYPES.TEXT || !isEmptyTextBlock(block)) return false;
+  if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return false;
+
+  if (block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.CONTINUATION) {
+    const ownerIndex = getOwningScheduleBlockIndexForText(normalized, textBlockIndex);
+    return ownerIndex >= 0 && isDocBlockLinkedToNode(normalized[ownerIndex]);
+  }
+
+  if (!isEmptyTextBlock(block)) return false;
 
   for (let ownerIndex = 0; ownerIndex < normalized.length; ownerIndex++) {
     const owner = normalized[ownerIndex];
@@ -494,6 +627,9 @@ export function getLinkedContinuationTextIndex(blocks, ownerIndex) {
   if (owner.type !== DOC_BLOCK_TYPES.H1 && owner.type !== DOC_BLOCK_TYPES.TODO) {
     return -1;
   }
+
+  const marked = findMacroContinuationIndex(normalized, ownerIndex);
+  if (marked >= 0) return marked;
 
   const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
   const tailIndex = owned.length > 0 ? owned[owned.length - 1] + 1 : ownerIndex + 1;
@@ -522,26 +658,47 @@ export function unlinkNodeFromDocBlocks(blocks, ownerIndex, node = null, options
     const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
     const primaryTextIndex = owned[0] ?? -1;
 
-    return normalized.map((block, i) => {
+    const cleared = normalized.map((block, i) => {
       if (i === ownerIndex) {
         return normalizeDocBlock({ ...block, ...UNLINK_BLOCK_PATCH });
       }
       if (i === primaryTextIndex) {
         const text = block.text || fallbackText;
         if (options.textBlockEmbedded !== undefined) {
-          return normalizeDocBlock({ ...block, text, embedded: options.textBlockEmbedded });
+          return normalizeDocBlock({
+            ...block,
+            text,
+            embedded: options.textBlockEmbedded,
+            macroNodeSlot: undefined,
+          });
         }
         if (block.embedded?.kind === "calendar-event" || block.embedded?.kind === "weather-forecast") {
           return normalizeDocBlock({
             ...block,
             text,
             embedded: { ...block.embedded, linkedNodeId: null },
+            macroNodeSlot: undefined,
           });
         }
-        return normalizeDocBlock({ ...block, text, embedded: undefined });
+        return normalizeDocBlock({ ...block, text, embedded: undefined, macroNodeSlot: undefined });
+      }
+      if (
+        block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.CONTINUATION
+        && getOwningScheduleBlockIndexForText(normalized, i) === ownerIndex
+        && isEmptyTextBlock(block)
+      ) {
+        return null;
+      }
+      if (
+        block.macroNodeSlot
+        && getOwningScheduleBlockIndexForText(normalized, i) === ownerIndex
+      ) {
+        return normalizeDocBlock({ ...block, macroNodeSlot: undefined });
       }
       return block;
-    });
+    }).filter(Boolean);
+
+    return normalizeDocBlocks(cleared);
   }
 
   if (owner.type === DOC_BLOCK_TYPES.TODO && node) {

@@ -54,6 +54,8 @@ import {
   syncVideoNodeFromVideoBlock,
   unlinkNodeFromDocBlocks,
   getOwnedTextBlockIndices,
+  isDocBlockLinkedToNode,
+  shouldMirrorNodeContentInDoc,
 } from "../../lib/docNodeSync.js";
 import {
   buildDetachedWidgetEmbedded,
@@ -764,6 +766,8 @@ export function DocExpandedView({
   };
 
   const handleAnswerBelowH1Change = (h1Index, text) => {
+    const block = draftBlocks[h1Index];
+    if (block && isDocBlockLinkedToNode(block)) return;
     syncLinkedNodeFromDoc(h1Index, text, draftBlocks);
     if (activeNodeContext?.blockIndex === h1Index && activeNodeContext.dataType === NODE_DATA_TYPES.TEXT) {
       setNodeDraftContent(text);
@@ -853,9 +857,15 @@ export function DocExpandedView({
       }
 
       let next = updateBlockAt(prev, blockIndex, patch);
-      next = setContentForNodeBlock(next, blockIndex, content, dataType);
-      if (dataType === NODE_DATA_TYPES.TEXT) {
-        next = setAnswerBelowH1(next, blockIndex, typeof content === "string" ? content : "");
+      if (shouldMirrorNodeContentInDoc(current)) {
+        next = setContentForNodeBlock(next, blockIndex, content, dataType);
+        if (dataType === NODE_DATA_TYPES.TEXT) {
+          next = setAnswerBelowH1(
+            next,
+            blockIndex,
+            typeof content === "string" ? content : "",
+          );
+        }
       }
       return next;
     });
@@ -968,7 +978,9 @@ export function DocExpandedView({
     const existing = (ensuredNodeId || block.nodeId) ? getNode(ensuredNodeId || block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block, draftBlocks, blockIndex);
 
-    if (block.type === DOC_BLOCK_TYPES.H1 && dataType === NODE_DATA_TYPES.TEXT) {
+    if (isDocBlockLinkedToNode(block) && existing) {
+      blockContent = existing.content;
+    } else if (block.type === DOC_BLOCK_TYPES.H1 && dataType === NODE_DATA_TYPES.TEXT) {
       const answer = getAnswerBelowH1(draftBlocks, blockIndex);
       if (answer.trim()) blockContent = answer;
     }
@@ -1024,25 +1036,12 @@ export function DocExpandedView({
       nodeAutosaveTimerRef.current = null;
     }
 
-    const { blockId, blockIndex, nodeId, query, dataType, blockType } = activeNodeContext;
+    const context = { ...activeNodeContext };
+    const { blockIndex, nodeId, dataType, blockType } = context;
     const block = draftBlocks[blockIndex];
     if (!block || block.type !== blockType) return;
 
-    const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
-    const patch = { nodeId: null, sourceQuery: queryText };
-
-    if (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.DATE || block.type === DOC_BLOCK_TYPES.METRIC) {
-      patch.title = block.title || queryText;
-    }
-    if (block.type === DOC_BLOCK_TYPES.TODO) {
-      patch.listTitle = block.listTitle || queryText;
-    }
-
-    const anchorAt = supportsScheduleAnchor(dataType)
-      ? isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorTime)
-      : null;
-
-    const existingNode = nodeId ? getNode(nodeId) : null;
+    const existingNode = (nodeId || block.nodeId) ? getNode(nodeId || block.nodeId) : null;
     let contentToSave = nodeDraftContent;
     if (
       existingNode
@@ -1052,43 +1051,13 @@ export function DocExpandedView({
       contentToSave = existingNode.content;
     }
 
-    const newNodeId = createOrUpdateNodeFromDocBlock({
-      nodeId: nodeId || block.nodeId || null,
-      docId: doc.id,
-      blockId,
-      query: queryText,
-      content: contentToSave,
-      dataType,
-      docCreatedAt: isoFromDateInput(draftCreatedDate),
-      anchorAt,
-    });
-
-    patch.nodeId = newNodeId;
-    if (supportsScheduleAnchor(dataType)) {
-      patch.anchorDate = nodeDraftAnchorDate;
-      patch.anchorTime = nodeDraftAnchorTime;
-      patch.anchorFromNode = Boolean(
-        nodeDraftAnchorDate !== nodeInitialSnapshot?.anchorDate
-        || nodeDraftAnchorTime !== nodeInitialSnapshot?.anchorTime,
-      ) || Boolean(block.anchorFromNode);
-      patch.queryEnabled = true;
-    }
-
-    let nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
-    nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, contentToSave, dataType);
-    if (dataType === NODE_DATA_TYPES.TEXT) {
-      nextBlocks = setAnswerBelowH1(
-        nextBlocks,
-        blockIndex,
-        typeof contentToSave === "string" ? contentToSave : "",
-      );
-    }
-    setDraftBlocks(nextBlocks);
-    setActiveNodeContext(null);
-    setNodeDraftContent("");
-    setNodeDraftAnchorDate("");
-    setNodeDraftAnchorTime("");
-    setNodeInitialSnapshot(null);
+    persistNodeContentDebounced(
+      contentToSave,
+      context,
+      nodeDraftAnchorDate,
+      nodeDraftAnchorTime,
+    );
+    resetNodeModalState();
   };
 
   const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {

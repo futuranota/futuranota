@@ -21,6 +21,7 @@ import {
 } from "../../lib/nodeTodoContent.js";
 import {
   isNodeWritingBody,
+  nodeDraftContentForStorage,
   parseNodeWritingBody,
   serializeNodeWritingBody,
 } from "../../lib/nodeInlineContent.js";
@@ -132,9 +133,7 @@ function parseContentForSave(text, dataType) {
     return normalizeNodeTodoContent(text);
   }
   if (dataType === NODE_DATA_TYPES.TEXT) {
-    if (isNodeWritingBody(text)) return text;
-    if (typeof text === "string") return text;
-    return serializeNodeWritingBody(parseNodeWritingBody(text));
+    return nodeDraftContentForStorage(text, dataType);
   }
   if (dataType === "video") {
     if (text && typeof text === "object") return text;

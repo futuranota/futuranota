@@ -380,6 +380,7 @@ export function normalizeDocBlock(block) {
     embedded: block.embedded && typeof block.embedded === "object"
       ? block.embedded
       : undefined,
+    macroNodeSlot: block.macroNodeSlot || undefined,
   });
 }
 
@@ -392,6 +393,8 @@ function mergeAdjacentTextBlocks(blocks) {
       && prev?.type === DOC_BLOCK_TYPES.TEXT
       && !block.embedded
       && !prev.embedded
+      && !block.macroNodeSlot
+      && !prev.macroNodeSlot
     ) {
       merged[merged.length - 1] = {
         ...prev,
