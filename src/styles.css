@@ -1770,6 +1770,11 @@ textarea.field {
     0 0 0 1px color-mix(in oklab, var(--hud) 45%, transparent),
     0 0 12px color-mix(in oklab, var(--hud) 25%, transparent);
 }
+.btn-scheduled-auto.is-active {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--cool) 45%, transparent),
+    0 0 12px color-mix(in oklab, var(--cool) 25%, transparent);
+}
 .canvas-marquee {
   position: absolute;
   border: 1px solid color-mix(in oklab, var(--hud) 65%, #9aa3b8);

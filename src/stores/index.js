@@ -3,6 +3,7 @@ export { useDocsStore } from "./docsStore.js";
 export { useNodesStore } from "./nodesStore.js";
 export { useCanvasStore } from "./canvasStore.js";
 export { useTimelineStore } from "./timelineStore.js";
+export { useScheduledTasksStore } from "./scheduledTasksStore.js";
 export { useUIStateStore } from "./uiStateStore.js";
 export { usePlanStore, FREE_LIMITS, TOKEN_COSTS } from "./planStore.js";
 export {

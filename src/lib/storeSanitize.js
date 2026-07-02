@@ -49,5 +49,12 @@ export function sanitizePersistedSnapshot(parsed) {
       : [];
   }
 
+  if (typeof parsed.scheduledAutoRunEnabled === "boolean") {
+    snapshot.scheduledAutoRunEnabled = parsed.scheduledAutoRunEnabled;
+  }
+  if (Array.isArray(parsed.scheduledCompletedTaskKeys)) {
+    snapshot.scheduledCompletedTaskKeys = parsed.scheduledCompletedTaskKeys;
+  }
+
   return snapshot;
 }

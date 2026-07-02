@@ -70,16 +70,19 @@ function findWiredContentDoc(nodes, docsById) {
 /**
  * @param {object[]} inputNodes
  * @param {Record<string, object>} nodeEntitiesById
+ * @param {string | null} [preferredMacroEntityId]
  */
-function findWiredMacroBlogSource(inputNodes = [], nodeEntitiesById = {}) {
-  for (const node of inputNodes) {
-    if (!node?.noteId) continue;
+function findWiredMacroBlogSource(
+  inputNodes = [],
+  nodeEntitiesById = {},
+  preferredMacroEntityId = null,
+) {
+  const tryNode = (node) => {
+    if (!node?.noteId) return null;
     const entity = nodeEntitiesById[node.noteId];
-    if (!entity) continue;
-
+    if (!entity) return null;
     const instruction = extractAgentInstructionFromNodeEntity(entity);
-    if (!instruction) continue;
-
+    if (!instruction) return null;
     const title = String(entity.title || node.title || "").trim();
     return {
       nodeEntityId: node.noteId,
@@ -89,6 +92,17 @@ function findWiredMacroBlogSource(inputNodes = [], nodeEntitiesById = {}) {
       anchorAt: entity.anchorAt || node.anchorAt || null,
       parentDocId: entity.parentDocId || node.parentDocId || null,
     };
+  };
+
+  if (preferredMacroEntityId) {
+    const preferred = inputNodes.find((n) => n.noteId === preferredMacroEntityId);
+    const match = preferred ? tryNode(preferred) : null;
+    if (match) return match;
+  }
+
+  for (const node of inputNodes) {
+    const match = tryNode(node);
+    if (match) return match;
   }
   return null;
 }
@@ -150,6 +164,7 @@ export function resolveCompanyFilesContext(
  * @param {Record<string, object>} params.objectsById
  * @param {Record<string, object>} [params.nodeEntitiesById]
  * @param {string | null} [params.selectedObjectId]
+ * @param {string | null} [params.preferredMacroEntityId]
  * @param {'en' | 'es'} [params.locale]
  */
 export function resolveContentCreatorContext({
@@ -160,6 +175,7 @@ export function resolveContentCreatorContext({
   objectsById = {},
   nodeEntitiesById = {},
   selectedObjectId = null,
+  preferredMacroEntityId = null,
   locale = "en",
 }) {
   const lang = locale === "es" ? "es" : "en";
@@ -199,7 +215,11 @@ export function resolveContentCreatorContext({
     }
   }
 
-  const macroSource = findWiredMacroBlogSource(graph.inputs || [], nodeEntitiesById);
+  const macroSource = findWiredMacroBlogSource(
+    graph.inputs || [],
+    nodeEntitiesById,
+    preferredMacroEntityId,
+  );
 
   let mode = "document_plan";
   let instruction = "";

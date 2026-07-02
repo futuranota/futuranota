@@ -95,9 +95,16 @@ const UNLINK_H1_PATCH = {
 };
 
 function focusTextInputWithCamera(input, caretPos) {
+  if (!input || !("focus" in input)) return;
+  const isAlreadyFocused = document.activeElement === input;
   input.focus({ preventScroll: true });
-  if ("setSelectionRange" in input) {
-    const pos = caretPos ?? input.value.length;
+  if (!("setSelectionRange" in input)) return;
+  if (caretPos != null) {
+    input.setSelectionRange(caretPos, caretPos);
+    return;
+  }
+  if (!isAlreadyFocused) {
+    const pos = input.value.length;
     input.setSelectionRange(pos, pos);
   }
 }
@@ -404,7 +411,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   const focusBlockCaret = (blockId, caretPos = null) => {
     if (!blockId) return;
-    onFocusBlock?.(blockId);
     if (isCollapsedPadWriteBlock(blockId)) {
       focusPadTextarea(blockId, caretPos ?? 0);
       return;

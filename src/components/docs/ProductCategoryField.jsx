@@ -47,6 +47,13 @@ export function ProductCategoryField({
     onChange(resolveCanonicalCategory(raw, options));
   };
 
+  const handleBlur = () => {
+    const raw = value;
+    window.setTimeout(() => {
+      commitValue(raw);
+    }, 0);
+  };
+
   const openPicker = () => {
     if (!filteredOptions.length) return;
     if (leaveTimerRef.current) {
@@ -94,7 +101,7 @@ export function ProductCategoryField({
             e.stopPropagation();
             openPicker();
           }}
-          onBlur={() => commitValue(value)}
+          onBlur={handleBlur}
           onMouseEnter={openPicker}
           onKeyDown={(e) => {
             if (e.key === "Enter") {

@@ -62,19 +62,13 @@ import {
 import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
-import { AGENT_CAMPAIGN_ANALYST, AGENT_CONTENT_CREATOR, AGENT_MARKETING_GUIDE, AGENT_SOCIAL_HYPE_ANALYST, getAgentById, getAgentCanvasTitle, isAgentEnabled } from './lib/agents/registry.js';
+import { AGENT_CAMPAIGN_ANALYST, getAgentCanvasTitle } from './lib/agents/registry.js';
+import { executeAgentRun } from './lib/agents/executeAgentRun.js';
+import { useScheduledAgentRunner } from './hooks/useScheduledAgentRunner.js';
+import { useScheduledTasksStore } from './stores/scheduledTasksStore.js';
 import { initialNodeShapeFromSlash } from './lib/docBlockSlash.js';
 import { mergeVideoNodeContent } from './lib/videoEmbed.js';
 import { NODE_DATA_TYPES } from './lib/nodeDataTypes.js';
-import { runCampaignAnalyst } from './lib/agents/runCampaignAnalyst.js';
-import { runMarketingGuideAgent } from './lib/agents/runMarketingGuideAgent.js';
-import { runSocialHypeAnalystAgent } from './lib/agents/runSocialHypeAnalystAgent.js';
-import { runContentCreatorAgent } from './lib/agents/runContentCreatorAgent.js';
-import {
-  formatScheduleAtLabel,
-  isScheduleNotDue,
-  resolveMacroScheduleAnchorAt,
-} from './lib/agents/agentScheduleGate.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
 import {
@@ -203,6 +197,7 @@ function Dashboard({ company, onBack }) {
   const [expandedNodeContentFocus, setExpandedNodeContentFocus] = useState(false);
   const [adoptPrompt, setAdoptPrompt] = useState(null);
   const { t } = useI18n();
+  const locale = useLocaleStore((s) => s.locale);
   const docs = useDocsStore((s) => s.docs);
   const objects = useObjectsStore((s) => s.objects);
   const nodeEntities = useNodesStore((s) => s.nodes);
@@ -807,166 +802,44 @@ useEffect(() => {
     )));
   }, []);
 
+  const runAgentExecution = useCallback(async (options) => executeAgentRun({
+    canvasNodes,
+    canvasConns,
+    nodeEntities,
+    objects,
+    docs,
+    locale,
+    patchCanvasNode,
+    setToast,
+    setExpandedDocId,
+    setExpandedNodeId,
+    setExpandedNodeContentFocus,
+    setDocViewGeneration,
+    ...options,
+  }), [
+    canvasNodes,
+    canvasConns,
+    nodeEntities,
+    objects,
+    docs,
+    locale,
+    patchCanvasNode,
+  ]);
+
   const handleRunAgent = useCallback(async (canvasNodeId) => {
-    const agentNode = canvasNodes.find((n) => n.id === canvasNodeId);
-    if (!agentNode || (agentNode.canvasKind !== "agent" && agentNode.dataType !== "agent")) return;
-    if (agentNode.agentStatus === "running") return;
+    await runAgentExecution({ canvasNodeId });
+  }, [runAgentExecution]);
 
-    const selectedObjectId = useUIStateStore.getState().selectedObjectId;
-    const locale = useLocaleStore.getState().locale;
-    const agentId = agentNode.agentId || AGENT_CAMPAIGN_ANALYST;
-    const agentDef = getAgentById(agentId);
-
-    if (!isAgentEnabled(agentId)) {
-      patchCanvasNode(canvasNodeId, {
-        agentStatus: "error",
-        agentError: translate("agents.orchestrator.disabled", locale),
-      });
-      setToast({ message: translate("agents.orchestrator.disabled", locale), kind: "warm" });
-      return;
-    }
-
-    if (agentId !== AGENT_CAMPAIGN_ANALYST
-      && agentId !== AGENT_MARKETING_GUIDE
-      && agentId !== AGENT_SOCIAL_HYPE_ANALYST
-      && agentId !== AGENT_CONTENT_CREATOR) {
-      patchCanvasNode(canvasNodeId, {
-        agentStatus: "error",
-        agentError: translate("agents.errors.generic", locale),
-      });
-      setToast({ message: translate("agents.errors.generic", locale), kind: "warm" });
-      return;
-    }
-
-    if (agentId === AGENT_CONTENT_CREATOR) {
-      const scheduleAnchorAt = resolveMacroScheduleAnchorAt({
-        agentCanvasNodeId: canvasNodeId,
-        canvasNodes,
-        connections: canvasConns,
-        nodeEntitiesById: nodeEntities,
-      });
-      if (isScheduleNotDue(scheduleAnchorAt)) {
-        const message = translate("agents.errors.schedule_not_due", locale, {
-          schedule: formatScheduleAtLabel(scheduleAnchorAt),
-        });
-        setToast({ message, kind: "warm" });
-        return;
-      }
-    }
-
-    patchCanvasNode(canvasNodeId, { agentStatus: "running", agentError: "" });
-
-    const minUxMs = agentDef?.runUxMinMs ?? 0;
-    const runAgent = () => (agentId === AGENT_MARKETING_GUIDE
-      ? runMarketingGuideAgent({
-        agentCanvasNodeId: canvasNodeId,
-        canvasNodes,
-        connections: canvasConns,
-        docsById: useDocsStore.getState().docs,
-        objectsById: objects,
-        selectedObjectId,
-        locale,
-      })
-      : agentId === AGENT_SOCIAL_HYPE_ANALYST
-        ? runSocialHypeAnalystAgent({
-          agentCanvasNodeId: canvasNodeId,
-          canvasNodes,
-          connections: canvasConns,
-          docsById: useDocsStore.getState().docs,
-          objectsById: objects,
-          selectedObjectId,
-          locale,
-        })
-        : agentId === AGENT_CONTENT_CREATOR
-          ? runContentCreatorAgent({
-            agentCanvasNodeId: canvasNodeId,
-            canvasNodes,
-            connections: canvasConns,
-            docsById: useDocsStore.getState().docs,
-            objectsById: objects,
-            nodeEntitiesById: nodeEntities,
-            selectedObjectId,
-            locale,
-          })
-          : runCampaignAnalyst({
-            agentCanvasNodeId: canvasNodeId,
-            canvasNodes,
-            connections: canvasConns,
-            docsById: useDocsStore.getState().docs,
-            objectsById: objects,
-            nodeEntitiesById: nodeEntities,
-            selectedObjectId,
-            locale,
-          }));
-
-    const [result] = await Promise.all([
-      runAgent(),
-      minUxMs > 0
-        ? new Promise((resolve) => { setTimeout(resolve, minUxMs); })
-        : Promise.resolve(),
-    ]);
-
-    if (result.status === "success") {
-      patchCanvasNode(canvasNodeId, {
-        agentStatus: "done",
-        agentError: "",
-      });
-      const openDocId = result.docId;
-      if (result.wireOutputDocCanvasNodeId && openDocId) {
-        const savedDoc = useDocsStore.getState().getDoc(openDocId);
-        patchCanvasNode(result.wireOutputDocCanvasNodeId, {
-          docId: openDocId,
-          noteId: openDocId,
-          content: savedDoc?.body || savedDoc?.content || "",
-        });
-      } else if (openDocId) {
-        const savedDoc = useDocsStore.getState().getDoc(openDocId);
-        const docCanvasNode = canvasNodes.find(
-          (n) => (n.docId === openDocId || n.noteId === openDocId)
-            && (n.canvasKind === "document" || n.dataType === "document"),
-        );
-        if (docCanvasNode && savedDoc) {
-          patchCanvasNode(docCanvasNode.id, {
-            content: savedDoc.body || savedDoc.content || "",
-          });
-        }
-      }
-      if (openDocId) {
-        setDocViewGeneration((n) => n + 1);
-        setExpandedDocId(openDocId);
-      }
-      if (result.mode === "macro_blog" && result.targetNodeEntityId) {
-        setExpandedNodeContentFocus(true);
-        setExpandedNodeId(result.targetNodeEntityId);
-      }
-      setToast({
-        message: result.userFacingMessage
-          || (agentId === AGENT_MARKETING_GUIDE
-            ? translate("agents.playbookSuccess", locale, { brand: result.brandName })
-            : agentId === AGENT_SOCIAL_HYPE_ANALYST
-              ? translate("agents.socialHypeSuccess", locale, { brand: result.brandName })
-              : agentId === AGENT_CONTENT_CREATOR
-                ? (result.userFacingMessage
-                  || (result.mode === "macro_blog"
-                    ? translate("agents.contentCreatorBlogSuccess", locale, {
-                      title: result.plan?.writtenContent?.headline || result.macroTitle || "",
-                    })
-                    : translate("agents.contentCreatorSuccess", locale, {
-                      brand: result.brandName,
-                      count: String(result.plan?.items?.length || 0),
-                    })))
-                : translate("agents.runSuccess", locale, { brand: result.brandName })),
-        kind: "ok",
-      });
-      return;
-    }
-
-    patchCanvasNode(canvasNodeId, {
-      agentStatus: "error",
-      agentError: result.message,
-    });
-    setToast({ message: result.message, kind: "warm" });
-  }, [canvasNodes, canvasConns, docs, objects, nodeEntities, patchCanvasNode]);
+  const scheduledAutoRunEnabled = useScheduledTasksStore((s) => s.autoRunEnabled);
+  useScheduledAgentRunner({
+    enabled: scheduledAutoRunEnabled,
+    canvasNodes,
+    canvasConns,
+    nodeEntities,
+    executeAgentRun: runAgentExecution,
+    setToast,
+    locale,
+  });
 
   const runAdoption = useCallback((payload) => {
     const ok = adoptOrphanNodeToDocument({
@@ -1090,6 +963,10 @@ useEffect(() => {
             onRequestDocAdoption={handleRequestDocAdoption}
             onDocumentAdoptOrphan={handleDocumentAdoptOrphan}
             onRunAgent={handleRunAgent}
+            scheduledAutoRunEnabled={scheduledAutoRunEnabled}
+            onToggleScheduledAutoRun={() => {
+              useScheduledTasksStore.getState().setAutoRunEnabled(!scheduledAutoRunEnabled);
+            }}
           />
           {scanState === "scanning-blogs" && (
             <ScanOverlay logs={scanLogs} kind="blogs" />

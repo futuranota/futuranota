@@ -37,6 +37,9 @@ import {
 } from './lib/nodeParentAdoption.js';
 import { useI18n } from './i18n/useI18n.js';
 import { AgentCanvasAvatar } from './components/agents/AgentCanvasAvatar.jsx';
+import { useScheduledTasksStore } from './stores/scheduledTasksStore.js';
+import { listUpcomingScheduledTasks, formatScheduleAtLabel } from './hooks/useScheduledAgentRunner.js';
+import { isScheduleNotDue } from './lib/agents/agentScheduleGate.js';
 import { getAgentById, getAgentLabel, isAgentEnabled } from './lib/agents/registry.js';
 import { getAgentCreditCost } from './lib/agents/agentCreditCosts.js';
 import { usePlanStore } from './stores/planStore.js';
@@ -834,8 +837,22 @@ function BlueprintCanvas({
   onRequestDocAdoption,
   onDocumentAdoptOrphan,
   onRunAgent,
+  scheduledAutoRunEnabled = true,
+  onToggleScheduledAutoRun,
 }) {
   const { t } = useI18n();
+  const completedTaskKeys = useScheduledTasksStore((s) => s.completedTaskKeys);
+  const upcomingTasks = useMemo(
+    () => listUpcomingScheduledTasks({
+      canvasNodes: nodes,
+      canvasConns: connections,
+      nodeEntities: nodeEntitiesById,
+      completedTaskKeys,
+    }),
+    [nodes, connections, nodeEntitiesById, completedTaskKeys],
+  );
+  const dueSoonCount = upcomingTasks.filter((task) => !isScheduleNotDue(task.runAt)).length;
+  const pendingCount = upcomingTasks.length;
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
   const traceFunixMode = useTimelineStore((s) => s.traceFunixMode);
   const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
@@ -2010,6 +2027,15 @@ function BlueprintCanvas({
             >
               {t("canvas.insertToTimeline")}
             </button>
+            <button
+              type="button"
+              className={"btn xs btn-scheduled-auto" + (scheduledAutoRunEnabled ? " primary is-active" : " ghost")}
+              onClick={onToggleScheduledAutoRun}
+              title={t("canvas.scheduledAutoRunTitle")}
+            >
+              {t("canvas.scheduledAutoRun")}
+              {pendingCount > 0 ? ` (${pendingCount})` : ""}
+            </button>
           </>
         ) : null}
         {hiddenCount > 0 && (
@@ -2302,6 +2328,14 @@ function BlueprintCanvas({
             <span className="pill ok">
               <i className="dot" />
               {t("canvas.timelineSelectedCount", { count: selection.length })}
+            </span>
+          )}
+          {scheduledAutoRunEnabled && pendingCount > 0 && (
+            <span className="pill cool" title={upcomingTasks.map((task) => `${task.title} · ${formatScheduleAtLabel(task.runAt)}`).join("\n")}>
+              <i className="dot" />
+              {dueSoonCount > 0
+                ? t("canvas.scheduledDueCount", { count: dueSoonCount })
+                : t("canvas.scheduledPendingCount", { count: pendingCount })}
             </span>
           )}
           <span className="pill ok"><i className="dot" />Canvas · Live</span>

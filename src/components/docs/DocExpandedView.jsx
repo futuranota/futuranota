@@ -71,6 +71,12 @@ function docBlocksHaveText(blocks) {
   return Array.isArray(blocks) && blocks.some((b) => (b.text || "").trim());
 }
 
+function docDraftHasContent(cached) {
+  if (!cached) return false;
+  if (docBlocksHaveText(cached.blocks)) return true;
+  return Boolean(String(cached.body ?? "").trim());
+}
+
 function NodeFromSelectionModal({ query, onClose, onSave }) {
   return (
     <Modal onClose={onClose} title="NEW NOTE">
@@ -247,7 +253,7 @@ export function DocExpandedView({
       : (d.title ?? "");
     const loadedHasText = docBlocksHaveText(loadedBlocks);
     const cachedBlocks = cached?.blocks?.length ? normalizeDocBlocks(cached.blocks) : [];
-    const cachedHasText = docBlocksHaveText(cachedBlocks);
+    const cachedHasText = docDraftHasContent(cached);
     const preferStoreContent = Boolean(
       normalized.reportPresentation?.animateOnOpen
       || (normalized.reportPresentation?.kind === "analyst-strategic-v2" && loadedHasText),
@@ -334,13 +340,14 @@ export function DocExpandedView({
     if (!initialSnapshot) return;
 
     const blocksDirty = JSON.stringify(initialSnapshot.blocks) !== JSON.stringify(draftBlocks);
-    if (blocksDirty) return;
+    const bodyDirty = (initialSnapshot.body ?? "") !== (draftBody ?? "");
+    if (blocksDirty || bodyDirty) return;
 
     if (JSON.stringify(draftBlocks) === JSON.stringify(storeBlocks)) return;
 
     setDraftBlocks(storeBlocks);
     setInitialSnapshot((prev) => (prev ? { ...prev, blocks: storeBlocks } : prev));
-  }, [doc, doc?.reportPresentation?.animateOnOpen, isDraftReady, initialSnapshot, draftBlocks]);
+  }, [doc, doc?.reportPresentation?.animateOnOpen, isDraftReady, initialSnapshot, draftBlocks, draftBody]);
 
   useEffect(() => {
     if (!docId || !isDraftReady) return undefined;

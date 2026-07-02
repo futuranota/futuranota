@@ -28,6 +28,7 @@ export function resolveMacroScheduleAnchorAt({
   canvasNodes = [],
   connections = [],
   nodeEntitiesById = {},
+  preferredMacroEntityId = null,
 }) {
   const graph = resolveAgentGraph({
     agentCanvasNodeId,
@@ -37,6 +38,16 @@ export function resolveMacroScheduleAnchorAt({
     objectsById: {},
     selectedObjectId: null,
   });
+  if (preferredMacroEntityId) {
+    const node = (graph.inputs || []).find((n) => n.noteId === preferredMacroEntityId);
+    if (node?.noteId) {
+      const entity = nodeEntitiesById[node.noteId];
+      if (entity) {
+        const instruction = extractAgentInstructionFromNodeEntity(entity);
+        if (instruction) return entity.anchorAt || node.anchorAt || null;
+      }
+    }
+  }
   return findWiredMacroScheduleAnchor(graph.inputs || [], nodeEntitiesById);
 }
 

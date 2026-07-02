@@ -72,6 +72,10 @@ export const messages = {
       insertToTimeline: "Insert to timeline",
       insertToTimelineTitle: "Add selected document nodes to the tactical timeline",
       insertToTimelineDisabled: "Enable Select and pick nodes linked to documents",
+      scheduledAutoRun: "Auto-run",
+      scheduledAutoRunTitle: "Run wired macro tasks automatically when their schedule is due (while the app is open)",
+      scheduledDueCount: "{count} task(s) due now",
+      scheduledPendingCount: "{count} scheduled task(s)",
     },
     doc: {
       imageBlock: {
@@ -259,6 +263,7 @@ export const messages = {
         content_creator_apply: "Could not write the content plan to the document.",
         content_creator_macro_apply: "Could not write the blog into the macro node.",
         schedule_not_due: "Scheduled for {schedule}. Run unlocks at that date and time.",
+        scheduledTaskComplete: "Scheduled task completed · {title}",
       },
     },
     intel: {
@@ -612,6 +617,10 @@ export const messages = {
       insertToTimeline: "Insertar en timeline",
       insertToTimelineTitle: "Añadir los nodos seleccionados al timeline táctico",
       insertToTimelineDisabled: "Activa Select y elige nodos vinculados a documentos",
+      scheduledAutoRun: "Auto-run",
+      scheduledAutoRunTitle: "Ejecutar tasks de macronodos cableados cuando llegue su horario (con la app abierta)",
+      scheduledDueCount: "{count} task(s) listos",
+      scheduledPendingCount: "{count} task(s) programados",
     },
     doc: {
       imageBlock: {
@@ -843,6 +852,7 @@ export const messages = {
         content_creator_apply: "No se pudo escribir el plan de contenido en el documento.",
         content_creator_macro_apply: "No se pudo escribir el blog en el macronodo.",
         schedule_not_due: "Programado para {schedule}. Run se habilita en esa fecha y hora.",
+        scheduledTaskComplete: "Task programado completado · {title}",
       },
     },
     upgrade: {

@@ -1,6 +1,7 @@
 import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import { sanitizePersistedSnapshot } from "../../lib/storeSanitize.js";
+import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 
 const STORAGE_KEY = "futura-nota-v1";
 
@@ -206,6 +207,8 @@ export function initPersistenceMiddleware(stores) {
     timelineDocSnapshotsByDocId: useTimelineStore.getState().timelineDocSnapshotsByDocId,
     timelineExcludedChildrenByDocId: useTimelineStore.getState().timelineExcludedChildrenByDocId,
     expandedDocIds: useTimelineStore.getState().expandedDocIds,
+    scheduledAutoRunEnabled: useScheduledTasksStore.getState().autoRunEnabled,
+    scheduledCompletedTaskKeys: useScheduledTasksStore.getState().completedTaskKeys,
   });
 
   const applyStateToStores = (data) => {
@@ -237,6 +240,17 @@ export function initPersistenceMiddleware(stores) {
         timelineDocSnapshotsByDocId: data.timelineDocSnapshotsByDocId || {},
         timelineExcludedChildrenByDocId: data.timelineExcludedChildrenByDocId || {},
         expandedDocIds: Array.isArray(data.expandedDocIds) ? data.expandedDocIds : [],
+      });
+    }
+    if (typeof data.scheduledAutoRunEnabled === "boolean"
+      || Array.isArray(data.scheduledCompletedTaskKeys)) {
+      useScheduledTasksStore.setState({
+        autoRunEnabled: typeof data.scheduledAutoRunEnabled === "boolean"
+          ? data.scheduledAutoRunEnabled
+          : true,
+        completedTaskKeys: Array.isArray(data.scheduledCompletedTaskKeys)
+          ? data.scheduledCompletedTaskKeys
+          : [],
       });
     }
   };
@@ -684,6 +698,7 @@ export function initPersistenceMiddleware(stores) {
     useNodesStore,
     useCanvasStore,
     useTimelineStore,
+    useScheduledTasksStore,
   ].forEach((store) => {
     store.subscribe(handleStoreChange);
   });

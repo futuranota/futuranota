@@ -14,6 +14,7 @@ export async function runContentCreatorAgent({
   objectsById = {},
   nodeEntitiesById = {},
   selectedObjectId = null,
+  preferredMacroEntityId = null,
   locale = "en",
 }) {
   const context = resolveContentCreatorContext({
@@ -24,6 +25,7 @@ export async function runContentCreatorAgent({
     objectsById,
     nodeEntitiesById,
     selectedObjectId,
+    preferredMacroEntityId,
     locale,
   });
 
