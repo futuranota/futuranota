@@ -2,8 +2,19 @@ import { useState } from 'react';
 
 const FALLBACK = 'https://placehold.co/640x360/1a1a1a/666666?text=Blog';
 
+/** Tina image fields may be a path string or { src } object. */
+export function blogImageValue(article) {
+  const raw = article?.image;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  if (raw && typeof raw === 'object' && typeof raw.src === 'string' && raw.src.trim()) {
+    return raw.src.trim();
+  }
+  return null;
+}
+
 export function blogImageSrc(article) {
-  if (article?.image) return article.image;
+  const image = blogImageValue(article);
+  if (image) return image;
   if (article?.slug) {
     return `https://picsum.photos/seed/${encodeURIComponent(article.slug)}/640/360`;
   }

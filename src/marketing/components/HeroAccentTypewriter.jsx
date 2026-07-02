@@ -38,7 +38,6 @@ export function HeroAccentTypewriter({ texts, tinaProps }) {
 
   return (
     <span className="hero__accent-type" {...tinaProps}>
-      <span className="hero__accent-type__box" aria-hidden="true" />
       <span className="hero__accent-type__text accent-word" aria-live="polite">
         {displayText}
         {!reduceMotion && (

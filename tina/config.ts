@@ -500,6 +500,7 @@ export default defineConfig({
         fields: [
           { type: 'string', name: 'slug', label: 'Slug (optional — defaults to filename)' },
           { type: 'string', name: 'title', label: 'Title', isTitle: true, required: true },
+          { type: 'image', name: 'image', label: 'Cover image' },
           { type: 'string', name: 'author', label: 'Author' },
           { type: 'string', name: 'read', label: 'Read time' },
           { type: 'boolean', name: 'feat', label: 'Featured on home' },

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { getBlogPageCategories } from '../lib/content.js';
 import { PATHS } from '../lib/paths.js';
 import { blogTinaProps } from '../context/TinaVisualEditing.jsx';
+import { BlogLazyImage, blogImageSrc } from '../components/BlogLazyImage.jsx';
 
 function BlogBody({ body }) {
   if (!body) return null;
@@ -51,8 +52,12 @@ export function BlogPost({ article }) {
           </div>
         </header>
 
-        <div className="blog-post__hero ph" style={{ aspectRatio: '16 / 7' }}>
-          <span className="ph__tag">article image</span>
+        <div {...blogTinaProps('image')}>
+          <BlogLazyImage
+            src={blogImageSrc(article)}
+            alt={article.title}
+            mediaClassName="blog-post__hero blog-card__media"
+          />
         </div>
 
         <div className="blog-post__body prose" {...blogTinaProps('body')}>

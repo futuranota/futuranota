@@ -13,21 +13,6 @@ body.marketing-body {
   --hero-pencil:        oklch(0.42 0.018 60);
 }
 
-/* Test background image for landing */
-body.marketing-body .canvas-bg {
-  background-color: #0f0f12;
-  background-image:
-    linear-gradient(oklch(0.08 0.01 260 / 0.72), oklch(0.08 0.01 260 / 0.72)),
-    url('/uploads/7.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
-
-body.marketing-body .canvas-bg::after {
-  background: radial-gradient(120% 90% at 50% 0%, transparent 52%, oklch(0.08 0.01 260 / 0.62) 100%);
-}
-
 :root[data-theme="light"] body.marketing-body {
   --signal:      oklch(0.52 0.16 159);
   --signal-soft: oklch(0.52 0.16 159 / 0.12);
@@ -90,11 +75,7 @@ body.marketing-body .link-arrow:hover {
 
 /* Hero panel — off-white / light beige */
 body.marketing-body .hero__grid {
-  background-color: #FAFAF7;
-  background-image: url('/uploads/Realistic%20Paper%20Fold%20Texture%203.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  background: #FAFAF7;
 }
 
 /* Hero maker headline: "They launch..." / "You sell..." */
@@ -122,6 +103,11 @@ body.marketing-body .hero__grid .hero__lead {
   line-height: 1.62;
   color: var(--hero-pencil);
   max-width: 48ch;
+}
+
+/* Typewriter accent — no dashed border box */
+body.marketing-body .hero__accent-type__box {
+  display: none;
 }
 
 /* Blog nav mega tabs — white, pink hover & selected */

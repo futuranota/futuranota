@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getBlogArticles, getBlogPageCategories, getBlogsPage } from '../lib/content.js';
-import { blogPostPath } from '../lib/paths.js';
+import { BlogFeaturedCard, BlogGridCard } from '../components/BlogArticleCard.jsx';
 import { usePageTina, pageTinaProps } from '../context/TinaVisualEditing.jsx';
 
 function countForCategory(catId, articles, categories) {
@@ -56,37 +56,21 @@ export function Blogs() {
           </div>
         </aside>
         <div className="blogs__list">
-          {featured && (
-            <Link to={blogPostPath(featured.slug)} className="blog-feat card" data-screen-label="blog-featured">
-              <div className="blog-feat__img ph"><span className="ph__tag">featured image</span></div>
-              <div className="blog-feat__body">
-                <div className="eyebrow-row">
-                  {featured.cat.map((c) => {
-                    const label = categories.find((x) => x.id === c)?.label || c;
-                    return <span key={c} className="chip chip--accent">{label}</span>;
-                  })}
-                </div>
-                <h3 className="h2 blog-feat__title" style={{ fontSize: 'clamp(24px,2.6vw,34px)' }}>{featured.title}</h3>
-                <div className="blog__meta mono-sm faint">By {featured.author} · {featured.read} read</div>
-                <span className="link-arrow">Read article <span className="arrow">→</span></span>
-              </div>
-            </Link>
-          )}
+          {featured ? (
+            <BlogFeaturedCard
+              article={featured}
+              categories={categories}
+              screenLabel="blog-featured"
+            />
+          ) : null}
           <div className="blog-grid">
             {rest.map((a, i) => (
-              <Link to={blogPostPath(a.slug)} className="blog card" key={a.slug} data-screen-label={`blog-${i}`}>
-                <div className="blog__img ph"><span className="ph__tag">image</span></div>
-                <div className="blog__body">
-                  <div className="eyebrow-row">
-                    {a.cat.map((c) => {
-                      const label = categories.find((x) => x.id === c)?.label || c;
-                      return <span key={c} className="chip">{label}</span>;
-                    })}
-                  </div>
-                  <h4 className="blog__title">{a.title}</h4>
-                  <div className="blog__meta mono-sm faint">By {a.author} · {a.read}</div>
-                </div>
-              </Link>
+              <BlogGridCard
+                key={a.slug}
+                article={a}
+                categories={categories}
+                screenLabel={`blog-${i}`}
+              />
             ))}
           </div>
         </div>
