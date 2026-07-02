@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,100..900;1,100..900&display=swap');
+
 /* Landing tweaks — mint signal on dark canvas, legible labels, blogs sidebar */
 
 body.marketing-body {
@@ -9,6 +11,21 @@ body.marketing-body {
   --landing-pink-soft:  oklch(0.82 0.11 350 / 0.20);
   --landing-pink-line:  oklch(0.75 0.10 350 / 0.42);
   --hero-pencil:        oklch(0.42 0.018 60);
+}
+
+/* Test background image for landing */
+body.marketing-body .canvas-bg {
+  background-color: #0f0f12;
+  background-image:
+    linear-gradient(oklch(0.08 0.01 260 / 0.72), oklch(0.08 0.01 260 / 0.72)),
+    url('/uploads/7.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+body.marketing-body .canvas-bg::after {
+  background: radial-gradient(120% 90% at 50% 0%, transparent 52%, oklch(0.08 0.01 260 / 0.62) 100%);
 }
 
 :root[data-theme="light"] body.marketing-body {
@@ -73,7 +90,23 @@ body.marketing-body .link-arrow:hover {
 
 /* Hero panel — off-white / light beige */
 body.marketing-body .hero__grid {
-  background: #FAFAF7;
+  background-color: #FAFAF7;
+  background-image: url('/uploads/Realistic%20Paper%20Fold%20Texture%203.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Hero maker headline: "They launch..." / "You sell..." */
+body.marketing-body .hero__title--static,
+body.marketing-body .hero__title--static .hero__title-line--lead,
+body.marketing-body .hero__title--static .hero__title-line--accent,
+body.marketing-body .hero__title--static .hero__accent-type__text {
+  font-family: "Noto Serif", serif;
+  font-optical-sizing: auto;
+  font-style: normal;
+  font-weight: 700;
+  font-variation-settings: "wdth" 100;
 }
 
 /* Hero headline — larger */
