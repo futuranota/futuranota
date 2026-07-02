@@ -1,3 +1,5 @@
+import { categoriesMatch } from "./docListGrouping.js";
+
 /** Document kind: product, content/campaign, global knowledge corpus, legacy standard, or template. */
 export const DOC_KIND_STANDARD = "standard";
 export const DOC_KIND_PRODUCT = "product";
@@ -194,7 +196,7 @@ export function findProductVersionDoc(allDocs, parentObjectId, category, version
   if (!parentObjectId || !cat || !ver) return null;
   return (
     productDocsUnderParent(allDocs, parentObjectId).find(
-      (doc) => doc.category?.trim() === cat && doc.version?.trim() === ver,
+      (doc) => categoriesMatch(doc.category, cat) && doc.version?.trim() === ver,
     ) ?? null
   );
 }
@@ -204,7 +206,7 @@ export function listProductVersionOptions(allDocs, parentObjectId, category) {
   const cat = category?.trim();
   if (!parentObjectId || !cat) return [];
   return productDocsUnderParent(allDocs, parentObjectId)
-    .filter((doc) => doc.category?.trim() === cat)
+    .filter((doc) => categoriesMatch(doc.category, cat))
     .filter((doc) => doc.version?.trim())
     .map((doc) => ({
       docId: doc.id,
@@ -219,7 +221,7 @@ export function findUnversionedProductDoc(allDocs, parentObjectId, category, exc
   if (!parentObjectId || !cat) return null;
   return (
     productDocsUnderParent(allDocs, parentObjectId, excludeDocId).find(
-      (doc) => doc.category?.trim() === cat && !doc.version?.trim(),
+      (doc) => categoriesMatch(doc.category, cat) && !doc.version?.trim(),
     ) ?? null
   );
 }

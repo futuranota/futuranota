@@ -62,6 +62,16 @@ export const messages = {
       allHiddenTitle: "All nodes hidden",
       allHiddenCount: "{count} nodes hidden",
       allHiddenHint: "Data stays intact. Click Show all to restore.",
+      timelineSelect: "Select",
+      timelineSelectTitle: "Select nodes on the canvas and queue their documents for the timeline",
+      timelineSelectActive: "Select mode — pick nodes for the timeline",
+      timelineSelectHint: "Click to add · tap again to deselect · drag to box-select",
+      timelineSelectedCount: "{count} selected for timeline",
+      timelineSelectBadge: "Selection {index}",
+      nodeSelectedCount: "{count} selected",
+      insertToTimeline: "Insert to timeline",
+      insertToTimelineTitle: "Add selected document nodes to the tactical timeline",
+      insertToTimelineDisabled: "Enable Select and pick nodes linked to documents",
     },
     doc: {
       imageBlock: {
@@ -111,6 +121,7 @@ export const messages = {
       dragEnd: "Drag to adjust timeline end",
       docChipHint: "Click to expand · Double-click to open document",
       childChipHint: "Click to expand · Double-click to open in document",
+      removeFromTimeline: "Remove from timeline",
     },
     sidebar: {
       panelObjects: "Company",
@@ -591,6 +602,16 @@ export const messages = {
       allHiddenTitle: "Nodos ocultos",
       allHiddenCount: "{count} nodos ocultos",
       allHiddenHint: "Los datos se mantienen. Pulsa Mostrar todo para restaurar.",
+      timelineSelect: "Select",
+      timelineSelectTitle: "Selecciona nodos en el canvas para añadirlos al timeline",
+      timelineSelectActive: "Modo Select — elige nodos para el timeline",
+      timelineSelectHint: "Clic para añadir · otro clic para quitar · arrastra para seleccionar varios",
+      timelineSelectedCount: "{count} seleccionados para timeline",
+      timelineSelectBadge: "Selección {index}",
+      nodeSelectedCount: "{count} seleccionados",
+      insertToTimeline: "Insertar en timeline",
+      insertToTimelineTitle: "Añadir los nodos seleccionados al timeline táctico",
+      insertToTimelineDisabled: "Activa Select y elige nodos vinculados a documentos",
     },
     doc: {
       imageBlock: {
@@ -640,6 +661,7 @@ export const messages = {
       dragEnd: "Arrastra para ajustar el final del timeline",
       docChipHint: "Clic para expandir · Doble clic para abrir el documento",
       childChipHint: "Clic para expandir · Doble clic para abrir en el documento",
+      removeFromTimeline: "Quitar del timeline",
     },
     intel: {
       noSources: "Sin referencias web para esta búsqueda. Probá un término más amplio.",

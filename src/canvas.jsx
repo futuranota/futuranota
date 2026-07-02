@@ -261,6 +261,7 @@ function CanvasNode({
   orphanEntityCanvasNodes = [],
   timelineSelectable = true,
   timelineQueueMode = false,
+  selectionIndex = null,
   onRunAgent,
 }) {
   const ref = useRef(null);
@@ -288,6 +289,7 @@ function CanvasNode({
     if (e.target.closest('.cnode-parent-select')) return;
     if (e.target.closest('.cnode-adopt-orphan')) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+    if (timelineQueueMode && !timelineSelectable) return;
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -657,8 +659,9 @@ function CanvasNode({
   );
 
   const cls = ["cnode"];
+  if (selected) cls.push("selected");
   if (selected && timelineQueueMode) cls.push("cnode--timeline-pick");
-  else if (selected) cls.push("selected");
+  if (timelineQueueMode && !timelineSelectable) cls.push("cnode--timeline-muted");
   if (connectingFrom === node.id) cls.push("connect-source");
   if (node.hidden) cls.push("hidden");
   if (knowledgeCorpus) {
@@ -742,6 +745,11 @@ function CanvasNode({
       onMouseLeave={() => onConnectHover?.(null)}
       onMouseUp={(e) => { if (isConnectingFrom && isConnectingFrom !== node.id) onPortMouseUp(node.id); }}
     >
+      {timelineQueueMode && selected && selectionIndex != null ? (
+        <span className="cnode-select-badge" aria-label={t("canvas.timelineSelectBadge", { index: selectionIndex })}>
+          {selectionIndex}
+        </span>
+      ) : null}
       <div className="cnode-h">
         {calendarEventPayload ? null : editing === "title" ? (
           <input
@@ -867,6 +875,12 @@ function BlueprintCanvas({
   const panDrag = useRef(null);
   const PAN_CLICK_THRESHOLD = 5;
   const marqueeDrag = useRef(null);
+
+  const selectionIndexById = useMemo(() => {
+    const map = new Map();
+    selection.forEach((id, index) => map.set(id, index + 1));
+    return map;
+  }, [selection]);
 
   const getWorldFromClient = useCallback((clientX, clientY) => {
     const r = stageRef.current?.getBoundingClientRect();
@@ -1977,11 +1991,11 @@ function BlueprintCanvas({
             </button>
             <button
               type="button"
-              className={"btn xs" + (timelineQueueMode ? " primary" : " ghost")}
+              className={"btn xs btn-timeline-select" + (timelineQueueMode ? " primary is-active" : " ghost")}
               onClick={onToggleTimelineQueueMode}
-              title="Select nodes on the canvas and queue their documents for the timeline"
+              title={t("canvas.timelineSelectTitle")}
             >
-              Select
+              {t("canvas.timelineSelect")}
             </button>
             <button
               type="button"
@@ -1990,11 +2004,11 @@ function BlueprintCanvas({
               onClick={onInsertToTimeline}
               title={
                 timelineQueueMode && selection.length > 0
-                  ? "Add selected document nodes to the tactical timeline"
-                  : "Enable Select and pick nodes linked to documents"
+                  ? t("canvas.insertToTimelineTitle")
+                  : t("canvas.insertToTimelineDisabled")
               }
             >
-              Insert to timeline
+              {t("canvas.insertToTimeline")}
             </button>
           </>
         ) : null}
@@ -2032,7 +2046,11 @@ function BlueprintCanvas({
       </div>
 
       <div
-        className={"canvas-stage" + (tool === "select" ? " pan-ready" : "")}
+        className={
+          "canvas-stage"
+          + (tool === "select" ? " pan-ready" : "")
+          + (effectiveTimelineQueueMode ? " canvas-stage--timeline-select" : "")
+        }
         ref={stageRef}
         data-tool={tool}
         onPointerDown={onStagePointerDown}
@@ -2200,6 +2218,7 @@ function BlueprintCanvas({
             selected={selection.includes(n.id)}
             timelineSelectable={timelineSelectable}
             timelineQueueMode={effectiveTimelineQueueMode}
+            selectionIndex={selectionIndexById.get(n.id)}
             connectingFrom={connectingFrom}
             isConnectingFrom={!!connectingFrom}
             rewiring={rewiring}
@@ -2250,6 +2269,20 @@ function BlueprintCanvas({
         })()}
         </div>
 
+        {effectiveTimelineQueueMode ? (
+          <div className="canvas-timeline-select-hint" role="status">
+            <span className="canvas-timeline-select-hint__dot" aria-hidden />
+            <span>
+              {selection.length > 0
+                ? t("canvas.timelineSelectedCount", { count: selection.length })
+                : t("canvas.timelineSelectActive")}
+            </span>
+            <span className="canvas-timeline-select-hint__sub">
+              {t("canvas.timelineSelectHint")}
+            </span>
+          </div>
+        ) : null}
+
         <div className="canvas-coords">
           <span>X <b>{hoverPos ? Math.round(hoverPos.x) : "—"}</b></span>
           <span>Y <b>{hoverPos ? Math.round(hoverPos.y) : "—"}</b></span>
@@ -2259,17 +2292,16 @@ function BlueprintCanvas({
           {selectedConnectionId && (
             <span className="pill warm"><i className="dot" />Edge selected · Del to remove · drag port to reassign</span>
           )}
-          {selection.length > 0 && (
+          {selection.length > 0 && !effectiveTimelineQueueMode && (
             <span className="pill ai">
               <i className="dot" />
-              1 selected
-              {effectiveTimelineQueueMode ? " · tap to clear" : ""}
+              {t("canvas.nodeSelectedCount", { count: selection.length })}
             </span>
           )}
           {effectiveTimelineQueueMode && selection.length > 0 && (
-            <span className="pill warm">
+            <span className="pill ok">
               <i className="dot" />
-              {selection.length} selected
+              {t("canvas.timelineSelectedCount", { count: selection.length })}
             </span>
           )}
           <span className="pill ok"><i className="dot" />Canvas · Live</span>

@@ -33,5 +33,21 @@ export function sanitizePersistedSnapshot(parsed) {
       typeof parsed.currentTier === "string" ? parsed.currentTier : "all";
   }
 
+  if (Array.isArray(parsed.timelineDocQueue)) {
+    snapshot.timelineDocQueue = parsed.timelineDocQueue;
+    snapshot.timelineDocQueueFocusByDocId = isRecord(parsed.timelineDocQueueFocusByDocId)
+      ? parsed.timelineDocQueueFocusByDocId
+      : {};
+    snapshot.timelineDocSnapshotsByDocId = isRecord(parsed.timelineDocSnapshotsByDocId)
+      ? parsed.timelineDocSnapshotsByDocId
+      : {};
+    snapshot.timelineExcludedChildrenByDocId = isRecord(parsed.timelineExcludedChildrenByDocId)
+      ? parsed.timelineExcludedChildrenByDocId
+      : {};
+    snapshot.expandedDocIds = Array.isArray(parsed.expandedDocIds)
+      ? parsed.expandedDocIds
+      : [];
+  }
+
   return snapshot;
 }

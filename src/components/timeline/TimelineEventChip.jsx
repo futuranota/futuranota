@@ -11,6 +11,8 @@ export function TimelineEventChip({
   onClick,
   onDoubleClick,
   onKeyDown,
+  onRemove,
+  removeLabel = "Remove from timeline",
   title,
 }) {
   if (variant === "card") {
@@ -31,6 +33,7 @@ export function TimelineEventChip({
           "tl-event-chip tl-event-chip--card"
           + (compact ? " is-compact" : "")
           + (focused ? " is-focused" : "")
+          + (onRemove ? " has-remove" : "")
         }
         style={cardStyle}
         data-tl-anchor={dataAnchor || undefined}
@@ -46,6 +49,17 @@ export function TimelineEventChip({
             <span className="tl-chip-card-date">{dateLabel}</span>
           ) : null}
         </span>
+        {onRemove ? (
+          <button
+            type="button"
+            className="tl-chip-remove"
+            aria-label={removeLabel}
+            title={removeLabel}
+            onClick={onRemove}
+          >
+            ×
+          </button>
+        ) : null}
       </div>
     );
   }

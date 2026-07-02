@@ -7,6 +7,8 @@ import {
   resolveHeadlineBlockIdForCanvasNode,
   resolveParentDocIdForCanvasNode,
 } from "../lib/timelineSelection.js";
+import { captureTimelineDocSnapshot } from "../lib/timelineDocSnapshot.js";
+import { buildTacticalWireAnchorMap } from "../lib/timelineAnchors.js";
 
 const TIMELINE_ALERTS_KEY = "futura-timeline-alerts";
 
@@ -38,6 +40,10 @@ export const useTimelineStore = create(
       timelineDocQueue: [],
       /** Optional headline block id per queued doc (from canvas child selection). */
       timelineDocQueueFocusByDocId: {},
+      /** Snapshot anchor dates + macronodos per queued doc (persists without canvas). */
+      timelineDocSnapshotsByDocId: {},
+      /** Macronodo keys hidden from timeline per doc (user removed chip). */
+      timelineExcludedChildrenByDocId: {},
       /** Cognitive snapshot mode (Trace Funix) — Intel / mixed doc+object queries. */
       traceFunixMode: false,
       /** Fase 2: cross-family doc links + timeline inherit (Bloque A). */
@@ -279,11 +285,7 @@ export const useTimelineStore = create(
         const on = Boolean(enabled);
         set(on
           ? { timelineQueueMode: true, inheritObjMode: false }
-          : {
-            timelineQueueMode: false,
-            timelineDocQueue: [],
-            timelineDocQueueFocusByDocId: {},
-          });
+          : { timelineQueueMode: false });
       },
 
       toggleTimelineQueueMode: () => {
@@ -294,6 +296,8 @@ export const useTimelineStore = create(
       clearTimelineDocQueue: () => set({
         timelineDocQueue: [],
         timelineDocQueueFocusByDocId: {},
+        timelineDocSnapshotsByDocId: {},
+        timelineExcludedChildrenByDocId: {},
         tacticalRangeOverride: null,
       }),
 
@@ -305,9 +309,70 @@ export const useTimelineStore = create(
         if (!docId) return;
         set((state) => {
           const { [docId]: _removed, ...focusRest } = state.timelineDocQueueFocusByDocId;
+          const { [docId]: _snap, ...snapRest } = state.timelineDocSnapshotsByDocId;
+          const { [docId]: _excl, ...exclRest } = state.timelineExcludedChildrenByDocId;
           return {
             timelineDocQueue: state.timelineDocQueue.filter((id) => id !== docId),
             timelineDocQueueFocusByDocId: focusRest,
+            timelineDocSnapshotsByDocId: snapRest,
+            timelineExcludedChildrenByDocId: exclRest,
+            expandedDocIds: state.expandedDocIds.filter((id) => id !== docId),
+          };
+        });
+      },
+
+      removeTimelineChildFromQueue: (docId, childKey) => {
+        if (!docId || !childKey) return;
+        set((state) => {
+          const snap = state.timelineDocSnapshotsByDocId[docId];
+          const nextSnap = snap
+            ? {
+              ...state.timelineDocSnapshotsByDocId,
+              [docId]: {
+                ...snap,
+                children: snap.children.filter(
+                  (c) => c.key !== childKey && c.entityId !== childKey && c.canvasNodeId !== childKey,
+                ),
+              },
+            }
+            : state.timelineDocSnapshotsByDocId;
+          const prevExcluded = state.timelineExcludedChildrenByDocId[docId] || [];
+          const excluded = prevExcluded.includes(childKey)
+            ? prevExcluded
+            : [...prevExcluded, childKey];
+          return {
+            timelineDocSnapshotsByDocId: nextSnap,
+            timelineExcludedChildrenByDocId: {
+              ...state.timelineExcludedChildrenByDocId,
+              [docId]: excluded,
+            },
+          };
+        });
+      },
+
+      removeTimelineEntityFromSnapshots: (entityId) => {
+        if (!entityId) return;
+        set((state) => {
+          const nextSnap = { ...state.timelineDocSnapshotsByDocId };
+          let snapChanged = false;
+          for (const [docId, snap] of Object.entries(nextSnap)) {
+            const filtered = snap.children.filter((c) => c.entityId !== entityId && c.key !== entityId);
+            if (filtered.length !== snap.children.length) {
+              nextSnap[docId] = { ...snap, children: filtered };
+              snapChanged = true;
+            }
+          }
+          const nextExcl = { ...state.timelineExcludedChildrenByDocId };
+          let exclChanged = false;
+          for (const [docId, keys] of Object.entries(nextExcl)) {
+            if (!keys.includes(entityId)) continue;
+            nextExcl[docId] = keys.filter((k) => k !== entityId);
+            exclChanged = true;
+          }
+          if (!snapChanged && !exclChanged) return state;
+          return {
+            timelineDocSnapshotsByDocId: snapChanged ? nextSnap : state.timelineDocSnapshotsByDocId,
+            timelineExcludedChildrenByDocId: exclChanged ? nextExcl : state.timelineExcludedChildrenByDocId,
           };
         });
       },
@@ -324,7 +389,13 @@ export const useTimelineStore = create(
         });
       },
 
-      enqueueTimelineDocsFromCanvasNodes: (canvasNodeIds, canvasNodes, nodeEntitiesById, docsById) => {
+      enqueueTimelineDocsFromCanvasNodes: (
+        canvasNodeIds,
+        canvasNodes,
+        nodeEntitiesById,
+        docsById,
+        connections = [],
+      ) => {
         const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
         const familyIds = new Set();
         for (const canvasId of canvasNodeIds) {
@@ -343,12 +414,15 @@ export const useTimelineStore = create(
 
         let queue = get().timelineDocQueue;
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
+        const snapshots = { ...get().timelineDocSnapshotsByDocId };
+        const touchedDocIds = new Set();
         let added = 0;
         for (const canvasId of canvasNodeIds) {
           const node = nodeById.get(canvasId);
           if (!node) continue;
           const docId = resolveParentDocIdForCanvasNode(node, nodeEntitiesById, docsById);
           if (!docId) continue;
+          touchedDocIds.add(docId);
           const prevLen = queue.length;
           queue = pushDocToTimelineQueue(queue, docId);
           if (queue.length > prevLen) added += 1;
@@ -359,7 +433,29 @@ export const useTimelineStore = create(
           );
           if (focusBlockId) focusByDocId[docId] = focusBlockId;
         }
-        set({ timelineDocQueue: queue, timelineDocQueueFocusByDocId: focusByDocId });
+
+        const meta = { docsById, nodeEntitiesById };
+        const { anchors: wireAnchors } = buildTacticalWireAnchorMap(canvasNodes, connections, meta);
+        for (const docId of touchedDocIds) {
+          snapshots[docId] = captureTimelineDocSnapshot(docId, {
+            canvasNodes,
+            wireAnchors,
+            docsById,
+            nodeEntitiesById,
+          });
+        }
+
+        const excluded = { ...get().timelineExcludedChildrenByDocId };
+        for (const docId of touchedDocIds) {
+          excluded[docId] = [];
+        }
+
+        set({
+          timelineDocQueue: queue,
+          timelineDocQueueFocusByDocId: focusByDocId,
+          timelineDocSnapshotsByDocId: snapshots,
+          timelineExcludedChildrenByDocId: excluded,
+        });
         return { ok: true, added };
       },
 

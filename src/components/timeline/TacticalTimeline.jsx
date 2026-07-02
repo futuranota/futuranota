@@ -49,6 +49,8 @@ function TacticalRowGroup({
   focusedNoteId,
   onChipClick,
   onChipDoubleClick,
+  onChipRemove,
+  queuedDocIds,
   rangeDrag,
   t,
 }) {
@@ -82,6 +84,8 @@ function TacticalRowGroup({
           focusedNoteId={focusedNoteId}
           onChipClick={onChipClick}
           onChipDoubleClick={onChipDoubleClick}
+          onChipRemove={onChipRemove}
+          queuedDocIds={queuedDocIds}
           enableRangeHandles={
             row.rowKind === "object" && (row.rail?.nodeGroups?.length ?? 0) > 0
           }
@@ -105,6 +109,8 @@ function TacticalObjectRow({
   focusedNoteId,
   onChipClick,
   onChipDoubleClick,
+  onChipRemove,
+  queuedDocIds,
   enableRangeHandles = false,
   rangeDrag = null,
   t,
@@ -317,10 +323,16 @@ function TacticalObjectRow({
                   >
                     {group.items.map((marker) => {
                       const item = trackItemsById.get(marker.nodeId);
+                      const entity = marker.entityId
+                        ? nodeEntitiesById[marker.entityId]
+                        : null;
+                      const fallbackName = marker.dataType && marker.dataType !== "document"
+                        ? (entity?.title || entity?.name || marker.dataType).trim()
+                        : (docsById[marker.docId]?.title || "Document").trim();
                       const display = item
                         ? buildChipDisplay(item, trackObject, meta, chipExtras)
                         : {
-                          name: (docsById[marker.docId]?.title || "Document").trim(),
+                          name: fallbackName,
                           dateLabel: fmtDate(marker.date, "short"),
                           objectTint: accent,
                         };
@@ -330,6 +342,11 @@ function TacticalObjectRow({
                       const dataAnchor = marker.dataType === "document" && marker.docId
                         ? `doc-${marker.docId}`
                         : `node-${marker.nodeId}`;
+                      const isQueuedDoc = marker.dataType === "document"
+                        && marker.docId
+                        && queuedDocIds?.has(marker.docId);
+                      const canRemove = isQueuedDoc
+                        || (marker.dataType !== "document" && marker.childKey);
 
                       return (
                         <TimelineEventChip
@@ -350,6 +367,13 @@ function TacticalObjectRow({
                           }
                           onClick={() => onChipClick(marker, row)}
                           onDoubleClick={() => onChipDoubleClick(marker, row)}
+                          onRemove={canRemove
+                            ? (e) => {
+                              e.stopPropagation();
+                              onChipRemove(marker, row);
+                            }
+                            : undefined}
+                          removeLabel={t("timeline.removeFromTimeline")}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") onChipClick(marker, row);
                           }}
@@ -389,11 +413,15 @@ export function TacticalTimeline({
 }) {
   const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
+  const timelineDocSnapshotsByDocId = useTimelineStore((s) => s.timelineDocSnapshotsByDocId);
+  const timelineExcludedChildrenByDocId = useTimelineStore((s) => s.timelineExcludedChildrenByDocId);
   const expandedDocIds = useTimelineStore((s) => s.expandedDocIds);
   const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
   const explicitPrimaryId = useTimelineStore((s) => s.primaryTimelineObjectId);
   const setTimelineFocus = useTimelineStore((s) => s.setTimelineFocus);
   const toggleExpandedDocId = useTimelineStore((s) => s.toggleExpandedDocId);
+  const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
+  const removeTimelineChildFromQueue = useTimelineStore((s) => s.removeTimelineChildFromQueue);
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
   const setTimelineAlertsEnabled = useTimelineStore((s) => s.setTimelineAlertsEnabled);
   const tacticalRangeOverride = useTimelineStore((s) => s.tacticalRangeOverride);
@@ -414,6 +442,11 @@ export function TacticalTimeline({
     [explicitPrimaryId, timelineDocQueue, docsById, objectsById],
   );
 
+  const queuedDocIds = useMemo(
+    () => new Set(timelineDocQueue),
+    [timelineDocQueue],
+  );
+
   const view = useMemo(
     () => buildTacticalObjectRows({
       canvasNodes,
@@ -423,6 +456,8 @@ export function TacticalTimeline({
       objectsById,
       objectTimelineTitles,
       timelineDocQueue,
+      timelineDocSnapshotsByDocId,
+      timelineExcludedChildrenByDocId,
       expandedDocIds,
       today,
       filterObjectId,
@@ -438,6 +473,8 @@ export function TacticalTimeline({
       objectsById,
       objectTimelineTitles,
       timelineDocQueue,
+      timelineDocSnapshotsByDocId,
+      timelineExcludedChildrenByDocId,
       expandedDocIds,
       today,
       filterObjectId,
@@ -508,6 +545,16 @@ export function TacticalTimeline({
     onOpenDocument(docId, { focusBlockId });
   };
 
+  const handleChipRemove = (marker) => {
+    if (marker.dataType === "document" && marker.docId) {
+      removeTimelineDocFromQueue(marker.docId);
+      return;
+    }
+    if (marker.docId && marker.childKey) {
+      removeTimelineChildFromQueue(marker.docId, marker.childKey);
+    }
+  };
+
   return (
     <div className={"timeline stacked tl-tactical" + (hasQueue ? "" : " tl-tactical--empty")}>
       {hasQueue ? (
@@ -552,6 +599,8 @@ export function TacticalTimeline({
                 focusedNoteId={focusedNoteId}
                 onChipClick={handleChipClick}
                 onChipDoubleClick={handleChipDoubleClick}
+                onChipRemove={handleChipRemove}
+                queuedDocIds={queuedDocIds}
                 rangeDrag={rangeDrag}
                 t={t}
               />

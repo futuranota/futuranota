@@ -53,7 +53,31 @@ export const MACRO_NODE_TEXT_SLOT = {
   CONTINUATION: "macro-continuation",
 };
 
-function findMacroContinuationIndex(blocks, ownerIndex) {
+export function isMacroContinuationTextBlock(block) {
+  return block?.type === DOC_BLOCK_TYPES.TEXT
+    && block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.CONTINUATION;
+}
+
+/** Primary answer TEXT index under a linked H1/Todo — never the continuation slot. */
+export function resolveLinkedAnswerTextIndex(blocks, ownerIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  const owner = normalized[ownerIndex];
+  if (!owner || !isDocBlockLinkedToNode(owner)) return -1;
+  if (owner.type !== DOC_BLOCK_TYPES.H1 && owner.type !== DOC_BLOCK_TYPES.TODO) return -1;
+
+  const owned = getOwnedTextBlockIndices(normalized, ownerIndex);
+  if (owned.length > 0) return owned[0];
+
+  for (let index = ownerIndex + 1; index < normalized.length; index++) {
+    const block = normalized[index];
+    if (block?.type !== DOC_BLOCK_TYPES.TEXT) break;
+    if (block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.CONTINUATION) break;
+    if (block.macroNodeSlot === MACRO_NODE_TEXT_SLOT.ANSWER) return index;
+  }
+  return -1;
+}
+
+export function findMacroContinuationIndex(blocks, ownerIndex) {
   const normalized = normalizeDocBlocks(blocks);
   for (let index = ownerIndex + 1; index < normalized.length; index++) {
     const block = normalized[index];

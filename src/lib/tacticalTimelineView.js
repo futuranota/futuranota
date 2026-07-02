@@ -15,8 +15,11 @@ import { buildTimelineChains } from "./timelineChains.js";
 import {
   CONNECTION_KIND_CROSS_FAMILY_DOC,
   CONNECTION_KIND_INTRA_FAMILY_DOC,
-  listChildCanvasNodeIdsForDoc,
 } from "./timelineGraph.js";
+import {
+  resolveQueuedDocTimelineDate,
+  buildChildMarkersForDoc,
+} from "./timelineDocSnapshot.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
 const DOC_WIRE_DIMENSION_KINDS = new Set([
@@ -433,8 +436,10 @@ export function buildTacticalObjectRows(params) {
     nodeEntitiesById = {},
     objectsById = {},
     objectTimelineTitles = {},
-    timelineDocQueue = [],
-    expandedDocIds = [],
+  timelineDocQueue = [],
+  timelineDocSnapshotsByDocId = {},
+  timelineExcludedChildrenByDocId = {},
+  expandedDocIds = [],
     today = new Date(),
     filterObjectId = null,
     inheritObjMode = false,
@@ -469,7 +474,8 @@ export function buildTacticalObjectRows(params) {
   };
 
   for (const docId of timelineDocQueue) {
-    addObjectId(docsById[docId]?.parentObjectId);
+    const snap = timelineDocSnapshotsByDocId[docId];
+    addObjectId(docsById[docId]?.parentObjectId || snap?.objectId);
   }
   for (const ch of chains) addObjectId(ch.objectId);
 
@@ -508,12 +514,21 @@ export function buildTacticalObjectRows(params) {
     }
 
     for (const docId of timelineDocQueue) {
-      if (docsById[docId]?.parentObjectId !== objectId) continue;
+      const snap = timelineDocSnapshotsByDocId[docId];
+      const objectIdForDoc = docsById[docId]?.parentObjectId || snap?.objectId;
+      if (objectIdForDoc !== objectId) continue;
       const canvasDoc = canvasNodes.find(
         (n) => (n.docId || n.noteId) === docId && isDocumentNode(n),
       );
       if (canvasDoc && markerByKey.has(canvasDoc.id)) continue;
-      const date = resolveDocTimelineDate(docId, canvasNodes, wireAnchors, docsById, meta);
+      const date = resolveQueuedDocTimelineDate(
+        docId,
+        canvasNodes,
+        wireAnchors,
+        docsById,
+        meta,
+        snap,
+      );
       if (!date) continue;
       const key = canvasDoc?.id || `virtual-${docId}`;
       markerByKey.set(key, {
@@ -522,6 +537,7 @@ export function buildTacticalObjectRows(params) {
         docId,
         virtual: !canvasDoc,
         dataType: "document",
+        queued: true,
       });
     }
 
@@ -545,20 +561,20 @@ export function buildTacticalObjectRows(params) {
     });
 
     for (const docId of expandedDocIds) {
-      if (docsById[docId]?.parentObjectId !== objectId) continue;
-      const childMarkers = [];
-      for (const nodeId of listChildCanvasNodeIdsForDoc(docId, canvasNodes, nodeEntitiesById)) {
-        const node = nodeById.get(nodeId);
-        const item = trackItemsById.get(nodeId);
-        const raw = wireAnchors.get(nodeId) || resolveNodeAnchorDate(item || node, meta);
-        if (!raw) continue;
-        childMarkers.push({
-          nodeId,
-          date: startOfCalendarDay(raw),
-          docId,
-          dataType: node?.dataType || item?.dataType || "text",
-        });
-      }
+      const snap = timelineDocSnapshotsByDocId[docId];
+      const objectIdForDoc = docsById[docId]?.parentObjectId || snap?.objectId;
+      if (objectIdForDoc !== objectId) continue;
+      const excluded = timelineExcludedChildrenByDocId[docId] || [];
+      const childMarkers = buildChildMarkersForDoc(docId, {
+        canvasNodes,
+        wireAnchors,
+        nodeEntitiesById,
+        docsById,
+        nodeById,
+        trackItemsById,
+        snapshot: snap,
+        excludedKeys: excluded,
+      });
       if (!childMarkers.length) continue;
       displayRows.push({
         id: `children-${docId}`,

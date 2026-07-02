@@ -272,7 +272,13 @@ function Dashboard({ company, onBack }) {
 
   const handleInsertToTimeline = useCallback(() => {
     if (!selection.length) return;
-    const result = enqueueTimelineDocsFromCanvasNodes(selection, canvasNodes, nodeEntities, docs);
+    const result = enqueueTimelineDocsFromCanvasNodes(
+      selection,
+      canvasNodes,
+      nodeEntities,
+      docs,
+      canvasConns,
+    );
     if (!result?.ok) {
       setToast({
         message: result?.message || "Insert to timeline failed.",
@@ -284,7 +290,7 @@ function Dashboard({ company, onBack }) {
       message: `Added ${result.added} node${result.added === 1 ? "" : "s"} to timeline queue`,
       kind: "ok",
     });
-  }, [selection, canvasNodes, nodeEntities, docs, enqueueTimelineDocsFromCanvasNodes]);
+  }, [selection, canvasNodes, nodeEntities, docs, canvasConns, enqueueTimelineDocsFromCanvasNodes]);
 
   const handleTimelineCanvasSelectMany = useCallback(
     (canvasNodeIds) => {

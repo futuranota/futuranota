@@ -17,6 +17,51 @@ export function normalizeCategoryGroupLabel(category) {
 }
 
 /**
+ * Case-insensitive equality for category strings.
+ * @param {string} a
+ * @param {string} b
+ */
+export function categoriesMatch(a, b) {
+  return normalizeCategoryGroupKey(a) === normalizeCategoryGroupKey(b);
+}
+
+/**
+ * Reuse an existing category spelling when the input matches case-insensitively.
+ * @param {string} input
+ * @param {string[]} existingCategories
+ */
+export function resolveCanonicalCategory(input, existingCategories = []) {
+  const trimmed = (input || "").trim();
+  if (!trimmed) return "";
+  const key = normalizeCategoryGroupKey(trimmed);
+  const match = existingCategories.find((cat) => normalizeCategoryGroupKey(cat) === key);
+  return match ?? trimmed;
+}
+
+/**
+ * Unique category labels from a doc list (preserves first-seen spelling).
+ * @param {import("../types/docs.js").Doc[]} docs
+ * @param {string|null} [excludeDocId]
+ * @returns {string[]}
+ */
+export function listUniqueCategoriesFromDocs(docs, excludeDocId = null) {
+  const seen = new Set();
+  const options = [];
+
+  for (const doc of docs || []) {
+    if (excludeDocId && doc.id === excludeDocId) continue;
+    const cat = doc.category?.trim();
+    if (!cat) continue;
+    const key = normalizeCategoryGroupKey(cat);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    options.push(cat);
+  }
+
+  return options.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+/**
  * @param {import("../types/docs.js").Doc[]} docs
  */
 function sortDocsByRecency(docs) {

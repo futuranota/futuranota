@@ -358,6 +358,78 @@ function DocListCard({
   );
 }
 
+function DocCompactRow({
+  doc,
+  onSelect,
+  onOpen,
+  onDelete,
+  active = false,
+}) {
+  const { t } = useI18n();
+  const isKnowledge = isKnowledgeDoc(doc);
+  const displayTitle = isKnowledge
+    ? resolveKnowledgeDocDisplayTitle(doc)
+    : resolveProductDocDisplayTitle(doc);
+
+  return (
+    <div className={"lp-doc-nodes-block__node" + (active ? " lp-doc-nodes-block__node--active" : "")}>
+      <button
+        type="button"
+        className="lp-doc-nodes-block__node-main"
+        onClick={onSelect}
+        onDoubleClick={(e) => {
+          e.preventDefault();
+          onOpen?.();
+        }}
+        title={displayTitle}
+      >
+        <span
+          className="lp-doc-drag-area lp-doc-drag-area--compact"
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            startDocDrag(e, doc.id);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          title={t("sidebar.dragDocToCanvas")}
+        >
+          ⋮⋮
+        </span>
+        <span className="lp-doc-icon lp-doc-icon--compact">
+          <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
+        </span>
+        <span className="lp-doc-nodes-block__node-title">{displayTitle}</span>
+      </button>
+      <div className="lp-doc-nodes-block__node-actions">
+        <button
+          type="button"
+          className="lp-node-row-action lp-node-row-action--delete icon-del-btn"
+          title={t("common.delete")}
+          aria-label={t("common.delete")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete?.();
+          }}
+        >
+          ×
+        </button>
+        <button
+          type="button"
+          className="lp-node-row-action lp-node-row-action--open"
+          title={t("sidebar.openDocument")}
+          aria-label={t("sidebar.openDocument")}
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen?.();
+          }}
+        >
+          ↗
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ─────────────────────────────────────────────
    Node list card (with parent + type + insert)
 ───────────────────────────────────────────── */
@@ -1552,10 +1624,9 @@ export function LeftPanel({
                         groupMeta={t("sidebar.docsInBlock", { count: group.docs.length })}
                         docs={group.docs}
                         renderDoc={(doc) => (
-                          <DocListCard
+                          <DocCompactRow
                             key={doc.id}
                             doc={doc}
-                            objects={objects}
                             active={activeId === doc.id}
                             onSelect={() => handleSelectFolderDoc(doc.id)}
                             onOpen={() => handleOpenFolderDoc(doc.id)}
@@ -1589,19 +1660,22 @@ export function LeftPanel({
                   onBack={() => setClickFolderView(null)}
                   label={t("sidebar.knowledgeTitle")}
                 />
-                <div className="lp-click-folder-detail-list">
+                <div className="lp-click-folder-detail-list lp-doc-groups-stack">
                   {knowledgeDocs.length ? (
-                    knowledgeDocs.map((doc) => (
-                      <DocListCard
-                        key={doc.id}
-                        doc={doc}
-                        objects={objects}
-                        active={activeId === doc.id}
-                        onSelect={() => handleSelectFolderDoc(doc.id)}
-                        onOpen={() => handleOpenFolderDoc(doc.id)}
-                        onDelete={() => handleDeleteDoc(doc)}
-                      />
-                    ))
+                    <article className="lp-doc-nodes-block lp-doc-nodes-block--docs">
+                      <div className="lp-doc-nodes-block__body lp-doc-nodes-block__body--docs lp-doc-nodes-block__body--docs-flat">
+                        {knowledgeDocs.map((doc) => (
+                          <DocCompactRow
+                            key={doc.id}
+                            doc={doc}
+                            active={activeId === doc.id}
+                            onSelect={() => handleSelectFolderDoc(doc.id)}
+                            onOpen={() => handleOpenFolderDoc(doc.id)}
+                            onDelete={() => handleDeleteDoc(doc)}
+                          />
+                        ))}
+                      </div>
+                    </article>
                   ) : (
                     <div className="lp-empty">
                       <p className="dim">{t("sidebar.noKnowledgeYet")}</p>
@@ -1666,10 +1740,9 @@ export function LeftPanel({
                         groupMeta={t("sidebar.docsInBlock", { count: group.docs.length })}
                         docs={group.docs}
                         renderDoc={(doc) => (
-                          <DocListCard
+                          <DocCompactRow
                             key={doc.id}
                             doc={doc}
-                            objects={objects}
                             active={activeId === doc.id}
                             onSelect={() => handleSelectFolderDoc(doc.id)}
                             onOpen={() => handleOpenFolderDoc(doc.id)}

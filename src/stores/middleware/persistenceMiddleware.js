@@ -201,6 +201,11 @@ export function initPersistenceMiddleware(stores) {
     groupings: useCanvasStore.getState().groupings,
     timelines: useTimelineStore.getState().timelines,
     currentTier: useTimelineStore.getState().currentTier,
+    timelineDocQueue: useTimelineStore.getState().timelineDocQueue,
+    timelineDocQueueFocusByDocId: useTimelineStore.getState().timelineDocQueueFocusByDocId,
+    timelineDocSnapshotsByDocId: useTimelineStore.getState().timelineDocSnapshotsByDocId,
+    timelineExcludedChildrenByDocId: useTimelineStore.getState().timelineExcludedChildrenByDocId,
+    expandedDocIds: useTimelineStore.getState().expandedDocIds,
   });
 
   const applyStateToStores = (data) => {
@@ -223,6 +228,15 @@ export function initPersistenceMiddleware(stores) {
       useTimelineStore.setState({
         timelines: data.timelines,
         currentTier: data.currentTier || "all",
+      });
+    }
+    if (Array.isArray(data.timelineDocQueue)) {
+      useTimelineStore.setState({
+        timelineDocQueue: data.timelineDocQueue,
+        timelineDocQueueFocusByDocId: data.timelineDocQueueFocusByDocId || {},
+        timelineDocSnapshotsByDocId: data.timelineDocSnapshotsByDocId || {},
+        timelineExcludedChildrenByDocId: data.timelineExcludedChildrenByDocId || {},
+        expandedDocIds: Array.isArray(data.expandedDocIds) ? data.expandedDocIds : [],
       });
     }
   };

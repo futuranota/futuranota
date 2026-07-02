@@ -73,6 +73,7 @@ export function captureTimelineDocSnapshot(
 
   return {
     anchorDateMs: anchorDate ? startOfCalendarDay(anchorDate).getTime() : null,
+    objectId: docsById[docId]?.parentObjectId || null,
     children,
   };
 }
@@ -136,7 +137,6 @@ export function buildChildMarkersForDoc(
   for (const child of snapshot?.children || []) {
     const key = child.key || childSnapshotKey(child.entityId, child.canvasNodeId);
     if (!key || excluded.has(key) || markersByKey.has(key)) continue;
-    if (child.entityId && !nodeEntitiesById[child.entityId]) continue;
     markersByKey.set(key, {
       nodeId: child.canvasNodeId || `snapshot-${key}`,
       date: new Date(child.dateMs),

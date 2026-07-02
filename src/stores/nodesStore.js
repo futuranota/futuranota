@@ -21,7 +21,7 @@ import {
   getForecastDisplayText,
 } from "../lib/forecastNodeDisplay.js";
 import { parseWeatherForecastNodeContent } from "../lib/forecastSearch.js";
-import { ensureContinuationAfterLinkedOwner, unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
+import { ensureContinuationAfterLinkedOwner, findMacroContinuationIndex, isMacroContinuationTextBlock, MACRO_NODE_TEXT_SLOT, resolveLinkedAnswerTextIndex, unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
 import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/nodeTodoContent.js";
 import {
   getNodeWritingPlainText,
@@ -412,6 +412,16 @@ export const useNodesStore = create(
               ];
             }
           } else if (existingH1Index >= 0) {
+            let answerTextIndex = node.sourceTextBlockId
+              ? normalized.findIndex((b) => b.id === node.sourceTextBlockId && b.type === DOC_BLOCK_TYPES.TEXT)
+              : -1;
+            if (answerTextIndex >= 0 && isMacroContinuationTextBlock(normalized[answerTextIndex])) {
+              answerTextIndex = -1;
+            }
+            if (answerTextIndex < 0) {
+              answerTextIndex = resolveLinkedAnswerTextIndex(normalized, existingH1Index);
+            }
+
             nextBlocks = normalized.map((block, i) => {
               if (i === existingH1Index) {
                 return {
@@ -423,27 +433,40 @@ export const useNodesStore = create(
                   ...anchorFields,
                 };
               }
-              if (existingTextIndex >= 0 && i === existingTextIndex) {
+              if (answerTextIndex >= 0 && i === answerTextIndex) {
                 return {
                   ...block,
                   text: syncedText,
+                  macroNodeSlot: MACRO_NODE_TEXT_SLOT.ANSWER,
                   ...(syncedTextFields.embedded ? { embedded: syncedTextFields.embedded } : {}),
                 };
               }
               return block;
             });
 
-            if (existingTextIndex < 0) {
+            if (answerTextIndex < 0) {
               const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, {
                 text: syncedText,
+                macroNodeSlot: MACRO_NODE_TEXT_SLOT.ANSWER,
                 ...(syncedTextFields.embedded ? { embedded: syncedTextFields.embedded } : {}),
               });
               sourceTextBlockId = textBlock.id;
-              nextBlocks = [
-                ...nextBlocks.slice(0, existingH1Index + 1),
-                textBlock,
-                ...nextBlocks.slice(existingH1Index + 1),
-              ];
+              const continuationIndex = findMacroContinuationIndex(nextBlocks, existingH1Index);
+              if (continuationIndex >= 0) {
+                nextBlocks = [
+                  ...nextBlocks.slice(0, continuationIndex),
+                  textBlock,
+                  ...nextBlocks.slice(continuationIndex),
+                ];
+              } else {
+                nextBlocks = [
+                  ...nextBlocks.slice(0, existingH1Index + 1),
+                  textBlock,
+                  ...nextBlocks.slice(existingH1Index + 1),
+                ];
+              }
+            } else {
+              sourceTextBlockId = normalized[answerTextIndex]?.id || node.sourceTextBlockId || null;
             }
           } else if (node.dataType === "date") {
             const dateContent =

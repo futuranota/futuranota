@@ -47,6 +47,32 @@ import { useNodesStore } from "../../../stores/nodesStore.js";
 import { useDocsStore } from "../../../stores/docsStore.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
+
+function findLastDocVaultBlockIndex(blocks, blockType) {
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    if (blocks[index]?.type === blockType) return index;
+  }
+  return -1;
+}
+
+function ensureLinkedMacroContinuationSlots(blocks) {
+  let next = normalizeDocBlocks(blocks);
+  let changed = false;
+  for (let i = 0; i < next.length; i++) {
+    const block = next[i];
+    if (
+      (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
+      && isDocBlockLinkedToNode(block)
+    ) {
+      const ensured = ensureContinuationAfterLinkedOwner(next, i);
+      if (ensured !== next) {
+        next = ensured;
+        changed = true;
+      }
+    }
+  }
+  return changed ? next : blocks;
+}
 import { DocTodoPlanBlockView } from "./DocTodoPlanBlockView.jsx";
 import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
@@ -234,16 +260,26 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       : -1;
 
     if (blockIndex < 0) {
-      const owned = getOwnedTextBlockIndices(blocksRef.current, ownerIndex);
-      const insertAfterIndex = owned.length > 0 ? owned[owned.length - 1] : ownerIndex;
-      const nextBlock = blocksRef.current[insertAfterIndex + 1];
-      if (isEmptyTextBlock(nextBlock)) {
-        blockIndex = insertAfterIndex + 1;
+      let current = blocksRef.current;
+      if (isDocBlockLinkedToNode(ownerBlock)) {
+        const ensured = ensureContinuationAfterLinkedOwner(current, ownerIndex);
+        if (ensured !== current) {
+          current = ensured;
+          setBlocks(ensured);
+        }
+        blockIndex = getWritableTextIndexBelowLinkedOwner(current, ownerIndex);
       } else {
-        const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" });
-        const inserted = insertBlockAfter(blocksRef.current, insertAfterIndex, textBlock);
-        setBlocks(inserted);
-        blockIndex = insertAfterIndex + 1;
+        const owned = getOwnedTextBlockIndices(current, ownerIndex);
+        const insertAfterIndex = owned.length > 0 ? owned[owned.length - 1] : ownerIndex;
+        const nextBlock = current[insertAfterIndex + 1];
+        if (isEmptyTextBlock(nextBlock)) {
+          blockIndex = insertAfterIndex + 1;
+        } else {
+          const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" });
+          const inserted = insertBlockAfter(current, insertAfterIndex, textBlock);
+          setBlocks(inserted);
+          blockIndex = insertAfterIndex + 1;
+        }
       }
     }
 
@@ -292,6 +328,14 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         || focused.type === DOC_BLOCK_TYPES.DATE
         || focused.type === DOC_BLOCK_TYPES.METRIC
       ) {
+        if (
+          (focused.type === DOC_BLOCK_TYPES.H1 || focused.type === DOC_BLOCK_TYPES.TODO)
+          && isDocBlockLinkedToNode(focused)
+        ) {
+          insertSlashCommandForOwner(blockIndex, alias);
+          return;
+        }
+
         const owned = focused.type === DOC_BLOCK_TYPES.H1 || focused.type === DOC_BLOCK_TYPES.TODO
           ? getOwnedTextBlockIndices(current, blockIndex)
           : [];
@@ -473,7 +517,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   }, [blocksStructureKey, collapsedContentByBlockId, collapsedPadWriteByOwnerId, resyncAllTextHeights]);
 
   const setBlocks = (next) => {
-    const merged = normalizeDocBlocks(next);
+    const merged = ensureLinkedMacroContinuationSlots(normalizeDocBlocks(next));
     blocksRef.current = merged;
     onBlocksChange?.(merged);
   };
@@ -594,6 +638,41 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const insertSlashFromText = (blockIndex, textValue, parsed) => {
+    if (isTextHiddenByLinkedMacroNode(blocksRef.current, blockIndex)) {
+      const ownerIndex = getOwningScheduleBlockIndexForText(blocksRef.current, blockIndex);
+      const ownerBlock = ownerIndex >= 0 ? blocksRef.current[ownerIndex] : null;
+      if (ownerBlock && isDocBlockLinkedToNode(ownerBlock)) {
+        let current = blocksRef.current;
+        const ensured = ensureContinuationAfterLinkedOwner(current, ownerIndex);
+        if (ensured !== current) {
+          current = ensured;
+          setBlocks(ensured);
+        }
+        const writableIndex = getWritableTextIndexBelowLinkedOwner(current, ownerIndex);
+        const writableBlock = blocksRef.current[writableIndex];
+        if (writableBlock?.type === DOC_BLOCK_TYPES.TEXT && writableIndex !== blockIndex) {
+          return insertSlashFromText(writableIndex, writableBlock.text || "", parsed);
+        }
+      }
+    }
+
+    if (
+      parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.AGENT
+    ) {
+      const existingIndex = findLastDocVaultBlockIndex(blocksRef.current, parsed.type);
+      if (existingIndex >= 0) {
+        const existingId = blocksRef.current[existingIndex]?.id;
+        if (existingId) {
+          onFocusBlock?.(existingId);
+          focusBlockCaret(existingId);
+          requestContentGrow();
+          return existingId;
+        }
+      }
+    }
+
     if (parsed.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
       const next = replaceBlocksFromSlashWithEmbedVideo(
         blocksRef.current,

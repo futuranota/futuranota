@@ -60,5 +60,11 @@ export function applyBlogToMacroNode(nodeEntityId, output, fallbackTitle = "") {
 
   const content = serializeNodeWritingBody({ blocks: newBlocks });
   store.updateNode(nodeEntityId, { content });
+
+  const parentDocId = node.parentDocId || null;
+  if (parentDocId) {
+    store.syncNodeToParentDoc(nodeEntityId, parentDocId);
+  }
+
   return true;
 }

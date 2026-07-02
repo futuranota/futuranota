@@ -12,6 +12,7 @@ import { resolveSubcategoryLines, resolveLinkedProductCategories } from "../../l
 import { NodeLinkColorPicker } from "./blocks/NodeLinkColorPicker.jsx";
 import { SubcategoryField } from "./SubcategoryField.jsx";
 import { ProductCategorySubcategoryField } from "./ProductCategorySubcategoryField.jsx";
+import { ProductCategoryField } from "./ProductCategoryField.jsx";
 import { ProductVersionField } from "./ProductVersionField.jsx";
 
 function openDatePicker(e) {
@@ -58,63 +59,6 @@ function MetaChip({
           {display}
         </span>
       )}
-    </div>
-  );
-}
-
-function ProductCategoryField({ value, onChange, placeholder = "Type product category" }) {
-  const [editing, setEditing] = useState(false);
-  const inputRef = useRef(null);
-  const trimmed = value.trim();
-  const showInput = !trimmed || editing;
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  return (
-    <div className="doc-meta-field">
-      <span className="doc-meta-field-k">Category</span>
-      <div className="doc-product-category-wrap">
-        {trimmed && !editing ? (
-          <button
-            type="button"
-            className="doc-product-category-tag"
-            title={`${trimmed} · click to edit`}
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditing(true);
-            }}
-          >
-            {trimmed}
-          </button>
-        ) : null}
-        {showInput ? (
-          <input
-            ref={inputRef}
-            type="text"
-            className="doc-new-meta-input doc-meta-field-input doc-product-category-input"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            onBlur={() => {
-              if (trimmed) setEditing(false);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                setEditing(false);
-              }
-            }}
-            placeholder={trimmed ? "Edit category" : placeholder}
-            spellCheck={false}
-          />
-        ) : null}
-      </div>
     </div>
   );
 }
@@ -339,7 +283,13 @@ export function DocMetaStrip({
                 allDocs={allDocs}
                 docId={docId}
               />
-              <ProductCategoryField value={category} onChange={onCategoryChange} />
+              <ProductCategoryField
+                value={category}
+                onChange={onCategoryChange}
+                parentId={parentId}
+                allDocs={allDocs}
+                docId={docId}
+              />
             </>
           ) : null}
 
@@ -374,6 +324,9 @@ export function DocMetaStrip({
                 value={category}
                 onChange={onCategoryChange}
                 placeholder="e.g. blogs"
+                parentId={parentId}
+                allDocs={allDocs}
+                docId={docId}
               />
               <label className="doc-meta-field">
                 <span className="doc-meta-field-k">Launch</span>
@@ -412,6 +365,9 @@ export function DocMetaStrip({
                 value={category}
                 onChange={onCategoryChange}
                 placeholder="e.g. marketing"
+                knowledgeMode
+                allDocs={allDocs}
+                docId={docId}
               />
               {onKnowledgeFileImport ? (
                 <KnowledgeUploadField
@@ -457,7 +413,13 @@ export function DocMetaStrip({
                   </button>
                 </div>
               </div>
-              <ProductCategoryField value={category} onChange={onCategoryChange} />
+              <ProductCategoryField
+                value={category}
+                onChange={onCategoryChange}
+                parentId={parentId}
+                allDocs={allDocs}
+                docId={docId}
+              />
               <label className="doc-meta-field">
                 <span className="doc-meta-field-k">Launch</span>
                 <input

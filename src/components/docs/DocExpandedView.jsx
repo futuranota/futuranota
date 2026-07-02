@@ -254,6 +254,8 @@ export function DocExpandedView({
     );
     const useCachedDraft = cached && !preferStoreContent && cachedHasText;
 
+    const blocksForSnapshot = useCachedDraft ? cachedBlocks : loadedBlocks;
+
     if (useCachedDraft) {
       setDraftTitle(cached.title ?? savedTitle);
       setDraftBlocks(cachedBlocks);
@@ -293,8 +295,10 @@ export function DocExpandedView({
     setInitialSnapshot(
       buildDocPersistSnapshot({
         title: savedTitle,
-        blocks: loadedBlocks,
-        body: d.body ?? d.content ?? "",
+        blocks: blocksForSnapshot,
+        body: useCachedDraft
+          ? (cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")))
+          : (d.body ?? d.content ?? ""),
         createdDate: dateInputFromIso(normalized.createdAt),
         version: normalized.version ?? "",
         category: normalized.category ?? "",
