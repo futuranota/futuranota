@@ -15,6 +15,7 @@ import { useTacticalRangeDrag } from "../../hooks/useTacticalRangeDrag.js";
 import { useTranslatedText } from "../../hooks/useTranslatedText.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useTimelineStore } from "../../stores/index.js";
+import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { TimelineEventChip } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
 
@@ -442,6 +443,9 @@ export function TacticalTimeline({
   const timelineDocSnapshotsByDocId = useTimelineStore((s) => s.timelineDocSnapshotsByDocId);
   const timelineExcludedChildrenByDocId = useTimelineStore((s) => s.timelineExcludedChildrenByDocId);
   const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
+  const timelineSheet = useUIStateStore((s) => s.timelineSheet);
+  const toggleTimelineSheet = useUIStateStore((s) => s.toggleTimelineSheet);
+  const isSheetExpanded = timelineSheet === "expanded";
   const expandedDocIds = useTimelineStore((s) => s.expandedDocIds);
   const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
   const explicitPrimaryId = useTimelineStore((s) => s.primaryTimelineObjectId);
@@ -590,7 +594,30 @@ export function TacticalTimeline({
   };
 
   return (
-    <div className={"timeline stacked tl-tactical" + (hasQueue ? "" : " tl-tactical--empty")}>
+    <div
+      className={
+        "timeline stacked tl-tactical"
+        + (hasQueue ? "" : " tl-tactical--empty")
+        + (isSheetExpanded ? " is-sheet-expanded" : " is-sheet-peek")
+      }
+    >
+      <div className="tl-sheet-top">
+        <button
+          type="button"
+          className="tl-sheet-toggle"
+          onClick={toggleTimelineSheet}
+          aria-expanded={isSheetExpanded}
+          title={isSheetExpanded ? t("timeline.sheetCollapse") : t("timeline.sheetExpand")}
+        >
+          <span className="tl-sheet-handle" aria-hidden="true" />
+          <span className="tl-sheet-toggle__chevron" aria-hidden="true">
+            {isSheetExpanded ? "▾" : "▴"}
+          </span>
+          <span className="sr-only">
+            {isSheetExpanded ? t("timeline.sheetCollapse") : t("timeline.sheetExpand")}
+          </span>
+        </button>
+      </div>
       {hasQueue ? (
         <>
           <div className="tl-tactical-header">

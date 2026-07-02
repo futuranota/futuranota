@@ -214,6 +214,7 @@ function Dashboard({ company, onBack }) {
   const enqueueTimelineDocsFromCanvasNodes = useTimelineStore((s) => s.enqueueTimelineDocsFromCanvasNodes);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
   const knowledgeFolderActive = useUIStateStore((s) => s.knowledgeFolderActive);
+  const timelineSheet = useUIStateStore((s) => s.timelineSheet);
   const timelines = useTimelineStore((s) => s.timelines);
   const prevTimelineAlertsEnabled = useRef(false);
   const planProfile = usePlanStore((s) => s.profile);
@@ -941,7 +942,7 @@ useEffect(() => {
   };
 
   return (
-    <div className="dash">
+    <div className={"dash" + (timelineSheet === "expanded" ? " is-timeline-sheet-expanded" : "")}>
       <TopBar onBack={onBack} onAltSeed={null} />
 
       <MetaBar metadata={metaBarMetadata} />

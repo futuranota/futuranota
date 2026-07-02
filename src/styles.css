@@ -833,14 +833,19 @@ textarea.field {
 .selector-card .co-stats b { color: var(--text); font-variant-numeric: tabular-nums; }
 
 /* ── dashboard layout ───────────────── */
-/* Main + first timeline slot fit in viewport; extra tracks grow below → page scroll */
+/* Timeline lives in-flow at the bottom; expands upward inside the dash grid */
 .dash {
   --dash-chrome-h: 96px;
-  --timeline-first-slot-h: 212px;
+  --timeline-peek-h: 212px;
   display: grid;
-  grid-template-rows: 52px 44px minmax(calc(100vh - var(--dash-chrome-h) - var(--timeline-first-slot-h)), auto) auto;
+  grid-template-rows: 52px 44px minmax(0, 1fr) auto;
   min-height: 100vh;
-  overflow: visible;
+  box-sizing: border-box;
+}
+.dash.is-timeline-sheet-expanded {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
 }
 .dash-main {
   display: grid;
@@ -848,12 +853,16 @@ textarea.field {
   align-items: stretch;
   padding: 10px 10px 0;
   gap: 10px;
+  min-height: 0;
   overflow: visible;
+}
+.dash.is-timeline-sheet-expanded .dash-main {
+  overflow: hidden;
 }
 .dash-col {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--dash-chrome-h) - var(--timeline-first-slot-h) - 10px);
+  min-height: 0;
   background: var(--panel);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
@@ -4421,7 +4430,7 @@ textarea.note-form-field {
   backdrop-filter: blur(16px);
   position: relative;
   z-index: 5;
-  min-height: var(--timeline-first-slot-h, 200px);
+  min-height: var(--timeline-peek-h, 200px);
   max-height: none;
   overflow: visible;
 }
@@ -4501,20 +4510,99 @@ textarea.note-form-field {
   --tl-dot-past: color-mix(in oklab, #fff 35%, var(--dim));
   --tl-dot-future: color-mix(in oklab, #fff 65%, transparent);
   --tl-dot-inner-bg: var(--bg);
+  position: relative;
+  z-index: 5;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
+  min-height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
+  max-height: var(--timeline-sheet-h, var(--timeline-peek-h, 212px));
+  padding-top: 2px;
   background: color-mix(in oklab, var(--panel-solid) 96%, #14181d 4%);
   border-top: 1px solid color-mix(in oklab, var(--hairline) 80%, #21232b 20%);
   border-radius: 12px 12px 0 0;
   margin: 0 4px;
-  overflow: visible;
+  overflow: hidden;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition:
+    height 0.34s cubic-bezier(0.32, 0.72, 0, 1),
+    min-height 0.34s cubic-bezier(0.32, 0.72, 0, 1),
+    max-height 0.34s cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 0.34s ease;
+}
+.timeline.tl-tactical.is-sheet-peek {
+  --timeline-sheet-h: var(--timeline-peek-h, 212px);
+}
+.timeline.tl-tactical.is-sheet-expanded {
+  --timeline-sheet-h: calc(100vh - var(--dash-chrome-h, 96px) - 8px);
+  height: var(--timeline-sheet-h);
+  min-height: var(--timeline-sheet-h);
+  max-height: var(--timeline-sheet-h);
+  box-shadow: 0 -8px 32px color-mix(in oklab, #000 18%, transparent);
+}
+.timeline.tl-tactical.is-sheet-peek,
+.timeline.tl-tactical.is-sheet-expanded {
+  padding: 0;
+  border-top: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.tl-sheet-top {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 4px 0 0;
+}
+.tl-sheet-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 4px 28px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--dim);
+  border-radius: 8px;
+}
+.tl-sheet-toggle:hover,
+.tl-sheet-toggle:focus-visible {
+  color: var(--text-2);
+  background: color-mix(in oklab, var(--hairline) 45%, transparent);
+  outline: none;
+}
+.tl-sheet-handle {
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text) 22%, var(--dim));
+}
+.tl-sheet-toggle__chevron {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.75;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 .timeline.tl-tactical--empty {
   align-items: center;
   justify-content: center;
-  min-height: 72px;
   padding: 16px 20px;
+}
+.timeline.tl-tactical--empty.is-sheet-expanded {
+  justify-content: flex-start;
 }
 .timeline.tl-tactical--empty .tl-empty-hint {
   margin: 0;
@@ -4563,7 +4651,17 @@ textarea.note-form-field {
   padding: 0 10px 12px;
   overflow-y: auto;
   overflow-x: visible;
-  max-height: min(42vh, 320px);
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+.timeline.tl-tactical.is-sheet-peek .tl-tactical-body {
+  max-height: calc(var(--timeline-peek-h, 212px) - 88px);
+}
+.timeline.tl-tactical.is-sheet-expanded .tl-tactical-body {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 .tl-tactical-row-group {
   position: relative;

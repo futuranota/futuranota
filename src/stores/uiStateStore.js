@@ -55,6 +55,9 @@ export const useUIStateStore = create(
       /** Live doc meta while document overlay is open (syncs MetaBar). */
       activeDocMetaDraft: null,
 
+      /** Tactical timeline bottom sheet: peek (default) | expanded */
+      timelineSheet: "peek",
+
       /** In-memory doc editor drafts (session only, keyed by docId). */
       docEditorDrafts: {},
 
@@ -188,6 +191,13 @@ export const useUIStateStore = create(
 
       setActiveDocMetaDraft: (draft) => set({ activeDocMetaDraft: draft }),
       clearActiveDocMetaDraft: () => set({ activeDocMetaDraft: null }),
+
+      setTimelineSheet: (mode) => set({
+        timelineSheet: mode === "expanded" ? "expanded" : "peek",
+      }),
+      toggleTimelineSheet: () => set((state) => ({
+        timelineSheet: state.timelineSheet === "expanded" ? "peek" : "expanded",
+      })),
 
       setDocEditorDraft: (docId, draft) => {
         if (!docId || !draft) return;

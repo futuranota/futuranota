@@ -135,6 +135,8 @@ export const messages = {
       agentSetFailed: "Failed · {title}",
       agentSetHint: "Scheduled agent trigger — auto-runs at the set time",
       agentSetReadyToast: "Timeline set ready · {title}",
+      sheetExpand: "Expand timeline",
+      sheetCollapse: "Collapse timeline",
     },
     sidebar: {
       panelObjects: "Company",
@@ -689,6 +691,8 @@ export const messages = {
       agentSetFailed: "Falló · {title}",
       agentSetHint: "Trigger de agente programado — se ejecuta solo a la hora del set",
       agentSetReadyToast: "Set del timeline listo · {title}",
+      sheetExpand: "Expandir timeline",
+      sheetCollapse: "Contraer timeline",
     },
     intel: {
       noSources: "Sin referencias web para esta búsqueda. Probá un término más amplio.",
