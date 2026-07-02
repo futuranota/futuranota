@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { buildReferralShareMessage } from "../lib/referralShareMessage.js";
 import { useNavigate } from "react-router-dom";
 import { usePlanStore } from "../stores/planStore.js";
 import { useAuthStore } from "../stores/authStore.js";
@@ -53,6 +54,11 @@ export function PlansPage() {
   const [billing, setBilling] = useState("monthly");
   const [affiliate, setAffiliate] = useState(null);
   const [copied, setCopied] = useState(false);
+
+  const shareMessage = useMemo(
+    () => buildReferralShareMessage(affiliate?.url || "", t),
+    [affiliate?.url, t],
+  );
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
   const isPro = profile.plan === "pro";
@@ -143,9 +149,9 @@ export function PlansPage() {
   };
 
   const handleCopyReferral = async () => {
-    if (!affiliate?.url) return;
+    if (!shareMessage) return;
     try {
-      await navigator.clipboard.writeText(affiliate.url);
+      await navigator.clipboard.writeText(shareMessage);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -216,10 +222,20 @@ export function PlansPage() {
         <div className="plans-referral glass">
           <p className="plans-referral__label">{t("plans.referralTitle")}</p>
           <p className="plans-referral__hint">{t("plans.referralHint")}</p>
+          <label className="plans-referral__share-label" htmlFor="plans-referral-share">
+            {t("referral.shareLabel")}
+          </label>
+          <textarea
+            id="plans-referral-share"
+            className="plans-referral__share"
+            rows={7}
+            readOnly
+            value={shareMessage}
+            placeholder={t("referral.sharePlaceholder")}
+          />
           <div className="plans-referral__row">
-            <code className="plans-referral__url">{affiliate.url}</code>
-            <button type="button" className="btn xs ghost" onClick={handleCopyReferral}>
-              {copied ? t("plans.referralCopied") : t("plans.referralCopy")}
+            <button type="button" className="btn xs primary" onClick={handleCopyReferral}>
+              {copied ? t("plans.referralCopied") : t("referral.copyMessage")}
             </button>
           </div>
         </div>

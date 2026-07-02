@@ -110,6 +110,10 @@ export async function executeAgentRun({
       if (!silentToast) {
         setToast({ message, kind: "warm" });
       }
+      patchCanvasNode(canvasNodeId, {
+        agentStatus: "error",
+        agentError: message,
+      });
       return { ok: false, result: { status: "error", code: "schedule_not_due", message } };
     }
   }

@@ -73,7 +73,9 @@ export function normalizeContentCreatorPlan(raw, lang) {
  */
 function outputHasContent(plan, mode = "document_plan") {
   if (plan.writtenContent?.body?.trim()) return true;
-  if (mode === "macro_blog") return false;
+  if (mode === "macro_blog") {
+    return (plan.items?.length ?? 0) > 0;
+  }
   return Boolean(plan.listTitle && plan.items.length > 0);
 }
 
@@ -115,6 +117,17 @@ export function buildFallbackContentCreatorPlan(lang, instruction, brandContext 
   const title = asString(macroTitle) || task.slice(0, 80);
 
   if (mode === "macro_blog") {
+    const compactTask = task.length <= 64;
+    if (compactTask) {
+      return {
+        listTitle: lang === "es" ? `Todo: ${title}` : `Todo: ${title}`,
+        items: [{ text: title }],
+        writtenContent: { headline: "", body: "" },
+        platformRecommendation: "",
+        nextStepsMessage: "",
+        source: "fallback",
+      };
+    }
     const body = lang === "es"
       ? `Este es un borrador inicial sobre "${title}" para ${brand}.\n\nExpandí este texto con tu voz y ejemplos concretos antes de publicar.`
       : `This is a starter draft about "${title}" for ${brand}.\n\nExpand with your voice and concrete examples before publishing.`;

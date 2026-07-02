@@ -81,7 +81,8 @@ function findWiredMacroBlogSource(
     if (!node?.noteId) return null;
     const entity = nodeEntitiesById[node.noteId];
     if (!entity) return null;
-    const instruction = extractAgentInstructionFromNodeEntity(entity);
+    const instruction = extractAgentInstructionFromNodeEntity(entity)
+      || String(entity.title || node.title || "").trim();
     if (!instruction) return null;
     const title = String(entity.title || node.title || "").trim();
     return {

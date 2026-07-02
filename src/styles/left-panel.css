@@ -1633,6 +1633,16 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--hud) 20%, transparent);
 }
 
+.referral-modal__input--readonly {
+  cursor: text;
+  background: color-mix(in srgb, var(--glass-border) 20%, transparent);
+}
+
+.referral-modal__input--readonly:focus {
+  box-shadow: none;
+  border-color: var(--glass-border, var(--hairline));
+}
+
 .referral-modal__error {
   margin: 0 0 8px;
   font-size: 12px;

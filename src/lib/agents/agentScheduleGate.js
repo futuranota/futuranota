@@ -13,7 +13,9 @@ function findWiredMacroScheduleAnchor(inputNodes = [], nodeEntitiesById = {}) {
     const entity = nodeEntitiesById[node.noteId];
     if (!entity) continue;
     const instruction = extractAgentInstructionFromNodeEntity(entity);
-    if (!instruction) continue;
+    const effectiveInstruction = instruction
+      || String(entity.title || node.title || "").trim();
+    if (!effectiveInstruction) continue;
     return entity.anchorAt || node.anchorAt || null;
   }
   return null;
@@ -43,7 +45,8 @@ export function resolveMacroScheduleAnchorAt({
     if (node?.noteId) {
       const entity = nodeEntitiesById[node.noteId];
       if (entity) {
-        const instruction = extractAgentInstructionFromNodeEntity(entity);
+        const instruction = extractAgentInstructionFromNodeEntity(entity)
+          || String(entity.title || node.title || "").trim();
         if (instruction) return entity.anchorAt || node.anchorAt || null;
       }
     }

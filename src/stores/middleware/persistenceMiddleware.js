@@ -206,6 +206,7 @@ export function initPersistenceMiddleware(stores) {
     timelineDocQueueFocusByDocId: useTimelineStore.getState().timelineDocQueueFocusByDocId,
     timelineDocSnapshotsByDocId: useTimelineStore.getState().timelineDocSnapshotsByDocId,
     timelineExcludedChildrenByDocId: useTimelineStore.getState().timelineExcludedChildrenByDocId,
+    timelineAgentSets: useTimelineStore.getState().timelineAgentSets,
     expandedDocIds: useTimelineStore.getState().expandedDocIds,
     scheduledAutoRunEnabled: useScheduledTasksStore.getState().autoRunEnabled,
     scheduledCompletedTaskKeys: useScheduledTasksStore.getState().completedTaskKeys,
@@ -239,6 +240,7 @@ export function initPersistenceMiddleware(stores) {
         timelineDocQueueFocusByDocId: data.timelineDocQueueFocusByDocId || {},
         timelineDocSnapshotsByDocId: data.timelineDocSnapshotsByDocId || {},
         timelineExcludedChildrenByDocId: data.timelineExcludedChildrenByDocId || {},
+        timelineAgentSets: Array.isArray(data.timelineAgentSets) ? data.timelineAgentSets : [],
         expandedDocIds: Array.isArray(data.expandedDocIds) ? data.expandedDocIds : [],
       });
     }

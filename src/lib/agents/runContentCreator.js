@@ -135,6 +135,7 @@ export async function runContentCreator({
     }
 
     const brandName = (brandContext?.brand || brandContext?.name || "").trim();
+    const wroteTodo = (plan.items?.length ?? 0) > 0 && !String(plan.writtenContent?.body || "").trim();
     return {
       status: "success",
       mode: "macro_blog",
@@ -144,9 +145,11 @@ export async function runContentCreator({
       wireOutputDocCanvasNodeId,
       brandName,
       plan,
-      userFacingMessage: translate("agents.contentCreatorBlogSuccess", lang, {
-        title: macroTitle || (lang === "es" ? "blog" : "blog"),
-      }),
+      userFacingMessage: wroteTodo
+        ? translate("agents.contentCreatorMacroTodoSuccess", lang, { title: macroTitle || plan.items?.[0]?.text || "" })
+        : translate("agents.contentCreatorBlogSuccess", lang, {
+          title: macroTitle || (lang === "es" ? "blog" : "blog"),
+        }),
     };
   }
 

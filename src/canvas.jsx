@@ -21,6 +21,7 @@ import { CalendarEventResultBox } from './components/intel/CalendarEventResultBo
 import { CalendarEventNodeView } from './components/intel/CalendarEventNodeView.jsx';
 import { ForecastNodeView } from './components/intel/ForecastNodeView.jsx';
 import { hasCanvasDrag, readCanvasDragData } from './lib/canvasDrag.js';
+import { FLOPPY_DISK_ICON } from './lib/knowledgeImport.js';
 import {
   isContentDoc,
   isKnowledgeDoc,
@@ -57,6 +58,7 @@ import {
 } from './lib/timelineGraph.js';
 import { useTimelineStore } from './stores/index.js';
 import { organizeCanvasNodes } from './lib/canvasMath.js';
+import { computeSpotlightView, getWiredVisibleNodeIds } from './lib/canvasSpotlight.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
  * Notes ↔ Nodes ↔ Blueprints. Three-tier model:
@@ -81,6 +83,7 @@ function Icon({ name, size = 14 }) {
     show:    <path d="M10 5C5 5 2 10 2 10s3 5 8 5 8-5 8-5-3-5-8-5zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" stroke="currentColor" strokeWidth="1.2" fill="none" />,
     import:  <path d="M10 16V7m0 0l-3.5 3.5M10 7l3.5 3.5M4 4h12" stroke="currentColor" strokeWidth="1.4" fill="none" />,
     grid:    <path d="M3 3h5v5H3V3zm9 0h5v5h-5V3zM3 12h5v5H3v-5zm9 0h5v5h-5v-5z" stroke="currentColor" strokeWidth="1.2" fill="none" />,
+    focus:   <path d="M8.5 8.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm6.5 6.5-2.8-2.8" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />,
   };
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="currentColor">
@@ -107,6 +110,10 @@ const UNITS = [
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.5;
 const clampScale = (s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+
+function shouldStartCanvasMarquee(shiftKey, timelineQueueMode) {
+  return Boolean(shiftKey || timelineQueueMode);
+}
 
 const CONN_ATOM_ICON = "/uploads/botones/Atom.svg";
 const CONN_ATOM_SIZE = 23;
@@ -613,7 +620,7 @@ function CanvasNode({
               title={node.agentError || undefined}
             >
               {status === "error"
-                ? t("agents.error")
+                ? (node.agentError || t("agents.error"))
                 : status === "done"
                   ? t("agents.done")
                   : status}
@@ -884,6 +891,9 @@ function BlueprintCanvas({
   const [marqueeRect, setMarqueeRect] = useState(null); // {x1,y1,x2,y2} in world coords
   const [rewiring, setRewiring] = useState(null); // { connId, end: 'from'|'to' }
   const [view, setView] = useState({ scale: 1, panX: 0, panY: 0 });
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const viewAnimRef = useRef(0);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [selectedBlueprintId, setSelectedBlueprintId] = useState(null);
   const [importedImage, setImportedImage] = useState(null);
@@ -937,6 +947,28 @@ function BlueprintCanvas({
         panY: clientY - r.top - wy * nextScale,
       };
     });
+  }, []);
+
+  const animateViewTo = useCallback((targetView, duration = 280) => {
+    if (!targetView) return;
+    if (viewAnimRef.current) cancelAnimationFrame(viewAnimRef.current);
+    const start = { ...viewRef.current };
+    const startTime = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - startTime) / duration);
+      const ease = 1 - (1 - t) ** 3;
+      setView({
+        scale: start.scale + (targetView.scale - start.scale) * ease,
+        panX: start.panX + (targetView.panX - start.panX) * ease,
+        panY: start.panY + (targetView.panY - start.panY) * ease,
+      });
+      if (t < 1) {
+        viewAnimRef.current = requestAnimationFrame(tick);
+      } else {
+        viewAnimRef.current = 0;
+      }
+    };
+    viewAnimRef.current = requestAnimationFrame(tick);
   }, []);
 
   // map node.id → blueprint color
@@ -1249,7 +1281,7 @@ function BlueprintCanvas({
       return;
     }
     if (tool === "select" && e.button === 0 && isStageBg) {
-      if (e.shiftKey) {
+      if (shouldStartCanvasMarquee(e.shiftKey, effectiveTimelineQueueMode)) {
         startCanvasMarquee(getWorldFromClient, setMarqueeRect, marqueeDrag, e.clientX, e.clientY);
       } else {
         startPanDrag(e, true);
@@ -1337,7 +1369,7 @@ function BlueprintCanvas({
           return;
         }
         if (e.button === 0) {
-          if (e.shiftKey) {
+          if (shouldStartCanvasMarquee(e.shiftKey, effectiveTimelineQueueMode)) {
             startCanvasMarquee(getWorldFromClient, setMarqueeRect, marqueeDrag, e.clientX, e.clientY);
           } else {
             startPanDrag(e, true);
@@ -1781,6 +1813,25 @@ function BlueprintCanvas({
     setSelectedBlueprintId(null);
   };
 
+  const wiredNodeCount = useMemo(
+    () => getWiredVisibleNodeIds(nodes, connections).size,
+    [nodes, connections],
+  );
+
+  const handleSpotlightConnected = () => {
+    const stageRect = stageRef.current?.getBoundingClientRect();
+    if (!stageRect || wiredNodeCount < 1) return;
+    const nextView = computeSpotlightView({
+      nodes,
+      connections,
+      selection,
+      stageRect,
+      minScale: MIN_SCALE,
+      maxScale: MAX_SCALE,
+    });
+    animateViewTo(nextView);
+  };
+
   const handleShowAll = () => {
     setNodes((all) => all.map((n) => ({ ...n, hidden: false })));
   };
@@ -2017,7 +2068,7 @@ function BlueprintCanvas({
             <button
               type="button"
               className="btn xs primary"
-              disabled={!timelineQueueMode || selection.length === 0}
+              disabled={!effectiveTimelineQueueMode || selection.length === 0}
               onClick={onInsertToTimeline}
               title={
                 timelineQueueMode && selection.length > 0
@@ -2043,6 +2094,15 @@ function BlueprintCanvas({
             <Icon name="show" size={11} /> {t("canvas.showAll")}
           </button>
         )}
+        <button
+          type="button"
+          className="btn xs"
+          onClick={handleSpotlightConnected}
+          disabled={wiredNodeCount < 1}
+          title={t("canvas.spotlightTitle")}
+        >
+          <Icon name="focus" size={11} /> {t("canvas.spotlight")}
+        </button>
         <button
           type="button"
           className="btn xs"

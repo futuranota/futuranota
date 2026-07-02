@@ -5104,6 +5104,30 @@ textarea.note-form-field {
     0 2px 8px color-mix(in oklab, #000 22%, transparent);
   background: color-mix(in oklab, var(--panel-3) 100%, var(--text) 3%);
 }
+.tl-event-chip--card.is-agent-set {
+  border-left-width: 3px;
+  font-weight: 500;
+}
+.tl-event-chip--card.is-agent-set.is-status-pending {
+  background: color-mix(in oklab, var(--hud) 8%, var(--panel-3));
+}
+.tl-event-chip--card.is-agent-set.is-status-running {
+  background: color-mix(in oklab, #f5c842 12%, var(--panel-3));
+  animation: tl-agent-set-pulse 1.4s ease-in-out infinite;
+}
+.tl-event-chip--card.is-agent-set.is-status-ready {
+  background: color-mix(in oklab, #4ade80 14%, var(--panel-3));
+  border-left-color: color-mix(in oklab, #4ade80 70%, var(--tl-family-accent, var(--hud)));
+  box-shadow: 0 0 0 1px color-mix(in oklab, #4ade80 25%, transparent);
+}
+.tl-event-chip--card.is-agent-set.is-status-failed {
+  background: color-mix(in oklab, #f87171 10%, var(--panel-3));
+  border-left-color: color-mix(in oklab, #f87171 65%, var(--tl-family-accent, var(--hud)));
+}
+@keyframes tl-agent-set-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
 .tl-chip-card-accent {
   display: none;
 }

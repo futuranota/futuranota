@@ -37,6 +37,27 @@ function childSnapshotKey(entityId, canvasNodeId) {
   return entityId || canvasNodeId || "";
 }
 
+function minDateMsFromNodes(nodeIds, canvasNodes, wireAnchors, meta) {
+  let minMs = null;
+  for (const nodeId of nodeIds || []) {
+    const node = canvasNodes.find((n) => n.id === nodeId);
+    if (!node) continue;
+    const entity = node.noteId ? meta.nodeEntitiesById?.[node.noteId] : null;
+    const raw = wireAnchors.get(nodeId) || resolveNodeAnchorDate(entity || node, meta);
+    if (!raw) continue;
+    const ms = startOfCalendarDay(raw).getTime();
+    if (minMs == null || ms < minMs) minMs = ms;
+  }
+  return minMs;
+}
+
+function minChildDateMs(children = []) {
+  const values = children
+    .map((child) => child?.dateMs)
+    .filter((ms) => Number.isFinite(ms));
+  return values.length ? Math.min(...values) : null;
+}
+
 /**
  * Capture doc anchor date + macronodo children for timeline persistence (survives canvas removal).
  * @param {string} docId
@@ -49,10 +70,20 @@ export function captureTimelineDocSnapshot(
     wireAnchors = new Map(),
     docsById = {},
     nodeEntitiesById = {},
+    preferredCanvasNodeIds = [],
   } = {},
 ) {
   const meta = { nodeEntitiesById, docsById };
-  const anchorDate = resolveDocTimelineDateLocal(docId, canvasNodes, wireAnchors, docsById, meta);
+  let anchorDate = resolveDocTimelineDateLocal(docId, canvasNodes, wireAnchors, docsById, meta);
+  if (!anchorDate && preferredCanvasNodeIds.length) {
+    const preferredMs = minDateMsFromNodes(
+      preferredCanvasNodeIds,
+      canvasNodes,
+      wireAnchors,
+      meta,
+    );
+    if (preferredMs != null) anchorDate = new Date(preferredMs);
+  }
   /** @type {{ key: string, entityId: string | null, canvasNodeId: string | null, dataType: string, dateMs: number }[]} */
   const children = [];
 
@@ -71,8 +102,13 @@ export function captureTimelineDocSnapshot(
     });
   }
 
+  let anchorDateMs = anchorDate ? startOfCalendarDay(anchorDate).getTime() : null;
+  if (anchorDateMs == null) {
+    anchorDateMs = minChildDateMs(children);
+  }
+
   return {
-    anchorDateMs: anchorDate ? startOfCalendarDay(anchorDate).getTime() : null,
+    anchorDateMs,
     objectId: docsById[docId]?.parentObjectId || null,
     children,
   };
@@ -92,6 +128,8 @@ export function resolveQueuedDocTimelineDate(
   const live = resolveDocTimelineDateLocal(docId, canvasNodes, wireAnchors, docsById, meta);
   if (live) return live;
   if (snapshot?.anchorDateMs) return new Date(snapshot.anchorDateMs);
+  const childMs = minChildDateMs(snapshot?.children || []);
+  if (childMs != null) return new Date(childMs);
   return null;
 }
 

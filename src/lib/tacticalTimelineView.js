@@ -439,6 +439,7 @@ export function buildTacticalObjectRows(params) {
   timelineDocQueue = [],
   timelineDocSnapshotsByDocId = {},
   timelineExcludedChildrenByDocId = {},
+  timelineAgentSets = [],
   expandedDocIds = [],
     today = new Date(),
     filterObjectId = null,
@@ -476,6 +477,9 @@ export function buildTacticalObjectRows(params) {
   for (const docId of timelineDocQueue) {
     const snap = timelineDocSnapshotsByDocId[docId];
     addObjectId(docsById[docId]?.parentObjectId || snap?.objectId);
+  }
+  for (const agentSet of timelineAgentSets) {
+    addObjectId(agentSet.objectId);
   }
   for (const ch of chains) addObjectId(ch.objectId);
 
@@ -538,6 +542,23 @@ export function buildTacticalObjectRows(params) {
         virtual: !canvasDoc,
         dataType: "document",
         queued: true,
+      });
+    }
+
+    for (const agentSet of timelineAgentSets) {
+      if (agentSet.objectId !== objectId) continue;
+      const triggerDate = new Date(agentSet.triggerAt);
+      if (Number.isNaN(triggerDate.getTime())) continue;
+      const key = `agent-set-${agentSet.id}`;
+      markerByKey.set(key, {
+        nodeId: key,
+        date: triggerDate,
+        dataType: "agent-set",
+        agentSetId: agentSet.id,
+        setKey: agentSet.setKey,
+        setStatus: agentSet.status,
+        setTitle: agentSet.title,
+        virtual: true,
       });
     }
 

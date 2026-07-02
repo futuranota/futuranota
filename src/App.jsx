@@ -61,6 +61,7 @@ import {
 } from './lib/canvasDocSync.js';
 import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
+import { resolveCanvasNodeObjectId } from './lib/objectColors.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 import { AGENT_CAMPAIGN_ANALYST, getAgentCanvasTitle } from './lib/agents/registry.js';
 import { executeAgentRun } from './lib/agents/executeAgentRun.js';
@@ -273,6 +274,7 @@ function Dashboard({ company, onBack }) {
       nodeEntities,
       docs,
       canvasConns,
+      objects,
     );
     if (!result?.ok) {
       setToast({
@@ -281,11 +283,36 @@ function Dashboard({ company, onBack }) {
       });
       return;
     }
+
+    const insertedObjectIds = new Set();
+    for (const canvasId of selection) {
+      const node = canvasNodes.find((n) => n.id === canvasId);
+      if (!node) continue;
+      const objectId = resolveCanvasNodeObjectId(node, docs, nodeEntities);
+      if (objectId) insertedObjectIds.add(objectId);
+    }
+    if (insertedObjectIds.size === 1) {
+      const objectId = [...insertedObjectIds][0];
+      setFilterObjectId(objectId);
+      setSelectedObjectId(objectId);
+    }
+
+    const parts = [];
+    if (result.added > 0) {
+      parts.push(`${result.added} doc${result.added === 1 ? "" : "s"}`);
+    }
+    if (result.setsAdded > 0) {
+      parts.push(`${result.setsAdded} set${result.setsAdded === 1 ? "" : "s"}`);
+    }
     setToast({
-      message: `Added ${result.added} node${result.added === 1 ? "" : "s"} to timeline queue`,
+      message: parts.length
+        ? `Added ${parts.join(" · ")} to timeline`
+        : result.refreshed
+          ? "Timeline snapshot refreshed"
+          : "Timeline updated",
       kind: "ok",
     });
-  }, [selection, canvasNodes, nodeEntities, docs, canvasConns, enqueueTimelineDocsFromCanvasNodes]);
+  }, [selection, canvasNodes, nodeEntities, docs, canvasConns, objects, enqueueTimelineDocsFromCanvasNodes]);
 
   const handleTimelineCanvasSelectMany = useCallback(
     (canvasNodeIds) => {

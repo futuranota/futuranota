@@ -1,13 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Modal } from "../shared/Modal.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
-import {
-  fetchAffiliateLink,
-  fetchReferralHistory,
-  sendReferralInvites,
-} from "../../lib/billingApi.js";
+import { fetchAffiliateLink, fetchReferralHistory } from "../../lib/billingApi.js";
 import { REFERRAL_REWARD_CREDITS } from "../../lib/referralConstants.js";
+import { buildReferralShareMessage } from "../../lib/referralShareMessage.js";
 
 function GiftIcon({ size = 16 }) {
   return (
@@ -29,19 +26,19 @@ function GiftIcon({ size = 16 }) {
 export function ReferralModal({ open, onClose }) {
   const { t } = useI18n();
   const [affiliateUrl, setAffiliateUrl] = useState("");
-  const [emails, setEmails] = useState("");
-  const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState(/** @type {{ items: { id: string, reward_credits: number, created_at: string }[] }} | null */ (null));
 
+  const shareMessage = useMemo(
+    () => buildReferralShareMessage(affiliateUrl, t),
+    [affiliateUrl, t],
+  );
+
   useEffect(() => {
     if (!open) return;
-    setError(null);
-    setSuccess(null);
     setShowHistory(false);
+    setCopied(false);
     void fetchAffiliateLink()
       .then((data) => setAffiliateUrl(data.url || ""))
       .catch(() => setAffiliateUrl(""));
@@ -57,9 +54,9 @@ export function ReferralModal({ open, onClose }) {
   if (!open) return null;
 
   const handleCopy = async () => {
-    if (!affiliateUrl) return;
+    if (!shareMessage) return;
     try {
-      await navigator.clipboard.writeText(affiliateUrl);
+      await navigator.clipboard.writeText(shareMessage);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -67,24 +64,8 @@ export function ReferralModal({ open, onClose }) {
     }
   };
 
-  const handleSend = async () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const result = await sendReferralInvites(emails);
-      setSuccess(t("referral.inviteSent", { count: result.sent }));
-      setEmails("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("referral.inviteFailed"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const content = (
-    <Modal title={t("referral.modalTitle")} onClose={busy ? () => {} : onClose}>
+    <Modal title={t("referral.modalTitle")} onClose={onClose}>
       <div className="referral-modal">
         <div className="referral-modal__callout">
           <GiftIcon />
@@ -120,28 +101,21 @@ export function ReferralModal({ open, onClose }) {
           </div>
         ) : null}
 
-        <label className="referral-modal__label" htmlFor="referral-emails">
-          {t("referral.emailLabel")}
+        <label className="referral-modal__label" htmlFor="referral-share-message">
+          {t("referral.shareLabel")}
         </label>
         <textarea
-          id="referral-emails"
-          className="referral-modal__input"
-          rows={3}
-          placeholder={t("referral.emailPlaceholder")}
-          value={emails}
-          disabled={busy}
-          onChange={(e) => setEmails(e.target.value)}
+          id="referral-share-message"
+          className="referral-modal__input referral-modal__input--readonly"
+          rows={7}
+          readOnly
+          value={shareMessage}
+          placeholder={t("referral.sharePlaceholder")}
         />
 
-        {error ? <p className="referral-modal__error" role="alert">{error}</p> : null}
-        {success ? <p className="referral-modal__success" role="status">{success}</p> : null}
-
         <div className="referral-modal__footer">
-          <button type="button" className="btn sm ghost" disabled={busy || !affiliateUrl} onClick={handleCopy}>
-            {copied ? t("plans.referralCopied") : t("referral.copyLink")}
-          </button>
-          <button type="button" className="btn sm primary" disabled={busy || !emails.trim()} onClick={handleSend}>
-            {busy ? t("plans.processing") : t("referral.sendInvite")}
+          <button type="button" className="btn sm primary" disabled={!shareMessage} onClick={handleCopy}>
+            {copied ? t("plans.referralCopied") : t("referral.copyMessage")}
           </button>
         </div>
       </div>

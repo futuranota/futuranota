@@ -1,0 +1,53 @@
+---
+description: Canvas spotlight (Focus/Enfocar) — zoom to wired nodes without reorganizing layout
+globs: src/canvas.jsx,src/lib/canvasSpotlight.js,src/lib/canvasMath.js,src/canvas-view.js
+alwaysApply: false
+---
+
+# Canvas Spotlight (Focus / Enfocar)
+
+Feature distinct from **Organize**: spotlight only pans/zooms the viewport — it does **not** move nodes.
+
+## UX
+
+- Toolbar button: **Focus** (EN) / **Enfocar** (ES), magnifying-glass icon (`Icon name="focus"`).
+- Disabled when there are no visible wired nodes.
+- Animated view transition (~280ms ease-out) via `animateViewTo` in `src/canvas.jsx`.
+
+## Behavior
+
+1. Collect visible nodes that participate in at least one connection (`getWiredVisibleNodeIds`).
+2. If the user has a selection that includes wired nodes → spotlight that **connected cluster**.
+3. Otherwise → spotlight the **largest wired connected component**.
+4. Compute padded bounding box → fit inside stage with `computeViewToFitBounds`.
+
+## API (`src/lib/canvasSpotlight.js`)
+
+```js
+import {
+  computeSpotlightView,
+  getSpotlightBounds,
+  getWiredVisibleNodeIds,
+  resolveSpotlightNodeIds,
+} from "./lib/canvasSpotlight.js";
+
+const view = computeSpotlightView({
+  nodes,
+  connections,
+  selection,       // optional string[]
+  stageRect,       // stage getBoundingClientRect()
+  minScale: 0.35,
+  maxScale: 2.5,
+  padding: 56,
+});
+```
+
+## i18n keys
+
+- `canvas.spotlight` / `canvas.spotlightTitle` in `src/i18n/messages.js`
+
+## When extending
+
+- Do not conflate with `organizeCanvasNodes` in `canvasMath.js` (grid repositioning).
+- Reuse `getNodesBounds` / `resolveCanvasNodeSize` from `canvasMath.js` for bounds.
+- View clamping uses `MIN_SCALE` / `MAX_SCALE` from `canvas.jsx` (0.35–2.5).

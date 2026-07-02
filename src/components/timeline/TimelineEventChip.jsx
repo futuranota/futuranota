@@ -8,6 +8,8 @@ export function TimelineEventChip({
   compact = false,
   focused = false,
   dataAnchor,
+  statusBadge = null,
+  className = "",
   onClick,
   onDoubleClick,
   onKeyDown,
@@ -34,9 +36,11 @@ export function TimelineEventChip({
           + (compact ? " is-compact" : "")
           + (focused ? " is-focused" : "")
           + (onRemove ? " has-remove" : "")
+          + (className ? ` ${className}` : "")
         }
         style={cardStyle}
         data-tl-anchor={dataAnchor || undefined}
+        data-tl-status={statusBadge || undefined}
         title={title || undefined}
         onClick={onClick}
         onDoubleClick={onDoubleClick}

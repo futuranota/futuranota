@@ -47,6 +47,9 @@ export function sanitizePersistedSnapshot(parsed) {
     snapshot.expandedDocIds = Array.isArray(parsed.expandedDocIds)
       ? parsed.expandedDocIds
       : [];
+    snapshot.timelineAgentSets = Array.isArray(parsed.timelineAgentSets)
+      ? parsed.timelineAgentSets
+      : [];
   }
 
   if (typeof parsed.scheduledAutoRunEnabled === "boolean") {

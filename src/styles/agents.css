@@ -253,6 +253,13 @@
 
 .cnode-agent__status.is-error {
   color: var(--warm);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 8.5px;
+  line-height: 1.35;
+  max-width: 140px;
+  white-space: normal;
+  text-align: center;
 }
 
 .cnode-agent__status.is-done {

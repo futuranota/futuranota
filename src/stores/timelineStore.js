@@ -7,8 +7,12 @@ import {
   resolveHeadlineBlockIdForCanvasNode,
   resolveParentDocIdForCanvasNode,
 } from "../lib/timelineSelection.js";
-import { captureTimelineDocSnapshot } from "../lib/timelineDocSnapshot.js";
+import {
+  captureTimelineDocSnapshot,
+  resolveQueuedDocTimelineDate,
+} from "../lib/timelineDocSnapshot.js";
 import { buildTacticalWireAnchorMap } from "../lib/timelineAnchors.js";
+import { captureTimelineAgentSetsForInsert } from "../lib/agents/captureTimelineAgentSets.js";
 
 const TIMELINE_ALERTS_KEY = "futura-timeline-alerts";
 
@@ -44,6 +48,8 @@ export const useTimelineStore = create(
       timelineDocSnapshotsByDocId: {},
       /** Macronodo keys hidden from timeline per doc (user removed chip). */
       timelineExcludedChildrenByDocId: {},
+      /** Scheduled agent triggers pinned to timeline (Set / Ready chips). */
+      timelineAgentSets: [],
       /** Cognitive snapshot mode (Trace Funix) — Intel / mixed doc+object queries. */
       traceFunixMode: false,
       /** Fase 2: cross-family doc links + timeline inherit (Bloque A). */
@@ -298,12 +304,37 @@ export const useTimelineStore = create(
         timelineDocQueueFocusByDocId: {},
         timelineDocSnapshotsByDocId: {},
         timelineExcludedChildrenByDocId: {},
+        timelineAgentSets: [],
         tacticalRangeOverride: null,
       }),
 
       setTacticalRangeOverride: (override) => set({ tacticalRangeOverride: override }),
 
       clearTacticalRangeOverride: () => set({ tacticalRangeOverride: null }),
+
+      removeTimelineAgentSet: (setId) => {
+        if (!setId) return;
+        set((state) => ({
+          timelineAgentSets: state.timelineAgentSets.filter((set) => set.id !== setId),
+        }));
+      },
+
+      updateTimelineAgentSetStatus: (setId, status, error = null) => {
+        if (!setId || !status) return;
+        set((state) => ({
+          timelineAgentSets: state.timelineAgentSets.map((set) => {
+            if (set.id !== setId) return set;
+            return {
+              ...set,
+              status,
+              error: error || null,
+              completedAt: status === "ready" || status === "failed"
+                ? Date.now()
+                : set.completedAt,
+            };
+          }),
+        }));
+      },
 
       removeTimelineDocFromQueue: (docId) => {
         if (!docId) return;
@@ -316,6 +347,7 @@ export const useTimelineStore = create(
             timelineDocQueueFocusByDocId: focusRest,
             timelineDocSnapshotsByDocId: snapRest,
             timelineExcludedChildrenByDocId: exclRest,
+            timelineAgentSets: state.timelineAgentSets.filter((set) => set.docId !== docId),
             expandedDocIds: state.expandedDocIds.filter((id) => id !== docId),
           };
         });
@@ -395,6 +427,7 @@ export const useTimelineStore = create(
         nodeEntitiesById,
         docsById,
         connections = [],
+        objectsById = {},
       ) => {
         const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
         const familyIds = new Set();
@@ -416,6 +449,7 @@ export const useTimelineStore = create(
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
         const snapshots = { ...get().timelineDocSnapshotsByDocId };
         const touchedDocIds = new Set();
+        const nodesByDocId = new Map();
         let added = 0;
         for (const canvasId of canvasNodeIds) {
           const node = nodeById.get(canvasId);
@@ -423,6 +457,8 @@ export const useTimelineStore = create(
           const docId = resolveParentDocIdForCanvasNode(node, nodeEntitiesById, docsById);
           if (!docId) continue;
           touchedDocIds.add(docId);
+          if (!nodesByDocId.has(docId)) nodesByDocId.set(docId, []);
+          nodesByDocId.get(docId).push(canvasId);
           const prevLen = queue.length;
           queue = pushDocToTimelineQueue(queue, docId);
           if (queue.length > prevLen) added += 1;
@@ -434,6 +470,14 @@ export const useTimelineStore = create(
           if (focusBlockId) focusByDocId[docId] = focusBlockId;
         }
 
+        if (!touchedDocIds.size) {
+          return {
+            ok: false,
+            code: "NO_DOCS",
+            message: "Selected nodes are not linked to a document.",
+          };
+        }
+
         const meta = { docsById, nodeEntitiesById };
         const { anchors: wireAnchors } = buildTacticalWireAnchorMap(canvasNodes, connections, meta);
         for (const docId of touchedDocIds) {
@@ -442,7 +486,24 @@ export const useTimelineStore = create(
             wireAnchors,
             docsById,
             nodeEntitiesById,
+            preferredCanvasNodeIds: nodesByDocId.get(docId) || [],
           });
+        }
+
+        const missingDateDocIds = [...touchedDocIds].filter((docId) => !resolveQueuedDocTimelineDate(
+          docId,
+          canvasNodes,
+          wireAnchors,
+          docsById,
+          meta,
+          snapshots[docId],
+        ));
+        if (missingDateDocIds.length) {
+          return {
+            ok: false,
+            code: "NO_ANCHOR_DATE",
+            message: "Timeline needs at least one dated node or wire anchor on the selected document.",
+          };
         }
 
         const excluded = { ...get().timelineExcludedChildrenByDocId };
@@ -450,13 +511,30 @@ export const useTimelineStore = create(
           excluded[docId] = [];
         }
 
+        const { sets: timelineAgentSets, added: setsAdded } = captureTimelineAgentSetsForInsert({
+          canvasNodeIds,
+          canvasNodes,
+          connections,
+          nodeEntitiesById,
+          docsById,
+          objectsById,
+          touchedDocIds: [...touchedDocIds],
+          existingSets: get().timelineAgentSets,
+        });
+
         set({
           timelineDocQueue: queue,
           timelineDocQueueFocusByDocId: focusByDocId,
           timelineDocSnapshotsByDocId: snapshots,
           timelineExcludedChildrenByDocId: excluded,
+          timelineAgentSets,
         });
-        return { ok: true, added };
+        return {
+          ok: true,
+          added,
+          setsAdded,
+          refreshed: added === 0 && setsAdded === 0,
+        };
       },
 
       deleteTimeline: (id) =>

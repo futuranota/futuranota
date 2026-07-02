@@ -220,6 +220,34 @@
   line-height: 1.45;
 }
 
+.plans-referral__share-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.plans-referral__share {
+  width: 100%;
+  min-height: 96px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border, var(--hairline));
+  background: color-mix(in srgb, var(--glass-border) 20%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.plans-referral__share:focus {
+  outline: none;
+  border-color: var(--hud);
+}
+
 .plans-referral__row {
   display: flex;
   flex-wrap: wrap;

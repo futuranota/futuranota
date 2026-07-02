@@ -24,8 +24,24 @@ function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
   return fallbackColor || "var(--hud)";
 }
 
-function resolveNodeAnchorAlign() {
+function resolveNodeAnchorAlign(leftPct, index, total) {
+  if (index === 0 && leftPct < 14) return "start";
+  if (index === total - 1 && leftPct > 86) return "end";
   return "center";
+}
+
+function resolveAgentSetChipLabel(marker, t) {
+  const title = String(marker.setTitle || "Task").trim();
+  const status = marker.setStatus || "pending";
+  if (status === "ready") return t("timeline.agentSetReady", { title });
+  if (status === "running") return t("timeline.agentSetRunning", { title });
+  if (status === "failed") return t("timeline.agentSetFailed", { title });
+  return t("timeline.agentSetPending", { title });
+}
+
+function resolveAgentSetChipClass(marker) {
+  const status = marker.setStatus || "pending";
+  return `is-agent-set is-status-${status}`;
 }
 
 function resolveAnchorStatus(groupDate, today) {
@@ -326,6 +342,7 @@ function TacticalObjectRow({
                       const entity = marker.entityId
                         ? nodeEntitiesById[marker.entityId]
                         : null;
+                      const isAgentSet = marker.dataType === "agent-set";
                       const fallbackName = marker.dataType && marker.dataType !== "document"
                         ? (entity?.title || entity?.name || marker.dataType).trim()
                         : (docsById[marker.docId]?.title || "Document").trim();
@@ -336,16 +353,21 @@ function TacticalObjectRow({
                           dateLabel: fmtDate(marker.date, "short"),
                           objectTint: accent,
                         };
-                      const chipName = marker.dataType && marker.dataType !== "document"
-                        ? `${display.name} · ${marker.dataType}`
-                        : display.name;
-                      const dataAnchor = marker.dataType === "document" && marker.docId
-                        ? `doc-${marker.docId}`
-                        : `node-${marker.nodeId}`;
+                      const chipName = isAgentSet
+                        ? resolveAgentSetChipLabel(marker, t)
+                        : marker.dataType && marker.dataType !== "document"
+                          ? `${display.name} · ${marker.dataType}`
+                          : display.name;
+                      const dataAnchor = isAgentSet
+                        ? `set-${marker.agentSetId}`
+                        : marker.dataType === "document" && marker.docId
+                          ? `doc-${marker.docId}`
+                          : `node-${marker.nodeId}`;
                       const isQueuedDoc = marker.dataType === "document"
                         && marker.docId
                         && queuedDocIds?.has(marker.docId);
-                      const canRemove = isQueuedDoc
+                      const canRemove = isAgentSet
+                        || isQueuedDoc
                         || (marker.dataType !== "document" && marker.childKey);
 
                       return (
@@ -358,12 +380,16 @@ function TacticalObjectRow({
                           objectTint={display.objectTint || accent}
                           focused={focusedNoteId === (item?.noteId || marker.nodeId)}
                           dataAnchor={dataAnchor}
+                          statusBadge={isAgentSet ? (marker.setStatus || "pending") : null}
+                          className={isAgentSet ? resolveAgentSetChipClass(marker) : ""}
                           title={
-                            marker.dataType === "document"
-                              ? t("timeline.docChipHint")
-                              : marker.docId
-                                ? t("timeline.childChipHint")
-                                : undefined
+                            isAgentSet
+                              ? t("timeline.agentSetHint")
+                              : marker.dataType === "document"
+                                ? t("timeline.docChipHint")
+                                : marker.docId
+                                  ? t("timeline.childChipHint")
+                                  : undefined
                           }
                           onClick={() => onChipClick(marker, row)}
                           onDoubleClick={() => onChipDoubleClick(marker, row)}
@@ -415,6 +441,7 @@ export function TacticalTimeline({
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
   const timelineDocSnapshotsByDocId = useTimelineStore((s) => s.timelineDocSnapshotsByDocId);
   const timelineExcludedChildrenByDocId = useTimelineStore((s) => s.timelineExcludedChildrenByDocId);
+  const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
   const expandedDocIds = useTimelineStore((s) => s.expandedDocIds);
   const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
   const explicitPrimaryId = useTimelineStore((s) => s.primaryTimelineObjectId);
@@ -422,6 +449,7 @@ export function TacticalTimeline({
   const toggleExpandedDocId = useTimelineStore((s) => s.toggleExpandedDocId);
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const removeTimelineChildFromQueue = useTimelineStore((s) => s.removeTimelineChildFromQueue);
+  const removeTimelineAgentSet = useTimelineStore((s) => s.removeTimelineAgentSet);
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
   const setTimelineAlertsEnabled = useTimelineStore((s) => s.setTimelineAlertsEnabled);
   const tacticalRangeOverride = useTimelineStore((s) => s.tacticalRangeOverride);
@@ -458,6 +486,7 @@ export function TacticalTimeline({
       timelineDocQueue,
       timelineDocSnapshotsByDocId,
       timelineExcludedChildrenByDocId,
+      timelineAgentSets,
       expandedDocIds,
       today,
       filterObjectId,
@@ -475,6 +504,7 @@ export function TacticalTimeline({
       timelineDocQueue,
       timelineDocSnapshotsByDocId,
       timelineExcludedChildrenByDocId,
+      timelineAgentSets,
       expandedDocIds,
       today,
       filterObjectId,
@@ -494,7 +524,7 @@ export function TacticalTimeline({
     [displayRows, expandedDocIds],
   );
   const rangeDrag = useTacticalRangeDrag(grid);
-  const hasQueue = timelineDocQueue.length > 0;
+  const hasQueue = timelineDocQueue.length > 0 || timelineAgentSets.length > 0;
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
   const chipClickTimerRef = useRef(null);
 
@@ -546,6 +576,10 @@ export function TacticalTimeline({
   };
 
   const handleChipRemove = (marker) => {
+    if (marker.dataType === "agent-set" && marker.agentSetId) {
+      removeTimelineAgentSet(marker.agentSetId);
+      return;
+    }
     if (marker.dataType === "document" && marker.docId) {
       removeTimelineDocFromQueue(marker.docId);
       return;
@@ -566,6 +600,9 @@ export function TacticalTimeline({
                 {t("timeline.families", { count: objectRowCount, suffix: familySuffix(objectRowCount) })}
                 {" · "}
                 {t("timeline.docs", { count: timelineDocQueue.length, s: pluralS(timelineDocQueue.length) })}
+                {timelineAgentSets.length > 0
+                  ? ` · ${t("timeline.sets", { count: timelineAgentSets.length, s: pluralS(timelineAgentSets.length) })}`
+                  : ""}
                 {grid?.spanDays ? ` · ${t("timeline.span", { days: grid.spanDays })}` : ""}
               </span>
             </span>

@@ -62,8 +62,9 @@ export function discoverScheduledAgentTasks({
       const entity = nodeEntitiesById[macroNode.noteId];
       if (!entity) continue;
 
-      const instruction = extractAgentInstructionFromNodeEntity(entity);
-      if (!instruction) continue;
+    const instruction = extractAgentInstructionFromNodeEntity(entity)
+      || String(entity.title || "").trim();
+    if (!instruction) continue;
 
       const runAt = entity.anchorAt || macroNode.anchorAt || null;
       if (!runAt) continue;
