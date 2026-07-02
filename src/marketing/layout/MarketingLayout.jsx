@@ -6,6 +6,7 @@ import { SiteTinaProvider } from '../context/TinaVisualEditing.jsx';
 import { applyMarketingTheme } from '../lib/theme.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
+import '../styles/landing-tweaks.css';
 
 const DEFAULT_THEME = { accent: 'terracotta', texture: 'on' };
 

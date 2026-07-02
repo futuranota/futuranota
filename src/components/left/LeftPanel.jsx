@@ -1422,25 +1422,27 @@ export function LeftPanel({
         {/* OBJECTS */}
         {panelType === "Objects" && (
           <>
-            {objectWorkspaceActive ? (
-              <ClickFolderBack
-                inline
-                onBack={exitObjectWorkspace}
-                label={t("sidebar.allCompanies")}
+            <div className="lp-workspace-head">
+              {objectWorkspaceActive ? (
+                <ClickFolderBack
+                  inline
+                  onBack={exitObjectWorkspace}
+                  label={t("sidebar.allCompanies")}
+                />
+              ) : null}
+              <PackActionsBar
+                placement="objects"
+                onOpenImport={() => {
+                  setPanelType("Documents");
+                  if (selectedObjectId || filterObjectId) {
+                    setFilterObjectId(filterObjectId || selectedObjectId);
+                    openPackImportView();
+                  } else {
+                    openPackImportView();
+                  }
+                }}
               />
-            ) : null}
-            <PackActionsBar
-              placement="objects"
-              onOpenImport={() => {
-                setPanelType("Documents");
-                if (selectedObjectId || filterObjectId) {
-                  setFilterObjectId(filterObjectId || selectedObjectId);
-                  openPackImportView();
-                } else {
-                  openPackImportView();
-                }
-              }}
-            />
+            </div>
             <div className="lp-objects-grid">
               {filteredObjectList.map(obj => (
                 <ObjectThumb
@@ -1485,17 +1487,19 @@ export function LeftPanel({
 
             {!packImportActive && clickFolderView === null ? (
               <>
-                <ClickFolderBack
-                  inline
-                  onBack={exitObjectWorkspace}
-                  label={t("sidebar.allCompanies")}
-                />
-                <PackActionsBar
-                  placement="documents"
-                  exportObjectId={filterObjectId}
-                  onOpenImport={openPackImportView}
-                  onInsertGuide={handleInsertGuide}
-                />
+                <div className="lp-workspace-head">
+                  <ClickFolderBack
+                    inline
+                    onBack={exitObjectWorkspace}
+                    label={t("sidebar.allCompanies")}
+                  />
+                  <PackActionsBar
+                    placement="documents"
+                    exportObjectId={filterObjectId}
+                    onOpenImport={openPackImportView}
+                    onInsertGuide={handleInsertGuide}
+                  />
+                </div>
                 <div className="lp-click-folders-stack__boxes">
                   <ClickFolderBox variant="groups" onClick={() => setClickFolderView("groups")} />
                   <ClickFolderBox variant="subgroups" onClick={() => setClickFolderView("subgroups")} />

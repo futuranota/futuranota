@@ -1,0 +1,143 @@
+/* Landing tweaks — mint signal on dark canvas, legible labels, blogs sidebar */
+
+body.marketing-body {
+  /* Brighter mint on dark canvas; inherits system signal on light */
+  --signal:      oklch(0.82 0.14 159);
+  --signal-soft: oklch(0.82 0.14 159 / 0.16);
+  --signal-line: oklch(0.78 0.13 159 / 0.42);
+  --landing-pink:       oklch(0.76 0.12 350);
+  --landing-pink-soft:  oklch(0.82 0.11 350 / 0.20);
+  --landing-pink-line:  oklch(0.75 0.10 350 / 0.42);
+  --hero-pencil:        oklch(0.42 0.018 60);
+}
+
+:root[data-theme="light"] body.marketing-body {
+  --signal:      oklch(0.52 0.16 159);
+  --signal-soft: oklch(0.52 0.16 159 / 0.12);
+  --signal-line: oklch(0.48 0.15 159 / 0.35);
+}
+
+/* Highlighter logo — white on dark nav, green tint on hover */
+body.marketing-body .brand__mark {
+  color: #ffffff;
+}
+body.marketing-body .brand:hover .brand__mark {
+  color: var(--signal);
+}
+:root[data-theme="light"] body.marketing-body .brand__mark {
+  color: var(--text);
+}
+:root[data-theme="light"] body.marketing-body .brand:hover .brand__mark {
+  color: var(--signal);
+}
+
+/* Labels & circled chips — mint signal */
+body.marketing-body .eyebrow,
+body.marketing-body .eyebrow--signal {
+  color: var(--signal);
+}
+
+body.marketing-body .chip--signal {
+  color: var(--signal);
+  border-color: var(--signal-line);
+  background: var(--signal-soft);
+}
+
+body.marketing-body .chip--accent {
+  color: var(--signal);
+  border-color: var(--signal-line);
+  background: var(--signal-soft);
+}
+
+body.marketing-body .pulse {
+  background: var(--signal);
+  box-shadow: 0 0 0 0 var(--signal-line);
+}
+
+body.marketing-body .eyebrow .tick {
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--signal) 26%, transparent);
+}
+
+body.marketing-body .window__label {
+  color: var(--signal);
+}
+
+body.marketing-body .dir__cta.link-arrow,
+body.marketing-body .link-arrow {
+  color: var(--signal);
+}
+
+body.marketing-body .link-arrow:hover {
+  color: oklch(0.88 0.12 159);
+}
+
+/* Hero panel — off-white / light beige */
+body.marketing-body .hero__grid {
+  background: #FAFAF7;
+}
+
+/* Hero headline — larger */
+body.marketing-body .hero__title--static,
+body.marketing-body .hero__title--loop {
+  font-size: clamp(32px, 4.6vw, 54px);
+  line-height: 0.96;
+}
+
+/* Hero lead — smaller, pencil gray */
+body.marketing-body .hero__grid .hero__lead {
+  font-size: clamp(14px, 1.2vw, 16px);
+  line-height: 1.62;
+  color: var(--hero-pencil);
+  max-width: 48ch;
+}
+
+/* Blog nav mega tabs — white, pink hover & selected */
+body.marketing-body .blog-nav-mega__tab {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+body.marketing-body .blog-nav-mega__tab:hover,
+body.marketing-body .blog-nav-mega__tab.is-active {
+  color: var(--landing-pink);
+  background: var(--landing-pink-soft);
+}
+
+/* Blogs sidebar — white default, mint on select & hover */
+body.marketing-body .blogs__cat {
+  color: rgba(255, 255, 255, 0.88);
+  border: 1px solid transparent;
+}
+
+body.marketing-body .blogs__cat .faint {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+body.marketing-body .blogs__cat:hover,
+body.marketing-body .blogs__cat.is-active {
+  color: var(--signal);
+  background: var(--signal-soft);
+  border-color: var(--signal-line);
+}
+
+body.marketing-body .blogs__cat:hover .faint,
+body.marketing-body .blogs__cat.is-active .faint {
+  color: var(--signal);
+}
+
+body.marketing-body a.blog-feat.card:hover,
+body.marketing-body a.blog.card:hover {
+  border-color: var(--signal-line);
+  box-shadow: 0 8px 28px oklch(0.78 0.13 159 / 0.12);
+}
+
+/* Light theme: blogs sidebar */
+:root[data-theme="light"] body.marketing-body .blogs__cat {
+  color: var(--muted);
+}
+:root[data-theme="light"] body.marketing-body .blogs__cat .faint {
+  color: var(--faint);
+}
+:root[data-theme="light"] body.marketing-body .blogs__cat:hover,
+:root[data-theme="light"] body.marketing-body .blogs__cat.is-active {
+  color: var(--signal);
+}

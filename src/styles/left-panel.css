@@ -764,18 +764,30 @@
   display: inline-flex;
   align-items: center;
   width: auto;
-  margin: 0 0 2px;
-  padding: 0 0 0 10px;
+  margin: 0;
+  padding: 0;
   gap: 5px;
 }
 
-.lp-click-folder-back--inline + .pack-actions {
-  margin-top: 0;
-  padding-top: 0;
+.lp-workspace-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-left: -10px;
+  padding: 0 0 8px 10px;
 }
 
-.lp-click-folder-back--inline + .pack-actions--objects {
-  padding-bottom: 4px;
+.lp-workspace-head .lp-click-folder-back--inline {
+  flex-shrink: 0;
+  height: 24px;
+}
+
+.lp-workspace-head .pack-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .lp-timeline-doc-queue {
