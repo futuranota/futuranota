@@ -11,6 +11,7 @@ export function TimelineEventChip({
   onClick,
   onDoubleClick,
   onKeyDown,
+  title,
 }) {
   if (variant === "card") {
     const cardStyle = familyAccent
@@ -33,6 +34,7 @@ export function TimelineEventChip({
         }
         style={cardStyle}
         data-tl-anchor={dataAnchor || undefined}
+        title={title || undefined}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
         onKeyDown={onKeyDown}

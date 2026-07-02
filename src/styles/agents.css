@@ -102,6 +102,20 @@
   border-radius: 16px;
 }
 
+.cnode-agent__avatar--brand-icon {
+  width: 56px;
+  height: 56px;
+  margin-top: 0;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid color-mix(in oklab, var(--hairline) 80%, #fff);
+  overflow: hidden;
+}
+
+.cnode-agent__avatar--brand-icon.is-running {
+  animation: cnode-agent-pulse 1.2s ease-in-out infinite;
+}
+
 /* Agent illustration SVGs — orchestrator accent tone, slightly larger inside clip */
 .agent-avatar-img {
   display: block;
@@ -113,6 +127,16 @@
   transform: scale(1.18);
   transform-origin: center center;
   filter: var(--agent-avatar-filter);
+}
+
+.agent-avatar-img--brand-icon {
+  width: 34px;
+  height: 34px;
+  max-width: 34px;
+  max-height: 34px;
+  margin: auto;
+  transform: none;
+  filter: none;
 }
 
 :root {

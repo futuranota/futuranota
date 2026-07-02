@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { daysBetween, fmtDate } from "../../data.jsx";
 import { buildChipDisplay, startOfCalendarDay } from "../../temporal.js";
@@ -10,6 +10,7 @@ import {
 } from "../../lib/tacticalTimelineView.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
+import { resolveFocusBlockIdForTimelineMarker } from "../../lib/timelineSelection.js";
 import { useTacticalRangeDrag } from "../../hooks/useTacticalRangeDrag.js";
 import { useTranslatedText } from "../../hooks/useTranslatedText.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -340,6 +341,13 @@ function TacticalObjectRow({
                           objectTint={display.objectTint || accent}
                           focused={focusedNoteId === (item?.noteId || marker.nodeId)}
                           dataAnchor={dataAnchor}
+                          title={
+                            marker.dataType === "document"
+                              ? t("timeline.docChipHint")
+                              : marker.docId
+                                ? t("timeline.childChipHint")
+                                : undefined
+                          }
                           onClick={() => onChipClick(marker, row)}
                           onDoubleClick={() => onChipDoubleClick(marker, row)}
                           onKeyDown={(e) => {
@@ -377,6 +385,7 @@ export function TacticalTimeline({
   today = new Date(),
   filterObjectId = null,
   focusedNoteId = null,
+  onOpenDocument,
 }) {
   const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
@@ -450,8 +459,22 @@ export function TacticalTimeline({
   const rangeDrag = useTacticalRangeDrag(grid);
   const hasQueue = timelineDocQueue.length > 0;
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
+  const chipClickTimerRef = useRef(null);
 
-  const handleChipClick = (marker, row) => {
+  useEffect(() => () => {
+    if (chipClickTimerRef.current) {
+      window.clearTimeout(chipClickTimerRef.current);
+      chipClickTimerRef.current = null;
+    }
+  }, []);
+
+  const clearPendingChipClick = () => {
+    if (!chipClickTimerRef.current) return;
+    window.clearTimeout(chipClickTimerRef.current);
+    chipClickTimerRef.current = null;
+  };
+
+  const runChipClick = (marker, row) => {
     const docId = marker.docId || null;
     const willExpand = docId ? !expandedDocIds.includes(docId) : false;
     if (docId) toggleExpandedDocId(docId);
@@ -463,16 +486,26 @@ export function TacticalTimeline({
     });
   };
 
+  const handleChipClick = (marker, row) => {
+    clearPendingChipClick();
+    chipClickTimerRef.current = window.setTimeout(() => {
+      chipClickTimerRef.current = null;
+      runChipClick(marker, row);
+    }, 280);
+  };
+
   const handleChipDoubleClick = (marker, row) => {
+    clearPendingChipClick();
     const docId = marker.docId || null;
-    if (!docId) return;
-    if (!expandedDocIds.includes(docId)) toggleExpandedDocId(docId);
-    setTimelineFocus({
-      level: "children",
-      objectId: row.objectId,
-      docId,
-      canvasNodeId: marker.virtual ? null : marker.nodeId,
-    });
+    if (!docId || !onOpenDocument) return;
+    const focusBlockId = marker.dataType === "document"
+      ? null
+      : resolveFocusBlockIdForTimelineMarker(marker, {
+        canvasNodes,
+        nodeEntitiesById,
+        docsById,
+      });
+    onOpenDocument(docId, { focusBlockId });
   };
 
   return (

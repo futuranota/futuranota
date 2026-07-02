@@ -12,7 +12,7 @@ import {
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
-import { AGENTS } from "../../lib/agents/registry.js";
+import { AGENTS, AGENT_MARKETING_GUIDE } from "../../lib/agents/registry.js";
 import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
@@ -314,7 +314,27 @@ function DocListCard({
           <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
         </span>
         <div className="fn-card-body">
-          <b>{displayTitle}</b>
+          <div className="lp-doc-card-title-row">
+            <b>{displayTitle}</b>
+            <span
+              className="lp-expand-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpen?.();
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onOpen?.();
+                }
+              }}
+            >
+              ↗
+            </span>
+          </div>
           <span className="fn-card-meta">
             {isTemplate ? t("sidebar.docTemplatePrefix") : ""}
             {isKnowledge
@@ -323,24 +343,6 @@ function DocListCard({
             {" · "}{t("sidebar.nodesInBlock", { count: (doc.nodeIds || []).length })}
           </span>
         </div>
-        <span
-          className="lp-expand-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpen?.();
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              onOpen?.();
-            }
-          }}
-        >
-          ↗
-        </span>
       </button>
       <button
         type="button"
@@ -464,7 +466,30 @@ function DocNodesBlockCard({
             </span>
           )}
           <div className="fn-card-body">
-            <b>{displayTitle}</b>
+            <div className="lp-doc-card-title-row">
+              <b>{displayTitle}</b>
+              {!orphan ? (
+                <span
+                  className="lp-expand-btn"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t("sidebar.openDocument")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenDoc?.();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onOpenDoc?.();
+                    }
+                  }}
+                >
+                  ↗
+                </span>
+              ) : null}
+            </div>
             <span className="fn-card-meta">
               {t("sidebar.nodesInBlock", { count: nodes.length })}
               {!orphan && isTemplate ? " · template" : ""}
@@ -476,19 +501,6 @@ function DocNodesBlockCard({
           </div>
           <span className="lp-doc-nodes-block__chevron" aria-hidden>{expanded ? "▾" : "▸"}</span>
         </button>
-        {!orphan ? (
-          <button
-            type="button"
-            className="lp-expand-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenDoc?.();
-            }}
-            aria-label={t("sidebar.openDocument")}
-          >
-            ↗
-          </button>
-        ) : null}
       </div>
       {expanded ? (
         <div className="lp-doc-nodes-block__body">
@@ -1022,6 +1034,15 @@ export function LeftPanel({
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
 
+  const handleInsertGuide = useCallback(() => {
+    onInsertAgent?.(AGENT_MARKETING_GUIDE);
+  }, [onInsertAgent]);
+
+  const canvasAgents = useMemo(
+    () => AGENTS.filter((agent) => agent.id !== AGENT_MARKETING_GUIDE),
+    [],
+  );
+
   const timelineQueueEntries = useMemo(
     () => (
       timelineCanvasSelection.length
@@ -1473,6 +1494,7 @@ export function LeftPanel({
                   placement="documents"
                   exportObjectId={filterObjectId}
                   onOpenImport={openPackImportView}
+                  onInsertGuide={handleInsertGuide}
                 />
                 <div className="lp-click-folders-stack__boxes">
                   <ClickFolderBox variant="groups" onClick={() => setClickFolderView("groups")} />
@@ -1506,6 +1528,7 @@ export function LeftPanel({
                   filterOptions={categoryFilterOptions}
                   filterValue={productCategoryFilter}
                   onFilterChange={setProductCategoryFilter}
+                  onInsertGuide={handleInsertGuide}
                 />
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
@@ -1593,7 +1616,7 @@ export function LeftPanel({
                   label={t("sidebar.agentsTitle")}
                 />
                 <div className="lp-click-folder-detail-list">
-                  {AGENTS.map((agent) => (
+                  {canvasAgents.map((agent) => (
                     <AgentListCard
                       key={agent.id}
                       agent={agent}
@@ -1619,6 +1642,7 @@ export function LeftPanel({
                   filterOptions={contentFilterOptions}
                   filterValue={contentProductFilter}
                   onFilterChange={setContentProductFilter}
+                  onInsertGuide={handleInsertGuide}
                 />
                 <TimelineDocQueue
                   entries={timelineQueueEntries}

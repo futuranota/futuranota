@@ -109,6 +109,8 @@ export const messages = {
       noDatedEvents: "No dated events",
       dragStart: "Drag to adjust timeline start",
       dragEnd: "Drag to adjust timeline end",
+      docChipHint: "Click to expand · Double-click to open document",
+      childChipHint: "Click to expand · Double-click to open in document",
     },
     sidebar: {
       panelObjects: "Company",
@@ -150,6 +152,13 @@ export const messages = {
       docTemplatePrefix: "template · ",
       docMetaKnowledgeFile: "file imported, knowledge",
       docMetaKnowledge: "knowledge corpus",
+      knowledgeImportHint:
+        "Use the text area below to summarize what you imported: key topics, "
+        + "what the file is for, or a short outline. This space is for your own reference.",
+      knowledgeImportHintDismiss: "Dismiss",
+      knowledgeNotesPlaceholder: "Add notes or context for this knowledge corpus…",
+      knowledgeNotesImportPlaceholder:
+        "Summarize key topics, purpose, or outline of the imported file…",
       backLabel: "Back — {label}",
       untitledQuery: "Untitled query",
       editBusinessRef: "Edit business reference",
@@ -402,7 +411,8 @@ export const messages = {
     pack: {
       toolbar: "Pack import export",
       importPack: "Import pack",
-      exportPack: "Export pack",
+      guide: "Guide",
+      guideTitle: "Insert Marketing Guide agent on canvas",
       exporting: "Exporting…",
       packV2: "Pack v2",
       packV2Title: "Readable folders + image files (Pack v2)",
@@ -628,6 +638,8 @@ export const messages = {
       noDatedEvents: "Sin eventos con fecha",
       dragStart: "Arrastra para ajustar el inicio del timeline",
       dragEnd: "Arrastra para ajustar el final del timeline",
+      docChipHint: "Clic para expandir · Doble clic para abrir el documento",
+      childChipHint: "Clic para expandir · Doble clic para abrir en el documento",
     },
     intel: {
       noSources: "Sin referencias web para esta búsqueda. Probá un término más amplio.",

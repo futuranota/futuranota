@@ -1139,6 +1139,7 @@ useEffect(() => {
         objectsById={objects}
         nodeEntitiesById={nodeEntities}
         filterObjectId={filterObjectId}
+        onOpenDocument={openDocumentOverlay}
       />
 
       {expandedDocId && (

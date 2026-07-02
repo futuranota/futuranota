@@ -1612,6 +1612,7 @@ function Timeline({
   objectsById = {},
   nodeEntitiesById = {},
   filterObjectId = null,
+  onOpenDocument,
 }) {
   return (
     <TacticalTimeline
@@ -1623,6 +1624,7 @@ function Timeline({
       today={today}
       filterObjectId={filterObjectId}
       focusedNoteId={focusedNoteId}
+      onOpenDocument={onOpenDocument}
     />
   );
 }

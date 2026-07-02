@@ -12,7 +12,7 @@
 }
 
 .pack-actions--objects {
-  padding: 8px 0 4px;
+  padding: 0 0 4px;
 }
 
 .pack-actions__btn {
@@ -41,6 +41,31 @@
   color: rgba(232, 220, 200, 0.42);
   border-color: rgba(232, 220, 200, 0.16);
   background: transparent;
+}
+
+.pack-actions__btn--guide {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1a1a1a;
+  border-color: color-mix(in oklab, var(--hairline) 70%, #fff);
+  background: #fff;
+}
+
+.pack-actions__btn--guide:hover:not(:disabled),
+.pack-actions__btn--guide:active:not(:disabled) {
+  color: #111;
+  border-color: color-mix(in oklab, var(--hairline) 90%, #fff);
+  background: #fff;
+}
+
+.pack-actions__guide-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  filter: none;
+  pointer-events: none;
 }
 
 .pack-actions__filter-select {

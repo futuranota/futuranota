@@ -227,6 +227,7 @@ export async function runIntelSearch(payload) {
     const result = await fetchIntelSearch(q, contextNodes, model.id);
 
     planStore.applyServerIntelUsage({
+      plan: result.plan === "pro" ? "pro" : result.plan === "free" ? "free" : undefined,
       tokensBalance: result.tokensBalance,
       searchCount: result.searchCount,
     });

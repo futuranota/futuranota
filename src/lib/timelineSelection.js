@@ -54,6 +54,44 @@ export function resolveHeadlineBlockIdForCanvasNode(
   return blockId;
 }
 
+/** Block id to scroll when opening a doc from a timeline macronodo chip. */
+export function resolveFocusBlockIdForTimelineMarker(
+  marker,
+  {
+    canvasNodes = [],
+    nodeEntitiesById = {},
+    docsById = {},
+  } = {},
+) {
+  if (!marker?.docId) return null;
+  if (marker.dataType === "document") return null;
+
+  const canvasNode = marker.virtual
+    ? null
+    : canvasNodes.find((n) => n.id === marker.nodeId);
+  if (canvasNode) {
+    return resolveHeadlineBlockIdForCanvasNode(canvasNode, nodeEntitiesById, docsById);
+  }
+
+  const entityId = marker.entityId;
+  if (!entityId) return null;
+  const entity = nodeEntitiesById[entityId];
+  const blockId = entity?.sourceBlockId;
+  if (!blockId) return null;
+
+  const doc = docsById[marker.docId];
+  const blocks = normalizeDocBlocks(doc?.blocks || []);
+  const h1Index = findH1BlockIndex(blocks, blockId);
+  if (h1Index >= 0) return blocks[h1Index].id;
+
+  const textIndex = blocks.findIndex((b) => b.id === blockId);
+  if (textIndex >= 0) {
+    const h1FromText = getH1IndexForTextBlock(blocks, textIndex);
+    if (h1FromText >= 0) return blocks[h1FromText].id;
+  }
+  return blockId;
+}
+
 /** Knowledge corpus document nodes on canvas (passive — not timeline-selectable). */
 export function isKnowledgeCanvasNode(node, docsById = {}) {
   if (!node) return false;

@@ -131,6 +131,7 @@ export async function processIntelOverviewRequest(reqLike) {
     status: 200,
     body: {
       ...result,
+      plan,
       tokensDebited: plan === "pro" ? model.tokenCost : 0,
       creditsDebited: model.creditCost,
       tokensBalance: Number(updated.tokens_balance),

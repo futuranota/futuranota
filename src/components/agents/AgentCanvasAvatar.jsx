@@ -7,6 +7,7 @@ import { AgentIcon } from "./AgentIcon.jsx";
  *   iconVariant?: string,
  *   className?: string,
  *   imgClassName?: string,
+ *   avatarKind?: 'illustration' | 'brand-icon',
  * }} props
  */
 export function AgentCanvasAvatar({
@@ -14,13 +15,15 @@ export function AgentCanvasAvatar({
   iconVariant = "orchestrator",
   className = "",
   imgClassName = "cnode-agent__avatar-img",
+  avatarKind = "illustration",
 }) {
   if (imageSrc) {
+    const kindClass = avatarKind === "brand-icon" ? "agent-avatar-img--brand-icon" : "";
     return (
       <img
         src={imageSrc}
         alt=""
-        className={`agent-avatar-img ${imgClassName} ${className}`.trim()}
+        className={`agent-avatar-img ${kindClass} ${imgClassName} ${className}`.trim()}
         aria-hidden
         draggable={false}
       />

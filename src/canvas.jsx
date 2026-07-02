@@ -563,18 +563,21 @@ function CanvasNode({
       const creditCost = getAgentCreditCost(node.agentId);
       const { counter: creditsCounter, remaining: creditsRemaining } = creditsDisplay;
       const hasAvatarImage = Boolean(agentDef?.avatarImage);
+      const avatarKind = agentDef?.avatarKind || (hasAvatarImage ? "illustration" : "icon");
       return (
         <div className="cnode-agent" onPointerDown={(e) => e.stopPropagation()}>
           <div
             className={[
               "cnode-agent__avatar",
-              hasAvatarImage ? "cnode-agent__avatar--image" : "",
+              avatarKind === "brand-icon" ? "cnode-agent__avatar--brand-icon" : "",
+              hasAvatarImage && avatarKind !== "brand-icon" ? "cnode-agent__avatar--image" : "",
               isRunning ? "is-running" : "",
             ].filter(Boolean).join(" ")}
           >
             <AgentCanvasAvatar
               imageSrc={agentDef?.avatarImage}
               iconVariant={agentDef?.icon || node.agentId || "orchestrator"}
+              avatarKind={avatarKind === "brand-icon" ? "brand-icon" : "illustration"}
             />
           </div>
           <div className="cnode-agent__run-row">

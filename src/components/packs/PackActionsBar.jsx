@@ -1,14 +1,16 @@
 import { useState } from "react";
-import { exportObjectPack } from "../../lib/pack/packExport.js";
 import { exportObjectPackV2 } from "../../lib/pack/packV2Export.js";
 import { usePlanStore } from "../../stores/planStore.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 
+const GUIDE_ICON_SRC = "/uploads/branding.svg";
+
 /**
  * @param {Object} props
  * @param {'objects'|'documents'} props.placement
  * @param {() => void} props.onOpenImport
+ * @param {() => void} [props.onInsertGuide]
  * @param {string|null} [props.exportObjectId]
  * @param {'category'|'content'|null} [props.filterMode]
  * @param {{ id: string, label: string }[]} [props.filterOptions]
@@ -18,6 +20,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 export function PackActionsBar({
   placement,
   onOpenImport,
+  onInsertGuide,
   exportObjectId = null,
   filterMode = null,
   filterOptions = [],
@@ -27,25 +30,10 @@ export function PackActionsBar({
   const { t } = useI18n();
   const isPro = usePlanStore((s) => s.isPro());
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
-  const [exporting, setExporting] = useState(false);
   const [exportingV2, setExportingV2] = useState(false);
 
-  const handleExport = async () => {
-    if (!exportObjectId || exporting || exportingV2) return;
-    if (!isPro) {
-      showUpgradeModal("export");
-      return;
-    }
-    setExporting(true);
-    try {
-      await exportObjectPack(exportObjectId, { includeGraph: false });
-    } finally {
-      setExporting(false);
-    }
-  };
-
   const handleExportV2 = async () => {
-    if (!exportObjectId || exporting || exportingV2) return;
+    if (!exportObjectId || exportingV2) return;
     if (!isPro) {
       showUpgradeModal("export");
       return;
@@ -90,21 +78,30 @@ export function PackActionsBar({
       >
         {t("pack.importPack")}
       </button>
+      {placement === "documents" && onInsertGuide ? (
+        <button
+          type="button"
+          className="btn xs pack-actions__btn pack-actions__btn--guide"
+          onClick={onInsertGuide}
+          title={t("pack.guideTitle")}
+        >
+          <img
+            src={GUIDE_ICON_SRC}
+            alt=""
+            className="pack-actions__guide-icon"
+            aria-hidden
+            draggable={false}
+          />
+          {t("pack.guide")}
+        </button>
+      ) : null}
       {placement === "documents" && exportObjectId ? (
         <>
           <button
             type="button"
             className="btn xs pack-actions__btn pack-actions__btn--accent"
-            onClick={handleExport}
-            disabled={exporting || exportingV2}
-          >
-            {exporting ? t("pack.exporting") : t("pack.exportPack")}
-          </button>
-          <button
-            type="button"
-            className="btn xs pack-actions__btn pack-actions__btn--accent"
             onClick={handleExportV2}
-            disabled={exporting || exportingV2}
+            disabled={exportingV2}
             title={t("pack.packV2Title")}
           >
             {exportingV2 ? t("pack.exporting") : t("pack.packV2")}

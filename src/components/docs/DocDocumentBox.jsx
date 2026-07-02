@@ -28,7 +28,7 @@ import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
-import { hasKnowledgeImport } from "../../lib/knowledgeImport.js";
+import { hasKnowledgeImport, knowledgeNotesHasContent } from "../../lib/knowledgeImport.js";
 import { useI18n } from "../../i18n/useI18n.js";
 
 const SAVE_LOADING_MIN_MS = 400;
@@ -36,13 +36,9 @@ const SAVE_LOADING_MIN_MS = 400;
 const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;
 const CONTENT_BOX_DEFAULT_HEIGHT = 240;
-const CONTENT_BOX_KNOWLEDGE_DEFAULT_HEIGHT = 118;
+const CONTENT_BOX_KNOWLEDGE_DEFAULT_HEIGHT = 160;
 const CONTENT_BOX_PICKER_CLEARANCE = 28;
 const CONTENT_BOX_MAX_HEIGHT = 720;
-
-const KNOWLEDGE_IMPORT_HINT =
-  "Use the text area below to summarize what you imported: key topics, "
-  + "what the file is for, or a short outline. This space is for your own reference.";
 
 /**
  * Document medium box — layout from Figma node 291:494 (datos).
@@ -118,7 +114,11 @@ export function DocDocumentBox({
   const showParentPicker = Boolean(onParentIdChange && objects?.length && !isKnowledgeMode);
   const knowledgeImportActive = hasKnowledgeImport({ knowledgeImport });
   const docHeaderLabel = (headerLabel ?? "").trim() || DEFAULT_HEADER_LABEL;
-  const bodyPlaceholder = isKnowledgeMode ? "" : bodyPlaceholderProp;
+  const bodyPlaceholder = isKnowledgeMode
+    ? (knowledgeImportActive
+      ? t("sidebar.knowledgeNotesImportPlaceholder")
+      : t("sidebar.knowledgeNotesPlaceholder"))
+    : bodyPlaceholderProp;
   const bodyRef = useRef(null);
   const contentBoxRef = useRef(null);
   const contentScrollRef = useRef(null);
@@ -193,7 +193,19 @@ export function DocDocumentBox({
     () => normalizedBlocks.map((b) => `${b.id}:${b.type}`).join("|"),
     [normalizedBlocks],
   );
-  const showKnowledgeNotesPlaceholder = isKnowledgeMode && !knowledgeHintDismissed;
+  const knowledgeNotesFilled = knowledgeNotesHasContent(
+    body,
+    normalizedBlocks,
+    docBlocksToBody,
+  );
+  const showKnowledgeImportHint = isKnowledgeMode
+    && knowledgeImportActive
+    && !knowledgeNotesFilled
+    && !knowledgeHintDismissed;
+
+  useEffect(() => {
+    if (knowledgeNotesFilled) setKnowledgeHintDismissed(true);
+  }, [knowledgeNotesFilled]);
 
   const dismissKnowledgeHint = () => {
     setKnowledgeHintDismissed(true);
@@ -623,14 +635,8 @@ export function DocDocumentBox({
           className={
             "doc-new-content-scroll"
             + (isKnowledgeMode ? " doc-new-content-scroll--knowledge" : "")
-            + (showKnowledgeNotesPlaceholder ? " doc-new-content-scroll--hint-active" : "")
             + (contentFocusMode ? " doc-new-content-scroll--focus" : "")
           }
-          onPointerDown={(event) => {
-            if (!showKnowledgeNotesPlaceholder) return;
-            if (event.target.closest(".doc-knowledge-import-hint")) return;
-            dismissKnowledgeHint();
-          }}
         >
           <button
             type="button"
@@ -645,15 +651,17 @@ export function DocDocumentBox({
           >
             <span className="doc-new-content-expand-btn__icon" aria-hidden />
           </button>
-          {showKnowledgeNotesPlaceholder ? (
-            <button
-              type="button"
-              className="doc-knowledge-import-hint doc-knowledge-import-hint--placeholder"
-              onClick={dismissKnowledgeHint}
-            >
-              <span className="doc-knowledge-import-hint__text">{KNOWLEDGE_IMPORT_HINT}</span>
-              <span className="doc-knowledge-import-hint__action">Tap to write</span>
-            </button>
+          {showKnowledgeImportHint ? (
+            <div className="doc-knowledge-import-hint" role="note">
+              <p className="doc-knowledge-import-hint__text">{t("sidebar.knowledgeImportHint")}</p>
+              <button
+                type="button"
+                className="doc-knowledge-import-hint__dismiss"
+                onClick={dismissKnowledgeHint}
+              >
+                {t("sidebar.knowledgeImportHintDismiss")}
+              </button>
+            </div>
           ) : null}
           {hasBlocks ? (
             <DocBlockStack
@@ -683,7 +691,6 @@ export function DocDocumentBox({
               className={
                 "doc-body-field-wrap"
                 + (isKnowledgeMode ? " doc-body-field-wrap--knowledge" : "")
-                + (showKnowledgeNotesPlaceholder ? " doc-body-field-wrap--has-placeholder" : "")
               }
             >
               <SlashAwareTextarea
@@ -694,7 +701,7 @@ export function DocDocumentBox({
                 }}
                 onKeyDown={handleTextareaKeyDown}
                 onFocus={() => {
-                  if (showKnowledgeNotesPlaceholder) dismissKnowledgeHint();
+                  if (showKnowledgeImportHint) dismissKnowledgeHint();
                 }}
                 placeholder={bodyPlaceholder}
                 wrapClassName="doc-body-field-wrap__slash"

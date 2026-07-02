@@ -762,9 +762,20 @@
 .lp-click-folder-back--inline {
   position: static;
   display: inline-flex;
+  align-items: center;
   width: auto;
-  margin: 0 0 8px;
-  padding: 2px 0 8px;
+  margin: 0 0 2px;
+  padding: 0 0 0 10px;
+  gap: 5px;
+}
+
+.lp-click-folder-back--inline + .pack-actions {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.lp-click-folder-back--inline + .pack-actions--objects {
+  padding-bottom: 4px;
 }
 
 .lp-timeline-doc-queue {
@@ -973,8 +984,9 @@
 
 .lp-doc-card-delete {
   flex-shrink: 0;
-  align-self: center;
+  align-self: flex-end;
   margin-right: 6px;
+  margin-bottom: 8px;
 }
 
 .lp-object-delete {
@@ -1006,13 +1018,31 @@
   margin-top: 2px;
 }
 
+.lp-doc-card-title-row {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 3px;
+  max-width: 100%;
+}
+
+.lp-doc-card-title-row b {
+  min-width: 0;
+}
+
+.lp-doc-card-title-row .lp-expand-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  line-height: 1.3;
+}
+
 .lp-expand-btn {
   font-size: 10px;
   color: var(--dim);
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 2px 0;
 }
 
 .lp-node-card {
@@ -1142,8 +1172,10 @@
 }
 
 .lp-doc-nodes-block__head .lp-expand-btn {
-  align-self: center;
-  margin-right: 8px;
+  align-self: flex-start;
+  margin: 0;
+  padding: 0;
+  line-height: 1.3;
 }
 
 .lp-doc-nodes-block__chevron {
@@ -2462,31 +2494,17 @@
   font-size: 11px;
 }
 
-.doc-knowledge-import-hint--placeholder {
-  position: absolute;
-  top: 8px;
-  left: var(--doc-knowledge-edge-x, 8px);
-  right: auto;
-  z-index: 3;
+.doc-knowledge-import-hint {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
-  max-width: calc(100% - 2 * var(--doc-knowledge-edge-x, 8px));
-  margin: 0;
+  margin: 0 0 10px;
   padding: 7px var(--doc-knowledge-hint-inner-x, 9px);
   border-radius: 6px;
   border: 1px solid color-mix(in oklab, var(--warm) 38%, var(--hairline));
   background: color-mix(in oklab, var(--warm) 10%, var(--panel-2));
-  font: inherit;
   text-align: left;
-  cursor: pointer;
-  transition: border-color 120ms ease, background 120ms ease;
-}
-
-.doc-knowledge-import-hint--placeholder:hover {
-  border-color: color-mix(in oklab, var(--warm) 55%, var(--hairline));
-  background: color-mix(in oklab, var(--warm) 14%, var(--panel-2));
 }
 
 .doc-knowledge-import-hint__text {
@@ -2495,17 +2513,24 @@
   color: #dcb2a6;
 }
 
-.doc-knowledge-import-hint__action {
+.doc-knowledge-import-hint__dismiss {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: lowercase;
   color: color-mix(in oklab, #dcb2a6 70%, var(--dim));
+  cursor: pointer;
 }
 
-.doc-new-content-scroll--hint-active .doc-block-stack {
-  pointer-events: none;
+.doc-knowledge-import-hint__dismiss:hover,
+.doc-knowledge-import-hint__dismiss:focus-visible {
+  color: #dcb2a6;
+  outline: none;
 }
 
 .doc-new-content-scroll--knowledge {
@@ -2523,10 +2548,6 @@
   min-height: 48px;
 }
 
-.doc-body-field-wrap--knowledge.doc-body-field-wrap--has-placeholder {
-  padding-top: 0;
-}
-
 .doc-body-field-wrap--knowledge .doc-new-body-field,
 .doc-body-field-wrap--knowledge .doc-body-field-wrap__slash textarea {
   position: relative;
@@ -2538,18 +2559,8 @@
   padding-bottom: 24px;
 }
 
-.doc-body-field-wrap--knowledge.doc-body-field-wrap--has-placeholder .doc-new-body-field,
-.doc-body-field-wrap--knowledge.doc-body-field-wrap--has-placeholder
-  .doc-body-field-wrap__slash textarea {
-  padding-top: 78px;
-}
-
 .doc-body-field-wrap--knowledge .doc-slash-preview {
   padding: 12px 21px 8px var(--doc-knowledge-text-x, 17px);
-}
-
-.doc-body-field-wrap--knowledge.doc-body-field-wrap--has-placeholder .doc-slash-preview {
-  padding-top: 78px;
 }
 
 .doc-new-content-box--knowledge-notes {

@@ -1,6 +1,6 @@
 import { agentAvatarSrc } from "./agentAvatar.js";
 
-/** @typedef {{ id: string, labelKey: string, descriptionKey: string, canvasTitle: string, icon: string | null, avatarImage?: string | null, runUxMinMs?: number, enabled?: boolean, disabledReasonKey?: string }} AgentDefinition */
+/** @typedef {{ id: string, labelKey: string, descriptionKey: string, canvasTitle: string, icon: string | null, avatarImage?: string | null, avatarKind?: 'illustration' | 'brand-icon', runUxMinMs?: number, enabled?: boolean, disabledReasonKey?: string }} AgentDefinition */
 
 export const AGENT_ORCHESTRATOR = "orchestrator";
 export const AGENT_CAMPAIGN_ANALYST = "campaign-analyst";
@@ -35,7 +35,8 @@ export const AGENTS = [
     descriptionKey: "agents.marketingGuide.description",
     canvasTitle: "MARKETING GUIDE",
     icon: "analyst",
-    avatarImage: agentAvatarSrc("marketing-guide.svg"),
+    avatarImage: agentAvatarSrc("branding.svg"),
+    avatarKind: "brand-icon",
     enabled: true,
   },
   {

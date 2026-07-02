@@ -113,20 +113,32 @@ function isMissingProfilesTable(error) {
 }
 
 /**
- * Pro rows must use tokens_balance (2M pool), not Free search_count / 10k tokens.
+ * Pro user still on free-tier token cap — migrate to full Pro ledger once.
  * @param {Record<string, unknown> | null | undefined} row
  * @param {boolean} [isAdminUser]
  */
-function needsProLedgerRepair(row, isAdminUser = false) {
+function needsProLedgerMigration(row, isAdminUser = false) {
   if (!row || row.plan !== "pro") return false;
   const freeCap = getTokensCap("free");
-  const proCap = getTokensCap("pro");
   const balance = Number(row.tokens_balance);
   const searches = Number(row.search_count) || 0;
-  if (!Number.isFinite(balance) || balance >= proCap) return false;
-  if (searches > 0) return true;
+  if (!Number.isFinite(balance)) return true;
+  if (balance <= freeCap && searches > 0) return true;
   if (balance <= freeCap && isAdminUser && !row.stripe_subscription_id) return true;
   return false;
+}
+
+/**
+ * Pro user with valid token balance but legacy free-era search_count — clear count only.
+ * @param {Record<string, unknown> | null | undefined} row
+ */
+function needsProSearchCountCleanup(row) {
+  if (!row || row.plan !== "pro") return false;
+  const freeCap = getTokensCap("free");
+  const balance = Number(row.tokens_balance);
+  const searches = Number(row.search_count) || 0;
+  if (searches <= 0) return false;
+  return Number.isFinite(balance) && balance > freeCap;
 }
 
 /**
@@ -135,29 +147,82 @@ function needsProLedgerRepair(row, isAdminUser = false) {
  * @param {boolean} [isAdminUser]
  */
 async function repairProLedgerIfNeeded(userId, row, isAdminUser = false) {
-  if (!needsProLedgerRepair(row, isAdminUser)) return null;
-  const proCap = getTokensCap("pro");
   const now = new Date().toISOString();
-  const patch = {
-    tokens_balance: proCap,
-    tokens_period_start: now,
-    search_count: 0,
-    updated_at: now,
-  };
-  const error = await persistProfilePatch(userId, patch);
-  if (error) {
-    console.warn("planStore.repairProLedger error", error);
-    return null;
+
+  if (needsProLedgerMigration(row, isAdminUser)) {
+    const proCap = getTokensCap("pro");
+    const patch = {
+      tokens_balance: proCap,
+      tokens_period_start: now,
+      search_count: 0,
+      updated_at: now,
+    };
+    const error = await persistProfilePatch(userId, patch);
+    if (error) {
+      console.warn("planStore.repairProLedger error", error);
+      return null;
+    }
+    return { ...patch, plan: "pro" };
   }
-  return { ...patch, plan: "pro" };
+
+  if (needsProSearchCountCleanup(row)) {
+    const patch = { search_count: 0, updated_at: now };
+    const error = await persistProfilePatch(userId, patch);
+    if (error) {
+      console.warn("planStore.repairProLedger search_count cleanup error", error);
+      return null;
+    }
+    return patch;
+  }
+
+  return null;
 }
 
 async function persistProfilePatch(userId, patch) {
-  const { error } = await supabase
+  const payload = { ...patch, updated_at: new Date().toISOString() };
+  const { data, error } = await supabase
     .from("profiles")
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("user_id", userId);
-  return error;
+    .update(payload)
+    .eq("user_id", userId)
+    .select("user_id")
+    .maybeSingle();
+  if (error) return error;
+  if (data) return null;
+
+  const { error: upsertErr } = await supabase.from("profiles").upsert({
+    user_id: userId,
+    plan: "free",
+    search_count: 0,
+    tokens_balance: getTokensCap("free"),
+    ...payload,
+  }, { onConflict: "user_id" });
+  return upsertErr;
+}
+
+async function ensureProfileRow(userId) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) return { data: null, error };
+  if (data) return { data, error: null };
+
+  const now = new Date().toISOString();
+  const cap = getTokensCap("free");
+  const { data: created, error: upsertErr } = await supabase
+    .from("profiles")
+    .upsert({
+      user_id: userId,
+      plan: "free",
+      search_count: 0,
+      tokens_balance: cap,
+      tokens_period_start: now,
+      updated_at: now,
+    }, { onConflict: "user_id" })
+    .select("*")
+    .maybeSingle();
+  return { data: created, error: upsertErr };
 }
 
 export const usePlanStore = create(
@@ -303,11 +368,18 @@ export const usePlanStore = create(
           });
           return;
         }
-        const { data, error } = await supabase
+
+        let { data, error } = await supabase
           .from("profiles")
           .select("*")
           .eq("user_id", userId)
           .maybeSingle();
+
+        if (!data && !error) {
+          const ensured = await ensureProfileRow(userId);
+          data = ensured.data;
+          error = ensured.error;
+        }
 
         if (error) {
           if (isMissingProfilesTable(error)) {
@@ -563,13 +635,17 @@ export const usePlanStore = create(
         }));
       },
 
-      applyServerIntelUsage: ({ tokensBalance, searchCount, creditsDebited, tokenCost }) => {
+      applyServerIntelUsage: ({ tokensBalance, searchCount, creditsDebited, tokenCost, plan }) => {
         set((state) => {
           const profile = { ...state.profile };
           const debited = toFiniteNumber(creditsDebited, 0);
           const cost = toFiniteNumber(tokenCost, debited * CREDIT_TOKEN_UNIT);
           const parsedSearchCount = toFiniteNumber(searchCount);
           const parsedTokenBalance = toFiniteNumber(tokensBalance);
+
+          if (plan === "pro" || plan === "free") {
+            profile.plan = plan;
+          }
 
           if (parsedSearchCount != null) {
             profile.searchCount = parsedSearchCount;
