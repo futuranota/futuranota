@@ -35,6 +35,17 @@
   background: var(--beige);
   border-top: none;
 }
+
+/* Dark theme — nav sign up: white background, black text */
+:root:not([data-theme="light"]) .nav .btn-primary {
+  background: #ffffff;
+  color: oklch(0.16 0.02 60);
+  border-color: transparent;
+}
+:root:not([data-theme="light"]) .nav .btn-primary:hover {
+  background: oklch(0.96 0.004 75);
+  color: oklch(0.12 0.02 60);
+}
 .nav__return {
   display: inline-flex; align-items: center; gap: 5px;
   margin-right: 20px; padding: 6px 0;
