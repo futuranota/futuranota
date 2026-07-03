@@ -23,6 +23,25 @@
   }
 }
 
+/* Phone / narrow — hide canvas, keep sidebar + intel */
+@media (max-width: 900px) {
+  .dash-col.canvas-col {
+    display: none;
+  }
+
+  .dash-main {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .dash-col:first-child,
+  .dash-col:last-child {
+    order: unset;
+    max-height: none;
+    min-height: min(52vh, 480px);
+  }
+}
+
 @media (max-width: 768px) {
   .landing-card {
     width: 100%;
@@ -63,6 +82,15 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
+  }
+
+  .dash-main {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-col:first-child,
+  .dash-col:last-child {
+    min-height: min(44vh, 400px);
   }
 }
 
@@ -118,13 +146,9 @@
     padding: 6px 10px;
   }
 
-  .dash-col.canvas-col {
-    min-height: min(360px, 46vh);
-  }
-
   .dash-col:first-child,
   .dash-col:last-child {
-    max-height: min(260px, 36vh);
+    min-height: min(38vh, 340px);
   }
 
   .selector-grid {
@@ -160,9 +184,5 @@
   .topbar-end .btn.sm:not(.icon) {
     padding: 0 10px;
     font-size: 11px;
-  }
-
-  .dash-col.canvas-col {
-    min-height: min(320px, 42vh);
   }
 }

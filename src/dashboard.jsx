@@ -22,6 +22,7 @@ function TopBar({ onBack, onAltSeed }) {
 
       <div className="topbar-center brand brand--centered" aria-label="Futura Nota">
         <span className="brand-mark"><Mark size={22} /></span>
+        <span className="brand-name">Futura Nota</span>
       </div>
 
       <div className="topbar-end">

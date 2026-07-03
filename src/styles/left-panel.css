@@ -102,8 +102,8 @@
 
 .lp-dropdown-wrap {
   position: relative;
-  flex: 0 0 102px;
-  width: 102px;
+  flex: 1 1 auto;
+  width: auto;
   max-width: calc(100% - 108px);
   min-width: 0;
   display: flex;
@@ -111,30 +111,34 @@
 }
 
 .lp-dropdown-btn {
-  width: 102px;
+  width: auto;
+  min-width: 102px;
   max-width: 100%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 4px;
-  min-height: 43px;
-  padding: 0 6px;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-family: var(--sans);
   font-size: 11px;
   font-weight: 500;
-  color: #535765;
-  background:
-    6px center / 90px 37px no-repeat url("/uploads/botones/frame.svg"),
-    rgba(35, 39, 47, 0.56);
-  border: none;
-  border-radius: 0;
+  color: var(--text-2);
+  background: var(--panel-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: color 0.12s ease, filter 0.12s ease;
+  transition:
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
   box-sizing: border-box;
 }
 
 .lp-dropdown-btn:hover {
-  color: #dadfee;
-  filter: brightness(1.05);
+  color: var(--text);
+  background: var(--panel-3);
+  border-color: var(--glass-border-2);
 }
 
 .lp-folder-trigger {

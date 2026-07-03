@@ -861,10 +861,7 @@ function BlueprintCanvas({
   const dueSoonCount = upcomingTasks.filter((task) => !isScheduleNotDue(task.runAt)).length;
   const pendingCount = upcomingTasks.length;
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
-  const traceFunixMode = useTimelineStore((s) => s.traceFunixMode);
   const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
-  const toggleTraceFunixMode = useTimelineStore((s) => s.toggleTraceFunixMode);
-  const toggleInheritObjMode = useTimelineStore((s) => s.toggleInheritObjMode);
   const temporalMeta = { docsById, nodeEntitiesById, objectsById };
   const orphanEntityCanvasNodes = useMemo(
     () => listOrphanEntityCanvasNodes(nodes, nodeEntitiesById),
@@ -2041,22 +2038,6 @@ function BlueprintCanvas({
 
         {timelineSelectEnabled ? (
           <>
-            <button
-              type="button"
-              className={"btn xs" + (traceFunixMode ? " primary" : " ghost")}
-              onClick={toggleTraceFunixMode}
-              title="Snapshot cognitivo para query Intel"
-            >
-              Trace Funix
-            </button>
-            <button
-              type="button"
-              className={"btn xs" + (inheritObjMode ? " primary" : " ghost")}
-              onClick={toggleInheritObjMode}
-              title="Obj-Obj mode: herencia entre familias"
-            >
-              Obj-Obj
-            </button>
             <button
               type="button"
               className={"btn xs btn-timeline-select" + (timelineQueueMode ? " primary is-active" : " ghost")}
