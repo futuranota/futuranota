@@ -65,6 +65,9 @@ export function Nav() {
       </div>
       {open && (
         <div className="nav__mobile">
+          <div className="nav__mobile-prefs">
+            <NavPreferences />
+          </div>
           {navLinks.map(({ label, path }, index) => (
             <Link
               key={`${label}-${path}`}

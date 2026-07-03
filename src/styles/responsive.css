@@ -1,0 +1,168 @@
+/* ── App / dashboard — small screens ───────────────────────── */
+
+@media (max-width: 1100px) {
+  .dash-main {
+    grid-template-columns: 1fr;
+    padding: 6px 6px 0;
+    gap: 8px;
+  }
+
+  .dash-col.canvas-col {
+    order: 1;
+    min-height: min(480px, 55vh);
+  }
+
+  .dash-col:first-child {
+    order: 2;
+    max-height: min(320px, 42vh);
+  }
+
+  .dash-col:last-child {
+    order: 3;
+    max-height: min(360px, 45vh);
+  }
+}
+
+@media (max-width: 768px) {
+  .landing-card {
+    width: 100%;
+    padding: 28px 22px 24px;
+  }
+
+  .landing h1 {
+    font-size: clamp(28px, 7vw, 38px);
+  }
+
+  .landing-features {
+    grid-template-columns: 1fr;
+    margin-top: 24px;
+  }
+
+  .landing-cta {
+    flex-wrap: wrap;
+  }
+
+  .selector {
+    height: auto;
+    min-height: 100dvh;
+    padding: 20px 14px;
+    align-items: flex-start;
+    padding-top: 28px;
+  }
+
+  .selector-shell {
+    width: 100%;
+    padding: 22px 18px 24px;
+  }
+
+  .selector-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .selector-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 640px) {
+  body:not(.marketing-body) {
+    overflow-x: clip;
+  }
+
+  .dash {
+    --timeline-peek-h: 168px;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+
+  .topbar {
+    grid-template-columns: auto 1fr auto;
+    height: 48px;
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .topbar-end {
+    gap: 4px;
+  }
+
+  .topbar-end .btn.sm.ghost {
+    display: none;
+  }
+
+  .user-menu__name {
+    display: none;
+  }
+
+  .user-menu__trigger {
+    padding: 0 6px 0 4px;
+  }
+
+  .metabar {
+    height: auto;
+    min-height: 44px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .metabar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .meta-cell {
+    flex: 0 0 auto;
+    min-width: 84px;
+    padding: 6px 10px;
+  }
+
+  .dash-col.canvas-col {
+    min-height: min(360px, 46vh);
+  }
+
+  .dash-col:first-child,
+  .dash-col:last-child {
+    max-height: min(260px, 36vh);
+  }
+
+  .selector-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .timeline {
+    padding: 10px 12px 14px;
+  }
+
+  .modal {
+    width: min(520px, calc(100vw - 24px));
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+  }
+
+  .plans-page {
+    padding: 20px 12px 36px;
+  }
+
+  .plans-cancel-modal__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .plans-cancel-modal__actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-end .btn.sm:not(.icon) {
+    padding: 0 10px;
+    font-size: 11px;
+  }
+
+  .dash-col.canvas-col {
+    min-height: min(320px, 42vh);
+  }
+}

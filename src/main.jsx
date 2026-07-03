@@ -11,6 +11,7 @@ import './styles/pack-wizard.css';
 import './styles/agents.css';
 import './styles/plans.css';
 import './styles/plan-gates.css';
+import './styles/responsive.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

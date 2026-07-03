@@ -80,8 +80,9 @@
   --signal:      oklch(0.48 0.17 159);
   --signal-soft: oklch(0.48 0.17 159 / 0.14);
   --signal-line: oklch(0.48 0.17 159 / 0.38);
-  --pastel-pink: #FFF0F3;
-  --pastel-pink-line: #F5D5DE;
+  --pastel-green:       #E9F7EF;
+  --pastel-green-line:  #B8DFC9;
+  --signal-strong-text: oklch(0.40 0.16 159);
 
   --shadow: 0 1px 0 oklch(0 0 0 / 0.04) inset, 0 10px 24px -16px oklch(0 0 0 / 0.10);
   --shadow-lg: 0 1px 0 oklch(0 0 0 / 0.05) inset, 0 20px 40px -20px oklch(0 0 0 / 0.14);
@@ -173,7 +174,7 @@ body.marketing-body {
 img { max-width: 100%; display: block; }
 a { color: inherit; text-decoration: none; }
 
-.container { max-width: var(--maxw); margin: 0 auto; padding-inline: var(--pad); }
+.container { max-width: var(--maxw); margin: 0 auto; padding-inline: var(--pad); min-width: 0; }
 .section { padding-block: clamp(64px, 9vw, 120px); position: relative; }
 /* Subpages: single section under nav — less top air */
 main > .section {
