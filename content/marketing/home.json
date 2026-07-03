@@ -39,6 +39,31 @@
       { "num": "03", "title": "CANVAS & SYNC", "body": "Plan the connections on an infinite canvas, then sync across tiers so the window never slips past you." }
     ]
   },
+  "carousel": {
+    "eyebrow": "INSIDE THE TERMINAL",
+    "title": "See the workflow in motion",
+    "lead": "Swipe through the terminal — product search, calendar intel, docs, and canvas.",
+    "slides": [
+      {
+        "src": "/uploads/carrusel-01.jpg",
+        "alt": "Futura Nota showcase",
+        "title": "Futura Nota",
+        "caption": "Study campaigns. Move on the window."
+      },
+      {
+        "src": "/uploads/carrusel-02.jpg",
+        "alt": "Futura Nota workflow",
+        "title": "Inside the terminal",
+        "caption": "Spot launches, read the window, and ship on time."
+      },
+      {
+        "src": "/uploads/carrusel-03.jpg",
+        "alt": "Futura Nota platform",
+        "title": "Move on the window",
+        "caption": "Plan, connect, and ship before the opportunity closes."
+      }
+    ]
+  },
   "directory": {
     "eyebrow": "EXPLORE FUTURA NOTA",
     "title": "Three windows. Step through any one.",

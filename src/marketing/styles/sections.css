@@ -2033,3 +2033,219 @@ a.blog.card:hover {
     gap: 10px;
   }
 }
+
+/* ─── Feature carousel (full-bleed showcase) ─── */
+.fn-carousel-section {
+  padding-top: clamp(32px, 6vw, 72px);
+  padding-bottom: clamp(24px, 4vw, 56px);
+}
+.fn-carousel-section__head {
+  margin-bottom: clamp(20px, 3vw, 32px);
+}
+.fn-carousel {
+  position: relative;
+}
+.fn-carousel__stage {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  box-shadow:
+    0 24px 48px color-mix(in oklab, #000 28%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--line) 40%, transparent);
+  background: var(--bg);
+}
+.fn-carousel__viewport {
+  overflow: hidden;
+}
+.fn-carousel__track {
+  display: flex;
+  transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+.fn-carousel__slide {
+  position: relative;
+  flex: 0 0 100%;
+  min-width: 0;
+  height: clamp(280px, 42vw, 500px);
+  overflow: hidden;
+}
+.fn-carousel__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  transform: scale(1.04);
+  transition: transform 7s ease;
+}
+.fn-carousel__slide.is-active .fn-carousel__image {
+  transform: scale(1);
+}
+.fn-carousel__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    color-mix(in oklab, #000 72%, transparent) 0%,
+    color-mix(in oklab, #000 18%, transparent) 38%,
+    transparent 68%
+  );
+  pointer-events: none;
+}
+.fn-carousel__overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  padding: clamp(56px, 10vw, 88px) clamp(20px, 4vw, 32px) clamp(20px, 3vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 640px;
+  pointer-events: none;
+}
+.fn-carousel__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.6vw, 1.75rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: #fff;
+  text-shadow: 0 2px 16px color-mix(in oklab, #000 45%, transparent);
+}
+.fn-carousel__caption {
+  margin: 0;
+  font-size: clamp(0.88rem, 1.6vw, 1rem);
+  line-height: 1.5;
+  color: color-mix(in oklab, #fff 82%, transparent);
+  max-width: 48ch;
+}
+.fn-carousel__hud {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(14px, 2.5vw, 22px);
+  z-index: 3;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--bg) 55%, transparent);
+  border: 1px solid color-mix(in oklab, #fff 12%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.fn-carousel__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, #fff 14%, transparent);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease,
+    color 0.15s ease;
+}
+.fn-carousel__arrow:hover,
+.fn-carousel__arrow:focus-visible {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--text);
+  outline: none;
+  transform: translateY(-1px);
+}
+.fn-carousel__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+}
+.fn-carousel__dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in oklab, #fff 35%, transparent);
+  cursor: pointer;
+  transition: width 0.22s ease, background 0.22s ease, opacity 0.22s ease;
+  opacity: 0.7;
+}
+.fn-carousel__dot.is-active {
+  width: 20px;
+  background: var(--accent);
+  opacity: 1;
+}
+.fn-carousel__dot:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
+}
+.fn-carousel__counter {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 3;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: color-mix(in oklab, #fff 88%, transparent);
+  background: color-mix(in oklab, #000 42%, transparent);
+  border: 1px solid color-mix(in oklab, #fff 10%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.fn-carousel__counter-sep {
+  opacity: 0.55;
+  margin: 0 2px;
+}
+.fn-carousel .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+:root[data-theme="light"] .fn-carousel__stage {
+  box-shadow:
+    0 20px 40px color-mix(in oklab, #000 12%, transparent),
+    0 0 0 1px var(--line-soft);
+}
+:root[data-theme="light"] .fn-carousel__hud {
+  background: color-mix(in oklab, #fff 78%, transparent);
+  border-color: var(--line-soft);
+}
+:root[data-theme="light"] .fn-carousel__arrow {
+  background: color-mix(in oklab, #fff 90%, var(--surface));
+  border-color: var(--line-soft);
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .fn-carousel__slide {
+    height: clamp(240px, 62vw, 360px);
+  }
+  .fn-carousel__overlay {
+    padding-bottom: 64px;
+  }
+  .fn-carousel__caption {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
