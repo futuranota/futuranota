@@ -315,6 +315,7 @@ export const messages = {
       searchingWeb: "Searching the web…",
       readingNodes: "Reading connected nodes and gathering references.",
       searchFailed: "Search failed",
+      sessionExpired: "Session expired — please sign in again.",
       overview: "Overview",
       sources: "Sources",
       references: "{count} references",
@@ -696,6 +697,8 @@ export const messages = {
     },
     intel: {
       noSources: "Sin referencias web para esta búsqueda. Probá un término más amplio.",
+      searchFailed: "La búsqueda falló",
+      sessionExpired: "Sesión expirada — volvé a iniciar sesión.",
       launchRadarKicker: "Launch radar",
       launchRadarTrackTimeline: "Agregar al timeline",
       launchRadarToday: "Hoy",

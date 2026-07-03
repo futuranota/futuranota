@@ -1,5 +1,8 @@
 import { API_ROUTES } from "../api/routes.js";
 import { supabase } from "./supabaseClient.js";
+import { getSupabaseAccessToken } from "./apiAuth.js";
+import { useLocaleStore } from "../i18n/localeStore.js";
+import { messages } from "../i18n/messages.js";
 import { useUIStateStore } from "../stores/uiStateStore.js";
 import { useNodesStore } from "../stores/nodesStore.js";
 import { useDocsStore } from "../stores/docsStore.js";
@@ -11,16 +14,19 @@ import { DEFAULT_INTEL_MODEL_ID, getIntelModel, resolveIntelModelForPlan } from 
 
 /** @typedef {{ id: string, title: string, dataType: string, content: unknown, anchorAt?: string|null, order: number }} ContextNode */
 
-async function authedFetch(url, init = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
+async function authedFetch(url, init = {}, { retried = false } = {}) {
+  const accessToken = await getSupabaseAccessToken({ forceRefresh: retried });
   const headers = {
     "Content-Type": "application/json",
     ...(init.headers || {}),
   };
-  if (session?.access_token) {
-    headers.Authorization = `Bearer ${session.access_token}`;
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
   const res = await fetch(url, { ...init, headers });
+  if (res.status === 401 && !retried) {
+    return authedFetch(url, init, { retried: true });
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     let parsed;
@@ -149,13 +155,14 @@ export function collectUpstreamContext(payload) {
   return [];
 }
 
-export async function fetchIntelSearch(query, contextNodes, modelId) {
+export async function fetchIntelSearch(query, contextNodes, modelId, locale = "es") {
   return authedFetch(API_ROUTES.intelOverview, {
     method: "POST",
     body: JSON.stringify({
       query,
       contextNodes,
       modelId: modelId || DEFAULT_INTEL_MODEL_ID,
+      locale: locale === "en" ? "en" : "es",
     }),
   });
 }
@@ -176,6 +183,9 @@ export async function runIntelSearch(payload) {
   const q = (query || "").trim();
   if (!q) return;
 
+  const locale = useLocaleStore.getState().locale === "en" ? "en" : "es";
+  const tIntel = (key) => messages[locale]?.intel?.[key] ?? messages.en.intel[key];
+
   const uiState = useUIStateStore.getState();
   if (uiState.intelSearchStatus === "loading") return;
 
@@ -183,8 +193,10 @@ export async function runIntelSearch(payload) {
 
   const planStore = usePlanStore.getState();
   const { profile } = planStore;
+  const accessToken = await getSupabaseAccessToken();
   const { data: { session } } = await supabase.auth.getSession();
-  const isAdminUser = isAdminSessionEmail(session?.user?.email);
+  const sessionEmail = session?.user?.email;
+  const isAdminUser = isAdminSessionEmail(sessionEmail);
   const effectivePlan = (isAdminUser && isAdminBillingBypassEnabled()) || profile.plan === "pro"
     ? "pro"
     : "free";
@@ -192,6 +204,11 @@ export async function runIntelSearch(payload) {
 
   if (model.id !== requestedModelId) {
     uiState.setIntelSelectedModelId(model.id);
+  }
+
+  if (!accessToken) {
+    uiState.setIntelSearchError(tIntel("sessionExpired"));
+    return;
   }
 
   if (!canSpendCredits(profile, model.creditCost)) {
@@ -224,7 +241,7 @@ export async function runIntelSearch(payload) {
       canvasConnections,
     });
 
-    const result = await fetchIntelSearch(q, contextNodes, model.id);
+    const result = await fetchIntelSearch(q, contextNodes, model.id, locale);
 
     planStore.applyServerIntelUsage({
       plan: result.plan === "pro" ? "pro" : result.plan === "free" ? "free" : undefined,
@@ -250,11 +267,15 @@ export async function runIntelSearch(payload) {
     });
   } catch (err) {
     planStore.rollbackIntelSearchCredit(usageSnapshot);
+    if (err?.status === 401 || err?.code === "auth") {
+      uiState.setIntelSearchError(tIntel("sessionExpired"));
+      return;
+    }
     if (err?.code === "search" || err?.code === "tokens") {
       useUpgradeModalStore.getState().show(err.code);
     } else if (err?.code === "model") {
       useUpgradeModalStore.getState().show("search");
     }
-    uiState.setIntelSearchError(err?.message || "Search failed");
+    uiState.setIntelSearchError(err?.message || tIntel("searchFailed"));
   }
 }

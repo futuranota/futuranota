@@ -7,13 +7,32 @@ import {
 } from "./intelModels.js";
 
 const MAX_CITATIONS = 8;
-const SYSTEM_PROMPT = `You respond only with valid JSON. No markdown.
+
+/** @param {'en'|'es'} locale */
+function buildSystemPrompt(locale) {
+  const lang = locale === "en" ? "en" : "es";
+  const languageRule = lang === "es"
+    ? "- overview: 2-4 frases concisas en español, basadas solo en los snippets."
+  : "- overview: 2-4 concise sentences in English, grounded only in the snippets.";
+
+  return `You respond only with valid JSON. No markdown.
 Schema:
 {
   "overview": string,
   "citations": [{ "title": string, "url": string, "snippet": string, "source": string }]
 }
-Synthesize a concise overview from the query and web snippets. Include up to 6 citations from the snippets.`;
+Synthesize a concise overview from the query and web snippets. Include up to 6 citations from the snippets.
+${languageRule}`;
+}
+
+/** @param {string} query @param {'en'|'es'} locale */
+function buildSearchQueries(query, locale) {
+  const q = query.trim();
+  if (locale === "es") {
+    return [q, `${q} noticias lanzamiento producto`, `${q} análisis mercado`];
+  }
+  return [q, `${q} product launch news`, `${q} market analysis`];
+}
 
 /**
  * @typedef {{ title?: string, snippet?: string, link?: string }} SearchHit
@@ -131,12 +150,13 @@ export function buildCitations(snippets, llmCitations) {
 /**
  * @param {string} query
  * @param {Array<{ title?: string, dataType?: string, content?: unknown }>} contextNodes
- * @param {{ modelId?: string }} [options]
+ * @param {{ modelId?: string, locale?: 'en'|'es' }} [options]
  */
 export async function runIntelOverviewPipeline(query, contextNodes = [], options = {}) {
   const q = query.trim();
   if (!q) throw new Error("query is required");
 
+  const locale = options.locale === "en" ? "en" : "es";
   const modelDef = getIntelModel(options.modelId || DEFAULT_INTEL_MODEL_ID);
   const apiModel = resolveIntelModelApiModel(modelDef);
 
@@ -144,23 +164,23 @@ export async function runIntelOverviewPipeline(query, contextNodes = [], options
     ? contextNodes.map((n, i) => `${i + 1}. ${n.title}: ${String(n.content ?? "").slice(0, 200)}`).join("\n")
     : "";
 
-  const queries = [
-    q,
-    `${q} product launch news`,
-    `${q} market analysis`,
-  ];
+  const queries = buildSearchQueries(q, locale);
 
-  const snippets = await searchWebMulti(queries);
+  const snippets = await searchWebMulti(queries, { locale, maxQueries: 3 });
   const corpus = snippets?.length ? formatSnippets(snippets) : "No web snippets available.";
+
+  const closingInstruction = locale === "es"
+    ? "Escribe overview y citations en JSON. El overview debe estar en español."
+    : "Write overview and citations JSON in English.";
 
   const prompt =
     `User query: ${q}\n\n`
     + (contextBlock ? `Connected node context:\n${contextBlock}\n\n` : "")
     + `Web snippets:\n${corpus}\n\n`
-    + "Write overview and citations JSON.";
+    + closingInstruction;
 
   const llm = await completeJsonForProvider(prompt, {
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(locale),
     provider: modelDef.provider,
     model: apiModel,
   });

@@ -175,11 +175,72 @@ async function runUpsert(action, promise) {
 
 function debounce(fn, delay) {
   let timer = null;
-  return (...args) => {
+  const debounced = (...args) => {
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
+    timer = setTimeout(() => {
+      timer = null;
+      fn(...args);
+    }, delay);
+  };
+  debounced.cancel = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  return debounced;
+}
+
+function pickTimelineUiState(state) {
+  return {
+    timelineDocQueue: Array.isArray(state.timelineDocQueue) ? state.timelineDocQueue : [],
+    timelineDocQueueFocusByDocId: state.timelineDocQueueFocusByDocId || {},
+    timelineDocSnapshotsByDocId: state.timelineDocSnapshotsByDocId || {},
+    timelineExcludedChildrenByDocId: state.timelineExcludedChildrenByDocId || {},
+    timelineAgentSets: Array.isArray(state.timelineAgentSets) ? state.timelineAgentSets : [],
+    expandedDocIds: Array.isArray(state.expandedDocIds) ? state.expandedDocIds : [],
+    primaryTimelineObjectId: state.primaryTimelineObjectId || null,
+    currentTier: typeof state.currentTier === "string" ? state.currentTier : "all",
   };
 }
+
+function filterTimelineUiToExistingDocs(ui, docIds) {
+  const docSet = new Set(docIds);
+  const filterMap = (record) => Object.fromEntries(
+    Object.entries(record || {}).filter(([docId]) => docSet.has(docId)),
+  );
+
+  return {
+    ...ui,
+    timelineDocQueue: (ui.timelineDocQueue || []).filter((docId) => docSet.has(docId)),
+    timelineDocQueueFocusByDocId: filterMap(ui.timelineDocQueueFocusByDocId),
+    timelineDocSnapshotsByDocId: filterMap(ui.timelineDocSnapshotsByDocId),
+    timelineExcludedChildrenByDocId: filterMap(ui.timelineExcludedChildrenByDocId),
+    expandedDocIds: (ui.expandedDocIds || []).filter((docId) => docSet.has(docId)),
+  };
+}
+
+function emptyWorkspaceSnapshot() {
+  return {
+    objects: {},
+    docs: {},
+    nodes: {},
+    canvasNodes: {},
+    canvasConnections: {},
+    groupings: {},
+    timelines: {},
+    currentTier: "all",
+    timelineDocQueue: [],
+    timelineDocQueueFocusByDocId: {},
+    timelineDocSnapshotsByDocId: {},
+    timelineExcludedChildrenByDocId: {},
+    timelineAgentSets: [],
+    expandedDocIds: [],
+    primaryTimelineObjectId: null,
+    scheduledAutoRunEnabled: true,
+    scheduledCompletedTaskKeys: [],
+  };
+}
+
+let flushPersistenceSyncImpl = async () => {};
 
 export function initPersistenceMiddleware(stores) {
   if (initialized || typeof window === "undefined") return;
@@ -208,6 +269,7 @@ export function initPersistenceMiddleware(stores) {
     timelineExcludedChildrenByDocId: useTimelineStore.getState().timelineExcludedChildrenByDocId,
     timelineAgentSets: useTimelineStore.getState().timelineAgentSets,
     expandedDocIds: useTimelineStore.getState().expandedDocIds,
+    primaryTimelineObjectId: useTimelineStore.getState().primaryTimelineObjectId,
     scheduledAutoRunEnabled: useScheduledTasksStore.getState().autoRunEnabled,
     scheduledCompletedTaskKeys: useScheduledTasksStore.getState().completedTaskKeys,
   });
@@ -242,6 +304,7 @@ export function initPersistenceMiddleware(stores) {
         timelineExcludedChildrenByDocId: data.timelineExcludedChildrenByDocId || {},
         timelineAgentSets: Array.isArray(data.timelineAgentSets) ? data.timelineAgentSets : [],
         expandedDocIds: Array.isArray(data.expandedDocIds) ? data.expandedDocIds : [],
+        primaryTimelineObjectId: data.primaryTimelineObjectId || null,
       });
     }
     if (typeof data.scheduledAutoRunEnabled === "boolean"
@@ -267,6 +330,17 @@ export function initPersistenceMiddleware(stores) {
       }
     } catch (e) {
       console.error("Failed to read from localStorage:", e);
+    }
+  };
+
+  const loadLocalTimelineUiFallback = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return pickTimelineUiState({});
+      const parsed = JSON.parse(raw);
+      return pickTimelineUiState(parsed || {});
+    } catch {
+      return pickTimelineUiState({});
     }
   };
 
@@ -445,6 +519,40 @@ export function initPersistenceMiddleware(stores) {
         timelines,
         currentTier: "all",
       });
+
+      const docIds = Object.keys(docs);
+      let timelineUi = pickTimelineUiState(loadLocalTimelineUiFallback());
+      try {
+        const { data: timelineUiRow, error: timelineUiErr } = await supabase
+          .from("user_timeline_ui")
+          .select("payload")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (!timelineUiErr && timelineUiRow?.payload && typeof timelineUiRow.payload === "object") {
+          timelineUi = {
+            ...timelineUi,
+            ...timelineUiRow.payload,
+          };
+        } else if (timelineUiErr && !String(timelineUiErr.message || "").includes("does not exist")) {
+          console.warn("Timeline UI load:", timelineUiErr.message);
+        }
+      } catch (timelineUiLoadErr) {
+        console.warn("Timeline UI load failed — using local snapshot.", timelineUiLoadErr);
+      }
+
+      const filteredTimelineUi = filterTimelineUiToExistingDocs(timelineUi, docIds);
+      useTimelineStore.setState({
+        timelineDocQueue: filteredTimelineUi.timelineDocQueue,
+        timelineDocQueueFocusByDocId: filteredTimelineUi.timelineDocQueueFocusByDocId,
+        timelineDocSnapshotsByDocId: filteredTimelineUi.timelineDocSnapshotsByDocId,
+        timelineExcludedChildrenByDocId: filteredTimelineUi.timelineExcludedChildrenByDocId,
+        timelineAgentSets: filteredTimelineUi.timelineAgentSets,
+        expandedDocIds: filteredTimelineUi.expandedDocIds,
+        primaryTimelineObjectId: filteredTimelineUi.primaryTimelineObjectId,
+        currentTier: filteredTimelineUi.currentTier,
+        tier: filteredTimelineUi.currentTier,
+      });
+
       isSyncedWithRemote = true;
       console.log("Supabase sync loaded for user:", userId);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
@@ -661,6 +769,22 @@ export function initPersistenceMiddleware(stores) {
         }
       }
 
+      const timelineUiPayload = pickTimelineUiState(state);
+      const timelineUiOk = await runUpsert(
+        "Upsert user_timeline_ui",
+        supabase.from("user_timeline_ui").upsert({
+          user_id: userId,
+          payload: timelineUiPayload,
+          updated_at: now,
+        }, { onConflict: "user_id" }),
+      );
+      if (!timelineUiOk) {
+        warnSyncOnce(
+          "No se pudo guardar la cola del timeline en Supabase. "
+          + "Ejecutá supabase_timeline_ui_state.sql en el SQL editor.",
+        );
+      }
+
       console.log("Supabase sync complete for user:", userId);
     } catch (err) {
       console.error("Supabase write failed:", err.message || err);
@@ -678,11 +802,32 @@ export function initPersistenceMiddleware(stores) {
     }
     if (event === "SIGNED_OUT") {
       isSyncedWithRemote = false;
-      applyStateToStores({ objects: {}, docs: {}, nodes: {}, canvasNodes: {}, canvasConnections: {}, groupings: {}, timelines: {} });
+      debouncedRemoteSync.cancel();
+      const empty = emptyWorkspaceSnapshot();
+      applyStateToStores(empty);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(empty));
+      } catch {
+        // private mode / quota
+      }
     }
   });
 
   const debouncedRemoteSync = debounce(syncToSupabase, 1500);
+
+  flushPersistenceSyncImpl = async () => {
+    debouncedRemoteSync.cancel();
+    const currentState = getLocalState();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+    } catch {
+      // quota / private mode
+    }
+    const userId = await resolveSyncUserId();
+    if (!userId) return;
+    isSyncedWithRemote = true;
+    await syncToSupabase(currentState);
+  };
 
   const handleStoreChange = () => {
     const currentState = getLocalState();
@@ -707,3 +852,7 @@ export function initPersistenceMiddleware(stores) {
 }
 
 export { STORAGE_KEY };
+
+export async function flushPersistenceSync() {
+  await flushPersistenceSyncImpl();
+}

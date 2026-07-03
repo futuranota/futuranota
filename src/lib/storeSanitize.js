@@ -50,6 +50,9 @@ export function sanitizePersistedSnapshot(parsed) {
     snapshot.timelineAgentSets = Array.isArray(parsed.timelineAgentSets)
       ? parsed.timelineAgentSets
       : [];
+    if (typeof parsed.primaryTimelineObjectId === "string" && parsed.primaryTimelineObjectId) {
+      snapshot.primaryTimelineObjectId = parsed.primaryTimelineObjectId;
+    }
   }
 
   if (typeof parsed.scheduledAutoRunEnabled === "boolean") {

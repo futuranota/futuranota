@@ -43,6 +43,7 @@ export async function processIntelOverviewRequest(reqLike) {
   const modelId = typeof body.modelId === "string" && body.modelId.trim()
     ? body.modelId.trim()
     : DEFAULT_INTEL_MODEL_ID;
+  const locale = body.locale === "en" ? "en" : "es";
 
   if (!query) {
     return { status: 400, body: { error: "query is required" } };
@@ -50,7 +51,19 @@ export async function processIntelOverviewRequest(reqLike) {
 
   const { user, supabase } = await getAuthedUser({ headers: reqLike.headers || {} });
   if (!user || !supabase) {
-    return { status: 401, body: { error: "Authentication required" } };
+    const hasAuthHeader = Boolean(
+      reqLike.headers?.authorization
+      || reqLike.headers?.Authorization,
+    );
+    return {
+      status: 401,
+      body: {
+        error: hasAuthHeader
+          ? "Invalid or expired session — sign in again"
+          : "Authentication required",
+        code: "auth",
+      },
+    };
   }
 
   const profile = await loadUserProfile(supabase, user.id);
@@ -87,7 +100,7 @@ export async function processIntelOverviewRequest(reqLike) {
     }
   }
 
-  const result = await runIntelOverviewPipeline(query, contextNodes, { modelId: model.id });
+  const result = await runIntelOverviewPipeline(query, contextNodes, { modelId: model.id, locale });
 
   const patch = { updated_at: new Date().toISOString() };
   if (plan === "free") {

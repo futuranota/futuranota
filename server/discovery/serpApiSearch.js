@@ -12,24 +12,31 @@ const SERPER_URL = "https://google.serper.dev/search";
  * @property {string} [date]
  */
 
+/** @param {'en'|'es'} [locale] */
+function serperLocaleParams(locale = "en") {
+  return locale === "es" ? { gl: "es", hl: "es" } : { gl: "us", hl: "en" };
+}
+
 /**
  * Runs a single Google search via Serper. Returns null when SERPAPI_KEY is
  * not configured, mirroring the completeJsonWithGroq/Gemini "no key = feature
  * disabled" pattern in server/llmJson.js.
  * @param {string} query
+ * @param {{ locale?: 'en'|'es' }} [opts]
  * @returns {Promise<SearchHit[]|null>}
  */
-export async function searchWeb(query) {
+export async function searchWeb(query, opts = {}) {
   const apiKey = process.env.SERPAPI_KEY;
   if (!apiKey) return null;
 
+  const locale = opts.locale === "es" ? "es" : "en";
   const res = await fetch(SERPER_URL, {
     method: "POST",
     headers: {
       "X-API-KEY": apiKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ q: query, gl: "us", hl: "en", num: 10 }),
+    body: JSON.stringify({ q: query, ...serperLocaleParams(locale), num: 10 }),
   });
 
   if (!res.ok) {
@@ -52,7 +59,7 @@ export async function searchWeb(query) {
 /**
  * Runs several queries in parallel and flattens the results into one corpus.
  * @param {string[]} queries
- * @param {{ maxQueries?: number }} [opts]
+ * @param {{ maxQueries?: number, locale?: 'en'|'es' }} [opts]
  * @returns {Promise<SearchHit[]|null>} null if SERPAPI_KEY is not configured
  */
 export async function searchWebMulti(queries, opts = {}) {
@@ -74,7 +81,7 @@ export async function searchWebMulti(queries, opts = {}) {
   const results = await Promise.all(
     capped.map(async (q) => {
       try {
-        const hits = await searchWeb(q);
+        const hits = await searchWeb(q, { locale: opts.locale });
         console.log(`[horizon-scan] serper "${q}" → ${hits.length} hits`);
         return hits;
       } catch (err) {

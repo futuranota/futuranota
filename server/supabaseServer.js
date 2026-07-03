@@ -50,7 +50,7 @@ export function createAuthedSupabase(accessToken) {
   const url = getSupabaseUrl();
   const key = getSupabaseAnonKey();
   if (!url || !key) {
-    throw new Error("Supabase server env missing (SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY)");
+    return null;
   }
   return createClient(url, key, {
     global: {
@@ -63,7 +63,8 @@ export function createAuthedSupabase(accessToken) {
  * @param {import('http').IncomingMessage} req
  */
 export function readBearerToken(req) {
-  const header = req.headers.authorization || req.headers.Authorization;
+  let header = req.headers?.authorization || req.headers?.Authorization;
+  if (Array.isArray(header)) header = header[0];
   if (!header || typeof header !== "string") return null;
   const match = header.match(/^Bearer\s+(.+)$/i);
   return match?.[1]?.trim() || null;
@@ -75,12 +76,32 @@ export function readBearerToken(req) {
 export async function getAuthedUser(req) {
   const token = readBearerToken(req);
   if (!token) return { user: null, supabase: null, token: null };
+
   const supabase = createAuthedSupabase(token);
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) {
+  if (!supabase) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[auth] Supabase server env missing (SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY)");
+    }
     return { user: null, supabase: null, token: null };
   }
-  return { user: data.user, supabase, token };
+
+  const { data, error } = await supabase.auth.getUser(token);
+  if (!error && data?.user) {
+    return { user: data.user, supabase, token };
+  }
+
+  const service = createServiceSupabase();
+  if (service) {
+    const { data: svcData, error: svcErr } = await service.auth.getUser(token);
+    if (!svcErr && svcData?.user) {
+      return { user: svcData.user, supabase, token };
+    }
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    console.warn("[auth] getUser failed:", error?.message || "invalid or expired token");
+  }
+  return { user: null, supabase: null, token: null };
 }
 
 /**

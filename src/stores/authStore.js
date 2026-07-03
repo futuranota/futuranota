@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { supabase } from '../lib/supabaseClient';
 import { getAppOrigin, resolveOAuthReturn, startGoogleOAuth } from '../lib/authRedirect.js';
 import { getSupabaseConfigError } from '../lib/supabaseClient';
+import { flushPersistenceSync } from './middleware/persistenceMiddleware.js';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -29,10 +30,17 @@ export const useAuthStore = create((set) => ({
     }
 
     const { data: { session } } = await supabase.auth.getSession();
-    set({ session, user: session?.user ?? null, loading: false });
+    let activeSession = session;
+    const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
+    const expiresSoon = expiresAt > 0 && expiresAt - Date.now() < 60_000;
+    if (session && expiresSoon) {
+      const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+      if (refreshed) activeSession = refreshed;
+    }
+    set({ session: activeSession, user: activeSession?.user ?? null, loading: false });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      set({ session, user: session?.user ?? null });
+    supabase.auth.onAuthStateChange((_event, nextSession) => {
+      set({ session: nextSession, user: nextSession?.user ?? null });
     });
   },
 
@@ -60,6 +68,7 @@ export const useAuthStore = create((set) => ({
   },
 
   signOut: async () => {
+    await flushPersistenceSync();
     await supabase.auth.signOut();
     set({ user: null, session: null });
   },
