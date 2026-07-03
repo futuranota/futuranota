@@ -1,5 +1,20 @@
 import type { TimelineAlertData } from "../types/timelineAlert";
 
+/** Calendar-day distance from today to target (negative = past). */
+export function daysUntilTarget(targetDate: Date, fromDate = new Date()): number {
+  const currentMidnight = new Date(
+    fromDate.getFullYear(),
+    fromDate.getMonth(),
+    fromDate.getDate(),
+  );
+  const targetMidnight = new Date(
+    targetDate.getFullYear(),
+    targetDate.getMonth(),
+    targetDate.getDate(),
+  );
+  return Math.ceil((targetMidnight.getTime() - currentMidnight.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 /**
  * Evaluates timeline proximity and triggers informative alerts at critical windows.
  * Can track general marketing instructions, blueprints, or workflows.
@@ -12,21 +27,7 @@ export function checkTimelineTrigger(
   targetDate: Date,
   timelineTitle: string,
 ): TimelineAlertData | null {
-  const currentDate = new Date();
-
-  const currentMidnight = new Date(
-    currentDate.getFullYear(),
-    currentDate.getMonth(),
-    currentDate.getDate(),
-  );
-  const targetMidnight = new Date(
-    targetDate.getFullYear(),
-    targetDate.getMonth(),
-    targetDate.getDate(),
-  );
-
-  const timeDifference = targetMidnight.getTime() - currentMidnight.getTime();
-  const daysRemaining = Math.ceil(timeDifference / (1000 * 60 * 60 * 24));
+  const daysRemaining = daysUntilTarget(targetDate);
 
   const campaignRef = `Ref: ${timelineTitle}`;
 

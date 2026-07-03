@@ -1,8 +1,39 @@
-import { checkTimelineTrigger } from "./checkTimelineTrigger.js";
+import { checkTimelineTrigger, daysUntilTarget } from "./checkTimelineTrigger.js";
 import { normalizeDoc } from "./normalizeDoc.js";
 import { isContentDoc } from "./templateDoc.js";
 import { parseDate } from "../temporal.js";
 import type { TimelineAlertData } from "../types/timelineAlert";
+
+type ScheduleTarget = {
+  key: string;
+  date: Date;
+  label: string;
+  kind: "set" | "doc" | "macro" | "launch";
+  kindLabel: string;
+};
+
+type ResolveTimelineAlertParams = {
+  docs?: Record<string, unknown>;
+  objects?: Record<string, { name?: string }>;
+  objectTimelineTitles?: Record<string, string>;
+  selectedObjectId?: string | null;
+  canvasNodes?: Array<{
+    canvasKind?: string;
+    docId?: string;
+    parentDocId?: string;
+    content?: unknown;
+  }>;
+  timelineDocQueue?: string[];
+  timelineDocSnapshotsByDocId?: Record<string, {
+    anchorDateMs?: number | null;
+    children?: Array<{ key?: string; dateMs?: number }>;
+  }>;
+  timelineAgentSets?: Array<{
+    id?: string;
+    title?: string;
+    triggerAt?: string;
+  }>;
+};
 
 function timelineTitleForObject(
   objectId: string,
@@ -14,32 +45,93 @@ function timelineTitleForObject(
   return objects[objectId]?.name?.trim() || "Timeline";
 }
 
-/**
- * Scan workspace for content launches / launch nodes and return the first active alert.
- */
-export function resolveActiveTimelineAlert({
+function docScheduleLabel(doc: ReturnType<typeof normalizeDoc>) {
+  return doc.category?.trim() || doc.title?.trim() || "Document";
+}
+
+function addTarget(
+  bucket: ScheduleTarget[],
+  seen: Set<string>,
+  target: Omit<ScheduleTarget, "kindLabel"> & { kindLabel?: string },
+) {
+  if (seen.has(target.key)) return;
+  seen.add(target.key);
+  bucket.push({
+    ...target,
+    kindLabel: target.kindLabel || target.kind,
+  });
+}
+
+export function collectTimelineScheduleTargets({
   docs = {},
   objects = {},
   objectTimelineTitles = {},
   selectedObjectId = null,
   canvasNodes = [],
-}: {
-  docs?: Record<string, unknown>;
-  objects?: Record<string, { name?: string }>;
-  objectTimelineTitles?: Record<string, string>;
-  selectedObjectId?: string | null;
-  canvasNodes?: Array<{
-    canvasKind?: string;
-    docId?: string;
-    parentDocId?: string;
-    content?: unknown;
-  }>;
-}): TimelineAlertData | null {
-  const objectIds = new Set<string>();
+  timelineDocQueue = [],
+  timelineDocSnapshotsByDocId = {},
+  timelineAgentSets = [],
+}: ResolveTimelineAlertParams): ScheduleTarget[] {
+  const targets: ScheduleTarget[] = [];
+  const seen = new Set<string>();
 
-  if (selectedObjectId) {
-    objectIds.add(selectedObjectId);
+  for (const set of timelineAgentSets) {
+    const trigger = parseDate(set.triggerAt);
+    if (!trigger || !set.id) continue;
+    addTarget(targets, seen, {
+      key: `set-${set.id}`,
+      date: trigger,
+      label: (set.title || "Set").trim(),
+      kind: "set",
+      kindLabel: "Set",
+    });
   }
+
+  for (const docId of timelineDocQueue) {
+    const doc = normalizeDoc(docs[docId]);
+    const snap = timelineDocSnapshotsByDocId[docId];
+    const label = docScheduleLabel(doc);
+    const objectId = doc.parentObjectId || null;
+    const objectTitle = objectId
+      ? timelineTitleForObject(objectId, objects, objectTimelineTitles)
+      : label;
+
+    if (snap?.anchorDateMs) {
+      addTarget(targets, seen, {
+        key: `doc-${docId}`,
+        date: new Date(snap.anchorDateMs),
+        label: objectTitle,
+        kind: "doc",
+        kindLabel: "Document",
+      });
+    } else if (doc.launchAt) {
+      const launch = parseDate(doc.launchAt);
+      if (launch) {
+        addTarget(targets, seen, {
+          key: `doc-${docId}`,
+          date: launch,
+          label: objectTitle,
+          kind: "doc",
+          kindLabel: "Document",
+        });
+      }
+    }
+
+    for (const child of snap?.children || []) {
+      if (!Number.isFinite(child.dateMs)) continue;
+      const childKey = child.key || `child-${child.dateMs}`;
+      addTarget(targets, seen, {
+        key: `macro-${docId}-${childKey}`,
+        date: new Date(child.dateMs as number),
+        label: `${label} · macro`,
+        kind: "macro",
+        kindLabel: "Macro",
+      });
+    }
+  }
+
+  const objectIds = new Set<string>();
+  if (selectedObjectId) objectIds.add(selectedObjectId);
 
   for (const node of canvasNodes) {
     if (node.canvasKind !== "document" || !node.docId) continue;
@@ -52,19 +144,20 @@ export function resolveActiveTimelineAlert({
 
     const contentDocs = Object.values(docs).filter((raw) => {
       const doc = normalizeDoc(raw);
-      return (
-        isContentDoc(doc)
-        && doc.parentObjectId === objectId
-        && doc.launchAt
-      );
+      return isContentDoc(doc) && doc.parentObjectId === objectId && doc.launchAt;
     });
 
     for (const raw of contentDocs) {
       const doc = normalizeDoc(raw);
       const launch = parseDate(doc.launchAt);
       if (!launch) continue;
-      const alert = checkTimelineTrigger(launch, title);
-      if (alert) return alert;
+      addTarget(targets, seen, {
+        key: `launch-${doc.id}`,
+        date: launch,
+        label: title,
+        kind: "launch",
+        kindLabel: "Launch",
+      });
     }
   }
 
@@ -77,9 +170,32 @@ export function resolveActiveTimelineAlert({
       : (doc.title?.trim() || "Timeline");
     const launch = parseDate(node.content) || parseDate(doc.launchAt);
     if (!launch) continue;
-    const alert = checkTimelineTrigger(launch, title);
-    if (alert) return alert;
+    addTarget(targets, seen, {
+      key: `launch-node-${node.docId || node.parentDocId}`,
+      date: launch,
+      label: title,
+      kind: "launch",
+      kindLabel: "Launch",
+    });
   }
 
+  return targets.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+export function resolveTimelineAlertsList(params: ResolveTimelineAlertParams) {
+  return collectTimelineScheduleTargets(params).map((target) => ({
+    key: target.key,
+    label: target.label,
+    kind: target.kind,
+    kindLabel: target.kindLabel,
+    daysRemaining: daysUntilTarget(target.date),
+    alert: checkTimelineTrigger(target.date, target.label),
+  }));
+}
+
+export function resolveActiveTimelineAlert(params: ResolveTimelineAlertParams): TimelineAlertData | null {
+  for (const entry of resolveTimelineAlertsList(params)) {
+    if (entry.alert) return entry.alert;
+  }
   return null;
 }

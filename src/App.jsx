@@ -213,6 +213,8 @@ function Dashboard({ company, onBack }) {
   const toggleTimelineQueueMode = useTimelineStore((s) => s.toggleTimelineQueueMode);
   const enqueueTimelineDocsFromCanvasNodes = useTimelineStore((s) => s.enqueueTimelineDocsFromCanvasNodes);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
+  const timelineDocSnapshotsByDocId = useTimelineStore((s) => s.timelineDocSnapshotsByDocId);
+  const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
   const knowledgeFolderActive = useUIStateStore((s) => s.knowledgeFolderActive);
   const timelineSheet = useUIStateStore((s) => s.timelineSheet);
   const timelines = useTimelineStore((s) => s.timelines);
@@ -377,6 +379,9 @@ useEffect(() => {
       objectTimelineTitles,
       selectedObjectId: selectedObjectId || filterObjectId,
       canvasNodes,
+      timelineDocQueue,
+      timelineDocSnapshotsByDocId,
+      timelineAgentSets,
     });
 
     if (!alert) {
@@ -397,6 +402,9 @@ useEffect(() => {
     filterObjectId,
     canvasNodes,
     today,
+    timelineDocQueue,
+    timelineDocSnapshotsByDocId,
+    timelineAgentSets,
   ]);
 
   useEffect(() => {

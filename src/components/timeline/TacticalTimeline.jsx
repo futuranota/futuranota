@@ -5,6 +5,7 @@ import { buildChipDisplay, startOfCalendarDay } from "../../temporal.js";
 import {
   buildDocChildLinks,
   buildTacticalObjectRows,
+  buildTacticalDisplayGrid,
   groupDisplayRowsByObject,
   resolveDaysLeftCenterPct,
 } from "../../lib/tacticalTimelineView.js";
@@ -18,6 +19,7 @@ import { useTimelineStore } from "../../stores/index.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { TimelineEventChip } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
+import { TimelineAlertsModal } from "./TimelineAlertsModal.jsx";
 
 function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
   const family = resolveParentTagFamilyStyle(objectId, objectsById);
@@ -45,11 +47,62 @@ function resolveAgentSetChipClass(marker) {
   return `is-agent-set is-status-${status}`;
 }
 
+function TacticalRulerBar({ grid, today }) {
+  return (
+    <>
+      <div className="tl-tactical-ruler" aria-hidden>
+        {(grid?.ticks || []).map((tick, i) => (
+          <span
+            key={i}
+            className={"tl-tactical-ruler__tick" + (tick.major ? " is-major" : "")}
+            style={{ left: `${tick.leftPct}%` }}
+          />
+        ))}
+      </div>
+      {grid && today >= grid.start && today <= grid.end && (
+        <div
+          className="tl-tactical-rail__past"
+          style={{ width: `${grid.todayPct}%` }}
+          aria-hidden
+        />
+      )}
+      <div className="tl-tactical-rail__axis" aria-hidden />
+      {grid && today >= grid.start && today <= grid.end && (
+        <div
+          className="tl-tactical-rail__today"
+          style={{ left: `${grid.todayPct}%` }}
+        >
+          <div className="tl-tactical-rail__today-head">
+            <span className="tl-tactical-rail__today-date">{fmtDate(today, "short")}</span>
+          </div>
+          <span className="tl-tactical-rail__today-line" aria-hidden />
+        </div>
+      )}
+    </>
+  );
+}
+
+function TacticalDecorativeRuler({ grid, today }) {
+  return (
+    <div className="tl-tactical-decorative-ruler" aria-hidden>
+      <div className="tl-tactical-rail tl-tactical-rail--decorative">
+        <div className="tl-tactical-rail__inset">
+          <div className="tl-tactical-rail__plot">
+            <div className="tl-tactical-bar tl-tactical-bar--decorative">
+              <TacticalRulerBar grid={grid} today={today} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function resolveAnchorStatus(groupDate, today) {
   const d = startOfCalendarDay(groupDate);
-  const t = startOfCalendarDay(today);
-  if (d.getTime() < t.getTime()) return "past";
-  if (d.getTime() === t.getTime()) return "active";
+  const tDay = startOfCalendarDay(today);
+  if (d.getTime() < tDay.getTime()) return "past";
+  if (d.getTime() === tDay.getTime()) return "active";
   return "future";
 }
 
@@ -184,30 +237,19 @@ function TacticalObjectRow({
       </div>
 
       <div className="tl-tactical-row__track">
-        {nodeGroups.length === 0 ? (
-          <span className="tl-tactical-row__empty mute">{t("timeline.noDatedEvents")}</span>
-        ) : (
-          <div className={"tl-tactical-rail" + (rangeDrag?.isDragging ? " is-dragging-range" : "")}>
+        <div
+          className={
+            "tl-tactical-rail"
+            + (rangeDrag?.isDragging ? " is-dragging-range" : "")
+            + (nodeGroups.length === 0 ? " tl-tactical-rail--empty" : "")
+          }
+        >
             <div className="tl-tactical-rail__inset">
             <div className="tl-tactical-rail__plot" ref={plotRef}>
             <div className="tl-tactical-bar">
-              <div className="tl-tactical-ruler" aria-hidden>
-                {(grid?.ticks || []).map((tick, i) => (
-                  <span
-                    key={i}
-                    className={"tl-tactical-ruler__tick" + (tick.major ? " is-major" : "")}
-                    style={{ left: `${tick.leftPct}%` }}
-                  />
-                ))}
-              </div>
-              {grid && today >= grid.start && today <= grid.end && (
-                <div
-                  className="tl-tactical-rail__past"
-                  style={{ width: `${grid.todayPct}%` }}
-                  aria-hidden
-                />
-              )}
-              <div className="tl-tactical-rail__axis" aria-hidden />
+              <TacticalRulerBar grid={grid} today={today} />
+              {nodeGroups.length > 0 ? (
+                <>
               {segments.map((segment) => (
                 <div
                   key={`range-${segment.key}`}
@@ -230,18 +272,7 @@ function TacticalObjectRow({
                   <span className="tl-tactical-segment__edge" aria-hidden />
                 </div>
               ))}
-              {grid && today >= grid.start && today <= grid.end && (
-                <div
-                  className="tl-tactical-rail__today"
-                  style={{ left: `${grid.todayPct}%` }}
-                >
-                  <div className="tl-tactical-rail__today-head">
-                    <span className="tl-tactical-rail__today-date">{fmtDate(today, "short")}</span>
-                  </div>
-                  <span className="tl-tactical-rail__today-line" aria-hidden />
-                </div>
-              )}
-              {daysLeft > 0 && nodeGroups.length > 0 && (
+              {daysLeft > 0 && (
                 <div
                   className="tl-tactical-rail__remaining"
                   style={{ left: `${daysLeftCenterPct}%` }}
@@ -249,7 +280,13 @@ function TacticalObjectRow({
                   {t("timeline.daysLeft", { count: daysLeft, s: pluralS(daysLeft) })}
                 </div>
               )}
+                </>
+              ) : (
+                <span className="tl-tactical-row__empty mute">{t("timeline.noDatedEvents")}</span>
+              )}
             </div>
+            {nodeGroups.length > 0 ? (
+            <>
             <div className="tl-tactical-rail__anchors">
               {nodeGroups.map((group, groupIndex) => {
                 const anchorAlign = resolveNodeAnchorAlign(
@@ -418,10 +455,11 @@ function TacticalObjectRow({
                 );
               })}
             </div>
+            </>
+            ) : null}
             </div>
             </div>
           </div>
-        )}
       </div>
     </div>
   );
@@ -454,8 +492,10 @@ export function TacticalTimeline({
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const removeTimelineChildFromQueue = useTimelineStore((s) => s.removeTimelineChildFromQueue);
   const removeTimelineAgentSet = useTimelineStore((s) => s.removeTimelineAgentSet);
-  const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
-  const setTimelineAlertsEnabled = useTimelineStore((s) => s.setTimelineAlertsEnabled);
+  const timelineAlertsOpen = useUIStateStore((s) => s.timelineAlertsOpen);
+  const openTimelineAlerts = useUIStateStore((s) => s.openTimelineAlerts);
+  const closeTimelineAlerts = useUIStateStore((s) => s.closeTimelineAlerts);
+  const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
   const tacticalRangeOverride = useTimelineStore((s) => s.tacticalRangeOverride);
   const { t, locale } = useI18n();
   const pluralS = (n) => (n === 1 ? "" : "s");
@@ -529,6 +569,14 @@ export function TacticalTimeline({
   );
   const rangeDrag = useTacticalRangeDrag(grid);
   const hasQueue = timelineDocQueue.length > 0 || timelineAgentSets.length > 0;
+  const emptyGrid = useMemo(
+    () => buildTacticalDisplayGrid([], today, {
+      rangeOverride: tacticalRangeOverride,
+      queueDocCount: 0,
+    }),
+    [today, tacticalRangeOverride],
+  );
+  const activeGrid = grid || emptyGrid;
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
   const chipClickTimerRef = useRef(null);
 
@@ -630,31 +678,27 @@ export function TacticalTimeline({
                 {timelineAgentSets.length > 0
                   ? ` · ${t("timeline.sets", { count: timelineAgentSets.length, s: pluralS(timelineAgentSets.length) })}`
                   : ""}
-                {grid?.spanDays ? ` · ${t("timeline.span", { days: grid.spanDays })}` : ""}
+                {activeGrid?.spanDays ? ` · ${t("timeline.span", { days: activeGrid.spanDays })}` : ""}
               </span>
             </span>
-            <label
-              className="tl-alerts-toggle"
-              data-on={timelineAlertsEnabled ? "1" : "0"}
+            <button
+              type="button"
+              className="tl-alerts-open-btn"
+              onClick={openTimelineAlerts}
               title={t("timeline.alertsTitle")}
             >
-              <input
-                type="checkbox"
-                checked={timelineAlertsEnabled}
-                onChange={(e) => setTimelineAlertsEnabled(e.target.checked)}
-              />
-              <span>{t("timeline.alerts")}</span>
-            </label>
+              {t("timeline.alerts")}
+            </button>
           </div>
 
           <div className="tl-tactical-body">
-            {rowGroups.map((group) => (
+            {rowGroups.length > 0 ? rowGroups.map((group) => (
               <TacticalRowGroup
                 key={group.objectId}
                 group={group}
                 docChildLinks={docChildLinks}
                 today={today}
-                grid={grid}
+                grid={activeGrid}
                 trackItemsById={trackItemsById}
                 docsById={docsById}
                 nodeEntitiesById={nodeEntitiesById}
@@ -668,12 +712,43 @@ export function TacticalTimeline({
                 rangeDrag={rangeDrag}
                 t={t}
               />
-            ))}
+            )) : (
+              <TacticalDecorativeRuler grid={activeGrid} today={today} />
+            )}
           </div>
         </>
       ) : (
-        <p className="tl-empty-hint">{t("timeline.emptyHint")}</p>
+        <>
+          <div className="tl-tactical-header">
+            <span className="tl-tactical-header__title">
+              <b>{t("timeline.title")}</b>
+            </span>
+            <button
+              type="button"
+              className="tl-alerts-open-btn"
+              onClick={openTimelineAlerts}
+              title={t("timeline.alertsTitle")}
+            >
+              {t("timeline.alerts")}
+            </button>
+          </div>
+          <div className="tl-tactical-body">
+            <TacticalDecorativeRuler grid={emptyGrid} today={today} />
+          </div>
+        </>
       )}
+      <TimelineAlertsModal
+        open={timelineAlertsOpen}
+        onClose={closeTimelineAlerts}
+        docs={docsById}
+        objects={objectsById}
+        objectTimelineTitles={objectTimelineTitles}
+        selectedObjectId={selectedObjectId || filterObjectId}
+        canvasNodes={canvasNodes}
+        timelineDocQueue={timelineDocQueue}
+        timelineDocSnapshotsByDocId={timelineDocSnapshotsByDocId}
+        timelineAgentSets={timelineAgentSets}
+      />
     </div>
   );
 }

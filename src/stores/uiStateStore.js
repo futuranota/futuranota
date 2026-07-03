@@ -57,6 +57,7 @@ export const useUIStateStore = create(
 
       /** Tactical timeline bottom sheet: peek (default) | expanded */
       timelineSheet: "peek",
+      timelineAlertsOpen: false,
 
       /** In-memory doc editor drafts (session only, keyed by docId). */
       docEditorDrafts: {},
@@ -198,6 +199,8 @@ export const useUIStateStore = create(
       toggleTimelineSheet: () => set((state) => ({
         timelineSheet: state.timelineSheet === "expanded" ? "peek" : "expanded",
       })),
+      openTimelineAlerts: () => set({ timelineAlertsOpen: true }),
+      closeTimelineAlerts: () => set({ timelineAlertsOpen: false }),
 
       setDocEditorDraft: (docId, draft) => {
         if (!docId || !draft) return;

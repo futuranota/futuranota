@@ -1,5 +1,6 @@
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { DocSyncBadge } from "./DocSyncBadge.jsx";
+import { DocListTitle } from "./DocListTitle.jsx";
 
 export function DocCard({ doc, onClick, active }) {
   const objects = useObjectsStore((s) => s.objects);
@@ -13,7 +14,7 @@ export function DocCard({ doc, onClick, active }) {
     >
       <span className="fn-card-dot doc" />
       <div className="fn-card-body">
-        <b>{doc.title}</b>
+        <DocListTitle doc={doc} />
         <span className="fn-card-meta">
           {parent ? `↳ ${parent.name}` : "suelto"} · {(doc.nodeIds || []).length} nodos
         </span>

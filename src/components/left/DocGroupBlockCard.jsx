@@ -33,7 +33,7 @@ export function DocGroupBlockCard({
             <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
           </span>
           <div className="fn-card-body">
-            <b>{groupLabel}</b>
+            <span className="lp-doc-group-category">{groupLabel}</span>
             {groupMeta ? (
               <span className="fn-card-meta">{groupMeta}</span>
             ) : null}

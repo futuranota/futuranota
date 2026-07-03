@@ -17,6 +17,7 @@ import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
+import { DocListTitle } from "../docs/DocListTitle.jsx";
 import { docBlocksToBody } from "../../lib/docBlocks.js";
 import { useDocBlockNodeModal, linkBlockNodesToDoc } from "../docs/useDocBlockNodeModal.jsx";
 import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
@@ -315,7 +316,7 @@ function DocListCard({
         </span>
         <div className="fn-card-body">
           <div className="lp-doc-card-title-row">
-            <b>{displayTitle}</b>
+            <DocListTitle doc={doc} />
             <span
               className="lp-expand-btn"
               onClick={(e) => {
@@ -398,7 +399,7 @@ function DocCompactRow({
         <span className="lp-doc-icon lp-doc-icon--compact">
           <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
         </span>
-        <span className="lp-doc-nodes-block__node-title">{displayTitle}</span>
+        <DocListTitle doc={doc} nestedInGroup />
       </button>
       <div className="lp-doc-nodes-block__node-actions">
         <button
@@ -539,7 +540,11 @@ function DocNodesBlockCard({
           )}
           <div className="fn-card-body">
             <div className="lp-doc-card-title-row">
-              <b>{displayTitle}</b>
+              {orphan ? (
+                <b className="lp-doc-title-text">{displayTitle}</b>
+              ) : (
+                <DocListTitle doc={doc} />
+              )}
               {!orphan ? (
                 <span
                   className="lp-expand-btn"

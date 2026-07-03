@@ -899,6 +899,7 @@
 .lp-click-folder-doc-row .fn-card-body b {
   text-transform: lowercase;
   font-size: 13px;
+  font-weight: 700;
 }
 
 .lp-doc-drag-area--static {
@@ -1028,6 +1029,54 @@
   color: var(--text);
 }
 
+.lp-doc-list-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35em;
+  min-width: 0;
+}
+
+.lp-doc-group-category {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.lp-doc-nodes-block__head .lp-doc-group-category {
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+.lp-doc-category {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+
+.lp-doc-version {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--dim);
+}
+
+.lp-doc-title-text {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.lp-doc-file-name {
+  font-weight: 500;
+  color: var(--dim);
+}
+
+.lp-doc-file-name--muted {
+  opacity: 0.55;
+}
+
 .fn-card-meta {
   font-size: 10px;
   color: var(--dim);
@@ -1041,7 +1090,9 @@
   max-width: 100%;
 }
 
-.lp-doc-card-title-row b {
+.lp-doc-card-title-row .lp-doc-list-label,
+.lp-doc-card-title-row .lp-doc-file-name,
+.lp-doc-card-title-row .lp-doc-title-text {
   min-width: 0;
 }
 
@@ -1278,8 +1329,14 @@
   background: transparent;
   color: inherit;
   font: inherit;
+  font-size: 11px;
   text-align: left;
   cursor: pointer;
+}
+
+.lp-doc-nodes-block__node-main .lp-doc-file-name,
+.lp-doc-nodes-block__node-main .lp-doc-title-text {
+  font-size: 11px;
 }
 
 .lp-doc-nodes-block__node .lp-node-type-icon--compact {
@@ -1302,7 +1359,7 @@
   font-size: 11px;
   font-weight: 500;
   line-height: 1.35;
-  color: var(--text);
+  color: var(--dim);
 }
 
 .lp-doc-nodes-block__node-actions {
@@ -2101,9 +2158,9 @@
   background: transparent;
   font-family: var(--sans);
   font-size: 27px;
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1.22;
-  letter-spacing: 1.08px;
+  letter-spacing: 0.02em;
   color: #dcb2a6;
   outline: none;
   resize: none;
@@ -2760,9 +2817,9 @@
 }
 
 .doc-knowledge-imported-file__name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
