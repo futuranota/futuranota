@@ -42,43 +42,55 @@
   "carousel": {
     "eyebrow": "INSIDE THE TERMINAL",
     "title": "See the workflow in motion",
-    "lead": "Swipe through the terminal — product search, calendar intel, docs, and canvas.",
+    "lead": "From intel search to agents and launch windows — swipe through the terminal.",
     "slides": [
       {
         "src": "/uploads/carrusel-01.jpg",
-        "alt": "Futura Nota showcase",
-        "title": "Futura Nota",
-        "caption": "Study campaigns. Move on the window."
+        "alt": "From tangled inputs to a node workflow on canvas",
+        "title": "Find the gap. Write the solution.",
+        "caption": "Turn messy signals into a clear plan — from tangled inputs to nodes you can connect and ship."
       },
       {
         "src": "/uploads/carrusel-02.jpg",
-        "alt": "Futura Nota workflow",
-        "title": "Inside the terminal",
-        "caption": "Spot launches, read the window, and ship on time."
+        "alt": "Focus mode campaign analysis with executive summary",
+        "title": "Focus mode — opportunity validated",
+        "caption": "Category, season, and production path in one report — back-to-school cables, validated for production."
       },
       {
         "src": "/uploads/carrusel-03.jpg",
-        "alt": "Futura Nota platform",
-        "title": "Move on the window",
-        "caption": "Plan, connect, and ship before the opportunity closes."
+        "alt": "4K video reviews with structured notes and checklists",
+        "title": "Take better notes on 4K video",
+        "caption": "Watch product drops, log problems and features, and turn reviews into typed nodes — while you watch."
       },
       {
-        "src": "/uploads/carrusel-04.jpg",
-        "alt": "Futura Nota intelligence",
-        "title": "Read the signal",
-        "caption": "Campaign intel, docs, and timeline — in one operational view."
+        "src": "/uploads/carrusel-04.jpg?v=2",
+        "alt": "Event timeline linked to weather and launch dates",
+        "title": "Connect events. Read the weather.",
+        "caption": "Plan the launch, set the date, and see forecast and vibe — event flow synced with real conditions."
+      },
+      {
+        "src": "/uploads/carrusel-05.jpg",
+        "alt": "Companion product opportunity when a brand launches",
+        "title": "They launch the product. You find the solution.",
+        "caption": "They ship the drop — you make the companion. Spot the window and build what rides the launch."
       },
       {
         "src": "/uploads/carrusel-06.jpg",
-        "alt": "Futura Nota workspace",
-        "title": "Ship the companion",
-        "caption": "From signal to product — your window to move is now."
+        "alt": "AI agents for blogs, email, campaigns, and data",
+        "title": "Agents that plan, analyze, and create",
+        "caption": "Campaign Analyst, Content Creator, and more — plan blogs, analyze campaigns, and run agents on canvas."
       },
       {
         "src": "/uploads/carrusel-07.jpg",
-        "alt": "Futura Nota canvas",
-        "title": "Plan the connections",
-        "caption": "Canvas, docs, and timeline — synced before the window closes."
+        "alt": "Learn from keynotes and follow product trends",
+        "title": "Learn from the expert. Follow the trend.",
+        "caption": "Capture keynote drops and trending launches — study what ships before you make your move."
+      },
+      {
+        "src": "/uploads/carrusel-08.jpg?v=2",
+        "alt": "Intel search with AI overview and saved research files",
+        "title": "Search once. Save everything.",
+        "caption": "Query a brand, get overview and sources — then save notes, links, and intel to your research vault."
       }
     ]
   },
