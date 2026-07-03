@@ -1,6 +1,8 @@
 export const LAST_COMPANY_KEY = "fn_last_company";
 export const PENDING_LIBRARY_KEY = "fn_pending_library";
 export const OAUTH_MODE_KEY = "fn_oauth_mode";
+/** Set after OAuth completes on a non-/app URL — router sends user to dashboard. */
+export const OAUTH_RETURN_REDIRECT_KEY = "fn_oauth_return_redirect";
 
 /** @returns {Record<string, unknown>|null} */
 export function readLastCompany() {

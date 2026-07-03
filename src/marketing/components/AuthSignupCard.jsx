@@ -246,7 +246,7 @@ export function AuthSignupCard({
           ) : null}
 
           {isSignup ? (
-            <label className="auth-split-terms" htmlFor="agreeToTerms">
+            <div className="auth-split-terms">
               <input
                 id="agreeToTerms"
                 name="agreeToTerms"
@@ -256,12 +256,15 @@ export function AuthSignupCard({
                 required
               />
               <span>
-                I agree to the{' '}
-                <button type="button" className="auth-split-form__link auth-split-form__link--inline">
+                <label htmlFor="agreeToTerms">I agree to the </label>
+                <Link
+                  to={PATHS.terms}
+                  className="auth-split-form__link auth-split-form__link--inline"
+                >
                   Terms &amp; Conditions
-                </button>
+                </Link>
               </span>
-            </label>
+            </div>
           ) : null}
 
           {errorMessage ? (

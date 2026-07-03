@@ -62,13 +62,15 @@
 }
 
 :root[data-theme="light"] {
+  --beige: #FAFAF7;
+  --beige-2: #F5F4F0;
   --bg: #FFFFFF;
   --bg-2: #FAFAFA;
   --bg-grad-a: #FFFFFF;
   --bg-grad-b: #FAFAFA;
-  --panel: rgba(255, 255, 255, 0.62);
-  --panel-solid: #ffffff;
-  --panel-2: rgba(247, 246, 241, 0.7);
+  --panel: rgba(250, 250, 247, 0.88);
+  --panel-solid: #FAFAF7;
+  --panel-2: rgba(245, 244, 240, 0.82);
   --panel-3: rgba(236, 234, 226, 0.55);
   --glass-border: rgba(20, 24, 30, 0.06);
   --glass-border-2: rgba(20, 24, 30, 0.1);
@@ -485,9 +487,9 @@ input, textarea {
   border-right: none;
 }
 .brand-mark {
-  height: 22px;
-  width: auto;
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
 }
 .brand-name {
   font-family: var(--sans);
@@ -6685,4 +6687,26 @@ textarea.note-form-field {
 .intel-query-btn:active {
   transform: translateY(0);
   filter: brightness(0.98);
+}
+
+/* Light theme — beige surfaces on card-like dashboard pockets */
+:root[data-theme="light"] .lp-click-folder-category-row {
+  background: var(--beige);
+}
+
+:root[data-theme="light"] .pack-actions__btn--guide,
+:root[data-theme="light"] .pack-actions__btn--guide:hover:not(:disabled),
+:root[data-theme="light"] .pack-actions__btn--guide:active:not(:disabled) {
+  background: var(--beige);
+  border-color: color-mix(in oklab, var(--hairline) 70%, var(--beige));
+}
+
+:root[data-theme="light"] .pack-actions__btn--guide:hover:not(:disabled),
+:root[data-theme="light"] .pack-actions__btn--guide:active:not(:disabled) {
+  border-color: color-mix(in oklab, var(--hairline) 90%, var(--beige));
+}
+
+:root[data-theme="light"] .cnode-agent__avatar--brand-icon {
+  background: var(--beige);
+  border-color: color-mix(in oklab, var(--hairline) 80%, var(--beige));
 }

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { DomPageTranslator } from './components/shared/DomPageTranslator.jsx';
 import { MarketingLayout } from './marketing/layout/MarketingLayout.jsx';
 import { HomePage } from './marketing/pages/HomePage.jsx';
@@ -9,6 +9,7 @@ import { BlogPostPage } from './marketing/pages/BlogPostPage.jsx';
 import { WelcomePage } from './marketing/pages/WelcomePage.jsx';
 import { ForgotPasswordPage } from './marketing/pages/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from './marketing/pages/ResetPasswordPage.jsx';
+import { TermsPage } from './marketing/pages/TermsPage.jsx';
 import { AuthCallbackPage } from './pages/AuthCallbackPage.jsx';
 import { AdminPage } from './admin/AdminPage.jsx';
 import { PlansPage } from './pages/PlansPage.jsx';
@@ -17,6 +18,8 @@ import { usePlanStore } from './stores/planStore.js';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { captureReferralFromLocation } from './lib/referralStorage.js';
+import { consumeOAuthDashboardRedirect } from './lib/authRedirect.js';
+import { PATHS } from './marketing/lib/paths.js';
 import App from './App.jsx';
 
 // Protege rutas que requieren sesión
@@ -36,7 +39,9 @@ function ProtectedRoute({ children }) {
 export default function AppRouter() {
   const init = useAuthStore((s) => s.init);
   const user = useAuthStore((s) => s.user);
+  const loading = useAuthStore((s) => s.loading);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     captureReferralFromLocation(location.search);
@@ -49,6 +54,17 @@ export default function AppRouter() {
   useEffect(() => {
     if (user) usePlanStore.getState().fetchProfile();
   }, [user]);
+
+  // OAuth landed on marketing home (Site URL fallback) — send to dashboard.
+  useEffect(() => {
+    if (loading || !user) return;
+    const onApp = location.pathname === PATHS.app
+      || location.pathname.startsWith(`${PATHS.app}/`);
+    if (onApp || location.pathname === '/auth/callback') return;
+    if (consumeOAuthDashboardRedirect()) {
+      navigate(PATHS.app, { replace: true });
+    }
+  }, [loading, user, location.pathname, navigate]);
 
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -76,6 +92,7 @@ export default function AppRouter() {
         <Route path="welcome" element={<WelcomePage />} />
         <Route path="login" element={<WelcomePage />} />
         <Route path="signup" element={<WelcomePage />} />
+        <Route path="signup/terms" element={<TermsPage />} />
         <Route path="forgot-password" element={<ForgotPasswordPage />} />
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="auth/callback" element={<AuthCallbackPage />} />

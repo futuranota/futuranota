@@ -56,10 +56,12 @@
 }
 
 :root[data-theme="light"] {
-  --bg:        #FFFFFF;
-  --bg-2:      #FAFAFA;
-  --surface:   #FFFFFF;
-  --surface-2: #FAFAFA;
+  --beige:       #FAFAF7;
+  --beige-2:     #F5F4F0;
+  --bg:          #FFFFFF;
+  --bg-2:        #FAFAFA;
+  --surface:     var(--beige);
+  --surface-2:   var(--beige);
   --line:      oklch(0.55 0.012 60 / 0.24);
   --line-soft: oklch(0.55 0.012 60 / 0.14);
 
@@ -78,6 +80,8 @@
   --signal:      oklch(0.48 0.17 159);
   --signal-soft: oklch(0.48 0.17 159 / 0.14);
   --signal-line: oklch(0.48 0.17 159 / 0.38);
+  --pastel-pink: #FFF0F3;
+  --pastel-pink-line: #F5D5DE;
 
   --shadow: 0 1px 0 oklch(0 0 0 / 0.04) inset, 0 10px 24px -16px oklch(0 0 0 / 0.10);
   --shadow-lg: 0 1px 0 oklch(0 0 0 / 0.05) inset, 0 20px 40px -20px oklch(0 0 0 / 0.14);
@@ -100,12 +104,23 @@
   border-color: oklch(0 0 0 / 0.18);
   background: oklch(0 0 0 / 0.04);
 }
-:root[data-theme="light"] .card {
-  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+:root[data-theme="light"] .card:not(.hero__frame):not(.blog-feat):not(.blog) {
+  background: var(--beige);
+  border-color: var(--beige);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: none;
 }
-:root[data-theme="light"] .card:hover {
-  border-color: var(--line);
-  box-shadow: var(--shadow-lg);
+:root[data-theme="light"] .card:not(.hero__frame):not(.blog-feat):not(.blog):hover {
+  background: var(--beige);
+  border-color: var(--beige);
+  box-shadow: none;
+  transform: none;
+}
+:root[data-theme="light"] .testimonials-card {
+  background: var(--beige);
+  border-color: var(--beige);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: none;
 }
 :root[data-theme="light"] .chip--accent:hover {
   background: oklch(0 0 0 / 0.08);

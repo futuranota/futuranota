@@ -100,12 +100,15 @@ export function WelcomePage() {
 
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
+    setLoading(true);
     try {
       sessionStorage.setItem(OAUTH_MODE_KEY, tab);
       await signInWithGoogle();
+      // Navigation continues in Google — page unloads.
     } catch (err) {
       sessionStorage.removeItem(OAUTH_MODE_KEY);
       setErrorMessage(err.message);
+      setLoading(false);
     }
   };
 

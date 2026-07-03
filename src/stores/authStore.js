@@ -1,6 +1,8 @@
 // src/stores/authStore.js
 import { create } from 'zustand';
 import { supabase } from '../lib/supabaseClient';
+import { getAppOrigin, resolveOAuthReturn, startGoogleOAuth } from '../lib/authRedirect.js';
+import { getSupabaseConfigError } from '../lib/supabaseClient';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -8,6 +10,24 @@ export const useAuthStore = create((set) => ({
   loading: true,
 
   init: async () => {
+    const onCallback = typeof window !== 'undefined'
+      && window.location.pathname === '/auth/callback';
+
+    if (!onCallback) {
+      try {
+        const { session: oauthSession, hadOAuthParams } = await resolveOAuthReturn();
+        if (oauthSession && hadOAuthParams) {
+          set({ session: oauthSession, user: oauthSession.user, loading: false });
+          supabase.auth.onAuthStateChange((_event, session) => {
+            set({ session, user: session?.user ?? null });
+          });
+          return;
+        }
+      } catch (err) {
+        console.error('OAuth return failed:', err);
+      }
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     set({ session, user: session?.user ?? null, loading: false });
 
@@ -27,18 +47,16 @@ export const useAuthStore = create((set) => ({
       password,
       options: {
         data: metadata || undefined,
-        emailRedirectTo: `${window.location.origin}/login`,
+        emailRedirectTo: `${getAppOrigin()}/login`,
       },
     });
     if (error) throw error;
   },
 
   signInWithGoogle: async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    });
-    if (error) throw error;
+    const configError = getSupabaseConfigError();
+    if (configError) throw new Error(configError);
+    await startGoogleOAuth();
   },
 
   signOut: async () => {
@@ -48,7 +66,7 @@ export const useAuthStore = create((set) => ({
 
   resetPasswordForEmail: async (email) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${getAppOrigin()}/reset-password`,
     });
     if (error) throw error;
   },

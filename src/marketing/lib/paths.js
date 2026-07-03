@@ -12,6 +12,7 @@ export const PATHS = {
   resetPassword: '/reset-password',
   app: '/app',
   admin: '/panel',
+  terms: '/signup/terms',
 };
 
 export function sectionPath(slug) {

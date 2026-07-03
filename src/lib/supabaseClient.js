@@ -25,7 +25,14 @@ if (getSupabaseConfigError()) {
   console.warn(getSupabaseConfigError());
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    flowType: 'pkce',
+    // Manual exchange in authRedirect.js — avoid double PKCE redemption.
+    detectSessionInUrl: false,
+    persistSession: true,
+  },
+});
 
 /**
  * @param {{ message?: string, code?: string, details?: string, hint?: string }|null} error
