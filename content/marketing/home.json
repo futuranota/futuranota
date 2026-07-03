@@ -61,6 +61,24 @@
         "alt": "Futura Nota platform",
         "title": "Move on the window",
         "caption": "Plan, connect, and ship before the opportunity closes."
+      },
+      {
+        "src": "/uploads/carrusel-04.jpg",
+        "alt": "Futura Nota intelligence",
+        "title": "Read the signal",
+        "caption": "Campaign intel, docs, and timeline — in one operational view."
+      },
+      {
+        "src": "/uploads/carrusel-06.jpg",
+        "alt": "Futura Nota workspace",
+        "title": "Ship the companion",
+        "caption": "From signal to product — your window to move is now."
+      },
+      {
+        "src": "/uploads/carrusel-07.jpg",
+        "alt": "Futura Nota canvas",
+        "title": "Plan the connections",
+        "caption": "Canvas, docs, and timeline — synced before the window closes."
       }
     ]
   },
