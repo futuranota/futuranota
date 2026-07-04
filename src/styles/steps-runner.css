@@ -343,6 +343,16 @@
   word-break: break-word;
 }
 
+.steps-runner-overlay__code {
+  margin-top: 12px;
+}
+
+.steps-runner-overlay__panel .doc-code-block--saved:hover .doc-code-block__hover-actions,
+.steps-runner-overlay__panel .doc-code-block--saved:focus-within .doc-code-block__hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .steps-runner-overlay__nav {
   display: flex;
   align-items: center;

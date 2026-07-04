@@ -1,0 +1,36 @@
+---
+description: Scrollable regions use track/thumb colors matched to their container background
+globs: "**/*.{css,jsx,tsx,vue}"
+alwaysApply: false
+---
+
+# Scrollbars match container background
+
+Any scrollable element must not expose a contrasting scrollbar track that reveals the layer underneath.
+
+## Pattern
+
+1. Add class `scroll-match-bg` to the scrolling element.
+2. Set `--scroll-bg` on that same element (or a parent) to its solid background color.
+3. Optionally set `--scroll-thumb` for a subtle thumb (default: semi-transparent white/dark mix).
+
+```css
+.my-panel {
+  --scroll-bg: #0e1118;
+  --scroll-thumb: rgba(255, 255, 255, 0.14);
+  background: var(--scroll-bg);
+  overflow: auto;
+}
+```
+
+```html
+<div class="my-panel scroll-match-bg">...</div>
+```
+
+## Rules
+
+- Prefer solid `background` on scroll containers; avoid transparent scroll areas over busy UI.
+- Track color = `--scroll-bg` (same as container), not `transparent`.
+- Apply to textareas with overflow, panel lists, overlay bodies, and nested todo/code blocks.
+
+Utility lives in `src/styles.css` (`.scroll-match-bg`).

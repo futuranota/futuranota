@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { createStepEntry, finalizeStepSequence } from "../../../lib/docBlocks.js";
-import { syncAutoGrowTextareaHeight } from "../../../lib/textareaSelectionRect.js";
+import {
+  applyStepCodeTemplateToBlocks,
+  createStepEntry,
+  createStepEntryFromTemplate,
+  finalizeStepSequence,
+  getStepCodeTemplateShells,
+  propagateStepCodeTemplate,
+} from "../../../lib/docBlocks.js";
+import { StepStepBlocksEditor } from "./StepStepBlocksEditor.jsx";
 
 const BLOCK_LABEL = "Step by step";
 
@@ -66,6 +73,7 @@ function StepSequenceHeader({
   autoFocusTitle,
   counter,
   onDeleteBlock,
+  onEditRequest,
   displayTitle = "",
 }) {
   return (
@@ -89,16 +97,28 @@ function StepSequenceHeader({
         {counter ? (
           <span className="doc-step-sequence__counter mono-sm">{counter}</span>
         ) : null}
-        {onDeleteBlock ? (
+        {onEditRequest || onDeleteBlock ? (
           <div className="doc-step-sequence__hover-actions">
-            <button
-              type="button"
-              className="doc-step-sequence__delete"
-              onClick={onDeleteBlock}
-              aria-label={`Eliminar bloque ${BLOCK_LABEL}`}
-            >
-              Eliminar
-            </button>
+            {onEditRequest ? (
+              <button
+                type="button"
+                className="doc-step-sequence__edit"
+                onClick={onEditRequest}
+                aria-label={`Editar bloque ${BLOCK_LABEL}`}
+              >
+                Editar
+              </button>
+            ) : null}
+            {onDeleteBlock ? (
+              <button
+                type="button"
+                className="doc-step-sequence__delete"
+                onClick={onDeleteBlock}
+                aria-label={`Eliminar bloque ${BLOCK_LABEL}`}
+              >
+                Eliminar
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -112,9 +132,18 @@ function SavedStepSequenceView({
   steps,
   compact,
   onTitleChange,
+  onStepsChange,
   onDeleteBlock,
+  onEditRequest,
 }) {
   const displayTitle = (title || "").trim();
+
+  const updateStepBlocks = useCallback((stepIndex, blocks) => {
+    const next = steps.map((step, index) => (
+      index === stepIndex ? { ...step, blocks } : step
+    ));
+    onStepsChange?.(next);
+  }, [onStepsChange, steps]);
 
   return (
     <div
@@ -127,20 +156,25 @@ function SavedStepSequenceView({
         onTitleChange={onTitleChange}
         compact={compact}
         counter={`${steps.length} ${steps.length === 1 ? "step" : "steps"}`}
+        onEditRequest={onEditRequest}
         onDeleteBlock={onDeleteBlock}
         displayTitle={!onTitleChange ? displayTitle : ""}
       />
 
       <div className="doc-step-sequence__card doc-step-sequence__card--saved">
-        <div className="doc-step-sequence__saved-list">
+        <div className="doc-step-sequence__saved-list scroll-match-bg">
           {steps.map((step, index) => (
             <article key={step.id} className="doc-step-sequence__saved-step">
               <span className="doc-step-sequence__step-badge">
                 Step {index + 1}
               </span>
-              <div className="doc-step-sequence__saved-text">
-                {(step.text || "").trim() || "—"}
-              </div>
+              <StepStepBlocksEditor
+                blocks={step.blocks}
+                onBlocksChange={(blocks) => updateStepBlocks(index, blocks)}
+                readOnly
+                compact={compact}
+                stepId={step.id}
+              />
             </article>
           ))}
         </div>
@@ -160,6 +194,7 @@ export function StepSequenceBlockView({
   onTitleChange,
   onStepsChange,
   onSavedChange,
+  onEditRequest,
   onDeleteBlock,
   compact = false,
   autoFocus = false,
@@ -168,7 +203,6 @@ export function StepSequenceBlockView({
   const total = safeSteps.length;
   const [activeIndex, setActiveIndex] = useState(0);
   const [maxVisitedIndex, setMaxVisitedIndex] = useState(0);
-  const textareaRef = useRef(null);
 
   const stepNumber = Math.min(activeIndex, total - 1) + 1;
   const activeStep = safeSteps[Math.min(activeIndex, total - 1)] ?? safeSteps[0];
@@ -184,19 +218,28 @@ export function StepSequenceBlockView({
     }
   }, [activeIndex, total]);
 
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    syncAutoGrowTextareaHeight(el);
-  }, [activeStep?.text, activeIndex]);
-
-  const updateStepText = useCallback((text) => {
+  const updateActiveStepBlocks = useCallback((blocks) => {
     const index = Math.min(activeIndex, safeSteps.length - 1);
-    const next = safeSteps.map((step, i) => (
-      i === index ? { ...step, text } : step
+    let next = safeSteps.map((step, i) => (
+      i === index ? { ...step, blocks } : step
     ));
+    if (index === 0) {
+      next = propagateStepCodeTemplate(next);
+    }
     onStepsChange?.(next);
   }, [activeIndex, onStepsChange, safeSteps]);
+
+  const applyTemplateToStep = useCallback((steps, targetIndex) => {
+    const shells = getStepCodeTemplateShells(steps[0]);
+    if (!shells.length || targetIndex <= 0 || targetIndex >= steps.length) {
+      return steps;
+    }
+    return steps.map((step, i) => (
+      i === targetIndex
+        ? { ...step, blocks: applyStepCodeTemplateToBlocks(step.blocks, shells) }
+        : step
+    ));
+  }, []);
 
   const goBack = useCallback(() => {
     setActiveIndex((prev) => Math.max(0, prev - 1));
@@ -204,21 +247,25 @@ export function StepSequenceBlockView({
 
   const goNext = useCallback(() => {
     const index = Math.min(activeIndex, safeSteps.length - 1);
+    const shells = getStepCodeTemplateShells(safeSteps[0]);
+
     if (index >= safeSteps.length - 1) {
-      onStepsChange?.([...safeSteps, createStepEntry()]);
+      const newStep = createStepEntryFromTemplate(shells);
+      onStepsChange?.([...safeSteps, newStep]);
       setActiveIndex(safeSteps.length);
       return;
     }
-    setActiveIndex(index + 1);
-  }, [activeIndex, onStepsChange, safeSteps]);
+
+    const targetIndex = index + 1;
+    onStepsChange?.(applyTemplateToStep(safeSteps, targetIndex));
+    setActiveIndex(targetIndex);
+  }, [activeIndex, applyTemplateToStep, onStepsChange, safeSteps]);
 
   const handleSave = useCallback(() => {
-    const finalized = finalizeStepSequence(safeSteps);
-    onSavedChange?.(finalized);
+    onSavedChange?.(finalizeStepSequence(safeSteps));
   }, [onSavedChange, safeSteps]);
 
-  const handleKeyDown = (e) => {
-    e.stopPropagation();
+  const handleWizardKeyDown = useCallback((e) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (!isLastStep) {
@@ -227,12 +274,15 @@ export function StepSequenceBlockView({
         handleSave();
       }
     }
-  };
+  }, [goNext, handleSave, isLastStep]);
 
   const goToStep = useCallback((index) => {
     if (index < 0 || index >= total) return;
+    if (index > 0) {
+      onStepsChange?.(applyTemplateToStep(safeSteps, index));
+    }
     setActiveIndex(index);
-  }, [total]);
+  }, [applyTemplateToStep, onStepsChange, safeSteps, total]);
 
   if (saved) {
     return (
@@ -242,6 +292,8 @@ export function StepSequenceBlockView({
         steps={safeSteps}
         compact={compact}
         onTitleChange={onTitleChange}
+        onStepsChange={onStepsChange}
+        onEditRequest={onEditRequest}
         onDeleteBlock={onDeleteBlock}
       />
     );
@@ -296,7 +348,7 @@ export function StepSequenceBlockView({
         <AnimatePresence mode="wait">
           <motion.div
             key={activeStep?.id ?? activeIndex}
-            className="doc-step-sequence__panel"
+            className="doc-step-sequence__panel doc-step-sequence__panel--blocks"
             variants={stepVariants}
             initial="enter"
             animate="center"
@@ -306,24 +358,14 @@ export function StepSequenceBlockView({
             <span className="doc-step-sequence__step-badge">
               Step {stepNumber}
             </span>
-            <label className="doc-step-sequence__field-label" htmlFor={`step-seq-${activeStep?.id}`}>
-              Instructions
-            </label>
-            <textarea
-              ref={textareaRef}
-              id={`step-seq-${activeStep?.id}`}
-              className="doc-step-sequence__input"
-              value={activeStep?.text ?? ""}
-              placeholder="Paste or write instructions for this step…"
-              rows={4}
-              spellCheck
-              onChange={(e) => {
-                updateStepText(e.target.value);
-                syncAutoGrowTextareaHeight(e.target);
-              }}
-              onKeyDown={handleKeyDown}
-              onKeyUp={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
+            <span className="doc-step-sequence__field-label">Instructions</span>
+            <StepStepBlocksEditor
+              blocks={activeStep?.blocks}
+              onBlocksChange={updateActiveStepBlocks}
+              compact={compact}
+              autoFocus={autoFocus}
+              stepId={activeStep?.id}
+              onOuterKeyDown={handleWizardKeyDown}
             />
           </motion.div>
         </AnimatePresence>

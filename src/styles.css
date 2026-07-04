@@ -668,6 +668,29 @@ textarea.field {
   background: var(--text-2);
 }
 
+/* Scroll track matches container bg — set --scroll-bg on the scrolling element */
+.scroll-match-bg {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb, rgba(255, 255, 255, 0.14)) var(--scroll-bg, transparent);
+}
+.scroll-match-bg::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-match-bg::-webkit-scrollbar-track {
+  background: var(--scroll-bg, transparent);
+  border-radius: 4px;
+}
+.scroll-match-bg::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb, rgba(255, 255, 255, 0.14));
+  border-radius: 4px;
+  border: 2px solid var(--scroll-bg, transparent);
+  background-clip: padding-box;
+}
+.scroll-match-bg::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover, rgba(255, 255, 255, 0.24));
+}
+
 /* ── landing ──────────────────────────────── */
 .landing {
   height: 100vh;

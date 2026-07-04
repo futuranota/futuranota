@@ -46,6 +46,7 @@ export function CodeBlockView({
   onEdit,
   onDelete,
   deleteLabel = "Eliminar",
+  editLabel = "Editar",
   autoFocus = false,
   compact = false,
 }) {
@@ -111,6 +112,16 @@ export function CodeBlockView({
             >
               {copied ? "Copiado" : "Copiar"}
             </button>
+            {onEdit ? (
+              <button
+                type="button"
+                className="doc-code-block__action doc-code-block__action--edit"
+                onClick={onEdit}
+                aria-label={`Editar ${codeLanguageLabel(normalizedLanguage)}`}
+              >
+                {editLabel}
+              </button>
+            ) : null}
             {onDelete ? (
               <button
                 type="button"

@@ -26,6 +26,7 @@ import {
   replaceBlockFromSlashInLinkable,
   replaceBlocksFromSlashInText,
   replaceBlocksFromSlashWithEmbedVideo,
+  stepEntryHasContent,
   updateBlockAt,
 } from "../../../lib/docBlocks.js";
 import {
@@ -1511,7 +1512,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 let next = updateBlockAt(blocksRef.current, index, { steps });
                 const current = blocksRef.current[index];
                 const hasContent = (current?.title || "").trim()
-                  || steps.some((step) => (step.text || "").trim());
+                  || steps.some(stepEntryHasContent);
                 if (hasContent) {
                   next = ensureEmptyTextBlockAfter(next, index);
                 }
@@ -1525,12 +1526,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 });
                 const current = blocksRef.current[index];
                 const hasContent = (current?.title || "").trim()
-                  || finalizedSteps.some((step) => (step.text || "").trim());
+                  || finalizedSteps.some(stepEntryHasContent);
                 if (hasContent) {
                   next = ensureEmptyTextBlockAfter(next, index);
                 }
                 setBlocks(next);
                 requestContentGrow();
+              }}
+              onEditRequest={() => {
+                const next = updateBlockAt(blocksRef.current, index, { saved: false });
+                setBlocks(next);
+                requestContentGrow();
+                onFocusBlock?.(block.id);
               }}
               onDeleteBlock={() => {
                 if (!window.confirm("¿Eliminar este bloque Step by step?")) return;

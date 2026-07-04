@@ -35,11 +35,177 @@ export function createTodoItem(patch = {}) {
   };
 }
 
+export function normalizeStepCode(code) {
+  if (code == null) return undefined;
+  const raw = typeof code === "object" ? code : {};
+  return {
+    language: normalizeCodeLanguage(raw.language || DEFAULT_CODE_LANGUAGE),
+    code: String(raw.code ?? ""),
+    saved: Boolean(raw.saved),
+  };
+}
+
+const STEP_ALLOWED_BLOCK_TYPES = new Set([
+  DOC_BLOCK_TYPES.TEXT,
+  DOC_BLOCK_TYPES.CODE,
+]);
+
+function migrateLegacyStepToBlocks(patch) {
+  if (Array.isArray(patch?.blocks) && patch.blocks.length) {
+    return patch.blocks;
+  }
+  const blocks = [];
+  const text = patch?.text ?? "";
+  if (String(text).length > 0) {
+    blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: String(text) }));
+  }
+  if (patch?.code != null) {
+    const normalized = normalizeStepCode(patch.code);
+    blocks.push(createDocBlock(DOC_BLOCK_TYPES.CODE, {
+      language: normalized.language,
+      code: normalized.code,
+      codeSaved: normalized.saved || Boolean(normalized.code.trim()),
+    }));
+  }
+  if (!blocks.length) {
+    blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" }));
+  }
+  return blocks;
+}
+
+export function normalizeStepBlocks(blocks) {
+  const raw = Array.isArray(blocks) && blocks.length
+    ? blocks
+    : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+  const normalized = normalizeDocBlocks(raw).filter((block) => STEP_ALLOWED_BLOCK_TYPES.has(block.type));
+  return normalized.length ? normalized : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+}
+
 export function createStepEntry(patch = {}) {
   return {
     id: patch.id || generateId("STEP"),
-    text: patch.text ?? "",
+    blocks: normalizeStepBlocks(migrateLegacyStepToBlocks(patch)),
   };
+}
+
+/** CODE block shells defined on step 1 — language only, no content. */
+export function getStepCodeTemplateShells(step) {
+  return normalizeStepBlocks(step?.blocks)
+    .filter((block) => block.type === DOC_BLOCK_TYPES.CODE)
+    .map((block) => ({
+      type: DOC_BLOCK_TYPES.CODE,
+      language: normalizeCodeLanguage(block.language),
+    }));
+}
+
+export function createStepBlocksFromTemplate(templateShells = []) {
+  const blocks = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+  for (const shell of templateShells) {
+    if (shell.type !== DOC_BLOCK_TYPES.CODE) continue;
+    blocks.push(createDocBlock(DOC_BLOCK_TYPES.CODE, {
+      language: shell.language,
+      code: "",
+      codeSaved: false,
+    }));
+  }
+  return normalizeStepBlocks(blocks);
+}
+
+export function createStepEntryFromTemplate(templateShells = [], patch = {}) {
+  return createStepEntry({
+    ...patch,
+    blocks: createStepBlocksFromTemplate(templateShells),
+  });
+}
+
+/** Adds empty CODE shells from step-1 template when missing (keeps existing content). */
+export function applyStepCodeTemplateToBlocks(blocks, templateShells = []) {
+  const normalized = normalizeStepBlocks(blocks);
+  if (!templateShells.length) return normalized;
+
+  const mainTextIndex = normalized.findIndex((block) => block.type === DOC_BLOCK_TYPES.TEXT);
+  const mainText = mainTextIndex >= 0 ? (normalized[mainTextIndex].text ?? "") : "";
+
+  const result = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: mainText })];
+
+  for (const shell of templateShells) {
+    if (shell.type !== DOC_BLOCK_TYPES.CODE) continue;
+    const language = normalizeCodeLanguage(shell.language);
+    const existing = normalized.find(
+      (block) => block.type === DOC_BLOCK_TYPES.CODE
+        && normalizeCodeLanguage(block.language) === language,
+    );
+    if (existing) {
+      result.push(normalizeDocBlock(existing));
+    } else {
+      result.push(createDocBlock(DOC_BLOCK_TYPES.CODE, {
+        language,
+        code: "",
+        codeSaved: false,
+      }));
+    }
+  }
+
+  return normalizeStepBlocks(result);
+}
+
+export function propagateStepCodeTemplate(steps) {
+  if (!Array.isArray(steps) || steps.length < 2) return steps;
+  const shells = getStepCodeTemplateShells(steps[0]);
+  if (!shells.length) return steps;
+  return steps.map((step, index) => (
+    index === 0
+      ? step
+      : { ...step, blocks: applyStepCodeTemplateToBlocks(step.blocks, shells) }
+  ));
+}
+
+export function stepEntryHasContent(step) {
+  const blocks = normalizeStepBlocks(step?.blocks);
+  return blocks.some((block) => {
+    if (block.type === DOC_BLOCK_TYPES.TEXT) return Boolean((block.text || "").trim());
+    if (block.type === DOC_BLOCK_TYPES.CODE) {
+      return Boolean((block.code || "").trim()) || Boolean(block.codeSaved);
+    }
+    return false;
+  });
+}
+
+export function getStepPreviewText(step) {
+  const blocks = normalizeStepBlocks(step?.blocks);
+  for (const block of blocks) {
+    if (block.type === DOC_BLOCK_TYPES.TEXT && (block.text || "").trim()) {
+      return String(block.text).trim();
+    }
+  }
+  return "";
+}
+
+export function getStepCodePreview(step) {
+  const blocks = normalizeStepBlocks(step?.blocks);
+  for (const block of blocks) {
+    if (block.type === DOC_BLOCK_TYPES.CODE && (block.code || "").trim()) {
+      return String(block.code).trim().split("\n")[0];
+    }
+  }
+  return "";
+}
+
+export function getStepPlaybookPreview(step) {
+  return getStepPreviewText(step) || getStepCodePreview(step);
+}
+
+export function normalizeStepEntries(steps) {
+  return normalizeStepSequenceSteps(steps);
+}
+
+export function finalizeStepBlocks(blocks) {
+  return normalizeStepBlocks(blocks).map((block) => {
+    if (block.type === DOC_BLOCK_TYPES.CODE && (block.code || "").trim()) {
+      return normalizeDocBlock({ ...block, codeSaved: true });
+    }
+    return block;
+  });
 }
 
 function normalizeStepSequenceSteps(steps) {
@@ -59,9 +225,12 @@ function normalizeStepSequenceBlock(block) {
 
 /** Trim trailing empty steps and guarantee at least one step. */
 export function finalizeStepSequence(steps) {
-  const normalized = normalizeStepSequenceSteps(steps);
+  const normalized = normalizeStepSequenceSteps(steps).map((step) => ({
+    ...step,
+    blocks: finalizeStepBlocks(step.blocks),
+  }));
   let end = normalized.length;
-  while (end > 1 && !(normalized[end - 1]?.text || "").trim()) {
+  while (end > 1 && !stepEntryHasContent(normalized[end - 1])) {
     end -= 1;
   }
   return normalized.slice(0, end);

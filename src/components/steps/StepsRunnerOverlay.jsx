@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
+import { StepStepBlocksEditor } from "../docs/blocks/StepStepBlocksEditor.jsx";
 
 /**
  * @param {Object} props
@@ -111,9 +112,7 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
               <span className="steps-runner-overlay__step-badge">
                 {t("stepsRunner.stepOf", { n: stepNumber, m: total })}
               </span>
-              <div className="steps-runner-overlay__text">
-                {(activeStep?.text || "").trim() || "—"}
-              </div>
+              <StepStepBlocksEditor blocks={activeStep?.blocks} readOnly stepId={activeStep?.id} />
             </article>
 
             <footer className="steps-runner-overlay__nav">

@@ -457,6 +457,7 @@ export function NodeWritingBlockStack({
                 onSavedChange={(finalizedSteps) => {
                   updateBlockAt(blockIndex, { steps: finalizedSteps, saved: true });
                 }}
+                onEditRequest={() => updateBlockAt(blockIndex, { saved: false })}
                 onDeleteBlock={() => removeBlockAt(blockIndex)}
               />
             </div>

@@ -70,7 +70,7 @@ export function LazyTodoCard({
           </label>
           <textarea
             id={`lazy-reminder-${item.id}`}
-            className="lazy-todo-card__reminder-input"
+            className="lazy-todo-card__reminder-input scroll-match-bg"
             value={item.reminder || ""}
             placeholder={t("lazyTodos.reminderPlaceholder")}
             rows={isDashboard ? 4 : 3}
@@ -84,7 +84,7 @@ export function LazyTodoCard({
 
         <div className="lazy-todo-card__todo">
           <span className="lazy-todo-card__field-label">{t("lazyTodos.todoLabel")}</span>
-          <div className="lazy-todo-card__todo-block">
+          <div className="lazy-todo-card__todo-block scroll-match-bg">
             <DocTodoPlanBlockView
               listTitle={item.listTitle || t("lazyTodos.todoLabel")}
               onListTitleChange={(listTitle) => onChange({ listTitle })}

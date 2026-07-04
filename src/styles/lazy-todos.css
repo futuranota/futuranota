@@ -123,6 +123,10 @@
   color: #fff;
   border-bottom: none;
   padding: 0;
+  overflow: auto;
+  --scroll-bg: #12151c;
+  --scroll-thumb: rgba(255, 255, 255, 0.12);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.22);
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__reminder-input::placeholder {
@@ -136,6 +140,9 @@
   padding: 10px 10px 6px;
   border-color: rgba(255, 255, 255, 0.1);
   background: #0e1118;
+  --scroll-bg: #0e1118;
+  --scroll-thumb: rgba(255, 255, 255, 0.12);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.22);
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__title-input,

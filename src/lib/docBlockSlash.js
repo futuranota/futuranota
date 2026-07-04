@@ -109,6 +109,11 @@ export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
     || cmd.blockType === DOC_BLOCK_TYPES.STEP_SEQUENCE,
 );
 
+/** Slash commands allowed inside a step-by-step instruction field. */
+export const STEP_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
+  (cmd) => cmd.blockType === DOC_BLOCK_TYPES.CODE,
+);
+
 export function parseSlashQuery(query) {
   const normalized = String(query ?? "")
     .trim()

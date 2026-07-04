@@ -1,7 +1,10 @@
 import {
   DOC_BLOCK_TYPES,
   docBlocksFromBody,
+  getStepPlaybookPreview,
   normalizeDocBlocks,
+  normalizeStepEntries,
+  stepEntryHasContent,
 } from "./docBlocks.js";
 import { resolveDocKind } from "./templateDoc.js";
 
@@ -18,7 +21,7 @@ const PREVIEW_MAX = 120;
  * @property {string|null} objectId
  * @property {string} docKind
  * @property {string} category
- * @property {{ id: string, text: string }[]} steps
+ * @property {import("./docBlocks.js").StepEntry[]} steps
  */
 
 function truncate(text, max) {
@@ -32,12 +35,12 @@ function playbookTitleFrom(block, doc, steps) {
   if (blockTitle) return blockTitle;
   const docTitle = String(doc.title ?? "").trim();
   if (docTitle) return docTitle;
-  const first = steps.find((step) => (step.text || "").trim());
-  return first ? truncate(first.text, 60) : "Step by step";
+  const first = steps.map(getStepPlaybookPreview).find(Boolean);
+  return first ? truncate(first, 60) : "Step by step";
 }
 
 function stepPlaybookHasContent(steps) {
-  return steps.some((step) => (step.text || "").trim());
+  return steps.some(stepEntryHasContent);
 }
 
 function blocksForDoc(doc) {
@@ -71,25 +74,22 @@ export function collectSavedStepPlaybooks(docs, { objectId = null, crossObject =
       if (block.type !== DOC_BLOCK_TYPES.STEP_SEQUENCE) return;
       if (!block.saved) return;
 
-      const steps = Array.isArray(block.steps) ? block.steps : [];
+      const steps = normalizeStepEntries(Array.isArray(block.steps) ? block.steps : []);
       if (!stepPlaybookHasContent(steps)) return;
 
-      const firstText = steps.find((step) => (step.text || "").trim())?.text ?? "";
+      const firstPreview = steps.map(getStepPlaybookPreview).find(Boolean) ?? "";
 
       playbooks.push({
         id: `${doc.id}:${block.id}`,
         docId: doc.id,
         blockId: block.id,
         title: playbookTitleFrom(block, doc, steps),
-        preview: truncate(firstText, PREVIEW_MAX),
+        preview: truncate(firstPreview, PREVIEW_MAX),
         stepCount: steps.length,
         objectId: parentObjectId,
         docKind: resolveDocKind(doc) || "standard",
         category: String(doc.category ?? "").trim(),
-        steps: steps.map((step) => ({
-          id: step.id,
-          text: step.text ?? "",
-        })),
+        steps,
       });
     });
   }
@@ -110,6 +110,6 @@ export function filterStepPlaybooks(playbooks, query) {
     if (playbook.title.toLowerCase().includes(normalized)) return true;
     if (playbook.preview.toLowerCase().includes(normalized)) return true;
     if (playbook.category.toLowerCase().includes(normalized)) return true;
-    return playbook.steps.some((step) => (step.text || "").toLowerCase().includes(normalized));
+    return playbook.steps.some((step) => getStepPlaybookPreview(step).toLowerCase().includes(normalized));
   });
 }
