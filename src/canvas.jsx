@@ -41,7 +41,8 @@ import { AgentCanvasAvatar } from './components/agents/AgentCanvasAvatar.jsx';
 import { useScheduledTasksStore } from './stores/scheduledTasksStore.js';
 import { listUpcomingScheduledTasks, formatScheduleAtLabel } from './hooks/useScheduledAgentRunner.js';
 import { isScheduleNotDue } from './lib/agents/agentScheduleGate.js';
-import { getAgentById, getAgentLabel, isAgentEnabled } from './lib/agents/registry.js';
+import { getAgentById, getAgentLabel, isAgentEnabledForUser } from './lib/agents/registry.js';
+import { useAuthStore } from './stores/authStore.js';
 import { getAgentCreditCost } from './lib/agents/agentCreditCosts.js';
 import { usePlanStore } from './stores/planStore.js';
 import { getCreditsDisplay } from './lib/planConfig.js';
@@ -279,6 +280,7 @@ function CanvasNode({
   const planProfile = usePlanStore((s) => s.profile);
   const planSearchCount = usePlanStore((s) => s.profile.searchCount);
   const planTokensBalance = usePlanStore((s) => s.profile.tokensBalance);
+  const userEmail = useAuthStore((s) => s.user?.email);
   const creditsDisplay = getCreditsDisplay({
     ...planProfile,
     searchCount: planSearchCount,
@@ -571,7 +573,7 @@ function CanvasNode({
           ? "is-done"
           : "";
       const agentDef = getAgentById(node.agentId || "orchestrator");
-      const agentEnabled = isAgentEnabled(node.agentId || "orchestrator");
+      const agentEnabled = isAgentEnabledForUser(node.agentId || "orchestrator", userEmail);
       const creditCost = getAgentCreditCost(node.agentId);
       const { counter: creditsCounter, remaining: creditsRemaining } = creditsDisplay;
       const hasAvatarImage = Boolean(agentDef?.avatarImage);
@@ -1123,6 +1125,7 @@ function BlueprintCanvas({
           ".doc-agent-cell__input, .doc-agent-cell, textarea, input, [contenteditable='true']",
         );
       if (inEditable) return;
+      if (e.target.closest?.(".doc-step-sequence, .doc-overlay-global, .steps-runner-overlay, .doc-block-stack")) return;
       if (e.code === "Space") { e.preventDefault(); setSpaceHeld(true); }
       if (e.key === "v" || e.key === "V") setTool("select");
       else if (e.key === "p" || e.key === "P") setTool("pencil");
@@ -1164,6 +1167,7 @@ function BlueprintCanvas({
           ".doc-agent-cell__input, .doc-agent-cell, textarea, input, [contenteditable='true']",
         );
       if (inEditable) return;
+      if (e.target.closest?.(".doc-step-sequence, .doc-overlay-global, .steps-runner-overlay, .doc-block-stack")) return;
       if (e.code === "Space") setSpaceHeld(false);
     };
     window.addEventListener("keydown", onKeyDown);

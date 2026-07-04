@@ -1,12 +1,15 @@
 import { agentAvatarSrc } from "./agentAvatar.js";
+import { canUserAccessAgent } from "./agentAccess.js";
 
-/** @typedef {{ id: string, labelKey: string, descriptionKey: string, canvasTitle: string, icon: string | null, avatarImage?: string | null, avatarKind?: 'illustration' | 'brand-icon', runUxMinMs?: number, enabled?: boolean, disabledReasonKey?: string }} AgentDefinition */
+/** @typedef {{ id: string, labelKey: string, descriptionKey: string, canvasTitle: string, icon: string | null, avatarImage?: string | null, avatarKind?: 'illustration' | 'brand-icon', runUxMinMs?: number, enabled?: boolean, disabledReasonKey?: string, access?: 'public' | 'allowlist', allowedEmails?: string[] }} AgentDefinition */
 
 export const AGENT_ORCHESTRATOR = "orchestrator";
 export const AGENT_CAMPAIGN_ANALYST = "campaign-analyst";
 export const AGENT_MARKETING_GUIDE = "marketing-guide";
 export const AGENT_SOCIAL_HYPE_ANALYST = "social-hype-analyst";
 export const AGENT_CONTENT_CREATOR = "content-creator";
+export const AGENT_DEEP_RESEARCHER = "deep-researcher";
+export const AGENT_SALES_AGENT = "sales-agent";
 
 /** @type {AgentDefinition[]} */
 export const AGENTS = [
@@ -58,6 +61,31 @@ export const AGENTS = [
     runUxMinMs: 18000,
     enabled: true,
   },
+  {
+    id: AGENT_DEEP_RESEARCHER,
+    labelKey: "agents.deepResearcher.name",
+    descriptionKey: "agents.deepResearcher.description",
+    canvasTitle: "DEEP RESEARCHER",
+    icon: "analyst",
+    avatarImage: agentAvatarSrc("agents/man_thinking_221005.svg"),
+    runUxMinMs: 18000,
+    enabled: true,
+    access: "allowlist",
+    allowedEmails: ["contact.fnota@gmail.com"],
+  },
+  {
+    id: AGENT_SALES_AGENT,
+    labelKey: "agents.salesAgent.name",
+    descriptionKey: "agents.salesAgent.description",
+    canvasTitle: "SALES AGENT",
+    icon: "analyst",
+    avatarImage: agentAvatarSrc("branding.svg"),
+    avatarKind: "brand-icon",
+    runUxMinMs: 18000,
+    enabled: true,
+    access: "allowlist",
+    allowedEmails: ["contact.fnota@gmail.com"],
+  },
 ];
 
 /**
@@ -79,6 +107,23 @@ export function isAgentEnabled(agentId) {
 
 /**
  * @param {string} agentId
+ * @param {string | null | undefined} [userEmail]
+ */
+export function isAgentEnabledForUser(agentId, userEmail = null) {
+  const agent = getAgentById(agentId);
+  if (!agent || agent.enabled === false) return false;
+  return canUserAccessAgent(userEmail, agent);
+}
+
+/**
+ * @param {string | null | undefined} [userEmail]
+ */
+export function getAgentsForUser(userEmail = null) {
+  return AGENTS.filter((agent) => isAgentEnabledForUser(agent.id, userEmail));
+}
+
+/**
+ * @param {string} agentId
  */
 export function getAgentCanvasTitle(agentId) {
   return getAgentById(agentId)?.canvasTitle || String(agentId || "agent").toUpperCase();
@@ -94,6 +139,8 @@ export function getAgentLabel(agentId, t) {
 }
 
 /** Agent ids the orchestrator may delegate to (registry source of truth). */
-export function getDelegatableAgentIds() {
-  return AGENTS.filter((a) => a.id !== AGENT_ORCHESTRATOR && a.enabled !== false).map((a) => a.id);
+export function getDelegatableAgentIds(userEmail = null) {
+  return getAgentsForUser(userEmail)
+    .filter((a) => a.id !== AGENT_ORCHESTRATOR)
+    .map((a) => a.id);
 }

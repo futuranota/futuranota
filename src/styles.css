@@ -6829,13 +6829,13 @@ textarea.note-form-field {
 :root[data-theme="light"] .pack-actions__btn--guide,
 :root[data-theme="light"] .pack-actions__btn--guide:hover:not(:disabled),
 :root[data-theme="light"] .pack-actions__btn--guide:active:not(:disabled) {
-  background: var(--beige);
-  border-color: color-mix(in oklab, var(--hairline) 70%, var(--beige));
+  background: transparent;
+  border-color: rgba(232, 220, 200, 0.16);
 }
 
-:root[data-theme="light"] .pack-actions__btn--guide:hover:not(:disabled),
-:root[data-theme="light"] .pack-actions__btn--guide:active:not(:disabled) {
-  border-color: color-mix(in oklab, var(--hairline) 90%, var(--beige));
+:root[data-theme="light"] .pack-actions__guide-icon {
+  filter: brightness(0) invert(1);
+  opacity: 0.75;
 }
 
 :root[data-theme="light"] .cnode-agent__avatar--brand-icon {

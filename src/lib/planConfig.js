@@ -34,6 +34,7 @@ export const TOKEN_COSTS = {
   agentOrchestrator: 10_000,
   agentAnalyst: 10_000,
   agentContentCreator: 10_000,
+  agentPlanAgent: 10_000,
   aiChat: 500,
 };
 
@@ -50,6 +51,7 @@ export const PLAN_LIMITS = {
     tokensRenewable: false,
     maxObjects: 1,
     maxImportBytes: 5 * 1024 * 1024,
+    stepsLibraryCrossObject: false,
     maxSearchesLifetime: 10,
     calendarUsesAllowed: CALENDAR_LIMITS.freeLifetime,
     calendarSearchesCap: CALENDAR_LIMITS.freeLifetime,
@@ -67,6 +69,7 @@ export const PLAN_LIMITS = {
     tokensRenewable: true,
     maxObjects: Infinity,
     maxImportBytes: 5 * 1024 * 1024 * 1024,
+    stepsLibraryCrossObject: true,
     maxLiveRunsPerMonth: 200,
     calendarUsesAllowed: Infinity,
     calendarSearchesCap: CALENDAR_LIMITS.proPerMonth,

@@ -22,6 +22,9 @@ import {
   useReferralModalStore,
   FREE_LIMITS,
 } from './stores/index.js';
+import { useLazyTodosStore } from './stores/lazyTodosStore.js';
+import { createBlankLazyTodo, cloneLazyTodo } from './lib/lazyTodos.js';
+import { lazyTodoHasContent } from './lib/lazyTodoItemKeyDown.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { ReferralModal } from './components/plans/ReferralModal.jsx';
 import { useNavigate } from 'react-router-dom';
@@ -29,6 +32,8 @@ import { useStripeCheckoutReturn } from './lib/useStripeCheckoutReturn.js';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
+import { StepsRunnerOverlay } from './components/steps/StepsRunnerOverlay.jsx';
+import { LazyTodoDashboardOverlay } from './components/lazyTodos/LazyTodoDashboardOverlay.jsx';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
@@ -192,6 +197,8 @@ function Dashboard({ company, onBack }) {
   const [selection, setSelection]     = useState([]);
   const [blueprints, setBlueprints]   = useState([]);
   const [expandedDocId, setExpandedDocId] = useState(null);
+  const [activeStepPlaybook, setActiveStepPlaybook] = useState(null);
+  const [activeLazyTodo, setActiveLazyTodo] = useState(null);
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
   const [expandedNodeId, setExpandedNodeId] = useState(null);
@@ -825,6 +832,92 @@ useEffect(() => {
     setDocOpenFocusBlockId(options.focusBlockId ?? null);
   };
 
+  const handleRunStepPlaybook = (playbook) => {
+    if (!playbook?.steps?.length) return;
+    setActiveStepPlaybook({
+      ...playbook,
+      steps: playbook.steps.map((step) => ({ ...step })),
+    });
+  };
+
+  const handleStepPlaybookRemoved = useCallback(({ docId, blockId }) => {
+    setActiveStepPlaybook((current) => {
+      if (!current) return null;
+      if (current.docId === docId && current.blockId === blockId) return null;
+      return current;
+    });
+  }, []);
+
+  const parkLazyTodo = useLazyTodosStore((s) => s.parkItem);
+  const removeLazyTodo = useLazyTodosStore((s) => s.removeItem);
+  const updateLazyTodo = useLazyTodosStore((s) => s.updateItem);
+  const activateLazyTodo = useLazyTodosStore((s) => s.activateItem);
+
+  const handleOpenNewLazyTodo = useCallback((objectId) => {
+    if (!objectId) return;
+    setActiveLazyTodo((current) => {
+      if (current) {
+        if (lazyTodoHasContent(current)) {
+          parkLazyTodo({ ...current, status: 'queued' });
+        } else if (current.id) {
+          removeLazyTodo(current.id);
+        }
+      }
+      return createBlankLazyTodo(objectId);
+    });
+  }, [parkLazyTodo, removeLazyTodo]);
+
+  const handleOpenLazyTodoItem = useCallback((item) => {
+    if (!item?.id) return;
+    setActiveLazyTodo((current) => {
+      if (current) {
+        if (lazyTodoHasContent(current)) {
+          parkLazyTodo({ ...current, status: 'queued' });
+        } else if (current.id) {
+          removeLazyTodo(current.id);
+        }
+      }
+      activateLazyTodo(item.id);
+      return cloneLazyTodo({ ...item, status: 'active' });
+    });
+  }, [activateLazyTodo, parkLazyTodo, removeLazyTodo]);
+
+  const handleLazyTodoChange = useCallback((patch) => {
+    setActiveLazyTodo((current) => {
+      if (!current) return current;
+      const next = { ...current, ...patch };
+      if (patch.items) next.items = patch.items;
+      if (current.id) {
+        updateLazyTodo(current.id, {
+          reminder: next.reminder,
+          listTitle: next.listTitle,
+          items: next.items,
+          status: 'active',
+        });
+      }
+      return next;
+    });
+  }, [updateLazyTodo]);
+
+  const handleLazyTodoCloseTab = useCallback(() => {
+    setActiveLazyTodo((current) => {
+      if (!current) return null;
+      if (lazyTodoHasContent(current)) {
+        parkLazyTodo({ ...current, status: 'queued' });
+      } else if (current.id) {
+        removeLazyTodo(current.id);
+      }
+      return null;
+    });
+  }, [parkLazyTodo, removeLazyTodo]);
+
+  const handleLazyTodoCompleted = useCallback(() => {
+    setActiveLazyTodo((current) => {
+      if (current?.id) removeLazyTodo(current.id);
+      return null;
+    });
+  }, [removeLazyTodo]);
+
   const openNodeOverlay = useCallback((nodeId, options = {}) => {
     if (!nodeId || !nodeEntities[nodeId]) return;
     setExpandedDocId(null);
@@ -963,6 +1056,9 @@ useEffect(() => {
             onOpenDocument={openDocumentOverlay}
             onExpandNode={openNodeOverlay}
             onDocumentDeleted={handleDocumentDeleted}
+            onRunStepPlaybook={handleRunStepPlaybook}
+            onOpenNewLazyTodo={handleOpenNewLazyTodo}
+            onOpenLazyTodoItem={handleOpenLazyTodoItem}
             timelineCanvasSelection={selection}
             canvasNodesForQueue={canvasNodes}
           />
@@ -1061,6 +1157,23 @@ useEffect(() => {
         onOpenDocument={openDocumentOverlay}
       />
 
+      {activeStepPlaybook ? (
+        <StepsRunnerOverlay
+          playbook={activeStepPlaybook}
+          onClose={() => setActiveStepPlaybook(null)}
+          onComplete={() => {}}
+        />
+      ) : null}
+
+      {activeLazyTodo ? (
+        <LazyTodoDashboardOverlay
+          session={activeLazyTodo}
+          onChange={handleLazyTodoChange}
+          onCloseTab={handleLazyTodoCloseTab}
+          onCompleted={handleLazyTodoCompleted}
+        />
+      ) : null}
+
       {expandedDocId && (
         <div className="doc-overlay-global">
           <div className="doc-overlay-global-card" onClick={(e) => e.stopPropagation()}>
@@ -1077,6 +1190,7 @@ useEffect(() => {
               onInsertToCanvas={insertNodeToCanvas}
               onDocumentDeleted={handleDocumentDeleted}
               onAfterDocSave={handleAfterDocSave}
+              onStepPlaybookRemoved={handleStepPlaybookRemoved}
             />
           </div>
         </div>

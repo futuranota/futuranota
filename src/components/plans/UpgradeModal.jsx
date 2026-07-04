@@ -12,6 +12,7 @@ const REASON_MESSAGE_KEYS = {
   tokens: "upgrade.reasonTokens",
   campaign_frozen: "upgrade.reasonCampaignFrozen",
   export: "upgrade.reasonExport",
+  steps_library: "upgrade.reasonStepsLibrary",
   generic: "upgrade.reasonGeneric",
 };
 

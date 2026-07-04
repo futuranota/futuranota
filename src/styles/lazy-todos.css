@@ -1,0 +1,505 @@
+/* Dashboard workspace overlay — solid, no bleed-through */
+.lazy-todo-dashboard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  background: #0a0c10;
+}
+
+.lazy-todo-dashboard-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: #0a0c10;
+  cursor: pointer;
+}
+
+.lazy-todo-dashboard-overlay__card {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  max-height: min(88vh, 860px);
+  overflow: hidden;
+  border-radius: 14px;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.lazy-todo-card--dashboard {
+  display: flex;
+  flex-direction: column;
+  height: min(88vh, 860px);
+  max-height: min(88vh, 860px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: #12151c;
+  box-shadow: none;
+  color: #e8e4dc;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__header {
+  flex-shrink: 0;
+  padding: 14px 16px 12px;
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__label {
+  color: #fff;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__counter {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 0;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__reminder {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  padding: 14px 16px;
+  border-bottom: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__todo {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 14px 16px;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__footer {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__complete-btn--footer {
+  color: #111;
+  border-color: #fff;
+  background: #fff;
+  font-weight: 600;
+  min-height: 32px;
+  padding: 0 14px;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__complete-btn--footer:hover:not(:disabled) {
+  color: #000;
+  border-color: #fff;
+  background: #fff;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__field-label {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__reminder-input {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  resize: none;
+  font-size: 15px;
+  color: #fff;
+  border-bottom: none;
+  padding: 0;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__reminder-input::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 10px 6px;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #0e1118;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__title-input,
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__item-input,
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__macro-title {
+  color: #fff;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__title-input {
+  font-size: 15px;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__item-input {
+  font-size: 15px;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__card {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #0e1118;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__macro-meta,
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__new-btn {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__title-input::placeholder,
+.lazy-todo-card--dashboard .lazy-todo-card__todo-block .doc-todo-plan__item-input::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.lazy-todo-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.lazy-todo-card__close-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.lazy-todo-card__close-x:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Card base */
+.lazy-todo-card {
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--hairline) 70%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--panel-2) 94%, #fff) 0%,
+      color-mix(in oklab, var(--panel-2) 88%, transparent) 100%
+    );
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 8px 24px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+
+.lazy-todo-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid color-mix(in oklab, var(--hairline) 55%, transparent);
+}
+
+.lazy-todo-card__heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.lazy-todo-card__label {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.lazy-todo-card__counter {
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 0.04em;
+}
+
+.lazy-todo-card__complete-btn {
+  flex-shrink: 0;
+  color: rgba(232, 220, 200, 0.72);
+  border-color: rgba(232, 220, 200, 0.18);
+  background: transparent;
+}
+
+.lazy-todo-card__complete-btn:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(232, 220, 200, 0.32);
+  background: color-mix(in oklab, var(--hud) 12%, transparent);
+}
+
+.lazy-todo-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+}
+
+.lazy-todo-card__field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.lazy-todo-card__reminder-input {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  border: none;
+  border-bottom: 1px solid color-mix(in oklab, var(--hairline) 55%, transparent);
+  border-radius: 0;
+  padding: 0 0 10px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  box-sizing: border-box;
+}
+
+.lazy-todo-card__reminder-input::placeholder {
+  color: color-mix(in oklab, var(--dim) 80%, transparent);
+}
+
+.lazy-todo-card__reminder-input:focus {
+  outline: none;
+  border-bottom-color: color-mix(in oklab, var(--hud) 40%, var(--hairline));
+}
+
+.lazy-todo-card__todo-block {
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--hairline) 65%, transparent);
+  background: color-mix(in oklab, var(--bg) 35%, var(--panel-2));
+  padding: 10px 10px 6px;
+}
+
+.lazy-todo-card__todo-block .doc-todo-plan {
+  margin: 0;
+}
+
+.lazy-todo-card__todo-block .doc-todo-plan__header {
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.lazy-todo-card__todo-block .doc-todo-plan__title-input {
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 34px;
+}
+
+.lazy-todo-card__todo-block .doc-todo-plan__new-btn {
+  font-size: 11px;
+  padding: 0 10px;
+  min-height: 30px;
+}
+
+.lazy-todo-card__todo-block .doc-todo-plan__macro-row {
+  min-height: 42px;
+  padding: 10px 12px;
+}
+
+.lazy-todo-card__todo-block .doc-todo-plan__item-input {
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* Queue panel — steps-files style */
+.lazy-todo-queue-panel__head {
+  align-items: center;
+  gap: 8px;
+}
+
+.lazy-todo-queue-panel__title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.lazy-todo-queue-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lazy-todo-queue-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.lazy-todo-queue-panel__search {
+  flex: 1 1 160px;
+  min-width: 0;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(232, 220, 200, 0.14);
+  background: color-mix(in oklab, var(--panel-2) 92%, #0e1116);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-sizing: border-box;
+}
+
+.lazy-todo-queue-panel__search:focus {
+  outline: none;
+  border-color: color-mix(in oklab, var(--hud) 40%, rgba(232, 220, 200, 0.16));
+}
+
+.lazy-todo-queue-panel__new-btn {
+  flex-shrink: 0;
+  color: rgba(232, 220, 200, 0.72);
+  border-color: rgba(232, 220, 200, 0.18);
+  background: transparent;
+  font-weight: 600;
+}
+
+.lazy-todo-queue-panel__new-btn:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(232, 220, 200, 0.32);
+}
+
+.lazy-todo-queue-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lazy-todo-queue-panel__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--hairline) 70%, transparent);
+  background: color-mix(in oklab, var(--panel-2) 82%, transparent);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.lazy-todo-queue-panel__item:hover {
+  border-color: color-mix(in oklab, var(--hud) 30%, var(--hairline));
+}
+
+.lazy-todo-queue-panel__item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.lazy-todo-queue-panel__item-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.lazy-todo-queue-panel__item-title {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lazy-todo-queue-panel__item-meta {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+.lazy-todo-queue-panel__item-preview {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lazy-todo-queue-panel__item-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.lazy-todo-queue-panel__open-btn {
+  color: #111;
+  border-color: color-mix(in oklab, var(--hairline) 70%, #fff);
+  background: #fff;
+  font-weight: 600;
+}
+
+.lazy-todo-queue-panel__open-btn:hover:not(:disabled) {
+  color: #000;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.12);
+}
+
+.lazy-todo-queue-panel__empty {
+  padding: 12px 0;
+}
+
+.lp-content:has(.lazy-todo-queue-panel) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lp-content:has(.lazy-todo-queue-panel) .lp-click-folders-stack {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 640px) {
+  .lazy-todo-card--dashboard .lazy-todo-card__body {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .lazy-todo-card--dashboard .lazy-todo-card__reminder {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}

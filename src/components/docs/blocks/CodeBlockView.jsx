@@ -5,6 +5,7 @@ import {
   normalizeCodeLanguage,
 } from "../../../lib/codeBlockLanguages.js";
 import { highlightCodeSnippet } from "../../../lib/highlightCodeSnippet.js";
+import { MarkdownPreview } from "./MarkdownPreview.jsx";
 
 async function copyTextToClipboard(text) {
   if (!text) return false;
@@ -51,6 +52,7 @@ export function CodeBlockView({
   const textareaRef = useRef(null);
   const [copied, setCopied] = useState(false);
   const normalizedLanguage = normalizeCodeLanguage(language);
+  const isMarkdownPreview = normalizedLanguage === "markdown";
   const isSavedView = Boolean(codeSaved && code.trim());
 
   useEffect(() => {
@@ -67,8 +69,12 @@ export function CodeBlockView({
   }, [code, isSavedView]);
 
   const highlightedHtml = useMemo(
-    () => (isSavedView ? highlightCodeSnippet(code, normalizedLanguage) : ""),
-    [code, isSavedView, normalizedLanguage],
+    () => (
+      isSavedView && !isMarkdownPreview
+        ? highlightCodeSnippet(code, normalizedLanguage)
+        : ""
+    ),
+    [code, isMarkdownPreview, isSavedView, normalizedLanguage],
   );
 
   const handleCopy = useCallback(async () => {
@@ -89,6 +95,7 @@ export function CodeBlockView({
         className={
           "doc-code-block doc-code-block--saved"
           + (compact ? " doc-code-block--compact" : "")
+          + (isMarkdownPreview ? " doc-code-block--markdown-preview" : "")
         }
       >
         <div className="doc-code-block__header">
@@ -115,19 +122,30 @@ export function CodeBlockView({
             ) : null}
           </div>
         </div>
-        <button
-          type="button"
-          className="doc-code-block__snippet"
-          onClick={() => onEdit?.()}
-          aria-label="Editar snippet de código"
-        >
-          <pre className="doc-code-block__pre">
-            <code
-              className="doc-code-block__highlight hljs"
-              dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-            />
-          </pre>
-        </button>
+        {isMarkdownPreview ? (
+          <button
+            type="button"
+            className="doc-code-block__markdown-preview"
+            onClick={() => onEdit?.()}
+            aria-label="Editar markdown"
+          >
+            <MarkdownPreview source={code} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="doc-code-block__snippet"
+            onClick={() => onEdit?.()}
+            aria-label="Editar snippet de código"
+          >
+            <pre className="doc-code-block__pre">
+              <code
+                className="doc-code-block__highlight hljs"
+                dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+              />
+            </pre>
+          </button>
+        )}
       </div>
     );
   }
@@ -179,7 +197,11 @@ export function CodeBlockView({
         autoCorrect="off"
         autoCapitalize="off"
         data-gramm="false"
-        placeholder="// Escribe o pega tu código aquí"
+        placeholder={
+          isMarkdownPreview
+            ? "# Escribe o pega markdown aquí"
+            : "// Escribe o pega tu código aquí"
+        }
         onChange={(e) => {
           onCodeChange?.(e.target.value);
           syncCodeTextareaHeight(e.target);

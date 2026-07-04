@@ -19,6 +19,7 @@ const DOC_BLOCK_TYPES = {
   PASSWORD_VAULT: "password_vault",
   LINK_VAULT: "link_vault",
   AGENT: "agent",
+  STEP_SEQUENCE: "step_sequence",
 };
 
 export const DEFAULT_AGENT_BLOCK_TITLE = "Agent";
@@ -32,6 +33,38 @@ export function createTodoItem(patch = {}) {
     checked: false,
     ...patch,
   };
+}
+
+export function createStepEntry(patch = {}) {
+  return {
+    id: patch.id || generateId("STEP"),
+    text: patch.text ?? "",
+  };
+}
+
+function normalizeStepSequenceSteps(steps) {
+  if (!Array.isArray(steps) || steps.length === 0) {
+    return [createStepEntry()];
+  }
+  return steps.map((step) => createStepEntry(step));
+}
+
+function normalizeStepSequenceBlock(block) {
+  return {
+    title: String(block?.title ?? ""),
+    steps: normalizeStepSequenceSteps(block?.steps),
+    saved: Boolean(block?.saved),
+  };
+}
+
+/** Trim trailing empty steps and guarantee at least one step. */
+export function finalizeStepSequence(steps) {
+  const normalized = normalizeStepSequenceSteps(steps);
+  let end = normalized.length;
+  while (end > 1 && !(normalized[end - 1]?.text || "").trim()) {
+    end -= 1;
+  }
+  return normalized.slice(0, end);
 }
 
 function normalizeDateContent(block) {
@@ -257,6 +290,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     };
   }
 
+  if (type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
+    const normalized = normalizeStepSequenceBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.STEP_SEQUENCE,
+      ...normalized,
+    };
+  }
+
   return { ...base, type: DOC_BLOCK_TYPES.TEXT, text: "", ...patch };
 }
 
@@ -396,6 +438,13 @@ export function normalizeDocBlock(block) {
     return createDocBlock(DOC_BLOCK_TYPES.AGENT, {
       id: block.id,
       ...normalizeAgentBlock(block),
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
+    return createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, {
+      id: block.id,
+      ...normalizeStepSequenceBlock(block),
     });
   }
 
@@ -628,6 +677,20 @@ function parseLinkVaultSection(section) {
   }
 }
 
+function parseStepSequenceSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::stepsequence")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE);
+  }
+}
+
 export function docBlocksFromBody(body) {
   const raw = String(body ?? "").trim();
   if (!raw) return [];
@@ -690,6 +753,12 @@ export function docBlocksFromBody(body) {
     const linkVaultBlock = parseLinkVaultSection(section);
     if (linkVaultBlock) {
       blocks.push(linkVaultBlock);
+      continue;
+    }
+
+    const stepSequenceBlock = parseStepSequenceSection(section);
+    if (stepSequenceBlock) {
+      blocks.push(stepSequenceBlock);
       continue;
     }
 
@@ -784,6 +853,14 @@ export function docBlocksToBody(blocks) {
       if (block.type === DOC_BLOCK_TYPES.LINK_VAULT) {
         return `::link\n${JSON.stringify({
           entries: normalizeLinkEntries(block.entries),
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
+        const normalized = normalizeStepSequenceBlock(block);
+        return `::stepsequence\n${JSON.stringify({
+          title: normalized.title,
+          steps: normalized.steps,
+          saved: normalized.saved,
         })}`;
       }
       return block.text || "";
@@ -937,6 +1014,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
     || block.type === DOC_BLOCK_TYPES.LINK_VAULT
     || block.type === DOC_BLOCK_TYPES.AGENT
+    || block.type === DOC_BLOCK_TYPES.STEP_SEQUENCE
   ) {
     return block;
   }

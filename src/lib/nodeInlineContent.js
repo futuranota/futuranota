@@ -1,4 +1,4 @@
-import { createTodoItem, DOC_BLOCK_TYPES } from "./docBlocks.js";
+import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES } from "./docBlocks.js";
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
@@ -19,6 +19,7 @@ export const NODE_BLOCK_TYPES = {
   PASSWORD_VAULT: "password_vault",
   LINK_VAULT: "link_vault",
   AGENT: "agent",
+  STEP_SEQUENCE: "step_sequence",
 };
 
 export function isNodeWritingBody(content) {
@@ -88,6 +89,17 @@ export function createInlineAgentBlock(instruction = "") {
     id: generateId("NAG"),
     type: NODE_BLOCK_TYPES.AGENT,
     instruction: String(instruction ?? ""),
+  };
+}
+
+export function createInlineStepSequenceBlock(steps = [], saved = false, title = "") {
+  const docShape = createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, { steps, saved, title });
+  return {
+    id: generateId("NST"),
+    type: NODE_BLOCK_TYPES.STEP_SEQUENCE,
+    title: docShape.title,
+    steps: docShape.steps,
+    saved: docShape.saved,
   };
 }
 
@@ -161,6 +173,20 @@ export function normalizeWritingBlocks(blocks) {
         instruction: String(block.instruction ?? ""),
       };
     }
+    if (block?.type === NODE_BLOCK_TYPES.STEP_SEQUENCE) {
+      const docShape = createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, {
+        steps: block.steps,
+        saved: block.saved,
+        title: block.title,
+      });
+      return {
+        id: block.id || generateId("NST"),
+        type: NODE_BLOCK_TYPES.STEP_SEQUENCE,
+        title: docShape.title,
+        steps: docShape.steps,
+        saved: docShape.saved,
+      };
+    }
     return {
       id: block?.id || generateId("NTX"),
       type: NODE_BLOCK_TYPES.TEXT,
@@ -218,6 +244,9 @@ export function nodeWritingBlocksHaveContent(blocks) {
     }
     if (block.type === NODE_BLOCK_TYPES.AGENT) {
       return Boolean((block.instruction || "").trim());
+    }
+    if (block.type === NODE_BLOCK_TYPES.STEP_SEQUENCE) {
+      return block.steps.some((step) => (step.text || "").trim());
     }
     return block.text.trim();
   });
@@ -337,6 +366,9 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
   }
   if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
     return createInlineAgentBlock(String(textPrefix || "").trim());
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
+    return createInlineStepSequenceBlock();
   }
   return null;
 }

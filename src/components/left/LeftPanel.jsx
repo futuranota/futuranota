@@ -12,7 +12,8 @@ import {
 } from "../../stores/index.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
-import { AGENTS, AGENT_MARKETING_GUIDE } from "../../lib/agents/registry.js";
+import { getAgentsForUser, AGENT_MARKETING_GUIDE } from "../../lib/agents/registry.js";
+import { useAuthStore } from "../../stores/authStore.js";
 import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
@@ -35,7 +36,6 @@ import {
 import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
 import {
   buildCategoryFilterOptions,
-  buildContentFilterOptions,
   contentDocMatchesProductFilter,
   productDocMatchesCategoryFilter,
 } from "../../lib/contentProductFilter.js";
@@ -47,6 +47,8 @@ import { DocGroupBlockCard } from "./DocGroupBlockCard.jsx";
 import { PlanUsagePanel } from "../plans/PlanUsagePanel.jsx";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
+import { StepsLibraryPanel } from "../steps/StepsLibraryPanel.jsx";
+import { LazyTodoQueuePanel } from "../lazyTodos/LazyTodoQueuePanel.jsx";
 import { TranslatedText } from "../shared/TranslatedText.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { PANEL_TYPES, usePanelTypeLabels } from "../../i18n/panelTypes.js";
@@ -1064,6 +1066,9 @@ export function LeftPanel({
   onOpenDocument,
   onExpandNode,
   onDocumentDeleted,
+  onRunStepPlaybook,
+  onOpenNewLazyTodo,
+  onOpenLazyTodoItem,
   timelineCanvasSelection = [],
   canvasNodesForQueue = [],
 }) {
@@ -1081,6 +1086,8 @@ export function LeftPanel({
   const [nodeSearch, setNodeSearch] = useState("");
   const [clickFolderView, setClickFolderView] = useState(null);
   const [packImportActive, setPackImportActive] = useState(false);
+  const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
+  const [lazyTodosActive, setLazyTodosActive] = useState(false);
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
@@ -1111,13 +1118,15 @@ export function LeftPanel({
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
 
+  const userEmail = useAuthStore((s) => s.user?.email);
+
   const handleInsertGuide = useCallback(() => {
     onInsertAgent?.(AGENT_MARKETING_GUIDE);
   }, [onInsertAgent]);
 
   const canvasAgents = useMemo(
-    () => AGENTS.filter((agent) => agent.id !== AGENT_MARKETING_GUIDE),
-    [],
+    () => getAgentsForUser(userEmail).filter((agent) => agent.id !== AGENT_MARKETING_GUIDE),
+    [userEmail],
   );
 
   const timelineQueueEntries = useMemo(
@@ -1188,11 +1197,6 @@ export function LeftPanel({
     [productDocs],
   );
 
-  const contentFilterOptions = useMemo(
-    () => buildContentFilterOptions(productDocs),
-    [productDocs],
-  );
-
   const filteredProductDocs = useMemo(
     () => productDocs.filter((doc) => productDocMatchesCategoryFilter(doc, productCategoryFilter)),
     [productDocs, productCategoryFilter],
@@ -1216,17 +1220,43 @@ export function LeftPanel({
   useEffect(() => {
     setClickFolderView(null);
     setPackImportActive(false);
+    setStepsLibraryActive(false);
+    setLazyTodosActive(false);
     setProductCategoryFilter(null);
     setContentProductFilter(null);
   }, [panelType, filterObjectId, setProductCategoryFilter, setContentProductFilter]);
 
   const openPackImportView = () => {
     setClickFolderView(null);
+    setStepsLibraryActive(false);
+    setLazyTodosActive(false);
     setPackImportActive(true);
   };
 
   const closePackImportView = () => {
     setPackImportActive(false);
+  };
+
+  const openStepsLibraryView = () => {
+    setClickFolderView(null);
+    setPackImportActive(false);
+    setLazyTodosActive(false);
+    setStepsLibraryActive(true);
+  };
+
+  const closeStepsLibraryView = () => {
+    setStepsLibraryActive(false);
+  };
+
+  const openLazyTodosView = () => {
+    setClickFolderView(null);
+    setPackImportActive(false);
+    setStepsLibraryActive(false);
+    setLazyTodosActive(true);
+  };
+
+  const closeLazyTodosView = () => {
+    setLazyTodosActive(false);
   };
 
   useEffect(() => {
@@ -1279,8 +1309,52 @@ export function LeftPanel({
     setPanelType("Documents");
     setClickFolderView(null);
     setPackImportActive(false);
+    setStepsLibraryActive(false);
+    setLazyTodosActive(false);
     setShowCreate(false);
     setFolderOpen(false);
+  };
+
+  const openStepsLibraryFromToolbar = () => {
+    const targetObjectId = filterObjectId || selectedObjectId;
+    if (targetObjectId) {
+      if (!objectWorkspaceActive) {
+        enterObjectWorkspace(targetObjectId);
+      } else {
+        setPanelType("Documents");
+      }
+    } else {
+      setPanelType("Documents");
+    }
+    openStepsLibraryView();
+  };
+
+  const openLazyTodosFromToolbar = () => {
+    const targetObjectId = filterObjectId || selectedObjectId;
+    if (targetObjectId) {
+      if (!objectWorkspaceActive) {
+        enterObjectWorkspace(targetObjectId);
+      } else {
+        setPanelType("Documents");
+      }
+    } else {
+      setPanelType("Documents");
+    }
+    openLazyTodosView();
+    onOpenNewLazyTodo?.(targetObjectId || filterObjectId || selectedObjectId);
+  };
+
+  const handleOpenLazyTodoFromQueue = (item) => {
+    onOpenLazyTodoItem?.(item);
+  };
+
+  const handleNewLazyTodoFromQueue = () => {
+    onOpenNewLazyTodo?.(filterObjectId || selectedObjectId);
+  };
+
+  const handleRunPlaybookFromLibrary = (playbook) => {
+    closeStepsLibraryView();
+    onRunStepPlaybook?.(playbook);
   };
 
   const exitObjectWorkspace = () => {
@@ -1518,6 +1592,8 @@ export function LeftPanel({
                     openPackImportView();
                   }
                 }}
+                onOpenStepsLibrary={openStepsLibraryFromToolbar}
+                onOpenLazyTodos={openLazyTodosFromToolbar}
               />
             </div>
             <div className="lp-objects-grid">
@@ -1551,6 +1627,25 @@ export function LeftPanel({
           </>
         )}
 
+        {/* DOCUMENTS — steps library without workspace */}
+        {panelType === "Documents" && stepsLibraryActive && !objectWorkspaceActive ? (
+          <StepsLibraryPanel
+            objectId={filterObjectId}
+            onClose={closeStepsLibraryView}
+            onRunPlaybook={handleRunPlaybookFromLibrary}
+            onOpenDocument={onOpenDocument}
+          />
+        ) : null}
+
+        {panelType === "Documents" && lazyTodosActive && !objectWorkspaceActive ? (
+          <LazyTodoQueuePanel
+            objectId={filterObjectId}
+            onClose={closeLazyTodosView}
+            onOpenItem={handleOpenLazyTodoFromQueue}
+            onNew={handleNewLazyTodoFromQueue}
+          />
+        ) : null}
+
         {/* DOCUMENTS — click folder navigation */}
         {panelType === "Documents" && objectWorkspaceActive && (
           <div className="lp-click-folders-stack">
@@ -1562,7 +1657,25 @@ export function LeftPanel({
               />
             ) : null}
 
-            {!packImportActive && clickFolderView === null ? (
+            {stepsLibraryActive ? (
+              <StepsLibraryPanel
+                objectId={filterObjectId}
+                onClose={closeStepsLibraryView}
+                onRunPlaybook={handleRunPlaybookFromLibrary}
+                onOpenDocument={onOpenDocument}
+              />
+            ) : null}
+
+            {lazyTodosActive ? (
+              <LazyTodoQueuePanel
+                objectId={filterObjectId}
+                onClose={closeLazyTodosView}
+                onOpenItem={handleOpenLazyTodoFromQueue}
+                onNew={handleNewLazyTodoFromQueue}
+              />
+            ) : null}
+
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === null ? (
               <>
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -1572,8 +1685,9 @@ export function LeftPanel({
                   />
                   <PackActionsBar
                     placement="documents"
-                    exportObjectId={filterObjectId}
                     onOpenImport={openPackImportView}
+                    onOpenStepsLibrary={openStepsLibraryFromToolbar}
+                    onOpenLazyTodos={openLazyTodosFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
@@ -1594,23 +1708,27 @@ export function LeftPanel({
               </>
             ) : null}
 
-            {!packImportActive && clickFolderView === "groups" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "groups" ? (
               <div className="lp-click-folder-detail">
-                <ClickFolderBack
-                  iconOnly
-                  onBack={() => setClickFolderView(null)}
-                  label={t("sidebar.products")}
-                />
-                <PackActionsBar
-                  placement="documents"
-                  exportObjectId={filterObjectId}
-                  onOpenImport={openPackImportView}
-                  filterMode="category"
-                  filterOptions={categoryFilterOptions}
-                  filterValue={productCategoryFilter}
-                  onFilterChange={setProductCategoryFilter}
-                  onInsertGuide={handleInsertGuide}
-                />
+                <div className="lp-workspace-head">
+                  <ClickFolderBack
+                    iconOnly
+                    inline
+                    onBack={() => setClickFolderView(null)}
+                    label={t("sidebar.products")}
+                  />
+                  <PackActionsBar
+                    placement="documents"
+                    onOpenImport={openPackImportView}
+                    onOpenStepsLibrary={openStepsLibraryFromToolbar}
+                    onOpenLazyTodos={openLazyTodosFromToolbar}
+                    filterMode="category"
+                    filterOptions={categoryFilterOptions}
+                    filterValue={productCategoryFilter}
+                    onFilterChange={setProductCategoryFilter}
+                    onInsertGuide={handleInsertGuide}
+                  />
+                </div>
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
                   docs={docs}
@@ -1658,7 +1776,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && clickFolderView === "knowledge" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "knowledge" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -1691,7 +1809,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && clickFolderView === "agents" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "agents" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -1710,23 +1828,23 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && clickFolderView === "subgroups" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "subgroups" ? (
               <div className="lp-click-folder-detail">
-                <ClickFolderBack
-                  iconOnly
-                  onBack={() => setClickFolderView(null)}
-                  label={t("sidebar.content")}
-                />
-                <PackActionsBar
-                  placement="documents"
-                  exportObjectId={filterObjectId}
-                  onOpenImport={openPackImportView}
-                  filterMode="content"
-                  filterOptions={contentFilterOptions}
-                  filterValue={contentProductFilter}
-                  onFilterChange={setContentProductFilter}
-                  onInsertGuide={handleInsertGuide}
-                />
+                <div className="lp-workspace-head">
+                  <ClickFolderBack
+                    iconOnly
+                    inline
+                    onBack={() => setClickFolderView(null)}
+                    label={t("sidebar.content")}
+                  />
+                  <PackActionsBar
+                    placement="documents"
+                    onOpenImport={openPackImportView}
+                    onOpenStepsLibrary={openStepsLibraryFromToolbar}
+                    onOpenLazyTodos={openLazyTodosFromToolbar}
+                    onInsertGuide={handleInsertGuide}
+                  />
+                </div>
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
                   docs={docs}

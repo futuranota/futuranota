@@ -72,6 +72,7 @@ export function DocDocumentBox({
   onVideoEmbedSync,
   onVideoEmbedH1TitleChange,
   onDetachFromNode,
+  onSavedStepSequenceRemoved,
   headerLabel,
   version = "",
   onVersionChange,
@@ -683,6 +684,7 @@ export function DocDocumentBox({
               onVideoEmbedSync={onVideoEmbedSync}
               onVideoEmbedH1TitleChange={onVideoEmbedH1TitleChange}
               onDetachFromNode={onDetachFromNode}
+              onSavedStepSequenceRemoved={onSavedStepSequenceRemoved}
               reportPresentation={reportPresentation}
               onReportAnimationComplete={onReportAnimationComplete}
             />

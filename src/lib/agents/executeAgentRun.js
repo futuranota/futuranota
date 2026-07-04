@@ -4,10 +4,12 @@ import { translate } from "../../i18n/useI18n.js";
 import {
   AGENT_CAMPAIGN_ANALYST,
   AGENT_CONTENT_CREATOR,
+  AGENT_DEEP_RESEARCHER,
   AGENT_MARKETING_GUIDE,
+  AGENT_SALES_AGENT,
   AGENT_SOCIAL_HYPE_ANALYST,
   getAgentById,
-  isAgentEnabled,
+  isAgentEnabledForUser,
 } from "./registry.js";
 import {
   formatScheduleAtLabel,
@@ -18,6 +20,9 @@ import { runCampaignAnalyst } from "./runCampaignAnalyst.js";
 import { runMarketingGuideAgent } from "./runMarketingGuideAgent.js";
 import { runSocialHypeAnalystAgent } from "./runSocialHypeAnalystAgent.js";
 import { runContentCreatorAgent } from "./runContentCreatorAgent.js";
+import { runSalesAgentAgent } from "./runSalesAgentAgent.js";
+import { runDeepResearcherAgent } from "./runDeepResearcherAgent.js";
+import { useAuthStore } from "../../stores/authStore.js";
 
 /**
  * Run a canvas agent node (manual or scheduled).
@@ -67,24 +72,32 @@ export async function executeAgentRun({
   }
 
   const selectedObjectId = useUIStateStore.getState().selectedObjectId;
+  const userEmail = useAuthStore.getState().user?.email;
   const agentId = agentNode.agentId || AGENT_CAMPAIGN_ANALYST;
   const agentDef = getAgentById(agentId);
 
-  if (!isAgentEnabled(agentId)) {
+  if (!isAgentEnabledForUser(agentId, userEmail)) {
+    const message = translate("agents.errors.agent_forbidden", locale);
     patchCanvasNode(canvasNodeId, {
       agentStatus: "error",
-      agentError: translate("agents.orchestrator.disabled", locale),
+      agentError: message,
     });
     if (!silentToast) {
-      setToast({ message: translate("agents.orchestrator.disabled", locale), kind: "warm" });
+      setToast({ message, kind: "warm" });
     }
     return { ok: false };
   }
 
-  if (agentId !== AGENT_CAMPAIGN_ANALYST
-    && agentId !== AGENT_MARKETING_GUIDE
-    && agentId !== AGENT_SOCIAL_HYPE_ANALYST
-    && agentId !== AGENT_CONTENT_CREATOR) {
+  const runnableIds = new Set([
+    AGENT_CAMPAIGN_ANALYST,
+    AGENT_MARKETING_GUIDE,
+    AGENT_SOCIAL_HYPE_ANALYST,
+    AGENT_CONTENT_CREATOR,
+    AGENT_SALES_AGENT,
+    AGENT_DEEP_RESEARCHER,
+  ]);
+
+  if (!runnableIds.has(agentId)) {
     patchCanvasNode(canvasNodeId, {
       agentStatus: "error",
       agentError: translate("agents.errors.generic", locale),
@@ -121,8 +134,8 @@ export async function executeAgentRun({
   patchCanvasNode(canvasNodeId, { agentStatus: "running", agentError: "" });
 
   const minUxMs = agentDef?.runUxMinMs ?? 0;
-  const runAgent = () => (agentId === AGENT_MARKETING_GUIDE
-    ? runMarketingGuideAgent({
+  const runAgent = () => {
+    const base = {
       agentCanvasNodeId: canvasNodeId,
       canvasNodes,
       connections: canvasConns,
@@ -130,39 +143,24 @@ export async function executeAgentRun({
       objectsById: objects,
       selectedObjectId,
       locale,
-    })
-    : agentId === AGENT_SOCIAL_HYPE_ANALYST
-      ? runSocialHypeAnalystAgent({
-        agentCanvasNodeId: canvasNodeId,
-        canvasNodes,
-        connections: canvasConns,
-        docsById: useDocsStore.getState().docs,
-        objectsById: objects,
-        selectedObjectId,
-        locale,
-      })
-      : agentId === AGENT_CONTENT_CREATOR
-        ? runContentCreatorAgent({
-          agentCanvasNodeId: canvasNodeId,
-          canvasNodes,
-          connections: canvasConns,
-          docsById: useDocsStore.getState().docs,
-          objectsById: objects,
-          nodeEntitiesById: nodeEntities,
-          selectedObjectId,
-          preferredMacroEntityId,
-          locale,
-        })
-        : runCampaignAnalyst({
-          agentCanvasNodeId: canvasNodeId,
-          canvasNodes,
-          connections: canvasConns,
-          docsById: useDocsStore.getState().docs,
-          objectsById: objects,
-          nodeEntitiesById: nodeEntities,
-          selectedObjectId,
-          locale,
-        }));
+    };
+
+    if (agentId === AGENT_MARKETING_GUIDE) return runMarketingGuideAgent(base);
+    if (agentId === AGENT_SOCIAL_HYPE_ANALYST) return runSocialHypeAnalystAgent(base);
+    if (agentId === AGENT_CONTENT_CREATOR) {
+      return runContentCreatorAgent({
+        ...base,
+        nodeEntitiesById: nodeEntities,
+        preferredMacroEntityId,
+      });
+    }
+    if (agentId === AGENT_SALES_AGENT) return runSalesAgentAgent(base);
+    if (agentId === AGENT_DEEP_RESEARCHER) return runDeepResearcherAgent(base);
+    return runCampaignAnalyst({
+      ...base,
+      nodeEntitiesById: nodeEntities,
+    });
+  };
 
   const [result] = await Promise.all([
     runAgent(),
@@ -221,7 +219,11 @@ export async function executeAgentRun({
                       brand: result.brandName,
                       count: String(result.plan?.items?.length || 0),
                     })))
-                : translate("agents.runSuccess", locale, { brand: result.brandName })),
+                : agentId === AGENT_SALES_AGENT
+                  ? result.userFacingMessage
+                  : agentId === AGENT_DEEP_RESEARCHER
+                    ? result.userFacingMessage
+                    : translate("agents.runSuccess", locale, { brand: result.brandName })),
         kind: "ok",
       });
     }

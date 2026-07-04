@@ -15,6 +15,7 @@ import { CodeBlockView } from "../docs/blocks/CodeBlockView.jsx";
 import { PasswordVaultBlockView } from "../docs/blocks/PasswordVaultBlockView.jsx";
 import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { AgentBlockView } from "../docs/blocks/AgentBlockView.jsx";
+import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 
 function syncTextareaHeight(el) {
@@ -59,6 +60,10 @@ function focusVaultTarget(parsed, blocks, blockIndex, onFocusTargetChange) {
   }
   if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
     onFocusTargetChange?.({ blockIndex: insertedIndex, focusAgent: true });
+    return;
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
+    onFocusTargetChange?.({ blockIndex: insertedIndex, focusSteps: true });
     return;
   }
   if (vaultNodeType) {
@@ -426,6 +431,33 @@ export function NodeWritingBlockStack({
                 }
                 onInstructionChange={(instruction) => updateBlockAt(blockIndex, { instruction })}
                 onDelete={() => removeBlockAt(blockIndex)}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.STEP_SEQUENCE) {
+          return (
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__steps"
+            >
+              <StepSequenceBlockView
+                blockId={block.id}
+                title={block.title || ""}
+                steps={block.steps || []}
+                saved={Boolean(block.saved)}
+                compact
+                autoFocus={
+                  focusTarget?.blockIndex === blockIndex && focusTarget?.focusSteps
+                }
+                onTitleChange={(nextTitle) => updateBlockAt(blockIndex, { title: nextTitle })}
+                onStepsChange={(steps) => updateBlockAt(blockIndex, { steps })}
+                onSavedChange={(finalizedSteps) => {
+                  updateBlockAt(blockIndex, { steps: finalizedSteps, saved: true });
+                }}
+                onDeleteBlock={() => removeBlockAt(blockIndex)}
               />
             </div>
           );

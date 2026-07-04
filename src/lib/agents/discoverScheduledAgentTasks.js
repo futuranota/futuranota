@@ -1,17 +1,14 @@
 import { extractAgentInstructionFromNodeEntity } from "../resolveAgentInstruction.js";
-import {
-  AGENT_CAMPAIGN_ANALYST,
-  AGENT_CONTENT_CREATOR,
-  AGENT_MARKETING_GUIDE,
-  AGENT_SOCIAL_HYPE_ANALYST,
-  isAgentEnabled,
-} from "./registry.js";
+import { AGENT_CAMPAIGN_ANALYST, AGENT_CONTENT_CREATOR, AGENT_DEEP_RESEARCHER, AGENT_MARKETING_GUIDE, AGENT_SALES_AGENT, AGENT_SOCIAL_HYPE_ANALYST, isAgentEnabledForUser } from "./registry.js";
+import { useAuthStore } from "../../stores/authStore.js";
 
 const RUNNABLE_AGENT_IDS = new Set([
   AGENT_CAMPAIGN_ANALYST,
   AGENT_MARKETING_GUIDE,
   AGENT_SOCIAL_HYPE_ANALYST,
   AGENT_CONTENT_CREATOR,
+  AGENT_SALES_AGENT,
+  AGENT_DEEP_RESEARCHER,
 ]);
 
 /**
@@ -55,7 +52,9 @@ export function discoverScheduledAgentTasks({
     if (agentNode.canvasKind !== "agent" && agentNode.dataType !== "agent") continue;
 
     const agentId = agentNode.agentId || AGENT_CAMPAIGN_ANALYST;
-    if (!RUNNABLE_AGENT_IDS.has(agentId) || !isAgentEnabled(agentId)) continue;
+    if (!RUNNABLE_AGENT_IDS.has(agentId)) continue;
+    const userEmail = useAuthStore.getState().user?.email;
+    if (!isAgentEnabledForUser(agentId, userEmail)) continue;
 
     for (const macroNode of incomingCanvasNodes(agentNode.id, connections, canvasNodes)) {
       if (!macroNode?.noteId) continue;

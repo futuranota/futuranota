@@ -35,13 +35,6 @@ export const DOC_SLASH_COMMANDS = [
     defaultListTitle: "Todo list:",
   },
   {
-    label: "Date",
-    ghostHint: "Date",
-    aliases: ["date"],
-    blockType: DOC_BLOCK_TYPES.DATE,
-    nodeDataType: NODE_DATA_TYPES.DATE,
-  },
-  {
     label: "ProductCard",
     ghostHint: "productcard",
     aliases: ["productcard", "product-card", "product card"],
@@ -49,7 +42,7 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Embedded video",
+    label: "Embed video",
     ghostHint: "embedvideo",
     aliases: ["embedvideo", "embeddedvideo", "video", "embed"],
     blockType: DOC_BLOCK_TYPES.VIDEO_EMBED,
@@ -64,7 +57,7 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Código",
+    label: "Code",
     ghostHint: "code",
     aliases: ["code", "codigo", "snippet", "codeblock"],
     blockType: DOC_BLOCK_TYPES.CODE,
@@ -78,10 +71,17 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Link",
-    ghostHint: "link",
-    aliases: ["link", "enlace", "url", "bookmark"],
+    label: "Link table",
+    ghostHint: "linktable",
+    aliases: ["linktable", "link", "enlace", "url", "bookmark"],
     blockType: DOC_BLOCK_TYPES.LINK_VAULT,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
+    label: "Step by step",
+    ghostHint: "stepbystep",
+    aliases: ["stepbystep", "step-by-step", "steptostep", "step-to-step", "stepton", "step2n", "steps", "instrucciones", "stepsequence"],
+    blockType: DOC_BLOCK_TYPES.STEP_SEQUENCE,
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
@@ -105,7 +105,8 @@ export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
     || cmd.blockType === DOC_BLOCK_TYPES.CODE
     || cmd.blockType === DOC_BLOCK_TYPES.PASSWORD_VAULT
     || cmd.blockType === DOC_BLOCK_TYPES.LINK_VAULT
-    || cmd.blockType === DOC_BLOCK_TYPES.AGENT,
+    || cmd.blockType === DOC_BLOCK_TYPES.AGENT
+    || cmd.blockType === DOC_BLOCK_TYPES.STEP_SEQUENCE,
 );
 
 export function parseSlashQuery(query) {
@@ -181,6 +182,10 @@ export function createDocBlockFromSlash(parsed) {
 
   if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
     return createDocBlock(DOC_BLOCK_TYPES.AGENT, { instruction: "" });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
+    return createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE);
   }
 
   return createDocBlock();

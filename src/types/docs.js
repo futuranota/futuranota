@@ -7,7 +7,7 @@
  */
 
 /**
- * @typedef {'text'|'h1'|'todo'} DocBlockType
+ * @typedef {'text'|'h1'|'todo'|'step_sequence'|string} DocBlockType
  */
 
 /**

@@ -193,6 +193,7 @@ export function DocExpandedView({
   onNavigateToDoc,
   onDocumentDeleted,
   onAfterDocSave,
+  onStepPlaybookRemoved,
   initialFocusBlockId = null,
 }) {
   const doc = useDocsStore((s) => s.docs[docId]);
@@ -607,6 +608,43 @@ export function DocExpandedView({
     setInitialSnapshot(savedSnapshot);
     useUIStateStore.getState().clearDocEditorDraft(doc.id);
     onAfterDocSave?.(doc.id, savedSnapshot.blocks);
+  };
+
+  const persistBlocksAfterPlaybookRemoval = ({ blockId, nextBlocks }) => {
+    const savedSnapshot = buildDocPersistSnapshot({
+      title: resolvePersistTitle({
+        draftTitle,
+        draftCategory,
+        draftVersion,
+        draftDocKind,
+        draftSubcategoryDocIds,
+      }).trim() || doc?.title || "New document",
+      blocks: nextBlocks,
+      body: docBlocksToBody(nextBlocks) || draftBody,
+      createdDate: draftCreatedDate,
+      version: draftVersion,
+      category: draftCategory,
+      launchAt: draftLaunchAt,
+      campaignActive: draftCampaignActive,
+      parentObjectId: isKnowledgeMode ? "" : draftParentId,
+      nodeLinkColor: draftNodeLinkColor,
+      docKind: draftDocKind,
+      templateKind: draftTemplateKind,
+      subcategoryDocIds: draftSubcategoryDocIds,
+      knowledgeImport: draftKnowledgeImport,
+    });
+    updateDoc(doc.id, {
+      blocks: savedSnapshot.blocks,
+      content: savedSnapshot.body,
+      body: savedSnapshot.body,
+    });
+    setInitialSnapshot((prev) => (
+      prev
+        ? { ...prev, blocks: savedSnapshot.blocks, body: savedSnapshot.body }
+        : prev
+    ));
+    onAfterDocSave?.(doc.id, savedSnapshot.blocks);
+    onStepPlaybookRemoved?.({ docId: doc.id, blockId });
   };
 
   const resetNodeModalState = () => {
@@ -1185,6 +1223,7 @@ export function DocExpandedView({
           initialFocusBlockId={initialFocusBlockId}
           reportPresentation={doc?.reportPresentation ?? null}
           onReportAnimationComplete={handleReportAnimationComplete}
+          onSavedStepSequenceRemoved={persistBlocksAfterPlaybookRemoval}
         />
       </div>
       {selectionModal && (

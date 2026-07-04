@@ -83,6 +83,7 @@ import { CodeBlockView } from "./CodeBlockView.jsx";
 import { PasswordVaultBlockView } from "./PasswordVaultBlockView.jsx";
 import { LinkVaultBlockView } from "./LinkVaultBlockView.jsx";
 import { AgentBlockView } from "./AgentBlockView.jsx";
+import { StepSequenceBlockView } from "./StepSequenceBlockView.jsx";
 
 const UNLINK_H1_PATCH = {
   nodeId: undefined,
@@ -139,6 +140,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   continuationPlaceholder = "Keep writing, or type / for a new block",
   reportPresentation = null,
   onReportAnimationComplete = null,
+  onSavedStepSequenceRemoved = null,
 }, ref) {
   const { t } = useI18n();
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
@@ -1486,6 +1488,65 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
                 }
                 setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+                requestContentGrow();
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.STEP_SEQUENCE ? (
+            <StepSequenceBlockView
+              blockId={block.id}
+              title={block.title || ""}
+              steps={block.steps || []}
+              saved={Boolean(block.saved)}
+              autoFocus={focusBlockId === block.id}
+              onTitleChange={(nextTitle) => {
+                const next = updateBlockAt(blocksRef.current, index, { title: nextTitle });
+                setBlocks(next);
+                requestContentGrow();
+              }}
+              onStepsChange={(steps) => {
+                let next = updateBlockAt(blocksRef.current, index, { steps });
+                const current = blocksRef.current[index];
+                const hasContent = (current?.title || "").trim()
+                  || steps.some((step) => (step.text || "").trim());
+                if (hasContent) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
+                requestContentGrow();
+              }}
+              onSavedChange={(finalizedSteps) => {
+                let next = updateBlockAt(blocksRef.current, index, {
+                  steps: finalizedSteps,
+                  saved: true,
+                });
+                const current = blocksRef.current[index];
+                const hasContent = (current?.title || "").trim()
+                  || finalizedSteps.some((step) => (step.text || "").trim());
+                if (hasContent) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
+                requestContentGrow();
+              }}
+              onDeleteBlock={() => {
+                if (!window.confirm("¿Eliminar este bloque Step by step?")) return;
+                const removedBlock = blocksRef.current[index];
+                const wasSavedPlaybook = Boolean(
+                  removedBlock?.type === DOC_BLOCK_TYPES.STEP_SEQUENCE && removedBlock?.saved,
+                );
+                const removedBlockId = removedBlock?.id;
+                let next = removeBlockAt(blocksRef.current, index);
+                if (!next.length) {
+                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+                }
+                setBlocks(next);
+                if (wasSavedPlaybook && removedBlockId) {
+                  onSavedStepSequenceRemoved?.({ blockId: removedBlockId, nextBlocks: next });
+                }
                 const focusIndex = Math.min(index, next.length - 1);
                 onFocusBlock?.(next[focusIndex]?.id);
                 requestContentGrow();
