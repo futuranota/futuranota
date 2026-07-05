@@ -1,4 +1,7 @@
-import { runContentCreator } from "./agents/contentCreator.js";
+import {
+  buildFallbackContentCreatorPlan,
+  runContentCreator,
+} from "./agents/contentCreator.js";
 
 /**
  * @param {import('http').IncomingMessage} req
@@ -47,29 +50,37 @@ export function createContentCreatorMiddleware() {
       return;
     }
 
+    const body = await readJsonBody(req).catch(() => ({}));
+    const locale = body.locale === "es" ? "es" : "en";
+    const instruction = typeof body.instruction === "string" ? body.instruction.trim() : "";
+    const brandContext = body.brandContext && typeof body.brandContext === "object"
+      ? body.brandContext
+      : {};
+    const knowledgeContext = typeof body.knowledgeContext === "string"
+      ? body.knowledgeContext.trim()
+      : "";
+    const wiredInputs = Array.isArray(body.wiredInputs) ? body.wiredInputs : [];
+    const mode = body.mode === "macro_blog" ? "macro_blog" : "document_plan";
+    const macroTitle = typeof body.macroTitle === "string" ? body.macroTitle.trim() : "";
+    const scheduleAt = body.scheduleAt ?? null;
+
+    if (!instruction) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: "instruction is required" }));
+      return;
+    }
+
     try {
-      const body = await readJsonBody(req);
-      const locale = body.locale === "es" ? "es" : "en";
-      const instruction = typeof body.instruction === "string" ? body.instruction.trim() : "";
-      const brandContext = body.brandContext && typeof body.brandContext === "object"
-        ? body.brandContext
-        : {};
-      const knowledgeContext = typeof body.knowledgeContext === "string"
-        ? body.knowledgeContext.trim()
-        : "";
-
-      if (!instruction) {
-        res.statusCode = 400;
-        res.setHeader("Content-Type", "application/json");
-        res.end(JSON.stringify({ error: "instruction is required" }));
-        return;
-      }
-
       const plan = await runContentCreator({
         locale,
         instruction,
         brandContext,
         knowledgeContext,
+        wiredInputs,
+        mode,
+        macroTitle,
+        scheduleAt,
       });
 
       res.statusCode = 200;
@@ -77,11 +88,18 @@ export function createContentCreatorMiddleware() {
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.end(JSON.stringify(plan));
     } catch (err) {
-      res.statusCode = 500;
+      console.error("[content-creator]", err);
+      const fallback = buildFallbackContentCreatorPlan(
+        locale,
+        instruction,
+        brandContext,
+        mode,
+        macroTitle,
+      );
+      res.statusCode = 200;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify({
-        error: err instanceof Error ? err.message : "Content creator failed",
-      }));
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.end(JSON.stringify({ ...fallback, source: "fallback-handler-error" }));
     }
   };
 }

@@ -719,6 +719,15 @@ export const usePlanStore = create(
         const error = await persistProfilePatch(userId, { search_count: nextSearch });
         if (error) {
           console.warn("planStore.debitCredits error", error);
+          if (isMissingProfilesTable(error)) {
+            set((state) => ({
+              profile: {
+                ...state.profile,
+                searchCount: nextSearch,
+              },
+            }));
+            return true;
+          }
           return false;
         }
 

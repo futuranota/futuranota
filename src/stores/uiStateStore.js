@@ -52,6 +52,10 @@ export const useUIStateStore = create(
       /** Intel overview LLM selection (groq-llama-70b, groq-llama-8b) */
       intelSelectedModelId: "groq-llama-70b",
 
+      /** Groq/provider rate limit cooldown (ms timestamp + total duration). */
+      intelRateLimitUntil: null,
+      intelRateLimitTotalSec: 90,
+
       /** Live doc meta while document overlay is open (syncs MetaBar). */
       activeDocMetaDraft: null,
 
@@ -163,6 +167,17 @@ export const useUIStateStore = create(
 
       setIntelSelectedModelId: (modelId) =>
         set({ intelSelectedModelId: modelId || "groq-llama-70b" }),
+
+      startIntelRateLimitCooldown: (seconds = 90) => {
+        const total = Math.max(5, Math.ceil(Number(seconds) || 90));
+        set({
+          intelRateLimitTotalSec: total,
+          intelRateLimitUntil: Date.now() + total * 1000,
+        });
+      },
+
+      clearIntelRateLimitCooldown: () =>
+        set({ intelRateLimitUntil: null }),
 
       clearIntelSearch: () =>
         set({

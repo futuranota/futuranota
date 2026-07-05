@@ -11,6 +11,10 @@ import { useUpgradeModalStore } from "../stores/upgradeModalStore.js";
 import { canSpendCredits } from "./planConfig.js";
 import { isAdminBillingBypassEnabled, isAdminSessionEmail } from "./adminPlanCredits.js";
 import { DEFAULT_INTEL_MODEL_ID, getIntelModel, resolveIntelModelForPlan } from "./intelModels.js";
+import {
+  isIntelRateLimitError,
+  resolveIntelRateLimitCooldownSec,
+} from "./intelRateLimitCooldown.js";
 
 /** @typedef {{ id: string, title: string, dataType: string, content: unknown, anchorAt?: string|null, order: number }} ContextNode */
 
@@ -276,6 +280,10 @@ export async function runIntelSearch(payload) {
     } else if (err?.code === "model") {
       useUpgradeModalStore.getState().show("search");
     }
-    uiState.setIntelSearchError(err?.message || tIntel("searchFailed"));
+    const message = err?.message || tIntel("searchFailed");
+    if (isIntelRateLimitError(message, err?.code, err?.status)) {
+      uiState.startIntelRateLimitCooldown(resolveIntelRateLimitCooldownSec(message));
+    }
+    uiState.setIntelSearchError(message);
   }
 }

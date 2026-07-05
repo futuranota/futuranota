@@ -914,10 +914,49 @@ textarea.field {
   padding: 10px 10px 8px;
 }
 .intel-search-card {
+  position: relative;
   background: #12171d;
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 4px;
   padding: 5px;
+}
+.intel-rate-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.intel-rate-badge__ring {
+  display: block;
+}
+.intel-rate-badge__track {
+  stroke: rgba(255, 197, 107, 0.12);
+  stroke-width: 2;
+}
+.intel-rate-badge__progress {
+  stroke: rgba(255, 197, 107, 0.85);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 250ms linear;
+}
+.intel-rate-badge__time {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: rgba(255, 197, 107, 0.92);
+  line-height: 1;
+}
+.intel-rate-banner {
+  margin-top: 8px;
+  font-size: 11px;
+  color: rgba(255, 197, 107, 0.82);
 }
 .intel-search-top {
   position: relative;

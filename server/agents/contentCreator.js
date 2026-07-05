@@ -206,47 +206,52 @@ export async function runContentCreator({
 
   const fallback = buildFallbackContentCreatorPlan(lang, task, brandContext, mode, macroTitle);
 
-  if (!process.env.GROQ_API_KEY) {
-    return fallback;
-  }
+  try {
+    if (!process.env.GROQ_API_KEY?.trim() && !process.env.GEMINI_API_KEY?.trim()) {
+      return fallback;
+    }
 
-  const { system, user } = buildContentCreatorPrompt(lang, {
-    instruction: task,
-    brandContext,
-    knowledgeContext,
-    wiredInputs,
-    mode,
-    macroTitle,
-    scheduleAt,
-  });
-
-  const llm = await completeJson(user, { system });
-  if (!llm?.data || typeof llm.data !== "object") {
-    return { ...fallback, source: "fallback-llm-empty" };
-  }
-
-  const normalized = normalizeContentCreatorPlan(llm.data, lang);
-
-  if (!normalized.writtenContent.body && normalized.items.length > 0) {
-    normalized.writtenContent = buildWrittenBodyFromItems(
-      lang,
-      task,
+    const { system, user } = buildContentCreatorPrompt(lang, {
+      instruction: task,
       brandContext,
-      normalized.items,
-    );
-  }
+      knowledgeContext,
+      wiredInputs,
+      mode,
+      macroTitle,
+      scheduleAt,
+    });
 
-  if (!normalized.writtenContent.headline && macroTitle) {
-    normalized.writtenContent.headline = macroTitle;
-  }
+    const llm = await completeJson(user, { system });
+    if (!llm?.data || typeof llm.data !== "object") {
+      return { ...fallback, source: "fallback-llm-empty" };
+    }
 
-  if (!outputHasContent(normalized, mode)) {
-    return { ...fallback, source: "fallback-empty" };
-  }
+    const normalized = normalizeContentCreatorPlan(llm.data, lang);
 
-  if (!normalized.nextStepsMessage) {
-    normalized.nextStepsMessage = fallback.nextStepsMessage;
-  }
+    if (!normalized.writtenContent.body && normalized.items.length > 0) {
+      normalized.writtenContent = buildWrittenBodyFromItems(
+        lang,
+        task,
+        brandContext,
+        normalized.items,
+      );
+    }
 
-  return { ...normalized, source: llm.provider || "groq" };
+    if (!normalized.writtenContent.headline && macroTitle) {
+      normalized.writtenContent.headline = macroTitle;
+    }
+
+    if (!outputHasContent(normalized, mode)) {
+      return { ...fallback, source: "fallback-empty" };
+    }
+
+    if (!normalized.nextStepsMessage) {
+      normalized.nextStepsMessage = fallback.nextStepsMessage;
+    }
+
+    return { ...normalized, source: llm.provider || "groq" };
+  } catch (err) {
+    console.error("[runContentCreator]", err instanceof Error ? err.message : err);
+    return { ...fallback, source: "fallback-error" };
+  }
 }

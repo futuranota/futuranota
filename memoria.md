@@ -134,6 +134,23 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 
 **Tests:** `applyBlogToMacroNode.test.js`.
 
+### 2026-07-05 — Agente Content Creator: API 500 en cuentas free (Vercel)
+
+**Síntoma:** `/api/agents/content-creator` → `500 FUNCTION_INVOCATION_FAILED` en cuenta free de prueba; cuenta personal OK.
+
+**Causas probables:**
+- Crash del serverless (Groq timeout, prompt grande, body JSON mal parseado) sin fallback.
+- Tabla `profiles` ausente → créditos en memoria default pero débito fallaba post-API.
+
+**Fix:**
+- `runContentCreator` (server) — try/catch total; siempre devuelve plan (Groq o fallback).
+- Handler Vercel — `parseJsonBody`; en error extremo responde **200 + fallback**, no 500.
+- `llmJson` — timeout Groq 22s (bajo límite Vercel 30s).
+- `vercel.json` — `includeFiles: content/agents/**` para prompts.
+- `planStore.debitCredits` — si falta tabla `profiles`, débito local en memoria.
+
+**Verificar en cuenta free:** ≥3 créditos (cada agente cuesta 3); ejecutar SQL `supabase_plans.sql` + `supabase_plans_tokens.sql` si créditos no persisten.
+
 ---
 
 ### 2026-06-26 — Enter en bloque H1: multilínea dentro del título (sin pasar a body)

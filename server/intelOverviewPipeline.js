@@ -1,5 +1,6 @@
 import { completeJsonForProvider, describeLlmUnavailable, getLastLlmFailure } from "./llmJson.js";
 import { searchWebMulti } from "./discovery/serpApiSearch.js";
+import { isTavilyConfigured, searchTavilyParallel } from "./discovery/tavilySearch.js";
 import {
   DEFAULT_INTEL_MODEL_ID,
   getIntelModel,
@@ -14,6 +15,9 @@ function buildSystemPrompt(locale) {
   const languageRule = lang === "es"
     ? "- overview: 2-4 frases concisas en español, basadas solo en los snippets."
   : "- overview: 2-4 concise sentences in English, grounded only in the snippets.";
+  const noSnippetsRule = lang === "es"
+    ? "- Si los snippets están vacíos o dicen que no hay resultados, overview debe ser una sola frase indicando que no hay fuentes web. NO uses conocimiento general ni describas el tema."
+    : "- If snippets are empty or say no results, overview must be one sentence stating no web sources were found. Do NOT use general knowledge or describe the topic.";
 
   return `You respond only with valid JSON. No markdown.
 Schema:
@@ -22,7 +26,40 @@ Schema:
   "citations": [{ "title": string, "url": string, "snippet": string, "source": string }]
 }
 Synthesize a concise overview from the query and web snippets. Include up to 6 citations from the snippets.
-${languageRule}`;
+${languageRule}
+${noSnippetsRule}`;
+}
+
+/** @param {'en'|'es'} locale */
+function noWebResultsOverview(locale) {
+  return locale === "es"
+    ? "No encontramos fuentes web para esta búsqueda. Probá con términos más amplios."
+    : "No web sources found for this search. Try broader terms.";
+}
+
+/**
+ * Serper first, Tavily fallback when Serper is missing or returns nothing.
+ * @param {string[]} queries
+ * @param {'en'|'es'} locale
+ */
+async function discoverWebSnippets(queries, locale) {
+  let snippets = await searchWebMulti(queries, { locale, maxQueries: 3 });
+  if (snippets?.length) {
+    return { snippets, source: "serper" };
+  }
+
+  if (isTavilyConfigured()) {
+    const tavilyHits = await searchTavilyParallel(queries, {
+      maxResults: 5,
+      searchDepth: "basic",
+      maxTotal: 18,
+    });
+    if (tavilyHits?.length) {
+      return { snippets: tavilyHits, source: "tavily" };
+    }
+  }
+
+  return { snippets: [], source: null };
 }
 
 /** @param {string} query @param {'en'|'es'} locale */
@@ -166,8 +203,20 @@ export async function runIntelOverviewPipeline(query, contextNodes = [], options
 
   const queries = buildSearchQueries(q, locale);
 
-  const snippets = await searchWebMulti(queries, { locale, maxQueries: 3 });
-  const corpus = snippets?.length ? formatSnippets(snippets) : "No web snippets available.";
+  const { snippets, source: searchSource } = await discoverWebSnippets(queries, locale);
+  if (!snippets.length) {
+    return {
+      overview: noWebResultsOverview(locale),
+      citations: [],
+      tokensUsed: modelDef.tokenCost,
+      modelId: modelDef.id,
+      modelLabel: modelDef.label,
+      provider: modelDef.provider,
+      source: searchSource || "no-web-results",
+    };
+  }
+
+  const corpus = formatSnippets(snippets);
 
   const closingInstruction = locale === "es"
     ? "Escribe overview y citations en JSON. El overview debe estar en español."
@@ -206,7 +255,7 @@ export async function runIntelOverviewPipeline(query, contextNodes = [], options
     modelId: modelDef.id,
     modelLabel: modelDef.label,
     provider: llm.provider || modelDef.provider,
-    source: snippets?.length ? `serper+${llm.provider || modelDef.provider}` : (llm.provider || modelDef.provider),
+    source: `${searchSource || "web"}+${llm.provider || modelDef.provider}`,
   };
 }
 

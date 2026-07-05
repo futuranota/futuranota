@@ -11,6 +11,7 @@ const GEMINI_FLASH_MODEL = process.env.GEMINI_FLASH_MODEL || "gemini-2.0-flash";
 const GEMINI_DEFAULT_MODEL = GEMINI_FLASH_MODEL;
 const GROQ_MAX_RETRIES = 3;
 const GROQ_BASE_DELAY_MS = 1500;
+const GROQ_REQUEST_TIMEOUT_MS = Number(process.env.GROQ_REQUEST_TIMEOUT_MS) || 22000;
 const GEMINI_MAX_RETRIES = 3;
 const GEMINI_BASE_DELAY_MS = 2000;
 
@@ -67,24 +68,38 @@ async function completeJsonWithGroqModel(prompt, options, model) {
 
   const temperature = typeof options.temperature === "number" ? options.temperature : 0.2;
 
-  const res = await fetch(GROQ_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      temperature,
-      response_format: { type: "json_object" },
-      messages: [
-        ...(options.system
-          ? [{ role: "system", content: options.system }]
-          : []),
-        { role: "user", content: prompt },
-      ],
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GROQ_REQUEST_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        temperature,
+        response_format: { type: "json_object" },
+        messages: [
+          ...(options.system
+            ? [{ role: "system", content: options.system }]
+            : []),
+          { role: "user", content: prompt },
+        ],
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`Groq timeout after ${GROQ_REQUEST_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!res.ok) {
     const text = await res.text();

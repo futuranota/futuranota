@@ -25,6 +25,8 @@ import { IntelSourcesList } from './components/intel/IntelCitations.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { AnimatedOverviewText } from './components/intel/AnimatedOverviewText.jsx';
 import { IntelModelSelect } from './components/intel/IntelModelSelect.jsx';
+import { IntelRateLimitBadge } from './components/intel/IntelRateLimitBadge.jsx';
+import { formatRateLimitClock } from './lib/intelRateLimitCooldown.js';
 import { resolveActiveForecastNode } from './lib/forecastSearch.js';
 import { runIntelSearch } from './lib/intelSearch.js';
 import { getDefaultCampaignSearchQuery } from './lib/campaignSearchStarters.js';
@@ -854,6 +856,23 @@ function IntelPanel({
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
   const clearIntelSearch = useUIStateStore((s) => s.clearIntelSearch);
   const setIntelSearchError = useUIStateStore((s) => s.setIntelSearchError);
+  const intelRateLimitUntil = useUIStateStore((s) => s.intelRateLimitUntil);
+  const [rateLimitRemainingSec, setRateLimitRemainingSec] = useState(0);
+
+  useEffect(() => {
+    if (!intelRateLimitUntil) {
+      setRateLimitRemainingSec(0);
+      return undefined;
+    }
+    const tick = () => {
+      setRateLimitRemainingSec(Math.max(0, Math.ceil((intelRateLimitUntil - Date.now()) / 1000)));
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [intelRateLimitUntil]);
+
+  const isRateLimitCooldown = rateLimitRemainingSec > 0;
 
   const { brandName: corpusBrandName } = useMemo(
     () => ({ brandName: resolveIntelCampaignBrand(objectsById, selectedObjectId) }),
@@ -910,7 +929,7 @@ function IntelPanel({
   }, [intelSearchRequest, intelSearchSeed, tab]);
 
   const handleIntelSearchSubmit = async () => {
-    if (intelLocked || intelSearchStatus === "loading") return;
+    if (intelLocked || intelSearchStatus === "loading" || isRateLimitCooldown) return;
 
     if (tab === "campaign" && !corpusBrandName) {
       setIntelSearchError(t("intel.campaignScanNoBrand"));
@@ -1020,6 +1039,7 @@ function IntelPanel({
       ) : null}
       <div className="col-header intel-header">
         <div className="intel-search-card">
+          <IntelRateLimitBadge />
           <div className="intel-search-top">
             <textarea
               ref={intelQueryRef}
@@ -1038,9 +1058,11 @@ function IntelPanel({
             <IntelSearchButton
               variant="intel"
               loading={isSearchLoading}
-              disabled={intelLocked}
+              disabled={intelLocked || isRateLimitCooldown}
               onClick={handleIntelSearchSubmit}
-              title={t("intel.runSearch")}
+              title={isRateLimitCooldown
+                ? t("intel.rateLimitWaitBanner", { time: formatRateLimitClock(rateLimitRemainingSec) })
+                : t("intel.runSearch")}
             />
           </div>
           <div className="intel-search-bottom">
@@ -1096,13 +1118,21 @@ function IntelPanel({
           <div className="empty-block">
             <b>{t("intel.searchFailed")}</b>
             <p className="mute" style={{ marginTop: 6 }}>{intelSearchError}</p>
+            {isRateLimitCooldown ? (
+              <p className="intel-rate-banner mute">
+                {t("intel.rateLimitWaitBanner", { time: formatRateLimitClock(rateLimitRemainingSec) })}
+              </p>
+            ) : null}
             <button
               type="button"
               className="btn sm primary"
               style={{ marginTop: 10 }}
+              disabled={isRateLimitCooldown}
               onClick={handleIntelSearchSubmit}
             >
-              {t("common.retry")}
+              {isRateLimitCooldown
+                ? t("intel.rateLimitWaitBanner", { time: formatRateLimitClock(rateLimitRemainingSec) })
+                : t("common.retry")}
             </button>
           </div>
         )}
