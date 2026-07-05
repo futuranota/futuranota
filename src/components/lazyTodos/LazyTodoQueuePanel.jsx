@@ -75,7 +75,7 @@ export function LazyTodoQueuePanel({
                 />
                 <button
                   type="button"
-                  className="btn xs pack-actions__btn lazy-todo-queue-panel__new-btn"
+                  className="btn xs workspace-action-btn lazy-todo-queue-panel__new-btn"
                   onClick={onNew}
                 >
                   {t("lazyTodos.new")}
@@ -106,10 +106,10 @@ export function LazyTodoQueuePanel({
                         <div className="lazy-todo-queue-panel__item-actions">
                           <button
                             type="button"
-                            className="btn xs pack-actions__btn lazy-todo-queue-panel__open-btn"
+                            className="btn xs pack-actions__btn pack-actions__btn--toolbar panel-list-open-btn"
                             onClick={() => onOpenItem?.(item)}
                           >
-                            {t("lazyTodos.open")}
+                            {t("common.open")}
                           </button>
                         </div>
                       </li>

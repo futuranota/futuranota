@@ -1,0 +1,24 @@
+---
+description: Consistent hover styles — card-like toolbar vs mint action buttons
+globs: src/styles/**/*.css,src/components/packs/**,src/components/steps/**,src/components/lazyTodos/**
+alwaysApply: false
+---
+
+# Hover consistency
+
+## Toolbar (Import pack, Step by step, To do list, Guide)
+
+Match **folder box cards** (`.lp-click-folder-box`):
+
+- Single row: `flex-wrap: nowrap`, compact horizontal padding (`0 7px`)
+- Text/icon color: `#7A818B` default → `#fff` on hover
+- Icons turn white on hover via `filter: brightness(0) invert(1)`
+
+## Panel actions (New, Run, Open)
+
+Use `.workspace-action-btn` — mint text + light green background on hover.
+
+## Completed (to-do dashboard)
+
+Label **Completed** with `completed.svg`. Always confirm before delete:
+`lazyTodos.completedConfirm`

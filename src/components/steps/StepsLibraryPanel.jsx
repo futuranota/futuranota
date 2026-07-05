@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
   collectSavedStepPlaybooks,
   filterStepPlaybooks,
+  removeStepPlaybookFromDoc,
 } from "../../lib/stepsLibrary.js";
 
 /**
@@ -12,17 +14,20 @@ import {
  * @param {() => void} props.onClose
  * @param {(playbook: import("../../lib/stepsLibrary.js").StepPlaybookRef) => void} props.onRunPlaybook
  * @param {() => void} props.onNew
- * @param {(docId: string, options?: { focusBlockId?: string }) => void} [props.onOpenDocument]
+ * @param {(payload: { docId: string, blockId: string, docRemoved: boolean }) => void} [props.onPlaybookDeleted]
  */
 export function StepsLibraryPanel({
   objectId = null,
   onClose,
   onRunPlaybook,
   onNew,
-  onOpenDocument,
+  onPlaybookDeleted,
 }) {
   const { t } = useI18n();
   const docs = useDocsStore((s) => s.docs);
+  const updateDoc = useDocsStore((s) => s.updateDoc);
+  const deleteDoc = useDocsStore((s) => s.deleteDoc);
+  const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
 
   const playbooks = useMemo(
@@ -34,6 +39,26 @@ export function StepsLibraryPanel({
     () => filterStepPlaybooks(playbooks, query),
     [playbooks, query],
   );
+
+  const handleDeletePlaybook = async (playbook) => {
+    const doc = docs[playbook.docId];
+    if (!doc) return;
+
+    const confirmed = await askConfirm({
+      title: t("stepsLibrary.deleteTitle"),
+      message: t("stepsLibrary.deleteConfirm", { title: playbook.title }),
+      confirmLabel: t("stepsLibrary.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+
+    const { docRemoved } = removeStepPlaybookFromDoc(playbook, doc, updateDoc, deleteDoc);
+    onPlaybookDeleted?.({
+      docId: playbook.docId,
+      blockId: playbook.blockId,
+      docRemoved,
+    });
+  };
 
   return (
     <div className="lp-pack-import-detail steps-library-panel">
@@ -67,7 +92,7 @@ export function StepsLibraryPanel({
                 />
                 <button
                   type="button"
-                  className="btn xs pack-actions__btn steps-library-panel__new-btn"
+                  className="btn xs workspace-action-btn steps-library-panel__new-btn"
                   onClick={onNew}
                 >
                   {t("stepsLibrary.new")}
@@ -98,20 +123,18 @@ export function StepsLibraryPanel({
                       <div className="steps-library-panel__item-actions">
                         <button
                           type="button"
-                          className="btn xs pack-actions__btn steps-library-panel__run-btn"
+                          className="btn xs pack-actions__btn pack-actions__btn--toolbar panel-list-open-btn"
                           onClick={() => onRunPlaybook?.(playbook)}
                         >
-                          {t("stepsLibrary.run")}
+                          {t("common.open")}
                         </button>
-                        {onOpenDocument ? (
-                          <button
-                            type="button"
-                            className="btn xs steps-library-panel__source-btn"
-                            onClick={() => onOpenDocument(playbook.docId, { focusBlockId: playbook.blockId })}
-                          >
-                            {t("stepsLibrary.openSource")}
-                          </button>
-                        ) : null}
+                        <button
+                          type="button"
+                          className="steps-library-panel__delete-btn"
+                          onClick={() => handleDeletePlaybook(playbook)}
+                        >
+                          {t("stepsLibrary.delete")}
+                        </button>
                       </div>
                     </li>
                   ))}

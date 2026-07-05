@@ -27,6 +27,7 @@ import { cloneLazyTodo } from './lib/lazyTodos.js';
 import { lazyTodoHasContent } from './lib/lazyTodoItemKeyDown.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { ReferralModal } from './components/plans/ReferralModal.jsx';
+import { ConfirmActionCard } from './components/shared/ConfirmActionCard.jsx';
 import { useNavigate } from 'react-router-dom';
 import { useStripeCheckoutReturn } from './lib/useStripeCheckoutReturn.js';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
@@ -1112,6 +1113,7 @@ useEffect(() => {
             onOpenNewStepPlaybook={handleOpenNewStepPlaybook}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
+            onStepPlaybookRemoved={handleStepPlaybookRemoved}
             timelineCanvasSelection={selection}
             canvasNodesForQueue={canvasNodes}
           />
@@ -1360,6 +1362,7 @@ function App() {
 
       <UpgradeModal open={upgradeOpen} reason={upgradeReason} onClose={hideUpgradeModal} />
       <ReferralModal open={referralOpen} onClose={hideReferralModal} />
+      <ConfirmActionCard />
 
       <TweaksPanel title="Futura Nota">
         <TweakSection label="Theme" />

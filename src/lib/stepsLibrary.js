@@ -3,9 +3,11 @@ import {
   createStepEntry,
   DOC_BLOCK_TYPES,
   docBlocksFromBody,
+  docBlocksToBody,
   getStepPlaybookPreview,
   normalizeDocBlocks,
   normalizeStepEntries,
+  removeBlockAt,
   stepEntryHasContent,
 } from "./docBlocks.js";
 import { resolveDocKind } from "./templateDoc.js";
@@ -128,4 +130,41 @@ export function filterStepPlaybooks(playbooks, query) {
     if (playbook.category.toLowerCase().includes(normalized)) return true;
     return playbook.steps.some((step) => getStepPlaybookPreview(step).toLowerCase().includes(normalized));
   });
+}
+
+/**
+ * Remove a saved step playbook from its backing document.
+ * @param {StepPlaybookRef} playbook
+ * @param {import("../types/docs.js").Doc} doc
+ * @param {(id: string, patch: object) => void} updateDoc
+ * @param {(id: string) => void} deleteDoc
+ * @returns {{ docRemoved: boolean }}
+ */
+export function removeStepPlaybookFromDoc(playbook, doc, updateDoc, deleteDoc) {
+  if (!playbook?.docId || !doc?.id) return { docRemoved: false };
+
+  const blocks = blocksForDoc(doc);
+  const blockIndex = blocks.findIndex((block) => block.id === playbook.blockId);
+  if (blockIndex < 0) return { docRemoved: false };
+
+  const isDedicatedDoc = blocks.length === 1
+    && blocks[0]?.type === DOC_BLOCK_TYPES.STEP_SEQUENCE;
+
+  if (isDedicatedDoc) {
+    deleteDoc(doc.id);
+    return { docRemoved: true };
+  }
+
+  let nextBlocks = removeBlockAt(blocks, blockIndex);
+  if (!nextBlocks.length) {
+    nextBlocks = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+  }
+
+  updateDoc(doc.id, {
+    blocks: nextBlocks,
+    body: docBlocksToBody(nextBlocks),
+    content: docBlocksToBody(nextBlocks),
+  });
+
+  return { docRemoved: false };
 }

@@ -95,19 +95,27 @@
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__complete-btn--footer {
-  color: #111;
-  border-color: #fff;
-  background: #fff;
+  color: rgba(232, 220, 200, 0.82);
+  border-color: rgba(255, 255, 255, 0.16);
+  background: color-mix(in oklab, var(--panel-2) 70%, #12151c);
   font-weight: 600;
   min-height: 32px;
   padding: 0 14px;
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__complete-btn--footer:hover:not(:disabled) {
-  color: #000;
-  border-color: #fff;
-  background: #fff;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
+  color: var(--hud);
+  border-color: color-mix(in oklab, var(--hud) 45%, rgba(255, 255, 255, 0.16));
+  background: color-mix(in oklab, var(--hud) 12%, #12151c);
+  box-shadow: none;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__complete-btn--footer .lazy-todo-card__complete-icon {
+  filter: brightness(0) invert(1) contrast(1.35);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__complete-btn--footer:hover:not(:disabled) .lazy-todo-card__complete-icon {
+  filter: brightness(0) saturate(100%) invert(88%) sepia(18%) saturate(620%) hue-rotate(93deg) brightness(104%) contrast(92%);
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__field-label {
@@ -251,15 +259,33 @@
 
 .lazy-todo-card__complete-btn {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: rgba(232, 220, 200, 0.72);
   border-color: rgba(232, 220, 200, 0.18);
   background: transparent;
 }
 
+.lazy-todo-card__complete-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  opacity: 0.92;
+  filter: brightness(0) invert(1) contrast(1.35);
+  pointer-events: none;
+}
+
 .lazy-todo-card__complete-btn:hover:not(:disabled) {
-  color: #fff;
-  border-color: rgba(232, 220, 200, 0.32);
-  background: color-mix(in oklab, var(--hud) 12%, transparent);
+  color: var(--hud);
+  border-color: color-mix(in oklab, var(--hud) 50%, rgba(232, 220, 200, 0.2));
+  background: color-mix(in oklab, var(--hud) 14%, transparent);
+}
+
+.lazy-todo-card__complete-btn:hover:not(:disabled) .lazy-todo-card__complete-icon {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(88%) sepia(18%) saturate(620%) hue-rotate(93deg) brightness(104%) contrast(92%);
 }
 
 .lazy-todo-card__body {
@@ -390,15 +416,6 @@
 
 .lazy-todo-queue-panel__new-btn {
   flex-shrink: 0;
-  color: rgba(232, 220, 200, 0.72);
-  border-color: rgba(232, 220, 200, 0.18);
-  background: transparent;
-  font-weight: 600;
-}
-
-.lazy-todo-queue-panel__new-btn:hover:not(:disabled) {
-  color: #fff;
-  border-color: rgba(232, 220, 200, 0.32);
 }
 
 .lazy-todo-queue-panel__list {
@@ -412,7 +429,7 @@
 
 .lazy-todo-queue-panel__item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
@@ -470,18 +487,8 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-}
-
-.lazy-todo-queue-panel__open-btn {
-  color: #111;
-  border-color: color-mix(in oklab, var(--hairline) 70%, #fff);
-  background: #fff;
-  font-weight: 600;
-}
-
-.lazy-todo-queue-panel__open-btn:hover:not(:disabled) {
-  color: #000;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.12);
+  justify-content: center;
+  align-self: center;
 }
 
 .lazy-todo-queue-panel__empty {

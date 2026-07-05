@@ -3,9 +3,10 @@ import { createTodoItem } from "../../lib/docBlocks.js";
 import { handleLazyTodoItemKeyDown } from "../../lib/lazyTodoItemKeyDown.js";
 import { lazyTodoProgress } from "../../lib/lazyTodos.js";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 
-const BLOCK_LABEL = "Lazy to do";
+const COMPLETED_ICON_SRC = "/uploads/completed.svg";
 
 /**
  * @param {Object} props
@@ -23,6 +24,7 @@ export function LazyTodoCard({
   variant = "default",
 }) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const [focusItemId, setFocusItemId] = useState(null);
   const { done, total } = lazyTodoProgress(item);
   const isDashboard = variant === "dashboard";
@@ -31,11 +33,40 @@ export function LazyTodoCard({
     event.stopPropagation();
   };
 
+  const handleCompletedClick = async () => {
+    const confirmed = await askConfirm({
+      title: t("lazyTodos.completedTitle"),
+      message: t("lazyTodos.completedConfirm"),
+      confirmLabel: t("lazyTodos.completed"),
+      cancelLabel: t("common.cancel"),
+      tone: "default",
+    });
+    if (!confirmed) return;
+    onCompleted?.();
+  };
+
+  const completedButton = (
+    <button
+      type="button"
+      className="btn xs lazy-todo-card__complete-btn"
+      onClick={handleCompletedClick}
+    >
+      <img
+        src={COMPLETED_ICON_SRC}
+        alt=""
+        className="lazy-todo-card__complete-icon"
+        aria-hidden
+        draggable={false}
+      />
+      <span>{t("lazyTodos.completed")}</span>
+    </button>
+  );
+
   return (
     <article className={`lazy-todo-card${isDashboard ? " lazy-todo-card--dashboard" : ""}`}>
       <header className="lazy-todo-card__header">
         <div className="lazy-todo-card__heading">
-          <span className="lazy-todo-card__label">{BLOCK_LABEL}</span>
+          <span className="lazy-todo-card__label">{t("lazyTodos.cardLabel")}</span>
           <span className="lazy-todo-card__counter mono-sm">
             {t("lazyTodos.progress", { done, total })}
           </span>
@@ -52,13 +83,7 @@ export function LazyTodoCard({
               ×
             </button>
           ) : (
-            <button
-              type="button"
-              className="btn xs lazy-todo-card__complete-btn"
-              onClick={onCompleted}
-            >
-              {t("lazyTodos.delete")}
-            </button>
+            completedButton
           )}
         </div>
       </header>
@@ -120,9 +145,16 @@ export function LazyTodoCard({
           <button
             type="button"
             className="btn xs lazy-todo-card__complete-btn lazy-todo-card__complete-btn--footer"
-            onClick={onCompleted}
+            onClick={handleCompletedClick}
           >
-            {t("lazyTodos.delete")}
+            <img
+              src={COMPLETED_ICON_SRC}
+              alt=""
+              className="lazy-todo-card__complete-icon"
+              aria-hidden
+              draggable={false}
+            />
+            <span>{t("lazyTodos.completed")}</span>
           </button>
         </footer>
       ) : null}

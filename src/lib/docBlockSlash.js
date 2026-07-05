@@ -42,14 +42,6 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Embed video",
-    ghostHint: "embedvideo",
-    aliases: ["embedvideo", "embeddedvideo", "video", "embed"],
-    blockType: DOC_BLOCK_TYPES.VIDEO_EMBED,
-    nodeDataType: NODE_DATA_TYPES.VIDEO,
-    compound: true,
-  },
-  {
     label: "Imagen",
     ghostHint: "imagen",
     aliases: ["imagen", "image", "img"],
@@ -78,13 +70,6 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Step by step",
-    ghostHint: "stepbystep",
-    aliases: ["stepbystep", "step-by-step", "steptostep", "step-to-step", "stepton", "step2n", "steps", "instrucciones", "stepsequence"],
-    blockType: DOC_BLOCK_TYPES.STEP_SEQUENCE,
-    nodeDataType: NODE_DATA_TYPES.TEXT,
-  },
-  {
     label: "Agent",
     ghostHint: "agent",
     aliases: ["agent"],
@@ -105,8 +90,7 @@ export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
     || cmd.blockType === DOC_BLOCK_TYPES.CODE
     || cmd.blockType === DOC_BLOCK_TYPES.PASSWORD_VAULT
     || cmd.blockType === DOC_BLOCK_TYPES.LINK_VAULT
-    || cmd.blockType === DOC_BLOCK_TYPES.AGENT
-    || cmd.blockType === DOC_BLOCK_TYPES.STEP_SEQUENCE,
+    || cmd.blockType === DOC_BLOCK_TYPES.AGENT,
 );
 
 /** Slash commands allowed inside a step-by-step instruction field. */

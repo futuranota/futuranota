@@ -1,22 +1,42 @@
 .pack-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
   padding: 0 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pack-actions::-webkit-scrollbar {
+  display: none;
 }
 
 .pack-actions--documents {
   margin-top: 0;
   padding-top: 0;
   padding-bottom: 0;
-  flex-wrap: nowrap;
 }
 
 .pack-actions--objects {
   padding: 0 0 4px;
 }
 
-.pack-actions__btn {
+.pack-actions__btn--toolbar,
+.pack-actions__filter-select {
+  width: auto;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
+  justify-content: center;
+}
+
+.pack-actions__filter-select {
+  max-width: 72px;
+}
+
+.pack-actions__btn:not(.pack-actions__btn--toolbar) {
   height: 24px;
   min-height: 24px;
   padding: 0 11px;
@@ -30,12 +50,127 @@
   background: transparent;
 }
 
-.pack-actions__btn:hover:not(:disabled),
-.pack-actions__btn:active:not(:disabled) {
+.pack-actions__btn:not(.pack-actions__btn--toolbar):hover:not(:disabled),
+.pack-actions__btn:not(.pack-actions__btn--toolbar):active:not(:disabled) {
   color: rgba(232, 220, 200, 0.42);
   border-color: rgba(232, 220, 200, 0.16);
   background: transparent;
   transform: none;
+}
+
+/* Shared workspace action hover — mint green, not black/white inversion */
+.workspace-action-btn {
+  --action-btn-color: rgba(232, 220, 200, 0.72);
+  --action-btn-border: rgba(232, 220, 200, 0.18);
+  --action-btn-hover-color: var(--hud);
+  --action-btn-hover-border: color-mix(in oklab, var(--hud) 50%, rgba(232, 220, 200, 0.2));
+  --action-btn-hover-bg: color-mix(in oklab, var(--hud) 14%, transparent);
+
+  color: var(--action-btn-color);
+  border-color: var(--action-btn-border);
+  background: transparent;
+  font-weight: 600;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.workspace-action-btn:hover:not(:disabled),
+.workspace-action-btn:active:not(:disabled) {
+  color: var(--action-btn-hover-color);
+  border-color: var(--action-btn-hover-border);
+  background: var(--action-btn-hover-bg);
+  box-shadow: none;
+  transform: none;
+}
+
+.pack-actions .btn.pack-actions__btn--toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 7px;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7A818B;
+  border: 1px solid rgba(122, 129, 139, 0.28);
+  background: rgba(35, 39, 47, 0.56);
+  box-shadow: none;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.pack-actions .btn.pack-actions__btn--toolbar:hover:not(:disabled),
+.pack-actions .btn.pack-actions__btn--toolbar:active:not(:disabled) {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(42, 46, 56, 0.72);
+  box-shadow: none;
+  transform: none;
+}
+
+.pack-actions__btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.pack-actions__btn-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-image: var(--pack-btn-icon-mask);
+  mask-image: var(--pack-btn-icon-mask);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  pointer-events: none;
+}
+
+/* Open buttons in steps / to-do panels — card surface, not toolbar gray */
+.btn.pack-actions__btn--toolbar.panel-list-open-btn {
+  color: rgba(232, 220, 200, 0.72);
+  border: 1px solid color-mix(in oklab, var(--glass-border) 90%, #fff);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--panel-2) 94%, #fff) 0%,
+    color-mix(in oklab, var(--panel-2) 78%, transparent) 100%
+  );
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.btn.pack-actions__btn--toolbar.panel-list-open-btn:hover:not(:disabled),
+.btn.pack-actions__btn--toolbar.panel-list-open-btn:active:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in oklab, var(--hud) 28%, var(--glass-border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--panel-2) 96%, #fff) 0%,
+    color-mix(in oklab, var(--panel-2) 84%, transparent) 100%
+  );
+}
+
+.panel-list-open-btn {
+  min-width: 64px;
+  min-height: 24px;
+  height: 24px;
+  padding: 0 10px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
 }
 
 .pack-actions__btn--accent {
@@ -44,41 +179,10 @@
   background: transparent;
 }
 
-.pack-actions__btn--steps {
-  color: #111;
-  border-color: color-mix(in oklab, var(--hairline) 70%, #fff);
-  background: #fff;
-  font-weight: 600;
-}
-
-.pack-actions__btn--steps:hover:not(:disabled),
-.pack-actions__btn--steps:active:not(:disabled) {
-  color: #000;
-  border-color: color-mix(in oklab, var(--hairline) 90%, #fff);
-  background: #fff;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.12);
-}
-
-.pack-actions__btn--lazy {
-  color: rgba(232, 220, 200, 0.72);
-  border-color: rgba(232, 220, 200, 0.18);
-  background: transparent;
-  font-weight: 600;
-}
-
-.pack-actions__btn--lazy:hover:not(:disabled),
-.pack-actions__btn--lazy:active:not(:disabled) {
-  color: #fff;
-  border-color: rgba(232, 220, 200, 0.32);
-  background: color-mix(in oklab, var(--hud) 10%, transparent);
-}
-
 .pack-actions__btn--guide {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  min-width: 24px;
   padding: 0;
   color: rgba(232, 220, 200, 0.42);
   border-color: rgba(232, 220, 200, 0.16);

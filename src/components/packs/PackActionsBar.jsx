@@ -1,6 +1,20 @@
 import { useI18n } from "../../i18n/useI18n.js";
 
 const GUIDE_ICON_SRC = "/uploads/branding.svg";
+const IMPORT_ICON_SRC = "/uploads/import.svg";
+const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
+const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
+
+/** @param {{ src: string, className?: string }} props */
+function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
+  return (
+    <span
+      className={className}
+      style={{ "--pack-btn-icon-mask": `url("${src}")` }}
+      aria-hidden
+    />
+  );
+}
 
 /**
  * @param {Object} props
@@ -8,6 +22,7 @@ const GUIDE_ICON_SRC = "/uploads/branding.svg";
  * @param {() => void} props.onOpenImport
  * @param {() => void} [props.onOpenStepsLibrary]
  * @param {() => void} [props.onOpenLazyTodos]
+ * @param {boolean} [props.companySelected]
  * @param {() => void} [props.onInsertGuide]
  * @param {'category'|null} [props.filterMode]
  * @param {{ id: string, label: string }[]} [props.filterOptions]
@@ -19,6 +34,7 @@ export function PackActionsBar({
   onOpenImport,
   onOpenStepsLibrary,
   onOpenLazyTodos,
+  companySelected = false,
   onInsertGuide,
   filterMode = null,
   filterOptions = [],
@@ -51,46 +67,44 @@ export function PackActionsBar({
     <div className={"pack-actions pack-actions--" + placement} role="toolbar" aria-label={t("pack.toolbar")}>
       <button
         type="button"
-        className="btn xs pack-actions__btn"
+        className="btn xs pack-actions__btn pack-actions__btn--toolbar"
         onClick={onOpenImport}
+        title={t("pack.importPack")}
       >
-        {t("pack.importPack")}
+        <PackActionsToolbarIcon src={IMPORT_ICON_SRC} />
+        <span className="pack-actions__btn-label">{t("pack.importPack")}</span>
       </button>
-      {onOpenStepsLibrary ? (
+      {companySelected && onOpenStepsLibrary ? (
         <button
           type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--steps"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
           onClick={onOpenStepsLibrary}
           title={t("pack.stepsLibraryTitle")}
         >
-          {t("pack.stepsLibrary")}
+          <PackActionsToolbarIcon src={STEPS_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.stepsLibrary")}</span>
         </button>
       ) : null}
-      {onOpenLazyTodos ? (
+      {companySelected && onOpenLazyTodos ? (
         <button
           type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--lazy"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
           onClick={onOpenLazyTodos}
           title={t("pack.lazyTodosTitle")}
         >
-          {t("pack.lazyTodos")}
+          <PackActionsToolbarIcon src={LAZY_TODO_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.lazyTodos")}</span>
         </button>
       ) : null}
       {placement === "documents" && onInsertGuide ? (
         <button
           type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--guide"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
           onClick={onInsertGuide}
-          title={t("pack.guide")}
-          aria-label={t("pack.guide")}
+          title={t("pack.guideTitle")}
         >
-          <img
-            src={GUIDE_ICON_SRC}
-            alt=""
-            className="pack-actions__guide-icon"
-            aria-hidden
-            draggable={false}
-          />
+          <PackActionsToolbarIcon src={GUIDE_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.guide")}</span>
         </button>
       ) : null}
       {filterEnabled ? (

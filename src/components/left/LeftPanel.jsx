@@ -51,6 +51,7 @@ import { StepsLibraryPanel } from "../steps/StepsLibraryPanel.jsx";
 import { LazyTodoQueuePanel } from "../lazyTodos/LazyTodoQueuePanel.jsx";
 import { TranslatedText } from "../shared/TranslatedText.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 import { PANEL_TYPES, usePanelTypeLabels } from "../../i18n/panelTypes.js";
 
 function startObjectDrag(e, objectId) {
@@ -1070,10 +1071,12 @@ export function LeftPanel({
   onOpenNewStepPlaybook,
   onOpenNewLazyTodo,
   onOpenLazyTodoItem,
+  onStepPlaybookRemoved,
   timelineCanvasSelection = [],
   canvasNodesForQueue = [],
 }) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const panelTypeLabel = usePanelTypeLabels();
   const [panelType, setPanelType] = useState("Objects");
   const [activeId, setActiveId] = useState(null);
@@ -1362,6 +1365,14 @@ export function LeftPanel({
     onRunStepPlaybook?.(playbook);
   };
 
+  const handleDeleteStepPlaybookFromLibrary = ({ docId, blockId, docRemoved }) => {
+    if (docRemoved) {
+      onDocumentDeleted?.(docId);
+    }
+    onStepPlaybookRemoved?.({ docId, blockId });
+    if (activeId === docId) setActiveId(null);
+  };
+
   const exitObjectWorkspace = () => {
     setObjectWorkspaceActive(false);
     setPanelType("Objects");
@@ -1426,15 +1437,19 @@ export function LeftPanel({
     clearLeftPanelNavigateRequest();
   }, [leftPanelNavigateRequest, objectWorkspaceActive, clearLeftPanelNavigateRequest]);
 
-  const handleDeleteObject = (objectId) => {
+  const handleDeleteObject = async (objectId) => {
     const obj = objects[objectId];
     if (!obj) return;
     const docCount = getDocsByObject(objectId).length;
-    const msg =
-      docCount > 0
-        ? `Delete object "${obj.name}" and its ${docCount} document(s)? This cannot be undone.`
-        : `Delete object "${obj.name}"? This cannot be undone.`;
-    if (!window.confirm(msg)) return;
+    const confirmed = await askConfirm({
+      title: t("sidebar.deleteObjectTitle"),
+      message: docCount > 0
+        ? t("sidebar.deleteObjectWithDocs", { name: obj.name, count: docCount })
+        : t("sidebar.deleteObjectEmpty", { name: obj.name }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
     deleteObjectWithCascade(objectId);
     if (activeId === objectId) setActiveId(null);
     if (filterObjectId === objectId) setFilterObjectId(null);
@@ -1597,8 +1612,6 @@ export function LeftPanel({
                     openPackImportView();
                   }
                 }}
-                onOpenStepsLibrary={openStepsLibraryFromToolbar}
-                onOpenLazyTodos={openLazyTodosFromToolbar}
               />
             </div>
             <div className="lp-objects-grid">
@@ -1639,7 +1652,7 @@ export function LeftPanel({
             onClose={closeStepsLibraryView}
             onRunPlaybook={handleRunPlaybookFromLibrary}
             onNew={handleNewStepPlaybookFromLibrary}
-            onOpenDocument={onOpenDocument}
+            onPlaybookDeleted={handleDeleteStepPlaybookFromLibrary}
           />
         ) : null}
 
@@ -1669,7 +1682,7 @@ export function LeftPanel({
                 onClose={closeStepsLibraryView}
                 onRunPlaybook={handleRunPlaybookFromLibrary}
                 onNew={handleNewStepPlaybookFromLibrary}
-                onOpenDocument={onOpenDocument}
+                onPlaybookDeleted={handleDeleteStepPlaybookFromLibrary}
               />
             ) : null}
 
@@ -1692,6 +1705,7 @@ export function LeftPanel({
                   />
                   <PackActionsBar
                     placement="documents"
+                    companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
@@ -1726,6 +1740,7 @@ export function LeftPanel({
                   />
                   <PackActionsBar
                     placement="documents"
+                    companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
@@ -1846,6 +1861,7 @@ export function LeftPanel({
                   />
                   <PackActionsBar
                     placement="documents"
+                    companySelected={Boolean(filterObjectId || activeObjectId)}
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
