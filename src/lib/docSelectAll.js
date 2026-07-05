@@ -1,8 +1,5 @@
 import { DOC_BLOCK_TYPES, normalizeDocBlocks } from "./docBlocks.js";
-import {
-  findProseUnitForBlockIndex,
-  proseSegmentToEditableText,
-} from "./docProseUnified.js";
+import { collectCopyableDocPlainText } from "./docProseUnified.js";
 
 /**
  * Plain-text snapshot of user-facing document content (for copy / select-all).
@@ -94,68 +91,33 @@ export function findBlockIndexFromEventTarget(event, blocks) {
 }
 
 /**
- * Resolve H1 + body (or consecutive TEXT) plain text for the block under focus.
- * @param {import("./docBlocks.js").DocBlock[]} blocks
- * @param {number} blockIndex
- * @returns {{ unit: { start: number, end: number }, text: string } | null}
+ * @param {HTMLElement} field
+ * @returns {boolean}
  */
-export function resolveProseUnitSelectAll(blocks, blockIndex) {
-  if (blockIndex < 0) return null;
-  const unit = findProseUnitForBlockIndex(blocks, blockIndex);
-  if (!unit || unit.end <= unit.start) return null;
-
-  const text = proseSegmentToEditableText(blocks, unit.start, unit.end);
-  if (!text.trim()) return null;
-
-  return { unit, text };
+export function isTextFieldFullySelected(field) {
+  if (!field || typeof field !== "object") return false;
+  const { value, selectionStart, selectionEnd } = field;
+  if (typeof selectionStart !== "number" || typeof selectionEnd !== "number") return false;
+  const length = String(value ?? "").length;
+  if (length === 0) return true;
+  return selectionStart === 0 && selectionEnd === length;
 }
 
 /**
- * @param {HTMLElement} containerEl
- * @param {import("./docBlocks.js").DocBlock[]} blocks
- * @param {{ start: number, end: number }} unit
- * @returns {{ top: number, left: number, width: number, height: number } | null}
+ * @param {import("./docBlocks.js").DocBlock | undefined} block
+ * @returns {boolean}
  */
-export function getProseUnitOverlayRect(containerEl, blocks, unit) {
-  if (!containerEl || !unit) return null;
-
-  const normalized = normalizeDocBlocks(blocks);
-  let top = Infinity;
-  let left = Infinity;
-  let bottom = -Infinity;
-  let right = -Infinity;
-
-  for (let index = unit.start; index <= unit.end; index += 1) {
-    const blockId = normalized[index]?.id;
-    if (!blockId) continue;
-    const itemEl = containerEl.querySelector(`[data-block-id="${blockId}"]`);
-    if (!itemEl) continue;
-    const rect = itemEl.getBoundingClientRect();
-    top = Math.min(top, rect.top);
-    left = Math.min(left, rect.left);
-    bottom = Math.max(bottom, rect.bottom);
-    right = Math.max(right, rect.right);
-  }
-
-  if (top === Infinity) return null;
-
-  const rootRect = containerEl.getBoundingClientRect();
-  return {
-    top: top - rootRect.top + containerEl.scrollTop,
-    left: left - rootRect.left + containerEl.scrollLeft,
-    width: Math.max(right - left, 1),
-    height: Math.max(bottom - top, 1),
-  };
+export function isDocSelectAllProseField(block) {
+  return block?.type === DOC_BLOCK_TYPES.H1 || block?.type === DOC_BLOCK_TYPES.TEXT;
 }
 
 /**
  * Select plain text inside a scroll container via a transient textarea (multi-block docs).
  * @param {HTMLElement|null} containerEl
  * @param {string} text
- * @param {{ blocks?: import("./docBlocks.js").DocBlock[], unit?: { start: number, end: number } } | null} [options]
  * @returns {boolean}
  */
-export function selectAllDocPlainText(containerEl, text, options = null) {
+export function selectAllDocPlainText(containerEl, text) {
   const value = String(text ?? "");
   if (!containerEl || !value.trim()) return false;
 
@@ -165,23 +127,9 @@ export function selectAllDocPlainText(containerEl, text, options = null) {
 
   const field = document.createElement("textarea");
   field.dataset.docSelectAllField = "true";
-  field.className = "doc-select-all-field";
+  field.className = "doc-select-all-field doc-select-all-field--document";
   field.setAttribute("readonly", "true");
-  field.setAttribute("aria-hidden", "true");
-
-  const rect = options?.blocks && options?.unit
-    ? getProseUnitOverlayRect(containerEl, options.blocks, options.unit)
-    : null;
-
-  if (rect) {
-    field.classList.add("doc-select-all-field--prose-unit");
-    field.style.top = `${rect.top}px`;
-    field.style.left = `${rect.left}px`;
-    field.style.width = `${rect.width}px`;
-    field.style.height = `${rect.height}px`;
-    field.removeAttribute("aria-hidden");
-  }
-
+  field.setAttribute("aria-label", "Document text selection");
   field.value = value;
   containerEl.appendChild(field);
   field.focus({ preventScroll: true });
@@ -212,7 +160,7 @@ export function selectElementTextContents(element) {
 }
 
 /**
- * Cmd/Ctrl+A — select prose unit (H1 + body) or full document when appropriate.
+ * Cmd/Ctrl+A in prose fields — 1× native block select, 2× document copyable text (Notion/Obsidian style).
  * @param {KeyboardEvent} event
  * @param {import("./docBlocks.js").DocBlock[]} blocks
  * @returns {boolean} true when handled
@@ -227,22 +175,17 @@ export function tryDocSelectAllKeyDown(event, blocks) {
   if (!container) return false;
 
   const blockIndex = findBlockIndexFromEventTarget(event, blocks);
-  const proseUnit = resolveProseUnitSelectAll(blocks, blockIndex);
-  if (proseUnit) {
-    event.preventDefault();
-    return selectAllDocPlainText(container, proseUnit.text, {
-      blocks,
-      unit: proseUnit.unit,
-    });
-  }
+  const block = normalizeDocBlocks(blocks)[blockIndex];
+  if (!isDocSelectAllProseField(block)) return false;
 
-  const allText = collectDocPlainText(blocks);
-  if (!allText.trim()) return false;
+  if (!isTextFieldFullySelected(target)) return false;
 
-  if (countDocContentBlocks(blocks) <= 1) return false;
+  const copyableText = collectCopyableDocPlainText(blocks);
+  if (!copyableText.trim()) return false;
 
   event.preventDefault();
-  return selectAllDocPlainText(container, allText);
+  event.stopPropagation();
+  return selectAllDocPlainText(container, copyableText);
 }
 
 /**
@@ -254,28 +197,14 @@ export function tryDocSelectAllKeyDown(event, blocks) {
 export function requestDocSelectAll(fromEl, blocks) {
   if (!(fromEl instanceof HTMLElement)) return false;
 
-  const blockItem = fromEl.closest("[data-block-id]");
-  const blockId = blockItem?.getAttribute("data-block-id");
-  const blockIndex = blockId
-    ? normalizeDocBlocks(blocks).findIndex((block) => block.id === blockId)
-    : -1;
-  const proseUnit = resolveProseUnitSelectAll(blocks, blockIndex);
-  const container = findDocContentScrollRoot(fromEl);
-
-  if (proseUnit && container) {
-    return selectAllDocPlainText(container, proseUnit.text, {
-      blocks,
-      unit: proseUnit.unit,
-    });
-  }
-
-  const allText = collectDocPlainText(blocks);
-  if (!allText.trim()) return false;
-
-  if (countDocContentBlocks(blocks) <= 1) {
+  const copyableText = collectCopyableDocPlainText(blocks);
+  if (!copyableText.trim()) {
     return selectElementTextContents(fromEl);
   }
 
+  const container = findDocContentScrollRoot(fromEl);
   if (!container) return false;
-  return selectAllDocPlainText(container, allText);
+  return selectAllDocPlainText(container, copyableText);
 }
+
+export { collectCopyableDocPlainText, isCopyableDocTextBlock } from "./docProseUnified.js";

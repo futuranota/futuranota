@@ -1060,7 +1060,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const handleLinkableBlockKeyDown = (index, block, e) => {
-    if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
+    if (block.type === DOC_BLOCK_TYPES.H1 && tryDocSelectAllKeyDown(e, blocksRef.current)) return;
 
     const fieldValue = e.currentTarget?.value ?? "";
 
@@ -1170,8 +1170,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const handleTodoItemKeyDown = (index, itemIndex, e) => {
-    if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
-
     const block = blocksRef.current[index];
     if (!block || block.type !== DOC_BLOCK_TYPES.TODO) return;
 

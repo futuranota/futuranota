@@ -3513,6 +3513,18 @@
   overflow-wrap: break-word;
 }
 
+.doc-select-all-field--document {
+  inset: 0;
+  min-height: 100%;
+  padding: 12px 21px 12px 15px;
+  opacity: 1;
+  color: var(--text);
+  background: rgb(14, 16, 18);
+  z-index: 5;
+  overflow: auto;
+  outline: none;
+}
+
 .doc-select-all-field--prose-unit {
   inset: auto;
   min-height: 0;

@@ -118,6 +118,55 @@ export function findProseUnitForBlockIndex(blocks, blockIndex) {
  * @param {number} end
  * @returns {string}
  */
+/**
+ * H1 + visible TEXT for copy / 2× Cmd+A — includes linked H1 titles, excludes TODOs and hidden macro text.
+ * @param {import("./docBlocks.js").DocBlock[]} blocks
+ * @param {number} index
+ */
+export function isCopyableDocTextBlock(blocks, index) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[index];
+  if (!block) return false;
+
+  if (block.type === DOC_BLOCK_TYPES.H1) {
+    if (h1HasVideoEmbedSibling(normalized, index)) return false;
+    return true;
+  }
+
+  if (block.type === DOC_BLOCK_TYPES.TEXT) {
+    if (block.embedded) return false;
+    if (isLinkedOwnerContinuationSlot(normalized, index)) return false;
+    if (isTextHiddenByLinkedMacroNode(normalized, index)) return false;
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Plain export for document-wide select-all (no TODOs, no hidden macro answers).
+ * @param {import("./docBlocks.js").DocBlock[]} blocks
+ * @returns {string}
+ */
+export function collectCopyableDocPlainText(blocks) {
+  const normalized = normalizeDocBlocks(blocks || []);
+  const parts = [];
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    if (!isCopyableDocTextBlock(normalized, index)) continue;
+    const block = normalized[index];
+    if (block.type === DOC_BLOCK_TYPES.H1) {
+      const title = String(block.title ?? "").trim();
+      if (title) parts.push(title);
+    } else if (block.type === DOC_BLOCK_TYPES.TEXT) {
+      const text = String(block.text ?? "").trim();
+      if (text) parts.push(text);
+    }
+  }
+
+  return parts.join("\n\n");
+}
+
 export function proseSegmentToPlainText(blocks, start, end) {
   const parts = [];
 
