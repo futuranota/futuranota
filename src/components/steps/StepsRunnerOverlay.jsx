@@ -63,7 +63,12 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
   if (!playbook || !total) return null;
 
   return createPortal(
-    <div className="steps-runner-overlay" role="dialog" aria-modal="true" aria-label={playbook.title}>
+    <div
+      className="steps-runner-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${playbook.title} — ${t("stepsRunner.stepOf", { n: stepNumber, m: total })}`}
+    >
       <button
         type="button"
         className="steps-runner-overlay__backdrop"
@@ -71,21 +76,6 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
         onClick={onClose}
       />
       <div className="steps-runner-overlay__card">
-        <header className="steps-runner-overlay__header">
-          <div className="steps-runner-overlay__heading">
-            <span className="steps-runner-overlay__label">{t("stepsRunner.modeLabel")}</span>
-            <h2 className="steps-runner-overlay__title">{playbook.title}</h2>
-          </div>
-          <button
-            type="button"
-            className="steps-runner-overlay__close"
-            onClick={onClose}
-            aria-label={t("common.back")}
-          >
-            ×
-          </button>
-        </header>
-
         {finished ? (
           <div className="steps-runner-overlay__done">
             <p className="steps-runner-overlay__done-title">{t("stepsRunner.done")}</p>
@@ -95,23 +85,24 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
           </div>
         ) : (
           <>
-            <div className="steps-runner-overlay__progress" aria-hidden>
-              {steps.map((step, index) => (
-                <span
-                  key={step.id}
-                  className={[
-                    "steps-runner-overlay__progress-dot",
-                    index === activeIndex ? "steps-runner-overlay__progress-dot--active" : "",
-                    index < activeIndex ? "steps-runner-overlay__progress-dot--done" : "",
-                  ].filter(Boolean).join(" ")}
-                />
-              ))}
-            </div>
+            <header className="steps-runner-overlay__header">
+              <div className="steps-runner-overlay__heading">
+                <span className="steps-runner-overlay__label">{t("stepsRunner.modeLabel")}</span>
+                <span className="steps-runner-overlay__step-badge">
+                  {t("stepsRunner.stepOf", { n: stepNumber, m: total })}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="steps-runner-overlay__close"
+                onClick={onClose}
+                aria-label={t("common.back")}
+              >
+                ×
+              </button>
+            </header>
 
-            <article className="steps-runner-overlay__panel">
-              <span className="steps-runner-overlay__step-badge">
-                {t("stepsRunner.stepOf", { n: stepNumber, m: total })}
-              </span>
+            <article className="steps-runner-overlay__panel scroll-match-bg">
               <StepStepBlocksEditor blocks={activeStep?.blocks} readOnly stepId={activeStep?.id} />
             </article>
 

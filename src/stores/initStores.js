@@ -6,6 +6,8 @@ import { useTimelineStore } from "./timelineStore.js";
 import { findObjectIdByName } from "../lib/storeSanitize.js";
 import { initSyncMiddleware } from "./middleware/syncMiddleware.js";
 import { initPersistenceMiddleware } from "./middleware/persistenceMiddleware.js";
+import { useLazyTodosStore } from "./lazyTodosStore.js";
+import { initLazyTodosSync } from "../lib/lazyTodosSync.js";
 
 let seeded = false;
 
@@ -22,6 +24,7 @@ export function initStores() {
   };
 
   initPersistenceMiddleware(stores);
+  initLazyTodosSync(useLazyTodosStore);
 
   const { objects, addObject } = useObjectsStore.getState();
   if (!findObjectIdByName(objects, "yo")) {

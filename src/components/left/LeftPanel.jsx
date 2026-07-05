@@ -1067,6 +1067,7 @@ export function LeftPanel({
   onExpandNode,
   onDocumentDeleted,
   onRunStepPlaybook,
+  onOpenNewStepPlaybook,
   onOpenNewLazyTodo,
   onOpenLazyTodoItem,
   timelineCanvasSelection = [],
@@ -1352,6 +1353,10 @@ export function LeftPanel({
     onOpenNewLazyTodo?.(filterObjectId || selectedObjectId);
   };
 
+  const handleNewStepPlaybookFromLibrary = () => {
+    onOpenNewStepPlaybook?.(filterObjectId || selectedObjectId);
+  };
+
   const handleRunPlaybookFromLibrary = (playbook) => {
     closeStepsLibraryView();
     onRunStepPlaybook?.(playbook);
@@ -1633,6 +1638,7 @@ export function LeftPanel({
             objectId={filterObjectId}
             onClose={closeStepsLibraryView}
             onRunPlaybook={handleRunPlaybookFromLibrary}
+            onNew={handleNewStepPlaybookFromLibrary}
             onOpenDocument={onOpenDocument}
           />
         ) : null}
@@ -1662,6 +1668,7 @@ export function LeftPanel({
                 objectId={filterObjectId}
                 onClose={closeStepsLibraryView}
                 onRunPlaybook={handleRunPlaybookFromLibrary}
+                onNew={handleNewStepPlaybookFromLibrary}
                 onOpenDocument={onOpenDocument}
               />
             ) : null}

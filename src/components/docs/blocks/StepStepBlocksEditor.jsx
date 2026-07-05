@@ -174,7 +174,7 @@ export function StepStepBlocksEditor({
             onKeyUp={(event) => event.stopPropagation()}
             onMouseDown={(event) => event.stopPropagation()}
             placeholder={index === 0 ? "Paste or write instructions for this step…" : "Continue writing…"}
-            className="doc-step-sequence__input doc-step-sequence__input--slash"
+            className="doc-step-sequence__input doc-step-sequence__input--slash scroll-match-bg"
             wrapClassName="doc-step-sequence__slash-wrap"
             autoFocus={autoFocus && index === 0}
             minHeightPx={compact ? 72 : 96}

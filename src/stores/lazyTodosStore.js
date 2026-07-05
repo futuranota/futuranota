@@ -78,6 +78,32 @@ export const useLazyTodosStore = create(
     (set, get) => ({
       items: readStoredItems(),
 
+      replaceItems: (items) => {
+        const normalized = items.map((item) => normalizeItem(item));
+        persistItems(normalized);
+        set({ items: normalized });
+      },
+
+      createDraftItem: (objectId = null) => {
+        const nextItem = normalizeItem({
+          id: generateId("LAZY"),
+          objectId: objectId || null,
+          reminder: "",
+          listTitle: "To do",
+          items: [createTodoItem()],
+          createdAt: new Date().toISOString(),
+          status: "active",
+        });
+
+        set((state) => {
+          const next = [...state.items, nextItem];
+          persistItems(next);
+          return { items: next };
+        });
+
+        return nextItem;
+      },
+
       addItem: ({
         objectId = null,
         reminder = "",

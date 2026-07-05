@@ -57,7 +57,7 @@ export function LazyTodoCard({
               className="btn xs lazy-todo-card__complete-btn"
               onClick={onCompleted}
             >
-              {t("lazyTodos.completed")}
+              {t("lazyTodos.delete")}
             </button>
           )}
         </div>
@@ -122,7 +122,7 @@ export function LazyTodoCard({
             className="btn xs lazy-todo-card__complete-btn lazy-todo-card__complete-btn--footer"
             onClick={onCompleted}
           >
-            {t("lazyTodos.completed")}
+            {t("lazyTodos.delete")}
           </button>
         </footer>
       ) : null}

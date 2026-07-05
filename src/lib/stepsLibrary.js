@@ -1,4 +1,6 @@
 import {
+  createDocBlock,
+  createStepEntry,
   DOC_BLOCK_TYPES,
   docBlocksFromBody,
   getStepPlaybookPreview,
@@ -51,12 +53,26 @@ function blocksForDoc(doc) {
 }
 
 /**
+ * Blocks for a new step-by-step document (wizard open, not saved yet).
+ * @returns {import("./docBlocks.js").DocBlock[]}
+ */
+export function createNewStepPlaybookBlocks() {
+  return [
+    createDocBlock(DOC_BLOCK_TYPES.STEP_SEQUENCE, {
+      title: "",
+      steps: [createStepEntry()],
+      saved: false,
+    }),
+  ];
+}
+
+/**
  * Collect saved step_sequence playbooks from workspace docs.
  * @param {Record<string, import("../types/docs.js").Doc>} docs
- * @param {{ objectId?: string|null, crossObject?: boolean }} [options]
+ * @param {{ objectId?: string|null }} [options]
  * @returns {StepPlaybookRef[]}
  */
-export function collectSavedStepPlaybooks(docs, { objectId = null, crossObject = false } = {}) {
+export function collectSavedStepPlaybooks(docs, { objectId = null } = {}) {
   /** @type {StepPlaybookRef[]} */
   const playbooks = [];
 
@@ -64,7 +80,7 @@ export function collectSavedStepPlaybooks(docs, { objectId = null, crossObject =
     if (!doc?.id) continue;
 
     const parentObjectId = doc.parentObjectId ?? null;
-    if (objectId && !crossObject && parentObjectId !== objectId) {
+    if (objectId && parentObjectId !== objectId) {
       continue;
     }
 

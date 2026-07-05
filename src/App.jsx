@@ -23,7 +23,7 @@ import {
   FREE_LIMITS,
 } from './stores/index.js';
 import { useLazyTodosStore } from './stores/lazyTodosStore.js';
-import { createBlankLazyTodo, cloneLazyTodo } from './lib/lazyTodos.js';
+import { cloneLazyTodo } from './lib/lazyTodos.js';
 import { lazyTodoHasContent } from './lib/lazyTodoItemKeyDown.js';
 import { UpgradeModal } from './components/plans/UpgradeModal.jsx';
 import { ReferralModal } from './components/plans/ReferralModal.jsx';
@@ -33,7 +33,13 @@ import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StepsRunnerOverlay } from './components/steps/StepsRunnerOverlay.jsx';
+import { StepPlaybookDashboardOverlay } from './components/steps/StepPlaybookDashboardOverlay.jsx';
 import { LazyTodoDashboardOverlay } from './components/lazyTodos/LazyTodoDashboardOverlay.jsx';
+import {
+  createBlankStepPlaybookSession,
+  persistStepPlaybookSession,
+  stepPlaybookSessionHasContent,
+} from './lib/stepPlaybookSession.js';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
@@ -198,6 +204,7 @@ function Dashboard({ company, onBack }) {
   const [blueprints, setBlueprints]   = useState([]);
   const [expandedDocId, setExpandedDocId] = useState(null);
   const [activeStepPlaybook, setActiveStepPlaybook] = useState(null);
+  const [activeStepPlaybookSession, setActiveStepPlaybookSession] = useState(null);
   const [activeLazyTodo, setActiveLazyTodo] = useState(null);
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
@@ -840,6 +847,50 @@ useEffect(() => {
     });
   };
 
+  const addDoc = useDocsStore((s) => s.addDoc);
+  const updateDoc = useDocsStore((s) => s.updateDoc);
+
+  const handleOpenNewStepPlaybook = useCallback((objectId) => {
+    if (!objectId) return;
+    setActiveStepPlaybookSession(createBlankStepPlaybookSession(objectId));
+  }, []);
+
+  const handleStepPlaybookSessionChange = useCallback((patch) => {
+    setActiveStepPlaybookSession((current) => {
+      if (!current) return current;
+      return { ...current, ...patch };
+    });
+  }, []);
+
+  const handleStepPlaybookSessionClose = useCallback(() => {
+    setActiveStepPlaybookSession((current) => {
+      if (!current) return null;
+      if (!current.saved && stepPlaybookSessionHasContent(current)) {
+        if (!window.confirm(t('stepsLibrary.discardDraftConfirm'))) {
+          return current;
+        }
+      }
+      return null;
+    });
+  }, [t]);
+
+  const handleStepPlaybookSessionSaved = useCallback((finalizedSteps) => {
+    setActiveStepPlaybookSession((current) => {
+      if (!current) return null;
+
+      const merged = { ...current, steps: finalizedSteps, saved: true };
+      persistStepPlaybookSession(merged, {
+        addDoc,
+        updateDoc,
+        docs: useDocsStore.getState().docs,
+        objects: useObjectsStore.getState().objects,
+        defaultTitle: t('stepsLibrary.newDocTitle'),
+      });
+
+      return null;
+    });
+  }, [addDoc, t, updateDoc]);
+
   const handleStepPlaybookRemoved = useCallback(({ docId, blockId }) => {
     setActiveStepPlaybook((current) => {
       if (!current) return null;
@@ -852,6 +903,7 @@ useEffect(() => {
   const removeLazyTodo = useLazyTodosStore((s) => s.removeItem);
   const updateLazyTodo = useLazyTodosStore((s) => s.updateItem);
   const activateLazyTodo = useLazyTodosStore((s) => s.activateItem);
+  const createDraftLazyTodo = useLazyTodosStore((s) => s.createDraftItem);
 
   const handleOpenNewLazyTodo = useCallback((objectId) => {
     if (!objectId) return;
@@ -863,9 +915,9 @@ useEffect(() => {
           removeLazyTodo(current.id);
         }
       }
-      return createBlankLazyTodo(objectId);
+      return createDraftLazyTodo(objectId);
     });
-  }, [parkLazyTodo, removeLazyTodo]);
+  }, [createDraftLazyTodo, parkLazyTodo, removeLazyTodo]);
 
   const handleOpenLazyTodoItem = useCallback((item) => {
     if (!item?.id) return;
@@ -1057,6 +1109,7 @@ useEffect(() => {
             onExpandNode={openNodeOverlay}
             onDocumentDeleted={handleDocumentDeleted}
             onRunStepPlaybook={handleRunStepPlaybook}
+            onOpenNewStepPlaybook={handleOpenNewStepPlaybook}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
             timelineCanvasSelection={selection}
@@ -1162,6 +1215,15 @@ useEffect(() => {
           playbook={activeStepPlaybook}
           onClose={() => setActiveStepPlaybook(null)}
           onComplete={() => {}}
+        />
+      ) : null}
+
+      {activeStepPlaybookSession ? (
+        <StepPlaybookDashboardOverlay
+          session={activeStepPlaybookSession}
+          onChange={handleStepPlaybookSessionChange}
+          onCloseTab={handleStepPlaybookSessionClose}
+          onSaved={handleStepPlaybookSessionSaved}
         />
       ) : null}
 

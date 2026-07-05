@@ -46,7 +46,9 @@ export function formatSupabaseError(error, action) {
   if (error.hint) parts.push(error.hint);
   const msg = parts.filter(Boolean).join(' · ');
   if (error.code === 'PGRST204' || msg.includes('schema cache') || msg.includes('does not exist')) {
-    const repair = msg.includes('announcement_date')
+    const repair = msg.includes('lazy_todos')
+      ? 'supabase_lazy_todos.sql'
+      : msg.includes('announcement_date')
       || msg.includes('detection_mode')
       || msg.includes('evidence_url')
       || msg.includes('ticket_tier')

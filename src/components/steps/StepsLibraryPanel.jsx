@@ -1,7 +1,5 @@
 import { useMemo, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
-import { usePlanStore } from "../../stores/planStore.js";
-import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
   collectSavedStepPlaybooks,
@@ -13,41 +11,29 @@ import {
  * @param {string|null} props.objectId
  * @param {() => void} props.onClose
  * @param {(playbook: import("../../lib/stepsLibrary.js").StepPlaybookRef) => void} props.onRunPlaybook
+ * @param {() => void} props.onNew
  * @param {(docId: string, options?: { focusBlockId?: string }) => void} [props.onOpenDocument]
  */
 export function StepsLibraryPanel({
   objectId = null,
   onClose,
   onRunPlaybook,
+  onNew,
   onOpenDocument,
 }) {
   const { t } = useI18n();
   const docs = useDocsStore((s) => s.docs);
-  const isPro = usePlanStore((s) => s.isPro());
-  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
   const [query, setQuery] = useState("");
-  const [searchAll, setSearchAll] = useState(false);
 
-  const playbooks = useMemo(() => {
-    const crossObject = isPro && searchAll;
-    return collectSavedStepPlaybooks(docs, {
-      objectId: crossObject ? null : objectId,
-      crossObject,
-    });
-  }, [docs, isPro, objectId, searchAll]);
+  const playbooks = useMemo(
+    () => collectSavedStepPlaybooks(docs, { objectId }),
+    [docs, objectId],
+  );
 
   const filtered = useMemo(
     () => filterStepPlaybooks(playbooks, query),
     [playbooks, query],
   );
-
-  const handleToggleSearchAll = () => {
-    if (isPro) {
-      setSearchAll((prev) => !prev);
-      return;
-    }
-    showUpgradeModal("steps_library");
-  };
 
   return (
     <div className="lp-pack-import-detail steps-library-panel">
@@ -66,11 +52,11 @@ export function StepsLibraryPanel({
         </div>
 
         <div className="pack-wizard__body steps-library-panel__body">
-          {!objectId && !searchAll ? (
+          {!objectId ? (
             <p className="pack-wizard__lead">{t("stepsLibrary.enterCompanyFirst")}</p>
           ) : (
             <>
-              <div className="steps-library-panel__search-row">
+              <div className="steps-library-panel__toolbar">
                 <input
                   type="search"
                   className="steps-library-panel__search"
@@ -81,16 +67,10 @@ export function StepsLibraryPanel({
                 />
                 <button
                   type="button"
-                  className={[
-                    "btn xs steps-library-panel__scope-btn",
-                    searchAll ? "steps-library-panel__scope-btn--active" : "",
-                    !isPro ? "steps-library-panel__scope-btn--pro" : "",
-                  ].filter(Boolean).join(" ")}
-                  onClick={handleToggleSearchAll}
-                  title={isPro ? t("stepsLibrary.searchAllTitle") : t("stepsLibrary.searchAllPro")}
+                  className="btn xs pack-actions__btn steps-library-panel__new-btn"
+                  onClick={onNew}
                 >
-                  {searchAll ? t("stepsLibrary.scopeAll") : t("stepsLibrary.scopeCompany")}
-                  {!isPro ? ` · ${t("stepsLibrary.proBadge")}` : ""}
+                  {t("stepsLibrary.new")}
                 </button>
               </div>
 
