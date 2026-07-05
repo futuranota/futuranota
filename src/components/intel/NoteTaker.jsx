@@ -63,6 +63,7 @@ export function NoteTaker({
   onClose,
   inlineTodosEnabled = false,
   titleEditable = false,
+  fixedTitle = null,
   draftTitle,
   onDraftTitleChange,
   onDraftTitleBlur,
@@ -133,9 +134,12 @@ export function NoteTaker({
   const label = node
     ? ((node.sourceQuery || node.title || UNTITLED_LABEL).trim() || UNTITLED_LABEL)
     : UNTITLED_LABEL;
+  const resolvedFixedTitle = typeof fixedTitle === "string" ? fixedTitle.trim() : "";
+  const displayTitle = resolvedFixedTitle
+    || (titleEditable && draftTitle !== undefined ? draftTitle : label);
   const resolvedDraftTitle = titleEditable && draftTitle !== undefined
     ? draftTitle
-    : label;
+    : displayTitle;
   const hasContent = nodeWritingBlocksHaveContent(writingBody.blocks);
   const saveEnabled = hasContent && !saving;
   const showInlineWritingTools = inlineTodosEnabled || node?.dataType === NODE_DATA_TYPES.TEXT;
@@ -208,10 +212,11 @@ export function NoteTaker({
         : null;
       const nodeTitle = titleEditable
         ? ((draftTitle || "").trim() || UNTITLED_NODE_TITLE)
-        : linkedNode
-          ? ((linkedNode.sourceQuery || linkedNode.title || UNTITLED_NODE_TITLE).trim()
-            || UNTITLED_NODE_TITLE)
-          : UNTITLED_NODE_TITLE;
+        : resolvedFixedTitle
+          || (linkedNode
+            ? ((linkedNode.sourceQuery || linkedNode.title || UNTITLED_NODE_TITLE).trim()
+              || UNTITLED_NODE_TITLE)
+            : UNTITLED_NODE_TITLE);
       const dataType = linkedNode?.dataType || NODE_DATA_TYPES.TEXT;
       const nodeContent = buildNodeContentPayload(draftBody, dataType, linkedNode);
 
@@ -241,6 +246,7 @@ export function NoteTaker({
       resolveTargetNodeId,
       syncNodeToParentDoc,
       draftTitle,
+      fixedTitle,
       titleEditable,
     ],
   );
@@ -280,7 +286,9 @@ export function NoteTaker({
         } else {
           const trimmedTitle = titleEditable
             ? ((draftTitle || "").trim() || UNTITLED_NODE_TITLE)
-            : null;
+            : resolvedFixedTitle
+              ? resolvedFixedTitle
+              : null;
           if (trimmedTitle && trimmedTitle !== (liveNode.sourceQuery || liveNode.title)) {
             updateNode(targetNodeId, {
               title: trimmedTitle,
@@ -332,6 +340,7 @@ export function NoteTaker({
       buildNodeContentPayload,
       createIntelNode,
       draftTitle,
+      fixedTitle,
       inlineTodosEnabled,
       onClose,
       parentDocId,
@@ -401,8 +410,8 @@ export function NoteTaker({
             aria-label="Note title"
           />
         ) : (
-          <span className="note-taker__label" title={label}>
-            {label}
+          <span className="note-taker__label" title={displayTitle}>
+            {displayTitle || UNTITLED_LABEL}
           </span>
         )}
       </header>

@@ -38,6 +38,7 @@ export function IntelReferencePanel({
           blockIndex={blockIndex}
           onClose={onClose}
           inlineTodosEnabled
+          fixedTitle={(searchQuery || "").trim() || undefined}
         />
       </div>
     </div>,
