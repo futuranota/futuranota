@@ -94,29 +94,19 @@ export function findProseUnitForBlockIndex(blocks, blockIndex) {
   const normalized = normalizeDocBlocks(blocks);
   if (blockIndex < 0 || blockIndex >= normalized.length) return null;
 
+  if (!isProseUnifiedEligibleBlock(normalized, blockIndex)) {
+    return { start: blockIndex, end: blockIndex };
+  }
+
   let start = blockIndex;
   let end = blockIndex;
 
-  while (start > 0) {
-    const prev = normalized[start - 1];
-    if (prev.type === DOC_BLOCK_TYPES.TEXT && isProseUnifiedEligibleBlock(normalized, start - 1)) {
-      start -= 1;
-      continue;
-    }
-    if (prev.type === DOC_BLOCK_TYPES.H1 && isProseUnifiedEligibleBlock(normalized, start - 1)) {
-      start -= 1;
-      continue;
-    }
-    break;
+  while (start > 0 && isProseUnifiedEligibleBlock(normalized, start - 1)) {
+    start -= 1;
   }
 
-  while (end + 1 < normalized.length) {
-    const next = normalized[end + 1];
-    if (next.type === DOC_BLOCK_TYPES.TEXT && isProseUnifiedEligibleBlock(normalized, end + 1)) {
-      end += 1;
-      continue;
-    }
-    break;
+  while (end + 1 < normalized.length && isProseUnifiedEligibleBlock(normalized, end + 1)) {
+    end += 1;
   }
 
   return { start, end };

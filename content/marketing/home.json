@@ -91,6 +91,18 @@
         "alt": "Intel search with AI overview and saved research files",
         "title": "Search once. Save everything.",
         "caption": "Query a brand, get overview and sources — then save notes, links, and intel to your research vault."
+      },
+      {
+        "src": "/uploads/carrusel-09.jpg",
+        "alt": "Step-by-step playbooks from AI with table of contents and copy and paste",
+        "title": "Organize your steps like never before.",
+        "caption": "In the AI era, turn Q&A into personal playbooks — structure SEO, marketing, and workflows step by step, then copy and paste into action."
+      },
+      {
+        "src": "/uploads/carrusel-10.jpg",
+        "alt": "Connect canvas workflows and create step-by-step instructions until completed",
+        "title": "Connect & create your Step by Step.",
+        "caption": "Wire your workflow in the terminal, draft each step, and run through until completed — copy, paste, ship."
       }
     ]
   },

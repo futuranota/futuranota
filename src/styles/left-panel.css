@@ -3503,6 +3503,26 @@
   overflow: hidden;
   opacity: 0.02;
   pointer-events: auto;
+  box-sizing: border-box;
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.doc-select-all-field--prose-unit {
+  inset: auto;
+  min-height: 0;
+  padding: 2px 21px 2px 15px;
+  opacity: 1;
+  color: #fff;
+  background: rgb(14, 16, 18);
+  border-radius: 4px;
+  overflow: auto;
+  outline: none;
 }
 
 .doc-select-all-field::selection {
