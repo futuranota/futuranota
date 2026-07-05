@@ -44,11 +44,17 @@ import {
 } from "../../../lib/captureWidgetSnapshot.js";
 import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
 import { tryDocSelectAllKeyDown, requestDocSelectAll } from "../../../lib/docSelectAll.js";
+import {
+  partitionBlocksForUnifiedProse,
+  proseSegmentToEditableText,
+  replaceProseSegmentInBlocks,
+} from "../../../lib/docProseUnified.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
 import { useDocsStore } from "../../../stores/docsStore.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
+import { UnifiedProseBlockView } from "./UnifiedProseBlockView.jsx";
 
 function findLastDocVaultBlockIndex(blocks, blockType) {
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
@@ -422,7 +428,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const attempt = (tries = 0) => {
       requestAnimationFrame(() => {
         const el = document.querySelector(`[data-block-id="${blockId}"]`);
-        const input = el?.querySelector("input:not([type='checkbox']), textarea");
+        const input = el?.querySelector(
+          "[data-doc-unified-prose] textarea, input:not([type='checkbox']), textarea",
+        );
         if (!input && tries < 12) {
           attempt(tries + 1);
           return;
@@ -1220,14 +1228,114 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     onBodyKeyDown?.(e);
   };
 
+  const findLastTextIndexInSegment = (blocksList, segment) => {
+    for (let i = segment.end; i >= segment.start; i -= 1) {
+      if (blocksList[i]?.type === DOC_BLOCK_TYPES.TEXT) return i;
+    }
+    return segment.end;
+  };
+
+  const insertNewlineInProseField = (event, onChange) => {
+    const el = event.currentTarget;
+    if (!el || !("selectionStart" in el)) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? start;
+    const next = `${(el.value ?? "").slice(0, start)}\n${(el.value ?? "").slice(end)}`;
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.setSelectionRange(start + 1, start + 1);
+      scrollTextareaCaretIntoCameraView(el, { behavior: "instant" });
+    });
+  };
+
+  const handleProseChange = (segment, text) => {
+    const next = replaceProseSegmentInBlocks(blocksRef.current, segment, text);
+    setBlocks(next);
+  };
+
+  const handleProseKeyDown = (segment, e) => {
+    const fieldValue = e.currentTarget?.value ?? "";
+
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      const { slash } = splitBodyForSlash(fieldValue);
+      if (slash) {
+        const parsed = parseSlashQuery(slash.slice(1));
+        if (parsed && canInsertSlashBlock(parsed)) {
+          e.preventDefault();
+          const synced = replaceProseSegmentInBlocks(blocksRef.current, segment, fieldValue);
+          setBlocks(synced);
+          blocksRef.current = synced;
+          const textIndex = findLastTextIndexInSegment(synced, segment);
+          const textBlock = synced[textIndex];
+          const textValue = textBlock?.type === DOC_BLOCK_TYPES.TEXT
+            ? textBlock.text || ""
+            : fieldValue;
+          const newId = insertSlashFromText(textIndex, textValue, parsed);
+          if (newId) requestContentGrow();
+          return;
+        }
+      }
+      e.preventDefault();
+      insertNewlineInProseField(e, (text) => handleProseChange(segment, text));
+      return;
+    }
+
+    if (e.key === "Escape") {
+      const { slash } = splitBodyForSlash(fieldValue);
+      if (slash) {
+        const { prefix } = splitBodyForSlash(fieldValue);
+        e.preventDefault();
+        handleProseChange(segment, prefix);
+        return;
+      }
+    }
+
+    onBodyKeyDown?.(e);
+  };
+
   useImperativeHandle(ref, () => ({
     insertSlashCommand: insertSlashCommandAtFocus,
     resyncTextHeights: resyncAllTextHeights,
   }));
 
+  const renderSegments = partitionBlocksForUnifiedProse(blocks);
+
   return (
     <div className="doc-block-stack" ref={stackRef}>
-      {blocks.map((block, index) => {
+      {renderSegments.map((segment) => {
+        if (segment.kind === "prose") {
+          const segmentBlocks = blocks.slice(segment.start, segment.end + 1);
+          const hasH1 = segmentBlocks.some((b) => b.type === DOC_BLOCK_TYPES.H1);
+          const primaryBlockId = segment.blockIds[0];
+          const proseFocused = Boolean(focusBlockId && segment.blockIds.includes(focusBlockId));
+          const proseValue = proseSegmentToEditableText(blocks, segment.start, segment.end);
+
+          return (
+            <div
+              key={`prose-${segment.blockIds.join("-")}`}
+              className="doc-block-stack__item doc-block-stack__item--unified-prose"
+              data-block-id={primaryBlockId}
+            >
+              <UnifiedProseBlockView
+                value={proseValue}
+                onChange={(text) => handleProseChange(segment, text)}
+                onKeyDown={(e) => handleProseKeyDown(segment, e)}
+                onFocus={() => onFocusBlock?.(primaryBlockId)}
+                placeholder={
+                  hasH1
+                    ? "Headline\n\nWrite your content…"
+                    : bodyPlaceholder
+                }
+                showPlaceholder={segment.start === 0 && blocks.length <= 2}
+                autoFocus={proseFocused}
+              />
+            </div>
+          );
+        }
+
+        const index = segment.index;
+        const block = blocks[index];
+        if (!block) return null;
         const itemHidden =
           block.type === DOC_BLOCK_TYPES.TEXT
           && (isTextHiddenByParentCollapse(index)
