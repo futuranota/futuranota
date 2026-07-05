@@ -3908,6 +3908,12 @@ body.doc-content-resizing * {
   color: #fff;
 }
 
+.doc-todo-plan__title-label {
+  cursor: default;
+  user-select: none;
+  pointer-events: none;
+}
+
 .doc-todo-plan__new-btn {
   flex-shrink: 0;
   margin: 0;

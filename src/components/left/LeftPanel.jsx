@@ -1345,7 +1345,6 @@ export function LeftPanel({
       setPanelType("Documents");
     }
     openLazyTodosView();
-    onOpenNewLazyTodo?.(targetObjectId || filterObjectId || selectedObjectId);
   };
 
   const handleOpenLazyTodoFromQueue = (item) => {

@@ -111,8 +111,8 @@ export function LazyTodoCard({
           <span className="lazy-todo-card__field-label">{t("lazyTodos.todoLabel")}</span>
           <div className="lazy-todo-card__todo-block scroll-match-bg">
             <DocTodoPlanBlockView
-              listTitle={item.listTitle || t("lazyTodos.todoLabel")}
-              onListTitleChange={(listTitle) => onChange({ listTitle })}
+              listTitle={t("lazyTodos.todoLabel")}
+              listTitleEditable={false}
               linksEnabled={false}
               showDragHandle={false}
               items={item.items || [createTodoItem()]}
@@ -133,8 +133,6 @@ export function LazyTodoCard({
                 onChange({ items: [...(item.items || []), newItem] });
                 setFocusItemId(newItem.id);
               }}
-              onListTitleKeyDown={stopBubble}
-              onFocus={stopBubble}
             />
           </div>
         </div>

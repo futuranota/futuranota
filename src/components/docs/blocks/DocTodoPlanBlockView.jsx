@@ -45,6 +45,7 @@ export function DocTodoPlanBlockView({
   onDetachFromNode = null,
   detachFromNodeLabel = "Eliminar del nodo",
   showDragHandle = true,
+  listTitleEditable = true,
 }) {
   const inputRefs = useRef({});
   const [expanded, setExpanded] = useState(true);
@@ -114,19 +115,25 @@ export function DocTodoPlanBlockView({
             <img src={DOC_TODO_HEADER_ICON} alt="" aria-hidden />
           </button>
         ) : null}
-        <input
-          type="text"
-          className="doc-todo-plan__title-input"
-          value={listTitle}
-          onChange={(e) => onListTitleChange(e.target.value)}
-          onFocus={onFocus}
-          onKeyDown={(e) => {
-            onListTitleKeyDown?.(e);
-            if (!e.defaultPrevented) e.stopPropagation();
-          }}
-          placeholder="Todo list title"
-          aria-label="Todo list title (macro node)"
-        />
+        {listTitleEditable ? (
+          <input
+            type="text"
+            className="doc-todo-plan__title-input"
+            value={listTitle}
+            onChange={(e) => onListTitleChange(e.target.value)}
+            onFocus={onFocus}
+            onKeyDown={(e) => {
+              onListTitleKeyDown?.(e);
+              if (!e.defaultPrevented) e.stopPropagation();
+            }}
+            placeholder="Todo list title"
+            aria-label="Todo list title (macro node)"
+          />
+        ) : (
+          <span className="doc-todo-plan__title-input doc-todo-plan__title-label">
+            {listTitle}
+          </span>
+        )}
         <button type="button" className="doc-todo-plan__new-btn" onClick={onAddItem}>
           + item
         </button>
