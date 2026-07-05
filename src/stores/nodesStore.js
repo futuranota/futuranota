@@ -274,13 +274,19 @@ export const useNodesStore = create(
         const syncedTitle = (node.sourceQuery || node.title || "Untitled").trim() || "Untitled";
         const syncedTextFields = buildSyncedTextBlockFields(node);
         const syncedText = syncedTextFields.text;
-        const sourceBlockIndex = node.sourceBlockId
-          ? normalized.findIndex((b) => b.id === node.sourceBlockId)
+        let sourceBlockId = node.sourceBlockId || null;
+        let sourceBlockIndex = sourceBlockId
+          ? normalized.findIndex((b) => b.id === sourceBlockId)
           : -1;
+        if (sourceBlockIndex < 0) {
+          sourceBlockIndex = normalized.findIndex((b) => b.nodeId === node.id);
+          if (sourceBlockIndex >= 0) {
+            sourceBlockId = normalized[sourceBlockIndex].id;
+          }
+        }
         const sourceBlock = sourceBlockIndex >= 0 ? normalized[sourceBlockIndex] : null;
 
         let nextBlocks;
-        let sourceBlockId = node.sourceBlockId || null;
         let sourceTextBlockId = node.sourceTextBlockId || null;
 
         if (sourceBlock?.type === DOC_BLOCK_TYPES.DATE) {

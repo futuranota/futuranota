@@ -53,6 +53,10 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+_(Ninguno relacionado con docs/macronodos — ver Resueltos 2026-07-05.)_
+
+---
+
 ### Management panel `/panel` (implementado 2026-06-26)
 
 Tab **Management** en Admin: catálogo APIs (estado env), KPIs, pie charts (Recharts), tabla usuarios (fase 1: cuenta admin Futura Nota), recent calls desde `api_usage_events`. SQL: [`supabase_management.sql`](supabase_management.sql). Seed: `npm run seed:management`. Instrumentación: Intel overview + campaign study.
@@ -90,6 +94,47 @@ Horizon Scan excluye `discard` de la lista principal; las muestra en `meta.caden
 ---
 
 ## Resueltos
+
+### 2026-07-05 — Cmd+A documentos: patrón Notion/Obsidian + selección in-place
+
+**Problema:** Cmd+A seleccionaba TODOs o abría un textarea overlay separado; no se podía copiar H1+body al portapapeles de forma natural.
+
+**Comportamiento final (Fase 2):**
+
+| Acción | Resultado |
+|--------|-----------|
+| 1× Cmd+A en H1 o TEXT | Nativo: solo ese campo |
+| 2× Cmd+A (campo ya seleccionado) | Todo el doc copiable, **highlight en los mismos bloques** (sin overlay/tab) |
+| Cmd+A en TODO | Nativo: solo ese ítem |
+| Cmd+C en modo selección doc | `collectCopyableDocPlainText` (H1 + body; sin TODOs ni macro-answer oculto) |
+
+**Incluye en copia:** títulos H1 (también vinculados — solo texto, sin handle verde).  
+**Excluye:** TODOs, `macro-answer` oculto, embeds.
+
+**Implementación técnica:**
+- `src/lib/docSelectAll.js` — `tryDocSelectAllKeyDown`, `activateDocInPlaceSelectAll`, `clearDocInPlaceSelectAll`
+- Espejos tipográficos (`doc-inplace-select-mirror`) sobre cada textarea; texto del campo transparente; `::selection` en foco
+- `src/lib/docProseUnified.js` — `isCopyableDocTextBlock`, `collectCopyableDocPlainText`
+- `DocBlockStack.jsx` — Cmd+A solo en H1 (`handleLinkableBlockKeyDown`) y TEXT; **no** en TODO
+- CSS: `.doc-inplace-select-*` en `left-panel.css`
+
+**Fase 1 (editor unificado `UnifiedProseBlockView` en docs):** implementada y **revertida** — rompía Enter multilínea H1 (`memoria.md` 2026-06-26), links de color y partía título en vertical. Se mantienen `docProseUnified.js` + `UnifiedProseBlockView.jsx` en repo para fase futura; render actual = H1 + TEXT por bloque.
+
+**Tests:** `docSelectAll.test.js`, `docProseUnified.test.js`.
+
+### 2026-07-05 — Agente Content Creator: duplicaba link/título en doc padre (Fase 3)
+
+**Problema:** Al activar un agente en un macronodo vinculado y pedirle que llene el documento, el contenido se integraba en el nodo pero **duplicaba el link verde + título** al final del documento padre en lugar de **sobrescribir** el macronodo existente.
+
+**Causas:**
+1. `syncNodeToParentDoc` — sin `sourceBlockId` en la entidad, hacía **append** de H1+TEXT nuevos.
+2. `applyBlogToMacroNode` — inyectaba `createInlineH1Block(headline)` aunque el título canónico ya está en el H1 del doc.
+
+**Fix:** [`nodesStore.js`](src/stores/nodesStore.js) resuelve bloque por `nodeId`; [`applyBlogToMacroNode.js`](src/lib/agents/applyBlogToMacroNode.js) macro vinculado = solo body en nodo, headline → `sourceQuery`, overwrite tras `/agent`.
+
+**Tests:** `applyBlogToMacroNode.test.js`.
+
+---
 
 ### 2026-06-26 — Enter en bloque H1: multilínea dentro del título (sin pasar a body)
 
