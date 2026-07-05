@@ -43,6 +43,7 @@ import {
   WIDGET_SNAPSHOT_KIND,
 } from "../../../lib/captureWidgetSnapshot.js";
 import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
+import { tryDocSelectAllKeyDown, requestDocSelectAll } from "../../../lib/docSelectAll.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
 import { useDocsStore } from "../../../stores/docsStore.js";
@@ -993,6 +994,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const handleTextKeyDown = (blockIndex, e) => {
+    if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
+
     const textValue = e.currentTarget?.value ?? blocksRef.current[blockIndex]?.text ?? "";
     if (handleTextBackspace(blockIndex, e, textValue)) return;
 
@@ -1053,6 +1056,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const handleLinkableBlockKeyDown = (index, block, e) => {
+    if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
+
     const fieldValue = e.currentTarget?.value ?? "";
 
     if (e.key === "Enter" && !e.shiftKey) {
@@ -1161,6 +1166,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const handleTodoItemKeyDown = (index, itemIndex, e) => {
+    if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
+
     const block = blocksRef.current[index];
     if (!block || block.type !== DOC_BLOCK_TYPES.TODO) return;
 
@@ -1630,6 +1637,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 && (isMarketingGuideReport || (isAnalystReport && !shouldAnimateReport))
               }
               onReportAnimationComplete={onReportAnimationComplete}
+              onSelectAllRequest={(fromEl) => requestDocSelectAll(fromEl, blocks)}
               embedded={block.embedded || null}
               linkedNodeId={(() => {
                 const h1Index = getH1IndexForTextBlock(blocks, index);

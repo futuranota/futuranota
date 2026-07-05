@@ -3414,6 +3414,11 @@
   user-select: none;
 }
 
+.doc-new-content-box:has(.doc-slash-command-picker__btn[aria-expanded="true"]) {
+  overflow: visible;
+  z-index: 12;
+}
+
 /* slash-instructions.png — ghost hints after "/" */
 .doc-slash-preview {
   position: relative;
@@ -3481,6 +3486,28 @@
   box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) rgb(14, 16, 18);
+}
+
+.doc-select-all-field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  padding: 12px;
+  border: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  z-index: 4;
+  overflow: hidden;
+  opacity: 0.02;
+  pointer-events: auto;
+}
+
+.doc-select-all-field::selection {
+  background: color-mix(in oklab, var(--hud) 35%, #3a4558);
+  color: var(--text);
 }
 
 .doc-new-content-box--manual-height {
@@ -5275,7 +5302,7 @@ body.doc-content-resizing * {
 
 .doc-collapsed-pad-command,
 .doc-slash-command-picker {
-  z-index: 8;
+  z-index: 20;
   pointer-events: none;
 }
 
@@ -5289,14 +5316,14 @@ body.doc-content-resizing * {
   position: absolute;
   right: 12px;
   bottom: 6px;
-  z-index: 10;
+  z-index: 24;
 }
 
 .doc-slash-command-picker--pad {
   position: absolute;
   right: 10px;
   bottom: 8px;
-  z-index: 10;
+  z-index: 24;
 }
 
 .doc-collapsed-pad-command__btn {
@@ -5402,7 +5429,7 @@ body.doc-content-resizing * {
   background: rgba(12, 12, 12, 0.94);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
-  z-index: 11;
+  z-index: 30;
 }
 
 .doc-collapsed-pad-command__option,
@@ -8028,6 +8055,11 @@ body.doc-content-resizing * {
   overflow: hidden;
 }
 
+.node-query-modal__content-box--slash:has(.doc-slash-command-picker__btn[aria-expanded="true"]) {
+  overflow: visible;
+  z-index: 12;
+}
+
 .node-query-modal__content-box--slash .node-query-modal__slash-wrap {
   display: block;
   width: 100%;
@@ -8044,7 +8076,7 @@ body.doc-content-resizing * {
   position: absolute;
   right: 10px;
   bottom: 10px;
-  z-index: 10;
+  z-index: 24;
 }
 
 .node-query-modal__content-box--slash .video-embed-bar {

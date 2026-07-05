@@ -365,7 +365,7 @@
   position: absolute;
   right: 8px;
   bottom: 8px;
-  z-index: 10;
+  z-index: 24;
 }
 
 .note-taker__todo-stack {

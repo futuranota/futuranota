@@ -39,10 +39,17 @@ export function TextBlockView({
   reportAnimate = false,
   onReportAnimationComplete = null,
   reportStaticView = false,
+  onSelectAllRequest = null,
 }) {
   const { t } = useI18n();
   const continuationRef = useRef(null);
   const hasInlineContinuation = onContinuationChange != null;
+
+  const handleReportSelectAllKeyDown = (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
+    e.preventDefault();
+    onSelectAllRequest?.(e.currentTarget);
+  };
 
   const legacyCalendarModel = !embedded?.displayModel && isCalendarEventNodeContent(value)
     ? getCalendarEventDisplayModel(value)
@@ -152,7 +159,12 @@ export function TextBlockView({
 
   if (reportAnimate) {
     return (
-      <div className={rootClass}>
+      <div
+        className={rootClass}
+        tabIndex={0}
+        role="article"
+        onKeyDown={handleReportSelectAllKeyDown}
+      >
         <AnimatedReportText
           text={value || ""}
           onComplete={onReportAnimationComplete}
@@ -163,7 +175,12 @@ export function TextBlockView({
 
   if (reportStaticView) {
     return (
-      <div className={rootClass}>
+      <div
+        className={rootClass}
+        tabIndex={0}
+        role="article"
+        onKeyDown={handleReportSelectAllKeyDown}
+      >
         <ReportMarkdownBody
           text={value || ""}
           className="doc-marketing-guide"
