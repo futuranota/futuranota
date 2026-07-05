@@ -1,5 +1,6 @@
 import { DOC_BLOCK_TYPES, normalizeDocBlocks } from "./docBlocks.js";
-import { collectCopyableDocPlainText } from "./docProseUnified.js";
+import { collectCopyableDocPlainText, isCopyableDocTextBlock } from "./docProseUnified.js";
+import { copyTextareaTypography } from "./textareaSelectionRect.js";
 
 /**
  * Plain-text snapshot of user-facing document content (for copy / select-all).
@@ -67,6 +68,13 @@ const SELECT_ALL_SCROLL_SELECTOR = [
   ".note-taker__content-scroll",
 ].join(", ");
 
+const INPLACE_SELECT_ACTIVE = "data-doc-inplace-select-active";
+const BLOCK_SELECTED_CLASS = "doc-block-stack__item--doc-selected";
+const MIRROR_ATTR = "data-doc-inplace-select-mirror";
+
+/** @type {WeakMap<HTMLElement, () => void>} */
+const inplaceSelectCleanups = new WeakMap();
+
 /**
  * @param {HTMLElement} fromEl
  * @returns {HTMLElement|null}
@@ -112,33 +120,181 @@ export function isDocSelectAllProseField(block) {
 }
 
 /**
- * Select plain text inside a scroll container via a transient textarea (multi-block docs).
  * @param {HTMLElement|null} containerEl
- * @param {string} text
- * @returns {boolean}
  */
-export function selectAllDocPlainText(containerEl, text) {
-  const value = String(text ?? "");
-  if (!containerEl || !value.trim()) return false;
+export function clearDocInPlaceSelectAll(containerEl) {
+  if (!containerEl) return;
 
-  containerEl.querySelectorAll("[data-doc-select-all-field]").forEach((node) => {
+  const cleanup = inplaceSelectCleanups.get(containerEl);
+  if (cleanup) {
+    cleanup();
+    inplaceSelectCleanups.delete(containerEl);
+  }
+
+  delete containerEl.dataset.docInplaceSelectActive;
+  containerEl.querySelectorAll(`.${BLOCK_SELECTED_CLASS}`).forEach((node) => {
+    node.classList.remove(BLOCK_SELECTED_CLASS);
+  });
+  containerEl.querySelectorAll(".doc-inplace-select-wrap").forEach((node) => {
+    node.classList.remove("doc-inplace-select-wrap");
+  });
+  containerEl.querySelectorAll(".doc-inplace-select-all__input").forEach((node) => {
+    node.classList.remove("doc-inplace-select-all__input");
+  });
+  containerEl.querySelectorAll(`[${MIRROR_ATTR}]`).forEach((node) => {
     node.remove();
   });
+}
 
-  const field = document.createElement("textarea");
-  field.dataset.docSelectAllField = "true";
-  field.className = "doc-select-all-field doc-select-all-field--document";
-  field.setAttribute("readonly", "true");
-  field.setAttribute("aria-label", "Document text selection");
-  field.value = value;
-  containerEl.appendChild(field);
-  field.focus({ preventScroll: true });
-  field.select();
+/**
+ * @param {HTMLTextAreaElement} textarea
+ * @param {HTMLElement} mirror
+ */
+function syncInPlaceSelectMirror(textarea, mirror) {
+  copyTextareaTypography(textarea, mirror);
+  mirror.scrollTop = textarea.scrollTop;
+  const textNode = mirror.querySelector(".doc-inplace-select-mirror__text");
+  if (textNode) {
+    textNode.textContent = textarea.value ?? "";
+  }
+}
 
-  const onBlur = () => {
-    field.remove();
+/**
+ * @param {HTMLTextAreaElement} textarea
+ * @param {HTMLElement} wrap
+ * @returns {HTMLElement}
+ */
+function createInPlaceSelectMirror(textarea, wrap) {
+  const mirror = document.createElement("div");
+  mirror.setAttribute(MIRROR_ATTR, "true");
+  mirror.className = "doc-inplace-select-mirror";
+  mirror.setAttribute("aria-hidden", "true");
+
+  const textNode = document.createElement("span");
+  textNode.className = "doc-inplace-select-mirror__text";
+  textNode.textContent = textarea.value ?? "";
+  mirror.appendChild(textNode);
+
+  wrap.classList.add("doc-inplace-select-wrap");
+  wrap.appendChild(mirror);
+  syncInPlaceSelectMirror(textarea, mirror);
+  return mirror;
+}
+
+/**
+ * Highlight copyable blocks in place (mirrors over each textarea) for document-wide select.
+ * @param {HTMLElement|null} containerEl
+ * @param {import("./docBlocks.js").DocBlock[]} blocks
+ * @param {HTMLElement|null} [anchorField]
+ * @returns {boolean}
+ */
+export function activateDocInPlaceSelectAll(containerEl, blocks, anchorField = null) {
+  const copyableText = collectCopyableDocPlainText(blocks);
+  if (!containerEl || !copyableText.trim()) return false;
+
+  clearDocInPlaceSelectAll(containerEl);
+  containerEl.dataset.docInplaceSelectActive = "true";
+
+  const normalized = normalizeDocBlocks(blocks);
+  /** @type {{ textarea: HTMLTextAreaElement, mirror: HTMLElement | null, wrap: HTMLElement | null }[]} */
+  const tracked = [];
+
+  normalized.forEach((block, index) => {
+    if (!isCopyableDocTextBlock(normalized, index)) return;
+
+    const item = containerEl.querySelector(`[data-block-id="${block.id}"]`);
+    if (!item) return;
+
+    item.classList.add(BLOCK_SELECTED_CLASS);
+    const textarea = item.querySelector("textarea");
+    if (!(textarea instanceof HTMLTextAreaElement)) return;
+
+    const length = textarea.value?.length ?? 0;
+    textarea.setSelectionRange(0, length);
+    textarea.classList.add("doc-inplace-select-all__input");
+
+    let mirror = null;
+    let wrap = null;
+    if (length > 0) {
+      wrap = textarea.closest(".doc-slash-field");
+      if (wrap instanceof HTMLElement) {
+        mirror = createInPlaceSelectMirror(textarea, wrap);
+      }
+    }
+
+    tracked.push({ textarea, mirror, wrap });
+  });
+
+  if (anchorField instanceof HTMLElement) {
+    anchorField.focus({ preventScroll: true });
+  } else {
+    tracked[0]?.textarea.focus({ preventScroll: true });
+  }
+
+  const onCopy = (event) => {
+    if (containerEl.dataset.docInplaceSelectActive !== "true") return;
+    event.preventDefault();
+    event.clipboardData?.setData("text/plain", copyableText);
   };
-  field.addEventListener("blur", onBlur, { once: true });
+
+  const onKeyDown = (event) => {
+    if (containerEl.dataset.docInplaceSelectActive !== "true") return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      clearDocInPlaceSelectAll(containerEl);
+      return;
+    }
+    if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      clearDocInPlaceSelectAll(containerEl);
+    }
+  };
+
+  const onMouseDown = (event) => {
+    if (containerEl.dataset.docInplaceSelectActive !== "true") return;
+    if (event.target instanceof HTMLTextAreaElement) {
+      clearDocInPlaceSelectAll(containerEl);
+    }
+  };
+
+  const onScroll = () => {
+    tracked.forEach(({ textarea, mirror }) => {
+      if (mirror) syncInPlaceSelectMirror(textarea, mirror);
+    });
+  };
+
+  const resizeObservers = tracked
+    .filter(({ textarea }) => textarea.isConnected)
+    .map(({ textarea, mirror }) => {
+      if (!mirror || typeof ResizeObserver === "undefined") return null;
+      const observer = new ResizeObserver(() => {
+        syncInPlaceSelectMirror(textarea, mirror);
+      });
+      observer.observe(textarea);
+      if (textarea.parentElement) observer.observe(textarea.parentElement);
+      return observer;
+    })
+    .filter(Boolean);
+
+  tracked.forEach(({ textarea, mirror }) => {
+    if (!mirror) return;
+    textarea.addEventListener("scroll", onScroll, { passive: true });
+  });
+
+  containerEl.addEventListener("copy", onCopy);
+  containerEl.addEventListener("keydown", onKeyDown);
+  containerEl.addEventListener("mousedown", onMouseDown, true);
+  containerEl.addEventListener("scroll", onScroll, { passive: true, capture: true });
+
+  inplaceSelectCleanups.set(containerEl, () => {
+    containerEl.removeEventListener("copy", onCopy);
+    containerEl.removeEventListener("keydown", onKeyDown);
+    containerEl.removeEventListener("mousedown", onMouseDown, true);
+    containerEl.removeEventListener("scroll", onScroll, true);
+    tracked.forEach(({ textarea }) => {
+      textarea.removeEventListener("scroll", onScroll);
+    });
+    resizeObservers.forEach((observer) => observer.disconnect());
+  });
 
   return true;
 }
@@ -160,7 +316,7 @@ export function selectElementTextContents(element) {
 }
 
 /**
- * Cmd/Ctrl+A in prose fields — 1× native block select, 2× document copyable text (Notion/Obsidian style).
+ * Cmd/Ctrl+A in prose fields — 1× native block select, 2× in-document copyable text.
  * @param {KeyboardEvent} event
  * @param {import("./docBlocks.js").DocBlock[]} blocks
  * @returns {boolean} true when handled
@@ -174,6 +330,11 @@ export function tryDocSelectAllKeyDown(event, blocks) {
   const container = findDocContentScrollRoot(target);
   if (!container) return false;
 
+  if (container.dataset.docInplaceSelectActive === "true") {
+    event.preventDefault();
+    return true;
+  }
+
   const blockIndex = findBlockIndexFromEventTarget(event, blocks);
   const block = normalizeDocBlocks(blocks)[blockIndex];
   if (!isDocSelectAllProseField(block)) return false;
@@ -185,7 +346,7 @@ export function tryDocSelectAllKeyDown(event, blocks) {
 
   event.preventDefault();
   event.stopPropagation();
-  return selectAllDocPlainText(container, copyableText);
+  return activateDocInPlaceSelectAll(container, blocks, target);
 }
 
 /**
@@ -204,7 +365,12 @@ export function requestDocSelectAll(fromEl, blocks) {
 
   const container = findDocContentScrollRoot(fromEl);
   if (!container) return false;
-  return selectAllDocPlainText(container, copyableText);
+  const anchor = fromEl.closest("[data-block-id]")?.querySelector("textarea");
+  return activateDocInPlaceSelectAll(
+    container,
+    blocks,
+    anchor instanceof HTMLTextAreaElement ? anchor : fromEl,
+  );
 }
 
 export { collectCopyableDocPlainText, isCopyableDocTextBlock } from "./docProseUnified.js";

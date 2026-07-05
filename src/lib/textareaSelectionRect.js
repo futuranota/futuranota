@@ -1,4 +1,4 @@
-function copyTextareaStyle(textarea, mirror) {
+export function copyTextareaTypography(textarea, mirror) {
   const style = window.getComputedStyle(textarea);
   mirror.style.boxSizing = style.boxSizing;
   mirror.style.border = style.border;
@@ -19,7 +19,7 @@ export function getCaretClientRect(textarea, position) {
   const fieldRect = textarea.getBoundingClientRect();
 
   const mirror = document.createElement("div");
-  copyTextareaStyle(textarea, mirror);
+  copyTextareaTypography(textarea, mirror);
   mirror.style.position = "fixed";
   mirror.style.top = `${fieldRect.top}px`;
   mirror.style.left = `${fieldRect.left}px`;
