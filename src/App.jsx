@@ -206,6 +206,9 @@ function Dashboard({ company, onBack }) {
   const [expandedDocId, setExpandedDocId] = useState(null);
   const [activeStepPlaybook, setActiveStepPlaybook] = useState(null);
   const [activeStepPlaybookSession, setActiveStepPlaybookSession] = useState(null);
+  const activeStepPlaybookSessionRef = useRef(null);
+  const stepPlaybookSaveLockRef = useRef(false);
+  activeStepPlaybookSessionRef.current = activeStepPlaybookSession;
   const [activeLazyTodo, setActiveLazyTodo] = useState(null);
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
@@ -876,9 +879,12 @@ useEffect(() => {
   }, [t]);
 
   const handleStepPlaybookSessionSaved = useCallback((finalizedSteps) => {
-    setActiveStepPlaybookSession((current) => {
-      if (!current) return null;
+    if (stepPlaybookSaveLockRef.current) return;
+    const current = activeStepPlaybookSessionRef.current;
+    if (!current) return;
 
+    stepPlaybookSaveLockRef.current = true;
+    try {
       const merged = { ...current, steps: finalizedSteps, saved: true };
       persistStepPlaybookSession(merged, {
         addDoc,
@@ -887,9 +893,10 @@ useEffect(() => {
         objects: useObjectsStore.getState().objects,
         defaultTitle: t('stepsLibrary.newDocTitle'),
       });
-
-      return null;
-    });
+      setActiveStepPlaybookSession(null);
+    } finally {
+      stepPlaybookSaveLockRef.current = false;
+    }
   }, [addDoc, t, updateDoc]);
 
   const handleStepPlaybookRemoved = useCallback(({ docId, blockId }) => {

@@ -80,7 +80,7 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
           <div className="steps-runner-overlay__done">
             <p className="steps-runner-overlay__done-title">{t("stepsRunner.done")}</p>
             <button type="button" className="btn steps-runner-overlay__done-btn" onClick={onClose}>
-              {t("common.back")}
+              {t("stepsRunner.backToList")}
             </button>
           </div>
         ) : (

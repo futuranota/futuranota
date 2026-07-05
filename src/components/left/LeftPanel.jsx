@@ -1361,7 +1361,6 @@ export function LeftPanel({
   };
 
   const handleRunPlaybookFromLibrary = (playbook) => {
-    closeStepsLibraryView();
     onRunStepPlaybook?.(playbook);
   };
 

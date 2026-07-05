@@ -506,6 +506,7 @@ export const messages = {
       complete: "Complete",
       stepOf: "Step {n} of {m}",
       done: "All steps complete",
+      backToList: "Back to list",
     },
     lazyTodos: {
       cardLabel: "To do list",

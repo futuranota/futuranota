@@ -89,6 +89,24 @@ export function persistStepPlaybookSession(session, {
       return { docId: null, blockId: block.id };
     }
 
+    for (const doc of Object.values(docs || {})) {
+      if (doc.parentObjectId !== session.objectId) continue;
+      const existingBlocks = normalizeDocBlocks(doc.blocks || []);
+      const existingIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
+      if (existingIndex < 0) continue;
+
+      const nextBlocks = existingBlocks.map((entry, index) => (
+        index === existingIndex ? block : entry
+      ));
+      updateDoc(doc.id, {
+        title: docTitle,
+        blocks: nextBlocks,
+        body: docBlocksToBody(nextBlocks),
+        content: docBlocksToBody(nextBlocks),
+      });
+      return { docId: doc.id, blockId: block.id };
+    }
+
     const parentObject = objects[session.objectId];
     const tags = parentObject?.name ? [parentObject.name] : [];
     const newDocId = addDoc(
