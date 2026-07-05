@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDocBlock, DOC_BLOCK_TYPES } from "./docBlocks.js";
 import {
+  findProseUnitForBlockIndex,
   partitionBlocksForUnifiedProse,
   plainTextToProseBlocks,
   proseSegmentToEditableText,
@@ -64,5 +65,16 @@ describe("docProseUnified", () => {
     ];
     expect(proseSegmentToEditableText(blocks, 0, 1)).toBe("Headline\n\nBody line");
     expect(proseSegmentToPlainText(blocks, 0, 1)).toBe("Headline\n\nBody line");
+  });
+
+  it("finds prose unit for H1 + body text blocks", () => {
+    const blocks = [
+      createDocBlock(DOC_BLOCK_TYPES.H1, { id: "H1", title: "Title" }),
+      createDocBlock(DOC_BLOCK_TYPES.TEXT, { id: "T1", text: "Body" }),
+      createDocBlock(DOC_BLOCK_TYPES.TODO, { id: "TD1", listTitle: "Plan", items: [] }),
+    ];
+    expect(findProseUnitForBlockIndex(blocks, 0)).toEqual({ start: 0, end: 1 });
+    expect(findProseUnitForBlockIndex(blocks, 1)).toEqual({ start: 0, end: 1 });
+    expect(findProseUnitForBlockIndex(blocks, 2)).toEqual({ start: 2, end: 2 });
   });
 });

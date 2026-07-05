@@ -17,6 +17,7 @@ export function TextBlockView({
   onChange,
   onKeyDown,
   onFocus,
+  onPaste,
   onAfterInput,
   placeholder,
   autoFocus = false,
@@ -196,6 +197,7 @@ export function TextBlockView({
         value={value}
         onChange={onChange}
         onKeyDown={handleAnswerKeyDown}
+        onPaste={onPaste}
         onFocus={onFocus}
         onAfterInput={onAfterInput}
         placeholder={placeholder}

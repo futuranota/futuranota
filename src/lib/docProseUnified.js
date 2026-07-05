@@ -85,6 +85,44 @@ export function partitionBlocksForUnifiedProse(blocks) {
 }
 
 /**
+ * Contiguous H1 + TEXT run for select-all / copy (render stays per-block).
+ * @param {import("./docBlocks.js").DocBlock[]} blocks
+ * @param {number} blockIndex
+ * @returns {{ start: number, end: number } | null}
+ */
+export function findProseUnitForBlockIndex(blocks, blockIndex) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (blockIndex < 0 || blockIndex >= normalized.length) return null;
+
+  let start = blockIndex;
+  let end = blockIndex;
+
+  while (start > 0) {
+    const prev = normalized[start - 1];
+    if (prev.type === DOC_BLOCK_TYPES.TEXT && isProseUnifiedEligibleBlock(normalized, start - 1)) {
+      start -= 1;
+      continue;
+    }
+    if (prev.type === DOC_BLOCK_TYPES.H1 && isProseUnifiedEligibleBlock(normalized, start - 1)) {
+      start -= 1;
+      continue;
+    }
+    break;
+  }
+
+  while (end + 1 < normalized.length) {
+    const next = normalized[end + 1];
+    if (next.type === DOC_BLOCK_TYPES.TEXT && isProseUnifiedEligibleBlock(normalized, end + 1)) {
+      end += 1;
+      continue;
+    }
+    break;
+  }
+
+  return { start, end };
+}
+
+/**
  * @param {import("./docBlocks.js").DocBlock[]} blocks
  * @param {number} start
  * @param {number} end

@@ -1,4 +1,8 @@
 import { DOC_BLOCK_TYPES, normalizeDocBlocks } from "./docBlocks.js";
+import {
+  findProseUnitForBlockIndex,
+  proseSegmentToEditableText,
+} from "./docProseUnified.js";
 
 /**
  * Plain-text snapshot of user-facing document content (for copy / select-all).
@@ -75,6 +79,21 @@ export function findDocContentScrollRoot(fromEl) {
 }
 
 /**
+ * @param {KeyboardEvent} event
+ * @param {import("./docBlocks.js").DocBlock[]} blocks
+ * @returns {number}
+ */
+export function findBlockIndexFromEventTarget(event, blocks) {
+  const target = event.currentTarget;
+  if (!(target instanceof HTMLElement)) return -1;
+  const item = target.closest("[data-block-id]");
+  if (!item) return -1;
+  const blockId = item.getAttribute("data-block-id");
+  if (!blockId) return -1;
+  return normalizeDocBlocks(blocks).findIndex((block) => block.id === blockId);
+}
+
+/**
  * Select plain text inside a scroll container via a transient textarea (multi-block docs).
  * @param {HTMLElement|null} containerEl
  * @param {string} text
@@ -123,7 +142,7 @@ export function selectElementTextContents(element) {
 }
 
 /**
- * Cmd/Ctrl+A — select entire document when content spans multiple blocks.
+ * Cmd/Ctrl+A — select prose unit (H1 + body) or full document when appropriate.
  * @param {KeyboardEvent} event
  * @param {import("./docBlocks.js").DocBlock[]} blocks
  * @returns {boolean} true when handled
@@ -131,16 +150,28 @@ export function selectElementTextContents(element) {
 export function tryDocSelectAllKeyDown(event, blocks) {
   if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "a") return false;
 
-  const allText = collectDocPlainText(blocks);
-  if (!allText.trim()) return false;
-
-  if (countDocContentBlocks(blocks) <= 1) return false;
-
   const target = event.currentTarget;
   if (!(target instanceof HTMLElement)) return false;
 
   const container = findDocContentScrollRoot(target);
   if (!container) return false;
+
+  const blockIndex = findBlockIndexFromEventTarget(event, blocks);
+  if (blockIndex >= 0) {
+    const unit = findProseUnitForBlockIndex(blocks, blockIndex);
+    if (unit && unit.end > unit.start) {
+      const unitText = proseSegmentToEditableText(blocks, unit.start, unit.end);
+      if (unitText.trim()) {
+        event.preventDefault();
+        return selectAllDocPlainText(container, unitText);
+      }
+    }
+  }
+
+  const allText = collectDocPlainText(blocks);
+  if (!allText.trim()) return false;
+
+  if (countDocContentBlocks(blocks) <= 1) return false;
 
   event.preventDefault();
   return selectAllDocPlainText(container, allText);

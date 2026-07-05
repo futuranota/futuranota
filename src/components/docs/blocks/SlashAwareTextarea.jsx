@@ -35,6 +35,7 @@ export function SlashAwareTextarea({
   onKeyDown,
   onBlur,
   onFocus,
+  onPaste,
   placeholder,
   className = "",
   wrapClassName = "",
@@ -217,6 +218,7 @@ export function SlashAwareTextarea({
         onSelect={syncGhostPosition}
         onKeyUp={syncGhostPosition}
         onClick={syncGhostPosition}
+        onPaste={onPaste}
         onBlur={onBlur}
         onFocus={(e) => {
           onFocus?.(e);
