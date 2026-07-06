@@ -3,11 +3,18 @@
     "api/**/*.js": {
       "maxDuration": 30,
       "includeFiles": "content/agents/**"
+    },
+    "api/sitemap.js": {
+      "includeFiles": "public/sitemap.xml"
+    },
+    "api/robots.js": {
+      "includeFiles": "public/robots.txt"
     }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "handle": "filesystem" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" },
+    { "source": "/robots.txt", "destination": "/api/robots" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
