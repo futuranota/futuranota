@@ -61,11 +61,13 @@ export async function handleCheckout(req, res) {
     const body = req.body ?? {};
     const billing = normalizeCheckoutBilling(body.billing);
     const referralCode = typeof body.referralCode === "string" ? body.referralCode : "";
+    const cancelReturn = body.cancelReturn === "plans" ? "plans" : "app";
     const result = await createCheckoutSession({
       userId: user.id,
       email: resolveCheckoutEmail(user),
       billing,
       referralCode,
+      cancelReturn,
       supabase,
     });
     res.status(200).json(result);

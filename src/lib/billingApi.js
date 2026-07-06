@@ -26,13 +26,14 @@ async function billingFetch(path, init = {}) {
   return body;
 }
 
-/** @param {"monthly"|"annual"} billing */
-export async function startProCheckout(billing = "monthly") {
+/** @param {"monthly"|"annual"} billing @param {{ cancelReturn?: "app"|"plans" }} [opts] */
+export async function startProCheckout(billing = "monthly", opts = {}) {
   return billingFetch("/api/billing/checkout", {
     method: "POST",
     body: JSON.stringify({
       billing,
       referralCode: getStoredReferralCode(),
+      cancelReturn: opts.cancelReturn === "plans" ? "plans" : "app",
     }),
   });
 }

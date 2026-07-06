@@ -18,7 +18,7 @@ export async function tryRedirectPendingProCheckout() {
   }
 
   try {
-    const { url } = await startProCheckout(pending.billing);
+    const { url } = await startProCheckout(pending.billing, { cancelReturn: 'app' });
     if (!url) return false;
     clearPendingProCheckout();
     window.location.href = url;

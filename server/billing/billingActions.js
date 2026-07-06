@@ -136,11 +136,27 @@ async function getOrCreateStripeCustomer(supabase, userId, email) {
   return customer.id;
 }
 
+/** @param {string} origin @param {unknown} cancelReturn */
+export function resolveCheckoutCancelUrl(origin, cancelReturn) {
+  const base = (origin || getAppOrigin()).replace(/\/$/, "");
+  if (cancelReturn === "plans") {
+    return `${base}/app/plans?checkout=canceled`;
+  }
+  return `${base}/app?checkout=canceled`;
+}
+
 /**
- * @param {{ userId: string, email?: string, billing?: string, referralCode?: string, supabase: import('@supabase/supabase-js').SupabaseClient }} params
+ * @param {{ userId: string, email?: string, billing?: string, referralCode?: string, cancelReturn?: string, supabase: import('@supabase/supabase-js').SupabaseClient }} params
  */
 export async function createCheckoutSession(params) {
-  const { userId, email, billing = "monthly", referralCode = "", supabase } = params;
+  const {
+    userId,
+    email,
+    billing = "monthly",
+    referralCode = "",
+    cancelReturn = "app",
+    supabase,
+  } = params;
   if (!supabase) {
     throw new Error("Authenticated Supabase client is required");
   }
@@ -156,7 +172,7 @@ export async function createCheckoutSession(params) {
   const origin = getAppOrigin();
   const stripe = getStripe();
   const successUrl = `${origin}/app?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = `${origin}/app/plans?checkout=canceled`;
+  const cancelUrl = resolveCheckoutCancelUrl(origin, cancelReturn);
 
   if (billing === "verify") {
     if (!isStripeVerifyCheckoutEnabled()) {

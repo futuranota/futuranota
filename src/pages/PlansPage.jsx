@@ -120,7 +120,7 @@ export function PlansPage() {
         setBusy(true);
         setError(null);
         try {
-          const { url } = await startProCheckout("annual");
+          const { url } = await startProCheckout("annual", { cancelReturn: "plans" });
           if (url) {
             window.location.href = url;
             return;
@@ -140,7 +140,7 @@ export function PlansPage() {
     setBusy(true);
     setError(null);
     try {
-      const { url } = await startProCheckout(billing);
+      const { url } = await startProCheckout(billing, { cancelReturn: "plans" });
       if (url) {
         window.location.href = url;
         return;
