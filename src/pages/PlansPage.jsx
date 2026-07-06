@@ -11,6 +11,7 @@ import { useI18n } from "../i18n/useI18n.js";
 import {
   cancelProSubscription,
   fetchAffiliateLink,
+  fetchVerifyCheckoutAvailable,
   startProCheckout,
   startProVerifyCheckout,
 } from "../lib/billingApi.js";
@@ -60,9 +61,10 @@ export function PlansPage() {
     [affiliate?.url, t],
   );
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [verifyCheckoutAvailable, setVerifyCheckoutAvailable] = useState(false);
 
   const isPro = profile.plan === "pro";
-  const showVerifyCheckout = !isPro;
+  const showVerifyCheckout = !isPro && verifyCheckoutAvailable;
 
   const proPlan = useMemo(() => {
     const { pricing } = getHome();
@@ -74,6 +76,9 @@ export function PlansPage() {
   const hasStripeSubscription = Boolean(profile.stripeSubscriptionId);
   const canCancelViaStripe = isPro && hasStripeSubscription;
   const isAnnual = billing === "annual";
+  const showUpgradeCta = !isPro;
+  const showCancelCta = canCancelViaStripe && !isAnnual;
+  const showSwitchAnnualCta = canCancelViaStripe && isAnnual;
   const priceValue = formatPlanPrice(isAnnual ? proPlan.annualPrice : proPlan.price);
   const priceSuffix = isAnnual ? proPlan.annualPriceSuffix : proPlan.priceSuffix;
   const billingNote = isAnnual ? proPlan.annualBillingNote : proPlan.billingNote;
@@ -92,9 +97,42 @@ export function PlansPage() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (isPro) {
+      setVerifyCheckoutAvailable(false);
+      return;
+    }
+    let cancelled = false;
+    void fetchVerifyCheckoutAvailable()
+      .then(({ available }) => {
+        if (!cancelled) setVerifyCheckoutAvailable(available);
+      })
+      .catch(() => {
+        if (!cancelled) setVerifyCheckoutAvailable(false);
+      });
+    return () => { cancelled = true; };
+  }, [isPro]);
+
   const handlePrimaryAction = async () => {
     if (busy) return;
     if (isPro) {
+      if (showSwitchAnnualCta) {
+        setBusy(true);
+        setError(null);
+        try {
+          const { url } = await startProCheckout("annual");
+          if (url) {
+            window.location.href = url;
+            return;
+          }
+          throw new Error("Stripe checkout URL missing");
+        } catch (err) {
+          setError(err instanceof Error ? err.message : t("plans.billingError"));
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
       if (!hasStripeSubscription) return;
       setCancelModalOpen(true);
       return;
@@ -247,28 +285,26 @@ export function PlansPage() {
             <h2 className="plans-pricing-card__plan-name">{proPlan.name}</h2>
             <p className="plans-pricing-card__desc">{proPlan.desc}</p>
 
-            {!isPro ? (
-              <div className="plans-billing-toggle" role="tablist" aria-label={t("plans.billingToggle")}>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={!isAnnual}
-                  className={"plans-billing-toggle__btn" + (!isAnnual ? " is-active" : "")}
-                  onClick={() => setBilling("monthly")}
-                >
-                  {t("plans.billingMonthly")}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={isAnnual}
-                  className={"plans-billing-toggle__btn" + (isAnnual ? " is-active" : "")}
-                  onClick={() => setBilling("annual")}
-                >
-                  {t("plans.billingAnnual")}
-                </button>
-              </div>
-            ) : null}
+            <div className="plans-billing-toggle" role="tablist" aria-label={t("plans.billingToggle")}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!isAnnual}
+                className={"plans-billing-toggle__btn" + (!isAnnual ? " is-active" : "")}
+                onClick={() => setBilling("monthly")}
+              >
+                {t("plans.billingMonthly")}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isAnnual}
+                className={"plans-billing-toggle__btn" + (isAnnual ? " is-active" : "")}
+                onClick={() => setBilling("annual")}
+              >
+                {t("plans.billingAnnual")}
+              </button>
+            </div>
 
             <div className="plans-pricing-card__price" aria-label={`$${priceValue}${priceSuffix || ""}`}>
               <span className="plans-pricing-card__currency">$</span>
@@ -279,18 +315,20 @@ export function PlansPage() {
             </div>
 
             <div className="plans-pricing-card__cta-wrap">
-              {!isPro || canCancelViaStripe ? (
+              {showUpgradeCta || showCancelCta || showSwitchAnnualCta ? (
                 <button
                   type="button"
-                  className={"btn plans-pricing-card__cta" + (isPro ? " plans-pricing-card__cta--cancel" : " primary")}
+                  className={"btn plans-pricing-card__cta" + (showCancelCta ? " plans-pricing-card__cta--cancel" : " primary")}
                   disabled={busy}
                   onClick={handlePrimaryAction}
                 >
                   {busy && !cancelModalOpen
                     ? t("plans.processing")
-                    : isPro
+                    : showCancelCta
                       ? t("plans.cancelPlan")
-                      : t("plans.upgradeToPro")}
+                      : showSwitchAnnualCta
+                        ? t("plans.switchToAnnual")
+                        : t("plans.upgradeToPro")}
                 </button>
               ) : null}
               {showVerifyCheckout ? (
@@ -311,6 +349,12 @@ export function PlansPage() {
               </p>
             ) : null}
 
+            {isPro && canCancelViaStripe && !isAnnual ? (
+              <p className="plans-pricing-card__note plans-pricing-card__note--muted">
+                {t("plans.proOnMonthlyNote")}
+              </p>
+            ) : null}
+
             {isPro && !hasStripeSubscription ? (
               <p className="plans-pricing-card__note plans-pricing-card__note--muted">
                 {t("plans.proManagedNote")}
@@ -325,7 +369,7 @@ export function PlansPage() {
               <p className="plans-pricing-card__note">{billingNote}</p>
             ) : null}
 
-            {!isPro && isAnnual ? (
+            {isAnnual ? (
               <p className="plans-pricing-card__note plans-pricing-card__note--muted">
                 {t("plans.annualReferralNote")}
               </p>

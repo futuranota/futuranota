@@ -154,8 +154,12 @@ export async function executeAgentRun({
         preferredMacroEntityId,
       });
     }
-    if (agentId === AGENT_SALES_AGENT) return runSalesAgentAgent(base);
-    if (agentId === AGENT_DEEP_RESEARCHER) return runDeepResearcherAgent(base);
+    if (agentId === AGENT_SALES_AGENT) {
+      return runSalesAgentAgent({ ...base, nodeEntitiesById: nodeEntities });
+    }
+    if (agentId === AGENT_DEEP_RESEARCHER) {
+      return runDeepResearcherAgent({ ...base, nodeEntitiesById: nodeEntities });
+    }
     return runCampaignAnalyst({
       ...base,
       nodeEntitiesById: nodeEntities,

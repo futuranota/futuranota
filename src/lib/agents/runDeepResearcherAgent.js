@@ -8,6 +8,7 @@ export async function runDeepResearcherAgent({
   connections = [],
   docsById = {},
   objectsById = {},
+  nodeEntitiesById = {},
   selectedObjectId = null,
   locale = "en",
 }) {
@@ -17,6 +18,7 @@ export async function runDeepResearcherAgent({
     connections,
     docsById,
     objectsById,
+    nodeEntitiesById,
     selectedObjectId,
     locale,
   });
@@ -31,19 +33,19 @@ export async function runDeepResearcherAgent({
     wireOutputDocCanvasNodeId,
   } = context;
 
-  if (!instruction) {
-    return {
-      status: "error",
-      code: "no_instruction",
-      message: translate("agents.errors.no_instruction", lang),
-    };
-  }
-
   if (!targetDocId) {
     return {
       status: "error",
       code: "no_target_doc",
-      message: translate("agents.errors.no_content_doc", lang),
+      message: translate("agents.errors.plan_no_content_doc", lang),
+    };
+  }
+
+  if (!instruction) {
+    return {
+      status: "error",
+      code: "no_instruction",
+      message: translate("agents.errors.plan_no_instruction", lang),
     };
   }
 

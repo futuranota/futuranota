@@ -38,6 +38,7 @@ import {
   updateBlockAt,
   DOC_BLOCK_TYPES,
 } from "../../lib/docBlocks.js";
+import { docBlocksHaveAgentInstruction } from "../../lib/resolveAgentInstruction.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import {
   anchorFieldsFromIso,
@@ -68,7 +69,9 @@ import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 
 /** @param {object[]|null|undefined} blocks */
 function docBlocksHaveText(blocks) {
-  return Array.isArray(blocks) && blocks.some((b) => (b.text || "").trim());
+  if (!Array.isArray(blocks)) return false;
+  if (docBlocksHaveAgentInstruction(blocks)) return true;
+  return blocks.some((b) => (b.text || "").trim());
 }
 
 function docDraftHasContent(cached) {

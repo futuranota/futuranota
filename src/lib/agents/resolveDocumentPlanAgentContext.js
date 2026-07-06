@@ -1,11 +1,15 @@
 import { docBlocksFromBody, normalizeDocBlocks } from "../docBlocks.js";
-import { extractAgentInstructionFromDocBlocks } from "../resolveAgentInstruction.js";
+import {
+  docBlocksHaveAgentInstruction,
+  extractAgentInstructionFromDocBlocks,
+  extractAgentInstructionFromNodeEntity,
+} from "../resolveAgentInstruction.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
-import { resolveAgentGraph } from "./resolveAgentGraph.js";
+import { isOrchestratorTargetDoc, resolveAgentGraph } from "./resolveAgentGraph.js";
 import {
   resolveCompanyFilesContext,
 } from "./resolveContentCreatorContext.js";
-import { isContentDoc, isKnowledgeDoc } from "../templateDoc.js";
+import { isKnowledgeDoc } from "../templateDoc.js";
 
 /**
  * @param {object | null | undefined} node
@@ -30,16 +34,25 @@ function getDocBlocksWithDraft(doc, docId) {
   if (docId) {
     const draft = useUIStateStore.getState().docEditorDrafts[docId];
     if (draft?.blocks?.length) {
-      return normalizeDocBlocks(draft.blocks);
+      const normalized = normalizeDocBlocks(draft.blocks);
+      const hasAgentInstruction = docBlocksHaveAgentInstruction(normalized);
+      const hasText = normalized.some((block) => String(block?.text || "").trim());
+      if (hasAgentInstruction || hasText) {
+        return normalized;
+      }
     }
   }
   return getDocBlocks(doc);
 }
 
-function findWiredContentDoc(nodes, docsById) {
+/**
+ * @param {object[]} nodes
+ * @param {Record<string, object>} docsById
+ */
+function findWiredTargetDoc(nodes, docsById) {
   for (const node of nodes) {
     const doc = resolveDocFromCanvasNode(node, docsById);
-    if (doc && isContentDoc(doc)) {
+    if (doc && isOrchestratorTargetDoc(doc)) {
       return { doc, node };
     }
   }
@@ -47,7 +60,41 @@ function findWiredContentDoc(nodes, docsById) {
 }
 
 /**
- * Document-plan agents: instruction from /agent in wired content doc only (no macro_blog).
+ * @param {object[]} inputNodes
+ * @param {Record<string, object>} nodeEntitiesById
+ */
+function extractMacroAgentInstruction(inputNodes = [], nodeEntitiesById = {}) {
+  for (const node of inputNodes) {
+    if (!node?.noteId) continue;
+    const entity = nodeEntitiesById[node.noteId];
+    if (!entity) continue;
+    const instruction = extractAgentInstructionFromNodeEntity(entity);
+    if (instruction) return instruction;
+  }
+  return "";
+}
+
+/**
+ * @param {object[]} inputNodes
+ * @param {Record<string, object>} nodeEntitiesById
+ * @param {Record<string, object>} docsById
+ */
+function resolveMacroParentContentDoc(inputNodes = [], nodeEntitiesById = {}, docsById = {}) {
+  for (const node of inputNodes) {
+    if (!node?.noteId) continue;
+    const entity = nodeEntitiesById[node.noteId];
+    const parentDocId = entity?.parentDocId || node.parentDocId;
+    if (!parentDocId) continue;
+    const parentDoc = docsById[parentDocId];
+    if (parentDoc && isOrchestratorTargetDoc(parentDoc)) {
+      return parentDoc;
+    }
+  }
+  return null;
+}
+
+/**
+ * Document-plan agents: instruction from Agent block in wired content doc or macro node.
  */
 export function resolveDocumentPlanAgentContext({
   agentCanvasNodeId,
@@ -55,6 +102,7 @@ export function resolveDocumentPlanAgentContext({
   connections = [],
   docsById = {},
   objectsById = {},
+  nodeEntitiesById = {},
   selectedObjectId = null,
   locale = "en",
 }) {
@@ -70,19 +118,42 @@ export function resolveDocumentPlanAgentContext({
     locale: lang,
   });
 
-  const inputMatch = findWiredContentDoc(graph.inputs || [], docsById);
-  const outputMatch = findWiredContentDoc(graph.outputs || [], docsById);
+  const inputMatch = findWiredTargetDoc(graph.inputs || [], docsById);
+  const outputMatch = findWiredTargetDoc(graph.outputs || [], docsById);
 
-  let targetDoc = inputMatch.doc || outputMatch.doc || null;
+  let targetDoc = graph.targetDoc || inputMatch.doc || outputMatch.doc || null;
   let wireOutputDocCanvasNodeId = null;
 
   if (!inputMatch.doc && outputMatch.doc) {
     wireOutputDocCanvasNodeId = outputMatch.node?.id || null;
   }
 
-  const instruction = targetDoc?.id
-    ? extractAgentInstructionFromDocBlocks(getDocBlocksWithDraft(targetDoc, targetDoc.id))
-    : "";
+  if (!targetDoc) {
+    targetDoc = resolveMacroParentContentDoc(
+      graph.inputs || [],
+      nodeEntitiesById,
+      docsById,
+    );
+  }
+
+  let instruction = "";
+  if (targetDoc?.id) {
+    instruction = extractAgentInstructionFromDocBlocks(
+      getDocBlocksWithDraft(targetDoc, targetDoc.id),
+    );
+  }
+
+  if (!instruction) {
+    instruction = extractMacroAgentInstruction(graph.inputs || [], nodeEntitiesById);
+  }
+
+  if (!targetDoc && instruction) {
+    targetDoc = resolveMacroParentContentDoc(
+      graph.inputs || [],
+      nodeEntitiesById,
+      docsById,
+    );
+  }
 
   const objectNode = (graph.inputs || []).find(
     (n) => n && (n.canvasKind === "object" || n.dataType === "object"),
@@ -131,6 +202,12 @@ export function resolveDocumentPlanAgentContext({
         kind: isKnowledgeDoc(doc) ? "knowledge" : "document",
         title: doc.title || "",
         docKind: doc.docKind || "",
+      };
+    }
+    if (node.noteId && nodeEntitiesById[node.noteId]) {
+      return {
+        kind: "macroNode",
+        title: nodeEntitiesById[node.noteId]?.title || node.title || "",
       };
     }
     return { kind: node.canvasKind || node.dataType || "node", title: node.title || "" };

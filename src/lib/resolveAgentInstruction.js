@@ -41,6 +41,17 @@ export function extractAgentInstructionFromNodeEntity(entity) {
  */
 export function extractAgentInstructionFromDocBlocks(blocks) {
   if (!Array.isArray(blocks)) return "";
-  const agentBlock = blocks.find((block) => block?.type === DOC_BLOCK_TYPES.AGENT);
-  return String(agentBlock?.instruction ?? "").trim();
+  for (const block of blocks) {
+    if (block?.type !== DOC_BLOCK_TYPES.AGENT) continue;
+    const instruction = String(block?.instruction ?? "").trim();
+    if (instruction) return instruction;
+  }
+  return "";
+}
+
+/**
+ * @param {unknown[]} blocks
+ */
+export function docBlocksHaveAgentInstruction(blocks) {
+  return Boolean(extractAgentInstructionFromDocBlocks(blocks));
 }
