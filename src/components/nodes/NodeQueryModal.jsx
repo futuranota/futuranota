@@ -16,8 +16,11 @@ import { createTodoItem, DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 import {
   initialNodeShapeFromSlash,
   isNodeSlashCommandEnabled,
+  isDocLinkedNodeSlashCommandEnabled,
   NODE_SLASH_COMMANDS,
+  DOC_LINKED_NODE_SLASH_COMMANDS,
   parseNodeSlashQuery,
+  parseDocLinkedNodeSlashQuery,
 } from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
@@ -234,14 +237,24 @@ export function NodeQueryModal({
       ? parseNodeWritingBody(content)
       : null;
 
-  const slashCommandsEnabled = Boolean(onDataTypeChange);
+  const slashCommandsEnabled = Boolean(onDataTypeChange) || Boolean(onBackToDocument);
+  const linkedFromDocument = Boolean(onBackToDocument);
+  const activeSlashCommands = linkedFromDocument
+    ? DOC_LINKED_NODE_SLASH_COMMANDS
+    : NODE_SLASH_COMMANDS;
+  const resolveSlashQuery = linkedFromDocument
+    ? parseDocLinkedNodeSlashQuery
+    : parseNodeSlashQuery;
+  const isSlashCommandEnabled = linkedFromDocument
+    ? isDocLinkedNodeSlashCommandEnabled
+    : isNodeSlashCommandEnabled;
 
   const updateWritingBlocks = useCallback((blocks) => {
     onContentChange(serializeNodeWritingBody({ blocks }));
   }, [onContentChange]);
 
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
-    const parsed = parseNodeSlashQuery(alias);
+    const parsed = resolveSlashQuery(alias);
     if (!parsed) return;
     const current = parseNodeWritingBody(content);
     const normalized = normalizeWritingBlocks(current.blocks);
@@ -282,7 +295,7 @@ export function NodeQueryModal({
     ) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true });
     }
-  }, [content, onContentChange]);
+  }, [content, onContentChange, resolveSlashQuery]);
 
   const applySlashFromAlias = useCallback((alias, textPrefix = "") => {
     if (dataType === NODE_DATA_TYPES.TEXT && !calendarPayload) {
@@ -608,9 +621,9 @@ export function NodeQueryModal({
           {slashCommandsEnabled ? (
             <DocSlashCommandPicker
               variant="floating"
-              commands={NODE_SLASH_COMMANDS}
+              commands={activeSlashCommands}
               onSelectCommand={applySlashFromAlias}
-              isCommandEnabled={isNodeSlashCommandEnabled}
+              isCommandEnabled={isSlashCommandEnabled}
             />
           ) : null}
         </div>

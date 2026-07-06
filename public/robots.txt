@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+Disallow: /app/
+Disallow: /panel
+Disallow: /auth/
+
+Sitemap: https://www.futuranota.com/sitemap.xml

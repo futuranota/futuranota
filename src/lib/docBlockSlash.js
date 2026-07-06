@@ -109,14 +109,22 @@ export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
 
 /** Slash commands available in standalone node editors (not full documents). */
 export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
-  (cmd) => cmd.blockType === DOC_BLOCK_TYPES.H1
-    || cmd.blockType === DOC_BLOCK_TYPES.H2
-    || cmd.blockType === DOC_BLOCK_TYPES.H3
-    || cmd.blockType === DOC_BLOCK_TYPES.TODO
-    || cmd.blockType === DOC_BLOCK_TYPES.CODE
-    || cmd.blockType === DOC_BLOCK_TYPES.PASSWORD_VAULT
-    || cmd.blockType === DOC_BLOCK_TYPES.LINK_VAULT
-    || cmd.blockType === DOC_BLOCK_TYPES.AGENT,
+  (cmd) => !cmd.macronodeHeading
+    && (
+      cmd.blockType === DOC_BLOCK_TYPES.H1
+      || cmd.blockType === DOC_BLOCK_TYPES.H2
+      || cmd.blockType === DOC_BLOCK_TYPES.H3
+      || cmd.blockType === DOC_BLOCK_TYPES.TODO
+      || cmd.blockType === DOC_BLOCK_TYPES.CODE
+      || cmd.blockType === DOC_BLOCK_TYPES.PASSWORD_VAULT
+      || cmd.blockType === DOC_BLOCK_TYPES.LINK_VAULT
+      || cmd.blockType === DOC_BLOCK_TYPES.AGENT
+    ),
+);
+
+/** Slash commands for nodes opened from a document — all doc tools except Create node. */
+export const DOC_LINKED_NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
+  (cmd) => !cmd.macronodeHeading,
 );
 
 /** Slash commands allowed inside a step-by-step instruction field. */
@@ -125,12 +133,20 @@ export const STEP_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
 );
 
 export function parseSlashQuery(query) {
+  return parseSlashQueryFromCommands(query, DOC_SLASH_COMMANDS);
+}
+
+export function parseDocLinkedNodeSlashQuery(query) {
+  return parseSlashQueryFromCommands(query, DOC_LINKED_NODE_SLASH_COMMANDS);
+}
+
+export function parseSlashQueryFromCommands(query, commands = DOC_SLASH_COMMANDS) {
   const normalized = String(query ?? "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "");
 
-  const match = DOC_SLASH_COMMANDS.find((cmd) =>
+  const match = commands.find((cmd) =>
     cmd.aliases.some((alias) => alias.replace(/\s+/g, "") === normalized),
   );
 
@@ -342,6 +358,10 @@ export function parseNodeSlashQuery(query) {
 
 export function isNodeSlashCommandEnabled(cmd) {
   return NODE_SLASH_COMMANDS.some((entry) => entry.label === cmd?.label);
+}
+
+export function isDocLinkedNodeSlashCommandEnabled(cmd) {
+  return DOC_LINKED_NODE_SLASH_COMMANDS.some((entry) => entry.label === cmd?.label);
 }
 
 export function isNodeLinkableBlockType(blockType) {
