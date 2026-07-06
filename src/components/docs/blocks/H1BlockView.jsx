@@ -10,7 +10,7 @@ export function H1BlockView({
   autoFocus = false,
   onQueryHandleClick,
   onFocus,
-  placeholder = "Create a new query or title ",
+  placeholder = "Create a title",
 }) {
   return (
     <div className="doc-h1-block">

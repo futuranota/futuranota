@@ -4,12 +4,17 @@ import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 import { parseNodeSlashQuery, splitBodyForSlash } from "../../lib/docBlockSlash.js";
 import {
   applySlashInTextBlock,
+  createEmptyTextBlock,
+  insertBlockAfterIndex,
   NODE_BLOCK_TYPES,
   normalizeWritingBlocks,
   removeWritingBlockAt,
 } from "../../lib/nodeInlineContent.js";
+import { isHeadingBlockType } from "../../lib/textSelectionHeading.js";
 import { syncAutoGrowTextareaHeight } from "../../lib/textareaSelectionRect.js";
 import { H1BlockView } from "../docs/blocks/H1BlockView.jsx";
+import { H2BlockView } from "../docs/blocks/H2BlockView.jsx";
+import { H3BlockView } from "../docs/blocks/H3BlockView.jsx";
 import { DocTodoPlanBlockView } from "../docs/blocks/DocTodoPlanBlockView.jsx";
 import { CodeBlockView } from "../docs/blocks/CodeBlockView.jsx";
 import { PasswordVaultBlockView } from "../docs/blocks/PasswordVaultBlockView.jsx";
@@ -17,6 +22,7 @@ import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { AgentBlockView } from "../docs/blocks/AgentBlockView.jsx";
 import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
+import { useNodeTextSelectionToolbar } from "./useNodeTextSelectionToolbar.jsx";
 
 function syncTextareaHeight(el) {
   syncAutoGrowTextareaHeight(el);
@@ -70,7 +76,17 @@ function focusVaultTarget(parsed, blocks, blockIndex, onFocusTargetChange) {
     onFocusTargetChange?.({ blockIndex: insertedIndex, focusVault: true });
     return;
   }
-  onFocusTargetChange?.({ blockIndex: insertedIndex, focusH1: true });
+  onFocusTargetChange?.({ blockIndex: insertedIndex, focusHeading: true });
+}
+
+function isHeadingFocusTarget(focusTarget, blockIndex) {
+  if (focusTarget?.blockIndex !== blockIndex) return false;
+  return Boolean(
+    focusTarget.focusH1
+    || focusTarget.focusH2
+    || focusTarget.focusH3
+    || focusTarget.focusHeading,
+  );
 }
 
 function vaultNodeTypeForParsed(parsed) {
@@ -123,12 +139,22 @@ export function NodeWritingBlockStack({
   onFocusTargetChange,
   slashEnabled = false,
   className = "",
-  textPlaceholder = "Escribe aquí o /title",
+  textPlaceholder = "Escribe aquí o /macronodo",
 }) {
   const inputRefs = useRef({});
   const stackRef = useRef(null);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
+
+  const updateBlocks = useCallback((nextBlocks) => {
+    onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
+  }, [onBlocksChange]);
+
+  const { selectionBubble } = useNodeTextSelectionToolbar({
+    stackRef,
+    blocks,
+    onBlocksChange: updateBlocks,
+  });
 
   useEffect(() => {
     if (focusTarget?.blockIndex == null) return undefined;
@@ -151,7 +177,7 @@ export function NodeWritingBlockStack({
           }
         }
 
-        if (focusTarget.focusH1) {
+        if (focusTarget.focusH1 || focusTarget.focusH2 || focusTarget.focusH3 || focusTarget.focusHeading) {
           const input = blockEl?.querySelector("textarea, input");
           input?.focus({ preventScroll: true });
         }
@@ -168,10 +194,6 @@ export function NodeWritingBlockStack({
     };
   }, [focusTarget]);
 
-  const updateBlocks = useCallback((nextBlocks) => {
-    onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
-  }, [onBlocksChange]);
-
   const updateBlockAt = useCallback((index, patch) => {
     const current = blocksRef.current;
     updateBlocks(current.map((block, blockIndex) => (
@@ -184,30 +206,22 @@ export function NodeWritingBlockStack({
     onFocusTargetChange?.(null);
   }, [onFocusTargetChange, updateBlocks]);
 
-  const focusNextTextBlock = useCallback((afterIndex) => {
-    onFocusTargetChange?.(null);
-    requestAnimationFrame(() => {
-      const normalized = normalizeWritingBlocks(blocksRef.current);
-      focusTextBlockAfter(inputRefs, normalized, afterIndex);
-    });
-  }, [onFocusTargetChange]);
-
-  const removeEmptyH1AndFocus = useCallback((h1Index) => {
+  const removeEmptyHeadingAndFocus = useCallback((headingIndex) => {
     const current = normalizeWritingBlocks(blocksRef.current);
-    const h1 = current[h1Index];
-    if (!h1 || h1.type !== NODE_BLOCK_TYPES.H1) return;
+    const heading = current[headingIndex];
+    if (!heading || !isHeadingBlockType(heading.type)) return;
 
-    const next = removeWritingBlockAt(current, h1Index);
+    const next = removeWritingBlockAt(current, headingIndex);
     updateBlocks(next);
     onFocusTargetChange?.(null);
     requestAnimationFrame(() => {
-      focusTextBlockAfter(inputRefs, next, h1Index - 1);
+      focusTextBlockAfter(inputRefs, next, headingIndex - 1);
     });
   }, [onFocusTargetChange, updateBlocks]);
 
-  const handleH1KeyDown = useCallback((blockIndex, e) => {
+  const handleHeadingKeyDown = useCallback((blockIndex, e) => {
     const block = blocksRef.current[blockIndex];
-    if (!block || block.type !== NODE_BLOCK_TYPES.H1) return;
+    if (!block || !isHeadingBlockType(block.type)) return;
 
     const fieldValue = e.currentTarget?.value ?? block.title ?? "";
     const titleEmpty = !fieldValue.trim();
@@ -216,19 +230,28 @@ export function NodeWritingBlockStack({
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       if (titleEmpty) {
-        removeEmptyH1AndFocus(blockIndex);
+        removeEmptyHeadingAndFocus(blockIndex);
         return;
       }
+      const current = normalizeWritingBlocks(blocksRef.current);
+      const after = current[blockIndex + 1];
+      if (!after || after.type !== NODE_BLOCK_TYPES.TEXT) {
+        updateBlocks(insertBlockAfterIndex(current, blockIndex, createEmptyTextBlock()));
+      }
       e.currentTarget?.blur();
-      focusNextTextBlock(blockIndex);
+      onFocusTargetChange?.(null);
+      requestAnimationFrame(() => {
+        const normalized = normalizeWritingBlocks(blocksRef.current);
+        focusTextBlockAfter(inputRefs, normalized, blockIndex);
+      });
       return;
     }
 
     if ((e.key === "Backspace" || e.key === "Delete") && titleEmpty && atStart) {
       e.preventDefault();
-      removeEmptyH1AndFocus(blockIndex);
+      removeEmptyHeadingAndFocus(blockIndex);
     }
-  }, [focusNextTextBlock, removeEmptyH1AndFocus]);
+  }, [onFocusTargetChange, removeEmptyHeadingAndFocus, updateBlocks]);
 
   const handleTextSlashKeyDown = useCallback((blockIndex, e) => {
     if (!slashEnabled) return;
@@ -283,33 +306,68 @@ export function NodeWritingBlockStack({
 
   const normalizedBlocks = normalizeWritingBlocks(blocks);
 
+  const renderHeadingBlock = (block, blockIndex, {
+    View,
+    stackClass,
+    placeholder,
+    linksEnabled,
+    deleteLabel,
+  }) => (
+    <div
+      key={block.id}
+      data-writing-block-id={block.id}
+      className={stackClass}
+    >
+      <View
+        value={block.title}
+        onChange={(title) => updateBlockAt(blockIndex, { title })}
+        onKeyDown={(e) => handleHeadingKeyDown(blockIndex, e)}
+        linksEnabled={linksEnabled}
+        placeholder={placeholder}
+        autoFocus={isHeadingFocusTarget(focusTarget, blockIndex)}
+      />
+      <LinkedNodeDocActions
+        onDetach={() => removeBlockAt(blockIndex)}
+        label={deleteLabel}
+      />
+    </div>
+  );
+
   return (
     <div
       ref={stackRef}
       className={`node-writing-block-stack${className ? ` ${className}` : ""}`}
     >
+      {selectionBubble}
       {normalizedBlocks.map((block, blockIndex) => {
         if (block.type === NODE_BLOCK_TYPES.H1) {
-          return (
-            <div
-              key={block.id}
-              data-writing-block-id={block.id}
-              className="node-writing-block-stack__h1"
-            >
-              <H1BlockView
-                value={block.title}
-                onChange={(title) => updateBlockAt(blockIndex, { title })}
-                onKeyDown={(e) => handleH1KeyDown(blockIndex, e)}
-                linksEnabled={false}
-                placeholder="Título"
-                autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusH1}
-              />
-              <LinkedNodeDocActions
-                onDetach={() => removeBlockAt(blockIndex)}
-                label="Eliminar título"
-              />
-            </div>
-          );
+          return renderHeadingBlock(block, blockIndex, {
+            View: H1BlockView,
+            stackClass: "node-writing-block-stack__h1",
+            placeholder: "Create a title",
+            linksEnabled: true,
+            deleteLabel: "Eliminar macronodo",
+          });
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.H2) {
+          return renderHeadingBlock(block, blockIndex, {
+            View: H2BlockView,
+            stackClass: "node-writing-block-stack__h2",
+            placeholder: "Heading 2",
+            linksEnabled: false,
+            deleteLabel: "Eliminar encabezado",
+          });
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.H3) {
+          return renderHeadingBlock(block, blockIndex, {
+            View: H3BlockView,
+            stackClass: "node-writing-block-stack__h3",
+            placeholder: "Heading 3",
+            linksEnabled: false,
+            deleteLabel: "Eliminar encabezado",
+          });
         }
 
         if (block.type === NODE_BLOCK_TYPES.TODO) {

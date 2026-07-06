@@ -9,6 +9,8 @@ import { normalizeLinkEntries, normalizePasswordEntries } from "./vaultBlocks.js
 const DOC_BLOCK_TYPES = {
   TEXT: "text",
   H1: "h1",
+  H2: "h2",
+  H3: "h3",
   TODO: "todo",
   DATE: "date",
   METRIC: "metric",
@@ -346,6 +348,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     };
   }
 
+  if (type === DOC_BLOCK_TYPES.H2 || type === DOC_BLOCK_TYPES.H3) {
+    return {
+      ...base,
+      type,
+      title: "",
+      ...patch,
+    };
+  }
+
   if (type === DOC_BLOCK_TYPES.TODO) {
     const items = patch.items || [createTodoItem()];
     return {
@@ -491,6 +502,13 @@ export function normalizeDocBlock(block) {
       nodeLinkColor: block.nodeLinkColor != null
         ? normalizeNodeLinkColorId(block.nodeLinkColor)
         : NO_NODE_LINK_COLOR_ID,
+    });
+  }
+
+  if (type === DOC_BLOCK_TYPES.H2 || type === DOC_BLOCK_TYPES.H3) {
+    return createDocBlock(type, {
+      id: block.id,
+      title: block.title || "",
     });
   }
 
@@ -872,6 +890,28 @@ export function docBlocksFromBody(body) {
   for (const section of sections) {
     const firstLine = section.split("\n")[0]?.trim() || "";
 
+    if (firstLine.startsWith("### ")) {
+      blocks.push(
+        createDocBlock(DOC_BLOCK_TYPES.H3, {
+          title: firstLine.slice(4).trim(),
+        }),
+      );
+      const rest = section.split("\n").slice(1).join("\n").trim();
+      if (rest) blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: rest }));
+      continue;
+    }
+
+    if (firstLine.startsWith("## ")) {
+      blocks.push(
+        createDocBlock(DOC_BLOCK_TYPES.H2, {
+          title: firstLine.slice(3).trim(),
+        }),
+      );
+      const rest = section.split("\n").slice(1).join("\n").trim();
+      if (rest) blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: rest }));
+      continue;
+    }
+
     if (firstLine.startsWith("# ")) {
       blocks.push(
         createDocBlock(DOC_BLOCK_TYPES.H1, {
@@ -957,6 +997,12 @@ export function docBlocksToBody(blocks) {
     .map((block) => {
       if (block.type === DOC_BLOCK_TYPES.H1) {
         return block.title ? `# ${block.title}` : "";
+      }
+      if (block.type === DOC_BLOCK_TYPES.H2) {
+        return block.title ? `## ${block.title}` : "";
+      }
+      if (block.type === DOC_BLOCK_TYPES.H3) {
+        return block.title ? `### ${block.title}` : "";
       }
       if (block.type === DOC_BLOCK_TYPES.TODO) {
         const header = block.listTitle?.trim() ? `${block.listTitle}\n` : "";
@@ -1173,6 +1219,8 @@ export function getActiveContentBlock(blocks) {
   const block = normalized[0];
   if (
     block.type === DOC_BLOCK_TYPES.H1
+    || block.type === DOC_BLOCK_TYPES.H2
+    || block.type === DOC_BLOCK_TYPES.H3
     || block.type === DOC_BLOCK_TYPES.TODO
     || block.type === DOC_BLOCK_TYPES.DATE
     || block.type === DOC_BLOCK_TYPES.METRIC

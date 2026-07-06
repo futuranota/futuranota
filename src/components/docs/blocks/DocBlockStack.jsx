@@ -52,6 +52,8 @@ import { useI18n } from "../../../i18n/useI18n.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
 import { useDocsStore } from "../../../stores/docsStore.js";
 import { H1BlockView } from "./H1BlockView.jsx";
+import { H2BlockView } from "./H2BlockView.jsx";
+import { H3BlockView } from "./H3BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 
 function findLastDocVaultBlockIndex(blocks, blockType) {
@@ -339,6 +341,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
       if (
         focused.type === DOC_BLOCK_TYPES.H1
+        || focused.type === DOC_BLOCK_TYPES.H2
+        || focused.type === DOC_BLOCK_TYPES.H3
         || focused.type === DOC_BLOCK_TYPES.TODO
         || focused.type === DOC_BLOCK_TYPES.DATE
         || focused.type === DOC_BLOCK_TYPES.METRIC
@@ -1111,6 +1115,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         return;
       }
 
+      if (block.type === DOC_BLOCK_TYPES.H2 || block.type === DOC_BLOCK_TYPES.H3) {
+        handleH1EnterKey(index, block, e);
+        return;
+      }
+
       if (e.currentTarget.tagName === "TEXTAREA") {
         insertNewlineAtCaret(index, e, "title");
         return;
@@ -1313,7 +1322,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               placeholder={
                 h1HasVideoEmbedSibling(blocksRef.current, index)
                   ? "Create video title"
-                  : undefined
+                  : "Create a title"
               }
               onChange={(title) => {
                 updateAt(index, { title });
@@ -1329,6 +1338,34 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 onFocusBlock?.(block.id);
               }}
               onQueryHandleClick={() => handleQueryHandleClick(index)}
+              onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.H2 ? (
+            <H2BlockView
+              value={block.title || ""}
+              placeholder="Heading 2"
+              linksEnabled={false}
+              onChange={(title) => updateAt(index, { title })}
+              onFocus={() => {
+                if (collapsedPadWriteByOwnerId[block.id]) return;
+                onFocusBlock?.(block.id);
+              }}
+              onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.H3 ? (
+            <H3BlockView
+              value={block.title || ""}
+              placeholder="Heading 3"
+              linksEnabled={false}
+              onChange={(title) => updateAt(index, { title })}
+              onFocus={() => {
+                if (collapsedPadWriteByOwnerId[block.id]) return;
+                onFocusBlock?.(block.id);
+              }}
               onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
             />
           ) : null}

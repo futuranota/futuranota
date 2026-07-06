@@ -266,8 +266,12 @@ export function NodeQueryModal({
       setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true });
     } else if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
-    } else {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
+    } else if (
+      parsed.type === DOC_BLOCK_TYPES.H1
+      || parsed.type === DOC_BLOCK_TYPES.H2
+      || parsed.type === DOC_BLOCK_TYPES.H3
+    ) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true });
     }
   }, [content, onContentChange]);
 
@@ -566,7 +570,7 @@ export function NodeQueryModal({
                 slashEnabled={slashCommandsEnabled}
                 textPlaceholder={
                   slashCommandsEnabled
-                    ? "Escribe aquí o /title"
+                    ? "Escribe aquí o /macronodo"
                     : "Escribe aquí"
                 }
               />

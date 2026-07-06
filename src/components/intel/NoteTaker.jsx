@@ -173,8 +173,12 @@ export function NoteTaker({
       setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true });
     } else if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
-    } else {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusH1: true });
+    } else if (
+      parsed.type === DOC_BLOCK_TYPES.H1
+      || parsed.type === DOC_BLOCK_TYPES.H2
+      || parsed.type === DOC_BLOCK_TYPES.H3
+    ) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true });
     }
   }, [writingBody.blocks]);
 
@@ -363,6 +367,8 @@ export function NoteTaker({
     if (
       e.target.closest(".doc-todo-plan")
       || e.target.closest(".node-writing-block-stack__h1")
+      || e.target.closest(".node-writing-block-stack__h2")
+      || e.target.closest(".node-writing-block-stack__h3")
       || e.target.closest(".node-writing-block-stack__code")
       || e.target.closest(".node-writing-block-stack__agent")
       || e.target.closest(".node-writing-block-stack__vault")
@@ -426,7 +432,7 @@ export function NoteTaker({
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
                 slashEnabled
-                textPlaceholder="Escribe aquí o /title"
+                textPlaceholder="Escribe aquí o /macronodo"
               />
             </div>
             <DocSlashCommandPicker

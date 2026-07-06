@@ -386,11 +386,17 @@
   min-height: 72px;
 }
 
-.note-taker__writing-stack .doc-h1-block__input {
+.note-taker__writing-stack .doc-h1-block__input,
+.note-taker__writing-stack .node-writing-block-stack__h2 .doc-h1-block__input,
+.note-taker__writing-stack .node-writing-block-stack__h3 .doc-h1-block__input {
   color: var(--text-1);
+  font-family: "Hanken Grotesk", sans-serif;
+  font-optical-sizing: auto;
 }
 
-.note-taker__writing-stack .doc-h1-block__input::placeholder {
+.note-taker__writing-stack .doc-h1-block__input::placeholder,
+.note-taker__writing-stack .node-writing-block-stack__h2 .doc-h1-block__input::placeholder,
+.note-taker__writing-stack .node-writing-block-stack__h3 .doc-h1-block__input::placeholder {
   color: rgba(129, 89, 91, 0.65);
 }
 

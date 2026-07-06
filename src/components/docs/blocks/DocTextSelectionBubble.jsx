@@ -1,18 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-/** Plus control beside highlighted regular text — opens Bold menu. */
+const TEXT_FORMAT_ITEMS = [
+  { id: "bold", label: "Bold" },
+  { id: "h1", label: "Create macronodo" },
+  { id: "h2", label: "Heading 2" },
+  { id: "h3", label: "Heading 3" },
+];
+
+const HEADING_FORMAT_ITEMS = [
+  { id: "body", label: "Regular text" },
+];
+
+/** Plus control beside highlighted text — opens formatting menu. */
 export function DocTextSelectionBubble({
   position,
+  blockKind = "text",
   onBold,
+  onSelectFormat,
   onDismiss,
 }) {
   const rootRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuItems = blockKind === "heading" ? HEADING_FORMAT_ITEMS : TEXT_FORMAT_ITEMS;
 
   useEffect(() => {
     setMenuOpen(false);
-  }, [position?.left, position?.top, position?.btnSize]);
+  }, [position?.left, position?.top, position?.btnSize, blockKind]);
 
   useEffect(() => {
     let armed = false;
@@ -43,11 +57,19 @@ export function DocTextSelectionBubble({
 
   const { left, top, btnSize } = position;
   const safeBtnSize = Number.isFinite(btnSize) ? btnSize : 18;
-  const menuWidth = 112;
+  const menuWidth = 168;
   const menuOpensLeft = left + safeBtnSize + 4 + menuWidth > window.innerWidth - 8;
   const menuStyle = menuOpensLeft
     ? { top: 0, right: safeBtnSize + 4, left: "auto" }
     : { top: 0, left: safeBtnSize + 4 };
+
+  const handleItemClick = (formatId) => {
+    if (formatId === "bold") {
+      onBold?.();
+      return;
+    }
+    onSelectFormat?.(formatId);
+  };
 
   return createPortal(
     <div
@@ -86,18 +108,22 @@ export function DocTextSelectionBubble({
           role="menu"
           style={menuStyle}
         >
-          <button
-            type="button"
-            className="doc-text-selection-toolbar__item"
-            role="menuitem"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onBold?.();
-            }}
-          >
-            Bold
-          </button>
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="doc-text-selection-toolbar__item"
+              role="menuitem"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleItemClick(item.id);
+                setMenuOpen(false);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       ) : null}
     </div>,

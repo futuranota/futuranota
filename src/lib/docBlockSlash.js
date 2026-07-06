@@ -20,10 +20,25 @@ export { getSlashTail, splitBodyForSlash };
 
 export const DOC_SLASH_COMMANDS = [
   {
-    label: "Title",
-    ghostHint: "create title",
-    aliases: ["title", "h1", "createtitle"],
+    label: "Create macronodo",
+    ghostHint: "create a title",
+    aliases: ["macronodo", "createtitle", "title", "h1"],
     blockType: DOC_BLOCK_TYPES.H1,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+    allowsNodeLink: true,
+  },
+  {
+    label: "Heading 2",
+    ghostHint: "heading 2",
+    aliases: ["h2", "heading2"],
+    blockType: DOC_BLOCK_TYPES.H2,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
+    label: "Heading 3",
+    ghostHint: "heading 3",
+    aliases: ["h3", "heading3"],
+    blockType: DOC_BLOCK_TYPES.H3,
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
@@ -86,6 +101,8 @@ export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
 /** Slash commands available in standalone node editors (not full documents). */
 export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
   (cmd) => cmd.blockType === DOC_BLOCK_TYPES.H1
+    || cmd.blockType === DOC_BLOCK_TYPES.H2
+    || cmd.blockType === DOC_BLOCK_TYPES.H3
     || cmd.blockType === DOC_BLOCK_TYPES.TODO
     || cmd.blockType === DOC_BLOCK_TYPES.CODE
     || cmd.blockType === DOC_BLOCK_TYPES.PASSWORD_VAULT
@@ -124,6 +141,14 @@ export function createDocBlockFromSlash(parsed) {
 
   if (parsed.type === DOC_BLOCK_TYPES.H1) {
     return createDocBlock(DOC_BLOCK_TYPES.H1, { title: "" });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.H2) {
+    return createDocBlock(DOC_BLOCK_TYPES.H2, { title: "" });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.H3) {
+    return createDocBlock(DOC_BLOCK_TYPES.H3, { title: "" });
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.TODO) {

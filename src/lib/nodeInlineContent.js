@@ -14,6 +14,8 @@ export const NODE_BODY_KIND = "node-body";
 export const NODE_BLOCK_TYPES = {
   TEXT: "text",
   H1: "h1",
+  H2: "h2",
+  H3: "h3",
   TODO: "todo",
   CODE: "code",
   PASSWORD_VAULT: "password_vault",
@@ -43,6 +45,22 @@ export function createInlineH1Block(title = "") {
   return {
     id: generateId("NH1"),
     type: NODE_BLOCK_TYPES.H1,
+    title,
+  };
+}
+
+export function createInlineH2Block(title = "") {
+  return {
+    id: generateId("NH2"),
+    type: NODE_BLOCK_TYPES.H2,
+    title,
+  };
+}
+
+export function createInlineH3Block(title = "") {
+  return {
+    id: generateId("NH3"),
+    type: NODE_BLOCK_TYPES.H3,
     title,
   };
 }
@@ -138,6 +156,20 @@ export function normalizeWritingBlocks(blocks) {
         title: block.title || "",
       };
     }
+    if (block?.type === NODE_BLOCK_TYPES.H2) {
+      return {
+        id: block.id || generateId("NH2"),
+        type: NODE_BLOCK_TYPES.H2,
+        title: block.title || "",
+      };
+    }
+    if (block?.type === NODE_BLOCK_TYPES.H3) {
+      return {
+        id: block.id || generateId("NH3"),
+        type: NODE_BLOCK_TYPES.H3,
+        title: block.title || "",
+      };
+    }
     if (block?.type === NODE_BLOCK_TYPES.TODO || block?.items) {
       return normalizeTodoBlock(block);
     }
@@ -228,7 +260,11 @@ export function parseNodeWritingBody(content) {
 
 export function nodeWritingBlocksHaveContent(blocks) {
   return normalizeWritingBlocks(blocks).some((block) => {
-    if (block.type === NODE_BLOCK_TYPES.H1) return block.title.trim();
+    if (block.type === NODE_BLOCK_TYPES.H1
+      || block.type === NODE_BLOCK_TYPES.H2
+      || block.type === NODE_BLOCK_TYPES.H3) {
+      return block.title.trim();
+    }
     if (block.type === NODE_BLOCK_TYPES.TODO) {
       return block.listTitle.trim()
         || block.items.some((item) => (item.text || "").trim());
@@ -320,6 +356,16 @@ export function ensureNodeWritingTail(blocks) {
   return [...normalized, createEmptyTextBlock()];
 }
 
+export function ensureEmptyTextBlockAfterNode(blocks, blockIndex) {
+  const normalized = normalizeWritingBlocks(blocks);
+  if (blockIndex < 0 || blockIndex >= normalized.length) return normalized;
+  const after = normalized[blockIndex + 1];
+  if (after?.type === NODE_BLOCK_TYPES.TEXT && !(after.text || "").trim()) {
+    return normalized;
+  }
+  return insertBlockAfterIndex(normalized, blockIndex, createEmptyTextBlock());
+}
+
 export function appendNodeWritingBlock(blocks, newBlock) {
   const normalized = normalizeWritingBlocks(blocks);
   const last = normalized[normalized.length - 1];
@@ -351,6 +397,12 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
   if (!parsed?.type) return null;
   if (parsed.type === DOC_BLOCK_TYPES.H1) {
     return createInlineH1Block(String(textPrefix || "").trim());
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.H2) {
+    return createInlineH2Block(String(textPrefix || "").trim());
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.H3) {
+    return createInlineH3Block(String(textPrefix || "").trim());
   }
   if (parsed.type === DOC_BLOCK_TYPES.TODO) {
     return createInlineTodoBlock();
@@ -400,16 +452,17 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed) {
     }
   }
 
-  const newBlock = createNodeWritingBlockFromSlash(
-    parsed,
-    parsed.type === DOC_BLOCK_TYPES.H1 ? prefix : "",
-  );
+  const newBlock = createNodeWritingBlockFromSlash(parsed, "");
   if (!newBlock) return normalized;
 
-  const updated = normalized.map((entry, index) => (
-    index === blockIndex ? { ...entry, text: prefix } : entry
-  ));
-  return ensureNodeWritingTail(insertBlockAfterIndex(updated, blockIndex, newBlock));
+  const next = [...normalized];
+  if (!prefix.trim()) {
+    next[blockIndex] = newBlock;
+  } else {
+    next[blockIndex] = { ...block, text: prefix };
+    next.splice(blockIndex + 1, 0, newBlock);
+  }
+  return ensureNodeWritingTail(next);
 }
 
 export function appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix = "") {

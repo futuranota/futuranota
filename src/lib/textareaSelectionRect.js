@@ -42,6 +42,20 @@ export function getCaretClientRect(textarea, position) {
   return rect;
 }
 
+export function readTextareaSelection(el) {
+  if (!el || el.tagName !== "TEXTAREA") return null;
+  const start = el.selectionStart ?? 0;
+  const end = el.selectionEnd ?? 0;
+  if (start === end) return null;
+
+  const lo = Math.min(start, end);
+  const hi = Math.max(start, end);
+  const selected = (el.value ?? "").slice(lo, hi);
+  if (!selected.trim()) return null;
+
+  return { start: lo, end: hi };
+}
+
 /** Fixed position for the + button beside a textarea selection end. */
 export function resolveTextSelectionToolbarPosition(textarea, selectionStart, selectionEnd) {
   if (!textarea || textarea.tagName !== "TEXTAREA") return null;
