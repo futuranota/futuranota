@@ -166,7 +166,7 @@ export function materializeNodeBlocksFromPieces(pieces) {
         boldRanges: piece.boldRanges,
       };
     }
-    if (piece.type === "h1") return createInlineH1Block(piece.title);
+    if (piece.type === "h1") return createInlineH1Block(piece.title, { macronodeHeading: Boolean(piece.macronodeHeading) });
     if (piece.type === "h2") return createInlineH2Block(piece.title);
     if (piece.type === "h3") return createInlineH3Block(piece.title);
     return createEmptyTextBlock();
@@ -190,6 +190,9 @@ export function materializeDocBlocksFromPieces(pieces) {
     return createDocBlock(typeMap[piece.type], {
       title: piece.title || "",
       id: piece.id,
+      ...(piece.type === "h1"
+        ? { macronodeHeading: Boolean(piece.macronodeHeading) }
+        : {}),
     });
   });
 }

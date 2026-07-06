@@ -341,12 +341,13 @@ export function NodeWritingBlockStack({
       {selectionBubble}
       {normalizedBlocks.map((block, blockIndex) => {
         if (block.type === NODE_BLOCK_TYPES.H1) {
+          const isMacronodo = Boolean(block.macronodeHeading);
           return renderHeadingBlock(block, blockIndex, {
             View: H1BlockView,
             stackClass: "node-writing-block-stack__h1",
-            placeholder: "Create a title",
-            linksEnabled: true,
-            deleteLabel: "Eliminar macronodo",
+            placeholder: isMacronodo ? "Create a title" : "Heading 1",
+            linksEnabled: isMacronodo,
+            deleteLabel: isMacronodo ? "Eliminar macronodo" : "Eliminar encabezado",
           });
         }
 

@@ -4975,10 +4975,11 @@ body.doc-content-resizing * {
   border: none;
   background: transparent;
   outline: none;
-  font-family: var(--font-display);
+  font-family: "Hanken Grotesk", sans-serif;
+  font-optical-sizing: auto;
   font-size: 17px;
   font-weight: 800;
-  letter-spacing: 0.68px;
+  letter-spacing: 0.04em;
   line-height: 1.15;
   color: #fff;
   padding: 0;
@@ -5024,11 +5025,6 @@ body.doc-content-resizing * {
   font-weight: 600;
   letter-spacing: 0.03em;
   line-height: 1.3;
-}
-
-.doc-h1-block .doc-h1-block__input {
-  font-family: "Hanken Grotesk", sans-serif;
-  font-optical-sizing: auto;
 }
 
 .doc-date-block__fields {

@@ -1322,7 +1322,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               placeholder={
                 h1HasVideoEmbedSibling(blocksRef.current, index)
                   ? "Create video title"
-                  : "Create a title"
+                  : block.macronodeHeading
+                    ? "Create a title"
+                    : "Heading 1"
               }
               onChange={(title) => {
                 updateAt(index, { title });
@@ -1332,7 +1334,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={blockLinkColor(block)}
-              linksEnabled={blockLinksEnabled(block)}
+              linksEnabled={Boolean(block.macronodeHeading) && blockLinksEnabled(block)}
               onFocus={() => {
                 if (collapsedPadWriteByOwnerId[block.id]) return;
                 onFocusBlock?.(block.id);

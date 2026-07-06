@@ -344,6 +344,7 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       title: "",
       queryEnabled: false,
       nodeLinkColor: NO_NODE_LINK_COLOR_ID,
+      macronodeHeading: Boolean(patch.macronodeHeading),
       ...patch,
     };
   }
@@ -502,6 +503,9 @@ export function normalizeDocBlock(block) {
       nodeLinkColor: block.nodeLinkColor != null
         ? normalizeNodeLinkColorId(block.nodeLinkColor)
         : NO_NODE_LINK_COLOR_ID,
+      macronodeHeading: block.macronodeHeading != null
+        ? Boolean(block.macronodeHeading)
+        : Boolean(block.nodeId || queryEnabled),
     });
   }
 

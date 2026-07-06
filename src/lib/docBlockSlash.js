@@ -22,10 +22,19 @@ export const DOC_SLASH_COMMANDS = [
   {
     label: "Create macronodo",
     ghostHint: "create a title",
-    aliases: ["macronodo", "createtitle", "title", "h1"],
+    aliases: ["macronodo", "createtitle", "title"],
     blockType: DOC_BLOCK_TYPES.H1,
     nodeDataType: NODE_DATA_TYPES.TEXT,
     allowsNodeLink: true,
+    macronodeHeading: true,
+  },
+  {
+    label: "Heading 1",
+    ghostHint: "heading 1",
+    aliases: ["h1", "heading1"],
+    blockType: DOC_BLOCK_TYPES.H1,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+    macronodeHeading: false,
   },
   {
     label: "Heading 2",
@@ -132,6 +141,8 @@ export function parseSlashQuery(query) {
     nodeDataType: match.nodeDataType,
     label: match.label,
     compound: Boolean(match.compound),
+    macronodeHeading: Boolean(match.macronodeHeading),
+    allowsNodeLink: Boolean(match.allowsNodeLink),
   };
 }
 
@@ -140,7 +151,10 @@ export function createDocBlockFromSlash(parsed) {
   if (!parsed?.type) return createDocBlock();
 
   if (parsed.type === DOC_BLOCK_TYPES.H1) {
-    return createDocBlock(DOC_BLOCK_TYPES.H1, { title: "" });
+    return createDocBlock(DOC_BLOCK_TYPES.H1, {
+      title: "",
+      macronodeHeading: Boolean(parsed.macronodeHeading),
+    });
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.H2) {
@@ -319,6 +333,8 @@ export function parseNodeSlashQuery(query) {
     nodeDataType: match.nodeDataType,
     label: match.label,
     compound: Boolean(match.compound),
+    macronodeHeading: Boolean(match.macronodeHeading),
+    allowsNodeLink: Boolean(match.allowsNodeLink),
   };
 }
 

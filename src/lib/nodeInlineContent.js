@@ -41,11 +41,12 @@ export function createEmptyTextBlock(text = "") {
   };
 }
 
-export function createInlineH1Block(title = "") {
+export function createInlineH1Block(title = "", patch = {}) {
   return {
     id: generateId("NH1"),
     type: NODE_BLOCK_TYPES.H1,
     title,
+    macronodeHeading: Boolean(patch.macronodeHeading),
   };
 }
 
@@ -154,6 +155,9 @@ export function normalizeWritingBlocks(blocks) {
         id: block.id || generateId("NH1"),
         type: NODE_BLOCK_TYPES.H1,
         title: block.title || "",
+        macronodeHeading: block.macronodeHeading != null
+          ? Boolean(block.macronodeHeading)
+          : Boolean(block.nodeId || block.queryEnabled),
       };
     }
     if (block?.type === NODE_BLOCK_TYPES.H2) {
@@ -396,7 +400,9 @@ export function insertBlockAfterIndex(blocks, blockIndex, newBlock) {
 export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
   if (!parsed?.type) return null;
   if (parsed.type === DOC_BLOCK_TYPES.H1) {
-    return createInlineH1Block(String(textPrefix || "").trim());
+    return createInlineH1Block(String(textPrefix || "").trim(), {
+      macronodeHeading: Boolean(parsed.macronodeHeading),
+    });
   }
   if (parsed.type === DOC_BLOCK_TYPES.H2) {
     return createInlineH2Block(String(textPrefix || "").trim());
