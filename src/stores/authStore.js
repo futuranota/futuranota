@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { getAppOrigin, resolveOAuthReturn, startGoogleOAuth } from '../lib/authRedirect.js';
 import { getSupabaseConfigError } from '../lib/supabaseClient';
 import { flushPersistenceSync } from './middleware/persistenceMiddleware.js';
+import { clearPendingProCheckout } from '../lib/pendingCheckout.js';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -49,13 +50,17 @@ export const useAuthStore = create((set) => ({
     if (error) throw error;
   },
 
-  signUp: async (email, password, metadata) => {
+  signUp: async (email, password, metadata, loginRedirectQuery = '') => {
+    const loginPath = `${getAppOrigin()}/login`;
+    const emailRedirectTo = loginRedirectQuery
+      ? `${loginPath}?${loginRedirectQuery}`
+      : loginPath;
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: metadata || undefined,
-        emailRedirectTo: `${getAppOrigin()}/login`,
+        emailRedirectTo,
       },
     });
     if (error) throw error;
@@ -69,6 +74,7 @@ export const useAuthStore = create((set) => ({
 
   signOut: async () => {
     await flushPersistenceSync();
+    clearPendingProCheckout();
     await supabase.auth.signOut();
     set({ user: null, session: null });
   },

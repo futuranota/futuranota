@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { convert } from "html-to-text";
 import { getAppOrigin } from "./stripeConfig.js";
 import { REFERRAL_REWARD_CREDITS } from "./applySubscription.js";
 
@@ -16,7 +17,7 @@ function getFromAddress() {
   return (
     process.env.REFERRAL_FROM_EMAIL
     || process.env.RESEND_FROM_EMAIL
-    || "Futura Nota <onboarding@resend.dev>"
+    || "Futura Nota <noreply@futuranota.com>"
   ).trim();
 }
 
@@ -55,6 +56,9 @@ export async function sendReferralInviteEmails(params) {
     <p style="color:#666;font-size:12px;">Futura Nota · ${origin}</p>
   `.trim();
 
+  const text = convert(html);
+  const replyTo = process.env.REFERRAL_REPLY_TO || "support@futuranota.com";
+
   const from = getFromAddress();
   const results = await Promise.allSettled(
     to.map((email) => resend.emails.send({
@@ -62,6 +66,8 @@ export async function sendReferralInviteEmails(params) {
       to: email,
       subject,
       html,
+      text,
+      reply_to: replyTo,
     })),
   );
 

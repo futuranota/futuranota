@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient.js';
 import { resolveOAuthReturn } from '../lib/authRedirect.js';
 import { PATHS } from '../marketing/lib/paths.js';
 import { useAuthStore } from '../stores/authStore.js';
+import { tryRedirectPendingProCheckout } from '../lib/redirectPendingProCheckout.js';
 
 /** Handles Google OAuth return, then sends user to the dashboard. */
 export function AuthCallbackPage() {
@@ -23,11 +24,13 @@ export function AuthCallbackPage() {
       });
     };
 
-    const go = (session) => {
+    const go = async (session) => {
       if (cancelled) return;
       if (session) {
         syncSession(session);
         setStatus('Redirecting to Futura Nota…');
+        const redirected = await tryRedirectPendingProCheckout();
+        if (cancelled || redirected) return;
         navigate(PATHS.app, { replace: true });
       } else {
         setStatus('Sign-in failed. Redirecting…');
@@ -39,16 +42,16 @@ export function AuthCallbackPage() {
       try {
         const { session } = await resolveOAuthReturn();
         if (session) {
-          go(session);
+          await go(session);
           return;
         }
         const { data: { session: retry } } = await supabase.auth.getSession();
-        go(retry);
+        await go(retry);
       } catch (err) {
         console.error('OAuth callback failed:', err);
         const { data: { session: retry } } = await supabase.auth.getSession();
         if (retry) {
-          go(retry);
+          await go(retry);
           return;
         }
         if (!cancelled) {
@@ -59,7 +62,7 @@ export function AuthCallbackPage() {
     };
 
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) go(session);
+      if (event === 'SIGNED_IN' && session) void go(session);
     });
     subscription = data.subscription;
 

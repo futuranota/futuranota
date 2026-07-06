@@ -126,16 +126,6 @@ export function AuthSignupCard({
           <h1 className="auth-split-form__title">
             {isSignup ? 'Create an Account' : 'Welcome back'}
           </h1>
-          <p className="auth-split-form__sub">
-            {isSignup ? 'Already have an account? ' : 'New to Futura Nota? '}
-            <button
-              type="button"
-              className="auth-split-form__link"
-              onClick={() => onModeChange?.(isSignup ? 'signin' : 'signup')}
-            >
-              {isSignup ? 'Log in' : 'Create one free'}
-            </button>
-          </p>
         </div>
 
         {isSignup && selectedPlan ? (
@@ -238,8 +228,7 @@ export function AuthSignupCard({
           {!isSignup ? (
             <Link
               to={PATHS.forgotPassword}
-              className="auth-split-form__link auth-split-form__link--inline"
-              style={{ alignSelf: 'flex-end' }}
+              className="auth-split-form__link auth-split-form__link--inline auth-split-form__forgot"
             >
               Forgot password?
             </Link>
@@ -268,13 +257,17 @@ export function AuthSignupCard({
           ) : null}
 
           {errorMessage ? (
-            <div style={{ fontSize: 12, color: 'var(--warm)', padding: '6px 10px', background: 'var(--warm-soft)', borderRadius: 6 }}>
+            <div className="auth-split-form__error" role="alert">
               {errorMessage}
             </div>
           ) : null}
 
-          <button type="submit" className="btn auth-split-submit" disabled={loading}>
-            {loading ? 'Loading…' : isSignup ? 'Create Account' : 'Sign in'}
+          <button
+            type="submit"
+            className="btn btn-primary auth-split-submit"
+            disabled={loading}
+          >
+            {loading ? 'Loading…' : isSignup ? 'Sign up' : 'Sign in'}
           </button>
         </form>
       </div>

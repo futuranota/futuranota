@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { AuthSignupCard } from '../components/AuthSignupCard.jsx';
-import { PATHS } from '../lib/paths.js';
+import { PATHS, authPath } from '../lib/paths.js';
 import { applyMarketingTheme } from '../lib/theme.js';
 import { getHome } from '../lib/content.js';
 import { PRICING_PLANS_DEFAULT } from '../lib/pricingDefaults.js';
@@ -12,6 +12,12 @@ import {
   OAUTH_MODE_KEY,
 } from '../../lib/onboardingFlow.js';
 import { captureReferralFromSearch } from '../../lib/referralStorage.js';
+import {
+  buildCheckoutLoginQuery,
+  markPendingProCheckout,
+  syncPendingProCheckoutFromParams,
+} from '../../lib/pendingCheckout.js';
+import { tryRedirectPendingProCheckout } from '../../lib/redirectPendingProCheckout.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
@@ -20,8 +26,10 @@ export function WelcomePage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { signIn, signUp, signInWithGoogle } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.loading);
 
-  const initial = location.pathname === '/login' || location.hash === '#signin' ? 'signin' : 'signup';
+  const initial = location.pathname === PATHS.login || location.hash === '#signin' ? 'signin' : 'signup';
   const [tab, setTab] = useState(initial);
   const [sent, setSent] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
@@ -48,7 +56,21 @@ export function WelcomePage() {
 
   useEffect(() => {
     captureReferralFromSearch(searchParams);
-  }, [searchParams]);
+    syncPendingProCheckoutFromParams(planId, billing);
+  }, [searchParams, planId, billing]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const onAuthPage = location.pathname === PATHS.login || location.pathname === PATHS.signup;
+    if (!onAuthPage) return;
+
+    let cancelled = false;
+    void tryRedirectPendingProCheckout().then((redirected) => {
+      if (cancelled || redirected) return;
+      navigate(PATHS.app, { replace: true });
+    });
+    return () => { cancelled = true; };
+  }, [authLoading, user, location.pathname, navigate]);
 
   useEffect(() => {
     applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
@@ -60,16 +82,30 @@ export function WelcomePage() {
     const onHash = () => setTab(location.hash === '#signin' ? 'signin' : 'signup');
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [location.hash]);
+
+  useEffect(() => {
+    if (location.pathname === PATHS.login) {
+      setTab('signin');
+    } else if (location.pathname === PATHS.signup) {
+      setTab('signup');
+    }
+  }, [location.pathname]);
+
+  const signInHref = authPath('signin', {
+    plan: planId || undefined,
+    billing: billing || undefined,
+  });
+  const signUpHref = authPath(undefined, {
+    plan: planId || undefined,
+    billing: billing || undefined,
+  });
 
   const go = (next) => {
     setSent(false);
     setErrorMessage(null);
     setTab(next);
-    if (history.replaceState) {
-      const base = next === 'signin' ? PATHS.login : PATHS.signup;
-      history.replaceState(null, '', `${base}${location.search}`);
-    }
+    navigate(next === 'signin' ? signInHref : signUpHref, { replace: true });
   };
 
   const handleSubmit = async (form) => {
@@ -77,19 +113,26 @@ export function WelcomePage() {
     setLoading(true);
     try {
       if (tab === 'signup') {
+        const checkoutQuery = buildCheckoutLoginQuery(selectedPlan?.id, billing);
+        if (selectedPlan?.id === 'pro') {
+          markPendingProCheckout(billing);
+        }
         await signUp(form.email, form.password, {
           first_name: form.firstName,
           last_name: form.lastName,
           plan: selectedPlan?.id ?? 'free',
           ...(billing ? { billing } : {}),
-        });
+        }, checkoutQuery);
         markPendingLibrary();
         setPendingEmail(form.email);
         setSent(true);
       } else {
         await signIn(form.email, form.password);
         clearPendingLibrary();
-        navigate(PATHS.app, { replace: true });
+        const redirected = await tryRedirectPendingProCheckout();
+        if (!redirected) {
+          navigate(PATHS.app, { replace: true });
+        }
       }
     } catch (err) {
       setErrorMessage(err.message);
@@ -103,6 +146,9 @@ export function WelcomePage() {
     setLoading(true);
     try {
       sessionStorage.setItem(OAUTH_MODE_KEY, tab);
+      if (tab === 'signup' && planId === 'pro') {
+        markPendingProCheckout(billing);
+      }
       await signInWithGoogle();
       // Navigation continues in Google — page unloads.
     } catch (err) {
@@ -119,10 +165,11 @@ export function WelcomePage() {
           <span className="auth-done__mark"><span className="back-link__arrow" style={{ transform: 'none' }}>✓</span></span>
           <h2 className="h2">Check your inbox.</h2>
           <p className="muted" style={{ fontSize: 15 }}>
-            We sent a confirmation link to {pendingEmail || 'your email'}. Click it to activate your account, then sign in.
+            We sent a confirmation link to {pendingEmail || 'your email'}. Click it to activate your account, then sign in
+            {selectedPlan?.id === 'pro' ? ' to complete Pro payment with your card.' : '.'}
           </p>
           <button type="button" className="btn btn-primary" onClick={() => go('signin')}>
-            Back to sign in <span className="arrow">→</span>
+            Sign in <span className="arrow">→</span>
           </button>
         </div>
       ) : (

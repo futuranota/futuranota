@@ -623,12 +623,12 @@
 }
 
 .auth-split-card {
-  --auth-split-panel-h: min(616px, calc(100vh - 64px));
+  --auth-split-panel-h: min(560px, calc(100vh - 48px));
   display: flex;
   flex-direction: column;
   width: min(960px, 100%);
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   border: none;
   border-radius: var(--radius-lg);
   background: oklch(0.16 0.015 260);
@@ -710,14 +710,13 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 26px 28px 24px;
+  gap: 10px;
+  padding: 18px 20px 16px;
   background: oklch(0.19 0.012 260);
   color: oklch(0.96 0.006 85);
-  max-height: var(--auth-split-panel-h, none);
-  height: 100%;
-  overflow: hidden;
+  height: auto;
+  max-height: none;
+  overflow: visible;
   box-sizing: border-box;
 }
 
@@ -749,12 +748,12 @@
 .auth-split-form__tab {
   appearance: none;
   cursor: pointer;
-  padding: 9px 8px;
+  padding: 7px 8px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
   font-family: var(--font-body);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   color: oklch(0.72 0.012 85);
   transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
@@ -771,15 +770,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 1px solid oklch(1 0 0 / 0.12);
   border-radius: 10px;
   background: oklch(0.24 0.012 260);
   color: oklch(0.96 0.006 85);
   font-family: var(--font-body);
-  font-size: 14.5px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
@@ -825,12 +824,11 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px 12px;
-  margin-bottom: 4px;
+  padding: 6px 10px;
   border: 1px solid oklch(1 0 0 / 0.12);
-  border-radius: 10px;
+  border-radius: 8px;
   background: oklch(1 0 0 / 0.04);
-  font-size: 12.5px;
+  font-size: 12px;
   color: oklch(0.84 0.012 85);
 }
 .auth-split-plan-chip strong {
@@ -840,13 +838,13 @@
 .auth-split-form__head {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
 }
 
 .auth-split-form__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: clamp(24px, 2.8vw, 30px);
+  font-size: clamp(20px, 2.4vw, 26px);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: oklch(0.98 0.004 85);
@@ -880,41 +878,51 @@
 
 .auth-split-form__fields {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 13px;
-  min-height: 0;
+  gap: 8px;
+}
+
+.auth-split-form__error {
+  font-size: 12px;
+  color: var(--warm);
+  padding: 6px 10px;
+  background: var(--warm-soft);
+  border-radius: 6px;
+}
+
+.auth-split-form__forgot {
+  align-self: flex-end;
+  margin-top: -2px;
 }
 
 .auth-split-form__row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 8px;
 }
 
 .auth-split-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .auth-split-field__label {
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 500;
   color: oklch(0.78 0.012 85);
 }
 
 .auth-split-input {
   width: 100%;
-  padding: 10px 12px;
-  min-height: 42px;
+  padding: 8px 10px;
+  min-height: 36px;
   border: 1px solid oklch(1 0 0 / 0.12);
-  border-radius: 10px;
+  border-radius: 8px;
   background: oklch(0.14 0.012 260);
   color: oklch(0.96 0.006 85);
   font-family: var(--font-body);
-  font-size: 14.5px;
+  font-size: 14px;
   line-height: 1.25;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -965,7 +973,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.35;
   color: oklch(0.72 0.012 85);
 }
@@ -985,21 +993,31 @@
 .auth-split-submit {
   justify-content: center;
   width: 100%;
-  min-height: 38px;
-  padding: 11px 22px;
+  min-height: 40px;
+  margin-top: 2px;
+  padding: 10px 18px;
   border: 0;
-  border-radius: 10px;
-  background: oklch(0.96 0.006 85);
-  color: oklch(0.16 0.015 260);
+  border-radius: 8px;
   font-family: var(--font-body);
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.auth-split-submit:hover {
-  background: oklch(1 0 0);
+.auth-split-submit.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.auth-split-submit.btn-primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
+.auth-split-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .auth-split-success {
@@ -1031,8 +1049,8 @@
   .auth-split-card {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: var(--auth-split-panel-h) auto;
-    align-items: start;
+    grid-template-rows: auto;
+    align-items: stretch;
   }
 
   .auth-split-visual {
@@ -1042,7 +1060,8 @@
   .auth-split-visual__primary {
     grid-column: 1;
     grid-row: 1;
-    height: var(--auth-split-panel-h);
+    min-height: var(--auth-split-panel-h);
+    height: auto;
     border-radius: var(--radius-lg) 0 0 0;
   }
 
@@ -1054,8 +1073,9 @@
   .auth-split-form {
     grid-column: 2;
     grid-row: 1;
-    height: var(--auth-split-panel-h);
-    max-height: var(--auth-split-panel-h);
+    height: auto;
+    min-height: var(--auth-split-panel-h);
+    max-height: none;
     border-radius: 0 var(--radius-lg) 0 0;
   }
 }
