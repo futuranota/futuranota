@@ -371,6 +371,7 @@ export function useDocBlockNodeModal({
       onAnchorTimeChange={handleNodeAnchorTimeChange}
       onClose={resetNodeModal}
       onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
+      entityNodeId={activeNodeContext.nodeId || null}
       intelSearchMeta={
         docId
           ? {
@@ -391,6 +392,7 @@ export function useDocBlockNodeModal({
     onVideoEmbedSync: handleVideoEmbedSync,
     onVideoEmbedH1TitleChange: handleVideoEmbedH1TitleChange,
     nodeModal,
+    isNodeModalOpen: Boolean(activeNodeContext),
   };
 }
 

@@ -3,14 +3,16 @@ import { createPortal } from "react-dom";
 
 const TEXT_FORMAT_ITEMS = [
   { id: "bold", label: "Bold" },
-  { id: "macronodo", label: "Create macronodo" },
+  { id: "macronodo", label: "Create node" },
   { id: "h1", label: "Heading 1" },
   { id: "h2", label: "Heading 2" },
   { id: "h3", label: "Heading 3" },
 ];
 
 const HEADING_FORMAT_ITEMS = [
-  { id: "body", label: "Regular text" },
+  { id: "h1", label: "Heading 1" },
+  { id: "h2", label: "Heading 2" },
+  { id: "h3", label: "Heading 3" },
 ];
 
 /** Plus control beside highlighted text — opens formatting menu. */
@@ -58,7 +60,7 @@ export function DocTextSelectionBubble({
 
   const { left, top, btnSize } = position;
   const safeBtnSize = Number.isFinite(btnSize) ? btnSize : 18;
-  const menuWidth = 168;
+  const menuWidth = 176;
   const menuOpensLeft = left + safeBtnSize + 4 + menuWidth > window.innerWidth - 8;
   const menuStyle = menuOpensLeft
     ? { top: 0, right: safeBtnSize + 4, left: "auto" }

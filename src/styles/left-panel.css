@@ -3667,6 +3667,53 @@
   outline: none;
 }
 
+.doc-content-text-size-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.doc-content-text-size-controls__btn {
+  display: block;
+  width: 63px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.62;
+  line-height: 0;
+  transition: opacity 120ms ease;
+}
+
+.doc-content-text-size-controls__btn img {
+  display: block;
+  width: 63px;
+  height: auto;
+}
+
+.doc-content-text-size-controls__btn:hover,
+.doc-content-text-size-controls__btn:focus-visible {
+  opacity: 0.92;
+  outline: none;
+}
+
+.doc-content-text-size-controls__btn.is-active {
+  opacity: 1;
+}
+
+.doc-content-text-size-controls__btn.is-disabled {
+  opacity: 0.34;
+  filter: grayscale(0.55);
+}
+
+.doc-content-text-size-controls__btn.is-disabled:hover,
+.doc-content-text-size-controls__btn.is-disabled:focus-visible {
+  opacity: 0.52;
+}
+
 body.doc-content-resizing,
 body.doc-content-resizing * {
   cursor: ns-resize !important;
@@ -5360,6 +5407,9 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__footer-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
   margin-left: 0;
 }
@@ -7346,9 +7396,10 @@ body.doc-content-resizing * {
   font-family: var(--font-doc);
   font-size: var(--font-doc-size);
   font-weight: var(--font-doc-weight);
-  font-optical-sizing: auto;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
+  font-optical-sizing: var(--font-doc-optical-sizing);
+  font-style: normal;
+  line-height: var(--font-doc-line-height);
+  letter-spacing: var(--font-doc-letter-spacing);
   color: #fff;
   outline: none;
   word-break: normal;
@@ -7492,7 +7543,7 @@ body.doc-content-resizing * {
 
 .doc-new-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
   margin-top: auto;
@@ -8157,6 +8208,10 @@ body.doc-content-resizing * {
   overflow: hidden;
 }
 
+.node-query-modal__content-box--text-size {
+  position: relative;
+}
+
 .node-query-modal__content-box--slash:has(.doc-slash-command-picker__btn[aria-expanded="true"]) {
   overflow: visible;
   z-index: 12;
@@ -8295,7 +8350,8 @@ body.doc-content-resizing * {
   min-height: 72px;
 }
 
-.node-writing-text-field {
+.node-writing-text-field,
+.doc-normal-text-field {
   display: block;
   width: 100%;
   min-height: 24px;
@@ -8310,9 +8366,10 @@ body.doc-content-resizing * {
   font-family: var(--font-doc);
   font-size: var(--font-doc-size);
   font-weight: var(--font-doc-weight);
-  font-optical-sizing: auto;
-  line-height: 1.45;
-  letter-spacing: 0.02em;
+  font-optical-sizing: var(--font-doc-optical-sizing);
+  font-style: normal;
+  line-height: var(--font-doc-line-height);
+  letter-spacing: var(--font-doc-letter-spacing);
   color: inherit;
 }
 

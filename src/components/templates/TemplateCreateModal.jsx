@@ -37,6 +37,7 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
     onVideoEmbedSync,
     onVideoEmbedH1TitleChange,
     nodeModal,
+    isNodeModalOpen,
   } = useDocBlockNodeModal({
     blocks,
     setBlocks,
@@ -65,9 +66,11 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
   };
 
   return (
-    <div className="lp-overlay lp-overlay--solid lp-overlay--center">
-      <div className="lp-modal doc-new-modal" onClick={(e) => e.stopPropagation()}>
-        <DocDocumentBox
+    <>
+      {!isNodeModalOpen ? (
+        <div className="lp-overlay lp-overlay--solid lp-overlay--center">
+          <div className="lp-modal doc-new-modal" onClick={(e) => e.stopPropagation()}>
+            <DocDocumentBox
           title={title}
           onTitleChange={setTitle}
           titleRef={titleRef}
@@ -102,9 +105,11 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
             if (e.key === "Escape") onCancel();
           }}
         />
-        {nodeModal}
-      </div>
-    </div>
+          </div>
+        </div>
+      ) : null}
+      {nodeModal}
+    </>
   );
 }
 

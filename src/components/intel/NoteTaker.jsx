@@ -26,6 +26,8 @@ import {
   parseNodeSlashQuery,
 } from "../../lib/docBlockSlash.js";
 import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
+import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
+import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
 const NOTE_PANEL_ICON = "/uploads/botones/PencilCircle.svg";
 const UNTITLED_LABEL = "Untitled";
@@ -81,6 +83,8 @@ export function NoteTaker({
   const [writingBody, setWritingBody] = useState(() => initialDraft);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const [saving, setSaving] = useState(false);
+  const typographyStorageKey = resolvedNodeId ? `node:${resolvedNodeId}` : "note-taker";
+  const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
 
   useEffect(() => {
     setResolvedNodeId(nodeIdProp);
@@ -148,12 +152,16 @@ export function NoteTaker({
     const parsed = parseNodeSlashQuery(alias);
     if (!parsed) return;
     const normalized = normalizeWritingBlocks(writingBody.blocks);
-    const { blocks: nextBlocks, insertedIndex, reusedAgent } = appendNodeWritingBlockFromSlash(
+    const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = appendNodeWritingBlockFromSlash(
       normalized,
       parsed,
     );
     setWritingBody({ blocks: nextBlocks });
     if (insertedIndex < 0) return;
+    if (focusText) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusText: true });
+      return;
+    }
     if (reusedAgent) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
       return;
@@ -423,7 +431,7 @@ export function NoteTaker({
       </header>
       <div className="note-taker__input-wrap">
         {showInlineWritingTools ? (
-          <div className="note-taker__content-box">
+          <div className="note-taker__content-box" style={typographyStyle}>
             <div className="note-taker__content-scroll">
               <NodeWritingBlockStack
                 className="note-taker__writing-stack"
@@ -458,6 +466,14 @@ export function NoteTaker({
         )}
       </div>
       <div className="note-taker__footer">
+        {showInlineWritingTools ? (
+          <ContentTextSizeControls
+            typographyId={typographyId}
+            onTypographyChange={setTypographyId}
+          />
+        ) : (
+          <span aria-hidden />
+        )}
         <button
           type="button"
           className={

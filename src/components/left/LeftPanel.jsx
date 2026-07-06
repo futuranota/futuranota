@@ -785,6 +785,7 @@ function DocCreateModal({
     onVideoEmbedSync,
     onVideoEmbedH1TitleChange,
     nodeModal,
+    isNodeModalOpen,
   } = useDocBlockNodeModal({
     blocks,
     setBlocks,
@@ -847,9 +848,11 @@ function DocCreateModal({
   };
 
   return (
-    <div className="lp-overlay lp-overlay--solid lp-overlay--center">
-      <div className="lp-modal doc-new-modal" onClick={(e) => e.stopPropagation()}>
-        <DocDocumentBox
+    <>
+      {!isNodeModalOpen ? (
+        <div className="lp-overlay lp-overlay--solid lp-overlay--center">
+          <div className="lp-modal doc-new-modal" onClick={(e) => e.stopPropagation()}>
+            <DocDocumentBox
           title={title}
           onTitleChange={handleTitleChange}
           titleRef={titleRef}
@@ -907,9 +910,11 @@ function DocCreateModal({
             }
           }}
         />
-      </div>
+          </div>
+        </div>
+      ) : null}
       {nodeModal}
-    </div>
+    </>
   );
 }
 

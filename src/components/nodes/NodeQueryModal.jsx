@@ -20,6 +20,8 @@ import {
   parseNodeSlashQuery,
 } from "../../lib/docBlockSlash.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
+import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 import {
   appendNodeWritingBlockFromSlash,
   NODE_BLOCK_TYPES,
@@ -146,6 +148,8 @@ export function NodeQueryModal({
   const [contentFocusMode, setContentFocusMode] = useState(initialContentFocus);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
+  const typographyStorageKey = entityNodeId ? `node:${entityNodeId}` : null;
+  const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
   const displayQuery = (query || "").trim() || "Untitled";
   const queryEditable = Boolean(onQueryChange);
   const parentSelectable = Boolean(onParentDocIdChange);
@@ -223,6 +227,7 @@ export function NodeQueryModal({
 
   const calendarPayload =
     dataType === NODE_DATA_TYPES.TEXT ? parseCalendarEventNodeContent(content) : null;
+  const showTextSizeControls = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload;
 
   const textWritingBody =
     dataType === NODE_DATA_TYPES.TEXT && !calendarPayload
@@ -240,13 +245,17 @@ export function NodeQueryModal({
     if (!parsed) return;
     const current = parseNodeWritingBody(content);
     const normalized = normalizeWritingBlocks(current.blocks);
-    const { blocks: nextBlocks, insertedIndex, reusedAgent } = appendNodeWritingBlockFromSlash(
+    const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = appendNodeWritingBlockFromSlash(
       normalized,
       parsed,
       textPrefix,
     );
     onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
     if (insertedIndex < 0) return;
+    if (focusText) {
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusText: true });
+      return;
+    }
     if (reusedAgent) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
       return;
@@ -468,7 +477,9 @@ export function NodeQueryModal({
             + (slashCommandsEnabled ? " node-query-modal__content-box--slash" : "")
             + (dataType === "checkbox" ? " node-query-modal__content-box--todo" : "")
             + (contentFocusMode ? " node-query-modal__content-box--focus" : "")
+            + (showTextSizeControls ? " node-query-modal__content-box--text-size" : "")
           }
+          style={showTextSizeControls ? typographyStyle : undefined}
         >
           <div
             ref={contentScrollRef}
@@ -619,6 +630,12 @@ export function NodeQueryModal({
             ) : null}
           </div>
           <div className="node-query-modal__footer-search">
+            {showTextSizeControls ? (
+              <ContentTextSizeControls
+                typographyId={typographyId}
+                onTypographyChange={setTypographyId}
+              />
+            ) : null}
             <IntelSearchButton
               variant="modal"
               loading={intelSearchStatus === "loading"}

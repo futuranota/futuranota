@@ -181,6 +181,10 @@ export function NodeWritingBlockStack({
           const input = blockEl?.querySelector("textarea, input");
           input?.focus({ preventScroll: true });
         }
+        if (focusTarget.focusText) {
+          const textarea = blockEl?.querySelector("textarea.node-writing-text-field");
+          textarea?.focus({ preventScroll: true });
+        }
         if (focusTarget.focusAgent) {
           const input = blockEl?.querySelector(".doc-agent-cell__input");
           input?.focus({ preventScroll: true });
@@ -538,10 +542,11 @@ export function NodeWritingBlockStack({
                   delete inputRefs.current[block.id];
                 }
               }}
-              className="node-writing-text-field"
+              className="node-writing-text-field doc-normal-text-field"
               value={block.text}
               placeholder={textPlaceholder}
               rows={1}
+              autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}
               onChange={(e) => {
                 updateBlockAt(blockIndex, { text: e.target.value });
                 syncTextareaHeight(e.target);

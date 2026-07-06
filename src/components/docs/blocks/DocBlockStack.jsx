@@ -311,6 +311,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const parsed = parseSlashQuery(alias);
     if (!parsed || !canInsertSlashBlock(parsed)) return;
 
+    if (parsed.focusTextBlock) {
+      let next = ensureWritableDocTail(blocksRef.current);
+      setBlocks(next);
+      const textBlock = next[next.length - 1];
+      if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {
+        onFocusBlock?.(textBlock.id);
+        focusBlockCaret(textBlock.id, 0);
+        requestContentGrow();
+      }
+      return;
+    }
+
     for (const [ownerId, entry] of Object.entries(collapsedPadWriteByOwnerId)) {
       if (!collapsedContentByBlockId[ownerId] || !entry?.blockId) continue;
       const ownerIndex = blocksRef.current.findIndex((b) => b.id === ownerId);

@@ -235,10 +235,19 @@ export function DocExpandedView({
   const [pendingNavigateDocId, setPendingNavigateDocId] = useState(null);
   const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
   const nodeAutosaveTimerRef = useRef(null);
+  const docShellRef = useRef(null);
+  const hideDocForNodeModal = Boolean(activeNodeContext && !showNodeUnsavedConfirm);
   const objects = useObjectsStore((s) => s.objects);
   const allDocs = useDocsStore((s) => s.docs);
   const planProfile = usePlanStore((s) => s.profile);
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
+
+  useEffect(() => {
+    const globalOverlay = docShellRef.current?.closest(".doc-overlay-global");
+    if (!globalOverlay) return undefined;
+    globalOverlay.classList.toggle("doc-overlay-global--node-active", hideDocForNodeModal);
+    return () => globalOverlay.classList.remove("doc-overlay-global--node-active");
+  }, [hideDocForNodeModal]);
 
   useEffect(() => {
     setIsDraftReady(false);
@@ -1142,7 +1151,7 @@ export function DocExpandedView({
 
   return (
     <>
-      <div onContextMenu={handleContextMenu}>
+      <div ref={docShellRef} onContextMenu={handleContextMenu} hidden={hideDocForNodeModal}>
         <DocDocumentBox
           headerLabel={headerLabel}
           title={draftTitle}
@@ -1252,6 +1261,7 @@ export function DocExpandedView({
           onAnchorTimeChange={handleNodeAnchorTimeChange}
           onClose={handleRequestCloseNodeModal}
           onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
+          entityNodeId={activeNodeContext.nodeId || null}
           onSendToIntelSearch={handleSendQueryToIntelSearch}
           intelSearchMeta={
             activeNodeContext

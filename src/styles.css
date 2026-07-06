@@ -41,9 +41,15 @@
   --font-display: "Space Grotesk", system-ui, sans-serif;
   --font-body: "Hanken Grotesk", system-ui, sans-serif;
   --font-report: "Quicksand", system-ui, sans-serif;
-  --font-doc: var(--font-report);
-  --font-doc-size: 16px;
+  /* legacy body — reserved for future style switching (see docTextTypography.js) */
+  --font-doc-legacy: var(--font-report);
+  --font-doc: "Hanken Grotesk", sans-serif;
+  --font-doc-size: 14px;
   --font-doc-weight: 400;
+  --font-doc-line-height: 1.45;
+  --font-doc-letter-spacing: normal;
+  --font-doc-optical-sizing: auto;
+  --font-doc-legacy-size: 16px;
 
   --radius-sm: 6px;
   --radius: 10px;
@@ -6392,6 +6398,11 @@ textarea.note-form-field {
   padding: 24px;
   overflow-y: auto;
   background: rgba(0, 0, 0, 0.72);
+}
+
+.doc-overlay-global--node-active {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .doc-overlay-global-card {

@@ -30,6 +30,8 @@ import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { hasKnowledgeImport, knowledgeNotesHasContent } from "../../lib/knowledgeImport.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { ContentTextSizeControls } from "./ContentTextSizeControls.jsx";
+import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
 const SAVE_LOADING_MIN_MS = 400;
 
@@ -131,6 +133,8 @@ export function DocDocumentBox({
   const [hasManualBoxHeight, setHasManualBoxHeight] = useState(false);
   const [contentBoxResizing, setContentBoxResizing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const typographyStorageKey = docId ? `doc:${docId}` : null;
+  const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
 
   const handleSaveClick = useCallback(async () => {
     if (isSaving || saveDisabled || !onSave) return;
@@ -629,6 +633,7 @@ export function DocDocumentBox({
           + (hasManualBoxHeight ? " doc-new-content-box--manual-height" : "")
           + (contentBoxResizing ? " is-resizing" : "")
         }
+        style={typographyStyle}
       >
         <div
           ref={contentScrollRef}
@@ -736,6 +741,10 @@ export function DocDocumentBox({
       </div>
 
       <div className="doc-new-actions">
+        <ContentTextSizeControls
+          typographyId={typographyId}
+          onTypographyChange={setTypographyId}
+        />
         <button
           type="button"
           className={

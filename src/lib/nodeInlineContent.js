@@ -472,6 +472,25 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed) {
 }
 
 export function appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix = "") {
+  if (parsed?.focusTextBlock) {
+    const normalized = normalizeWritingBlocks(blocks);
+    const tail = ensureNodeWritingTail(normalized);
+    let textIndex = tail.length - 1;
+    for (let index = tail.length - 1; index >= 0; index -= 1) {
+      if (tail[index]?.type === NODE_BLOCK_TYPES.TEXT) {
+        textIndex = index;
+        break;
+      }
+    }
+    return {
+      blocks: tail,
+      insertedIndex: textIndex,
+      focusText: true,
+      reusedVault: false,
+      reusedAgent: false,
+    };
+  }
+
   const vaultNodeType =
     parsed?.type === DOC_BLOCK_TYPES.PASSWORD_VAULT ? NODE_BLOCK_TYPES.PASSWORD_VAULT
       : parsed?.type === DOC_BLOCK_TYPES.LINK_VAULT ? NODE_BLOCK_TYPES.LINK_VAULT

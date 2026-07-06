@@ -20,15 +20,6 @@ export { getSlashTail, splitBodyForSlash };
 
 export const DOC_SLASH_COMMANDS = [
   {
-    label: "Create macronodo",
-    ghostHint: "create a title",
-    aliases: ["macronodo", "createtitle", "title"],
-    blockType: DOC_BLOCK_TYPES.H1,
-    nodeDataType: NODE_DATA_TYPES.TEXT,
-    allowsNodeLink: true,
-    macronodeHeading: true,
-  },
-  {
     label: "Heading 1",
     ghostHint: "heading 1",
     aliases: ["h1", "heading1"],
@@ -94,6 +85,15 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
+    label: "Create node",
+    ghostHint: "create node",
+    aliases: ["node", "createnode", "macronodo", "createtitle", "title"],
+    blockType: DOC_BLOCK_TYPES.H1,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+    allowsNodeLink: true,
+    macronodeHeading: true,
+  },
+  {
     label: "Agent",
     ghostHint: "agent",
     aliases: ["agent"],
@@ -143,6 +143,7 @@ export function parseSlashQuery(query) {
     compound: Boolean(match.compound),
     macronodeHeading: Boolean(match.macronodeHeading),
     allowsNodeLink: Boolean(match.allowsNodeLink),
+    focusTextBlock: Boolean(match.focusTextBlock),
   };
 }
 
@@ -335,6 +336,7 @@ export function parseNodeSlashQuery(query) {
     compound: Boolean(match.compound),
     macronodeHeading: Boolean(match.macronodeHeading),
     allowsNodeLink: Boolean(match.allowsNodeLink),
+    focusTextBlock: Boolean(match.focusTextBlock),
   };
 }
 

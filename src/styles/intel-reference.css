@@ -377,9 +377,12 @@
   min-height: 72px;
 }
 
-.note-taker__writing-stack .node-writing-text-field {
+.note-taker__writing-stack .node-writing-text-field,
+.note-taker__writing-stack .doc-normal-text-field {
   color: var(--text-1);
   min-height: 24px;
+  font-family: var(--font-doc);
+  font-optical-sizing: var(--font-doc-optical-sizing);
 }
 
 .note-taker__writing-stack .node-writing-block-stack__text:last-child .node-writing-text-field {
@@ -520,7 +523,7 @@
 .note-taker__footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   margin-top: 8px;
   flex-shrink: 0;
 }
