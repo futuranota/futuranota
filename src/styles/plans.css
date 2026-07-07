@@ -331,3 +331,24 @@
     border-right: 1px solid var(--glass-border);
   }
 }
+
+.pro-checkout-abandon-overlay {
+  z-index: 1200;
+}
+
+.pro-checkout-abandon-modal__price {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.pro-checkout-abandon-modal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pro-checkout-abandon-modal__actions .btn {
+  width: 100%;
+  justify-content: center;
+}

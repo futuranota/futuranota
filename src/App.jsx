@@ -30,6 +30,8 @@ import { ReferralModal } from './components/plans/ReferralModal.jsx';
 import { ConfirmActionCard } from './components/shared/ConfirmActionCard.jsx';
 import { useNavigate } from 'react-router-dom';
 import { useStripeCheckoutReturn } from './lib/useStripeCheckoutReturn.js';
+import { useProCheckoutAbandonPrompt } from './lib/useProCheckoutAbandonPrompt.js';
+import { ProCheckoutAbandonModal } from './components/plans/ProCheckoutAbandonModal.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
@@ -1321,6 +1323,7 @@ useEffect(() => {
 function App() {
   const navigate = useNavigate();
   useStripeCheckoutReturn();
+  const proAbandon = useProCheckoutAbandonPrompt();
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const theme = useThemeStore((s) => s.theme);
   const initialApp = useMemo(() => resolveInitialAppState(), []);
@@ -1369,6 +1372,13 @@ function App() {
 
       <UpgradeModal open={upgradeOpen} reason={upgradeReason} onClose={hideUpgradeModal} />
       <ReferralModal open={referralOpen} onClose={hideReferralModal} />
+      <ProCheckoutAbandonModal
+        open={proAbandon.open}
+        busy={proAbandon.busy}
+        billing={proAbandon.billing}
+        onCompletePayment={proAbandon.handleCompletePayment}
+        onContinueStarter={proAbandon.handleContinueStarter}
+      />
       <ConfirmActionCard />
 
       <TweaksPanel title="Futura Nota">

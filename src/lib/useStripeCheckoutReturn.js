@@ -3,6 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import { usePlanStore } from "../stores/planStore.js";
 import { confirmCheckoutSession } from "./billingApi.js";
 import { clearStoredReferralCode } from "./referralStorage.js";
+import { clearPendingProCheckout } from "./pendingCheckout.js";
+import { shouldSkipStripeCanceledCleanup } from "./useProCheckoutAbandonPrompt.js";
 
 /**
  * After Stripe Checkout redirect: sync Pro plan (fallback if webhook is delayed) and clean URL.
@@ -29,9 +31,17 @@ export function useStripeCheckoutReturn() {
             console.warn("confirmCheckoutSession:", err);
           }
         }
+        clearPendingProCheckout();
         await fetchProfile();
         clearStoredReferralCode();
+        setSearchParams({}, { replace: true });
+        return;
       }
+
+      if (checkout === "canceled" && shouldSkipStripeCanceledCleanup()) {
+        return;
+      }
+
       setSearchParams({}, { replace: true });
     };
 

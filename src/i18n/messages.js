@@ -617,6 +617,13 @@ export const messages = {
       creditsCounter: "{count} of {cap} credits remaining",
       creditsCounterHint: "Starter: 10 lifetime · Pro: 200/month — deducted per AI use",
     },
+    proCheckoutAbandon: {
+      title: "Activate Pro before you go?",
+      body: "Your account is ready. Complete payment to unlock Pro — or choose Starter only if you want to decide later.",
+      priceLabel: "Selected plan: {price}",
+      completePayment: "Complete payment",
+      continueStarter: "Continue with Starter for now",
+    },
     referral: {
       bannerTitle: "Refer a friend · +50 credits",
       dismiss: "Dismiss",
@@ -1047,6 +1054,13 @@ export const messages = {
       creditsExpiredHint: "Compra más créditos o mejora tu plan para seguir usando las funciones de IA.",
       creditsCounter: "{count} de {cap} créditos restantes",
       creditsCounterHint: "Starter: 10 de por vida · Pro: 200/mes — se descuentan por uso",
+    },
+    proCheckoutAbandon: {
+      title: "¿Activar Pro antes de salir?",
+      body: "Tu cuenta está lista. Completá el pago para desbloquear Pro — o elegí Starter solo si preferís decidir más tarde.",
+      priceLabel: "Plan elegido: {price}",
+      completePayment: "Completar pago",
+      continueStarter: "Continuar con Starter por ahora",
     },
     referral: {
       bannerTitle: "Referí a un amigo · +50 créditos",
