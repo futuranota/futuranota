@@ -14,10 +14,11 @@ import {
 import { captureReferralFromSearch } from '../../lib/referralStorage.js';
 import {
   buildCheckoutLoginQuery,
+  hasPendingProCheckout,
   markPendingProCheckout,
   syncPendingProCheckoutFromParams,
 } from '../../lib/pendingCheckout.js';
-import { tryRedirectPendingProCheckout } from '../../lib/redirectPendingProCheckout.js';
+import { usePendingProCheckoutRedirect } from '../../lib/usePendingProCheckoutRedirect.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
@@ -28,6 +29,10 @@ export function WelcomePage() {
   const { signIn, signUp, signInWithGoogle } = useAuthStore();
   const user = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.loading);
+  const onAuthPage = location.pathname === PATHS.login || location.pathname === PATHS.signup;
+  const { checkoutError, redirecting, retryCheckout } = usePendingProCheckoutRedirect({
+    enabled: onAuthPage,
+  });
 
   const initial = location.pathname === PATHS.login || location.hash === '#signin' ? 'signin' : 'signup';
   const [tab, setTab] = useState(initial);
@@ -60,17 +65,11 @@ export function WelcomePage() {
   }, [searchParams, planId, billing]);
 
   useEffect(() => {
-    if (authLoading || !user) return;
-    const onAuthPage = location.pathname === PATHS.login || location.pathname === PATHS.signup;
-    if (!onAuthPage) return;
-
-    let cancelled = false;
-    void tryRedirectPendingProCheckout().then((redirected) => {
-      if (cancelled || redirected) return;
+    if (authLoading || !user || !onAuthPage) return;
+    if (!hasPendingProCheckout(user)) {
       navigate(PATHS.app, { replace: true });
-    });
-    return () => { cancelled = true; };
-  }, [authLoading, user, location.pathname, navigate]);
+    }
+  }, [authLoading, user, onAuthPage, navigate]);
 
   useEffect(() => {
     applyMarketingTheme({ accent: 'terracotta', texture: 'on' });
@@ -129,10 +128,6 @@ export function WelcomePage() {
       } else {
         await signIn(form.email, form.password);
         clearPendingLibrary();
-        const redirected = await tryRedirectPendingProCheckout();
-        if (!redirected) {
-          navigate(PATHS.app, { replace: true });
-        }
       }
     } catch (err) {
       setErrorMessage(err.message);
@@ -160,7 +155,23 @@ export function WelcomePage() {
 
   return (
     <div className="auth-split-wrap" data-screen-label="welcome">
-      {sent ? (
+      {redirecting && user && hasPendingProCheckout(user) ? (
+        <div className="auth-split-success card">
+          <span className="auth-done__mark"><span className="back-link__arrow" style={{ transform: 'none' }}>→</span></span>
+          <h2 className="h2">Redirecting to payment…</h2>
+          <p className="muted" style={{ fontSize: 15 }}>
+            Opening Stripe to complete your Pro subscription.
+          </p>
+        </div>
+      ) : checkoutError && user && hasPendingProCheckout(user) ? (
+        <div className="auth-split-success card">
+          <h2 className="h2">Complete Pro payment</h2>
+          <p className="muted" style={{ fontSize: 15 }}>{checkoutError}</p>
+          <button type="button" className="btn btn-primary" onClick={() => retryCheckout()}>
+            Try again <span className="arrow">→</span>
+          </button>
+        </div>
+      ) : sent ? (
         <div className="auth-split-success card">
           <span className="auth-done__mark"><span className="back-link__arrow" style={{ transform: 'none' }}>✓</span></span>
           <h2 className="h2">Check your inbox.</h2>

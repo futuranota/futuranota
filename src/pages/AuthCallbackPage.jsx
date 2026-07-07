@@ -29,8 +29,13 @@ export function AuthCallbackPage() {
       if (session) {
         syncSession(session);
         setStatus('Redirecting to Futura Nota…');
-        const redirected = await tryRedirectPendingProCheckout();
+        const { redirected, pending, error } = await tryRedirectPendingProCheckout(session.user);
         if (cancelled || redirected) return;
+        if (pending && error) {
+          setStatus(error);
+          navigate(`${PATHS.login}?plan=pro`, { replace: true });
+          return;
+        }
         navigate(PATHS.app, { replace: true });
       } else {
         setStatus('Sign-in failed. Redirecting…');

@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { startProCheckout } from "./billingApi.js";
-import { clearPendingProCheckout, readPendingProCheckout } from "./pendingCheckout.js";
+import {
+  resolvePendingProCheckout,
+  skipPendingProCheckout,
+} from "./pendingCheckout.js";
 import { usePlanStore } from "../stores/planStore.js";
+import { useAuthStore } from "../stores/authStore.js";
 
 /**
  * After Stripe cancel during Pro signup funnel: ask before treating user as Starter.
@@ -10,6 +14,7 @@ import { usePlanStore } from "../stores/planStore.js";
 export function useProCheckoutAbandonPrompt() {
   const [searchParams, setSearchParams] = useSearchParams();
   const profilePlan = usePlanStore((s) => s.profile.plan);
+  const user = useAuthStore((s) => s.user);
   const handledRef = useRef(false);
   const [open, setOpen] = useState(false);
   const [billing, setBilling] = useState("monthly");
@@ -19,14 +24,14 @@ export function useProCheckoutAbandonPrompt() {
     if (handledRef.current) return;
     if (searchParams.get("checkout") !== "canceled") return;
 
-    const pending = readPendingProCheckout();
+    const pending = resolvePendingProCheckout(user);
     if (!pending || profilePlan === "pro") return;
 
     handledRef.current = true;
     setBilling(pending.billing);
     setOpen(true);
     setSearchParams({}, { replace: true });
-  }, [profilePlan, searchParams, setSearchParams]);
+  }, [profilePlan, searchParams, setSearchParams, user]);
 
   const handleCompletePayment = async () => {
     if (busy) return;
@@ -45,7 +50,7 @@ export function useProCheckoutAbandonPrompt() {
   };
 
   const handleContinueStarter = () => {
-    clearPendingProCheckout();
+    skipPendingProCheckout();
     setOpen(false);
   };
 
@@ -56,9 +61,4 @@ export function useProCheckoutAbandonPrompt() {
     handleCompletePayment,
     handleContinueStarter,
   };
-}
-
-/** @returns {boolean} */
-export function shouldSkipStripeCanceledCleanup() {
-  return Boolean(readPendingProCheckout());
 }

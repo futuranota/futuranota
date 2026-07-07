@@ -2,9 +2,9 @@ import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePlanStore } from "../stores/planStore.js";
 import { confirmCheckoutSession } from "./billingApi.js";
+import { clearPendingProCheckout, hasPendingProCheckout } from "./pendingCheckout.js";
 import { clearStoredReferralCode } from "./referralStorage.js";
-import { clearPendingProCheckout } from "./pendingCheckout.js";
-import { shouldSkipStripeCanceledCleanup } from "./useProCheckoutAbandonPrompt.js";
+import { supabase } from "./supabaseClient.js";
 
 /**
  * After Stripe Checkout redirect: sync Pro plan (fallback if webhook is delayed) and clean URL.
@@ -38,11 +38,14 @@ export function useStripeCheckoutReturn() {
         return;
       }
 
-      if (checkout === "canceled" && shouldSkipStripeCanceledCleanup()) {
+      if (checkout === "canceled") {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (hasPendingProCheckout(session?.user)) {
+          return;
+        }
+        setSearchParams({}, { replace: true });
         return;
       }
-
-      setSearchParams({}, { replace: true });
     };
 
     void run();

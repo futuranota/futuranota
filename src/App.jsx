@@ -31,6 +31,7 @@ import { ConfirmActionCard } from './components/shared/ConfirmActionCard.jsx';
 import { useNavigate } from 'react-router-dom';
 import { useStripeCheckoutReturn } from './lib/useStripeCheckoutReturn.js';
 import { useProCheckoutAbandonPrompt } from './lib/useProCheckoutAbandonPrompt.js';
+import { usePendingProCheckoutRedirect } from './lib/usePendingProCheckoutRedirect.js';
 import { ProCheckoutAbandonModal } from './components/plans/ProCheckoutAbandonModal.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
@@ -1324,6 +1325,7 @@ function App() {
   const navigate = useNavigate();
   useStripeCheckoutReturn();
   const proAbandon = useProCheckoutAbandonPrompt();
+  usePendingProCheckoutRedirect();
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const theme = useThemeStore((s) => s.theme);
   const initialApp = useMemo(() => resolveInitialAppState(), []);
