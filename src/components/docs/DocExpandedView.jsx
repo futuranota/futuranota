@@ -8,6 +8,7 @@ import { usePlanStore } from "../../stores/planStore.js";
 import { getPlanLimits } from "../../lib/planConfig.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { normalizeKnowledgeImport } from "../../lib/knowledgeImport.js";
+import { useI18n } from "../../i18n/useI18n.js";
 import { Modal } from "../shared/Modal.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
@@ -78,6 +79,14 @@ function docDraftHasContent(cached) {
   if (!cached) return false;
   if (docBlocksHaveText(cached.blocks)) return true;
   return Boolean(String(cached.body ?? "").trim());
+}
+
+function isEmptyDocState(title, blocks, body) {
+  return (
+    !(title || "").trim()
+    && !docBlocksHaveText(blocks)
+    && !(body || "").trim()
+  );
 }
 
 function NodeFromSelectionModal({ query, onClose, onSave }) {
@@ -199,6 +208,7 @@ export function DocExpandedView({
   onStepPlaybookRemoved,
   initialFocusBlockId = null,
 }) {
+  const { t } = useI18n();
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const addDoc = useDocsStore((s) => s.addDoc);
@@ -700,8 +710,32 @@ export function DocExpandedView({
     onClose();
   };
 
+  // A doc that was created blank and never got a title, body, or block text
+  // should not linger in the queue — drop it on close instead of persisting it.
+  const shouldDiscardEmptyDoc = () => {
+    if (!initialSnapshot) return false;
+    if (doc?.nodeIds?.length) return false;
+    const openedEmpty = isEmptyDocState(
+      initialSnapshot.title,
+      initialSnapshot.blocks,
+      initialSnapshot.body,
+    );
+    const stillEmpty = isEmptyDocState(draftTitle, draftBlocks, draftBody);
+    return openedEmpty && stillEmpty;
+  };
+
+  const discardEmptyDocOnClose = () => {
+    if (!shouldDiscardEmptyDoc()) return false;
+    onDocumentDeleted?.(docId);
+    useUIStateStore.getState().clearDocEditorDraft(docId);
+    deleteDoc(docId);
+    onClose();
+    return true;
+  };
+
   const handleRequestCloseDoc = () => {
     setPendingNavigateDocId(null);
+    if (discardEmptyDocOnClose()) return;
     if (hasUnsavedChanges) {
       setShowUnsavedConfirm(true);
       return;
@@ -1287,7 +1321,7 @@ export function DocExpandedView({
                 aria-labelledby="doc-unsaved-confirm-title"
               >
                 <p id="doc-unsaved-confirm-title" className="doc-unsaved-confirm__text">
-                  ¿Quieres guardar los cambios?
+                  {t("unsavedChanges.docPrompt")}
                 </p>
                 <div className="doc-unsaved-confirm__actions">
                   <button
@@ -1303,7 +1337,7 @@ export function DocExpandedView({
                       }
                     }}
                   >
-                    sí
+                    {t("unsavedChanges.yes")}
                   </button>
                   <button
                     type="button"
@@ -1318,7 +1352,7 @@ export function DocExpandedView({
                       }
                     }}
                   >
-                    no
+                    {t("unsavedChanges.no")}
                   </button>
                 </div>
               </div>
@@ -1336,7 +1370,7 @@ export function DocExpandedView({
                 aria-labelledby="node-unsaved-confirm-title"
               >
                 <p id="node-unsaved-confirm-title" className="doc-unsaved-confirm__text">
-                  ¿Quieres guardar los cambios del nodo?
+                  {t("unsavedChanges.nodePrompt")}
                 </p>
                 <div className="doc-unsaved-confirm__actions">
                   <button
@@ -1347,7 +1381,7 @@ export function DocExpandedView({
                       setShowNodeUnsavedConfirm(false);
                     }}
                   >
-                    sí
+                    {t("unsavedChanges.yes")}
                   </button>
                   <button
                     type="button"
@@ -1357,7 +1391,7 @@ export function DocExpandedView({
                       resetNodeModalState();
                     }}
                   >
-                    no
+                    {t("unsavedChanges.no")}
                   </button>
                 </div>
               </div>

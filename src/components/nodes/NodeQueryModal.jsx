@@ -639,7 +639,7 @@ export function NodeQueryModal({
             aria-labelledby="node-modal-unsaved-title"
           >
             <p id="node-modal-unsaved-title" className="doc-unsaved-confirm__text">
-              ¿Quieres guardar los cambios?
+              {t("unsavedChanges.docPrompt")}
             </p>
             <div className="doc-unsaved-confirm__actions">
               <button
@@ -651,7 +651,7 @@ export function NodeQueryModal({
                   handleDismiss?.();
                 }}
               >
-                sí
+                {t("unsavedChanges.yes")}
               </button>
               <button
                 type="button"
@@ -661,7 +661,7 @@ export function NodeQueryModal({
                   handleDismiss?.();
                 }}
               >
-                no
+                {t("unsavedChanges.no")}
               </button>
             </div>
           </div>

@@ -656,6 +656,12 @@ export const messages = {
       noData: "Data not available for that scope!",
       noSchedule: "Select a node with a schedule to scan events in the chosen window.",
     },
+    unsavedChanges: {
+      docPrompt: "Do you want to save the changes?",
+      nodePrompt: "Do you want to save the node's changes?",
+      yes: "yes",
+      no: "no",
+    },
   },
   // Manual ES overrides; missing keys → Google Translate from EN.
   es: {
@@ -1096,6 +1102,12 @@ export const messages = {
       seasonFall: "Otoño",
       noData: "¡Datos no disponibles para ese alcance!",
       noSchedule: "Seleccioná un nodo con schedule para escanear eventos en la ventana elegida.",
+    },
+    unsavedChanges: {
+      docPrompt: "¿Quieres guardar los cambios?",
+      nodePrompt: "¿Quieres guardar los cambios del nodo?",
+      yes: "sí",
+      no: "no",
     },
   },
 };
