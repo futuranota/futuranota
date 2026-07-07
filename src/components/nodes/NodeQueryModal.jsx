@@ -2,7 +2,6 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   NODE_ICON,
-  NODE_SAVE_ARCHIVE_ICON,
 } from "../../lib/docMediumAssets.js";
 import { IntelSearchButton } from "../shared/IntelSearchButton.jsx";
 import { runIntelSearch } from "../../lib/intelSearch.js";
@@ -48,68 +47,6 @@ import {
 import { useI18n } from "../../i18n/useI18n.js";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
-
-function FloppySaveIcon({ className = "" }) {
-  return (
-    <svg
-      className={className}
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-    >
-      <path
-        d="M5 3h11l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V3z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M7 3v7h10V3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <rect
-        x="8"
-        y="14"
-        width="8"
-        height="7"
-        rx="0.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-    </svg>
-  );
-}
-
-function NodeModalSaveButton({ compact = false, onSave, className = "" }) {
-  if (!onSave) return null;
-  const label = compact ? "Guardar nodo (⌘↵)" : "save";
-  return (
-    <button
-      type="button"
-      className={
-        "node-query-modal__action node-query-modal__action--save"
-        + (compact ? " node-query-modal__action--save-compact" : "")
-        + (className ? ` ${className}` : "")
-      }
-      onClick={onSave}
-      title={compact ? label : undefined}
-      aria-label={compact ? label : undefined}
-    >
-      {compact ? (
-        <FloppySaveIcon />
-      ) : (
-        <>
-          <img src={NODE_SAVE_ARCHIVE_ICON} alt="" aria-hidden />
-          <span className="node-query-modal__save-text">save</span>
-        </>
-      )}
-    </button>
-  );
-}
 
 /**
  * Node editor modal — Figma 296:627.
@@ -168,7 +105,6 @@ export function NodeQueryModal({
   const handleDismiss = onBackToDocument || onClose;
   const showCloseButton = Boolean(onClose && !onBackToDocument);
   const showReturnLink = Boolean(onBackToDocument);
-  const saveCompact = Boolean(onBackToDocument);
   const toggleContentFocus = useCallback(() => {
     setContentFocusMode((value) => !value);
   }, []);
@@ -246,6 +182,36 @@ export function NodeQueryModal({
     writingSeedRef.current = seedKey;
     setWritingBlocks(parseNodeWritingBody(content).blocks);
   }, [entityNodeId, dataType, content]);
+
+  // Unsaved-changes guard: snapshot the node's content/title when it opens, and
+  // prompt to save if the user closes with pending edits (doc-style card).
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
+  const nodeSnapshotRef = useRef(null);
+
+  useEffect(() => {
+    nodeSnapshotRef.current = {
+      content: JSON.stringify(content ?? ""),
+      query: query ?? "",
+    };
+    setShowUnsavedConfirm(false);
+    // Snapshot only when the node identity/type changes, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityNodeId, dataType]);
+
+  const hasUnsavedNodeChanges = useCallback(() => {
+    const snap = nodeSnapshotRef.current;
+    if (!snap) return false;
+    return snap.content !== JSON.stringify(content ?? "")
+      || snap.query !== (query ?? "");
+  }, [content, query]);
+
+  const requestDismiss = useCallback(() => {
+    if (onSave && hasUnsavedNodeChanges()) {
+      setShowUnsavedConfirm(true);
+      return;
+    }
+    handleDismiss?.();
+  }, [onSave, hasUnsavedNodeChanges, handleDismiss]);
 
   const slashCommandsEnabled = Boolean(onDataTypeChange) || Boolean(onBackToDocument);
   const linkedFromDocument = Boolean(onBackToDocument);
@@ -369,7 +335,7 @@ export function NodeQueryModal({
     const onKeyDown = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        handleDismiss?.();
+        requestDismiss();
         return;
       }
       if (!onSave) return;
@@ -380,7 +346,7 @@ export function NodeQueryModal({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleDismiss, onSave]);
+  }, [requestDismiss, onSave]);
 
   const handleSearchClick = () => {
     const queryText = (displayQuery || "").trim() || displayQuery;
@@ -449,7 +415,7 @@ export function NodeQueryModal({
                 <button
                   type="button"
                   className="doc-new-head-expand-btn node-query-modal__close"
-                  onClick={handleDismiss}
+                  onClick={requestDismiss}
                   aria-label="Close"
                 >
                   <span className="doc-new-head-close-x" aria-hidden>×</span>
@@ -526,13 +492,6 @@ export function NodeQueryModal({
             >
               <span className="doc-new-content-expand-btn__icon" aria-hidden />
             </button>
-            {contentFocusMode && onSave ? (
-              <NodeModalSaveButton
-                compact
-                onSave={onSave}
-                className="node-query-modal__content-save-btn"
-              />
-            ) : null}
           {dataType === NODE_DATA_TYPES.VIDEO ? (
             <VideoEmbedBar
               nodeId={entityNodeId}
@@ -641,7 +600,6 @@ export function NodeQueryModal({
 
         <footer className="node-query-modal__footer-row">
           <div className="node-query-modal__footer-start">
-            <NodeModalSaveButton compact={saveCompact} onSave={onSave} />
             {showScheduleAnchor ? (
               <BlockAnchorFields
                 className="node-query-modal__schedule"
@@ -671,8 +629,54 @@ export function NodeQueryModal({
       </div>
   );
 
+  const unsavedConfirm = showUnsavedConfirm && typeof document !== "undefined"
+    ? createPortal(
+        <div className="doc-unsaved-confirm-overlay" role="presentation">
+          <div
+            className="doc-unsaved-confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="node-modal-unsaved-title"
+          >
+            <p id="node-modal-unsaved-title" className="doc-unsaved-confirm__text">
+              ¿Quieres guardar los cambios?
+            </p>
+            <div className="doc-unsaved-confirm__actions">
+              <button
+                type="button"
+                className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
+                onClick={() => {
+                  setShowUnsavedConfirm(false);
+                  onSave?.();
+                  handleDismiss?.();
+                }}
+              >
+                sí
+              </button>
+              <button
+                type="button"
+                className="doc-unsaved-confirm__btn"
+                onClick={() => {
+                  setShowUnsavedConfirm(false);
+                  handleDismiss?.();
+                }}
+              >
+                no
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
+
   if (embedded) {
-    return modalCard;
+    return (
+      <>
+        {modalCard}
+        {unsavedConfirm}
+      </>
+    );
   }
 
   const overlayClass = [
@@ -682,10 +686,15 @@ export function NodeQueryModal({
     contentFocusMode ? "node-query-overlay--content-focus" : "",
   ].filter(Boolean).join(" ");
 
-  return createPortal(
-    <div className={overlayClass} role="presentation">
-      {modalCard}
-    </div>,
-    document.body,
+  return (
+    <>
+      {createPortal(
+        <div className={overlayClass} role="presentation">
+          {modalCard}
+        </div>,
+        document.body,
+      )}
+      {unsavedConfirm}
+    </>
   );
 }
