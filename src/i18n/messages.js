@@ -625,6 +625,7 @@ export const messages = {
       continueStarter: "Continue with Starter for now",
       redirecting: "Opening payment…",
       tryAgain: "Try again",
+      rateLimited: "Too many requests. Wait a few seconds and try again.",
     },
     referral: {
       bannerTitle: "Refer a friend · +50 credits",
@@ -1065,6 +1066,7 @@ export const messages = {
       continueStarter: "Continuar con Starter por ahora",
       redirecting: "Abriendo pago…",
       tryAgain: "Reintentar",
+      rateLimited: "Demasiadas solicitudes. Esperá unos segundos e intentá de nuevo.",
     },
     referral: {
       bannerTitle: "Referí a un amigo · +50 créditos",

@@ -14,6 +14,7 @@ export function AuthCallbackPage() {
   useEffect(() => {
     let cancelled = false;
     let subscription = null;
+    const handledRef = { current: false };
 
     const syncSession = (session) => {
       if (!session) return;
@@ -25,19 +26,23 @@ export function AuthCallbackPage() {
     };
 
     const go = async (session) => {
-      if (cancelled) return;
+      if (cancelled || handledRef.current) return;
       if (session) {
+        handledRef.current = true;
         syncSession(session);
         setStatus('Redirecting to Futura Nota…');
         const { redirected, pending, error } = await tryRedirectPendingProCheckout(session.user);
         if (cancelled || redirected) return;
-        if (pending && error) {
-          setStatus(error);
-          navigate(`${PATHS.login}?plan=pro`, { replace: true });
+        if (pending) {
+          if (error) {
+            setStatus(error);
+            navigate(`${PATHS.login}?plan=pro`, { replace: true });
+          }
           return;
         }
         navigate(PATHS.app, { replace: true });
       } else {
+        handledRef.current = true;
         setStatus('Sign-in failed. Redirecting…');
         navigate(PATHS.login, { replace: true });
       }
@@ -67,7 +72,7 @@ export function AuthCallbackPage() {
     };
 
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) void go(session);
+      if (event === 'SIGNED_IN' && session && !handledRef.current) void go(session);
     });
     subscription = data.subscription;
 

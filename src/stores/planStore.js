@@ -112,6 +112,15 @@ function isMissingProfilesTable(error) {
     || msg.includes("tokens_balance");
 }
 
+function isProfileUserFkError(error) {
+  return error?.code === "23503"
+    && String(error?.message || "").includes("profiles_user_id_fkey");
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Pro user still on free-tier token cap — migrate to full Pro ledger once.
  * @param {Record<string, unknown> | null | undefined} row
@@ -205,8 +214,20 @@ async function ensureProfileRow(userId) {
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) return { data: null, error };
+  if (error && !isProfileUserFkError(error)) {
+    return { data: null, error };
+  }
   if (data) return { data, error: null };
+
+  const { data: rpcRow, error: rpcError } = await supabase.rpc("ensure_my_profile");
+  if (rpcRow && !rpcError) {
+    return { data: rpcRow, error: null };
+  }
+  const rpcMissing = rpcError?.code === "PGRST202"
+    || String(rpcError?.message || "").includes("ensure_my_profile");
+  if (rpcError && !rpcMissing && !isProfileUserFkError(rpcError)) {
+    return { data: null, error: rpcError };
+  }
 
   const now = new Date().toISOString();
   const cap = getTokensCap("free");
@@ -222,6 +243,11 @@ async function ensureProfileRow(userId) {
     }, { onConflict: "user_id" })
     .select("*")
     .maybeSingle();
+
+  if (created) return { data: created, error: null };
+  if (upsertErr && isProfileUserFkError(upsertErr)) {
+    return { data: null, error: null };
+  }
   return { data: created, error: upsertErr };
 }
 
@@ -386,6 +412,10 @@ export const usePlanStore = create(
             console.info(
               "planStore: ejecutá supabase_plans.sql + supabase_plans_tokens.sql en Supabase.",
             );
+          } else if (isProfileUserFkError(error)) {
+            console.warn("planStore.fetchProfile: profile row pending, using defaults", error);
+            data = null;
+            error = null;
           } else {
             console.warn("planStore.fetchProfile error", error);
           }

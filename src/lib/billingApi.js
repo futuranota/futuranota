@@ -1,9 +1,22 @@
 import { supabase } from "./supabaseClient.js";
 import { getStoredReferralCode } from "./referralStorage.js";
 
-async function authHeaders() {
+async function resolveAccessToken() {
   const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  if (session?.access_token) {
+    const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
+    if (!expiresAt || expiresAt - Date.now() > 60_000) {
+      return session.access_token;
+    }
+  }
+
+  const { data: { session: refreshed }, error } = await supabase.auth.refreshSession();
+  if (error) return session?.access_token ?? null;
+  return refreshed?.access_token ?? session?.access_token ?? null;
+}
+
+async function authHeaders() {
+  const token = await resolveAccessToken();
   if (!token) throw new Error("Not signed in");
   return {
     Authorization: `Bearer ${token}`,
@@ -12,15 +25,37 @@ async function authHeaders() {
 }
 
 async function billingFetch(path, init = {}) {
-  const res = await fetch(path, {
+  const headers = await authHeaders();
+
+  const doRequest = async (requestHeaders) => fetch(path, {
     ...init,
     headers: {
-      ...(await authHeaders()),
+      ...requestHeaders,
       ...init.headers,
     },
   });
-  const body = await res.json().catch(() => ({}));
+
+  let res = await doRequest(headers);
+  let body = await res.json().catch(() => ({}));
+
+  if (res.status === 401) {
+    const { data: { session }, error } = await supabase.auth.refreshSession();
+    if (!error && session?.access_token) {
+      res = await doRequest({
+        ...headers,
+        Authorization: `Bearer ${session.access_token}`,
+      });
+      body = await res.json().catch(() => ({}));
+    }
+  }
+
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error("Session expired — sign in again.");
+    }
+    if (res.status === 429) {
+      throw new Error('Too many billing requests. Wait a few seconds and try again.');
+    }
     throw new Error(body.error || `Billing request failed (${res.status})`);
   }
   return body;

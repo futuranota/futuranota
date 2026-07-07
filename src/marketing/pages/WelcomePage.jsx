@@ -160,6 +160,9 @@ export function WelcomePage() {
   const formLoading = loading || awaitingStripe;
   const submitLoadingLabel = awaitingStripe ? t('proCheckoutAbandon.redirecting') : undefined;
   const showInbox = sent && !proAwaitingPayment;
+  const checkoutErrorMessage = checkoutError && /too many/i.test(checkoutError)
+    ? t('proCheckoutAbandon.rateLimited')
+    : checkoutError;
 
   return (
     <div className="auth-split-wrap" data-screen-label="welcome">
@@ -183,7 +186,7 @@ export function WelcomePage() {
           onGoogleSignIn={handleGoogleSignIn}
           loading={formLoading}
           loadingLabel={submitLoadingLabel}
-          errorMessage={checkoutError || errorMessage}
+          errorMessage={checkoutErrorMessage || errorMessage}
           onRetryCheckout={checkoutError ? retryCheckout : undefined}
           retryLabel={t('proCheckoutAbandon.tryAgain')}
           selectedPlan={selectedPlan}

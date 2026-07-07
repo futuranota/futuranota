@@ -46,7 +46,6 @@ export function useStripeCheckoutReturn() {
         const { data: { session } } = await supabase.auth.getSession();
         if (hasPendingProCheckout(session?.user)) {
           pauseAutoProCheckoutRedirect();
-          return;
         }
         setSearchParams({}, { replace: true });
         return;

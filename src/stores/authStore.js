@@ -46,8 +46,16 @@ export const useAuthStore = create((set) => ({
   },
 
   signIn: async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw error;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      if (error.status === 429 || /rate limit|too many/i.test(error.message)) {
+        throw new Error('Too many sign-in attempts. Wait a minute and try again.');
+      }
+      throw error;
+    }
+    if (data?.session) {
+      set({ session: data.session, user: data.session.user, loading: false });
+    }
   },
 
   signUp: async (email, password, metadata, loginRedirectQuery = '') => {
@@ -63,7 +71,12 @@ export const useAuthStore = create((set) => ({
         emailRedirectTo,
       },
     });
-    if (error) throw error;
+    if (error) {
+      if (error.status === 429 || /rate limit|too many/i.test(error.message)) {
+        throw new Error('Too many sign-up attempts. Wait a minute and try again.');
+      }
+      throw error;
+    }
   },
 
   signInWithGoogle: async () => {

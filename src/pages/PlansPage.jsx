@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildReferralShareMessage } from "../lib/referralShareMessage.js";
 import { useNavigate } from "react-router-dom";
+import { PATHS } from "../marketing/lib/paths.js";
 import { usePlanStore } from "../stores/planStore.js";
 import { useAuthStore } from "../stores/authStore.js";
 import { isAdminSessionEmail } from "../lib/adminPlanCredits.js";
@@ -122,7 +123,7 @@ export function PlansPage() {
         try {
           const { url } = await startProCheckout("annual", { cancelReturn: "plans" });
           if (url) {
-            window.location.href = url;
+            window.location.replace(url);
             return;
           }
           throw new Error("Stripe checkout URL missing");
@@ -142,7 +143,7 @@ export function PlansPage() {
     try {
       const { url } = await startProCheckout(billing, { cancelReturn: "plans" });
       if (url) {
-        window.location.href = url;
+        window.location.replace(url);
         return;
       }
       throw new Error("Stripe checkout URL missing");
@@ -160,7 +161,7 @@ export function PlansPage() {
     try {
       const { url } = await startProVerifyCheckout();
       if (url) {
-        window.location.href = url;
+        window.location.replace(url);
         return;
       }
       throw new Error("Stripe checkout URL missing");
@@ -215,7 +216,7 @@ export function PlansPage() {
 
   return (
     <div className="plans-page">
-      <button type="button" className="btn ghost" onClick={() => navigate(-1)}>
+      <button type="button" className="btn ghost" onClick={() => navigate(PATHS.app)}>
         {t("common.back")}
       </button>
 
