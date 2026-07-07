@@ -1,6 +1,6 @@
 import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
-import { sanitizePersistedSnapshot } from "../../lib/storeSanitize.js";
+import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
 import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 
 const STORAGE_KEY = "futura-nota-v1";
@@ -276,7 +276,8 @@ export function initPersistenceMiddleware(stores) {
 
   const applyStateToStores = (data) => {
     if (!data) return;
-    useObjectsStore.setState({ objects: data.objects || {} });
+    const objects = pruneStrayDefaultYo(data.objects || {});
+    useObjectsStore.setState({ objects });
     const normalizedDocs = {};
     if (data.docs) {
       for (const [id, doc] of Object.entries(data.docs)) {
@@ -320,6 +321,10 @@ export function initPersistenceMiddleware(stores) {
     }
   };
 
+  const finishWorkspaceHydration = () => {
+    seedDefaultWorkspaceIfEmpty();
+  };
+
   const loadLocalFallback = () => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -331,6 +336,7 @@ export function initPersistenceMiddleware(stores) {
     } catch (e) {
       console.error("Failed to read from localStorage:", e);
     }
+    finishWorkspaceHydration();
   };
 
   const loadLocalTimelineUiFallback = () => {
@@ -519,6 +525,8 @@ export function initPersistenceMiddleware(stores) {
         timelines,
         currentTier: "all",
       });
+
+      finishWorkspaceHydration();
 
       const docIds = Object.keys(docs);
       let timelineUi = pickTimelineUiState(loadLocalTimelineUiFallback());

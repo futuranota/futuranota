@@ -5,7 +5,7 @@ import { useObjectsStore } from "../../stores/objectsStore.js";
 export function DocForm({ onSubmit, onCancel, initialData = null }) {
   const objectMap = useObjectsStore((s) => s.objects);
   const objects = Object.values(objectMap);
-  const defaultParent = findObjectIdByName(objectMap, "yo");
+  const defaultParent = findObjectIdByName(objectMap, "yo") || objects[0]?.id || "";
 
   const [title, setTitle] = useState(initialData?.title || "");
   const [parentObjectId, setParentObjectId] = useState(initialData?.parentObjectId || defaultParent);

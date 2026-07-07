@@ -3,7 +3,7 @@ import { useDocsStore } from "./docsStore.js";
 import { useNodesStore } from "./nodesStore.js";
 import { useCanvasStore } from "./canvasStore.js";
 import { useTimelineStore } from "./timelineStore.js";
-import { findObjectIdByName } from "../lib/storeSanitize.js";
+import { findObjectIdByName, pruneStrayDefaultYo } from "../lib/storeSanitize.js";
 import { initSyncMiddleware } from "./middleware/syncMiddleware.js";
 import { initPersistenceMiddleware } from "./middleware/persistenceMiddleware.js";
 import { useLazyTodosStore } from "./lazyTodosStore.js";
@@ -25,11 +25,19 @@ export function initStores() {
 
   initPersistenceMiddleware(stores);
   initLazyTodosSync(useLazyTodosStore);
+  initSyncMiddleware();
+}
 
+/** Default empty workspace — only after persistence load, never before remote hydrate. */
+export function seedDefaultWorkspaceIfEmpty() {
   const { objects, addObject } = useObjectsStore.getState();
-  if (!findObjectIdByName(objects, "yo")) {
+  const pruned = pruneStrayDefaultYo(objects);
+  if (pruned !== objects) {
+    useObjectsStore.setState({ objects: pruned });
+  }
+  const nextObjects = useObjectsStore.getState().objects;
+  if (Object.keys(nextObjects).length > 0) return;
+  if (!findObjectIdByName(nextObjects, "yo")) {
     addObject("yo", "");
   }
-
-  initSyncMiddleware();
 }

@@ -10,6 +10,44 @@ export function findObjectIdByName(objectMap, name) {
   return "";
 }
 
+/**
+ * Remove auto-seeded "yo" when the user already has real companies (refresh race fix).
+ * @param {Record<string, { id?: string, name?: string, description?: string, brand?: string, children?: string[], cadence?: object }>} objectMap
+ */
+export function pruneStrayDefaultYo(objectMap) {
+  if (!objectMap || typeof objectMap !== "object") return objectMap || {};
+
+  const yoId = findObjectIdByName(objectMap, "yo");
+  if (!yoId) return objectMap;
+
+  const otherIds = Object.keys(objectMap).filter((id) => id !== yoId);
+  if (otherIds.length === 0) return objectMap;
+
+  const yo = objectMap[yoId];
+  const desc = (yo?.description || "").trim();
+  const brand = (yo?.brand || "").trim();
+  const children = Array.isArray(yo?.children) ? yo.children : [];
+  const cadence = yo?.cadence && typeof yo.cadence === "object" ? yo.cadence : {};
+  const cadenceKeys = Object.keys(cadence).filter((key) => {
+    const value = cadence[key];
+    if (value == null) return false;
+    if (typeof value === "object") return Object.keys(value).length > 0;
+    if (typeof value === "string") return value.trim().length > 0;
+    return true;
+  });
+
+  const isPristineSeed = !desc
+    && children.length === 0
+    && cadenceKeys.length === 0
+    && (!brand || brand.toLowerCase() === "yo");
+
+  if (!isPristineSeed) return objectMap;
+
+  const next = { ...objectMap };
+  delete next[yoId];
+  return next;
+}
+
 export function sanitizePersistedSnapshot(parsed) {
   if (!isRecord(parsed)) return null;
 
