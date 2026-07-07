@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createTodoItem } from "../../lib/docBlocks.js";
 import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
 import { parseNodeSlashQuery, splitBodyForSlash } from "../../lib/docBlockSlash.js";
@@ -145,6 +145,7 @@ export function NodeWritingBlockStack({
   const stackRef = useRef(null);
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
+  const [focusedBlockId, setFocusedBlockId] = useState(null);
 
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
@@ -257,24 +258,113 @@ export function NodeWritingBlockStack({
     }
   }, [onFocusTargetChange, removeEmptyHeadingAndFocus, updateBlocks]);
 
-  const handleTextSlashKeyDown = useCallback((blockIndex, e) => {
-    if (!slashEnabled) return;
-    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+  const focusBlockById = useCallback((blockId, caret = null) => {
+    if (!blockId) return;
+    const attempt = (tries = 0) => {
+      requestAnimationFrame(() => {
+        let el = inputRefs.current[blockId];
+        if (!el) {
+          const root = stackRef.current;
+          el = root?.querySelector(
+            `[data-writing-block-id="${blockId}"] textarea, [data-writing-block-id="${blockId}"] input`,
+          );
+        }
+        if (!el || !("focus" in el)) {
+          if (tries < 12) attempt(tries + 1);
+          return;
+        }
+        el.focus({ preventScroll: true });
+        if (caret != null && "setSelectionRange" in el) {
+          const pos = caret === "end" ? el.value.length : caret;
+          el.setSelectionRange(pos, pos);
+        }
+      });
+    };
+    attempt();
+  }, []);
 
-    const block = blocksRef.current[blockIndex];
+  const handleTextKeyDown = useCallback((blockIndex, e) => {
+    // Render iterates over normalized blocks, so index against the normalized list.
+    const current = normalizeWritingBlocks(blocksRef.current);
+    const block = current[blockIndex];
     if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) return;
 
-    const { slash } = splitBodyForSlash(block.text);
-    if (!slash) return;
+    // Slash command confirm (e.g. /macronodo) — keep existing behavior.
+    if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      const { slash } = splitBodyForSlash(block.text);
+      if (slash) {
+        const parsed = parseNodeSlashQuery(slash.slice(1));
+        if (parsed) {
+          e.preventDefault();
+          const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
+          updateBlocks(nextBlocks);
+          focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
+          return;
+        }
+      }
+    }
 
-    const parsed = parseNodeSlashQuery(slash.slice(1));
-    if (!parsed) return;
+    // Shift+Enter → newline inside the same cell (native textarea behavior).
+    if (e.key === "Enter" && e.shiftKey) return;
 
-    e.preventDefault();
-    const nextBlocks = applySlashInTextBlock(blocksRef.current, blockIndex, parsed);
-    updateBlocks(nextBlocks);
-    focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
-  }, [onFocusTargetChange, slashEnabled, updateBlocks]);
+    // Enter → move to the next cell (reuse the empty one below or create it).
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      const after = current[blockIndex + 1];
+
+      if (after?.type === NODE_BLOCK_TYPES.TEXT && !(after.text || "").trim()) {
+        onFocusTargetChange?.(null);
+        focusBlockById(after.id, 0);
+        return;
+      }
+
+      const newBlock = createEmptyTextBlock();
+      const next = [
+        ...current.slice(0, blockIndex + 1),
+        newBlock,
+        ...current.slice(blockIndex + 1),
+      ];
+      updateBlocks(next);
+      onFocusTargetChange?.(null);
+      focusBlockById(newBlock.id, 0);
+      return;
+    }
+
+    // Backspace at start → merge with / move to the previous cell.
+    if (e.key === "Backspace" && isAtInputStart(e)) {
+      if (blockIndex === 0) return;
+      const prev = current[blockIndex - 1];
+      const value = e.currentTarget.value ?? block.text ?? "";
+
+      if (value && prev?.type === NODE_BLOCK_TYPES.TEXT) {
+        e.preventDefault();
+        const joinAt = (prev.text || "").length;
+        const merged = (prev.text || "") + value;
+        const next = current
+          .map((b, i) => (i === blockIndex - 1 ? { ...b, text: merged } : b))
+          .filter((_, i) => i !== blockIndex);
+        updateBlocks(next);
+        onFocusTargetChange?.(null);
+        focusBlockById(prev.id, joinAt);
+        return;
+      }
+
+      if (!value && current.length > 1) {
+        e.preventDefault();
+        const next = current.filter((_, i) => i !== blockIndex);
+        updateBlocks(next.length ? next : [createEmptyTextBlock()]);
+        onFocusTargetChange?.(null);
+        focusBlockById(prev?.id, "end");
+        return;
+      }
+
+      // Non-empty text with a non-text block above — just move focus up.
+      if (value && prev) {
+        e.preventDefault();
+        focusBlockById(prev.id, "end");
+      }
+    }
+  }, [focusBlockById, onFocusTargetChange, slashEnabled, updateBlocks]);
 
   const handleTodoItemKeyDown = useCallback((blockIndex, itemIndex, e) => {
     const block = blocksRef.current[blockIndex];
@@ -310,12 +400,26 @@ export function NodeWritingBlockStack({
 
   const normalizedBlocks = normalizeWritingBlocks(blocks);
 
+  // Show the "Escribe aquí…" placeholder on a single cell only: the focused one,
+  // or (when nothing is focused) the first empty text cell.
+  const placeholderTextBlockId = (() => {
+    if (focusedBlockId) {
+      const focused = normalizedBlocks.find((b) => b.id === focusedBlockId);
+      if (focused?.type === NODE_BLOCK_TYPES.TEXT) return focusedBlockId;
+    }
+    const firstEmpty = normalizedBlocks.find(
+      (b) => b.type === NODE_BLOCK_TYPES.TEXT && !(b.text || "").trim(),
+    );
+    return firstEmpty?.id ?? null;
+  })();
+
   const renderHeadingBlock = (block, blockIndex, {
     View,
     stackClass,
     placeholder,
     linksEnabled,
     deleteLabel,
+    showDeleteAction = false,
   }) => (
     <div
       key={block.id}
@@ -330,10 +434,12 @@ export function NodeWritingBlockStack({
         placeholder={placeholder}
         autoFocus={isHeadingFocusTarget(focusTarget, blockIndex)}
       />
-      <LinkedNodeDocActions
-        onDetach={() => removeBlockAt(blockIndex)}
-        label={deleteLabel}
-      />
+      {showDeleteAction ? (
+        <LinkedNodeDocActions
+          onDetach={() => removeBlockAt(blockIndex)}
+          label={deleteLabel}
+        />
+      ) : null}
     </div>
   );
 
@@ -351,7 +457,8 @@ export function NodeWritingBlockStack({
             stackClass: "node-writing-block-stack__h1",
             placeholder: isMacronodo ? "Create a title" : "Heading 1",
             linksEnabled: isMacronodo,
-            deleteLabel: isMacronodo ? "Eliminar macronodo" : "Eliminar encabezado",
+            deleteLabel: "Eliminar macronodo",
+            showDeleteAction: isMacronodo,
           });
         }
 
@@ -361,7 +468,6 @@ export function NodeWritingBlockStack({
             stackClass: "node-writing-block-stack__h2",
             placeholder: "Heading 2",
             linksEnabled: false,
-            deleteLabel: "Eliminar encabezado",
           });
         }
 
@@ -371,7 +477,6 @@ export function NodeWritingBlockStack({
             stackClass: "node-writing-block-stack__h3",
             placeholder: "Heading 3",
             linksEnabled: false,
-            deleteLabel: "Eliminar encabezado",
           });
         }
 
@@ -544,14 +649,16 @@ export function NodeWritingBlockStack({
               }}
               className="node-writing-text-field doc-normal-text-field"
               value={block.text}
-              placeholder={textPlaceholder}
+              placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
               rows={1}
               autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}
               onChange={(e) => {
                 updateBlockAt(blockIndex, { text: e.target.value });
                 syncTextareaHeight(e.target);
               }}
-              onKeyDown={(e) => handleTextSlashKeyDown(blockIndex, e)}
+              onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
+              onFocus={() => setFocusedBlockId(block.id)}
+              onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
               onMouseDown={(e) => e.stopPropagation()}
             />
           </div>

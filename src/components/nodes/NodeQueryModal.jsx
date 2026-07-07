@@ -232,10 +232,20 @@ export function NodeQueryModal({
     dataType === NODE_DATA_TYPES.TEXT ? parseCalendarEventNodeContent(content) : null;
   const showTextSizeControls = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload;
 
-  const textWritingBody =
-    dataType === NODE_DATA_TYPES.TEXT && !calendarPayload
-      ? parseNodeWritingBody(content)
-      : null;
+  const isTextWritingMode = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload;
+
+  // Local source of truth for the writing stack so empty/blank cells survive
+  // while editing (serialized content drops them). Re-seed only when the node
+  // identity or data type changes.
+  const [writingBlocks, setWritingBlocks] = useState(() => parseNodeWritingBody(content).blocks);
+  const writingSeedRef = useRef(`${entityNodeId ?? "new"}:${dataType}`);
+
+  useEffect(() => {
+    const seedKey = `${entityNodeId ?? "new"}:${dataType}`;
+    if (writingSeedRef.current === seedKey) return;
+    writingSeedRef.current = seedKey;
+    setWritingBlocks(parseNodeWritingBody(content).blocks);
+  }, [entityNodeId, dataType, content]);
 
   const slashCommandsEnabled = Boolean(onDataTypeChange) || Boolean(onBackToDocument);
   const linkedFromDocument = Boolean(onBackToDocument);
@@ -250,19 +260,20 @@ export function NodeQueryModal({
     : isNodeSlashCommandEnabled;
 
   const updateWritingBlocks = useCallback((blocks) => {
+    setWritingBlocks(blocks);
     onContentChange(serializeNodeWritingBody({ blocks }));
   }, [onContentChange]);
 
   const appendBlockFromPicker = useCallback((alias, textPrefix = "") => {
     const parsed = resolveSlashQuery(alias);
     if (!parsed) return;
-    const current = parseNodeWritingBody(content);
-    const normalized = normalizeWritingBlocks(current.blocks);
+    const normalized = normalizeWritingBlocks(writingBlocks);
     const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = appendNodeWritingBlockFromSlash(
       normalized,
       parsed,
       textPrefix,
     );
+    setWritingBlocks(nextBlocks);
     onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
     if (insertedIndex < 0) return;
     if (focusText) {
@@ -295,7 +306,7 @@ export function NodeQueryModal({
     ) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true });
     }
-  }, [content, onContentChange, resolveSlashQuery]);
+  }, [writingBlocks, onContentChange, resolveSlashQuery]);
 
   const applySlashFromAlias = useCallback((alias, textPrefix = "") => {
     if (dataType === NODE_DATA_TYPES.TEXT && !calendarPayload) {
@@ -583,11 +594,11 @@ export function NodeQueryModal({
                 }}
               />
             </div>
-          ) : dataType === NODE_DATA_TYPES.TEXT && !calendarPayload ? (
+          ) : isTextWritingMode ? (
             <div className="node-query-modal__field-shell">
               <NodeWritingBlockStack
                 className="node-query-modal__writing-stack"
-                blocks={textWritingBody?.blocks ?? []}
+                blocks={writingBlocks}
                 onBlocksChange={updateWritingBlocks}
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
