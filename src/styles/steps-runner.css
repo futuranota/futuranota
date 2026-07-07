@@ -225,6 +225,13 @@
 .steps-runner-overlay__heading {
   min-width: 0;
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.steps-runner-overlay__heading-meta {
+  min-width: 0;
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
@@ -242,11 +249,12 @@
 .steps-runner-overlay__title {
   margin: 0;
   font-family: var(--sans);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.03em;
   color: var(--text);
-  line-height: 1.2;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .steps-runner-overlay__close {
@@ -587,15 +595,24 @@
   --scroll-bg: var(--step-dashboard-code-bg);
 }
 
-.step-playbook-dashboard-overlay__body .doc-step-sequence__nav-btn--save,
 .step-playbook-dashboard-overlay__body .doc-step-sequence__nav-btn--next {
   color: #111;
   background: #fff;
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.step-playbook-dashboard-overlay__body .doc-step-sequence__nav-btn--save,
 .step-playbook-dashboard-overlay__body .doc-step-sequence__nav-btn--back {
-  color: #e8e4dc;
-  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(232, 220, 200, 0.72);
+  border-color: transparent;
   background: transparent;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.step-playbook-dashboard-overlay__body .doc-step-sequence__nav-btn--save:hover:not(:disabled),
+.step-playbook-dashboard-overlay__body .doc-step-sequence__nav-btn--back:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
 }

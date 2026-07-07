@@ -117,6 +117,16 @@ export function DocDocumentBox({
   const showParentPicker = Boolean(onParentIdChange && objects?.length && !isKnowledgeMode);
   const knowledgeImportActive = hasKnowledgeImport({ knowledgeImport });
   const docHeaderLabel = (headerLabel ?? "").trim() || DEFAULT_HEADER_LABEL;
+  // Step-by-step docs already show "Step by step" + the step counter inside the
+  // block's own styled header. When the doc has no real title it falls back to
+  // the literal "Step by step", which duplicates that label as the plain document
+  // title. Blank the plain title in that case so only the styled (css) copy shows;
+  // real user titles still render at the top.
+  const isStepPlaybookDoc = Array.isArray(blocks)
+    && blocks.some((b) => b.type === DOC_BLOCK_TYPES.STEP_SEQUENCE);
+  const titleDuplicatesStepLabel =
+    isStepPlaybookDoc && (title || "").trim() === "Step by step";
+  const displayedTitle = titleDuplicatesStepLabel ? "" : title;
   const bodyPlaceholder = isKnowledgeMode
     ? (knowledgeImportActive
       ? t("sidebar.knowledgeNotesImportPlaceholder")
@@ -570,7 +580,7 @@ export function DocDocumentBox({
             "doc-new-head-title"
             + (isKnowledgeMode ? " doc-new-head-title--knowledge" : "")
           }
-          value={title}
+          value={displayedTitle}
           placeholder={titlePlaceholder}
           onChange={(e) => {
             onTitleChange(e.target.value);

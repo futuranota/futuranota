@@ -23,6 +23,8 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
   const stepNumber = Math.min(activeIndex, Math.max(total - 1, 0)) + 1;
   const activeStep = steps[Math.min(activeIndex, total - 1)] ?? steps[0];
   const isLastStep = total > 0 && activeIndex >= total - 1;
+  const guideTitle = (playbook?.title ?? "").trim();
+  const showGuideTitle = guideTitle && guideTitle !== "Step by step";
 
   useEffect(() => {
     setActiveIndex(0);
@@ -87,10 +89,15 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
           <>
             <header className="steps-runner-overlay__header">
               <div className="steps-runner-overlay__heading">
-                <span className="steps-runner-overlay__label">{t("stepsRunner.modeLabel")}</span>
-                <span className="steps-runner-overlay__step-badge">
-                  {t("stepsRunner.stepOf", { n: stepNumber, m: total })}
-                </span>
+                <div className="steps-runner-overlay__heading-meta">
+                  <span className="steps-runner-overlay__label">{t("stepsRunner.modeLabel")}</span>
+                  <span className="steps-runner-overlay__step-badge">
+                    {t("stepsRunner.stepOf", { n: stepNumber, m: total })}
+                  </span>
+                </div>
+                {showGuideTitle ? (
+                  <h2 className="steps-runner-overlay__title">{guideTitle}</h2>
+                ) : null}
               </div>
               <button
                 type="button"

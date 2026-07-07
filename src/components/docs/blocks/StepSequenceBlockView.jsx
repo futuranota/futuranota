@@ -128,16 +128,12 @@ function StepSequenceHeader({
 
 function SavedStepSequenceView({
   blockId,
-  title,
   steps,
   compact,
-  onTitleChange,
   onStepsChange,
   onDeleteBlock,
   onEditRequest,
 }) {
-  const displayTitle = (title || "").trim();
-
   const updateStepBlocks = useCallback((stepIndex, blocks) => {
     const next = steps.map((step, index) => (
       index === stepIndex ? { ...step, blocks } : step
@@ -150,15 +146,18 @@ function SavedStepSequenceView({
       className={`doc-step-sequence doc-step-sequence--saved${compact ? " doc-step-sequence--compact" : ""}`}
       onKeyDown={(e) => e.stopPropagation()}
     >
+      {/* Saved view: the guide title now lives at the top of the document
+          (doc title). Keep only the styled "Step by step" label + counter here
+          so the title is not duplicated inside the block. */}
       <StepSequenceHeader
         blockId={blockId}
-        title={title}
-        onTitleChange={onTitleChange}
+        title=""
+        onTitleChange={undefined}
         compact={compact}
         counter={`${steps.length} ${steps.length === 1 ? "step" : "steps"}`}
         onEditRequest={onEditRequest}
         onDeleteBlock={onDeleteBlock}
-        displayTitle={!onTitleChange ? displayTitle : ""}
+        displayTitle=""
       />
 
       <div className="doc-step-sequence__card doc-step-sequence__card--saved">
@@ -288,10 +287,8 @@ export function StepSequenceBlockView({
     return (
       <SavedStepSequenceView
         blockId={blockId}
-        title={title}
         steps={safeSteps}
         compact={compact}
-        onTitleChange={onTitleChange}
         onStepsChange={onStepsChange}
         onEditRequest={onEditRequest}
         onDeleteBlock={onDeleteBlock}
