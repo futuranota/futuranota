@@ -46,7 +46,10 @@ export function AuthSignupCard({
   onSubmit,
   onGoogleSignIn,
   loading = false,
+  loadingLabel,
   errorMessage = null,
+  onRetryCheckout,
+  retryLabel = 'Try again',
   selectedPlan = null,
 }) {
   const isSignup = mode === 'signup';
@@ -259,15 +262,28 @@ export function AuthSignupCard({
           {errorMessage ? (
             <div className="auth-split-form__error" role="alert">
               {errorMessage}
+              {onRetryCheckout ? (
+                <button
+                  type="button"
+                  className="auth-split-form__retry"
+                  onClick={onRetryCheckout}
+                  disabled={loading}
+                >
+                  {retryLabel}
+                </button>
+              ) : null}
             </div>
           ) : null}
 
           <button
             type="submit"
-            className="btn btn-primary auth-split-submit"
+            className={`btn btn-primary auth-split-submit${loading ? ' is-loading' : ''}`}
             disabled={loading}
+            aria-busy={loading}
           >
-            {loading ? 'Loading…' : isSignup ? 'Sign up' : 'Sign in'}
+            {loading
+              ? (loadingLabel || 'Loading…')
+              : (isSignup ? 'Sign up' : 'Sign in')}
           </button>
         </form>
       </div>

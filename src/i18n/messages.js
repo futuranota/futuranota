@@ -623,6 +623,8 @@ export const messages = {
       priceLabel: "Selected plan: {price}",
       completePayment: "Complete payment",
       continueStarter: "Continue with Starter for now",
+      redirecting: "Opening payment…",
+      tryAgain: "Try again",
     },
     referral: {
       bannerTitle: "Refer a friend · +50 credits",
@@ -1061,6 +1063,8 @@ export const messages = {
       priceLabel: "Plan elegido: {price}",
       completePayment: "Completar pago",
       continueStarter: "Continuar con Starter por ahora",
+      redirecting: "Abriendo pago…",
+      tryAgain: "Reintentar",
     },
     referral: {
       bannerTitle: "Referí a un amigo · +50 créditos",

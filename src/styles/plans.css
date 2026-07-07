@@ -333,7 +333,86 @@
 }
 
 .pro-checkout-abandon-overlay {
+  position: fixed;
+  inset: 0;
   z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.pro-checkout-abandon-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(4, 6, 10, 0.62);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+/* Card shell (shadcn-style structure, app tokens) */
+.fn-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 420px);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--glass-border-2);
+  background: var(--panel-solid);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+
+.fn-card__header {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.fn-card__title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.fn-card__description {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.fn-card__content {
+  padding: 14px 18px 4px;
+}
+
+.fn-card__footer {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px 18px 18px;
+  border-top: 1px solid var(--hairline);
+}
+
+.pro-checkout-abandon-card__price {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.pro-checkout-abandon-card__bullets {
+  margin: 0;
+}
+
+.pro-checkout-abandon-card__footer .pro-checkout-abandon-card__btn {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  text-align: center;
 }
 
 .pro-checkout-abandon-modal__price {

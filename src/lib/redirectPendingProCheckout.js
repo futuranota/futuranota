@@ -52,6 +52,7 @@ export async function tryRedirectPendingProCheckout(user) {
       };
     }
 
+    await new Promise((resolve) => setTimeout(resolve, 800));
     window.location.href = url;
     return { redirected: true, pending: true };
   } catch (err) {

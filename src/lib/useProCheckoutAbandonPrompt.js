@@ -4,6 +4,8 @@ import { startProCheckout } from "./billingApi.js";
 import {
   resolvePendingProCheckout,
   skipPendingProCheckout,
+  pauseAutoProCheckoutRedirect,
+  clearAutoProCheckoutRedirectPause,
 } from "./pendingCheckout.js";
 import { usePlanStore } from "../stores/planStore.js";
 import { useAuthStore } from "../stores/authStore.js";
@@ -29,6 +31,7 @@ export function useProCheckoutAbandonPrompt() {
 
     handledRef.current = true;
     setBilling(pending.billing);
+    pauseAutoProCheckoutRedirect();
     setOpen(true);
     setSearchParams({}, { replace: true });
   }, [profilePlan, searchParams, setSearchParams, user]);
@@ -37,6 +40,7 @@ export function useProCheckoutAbandonPrompt() {
     if (busy) return;
     setBusy(true);
     try {
+      clearAutoProCheckoutRedirectPause();
       const { url } = await startProCheckout(billing, { cancelReturn: "app" });
       if (url) {
         window.location.href = url;

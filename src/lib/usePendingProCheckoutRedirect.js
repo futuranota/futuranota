@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../stores/authStore.js';
-import { hasPendingProCheckout } from './pendingCheckout.js';
+import { hasPendingProCheckout, isAutoProCheckoutRedirectPaused } from './pendingCheckout.js';
 import { tryRedirectPendingProCheckout } from './redirectPendingProCheckout.js';
 
 /**
@@ -19,6 +19,7 @@ export function usePendingProCheckoutRedirect(opts = {}) {
     if (!enabled || authLoading || !user) return;
     if (attemptedRef.current) return;
     if (!hasPendingProCheckout(user)) return;
+    if (isAutoProCheckoutRedirectPaused()) return;
 
     attemptedRef.current = true;
     setRedirecting(true);

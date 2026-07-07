@@ -2,7 +2,11 @@ import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePlanStore } from "../stores/planStore.js";
 import { confirmCheckoutSession } from "./billingApi.js";
-import { clearPendingProCheckout, hasPendingProCheckout } from "./pendingCheckout.js";
+import {
+  clearPendingProCheckout,
+  hasPendingProCheckout,
+  pauseAutoProCheckoutRedirect,
+} from "./pendingCheckout.js";
 import { clearStoredReferralCode } from "./referralStorage.js";
 import { supabase } from "./supabaseClient.js";
 
@@ -41,6 +45,7 @@ export function useStripeCheckoutReturn() {
       if (checkout === "canceled") {
         const { data: { session } } = await supabase.auth.getSession();
         if (hasPendingProCheckout(session?.user)) {
+          pauseAutoProCheckoutRedirect();
           return;
         }
         setSearchParams({}, { replace: true });

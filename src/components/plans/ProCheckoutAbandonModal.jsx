@@ -1,6 +1,14 @@
-import { Modal } from "../shared/Modal.jsx";
+import { createPortal } from "react-dom";
 import { PRICING_PLANS_DEFAULT, planBullets } from "../../marketing/lib/pricingDefaults.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "../ui/card.jsx";
 
 export function ProCheckoutAbandonModal({
   open,
@@ -17,50 +25,59 @@ export function ProCheckoutAbandonModal({
   const suffix = billing === "annual" ? proPlan?.annualPriceSuffix : proPlan?.priceSuffix;
   const priceLabel = price ? `$${price}${suffix || ""}` : "";
 
-  return (
-    <div className="modal-overlay fn-modal pro-checkout-abandon-overlay" role="presentation">
-      <div
-        className="modal glass notes-modal fn-modal-panel pro-checkout-abandon-modal"
-        onClick={(e) => e.stopPropagation()}
+  return createPortal(
+    <div className="pro-checkout-abandon-overlay" role="presentation">
+      <button
+        type="button"
+        className="pro-checkout-abandon-overlay__backdrop"
+        aria-label={t("proCheckoutAbandon.continueStarter")}
+        onClick={onContinueStarter}
+      />
+      <Card
+        className="pro-checkout-abandon-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="pro-checkout-abandon-title"
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="modal-header">
-          <span id="pro-checkout-abandon-title" className="label" style={{ color: "var(--hud)" }}>
+        <CardHeader>
+          <CardTitle id="pro-checkout-abandon-title">
             {t("proCheckoutAbandon.title")}
-          </span>
-        </div>
-        <div className="modal-body">
-          <p className="upgrade-reason">{t("proCheckoutAbandon.body")}</p>
+          </CardTitle>
+          <CardDescription>{t("proCheckoutAbandon.body")}</CardDescription>
+        </CardHeader>
+
+        <CardContent>
           {priceLabel ? (
-            <p className="pro-checkout-abandon-modal__price muted">
+            <p className="pro-checkout-abandon-card__price">
               {t("proCheckoutAbandon.priceLabel", { price: priceLabel })}
             </p>
           ) : null}
-          <ul className="upgrade-bullets">
+          <ul className="upgrade-bullets pro-checkout-abandon-card__bullets">
             {planBullets(proPlan).slice(0, 4).map((b) => <li key={b}>{b}</li>)}
           </ul>
-          <div className="pro-checkout-abandon-modal__actions">
-            <button
-              type="button"
-              className="btn primary"
-              disabled={busy}
-              onClick={onCompletePayment}
-            >
-              {busy ? t("plans.processing") : t("proCheckoutAbandon.completePayment")}
-            </button>
-            <button
-              type="button"
-              className="btn ghost"
-              disabled={busy}
-              onClick={onContinueStarter}
-            >
-              {t("proCheckoutAbandon.continueStarter")}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+        </CardContent>
+
+        <CardFooter className="pro-checkout-abandon-card__footer">
+          <button
+            type="button"
+            className="btn primary pro-checkout-abandon-card__btn"
+            disabled={busy}
+            onClick={onCompletePayment}
+          >
+            {busy ? t("plans.processing") : t("proCheckoutAbandon.completePayment")}
+          </button>
+          <button
+            type="button"
+            className="btn ghost pro-checkout-abandon-card__btn"
+            disabled={busy}
+            onClick={onContinueStarter}
+          >
+            {t("proCheckoutAbandon.continueStarter")}
+          </button>
+        </CardFooter>
+      </Card>
+    </div>,
+    document.body,
   );
 }

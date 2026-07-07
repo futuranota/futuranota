@@ -19,6 +19,7 @@ import {
   syncPendingProCheckoutFromParams,
 } from '../../lib/pendingCheckout.js';
 import { usePendingProCheckoutRedirect } from '../../lib/usePendingProCheckoutRedirect.js';
+import { useI18n } from '../../i18n/useI18n.js';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
@@ -26,6 +27,7 @@ export function WelcomePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { t } = useI18n();
   const { signIn, signUp, signInWithGoogle } = useAuthStore();
   const user = useAuthStore((s) => s.user);
   const authLoading = useAuthStore((s) => s.loading);
@@ -153,25 +155,15 @@ export function WelcomePage() {
     }
   };
 
+  const proAwaitingPayment = Boolean(user && hasPendingProCheckout(user));
+  const awaitingStripe = proAwaitingPayment && redirecting;
+  const formLoading = loading || awaitingStripe;
+  const submitLoadingLabel = awaitingStripe ? t('proCheckoutAbandon.redirecting') : undefined;
+  const showInbox = sent && !proAwaitingPayment;
+
   return (
     <div className="auth-split-wrap" data-screen-label="welcome">
-      {redirecting && user && hasPendingProCheckout(user) ? (
-        <div className="auth-split-success card">
-          <span className="auth-done__mark"><span className="back-link__arrow" style={{ transform: 'none' }}>→</span></span>
-          <h2 className="h2">Redirecting to payment…</h2>
-          <p className="muted" style={{ fontSize: 15 }}>
-            Opening Stripe to complete your Pro subscription.
-          </p>
-        </div>
-      ) : checkoutError && user && hasPendingProCheckout(user) ? (
-        <div className="auth-split-success card">
-          <h2 className="h2">Complete Pro payment</h2>
-          <p className="muted" style={{ fontSize: 15 }}>{checkoutError}</p>
-          <button type="button" className="btn btn-primary" onClick={() => retryCheckout()}>
-            Try again <span className="arrow">→</span>
-          </button>
-        </div>
-      ) : sent ? (
+      {showInbox ? (
         <div className="auth-split-success card">
           <span className="auth-done__mark"><span className="back-link__arrow" style={{ transform: 'none' }}>✓</span></span>
           <h2 className="h2">Check your inbox.</h2>
@@ -189,8 +181,11 @@ export function WelcomePage() {
           onModeChange={go}
           onSubmit={handleSubmit}
           onGoogleSignIn={handleGoogleSignIn}
-          loading={loading}
-          errorMessage={errorMessage}
+          loading={formLoading}
+          loadingLabel={submitLoadingLabel}
+          errorMessage={checkoutError || errorMessage}
+          onRetryCheckout={checkoutError ? retryCheckout : undefined}
+          retryLabel={t('proCheckoutAbandon.tryAgain')}
           selectedPlan={selectedPlan}
         />
       )}

@@ -1,6 +1,7 @@
 /** Persists Pro checkout intent across email confirm → sign-in. */
 export const PENDING_PRO_CHECKOUT_KEY = 'fn_pending_pro_checkout';
 export const PENDING_PRO_CHECKOUT_SKIPPED_KEY = 'fn_pro_checkout_skipped';
+export const PENDING_PRO_CHECKOUT_PAUSE_KEY = 'fn_pro_checkout_pause_auto_redirect';
 
 /** @typedef {{ plan: 'pro', billing: 'monthly' | 'annual' }} PendingProCheckout */
 
@@ -65,7 +66,21 @@ export function clearPendingProCheckout() {
 /** User chose Starter — do not auto-redirect to Stripe again. */
 export function skipPendingProCheckout() {
   clearPendingProCheckout();
+  clearAutoProCheckoutRedirectPause();
   localStorage.setItem(PENDING_PRO_CHECKOUT_SKIPPED_KEY, '1');
+}
+
+/** After Stripe cancel — hold auto-redirect until user picks an option in the modal. */
+export function pauseAutoProCheckoutRedirect() {
+  sessionStorage.setItem(PENDING_PRO_CHECKOUT_PAUSE_KEY, '1');
+}
+
+export function clearAutoProCheckoutRedirectPause() {
+  sessionStorage.removeItem(PENDING_PRO_CHECKOUT_PAUSE_KEY);
+}
+
+export function isAutoProCheckoutRedirectPaused() {
+  return sessionStorage.getItem(PENDING_PRO_CHECKOUT_PAUSE_KEY) === '1';
 }
 
 /**
