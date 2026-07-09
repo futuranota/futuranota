@@ -1,0 +1,20 @@
+---
+description: New creation surfaces (tables, panels, cards, overlays) use the same base color as documents (#151515)
+globs: "**/*.{css,jsx,tsx,vue}"
+alwaysApply: true
+---
+
+# Base surface color
+
+When building any new creation surface — tables, panels, cards, editors,
+overlays, etc. — use the same base background color that documents use:
+
+```
+#151515
+```
+
+## Rules
+
+- Default base/fill for new surfaces = `#151515` (match the documents surface).
+- Keep this consistent so new UI reads as part of the same document system.
+- Only deviate when the user explicitly asks for a different color.

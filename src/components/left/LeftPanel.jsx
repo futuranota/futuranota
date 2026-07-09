@@ -48,6 +48,7 @@ import { PlanUsagePanel } from "../plans/PlanUsagePanel.jsx";
 import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
 import { StepsLibraryPanel } from "../steps/StepsLibraryPanel.jsx";
+import { UrlTableLibraryPanel } from "../urltable/UrlTableLibraryPanel.jsx";
 import { LazyTodoQueuePanel } from "../lazyTodos/LazyTodoQueuePanel.jsx";
 import { TranslatedText } from "../shared/TranslatedText.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -1074,6 +1075,9 @@ export function LeftPanel({
   onDocumentDeleted,
   onRunStepPlaybook,
   onOpenNewStepPlaybook,
+  onOpenNewUrlTable,
+  onOpenUrlTable,
+  onUrlTableRemoved,
   onOpenNewLazyTodo,
   onOpenLazyTodoItem,
   onStepPlaybookRemoved,
@@ -1096,6 +1100,7 @@ export function LeftPanel({
   const [clickFolderView, setClickFolderView] = useState(null);
   const [packImportActive, setPackImportActive] = useState(false);
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
+  const [urlTableActive, setUrlTableActive] = useState(false);
   const [lazyTodosActive, setLazyTodosActive] = useState(false);
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
@@ -1230,6 +1235,7 @@ export function LeftPanel({
     setClickFolderView(null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
+    setUrlTableActive(false);
     setLazyTodosActive(false);
     setProductCategoryFilter(null);
     setContentProductFilter(null);
@@ -1238,6 +1244,7 @@ export function LeftPanel({
   const openPackImportView = () => {
     setClickFolderView(null);
     setStepsLibraryActive(false);
+    setUrlTableActive(false);
     setLazyTodosActive(false);
     setPackImportActive(true);
   };
@@ -1249,6 +1256,7 @@ export function LeftPanel({
   const openStepsLibraryView = () => {
     setClickFolderView(null);
     setPackImportActive(false);
+    setUrlTableActive(false);
     setLazyTodosActive(false);
     setStepsLibraryActive(true);
   };
@@ -1257,10 +1265,23 @@ export function LeftPanel({
     setStepsLibraryActive(false);
   };
 
+  const openUrlTableView = () => {
+    setClickFolderView(null);
+    setPackImportActive(false);
+    setStepsLibraryActive(false);
+    setLazyTodosActive(false);
+    setUrlTableActive(true);
+  };
+
+  const closeUrlTableView = () => {
+    setUrlTableActive(false);
+  };
+
   const openLazyTodosView = () => {
     setClickFolderView(null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
+    setUrlTableActive(false);
     setLazyTodosActive(true);
   };
 
@@ -1319,6 +1340,7 @@ export function LeftPanel({
     setClickFolderView(null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
+    setUrlTableActive(false);
     setLazyTodosActive(false);
     setShowCreate(false);
     setFolderOpen(false);
@@ -1336,6 +1358,20 @@ export function LeftPanel({
       setPanelType("Documents");
     }
     openStepsLibraryView();
+  };
+
+  const openUrlTableFromToolbar = () => {
+    const targetObjectId = filterObjectId || selectedObjectId;
+    if (targetObjectId) {
+      if (!objectWorkspaceActive) {
+        enterObjectWorkspace(targetObjectId);
+      } else {
+        setPanelType("Documents");
+      }
+    } else {
+      setPanelType("Documents");
+    }
+    openUrlTableView();
   };
 
   const openLazyTodosFromToolbar = () => {
@@ -1373,6 +1409,22 @@ export function LeftPanel({
       onDocumentDeleted?.(docId);
     }
     onStepPlaybookRemoved?.({ docId, blockId });
+    if (activeId === docId) setActiveId(null);
+  };
+
+  const handleNewUrlTableFromLibrary = () => {
+    onOpenNewUrlTable?.(filterObjectId || selectedObjectId);
+  };
+
+  const handleOpenUrlTableFromLibrary = (table) => {
+    onOpenUrlTable?.(table);
+  };
+
+  const handleDeleteUrlTableFromLibrary = ({ docId, blockId, docRemoved }) => {
+    if (docRemoved) {
+      onDocumentDeleted?.(docId);
+    }
+    onUrlTableRemoved?.({ docId, blockId });
     if (activeId === docId) setActiveId(null);
   };
 
@@ -1659,6 +1711,16 @@ export function LeftPanel({
           />
         ) : null}
 
+        {panelType === "Documents" && urlTableActive && !objectWorkspaceActive ? (
+          <UrlTableLibraryPanel
+            objectId={filterObjectId}
+            onClose={closeUrlTableView}
+            onOpenTable={handleOpenUrlTableFromLibrary}
+            onNew={handleNewUrlTableFromLibrary}
+            onTableDeleted={handleDeleteUrlTableFromLibrary}
+          />
+        ) : null}
+
         {panelType === "Documents" && lazyTodosActive && !objectWorkspaceActive ? (
           <LazyTodoQueuePanel
             objectId={filterObjectId}
@@ -1689,6 +1751,16 @@ export function LeftPanel({
               />
             ) : null}
 
+            {urlTableActive ? (
+              <UrlTableLibraryPanel
+                objectId={filterObjectId}
+                onClose={closeUrlTableView}
+                onOpenTable={handleOpenUrlTableFromLibrary}
+                onNew={handleNewUrlTableFromLibrary}
+                onTableDeleted={handleDeleteUrlTableFromLibrary}
+              />
+            ) : null}
+
             {lazyTodosActive ? (
               <LazyTodoQueuePanel
                 objectId={filterObjectId}
@@ -1698,7 +1770,7 @@ export function LeftPanel({
               />
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === null ? (
+            {!packImportActive && !stepsLibraryActive && !urlTableActive && !lazyTodosActive && clickFolderView === null ? (
               <>
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -1712,6 +1784,8 @@ export function LeftPanel({
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
+                    onOpenUrlTable={openUrlTableFromToolbar}
+                    onOpenPasswordTable={() => {}}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
@@ -1747,6 +1821,8 @@ export function LeftPanel({
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
+                    onOpenUrlTable={openUrlTableFromToolbar}
+                    onOpenPasswordTable={() => {}}
                     filterMode="category"
                     filterOptions={categoryFilterOptions}
                     filterValue={productCategoryFilter}
@@ -1868,6 +1944,8 @@ export function LeftPanel({
                     onOpenImport={openPackImportView}
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
+                    onOpenUrlTable={openUrlTableFromToolbar}
+                    onOpenPasswordTable={() => {}}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>

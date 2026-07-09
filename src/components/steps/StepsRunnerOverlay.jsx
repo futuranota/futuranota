@@ -89,12 +89,9 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
           <>
             <header className="steps-runner-overlay__header">
               <div className="steps-runner-overlay__heading">
-                <div className="steps-runner-overlay__heading-meta">
-                  <span className="steps-runner-overlay__label">{t("stepsRunner.modeLabel")}</span>
-                  <span className="steps-runner-overlay__step-badge">
-                    {t("stepsRunner.stepOf", { n: stepNumber, m: total })}
-                  </span>
-                </div>
+                <span className="steps-runner-overlay__step-badge">
+                  {t("stepsRunner.stepOf", { n: stepNumber, m: total })}
+                </span>
                 {showGuideTitle ? (
                   <h2 className="steps-runner-overlay__title">{guideTitle}</h2>
                 ) : null}

@@ -3,16 +3,35 @@ import { createLinkEntry, normalizeUrlInput } from "../../../lib/vaultBlocks.js"
 
 const EMPTY_DRAFT = { name: "", description: "", url: "" };
 
+const DEFAULT_LABELS = {
+  name: "Nombre",
+  description: "Descripción",
+  url: "Link",
+  save: "Guardar",
+};
+
 export function LinkVaultBlockView({
   entries = [],
   onEntriesChange,
   onDeleteVault,
   openAddForm = false,
   compact = false,
+  multilineDescription = false,
+  labels,
 }) {
+  const L = { ...DEFAULT_LABELS, ...(labels || {}) };
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [isAdding, setIsAdding] = useState(entries.length === 0);
   const nameRef = useRef(null);
+  const descRef = useRef(null);
+
+  useEffect(() => {
+    if (!multilineDescription) return;
+    const el = descRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft.description, multilineDescription, isAdding]);
 
   useEffect(() => {
     if (entries.length === 0) {
@@ -76,9 +95,9 @@ export function LinkVaultBlockView({
           <table className="doc-vault-block__table">
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Descripción</th>
-                <th>Link</th>
+                <th>{L.name}</th>
+                <th>{L.description}</th>
+                <th>{L.url}</th>
                 <th aria-hidden />
               </tr>
             </thead>
@@ -125,25 +144,38 @@ export function LinkVaultBlockView({
             className="doc-vault-block__input"
             type="text"
             value={draft.name}
-            placeholder="Nombre"
+            placeholder={L.name}
             onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
             onKeyDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           />
-          <input
-            className="doc-vault-block__input"
-            type="text"
-            value={draft.description}
-            placeholder="Descripción"
-            onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
-            onKeyDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          />
+          {multilineDescription ? (
+            <textarea
+              ref={descRef}
+              rows={1}
+              className="doc-vault-block__input doc-vault-block__input--description-multiline"
+              value={draft.description}
+              placeholder={L.description}
+              onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
+              onKeyDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <input
+              className="doc-vault-block__input"
+              type="text"
+              value={draft.description}
+              placeholder={L.description}
+              onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
+              onKeyDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+          )}
           <input
             className="doc-vault-block__input doc-vault-block__input--url"
             type="url"
             value={draft.url}
-            placeholder="Link"
+            placeholder={L.url}
             onChange={(e) => setDraft((prev) => ({ ...prev, url: e.target.value }))}
             onKeyDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -154,7 +186,7 @@ export function LinkVaultBlockView({
             disabled={!canSave}
             onClick={handleSave}
           >
-            Guardar
+            {L.save}
           </button>
         </div>
       ) : null}

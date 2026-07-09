@@ -179,10 +179,10 @@
   justify-content: center;
   padding: 24px 16px;
   box-sizing: border-box;
-  --runner-surface-bg: color-mix(in oklab, var(--panel) 90%, #0e1116);
+  --runner-surface-bg: #151515;
   --runner-scroll-thumb: rgba(255, 255, 255, 0.12);
   --runner-scroll-thumb-hover: rgba(255, 255, 255, 0.22);
-  --runner-code-saved-bg: #141820;
+  --runner-code-saved-bg: #151515;
 }
 
 .steps-runner-overlay__backdrop {
@@ -202,11 +202,7 @@
   flex-direction: column;
   border-radius: 14px;
   border: 1px solid color-mix(in oklab, var(--glass-border) 85%, #fff);
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--panel) 96%, #fff) 0%,
-    color-mix(in oklab, var(--panel) 88%, #0e1116) 100%
-  );
+  background: #151515;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.45),
     0 1px 0 rgba(255, 255, 255, 0.06) inset;
@@ -239,11 +235,11 @@
 
 .steps-runner-overlay__label {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 7px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--dim);
+  color: color-mix(in oklab, var(--dim) 70%, transparent);
 }
 
 .steps-runner-overlay__title {
@@ -367,11 +363,12 @@
 .steps-runner-overlay__step-badge {
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
   padding: 2px 7px;
   border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--hud) 30%, var(--glass-border));
-  background: color-mix(in oklab, var(--hud) 10%, var(--panel-2));
-  color: color-mix(in oklab, var(--hud) 78%, var(--text));
+  border: 1px solid color-mix(in oklab, #d46f71 45%, transparent);
+  background: #683a3a;
+  color: #d46f71;
   font-family: var(--mono);
   font-size: 8px;
   font-weight: 700;
@@ -486,11 +483,12 @@
   padding: 24px 16px;
   box-sizing: border-box;
   background: #0a0c10;
+  /* Inherit the to-do list dashboard palette: card #12151c, inner surfaces #0e1118 */
   --step-dashboard-bg: #12151c;
-  --step-dashboard-surface: #161a22;
-  --step-dashboard-code-bg: #141820;
+  --step-dashboard-surface: #0e1118;
+  --step-dashboard-code-bg: #0e1118;
   --step-card-bg: var(--step-dashboard-surface);
-  --step-input-bg: #1a1f28;
+  --step-input-bg: #0e1118;
 }
 
 .step-playbook-dashboard-overlay__backdrop {
@@ -615,4 +613,191 @@
   color: #fff;
   border-color: rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* URL table dashboard overlay — inherits the to-do list palette from the base overlay */
+.step-playbook-dashboard-overlay--url-table {
+  background: transparent;
+}
+
+/* Darker backdrop so the table card stands out; not clickable to close */
+.step-playbook-dashboard-overlay--url-table .step-playbook-dashboard-overlay__backdrop {
+  background: rgba(8, 10, 14, 0.72);
+  cursor: default;
+}
+
+.url-table-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.url-table-dashboard__title-wrap {
+  padding-top: 4px;
+}
+
+/* Table title blends with the card — no filled input background */
+.url-table-dashboard .doc-step-sequence__title-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  color: #fff;
+}
+
+.url-table-dashboard .doc-step-sequence__title-input:focus {
+  outline: none;
+  border-bottom-color: rgba(255, 255, 255, 0.28);
+}
+
+/* The vault block is the single bordered table container (to-do list palette) */
+.url-table-dashboard .doc-vault-block {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: #0e1118;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.url-table-dashboard .doc-vault-block__table-wrap {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Content font is smaller than the table title */
+.url-table-dashboard .doc-vault-block__table {
+  font-size: 13px;
+}
+
+.url-table-dashboard .doc-vault-block__table th {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.url-table-dashboard .doc-vault-block__table th,
+.url-table-dashboard .doc-vault-block__table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.url-table-dashboard .doc-vault-block__table td {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+}
+
+/* Equal base widths for name / description / url */
+.url-table-dashboard .doc-vault-block__table th:nth-child(1),
+.url-table-dashboard .doc-vault-block__table td:nth-child(1),
+.url-table-dashboard .doc-vault-block__table th:nth-child(2),
+.url-table-dashboard .doc-vault-block__table td:nth-child(2),
+.url-table-dashboard .doc-vault-block__table th:nth-child(3),
+.url-table-dashboard .doc-vault-block__table td:nth-child(3) {
+  width: 31%;
+}
+
+/* Name column: centered, up to two lines when long */
+.url-table-dashboard .doc-vault-block__table td:nth-child(1) {
+  white-space: normal;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Description column: centered like name/url, smaller than headers */
+.url-table-dashboard .doc-vault-block__table td:nth-child(2) {
+  font-size: 11px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Link column: single line, shown complete (scrolls if very long) */
+.url-table-dashboard .doc-vault-block__table th:nth-child(3),
+.url-table-dashboard .doc-vault-block__table td:nth-child(3) {
+  white-space: nowrap;
+}
+
+.url-table-dashboard .doc-vault-block__link {
+  white-space: nowrap;
+  word-break: normal;
+}
+
+/* Add-form fields blend into the background — no box, no color, equal base */
+.url-table-dashboard .doc-vault-block__form--link {
+  grid-template-columns: 1fr 1fr 1fr auto;
+  align-items: center;
+  padding: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.url-table-dashboard .doc-vault-block__input {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: #fff;
+  font-size: 13px;
+}
+
+.url-table-dashboard .doc-vault-block__input:focus,
+.url-table-dashboard .doc-vault-block__input:focus-visible {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Description edit field is an auto-growing text area — no stroke/radius */
+.url-table-dashboard .doc-vault-block__input--description-multiline {
+  height: auto;
+  min-height: 30px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  line-height: 1.4;
+  resize: none;
+  overflow: hidden;
+  font-family: var(--sans);
+  font-size: 11px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.url-table-dashboard .doc-vault-block__input--description-multiline:focus,
+.url-table-dashboard .doc-vault-block__input--description-multiline:focus-visible {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Add-row [+] lives inside the table, like the docs inline block */
+.url-table-dashboard .doc-vault-block__add {
+  align-self: stretch;
+  width: 100%;
+  height: 38px;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+}
+
+.url-table-dashboard .doc-vault-block__add:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  transform: none;
+}
+
+.url-table-dashboard__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
 }

@@ -4,6 +4,8 @@ const GUIDE_ICON_SRC = "/uploads/branding.svg";
 const IMPORT_ICON_SRC = "/uploads/import.svg";
 const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
 const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
+const URL_TABLE_ICON_SRC = "/uploads/url-table.svg";
+const PASSWORD_TABLE_ICON_SRC = "/uploads/Password-table.svg";
 
 /** @param {{ src: string, className?: string }} props */
 function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
@@ -22,6 +24,8 @@ function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
  * @param {() => void} props.onOpenImport
  * @param {() => void} [props.onOpenStepsLibrary]
  * @param {() => void} [props.onOpenLazyTodos]
+ * @param {() => void} [props.onOpenUrlTable]
+ * @param {() => void} [props.onOpenPasswordTable]
  * @param {boolean} [props.companySelected]
  * @param {() => void} [props.onInsertGuide]
  * @param {'category'|null} [props.filterMode]
@@ -34,6 +38,8 @@ export function PackActionsBar({
   onOpenImport,
   onOpenStepsLibrary,
   onOpenLazyTodos,
+  onOpenUrlTable,
+  onOpenPasswordTable,
   companySelected = false,
   onInsertGuide,
   filterMode = null,
@@ -94,6 +100,28 @@ export function PackActionsBar({
         >
           <PackActionsToolbarIcon src={LAZY_TODO_ICON_SRC} />
           <span className="pack-actions__btn-label">{t("pack.lazyTodos")}</span>
+        </button>
+      ) : null}
+      {companySelected && onOpenUrlTable ? (
+        <button
+          type="button"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+          onClick={onOpenUrlTable}
+          title={t("pack.urlTableTitle")}
+        >
+          <PackActionsToolbarIcon src={URL_TABLE_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.urlTable")}</span>
+        </button>
+      ) : null}
+      {companySelected && onOpenPasswordTable ? (
+        <button
+          type="button"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+          onClick={onOpenPasswordTable}
+          title={t("pack.passwordTableTitle")}
+        >
+          <PackActionsToolbarIcon src={PASSWORD_TABLE_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.passwordTable")}</span>
         </button>
       ) : null}
       {placement === "documents" && onInsertGuide ? (

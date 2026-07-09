@@ -37,12 +37,19 @@ import { LeftPanel } from './components/left/LeftPanel.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StepsRunnerOverlay } from './components/steps/StepsRunnerOverlay.jsx';
 import { StepPlaybookDashboardOverlay } from './components/steps/StepPlaybookDashboardOverlay.jsx';
+import { UrlTableDashboardOverlay } from './components/urltable/UrlTableDashboardOverlay.jsx';
 import { LazyTodoDashboardOverlay } from './components/lazyTodos/LazyTodoDashboardOverlay.jsx';
 import {
   createBlankStepPlaybookSession,
   persistStepPlaybookSession,
   stepPlaybookSessionHasContent,
 } from './lib/stepPlaybookSession.js';
+import {
+  createBlankUrlTableSession,
+  persistUrlTableSession,
+  urlTableSessionFromRef,
+  urlTableSessionHasContent,
+} from './lib/urlTableSession.js';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
@@ -211,6 +218,10 @@ function Dashboard({ company, onBack }) {
   const activeStepPlaybookSessionRef = useRef(null);
   const stepPlaybookSaveLockRef = useRef(false);
   activeStepPlaybookSessionRef.current = activeStepPlaybookSession;
+  const [activeUrlTableSession, setActiveUrlTableSession] = useState(null);
+  const activeUrlTableSessionRef = useRef(null);
+  const urlTableSaveLockRef = useRef(false);
+  activeUrlTableSessionRef.current = activeUrlTableSession;
   const [activeLazyTodo, setActiveLazyTodo] = useState(null);
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
@@ -909,6 +920,64 @@ useEffect(() => {
     });
   }, []);
 
+  const handleOpenNewUrlTable = useCallback((objectId) => {
+    if (!objectId) return;
+    setActiveUrlTableSession(createBlankUrlTableSession(objectId));
+  }, []);
+
+  const handleOpenUrlTable = useCallback((table) => {
+    if (!table) return;
+    setActiveUrlTableSession(urlTableSessionFromRef(table));
+  }, []);
+
+  const handleUrlTableSessionChange = useCallback((patch) => {
+    setActiveUrlTableSession((current) => {
+      if (!current) return current;
+      return { ...current, ...patch };
+    });
+  }, []);
+
+  const handleUrlTableSessionClose = useCallback(() => {
+    setActiveUrlTableSession((current) => {
+      if (!current) return null;
+      if (!current.saved && urlTableSessionHasContent(current)) {
+        if (!window.confirm(t('stepsLibrary.discardDraftConfirm'))) {
+          return current;
+        }
+      }
+      return null;
+    });
+  }, [t]);
+
+  const handleUrlTableSessionSaved = useCallback((finalizedEntries) => {
+    if (urlTableSaveLockRef.current) return;
+    const current = activeUrlTableSessionRef.current;
+    if (!current) return;
+
+    urlTableSaveLockRef.current = true;
+    try {
+      const merged = { ...current, entries: finalizedEntries, saved: true };
+      persistUrlTableSession(merged, {
+        addDoc,
+        updateDoc,
+        docs: useDocsStore.getState().docs,
+        objects: useObjectsStore.getState().objects,
+        defaultTitle: t('urlTableLibrary.newDocTitle'),
+      });
+      setActiveUrlTableSession(null);
+    } finally {
+      urlTableSaveLockRef.current = false;
+    }
+  }, [addDoc, t, updateDoc]);
+
+  const handleUrlTableRemoved = useCallback(({ docId, blockId }) => {
+    setActiveUrlTableSession((current) => {
+      if (!current) return null;
+      if (current.docId === docId && current.blockId === blockId) return null;
+      return current;
+    });
+  }, []);
+
   const parkLazyTodo = useLazyTodosStore((s) => s.parkItem);
   const removeLazyTodo = useLazyTodosStore((s) => s.removeItem);
   const updateLazyTodo = useLazyTodosStore((s) => s.updateItem);
@@ -1120,6 +1189,9 @@ useEffect(() => {
             onDocumentDeleted={handleDocumentDeleted}
             onRunStepPlaybook={handleRunStepPlaybook}
             onOpenNewStepPlaybook={handleOpenNewStepPlaybook}
+            onOpenNewUrlTable={handleOpenNewUrlTable}
+            onOpenUrlTable={handleOpenUrlTable}
+            onUrlTableRemoved={handleUrlTableRemoved}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
             onStepPlaybookRemoved={handleStepPlaybookRemoved}
@@ -1226,6 +1298,15 @@ useEffect(() => {
           playbook={activeStepPlaybook}
           onClose={() => setActiveStepPlaybook(null)}
           onComplete={() => {}}
+        />
+      ) : null}
+
+      {activeUrlTableSession ? (
+        <UrlTableDashboardOverlay
+          session={activeUrlTableSession}
+          onChange={handleUrlTableSessionChange}
+          onCloseTab={handleUrlTableSessionClose}
+          onSaved={handleUrlTableSessionSaved}
         />
       ) : null}
 
