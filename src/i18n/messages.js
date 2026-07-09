@@ -483,6 +483,8 @@ export const messages = {
       urlTableTitle: "URL table",
       passwordTable: "Password table",
       passwordTableTitle: "Password table",
+      products: "Products",
+      productsTitle: "Products",
       guide: "Guide",
       guideTitle: "Insert Marketing Guide agent on canvas",
       exporting: "Exporting…",

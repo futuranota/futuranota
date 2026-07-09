@@ -1364,6 +1364,18 @@ export function LeftPanel({
     setPanelType("Documents");
   };
 
+  const openProductsFromToolbar = () => {
+    const targetObjectId = filterObjectId || selectedObjectId;
+    if (targetObjectId) {
+      if (!objectWorkspaceActive) {
+        enterObjectWorkspace(targetObjectId);
+      }
+      setClickFolderView("groups");
+      return;
+    }
+    setPanelType("Documents");
+  };
+
   const openLazyTodosFromToolbar = () => {
     const targetObjectId = filterObjectId || selectedObjectId;
     if (targetObjectId) {
@@ -1740,11 +1752,11 @@ export function LeftPanel({
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
+                    onOpenProducts={openProductsFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
                 <div className="lp-click-folders-stack__boxes">
-                  <ClickFolderBox variant="groups" onClick={() => setClickFolderView("groups")} />
                   <ClickFolderBox variant="subgroups" onClick={() => setClickFolderView("subgroups")} />
                   <ClickFolderBox
                     variant="knowledge"
@@ -1777,11 +1789,11 @@ export function LeftPanel({
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
+                    onInsertGuide={handleInsertGuide}
                     filterMode="category"
                     filterOptions={categoryFilterOptions}
                     filterValue={productCategoryFilter}
                     onFilterChange={setProductCategoryFilter}
-                    onInsertGuide={handleInsertGuide}
                   />
                 </div>
                 <TimelineDocQueue
@@ -1900,6 +1912,7 @@ export function LeftPanel({
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
+                    onOpenProducts={openProductsFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
