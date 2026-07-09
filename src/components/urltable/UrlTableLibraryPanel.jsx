@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useDocsStore } from "../../stores/docsStore.js";
+import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
@@ -24,15 +24,13 @@ export function UrlTableLibraryPanel({
   onTableDeleted,
 }) {
   const { t } = useI18n();
-  const docs = useDocsStore((s) => s.docs);
-  const updateDoc = useDocsStore((s) => s.updateDoc);
-  const deleteDoc = useDocsStore((s) => s.deleteDoc);
+  const storeEntries = useUrlTableStore((s) => s.entries);
   const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
 
   const tables = useMemo(
-    () => collectSavedUrlTables(docs, { objectId }),
-    [docs, objectId],
+    () => collectSavedUrlTables(null, { objectId }),
+    [storeEntries, objectId],
   );
 
   const filtered = useMemo(
@@ -41,8 +39,7 @@ export function UrlTableLibraryPanel({
   );
 
   const handleDeleteTable = async (table) => {
-    const doc = docs[table.docId];
-    if (!doc) return;
+    if (!table?.objectId) return;
 
     const confirmed = await askConfirm({
       title: t("urlTableLibrary.deleteTitle"),
@@ -52,7 +49,7 @@ export function UrlTableLibraryPanel({
     });
     if (!confirmed) return;
 
-    const { docRemoved } = removeUrlTableFromDoc(table, doc, updateDoc, deleteDoc);
+    const { docRemoved } = removeUrlTableFromDoc(table);
     onTableDeleted?.({
       docId: table.docId,
       blockId: table.blockId,
@@ -113,12 +110,6 @@ export function UrlTableLibraryPanel({
                         {table.preview ? (
                           <p className="steps-library-panel__item-preview">{table.preview}</p>
                         ) : null}
-                        <div className="steps-library-panel__item-chips">
-                          <span className="steps-library-panel__chip">{table.docKind}</span>
-                          {table.category ? (
-                            <span className="steps-library-panel__chip">{table.category}</span>
-                          ) : null}
-                        </div>
                       </div>
                       <div className="steps-library-panel__item-actions">
                         <button

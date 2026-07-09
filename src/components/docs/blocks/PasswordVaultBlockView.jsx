@@ -22,13 +22,23 @@ export function PasswordVaultBlockView({
   filterQuery = "",
   hideAddButton = false,
   addFormRequest = 0,
+  flushDraftRef = null,
+  draft: controlledDraft = null,
+  onDraftChange = null,
 }) {
   const L = { ...DEFAULT_LABELS, ...(labels || {}) };
-  const [draft, setDraft] = useState(EMPTY_DRAFT);
+  const isDraftControlled = controlledDraft != null && typeof onDraftChange === "function";
+  const [uncontrolledDraft, setUncontrolledDraft] = useState(EMPTY_DRAFT);
+  const draft = isDraftControlled ? controlledDraft : uncontrolledDraft;
+  const setDraft = isDraftControlled ? onDraftChange : setUncontrolledDraft;
   const [showPassword, setShowPassword] = useState(false);
   const [revealedEntryIds, setRevealedEntryIds] = useState(() => new Set());
   const [isAdding, setIsAdding] = useState(entries.length === 0);
   const descriptionRef = useRef(null);
+  const draftRef = useRef(draft);
+  const entriesRef = useRef(entries);
+  draftRef.current = draft;
+  entriesRef.current = entries;
 
   useEffect(() => {
     if (entries.length === 0) {
@@ -52,6 +62,29 @@ export function PasswordVaultBlockView({
     return () => window.clearTimeout(timer);
   }, [addFormRequest]);
 
+  useEffect(() => {
+    if (!flushDraftRef) return undefined;
+    flushDraftRef.current = () => {
+      const currentDraft = draftRef.current;
+      const currentEntries = entriesRef.current;
+      const canCommitDraft = Boolean(
+        currentDraft.description.trim() && currentDraft.password.trim(),
+      );
+      if (!canCommitDraft) return currentEntries;
+
+      const entry = createPasswordEntry(currentDraft);
+      const nextEntries = [...currentEntries, entry];
+      onEntriesChange?.(nextEntries);
+      setDraft(EMPTY_DRAFT);
+      setShowPassword(false);
+      setIsAdding(false);
+      return nextEntries;
+    };
+    return () => {
+      flushDraftRef.current = null;
+    };
+  }, [flushDraftRef, onEntriesChange]);
+
   const visibleEntries = useMemo(() => {
     const normalized = String(filterQuery ?? "").trim().toLowerCase();
     if (!normalized) return entries;
@@ -68,6 +101,9 @@ export function PasswordVaultBlockView({
     const entry = createPasswordEntry(draft);
     if (onSaveEntry) {
       onSaveEntry(entry);
+      setDraft(EMPTY_DRAFT);
+      setShowPassword(false);
+      setIsAdding(true);
       return;
     }
     onEntriesChange?.([

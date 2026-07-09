@@ -8,6 +8,11 @@ import { initSyncMiddleware } from "./middleware/syncMiddleware.js";
 import { initPersistenceMiddleware } from "./middleware/persistenceMiddleware.js";
 import { useLazyTodosStore } from "./lazyTodosStore.js";
 import { initLazyTodosSync } from "../lib/lazyTodosSync.js";
+import { useUrlTableStore } from "./urlTableStore.js";
+import { initUrlTableSync } from "../lib/urlTableSync.js";
+import { usePasswordTableStore } from "./passwordTableStore.js";
+import { initPasswordTableSync } from "../lib/passwordTableSync.js";
+import { migrateVaultTablesFromCampaignDocs } from "../lib/migrateVaultTablesFromCampaigns.js";
 
 let seeded = false;
 
@@ -25,7 +30,16 @@ export function initStores() {
 
   initPersistenceMiddleware(stores);
   initLazyTodosSync(useLazyTodosStore);
+  initUrlTableSync(useUrlTableStore);
+  initPasswordTableSync(usePasswordTableStore);
   initSyncMiddleware();
+
+  // After campaigns hydrate from localStorage/Supabase, migrate dedicated vault docs once.
+  window.setTimeout(() => {
+    migrateVaultTablesFromCampaignDocs().catch((err) => {
+      console.warn("[vault-migrate]", err);
+    });
+  }, 2500);
 }
 
 /** Default empty workspace — only after persistence load, never before remote hydrate. */

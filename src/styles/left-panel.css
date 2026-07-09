@@ -4045,6 +4045,23 @@ body.doc-content-resizing * {
   margin-bottom: 8px;
 }
 
+.doc-agent-cell__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.doc-agent-cell__icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  display: block;
+  background-color: #79b8ff;
+  -webkit-mask: url("/uploads/agent.svg") center / contain no-repeat;
+  mask: url("/uploads/agent.svg") center / contain no-repeat;
+}
+
 .doc-agent-cell__label {
   font-family: var(--sans);
   font-size: 12px;
@@ -4113,16 +4130,17 @@ body.doc-content-resizing * {
   resize: none;
   background: transparent;
   font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.45;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
   letter-spacing: 0.2px;
   color: #fff;
   box-sizing: border-box;
 }
 
 .doc-agent-cell__input::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: #848586;
+  font-weight: 500;
 }
 
 /* Step by step — multi-step instruction wizard */
@@ -8939,7 +8957,7 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__writing-stack .doc-agent-cell__input::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: #848586;
 }
 
 .note-taker__writing-stack .doc-agent-cell__input {
@@ -8947,7 +8965,7 @@ body.doc-content-resizing * {
 }
 
 .note-taker__writing-stack .doc-agent-cell__input::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: #848586;
 }
 
 .doc-block-stack .doc-agent-cell {
@@ -8959,7 +8977,7 @@ body.doc-content-resizing * {
 }
 
 .doc-block-stack .doc-agent-cell__input::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: #848586;
 }
 
 .node-query-modal__writing-stack .doc-h1-block__input::placeholder {

@@ -1,12 +1,5 @@
-import { useDocsStore } from "../stores/docsStore.js";
-import { useObjectsStore } from "../stores/objectsStore.js";
-import {
-  createDocBlock,
-  DOC_BLOCK_TYPES,
-  docBlocksToBody,
-  normalizeDocBlocks,
-} from "./docBlocks.js";
-import { loadCompanyPasswordTableSession } from "./passwordTableLibrary.js";
+import { usePasswordTableStore } from "../stores/passwordTableStore.js";
+import { flushPasswordTableSync } from "./passwordTableSync.js";
 import { normalizePasswordEntries } from "./vaultBlocks.js";
 import { generateId } from "./ids.js";
 
@@ -53,135 +46,56 @@ export function passwordTableSessionHasContent(session) {
 }
 
 /**
+ * Persist overlay session into the SQL-backed password table store.
  * @param {PasswordTableSession} session
- * @param {Object} deps
+ * @returns {{ objectId: string|null, entryCount: number }}
  */
-export function persistPasswordTableSession(session, {
-  addDoc,
-  updateDoc,
-  docs,
-  objects,
-  defaultTitle,
-}) {
-  const block = createDocBlock(DOC_BLOCK_TYPES.PASSWORD_VAULT, {
-    id: session.blockId,
-    entries: session.entries,
-  });
-
-  const docTitle = defaultTitle;
-
-  if (!session.docId) {
-    if (!session.objectId) {
-      return { docId: null, blockId: block.id };
-    }
-
-    for (const doc of Object.values(docs || {})) {
-      if (doc.parentObjectId !== session.objectId) continue;
-      const existingBlocks = normalizeDocBlocks(doc.blocks || []);
-      const existingIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
-      if (existingIndex < 0) continue;
-
-      const nextBlocks = existingBlocks.map((entry, index) => (
-        index === existingIndex ? block : entry
-      ));
-      updateDoc(doc.id, {
-        title: docTitle,
-        blocks: nextBlocks,
-        body: docBlocksToBody(nextBlocks),
-        content: docBlocksToBody(nextBlocks),
-      });
-      return { docId: doc.id, blockId: block.id };
-    }
-
-    const parentObject = objects[session.objectId];
-    const tags = parentObject?.name ? [parentObject.name] : [];
-    const newDocId = addDoc(
-      docTitle,
-      session.objectId,
-      [],
-      tags,
-      docBlocksToBody([block]),
-      null,
-      [block],
-      {
-        docKind: "standard",
-        nodeLinkColor: "dark",
-      },
-    );
-
-    return { docId: newDocId, blockId: block.id };
+export function persistPasswordTableSession(session) {
+  const objectId = session?.objectId || null;
+  if (!objectId) {
+    return { objectId: null, entryCount: 0 };
   }
 
-  const doc = docs[session.docId];
-  if (!doc) {
-    return { docId: session.docId, blockId: block.id };
+  const entries = normalizePasswordEntries(session.entries || []);
+  usePasswordTableStore.getState().replaceEntriesForObject(objectId, entries);
+  return { objectId, entryCount: entries.length };
+}
+
+/**
+ * Persist overlay session and flush to Supabase immediately.
+ * @param {PasswordTableSession} session
+ */
+export async function persistPasswordTableSessionAndFlush(session) {
+  const result = persistPasswordTableSession(session);
+  if (result.objectId) {
+    await flushPasswordTableSync();
   }
-
-  const existingBlocks = normalizeDocBlocks(doc.blocks || []);
-  const blockIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
-  const nextBlocks = blockIndex >= 0
-    ? existingBlocks.map((entry, index) => (index === blockIndex ? block : entry))
-    : [...existingBlocks, block];
-
-  updateDoc(session.docId, {
-    title: docTitle,
-    blocks: nextBlocks,
-    body: docBlocksToBody(nextBlocks),
-    content: docBlocksToBody(nextBlocks),
-  });
-
-  return { docId: session.docId, blockId: block.id };
+  return result;
 }
 
 /**
  * @param {string} objectId
  * @param {import("./vaultBlocks.js").PasswordEntry} entry
- * @param {Object} deps
  */
-export function appendEntryToCompanyPasswordTable(objectId, entry, {
-  addDoc,
-  updateDoc,
-  docs,
-  objects,
-  defaultTitle,
-}) {
+export function appendEntryToCompanyPasswordTable(objectId, entry) {
   if (!objectId || !entry) return null;
-
-  const session = loadCompanyPasswordTableSession(objectId, docs, defaultTitle);
-  const merged = {
-    ...session,
-    entries: [...session.entries, entry],
-    saved: true,
-  };
-
-  return persistPasswordTableSession(merged, {
-    addDoc,
-    updateDoc,
-    docs,
-    objects,
-    defaultTitle,
-  });
+  return usePasswordTableStore.getState().addEntry(objectId, entry);
 }
 
 /**
+ * Queue a password entry into the company table (SQL store) and flush to Supabase.
  * @param {string} objectId
  * @param {import("./vaultBlocks.js").PasswordEntry} entry
- * @param {{ defaultTitle?: string }} [options]
  */
-export function queuePasswordTableEntry(objectId, entry, { defaultTitle = "Password table" } = {}) {
+export function queuePasswordTableEntry(objectId, entry) {
   if (!objectId || !entry) return null;
 
-  const { addDoc, updateDoc, docs } = useDocsStore.getState();
-  const { objects } = useObjectsStore.getState();
-
-  const result = appendEntryToCompanyPasswordTable(objectId, entry, {
-    addDoc,
-    updateDoc,
-    docs,
-    objects,
-    defaultTitle,
-  });
-
-  passwordTableQueueCallback?.(objectId, entry);
+  const result = appendEntryToCompanyPasswordTable(objectId, entry);
+  if (result) {
+    passwordTableQueueCallback?.(objectId, result);
+    flushPasswordTableSync().catch((err) => {
+      console.warn("[password-table] flush after queue failed", err);
+    });
+  }
   return result;
 }

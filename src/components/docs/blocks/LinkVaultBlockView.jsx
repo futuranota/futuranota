@@ -24,12 +24,22 @@ export function LinkVaultBlockView({
   filterQuery = "",
   hideAddButton = false,
   addFormRequest = 0,
+  flushDraftRef = null,
+  draft: controlledDraft = null,
+  onDraftChange = null,
 }) {
   const L = { ...DEFAULT_LABELS, ...(labels || {}) };
-  const [draft, setDraft] = useState(EMPTY_DRAFT);
+  const isDraftControlled = controlledDraft != null && typeof onDraftChange === "function";
+  const [uncontrolledDraft, setUncontrolledDraft] = useState(EMPTY_DRAFT);
+  const draft = isDraftControlled ? controlledDraft : uncontrolledDraft;
+  const setDraft = isDraftControlled ? onDraftChange : setUncontrolledDraft;
   const [isAdding, setIsAdding] = useState(entries.length === 0);
   const nameRef = useRef(null);
   const descRef = useRef(null);
+  const draftRef = useRef(draft);
+  const entriesRef = useRef(entries);
+  draftRef.current = draft;
+  entriesRef.current = entries;
 
   useEffect(() => {
     if (!multilineDescription && !slashStack) return;
@@ -60,6 +70,31 @@ export function LinkVaultBlockView({
     return () => window.clearTimeout(timer);
   }, [addFormRequest]);
 
+  useEffect(() => {
+    if (!flushDraftRef) return undefined;
+    flushDraftRef.current = () => {
+      const currentDraft = draftRef.current;
+      const currentEntries = entriesRef.current;
+      const canCommitDraft = Boolean(
+        currentDraft.name.trim() && currentDraft.url.trim(),
+      );
+      if (!canCommitDraft) return currentEntries;
+
+      const entry = createLinkEntry({
+        ...currentDraft,
+        url: normalizeUrlInput(currentDraft.url),
+      });
+      const nextEntries = [...currentEntries, entry];
+      onEntriesChange?.(nextEntries);
+      setDraft(EMPTY_DRAFT);
+      setIsAdding(false);
+      return nextEntries;
+    };
+    return () => {
+      flushDraftRef.current = null;
+    };
+  }, [flushDraftRef, onEntriesChange]);
+
   const visibleEntries = useMemo(() => {
     const normalized = String(filterQuery ?? "").trim().toLowerCase();
     if (!normalized) return entries;
@@ -80,6 +115,9 @@ export function LinkVaultBlockView({
     });
     if (onSaveEntry) {
       onSaveEntry(entry);
+      setDraft(EMPTY_DRAFT);
+      // Keep form open so the user can add another row in the overlay.
+      setIsAdding(true);
       return;
     }
     onEntriesChange?.([

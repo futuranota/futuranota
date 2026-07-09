@@ -46,15 +46,13 @@ import {
   stepPlaybookSessionHasContent,
 } from './lib/stepPlaybookSession.js';
 import {
-  persistUrlTableSession,
+  persistUrlTableSessionAndFlush,
   setUrlTableQueueCallback,
-  urlTableSessionHasContent,
 } from './lib/urlTableSession.js';
 import { loadCompanyUrlTableSession } from './lib/urlTableLibrary.js';
 import {
-  persistPasswordTableSession,
+  persistPasswordTableSessionAndFlush,
   setPasswordTableQueueCallback,
-  passwordTableSessionHasContent,
 } from './lib/passwordTableSession.js';
 import { loadCompanyPasswordTableSession } from './lib/passwordTableLibrary.js';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
@@ -955,14 +953,12 @@ useEffect(() => {
 
   const handleOpenUrlTableForCompany = useCallback((objectId) => {
     if (!objectId) return;
-    const docs = useDocsStore.getState().docs;
-    setActiveUrlTableSession(loadCompanyUrlTableSession(objectId, docs, t('urlTableLibrary.newDocTitle')));
+    setActiveUrlTableSession(loadCompanyUrlTableSession(objectId, t('urlTableLibrary.newDocTitle')));
   }, [t]);
 
   const handleOpenPasswordTableForCompany = useCallback((objectId) => {
     if (!objectId) return;
-    const docs = useDocsStore.getState().docs;
-    setActivePasswordTableSession(loadCompanyPasswordTableSession(objectId, docs, t('passwordTableLibrary.newDocTitle')));
+    setActivePasswordTableSession(loadCompanyPasswordTableSession(objectId, t('passwordTableLibrary.newDocTitle')));
   }, [t]);
 
   const handleUrlTableSessionChange = useCallback((patch) => {
@@ -973,44 +969,31 @@ useEffect(() => {
   }, []);
 
   const handleUrlTableSessionClose = useCallback(() => {
-    setActiveUrlTableSession((current) => {
-      if (!current) return null;
-      if (!current.saved && urlTableSessionHasContent(current)) {
-        if (!window.confirm(t('stepsLibrary.discardDraftConfirm'))) {
-          return current;
-        }
-      }
-      return null;
-    });
-  }, [t]);
+    setActiveUrlTableSession(null);
+  }, []);
 
-  const handleUrlTableSessionSaved = useCallback((finalizedEntries) => {
+  const handleUrlTableSessionSaved = useCallback(async (finalizedEntries) => {
     if (urlTableSaveLockRef.current) return;
     const current = activeUrlTableSessionRef.current;
     if (!current) return;
 
     urlTableSaveLockRef.current = true;
     try {
-      const merged = { ...current, entries: finalizedEntries, saved: true };
-      persistUrlTableSession(merged, {
-        addDoc,
-        updateDoc,
-        docs: useDocsStore.getState().docs,
-        objects: useObjectsStore.getState().objects,
-        defaultTitle: t('urlTableLibrary.newDocTitle'),
-      });
+      const entries = Array.isArray(finalizedEntries) ? finalizedEntries : (current.entries || []);
+      if (!current.objectId) {
+        console.warn("[url-table] Save skipped: missing company objectId");
+        return;
+      }
+      const merged = { ...current, entries, saved: true };
+      const result = await persistUrlTableSessionAndFlush(merged);
+      if (!result?.objectId) {
+        console.warn("[url-table] Save did not write to SQL store", result);
+        return;
+      }
       setActiveUrlTableSession(null);
     } finally {
       urlTableSaveLockRef.current = false;
     }
-  }, [addDoc, t, updateDoc]);
-
-  const handleUrlTableRemoved = useCallback(({ docId, blockId }) => {
-    setActiveUrlTableSession((current) => {
-      if (!current) return null;
-      if (current.docId === docId && current.blockId === blockId) return null;
-      return current;
-    });
   }, []);
 
   useEffect(() => {
@@ -1032,37 +1015,32 @@ useEffect(() => {
   }, []);
 
   const handlePasswordTableSessionClose = useCallback(() => {
-    setActivePasswordTableSession((current) => {
-      if (!current) return null;
-      if (!current.saved && passwordTableSessionHasContent(current)) {
-        if (!window.confirm(t('passwordTableLibrary.discardDraftConfirm'))) {
-          return current;
-        }
-      }
-      return null;
-    });
-  }, [t]);
+    setActivePasswordTableSession(null);
+  }, []);
 
-  const handlePasswordTableSessionSaved = useCallback((finalizedEntries) => {
+  const handlePasswordTableSessionSaved = useCallback(async (finalizedEntries) => {
     if (passwordTableSaveLockRef.current) return;
     const current = activePasswordTableSessionRef.current;
     if (!current) return;
 
     passwordTableSaveLockRef.current = true;
     try {
-      const merged = { ...current, entries: finalizedEntries, saved: true };
-      persistPasswordTableSession(merged, {
-        addDoc,
-        updateDoc,
-        docs: useDocsStore.getState().docs,
-        objects: useObjectsStore.getState().objects,
-        defaultTitle: t('passwordTableLibrary.newDocTitle'),
-      });
+      const entries = Array.isArray(finalizedEntries) ? finalizedEntries : (current.entries || []);
+      if (!current.objectId) {
+        console.warn("[password-table] Save skipped: missing company objectId");
+        return;
+      }
+      const merged = { ...current, entries, saved: true };
+      const result = await persistPasswordTableSessionAndFlush(merged);
+      if (!result?.objectId) {
+        console.warn("[password-table] Save did not write to SQL store", result);
+        return;
+      }
       setActivePasswordTableSession(null);
     } finally {
       passwordTableSaveLockRef.current = false;
     }
-  }, [addDoc, t, updateDoc]);
+  }, []);
 
   useEffect(() => {
     setPasswordTableQueueCallback((objectId, entry) => {

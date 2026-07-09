@@ -1,12 +1,5 @@
-import { useDocsStore } from "../stores/docsStore.js";
-import { useObjectsStore } from "../stores/objectsStore.js";
-import {
-  createDocBlock,
-  DOC_BLOCK_TYPES,
-  docBlocksToBody,
-  normalizeDocBlocks,
-} from "./docBlocks.js";
-import { loadCompanyUrlTableSession } from "./urlTableLibrary.js";
+import { useUrlTableStore } from "../stores/urlTableStore.js";
+import { flushUrlTableSync } from "./urlTableSync.js";
 import { normalizeLinkEntries } from "./vaultBlocks.js";
 import { generateId } from "./ids.js";
 
@@ -52,8 +45,8 @@ export function createBlankUrlTableSession(objectId = null) {
 export function urlTableSessionFromRef(ref) {
   return {
     objectId: ref.objectId ?? null,
-    docId: ref.docId,
-    blockId: ref.blockId,
+    docId: ref.docId ?? null,
+    blockId: ref.blockId || generateId("BLK"),
     title: ref.title === "URL table" ? "" : (ref.title || ""),
     entries: (ref.entries || []).map((entry) => ({ ...entry })),
     saved: true,
@@ -68,144 +61,58 @@ export function urlTableSessionHasContent(session) {
 }
 
 /**
+ * Persist overlay session into the SQL-backed url table store.
  * @param {UrlTableSession} session
- * @param {Object} deps
- * @param {(title: string, parentObjectId: string|null, dataProperties: unknown[], tags: string[], initialContent: string, createdAt: string|null, initialBlocks: unknown[]|null, campaignMeta: object) => string|null} deps.addDoc
- * @param {(id: string, patch: object) => void} deps.updateDoc
- * @param {Record<string, import("../types/docs.js").Doc>} deps.docs
- * @param {Record<string, { name?: string }>} deps.objects
- * @param {string} deps.defaultTitle
- * @returns {{ docId: string|null, blockId: string }}
+ * @returns {{ objectId: string|null, entryCount: number }}
  */
-export function persistUrlTableSession(session, {
-  addDoc,
-  updateDoc,
-  docs,
-  objects,
-  defaultTitle,
-}) {
-  const block = createDocBlock(DOC_BLOCK_TYPES.LINK_VAULT, {
-    id: session.blockId,
-    entries: session.entries,
-  });
-
-  const docTitle = defaultTitle;
-
-  if (!session.docId) {
-    if (!session.objectId) {
-      return { docId: null, blockId: block.id };
-    }
-
-    for (const doc of Object.values(docs || {})) {
-      if (doc.parentObjectId !== session.objectId) continue;
-      const existingBlocks = normalizeDocBlocks(doc.blocks || []);
-      const existingIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
-      if (existingIndex < 0) continue;
-
-      const nextBlocks = existingBlocks.map((entry, index) => (
-        index === existingIndex ? block : entry
-      ));
-      updateDoc(doc.id, {
-        title: docTitle,
-        blocks: nextBlocks,
-        body: docBlocksToBody(nextBlocks),
-        content: docBlocksToBody(nextBlocks),
-      });
-      return { docId: doc.id, blockId: block.id };
-    }
-
-    const parentObject = objects[session.objectId];
-    const tags = parentObject?.name ? [parentObject.name] : [];
-    const newDocId = addDoc(
-      docTitle,
-      session.objectId,
-      [],
-      tags,
-      docBlocksToBody([block]),
-      null,
-      [block],
-      {
-        docKind: "standard",
-        nodeLinkColor: "dark",
-      },
-    );
-
-    return { docId: newDocId, blockId: block.id };
+export function persistUrlTableSession(session) {
+  const objectId = session?.objectId || null;
+  if (!objectId) {
+    return { objectId: null, entryCount: 0 };
   }
 
-  const doc = docs[session.docId];
-  if (!doc) {
-    return { docId: session.docId, blockId: block.id };
-  }
-
-  const existingBlocks = normalizeDocBlocks(doc.blocks || []);
-  const blockIndex = existingBlocks.findIndex((entry) => entry.id === session.blockId);
-  const nextBlocks = blockIndex >= 0
-    ? existingBlocks.map((entry, index) => (index === blockIndex ? block : entry))
-    : [...existingBlocks, block];
-
-  updateDoc(session.docId, {
-    title: docTitle,
-    blocks: nextBlocks,
-    body: docBlocksToBody(nextBlocks),
-    content: docBlocksToBody(nextBlocks),
-  });
-
-  return { docId: session.docId, blockId: block.id };
+  const entries = normalizeLinkEntries(session.entries || []);
+  useUrlTableStore.getState().replaceEntriesForObject(objectId, entries);
+  return { objectId, entryCount: entries.length };
 }
 
 /**
- * Append one link entry to the company URL table and persist immediately.
- * @param {string} objectId
- * @param {import("./vaultBlocks.js").LinkEntry} entry
- * @param {Object} deps
- * @returns {{ docId: string|null, blockId: string }|null}
+ * Persist overlay session and flush to Supabase immediately.
+ * @param {UrlTableSession} session
  */
-export function appendEntryToCompanyUrlTable(objectId, entry, {
-  addDoc,
-  updateDoc,
-  docs,
-  objects,
-  defaultTitle,
-}) {
-  if (!objectId || !entry) return null;
-
-  const session = loadCompanyUrlTableSession(objectId, docs, defaultTitle);
-  const merged = {
-    ...session,
-    entries: [...session.entries, entry],
-    saved: true,
-  };
-
-  return persistUrlTableSession(merged, {
-    addDoc,
-    updateDoc,
-    docs,
-    objects,
-    defaultTitle,
-  });
+export async function persistUrlTableSessionAndFlush(session) {
+  const result = persistUrlTableSession(session);
+  if (result.objectId) {
+    await flushUrlTableSync();
+  }
+  return result;
 }
 
 /**
- * Queue a link entry into the company URL table (reads workspace stores).
+ * Append one link entry to the company URL table (SQL store).
  * @param {string} objectId
  * @param {import("./vaultBlocks.js").LinkEntry} entry
- * @param {{ defaultTitle?: string }} [options]
+ * @returns {import("../stores/urlTableStore.js").UrlTableStoredEntry|null}
  */
-export function queueUrlTableEntry(objectId, entry, { defaultTitle = "URL table" } = {}) {
+export function appendEntryToCompanyUrlTable(objectId, entry) {
+  if (!objectId || !entry) return null;
+  return useUrlTableStore.getState().addEntry(objectId, entry);
+}
+
+/**
+ * Queue a link entry into the company URL table (SQL store) and flush to Supabase.
+ * @param {string} objectId
+ * @param {import("./vaultBlocks.js").LinkEntry} entry
+ */
+export function queueUrlTableEntry(objectId, entry) {
   if (!objectId || !entry) return null;
 
-  const { addDoc, updateDoc, docs } = useDocsStore.getState();
-  const { objects } = useObjectsStore.getState();
-
-  const result = appendEntryToCompanyUrlTable(objectId, entry, {
-    addDoc,
-    updateDoc,
-    docs,
-    objects,
-    defaultTitle,
-  });
-
-  urlTableQueueCallback?.(objectId, entry);
+  const result = appendEntryToCompanyUrlTable(objectId, entry);
+  if (result) {
+    urlTableQueueCallback?.(objectId, result);
+    flushUrlTableSync().catch((err) => {
+      console.warn("[url-table] flush after queue failed", err);
+    });
+  }
   return result;
 }

@@ -21,3 +21,6 @@ ORDER BY tablename;
 -- groupings
 -- timelines
 -- intel_signals
+-- lazy_todos
+-- url_table_entries
+-- password_table_entries

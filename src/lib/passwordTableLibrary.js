@@ -1,14 +1,11 @@
 import {
-  createDocBlock,
   DOC_BLOCK_TYPES,
   docBlocksFromBody,
-  docBlocksToBody,
   normalizeDocBlocks,
-  removeBlockAt,
 } from "./docBlocks.js";
 import { normalizePasswordEntries } from "./vaultBlocks.js";
-import { createBlankPasswordTableSession } from "./passwordTableSession.js";
-import { resolveDocKind } from "./templateDoc.js";
+import { usePasswordTableStore } from "../stores/passwordTableStore.js";
+import { generateId } from "./ids.js";
 
 const PREVIEW_MAX = 120;
 
@@ -54,42 +51,38 @@ function blocksForDoc(doc) {
 }
 
 /**
- * @param {Record<string, import("../types/docs.js").Doc>} docs
+ * Collect password tables for library UI — one virtual table per company from SQL store.
+ * @param {Record<string, import("../types/docs.js").Doc>} [_docs]
  * @param {{ objectId?: string|null }} [options]
  * @returns {PasswordTableRef[]}
  */
-export function collectSavedPasswordTables(docs, { objectId = null } = {}) {
+export function collectSavedPasswordTables(_docs, { objectId = null } = {}) {
   /** @type {PasswordTableRef[]} */
   const tables = [];
+  const allEntries = usePasswordTableStore.getState().entries;
+  const byObject = new Map();
 
-  for (const doc of Object.values(docs || {})) {
-    if (!doc?.id) continue;
+  for (const entry of allEntries) {
+    if (!entry.objectId) continue;
+    if (objectId && entry.objectId !== objectId) continue;
+    if (!byObject.has(entry.objectId)) byObject.set(entry.objectId, []);
+    byObject.get(entry.objectId).push(entry);
+  }
 
-    const parentObjectId = doc.parentObjectId ?? null;
-    if (objectId && parentObjectId !== objectId) {
-      continue;
-    }
-
-    const blocks = blocksForDoc(doc);
-
-    blocks.forEach((block) => {
-      if (block.type !== DOC_BLOCK_TYPES.PASSWORD_VAULT) return;
-
-      const entries = normalizePasswordEntries(Array.isArray(block.entries) ? block.entries : []);
-      if (!entries.length) return;
-
-      tables.push({
-        id: `${doc.id}:${block.id}`,
-        docId: doc.id,
-        blockId: block.id,
-        title: passwordTableTitleFrom(doc, entries),
-        preview: truncate(entryPreview(entries), PREVIEW_MAX),
-        entryCount: entries.length,
-        objectId: parentObjectId,
-        docKind: resolveDocKind(doc) || "standard",
-        category: String(doc.category ?? "").trim(),
-        entries,
-      });
+  for (const [oid, stored] of byObject) {
+    const entries = normalizePasswordEntries(stored);
+    if (!entries.length) continue;
+    tables.push({
+      id: `password-table:${oid}`,
+      docId: "",
+      blockId: "",
+      title: passwordTableTitleFrom({ title: "Password table" }, entries),
+      preview: truncate(entryPreview(entries), PREVIEW_MAX),
+      entryCount: entries.length,
+      objectId: oid,
+      docKind: "standard",
+      category: "",
+      entries,
     });
   }
 
@@ -111,11 +104,37 @@ export function filterPasswordTableEntries(entries, query) {
 }
 
 /**
- * @param {string|null} objectId
+ * Find the dedicated company Password table doc (toolbar overlay), not slash
+ * blocks embedded in regular documents.
+ * @param {string} objectId
  * @param {Record<string, import("../types/docs.js").Doc>} docs
+ * @param {string} defaultTitle
+ * @returns {{ doc: import("../types/docs.js").Doc, block: object }|null}
+ */
+export function findDedicatedCompanyPasswordTableDoc(objectId, docs, defaultTitle = "Password table") {
+  if (!objectId) return null;
+
+  for (const doc of Object.values(docs || {})) {
+    if (doc?.parentObjectId !== objectId) continue;
+    if (String(doc.title ?? "").trim() !== defaultTitle) continue;
+
+    const blocks = blocksForDoc(doc);
+    const vaultBlocks = blocks.filter((block) => block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT);
+    if (vaultBlocks.length !== 1) continue;
+    if (blocks.length > 1) continue;
+
+    return { doc, block: vaultBlocks[0] };
+  }
+
+  return null;
+}
+
+/**
+ * Load company Password table session from the SQL-backed store.
+ * @param {string|null} objectId
  * @param {string} [defaultTitle]
  */
-export function loadCompanyPasswordTableSession(objectId, docs, defaultTitle = "Password table") {
+export function loadCompanyPasswordTableSession(objectId, defaultTitle = "Password table") {
   if (!objectId) {
     return {
       objectId: null,
@@ -127,64 +146,37 @@ export function loadCompanyPasswordTableSession(objectId, docs, defaultTitle = "
     };
   }
 
-  const tables = collectSavedPasswordTables(docs, { objectId });
-  if (!tables.length) {
-    return { ...createBlankPasswordTableSession(objectId), title: defaultTitle };
+  // Backward-compatible: old callers passed (objectId, docs, defaultTitle).
+  if (defaultTitle && typeof defaultTitle === "object") {
+    defaultTitle = arguments[2] || "Password table";
   }
 
-  const canonical = tables.find((table) => table.title === defaultTitle) || tables[0];
-  const mergedEntries = [];
-  const seen = new Set();
-
-  for (const table of tables) {
-    for (const entry of table.entries) {
-      if (seen.has(entry.id)) continue;
-      seen.add(entry.id);
-      mergedEntries.push({ ...entry });
-    }
-  }
+  const stored = usePasswordTableStore.getState().getEntriesForObject(objectId);
+  const entries = normalizePasswordEntries(stored);
 
   return {
     objectId,
-    docId: canonical.docId,
-    blockId: canonical.blockId,
-    title: defaultTitle,
-    entries: mergedEntries,
-    saved: true,
+    docId: null,
+    blockId: generateId("BLK"),
+    title: typeof defaultTitle === "string" ? defaultTitle : "Password table",
+    entries: entries.map((entry) => ({
+      id: entry.id,
+      description: entry.description,
+      password: entry.password,
+      tag: entry.tag,
+    })),
+    saved: entries.length > 0,
   };
 }
 
 /**
+ * Clear all password entries for a company from the SQL store.
  * @param {PasswordTableRef} table
- * @param {import("../types/docs.js").Doc} doc
- * @param {(id: string, patch: object) => void} updateDoc
- * @param {(id: string) => void} deleteDoc
+ * @returns {{ docRemoved: boolean }}
  */
-export function removePasswordTableFromDoc(table, doc, updateDoc, deleteDoc) {
-  if (!table?.docId || !doc?.id) return { docRemoved: false };
-
-  const blocks = blocksForDoc(doc);
-  const blockIndex = blocks.findIndex((block) => block.id === table.blockId);
-  if (blockIndex < 0) return { docRemoved: false };
-
-  const isDedicatedDoc = blocks.length === 1
-    && blocks[0]?.type === DOC_BLOCK_TYPES.PASSWORD_VAULT;
-
-  if (isDedicatedDoc) {
-    deleteDoc(doc.id);
-    return { docRemoved: true };
-  }
-
-  let nextBlocks = removeBlockAt(blocks, blockIndex);
-  if (!nextBlocks.length) {
-    nextBlocks = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-  }
-
-  updateDoc(doc.id, {
-    blocks: nextBlocks,
-    body: docBlocksToBody(nextBlocks),
-    content: docBlocksToBody(nextBlocks),
-  });
-
-  return { docRemoved: false };
+export function removePasswordTableFromDoc(table) {
+  const objectId = table?.objectId;
+  if (!objectId) return { docRemoved: false };
+  usePasswordTableStore.getState().replaceEntriesForObject(objectId, []);
+  return { docRemoved: true };
 }

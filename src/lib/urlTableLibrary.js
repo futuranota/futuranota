@@ -1,14 +1,11 @@
 import {
-  createDocBlock,
   DOC_BLOCK_TYPES,
   docBlocksFromBody,
-  docBlocksToBody,
   normalizeDocBlocks,
-  removeBlockAt,
 } from "./docBlocks.js";
 import { normalizeLinkEntries } from "./vaultBlocks.js";
-import { createBlankUrlTableSession } from "./urlTableSession.js";
-import { resolveDocKind } from "./templateDoc.js";
+import { useUrlTableStore } from "../stores/urlTableStore.js";
+import { generateId } from "./ids.js";
 
 const PREVIEW_MAX = 120;
 
@@ -54,43 +51,38 @@ function blocksForDoc(doc) {
 }
 
 /**
- * Collect saved link_vault tables from workspace docs.
- * @param {Record<string, import("../types/docs.js").Doc>} docs
+ * Collect URL tables for library UI — one virtual table per company from SQL store.
+ * @param {Record<string, import("../types/docs.js").Doc>} [_docs] unused (kept for call-site compat)
  * @param {{ objectId?: string|null }} [options]
  * @returns {UrlTableRef[]}
  */
-export function collectSavedUrlTables(docs, { objectId = null } = {}) {
+export function collectSavedUrlTables(_docs, { objectId = null } = {}) {
   /** @type {UrlTableRef[]} */
   const tables = [];
+  const allEntries = useUrlTableStore.getState().entries;
+  const byObject = new Map();
 
-  for (const doc of Object.values(docs || {})) {
-    if (!doc?.id) continue;
+  for (const entry of allEntries) {
+    if (!entry.objectId) continue;
+    if (objectId && entry.objectId !== objectId) continue;
+    if (!byObject.has(entry.objectId)) byObject.set(entry.objectId, []);
+    byObject.get(entry.objectId).push(entry);
+  }
 
-    const parentObjectId = doc.parentObjectId ?? null;
-    if (objectId && parentObjectId !== objectId) {
-      continue;
-    }
-
-    const blocks = blocksForDoc(doc);
-
-    blocks.forEach((block) => {
-      if (block.type !== DOC_BLOCK_TYPES.LINK_VAULT) return;
-
-      const entries = normalizeLinkEntries(Array.isArray(block.entries) ? block.entries : []);
-      if (!entries.length) return;
-
-      tables.push({
-        id: `${doc.id}:${block.id}`,
-        docId: doc.id,
-        blockId: block.id,
-        title: urlTableTitleFrom(doc, entries),
-        preview: truncate(entryPreview(entries), PREVIEW_MAX),
-        entryCount: entries.length,
-        objectId: parentObjectId,
-        docKind: resolveDocKind(doc) || "standard",
-        category: String(doc.category ?? "").trim(),
-        entries,
-      });
+  for (const [oid, stored] of byObject) {
+    const entries = normalizeLinkEntries(stored);
+    if (!entries.length) continue;
+    tables.push({
+      id: `url-table:${oid}`,
+      docId: "",
+      blockId: "",
+      title: urlTableTitleFrom({ title: "URL table" }, entries),
+      preview: truncate(entryPreview(entries), PREVIEW_MAX),
+      entryCount: entries.length,
+      objectId: oid,
+      docKind: "standard",
+      category: "",
+      entries,
     });
   }
 
@@ -114,13 +106,38 @@ export function filterUrlTableEntries(entries, query) {
 }
 
 /**
- * Load or create the single company URL table session (all reference links on one page).
- * @param {string|null} objectId
+ * Find the dedicated company URL table doc (toolbar overlay), not slash blocks
+ * embedded in regular documents.
+ * @param {string} objectId
  * @param {Record<string, import("../types/docs.js").Doc>} docs
+ * @param {string} defaultTitle
+ * @returns {{ doc: import("../types/docs.js").Doc, block: object }|null}
+ */
+export function findDedicatedCompanyUrlTableDoc(objectId, docs, defaultTitle = "URL table") {
+  if (!objectId) return null;
+
+  for (const doc of Object.values(docs || {})) {
+    if (doc?.parentObjectId !== objectId) continue;
+    if (String(doc.title ?? "").trim() !== defaultTitle) continue;
+
+    const blocks = blocksForDoc(doc);
+    const vaultBlocks = blocks.filter((block) => block.type === DOC_BLOCK_TYPES.LINK_VAULT);
+    if (vaultBlocks.length !== 1) continue;
+    if (blocks.length > 1) continue;
+
+    return { doc, block: vaultBlocks[0] };
+  }
+
+  return null;
+}
+
+/**
+ * Load company URL table session from the SQL-backed store.
+ * @param {string|null} objectId
  * @param {string} [defaultTitle]
  * @returns {import("./urlTableSession.js").UrlTableSession}
  */
-export function loadCompanyUrlTableSession(objectId, docs, defaultTitle = "URL table") {
+export function loadCompanyUrlTableSession(objectId, defaultTitle = "URL table") {
   if (!objectId) {
     return {
       objectId: null,
@@ -132,30 +149,26 @@ export function loadCompanyUrlTableSession(objectId, docs, defaultTitle = "URL t
     };
   }
 
-  const tables = collectSavedUrlTables(docs, { objectId });
-  if (!tables.length) {
-    return { ...createBlankUrlTableSession(objectId), title: defaultTitle };
+  // Backward-compatible: old callers passed (objectId, docs, defaultTitle).
+  if (defaultTitle && typeof defaultTitle === "object") {
+    defaultTitle = arguments[2] || "URL table";
   }
 
-  const canonical = tables.find((table) => table.title === defaultTitle) || tables[0];
-  const mergedEntries = [];
-  const seen = new Set();
-
-  for (const table of tables) {
-    for (const entry of table.entries) {
-      if (seen.has(entry.id)) continue;
-      seen.add(entry.id);
-      mergedEntries.push({ ...entry });
-    }
-  }
+  const stored = useUrlTableStore.getState().getEntriesForObject(objectId);
+  const entries = normalizeLinkEntries(stored);
 
   return {
     objectId,
-    docId: canonical.docId,
-    blockId: canonical.blockId,
-    title: defaultTitle,
-    entries: mergedEntries,
-    saved: true,
+    docId: null,
+    blockId: generateId("BLK"),
+    title: typeof defaultTitle === "string" ? defaultTitle : "URL table",
+    entries: entries.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      description: entry.description,
+      url: entry.url,
+    })),
+    saved: entries.length > 0,
   };
 }
 
@@ -181,38 +194,13 @@ export function filterUrlTables(tables, query) {
 }
 
 /**
- * Remove a saved URL table from its backing document.
+ * Clear all URL entries for a company from the SQL store.
  * @param {UrlTableRef} table
- * @param {import("../types/docs.js").Doc} doc
- * @param {(id: string, patch: object) => void} updateDoc
- * @param {(id: string) => void} deleteDoc
  * @returns {{ docRemoved: boolean }}
  */
-export function removeUrlTableFromDoc(table, doc, updateDoc, deleteDoc) {
-  if (!table?.docId || !doc?.id) return { docRemoved: false };
-
-  const blocks = blocksForDoc(doc);
-  const blockIndex = blocks.findIndex((block) => block.id === table.blockId);
-  if (blockIndex < 0) return { docRemoved: false };
-
-  const isDedicatedDoc = blocks.length === 1
-    && blocks[0]?.type === DOC_BLOCK_TYPES.LINK_VAULT;
-
-  if (isDedicatedDoc) {
-    deleteDoc(doc.id);
-    return { docRemoved: true };
-  }
-
-  let nextBlocks = removeBlockAt(blocks, blockIndex);
-  if (!nextBlocks.length) {
-    nextBlocks = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-  }
-
-  updateDoc(doc.id, {
-    blocks: nextBlocks,
-    body: docBlocksToBody(nextBlocks),
-    content: docBlocksToBody(nextBlocks),
-  });
-
-  return { docRemoved: false };
+export function removeUrlTableFromDoc(table) {
+  const objectId = table?.objectId;
+  if (!objectId) return { docRemoved: false };
+  useUrlTableStore.getState().replaceEntriesForObject(objectId, []);
+  return { docRemoved: true };
 }

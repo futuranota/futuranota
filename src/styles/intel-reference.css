@@ -463,10 +463,14 @@
 
 .note-taker__writing-stack .doc-agent-cell__input {
   color: var(--text-1);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  line-height: 1.35;
 }
 
 .note-taker__writing-stack .doc-agent-cell__input::placeholder {
-  color: rgba(129, 89, 91, 0.75);
+  color: #848586;
 }
 
 .note-taker__writing-stack .doc-agent-cell__label {

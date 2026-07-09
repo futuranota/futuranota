@@ -45,7 +45,10 @@ export function AgentBlockView({
       onKeyDown={(e) => e.stopPropagation()}
     >
       <div className="doc-agent-cell__header">
-        <span className="doc-agent-cell__label">Agent</span>
+        <div className="doc-agent-cell__title">
+          <span className="doc-agent-cell__icon" aria-hidden />
+          <span className="doc-agent-cell__label">Agent</span>
+        </div>
         {handleDelete ? (
           <div className="doc-agent-cell__hover-actions">
             <button
