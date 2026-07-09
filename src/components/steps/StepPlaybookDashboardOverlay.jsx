@@ -37,12 +37,7 @@ export function StepPlaybookDashboardOverlay({
       aria-modal="true"
       aria-label={t("pack.stepsLibraryTitle")}
     >
-      <button
-        type="button"
-        className="step-playbook-dashboard-overlay__backdrop"
-        aria-label={t("stepsLibrary.closeTab")}
-        onClick={onCloseTab}
-      />
+      <div className="step-playbook-dashboard-overlay__backdrop" aria-hidden />
       <div className="step-playbook-dashboard-overlay__card">
         <button
           type="button"

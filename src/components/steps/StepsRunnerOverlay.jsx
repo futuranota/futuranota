@@ -71,12 +71,7 @@ export function StepsRunnerOverlay({ playbook, onClose, onComplete }) {
       aria-modal="true"
       aria-label={`${playbook.title} — ${t("stepsRunner.stepOf", { n: stepNumber, m: total })}`}
     >
-      <button
-        type="button"
-        className="steps-runner-overlay__backdrop"
-        aria-label={t("common.back")}
-        onClick={onClose}
-      />
+      <div className="steps-runner-overlay__backdrop" aria-hidden />
       <div className="steps-runner-overlay__card">
         {finished ? (
           <div className="steps-runner-overlay__done">
