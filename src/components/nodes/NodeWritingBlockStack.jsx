@@ -23,6 +23,7 @@ import { AgentBlockView } from "../docs/blocks/AgentBlockView.jsx";
 import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
+import { queuePasswordTableEntry } from "../../lib/passwordTableSession.js";
 import { useNodeTextSelectionToolbar } from "./useNodeTextSelectionToolbar.jsx";
 
 function syncTextareaHeight(el) {
@@ -554,12 +555,16 @@ export function NodeWritingBlockStack({
               className="node-writing-block-stack__vault"
             >
               <PasswordVaultBlockView
-                entries={block.entries || []}
+                entries={companyObjectId ? [] : (block.entries || [])}
                 compact
                 openAddForm={
                   focusTarget?.blockIndex === blockIndex && focusTarget?.focusVault
                 }
-                onEntriesChange={(entries) => updateBlockAt(blockIndex, { entries })}
+                onSaveEntry={companyObjectId ? (entry) => {
+                  queuePasswordTableEntry(companyObjectId, entry);
+                  removeBlockAt(blockIndex);
+                } : null}
+                onEntriesChange={companyObjectId ? undefined : (entries) => updateBlockAt(blockIndex, { entries })}
                 onDeleteVault={() => removeBlockAt(blockIndex)}
               />
             </div>

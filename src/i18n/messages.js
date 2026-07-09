@@ -525,6 +525,14 @@ export const messages = {
       deleteConfirm: "Delete \"{title}\"? This URL table will be permanently removed.",
       deleteTitle: "Delete URL table",
     },
+    passwordTableLibrary: {
+      searchPlaceholder: "Search description…",
+      addRow: "Add password",
+      newDocTitle: "Password table",
+      defaultTitle: "Password table",
+      closeTab: "Close",
+      discardDraftConfirm: "Discard this password table draft?",
+    },
     stepsRunner: {
       modeLabel: "Step by step",
       next: "Next",

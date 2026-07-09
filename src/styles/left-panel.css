@@ -6607,8 +6607,24 @@ body.doc-content-resizing * {
   color: rgba(255, 130, 130, 0.95);
 }
 
-.doc-vault-block__action--copy {
-  color: #9cdcfe;
+.doc-vault-block__password-wrap--saved {
+  min-height: 30px;
+}
+
+.doc-vault-block__password-saved-value {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding-right: 34px;
+  line-height: 30px;
+}
+
+.doc-vault-block__password-plain {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.88);
+  word-break: break-all;
 }
 
 .doc-vault-block__masked {

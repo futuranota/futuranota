@@ -163,9 +163,9 @@ export function NoteTaker({
     setWritingBody({ blocks });
 
     if (!companyObjectId) return;
-    const hadVault = prevBlocks?.some((block) => block.type === NODE_BLOCK_TYPES.LINK_VAULT);
-    const hasVault = blocks.some((block) => block.type === NODE_BLOCK_TYPES.LINK_VAULT);
-    if (!hadVault || hasVault) return;
+    const vaultTypes = [NODE_BLOCK_TYPES.LINK_VAULT, NODE_BLOCK_TYPES.PASSWORD_VAULT];
+    const countVaults = (list) => list?.filter((block) => vaultTypes.includes(block.type)).length ?? 0;
+    if (countVaults(prevBlocks) <= countVaults(blocks)) return;
 
     const targetNodeId = resolveTargetNodeId();
     if (!targetNodeId) return;

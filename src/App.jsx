@@ -38,6 +38,7 @@ import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StepsRunnerOverlay } from './components/steps/StepsRunnerOverlay.jsx';
 import { StepPlaybookDashboardOverlay } from './components/steps/StepPlaybookDashboardOverlay.jsx';
 import { UrlTableDashboardOverlay } from './components/urltable/UrlTableDashboardOverlay.jsx';
+import { PasswordTableDashboardOverlay } from './components/passwordtable/PasswordTableDashboardOverlay.jsx';
 import { LazyTodoDashboardOverlay } from './components/lazyTodos/LazyTodoDashboardOverlay.jsx';
 import {
   createBlankStepPlaybookSession,
@@ -50,6 +51,12 @@ import {
   urlTableSessionHasContent,
 } from './lib/urlTableSession.js';
 import { loadCompanyUrlTableSession } from './lib/urlTableLibrary.js';
+import {
+  persistPasswordTableSession,
+  setPasswordTableQueueCallback,
+  passwordTableSessionHasContent,
+} from './lib/passwordTableSession.js';
+import { loadCompanyPasswordTableSession } from './lib/passwordTableLibrary.js';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
@@ -222,6 +229,11 @@ function Dashboard({ company, onBack }) {
   const activeUrlTableSessionRef = useRef(null);
   const urlTableSaveLockRef = useRef(false);
   activeUrlTableSessionRef.current = activeUrlTableSession;
+
+  const [activePasswordTableSession, setActivePasswordTableSession] = useState(null);
+  const activePasswordTableSessionRef = useRef(null);
+  const passwordTableSaveLockRef = useRef(false);
+  activePasswordTableSessionRef.current = activePasswordTableSession;
   const [activeLazyTodo, setActiveLazyTodo] = useState(null);
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
@@ -926,6 +938,12 @@ useEffect(() => {
     setActiveUrlTableSession(loadCompanyUrlTableSession(objectId, docs, t('urlTableLibrary.newDocTitle')));
   }, [t]);
 
+  const handleOpenPasswordTableForCompany = useCallback((objectId) => {
+    if (!objectId) return;
+    const docs = useDocsStore.getState().docs;
+    setActivePasswordTableSession(loadCompanyPasswordTableSession(objectId, docs, t('passwordTableLibrary.newDocTitle')));
+  }, [t]);
+
   const handleUrlTableSessionChange = useCallback((patch) => {
     setActiveUrlTableSession((current) => {
       if (!current) return current;
@@ -983,6 +1001,57 @@ useEffect(() => {
       });
     });
     return () => setUrlTableQueueCallback(null);
+  }, []);
+
+  const handlePasswordTableSessionChange = useCallback((patch) => {
+    setActivePasswordTableSession((current) => {
+      if (!current) return current;
+      return { ...current, ...patch };
+    });
+  }, []);
+
+  const handlePasswordTableSessionClose = useCallback(() => {
+    setActivePasswordTableSession((current) => {
+      if (!current) return null;
+      if (!current.saved && passwordTableSessionHasContent(current)) {
+        if (!window.confirm(t('passwordTableLibrary.discardDraftConfirm'))) {
+          return current;
+        }
+      }
+      return null;
+    });
+  }, [t]);
+
+  const handlePasswordTableSessionSaved = useCallback((finalizedEntries) => {
+    if (passwordTableSaveLockRef.current) return;
+    const current = activePasswordTableSessionRef.current;
+    if (!current) return;
+
+    passwordTableSaveLockRef.current = true;
+    try {
+      const merged = { ...current, entries: finalizedEntries, saved: true };
+      persistPasswordTableSession(merged, {
+        addDoc,
+        updateDoc,
+        docs: useDocsStore.getState().docs,
+        objects: useObjectsStore.getState().objects,
+        defaultTitle: t('passwordTableLibrary.newDocTitle'),
+      });
+      setActivePasswordTableSession(null);
+    } finally {
+      passwordTableSaveLockRef.current = false;
+    }
+  }, [addDoc, t, updateDoc]);
+
+  useEffect(() => {
+    setPasswordTableQueueCallback((objectId, entry) => {
+      setActivePasswordTableSession((current) => {
+        if (!current || current.objectId !== objectId) return current;
+        if (current.entries.some((item) => item.id === entry.id)) return current;
+        return { ...current, entries: [...current.entries, entry], saved: false };
+      });
+    });
+    return () => setPasswordTableQueueCallback(null);
   }, []);
 
   const parkLazyTodo = useLazyTodosStore((s) => s.parkItem);
@@ -1197,6 +1266,7 @@ useEffect(() => {
             onRunStepPlaybook={handleRunStepPlaybook}
             onOpenNewStepPlaybook={handleOpenNewStepPlaybook}
             onOpenUrlTableForCompany={handleOpenUrlTableForCompany}
+            onOpenPasswordTableForCompany={handleOpenPasswordTableForCompany}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
             onStepPlaybookRemoved={handleStepPlaybookRemoved}
@@ -1312,6 +1382,15 @@ useEffect(() => {
           onChange={handleUrlTableSessionChange}
           onCloseTab={handleUrlTableSessionClose}
           onSaved={handleUrlTableSessionSaved}
+        />
+      ) : null}
+
+      {activePasswordTableSession ? (
+        <PasswordTableDashboardOverlay
+          session={activePasswordTableSession}
+          onChange={handlePasswordTableSessionChange}
+          onCloseTab={handlePasswordTableSessionClose}
+          onSaved={handlePasswordTableSessionSaved}
         />
       ) : null}
 

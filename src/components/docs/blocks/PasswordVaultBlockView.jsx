@@ -1,20 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { copyToClipboard } from "../../../lib/copyToClipboard.js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPasswordEntry } from "../../../lib/vaultBlocks.js";
 import { VaultEyeIcon } from "./VaultEyeIcon.jsx";
 
 const EMPTY_DRAFT = { description: "", password: "" };
 
+const DEFAULT_LABELS = {
+  description: "Descripción",
+  password: "Contraseña",
+  save: "Guardar",
+};
+
 export function PasswordVaultBlockView({
   entries = [],
   onEntriesChange,
+  onSaveEntry = null,
   onDeleteVault,
   openAddForm = false,
   compact = false,
+  labels,
+  filterQuery = "",
+  hideAddButton = false,
+  addFormRequest = 0,
 }) {
+  const L = { ...DEFAULT_LABELS, ...(labels || {}) };
   const [draft, setDraft] = useState(EMPTY_DRAFT);
-  const [copiedId, setCopiedId] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [revealedEntryIds, setRevealedEntryIds] = useState(() => new Set());
   const [isAdding, setIsAdding] = useState(entries.length === 0);
   const descriptionRef = useRef(null);
 
@@ -31,32 +42,60 @@ export function PasswordVaultBlockView({
     return () => window.clearTimeout(timer);
   }, [openAddForm]);
 
+  useEffect(() => {
+    if (!addFormRequest) return;
+    setIsAdding(true);
+    setDraft(EMPTY_DRAFT);
+    setShowPassword(false);
+    const timer = window.setTimeout(() => descriptionRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [addFormRequest]);
+
+  const visibleEntries = useMemo(() => {
+    const normalized = String(filterQuery ?? "").trim().toLowerCase();
+    if (!normalized) return entries;
+    return entries.filter((entry) => (
+      String(entry.description ?? "").toLowerCase().includes(normalized)
+      || String(entry.tag ?? "").toLowerCase().includes(normalized)
+    ));
+  }, [entries, filterQuery]);
+
   const canSave = Boolean(draft.description.trim() && draft.password.trim());
 
   const handleSave = useCallback(() => {
     if (!canSave) return;
+    const entry = createPasswordEntry(draft);
+    if (onSaveEntry) {
+      onSaveEntry(entry);
+      return;
+    }
     onEntriesChange?.([
       ...entries,
-      createPasswordEntry(draft),
+      entry,
     ]);
     setDraft(EMPTY_DRAFT);
     setShowPassword(false);
     setIsAdding(false);
-  }, [canSave, draft, entries, onEntriesChange]);
+  }, [canSave, draft, entries, onEntriesChange, onSaveEntry]);
 
   const handleRemoveEntry = useCallback((entryId) => {
     onEntriesChange?.(entries.filter((entry) => entry.id !== entryId));
   }, [entries, onEntriesChange]);
 
-  const handleCopyPassword = useCallback(async (entry) => {
-    const ok = await copyToClipboard(entry.password);
-    if (!ok) return;
-    setCopiedId(entry.id);
-    window.setTimeout(() => setCopiedId(null), 1600);
+  const toggleRevealEntry = useCallback((entryId) => {
+    setRevealedEntryIds((current) => {
+      const next = new Set(current);
+      if (next.has(entryId)) {
+        next.delete(entryId);
+      } else {
+        next.add(entryId);
+      }
+      return next;
+    });
   }, []);
 
   const showAddForm = isAdding;
-  const showAddButton = entries.length > 0 && !isAdding;
+  const showAddButton = !hideAddButton && entries.length > 0 && !isAdding;
 
   return (
     <div
@@ -80,46 +119,61 @@ export function PasswordVaultBlockView({
         </div>
       ) : null}
 
-      {entries.length > 0 ? (
+      {visibleEntries.length > 0 ? (
         <div className="doc-vault-block__table-wrap">
           <table className="doc-vault-block__table">
             <thead>
               <tr>
-                <th>Descripción</th>
-                <th>Contraseña</th>
+                <th>{L.description}</th>
+                <th>{L.password}</th>
                 <th aria-hidden />
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
-                <tr key={entry.id} className="doc-vault-block__row">
-                  <td>{entry.description}</td>
-                  <td>
-                    <span className="doc-vault-block__masked">••••••••</span>
-                  </td>
-                  <td className="doc-vault-block__row-actions">
-                    <div className="doc-vault-block__hover-actions">
-                      <button
-                        type="button"
-                        className="doc-vault-block__action doc-vault-block__action--copy"
-                        onClick={() => { void handleCopyPassword(entry); }}
-                        aria-label={`Copiar contraseña de ${entry.description}`}
-                      >
-                        {copiedId === entry.id ? "Copiado" : "Copiar"}
-                      </button>
-                      <button
-                        type="button"
-                        className="doc-vault-block__action doc-vault-block__action--close"
-                        onClick={() => handleRemoveEntry(entry.id)}
-                        aria-label={`Eliminar ${entry.description}`}
-                        title="Eliminar"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {visibleEntries.map((entry) => {
+                const isRevealed = revealedEntryIds.has(entry.id);
+                return (
+                  <tr key={entry.id} className="doc-vault-block__row">
+                    <td>{entry.description}</td>
+                    <td>
+                      <div className="doc-vault-block__password-wrap doc-vault-block__password-wrap--saved">
+                        <span
+                          className={
+                            "doc-vault-block__password-saved-value "
+                            + (isRevealed
+                              ? "doc-vault-block__password-plain"
+                              : "doc-vault-block__masked")
+                          }
+                        >
+                          {isRevealed ? entry.password : "••••••••"}
+                        </span>
+                        <button
+                          type="button"
+                          className="doc-vault-block__eye"
+                          onClick={() => toggleRevealEntry(entry.id)}
+                          aria-label={isRevealed ? "Ocultar contraseña" : "Mostrar contraseña"}
+                          title={isRevealed ? "Ocultar" : "Mostrar"}
+                        >
+                          <VaultEyeIcon off={isRevealed} />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="doc-vault-block__row-actions">
+                      <div className="doc-vault-block__hover-actions">
+                        <button
+                          type="button"
+                          className="doc-vault-block__action doc-vault-block__action--close"
+                          onClick={() => handleRemoveEntry(entry.id)}
+                          aria-label={`Eliminar ${entry.description}`}
+                          title="Eliminar"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -132,7 +186,7 @@ export function PasswordVaultBlockView({
             className="doc-vault-block__input"
             type="text"
             value={draft.description}
-            placeholder="Descripción"
+            placeholder={L.description}
             onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
             onKeyDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -142,7 +196,7 @@ export function PasswordVaultBlockView({
               className="doc-vault-block__input doc-vault-block__input--password"
               type={showPassword ? "text" : "password"}
               value={draft.password}
-              placeholder="Contraseña"
+              placeholder={L.password}
               autoComplete="off"
               onChange={(e) => setDraft((prev) => ({ ...prev, password: e.target.value }))}
               onKeyDown={(e) => e.stopPropagation()}
@@ -163,7 +217,7 @@ export function PasswordVaultBlockView({
             disabled={!canSave}
             onClick={handleSave}
           >
-            Guardar
+            {L.save}
           </button>
         </div>
       ) : null}

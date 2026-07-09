@@ -1075,6 +1075,7 @@ export function LeftPanel({
   onRunStepPlaybook,
   onOpenNewStepPlaybook,
   onOpenUrlTableForCompany,
+  onOpenPasswordTableForCompany,
   onOpenNewLazyTodo,
   onOpenLazyTodoItem,
   onStepPlaybookRemoved,
@@ -1346,6 +1347,18 @@ export function LeftPanel({
         enterObjectWorkspace(targetObjectId);
       }
       onOpenUrlTableForCompany?.(targetObjectId);
+      return;
+    }
+    setPanelType("Documents");
+  };
+
+  const openPasswordTableFromToolbar = () => {
+    const targetObjectId = filterObjectId || selectedObjectId;
+    if (targetObjectId) {
+      if (!objectWorkspaceActive) {
+        enterObjectWorkspace(targetObjectId);
+      }
+      onOpenPasswordTableForCompany?.(targetObjectId);
       return;
     }
     setPanelType("Documents");
@@ -1726,7 +1739,7 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenPasswordTable={() => {}}
+                    onOpenPasswordTable={openPasswordTableFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
@@ -1763,7 +1776,7 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenPasswordTable={() => {}}
+                    onOpenPasswordTable={openPasswordTableFromToolbar}
                     filterMode="category"
                     filterOptions={categoryFilterOptions}
                     filterValue={productCategoryFilter}
@@ -1886,7 +1899,7 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenPasswordTable={() => {}}
+                    onOpenPasswordTable={openPasswordTableFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>

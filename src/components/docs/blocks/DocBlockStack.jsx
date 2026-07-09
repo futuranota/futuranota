@@ -52,6 +52,7 @@ import { useI18n } from "../../../i18n/useI18n.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
 import { useDocsStore } from "../../../stores/docsStore.js";
 import { queueUrlTableEntry } from "../../../lib/urlTableSession.js";
+import { queuePasswordTableEntry } from "../../../lib/passwordTableSession.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { H2BlockView } from "./H2BlockView.jsx";
 import { H3BlockView } from "./H3BlockView.jsx";
@@ -1523,9 +1524,20 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
           {block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT ? (
             <PasswordVaultBlockView
-              entries={block.entries || []}
+              entries={companyObjectId ? [] : (block.entries || [])}
               openAddForm={focusBlockId === block.id}
-              onEntriesChange={(entries) => {
+              onSaveEntry={companyObjectId ? (entry) => {
+                queuePasswordTableEntry(companyObjectId, entry);
+                let next = removeBlockAt(blocksRef.current, index);
+                if (!next.length) {
+                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+                }
+                setBlocks(next);
+                const focusIndex = Math.min(index, next.length - 1);
+                onFocusBlock?.(next[focusIndex]?.id);
+                requestContentGrow();
+              } : null}
+              onEntriesChange={companyObjectId ? undefined : (entries) => {
                 let next = updateBlockAt(blocksRef.current, index, { entries });
                 if (entries.length > 0) {
                   next = ensureEmptyTextBlockAfter(next, index);
