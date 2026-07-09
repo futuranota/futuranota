@@ -22,6 +22,7 @@ import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { AgentBlockView } from "../docs/blocks/AgentBlockView.jsx";
 import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
+import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { useNodeTextSelectionToolbar } from "./useNodeTextSelectionToolbar.jsx";
 
 function syncTextareaHeight(el) {
@@ -140,6 +141,7 @@ export function NodeWritingBlockStack({
   slashEnabled = false,
   className = "",
   textPlaceholder = "Escribe aquí o /macronodo",
+  companyObjectId = null,
 }) {
   const inputRefs = useRef({});
   const stackRef = useRef(null);
@@ -572,12 +574,16 @@ export function NodeWritingBlockStack({
               className="node-writing-block-stack__vault"
             >
               <LinkVaultBlockView
-                entries={block.entries || []}
+                entries={companyObjectId ? [] : (block.entries || [])}
                 compact
                 openAddForm={
                   focusTarget?.blockIndex === blockIndex && focusTarget?.focusVault
                 }
-                onEntriesChange={(entries) => updateBlockAt(blockIndex, { entries })}
+                onSaveEntry={companyObjectId ? (entry) => {
+                  queueUrlTableEntry(companyObjectId, entry);
+                  removeBlockAt(blockIndex);
+                } : null}
+                onEntriesChange={companyObjectId ? undefined : (entries) => updateBlockAt(blockIndex, { entries })}
                 onDeleteVault={() => removeBlockAt(blockIndex)}
               />
             </div>

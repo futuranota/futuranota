@@ -101,6 +101,9 @@ export function NodeQueryModal({
     adoptableDocsById,
     { parentObjectId },
   );
+  const companyObjectId = parentObjectId
+    || adoptableDocsById[resolvedParentDocId]?.parentObjectId
+    || null;
   const dateEditable = Boolean(onCreatedDateChange);
   const handleDismiss = onBackToDocument || onClose;
   const showCloseButton = Boolean(onClose && !onBackToDocument);
@@ -567,6 +570,7 @@ export function NodeQueryModal({
                     ? "Escribe aquí o /macronodo"
                     : "Escribe aquí"
                 }
+                companyObjectId={companyObjectId}
               />
             </div>
           ) : calendarPayload ? (

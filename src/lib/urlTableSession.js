@@ -1,11 +1,24 @@
+import { useDocsStore } from "../stores/docsStore.js";
+import { useObjectsStore } from "../stores/objectsStore.js";
 import {
   createDocBlock,
   DOC_BLOCK_TYPES,
   docBlocksToBody,
   normalizeDocBlocks,
 } from "./docBlocks.js";
+import { loadCompanyUrlTableSession } from "./urlTableLibrary.js";
 import { normalizeLinkEntries } from "./vaultBlocks.js";
 import { generateId } from "./ids.js";
+
+/** @type {((objectId: string, entry: import("./vaultBlocks.js").LinkEntry) => void)|null} */
+let urlTableQueueCallback = null;
+
+/**
+ * @param {((objectId: string, entry: import("./vaultBlocks.js").LinkEntry) => void)|null} callback
+ */
+export function setUrlTableQueueCallback(callback) {
+  urlTableQueueCallback = callback;
+}
 
 /**
  * @typedef {Object} UrlTableSession
@@ -139,4 +152,60 @@ export function persistUrlTableSession(session, {
   });
 
   return { docId: session.docId, blockId: block.id };
+}
+
+/**
+ * Append one link entry to the company URL table and persist immediately.
+ * @param {string} objectId
+ * @param {import("./vaultBlocks.js").LinkEntry} entry
+ * @param {Object} deps
+ * @returns {{ docId: string|null, blockId: string }|null}
+ */
+export function appendEntryToCompanyUrlTable(objectId, entry, {
+  addDoc,
+  updateDoc,
+  docs,
+  objects,
+  defaultTitle,
+}) {
+  if (!objectId || !entry) return null;
+
+  const session = loadCompanyUrlTableSession(objectId, docs, defaultTitle);
+  const merged = {
+    ...session,
+    entries: [...session.entries, entry],
+    saved: true,
+  };
+
+  return persistUrlTableSession(merged, {
+    addDoc,
+    updateDoc,
+    docs,
+    objects,
+    defaultTitle,
+  });
+}
+
+/**
+ * Queue a link entry into the company URL table (reads workspace stores).
+ * @param {string} objectId
+ * @param {import("./vaultBlocks.js").LinkEntry} entry
+ * @param {{ defaultTitle?: string }} [options]
+ */
+export function queueUrlTableEntry(objectId, entry, { defaultTitle = "URL table" } = {}) {
+  if (!objectId || !entry) return null;
+
+  const { addDoc, updateDoc, docs } = useDocsStore.getState();
+  const { objects } = useObjectsStore.getState();
+
+  const result = appendEntryToCompanyUrlTable(objectId, entry, {
+    addDoc,
+    updateDoc,
+    docs,
+    objects,
+    defaultTitle,
+  });
+
+  urlTableQueueCallback?.(objectId, entry);
+  return result;
 }

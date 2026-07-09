@@ -85,6 +85,8 @@ export function NoteTaker({
   const [saving, setSaving] = useState(false);
   const typographyStorageKey = resolvedNodeId ? `node:${resolvedNodeId}` : "note-taker";
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
+  const parentDoc = useDocsStore((s) => (parentDocId ? s.docs[parentDocId] : null));
+  const companyObjectId = parentDoc?.parentObjectId ?? null;
 
   useEffect(() => {
     setResolvedNodeId(nodeIdProp);
@@ -441,6 +443,7 @@ export function NoteTaker({
                 onFocusTargetChange={setWritingFocusTarget}
                 slashEnabled
                 textPlaceholder="Escribe aquí o /macronodo"
+                companyObjectId={companyObjectId}
               />
             </div>
             <DocSlashCommandPicker

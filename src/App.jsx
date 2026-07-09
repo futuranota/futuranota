@@ -46,6 +46,7 @@ import {
 } from './lib/stepPlaybookSession.js';
 import {
   persistUrlTableSession,
+  setUrlTableQueueCallback,
   urlTableSessionHasContent,
 } from './lib/urlTableSession.js';
 import { loadCompanyUrlTableSession } from './lib/urlTableLibrary.js';
@@ -971,6 +972,17 @@ useEffect(() => {
       if (current.docId === docId && current.blockId === blockId) return null;
       return current;
     });
+  }, []);
+
+  useEffect(() => {
+    setUrlTableQueueCallback((objectId, entry) => {
+      setActiveUrlTableSession((current) => {
+        if (!current || current.objectId !== objectId) return current;
+        if (current.entries.some((item) => item.id === entry.id)) return current;
+        return { ...current, entries: [...current.entries, entry], saved: false };
+      });
+    });
+    return () => setUrlTableQueueCallback(null);
   }, []);
 
   const parkLazyTodo = useLazyTodosStore((s) => s.parkItem);

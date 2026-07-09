@@ -700,6 +700,7 @@ export function DocDocumentBox({
               onVideoEmbedH1TitleChange={onVideoEmbedH1TitleChange}
               onDetachFromNode={onDetachFromNode}
               onSavedStepSequenceRemoved={onSavedStepSequenceRemoved}
+              companyObjectId={parentId || null}
               reportPresentation={reportPresentation}
               onReportAnimationComplete={onReportAnimationComplete}
             />

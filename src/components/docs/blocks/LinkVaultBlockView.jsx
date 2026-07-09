@@ -13,6 +13,7 @@ const DEFAULT_LABELS = {
 export function LinkVaultBlockView({
   entries = [],
   onEntriesChange,
+  onSaveEntry = null,
   onDeleteVault,
   openAddForm = false,
   compact = false,
@@ -71,16 +72,21 @@ export function LinkVaultBlockView({
 
   const handleSave = useCallback(() => {
     if (!canSave) return;
+    const entry = createLinkEntry({
+      ...draft,
+      url: normalizeUrlInput(draft.url),
+    });
+    if (onSaveEntry) {
+      onSaveEntry(entry);
+      return;
+    }
     onEntriesChange?.([
       ...entries,
-      createLinkEntry({
-        ...draft,
-        url: normalizeUrlInput(draft.url),
-      }),
+      entry,
     ]);
     setDraft(EMPTY_DRAFT);
     setIsAdding(false);
-  }, [canSave, draft, entries, onEntriesChange]);
+  }, [canSave, draft, entries, onEntriesChange, onSaveEntry]);
 
   const handleRemoveEntry = useCallback((entryId) => {
     onEntriesChange?.(entries.filter((entry) => entry.id !== entryId));
