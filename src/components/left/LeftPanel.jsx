@@ -19,7 +19,8 @@ import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
 import { DocListTitle } from "../docs/DocListTitle.jsx";
-import { docBlocksToBody } from "../../lib/docBlocks.js";
+import { docBlocksToBody, normalizeDocBlocks } from "../../lib/docBlocks.js";
+import { UnsavedChangesConfirm } from "../shared/UnsavedChangesConfirm.jsx";
 import { useDocBlockNodeModal, linkBlockNodesToDoc } from "../docs/useDocBlockNodeModal.jsx";
 import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
 import {
@@ -709,6 +710,34 @@ function ObjectCreateModal({ onSubmit, onCancel, initial = null }) {
   );
 }
 
+function buildDocCreateSnapshot({
+  title,
+  body,
+  blocks,
+  version,
+  category,
+  launchDate,
+  campaignActive,
+  subcategoryDocIds,
+  nodeLinkColor,
+  parentId,
+  knowledgeImport,
+}) {
+  return JSON.stringify({
+    title: title ?? "",
+    body: body ?? "",
+    blocks: normalizeDocBlocks(blocks),
+    version: String(version ?? "").trim(),
+    category: String(category ?? "").trim(),
+    launchDate: launchDate ?? "",
+    campaignActive: Boolean(campaignActive),
+    subcategoryDocIds: Array.isArray(subcategoryDocIds) ? [...subcategoryDocIds] : [],
+    nodeLinkColor: nodeLinkColor ?? "dark",
+    parentId: parentId ?? "",
+    knowledgeImport: knowledgeImport ?? null,
+  });
+}
+
 /* ─────────────────────────────────────────────
    MODAL: Create Document  "New File" Notion-like
 ───────────────────────────────────────────── */
@@ -737,7 +766,9 @@ function DocCreateModal({
   const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
   const [nodeLinkColor, setNodeLinkColor] = useState("dark");
   const [knowledgeImport, setKnowledgeImport] = useState(null);
+  const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
   const titleRef = useRef(null);
+  const createSnapshotRef = useRef(null);
   const isProductMode = createMode === "product";
   const isKnowledgeMode = createMode === "knowledge";
   const metaMode = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
@@ -755,6 +786,68 @@ function DocCreateModal({
     titleRef.current?.focus();
     titleRef.current?.select();
   }, []);
+
+  useEffect(() => {
+    createSnapshotRef.current = buildDocCreateSnapshot({
+      title: "",
+      body: "",
+      blocks: [],
+      version: "",
+      category: defaultCategory,
+      launchDate: "",
+      campaignActive: false,
+      subcategoryDocIds: [],
+      nodeLinkColor: "dark",
+      parentId: fallbackParent,
+      knowledgeImport: null,
+    });
+    setShowUnsavedConfirm(false);
+    // Snapshot only when the create modal opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const currentCreateSnapshot = useCallback(
+    () => buildDocCreateSnapshot({
+      title,
+      body,
+      blocks,
+      version,
+      category,
+      launchDate,
+      campaignActive,
+      subcategoryDocIds,
+      nodeLinkColor,
+      parentId,
+      knowledgeImport,
+    }),
+    [
+      title,
+      body,
+      blocks,
+      version,
+      category,
+      launchDate,
+      campaignActive,
+      subcategoryDocIds,
+      nodeLinkColor,
+      parentId,
+      knowledgeImport,
+    ],
+  );
+
+  const hasUnsavedCreateChanges = useCallback(() => {
+    const snap = createSnapshotRef.current;
+    if (!snap) return false;
+    return snap !== currentCreateSnapshot();
+  }, [currentCreateSnapshot]);
+
+  const requestClose = useCallback(() => {
+    if (hasUnsavedCreateChanges()) {
+      setShowUnsavedConfirm(true);
+      return;
+    }
+    onCancel();
+  }, [hasUnsavedCreateChanges, onCancel]);
 
   const parentObject = isKnowledgeMode ? null : objects.find((o) => o.id === parentId);
 
@@ -884,9 +977,9 @@ function DocCreateModal({
           objects={objects}
           docKind={docKind}
           metaMode={metaMode}
-          onDelete={onCancel}
+          onDelete={requestClose}
           onSave={submitDoc}
-          onCloseExpand={onCancel}
+          onCloseExpand={requestClose}
           onOpenNodeForBlock={onOpenNodeForBlock}
           onEnsureNodeForBlock={onEnsureNodeForBlock}
           onAnswerBelowH1Change={onAnswerBelowH1Change}
@@ -896,10 +989,10 @@ function DocCreateModal({
           onKnowledgeFileImport={isKnowledgeMode ? handleKnowledgeFileImport : undefined}
           knowledgeImport={isKnowledgeMode ? knowledgeImport : null}
           onTitleKeyDown={(e) => {
-            if (e.key === "Escape") onCancel();
+            if (e.key === "Escape") requestClose();
           }}
           onBodyKeyDown={(e) => {
-            if (e.key === "Escape") onCancel();
+            if (e.key === "Escape") requestClose();
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               submitDoc();
@@ -909,6 +1002,18 @@ function DocCreateModal({
           </div>
         </div>
       ) : null}
+      <UnsavedChangesConfirm
+        open={showUnsavedConfirm}
+        titleId="doc-create-unsaved-title"
+        onYes={() => {
+          setShowUnsavedConfirm(false);
+          submitDoc();
+        }}
+        onNo={() => {
+          setShowUnsavedConfirm(false);
+          onCancel();
+        }}
+      />
       {nodeModal}
     </>
   );

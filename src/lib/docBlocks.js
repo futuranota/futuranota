@@ -683,6 +683,73 @@ export function isEmptyTextBlock(block) {
   return !(block.text || "").trim();
 }
 
+/** True when a single block carries user-authored content (not a default empty shell). */
+export function docBlockHasContent(block) {
+  if (!block || typeof block !== "object") return false;
+  const type = block.type || DOC_BLOCK_TYPES.TEXT;
+
+  if (type === DOC_BLOCK_TYPES.TEXT) {
+    if (block.embedded?.kind) return true;
+    return Boolean((block.text || "").trim());
+  }
+  if (type === DOC_BLOCK_TYPES.H1 || type === DOC_BLOCK_TYPES.H2 || type === DOC_BLOCK_TYPES.H3) {
+    return Boolean((block.title || "").trim());
+  }
+  if (type === DOC_BLOCK_TYPES.TODO) {
+    if ((block.listTitle || "").trim() && block.listTitle !== DEFAULT_CHECKBOX_LIST_TITLE) {
+      return true;
+    }
+    return (block.items || []).some(
+      (item) => Boolean((item.text || "").trim()) || Boolean(item.checked),
+    );
+  }
+  if (type === DOC_BLOCK_TYPES.DATE) {
+    return Boolean((block.date || "").trim());
+  }
+  if (type === DOC_BLOCK_TYPES.METRIC) {
+    return block.value != null && String(block.value).trim() !== "";
+  }
+  if (type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
+    return Boolean(block.specsSaved)
+      || Boolean((block.title || "").trim())
+      || (Array.isArray(block.images) && block.images.some((img) => img?.src));
+  }
+  if (type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+    return Boolean((block.embedSrc || "").trim()) || Boolean(block.embedSaved);
+  }
+  if (type === DOC_BLOCK_TYPES.IMAGE) {
+    return Boolean((block.src || "").trim()) || Boolean(block.imageSaved);
+  }
+  if (type === DOC_BLOCK_TYPES.CODE) {
+    return Boolean((block.code || "").trim()) || Boolean(block.codeSaved);
+  }
+  if (type === DOC_BLOCK_TYPES.PASSWORD_VAULT) {
+    return normalizePasswordEntries(block.entries).length > 0;
+  }
+  if (type === DOC_BLOCK_TYPES.LINK_VAULT) {
+    return normalizeLinkEntries(block.entries).length > 0;
+  }
+  if (type === DOC_BLOCK_TYPES.AGENT) {
+    return Boolean((block.instruction || "").trim());
+  }
+  if (type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
+    const normalized = normalizeStepSequenceBlock(block);
+    if ((normalized.title || "").trim()) return true;
+    if (normalized.saved) return true;
+    return (normalized.steps || []).some(stepEntryHasContent);
+  }
+  return false;
+}
+
+/** True when the block list contains any user-authored content. */
+export function docBlocksHaveContent(blocks) {
+  if (!Array.isArray(blocks) || blocks.length === 0) return false;
+  const normalized = normalizeDocBlocks(blocks);
+  if (normalized.length === 0) return false;
+  if (normalized.length === 1 && isEmptyTextBlock(normalized[0])) return false;
+  return normalized.some(docBlockHasContent);
+}
+
 /** Drop unfocused empty text rows so they do not occupy layout space. */
 export function compactEmptyTextBlocks(blocks, keepBlockIds = null) {
   if (!Array.isArray(blocks) || blocks.length === 0) return [];

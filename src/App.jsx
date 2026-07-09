@@ -237,6 +237,10 @@ function Dashboard({ company, onBack }) {
   const [activeLazyTodo, setActiveLazyTodo] = useState(null);
   const [docViewGeneration, setDocViewGeneration] = useState(0);
   const [docOpenFocusBlockId, setDocOpenFocusBlockId] = useState(null);
+  const docCloseInterceptorRef = useRef(null);
+  const registerDocCloseInterceptor = useCallback((handler) => {
+    docCloseInterceptorRef.current = handler;
+  }, []);
   const [expandedNodeId, setExpandedNodeId] = useState(null);
   const [expandedNodeContentFocus, setExpandedNodeContentFocus] = useState(false);
   const [adoptPrompt, setAdoptPrompt] = useState(null);
@@ -864,8 +868,25 @@ useEffect(() => {
 
   const openDocumentOverlay = (docId, options = {}) => {
     if (!docId || !docs[docId]) return;
-    setExpandedDocId(docId);
-    setDocOpenFocusBlockId(options.focusBlockId ?? null);
+    const openTarget = () => {
+      setExpandedDocId(docId);
+      setDocOpenFocusBlockId(options.focusBlockId ?? null);
+    };
+    if (expandedDocId && expandedDocId !== docId && docCloseInterceptorRef.current) {
+      docCloseInterceptorRef.current(openTarget);
+      return;
+    }
+    openTarget();
+  };
+
+  const closeExpandedDocForExternalAction = (onProceed) => {
+    if (expandedDocId && docCloseInterceptorRef.current) {
+      docCloseInterceptorRef.current(onProceed);
+      return;
+    }
+    setExpandedDocId(null);
+    setDocOpenFocusBlockId(null);
+    onProceed?.();
   };
 
   const handleRunStepPlaybook = (playbook) => {
@@ -1127,10 +1148,11 @@ useEffect(() => {
 
   const openNodeOverlay = useCallback((nodeId, options = {}) => {
     if (!nodeId || !nodeEntities[nodeId]) return;
-    setExpandedDocId(null);
-    setExpandedNodeContentFocus(Boolean(options.contentFocus));
-    setExpandedNodeId(nodeId);
-  }, [nodeEntities]);
+    closeExpandedDocForExternalAction(() => {
+      setExpandedNodeContentFocus(Boolean(options.contentFocus));
+      setExpandedNodeId(nodeId);
+    });
+  }, [nodeEntities, expandedDocId]);
 
   const patchCanvasNode = useCallback((canvasNodeId, patch) => {
     setCanvasNodes((all) => all.map((n) => (
@@ -1243,9 +1265,10 @@ useEffect(() => {
     }
 
     if (noteId && nodeEntities[noteId]) {
-      setExpandedDocId(null);
-      setExpandedNodeContentFocus(Boolean(options?.contentFocus));
-      setExpandedNodeId(noteId);
+      closeExpandedDocForExternalAction(() => {
+        setExpandedNodeContentFocus(Boolean(options?.contentFocus));
+        setExpandedNodeId(noteId);
+      });
     }
   };
 
@@ -1420,6 +1443,7 @@ useEffect(() => {
               docId={expandedDocId}
               initialFocusBlockId={docOpenFocusBlockId}
               onExpandNode={openNodeOverlay}
+              registerCloseInterceptor={registerDocCloseInterceptor}
               onClose={() => {
                 setExpandedDocId(null);
                 setDocOpenFocusBlockId(null);

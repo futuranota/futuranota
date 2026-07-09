@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
@@ -10,6 +9,7 @@ import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { normalizeKnowledgeImport } from "../../lib/knowledgeImport.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { Modal } from "../shared/Modal.jsx";
+import { UnsavedChangesConfirm } from "../shared/UnsavedChangesConfirm.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 import {
@@ -34,6 +34,7 @@ import {
 import { DocDocumentBox } from "./DocDocumentBox.jsx";
 import {
   docBlocksFromBody,
+  docBlocksHaveContent,
   docBlocksToBody,
   normalizeDocBlocks,
   updateBlockAt,
@@ -72,7 +73,7 @@ import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 function docBlocksHaveText(blocks) {
   if (!Array.isArray(blocks)) return false;
   if (docBlocksHaveAgentInstruction(blocks)) return true;
-  return blocks.some((b) => (b.text || "").trim());
+  return docBlocksHaveContent(blocks);
 }
 
 function docDraftHasContent(cached) {
@@ -207,6 +208,7 @@ export function DocExpandedView({
   onAfterDocSave,
   onStepPlaybookRemoved,
   initialFocusBlockId = null,
+  registerCloseInterceptor = null,
 }) {
   const { t } = useI18n();
   const doc = useDocsStore((s) => s.docs[docId]);
@@ -249,6 +251,8 @@ export function DocExpandedView({
   const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
   const nodeAutosaveTimerRef = useRef(null);
   const docShellRef = useRef(null);
+  const docSnapshotRef = useRef(null);
+  const pendingCloseActionRef = useRef(null);
   const hideDocForNodeModal = Boolean(activeNodeContext && !showNodeUnsavedConfirm);
   const objects = useObjectsStore((s) => s.objects);
   const allDocs = useDocsStore((s) => s.docs);
@@ -284,63 +288,101 @@ export function DocExpandedView({
     const useCachedDraft = cached && !preferStoreContent && cachedHasText;
 
     const blocksForSnapshot = useCachedDraft ? cachedBlocks : loadedBlocks;
+    const loadedTitle = useCachedDraft ? (cached.title ?? savedTitle) : savedTitle;
+    const loadedBody = useCachedDraft
+      ? (cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")))
+      : (loadedBlocks.length ? "" : (d.body ?? d.content ?? ""));
+    const loadedCreatedDate = useCachedDraft
+      ? (cached.createdDate ?? dateInputFromIso(normalized.createdAt))
+      : dateInputFromIso(normalized.createdAt);
+    const loadedVersion = useCachedDraft
+      ? (cached.version ?? normalized.version ?? "")
+      : (normalized.version ?? "");
+    const loadedCategory = useCachedDraft
+      ? (cached.category ?? normalized.category ?? "")
+      : (normalized.category ?? "");
+    const loadedLaunchDate = useCachedDraft
+      ? (cached.launchDate ?? launchDateInputFromIso(normalized.launchAt))
+      : launchDateInputFromIso(normalized.launchAt);
+    const loadedCampaignActive = useCachedDraft
+      ? (cached.campaignActive ?? Boolean(normalized.campaignActive))
+      : Boolean(normalized.campaignActive);
+    const loadedNodeLinkColor = useCachedDraft
+      ? (cached.nodeLinkColor ?? normalized.nodeLinkColor ?? "dark")
+      : (normalized.nodeLinkColor ?? "dark");
+    const loadedParentId = useCachedDraft
+      ? (cached.parentId ?? d.parentObjectId ?? "")
+      : (d.parentObjectId ?? "");
+    const loadedDocKind = useCachedDraft
+      ? (cached.docKind ?? normalized.docKind ?? "standard")
+      : (normalized.docKind ?? "standard");
+    const loadedTemplateKind = useCachedDraft
+      ? (cached.templateKind ?? normalized.templateKind ?? null)
+      : (normalized.templateKind ?? null);
+    const loadedSubcategoryDocIds = useCachedDraft
+      ? (cached.subcategoryDocIds ?? normalized.subcategoryDocIds ?? [])
+      : (normalized.subcategoryDocIds ?? []);
+    const loadedKnowledgeImport = useCachedDraft
+      ? (cached.knowledgeImport ?? normalized.knowledgeImport ?? null)
+      : (normalized.knowledgeImport ?? null);
 
     if (useCachedDraft) {
-      setDraftTitle(cached.title ?? savedTitle);
+      setDraftTitle(loadedTitle);
       setDraftBlocks(cachedBlocks);
-      setDraftBody(cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")));
-      setDraftCreatedDate(cached.createdDate ?? dateInputFromIso(normalized.createdAt));
-      setDraftVersion(cached.version ?? normalized.version ?? "");
-      setDraftCategory(cached.category ?? normalized.category ?? "");
-      setDraftLaunchDate(cached.launchDate ?? launchDateInputFromIso(normalized.launchAt));
-      setDraftCampaignActive(
-        cached.campaignActive ?? Boolean(normalized.campaignActive),
-      );
-      setDraftNodeLinkColor(cached.nodeLinkColor ?? normalized.nodeLinkColor ?? "dark");
-      setDraftParentId(cached.parentId ?? d.parentObjectId ?? "");
-      setDraftDocKind(cached.docKind ?? normalized.docKind ?? "standard");
-      setDraftTemplateKind(cached.templateKind ?? normalized.templateKind ?? null);
-      setDraftSubcategoryDocIds(
-        cached.subcategoryDocIds ?? normalized.subcategoryDocIds ?? [],
-      );
-      setDraftKnowledgeImport(cached.knowledgeImport ?? normalized.knowledgeImport ?? null);
+      setDraftBody(loadedBody);
+      setDraftCreatedDate(loadedCreatedDate);
+      setDraftVersion(loadedVersion);
+      setDraftCategory(loadedCategory);
+      setDraftLaunchDate(loadedLaunchDate);
+      setDraftCampaignActive(loadedCampaignActive);
+      setDraftNodeLinkColor(loadedNodeLinkColor);
+      setDraftParentId(loadedParentId);
+      setDraftDocKind(loadedDocKind);
+      setDraftTemplateKind(loadedTemplateKind);
+      setDraftSubcategoryDocIds(loadedSubcategoryDocIds);
+      setDraftKnowledgeImport(loadedKnowledgeImport);
     } else {
-      setDraftTitle(savedTitle);
+      setDraftTitle(loadedTitle);
       setDraftBlocks(loadedBlocks);
-      setDraftBody(loadedBlocks.length ? "" : (d.body ?? d.content ?? ""));
-      setDraftCreatedDate(dateInputFromIso(normalized.createdAt));
-      setDraftVersion(normalized.version ?? "");
-      setDraftCategory(normalized.category ?? "");
-      setDraftLaunchDate(launchDateInputFromIso(normalized.launchAt));
-      setDraftCampaignActive(Boolean(normalized.campaignActive));
-      setDraftNodeLinkColor(normalized.nodeLinkColor ?? "dark");
-      setDraftParentId(d.parentObjectId ?? "");
-      setDraftDocKind(normalized.docKind ?? "standard");
-      setDraftTemplateKind(normalized.templateKind ?? null);
-      setDraftSubcategoryDocIds(normalized.subcategoryDocIds ?? []);
-      setDraftKnowledgeImport(normalized.knowledgeImport ?? null);
+      setDraftBody(loadedBody);
+      setDraftCreatedDate(loadedCreatedDate);
+      setDraftVersion(loadedVersion);
+      setDraftCategory(loadedCategory);
+      setDraftLaunchDate(loadedLaunchDate);
+      setDraftCampaignActive(loadedCampaignActive);
+      setDraftNodeLinkColor(loadedNodeLinkColor);
+      setDraftParentId(loadedParentId);
+      setDraftDocKind(loadedDocKind);
+      setDraftTemplateKind(loadedTemplateKind);
+      setDraftSubcategoryDocIds(loadedSubcategoryDocIds);
+      setDraftKnowledgeImport(loadedKnowledgeImport);
     }
 
-    setInitialSnapshot(
-      buildDocPersistSnapshot({
-        title: savedTitle,
-        blocks: blocksForSnapshot,
-        body: useCachedDraft
-          ? (cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")))
-          : (d.body ?? d.content ?? ""),
-        createdDate: dateInputFromIso(normalized.createdAt),
-        version: normalized.version ?? "",
-        category: normalized.category ?? "",
-        launchAt: normalized.launchAt ?? null,
-        campaignActive: Boolean(normalized.campaignActive),
-        parentObjectId: d.parentObjectId ?? "",
-        nodeLinkColor: normalized.nodeLinkColor ?? "dark",
-        docKind: normalized.docKind ?? "standard",
-        templateKind: normalized.templateKind ?? null,
-        subcategoryDocIds: normalized.subcategoryDocIds ?? [],
-        knowledgeImport: normalized.knowledgeImport ?? null,
+    const openSnapshot = buildDocPersistSnapshot({
+      title: resolvePersistTitle({
+        draftTitle: loadedTitle,
+        draftCategory: loadedCategory,
+        draftVersion: loadedVersion,
+        draftDocKind: loadedDocKind,
+        draftSubcategoryDocIds: loadedSubcategoryDocIds,
       }),
-    );
+      blocks: blocksForSnapshot,
+      body: loadedBody,
+      createdDate: loadedCreatedDate,
+      version: loadedVersion,
+      category: loadedCategory,
+      launchAt: loadedLaunchDate ? isoFromDateInput(loadedLaunchDate) : null,
+      campaignActive: loadedCampaignActive,
+      parentObjectId: loadedParentId,
+      nodeLinkColor: loadedNodeLinkColor,
+      docKind: loadedDocKind,
+      templateKind: loadedTemplateKind,
+      subcategoryDocIds: loadedSubcategoryDocIds,
+      knowledgeImport: loadedKnowledgeImport,
+    });
+    setInitialSnapshot(openSnapshot);
+    docSnapshotRef.current = JSON.stringify(openSnapshot);
+    setShowUnsavedConfirm(false);
     setIsDraftReady(true);
   }, [docId]);
 
@@ -356,7 +398,12 @@ export function DocExpandedView({
 
     if (storeHasText && !draftHasText && (doc.reportPresentation?.animateOnOpen || isAgentReport)) {
       setDraftBlocks(storeBlocks);
-      setInitialSnapshot((prev) => (prev ? { ...prev, blocks: storeBlocks } : prev));
+      setInitialSnapshot((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, blocks: storeBlocks };
+        docSnapshotRef.current = JSON.stringify(next);
+        return next;
+      });
       return;
     }
 
@@ -369,7 +416,12 @@ export function DocExpandedView({
     if (JSON.stringify(draftBlocks) === JSON.stringify(storeBlocks)) return;
 
     setDraftBlocks(storeBlocks);
-    setInitialSnapshot((prev) => (prev ? { ...prev, blocks: storeBlocks } : prev));
+    setInitialSnapshot((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, blocks: storeBlocks };
+      docSnapshotRef.current = JSON.stringify(next);
+      return next;
+    });
   }, [doc, doc?.reportPresentation?.animateOnOpen, isDraftReady, initialSnapshot, draftBlocks, draftBody]);
 
   useEffect(() => {
@@ -455,13 +507,116 @@ export function DocExpandedView({
     draftParentId,
   ]);
 
+  const draftLaunchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
+
+  const hasUnsavedDocChanges = useCallback(() => {
+    const snap = docSnapshotRef.current;
+    if (!snap) return false;
+    const nextSnapshot = buildDocPersistSnapshot({
+      title: resolvePersistTitle({
+        draftTitle,
+        draftCategory,
+        draftVersion,
+        draftDocKind,
+        draftSubcategoryDocIds,
+      }),
+      blocks: draftBlocks,
+      body: draftBody,
+      createdDate: draftCreatedDate,
+      version: draftVersion,
+      category: draftCategory,
+      launchAt: draftLaunchAt,
+      campaignActive: draftCampaignActive,
+      parentObjectId: draftParentId,
+      nodeLinkColor: draftNodeLinkColor,
+      docKind: draftDocKind,
+      templateKind: draftTemplateKind,
+      subcategoryDocIds: draftSubcategoryDocIds,
+      knowledgeImport: draftKnowledgeImport,
+    });
+    return snap !== JSON.stringify(nextSnapshot);
+  }, [
+    draftTitle,
+    draftBlocks,
+    draftBody,
+    draftCreatedDate,
+    draftVersion,
+    draftCategory,
+    draftLaunchAt,
+    draftCampaignActive,
+    draftParentId,
+    draftNodeLinkColor,
+    draftDocKind,
+    draftTemplateKind,
+    draftSubcategoryDocIds,
+    draftKnowledgeImport,
+  ]);
+
+  const hasUnsavedChanges = hasUnsavedDocChanges();
+
+  const shouldDiscardEmptyDoc = () => {
+    if (!initialSnapshot) return false;
+    if (hasUnsavedChanges) return false;
+    const currentDoc = useDocsStore.getState().docs[docId];
+    if (currentDoc?.nodeIds?.length) return false;
+    const openedEmpty = isEmptyDocState(
+      initialSnapshot.title,
+      initialSnapshot.blocks,
+      initialSnapshot.body,
+    );
+    const stillEmpty = isEmptyDocState(draftTitle, draftBlocks, draftBody);
+    return openedEmpty && stillEmpty;
+  };
+
+  const discardEmptyDocOnClose = () => {
+    if (!shouldDiscardEmptyDoc()) return false;
+    onDocumentDeleted?.(docId);
+    useUIStateStore.getState().clearDocEditorDraft(docId);
+    deleteDoc(docId);
+    onClose();
+    return true;
+  };
+
+  const requestCloseDoc = useCallback((onProceed = null) => {
+    setPendingNavigateDocId(null);
+    pendingCloseActionRef.current = onProceed;
+    if (hasUnsavedDocChanges()) {
+      setShowUnsavedConfirm(true);
+      return;
+    }
+    if (discardEmptyDocOnClose()) {
+      pendingCloseActionRef.current = null;
+      onProceed?.();
+      return;
+    }
+    pendingCloseActionRef.current = null;
+    onClose();
+    onProceed?.();
+  }, [hasUnsavedDocChanges, onClose, onDocumentDeleted, docId, deleteDoc]);
+
+  useEffect(() => {
+    if (!registerCloseInterceptor) return undefined;
+    registerCloseInterceptor((onProceed) => requestCloseDoc(onProceed));
+    return () => registerCloseInterceptor(null);
+  }, [registerCloseInterceptor, requestCloseDoc]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      if (activeNodeContext || showUnsavedConfirm || showNodeUnsavedConfirm) return;
+      e.preventDefault();
+      requestCloseDoc();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeNodeContext, showUnsavedConfirm, showNodeUnsavedConfirm, requestCloseDoc]);
+
   if (!doc) return null;
 
   const objectList = Object.values(objects);
   const parentObject = draftParentId ? objects[draftParentId] : null;
   const headerLabel = parentObject?.name || "";
   const parentDocLabel = draftTitle.trim() || UNTITLED_DOC_LABEL;
-  const draftLaunchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
   const draftSnapshot = buildDocPersistSnapshot({
     title: resolvePersistTitle({
       draftTitle,
@@ -499,9 +654,6 @@ export function DocExpandedView({
         : "campaign";
   const isProductMode = metaMode === "product";
   const isKnowledgeMode = metaMode === "knowledge";
-  const hasUnsavedChanges = initialSnapshot
-    ? JSON.stringify(initialSnapshot) !== JSON.stringify(draftSnapshot)
-    : false;
 
   const handleDeleteDoc = () => {
     const category = draftCategory.trim();
@@ -628,6 +780,7 @@ export function DocExpandedView({
       linkDocToObject(doc.id, draftParentId || null);
     }
     setInitialSnapshot(savedSnapshot);
+    docSnapshotRef.current = JSON.stringify(savedSnapshot);
     useUIStateStore.getState().clearDocEditorDraft(doc.id);
     onAfterDocSave?.(doc.id, savedSnapshot.blocks);
   };
@@ -710,37 +863,8 @@ export function DocExpandedView({
     onClose();
   };
 
-  // A doc that was created blank and never got a title, body, or block text
-  // should not linger in the queue — drop it on close instead of persisting it.
-  const shouldDiscardEmptyDoc = () => {
-    if (!initialSnapshot) return false;
-    if (doc?.nodeIds?.length) return false;
-    const openedEmpty = isEmptyDocState(
-      initialSnapshot.title,
-      initialSnapshot.blocks,
-      initialSnapshot.body,
-    );
-    const stillEmpty = isEmptyDocState(draftTitle, draftBlocks, draftBody);
-    return openedEmpty && stillEmpty;
-  };
-
-  const discardEmptyDocOnClose = () => {
-    if (!shouldDiscardEmptyDoc()) return false;
-    onDocumentDeleted?.(docId);
-    useUIStateStore.getState().clearDocEditorDraft(docId);
-    deleteDoc(docId);
-    onClose();
-    return true;
-  };
-
   const handleRequestCloseDoc = () => {
-    setPendingNavigateDocId(null);
-    if (discardEmptyDocOnClose()) return;
-    if (hasUnsavedChanges) {
-      setShowUnsavedConfirm(true);
-      return;
-    }
-    onClose();
+    requestCloseDoc();
   };
 
   const navigateToDoc = (targetDocId) => {
@@ -752,7 +876,7 @@ export function DocExpandedView({
 
   const requestNavigateToDoc = (targetDocId) => {
     if (!targetDocId || targetDocId === docId) return;
-    if (hasUnsavedChanges) {
+    if (hasUnsavedDocChanges()) {
       setPendingNavigateDocId(targetDocId);
       setShowUnsavedConfirm(true);
       return;
@@ -1189,6 +1313,7 @@ export function DocExpandedView({
   return (
     <>
       <div ref={docShellRef} onContextMenu={handleContextMenu} hidden={hideDocForNodeModal}>
+        {isDraftReady ? (
         <DocDocumentBox
           headerLabel={headerLabel}
           title={draftTitle}
@@ -1271,6 +1396,7 @@ export function DocExpandedView({
           onReportAnimationComplete={handleReportAnimationComplete}
           onSavedStepSequenceRemoved={persistBlocksAfterPlaybookRemoval}
         />
+        ) : null}
       </div>
       {selectionModal && (
         <NodeFromSelectionModal
@@ -1311,94 +1437,49 @@ export function DocExpandedView({
           }
         />
       ) : null}
-      {showUnsavedConfirm && typeof document !== "undefined"
-        ? createPortal(
-            <div className="doc-unsaved-confirm-overlay" role="presentation">
-              <div
-                className="doc-unsaved-confirm"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="doc-unsaved-confirm-title"
-              >
-                <p id="doc-unsaved-confirm-title" className="doc-unsaved-confirm__text">
-                  {t("unsavedChanges.docPrompt")}
-                </p>
-                <div className="doc-unsaved-confirm__actions">
-                  <button
-                    type="button"
-                    className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
-                    onClick={() => {
-                      handleSave();
-                      setShowUnsavedConfirm(false);
-                      if (pendingNavigateDocId) {
-                        navigateToDoc(pendingNavigateDocId);
-                      } else {
-                        onClose();
-                      }
-                    }}
-                  >
-                    {t("unsavedChanges.yes")}
-                  </button>
-                  <button
-                    type="button"
-                    className="doc-unsaved-confirm__btn"
-                    onClick={() => {
-                      useUIStateStore.getState().clearDocEditorDraft(docId);
-                      setShowUnsavedConfirm(false);
-                      if (pendingNavigateDocId) {
-                        navigateToDoc(pendingNavigateDocId);
-                      } else {
-                        onClose();
-                      }
-                    }}
-                  >
-                    {t("unsavedChanges.no")}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
-      {showNodeUnsavedConfirm && typeof document !== "undefined"
-        ? createPortal(
-            <div className="doc-unsaved-confirm-overlay" role="presentation">
-              <div
-                className="doc-unsaved-confirm"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="node-unsaved-confirm-title"
-              >
-                <p id="node-unsaved-confirm-title" className="doc-unsaved-confirm__text">
-                  {t("unsavedChanges.nodePrompt")}
-                </p>
-                <div className="doc-unsaved-confirm__actions">
-                  <button
-                    type="button"
-                    className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
-                    onClick={() => {
-                      handleNodeModalSave();
-                      setShowNodeUnsavedConfirm(false);
-                    }}
-                  >
-                    {t("unsavedChanges.yes")}
-                  </button>
-                  <button
-                    type="button"
-                    className="doc-unsaved-confirm__btn"
-                    onClick={() => {
-                      setShowNodeUnsavedConfirm(false);
-                      resetNodeModalState();
-                    }}
-                  >
-                    {t("unsavedChanges.no")}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      <UnsavedChangesConfirm
+        open={showUnsavedConfirm}
+        titleId="doc-unsaved-confirm-title"
+        onYes={() => {
+          setShowUnsavedConfirm(false);
+          handleSave();
+          const proceed = pendingCloseActionRef.current;
+          pendingCloseActionRef.current = null;
+          if (pendingNavigateDocId) {
+            navigateToDoc(pendingNavigateDocId);
+            proceed?.();
+          } else {
+            onClose();
+            proceed?.();
+          }
+        }}
+        onNo={() => {
+          setShowUnsavedConfirm(false);
+          useUIStateStore.getState().clearDocEditorDraft(docId);
+          const proceed = pendingCloseActionRef.current;
+          pendingCloseActionRef.current = null;
+          if (pendingNavigateDocId) {
+            navigateToDoc(pendingNavigateDocId);
+            proceed?.();
+          } else {
+            onClose();
+            proceed?.();
+          }
+        }}
+      />
+      <UnsavedChangesConfirm
+        open={showNodeUnsavedConfirm}
+        promptKey="nodePrompt"
+        titleId="node-unsaved-confirm-title"
+        onYes={() => {
+          handleNodeModalSave();
+          setShowNodeUnsavedConfirm(false);
+        }}
+        onNo={() => {
+          setShowNodeUnsavedConfirm(false);
+          resetNodeModalState();
+        }}
+      />
     </>
   );
 }
