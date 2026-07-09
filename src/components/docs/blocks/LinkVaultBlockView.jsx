@@ -18,6 +18,7 @@ export function LinkVaultBlockView({
   openAddForm = false,
   compact = false,
   multilineDescription = false,
+  slashStack = false,
   labels,
   filterQuery = "",
   hideAddButton = false,
@@ -30,12 +31,12 @@ export function LinkVaultBlockView({
   const descRef = useRef(null);
 
   useEffect(() => {
-    if (!multilineDescription) return;
+    if (!multilineDescription && !slashStack) return;
     const el = descRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [draft.description, multilineDescription, isAdding]);
+  }, [draft.description, multilineDescription, slashStack, isAdding]);
 
   useEffect(() => {
     if (entries.length === 0) {
@@ -94,6 +95,125 @@ export function LinkVaultBlockView({
 
   const showAddForm = isAdding;
   const showAddButton = !hideAddButton && entries.length > 0 && !isAdding;
+  const useMultilineDescription = multilineDescription || slashStack;
+
+  if (slashStack) {
+    return (
+      <div
+        className={
+          "doc-vault-block doc-vault-block--link doc-vault-block--slash-stack"
+          + (compact ? " doc-vault-block--compact" : "")
+          + (entries.length === 0 ? " doc-vault-block--empty" : "")
+        }
+      >
+        {entries.length === 0 && onDeleteVault ? (
+          <div className="doc-vault-block__block-actions">
+            <button
+              type="button"
+              className="doc-vault-block__action doc-vault-block__action--close"
+              onClick={onDeleteVault}
+              aria-label="Eliminar bloque de links"
+              title="Eliminar"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
+
+        <div className="doc-vault-block__slash-card">
+          {visibleEntries.length > 0 ? (
+            <ul className="doc-vault-block__stack-list">
+              {visibleEntries.map((entry) => (
+                <li key={entry.id} className="doc-vault-block__stack-entry">
+                  <div className="doc-vault-block__stack-entry-body">
+                    <span className="doc-vault-block__stack-name">{entry.name}</span>
+                    {entry.description ? (
+                      <span className="doc-vault-block__stack-description">{entry.description}</span>
+                    ) : null}
+                    <a
+                      className="doc-vault-block__stack-link"
+                      href={entry.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {entry.url}
+                    </a>
+                  </div>
+                  <button
+                    type="button"
+                    className="doc-vault-block__stack-remove"
+                    onClick={() => handleRemoveEntry(entry.id)}
+                    aria-label={`Eliminar ${entry.name}`}
+                    title="Eliminar"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {showAddForm ? (
+            <div className="doc-vault-block__stack-form">
+              <input
+                ref={nameRef}
+                className="doc-vault-block__stack-field doc-vault-block__stack-field--name"
+                type="text"
+                value={draft.name}
+                placeholder={L.name}
+                onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+                onKeyDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+              <textarea
+                ref={descRef}
+                rows={1}
+                className="doc-vault-block__stack-field doc-vault-block__stack-field--description"
+                value={draft.description}
+                placeholder={L.description}
+                onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
+                onKeyDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+              <input
+                className="doc-vault-block__stack-field doc-vault-block__stack-field--url"
+                type="url"
+                value={draft.url}
+                placeholder={L.url}
+                onChange={(e) => setDraft((prev) => ({ ...prev, url: e.target.value }))}
+                onKeyDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+              <button
+                type="button"
+                className="doc-vault-block__stack-save"
+                disabled={!canSave}
+                onClick={handleSave}
+              >
+                {L.save}
+              </button>
+            </div>
+          ) : null}
+
+          {showAddButton ? (
+            <button
+              type="button"
+              className="doc-vault-block__stack-add"
+              onClick={() => {
+                setIsAdding(true);
+                setDraft(EMPTY_DRAFT);
+                window.requestAnimationFrame(() => nameRef.current?.focus());
+              }}
+              aria-label="Añadir link"
+            >
+              + link
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -176,7 +296,7 @@ export function LinkVaultBlockView({
             onKeyDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           />
-          {multilineDescription ? (
+          {useMultilineDescription ? (
             <textarea
               ref={descRef}
               rows={1}

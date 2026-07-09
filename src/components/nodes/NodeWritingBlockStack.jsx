@@ -579,6 +579,8 @@ export function NodeWritingBlockStack({
               className="node-writing-block-stack__vault"
             >
               <LinkVaultBlockView
+                multilineDescription
+                slashStack
                 entries={companyObjectId ? [] : (block.entries || [])}
                 compact
                 openAddForm={

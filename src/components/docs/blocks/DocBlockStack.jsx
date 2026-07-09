@@ -1560,6 +1560,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
           {block.type === DOC_BLOCK_TYPES.LINK_VAULT ? (
             <LinkVaultBlockView
+              multilineDescription
+              slashStack
               entries={companyObjectId ? [] : (block.entries || [])}
               openAddForm={focusBlockId === block.id}
               onSaveEntry={companyObjectId ? (entry) => {

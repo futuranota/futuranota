@@ -6673,6 +6673,254 @@ body.doc-content-resizing * {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.1fr) auto;
 }
 
+.doc-vault-block--link .doc-vault-block__form--link {
+  align-items: start;
+}
+
+.doc-vault-block--link .doc-vault-block__table td:nth-child(2) {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.doc-vault-block--link .doc-vault-block__input--description-multiline {
+  height: auto;
+  min-height: 30px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  line-height: 1.4;
+  resize: none;
+  overflow: hidden;
+}
+
+/* Slash-inserted URL table — stack layout aligned with doc-todo-plan */
+.doc-block-stack .doc-vault-block--slash-stack,
+.node-writing-block-stack__vault .doc-vault-block--slash-stack {
+  width: 100%;
+  padding: 11px 21px 14px 15px;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.node-writing-block-stack__vault .doc-vault-block--slash-stack {
+  padding: 0 15px;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__slash-card {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-entry:last-child {
+  border-bottom: none;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-entry:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-name {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.3;
+  color: #fff;
+  word-break: break-word;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-description {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.62);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-link {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #79b8ff;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-link:hover {
+  text-decoration: underline;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-remove {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 130, 130, 0.85);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-entry:hover .doc-vault-block__stack-remove,
+.doc-vault-block--slash-stack .doc-vault-block__stack-entry:focus-within .doc-vault-block__stack-remove {
+  opacity: 1;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-remove:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-list + .doc-vault-block__stack-form {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-field {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 6px 4px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  outline: none;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  line-height: 1.35;
+  color: #fff;
+  resize: none;
+  overflow: hidden;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-field--name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-field--description {
+  min-height: 24px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-field--url {
+  color: #79b8ff;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-field::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+  font-weight: 500;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-field--url::placeholder {
+  color: rgba(121, 184, 255, 0.45);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-field:hover,
+.doc-vault-block--slash-stack .doc-vault-block__stack-field:focus-visible {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-save {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-save:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-save:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-add {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-add:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-vault-block--slash-stack.doc-vault-block--empty .doc-vault-block__stack-form {
+  border-top: none;
+}
+
 .doc-vault-block__password-wrap {
   position: relative;
   min-width: 0;
