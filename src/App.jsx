@@ -1356,16 +1356,18 @@ useEffect(() => {
       )}
       {expandedNodeId && nodeEntities[expandedNodeId] ? (
         nodeEntities[expandedNodeId].dataType === "video" ? (
-          <VideoReferencePanel
-            nodeId={expandedNodeId}
-            searchQuery={
-              (nodeEntities[expandedNodeId].sourceQuery
-                || nodeEntities[expandedNodeId].title
-                || "").trim()
-            }
-            onClose={() => setExpandedNodeId(null)}
-            onSlashCreateNode={createNodeFromSlashAndInsert}
-          />
+        <VideoReferencePanel
+          nodeId={expandedNodeId}
+          searchQuery={
+            (nodeEntities[expandedNodeId].sourceQuery
+              || nodeEntities[expandedNodeId].title
+              || "").trim()
+          }
+          parentDocId={nodeEntities[expandedNodeId]?.parentDocId ?? null}
+          companyObjectId={filterObjectId || selectedObjectId || null}
+          onClose={() => setExpandedNodeId(null)}
+          onSlashCreateNode={createNodeFromSlashAndInsert}
+        />
         ) : (
           <StandaloneNodeModal
             node={nodeEntities[expandedNodeId]}

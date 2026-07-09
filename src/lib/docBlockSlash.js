@@ -78,9 +78,9 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Queue to table",
-    ghostHint: "queuetotable",
-    aliases: ["queuetotable", "queue to table", "queuetable", "urltable", "linktable", "link", "enlace", "url", "bookmark"],
+    label: "URL table",
+    ghostHint: "queue to table",
+    aliases: ["queue to table", "queuetotable", "queuetable", "urltable", "linktable", "link", "enlace", "url", "bookmark"],
     blockType: DOC_BLOCK_TYPES.LINK_VAULT,
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },

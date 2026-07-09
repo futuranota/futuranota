@@ -1033,6 +1033,7 @@ function IntelPanel({
           searchQuery={youtubeSearchQuery}
           parentDocId={intelParentDocId}
           blockIndex={intelBlockIndex}
+          companyObjectId={selectedObjectId}
           onClose={handleYoutubePanelClose}
           onSlashCreateNode={onSlashCreateNode}
         />

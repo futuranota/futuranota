@@ -6,6 +6,7 @@ export function VideoReferencePanel({
   searchQuery = "",
   parentDocId = null,
   blockIndex = null,
+  companyObjectId = null,
   onClose,
   onSlashCreateNode,
 }) {
@@ -26,6 +27,7 @@ export function VideoReferencePanel({
           searchQuery={searchQuery}
           parentDocId={parentDocId}
           blockIndex={blockIndex}
+          companyObjectId={companyObjectId}
           onClose={onClose}
           onSlashCreateNode={onSlashCreateNode}
         />

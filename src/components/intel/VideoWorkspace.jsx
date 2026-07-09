@@ -13,6 +13,7 @@ export function VideoWorkspace({
   searchQuery = "",
   parentDocId = null,
   blockIndex = null,
+  companyObjectId = null,
   embedded = false,
   onClose,
 }) {
@@ -101,6 +102,7 @@ export function VideoWorkspace({
         nodeId={nodeId}
         parentDocId={parentDocId}
         blockIndex={blockIndex}
+        companyObjectId={companyObjectId}
         onClose={embedded ? undefined : onClose}
         inlineTodosEnabled
         titleEditable

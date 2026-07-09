@@ -62,6 +62,7 @@ export function NoteTaker({
   nodeId: nodeIdProp = null,
   parentDocId = null,
   blockIndex = null,
+  companyObjectId: companyObjectIdProp = null,
   onClose,
   inlineTodosEnabled = false,
   titleEditable = false,
@@ -86,7 +87,14 @@ export function NoteTaker({
   const typographyStorageKey = resolvedNodeId ? `node:${resolvedNodeId}` : "note-taker";
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
   const parentDoc = useDocsStore((s) => (parentDocId ? s.docs[parentDocId] : null));
-  const companyObjectId = parentDoc?.parentObjectId ?? null;
+  const nodeLinkedDoc = useDocsStore((s) => {
+    const docId = node?.parentDocId;
+    return docId ? s.docs[docId] : null;
+  });
+  const companyObjectId = companyObjectIdProp
+    ?? parentDoc?.parentObjectId
+    ?? nodeLinkedDoc?.parentObjectId
+    ?? null;
 
   useEffect(() => {
     setResolvedNodeId(nodeIdProp);
@@ -149,6 +157,32 @@ export function NoteTaker({
   const hasContent = nodeWritingBlocksHaveContent(writingBody.blocks);
   const saveEnabled = hasContent && !saving;
   const showInlineWritingTools = inlineTodosEnabled || node?.dataType === NODE_DATA_TYPES.TEXT;
+
+  const handleWritingBlocksChange = useCallback((blocks) => {
+    const prevBlocks = writingBody.blocks;
+    setWritingBody({ blocks });
+
+    if (!companyObjectId) return;
+    const hadVault = prevBlocks?.some((block) => block.type === NODE_BLOCK_TYPES.LINK_VAULT);
+    const hasVault = blocks.some((block) => block.type === NODE_BLOCK_TYPES.LINK_VAULT);
+    if (!hadVault || hasVault) return;
+
+    const targetNodeId = resolveTargetNodeId();
+    if (!targetNodeId) return;
+    const liveNode = useNodesStore.getState().nodes[targetNodeId];
+    if (!liveNode) return;
+
+    const nextContent = liveNode.dataType === NODE_DATA_TYPES.VIDEO
+      ? buildNodeContentPayload({ blocks }, NODE_DATA_TYPES.VIDEO, liveNode)
+      : serializeNodeWritingBody({ blocks });
+    updateNode(targetNodeId, { content: nextContent });
+  }, [
+    buildNodeContentPayload,
+    companyObjectId,
+    resolveTargetNodeId,
+    updateNode,
+    writingBody.blocks,
+  ]);
 
   const appendBlockFromPicker = useCallback((alias) => {
     const parsed = parseNodeSlashQuery(alias);
@@ -438,7 +472,7 @@ export function NoteTaker({
               <NodeWritingBlockStack
                 className="note-taker__writing-stack"
                 blocks={writingBody.blocks}
-                onBlocksChange={(blocks) => setWritingBody({ blocks })}
+                onBlocksChange={handleWritingBlocksChange}
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
                 slashEnabled
