@@ -555,6 +555,7 @@ export function NodeWritingBlockStack({
               className="node-writing-block-stack__vault"
             >
               <PasswordVaultBlockView
+                slashStack
                 entries={companyObjectId ? [] : (block.entries || [])}
                 compact
                 openAddForm={

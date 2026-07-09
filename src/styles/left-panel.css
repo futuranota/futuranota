@@ -6717,9 +6717,27 @@ body.doc-content-resizing * {
   box-sizing: border-box;
 }
 
-.doc-vault-block--slash-stack .doc-vault-block__block-actions {
-  top: 8px;
-  right: 8px;
+.doc-vault-block--slash-stack .doc-vault-block__slash-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 21px;
+  margin-bottom: 2px;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__slash-hover-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.doc-vault-block--slash-stack:hover .doc-vault-block__slash-hover-actions,
+.doc-vault-block--slash-stack:focus-within .doc-vault-block__slash-hover-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .doc-vault-block--slash-stack .doc-vault-block__stack-list {
@@ -6913,18 +6931,19 @@ body.doc-content-resizing * {
 
 .doc-vault-block--slash-stack .doc-vault-block__stack-save {
   align-self: flex-start;
-  margin-top: 6px;
-  padding: 2px 8px;
+  margin-top: 8px;
+  height: 30px;
+  padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
   background: transparent;
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.2px;
   color: rgba(255, 255, 255, 0.75);
   cursor: pointer;
-  line-height: 1.2;
+  line-height: 1;
 }
 
 .doc-vault-block--slash-stack .doc-vault-block__stack-save:hover:not(:disabled) {
@@ -6963,7 +6982,140 @@ body.doc-content-resizing * {
 
 .doc-vault-block--slash-stack.doc-vault-block--empty .doc-vault-block__stack-form {
   border-top: none;
-  padding-right: 36px;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__slash-delete {
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.44px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__slash-delete:hover {
+  color: #fff;
+  border-color: rgba(255, 120, 120, 0.45);
+  background: rgba(255, 80, 80, 0.08);
+}
+
+/* Password slash — same card/width as todo, fields in a single row */
+.doc-vault-block--slash-row .doc-vault-block__row-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-entry:last-child {
+  border-bottom: none;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-entry:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-description {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  line-height: 1.35;
+  color: #fff;
+  word-break: break-word;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-password-value {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding-right: 30px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #fff;
+  word-break: break-all;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-vault-block--slash-row.doc-vault-block--empty .doc-vault-block__row-form {
+  border-top: none;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-list + .doc-vault-block__row-form {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-field--description,
+.doc-vault-block--slash-row .doc-vault-block__row-field--password {
+  min-height: 28px;
+  height: 28px;
+  padding-top: 0;
+  padding-bottom: 0;
+  color: #fff;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-field--password {
+  padding-right: 30px;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-eye {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-save {
+  align-self: center;
+  margin-top: 0;
+  height: 30px;
+}
+
+.doc-vault-block--slash-row .doc-vault-block__row-entry:hover .doc-vault-block__stack-remove,
+.doc-vault-block--slash-row .doc-vault-block__row-entry:focus-within .doc-vault-block__stack-remove {
+  opacity: 1;
+}
+
+@media (max-width: 720px) {
+  .doc-vault-block--slash-row .doc-vault-block__row-entry,
+  .doc-vault-block--slash-row .doc-vault-block__row-form {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-vault-block--slash-row .doc-vault-block__row-save {
+    justify-self: start;
+  }
 }
 
 .doc-vault-block__password-wrap {

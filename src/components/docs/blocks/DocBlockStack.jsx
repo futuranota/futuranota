@@ -1524,6 +1524,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
           {block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT ? (
             <PasswordVaultBlockView
+              slashStack
               entries={companyObjectId ? [] : (block.entries || [])}
               openAddForm={focusBlockId === block.id}
               onSaveEntry={companyObjectId ? (entry) => {

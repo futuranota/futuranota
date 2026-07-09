@@ -8,7 +8,7 @@ const DEFAULT_LABELS = {
   name: "Name",
   description: "Description",
   url: "URL",
-  save: "Guardar",
+  save: "Save",
 };
 
 export function LinkVaultBlockView({
@@ -107,21 +107,22 @@ export function LinkVaultBlockView({
           + (entries.length === 0 ? " doc-vault-block--empty" : "")
         }
       >
-        <div className="doc-vault-block__slash-card">
-          {entries.length === 0 && onDeleteVault ? (
-            <div className="doc-vault-block__block-actions">
+        {entries.length === 0 && onDeleteVault ? (
+          <div className="doc-vault-block__slash-header">
+            <div className="doc-vault-block__slash-hover-actions">
               <button
                 type="button"
-                className="doc-vault-block__action doc-vault-block__action--close"
+                className="doc-vault-block__slash-delete"
                 onClick={onDeleteVault}
-                aria-label="Eliminar bloque de links"
-                title="Eliminar"
+                aria-label="Delete"
               >
-                ×
+                delete
               </button>
             </div>
-          ) : null}
+          </div>
+        ) : null}
 
+        <div className="doc-vault-block__slash-card">
           {visibleEntries.length > 0 ? (
             <ul className="doc-vault-block__stack-list">
               {visibleEntries.map((entry) => (

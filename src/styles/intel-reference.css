@@ -446,6 +446,21 @@
   color: rgba(121, 184, 255, 0.45);
 }
 
+.note-taker__writing-stack .doc-vault-block--slash-row .doc-vault-block__row-entry {
+  border-bottom-color: rgba(129, 89, 91, 0.18);
+}
+
+.note-taker__writing-stack .doc-vault-block--slash-row .doc-vault-block__row-form {
+  border-top-color: rgba(129, 89, 91, 0.18);
+}
+
+.note-taker__writing-stack .doc-vault-block--slash-row .doc-vault-block__row-description,
+.note-taker__writing-stack .doc-vault-block--slash-row .doc-vault-block__row-password-value,
+.note-taker__writing-stack .doc-vault-block--slash-row .doc-vault-block__row-field--description,
+.note-taker__writing-stack .doc-vault-block--slash-row .doc-vault-block__row-field--password {
+  color: #fff;
+}
+
 .note-taker__writing-stack .doc-agent-cell__input {
   color: var(--text-1);
 }
