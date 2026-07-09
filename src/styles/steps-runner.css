@@ -640,9 +640,9 @@
 .url-table-page-overlay__shell {
   position: relative;
   z-index: 1;
-  width: min(1180px, calc(100vw - 32px));
-  height: min(94vh, 920px);
-  max-height: 94vh;
+  width: min(880px, calc(100vw - 48px));
+  height: min(78vh, 720px);
+  max-height: 78vh;
   display: flex;
   flex-direction: column;
   border: 1px solid #25292f;
@@ -678,9 +678,21 @@
 .url-table-page-overlay__search-wrap {
   flex: 1;
   min-width: 0;
+  max-width: 280px;
   position: relative;
   display: flex;
   align-items: center;
+}
+
+.url-table-page-overlay__search-wrap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 68%;
+  height: 1px;
+  background: var(--url-table-stroke);
+  pointer-events: none;
 }
 
 .url-table-page-overlay__search-icon {
@@ -708,7 +720,7 @@
   min-height: 0;
   padding: 0 0 6px 22px;
   border: none;
-  border-bottom: 1px solid var(--url-table-stroke);
+  border-bottom: none;
   border-radius: 0;
   background: transparent;
   color: #fff;
@@ -719,11 +731,16 @@
 
 .url-table-page-overlay__search:focus {
   outline: none;
-  border-bottom-color: color-mix(in oklab, var(--url-table-stroke) 70%, #fff);
+}
+
+.url-table-page-overlay__search-wrap:focus-within::after {
+  background: color-mix(in oklab, var(--url-table-stroke) 70%, #fff);
 }
 
 .url-table-page-overlay__search::placeholder {
   color: rgba(255, 255, 255, 0.28);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .url-table-page-overlay__header-actions {
@@ -731,6 +748,8 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
+  padding-right: 8px;
 }
 
 .url-table-page-overlay__add-btn {
@@ -834,12 +853,12 @@
 
 .url-table-dashboard .doc-vault-block__table th,
 .url-table-dashboard .doc-vault-block__table td {
-  text-align: center;
+  text-align: left;
   vertical-align: middle;
 }
 
 .url-table-dashboard .doc-vault-block__table td {
-  border-bottom: 1px solid var(--url-table-stroke, #313338);
+  border-bottom: none;
   font-size: 15px;
   font-weight: 500;
   color: #fff;
@@ -859,13 +878,19 @@
   width: 31%;
 }
 
-/* Name column: white when saved, full wrap */
+/* Name column: white when saved, full wrap, left-aligned with cell padding */
+.url-table-dashboard .doc-vault-block__table th:nth-child(1),
+.url-table-dashboard .doc-vault-block__table td:nth-child(1) {
+  text-align: left;
+}
+
 .url-table-dashboard .doc-vault-block__table td:nth-child(1) {
   font-size: 12px;
   font-weight: 600;
   color: #fff;
   white-space: normal;
   word-break: break-word;
+  padding-right: 16px;
 }
 
 /* Description column: left-aligned (matches edit position) */
@@ -882,16 +907,26 @@
   word-break: break-word;
 }
 
-/* Link column: single line, shown complete (scrolls if very long) */
+/* Link column: single line, left-aligned to match edit position */
 .url-table-dashboard .doc-vault-block__table th:nth-child(3),
 .url-table-dashboard .doc-vault-block__table td:nth-child(3) {
+  text-align: left;
   white-space: nowrap;
+}
+
+.url-table-dashboard .doc-vault-block__input--url {
+  color: #79b8ff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
 }
 
 .url-table-dashboard .doc-vault-block__link {
   color: #79b8ff;
   white-space: nowrap;
   word-break: normal;
+  font-size: 15px;
+  font-weight: 500;
 }
 
 /* Add-form fields blend into the background — no box, no color, equal base */
@@ -920,19 +955,13 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
-/* Name field — same size/color as saved name */
+/* Name field — same size/color as saved name, left-aligned */
 .url-table-dashboard .doc-vault-block__form--link > .doc-vault-block__input:first-child {
   font-size: 12px;
   font-weight: 600;
   color: #fff;
-  text-align: center;
-}
-
-.url-table-dashboard .doc-vault-block__input--url {
-  color: #79b8ff;
-  font-size: 13px;
-  font-weight: 500;
-  text-align: center;
+  text-align: left;
+  padding-right: 16px;
 }
 
 .url-table-dashboard .doc-vault-block__input--url::placeholder {
@@ -947,6 +976,8 @@
   color: #fff;
   font-size: 15px;
   font-weight: 500;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .url-table-dashboard .doc-vault-block__input::placeholder {
