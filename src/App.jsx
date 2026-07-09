@@ -45,11 +45,10 @@ import {
   stepPlaybookSessionHasContent,
 } from './lib/stepPlaybookSession.js';
 import {
-  createBlankUrlTableSession,
   persistUrlTableSession,
-  urlTableSessionFromRef,
   urlTableSessionHasContent,
 } from './lib/urlTableSession.js';
+import { loadCompanyUrlTableSession } from './lib/urlTableLibrary.js';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
@@ -920,15 +919,11 @@ useEffect(() => {
     });
   }, []);
 
-  const handleOpenNewUrlTable = useCallback((objectId) => {
+  const handleOpenUrlTableForCompany = useCallback((objectId) => {
     if (!objectId) return;
-    setActiveUrlTableSession(createBlankUrlTableSession(objectId));
-  }, []);
-
-  const handleOpenUrlTable = useCallback((table) => {
-    if (!table) return;
-    setActiveUrlTableSession(urlTableSessionFromRef(table));
-  }, []);
+    const docs = useDocsStore.getState().docs;
+    setActiveUrlTableSession(loadCompanyUrlTableSession(objectId, docs, t('urlTableLibrary.newDocTitle')));
+  }, [t]);
 
   const handleUrlTableSessionChange = useCallback((patch) => {
     setActiveUrlTableSession((current) => {
@@ -1189,9 +1184,7 @@ useEffect(() => {
             onDocumentDeleted={handleDocumentDeleted}
             onRunStepPlaybook={handleRunStepPlaybook}
             onOpenNewStepPlaybook={handleOpenNewStepPlaybook}
-            onOpenNewUrlTable={handleOpenNewUrlTable}
-            onOpenUrlTable={handleOpenUrlTable}
-            onUrlTableRemoved={handleUrlTableRemoved}
+            onOpenUrlTableForCompany={handleOpenUrlTableForCompany}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
             onStepPlaybookRemoved={handleStepPlaybookRemoved}

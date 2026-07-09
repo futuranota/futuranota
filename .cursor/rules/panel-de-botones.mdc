@@ -1,0 +1,73 @@
+---
+description: Design system "panel de botones" — full-page overlay panels opened from toolbar (URL table reference). Apply when the user asks for "panel de botones".
+globs: "**/*.{css,jsx,tsx}"
+alwaysApply: false
+---
+
+# Panel de botones
+
+Reference visual system for toolbar-triggered full-page overlay panels. First implementation: **URL table** (`UrlTableDashboardOverlay`, `src/styles/steps-runner.css`).
+
+Apply this when the user says **"panel de botones"** or asks to match the URL table panel look.
+
+## Layout
+
+- **Overlay backdrop**: solid `#0a0c10`, full screen, not clickable to close (only X / Save / Escape).
+- **Shell** (main card): ~94vh, wide (`min(1180px, 100vw - 32px)`), `border-radius: 14px`.
+- **Structure**: `header` (title + search + actions) → `body` (scrollable content) → `footer` (primary Save).
+
+## Color tokens
+
+| Token | Value | Use |
+|-------|-------|-----|
+| Overlay bg | `#0a0c10` | Screen behind panel |
+| Shell gradient | `linear-gradient(180deg, #1f2329 0%, #14181f 100%)` | Main card fill |
+| Shell stroke | `1px solid #25292f` | Outer card border |
+| Inner surface | `#16181f` | Table / inset content area |
+| Stroke / dividers | `#313338` | `--url-table-stroke` — borders, row lines, form separators |
+| Panel label | `#7d7e81` | Title + secondary/description text |
+| Body text | `#fff` at 15px / weight 500 | Primary cell content |
+| Muted / placeholder | `rgba(255,255,255,0.28)` | Empty states, placeholders |
+| Base text on shell | `#e8e4dc` | Shell default color |
+
+## Typography
+
+- **Panel title** (e.g. "URL table"): `12px`, semibold (`600`), `#7d7e81`.
+- **Table headers**: `10px`, uppercase, `600`, `rgba(255,255,255,0.42)`.
+- **Primary cells** (name, url): `15px`, weight `500`, white.
+- **Description / secondary cells**: `12px`, semibold (`600`), `#7d7e81`.
+
+## Header
+
+- Title left, **search** center (flex 1), **+** and **×** right.
+- Header/footer/body backgrounds: **transparent** (gradient shows through shell).
+- Header `border-bottom`: `1px solid #313338`.
+
+## Search (line style, no box)
+
+- No background, no border-radius, no filled dimension.
+- Only `border-bottom: 1px solid #313338`.
+- Lupa icon: `/uploads/search.svg` via CSS mask, color `#7d7e81`.
+- Input: `13px`, weight `500`, padding `0 0 6px 22px`.
+
+## Table / inner content
+
+- Inset block: `background #16181f`, `border 1px solid #313338`, `border-radius 8px`.
+- Row/column strokes: `#313338`.
+- Equal column widths (~31% each) when applicable.
+- Add-form fields: transparent (no box), blend into `#16181f`.
+- Minimal **+** in header (28×28, stroke `#313338`); not a full-width bar unless specified.
+
+## Footer
+
+- `border-top: 1px solid #313338`, transparent bg.
+- Primary action: reuse `doc-new-action doc-new-action--save` (white pill, 4px radius).
+
+## Class naming convention
+
+Prefix new panels with a BEM block, e.g. `url-table-page-overlay`, `url-table-page-overlay__shell`, `url-table-page-overlay__header`. Reuse `--url-table-stroke` or rename to `--panel-stroke` when generalizing.
+
+## Reference files
+
+- CSS: `src/styles/steps-runner.css` (block `/* URL table — full-page workspace */`)
+- Component: `src/components/urltable/UrlTableDashboardOverlay.jsx`

@@ -510,7 +510,8 @@ export const messages = {
       deleteTitle: "Delete step by step",
     },
     urlTableLibrary: {
-      searchPlaceholder: "Search URL tables…",
+      searchPlaceholder: "Search name, description or URL…",
+      addRow: "Add link",
       new: "New",
       newDocTitle: "URL table",
       defaultTitle: "URL table",

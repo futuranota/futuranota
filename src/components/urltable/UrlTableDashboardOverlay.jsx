@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -17,6 +17,8 @@ export function UrlTableDashboardOverlay({
   onSaved,
 }) {
   const { t } = useI18n();
+  const [query, setQuery] = useState("");
+  const [addFormRequest, setAddFormRequest] = useState(0);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -34,60 +36,75 @@ export function UrlTableDashboardOverlay({
     onSaved?.(session.entries);
   };
 
+  const handleAddRow = () => {
+    setAddFormRequest((value) => value + 1);
+  };
+
   return createPortal(
     <div
-      className="step-playbook-dashboard-overlay step-playbook-dashboard-overlay--url-table"
+      className="url-table-page-overlay"
       role="dialog"
       aria-modal="true"
       aria-label={t("pack.urlTableTitle")}
     >
-      <div
-        className="step-playbook-dashboard-overlay__backdrop"
-        aria-hidden
-      />
-      <div className="step-playbook-dashboard-overlay__card">
-        <button
-          type="button"
-          className="step-playbook-dashboard-overlay__close"
-          onClick={onCloseTab}
-          aria-label={t("urlTableLibrary.closeTab")}
-          title={t("urlTableLibrary.closeTab")}
-        >
-          ×
-        </button>
-        <div className="step-playbook-dashboard-overlay__body scroll-match-bg url-table-dashboard">
-          <div className="url-table-dashboard__title-wrap">
-            <label className="doc-step-sequence__title-label" htmlFor="url-table-title">
-              {t("pack.urlTableTitle")}
-            </label>
+      <div className="url-table-page-overlay__backdrop" aria-hidden />
+      <div className="url-table-page-overlay__shell">
+        <header className="url-table-page-overlay__header">
+          <h2 className="url-table-page-overlay__title">{t("pack.urlTableTitle")}</h2>
+          <div className="url-table-page-overlay__search-wrap">
+            <span className="url-table-page-overlay__search-icon" aria-hidden />
             <input
-              id="url-table-title"
-              className="doc-step-sequence__title-input"
-              type="text"
-              value={session.title}
-              placeholder={t("urlTableLibrary.titlePlaceholder")}
-              onChange={(e) => onChange({ title: e.target.value, saved: false })}
-              onKeyDown={(e) => e.stopPropagation()}
+              type="search"
+              className="url-table-page-overlay__search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("urlTableLibrary.searchPlaceholder")}
+              aria-label={t("urlTableLibrary.searchPlaceholder")}
             />
           </div>
+          <div className="url-table-page-overlay__header-actions">
+            <button
+              type="button"
+              className="url-table-page-overlay__add-btn"
+              onClick={handleAddRow}
+              aria-label={t("urlTableLibrary.addRow")}
+              title={t("urlTableLibrary.addRow")}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="url-table-page-overlay__close"
+              onClick={onCloseTab}
+              aria-label={t("urlTableLibrary.closeTab")}
+              title={t("urlTableLibrary.closeTab")}
+            >
+              ×
+            </button>
+          </div>
+        </header>
 
+        <div className="url-table-page-overlay__body scroll-match-bg url-table-dashboard">
           <LinkVaultBlockView
             entries={session.entries}
             onEntriesChange={(entries) => onChange({ entries, saved: false })}
             multilineDescription
+            hideAddButton
+            addFormRequest={addFormRequest}
+            filterQuery={query}
             labels={{ name: "Name", description: "Description", url: "URL", save: "Save" }}
           />
-
-          <div className="url-table-dashboard__footer">
-            <button
-              type="button"
-              className="doc-new-action doc-new-action--save url-table-dashboard__save"
-              onClick={handleSave}
-            >
-              {t("common.save")}
-            </button>
-          </div>
         </div>
+
+        <footer className="url-table-page-overlay__footer">
+          <button
+            type="button"
+            className="doc-new-action doc-new-action--save url-table-dashboard__save"
+            onClick={handleSave}
+          >
+            {t("common.save")}
+          </button>
+        </footer>
       </div>
     </div>,
     document.body,

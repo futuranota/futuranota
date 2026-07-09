@@ -76,7 +76,7 @@ export function persistUrlTableSession(session, {
     entries: session.entries,
   });
 
-  const docTitle = String(session.title ?? "").trim() || defaultTitle;
+  const docTitle = defaultTitle;
 
   if (!session.docId) {
     if (!session.objectId) {

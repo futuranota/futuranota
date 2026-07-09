@@ -7,6 +7,7 @@ import {
   removeBlockAt,
 } from "./docBlocks.js";
 import { normalizeLinkEntries } from "./vaultBlocks.js";
+import { createBlankUrlTableSession } from "./urlTableSession.js";
 import { resolveDocKind } from "./templateDoc.js";
 
 const PREVIEW_MAX = 120;
@@ -94,6 +95,68 @@ export function collectSavedUrlTables(docs, { objectId = null } = {}) {
   }
 
   return tables.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+}
+
+/**
+ * @param {import("./vaultBlocks.js").LinkEntry[]} entries
+ * @param {string} query
+ * @returns {import("./vaultBlocks.js").LinkEntry[]}
+ */
+export function filterUrlTableEntries(entries, query) {
+  const normalized = String(query ?? "").trim().toLowerCase();
+  if (!normalized) return entries;
+
+  return entries.filter((entry) => (
+    String(entry.name ?? "").toLowerCase().includes(normalized)
+    || String(entry.description ?? "").toLowerCase().includes(normalized)
+    || String(entry.url ?? "").toLowerCase().includes(normalized)
+  ));
+}
+
+/**
+ * Load or create the single company URL table session (all reference links on one page).
+ * @param {string|null} objectId
+ * @param {Record<string, import("../types/docs.js").Doc>} docs
+ * @param {string} [defaultTitle]
+ * @returns {import("./urlTableSession.js").UrlTableSession}
+ */
+export function loadCompanyUrlTableSession(objectId, docs, defaultTitle = "URL table") {
+  if (!objectId) {
+    return {
+      objectId: null,
+      docId: null,
+      blockId: "",
+      title: defaultTitle,
+      entries: [],
+      saved: false,
+    };
+  }
+
+  const tables = collectSavedUrlTables(docs, { objectId });
+  if (!tables.length) {
+    return { ...createBlankUrlTableSession(objectId), title: defaultTitle };
+  }
+
+  const canonical = tables.find((table) => table.title === defaultTitle) || tables[0];
+  const mergedEntries = [];
+  const seen = new Set();
+
+  for (const table of tables) {
+    for (const entry of table.entries) {
+      if (seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      mergedEntries.push({ ...entry });
+    }
+  }
+
+  return {
+    objectId,
+    docId: canonical.docId,
+    blockId: canonical.blockId,
+    title: defaultTitle,
+    entries: mergedEntries,
+    saved: true,
+  };
 }
 
 /**

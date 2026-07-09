@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createLinkEntry, normalizeUrlInput } from "../../../lib/vaultBlocks.js";
 
 const EMPTY_DRAFT = { name: "", description: "", url: "" };
@@ -18,6 +18,9 @@ export function LinkVaultBlockView({
   compact = false,
   multilineDescription = false,
   labels,
+  filterQuery = "",
+  hideAddButton = false,
+  addFormRequest = 0,
 }) {
   const L = { ...DEFAULT_LABELS, ...(labels || {}) };
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -46,6 +49,24 @@ export function LinkVaultBlockView({
     return () => window.clearTimeout(timer);
   }, [openAddForm]);
 
+  useEffect(() => {
+    if (!addFormRequest) return;
+    setIsAdding(true);
+    setDraft(EMPTY_DRAFT);
+    const timer = window.setTimeout(() => nameRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [addFormRequest]);
+
+  const visibleEntries = useMemo(() => {
+    const normalized = String(filterQuery ?? "").trim().toLowerCase();
+    if (!normalized) return entries;
+    return entries.filter((entry) => (
+      String(entry.name ?? "").toLowerCase().includes(normalized)
+      || String(entry.description ?? "").toLowerCase().includes(normalized)
+      || String(entry.url ?? "").toLowerCase().includes(normalized)
+    ));
+  }, [entries, filterQuery]);
+
   const canSave = Boolean(draft.name.trim() && draft.url.trim());
 
   const handleSave = useCallback(() => {
@@ -66,7 +87,7 @@ export function LinkVaultBlockView({
   }, [entries, onEntriesChange]);
 
   const showAddForm = isAdding;
-  const showAddButton = entries.length > 0 && !isAdding;
+  const showAddButton = !hideAddButton && entries.length > 0 && !isAdding;
 
   return (
     <div
@@ -90,7 +111,7 @@ export function LinkVaultBlockView({
         </div>
       ) : null}
 
-      {entries.length > 0 ? (
+      {visibleEntries.length > 0 ? (
         <div className="doc-vault-block__table-wrap">
           <table className="doc-vault-block__table">
             <thead>
@@ -102,7 +123,7 @@ export function LinkVaultBlockView({
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
+              {visibleEntries.map((entry) => (
                 <tr key={entry.id} className="doc-vault-block__row">
                   <td>{entry.name}</td>
                   <td>{entry.description || <span className="doc-vault-block__empty">—</span>}</td>
