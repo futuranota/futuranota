@@ -15,7 +15,7 @@ export function AgentBlockView({
   onKeyDown,
   onDelete,
   onDetach,
-  deleteLabel = "Eliminar",
+  deleteLabel = "Delete",
   autoFocus = false,
   compact = false,
 }) {
@@ -64,7 +64,7 @@ export function AgentBlockView({
           ref={textareaRef}
           className="doc-agent-cell__input"
           value={instruction}
-          placeholder="Describe tus instrucciones e.g. 'escríbeme varios titles para…' or 'escríbeme un blog para…'"
+          placeholder="Describe your instructions e.g. 'write several titles for…' or 'write a blog for…'"
           rows={3}
           spellCheck
           onChange={(e) => {

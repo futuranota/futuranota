@@ -4047,9 +4047,9 @@ body.doc-content-resizing * {
 
 .doc-agent-cell__label {
   font-family: var(--sans);
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: 0.68px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
   line-height: 1.2;
   color: #fff;
 }
