@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createLinkEntry, normalizeUrlInput } from "../../../lib/vaultBlocks.js";
 
 const EMPTY_DRAFT = { name: "", description: "", url: "" };
+const URL_FIELD_ICON = "/uploads/url-table.svg";
 
 const DEFAULT_LABELS = {
-  name: "Nombre",
-  description: "Descripción",
-  url: "Link",
+  name: "Name",
+  description: "Description",
+  url: "URL",
   save: "Guardar",
 };
 
@@ -106,21 +107,21 @@ export function LinkVaultBlockView({
           + (entries.length === 0 ? " doc-vault-block--empty" : "")
         }
       >
-        {entries.length === 0 && onDeleteVault ? (
-          <div className="doc-vault-block__block-actions">
-            <button
-              type="button"
-              className="doc-vault-block__action doc-vault-block__action--close"
-              onClick={onDeleteVault}
-              aria-label="Eliminar bloque de links"
-              title="Eliminar"
-            >
-              ×
-            </button>
-          </div>
-        ) : null}
-
         <div className="doc-vault-block__slash-card">
+          {entries.length === 0 && onDeleteVault ? (
+            <div className="doc-vault-block__block-actions">
+              <button
+                type="button"
+                className="doc-vault-block__action doc-vault-block__action--close"
+                onClick={onDeleteVault}
+                aria-label="Eliminar bloque de links"
+                title="Eliminar"
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+
           {visibleEntries.length > 0 ? (
             <ul className="doc-vault-block__stack-list">
               {visibleEntries.map((entry) => (
@@ -176,15 +177,24 @@ export function LinkVaultBlockView({
                 onKeyDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
               />
-              <input
-                className="doc-vault-block__stack-field doc-vault-block__stack-field--url"
-                type="url"
-                value={draft.url}
-                placeholder={L.url}
-                onChange={(e) => setDraft((prev) => ({ ...prev, url: e.target.value }))}
-                onKeyDown={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
+              <div className="doc-vault-block__stack-url-wrap">
+                <img
+                  src={URL_FIELD_ICON}
+                  alt=""
+                  aria-hidden
+                  className="doc-vault-block__stack-url-icon"
+                />
+                <input
+                  className="doc-vault-block__stack-field doc-vault-block__stack-field--url"
+                  type="url"
+                  value={draft.url}
+                  placeholder=""
+                  aria-label={L.url}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, url: e.target.value }))}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
+              </div>
               <button
                 type="button"
                 className="doc-vault-block__stack-save"

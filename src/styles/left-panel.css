@@ -6708,12 +6708,18 @@ body.doc-content-resizing * {
 }
 
 .doc-vault-block--slash-stack .doc-vault-block__slash-card {
+  position: relative;
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   overflow: hidden;
   box-sizing: border-box;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__block-actions {
+  top: 8px;
+  right: 8px;
 }
 
 .doc-vault-block--slash-stack .doc-vault-block__stack-list {
@@ -6762,7 +6768,7 @@ body.doc-content-resizing * {
   font-weight: 600;
   letter-spacing: 0.2px;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.62);
+  color: #fff;
   word-break: break-word;
   white-space: pre-wrap;
 }
@@ -6846,7 +6852,45 @@ body.doc-content-resizing * {
 
 .doc-vault-block--slash-stack .doc-vault-block__stack-field--description {
   min-height: 24px;
-  color: rgba(255, 255, 255, 0.62);
+  color: #fff;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-url-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  padding: 2px 4px;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-url-wrap:hover,
+.doc-vault-block--slash-stack .doc-vault-block__stack-url-wrap:focus-within {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-url-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  display: block;
+  object-fit: contain;
+  opacity: 0.72;
+  filter: brightness(0) invert(1);
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-url-wrap .doc-vault-block__stack-field--url {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-url-wrap:hover .doc-vault-block__stack-field--url,
+.doc-vault-block--slash-stack .doc-vault-block__stack-url-wrap:focus-within .doc-vault-block__stack-field--url,
+.doc-vault-block--slash-stack .doc-vault-block__stack-field--url:hover,
+.doc-vault-block--slash-stack .doc-vault-block__stack-field--url:focus-visible {
+  background: transparent;
 }
 
 .doc-vault-block--slash-stack .doc-vault-block__stack-field--url {
@@ -6854,7 +6898,7 @@ body.doc-content-resizing * {
 }
 
 .doc-vault-block--slash-stack .doc-vault-block__stack-field::placeholder {
-  color: rgba(255, 255, 255, 0.28);
+  color: #848586;
   font-weight: 500;
 }
 
@@ -6919,6 +6963,7 @@ body.doc-content-resizing * {
 
 .doc-vault-block--slash-stack.doc-vault-block--empty .doc-vault-block__stack-form {
   border-top: none;
+  padding-right: 36px;
 }
 
 .doc-vault-block__password-wrap {

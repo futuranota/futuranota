@@ -412,6 +412,40 @@
   padding: 0;
 }
 
+/* URL table slash stack — same width + card surface as todo in this panel */
+.note-taker__writing-stack .node-writing-block-stack__vault .doc-vault-block--slash-stack {
+  padding: 0;
+  width: 100%;
+}
+
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__slash-card {
+  background: rgba(0, 0, 0, 0.14);
+  border-color: rgba(129, 89, 91, 0.22);
+}
+
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__stack-entry {
+  border-bottom-color: rgba(129, 89, 91, 0.18);
+}
+
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__stack-form,
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__stack-add {
+  border-top-color: rgba(129, 89, 91, 0.18);
+}
+
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__stack-field,
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__stack-name,
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__stack-description {
+  color: #fff;
+}
+
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__stack-field::placeholder {
+  color: #848586;
+}
+
+.note-taker__writing-stack .doc-vault-block--slash-stack .doc-vault-block__stack-field--url::placeholder {
+  color: rgba(121, 184, 255, 0.45);
+}
+
 .note-taker__writing-stack .doc-agent-cell__input {
   color: var(--text-1);
 }
