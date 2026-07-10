@@ -785,7 +785,7 @@ function CanvasNode({
           </span>
         )}
         <span className="cnode-type" data-t={knowledgeCorpus ? "corpus" : node.dataType}>
-          {knowledgeCorpus ? "corpus" : node.dataType}
+          {knowledgeCorpus ? "corpus" : node.dataType === "document" ? "Box" : node.dataType}
         </span>
       </div>
       {renderContent()}
