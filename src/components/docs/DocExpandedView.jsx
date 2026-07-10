@@ -123,6 +123,10 @@ function resolvePersistTitle({
       || draftTitle.trim()
       || "";
   }
+  // Content docs are file-boxes grouped by category — title and category stay in sync.
+  if (kind === DOC_KIND_CONTENT) {
+    return draftTitle.trim() || draftCategory.trim() || "";
+  }
   return draftTitle ?? "";
 }
 
@@ -654,6 +658,9 @@ export function DocExpandedView({
         : "campaign";
   const isProductMode = metaMode === "product";
   const isKnowledgeMode = metaMode === "knowledge";
+  const isContentMode = metaMode === "content";
+  /** Products + Content: title and category mirror each other (file-box grouping). */
+  const syncTitleWithCategory = isProductMode || isContentMode;
 
   const handleDeleteDoc = () => {
     const category = draftCategory.trim();
@@ -742,13 +749,17 @@ export function DocExpandedView({
       setDraftBlocks(storeBlocks);
     }
 
+    const categoryToSave = isContentMode
+      ? (draftCategory.trim() || title)
+      : draftCategory;
+
     const savedSnapshot = buildDocPersistSnapshot({
       title,
       blocks: blocksToSave,
       body: draftBody || docBlocksToBody(blocksToSave) || storeDoc?.body || storeDoc?.content || "",
       createdDate: draftCreatedDate,
       version: draftVersion,
-      category: draftCategory,
+      category: categoryToSave,
       launchAt: draftLaunchAt,
       campaignActive: draftCampaignActive,
       parentObjectId: isKnowledgeMode ? "" : draftParentId,
@@ -1319,14 +1330,16 @@ export function DocExpandedView({
           title={draftTitle}
           onTitleChange={(v) => {
             setDraftTitle(v);
-            if (isProductMode) setDraftCategory(v);
+            if (syncTitleWithCategory) setDraftCategory(v);
           }}
           titlePlaceholder={
             isProductMode
               ? "Product's name"
               : isKnowledgeMode
                 ? "Document title"
-                : "Write your description"
+                : isContentMode
+                  ? "Describe Category"
+                  : "Write your description"
           }
           body={draftBody}
           onBodyChange={(v) => {
@@ -1348,7 +1361,7 @@ export function DocExpandedView({
           category={isTemplate ? "" : draftCategory}
           onCategoryChange={isTemplate ? undefined : (v) => {
             setDraftCategory(v);
-            if (isProductMode) setDraftTitle(v);
+            if (syncTitleWithCategory) setDraftTitle(v);
           }}
           launchDate={isTemplate ? "" : draftLaunchDate}
           onLaunchDateChange={isTemplate ? undefined : (v) => {

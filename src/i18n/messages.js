@@ -209,6 +209,7 @@ export const messages = {
       productName: "Product's name",
       documentTitle: "Document title",
       writeDescription: "Write your description",
+      categoryFileBox: "Describe Category",
       newProduct: "New product",
       newKnowledge: "New knowledge",
       newDocument: "New document",

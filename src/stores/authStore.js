@@ -5,6 +5,7 @@ import { getAppOrigin, resolveOAuthReturn, startGoogleOAuth } from '../lib/authR
 import { getSupabaseConfigError } from '../lib/supabaseClient';
 import { flushPersistenceSync } from './middleware/persistenceMiddleware.js';
 import { clearPendingProCheckout } from '../lib/pendingCheckout.js';
+import { clearLeftPanelNavSnapshot } from './uiStateStore.js';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -88,6 +89,7 @@ export const useAuthStore = create((set) => ({
   signOut: async () => {
     await flushPersistenceSync();
     clearPendingProCheckout();
+    clearLeftPanelNavSnapshot();
     await supabase.auth.signOut();
     set({ user: null, session: null });
   },

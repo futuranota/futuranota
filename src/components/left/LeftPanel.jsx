@@ -10,6 +10,11 @@ import {
   useUpgradeModalStore,
   FREE_LIMITS,
 } from "../../stores/index.js";
+import {
+  readLeftPanelNavSnapshot,
+  writeLeftPanelNavSnapshot,
+  clearLeftPanelNavSnapshot,
+} from "../../stores/uiStateStore.js";
 import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { getAgentsForUser, AGENT_MARKETING_GUIDE } from "../../lib/agents/registry.js";
@@ -771,8 +776,11 @@ function DocCreateModal({
   const createSnapshotRef = useRef(null);
   const isProductMode = createMode === "product";
   const isKnowledgeMode = createMode === "knowledge";
+  const isContentMode = createMode === "content" || (!isProductMode && !isKnowledgeMode);
   const metaMode = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
   const docKind = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
+  /** Products + Content: title and category mirror each other (file-box grouping). */
+  const syncTitleWithCategory = isProductMode || isContentMode;
 
   useEffect(() => {
     setParentId(fallbackParent);
@@ -858,12 +866,12 @@ function DocCreateModal({
 
   const handleTitleChange = (value) => {
     setTitle(value);
-    if (isProductMode) setCategory(value);
+    if (syncTitleWithCategory) setCategory(value);
   };
 
   const handleCategoryChange = (value) => {
     setCategory(value);
-    if (isProductMode) setTitle(value);
+    if (syncTitleWithCategory) setTitle(value);
   };
 
   const {
@@ -908,14 +916,14 @@ function DocCreateModal({
   const submitDoc = () => {
     const trimmedCategory = category.trim();
     const productName = title.trim() || trimmedCategory;
-    const finalCategory = isProductMode
+    const finalCategory = (isProductMode || isContentMode)
       ? (trimmedCategory || productName)
       : trimmedCategory;
     const finalTitle = isProductMode
       ? (formatProductDocTitle(finalCategory || productName, version.trim()) || productName || t("sidebar.newProduct"))
       : isKnowledgeMode
         ? (finalCategory || title.trim() || t("sidebar.newKnowledge"))
-        : (title.trim() || t("sidebar.newDocument"));
+        : (title.trim() || finalCategory || t("sidebar.newDocument"));
     const autoTags = isKnowledgeMode ? [] : (parentObject?.name ? [parentObject.name] : []);
     const serializedBody = docBlocksToBody(blocks) || body;
     onSubmit({
@@ -950,7 +958,9 @@ function DocCreateModal({
               ? t("sidebar.productName")
               : isKnowledgeMode
                 ? t("sidebar.documentTitle")
-                : t("sidebar.writeDescription")
+                : isContentMode
+                  ? t("sidebar.categoryFileBox")
+                  : t("sidebar.writeDescription")
           }
           body={body}
           onBodyChange={setBody}
@@ -1200,6 +1210,7 @@ export function LeftPanel({
   const [packImportActive, setPackImportActive] = useState(false);
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
   const [lazyTodosActive, setLazyTodosActive] = useState(false);
+  const [leftPanelNavRestored, setLeftPanelNavRestored] = useState(false);
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
@@ -1524,6 +1535,7 @@ export function LeftPanel({
     setFilterObjectId(null);
     setActiveId(null);
     setNodeSearch("");
+    clearLeftPanelNavSnapshot();
   };
 
   const openDocumentsForObject = (objectId) => {
@@ -1534,6 +1546,79 @@ export function LeftPanel({
     closePackImportView();
     if (rootObjectId) openDocumentsForObject(rootObjectId);
   };
+
+  // Restore sidebar navigation after reload (panelType / company workspace / folder).
+  // Wait until the target company exists in the store (hydrate may finish after first paint).
+  useEffect(() => {
+    if (leftPanelNavRestored) return;
+
+    const snap = readLeftPanelNavSnapshot();
+    if (!snap) {
+      setLeftPanelNavRestored(true);
+      return;
+    }
+
+    const objectId = snap.selectedObjectId || snap.filterObjectId || null;
+    if (objectId && !objects[objectId]) {
+      // Hydrate still in flight, or company was deleted — keep waiting briefly.
+      const objectCount = Object.keys(objects || {}).length;
+      if (objectCount > 0) {
+        setLeftPanelNavRestored(true);
+      }
+      return;
+    }
+
+    if (snap.objectWorkspaceActive && objectId && objects[objectId]) {
+      setSelectedObjectId(objectId);
+      setFilterObjectId(objectId);
+      setObjectWorkspaceActive(true);
+      const nextPanel = ["Documents", "Nodes", "Objects"].includes(snap.panelType)
+        ? snap.panelType
+        : "Documents";
+      setPanelType(nextPanel);
+      if (typeof snap.clickFolderView === "string" || snap.clickFolderView === null) {
+        setClickFolderView(snap.clickFolderView);
+      }
+    } else if (objectId && objects[objectId]) {
+      setSelectedObjectId(objectId);
+      setFilterObjectId(objectId);
+    }
+
+    setLeftPanelNavRestored(true);
+  }, [
+    leftPanelNavRestored,
+    objects,
+    setSelectedObjectId,
+    setFilterObjectId,
+  ]);
+
+  // If hydrate never yields the saved company, stop waiting so nav can persist again.
+  useEffect(() => {
+    if (leftPanelNavRestored) return undefined;
+    const timer = window.setTimeout(() => {
+      setLeftPanelNavRestored(true);
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [leftPanelNavRestored]);
+
+  // Persist sidebar navigation so reload does not bounce back to Company root.
+  useEffect(() => {
+    if (!leftPanelNavRestored) return;
+    writeLeftPanelNavSnapshot({
+      panelType,
+      objectWorkspaceActive,
+      filterObjectId,
+      selectedObjectId,
+      clickFolderView,
+    });
+  }, [
+    leftPanelNavRestored,
+    panelType,
+    objectWorkspaceActive,
+    filterObjectId,
+    selectedObjectId,
+    clickFolderView,
+  ]);
 
   useEffect(() => {
     if (!objectWorkspaceActive && panelType !== "Objects") {

@@ -240,6 +240,265 @@ function emptyWorkspaceSnapshot() {
   };
 }
 
+/**
+ * Score how much real workspace content a snapshot holds.
+ * Used to avoid wiping a rich localStorage with a stale/empty remote hydrate.
+ * @param {Record<string, unknown>|null|undefined} state
+ */
+function workspaceContentScore(state) {
+  if (!state || typeof state !== "object") {
+    return { docCount: 0, nodeCount: 0, objectCount: 0, contentChars: 0, maxUpdated: 0 };
+  }
+  const docs = state.docs && typeof state.docs === "object" ? state.docs : {};
+  const nodes = state.nodes && typeof state.nodes === "object" ? state.nodes : {};
+  const objects = state.objects && typeof state.objects === "object" ? state.objects : {};
+
+  let contentChars = 0;
+  let maxUpdated = 0;
+
+  const bumpUpdated = (value) => {
+    const t = Date.parse(String(value || "")) || 0;
+    if (t > maxUpdated) maxUpdated = t;
+  };
+
+  for (const doc of Object.values(docs)) {
+    if (!doc || typeof doc !== "object") continue;
+    contentChars += String(doc.body || doc.content || "").length;
+    contentChars += String(doc.title || "").length;
+    contentChars += String(doc.category || "").length;
+    const tags = Array.isArray(doc.tags) ? doc.tags : [];
+    contentChars += tags.join(",").length;
+    const blocks = Array.isArray(doc.blocks) ? doc.blocks : [];
+    for (const block of blocks) {
+      if (!block || typeof block !== "object") continue;
+      contentChars += String(block.text || "").length;
+      contentChars += String(block.title || "").length;
+    }
+    bumpUpdated(doc.updatedAt || doc.createdAt);
+  }
+
+  for (const node of Object.values(nodes)) {
+    if (!node || typeof node !== "object") continue;
+    contentChars += String(node.content || "").length;
+    contentChars += String(node.title || "").length;
+    bumpUpdated(node.updatedAt || node.createdAt);
+  }
+
+  for (const obj of Object.values(objects)) {
+    if (!obj || typeof obj !== "object") continue;
+    bumpUpdated(obj.updatedAt || obj.createdAt);
+  }
+
+  return {
+    docCount: Object.keys(docs).length,
+    nodeCount: Object.keys(nodes).length,
+    objectCount: Object.keys(objects).length,
+    contentChars,
+    maxUpdated,
+  };
+}
+
+/**
+ * True when local snapshot is clearly richer / newer than remote and must not be wiped.
+ * @param {Record<string, unknown>|null|undefined} local
+ * @param {Record<string, unknown>|null|undefined} remote
+ */
+function isLocalRicherThanRemote(local, remote) {
+  const L = workspaceContentScore(local);
+  const R = workspaceContentScore(remote);
+
+  if (L.docCount === 0 && L.nodeCount === 0 && L.objectCount === 0) return false;
+
+  // Empty remote vs non-empty local — classic wipe after debounce miss
+  if (R.docCount === 0 && L.docCount > 0) return true;
+  if (R.objectCount === 0 && L.objectCount > 0) return true;
+  if (R.nodeCount === 0 && L.nodeCount > 0 && L.contentChars > R.contentChars) return true;
+
+  // Local has more entities and at least as much content
+  if (L.docCount > R.docCount && L.contentChars >= R.contentChars) return true;
+
+  // Local is newer and not poorer in content
+  if (L.maxUpdated > R.maxUpdated + 1500 && L.contentChars >= Math.floor(R.contentChars * 0.9)) {
+    return true;
+  }
+
+  // Local has substantially more text with similar entity counts
+  if (L.contentChars > R.contentChars * 1.25 && L.docCount >= R.docCount) return true;
+
+  return false;
+}
+
+/**
+ * Union maps by id; when both exist, keep the newer updatedAt (ties → richer string content).
+ * @param {Record<string, object>} remoteMap
+ * @param {Record<string, object>} localMap
+ * @param {(item: object) => number} [contentLen]
+ */
+function mergeEntityMapsPreferNewer(remoteMap, localMap, contentLen) {
+  const remote = remoteMap && typeof remoteMap === "object" ? remoteMap : {};
+  const local = localMap && typeof localMap === "object" ? localMap : {};
+  const out = { ...remote };
+  const len = typeof contentLen === "function"
+    ? contentLen
+    : (item) => String(item?.content || item?.body || item?.title || "").length;
+
+  for (const [id, localItem] of Object.entries(local)) {
+    if (!localItem || typeof localItem !== "object") continue;
+    const remoteItem = out[id];
+    if (!remoteItem) {
+      out[id] = localItem;
+      continue;
+    }
+    const localT = Date.parse(String(localItem.updatedAt || localItem.createdAt || "")) || 0;
+    const remoteT = Date.parse(String(remoteItem.updatedAt || remoteItem.createdAt || "")) || 0;
+    if (localT > remoteT) {
+      out[id] = localItem;
+    } else if (localT === remoteT && len(localItem) > len(remoteItem)) {
+      out[id] = localItem;
+    }
+  }
+  return out;
+}
+
+/**
+ * Rebuild company.children from docs.parentObjectId after a merge.
+ * @param {Record<string, object>} objects
+ * @param {Record<string, object>} docs
+ */
+function rebuildObjectChildren(objects, docs) {
+  const next = {};
+  for (const [id, obj] of Object.entries(objects || {})) {
+    next[id] = { ...obj, children: [] };
+  }
+  for (const doc of Object.values(docs || {})) {
+    const parentId = doc?.parentObjectId;
+    if (parentId && next[parentId]) {
+      next[parentId].children.push(doc.id);
+    }
+  }
+  return next;
+}
+
+/**
+ * Merge remote hydrate with localStorage so a stale/empty remote cannot wipe local work.
+ * @param {Record<string, unknown>} remoteState
+ * @param {Record<string, unknown>|null} localState
+ * @returns {{ state: Record<string, unknown>, preferredLocal: boolean }}
+ */
+function mergeRemoteWithLocalSnapshot(remoteState, localState) {
+  if (!localState) {
+    return { state: remoteState, preferredLocal: false };
+  }
+
+  if (isLocalRicherThanRemote(localState, remoteState)) {
+    return {
+      state: {
+        ...remoteState,
+        objects: localState.objects || {},
+        docs: localState.docs || {},
+        nodes: localState.nodes || {},
+        canvasNodes: localState.canvasNodes || remoteState.canvasNodes || {},
+        canvasConnections: localState.canvasConnections || remoteState.canvasConnections || {},
+        groupings: localState.groupings || remoteState.groupings || {},
+        timelines: localState.timelines || remoteState.timelines || {},
+      },
+      preferredLocal: true,
+    };
+  }
+
+  const docs = mergeEntityMapsPreferNewer(
+    remoteState.docs,
+    localState.docs,
+    (doc) => {
+      let n = String(doc?.body || doc?.content || "").length + String(doc?.title || "").length;
+      for (const block of Array.isArray(doc?.blocks) ? doc.blocks : []) {
+        n += String(block?.text || "").length + String(block?.title || "").length;
+      }
+      return n;
+    },
+  );
+  const nodes = mergeEntityMapsPreferNewer(
+    remoteState.nodes,
+    localState.nodes,
+    (node) => String(node?.content || "").length + String(node?.title || "").length,
+  );
+  const objectsRaw = mergeEntityMapsPreferNewer(
+    remoteState.objects,
+    localState.objects,
+    (obj) => String(obj?.name || "").length,
+  );
+
+  // Preserve classification fields when remote row is empty/stale but local still has them.
+  const localDocs = localState.docs && typeof localState.docs === "object" ? localState.docs : {};
+  for (const [id, doc] of Object.entries(docs)) {
+    const localDoc = localDocs[id];
+    if (!doc || !localDoc) continue;
+    const remoteTags = Array.isArray(doc.tags) ? doc.tags.filter(Boolean) : [];
+    const localTags = Array.isArray(localDoc.tags) ? localDoc.tags.filter(Boolean) : [];
+    if (remoteTags.length === 0 && localTags.length > 0) {
+      doc.tags = [...localTags];
+    }
+    if (!String(doc.category || "").trim() && String(localDoc.category || "").trim()) {
+      doc.category = localDoc.category;
+    }
+    if (!doc.parentObjectId && localDoc.parentObjectId) {
+      doc.parentObjectId = localDoc.parentObjectId;
+    }
+    if ((!doc.docKind || doc.docKind === "standard")
+      && localDoc.docKind
+      && localDoc.docKind !== "standard") {
+      doc.docKind = localDoc.docKind;
+    }
+  }
+
+  // Re-link nodeIds on docs after merge
+  for (const doc of Object.values(docs)) {
+    if (doc && typeof doc === "object") doc.nodeIds = [];
+  }
+  for (const node of Object.values(nodes)) {
+    if (node?.parentDocId && docs[node.parentDocId]) {
+      docs[node.parentDocId].nodeIds.push(node.id);
+    }
+  }
+
+  return {
+    state: {
+      ...remoteState,
+      objects: rebuildObjectChildren(objectsRaw, docs),
+      docs,
+      nodes,
+      canvasNodes: mergeEntityMapsPreferNewer(
+        remoteState.canvasNodes,
+        localState.canvasNodes,
+      ),
+      canvasConnections: mergeEntityMapsPreferNewer(
+        remoteState.canvasConnections,
+        localState.canvasConnections,
+      ),
+      groupings: mergeEntityMapsPreferNewer(
+        remoteState.groupings,
+        localState.groupings,
+      ),
+      timelines: mergeEntityMapsPreferNewer(
+        remoteState.timelines,
+        localState.timelines,
+      ),
+    },
+    preferredLocal: false,
+  };
+}
+
+function readLocalWorkspaceSnapshot() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return sanitizePersistedSnapshot(parsed);
+  } catch {
+    return null;
+  }
+}
+
 let flushPersistenceSyncImpl = async () => {};
 
 export function initPersistenceMiddleware(stores) {
@@ -322,7 +581,16 @@ export function initPersistenceMiddleware(stores) {
   };
 
   const finishWorkspaceHydration = () => {
-    seedDefaultWorkspaceIfEmpty();
+    const { objects, addObject } = useObjectsStore.getState();
+    const pruned = pruneStrayDefaultYo(objects);
+    if (pruned !== objects) {
+      useObjectsStore.setState({ objects: pruned });
+    }
+    const nextObjects = useObjectsStore.getState().objects;
+    if (Object.keys(nextObjects).length > 0) return;
+    if (!findObjectIdByName(nextObjects, "yo")) {
+      addObject("yo", "");
+    }
   };
 
   const loadLocalFallback = () => {
@@ -515,7 +783,7 @@ export function initPersistenceMiddleware(stores) {
         };
       });
 
-      applyStateToStores({
+      const remoteState = {
         objects: mergeLocalCadenceIntoObjects(objects),
         docs,
         nodes,
@@ -524,11 +792,25 @@ export function initPersistenceMiddleware(stores) {
         groupings,
         timelines,
         currentTier: "all",
-      });
+      };
+
+      const localSnapshot = readLocalWorkspaceSnapshot();
+      const { state: hydratedState, preferredLocal } = mergeRemoteWithLocalSnapshot(
+        remoteState,
+        localSnapshot,
+      );
+
+      if (preferredLocal) {
+        console.warn(
+          "Supabase hydrate looked poorer than localStorage — keeping local workspace and pushing to remote.",
+        );
+      }
+
+      applyStateToStores(hydratedState);
 
       finishWorkspaceHydration();
 
-      const docIds = Object.keys(docs);
+      const docIds = Object.keys(useDocsStore.getState().docs || {});
       let timelineUi = pickTimelineUiState(loadLocalTimelineUiFallback());
       try {
         const { data: timelineUiRow, error: timelineUiErr } = await supabase
@@ -563,7 +845,19 @@ export function initPersistenceMiddleware(stores) {
 
       isSyncedWithRemote = true;
       console.log("Supabase sync loaded for user:", userId);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalState()));
+      const finalState = getLocalState();
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(finalState));
+      } catch {
+        // private mode / quota
+      }
+
+      // If we kept local over a poorer remote, push immediately so the next reload is safe.
+      if (preferredLocal) {
+        syncToSupabase(finalState).catch((err) => {
+          console.warn("Failed to push preferred-local workspace to Supabase:", err);
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn("Supabase load failed — falling back to localStorage.", message);
@@ -632,7 +926,8 @@ export function initPersistenceMiddleware(stores) {
         template_kind: doc.templateKind || null,
         subcategory_doc_ids: doc.subcategoryDocIds || [],
         version: docVersionToDbInt(doc.version),
-        category: doc.category || "",
+        // DB column is VARCHAR(50) — truncate so one long category cannot fail the whole upsert batch.
+        category: String(doc.category || "").slice(0, 50),
         launch_at: doc.launchAt || null,
         campaign_active: doc.campaignActive !== false,
         node_link_color: doc.nodeLinkColor || "mint",
@@ -799,6 +1094,47 @@ export function initPersistenceMiddleware(stores) {
     }
   };
 
+  const debouncedRemoteSync = debounce(syncToSupabase, 1500);
+
+  flushPersistenceSyncImpl = async () => {
+    debouncedRemoteSync.cancel();
+    const currentState = getLocalState();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+    } catch {
+      // quota / private mode
+    }
+    const userId = await resolveSyncUserId();
+    if (!userId) return;
+    isSyncedWithRemote = true;
+    await syncToSupabase(currentState);
+  };
+
+  /** Sync localStorage + kick remote write without awaiting (safe for unload). */
+  const flushPersistenceSyncBestEffort = () => {
+    debouncedRemoteSync.cancel();
+    const currentState = getLocalState();
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
+    } catch {
+      // quota / private mode
+    }
+    if (!isSyncedWithRemote) return;
+    syncToSupabase(currentState).catch((err) => {
+      console.warn("Unload flush to Supabase failed:", err);
+    });
+  };
+
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      flushPersistenceSyncBestEffort();
+    }
+  };
+
+  window.addEventListener("pagehide", flushPersistenceSyncBestEffort);
+  window.addEventListener("beforeunload", flushPersistenceSyncBestEffort);
+  document.addEventListener("visibilitychange", onVisibilityChange);
+
   // Cargar datos al iniciar
   loadFromSupabase();
 
@@ -818,24 +1154,13 @@ export function initPersistenceMiddleware(stores) {
       } catch {
         // private mode / quota
       }
+      try {
+        localStorage.removeItem("futura-nota-left-panel-v1");
+      } catch {
+        // private mode / quota
+      }
     }
   });
-
-  const debouncedRemoteSync = debounce(syncToSupabase, 1500);
-
-  flushPersistenceSyncImpl = async () => {
-    debouncedRemoteSync.cancel();
-    const currentState = getLocalState();
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
-    } catch {
-      // quota / private mode
-    }
-    const userId = await resolveSyncUserId();
-    if (!userId) return;
-    isSyncedWithRemote = true;
-    await syncToSupabase(currentState);
-  };
 
   const handleStoreChange = () => {
     const currentState = getLocalState();

@@ -45,7 +45,6 @@ import {
 import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
 import { tryDocSelectAllKeyDown, requestDocSelectAll } from "../../../lib/docSelectAll.js";
 import {
-  findProseUnitForBlockIndex,
   replaceProseSegmentInBlocks,
 } from "../../../lib/docProseUnified.js";
 import { useI18n } from "../../../i18n/useI18n.js";
@@ -1255,6 +1254,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const start = el.selectionStart ?? 0;
     const end = el.selectionEnd ?? 0;
     const current = el.value ?? "";
+    // Only intercept when pasting into an otherwise-empty focused block —
+    // never wipe neighboring prose blocks in the same unit.
     if (current.slice(0, start).trim() || current.slice(end).trim()) return;
 
     const parts = pasted.split(/\n\n+/).map((part) => part.trim()).filter(Boolean);
@@ -1262,18 +1263,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
     e.preventDefault();
 
-    const unit = findProseUnitForBlockIndex(blocksRef.current, blockIndex);
-    if (!unit) return;
+    const blocks = blocksRef.current;
+    if (blockIndex < 0 || blockIndex >= blocks.length) return;
 
     const segment = {
       kind: "prose",
-      start: unit.start,
-      end: unit.end,
-      blockIds: blocksRef.current.slice(unit.start, unit.end + 1).map((block) => block.id),
+      start: blockIndex,
+      end: blockIndex,
+      blockIds: [blocks[blockIndex].id],
     };
-    const next = replaceProseSegmentInBlocks(blocksRef.current, segment, pasted.trim());
+    const next = replaceProseSegmentInBlocks(blocks, segment, pasted.trim());
     setBlocks(next);
-    const focusId = next[unit.start]?.id;
+    const focusId = next[blockIndex]?.id;
     if (focusId) {
       onFocusBlock?.(focusId);
       requestAnimationFrame(() => focusBlockCaret(focusId));

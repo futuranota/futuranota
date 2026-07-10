@@ -1,6 +1,48 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 
+const LEFT_PANEL_NAV_KEY = "futura-nota-left-panel-v1";
+
+/**
+ * @typedef {{
+ *   panelType?: string,
+ *   objectWorkspaceActive?: boolean,
+ *   filterObjectId?: string|null,
+ *   selectedObjectId?: string|null,
+ *   clickFolderView?: string|null,
+ * }} LeftPanelNavSnapshot
+ */
+
+/** @returns {LeftPanelNavSnapshot|null} */
+export function readLeftPanelNavSnapshot() {
+  try {
+    const raw = localStorage.getItem(LEFT_PANEL_NAV_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/** @param {LeftPanelNavSnapshot} snapshot */
+export function writeLeftPanelNavSnapshot(snapshot) {
+  try {
+    localStorage.setItem(LEFT_PANEL_NAV_KEY, JSON.stringify(snapshot || {}));
+  } catch {
+    // private mode / quota
+  }
+}
+
+export function clearLeftPanelNavSnapshot() {
+  try {
+    localStorage.removeItem(LEFT_PANEL_NAV_KEY);
+  } catch {
+    // private mode / quota
+  }
+}
+
 export const useUIStateStore = create(
   devtools(
     (set) => ({
