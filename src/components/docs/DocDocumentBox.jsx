@@ -589,9 +589,9 @@ export function DocDocumentBox({
             />
             <div className="doc-focus-top__meta">
               {linkedNodeCount > 0 ? (
-                <span className="doc-focus-top__nodes" title={t("sidebar.nodesInBlock", { count: linkedNodeCount })}>
+                <span className="doc-focus-top__nodes" title={t("sidebar.filesInBlock", { count: linkedNodeCount })}>
                   <span className="doc-focus-top__nodes-dot" aria-hidden />
-                  {t("sidebar.nodesInBlock", { count: linkedNodeCount })}
+                  {t("sidebar.filesInBlock", { count: linkedNodeCount })}
                 </span>
               ) : (
                 <span className="doc-focus-top__nodes doc-focus-top__nodes--empty">

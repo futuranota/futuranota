@@ -15,7 +15,6 @@ import {
   writeLeftPanelNavSnapshot,
   clearLeftPanelNavSnapshot,
 } from "../../stores/uiStateStore.js";
-import { DATA_TYPE_ICONS, DATA_TYPE_ICON_ASSETS, NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { getAgentsForUser, AGENT_MARKETING_GUIDE } from "../../lib/agents/registry.js";
 import { useAuthStore } from "../../stores/authStore.js";
@@ -46,7 +45,6 @@ import {
   productDocMatchesCategoryFilter,
 } from "../../lib/contentProductFilter.js";
 import {
-  groupContentDocsForSidebar,
   groupProductDocsFromList,
 } from "../../lib/docListGrouping.js";
 import { DocGroupBlockCard } from "./DocGroupBlockCard.jsx";
@@ -77,7 +75,7 @@ const TYPE_ICON = {
 
 const SELECTOR_ICON_ASSETS = {
   Objects: "/uploads/botones/all-objects.svg",
-  Documents: "/uploads/botones/docs.svg",
+  Documents: "/uploads/box-closed.svg",
   Nodes: "/uploads/so-ref-nodes.svg",
 };
 
@@ -346,7 +344,7 @@ function DocListCard({
             {isKnowledge
               ? (doc.knowledgeImport?.fileName ? t("sidebar.docMetaKnowledgeFile") : t("sidebar.docMetaKnowledge"))
               : parent ? `↳ ${parent.name}` : t("common.noParent")}
-            {" · "}{t("sidebar.nodesInBlock", { count: (doc.nodeIds || []).length })}
+            {" · "}{t("sidebar.filesInBlock", { count: (doc.nodeIds || []).length })}
           </span>
         </div>
       </button>
@@ -445,8 +443,6 @@ function getNodeDisplayTitle(node) {
 
 function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
   const { t } = useI18n();
-  const icon = DATA_TYPE_ICONS[node.dataType] || "◯";
-  const iconAsset = DATA_TYPE_ICON_ASSETS[node.dataType] || null;
   const displayTitle = getNodeDisplayTitle(node);
 
   return (
@@ -457,12 +453,13 @@ function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
         onClick={onClick}
         title={displayTitle}
       >
-        <span className="lp-node-type-icon lp-node-type-icon--compact">
-          {iconAsset ? (
-            <img src={iconAsset} alt="" aria-hidden className="lp-node-type-icon-img" />
-          ) : (
-            icon
-          )}
+        <span className="lp-node-type-icon lp-node-type-icon--compact lp-node-type-icon--file">
+          <img
+            src="/uploads/File.svg"
+            alt=""
+            aria-hidden
+            className="lp-node-type-icon-img lp-icon-white"
+          />
         </span>
         <span className="lp-doc-nodes-block__node-title">{displayTitle}</span>
       </button>
@@ -509,8 +506,10 @@ function DocNodesBlockCard({
   onNodeClick,
   onNodeInsert,
   onNodeDelete,
+  onCreateDocument,
   defaultExpanded = true,
   orphan = false,
+  showWhenEmpty = false,
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -523,7 +522,7 @@ function DocNodesBlockCard({
       ? resolveKnowledgeDocDisplayTitle(doc)
       : resolveProductDocDisplayTitle(doc);
 
-  if (!nodes.length) return null;
+  if (!nodes.length && !showWhenEmpty && !orphan) return null;
 
   return (
     <article className={"lp-doc-nodes-block" + (orphan ? " lp-doc-nodes-block--orphan" : "")}>
@@ -535,11 +534,17 @@ function DocNodesBlockCard({
           aria-expanded={expanded}
         >
           {!orphan ? (
-            <span className="lp-doc-icon">
-              <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
+            <span className={"lp-doc-icon lp-doc-icon--box" + (expanded ? " lp-doc-icon--box-open" : "")}>
+              <img
+                src={expanded ? "/uploads/open-box.svg" : "/uploads/box-closed.svg"}
+                alt=""
+                aria-hidden
+                className="lp-item-icon-img lp-box-icon-img"
+                key={expanded ? "open" : "closed"}
+              />
             </span>
           ) : (
-            <span className="lp-doc-icon">
+            <span className="lp-doc-icon lp-doc-icon--box">
               <SelectorTypeIcon type="Nodes" />
             </span>
           )}
@@ -555,7 +560,7 @@ function DocNodesBlockCard({
                   className="lp-expand-btn"
                   role="button"
                   tabIndex={0}
-                  aria-label={t("sidebar.openDocument")}
+                  aria-label={t("sidebar.openBox")}
                   onClick={(e) => {
                     e.stopPropagation();
                     onOpenDoc?.();
@@ -573,7 +578,7 @@ function DocNodesBlockCard({
               ) : null}
             </div>
             <span className="fn-card-meta">
-              {t("sidebar.nodesInBlock", { count: nodes.length })}
+              {t("sidebar.filesInBlock", { count: nodes.length })}
               {!orphan && isTemplate ? " · template" : ""}
               {!orphan && isKnowledge
                 ? (doc.knowledgeImport?.fileName ? " · file imported" : " · knowledge")
@@ -595,6 +600,24 @@ function DocNodesBlockCard({
               onDelete={() => onNodeDelete?.(node)}
             />
           ))}
+          {!orphan && onCreateDocument ? (
+            <button
+              type="button"
+              className="lp-doc-nodes-block__create-doc"
+              onClick={() => onCreateDocument(doc)}
+            >
+              <img
+                src="/uploads/FileDashed.svg"
+                alt=""
+                aria-hidden
+                className="lp-doc-nodes-block__create-doc-icon lp-icon-white"
+              />
+              <span>{t("sidebar.createDocumentInBox")}</span>
+            </button>
+          ) : null}
+          {!nodes.length && !onCreateDocument ? (
+            <p className="lp-doc-nodes-block__empty dim">{t("sidebar.noNodesInDoc")}</p>
+          ) : null}
         </div>
       ) : null}
     </article>
@@ -1206,6 +1229,8 @@ export function LeftPanel({
   const [nodeEditId, setNodeEditId] = useState(null);
   const [nodeEditContentFocus, setNodeEditContentFocus] = useState(false);
   const [nodeSearch, setNodeSearch] = useState("");
+  const [createDocumentParentDocId, setCreateDocumentParentDocId] = useState(null);
+  const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
   const [packImportActive, setPackImportActive] = useState(false);
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
@@ -1236,7 +1261,6 @@ export function LeftPanel({
   const getDocsByObject = useDocsStore(s => s.getDocsByObject);
   const deleteObjectWithCascade = useObjectsStore(s => s.deleteObjectWithCascade);
   const nodes      = useNodesStore(s => s.nodes);
-  const addNode    = useNodesStore(s => s.addNode);
   const deleteNode = useNodesStore(s => s.deleteNode);
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
@@ -1303,6 +1327,29 @@ export function LeftPanel({
     [filteredNodeList, docs],
   );
 
+  const nodesByDocId = useMemo(() => {
+    const map = new Map();
+    for (const node of objectScopedNodes) {
+      if (!node.parentDocId) continue;
+      if (!map.has(node.parentDocId)) map.set(node.parentDocId, []);
+      map.get(node.parentDocId).push(node);
+    }
+    return map;
+  }, [objectScopedNodes]);
+
+  const openCreateDocument = useCallback((parentDoc = null) => {
+    setCreateDocumentParentDocId(parentDoc?.id || null);
+    setShowCreateDocument(true);
+    setShowCreate(false);
+    setFolderOpen(false);
+  }, []);
+
+  const handleDocumentCreated = useCallback((entity) => {
+    setShowCreateDocument(false);
+    setCreateDocumentParentDocId(null);
+    if (entity) onInsertToCanvas?.(entity);
+  }, [onInsertToCanvas]);
+
   const filterObject = filterObjectId ? objects[filterObjectId] : null;
 
   const productDocs = useMemo(
@@ -1333,11 +1380,6 @@ export function LeftPanel({
   const groupedProductDocs = useMemo(
     () => groupProductDocsFromList(filteredProductDocs, t("sidebar.docGroupUncategorized")),
     [filteredProductDocs, t],
-  );
-
-  const groupedContentDocs = useMemo(
-    () => groupContentDocsForSidebar(filteredContentDocs, t("sidebar.docGroupUncategorized")),
-    [filteredContentDocs, t],
   );
 
   useEffect(() => {
@@ -1752,6 +1794,10 @@ export function LeftPanel({
     if (!objectWorkspaceActive && panelType !== "Objects") return;
     if (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId) return;
     if (panelType === "Documents" && !clickFolderView) return;
+    if (panelType === "Nodes") {
+      openCreateDocument(null);
+      return;
+    }
     setShowCreate(true);
     setFolderOpen(false);
   };
@@ -1945,7 +1991,7 @@ export function LeftPanel({
                 <div className="lp-click-folders-stack__boxes">
                   <ClickFolderBox
                     variant="subgroups"
-                    label={t("sidebar.panelDocuments")}
+                    label={t("sidebar.clickFolderDocuments")}
                     onClick={() => setClickFolderView("subgroups")}
                   />
                   <ClickFolderBox
@@ -2115,24 +2161,24 @@ export function LeftPanel({
                   onOpenDocument={onOpenDocument}
                   onDeleteDoc={handleDeleteDoc}
                 />
-                <div className="lp-click-folder-detail-list lp-doc-groups-stack">
-                  {groupedContentDocs.length ? (
-                    groupedContentDocs.map((group) => (
-                      <DocGroupBlockCard
-                        key={group.id}
-                        groupLabel={group.label}
-                        groupMeta={t("sidebar.docsInBlock", { count: group.docs.length })}
-                        docs={group.docs}
-                        renderDoc={(doc) => (
-                          <DocCompactRow
-                            key={doc.id}
-                            doc={doc}
-                            active={activeId === doc.id}
-                            onSelect={() => handleSelectFolderDoc(doc.id)}
-                            onOpen={() => handleOpenFolderDoc(doc.id)}
-                            onDelete={() => handleDeleteDoc(doc)}
-                          />
-                        )}
+                <div className="lp-click-folder-detail-list lp-doc-nodes-stack">
+                  {filteredContentDocs.length ? (
+                    filteredContentDocs.map((doc) => (
+                      <DocNodesBlockCard
+                        key={doc.id}
+                        doc={doc}
+                        nodes={nodesByDocId.get(doc.id) || []}
+                        objects={objects}
+                        showWhenEmpty
+                        onOpenDoc={() => handleOpenFolderDoc(doc.id)}
+                        onCreateDocument={() => openCreateDocument(doc)}
+                        onNodeClick={(node) => {
+                          setActiveId(node.id);
+                          setNodeEditContentFocus(false);
+                          setNodeEditId(node.id);
+                        }}
+                        onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                        onNodeDelete={(node) => deleteNode(node.id)}
                       />
                     ))
                   ) : (
@@ -2155,7 +2201,7 @@ export function LeftPanel({
           </div>
         )}
 
-        {/* NODES — grouped by document */}
+        {/* LOOSE DOCUMENTS — orphans only */}
         {panelType === "Nodes" && objectWorkspaceActive && !nodeEditId && (
           <>
             <input
@@ -2169,22 +2215,6 @@ export function LeftPanel({
               <p className="lp-context-label"><TranslatedText text={activeObject.name} /></p>
             ) : null}
             <div className="lp-doc-nodes-stack">
-              {groupedNodeViews.sections.map(({ doc, nodes: docNodes }) => (
-                <DocNodesBlockCard
-                  key={doc.id}
-                  doc={doc}
-                  nodes={docNodes}
-                  objects={objects}
-                  onOpenDoc={() => handleOpenFolderDoc(doc.id)}
-                  onNodeClick={(node) => {
-                    setActiveId(node.id);
-                    setNodeEditContentFocus(false);
-                    setNodeEditId(node.id);
-                  }}
-                  onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                  onNodeDelete={(node) => deleteNode(node.id)}
-                />
-              ))}
               {groupedNodeViews.orphans.length ? (
                 <DocNodesBlockCard
                   doc={null}
@@ -2201,7 +2231,7 @@ export function LeftPanel({
                 />
               ) : null}
             </div>
-            {!groupedNodeViews.sections.length && !groupedNodeViews.orphans.length ? (
+            {!groupedNodeViews.orphans.length ? (
               <div className="lp-empty">
                 <p>{t("sidebar.noNodesYet")}</p>
                 <p className="dim">{t("sidebar.createNewNodeAbove")}</p>
@@ -2246,11 +2276,27 @@ export function LeftPanel({
           docs={docList}
           parentObjectId={activeObjectId}
           onClose={() => setShowCreate(false)}
-          onSaved={() => setShowCreate(false)}
+          onSaved={(entity) => {
+            setShowCreate(false);
+            if (entity) onInsertToCanvas?.(entity);
+          }}
         />,
         document.body,
       )}
-      {nodeEditId && nodes[nodeEditId] && panelType === "Nodes" && typeof document !== "undefined" && createPortal(
+      {showCreateDocument && typeof document !== "undefined" && createPortal(
+        <StandaloneNodeModal
+          docs={docList}
+          parentObjectId={activeObjectId}
+          initialParentDocId={createDocumentParentDocId}
+          onClose={() => {
+            setShowCreateDocument(false);
+            setCreateDocumentParentDocId(null);
+          }}
+          onSaved={handleDocumentCreated}
+        />,
+        document.body,
+      )}
+      {nodeEditId && nodes[nodeEditId] && typeof document !== "undefined" && createPortal(
         <StandaloneNodeModal
           node={nodes[nodeEditId]}
           docs={docList}

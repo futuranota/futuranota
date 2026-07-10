@@ -29,8 +29,14 @@ export function DocGroupBlockCard({
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
         >
-          <span className="lp-doc-icon">
-            <img src="/uploads/botones/docs.svg" alt="" aria-hidden className="lp-item-icon-img" />
+          <span className={"lp-doc-icon lp-doc-icon--box" + (expanded ? " lp-doc-icon--box-open" : "")}>
+            <img
+              src={expanded ? "/uploads/open-box.svg" : "/uploads/box-closed.svg"}
+              alt=""
+              aria-hidden
+              className="lp-item-icon-img lp-box-icon-img"
+              key={expanded ? "open" : "closed"}
+            />
           </span>
           <div className="fn-card-body">
             <span className="lp-doc-group-category">{groupLabel}</span>

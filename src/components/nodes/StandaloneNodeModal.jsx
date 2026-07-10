@@ -143,7 +143,7 @@ function parseContentForSave(text, dataType) {
 }
 
 /**
- * Create or edit a node from the Nodes panel — same UI as doc-linked node modal.
+ * Create or edit a document (node entity) from Folder / Loose documents.
  */
 export function StandaloneNodeModal({
   node = null,
@@ -152,12 +152,14 @@ export function StandaloneNodeModal({
   queryCanvasNodeId = null,
   embedded = false,
   initialContentFocus = false,
+  initialParentDocId = null,
   onClose,
   onSaved,
   onDeleted,
 }) {
   const addNode = useNodesStore((s) => s.addNode);
   const updateNode = useNodesStore((s) => s.updateNode);
+  const getNode = useNodesStore((s) => s.getNode);
   const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
   const removeNodeSyncFromDoc = useNodesStore((s) => s.removeNodeSyncFromDoc);
   const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
@@ -169,9 +171,10 @@ export function StandaloneNodeModal({
   const [dataType, setDataType] = useState(node?.dataType || NODE_DATA_TYPES.TEXT);
   const [content, setContent] = useState(() => contentToString(node?.content, node?.dataType));
   const docsById = Object.fromEntries(docList.map((d) => [d.id, d]));
-  const [parentDocId, setParentDocId] = useState(() =>
-    resolveNodeParentDocId(node, null, docsById, { parentObjectId }) || "",
-  );
+  const [parentDocId, setParentDocId] = useState(() => {
+    if (isNew && initialParentDocId) return initialParentDocId;
+    return resolveNodeParentDocId(node, null, docsById, { parentObjectId }) || "";
+  });
   const [createdDate, setCreatedDate] = useState(() =>
     dateInputFromIso(node?.createdAt),
   );
@@ -206,30 +209,34 @@ export function StandaloneNodeModal({
       if (parentId) {
         syncNodeToParentDoc(newId, parentId);
       }
-    } else {
-      const prevParent = node.parentDocId || null;
-      if (prevParent && prevParent !== parentId) {
-        removeNodeSyncFromDoc(node.id, prevParent);
-        removeNodeFromDoc(prevParent, node.id);
-      }
-      if (parentId) {
-        addNodeToDoc(parentId, node.id);
-      }
-      updateNode(node.id, {
-        title,
-        sourceQuery: title,
-        dataType,
-        content: payload,
-        parentDocId: parentId,
-        linkedToDoc: Boolean(parentId),
-        createdAt,
-        anchorAt,
-      });
-      if (parentId) {
-        syncNodeToParentDoc(node.id, parentId);
-      }
+      const entity = getNode(newId);
+      onSaved?.(entity);
+      onClose?.();
+      return;
     }
-    onSaved?.();
+
+    const prevParent = node.parentDocId || null;
+    if (prevParent && prevParent !== parentId) {
+      removeNodeSyncFromDoc(node.id, prevParent);
+      removeNodeFromDoc(prevParent, node.id);
+    }
+    if (parentId) {
+      addNodeToDoc(parentId, node.id);
+    }
+    updateNode(node.id, {
+      title,
+      sourceQuery: title,
+      dataType,
+      content: payload,
+      parentDocId: parentId,
+      linkedToDoc: Boolean(parentId),
+      createdAt,
+      anchorAt,
+    });
+    if (parentId) {
+      syncNodeToParentDoc(node.id, parentId);
+    }
+    onSaved?.(getNode(node.id));
     onClose?.();
   };
 

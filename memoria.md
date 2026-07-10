@@ -53,7 +53,12 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
-_(Ninguno relacionado con docs/macronodos — ver Resueltos 2026-07-05.)_
+**Folder boxes UX (2026-07-09)** — Reorganizar sidebar para reducir estiramiento del canvas:
+
+- Panel **Documents** → **Folder**; cajas con icono `box-closed.svg`; collapse muestra documents (ex-nodes).
+- `[+] new` en Folder → crea **box** (doc). Dentro de caja / Loose → **create document** + auto-insert nodo de color en siguiente celda del canvas.
+- Panel **Nodes** → **Loose documents** (solo huérfanos).
+- Meta: `n documents` · ↳ compañía.
 
 ---
 
