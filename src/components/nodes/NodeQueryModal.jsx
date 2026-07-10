@@ -617,14 +617,14 @@ export function NodeQueryModal({
                 onAnchorTimeChange={onAnchorTimeChange}
               />
             ) : null}
-          </div>
-          <div className="node-query-modal__footer-search">
             {showTextSizeControls ? (
               <ContentTextSizeControls
                 typographyId={typographyId}
                 onTypographyChange={setTypographyId}
               />
             ) : null}
+          </div>
+          <div className="node-query-modal__footer-search">
             <IntelSearchButton
               variant="modal"
               loading={intelSearchStatus === "loading"}

@@ -5487,11 +5487,23 @@ body.doc-content-resizing * {
 
 .node-query-modal__schedule .doc-block-anchor__date,
 .node-query-modal__schedule .doc-block-anchor__time {
-  flex: 0 1 auto;
-  max-width: 108px;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
   min-width: 0;
   font-size: 11px;
-  padding: 3px 5px;
+  padding: 3px 2px 3px 4px;
+  letter-spacing: 0;
+}
+
+/* Pull calendar/clock icons flush against the value (less left/right dead space) */
+.node-query-modal__schedule .doc-block-anchor__date::-webkit-calendar-picker-indicator,
+.node-query-modal__schedule .doc-block-anchor__time::-webkit-calendar-picker-indicator {
+  margin: 0 0 0 2px;
+  padding: 0;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
 }
 
 .node-query-modal__footer-row {
@@ -5506,10 +5518,24 @@ body.doc-content-resizing * {
 .node-query-modal__footer-start {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
+}
+
+/* Aa sits beside hour — keep compact next to schedule */
+.node-query-modal__footer-start .doc-content-text-size-controls {
+  gap: 2px;
+  margin-left: 2px;
+}
+
+.node-query-modal__footer-start .doc-content-text-size-controls__btn {
+  width: 48px;
+}
+
+.node-query-modal__footer-start .doc-content-text-size-controls__btn img {
+  width: 48px;
 }
 
 .node-query-modal__footer-search {
@@ -8599,9 +8625,17 @@ body.doc-content-resizing * {
 .node-query-modal--expanded .node-query-modal__schedule .doc-block-anchor__time {
   flex: 0 0 auto;
   width: auto;
-  max-width: 140px;
+  max-width: none;
   font-size: 12px;
-  padding: 4px 6px;
+  padding: 4px 2px 4px 4px;
+}
+
+.node-query-modal--expanded .node-query-modal__schedule .doc-block-anchor__date::-webkit-calendar-picker-indicator,
+.node-query-modal--expanded .node-query-modal__schedule .doc-block-anchor__time::-webkit-calendar-picker-indicator {
+  margin: 0 0 0 2px;
+  padding: 0;
+  width: 13px;
+  height: 13px;
 }
 
 .node-query-modal--expanded .node-query-modal__action--search {
