@@ -865,6 +865,33 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Cap list height to the Documents/Knowledge/Agents boxes block; scroll overflow.
+     Children must not shrink — that was crushing cards and breaking collapse. */
+  max-height: calc(3 * 110px + 2 * 12px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--glass-border-2) transparent;
+}
+
+.lp-click-folder-detail-list > * {
+  flex-shrink: 0;
+}
+
+.lp-click-folder-detail-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.lp-click-folder-detail-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lp-click-folder-detail-list::-webkit-scrollbar-thumb {
+  background: var(--glass-border-2);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 .lp-click-folder-category-row {
