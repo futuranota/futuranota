@@ -232,6 +232,9 @@ export const messages = {
       openBox: "Open box",
       deleteCategoryConfirm:
         "Delete category \"{name}\" and its {count} box(es)? This cannot be undone.",
+      folderDensityLabel: "Folder density",
+      folderDensityZoomOut: "Show more folders (2 columns)",
+      folderDensityZoomIn: "Comfortable view (1 column)",
       selectObject: "select company",
       selectObjectFirst: "Select a company first",
       tokensLabel: "CREDITS",

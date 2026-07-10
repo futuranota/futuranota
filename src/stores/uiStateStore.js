@@ -2,6 +2,29 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 
 const LEFT_PANEL_NAV_KEY = "futura-nota-left-panel-v1";
+const FOLDER_DENSITY_KEY = "futura-nota-folder-density-v1";
+
+/** @typedef {'comfortable' | 'compact'} FolderDensity */
+
+/** @returns {FolderDensity} */
+function readFolderDensity() {
+  try {
+    const raw = localStorage.getItem(FOLDER_DENSITY_KEY);
+    if (raw === "compact" || raw === "comfortable") return raw;
+  } catch {
+    // private mode / quota
+  }
+  return "comfortable";
+}
+
+/** @param {FolderDensity} density */
+function writeFolderDensity(density) {
+  try {
+    localStorage.setItem(FOLDER_DENSITY_KEY, density);
+  } catch {
+    // private mode / quota
+  }
+}
 
 /**
  * @typedef {{
@@ -63,6 +86,8 @@ export const useUIStateStore = create(
       productCategoryFilter: null,
       /** Content list: filter by linked subcategory label (partial match). */
       contentProductFilter: null,
+      /** Content/Folder list density: comfortable = 1 col (max), compact = 2 cols. */
+      folderDensity: readFolderDensity(),
 
       focusedCanvasNodeId: null,
       selectedCanvasNodeIds: [],
@@ -123,6 +148,20 @@ export const useUIStateStore = create(
       setContentProductFilter: (query) => set({
         contentProductFilter: query?.trim() ? query.trim() : null,
       }),
+
+      setFolderDensity: (density) => {
+        const next = density === "compact" ? "compact" : "comfortable";
+        writeFolderDensity(next);
+        set({ folderDensity: next });
+      },
+      densifyFolderList: () => {
+        writeFolderDensity("compact");
+        set({ folderDensity: "compact" });
+      },
+      expandFolderList: () => {
+        writeFolderDensity("comfortable");
+        set({ folderDensity: "comfortable" });
+      },
 
       setFocusedCanvasNode: (id) => set({ focusedCanvasNodeId: id }),
 

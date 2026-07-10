@@ -1329,6 +1329,9 @@ export function LeftPanel({
   const setProductCategoryFilter = useUIStateStore((s) => s.setProductCategoryFilter);
   const contentProductFilter = useUIStateStore((s) => s.contentProductFilter);
   const setContentProductFilter = useUIStateStore((s) => s.setContentProductFilter);
+  const folderDensity = useUIStateStore((s) => s.folderDensity);
+  const densifyFolderList = useUIStateStore((s) => s.densifyFolderList);
+  const expandFolderList = useUIStateStore((s) => s.expandFolderList);
   const leftPanelNavigateRequest = useUIStateStore((s) => s.leftPanelNavigateRequest);
   const clearLeftPanelNavigateRequest = useUIStateStore((s) => s.clearLeftPanelNavigateRequest);
 
@@ -2241,6 +2244,28 @@ export function LeftPanel({
                     onBack={() => setClickFolderView(null)}
                     label={t("sidebar.content")}
                   />
+                  <div className="lp-folder-density" role="group" aria-label={t("sidebar.folderDensityLabel")}>
+                    <button
+                      type="button"
+                      className="lp-folder-density__btn"
+                      onClick={densifyFolderList}
+                      disabled={folderDensity === "compact"}
+                      title={t("sidebar.folderDensityZoomOut")}
+                      aria-label={t("sidebar.folderDensityZoomOut")}
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      className="lp-folder-density__btn"
+                      onClick={expandFolderList}
+                      disabled={folderDensity === "comfortable"}
+                      title={t("sidebar.folderDensityZoomIn")}
+                      aria-label={t("sidebar.folderDensityZoomIn")}
+                    >
+                      +
+                    </button>
+                  </div>
                   <PackActionsBar
                     placement="documents"
                     companySelected={Boolean(filterObjectId || activeObjectId)}
@@ -2262,7 +2287,12 @@ export function LeftPanel({
                   onOpenDocument={onOpenDocument}
                   onDeleteDoc={handleDeleteDoc}
                 />
-                <div className="lp-click-folder-detail-list lp-doc-nodes-stack">
+                <div
+                  className={
+                    "lp-click-folder-detail-list lp-doc-nodes-stack"
+                    + (folderDensity === "compact" ? " lp-doc-nodes-stack--compact" : "")
+                  }
+                >
                   {filteredContentDocs.length ? (
                     filteredContentDocs.map((doc) => (
                       <DocNodesBlockCard
