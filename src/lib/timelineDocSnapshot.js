@@ -37,6 +37,45 @@ function childSnapshotKey(entityId, canvasNodeId) {
   return entityId || canvasNodeId || "";
 }
 
+/**
+ * Resolve a timeline date for a linked file entity (store node), even when it is
+ * not placed on the canvas. `resolveNodeAnchorDate` expects canvas-shaped nodes
+ * with `noteId`, so we adapt the entity first and fall back to doc dates.
+ */
+function resolveLinkedFileTimelineDate(entityId, entity, meta = {}) {
+  if (!entityId || !entity) return null;
+  const adapted = {
+    noteId: entityId,
+    dataType: entity.dataType,
+    content: entity.content,
+    anchorAt: entity.anchorAt,
+  };
+  const direct = resolveNodeAnchorDate(adapted, meta);
+  if (direct) return startOfCalendarDay(direct);
+
+  const fromEntity = parseDate(entity.createdAt) || parseDate(entity.anchorAt);
+  if (fromEntity) return startOfCalendarDay(fromEntity);
+
+  const doc = meta.docsById?.[entity.parentDocId];
+  if (doc?.launchAt) {
+    const d = parseDate(doc.launchAt);
+    if (d) return startOfCalendarDay(d);
+  }
+  if (doc?.createdAt) {
+    const d = parseDate(doc.createdAt);
+    if (d) return startOfCalendarDay(d);
+  }
+  return null;
+}
+
+function listLinkedFileEntityIds(docId, docsById = {}, nodeEntitiesById = {}) {
+  const linkedEntityIds = new Set(docsById[docId]?.nodeIds || []);
+  for (const [entityId, entity] of Object.entries(nodeEntitiesById || {})) {
+    if (entity?.parentDocId === docId) linkedEntityIds.add(entityId);
+  }
+  return linkedEntityIds;
+}
+
 function minDateMsFromNodes(nodeIds, canvasNodes, wireAnchors, meta) {
   let minMs = null;
   for (const nodeId of nodeIds || []) {
@@ -60,6 +99,8 @@ function minChildDateMs(children = []) {
 
 /**
  * Capture doc anchor date + macronodo children for timeline persistence (survives canvas removal).
+ * Children come from canvas nodes under the doc, plus linked file entities on the doc itself
+ * (so dragging only the document box still keeps files when inserting to timeline).
  * @param {string} docId
  * @param {object} ctx
  */
@@ -86,6 +127,13 @@ export function captureTimelineDocSnapshot(
   }
   /** @type {{ key: string, entityId: string | null, canvasNodeId: string | null, dataType: string, dateMs: number }[]} */
   const children = [];
+  const seenKeys = new Set();
+
+  const pushChild = (child) => {
+    if (!child?.key || seenKeys.has(child.key)) return;
+    seenKeys.add(child.key);
+    children.push(child);
+  };
 
   for (const nodeId of listChildCanvasNodeIdsForDoc(docId, canvasNodes, nodeEntitiesById)) {
     const node = canvasNodes.find((n) => n.id === nodeId);
@@ -93,11 +141,26 @@ export function captureTimelineDocSnapshot(
     const raw = wireAnchors.get(nodeId) || resolveNodeAnchorDate(entity || node, meta);
     if (!raw) continue;
     const entityId = node?.noteId || null;
-    children.push({
+    pushChild({
       key: childSnapshotKey(entityId, nodeId),
       entityId,
       canvasNodeId: nodeId,
       dataType: node?.dataType || entity?.dataType || "text",
+      dateMs: startOfCalendarDay(raw).getTime(),
+    });
+  }
+
+  // Linked files on the document (even if not placed on the canvas).
+  for (const entityId of listLinkedFileEntityIds(docId, docsById, nodeEntitiesById)) {
+    const entity = nodeEntitiesById[entityId];
+    if (!entity) continue;
+    const raw = resolveLinkedFileTimelineDate(entityId, entity, meta);
+    if (!raw) continue;
+    pushChild({
+      key: childSnapshotKey(entityId, null),
+      entityId,
+      canvasNodeId: null,
+      dataType: entity.dataType || "text",
       dateMs: startOfCalendarDay(raw).getTime(),
     });
   }
@@ -183,6 +246,25 @@ export function buildChildMarkersForDoc(
       entityId: child.entityId || null,
       childKey: key,
       snapshot: true,
+    });
+  }
+
+  // Live fallback: linked files on the doc that are not on the canvas.
+  for (const entityId of listLinkedFileEntityIds(docId, docsById, nodeEntitiesById)) {
+    const key = childSnapshotKey(entityId, null);
+    if (!key || excluded.has(key) || markersByKey.has(key)) continue;
+    const entity = nodeEntitiesById[entityId];
+    if (!entity) continue;
+    const raw = resolveLinkedFileTimelineDate(entityId, entity, meta);
+    if (!raw) continue;
+    markersByKey.set(key, {
+      nodeId: `entity-${entityId}`,
+      date: startOfCalendarDay(raw),
+      docId,
+      dataType: entity.dataType || "text",
+      entityId,
+      childKey: key,
+      fromStore: true,
     });
   }
 

@@ -1511,6 +1511,17 @@
   opacity: 0.45;
 }
 
+.lp-doc-nodes-block__head-main .lp-doc-drag-area--compact {
+  opacity: 0.55;
+  align-self: center;
+  padding: 2px 0;
+}
+
+.lp-doc-nodes-block__head-main:hover .lp-doc-drag-area--compact,
+.lp-doc-nodes-block__head-main:focus-within .lp-doc-drag-area--compact {
+  opacity: 0.9;
+}
+
 .lp-doc-nodes-block__node:hover .lp-doc-drag-area--compact,
 .lp-doc-nodes-block__node:focus-within .lp-doc-drag-area--compact {
   opacity: 0.8;

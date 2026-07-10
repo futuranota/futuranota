@@ -60,8 +60,6 @@ import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx'
 import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
 import { resolveActiveTimelineAlert } from './lib/resolveTimelineAlert.js';
 import {
-  ensureNodeForDocBlock,
-  shouldIncludeBlockOnCanvas,
   collectNodeIdsReferencedByBlocks,
   findOrphanNodeIdsForDoc,
 } from './lib/docNodeSync.js';
@@ -71,7 +69,6 @@ import {
 } from './lib/nodeParentAdoption.js';
 import { AdoptNodeConfirmModal } from './components/nodes/AdoptNodeConfirmModal.jsx';
 import { useI18n, translate } from './i18n/useI18n.js';
-import { normalizeDocBlocks } from './lib/docBlocks.js';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
 import {
   filterSelectableCanvasNodeIds,
@@ -79,8 +76,6 @@ import {
   resolveHeadlineBlockIdForCanvasNode,
 } from './lib/timelineSelection.js';
 import {
-  buildLaunchDateCanvasNode,
-  CANVAS_DOC_CHILD_OFFSET_X,
   collectCanvasNodeIdsForDoc,
   collectCanvasNodeIdsForEntityIds,
   syncContentDocCanvasNodes,
@@ -108,9 +103,6 @@ import {
 
 
 
-const DOC_CHILD_OFFSET_X = CANVAS_DOC_CHILD_OFFSET_X;
-const DOC_CHILD_ROW_STEP = 88;
-
 function buildCanvasNodeFromEntity(zustandNode, x, y, overrides = {}) {
   return {
     id: shortId("CN"),
@@ -122,40 +114,6 @@ function buildCanvasNodeFromEntity(zustandNode, x, y, overrides = {}) {
     y,
     ...overrides,
   };
-}
-
-function resolveDocChildNodes(doc) {
-  const nodesStore = useNodesStore.getState();
-  const childMap = new Map(
-    nodesStore.getNodesByDoc(doc.id).map((node) => [node.id, node]),
-  );
-
-  for (const nodeId of doc.nodeIds || []) {
-    if (childMap.has(nodeId)) continue;
-    const node = nodesStore.getNode(nodeId);
-    if (node) childMap.set(node.id, node);
-  }
-
-  const blocks = normalizeDocBlocks(doc.blocks || []);
-  const docCreatedAt = doc.createdAt || null;
-  blocks.forEach((block, blockIndex) => {
-    if (!shouldIncludeBlockOnCanvas(block)) return;
-    if (block.nodeId && childMap.has(block.nodeId)) return;
-
-    const ensuredId = ensureNodeForDocBlock({
-      block,
-      blocks,
-      blockIndex,
-      docId: doc.id,
-      docCreatedAt,
-      createOrUpdateNodeFromDocBlock: nodesStore.createOrUpdateNodeFromDocBlock,
-    });
-    if (!ensuredId) return;
-    const node = nodesStore.getNode(ensuredId);
-    if (node) childMap.set(node.id, node);
-  });
-
-  return [...childMap.values()];
 }
 
 /* app.jsx — root state + orchestration
@@ -648,15 +606,10 @@ useEffect(() => {
     const normalizedDoc = normalizeDoc(
       useDocsStore.getState().docs[doc.id] || doc,
     );
-    const existingNoteIds = new Set(
-      canvasNodes.map((n) => n.noteId).filter(Boolean),
-    );
 
-    const occupied = [];
     const { x, y } = nextCanvasPosition(
       worldX != null ? worldX - 50 : undefined,
       worldY != null ? worldY - 40 : undefined,
-      occupied,
     );
     const docCanvasNode = buildCanvasNodeFromEntity(normalizedDoc, x, y, {
       canvasKind: "document",
@@ -678,53 +631,11 @@ useEffect(() => {
           }
         : {}),
     });
-    occupied.push({ x, y });
 
-    const launchCanvasNode = isContentDoc(normalizedDoc) && !isKnowledgeDoc(normalizedDoc)
-      ? buildLaunchDateCanvasNode(normalizedDoc.launchAt, normalizedDoc.id)
-      : null;
-    const childNodes = resolveDocChildNodes(normalizedDoc).filter(
-      (node) => !existingNoteIds.has(node.id),
-    );
-    const totalChildren = childNodes.length + (launchCanvasNode ? 1 : 0);
-    const rowOffset = totalChildren > 1
-      ? ((totalChildren - 1) * DOC_CHILD_ROW_STEP) / 2
-      : 0;
-
-    const childCanvasNodes = [];
-    let childIndex = 0;
-
-    if (launchCanvasNode) {
-      const pos = nextCanvasPosition(
-        x + DOC_CHILD_OFFSET_X,
-        y + childIndex * DOC_CHILD_ROW_STEP - rowOffset,
-        occupied,
-      );
-      occupied.push(pos);
-      childCanvasNodes.push({ ...launchCanvasNode, x: pos.x, y: pos.y });
-      childIndex += 1;
-    }
-
-    childNodes.forEach((childNode) => {
-      const preferredX = x + DOC_CHILD_OFFSET_X;
-      const preferredY = y + childIndex * DOC_CHILD_ROW_STEP - rowOffset;
-      const pos = nextCanvasPosition(preferredX, preferredY, occupied);
-      occupied.push(pos);
-      childCanvasNodes.push(buildCanvasNodeFromEntity(childNode, pos.x, pos.y, {
-        parentDocId: normalizedDoc.id,
-      }));
-      childIndex += 1;
-    });
-
-    const newCanvasNodes = [docCanvasNode, ...childCanvasNodes];
-
-    setCanvasNodes((all) => [...all, ...newCanvasNodes]);
+    setCanvasNodes((all) => [...all, docCanvasNode]);
     setSelection([docCanvasNode.id]);
-    const childMsg = childCanvasNodes.length
-      ? ` + ${childCanvasNodes.length} node${childCanvasNodes.length === 1 ? "" : "s"}`
-      : "";
     setToast({
-      message: `Document placed · "${normalizedDoc.title}"${childMsg}`,
+      message: `Document placed · "${normalizedDoc.title}"`,
       kind: "ok",
     });
     return docCanvasNode.id;

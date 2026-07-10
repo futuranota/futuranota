@@ -601,6 +601,23 @@ function DocNodesBlockCard({
           onPointerLeave={handlePointerUp}
           aria-expanded={expanded}
         >
+          {!orphan && doc ? (
+            <span
+              className="lp-doc-drag-area lp-doc-drag-area--compact"
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                clearLongPress();
+                startDocDrag(e, doc.id);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              title={t("sidebar.dragDocToCanvas")}
+              aria-label={t("sidebar.dragDocToCanvas")}
+            >
+              ⋮⋮
+            </span>
+          ) : null}
           {!orphan ? (
             <span className={"lp-doc-icon lp-doc-icon--box" + (expanded ? " lp-doc-icon--box-open" : "")}>
               <img
