@@ -4,6 +4,7 @@ import { useNodesStore } from "../../stores/nodesStore.js";
 import { isoFromDateInput } from "../../lib/docDates.js";
 import {
   DOC_BLOCK_TYPES,
+  docBlocksToBody,
   normalizeDocBlocks,
   updateBlockAt,
   h1HasVideoEmbedSibling,
@@ -49,6 +50,8 @@ export function useDocBlockNodeModal({
   const getNode = useNodesStore((s) => s.getNode);
   const updateNode = useNodesStore((s) => s.updateNode);
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
+  const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
+  const updateDoc = useDocsStore((s) => s.updateDoc);
 
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
@@ -136,43 +139,52 @@ export function useDocBlockNodeModal({
       setActiveNodeContext((prev) => (prev ? { ...prev, nodeId: savedNodeId } : prev));
     }
 
-    setBlocks((prev) => {
-      const current = prev[blockIndex];
-      if (!current) return prev;
-      const patch = {
-        nodeId: savedNodeId,
-        sourceQuery: queryText,
-      };
-      if (
-        current.type === DOC_BLOCK_TYPES.H1
-        || current.type === DOC_BLOCK_TYPES.DATE
-        || current.type === DOC_BLOCK_TYPES.METRIC
-      ) {
-        patch.title = current.title || queryText;
-      }
-      if (current.type === DOC_BLOCK_TYPES.TODO) {
-        patch.listTitle = current.listTitle || queryText;
-      }
-      if (supportsScheduleAnchor(dataType)) {
-        patch.anchorDate = anchorDate;
-        patch.anchorTime = anchorTime;
-        patch.anchorFromNode = true;
-        patch.queryEnabled = true;
-      }
+    const patch = {
+      nodeId: savedNodeId,
+      sourceQuery: queryText,
+    };
+    if (
+      block.type === DOC_BLOCK_TYPES.H1
+      || block.type === DOC_BLOCK_TYPES.DATE
+      || block.type === DOC_BLOCK_TYPES.METRIC
+    ) {
+      patch.title = block.title || queryText;
+    }
+    if (block.type === DOC_BLOCK_TYPES.TODO) {
+      patch.listTitle = block.listTitle || queryText;
+    }
+    if (supportsScheduleAnchor(dataType)) {
+      patch.anchorDate = anchorDate;
+      patch.anchorTime = anchorTime;
+      patch.anchorFromNode = true;
+      patch.queryEnabled = true;
+    }
 
-      let next = updateBlockAt(prev, blockIndex, patch);
-      if (shouldMirrorNodeContentInDoc(current)) {
-        next = setContentForNodeBlock(next, blockIndex, content, dataType);
-        if (dataType === NODE_DATA_TYPES.TEXT) {
-          next = setAnswerBelowH1(
-            next,
-            blockIndex,
-            typeof content === "string" ? content : "",
-          );
-        }
+    let nextBlocks = updateBlockAt(blocks, blockIndex, patch);
+    if (shouldMirrorNodeContentInDoc(block)) {
+      nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, content, dataType);
+      if (dataType === NODE_DATA_TYPES.TEXT) {
+        nextBlocks = setAnswerBelowH1(
+          nextBlocks,
+          blockIndex,
+          typeof content === "string" ? content : "",
+        );
       }
-      return next;
-    });
+    }
+
+    setBlocks(nextBlocks);
+
+    // Persist block↔node link + content into the parent doc immediately so
+    // "return to document" does not leave the node orphaned until an explicit doc Save.
+    if (docId) {
+      const body = docBlocksToBody(nextBlocks);
+      updateDoc(docId, {
+        blocks: nextBlocks,
+        body,
+        content: body,
+      });
+      syncNodeToParentDoc(savedNodeId, docId);
+    }
   };
 
   const handleNodeContentChange = (content) => {
@@ -207,29 +219,34 @@ export function useDocBlockNodeModal({
     if (blocks[blockIndex]?.nodeId !== nodeId) {
       const queryText = getBlockQueryText(block) || "Untitled query";
       const dataType = blockDataType(block, blocks, blockIndex);
-      setBlocks((prev) => {
-        const current = prev[blockIndex];
-        if (!current) return prev;
-        const patch = {
-          nodeId,
-          sourceQuery: queryText,
-          queryEnabled: true,
-        };
-        if (
-          current.type === DOC_BLOCK_TYPES.H1
-          || current.type === DOC_BLOCK_TYPES.DATE
-          || current.type === DOC_BLOCK_TYPES.METRIC
-        ) {
-          patch.title = current.title || queryText;
-        }
-        if (current.type === DOC_BLOCK_TYPES.TODO) {
-          patch.listTitle = current.listTitle || queryText;
-        }
-        if (supportsScheduleAnchor(dataType)) {
-          patch.anchorFromNode = current.anchorFromNode ?? false;
-        }
-        return updateBlockAt(prev, blockIndex, patch);
-      });
+      const patch = {
+        nodeId,
+        sourceQuery: queryText,
+        queryEnabled: true,
+      };
+      if (
+        block.type === DOC_BLOCK_TYPES.H1
+        || block.type === DOC_BLOCK_TYPES.DATE
+        || block.type === DOC_BLOCK_TYPES.METRIC
+      ) {
+        patch.title = block.title || queryText;
+      }
+      if (block.type === DOC_BLOCK_TYPES.TODO) {
+        patch.listTitle = block.listTitle || queryText;
+      }
+      if (supportsScheduleAnchor(dataType)) {
+        patch.anchorFromNode = block.anchorFromNode ?? false;
+      }
+      const nextBlocks = updateBlockAt(blocks, blockIndex, patch);
+      setBlocks(nextBlocks);
+      if (docId) {
+        const body = docBlocksToBody(nextBlocks);
+        updateDoc(docId, {
+          blocks: nextBlocks,
+          body,
+          content: body,
+        });
+      }
       setActiveNodeContext((prev) =>
         (prev?.blockIndex === blockIndex ? { ...prev, nodeId } : prev),
       );
@@ -296,8 +313,11 @@ export function useDocBlockNodeModal({
     setNodeDraftAnchorTime("");
   };
 
-  const handleNodeModalSave = () => {
-    if (!activeNodeContext) return;
+  const flushAndCloseNodeModal = () => {
+    if (!activeNodeContext) {
+      resetNodeModal();
+      return;
+    }
     if (nodeAutosaveTimerRef.current) {
       clearTimeout(nodeAutosaveTimerRef.current);
       nodeAutosaveTimerRef.current = null;
@@ -306,25 +326,28 @@ export function useDocBlockNodeModal({
     const context = { ...activeNodeContext };
     const { blockIndex, nodeId, dataType, blockType } = context;
     const block = blocks[blockIndex];
-    if (!block || block.type !== blockType) return;
-
-    const existingNode = (nodeId || block.nodeId) ? getNode(nodeId || block.nodeId) : null;
-    let contentToSave = nodeDraftContent;
-    if (
-      existingNode
-      && dataType === NODE_DATA_TYPES.TEXT
-      && parseCalendarEventNodeContent(existingNode.content)
-    ) {
-      contentToSave = existingNode.content;
+    if (block && block.type === blockType) {
+      const existingNode = (nodeId || block.nodeId) ? getNode(nodeId || block.nodeId) : null;
+      let contentToSave = nodeDraftContent;
+      if (
+        existingNode
+        && dataType === NODE_DATA_TYPES.TEXT
+        && parseCalendarEventNodeContent(existingNode.content)
+      ) {
+        contentToSave = existingNode.content;
+      }
+      persistNodeContentDebounced(
+        contentToSave,
+        context,
+        nodeDraftAnchorDate,
+        nodeDraftAnchorTime,
+      );
     }
-
-    persistNodeContentDebounced(
-      contentToSave,
-      context,
-      nodeDraftAnchorDate,
-      nodeDraftAnchorTime,
-    );
     resetNodeModal();
+  };
+
+  const handleNodeModalSave = () => {
+    flushAndCloseNodeModal();
   };
 
   const handleNodeAnchorDateChange = (anchorDate) => {
@@ -364,12 +387,12 @@ export function useDocBlockNodeModal({
       createdDate={createdDate}
       parentDocLabel={docTitle.trim() || "New document"}
       onSave={handleNodeModalSave}
-      onBackToDocument={resetNodeModal}
+      onBackToDocument={flushAndCloseNodeModal}
       anchorDate={nodeDraftAnchorDate}
       anchorTime={nodeDraftAnchorTime}
       onAnchorDateChange={handleNodeAnchorDateChange}
       onAnchorTimeChange={handleNodeAnchorTimeChange}
-      onClose={resetNodeModal}
+      onClose={flushAndCloseNodeModal}
       onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
       entityNodeId={activeNodeContext.nodeId || null}
       intelSearchMeta={

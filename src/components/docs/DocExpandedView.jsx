@@ -224,6 +224,7 @@ export function DocExpandedView({
   const addNode = useNodesStore((s) => s.addNode);
   const getNode = useNodesStore((s) => s.getNode);
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
+  const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
   const updateNode = useNodesStore((s) => s.updateNode);
   const deleteNode = useNodesStore((s) => s.deleteNode);
   const deleteNodeEntity = useNodesStore((s) => s.deleteNodeEntity);
@@ -862,15 +863,45 @@ export function DocExpandedView({
   };
 
   const handleRequestCloseNodeModal = () => {
-    if (hasNodeUnsavedChanges()) {
-      setShowNodeUnsavedConfirm(true);
+    // Returning to the file-box always flushes — nodes must feel saved.
+    flushAndCloseNodeModal();
+  };
+
+  const flushAndCloseNodeModal = () => {
+    if (!activeNodeContext) {
+      resetNodeModalState();
       return;
+    }
+    if (nodeAutosaveTimerRef.current) {
+      clearTimeout(nodeAutosaveTimerRef.current);
+      nodeAutosaveTimerRef.current = null;
+    }
+
+    const context = { ...activeNodeContext };
+    const { blockIndex, nodeId, dataType, blockType } = context;
+    const block = draftBlocks[blockIndex];
+    if (block && block.type === blockType) {
+      const existingNode = (nodeId || block.nodeId) ? getNode(nodeId || block.nodeId) : null;
+      let contentToSave = nodeDraftContent;
+      if (
+        existingNode
+        && dataType === NODE_DATA_TYPES.TEXT
+        && parseCalendarEventNodeContent(existingNode.content)
+      ) {
+        contentToSave = existingNode.content;
+      }
+      persistNodeContentDebounced(
+        contentToSave,
+        context,
+        nodeDraftAnchorDate,
+        nodeDraftAnchorTime,
+      );
     }
     resetNodeModalState();
   };
 
   const handleSendQueryToIntelSearch = () => {
-    resetNodeModalState();
+    flushAndCloseNodeModal();
     onClose();
   };
 
@@ -1066,39 +1097,45 @@ export function DocExpandedView({
       setActiveNodeContext((prev) => (prev ? { ...prev, nodeId: savedNodeId } : prev));
     }
 
-    setDraftBlocks((prev) => {
-      const current = prev[blockIndex];
-      if (!current) return prev;
-      const patch = {
-        nodeId: savedNodeId,
-        sourceQuery: queryText,
-      };
-      if (current.type === DOC_BLOCK_TYPES.H1 || current.type === DOC_BLOCK_TYPES.DATE || current.type === DOC_BLOCK_TYPES.METRIC) {
-        patch.title = current.title || queryText;
-      }
-      if (current.type === DOC_BLOCK_TYPES.TODO) {
-        patch.listTitle = current.listTitle || queryText;
-      }
-      if (supportsScheduleAnchor(dataType)) {
-        patch.anchorDate = anchorDate;
-        patch.anchorTime = anchorTime;
-        patch.anchorFromNode = true;
-        patch.queryEnabled = true;
-      }
+    const patch = {
+      nodeId: savedNodeId,
+      sourceQuery: queryText,
+    };
+    if (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.DATE || block.type === DOC_BLOCK_TYPES.METRIC) {
+      patch.title = block.title || queryText;
+    }
+    if (block.type === DOC_BLOCK_TYPES.TODO) {
+      patch.listTitle = block.listTitle || queryText;
+    }
+    if (supportsScheduleAnchor(dataType)) {
+      patch.anchorDate = anchorDate;
+      patch.anchorTime = anchorTime;
+      patch.anchorFromNode = true;
+      patch.queryEnabled = true;
+    }
 
-      let next = updateBlockAt(prev, blockIndex, patch);
-      if (shouldMirrorNodeContentInDoc(current)) {
-        next = setContentForNodeBlock(next, blockIndex, content, dataType);
-        if (dataType === NODE_DATA_TYPES.TEXT) {
-          next = setAnswerBelowH1(
-            next,
-            blockIndex,
-            typeof content === "string" ? content : "",
-          );
-        }
+    let nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
+    if (shouldMirrorNodeContentInDoc(block)) {
+      nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, content, dataType);
+      if (dataType === NODE_DATA_TYPES.TEXT) {
+        nextBlocks = setAnswerBelowH1(
+          nextBlocks,
+          blockIndex,
+          typeof content === "string" ? content : "",
+        );
       }
-      return next;
+    }
+
+    setDraftBlocks(nextBlocks);
+
+    // Persist into docsStore immediately so returning to the file-box keeps the node.
+    const body = docBlocksToBody(nextBlocks);
+    updateDoc(doc.id, {
+      blocks: nextBlocks,
+      body,
+      content: body,
     });
+    syncNodeToParentDoc(savedNodeId, doc.id);
 
     setNodeInitialSnapshot({
       content: normalizeNodeContent(content),
@@ -1139,28 +1176,31 @@ export function DocExpandedView({
     if (draftBlocks[blockIndex]?.nodeId !== nodeId) {
       const queryText = getBlockQueryText(block) || "Untitled query";
       const dataType = blockDataType(block, draftBlocks, blockIndex);
-      setDraftBlocks((prev) => {
-        const current = prev[blockIndex];
-        if (!current) return prev;
-        const patch = {
-          nodeId,
-          sourceQuery: queryText,
-          queryEnabled: true,
-        };
-        if (
-          current.type === DOC_BLOCK_TYPES.H1
-          || current.type === DOC_BLOCK_TYPES.DATE
-          || current.type === DOC_BLOCK_TYPES.METRIC
-        ) {
-          patch.title = current.title || queryText;
-        }
-        if (current.type === DOC_BLOCK_TYPES.TODO) {
-          patch.listTitle = current.listTitle || queryText;
-        }
-        if (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX) {
-          patch.anchorFromNode = current.anchorFromNode ?? false;
-        }
-        return updateBlockAt(prev, blockIndex, patch);
+      const patch = {
+        nodeId,
+        sourceQuery: queryText,
+        queryEnabled: true,
+      };
+      if (
+        block.type === DOC_BLOCK_TYPES.H1
+        || block.type === DOC_BLOCK_TYPES.DATE
+        || block.type === DOC_BLOCK_TYPES.METRIC
+      ) {
+        patch.title = block.title || queryText;
+      }
+      if (block.type === DOC_BLOCK_TYPES.TODO) {
+        patch.listTitle = block.listTitle || queryText;
+      }
+      if (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX) {
+        patch.anchorFromNode = block.anchorFromNode ?? false;
+      }
+      const nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
+      setDraftBlocks(nextBlocks);
+      const body = docBlocksToBody(nextBlocks);
+      updateDoc(doc.id, {
+        blocks: nextBlocks,
+        body,
+        content: body,
       });
       setActiveNodeContext((prev) =>
         (prev?.blockIndex === blockIndex ? { ...prev, nodeId } : prev),
@@ -1260,34 +1300,7 @@ export function DocExpandedView({
   const handleOpenNodeForH1 = (h1Index, h1Block) => handleOpenNodeForBlock(h1Index, h1Block);
 
   const handleNodeModalSave = () => {
-    if (!activeNodeContext) return;
-    if (nodeAutosaveTimerRef.current) {
-      clearTimeout(nodeAutosaveTimerRef.current);
-      nodeAutosaveTimerRef.current = null;
-    }
-
-    const context = { ...activeNodeContext };
-    const { blockIndex, nodeId, dataType, blockType } = context;
-    const block = draftBlocks[blockIndex];
-    if (!block || block.type !== blockType) return;
-
-    const existingNode = (nodeId || block.nodeId) ? getNode(nodeId || block.nodeId) : null;
-    let contentToSave = nodeDraftContent;
-    if (
-      existingNode
-      && dataType === NODE_DATA_TYPES.TEXT
-      && parseCalendarEventNodeContent(existingNode.content)
-    ) {
-      contentToSave = existingNode.content;
-    }
-
-    persistNodeContentDebounced(
-      contentToSave,
-      context,
-      nodeDraftAnchorDate,
-      nodeDraftAnchorTime,
-    );
-    resetNodeModalState();
+    flushAndCloseNodeModal();
   };
 
   const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
