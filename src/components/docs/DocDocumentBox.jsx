@@ -798,18 +798,19 @@ export function DocDocumentBox({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          className={
-            "doc-new-content-shrink-handle"
-            + (contentFocusMode ? "" : " doc-new-content-shrink-handle--normal")
-            + (contentBoxResizing ? " is-active" : "")
-          }
-          onPointerDown={handleContentResizePointerDown}
-          onDoubleClick={resetContentBoxHeight}
-          aria-label="Resize content area"
-          title="Drag to resize · double-click to reset"
-        />
+        {!contentFocusMode ? (
+          <button
+            type="button"
+            className={
+              "doc-new-content-shrink-handle doc-new-content-shrink-handle--normal"
+              + (contentBoxResizing ? " is-active" : "")
+            }
+            onPointerDown={handleContentResizePointerDown}
+            onDoubleClick={resetContentBoxHeight}
+            aria-label="Resize content area"
+            title="Drag to resize · double-click to reset"
+          />
+        ) : null}
         <DocSlashCommandPicker
           onSelectCommand={insertSlashCommandFromPicker}
           isCommandEnabled={isSlashCommandEnabled}
