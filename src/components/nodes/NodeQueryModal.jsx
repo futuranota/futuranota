@@ -495,6 +495,9 @@ export function NodeQueryModal({
             >
               <span className="doc-new-content-expand-btn__icon" aria-hidden />
             </button>
+            {contentFocusMode ? (
+              <p className="node-query-modal__focus-title">{displayQuery}</p>
+            ) : null}
           {dataType === NODE_DATA_TYPES.VIDEO ? (
             <VideoEmbedBar
               nodeId={entityNodeId}

@@ -8346,8 +8346,8 @@ body.doc-content-resizing * {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-height: 29px;
+  gap: 6px;
+  min-height: 28px;
   padding-right: 0;
   margin-top: -4px;
   margin-bottom: 10px;
@@ -8385,19 +8385,24 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__node-icon {
-  width: 18px;
-  height: 18px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
+  opacity: 0.7;
+  display: block;
 }
 
 .node-query-modal__parent-doc {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
   font-family: var(--sans);
-  font-size: 16px;
-  font-weight: 500;
-  letter-spacing: 0.64px;
-  color: #d8d8d8;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: rgba(216, 216, 216, 0.55);
 }
 
 .node-query-modal__head-actions {
@@ -8406,6 +8411,7 @@ body.doc-content-resizing * {
   gap: 6px;
   margin-left: auto;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .node-query-modal__back-link {
@@ -8414,9 +8420,11 @@ body.doc-content-resizing * {
   color: #d8d8d8;
   font-family: var(--sans);
   font-size: 13px;
+  font-weight: 500;
   letter-spacing: 0.32px;
+  line-height: 1.2;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 0;
   opacity: 0.9;
   border-radius: 4px;
   transition: background 120ms ease, color 120ms ease;
@@ -8426,6 +8434,7 @@ body.doc-content-resizing * {
   background: #e8dcc8;
   color: #3a3428;
   border-radius: 4px;
+  padding: 4px 8px;
 }
 
 .node-query-modal__expand-btn {
@@ -8498,6 +8507,21 @@ body.doc-content-resizing * {
   max-height: none;
   margin: 0;
   width: 100%;
+}
+
+/* Minimal title inside scroll — not sticky; reappears when scrolling back up */
+.node-query-modal__focus-title {
+  flex-shrink: 0;
+  margin: 0 0 14px;
+  padding: 4px 40px 0 0;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  color: #dcb2a6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .node-query-modal__content-box--focus {
@@ -8594,14 +8618,15 @@ body.doc-content-resizing * {
   padding: 4px 10px;
 }
 
+/* Query/title is for long questions — compact, bold, same color as doc titles */
 .node-query-modal__query-title {
   margin: 0 0 6px;
   font-family: var(--sans);
-  font-size: 27px;
-  font-weight: 500;
-  letter-spacing: 1.08px;
-  color: #d8d8d8;
-  line-height: 1.2;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #dcb2a6;
+  line-height: 1.35;
   white-space: normal;
   word-break: break-word;
 }
@@ -8616,18 +8641,18 @@ body.doc-content-resizing * {
 .node-query-modal__query-prefix {
   flex-shrink: 0;
   font-family: var(--sans);
-  font-size: 27px;
-  font-weight: 500;
-  letter-spacing: 1.08px;
-  color: #d8d8d8;
-  line-height: 1.2;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #dcb2a6;
+  line-height: 1.35;
 }
 
 .node-query-modal__query-input {
   display: block;
   width: 100%;
   min-width: 0;
-  max-height: 128px;
+  max-height: 160px;
   margin: 0;
   padding: 0;
   border: none;
@@ -8639,11 +8664,11 @@ body.doc-content-resizing * {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--sans);
-  font-size: 27px;
-  font-weight: 500;
-  letter-spacing: 1.08px;
-  color: #d8d8d8;
-  line-height: 1.2;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #dcb2a6;
+  line-height: 1.35;
   scrollbar-width: thin;
   scrollbar-color: #2b323d #0b0e12;
 }
@@ -8663,7 +8688,8 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__query-input::placeholder {
-  color: rgba(216, 216, 216, 0.35);
+  color: #dcb2a6;
+  opacity: 0.55;
 }
 
 .node-query-modal__parent-select,
@@ -8688,18 +8714,21 @@ body.doc-content-resizing * {
 
 .node-query-modal__parent-select {
   flex: 1 1 auto;
-  font-size: 16px;
-  letter-spacing: 0.64px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: rgba(216, 216, 216, 0.55);
   background: transparent;
   max-width: none;
   margin-left: 0;
-  padding: 0 40px 0 2px;
+  padding: 0 28px 0 2px;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23d8d8d8' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23888888' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 20px center;
-  background-size: 10px 6px;
+  background-position: right 12px center;
+  background-size: 8px 5px;
 }
 
 .node-query-modal__parent-select option,
@@ -8717,24 +8746,24 @@ body.doc-content-resizing * {
 .node-query-modal__created-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin: 0 0 8px;
   padding: 0;
 }
 
 .node-query-modal__key {
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 500;
-  color: #d8d8d8;
-  letter-spacing: 0.42px;
+  color: rgba(216, 216, 216, 0.55);
+  letter-spacing: 0.03em;
 }
 
 .node-query-modal__date {
   border: none;
   background: transparent;
-  color: #d8d8d8;
+  color: rgba(216, 216, 216, 0.55);
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: 11px;
   padding: 0;
   appearance: none;
   -webkit-appearance: none;
