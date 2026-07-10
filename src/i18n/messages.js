@@ -230,6 +230,8 @@ export const messages = {
       unlinkedNodes: "Loose documents",
       openDocument: "Open box",
       openBox: "Open box",
+      deleteCategoryConfirm:
+        "Delete category \"{name}\" and its {count} box(es)? This cannot be undone.",
       selectObject: "select company",
       selectObjectFirst: "Select a company first",
       tokensLabel: "CREDITS",

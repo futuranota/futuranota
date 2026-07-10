@@ -45,8 +45,8 @@ export function CodeBlockView({
   onSave,
   onEdit,
   onDelete,
-  deleteLabel = "Eliminar",
-  editLabel = "Editar",
+  deleteLabel = "delete",
+  editLabel = "edit",
   autoFocus = false,
   compact = false,
 }) {
@@ -90,34 +90,30 @@ export function CodeBlockView({
     onSave?.();
   }, [code, onSave]);
 
+  const wrapClass = [
+    "doc-code-block-wrap",
+    compact ? "doc-code-block-wrap--compact" : "",
+  ].filter(Boolean).join(" ");
+
   if (isSavedView) {
     return (
-      <div
-        className={
-          "doc-code-block doc-code-block--saved"
-          + (compact ? " doc-code-block--compact" : "")
-          + (isMarkdownPreview ? " doc-code-block--markdown-preview" : "")
-        }
-      >
-        <div className="doc-code-block__header">
-          <span className="doc-code-block__lang-badge">
-            {codeLanguageLabel(normalizedLanguage)}
-          </span>
-          <div className="doc-code-block__hover-actions" aria-hidden={false}>
+      <div className={wrapClass}>
+        <div className="doc-code-block__slash-header">
+          <div className="doc-code-block__slash-hover-actions">
             <button
               type="button"
-              className="doc-code-block__action doc-code-block__action--copy"
+              className="doc-code-block__slash-action"
               onClick={() => { void handleCopy(); }}
-              aria-label={`Copiar código ${codeLanguageLabel(normalizedLanguage)}`}
+              aria-label={`Copy ${codeLanguageLabel(normalizedLanguage)} code`}
             >
-              {copied ? "Copiado" : "Copiar"}
+              {copied ? "copied" : "copy"}
             </button>
             {onEdit ? (
               <button
                 type="button"
-                className="doc-code-block__action doc-code-block__action--edit"
+                className="doc-code-block__slash-action"
                 onClick={onEdit}
-                aria-label={`Editar ${codeLanguageLabel(normalizedLanguage)}`}
+                aria-label={`Edit ${codeLanguageLabel(normalizedLanguage)}`}
               >
                 {editLabel}
               </button>
@@ -125,7 +121,7 @@ export function CodeBlockView({
             {onDelete ? (
               <button
                 type="button"
-                className="doc-code-block__action doc-code-block__action--delete"
+                className="doc-code-block__slash-action doc-code-block__slash-action--delete"
                 onClick={onDelete}
               >
                 {deleteLabel}
@@ -133,65 +129,63 @@ export function CodeBlockView({
             ) : null}
           </div>
         </div>
-        {isMarkdownPreview ? (
-          <button
-            type="button"
-            className="doc-code-block__markdown-preview"
-            onClick={() => onEdit?.()}
-            aria-label="Editar markdown"
-          >
-            <MarkdownPreview source={code} />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="doc-code-block__snippet"
-            onClick={() => onEdit?.()}
-            aria-label="Editar snippet de código"
-          >
-            <pre className="doc-code-block__pre">
-              <code
-                className="doc-code-block__highlight hljs"
-                dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-              />
-            </pre>
-          </button>
-        )}
+        <div
+          className={
+            "doc-code-block doc-code-block--saved"
+            + (compact ? " doc-code-block--compact" : "")
+            + (isMarkdownPreview ? " doc-code-block--markdown-preview" : "")
+          }
+        >
+          <div className="doc-code-block__header">
+            <span className="doc-code-block__lang-badge">
+              {codeLanguageLabel(normalizedLanguage)}
+            </span>
+          </div>
+          {isMarkdownPreview ? (
+            <button
+              type="button"
+              className="doc-code-block__markdown-preview"
+              onClick={() => onEdit?.()}
+              aria-label="Edit markdown"
+            >
+              <MarkdownPreview source={code} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="doc-code-block__snippet"
+              onClick={() => onEdit?.()}
+              aria-label="Edit code snippet"
+            >
+              <pre className="doc-code-block__pre">
+                <code
+                  className="doc-code-block__highlight hljs"
+                  dangerouslySetInnerHTML={{ __html: highlightedHtml }}
+                />
+              </pre>
+            </button>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={"doc-code-block" + (compact ? " doc-code-block--compact" : "")}>
-      <div className="doc-code-block__toolbar">
-        <label className="doc-code-block__lang-label">
-          <span className="doc-code-block__lang-caption">Lenguaje</span>
-          <select
-            className="doc-code-block__lang-select"
-            value={normalizedLanguage}
-            onChange={(e) => onLanguageChange?.(normalizeCodeLanguage(e.target.value))}
-            aria-label="Lenguaje de programación"
-          >
-            {CODE_BLOCK_LANGUAGES.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="doc-code-block__actions">
+    <div className={wrapClass}>
+      <div className="doc-code-block__slash-header">
+        <div className="doc-code-block__slash-hover-actions">
           <button
             type="button"
-            className="doc-code-block__save"
+            className="doc-code-block__slash-action doc-code-block__slash-action--save"
             onClick={handleSave}
             disabled={!code.trim()}
           >
-            Guardar
+            save
           </button>
           {onDelete ? (
             <button
               type="button"
-              className="doc-code-block__delete"
+              className="doc-code-block__slash-action doc-code-block__slash-action--delete"
               onClick={onDelete}
             >
               {deleteLabel}
@@ -199,27 +193,46 @@ export function CodeBlockView({
           ) : null}
         </div>
       </div>
-      <textarea
-        ref={textareaRef}
-        className="doc-code-block__editor"
-        value={code}
-        spellCheck={false}
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        data-gramm="false"
-        placeholder={
-          isMarkdownPreview
-            ? "# Escribe o pega markdown aquí"
-            : "// Escribe o pega tu código aquí"
-        }
-        onChange={(e) => {
-          onCodeChange?.(e.target.value);
-          syncCodeTextareaHeight(e.target);
-        }}
-        onKeyDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-      />
+      <div className={"doc-code-block" + (compact ? " doc-code-block--compact" : "")}>
+        <div className="doc-code-block__toolbar">
+          <label className="doc-code-block__lang-label">
+            <span className="doc-code-block__lang-caption">Language</span>
+            <select
+              className="doc-code-block__lang-select"
+              value={normalizedLanguage}
+              onChange={(e) => onLanguageChange?.(normalizeCodeLanguage(e.target.value))}
+              aria-label="Programming language"
+            >
+              {CODE_BLOCK_LANGUAGES.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <textarea
+          ref={textareaRef}
+          className="doc-code-block__editor"
+          value={code}
+          spellCheck={false}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          data-gramm="false"
+          placeholder={
+            isMarkdownPreview
+              ? "# Write or paste markdown here"
+              : "// Write or paste your code here"
+          }
+          onChange={(e) => {
+            onCodeChange?.(e.target.value);
+            syncCodeTextareaHeight(e.target);
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+      </div>
     </div>
   );
 }

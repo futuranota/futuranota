@@ -1,8 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  NODE_ICON,
-} from "../../lib/docMediumAssets.js";
 import { IntelSearchButton } from "../shared/IntelSearchButton.jsx";
 import { runIntelSearch } from "../../lib/intelSearch.js";
 import { MetricFieldsEditor } from "../shared/MetricFieldsEditor.jsx";
@@ -386,7 +383,12 @@ export function NodeQueryModal({
               + ((showCloseButton || showReturnLink) ? " node-query-modal__head-top--closable" : "")
             }
           >
-            <img className="node-query-modal__node-icon" src={NODE_ICON} alt="" aria-hidden />
+            <img
+              className="node-query-modal__node-icon"
+              src="/uploads/FileDashed.svg"
+              alt=""
+              aria-hidden
+            />
             {parentSelectable ? (
               <select
                 className="node-query-modal__parent-select"
@@ -438,7 +440,7 @@ export function NodeQueryModal({
                   syncQueryInputHeight();
                 }}
                 rows={1}
-                placeholder="Untitled"
+                placeholder="Got a new Question?"
                 spellCheck={false}
                 aria-label="Query or title"
               />

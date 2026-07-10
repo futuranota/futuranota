@@ -37,7 +37,7 @@ export function DocSlashCommandPicker({
           <div className="doc-slash-command-picker__commands" role="listbox" aria-label="Block commands">
             {commands.map((cmd) => {
               const enabled = isCommandEnabled?.(cmd) !== false;
-              const slashLabel = `/${cmd.aliases[0]}`;
+              const slashLabel = `/${cmd.ghostHint || cmd.aliases[0]}`;
               return (
                 <button
                   key={cmd.label}

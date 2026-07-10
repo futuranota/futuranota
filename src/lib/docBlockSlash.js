@@ -72,12 +72,12 @@ export const DOC_SLASH_COMMANDS = [
   },
   {
     label: "Password",
-    ghostHint: "queue to password",
+    ghostHint: "queue to table",
     aliases: [
+      "password",
       "queue to password",
       "queuetopassword",
       "queue password",
-      "password",
       "pass",
       "clave",
       "contraseña",
@@ -87,7 +87,7 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "URL table",
+    label: "URL",
     ghostHint: "queue to table",
     aliases: ["queue to table", "queuetotable", "queuetable", "urltable", "linktable", "link", "enlace", "url", "bookmark"],
     blockType: DOC_BLOCK_TYPES.LINK_VAULT,

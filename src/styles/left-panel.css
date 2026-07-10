@@ -1259,6 +1259,35 @@
   border-bottom: 1px solid var(--hairline);
 }
 
+.lp-doc-nodes-block.is-menu-open {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #b84a4a 28%, transparent);
+}
+
+.lp-doc-nodes-block__press-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.lp-doc-nodes-block__press-delete {
+  min-height: 24px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: lowercase;
+  color: #b84a4a;
+  border: 1px solid color-mix(in oklab, #b84a4a 32%, transparent);
+  background: color-mix(in oklab, #b84a4a 14%, rgba(255, 255, 255, 0.04));
+}
+
+.lp-doc-nodes-block__press-delete:hover {
+  color: #d45a5a;
+  border-color: color-mix(in oklab, #b84a4a 48%, transparent);
+  background: color-mix(in oklab, #b84a4a 22%, rgba(255, 255, 255, 0.04));
+}
+
 .lp-doc-nodes-block__head-main {
   flex: 1;
   min-width: 0;
@@ -5814,8 +5843,8 @@ body.doc-content-resizing * {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  min-width: 168px;
-  max-width: min(240px, calc(100vw - 48px));
+  min-width: 200px;
+  max-width: min(280px, calc(100vw - 40px));
   padding: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -5830,8 +5859,9 @@ body.doc-content-resizing * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
+  min-width: 0;
   padding: 7px 10px;
   border: none;
   border-radius: 6px;
@@ -5844,6 +5874,7 @@ body.doc-content-resizing * {
   letter-spacing: 0.2px;
   text-align: left;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .doc-collapsed-pad-command__option:hover:not(:disabled),
@@ -5861,15 +5892,25 @@ body.doc-content-resizing * {
 
 .doc-collapsed-pad-command__option-label,
 .doc-slash-command-picker__option-label {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .doc-collapsed-pad-command__option-slash,
 .doc-slash-command-picker__option-slash {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
   color: rgba(255, 255, 255, 0.45);
   font-family: var(--mono, "Geist Mono", monospace);
-  font-size: 11px;
+  font-size: 10px;
+  letter-spacing: 0;
 }
 
 .doc-slash-command-picker__commands {
@@ -6214,11 +6255,12 @@ body.doc-content-resizing * {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: #0a0d11;
-  padding: 10px;
+  width: 100%;
   box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px;
 }
 
 .doc-code-block--compact {
@@ -6229,13 +6271,13 @@ body.doc-content-resizing * {
   gap: 0;
   padding: 0;
   overflow: hidden;
-  background: #141820;
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .doc-code-block--saved:hover,
 .doc-code-block--saved:focus-within {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .doc-code-block__toolbar {
@@ -6661,6 +6703,74 @@ body.doc-content-resizing * {
   margin-left: auto;
 }
 
+.doc-code-block-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.doc-code-block__slash-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 21px;
+  margin-bottom: 2px;
+}
+
+.doc-code-block__slash-hover-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.doc-code-block-wrap:hover .doc-code-block__slash-hover-actions,
+.doc-code-block-wrap:focus-within .doc-code-block__slash-hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doc-code-block__slash-action {
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.44px;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.doc-code-block__slash-action:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.doc-code-block__slash-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.doc-code-block__slash-action--save:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(156, 220, 254, 0.45);
+  background: rgba(86, 156, 214, 0.1);
+}
+
+.doc-code-block__slash-action--delete:hover {
+  color: #fff;
+  border-color: rgba(255, 120, 120, 0.45);
+  background: rgba(255, 80, 80, 0.08);
+}
+
 .doc-code-block__save,
 .doc-code-block__delete {
   height: 28px;
@@ -6709,7 +6819,7 @@ body.doc-content-resizing * {
   border-radius: 6px;
   resize: none;
   overflow: hidden;
-  background: #05070a;
+  background: rgba(255, 255, 255, 0.02);
   outline: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 12px;
@@ -8483,7 +8593,7 @@ body.doc-content-resizing * {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   min-height: 28px;
   padding-right: 0;
   margin-top: -4px;
@@ -8522,11 +8632,14 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__node-icon {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-  opacity: 0.7;
   display: block;
+  object-fit: contain;
+  /* Same hue as parent label, stronger so the dashed file reads bolder */
+  filter: brightness(0) invert(1) contrast(1.35);
+  opacity: 0.82;
 }
 
 .node-query-modal__parent-doc {
@@ -9075,10 +9188,35 @@ body.doc-content-resizing * {
 .node-writing-block-stack__h1 .doc-h1-block,
 .node-writing-block-stack__h2 .doc-h2-block,
 .node-writing-block-stack__h3 .doc-h3-block,
-.node-writing-block-stack__code .doc-code-block,
 .node-writing-block-stack__vault .doc-vault-block,
 .node-writing-block-stack__agent .doc-agent-cell {
   padding: 0 15px;
+}
+
+/* Match todo-list card inset + surface (not edge-to-edge dark panel) */
+.node-writing-block-stack__code .doc-code-block-wrap {
+  padding: 0 15px;
+  box-sizing: border-box;
+}
+
+.node-writing-block-stack__code .doc-code-block {
+  margin: 0;
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.node-writing-block-stack__code .doc-code-block--compact {
+  padding: 8px;
+}
+
+.node-writing-block-stack__code .doc-code-block--saved {
+  padding: 0;
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .node-writing-block-stack__text + .node-writing-block-stack__text {

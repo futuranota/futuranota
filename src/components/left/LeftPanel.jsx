@@ -507,12 +507,18 @@ function DocNodesBlockCard({
   onNodeInsert,
   onNodeDelete,
   onCreateDocument,
+  onDeleteBox,
   defaultExpanded = true,
   orphan = false,
   showWhenEmpty = false,
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const longPressTimer = useRef(null);
+  const suppressClickRef = useRef(false);
+  const pointerStartRef = useRef({ x: 0, y: 0 });
+  const rootRef = useRef(null);
   const parent = doc?.parentObjectId ? objects[doc.parentObjectId] : null;
   const isKnowledge = doc ? isKnowledgeDoc(doc) : false;
   const isTemplate = doc ? isTemplateDoc(doc) : false;
@@ -522,15 +528,77 @@ function DocNodesBlockCard({
       ? resolveKnowledgeDocDisplayTitle(doc)
       : resolveProductDocDisplayTitle(doc);
 
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  useEffect(() => () => clearLongPress(), []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeMenu = (e) => {
+      if (rootRef.current?.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", closeMenu);
+    return () => document.removeEventListener("pointerdown", closeMenu);
+  }, [menuOpen]);
+
   if (!nodes.length && !showWhenEmpty && !orphan) return null;
 
+  const handlePointerDown = (e) => {
+    if (e.button !== 0 || orphan || !onDeleteBox) return;
+    suppressClickRef.current = false;
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    clearLongPress();
+    longPressTimer.current = setTimeout(() => {
+      suppressClickRef.current = true;
+      setMenuOpen(true);
+    }, OBJECT_LONG_PRESS_MS);
+  };
+
+  const handlePointerMove = (e) => {
+    const dx = e.clientX - pointerStartRef.current.x;
+    const dy = e.clientY - pointerStartRef.current.y;
+    if (Math.hypot(dx, dy) > 8) clearLongPress();
+  };
+
+  const handlePointerUp = () => clearLongPress();
+
+  const handleHeadClick = () => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+    setExpanded((value) => !value);
+  };
+
   return (
-    <article className={"lp-doc-nodes-block" + (orphan ? " lp-doc-nodes-block--orphan" : "")}>
+    <article
+      ref={rootRef}
+      className={
+        "lp-doc-nodes-block"
+        + (orphan ? " lp-doc-nodes-block--orphan" : "")
+        + (menuOpen ? " is-menu-open" : "")
+      }
+    >
       <div className="lp-doc-nodes-block__head">
         <button
           type="button"
           className="lp-doc-nodes-block__head-main"
-          onClick={() => setExpanded((value) => !value)}
+          onClick={handleHeadClick}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          onPointerLeave={handlePointerUp}
           aria-expanded={expanded}
         >
           {!orphan ? (
@@ -589,6 +657,21 @@ function DocNodesBlockCard({
           <span className="lp-doc-nodes-block__chevron" aria-hidden>{expanded ? "▾" : "▸"}</span>
         </button>
       </div>
+      {menuOpen && onDeleteBox ? (
+        <div className="lp-doc-nodes-block__press-actions">
+          <button
+            type="button"
+            className="btn xs ghost lp-doc-nodes-block__press-delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen(false);
+              onDeleteBox();
+            }}
+          >
+            {t("common.delete")}
+          </button>
+        </div>
+      ) : null}
       {expanded ? (
         <div className="lp-doc-nodes-block__body">
           {nodes.map((node) => (
@@ -1461,6 +1544,23 @@ export function LeftPanel({
     if (activeId === doc.id) setActiveId(null);
   };
 
+  const handleDeleteCategoryGroup = (group) => {
+    const label = group?.label || t("sidebar.docGroupUncategorized");
+    const count = group?.docs?.length || 0;
+    if (!count) return;
+    if (!window.confirm(
+      t("sidebar.deleteCategoryConfirm", { name: label, count }),
+    )) {
+      return;
+    }
+    for (const doc of group.docs) {
+      onDocumentDeleted?.(doc.id);
+      removeTimelineDocFromQueue(doc.id);
+      deleteDoc(doc.id);
+      if (activeId === doc.id) setActiveId(null);
+    }
+  };
+
   const selectObject = (objectId) => {
     setObjectMenuId(null);
     setSelectedObjectId(objectId);
@@ -2049,6 +2149,7 @@ export function LeftPanel({
                         groupLabel={group.label}
                         groupMeta={t("sidebar.docsInBlock", { count: group.docs.length })}
                         docs={group.docs}
+                        onDeleteCategory={() => handleDeleteCategoryGroup(group)}
                         renderDoc={(doc) => (
                           <DocCompactRow
                             key={doc.id}
@@ -2172,6 +2273,7 @@ export function LeftPanel({
                         showWhenEmpty
                         onOpenDoc={() => handleOpenFolderDoc(doc.id)}
                         onCreateDocument={() => openCreateDocument(doc)}
+                        onDeleteBox={() => handleDeleteDoc(doc)}
                         onNodeClick={(node) => {
                           setActiveId(node.id);
                           setNodeEditContentFocus(false);
