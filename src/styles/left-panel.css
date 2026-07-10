@@ -1898,20 +1898,24 @@
   border-radius: 4px;
 }
 
+/* Match node expand footprint; surface = textarea color; keep top for category H1 */
 .lp-modal.doc-new-modal:has(.doc-new-inner--content-focus) {
   display: flex;
   flex-direction: column;
-  width: min(620px, calc(100vw - 48px));
-  max-width: 620px;
-  height: calc(100vh - 48px);
-  max-height: calc(100vh - 48px);
-  min-height: calc(100vh - 48px);
+  width: min(920px, calc(100vw - 40px));
+  max-width: none;
+  height: auto;
+  max-height: none;
+  min-height: min(82vh, 820px);
   overflow: hidden;
   padding: 0;
+  background: rgb(22, 26, 29);
   box-sizing: border-box;
 }
 
 .lp-overlay.lp-overlay--center:has(.doc-new-modal .doc-new-inner--content-focus) {
+  align-items: stretch;
+  padding: 20px;
   overflow: hidden;
 }
 
@@ -3584,12 +3588,90 @@
   opacity: 1;
 }
 
-/* Content focus mode — content area fills parent card (overlay) */
+/* Content focus mode — textarea-colored surface; top keeps category H1 + node signal */
 .doc-new-inner--content-focus {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: min(82vh, 820px);
   height: 100%;
   width: 100%;
+  --doc-focus-surface: rgb(22, 26, 29);
+  background: var(--doc-focus-surface);
+}
+
+.doc-focus-top {
+  flex-shrink: 0;
+  padding: 18px 21px 10px 15px;
+  box-sizing: border-box;
+  background: var(--doc-focus-surface, rgb(22, 26, 29));
+}
+
+.doc-focus-top__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.doc-focus-top__category {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  field-sizing: content;
+  font-family: "Hanken Grotesk", sans-serif;
+  font-optical-sizing: auto;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  color: #fff;
+}
+
+.doc-focus-top__category::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  font-weight: 700;
+}
+
+.doc-focus-top__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.doc-focus-top__nodes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: rgba(216, 216, 216, 0.72);
+  white-space: nowrap;
+}
+
+.doc-focus-top__nodes--empty {
+  opacity: 0.45;
+}
+
+.doc-focus-top__nodes-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #85da99;
+  box-shadow: 0 0 0 3px rgba(133, 218, 153, 0.16);
+}
+
+.doc-focus-top__close {
+  position: static;
 }
 
 .doc-new-inner--content-focus .doc-new-head,
@@ -3600,11 +3682,15 @@
 
 .doc-new-inner--content-focus .doc-new-content-box {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: min(52vh, 520px);
   height: 100%;
   max-height: none;
   margin: 0;
   resize: none;
+  border-radius: 0;
+  /* Same flat surface as the writing area — no lateral gradient bands */
+  background: var(--doc-focus-surface, rgb(22, 26, 29));
+  --doc-body-track: var(--doc-focus-surface, rgb(22, 26, 29));
 }
 
 .doc-new-inner--content-focus .doc-new-content-box--manual-height {

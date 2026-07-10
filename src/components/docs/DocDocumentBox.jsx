@@ -127,6 +127,18 @@ export function DocDocumentBox({
   const titleDuplicatesStepLabel =
     isStepPlaybookDoc && (title || "").trim() === "Step by step";
   const displayedTitle = titleDuplicatesStepLabel ? "" : title;
+  const focusCategoryLabel = (
+    (category || "").trim()
+    || (displayedTitle || "").trim()
+    || ""
+  );
+  const linkedNodeCount = useMemo(() => {
+    const seen = new Set();
+    for (const block of normalizeDocBlocks(blocks)) {
+      if (block?.nodeId) seen.add(block.nodeId);
+    }
+    return seen.size;
+  }, [blocks]);
   const bodyPlaceholder = isKnowledgeMode
     ? (knowledgeImportActive
       ? t("sidebar.knowledgeNotesImportPlaceholder")
@@ -137,6 +149,7 @@ export function DocDocumentBox({
   const contentScrollRef = useRef(null);
   const blockStackRef = useRef(null);
   const contentBoxManualHeightRef = useRef(null);
+  const focusCategoryRef = useRef(null);
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
   const [contentFocusMode, setContentFocusMode] = useState(false);
@@ -263,6 +276,13 @@ export function DocDocumentBox({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [titleRef]);
+
+  const syncFocusCategoryHeight = useCallback(() => {
+    const el = focusCategoryRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
 
   const focusContentArea = useCallback(() => {
     const scroll = contentScrollRef.current;
@@ -435,6 +455,11 @@ export function DocDocumentBox({
   }, [title, syncTitleHeight]);
 
   useLayoutEffect(() => {
+    if (!contentFocusMode) return;
+    syncFocusCategoryHeight();
+  }, [contentFocusMode, focusCategoryLabel, syncFocusCategoryHeight]);
+
+  useLayoutEffect(() => {
     syncContentBoxHeight();
   }, [docId, contentFocusMode, syncContentBoxHeight]);
 
@@ -545,6 +570,49 @@ export function DocDocumentBox({
         + (contentFocusMode ? " doc-new-inner--content-focus" : "")
       }
     >
+      {contentFocusMode ? (
+        <header className="doc-focus-top">
+          <div className="doc-focus-top__row">
+            <textarea
+              ref={focusCategoryRef}
+              className="doc-focus-top__category"
+              value={focusCategoryLabel}
+              placeholder={titlePlaceholder || "Describe Category"}
+              rows={1}
+              aria-label="Category"
+              onChange={(e) => {
+                const next = e.target.value;
+                onTitleChange?.(next);
+                if (isContentMode || isProductMode) onCategoryChange?.(next);
+                requestAnimationFrame(syncFocusCategoryHeight);
+              }}
+            />
+            <div className="doc-focus-top__meta">
+              {linkedNodeCount > 0 ? (
+                <span className="doc-focus-top__nodes" title={t("sidebar.nodesInBlock", { count: linkedNodeCount })}>
+                  <span className="doc-focus-top__nodes-dot" aria-hidden />
+                  {t("sidebar.nodesInBlock", { count: linkedNodeCount })}
+                </span>
+              ) : (
+                <span className="doc-focus-top__nodes doc-focus-top__nodes--empty">
+                  nodes
+                </span>
+              )}
+              {onCloseExpand ? (
+                <button
+                  type="button"
+                  className="doc-new-head-expand-btn doc-focus-top__close"
+                  onClick={onCloseExpand}
+                  aria-label="Close"
+                >
+                  <span className="doc-new-head-close-x" aria-hidden>×</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </header>
+      ) : null}
+
       <header className="doc-new-head">
         <div className="doc-new-head-top">
           {showParentPicker ? (

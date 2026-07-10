@@ -6400,6 +6400,12 @@ textarea.note-form-field {
   background: rgba(0, 0, 0, 0.72);
 }
 
+.doc-overlay-global:has(.doc-new-inner--content-focus) {
+  align-items: stretch;
+  padding: 20px;
+  z-index: 280;
+}
+
 .doc-overlay-global--node-active {
   visibility: hidden;
   pointer-events: none;
@@ -6452,16 +6458,18 @@ textarea.note-form-field {
   padding: 0;
 }
 
+/* Match node expand footprint; surface = textarea color; keep top for category H1 */
 .doc-overlay-global-card:has(.doc-new-inner--content-focus) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
   padding: 0;
-  width: min(620px, calc(100vw - 48px));
-  max-width: 620px;
-  height: calc(100vh - 48px);
-  max-height: calc(100vh - 48px);
-  min-height: calc(100vh - 48px);
+  width: min(920px, calc(100vw - 40px));
+  max-width: none;
+  height: auto;
+  max-height: none;
+  min-height: min(82vh, 820px);
+  background: rgb(22, 26, 29);
   box-sizing: border-box;
 }
 
