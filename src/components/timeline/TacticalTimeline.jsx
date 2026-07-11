@@ -460,8 +460,8 @@ function TacticalObjectRow({
                   key={group.columnKey}
                   className={`tl-tactical-node-group is-anchor-${anchorAlign}`}
                   style={{ left: `${group.leftPct}%` }}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 12, x: "-50%" }}
+                  animate={{ opacity: 1, y: 0, x: "-50%" }}
                   transition={{ duration: 0.35, delay: groupIndex * 0.12 }}
                 >
                   <div

@@ -5367,6 +5367,7 @@ textarea.note-form-field {
   min-height: 72px;
   min-width: 0;
   overflow: visible;
+  padding-top: 0;
   padding-bottom: 2px;
 }
 .tl-tactical-node-group {
@@ -5380,11 +5381,13 @@ textarea.note-form-field {
   min-width: 0;
   max-width: min(120px, 26vw);
   text-align: center;
+  /* X centering: Framer Motion owns transform (x: -50%); keep CSS fallback when motion is off */
+  transform: translateX(-50%);
 }
 .tl-tactical-node-group.is-anchor-center,
 .tl-tactical-node-group.is-anchor-start,
 .tl-tactical-node-group.is-anchor-end {
-  /* Always center the document block under its timeline node */
+  /* Same center-on-dot for folder docs and macronodos (edge align only affects overflow, not origin) */
   transform: translateX(-50%);
   align-items: center;
 }
