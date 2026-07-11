@@ -47,7 +47,7 @@ function resolveAgentSetChipClass(marker) {
   return `is-agent-set is-status-${status}`;
 }
 
-function TacticalRulerBar({ grid, today }) {
+function TacticalRulerBar({ grid, today, t }) {
   return (
     <>
       <div className="tl-tactical-ruler" aria-hidden>
@@ -66,6 +66,13 @@ function TacticalRulerBar({ grid, today }) {
           aria-hidden
         />
       )}
+      {grid && today >= grid.start && today <= grid.end && (
+        <div
+          className="tl-tactical-rail__future"
+          style={{ left: `${grid.todayPct}%`, width: `${Math.max(0, 100 - grid.todayPct)}%` }}
+          aria-hidden
+        />
+      )}
       <div className="tl-tactical-rail__axis" aria-hidden />
       {grid && today >= grid.start && today <= grid.end && (
         <div
@@ -73,6 +80,9 @@ function TacticalRulerBar({ grid, today }) {
           style={{ left: `${grid.todayPct}%` }}
         >
           <div className="tl-tactical-rail__today-head">
+            <span className="tl-tactical-rail__today-pill">
+              {t ? t("timeline.today") : "today"}
+            </span>
             <span className="tl-tactical-rail__today-date">{fmtDate(today, "short")}</span>
           </div>
           <span className="tl-tactical-rail__today-line" aria-hidden />
@@ -82,14 +92,14 @@ function TacticalRulerBar({ grid, today }) {
   );
 }
 
-function TacticalDecorativeRuler({ grid, today }) {
+function TacticalDecorativeRuler({ grid, today, t }) {
   return (
     <div className="tl-tactical-decorative-ruler" aria-hidden>
       <div className="tl-tactical-rail tl-tactical-rail--decorative">
         <div className="tl-tactical-rail__inset">
           <div className="tl-tactical-rail__plot">
             <div className="tl-tactical-bar tl-tactical-bar--decorative">
-              <TacticalRulerBar grid={grid} today={today} />
+              <TacticalRulerBar grid={grid} today={today} t={t} />
             </div>
           </div>
         </div>
@@ -247,10 +257,11 @@ function TacticalObjectRow({
             <div className="tl-tactical-rail__inset">
             <div className="tl-tactical-rail__plot" ref={plotRef}>
             <div className="tl-tactical-bar">
-              <TacticalRulerBar grid={grid} today={today} />
+              <TacticalRulerBar grid={grid} today={today} t={t} />
               {nodeGroups.length > 0 ? (
                 <>
               {segments.map((segment) => (
+                (segment.isDocDimension || segment.isRowEndpointSpan) ? (
                 <div
                   key={`range-${segment.key}`}
                   className={
@@ -262,14 +273,24 @@ function TacticalObjectRow({
                   title={segment.label || undefined}
                   aria-hidden
                 />
+                ) : null
               ))}
               {segments.map((segment) => (
                 <div
                   key={segment.key}
-                  className="tl-tactical-segment"
+                  className={
+                    "tl-tactical-segment"
+                    + (segment.isAdjacentGap ? " is-adjacent-gap" : "")
+                    + (segment.isRowEndpointSpan ? " is-row-endpoint-span" : "")
+                  }
                   style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
                 >
                   <span className="tl-tactical-segment__edge" aria-hidden />
+                  {segment.isAdjacentGap && segment.label ? (
+                    <span className="tl-tactical-segment__label" title={segment.label}>
+                      {segment.label}
+                    </span>
+                  ) : null}
                 </div>
               ))}
               {daysLeft > 0 && (
@@ -295,16 +316,32 @@ function TacticalObjectRow({
                   nodeGroups.length,
                 );
                 const anchorStatus = resolveAnchorStatus(group.date, today);
-                const isRangeStart = enableRangeHandles && groupIndex === 0;
-                const isRangeEnd = enableRangeHandles && groupIndex === nodeGroups.length - 1;
-                const isRangeHandle = isRangeStart || isRangeEnd;
+                const isFirst = groupIndex === 0;
+                const isLast = groupIndex === nodeGroups.length - 1;
+                const isRangeHandle = enableRangeHandles && nodeGroups.length > 0;
+                const rangeEdge = !isRangeHandle
+                  ? null
+                  : (isFirst && isLast) || (!isFirst && !isLast)
+                    ? "both"
+                    : isFirst
+                      ? "start"
+                      : "end";
                 const handleClass = [
                   "tl-tactical-rail__anchor",
                   `is-status-${anchorStatus}`,
                   `is-anchor-${anchorAlign}`,
-                  isRangeStart ? "is-range-handle is-range-start" : "",
-                  isRangeEnd ? "is-range-handle is-range-end" : "",
+                  isRangeHandle ? "is-range-handle" : "",
+                  rangeEdge === "start" ? "is-range-start" : "",
+                  rangeEdge === "end" ? "is-range-end" : "",
+                  rangeEdge === "both" ? "is-range-both" : "",
                 ].filter(Boolean).join(" ");
+                const stretchHint = rangeEdge === "start"
+                  ? t("timeline.dragStart")
+                  : rangeEdge === "end"
+                    ? t("timeline.dragEnd")
+                    : rangeEdge === "both"
+                      ? t("timeline.dragStretch")
+                      : null;
 
                 return (
                   <span
@@ -313,40 +350,24 @@ function TacticalObjectRow({
                     style={{ left: `${group.leftPct}%` }}
                     data-tl-anchor={`dot-${row.id}-${group.columnKey}`}
                     role={isRangeHandle ? "slider" : undefined}
-                    aria-label={
-                      isRangeStart
-                        ? t("timeline.dragStart")
-                        : isRangeEnd
-                          ? t("timeline.dragEnd")
-                          : undefined
+                    aria-label={stretchHint || undefined}
+                    title={
+                      stretchHint
+                      || (anchorStatus === "past" ? t("timeline.pastDueHint") : undefined)
                     }
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(group.leftPct)}
                     tabIndex={isRangeHandle ? 0 : undefined}
                     onPointerDown={
-                      isRangeStart && isRangeEnd
+                      rangeEdge
                         ? (e) => rangeDrag?.onRangeHandlePointerDown(
-                          "both",
+                          rangeEdge,
                           plotRef.current,
                           e,
                           { anchorDate: group.date, anchorPct: group.leftPct },
                         )
-                        : isRangeStart
-                          ? (e) => rangeDrag?.onRangeHandlePointerDown(
-                            "start",
-                            plotRef.current,
-                            e,
-                            { anchorDate: group.date, anchorPct: group.leftPct },
-                          )
-                          : isRangeEnd
-                            ? (e) => rangeDrag?.onRangeHandlePointerDown(
-                              "end",
-                              plotRef.current,
-                              e,
-                              { anchorDate: group.date, anchorPct: group.leftPct },
-                            )
-                            : undefined
+                        : undefined
                     }
                     onDoubleClick={isRangeHandle ? rangeDrag?.onRangeHandleDoubleClick : undefined}
                   >
@@ -381,6 +402,9 @@ function TacticalObjectRow({
                         ? nodeEntitiesById[marker.entityId]
                         : null;
                       const isAgentSet = marker.dataType === "agent-set";
+                      const anchorStatus = resolveAnchorStatus(marker.date || group.date, today);
+                      const isPastDue = anchorStatus === "past";
+                      const isPending = anchorStatus === "future";
                       const fallbackName = marker.dataType && marker.dataType !== "document"
                         ? (entity?.title || entity?.name || marker.dataType).trim()
                         : (docsById[marker.docId]?.title || "Document").trim();
@@ -396,6 +420,11 @@ function TacticalObjectRow({
                         : marker.dataType && marker.dataType !== "document"
                           ? `${display.name} · ${marker.dataType}`
                           : display.name;
+                      const chipLabel = isPastDue
+                        ? `${chipName} · ${t("timeline.pastDue")}`
+                        : isPending
+                          ? `${chipName} · ${t("timeline.pending")}`
+                          : chipName;
                       const dataAnchor = isAgentSet
                         ? `set-${marker.agentSetId}`
                         : marker.dataType === "document" && marker.docId
@@ -413,21 +442,29 @@ function TacticalObjectRow({
                           key={marker.nodeId}
                           variant="card"
                           compact
-                          name={chipName}
+                          name={chipLabel}
                           familyAccent={familyAccent}
                           objectTint={display.objectTint || accent}
                           focused={focusedNoteId === (item?.noteId || marker.nodeId)}
                           dataAnchor={dataAnchor}
                           statusBadge={isAgentSet ? (marker.setStatus || "pending") : null}
-                          className={isAgentSet ? resolveAgentSetChipClass(marker) : ""}
+                          className={
+                            [
+                              isAgentSet ? resolveAgentSetChipClass(marker) : "",
+                              isPastDue ? "is-past-due" : "",
+                              isPending ? "is-pending" : "",
+                            ].filter(Boolean).join(" ")
+                          }
                           title={
-                            isAgentSet
-                              ? t("timeline.agentSetHint")
-                              : marker.dataType === "document"
-                                ? t("timeline.docChipHint")
-                                : marker.docId
-                                  ? t("timeline.childChipHint")
-                                  : undefined
+                            isPastDue
+                              ? t("timeline.pastDueHint")
+                              : isAgentSet
+                                ? t("timeline.agentSetHint")
+                                : marker.dataType === "document"
+                                  ? t("timeline.docChipHint")
+                                  : marker.docId
+                                    ? t("timeline.childChipHint")
+                                    : undefined
                           }
                           onClick={() => onChipClick(marker, row)}
                           onDoubleClick={() => onChipDoubleClick(marker, row)}
@@ -713,7 +750,7 @@ export function TacticalTimeline({
                 t={t}
               />
             )) : (
-              <TacticalDecorativeRuler grid={activeGrid} today={today} />
+              <TacticalDecorativeRuler grid={activeGrid} today={today} t={t} />
             )}
           </div>
         </>
@@ -733,7 +770,7 @@ export function TacticalTimeline({
             </button>
           </div>
           <div className="tl-tactical-body">
-            <TacticalDecorativeRuler grid={emptyGrid} today={today} />
+            <TacticalDecorativeRuler grid={emptyGrid} today={today} t={t} />
           </div>
         </>
       )}

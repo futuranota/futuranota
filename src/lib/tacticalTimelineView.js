@@ -56,15 +56,16 @@ function buildGridTicks(start, end, pct, spanDays) {
 }
 
 /**
- * Month-first timeline scale: default span = current calendar month; zooms out when
- * markers fall outside that window.
+ * Timeline scale:
+ * - Few folders (<4): tight window around markers so 1-day gaps stay readable.
+ * - Many folders: month floor / fit-all (zoomed out), then auto-widen if crowded.
  * @param {Date[]} markerDates
  * @param {Date} today
  * @param {{ rangeOverride?: { startMs?: number | null, endMs?: number | null } | null, queueDocCount?: number }} [options]
  */
 export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
   const { rangeOverride = null, queueDocCount = 0 } = options;
-  let { start, end } = resolveTacticalGridBaseBounds(markerDates, today);
+  let { start, end } = resolveTacticalGridBaseBounds(markerDates, today, { queueDocCount });
   ({ start, end } = applyAutoZoomForQueue(start, end, markerDates, queueDocCount));
   ({ start, end } = applyTacticalRangeOverride(start, end, rangeOverride));
 
@@ -91,6 +92,7 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
     end,
     pct,
     todayPct: pct(today),
+    today: todayDay,
     spanDays,
     monthStart,
     monthEnd,
@@ -350,16 +352,57 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
     return { nodeGroups: [], segments: [] };
   }
 
+  // Always use true grid.pct so chronology matches the ruler (past left of today).
+  // Remapping leftPct desyncs folders from todayPct (Jul 8 appearing after Jul 11).
   const nodeGroups = columns.map((col) => ({
     ...col,
     leftPct: grid.pct(col.date),
   }));
 
   const wireSegments = options.segments || [];
+  const gapSegments = buildAdjacentDayGapSegments(columns, grid);
   const rowSpan = buildRowEndpointSpanSegment(columns, grid);
-  const segments = rowSpan ? [rowSpan, ...wireSegments] : wireSegments;
+  const segments = [
+    ...(rowSpan ? [rowSpan] : []),
+    ...gapSegments,
+    ...wireSegments,
+  ];
 
   return { nodeGroups, segments };
+}
+
+/**
+ * Visible time metrics between consecutive different-day columns ("2d", "4d").
+ * Same-day columns share a stack — no gap label.
+ * @param {ReturnType<typeof buildTimelineColumns>} columns
+ * @param {ReturnType<typeof buildTacticalDisplayGrid>} grid
+ */
+export function buildAdjacentDayGapSegments(columns, grid) {
+  if (!columns?.length || columns.length < 2 || !grid) return [];
+
+  const segments = [];
+  for (let i = 1; i < columns.length; i += 1) {
+    const prev = columns[i - 1];
+    const next = columns[i];
+    if (sameCalendarDay(prev.date, next.date)) continue;
+    const segment = buildDimensionSegmentBetweenColumns(prev, next, grid);
+    segments.push({
+      ...segment,
+      key: `day-gap-${prev.columnKey}-${next.columnKey}`,
+      isDocDimension: false,
+      isAdjacentGap: true,
+    });
+  }
+  return segments;
+}
+
+/**
+ * @deprecated Prefer grid.pct only. Identity helper kept for any external callers.
+ * @param {Array<{ leftPct: number, date: Date }>} groups
+ */
+export function spreadDifferentDayColumns(groups) {
+  if (!groups?.length) return [];
+  return groups.map((g) => ({ ...g, leftPct: Number(g.leftPct) || 0 }));
 }
 
 function isDocumentNode(node, item) {
@@ -377,7 +420,8 @@ export function buildTimelineColumns(markers) {
   const byDay = new Map();
 
   for (const marker of sorted) {
-    const dayTs = marker.date.getTime();
+    const day = startOfCalendarDay(marker.date);
+    const dayTs = day.getTime();
     const existing = byDay.get(dayTs);
     if (existing) {
       existing.items.push(marker);
@@ -385,7 +429,7 @@ export function buildTimelineColumns(markers) {
     }
     byDay.set(dayTs, {
       columnKey: String(dayTs),
-      date: marker.date,
+      date: day,
       items: [marker],
     });
   }
@@ -626,13 +670,21 @@ export function buildTacticalObjectRows(params) {
     orderedRows.push(...(childRowsByObjectId.get(objectRow.objectId) || []));
   }
 
-  const allMarkerDates = orderedRows.flatMap((row) =>
+  // Scale the grid from folder (object-row) dates so child rows don't force month zoom-out.
+  const folderMarkerDates = orderedRows
+    .filter((row) => row.rowKind === "object")
+    .flatMap((row) => (row.columns || []).map((col) => col.date));
+  const fallbackMarkerDates = orderedRows.flatMap((row) =>
     (row.columns || []).map((col) => col.date),
   );
-  const displayGrid = buildTacticalDisplayGrid(allMarkerDates, today, {
-    rangeOverride,
-    queueDocCount: timelineDocQueue.length,
-  });
+  const displayGrid = buildTacticalDisplayGrid(
+    folderMarkerDates.length > 0 ? folderMarkerDates : fallbackMarkerDates,
+    today,
+    {
+      rangeOverride,
+      queueDocCount: timelineDocQueue.length,
+    },
+  );
 
   const dimensionSegmentsByRow = buildDocDimensionSegmentsByRow(
     orderedRows,

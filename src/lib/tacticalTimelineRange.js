@@ -2,8 +2,19 @@ import { startOfCalendarDay } from "../temporal.js";
 
 export const TACTICAL_AUTO_ZOOM_MIN_DOCS = 4;
 export const TACTICAL_MIN_MARKER_GAP_PCT = 8;
+/** Floor for a tight window when a single folder is alone on the rail. */
+export const TACTICAL_TIGHT_MIN_SPAN_DAYS = 5;
+/**
+ * Target horizontal share (%) for the smallest adjacent day-gap between folders.
+ * e.g. 2 calendar days apart → window ≈ 2 / 0.20 = 10 days so the gap reads clearly.
+ */
+export const TACTICAL_TIGHT_TARGET_GAP_PCT = 20;
+/** Include "today" in a tight window only if it is near the folder cluster. */
+export const TACTICAL_TIGHT_TODAY_REACH_DAYS = 45;
+/** Minimum horizontal gap (%) used when estimating crowded auto-zoom. */
+export const TACTICAL_MIN_COLUMN_GAP_PCT = 11;
 const MS_PER_DAY = 86400000;
-const GRID_PAD_DAYS = 2;
+const GRID_PAD_DAYS = 1;
 
 function startOfCalendarMonth(date) {
   return startOfCalendarDay(new Date(date.getFullYear(), date.getMonth(), 1));
@@ -35,18 +46,92 @@ export function dateFromPctOnGrid(pct, grid) {
 }
 
 /**
+ * Tight window around folder dates so day gaps stay readable (not month-zoomed-out).
+ * Chronology stays true: past stays left of today via grid.pct.
+ * @param {Date[]} normalizedDates
+ * @param {Date} todayDay
+ */
+function resolveTightGridBounds(normalizedDates, todayDay) {
+  const anchorTs = normalizedDates.map((d) => d.getTime());
+  let minTs = Math.min(...anchorTs);
+  let maxTs = Math.max(...anchorTs);
+  const todayTs = todayDay.getTime();
+  const reachMs = TACTICAL_TIGHT_TODAY_REACH_DAYS * MS_PER_DAY;
+  const anyPast = anchorTs.some((ts) => ts < todayTs);
+  if (
+    anyPast
+    || (todayTs >= minTs - reachMs && todayTs <= maxTs + reachMs)
+  ) {
+    minTs = Math.min(minTs, todayTs);
+    maxTs = Math.max(maxTs, todayTs);
+  }
+
+  const contentSpanDays = Math.max(0, (maxTs - minTs) / MS_PER_DAY);
+  const uniqueDays = [...new Set(anchorTs)].sort((a, b) => a - b);
+
+  let minAdjacentDays = Infinity;
+  for (let i = 1; i < uniqueDays.length; i += 1) {
+    const days = (uniqueDays[i] - uniqueDays[i - 1]) / MS_PER_DAY;
+    if (days > 0 && days < minAdjacentDays) minAdjacentDays = days;
+  }
+
+  // Ideal span so the smallest folder gap occupies ~TARGET% of the rail.
+  let idealSpanDays = TACTICAL_TIGHT_MIN_SPAN_DAYS;
+  if (Number.isFinite(minAdjacentDays) && uniqueDays.length >= 2) {
+    idealSpanDays = Math.ceil(
+      minAdjacentDays / (TACTICAL_TIGHT_TARGET_GAP_PCT / 100),
+    );
+  }
+
+  // Prefer ideal when the cluster already fits inside it (spreads folders on screen).
+  const finalSpanDays = contentSpanDays <= idealSpanDays
+    ? Math.max(idealSpanDays, contentSpanDays + 2 * GRID_PAD_DAYS)
+    : Math.max(contentSpanDays + 2 * GRID_PAD_DAYS, TACTICAL_TIGHT_MIN_SPAN_DAYS);
+
+  const mid = (minTs + maxTs) / 2;
+  let start = startOfCalendarDay(new Date(mid - (finalSpanDays * MS_PER_DAY) / 2));
+  let end = startOfCalendarDay(new Date(mid + (finalSpanDays * MS_PER_DAY) / 2));
+
+  // Never clip folder/today anchors off the rail.
+  if (start.getTime() > minTs - GRID_PAD_DAYS * MS_PER_DAY) {
+    start = startOfCalendarDay(new Date(minTs - GRID_PAD_DAYS * MS_PER_DAY));
+  }
+  if (end.getTime() < maxTs + GRID_PAD_DAYS * MS_PER_DAY) {
+    end = startOfCalendarDay(new Date(maxTs + GRID_PAD_DAYS * MS_PER_DAY));
+  }
+
+  return { start, end };
+}
+
+/**
  * Base calendar bounds before manual override / auto zoom padding.
+ * - Few folders (< TACTICAL_AUTO_ZOOM_MIN_DOCS): tight window around markers so
+ *   1-day differences read clearly (not month-zoomed-out).
+ * - Many folders / empty: month floor, expand to fit all markers (zoomed out).
  * @param {Date[]} markerDates
  * @param {Date} today
+ * @param {{ queueDocCount?: number }} [options]
  */
-export function resolveTacticalGridBaseBounds(markerDates, today) {
+export function resolveTacticalGridBaseBounds(markerDates, today, options = {}) {
+  const { queueDocCount = 0 } = options;
   const monthStart = startOfCalendarMonth(today);
   const monthEnd = endOfCalendarMonth(today);
+  const todayDay = startOfCalendarDay(today);
+  const normalized = markerDates.filter(Boolean).map((d) => startOfCalendarDay(d));
+  const uniqueDayCount = new Set(normalized.map((d) => d.getTime())).size;
+
+  // Tight zoom when few folders / few unique days — avoid month-zoomed-out clutter.
+  const useTight = normalized.length > 0 && (
+    (queueDocCount > 0 && queueDocCount < TACTICAL_AUTO_ZOOM_MIN_DOCS)
+    || (uniqueDayCount > 0 && uniqueDayCount < TACTICAL_AUTO_ZOOM_MIN_DOCS)
+  );
+
+  if (useTight) {
+    return resolveTightGridBounds(normalized, todayDay);
+  }
+
   let start = monthStart;
   let end = monthEnd;
-
-  const normalized = markerDates.filter(Boolean).map((d) => startOfCalendarDay(d));
-  const todayDay = startOfCalendarDay(today);
   const anchorTs = normalized.map((d) => d.getTime());
 
   if (anchorTs.length > 0) {
@@ -64,7 +149,7 @@ export function resolveTacticalGridBaseBounds(markerDates, today) {
 }
 
 /**
- * Widen span when many queued docs produce crowded markers.
+ * Widen span when many queued docs produce crowded markers (zoomed-out mode).
  * @param {Date} start
  * @param {Date} end
  * @param {Date[]} markerDates
@@ -127,8 +212,8 @@ export function applyTacticalRangeOverride(start, end, rangeOverride) {
   return { start: nextStart, end: nextEnd };
 }
 
-/** Minimum visible span when manually adjusting range. */
-export const TACTICAL_MIN_RANGE_SPAN_MS = MS_PER_DAY * 2;
+/** Minimum visible span when manually stretching range via dots (zoom in). */
+export const TACTICAL_MIN_RANGE_SPAN_MS = MS_PER_DAY * 3;
 
 /**
  * Keep anchor date at `pct` on the grid by solving for a new start (fixed end).
