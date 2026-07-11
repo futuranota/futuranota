@@ -1278,6 +1278,7 @@ useEffect(() => {
         nodeEntitiesById={nodeEntities}
         filterObjectId={filterObjectId}
         onOpenDocument={openDocumentOverlay}
+        onOpenNode={openNodeOverlay}
       />
 
       {activeStepPlaybook ? (

@@ -65,6 +65,11 @@ export const useTimelineStore = create(
       expandedDocIds: [],
       /** Manual zoom-out: extend visible grid start/end (ms, calendar day). */
       tacticalRangeOverride: null,
+      /**
+       * Local loupe on a middle folder node (visual only — does not pan the window).
+       * { focusMs, targetPct }
+       */
+      tacticalLoupe: null,
 
       getEffectiveCanvasMode: () => {
         const s = get();
@@ -306,11 +311,21 @@ export const useTimelineStore = create(
         timelineExcludedChildrenByDocId: {},
         timelineAgentSets: [],
         tacticalRangeOverride: null,
+        tacticalLoupe: null,
       }),
 
       setTacticalRangeOverride: (override) => set({ tacticalRangeOverride: override }),
 
       clearTacticalRangeOverride: () => set({ tacticalRangeOverride: null }),
+
+      setTacticalLoupe: (loupe) => set({ tacticalLoupe: loupe }),
+
+      clearTacticalLoupe: () => set({ tacticalLoupe: null }),
+
+      clearTacticalViewOverrides: () => set({
+        tacticalRangeOverride: null,
+        tacticalLoupe: null,
+      }),
 
       removeTimelineAgentSet: (setId) => {
         if (!setId) return;
@@ -419,6 +434,7 @@ export const useTimelineStore = create(
             timelineDocQueueFocusByDocId: nextFocus,
             // Recompute auto zoom for the new set (don't keep a stale stretch window).
             tacticalRangeOverride: null,
+            tacticalLoupe: null,
           };
         });
       },
@@ -532,6 +548,7 @@ export const useTimelineStore = create(
           timelineAgentSets,
           // Fresh auto zoom after insert — avoids collapsed month snap / stale stretch.
           tacticalRangeOverride: null,
+          tacticalLoupe: null,
         });
         return {
           ok: true,

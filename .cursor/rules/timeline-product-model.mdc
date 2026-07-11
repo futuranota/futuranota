@@ -10,7 +10,7 @@ The timeline’s job is to **track time and schedules** so users organize work b
 ## Folder vs document
 
 - **Folder = category / class** (e.g. Math, Marketing, Sales). Everything inside belongs to that class.
-- **Document = scheduled unit** inside its folder (eventually date + hour/minute).
+- **Document = scheduled unit** inside its folder — **day + hour + minute** from the document Schedule section (`anchorDate` / `anchorTime` / `anchorAt` / `launchAt`).
 - Folders relate to **other folders** on the timeline (sequence / focus over days).
 - Docs stay **scoped to their folder** — reintegrated on the rail, but independent across classes.
 
@@ -23,15 +23,15 @@ Marketing  ——(+1 day)——  Sales
 ## Placement rules (do not break)
 
 - Chronological on the ruler: dates **before today** sit on the **left** (past-due / completed); today = thermometer marker; later = **pending N days**.
-- Status labels beat bare day-gaps (`2d`): show Past due, Completed, or Pending {n} days.
-- **Same calendar day** → may stack vertically in one column.
-- **Different days** (even 1 day apart) → must show **horizontal time distance** on the true calendar scale (grid.pct); never remap positions (that breaks past vs today).
-- Show adjacent gap metrics between folders (`2d`, `4d`) on the rail.
-- Visual gaps should reflect **real day distance**, not equal spacing.
+- Status labels beat bare day-gaps (`2d`): show Past due, Completed, or Pending {n} days — **except** same-day doc gaps, which show `[same day] · Xm` / `Xh`.
+- **Documents on the same calendar day** → **separate nodes** (not stacked solely for sharing a day), ordered by full datetime; show `[same day]` + minutes/hours between consecutive docs.
+- **Different days** (even 1 day apart) → must show **horizontal time distance** on the true calendar scale (grid.pct); never remap positions across different days (that breaks past vs today). Same-day fan-out may add a small local gap so minutes read as distinct nodes.
+- Show adjacent gap metrics between consecutive scheduled units (`[same day] · 45m`, `2d`, …) on the rail and in the Content list.
+- Visual gaps between **folders** (≥1 day) must never collapse.
 - Few folders: readable tight window (not month-zoomed-out). Many folders: zoomed-out fit.
-- Edge / folder dots = **manual stretch zoom** (range override); folder dates stay fixed. Drag inward to separate folders more; double-click resets.
+- Edge / folder dots = **manual stretch zoom** (range override); folder dates stay fixed. Middle dots = local loupe. Double-click resets.
 
 ## Current step vs later
 
-- Now: day-level folder/doc markers + child schedules on the rail.
-- Later: hour/minute on documents + alarms. Keep data model ready; don’t regress day chronology.
+- Now: day + hour + minute on documents (Schedule); chronological Content list; same-day docs as separate rail nodes with time-gap labels.
+- Later: alarms/notifications. Keep data model ready; don’t regress chronology.

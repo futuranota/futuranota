@@ -10,10 +10,12 @@ import {
   resolveDaysLeftCenterPct,
   resolveTimelineScheduleStatus,
   formatTimelineScheduleStatusLabel,
+  formatTimelineTimeGapLabel,
 } from "../../lib/tacticalTimelineView.js";
+import { formatSameDayPairLabel } from "../../lib/docSchedule.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
-import { resolveFocusBlockIdForTimelineMarker } from "../../lib/timelineSelection.js";
+import { resolveNodeIdForTimelineMarker } from "../../lib/timelineSelection.js";
 import { useTacticalRangeDrag } from "../../hooks/useTacticalRangeDrag.js";
 import { useTranslatedText } from "../../hooks/useTranslatedText.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -294,31 +296,48 @@ function TacticalObjectRow({
                   className={
                     "tl-tactical-segment"
                     + (segment.isAdjacentGap ? " is-adjacent-gap" : "")
+                    + (segment.isSameDayGap ? " is-same-day-gap" : "")
                     + (segment.isRowEndpointSpan ? " is-row-endpoint-span" : "")
                   }
                   style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
                 >
                   <span className="tl-tactical-segment__edge" aria-hidden />
-                  {segment.isAdjacentGap ? (
-                    <span
-                      className={
-                        "tl-tactical-segment__label"
-                        + (segment.scheduleKind ? ` is-${segment.scheduleKind}` : "")
-                      }
-                      title={
-                        formatTimelineScheduleStatusLabel(segment.schedule, t, {
-                          gapDays: segment.gapDays,
-                        })
-                        || segment.label
-                        || undefined
-                      }
-                    >
-                      {formatTimelineScheduleStatusLabel(segment.schedule, t, {
+                  {segment.isAdjacentGap ? (() => {
+                    const pair = segment.isSameDayGap && segment.fromDate && segment.toDate
+                      ? formatSameDayPairLabel({
+                        from: segment.fromDate,
+                        to: segment.toDate,
+                        now: new Date(),
+                        hasExplicitTime: (segment.gapMinutes || 0) >= 1,
+                      }, t)
+                      : null;
+                    const gapText = pair?.singleLine
+                      || formatTimelineScheduleStatusLabel(segment.schedule, t, {
                         gapDays: segment.gapDays,
                       })
-                        || segment.label}
-                    </span>
-                  ) : null}
+                      || formatTimelineTimeGapLabel(segment.timeGap, t)
+                      || segment.label;
+                    return (
+                      <span
+                        className={
+                          "tl-tactical-segment__label"
+                          + (segment.scheduleKind ? ` is-${segment.scheduleKind}` : "")
+                          + (segment.isSameDayGap ? " is-same-day" : "")
+                          + (pair ? " is-pair-stack" : "")
+                        }
+                        title={gapText || undefined}
+                      >
+                        {pair ? (
+                          <>
+                            <span className="tl-tactical-segment__label-head">{pair.headline}</span>
+                            {pair.detail ? (
+                              <span className="tl-tactical-segment__label-detail">{pair.detail}</span>
+                            ) : null}
+                          </>
+                        ) : gapText}
+                      </span>
+                    );
+                  })() : null}
                 </div>
               ))}
               {daysLeft > 0 && (
@@ -460,7 +479,6 @@ function TacticalObjectRow({
                         today,
                         { completed: resolveMarkerCompleted(marker) },
                       );
-                      const scheduleLabel = formatTimelineScheduleStatusLabel(schedule, t);
                       const isPastDue = schedule.kind === "past-due";
                       const isPending = schedule.kind === "pending";
                       const isCompleted = schedule.kind === "completed";
@@ -479,9 +497,8 @@ function TacticalObjectRow({
                         : marker.dataType && marker.dataType !== "document"
                           ? `${display.name} · ${marker.dataType}`
                           : display.name;
-                      const chipLabel = scheduleLabel
-                        ? `${chipName} · ${scheduleLabel}`
-                        : chipName;
+                      // Gap between same-day nodes owns "sched Xm (past due)" — chips stay clean.
+                      const chipLabel = chipName;
                       const dataAnchor = isAgentSet
                         ? `set-${marker.agentSetId}`
                         : marker.dataType === "document" && marker.docId
@@ -514,7 +531,7 @@ function TacticalObjectRow({
                             ].filter(Boolean).join(" ")
                           }
                           title={
-                            scheduleLabel
+                            display.dateLabel
                               || (isAgentSet
                                 ? t("timeline.agentSetHint")
                                 : marker.dataType === "document"
@@ -545,21 +562,6 @@ function TacticalObjectRow({
                   >
                     {fmtDate(group.date, "short")}
                   </time>
-                  {(() => {
-                    const groupCompleted = group.items.some((m) => resolveMarkerCompleted(m));
-                    const groupSchedule = resolveTimelineScheduleStatus(group.date, today, {
-                      completed: groupCompleted,
-                    });
-                    const groupStatusLabel = formatTimelineScheduleStatusLabel(groupSchedule, t);
-                    return groupStatusLabel ? (
-                      <span
-                        className={`tl-tactical-node-group__status is-${groupSchedule.kind}`}
-                        title={groupStatusLabel}
-                      >
-                        {groupStatusLabel}
-                      </span>
-                    ) : null;
-                  })()}
                 </motion.div>
                 );
               })}
@@ -584,6 +586,7 @@ export function TacticalTimeline({
   filterObjectId = null,
   focusedNoteId = null,
   onOpenDocument,
+  onOpenNode,
 }) {
   const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
@@ -606,6 +609,7 @@ export function TacticalTimeline({
   const closeTimelineAlerts = useUIStateStore((s) => s.closeTimelineAlerts);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
   const tacticalRangeOverride = useTimelineStore((s) => s.tacticalRangeOverride);
+  const tacticalLoupe = useTimelineStore((s) => s.tacticalLoupe);
   const { t, locale } = useI18n();
   const pluralS = (n) => (n === 1 ? "" : "s");
   const familySuffix = (n) => {
@@ -646,6 +650,7 @@ export function TacticalTimeline({
       inheritObjMode,
       primaryTimelineObjectId,
       rangeOverride: tacticalRangeOverride,
+      loupe: tacticalLoupe,
     }),
     [
       canvasNodes,
@@ -664,6 +669,7 @@ export function TacticalTimeline({
       inheritObjMode,
       primaryTimelineObjectId,
       tacticalRangeOverride,
+      tacticalLoupe,
     ],
   );
 
@@ -702,12 +708,30 @@ export function TacticalTimeline({
     chipClickTimerRef.current = null;
   };
 
+  /** Parent doc chip = folder: toggle children. Macronode = open node modal (not whole doc). */
   const runChipClick = (marker, row) => {
     const docId = marker.docId || null;
-    const willExpand = docId ? !expandedDocIds.includes(docId) : false;
-    if (docId) toggleExpandedDocId(docId);
+
+    if (marker.dataType === "document" && docId) {
+      const willExpand = !expandedDocIds.includes(docId);
+      toggleExpandedDocId(docId);
+      setTimelineFocus({
+        level: willExpand ? "children" : "doc",
+        objectId: row.objectId,
+        docId,
+        canvasNodeId: marker.virtual ? null : marker.nodeId,
+      });
+      return;
+    }
+
+    if (marker.dataType !== "agent-set") {
+      const nodeId = resolveNodeIdForTimelineMarker(marker, canvasNodes);
+      if (nodeId && onOpenNode) {
+        onOpenNode(nodeId);
+      }
+    }
     setTimelineFocus({
-      level: docId && willExpand ? "children" : "doc",
+      level: "doc",
       objectId: row.objectId,
       docId,
       canvasNodeId: marker.virtual ? null : marker.nodeId,
@@ -725,15 +749,18 @@ export function TacticalTimeline({
   const handleChipDoubleClick = (marker, row) => {
     clearPendingChipClick();
     const docId = marker.docId || null;
-    if (!docId || !onOpenDocument) return;
-    const focusBlockId = marker.dataType === "document"
-      ? null
-      : resolveFocusBlockIdForTimelineMarker(marker, {
-        canvasNodes,
-        nodeEntitiesById,
-        docsById,
+    // Double-click a parent doc opens the document itself.
+    if (marker.dataType === "document" && docId && onOpenDocument) {
+      onOpenDocument(docId, { focusBlockId: null });
+      setTimelineFocus({
+        level: "doc",
+        objectId: row.objectId,
+        docId,
+        canvasNodeId: marker.virtual ? null : marker.nodeId,
       });
-    onOpenDocument(docId, { focusBlockId });
+      return;
+    }
+    runChipClick(marker, row);
   };
 
   const handleChipRemove = (marker) => {

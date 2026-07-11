@@ -1,20 +1,19 @@
 import { useCallback, useRef, useState } from "react";
 import { useTimelineStore } from "../stores/index.js";
-import {
-  rangeFromAnchorPct,
-  resolveTacticalEdgeDrag,
-} from "../lib/tacticalTimelineRange.js";
+import { resolveTacticalEdgeDrag } from "../lib/tacticalTimelineRange.js";
 import { startOfCalendarDay } from "../temporal.js";
 
 /**
- * All folder dots are movable:
+ * Folder dots:
  * - start / end extremes → stretch that edge (outward expand, inward → base)
- * - middle ("anchor") → drag moves the window so that folder follows the pointer
+ * - middle ("anchor") → local loupe only (node + governing extreme breathe; rest stay put)
  * Different-day folders never collapse below the min rail gap.
  */
 export function useTacticalRangeDrag(grid) {
   const setTacticalRangeOverride = useTimelineStore((s) => s.setTacticalRangeOverride);
-  const clearTacticalRangeOverride = useTimelineStore((s) => s.clearTacticalRangeOverride);
+  const clearTacticalViewOverrides = useTimelineStore((s) => s.clearTacticalViewOverrides);
+  const clearTacticalLoupe = useTimelineStore((s) => s.clearTacticalLoupe);
+  const setTacticalLoupe = useTimelineStore((s) => s.setTacticalLoupe);
   const [isDragging, setIsDragging] = useState(false);
   const [activeHandleKey, setActiveHandleKey] = useState(null);
   const [activeEdge, setActiveEdge] = useState(null);
@@ -44,7 +43,6 @@ export function useTacticalRangeDrag(grid) {
     const override = useTimelineStore.getState().tacticalRangeOverride;
     const originStartMs = override?.startMs ?? baseStartMs;
     const originEndMs = override?.endMs ?? baseEndMs;
-    const originSpanMs = Math.max(1, originEndMs - originStartMs);
     const spanForScale = Math.max(1, baseEndMs - baseStartMs);
     const msPerPx = spanForScale / plotWidth;
     const originX = event.clientX;
@@ -54,6 +52,11 @@ export function useTacticalRangeDrag(grid) {
     const anchorMs = anchorDate
       ? startOfCalendarDay(anchorDate).getTime()
       : null;
+
+    // Extreme stretch clears any leftover loupe so the window stays the source of truth.
+    if (edge === "start" || edge === "end") {
+      clearTacticalLoupe();
+    }
 
     const applyEdge = (startMs, endMs) => {
       const next = resolveTacticalEdgeDrag(
@@ -67,7 +70,7 @@ export function useTacticalRangeDrag(grid) {
         markerDates,
       );
       if (next == null) {
-        clearTacticalRangeOverride();
+        useTimelineStore.getState().clearTacticalRangeOverride();
         return;
       }
       setTacticalRangeOverride(next);
@@ -78,9 +81,8 @@ export function useTacticalRangeDrag(grid) {
       const pct = ((clampedX - rect.left) / plotWidth) * 100;
 
       if (edge === "anchor" && anchorMs != null) {
-        // Middle folder: keep this node under the pointer (movable, not extremes-only).
-        const next = rangeFromAnchorPct(anchorMs, pct, originSpanMs, markerDates);
-        if (next) setTacticalRangeOverride(next);
+        // Middle folder: local lupa — this node (+ coupled extreme) only, no timeline pan.
+        setTacticalLoupe({ focusMs: anchorMs, targetPct: pct });
         return;
       }
 
@@ -111,13 +113,18 @@ export function useTacticalRangeDrag(grid) {
     plotEl.addEventListener("pointerup", onUp);
     plotEl.addEventListener("pointercancel", onUp);
     onMove(event);
-  }, [grid, setTacticalRangeOverride, clearTacticalRangeOverride]);
+  }, [
+    grid,
+    setTacticalRangeOverride,
+    setTacticalLoupe,
+    clearTacticalLoupe,
+  ]);
 
   const onRangeHandleDoubleClick = useCallback((event) => {
     event.preventDefault();
     event.stopPropagation();
-    clearTacticalRangeOverride();
-  }, [clearTacticalRangeOverride]);
+    clearTacticalViewOverrides();
+  }, [clearTacticalViewOverrides]);
 
   return {
     isDragging,

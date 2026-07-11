@@ -13,8 +13,19 @@ export const TACTICAL_TIGHT_TARGET_GAP_PCT = 20;
 export const TACTICAL_TIGHT_TODAY_REACH_DAYS = 45;
 /** Minimum horizontal gap (%) used when estimating crowded auto-zoom. */
 export const TACTICAL_MIN_COLUMN_GAP_PCT = 11;
+/** Local loupe: how far (%) the warp influence reaches from the focused node. */
+export const TACTICAL_LOUPE_RADIUS_PCT = 24;
+/** Cap how far a middle node can visually travel from its true date position. */
+export const TACTICAL_LOUPE_MAX_SHIFT_PCT = 6;
+/** Extra soft pull applied to the governing extreme (same direction, weaker). */
+export const TACTICAL_LOUPE_EXTREME_COUPLE = 0.32;
 const MS_PER_DAY = 86400000;
 const GRID_PAD_DAYS = 1;
+
+function smoothstep01(t) {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * (3 - 2 * x);
+}
 
 function startOfCalendarMonth(date) {
   return startOfCalendarDay(new Date(date.getFullYear(), date.getMonth(), 1));
@@ -371,4 +382,139 @@ export function rangeFromAnchorPct(anchorMs, pct, spanMs, markerDates = []) {
   const startMs = anchorMs - p * span;
   const endMs = startMs + span;
   return clampTacticalRangeMs(startMs, endMs, { minSpanMs, maxSpanMs });
+}
+
+/**
+ * Max |delta| so a focus node moving toward a neighbor keeps ≥ minGap after both warp.
+ * @param {number} focusPct
+ * @param {number} neighborPct
+ * @param {number} radiusPct
+ * @param {number} minGapPct
+ */
+function maxLoupeDeltaTowardNeighbor(focusPct, neighborPct, radiusPct, minGapPct) {
+  const naturalGap = Math.abs(neighborPct - focusPct);
+  if (naturalGap <= 0) return 0;
+  const d = naturalGap;
+  const w = d >= radiusPct ? 0 : smoothstep01(1 - d / radiusPct);
+  const shrinkFactor = Math.max(0.08, 1 - w);
+  const room = naturalGap - minGapPct;
+  if (room <= 0) return 0;
+  return room / shrinkFactor;
+}
+
+/**
+ * Resolve a stored loupe into warp params for the current grid.
+ * Middle-node drag only — does not pan the timeline window.
+ * @param {{ focusMs?: number, targetPct?: number } | null} raw
+ * @param {{ pct: (d: Date) => number } | null} grid
+ * @param {Date[]} [markerDates]
+ */
+export function resolveTacticalLoupe(raw, grid, markerDates = []) {
+  if (!raw || !grid || raw.focusMs == null) return null;
+  const focusDay = startOfCalendarDay(new Date(raw.focusMs));
+  const focusMs = focusDay.getTime();
+  const focusNaturalPct = grid.pct(focusDay);
+  if (!Number.isFinite(focusNaturalPct)) return null;
+
+  const radiusPct = TACTICAL_LOUPE_RADIUS_PCT;
+  const minGapPct = TACTICAL_MIN_COLUMN_GAP_PCT;
+  let targetPct = Number(raw.targetPct);
+  if (!Number.isFinite(targetPct)) return null;
+  targetPct = Math.min(100, Math.max(0, targetPct));
+
+  const unique = [...new Map(
+    [...(markerDates || [])]
+      .filter(Boolean)
+      .map((d) => {
+        const day = startOfCalendarDay(d);
+        return [day.getTime(), { ms: day.getTime(), pct: grid.pct(day) }];
+      }),
+  ).values()].sort((a, b) => a.pct - b.pct);
+
+  const idx = unique.findIndex((n) => n.ms === focusMs);
+  let maxAbs = TACTICAL_LOUPE_MAX_SHIFT_PCT;
+  if (idx > 0) {
+    const prev = unique[idx - 1];
+    maxAbs = Math.min(
+      maxAbs,
+      maxLoupeDeltaTowardNeighbor(focusNaturalPct, prev.pct, radiusPct, minGapPct),
+    );
+  }
+  if (idx >= 0 && idx < unique.length - 1) {
+    const next = unique[idx + 1];
+    maxAbs = Math.min(
+      maxAbs,
+      maxLoupeDeltaTowardNeighbor(focusNaturalPct, next.pct, radiusPct, minGapPct),
+    );
+  }
+
+  let deltaPct = targetPct - focusNaturalPct;
+  deltaPct = Math.min(maxAbs, Math.max(-maxAbs, deltaPct));
+  if (Math.abs(deltaPct) < 0.05) {
+    return null;
+  }
+
+  // Couple the governing extreme (direction of pull) with a weaker boost — local lupa only.
+  const extremeNaturalPct = unique.length
+    ? (deltaPct >= 0 ? unique[unique.length - 1].pct : unique[0].pct)
+    : focusNaturalPct;
+  const extremeBoostPct = deltaPct * TACTICAL_LOUPE_EXTREME_COUPLE;
+
+  return {
+    focusNaturalPct,
+    deltaPct,
+    extremeNaturalPct,
+    extremeBoostPct,
+    radiusPct,
+  };
+}
+
+/**
+ * Soft local warp: focus (+ coupled extreme) shift; far nodes barely move.
+ * @param {number} naturalPct
+ * @param {ReturnType<typeof resolveTacticalLoupe>} loupe
+ */
+export function applyTacticalLoupePct(naturalPct, loupe) {
+  if (!loupe || !Number.isFinite(naturalPct)) return naturalPct;
+  const {
+    focusNaturalPct,
+    deltaPct,
+    extremeNaturalPct = null,
+    extremeBoostPct = 0,
+    radiusPct = TACTICAL_LOUPE_RADIUS_PCT,
+  } = loupe;
+
+  let shift = 0;
+  const dFocus = Math.abs(naturalPct - focusNaturalPct);
+  if (dFocus < radiusPct) {
+    shift += deltaPct * smoothstep01(1 - dFocus / radiusPct);
+  }
+  if (
+    extremeNaturalPct != null
+    && extremeBoostPct
+    && Math.abs(extremeNaturalPct - focusNaturalPct) > 0.5
+  ) {
+    const r2 = radiusPct * 1.15;
+    const dEx = Math.abs(naturalPct - extremeNaturalPct);
+    if (dEx < r2) {
+      shift += extremeBoostPct * smoothstep01(1 - dEx / r2);
+    }
+  }
+  return Math.min(100, Math.max(0, naturalPct + shift));
+}
+
+/**
+ * Remap a horizontal segment through the loupe (edges warp independently).
+ * @param {{ leftPct: number, widthPct: number }} seg
+ * @param {ReturnType<typeof resolveTacticalLoupe>} loupe
+ */
+export function applyTacticalLoupeSegment(seg, loupe) {
+  if (!loupe || !seg) return seg;
+  const left = applyTacticalLoupePct(seg.leftPct, loupe);
+  const right = applyTacticalLoupePct(seg.leftPct + seg.widthPct, loupe);
+  return {
+    ...seg,
+    leftPct: Math.min(left, right),
+    widthPct: Math.max(Math.abs(right - left), 0.5),
+  };
 }

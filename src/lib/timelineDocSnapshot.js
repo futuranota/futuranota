@@ -1,5 +1,6 @@
-import { resolveNodeAnchorDate, startOfCalendarDay, parseDate } from "../temporal.js";
+import { resolveNodeAnchorDate, parseDate } from "../temporal.js";
 import { listChildCanvasNodeIdsForDoc } from "./timelineGraph.js";
+import { resolveDocScheduleDate } from "./docSchedule.js";
 
 function isDocumentNode(node) {
   return node?.canvasKind === "document" || node?.dataType === "document";
@@ -19,18 +20,10 @@ function resolveDocTimelineDateLocal(
     const wired = wireAnchors.get(canvasNode.id);
     if (wired) return wired;
     const direct = resolveNodeAnchorDate(canvasNode, meta);
-    if (direct) return startOfCalendarDay(direct);
+    if (direct) return direct;
   }
   const doc = docsById[docId];
-  if (doc?.launchAt) {
-    const d = parseDate(doc.launchAt);
-    if (d) return startOfCalendarDay(d);
-  }
-  if (doc?.createdAt) {
-    const d = parseDate(doc.createdAt);
-    if (d) return startOfCalendarDay(d);
-  }
-  return null;
+  return resolveDocScheduleDate(doc, meta?.nodeEntitiesById || {});
 }
 
 function childSnapshotKey(entityId, canvasNodeId) {
@@ -51,21 +44,13 @@ function resolveLinkedFileTimelineDate(entityId, entity, meta = {}) {
     anchorAt: entity.anchorAt,
   };
   const direct = resolveNodeAnchorDate(adapted, meta);
-  if (direct) return startOfCalendarDay(direct);
+  if (direct) return direct;
 
   const fromEntity = parseDate(entity.createdAt) || parseDate(entity.anchorAt);
-  if (fromEntity) return startOfCalendarDay(fromEntity);
+  if (fromEntity) return fromEntity;
 
   const doc = meta.docsById?.[entity.parentDocId];
-  if (doc?.launchAt) {
-    const d = parseDate(doc.launchAt);
-    if (d) return startOfCalendarDay(d);
-  }
-  if (doc?.createdAt) {
-    const d = parseDate(doc.createdAt);
-    if (d) return startOfCalendarDay(d);
-  }
-  return null;
+  return resolveDocScheduleDate(doc, meta.nodeEntitiesById || {});
 }
 
 function listLinkedFileEntityIds(docId, docsById = {}, nodeEntitiesById = {}) {
@@ -78,29 +63,29 @@ function listLinkedFileEntityIds(docId, docsById = {}, nodeEntitiesById = {}) {
 
 function minDateMsFromNodes(nodeIds, canvasNodes, wireAnchors, meta) {
   let minMs = null;
-  for (const nodeId of nodeIds || []) {
-    const node = canvasNodes.find((n) => n.id === nodeId);
-    if (!node) continue;
-    const entity = node.noteId ? meta.nodeEntitiesById?.[node.noteId] : null;
-    const raw = wireAnchors.get(nodeId) || resolveNodeAnchorDate(entity || node, meta);
+  const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
+  for (const nodeId of nodeIds) {
+    const node = nodeById.get(nodeId);
+    const raw = wireAnchors.get(nodeId) || resolveNodeAnchorDate(node, meta);
     if (!raw) continue;
-    const ms = startOfCalendarDay(raw).getTime();
+    const ms = raw.getTime();
     if (minMs == null || ms < minMs) minMs = ms;
   }
   return minMs;
 }
 
 function minChildDateMs(children = []) {
-  const values = children
-    .map((child) => child?.dateMs)
-    .filter((ms) => Number.isFinite(ms));
-  return values.length ? Math.min(...values) : null;
+  let minMs = null;
+  for (const child of children) {
+    if (child?.dateMs == null) continue;
+    if (minMs == null || child.dateMs < minMs) minMs = child.dateMs;
+  }
+  return minMs;
 }
 
 /**
- * Capture doc anchor date + macronodo children for timeline persistence (survives canvas removal).
- * Children come from canvas nodes under the doc, plus linked file entities on the doc itself
- * (so dragging only the document box still keeps files when inserting to timeline).
+ * Capture doc schedule datetime + macronodo children for timeline persistence.
+ * Keeps hour/minute from Schedule (no day truncation).
  * @param {string} docId
  * @param {object} ctx
  */
@@ -115,6 +100,16 @@ export function captureTimelineDocSnapshot(
   } = {},
 ) {
   const meta = { nodeEntitiesById, docsById };
+  /** @type {object[]} */
+  const children = [];
+  const seen = new Set();
+
+  const pushChild = (child) => {
+    if (!child?.key || seen.has(child.key)) return;
+    seen.add(child.key);
+    children.push(child);
+  };
+
   let anchorDate = resolveDocTimelineDateLocal(docId, canvasNodes, wireAnchors, docsById, meta);
   if (!anchorDate && preferredCanvasNodeIds.length) {
     const preferredMs = minDateMsFromNodes(
@@ -125,15 +120,6 @@ export function captureTimelineDocSnapshot(
     );
     if (preferredMs != null) anchorDate = new Date(preferredMs);
   }
-  /** @type {{ key: string, entityId: string | null, canvasNodeId: string | null, dataType: string, dateMs: number }[]} */
-  const children = [];
-  const seenKeys = new Set();
-
-  const pushChild = (child) => {
-    if (!child?.key || seenKeys.has(child.key)) return;
-    seenKeys.add(child.key);
-    children.push(child);
-  };
 
   for (const nodeId of listChildCanvasNodeIdsForDoc(docId, canvasNodes, nodeEntitiesById)) {
     const node = canvasNodes.find((n) => n.id === nodeId);
@@ -146,11 +132,10 @@ export function captureTimelineDocSnapshot(
       entityId,
       canvasNodeId: nodeId,
       dataType: node?.dataType || entity?.dataType || "text",
-      dateMs: startOfCalendarDay(raw).getTime(),
+      dateMs: raw.getTime(),
     });
   }
 
-  // Linked files on the document (even if not placed on the canvas).
   for (const entityId of listLinkedFileEntityIds(docId, docsById, nodeEntitiesById)) {
     const entity = nodeEntitiesById[entityId];
     if (!entity) continue;
@@ -161,11 +146,11 @@ export function captureTimelineDocSnapshot(
       entityId,
       canvasNodeId: null,
       dataType: entity.dataType || "text",
-      dateMs: startOfCalendarDay(raw).getTime(),
+      dateMs: raw.getTime(),
     });
   }
 
-  let anchorDateMs = anchorDate ? startOfCalendarDay(anchorDate).getTime() : null;
+  let anchorDateMs = anchorDate ? anchorDate.getTime() : null;
   if (anchorDateMs == null) {
     anchorDateMs = minChildDateMs(children);
   }
@@ -178,7 +163,7 @@ export function captureTimelineDocSnapshot(
 }
 
 /**
- * Resolve doc anchor date preferring live canvas, then snapshot, then doc metadata.
+ * Resolve doc schedule datetime preferring live canvas, then snapshot, then doc metadata.
  */
 export function resolveQueuedDocTimelineDate(
   docId,
@@ -227,7 +212,7 @@ export function buildChildMarkersForDoc(
     if (!raw) continue;
     markersByKey.set(key, {
       nodeId,
-      date: startOfCalendarDay(raw),
+      date: raw,
       docId,
       dataType: node?.dataType || item?.dataType || "text",
       entityId,
@@ -249,7 +234,6 @@ export function buildChildMarkersForDoc(
     });
   }
 
-  // Live fallback: linked files on the doc that are not on the canvas.
   for (const entityId of listLinkedFileEntityIds(docId, docsById, nodeEntitiesById)) {
     const key = childSnapshotKey(entityId, null);
     if (!key || excluded.has(key) || markersByKey.has(key)) continue;
@@ -259,7 +243,7 @@ export function buildChildMarkersForDoc(
     if (!raw) continue;
     markersByKey.set(key, {
       nodeId: `entity-${entityId}`,
-      date: startOfCalendarDay(raw),
+      date: raw,
       docId,
       dataType: entity.dataType || "text",
       entityId,

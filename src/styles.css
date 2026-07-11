@@ -4985,7 +4985,7 @@ textarea.note-form-field {
 .tl-tactical-bar {
   position: relative;
   height: var(--tl-bar-h, 64px);
-  margin-bottom: 8px;
+  margin-bottom: 0;
   border-radius: 8px;
   background: color-mix(in oklab, var(--panel-2) 45%, transparent);
   border: 1px solid var(--glass-border);
@@ -5119,6 +5119,47 @@ textarea.note-form-field {
   color: color-mix(in oklab, #86A296 70%, var(--text));
   border-color: color-mix(in oklab, #86A296 45%, var(--hairline));
 }
+.tl-tactical-segment__label.is-same-day {
+  color: color-mix(in oklab, var(--hud) 80%, var(--text));
+  border-color: color-mix(in oklab, var(--hud) 45%, var(--hairline));
+}
+.tl-tactical-segment__label.is-today {
+  color: color-mix(in oklab, var(--hud) 80%, var(--text));
+  border-color: color-mix(in oklab, var(--hud) 45%, var(--hairline));
+}
+.tl-tactical-segment__label.is-pair-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  white-space: normal;
+  text-align: center;
+  max-width: min(160px, 90%);
+  padding: 4px 8px;
+  border-radius: 8px;
+  line-height: 1.15;
+  z-index: 12;
+}
+.tl-tactical-segment__label-head {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: color-mix(in oklab, var(--hud) 80%, var(--text));
+}
+.tl-tactical-segment__label-detail {
+  font-size: 9px;
+  font-weight: 600;
+  color: color-mix(in oklab, #c9a574 85%, var(--text));
+}
+.tl-tactical-segment__label.is-past-due .tl-tactical-segment__label-detail,
+.tl-tactical-segment__label.is-past-due.is-pair-stack .tl-tactical-segment__label-detail {
+  color: color-mix(in oklab, #c9a574 90%, var(--text));
+}
+.tl-tactical-segment.is-adjacent-gap.is-same-day-gap .tl-tactical-segment__edge {
+  background: color-mix(in oklab, var(--hud) 45%, var(--dim));
+  height: 2px;
+  margin-top: -1px;
+}
 .tl-tactical-segment.is-adjacent-gap .tl-tactical-segment__edge {
   background: color-mix(in oklab, #c9a574 40%, var(--dim));
   height: 1.5px;
@@ -5248,6 +5289,19 @@ textarea.note-form-field {
   background: var(--tl-dot-inner-bg);
   flex-shrink: 0;
 }
+.tl-tactical-rail__anchor-date {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: color-mix(in oklab, var(--dim) 70%, var(--text));
+  pointer-events: none;
+}
 .tl-tactical-rail__anchor.is-range-handle {
   pointer-events: auto;
   cursor: ew-resize;
@@ -5309,24 +5363,28 @@ textarea.note-form-field {
 }
 .tl-tactical-rail__nodes {
   position: relative;
-  height: 64px;
+  height: auto;
+  min-height: 72px;
   min-width: 0;
   overflow: visible;
   padding-bottom: 2px;
 }
 .tl-tactical-node-group {
   position: absolute;
-  top: 0;
-  z-index: 1;
+  top: 15px;
+  z-index: 4;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 4px;
   min-width: 0;
   max-width: min(120px, 26vw);
+  text-align: center;
 }
 .tl-tactical-node-group.is-anchor-center,
 .tl-tactical-node-group.is-anchor-start,
 .tl-tactical-node-group.is-anchor-end {
+  /* Always center the document block under its timeline node */
   transform: translateX(-50%);
   align-items: center;
 }
@@ -5347,6 +5405,7 @@ textarea.note-form-field {
   white-space: nowrap;
   flex-shrink: 0;
   text-align: center;
+  margin-inline: auto;
 }
 .tl-tactical-node-group__status {
   display: inline-flex;
@@ -5398,10 +5457,11 @@ textarea.note-form-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  align-items: stretch;
+  align-items: center;
   width: max-content;
   min-width: 72px;
   max-width: 120px;
+  margin-inline: auto;
 }
 .tl-tactical-rail .tl-event-chip--card.is-compact {
   width: 100%;
@@ -5425,18 +5485,20 @@ textarea.note-form-field {
     0 0 0 1px color-mix(in oklab, var(--tl-family-accent, var(--hud)) 22%, var(--hairline));
   transform: translateY(-1px);
 }
-.tl-tactical-rail .tl-event-chip--card.is-compact .tl-chip-card-body {
-  padding: 5px 8px 5px 7px;
-}
 .tl-tactical-rail .tl-event-chip--card.is-compact .tl-chip-card-title {
   font-size: 9.5px;
   font-weight: 600;
   line-height: 1.3;
   white-space: normal;
+  text-align: center;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact .tl-chip-card-body {
+  padding: 5px 8px;
+  align-items: center;
 }
 .tl-event-chip--card.has-remove {
   position: relative;

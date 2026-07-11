@@ -54,6 +54,17 @@ export function resolveHeadlineBlockIdForCanvasNode(
   return blockId;
 }
 
+/** Node entity id to open from a timeline child / macronodo chip. */
+export function resolveNodeIdForTimelineMarker(marker, canvasNodes = []) {
+  if (!marker || marker.dataType === "document" || marker.dataType === "agent-set") {
+    return null;
+  }
+  if (marker.entityId) return marker.entityId;
+  if (marker.virtual || !marker.nodeId) return null;
+  const canvasNode = canvasNodes.find((n) => n.id === marker.nodeId);
+  return canvasNode?.noteId || null;
+}
+
 /** Block id to scroll when opening a doc from a timeline macronodo chip. */
 export function resolveFocusBlockIdForTimelineMarker(
   marker,

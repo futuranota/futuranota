@@ -6,9 +6,11 @@ import {
   clampTacticalRangeMs,
   minSpanMsForRulerEdges,
   maxSpanMsForDifferentDayFolders,
+  resolveTacticalLoupe,
+  applyTacticalLoupePct,
+  applyTacticalLoupeSegment,
 } from "./tacticalTimelineRange.js";
 import {
-  parseDate,
   resolveNodeAnchorDate,
   sameCalendarDay,
   startOfCalendarDay,
@@ -19,6 +21,13 @@ import {
   CONNECTION_KIND_CROSS_FAMILY_DOC,
   CONNECTION_KIND_INTRA_FAMILY_DOC,
 } from "./timelineGraph.js";
+import {
+  resolveDocScheduleDate,
+  resolveTimelineTimeGap,
+  formatTimelineTimeGapPlain,
+  formatTimelineTimeGapLabel,
+  formatSameDayPairLabel,
+} from "./docSchedule.js";
 import {
   resolveQueuedDocTimelineDate,
   buildChildMarkersForDoc,
@@ -90,9 +99,11 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
   const monthEnd = endOfCalendarMonth(today);
 
   const total = end.getTime() - start.getTime() || 86400000;
+  // Full datetime so same-day docs with different hours/minutes can separate on the rail.
   const pct = (d) => {
-    const day = startOfCalendarDay(d);
-    return Math.min(100, Math.max(0, ((day.getTime() - start.getTime()) / total) * 100));
+    if (!d) return 0;
+    const ts = d instanceof Date ? d.getTime() : startOfCalendarDay(d).getTime();
+    return Math.min(100, Math.max(0, ((ts - start.getTime()) / total) * 100));
   };
   const spanDays = Math.max(1, Math.round(total / 86400000));
 
@@ -108,7 +119,7 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
     baseStart,
     baseEnd,
     pct,
-    todayPct: pct(today),
+    todayPct: pct(todayDay),
     today: todayDay,
     spanDays,
     monthStart,
@@ -122,13 +133,15 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
 
 /**
  * Label between two anchor dates (matches canvas ConnLabel / computeEdgeTemporalLabel).
+ * Same calendar day → "same day" (+ minutes when available).
  * @param {Date} fromDate
  * @param {Date} toDate
  */
 export function formatTimelineSpanLabel(fromDate, toDate) {
-  if (sameCalendarDay(fromDate, toDate)) return "same day";
-  return `${Math.abs(daysBetween(fromDate, toDate))}d`;
+  return formatTimelineTimeGapPlain(resolveTimelineTimeGap(fromDate, toDate));
 }
+
+export { formatTimelineTimeGapLabel, resolveTimelineTimeGap };
 
 /**
  * Schedule status relative to today — timeline tracks time, not just day gaps.
@@ -215,9 +228,9 @@ function buildMarkerColumnIndexFromRows(orderedRows) {
   return index;
 }
 
-function buildDimensionSegmentBetweenColumns(fromCol, toCol, grid) {
-  const fromPct = grid.pct(fromCol.date);
-  const toPct = grid.pct(toCol.date);
+function buildDimensionSegmentBetweenColumns(fromCol, toCol, grid, loupe = null) {
+  const fromPct = applyTacticalLoupePct(grid.pct(fromCol.date), loupe);
+  const toPct = applyTacticalLoupePct(grid.pct(toCol.date), loupe);
   const leftPct = Math.min(fromPct, toPct);
   const widthPct = Math.max(Math.abs(toPct - fromPct), 0.5);
   const fromDate = fromCol.date;
@@ -238,12 +251,14 @@ function buildDimensionSegmentBetweenColumns(fromCol, toCol, grid) {
  * Shrinks proportionally when the visible grid is zoomed in.
  * @param {ReturnType<typeof buildTimelineColumns>} columns
  * @param {ReturnType<typeof buildTacticalDisplayGrid>} grid
+ * @param {{ loupe?: object | null }} [options]
  */
-export function buildRowEndpointSpanSegment(columns, grid) {
+export function buildRowEndpointSpanSegment(columns, grid, options = {}) {
   if (!columns?.length || !grid) return null;
+  const loupe = options.loupe || null;
 
   if (columns.length === 1) {
-    const pct = grid.pct(columns[0].date);
+    const pct = applyTacticalLoupePct(grid.pct(columns[0].date), loupe);
     return {
       key: `row-endpoint-${columns[0].columnKey}`,
       leftPct: pct,
@@ -255,7 +270,7 @@ export function buildRowEndpointSpanSegment(columns, grid) {
 
   const first = columns[0];
   const last = columns[columns.length - 1];
-  const segment = buildDimensionSegmentBetweenColumns(first, last, grid);
+  const segment = buildDimensionSegmentBetweenColumns(first, last, grid, loupe);
   return {
     ...segment,
     key: `row-endpoints-${first.columnKey}-${last.columnKey}`,
@@ -433,18 +448,49 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
     return { nodeGroups: [], segments: [] };
   }
 
-  // Always use true grid.pct so chronology matches the ruler (past left of today).
-  // Remapping leftPct desyncs folders from todayPct (Jul 8 appearing after Jul 11).
-  const nodeGroups = columns.map((col) => ({
-    ...col,
-    leftPct: grid.pct(col.date),
-  }));
+  const markerDates = options.markerDates || columns.map((c) => c.date);
+  const loupe = resolveTacticalLoupe(options.loupe || null, grid, markerDates);
+  const nodeGroups = assignColumnLeftPcts(columns, grid, loupe);
 
-  const wireSegments = options.segments || [];
+  const wireSegments = (options.segments || []).map((seg) =>
+    applyTacticalLoupeSegment(seg, loupe),
+  );
   const gapSegments = buildAdjacentDayGapSegments(columns, grid, {
     today: grid.today || null,
+    loupe,
+  }).map((seg, idx) => {
+    // Align gap band to fan-out positions (same-day nodes are not on pure grid.pct).
+    if (idx + 1 >= nodeGroups.length) return seg;
+    const prev = nodeGroups[idx];
+    const next = nodeGroups[idx + 1];
+    const leftPct = Math.min(prev.leftPct, next.leftPct);
+    const widthPct = Math.max(Math.abs(next.leftPct - prev.leftPct), 0.5);
+    return { ...seg, leftPct, widthPct };
   });
-  const rowSpan = buildRowEndpointSpanSegment(columns, grid);
+  const rowSpan = (() => {
+    if (nodeGroups.length === 1) {
+      return {
+        key: `row-endpoint-${nodeGroups[0].columnKey}`,
+        leftPct: nodeGroups[0].leftPct,
+        widthPct: 0.5,
+        label: formatTimelineSpanLabel(nodeGroups[0].date, nodeGroups[0].date),
+        isRowEndpointSpan: true,
+      };
+    }
+    if (nodeGroups.length < 2) return null;
+    const first = nodeGroups[0];
+    const last = nodeGroups[nodeGroups.length - 1];
+    const leftPct = Math.min(first.leftPct, last.leftPct);
+    const widthPct = Math.max(Math.abs(last.leftPct - first.leftPct), 0.5);
+    return {
+      key: `row-endpoints-${first.columnKey}-${last.columnKey}`,
+      leftPct,
+      widthPct,
+      label: formatTimelineSpanLabel(first.date, last.date),
+      isDocDimension: false,
+      isRowEndpointSpan: true,
+    };
+  })();
   const segments = [
     ...(rowSpan ? [rowSpan] : []),
     ...gapSegments,
@@ -463,29 +509,44 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
 export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
   if (!columns?.length || columns.length < 2 || !grid) return [];
   const today = options.today || grid.today || null;
+  const loupe = options.loupe || null;
+  const now = options.now || new Date();
 
   const segments = [];
   for (let i = 1; i < columns.length; i += 1) {
     const prev = columns[i - 1];
     const next = columns[i];
-    if (sameCalendarDay(prev.date, next.date)) continue;
-    const segment = buildDimensionSegmentBetweenColumns(prev, next, grid);
+    const timeGap = resolveTimelineTimeGap(prev.date, next.date);
+    const sameDay = timeGap.kind === "same-day";
+    const segment = buildDimensionSegmentBetweenColumns(prev, next, grid, loupe);
     const later = prev.date.getTime() <= next.date.getTime() ? next.date : prev.date;
-    const schedule = today
+    const schedule = (!sameDay && today)
       ? resolveTimelineScheduleStatus(later, today)
+      : null;
+    const pairMeta = sameDay
+      ? formatSameDayPairLabel({
+        from: prev.date,
+        to: next.date,
+        now,
+        hasExplicitTime: timeGap.minutes >= 1,
+      })
       : null;
     segments.push({
       ...segment,
       key: `day-gap-${prev.columnKey}-${next.columnKey}`,
       isDocDimension: false,
       isAdjacentGap: true,
-      scheduleKind: schedule?.kind || null,
-      // Prefer schedule status (pending N days / past due) over bare "2d".
-      label: schedule
-        ? null // filled in UI with i18n
-        : segment.label,
+      isSameDayGap: sameDay,
+      fromDate: prev.date,
+      toDate: next.date,
+      scheduleKind: pairMeta?.statusKind || schedule?.kind || (sameDay ? "same-day" : null),
+      timeGap,
+      pairHeadline: pairMeta?.headline || null,
+      pairDetail: pairMeta?.detail || null,
+      label: pairMeta?.singleLine || formatTimelineTimeGapPlain(timeGap),
       schedule,
-      gapDays: Math.abs(daysBetween(prev.date, next.date)),
+      gapDays: timeGap.days,
+      gapMinutes: timeGap.minutes,
     });
   }
   return segments;
@@ -506,30 +567,107 @@ function isDocumentNode(node, item) {
 }
 
 /**
- * Group markers into chronological columns (same calendar day → vertical stack).
+ * One column per scheduled unit (doc / child), chronological by full datetime.
+ * Same calendar day → separate nodes (never stacked just for sharing a day).
  * @param {Array<{ nodeId: string, date: Date, docId?: string, virtual?: boolean, dataType?: string }>} markers
  */
 export function buildTimelineColumns(markers) {
-  const sorted = [...markers].sort((a, b) => a.date.getTime() - b.date.getTime());
-  /** @type {Map<number, { columnKey: string, date: Date, items: object[] }>} */
-  const byDay = new Map();
+  const sorted = [...markers].sort((a, b) => {
+    const dt = a.date.getTime() - b.date.getTime();
+    if (dt !== 0) return dt;
+    return String(a.nodeId || "").localeCompare(String(b.nodeId || ""));
+  });
 
-  for (const marker of sorted) {
-    const day = startOfCalendarDay(marker.date);
-    const dayTs = day.getTime();
-    const existing = byDay.get(dayTs);
-    if (existing) {
-      existing.items.push(marker);
-      continue;
+  return sorted.map((marker, index) => ({
+    columnKey: `${marker.nodeId || marker.docId || "m"}-${index}-${marker.date.getTime()}`,
+    date: marker.date,
+    items: [marker],
+  }));
+}
+
+/** Minimum horizontal gap (%) between same-day doc nodes — must clear chip + bridge label. */
+const SAME_DAY_FANOUT_GAP_PCT = 26;
+/** Soft minimum between different-day consecutive columns after fan-out. */
+const COLUMN_MIN_GAP_PCT = 10;
+
+/**
+ * Keep chronology, but fan out same-day columns so they read as separate nodes
+ * with a relevant horizontal distance (chip + "same day / sched" label between).
+ * Different-day positions stay on true grid.pct unless a same-day cluster needs room.
+ * @param {Array<{ date: Date, columnKey: string }>} columns
+ * @param {{ pct: (d: Date) => number }} grid
+ * @param {object | null} loupe
+ */
+function assignColumnLeftPcts(columns, grid, loupe = null) {
+  if (!columns?.length) return [];
+  const natural = columns.map((col) => ({
+    ...col,
+    leftPct: applyTacticalLoupePct(grid.pct(col.date), loupe),
+  }));
+
+  let i = 0;
+  while (i < natural.length) {
+    let j = i + 1;
+    while (
+      j < natural.length
+      && sameCalendarDay(natural[i].date, natural[j].date)
+    ) {
+      j += 1;
     }
-    byDay.set(dayTs, {
-      columnKey: String(dayTs),
-      date: day,
-      items: [marker],
-    });
+    const count = j - i;
+    if (count > 1) {
+      const dayAnchor = applyTacticalLoupePct(
+        grid.pct(startOfCalendarDay(natural[i].date)),
+        loupe,
+      );
+      const gapPct = SAME_DAY_FANOUT_GAP_PCT;
+      const prevEdge = i > 0 ? natural[i - 1].leftPct : 0;
+      const nextEdge = j < natural.length ? natural[j].leftPct : 100;
+      const pad = COLUMN_MIN_GAP_PCT * 0.5;
+      const roomLeft = prevEdge + pad;
+      const roomRight = nextEdge - pad;
+      const available = Math.max(gapPct, roomRight - roomLeft);
+
+      // If neighbors are tight, still keep a readable same-day span.
+      let useGap = gapPct;
+      if ((count - 1) * gapPct > available && count > 1) {
+        useGap = Math.max(16, available / (count - 1));
+      }
+      const span = (count - 1) * useGap;
+      let startPct = dayAnchor - span / 2;
+      const minStart = Math.max(2, roomLeft);
+      const maxStart = Math.min(98 - span, roomRight - span);
+      if (minStart <= maxStart) {
+        startPct = Math.max(minStart, Math.min(startPct, maxStart));
+      } else {
+        // Not enough room between neighbors — still separate same-day nodes.
+        startPct = Math.max(2, Math.min(dayAnchor - span / 2, 98 - span));
+      }
+
+      for (let k = 0; k < count; k += 1) {
+        natural[i + k].leftPct = Math.min(98, Math.max(2, startPct + k * useGap));
+      }
+    }
+    i = j;
   }
 
-  return [...byDay.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+  // Final pass: never let consecutive same-day nodes sit on top of each other.
+  for (let k = 1; k < natural.length; k += 1) {
+    const minGap = sameCalendarDay(natural[k - 1].date, natural[k].date)
+      ? Math.min(SAME_DAY_FANOUT_GAP_PCT, 22)
+      : COLUMN_MIN_GAP_PCT;
+    if (natural[k].leftPct < natural[k - 1].leftPct + minGap) {
+      natural[k].leftPct = Math.min(98, natural[k - 1].leftPct + minGap);
+    }
+  }
+  if (natural.length && natural[natural.length - 1].leftPct > 98) {
+    const overflow = natural[natural.length - 1].leftPct - 98;
+    for (const col of natural) {
+      col.leftPct = Math.max(2, col.leftPct - overflow);
+    }
+  }
+
+  return natural;
 }
 
 /**
@@ -549,17 +687,11 @@ export function resolveDocTimelineDate(
     const wired = wireAnchors.get(canvasNode.id);
     if (wired) return wired;
     const direct = resolveNodeAnchorDate(canvasNode, meta);
-    if (direct) return startOfCalendarDay(direct);
+    if (direct) return direct;
   }
   const doc = docsById[docId];
-  if (doc?.launchAt) {
-    const d = parseDate(doc.launchAt);
-    if (d) return startOfCalendarDay(d);
-  }
-  if (doc?.createdAt) {
-    const d = parseDate(doc.createdAt);
-    if (d) return startOfCalendarDay(d);
-  }
+  const scheduled = resolveDocScheduleDate(doc, meta?.nodeEntitiesById || {});
+  if (scheduled) return scheduled;
   return null;
 }
 
@@ -585,6 +717,7 @@ export function buildTacticalObjectRows(params) {
     inheritObjMode = false,
     primaryTimelineObjectId = null,
     rangeOverride = null,
+    loupe = null,
   } = params;
 
   const tactical = buildTimelineChains({
@@ -647,9 +780,13 @@ export function buildTacticalObjectRows(params) {
         const node = nodeById.get(nodeId);
         if (!isDocumentNode(node, item)) continue;
         const docId = node?.docId || node?.noteId || item?.docId;
+        const fullDate = resolveNodeAnchorDate(node || item, meta)
+          || (docId ? resolveDocScheduleDate(docsById[docId], nodeEntitiesById) : null)
+          || wireAnchors.get(nodeId)
+          || date;
         markerByKey.set(nodeId, {
           nodeId,
-          date: wireAnchors.get(nodeId) || date,
+          date: fullDate,
           docId,
           dataType: "document",
         });
@@ -790,7 +927,11 @@ export function buildTacticalObjectRows(params) {
 
   for (const row of orderedRows) {
     const segments = dimensionSegmentsByRow.get(row.id) || [];
-    row.rail = buildRowTimelineRail(row.columns, displayGrid, { segments });
+    row.rail = buildRowTimelineRail(row.columns, displayGrid, {
+      segments,
+      loupe,
+      markerDates: folderMarkerDates.length > 0 ? folderMarkerDates : fallbackMarkerDates,
+    });
   }
 
   return {

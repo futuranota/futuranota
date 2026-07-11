@@ -1644,6 +1644,7 @@ function Timeline({
   nodeEntitiesById = {},
   filterObjectId = null,
   onOpenDocument,
+  onOpenNode,
 }) {
   return (
     <TacticalTimeline
@@ -1656,6 +1657,7 @@ function Timeline({
       filterObjectId={filterObjectId}
       focusedNoteId={focusedNoteId}
       onOpenDocument={onOpenDocument}
+      onOpenNode={onOpenNode}
     />
   );
 }
