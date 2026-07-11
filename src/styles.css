@@ -4711,6 +4711,8 @@ textarea.note-form-field {
   --tl-dot-past: color-mix(in oklab, #fff 35%, var(--dim));
   --tl-dot-future: color-mix(in oklab, #fff 65%, transparent);
   --tl-dot-inner-bg: var(--bg);
+  --tl-macronodo: #86A296;
+  --tl-macronodo-bright: #C1E1DE;
   position: relative;
   z-index: 5;
   display: flex;
@@ -4890,6 +4892,16 @@ textarea.note-form-field {
 .tl-tactical-row-group:hover .tl-tactical-doc-child-links__path {
   opacity: 1;
   stroke: color-mix(in oklab, var(--tl-family-accent, var(--tl-accent)) 80%, var(--hud));
+}
+/* 2nd rail onward: shift bar+dots down toward left label (transform = no reflow / label stays) */
+.tl-tactical-row.is-rail-nudge .tl-tactical-bar {
+  transform: translateY(10px);
+}
+.tl-tactical-row.is-rail-nudge .tl-tactical-rail__anchors {
+  top: 10px;
+}
+.tl-tactical-row.is-rail-nudge .tl-tactical-rail__nodes {
+  margin-top: 10px;
 }
 .tl-tactical-row {
   display: grid;
@@ -5091,6 +5103,7 @@ textarea.note-form-field {
 .tl-tactical-segment__label {
   position: absolute;
   top: 0;
+  bottom: auto;
   left: 50%;
   transform: translate(-50%, -110%);
   padding: 2px 8px;
@@ -5120,12 +5133,12 @@ textarea.note-form-field {
   border-color: color-mix(in oklab, #86A296 45%, var(--hairline));
 }
 .tl-tactical-segment__label.is-same-day {
-  color: color-mix(in oklab, var(--hud) 80%, var(--text));
-  border-color: color-mix(in oklab, var(--hud) 45%, var(--hairline));
+  color: color-mix(in oklab, #c9a574 90%, var(--text));
+  border-color: color-mix(in oklab, #c9a574 55%, var(--hairline));
 }
 .tl-tactical-segment__label.is-today {
-  color: color-mix(in oklab, var(--hud) 80%, var(--text));
-  border-color: color-mix(in oklab, var(--hud) 45%, var(--hairline));
+  color: color-mix(in oklab, #c9a574 90%, var(--text));
+  border-color: color-mix(in oklab, #c9a574 55%, var(--hairline));
 }
 .tl-tactical-segment__label.is-pair-stack {
   display: flex;
@@ -5144,7 +5157,7 @@ textarea.note-form-field {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.03em;
-  color: color-mix(in oklab, var(--hud) 80%, var(--text));
+  color: color-mix(in oklab, #c9a574 90%, var(--text));
 }
 .tl-tactical-segment__label-detail {
   font-size: 9px;
@@ -5153,7 +5166,22 @@ textarea.note-form-field {
 }
 .tl-tactical-segment__label.is-past-due .tl-tactical-segment__label-detail,
 .tl-tactical-segment__label.is-past-due.is-pair-stack .tl-tactical-segment__label-detail {
-  color: color-mix(in oklab, #c9a574 90%, var(--text));
+  color: color-mix(in oklab, #9aa0a2 70%, var(--text));
+}
+/* 2nd+ rails: gap info below the axis (never over the timeline) */
+.tl-tactical-row.is-rail-nudge .tl-tactical-segment__label {
+  top: auto;
+  bottom: 0;
+  transform: translate(-50%, 110%);
+}
+/* Macronodo rails: [same day] matches mint dots */
+.tl-tactical-row.is-child-row .tl-tactical-segment__label.is-same-day,
+.tl-tactical-row.is-child-row .tl-tactical-segment__label.is-same-day .tl-tactical-segment__label-head {
+  color: color-mix(in oklab, var(--tl-macronodo-bright) 90%, var(--text));
+  border-color: color-mix(in oklab, var(--tl-macronodo) 55%, var(--hairline));
+}
+.tl-tactical-row.is-child-row .tl-tactical-segment.is-adjacent-gap.is-same-day-gap .tl-tactical-segment__edge {
+  background: color-mix(in oklab, var(--tl-macronodo) 55%, var(--dim));
 }
 .tl-tactical-segment.is-adjacent-gap.is-same-day-gap .tl-tactical-segment__edge {
   background: color-mix(in oklab, var(--hud) 45%, var(--dim));
@@ -5360,6 +5388,25 @@ textarea.note-form-field {
 }
 .tl-tactical-rail:hover .tl-tactical-rail__anchor.is-status-active {
   transform: translateX(-50%) scale(1.12);
+}
+/* Macronodo rails: mint dots (vs folder/object rails) */
+.tl-tactical-row.is-child-row .tl-tactical-rail__anchor.is-status-past,
+.tl-tactical-row.is-child-row .tl-tactical-rail__anchor.is-status-active,
+.tl-tactical-row.is-child-row .tl-tactical-rail__anchor.is-status-future {
+  background: var(--tl-macronodo-bright);
+  border-color: color-mix(in oklab, var(--tl-macronodo) 70%, var(--hairline));
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--tl-macronodo) 22%, transparent);
+}
+.tl-tactical-row.is-child-row .tl-tactical-rail__anchor.is-status-future {
+  background: transparent;
+  border-width: 1.5px;
+  border-color: var(--tl-macronodo-bright);
+}
+.tl-tactical-row.is-child-row .tl-tactical-rail__anchor.is-status-future .tl-tactical-rail__anchor-core {
+  background: var(--tl-macronodo-bright);
+}
+.tl-tactical-row.is-child-row .tl-tactical-rail__anchor-core {
+  background: color-mix(in oklab, var(--tl-macronodo) 55%, var(--bg));
 }
 .tl-tactical-rail__nodes {
   position: relative;
@@ -5602,12 +5649,41 @@ textarea.note-form-field {
 }
 .tl-event-chip--card.is-pending {
   opacity: 0.95;
-  box-shadow: inset 0 -3px 0 #86A296;
-  color: color-mix(in oklab, #C1E1DE 70%, var(--text));
+  box-shadow: inset 0 -3px 0 color-mix(in oklab, var(--dim) 55%, transparent);
 }
 .tl-event-chip--card.is-completed {
   opacity: 0.92;
   box-shadow: inset 0 -3px 0 #6a9b7a;
+}
+/* Macronodo cards: mint accent (folders keep family accent) */
+.tl-event-chip--card.is-macronodo {
+  border-left-color: var(--tl-macronodo);
+  --tl-family-accent: var(--tl-macronodo);
+  box-shadow:
+    0 1px 2px color-mix(in oklab, #000 18%, transparent),
+    inset 0 0 0 1px color-mix(in oklab, var(--tl-macronodo) 18%, transparent);
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact.is-macronodo {
+  border-left-color: var(--tl-macronodo);
+  box-shadow:
+    0 1px 4px color-mix(in oklab, #000 18%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--tl-macronodo) 22%, var(--glass-border));
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact.is-macronodo:hover {
+  box-shadow:
+    0 3px 10px color-mix(in oklab, #000 22%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--tl-macronodo) 40%, var(--hairline));
+}
+.tl-event-chip--card.is-macronodo.is-past-due {
+  box-shadow:
+    inset 0 -3px 0 #343E40,
+    0 0 0 1px color-mix(in oklab, var(--tl-macronodo) 18%, transparent);
+}
+.tl-event-chip--card.is-macronodo.is-pending {
+  box-shadow:
+    inset 0 -3px 0 var(--tl-macronodo),
+    0 0 0 1px color-mix(in oklab, var(--tl-macronodo) 18%, transparent);
+  color: color-mix(in oklab, var(--tl-macronodo-bright) 70%, var(--text));
 }
 @keyframes tl-agent-set-pulse {
   0%, 100% { opacity: 1; }

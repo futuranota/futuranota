@@ -131,6 +131,7 @@ function resolveAnchorStatus(groupDate, today) {
 
 function TacticalRowGroup({
   group,
+  groupIndex = 0,
   docChildLinks,
   today,
   grid,
@@ -163,10 +164,11 @@ function TacticalRowGroup({
       style={{ "--tl-accent": accent, "--tl-family-accent": familyAccent }}
     >
       <TimelineDocChildLinks links={groupLinks} containerRef={groupRef} />
-      {group.rows.map((row) => (
+      {group.rows.map((row, rowIndex) => (
         <TacticalObjectRow
           key={row.id}
           row={row}
+          nudgeRail={groupIndex > 0 || rowIndex > 0}
           today={today}
           grid={grid}
           trackItemsById={trackItemsById}
@@ -192,6 +194,7 @@ function TacticalRowGroup({
 
 function TacticalObjectRow({
   row,
+  nudgeRail = false,
   today,
   grid,
   trackItemsById,
@@ -241,6 +244,7 @@ function TacticalObjectRow({
     row.isInheritLayer ? "is-inherit-layer" : "",
     isChildRow ? "is-child-row" : "",
     row.hasCrossLink ? "is-linked-row" : "",
+    nudgeRail ? "is-rail-nudge" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -474,6 +478,11 @@ function TacticalObjectRow({
                         ? nodeEntitiesById[marker.entityId]
                         : null;
                       const isAgentSet = marker.dataType === "agent-set";
+                      const isMacronodo = Boolean(
+                        marker.dataType
+                        && marker.dataType !== "document"
+                        && !isAgentSet,
+                      );
                       const schedule = resolveTimelineScheduleStatus(
                         marker.date || group.date,
                         today,
@@ -482,7 +491,7 @@ function TacticalObjectRow({
                       const isPastDue = schedule.kind === "past-due";
                       const isPending = schedule.kind === "pending";
                       const isCompleted = schedule.kind === "completed";
-                      const fallbackName = marker.dataType && marker.dataType !== "document"
+                      const fallbackName = isMacronodo
                         ? (entity?.title || entity?.name || marker.dataType).trim()
                         : (docsById[marker.docId]?.title || "Document").trim();
                       const display = item
@@ -494,7 +503,7 @@ function TacticalObjectRow({
                         };
                       const chipName = isAgentSet
                         ? resolveAgentSetChipLabel(marker, t)
-                        : marker.dataType && marker.dataType !== "document"
+                        : isMacronodo
                           ? `${display.name} · ${marker.dataType}`
                           : display.name;
                       // Gap between same-day nodes owns "sched Xm (past due)" — chips stay clean.
@@ -509,7 +518,8 @@ function TacticalObjectRow({
                         && queuedDocIds?.has(marker.docId);
                       const canRemove = isAgentSet
                         || isQueuedDoc
-                        || (marker.dataType !== "document" && marker.childKey);
+                        || (isMacronodo && marker.childKey);
+                      const macronodoGreen = "#86A296";
 
                       return (
                         <TimelineEventChip
@@ -517,14 +527,15 @@ function TacticalObjectRow({
                           variant="card"
                           compact
                           name={chipLabel}
-                          familyAccent={familyAccent}
-                          objectTint={display.objectTint || accent}
+                          familyAccent={isMacronodo ? macronodoGreen : familyAccent}
+                          objectTint={isMacronodo ? macronodoGreen : (display.objectTint || accent)}
                           focused={focusedNoteId === (item?.noteId || marker.nodeId)}
                           dataAnchor={dataAnchor}
                           statusBadge={isAgentSet ? (marker.setStatus || "pending") : null}
                           className={
                             [
                               isAgentSet ? resolveAgentSetChipClass(marker) : "",
+                              isMacronodo ? "is-macronodo" : "",
                               isPastDue ? "is-past-due" : "",
                               isPending ? "is-pending" : "",
                               isCompleted ? "is-completed" : "",
@@ -845,10 +856,11 @@ export function TacticalTimeline({
           </div>
 
           <div className="tl-tactical-body">
-            {rowGroups.length > 0 ? rowGroups.map((group) => (
+            {rowGroups.length > 0 ? rowGroups.map((group, groupIndex) => (
               <TacticalRowGroup
                 key={group.objectId}
                 group={group}
+                groupIndex={groupIndex}
                 docChildLinks={docChildLinks}
                 today={today}
                 grid={activeGrid}
