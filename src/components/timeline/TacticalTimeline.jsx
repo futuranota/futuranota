@@ -8,6 +8,8 @@ import {
   buildTacticalDisplayGrid,
   groupDisplayRowsByObject,
   resolveDaysLeftCenterPct,
+  resolveTimelineScheduleStatus,
+  formatTimelineScheduleStatusLabel,
 } from "../../lib/tacticalTimelineView.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
@@ -76,20 +78,29 @@ function TacticalRulerBar({ grid, today, t }) {
       <div className="tl-tactical-rail__axis" aria-hidden />
       {grid && today >= grid.start && today <= grid.end && (
         <div
-          className="tl-tactical-rail__today"
+          className="tl-tactical-rail__today is-thermometer"
           style={{ left: `${grid.todayPct}%` }}
         >
           <div className="tl-tactical-rail__today-head">
             <span className="tl-tactical-rail__today-pill">
               {t ? t("timeline.today") : "today"}
             </span>
-            <span className="tl-tactical-rail__today-date">{fmtDate(today, "short")}</span>
           </div>
-          <span className="tl-tactical-rail__today-line" aria-hidden />
+          <span className="tl-tactical-rail__today-stem" aria-hidden />
+          <span className="tl-tactical-rail__today-caption">
+            <span className="tl-tactical-rail__today-date">{fmtDate(today, "short")}</span>
+          </span>
         </div>
       )}
     </>
   );
+}
+
+function resolveMarkerCompleted(marker) {
+  if (marker?.dataType === "agent-set") {
+    return marker.setStatus === "ready";
+  }
+  return Boolean(marker?.completed || marker?.isCompleted);
 }
 
 function TacticalDecorativeRuler({ grid, today, t }) {
@@ -286,9 +297,24 @@ function TacticalObjectRow({
                   style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
                 >
                   <span className="tl-tactical-segment__edge" aria-hidden />
-                  {segment.isAdjacentGap && segment.label ? (
-                    <span className="tl-tactical-segment__label" title={segment.label}>
-                      {segment.label}
+                  {segment.isAdjacentGap ? (
+                    <span
+                      className={
+                        "tl-tactical-segment__label"
+                        + (segment.scheduleKind ? ` is-${segment.scheduleKind}` : "")
+                      }
+                      title={
+                        formatTimelineScheduleStatusLabel(segment.schedule, t, {
+                          gapDays: segment.gapDays,
+                        })
+                        || segment.label
+                        || undefined
+                      }
+                    >
+                      {formatTimelineScheduleStatusLabel(segment.schedule, t, {
+                        gapDays: segment.gapDays,
+                      })
+                        || segment.label}
                     </span>
                   ) : null}
                 </div>
@@ -402,9 +428,15 @@ function TacticalObjectRow({
                         ? nodeEntitiesById[marker.entityId]
                         : null;
                       const isAgentSet = marker.dataType === "agent-set";
-                      const anchorStatus = resolveAnchorStatus(marker.date || group.date, today);
-                      const isPastDue = anchorStatus === "past";
-                      const isPending = anchorStatus === "future";
+                      const schedule = resolveTimelineScheduleStatus(
+                        marker.date || group.date,
+                        today,
+                        { completed: resolveMarkerCompleted(marker) },
+                      );
+                      const scheduleLabel = formatTimelineScheduleStatusLabel(schedule, t);
+                      const isPastDue = schedule.kind === "past-due";
+                      const isPending = schedule.kind === "pending";
+                      const isCompleted = schedule.kind === "completed";
                       const fallbackName = marker.dataType && marker.dataType !== "document"
                         ? (entity?.title || entity?.name || marker.dataType).trim()
                         : (docsById[marker.docId]?.title || "Document").trim();
@@ -420,11 +452,9 @@ function TacticalObjectRow({
                         : marker.dataType && marker.dataType !== "document"
                           ? `${display.name} · ${marker.dataType}`
                           : display.name;
-                      const chipLabel = isPastDue
-                        ? `${chipName} · ${t("timeline.pastDue")}`
-                        : isPending
-                          ? `${chipName} · ${t("timeline.pending")}`
-                          : chipName;
+                      const chipLabel = scheduleLabel
+                        ? `${chipName} · ${scheduleLabel}`
+                        : chipName;
                       const dataAnchor = isAgentSet
                         ? `set-${marker.agentSetId}`
                         : marker.dataType === "document" && marker.docId
@@ -453,18 +483,18 @@ function TacticalObjectRow({
                               isAgentSet ? resolveAgentSetChipClass(marker) : "",
                               isPastDue ? "is-past-due" : "",
                               isPending ? "is-pending" : "",
+                              isCompleted ? "is-completed" : "",
                             ].filter(Boolean).join(" ")
                           }
                           title={
-                            isPastDue
-                              ? t("timeline.pastDueHint")
-                              : isAgentSet
+                            scheduleLabel
+                              || (isAgentSet
                                 ? t("timeline.agentSetHint")
                                 : marker.dataType === "document"
                                   ? t("timeline.docChipHint")
                                   : marker.docId
                                     ? t("timeline.childChipHint")
-                                    : undefined
+                                    : undefined)
                           }
                           onClick={() => onChipClick(marker, row)}
                           onDoubleClick={() => onChipDoubleClick(marker, row)}
@@ -488,6 +518,21 @@ function TacticalObjectRow({
                   >
                     {fmtDate(group.date, "short")}
                   </time>
+                  {(() => {
+                    const groupCompleted = group.items.some((m) => resolveMarkerCompleted(m));
+                    const groupSchedule = resolveTimelineScheduleStatus(group.date, today, {
+                      completed: groupCompleted,
+                    });
+                    const groupStatusLabel = formatTimelineScheduleStatusLabel(groupSchedule, t);
+                    return groupStatusLabel ? (
+                      <span
+                        className={`tl-tactical-node-group__status is-${groupSchedule.kind}`}
+                        title={groupStatusLabel}
+                      >
+                        {groupStatusLabel}
+                      </span>
+                    ) : null;
+                  })()}
                 </motion.div>
                 );
               })}

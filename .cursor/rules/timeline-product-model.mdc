@@ -22,7 +22,8 @@ Marketing  ——(+1 day)——  Sales
 
 ## Placement rules (do not break)
 
-- Chronological on the ruler: dates **before today** sit on the **left** (past / past-due); today = active; later = future.
+- Chronological on the ruler: dates **before today** sit on the **left** (past-due / completed); today = thermometer marker; later = **pending N days**.
+- Status labels beat bare day-gaps (`2d`): show Past due, Completed, or Pending {n} days.
 - **Same calendar day** → may stack vertically in one column.
 - **Different days** (even 1 day apart) → must show **horizontal time distance** on the true calendar scale (grid.pct); never remap positions (that breaks past vs today).
 - Show adjacent gap metrics between folders (`2d`, `4d`) on the rail.

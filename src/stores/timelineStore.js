@@ -417,6 +417,8 @@ export const useTimelineStore = create(
           return {
             timelineDocQueue: pushDocToTimelineQueue(state.timelineDocQueue, docId),
             timelineDocQueueFocusByDocId: nextFocus,
+            // Recompute auto zoom for the new set (don't keep a stale stretch window).
+            tacticalRangeOverride: null,
           };
         });
       },
@@ -528,6 +530,8 @@ export const useTimelineStore = create(
           timelineDocSnapshotsByDocId: snapshots,
           timelineExcludedChildrenByDocId: excluded,
           timelineAgentSets,
+          // Fresh auto zoom after insert — avoids collapsed month snap / stale stretch.
+          tacticalRangeOverride: null,
         });
         return {
           ok: true,

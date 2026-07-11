@@ -5051,7 +5051,7 @@ textarea.note-form-field {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: color-mix(in oklab, #6a9b7a 10%, transparent);
+  background: color-mix(in oklab, #8a9a8e 6%, transparent);
   border-radius: 0 4px 4px 0;
   z-index: 1;
   pointer-events: none;
@@ -5107,6 +5107,18 @@ textarea.note-form-field {
   z-index: 6;
   pointer-events: none;
 }
+.tl-tactical-segment__label.is-past-due {
+  color: color-mix(in oklab, #343E40 40%, var(--text));
+  border-color: color-mix(in oklab, #343E40 55%, var(--hairline));
+}
+.tl-tactical-segment__label.is-pending {
+  color: color-mix(in oklab, #C1E1DE 85%, var(--text));
+  border-color: color-mix(in oklab, #86A296 55%, var(--hairline));
+}
+.tl-tactical-segment__label.is-completed {
+  color: color-mix(in oklab, #86A296 70%, var(--text));
+  border-color: color-mix(in oklab, #86A296 45%, var(--hairline));
+}
 .tl-tactical-segment.is-adjacent-gap .tl-tactical-segment__edge {
   background: color-mix(in oklab, #c9a574 40%, var(--dim));
   height: 1.5px;
@@ -5124,9 +5136,12 @@ textarea.note-form-field {
   pointer-events: none;
   transform: translateX(-50%);
 }
+.tl-tactical-rail__today.is-thermometer {
+  z-index: 9;
+}
 .tl-tactical-rail__today-head {
   position: absolute;
-  top: 0;
+  top: 2px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -5145,45 +5160,52 @@ textarea.note-form-field {
   border-radius: 999px;
   font-family: var(--sans);
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
   text-transform: lowercase;
-  color: color-mix(in oklab, #c9a574 92%, var(--text));
-  border: 1px solid color-mix(in oklab, #c9a574 60%, transparent);
-  background: color-mix(in oklab, var(--panel-solid) 70%, transparent);
+  color: color-mix(in oklab, #c97872 55%, var(--text-2));
+  border: 1px solid color-mix(in oklab, #c97872 28%, var(--hairline));
+  background: color-mix(in oklab, var(--panel-solid) 82%, transparent);
 }
-.tl-tactical-rail__today-date {
-  display: inline-flex;
+.tl-tactical-rail__today-stem {
+  position: absolute;
+  top: 20px;
+  bottom: 10px;
+  left: 50%;
+  width: 1px;
+  margin-left: -0.5px;
+  border-radius: 0;
+  background: color-mix(in oklab, #c97872 42%, transparent);
+  box-shadow: none;
+  z-index: 7;
+}
+.tl-tactical-rail__today-bulb {
+  display: none;
+}
+.tl-tactical-rail__today-caption {
+  position: absolute;
+  top: calc(50% + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 1px;
   font-family: var(--sans);
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 500;
   line-height: 1.15;
   text-transform: lowercase;
-  color: color-mix(in oklab, #d48882 70%, var(--text-2));
+  color: color-mix(in oklab, #c97872 40%, var(--text-2));
+  white-space: nowrap;
+  z-index: 8;
+}
+.tl-tactical-rail__today-date {
+  font-weight: 500;
+  opacity: 0.85;
 }
 .tl-tactical-rail__today-line {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 2px;
-  height: 28px;
-  margin: -14px 0 0 -1px;
-  background: color-mix(in oklab, #c97872 80%, transparent);
-  border-radius: 1px;
-  z-index: 7;
-}
-.tl-tactical-rail__today-line::before {
-  content: "";
-  position: absolute;
-  top: -2px;
-  left: 50%;
-  width: 4px;
-  height: 4px;
-  margin-left: -2px;
-  border-radius: 50%;
-  background: color-mix(in oklab, #c97872 80%, transparent);
+  display: none;
 }
 .tl-tactical-rail__remaining {
   position: absolute;
@@ -5313,6 +5335,52 @@ textarea.note-form-field {
   white-space: nowrap;
   flex-shrink: 0;
   text-align: center;
+}
+.tl-tactical-node-group__status {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  max-width: 120px;
+  font-family: var(--sans);
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-align: center;
+  white-space: nowrap;
+}
+.tl-tactical-node-group__status::after {
+  content: "";
+  display: block;
+  width: 100%;
+  min-width: 48px;
+  height: 3px;
+  border-radius: 1px;
+}
+.tl-tactical-node-group__status.is-past-due {
+  color: color-mix(in oklab, #9aa0a2 55%, var(--text));
+}
+.tl-tactical-node-group__status.is-past-due::after {
+  background: #343E40;
+}
+.tl-tactical-node-group__status.is-pending {
+  color: color-mix(in oklab, #C1E1DE 80%, var(--text));
+}
+.tl-tactical-node-group__status.is-pending::after {
+  background: #86A296;
+}
+.tl-tactical-node-group__status.is-completed {
+  color: color-mix(in oklab, #86A296 75%, var(--text));
+}
+.tl-tactical-node-group__status.is-completed::after {
+  background: #6a9b7a;
+}
+.tl-tactical-node-group__status.is-today {
+  color: color-mix(in oklab, #c9a574 85%, var(--text));
+}
+.tl-tactical-node-group__status.is-today::after {
+  background: color-mix(in oklab, #c9a574 70%, transparent);
 }
 .tl-tactical-node-group__stack {
   display: flex;
@@ -5459,6 +5527,10 @@ textarea.note-form-field {
   opacity: 0.95;
   box-shadow: inset 0 -3px 0 #86A296;
   color: color-mix(in oklab, #C1E1DE 70%, var(--text));
+}
+.tl-event-chip--card.is-completed {
+  opacity: 0.92;
+  box-shadow: inset 0 -3px 0 #6a9b7a;
 }
 @keyframes tl-agent-set-pulse {
   0%, 100% { opacity: 1; }

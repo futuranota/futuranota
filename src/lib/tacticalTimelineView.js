@@ -112,6 +112,68 @@ export function formatTimelineSpanLabel(fromDate, toDate) {
 }
 
 /**
+ * Schedule status relative to today — timeline tracks time, not just day gaps.
+ * @param {Date} date
+ * @param {Date} today
+ * @param {{ completed?: boolean }} [options]
+ * @returns {{ kind: 'completed' | 'past-due' | 'today' | 'pending', daysFromToday: number, absDays: number }}
+ */
+export function resolveTimelineScheduleStatus(date, today, options = {}) {
+  const day = startOfCalendarDay(date);
+  const todayDay = startOfCalendarDay(today);
+  const daysFromToday = daysBetween(todayDay, day);
+  if (options.completed) {
+    return { kind: "completed", daysFromToday, absDays: Math.abs(daysFromToday) };
+  }
+  if (daysFromToday < 0) {
+    return { kind: "past-due", daysFromToday, absDays: -daysFromToday };
+  }
+  if (daysFromToday === 0) {
+    return { kind: "today", daysFromToday, absDays: 0 };
+  }
+  return { kind: "pending", daysFromToday, absDays: daysFromToday };
+}
+
+/**
+ * @param {{ kind: string, absDays: number }} status
+ * @param {(key: string, vars?: object) => string} t
+ * @param {{ gapDays?: number | null }} [options] inter-folder day gap (optional)
+ */
+export function formatTimelineScheduleStatusLabel(status, t, options = {}) {
+  if (!status || typeof t !== "function") return "";
+  const gapDays = Number(options.gapDays);
+  const hasGap = Number.isFinite(gapDays) && gapDays > 0;
+  const gapLabel = hasGap
+    ? t("timeline.gapDays", { count: gapDays, s: gapDays === 1 ? "" : "s" })
+    : "";
+
+  if (status.kind === "completed") {
+    return gapLabel ? `${t("timeline.completed")} · ${gapLabel}` : t("timeline.completed");
+  }
+  if (status.kind === "past-due") {
+    // Prefer explicit gap (folder↔folder); else days overdue from today.
+    const dist = hasGap
+      ? gapLabel
+      : t("timeline.gapDays", {
+        count: status.absDays,
+        s: status.absDays === 1 ? "" : "s",
+      });
+    return status.absDays > 0 || hasGap
+      ? `${t("timeline.pastDue")} · ${dist}`
+      : t("timeline.pastDue");
+  }
+  if (status.kind === "today") return t("timeline.today");
+
+  const pluralS = status.absDays === 1 ? "" : "s";
+  const pending = t("timeline.pendingDays", { count: status.absDays, s: pluralS });
+  // Keep inter-folder distance when it differs from "days until".
+  if (hasGap && gapDays !== status.absDays) {
+    return `${pending} · ${gapLabel}`;
+  }
+  return pending;
+}
+
+/**
  * Index doc markers across all object rows (for cross-family dimension spans).
  * @param {object[]} orderedRows
  */
@@ -360,7 +422,9 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
   }));
 
   const wireSegments = options.segments || [];
-  const gapSegments = buildAdjacentDayGapSegments(columns, grid);
+  const gapSegments = buildAdjacentDayGapSegments(columns, grid, {
+    today: grid.today || null,
+  });
   const rowSpan = buildRowEndpointSpanSegment(columns, grid);
   const segments = [
     ...(rowSpan ? [rowSpan] : []),
@@ -377,8 +441,9 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
  * @param {ReturnType<typeof buildTimelineColumns>} columns
  * @param {ReturnType<typeof buildTacticalDisplayGrid>} grid
  */
-export function buildAdjacentDayGapSegments(columns, grid) {
+export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
   if (!columns?.length || columns.length < 2 || !grid) return [];
+  const today = options.today || grid.today || null;
 
   const segments = [];
   for (let i = 1; i < columns.length; i += 1) {
@@ -386,11 +451,22 @@ export function buildAdjacentDayGapSegments(columns, grid) {
     const next = columns[i];
     if (sameCalendarDay(prev.date, next.date)) continue;
     const segment = buildDimensionSegmentBetweenColumns(prev, next, grid);
+    const later = prev.date.getTime() <= next.date.getTime() ? next.date : prev.date;
+    const schedule = today
+      ? resolveTimelineScheduleStatus(later, today)
+      : null;
     segments.push({
       ...segment,
       key: `day-gap-${prev.columnKey}-${next.columnKey}`,
       isDocDimension: false,
       isAdjacentGap: true,
+      scheduleKind: schedule?.kind || null,
+      // Prefer schedule status (pending N days / past due) over bare "2d".
+      label: schedule
+        ? null // filled in UI with i18n
+        : segment.label,
+      schedule,
+      gapDays: Math.abs(daysBetween(prev.date, next.date)),
     });
   }
   return segments;

@@ -105,61 +105,36 @@ function resolveTightGridBounds(normalizedDates, todayDay) {
 
 /**
  * Base calendar bounds before manual override / auto zoom padding.
- * - Few folders (< TACTICAL_AUTO_ZOOM_MIN_DOCS): tight window around markers so
- *   1-day differences read clearly (not month-zoomed-out).
- * - Many folders / empty: month floor, expand to fit all markers (zoomed out).
+ * Prefer a gap-aware tight window whenever there are markers so inserting
+ * another folder does not snap back to month zoom-out (visual collapse).
+ * Empty rail → current month.
  * @param {Date[]} markerDates
  * @param {Date} today
  * @param {{ queueDocCount?: number }} [options]
  */
 export function resolveTacticalGridBaseBounds(markerDates, today, options = {}) {
-  const { queueDocCount = 0 } = options;
   const monthStart = startOfCalendarMonth(today);
   const monthEnd = endOfCalendarMonth(today);
   const todayDay = startOfCalendarDay(today);
   const normalized = markerDates.filter(Boolean).map((d) => startOfCalendarDay(d));
-  const uniqueDayCount = new Set(normalized.map((d) => d.getTime())).size;
 
-  // Tight zoom when few folders / few unique days — avoid month-zoomed-out clutter.
-  const useTight = normalized.length > 0 && (
-    (queueDocCount > 0 && queueDocCount < TACTICAL_AUTO_ZOOM_MIN_DOCS)
-    || (uniqueDayCount > 0 && uniqueDayCount < TACTICAL_AUTO_ZOOM_MIN_DOCS)
-  );
-
-  if (useTight) {
+  if (normalized.length > 0) {
     return resolveTightGridBounds(normalized, todayDay);
   }
 
-  let start = monthStart;
-  let end = monthEnd;
-  const anchorTs = normalized.map((d) => d.getTime());
-
-  if (anchorTs.length > 0) {
-    const minTs = Math.min(...anchorTs, todayDay.getTime());
-    const maxTs = Math.max(...anchorTs, todayDay.getTime());
-    if (minTs < monthStart.getTime()) {
-      start = startOfCalendarDay(new Date(minTs - GRID_PAD_DAYS * MS_PER_DAY));
-    }
-    if (maxTs > monthEnd.getTime()) {
-      end = startOfCalendarDay(new Date(maxTs + GRID_PAD_DAYS * MS_PER_DAY));
-    }
-  }
-
-  return { start, end };
+  return { start: monthStart, end: monthEnd };
 }
 
 /**
- * Widen span when many queued docs produce crowded markers (zoomed-out mode).
+ * Widen span when queued docs produce crowded markers.
+ * Always available (not only ≥4) so inserting folders keeps readable gaps
+ * without snapping to a month floor.
  * @param {Date} start
  * @param {Date} end
  * @param {Date[]} markerDates
- * @param {number} queueDocCount
+ * @param {number} [_queueDocCount]
  */
-export function applyAutoZoomForQueue(start, end, markerDates, queueDocCount) {
-  if (queueDocCount < TACTICAL_AUTO_ZOOM_MIN_DOCS) {
-    return { start, end };
-  }
-
+export function applyAutoZoomForQueue(start, end, markerDates, _queueDocCount) {
   const sorted = [...markerDates]
     .filter(Boolean)
     .map((d) => startOfCalendarDay(d))
