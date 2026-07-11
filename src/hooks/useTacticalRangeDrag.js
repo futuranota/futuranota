@@ -1,88 +1,98 @@
 import { useCallback, useRef, useState } from "react";
 import { useTimelineStore } from "../stores/index.js";
-import {
-  clampTacticalRangeMs,
-  gridEndMsFromAnchorPct,
-  gridStartMsFromAnchorPct,
-  pctFromClientX,
-} from "../lib/tacticalTimelineRange.js";
-import { startOfCalendarDay } from "../temporal.js";
+import { resolveTacticalEdgeDrag } from "../lib/tacticalTimelineRange.js";
 
-function resolveEffectiveRange(grid, override) {
-  return {
-    startMs: override?.startMs ?? grid.start.getTime(),
-    endMs: override?.endMs ?? grid.end.getTime(),
-  };
-}
-
+/**
+ * Stretch zoom via one extreme at a time (delta-based).
+ * - Pull outward → expand the visible window
+ * - Pull inward from expanded → snap that edge back to the auto base
+ * - From base, pull inward → compress (until min span); outward expands again
+ */
 export function useTacticalRangeDrag(grid) {
   const setTacticalRangeOverride = useTimelineStore((s) => s.setTacticalRangeOverride);
   const clearTacticalRangeOverride = useTimelineStore((s) => s.clearTacticalRangeOverride);
   const [isDragging, setIsDragging] = useState(false);
+  const [activeHandleKey, setActiveHandleKey] = useState(null);
+  const [activeEdge, setActiveEdge] = useState(null);
   const dragEdgeRef = useRef(null);
 
   const onRangeHandlePointerDown = useCallback((
     edge,
     plotEl,
     event,
-    { anchorDate, anchorPct = 0 } = {},
+    { handleKey = null } = {},
   ) => {
-    if (!grid || !plotEl || !anchorDate) return;
+    if (!grid || !plotEl) return;
+    if (edge !== "start" && edge !== "end") return;
+
     event.preventDefault();
     event.stopPropagation();
     dragEdgeRef.current = edge;
     setIsDragging(true);
+    setActiveEdge(edge);
+    setActiveHandleKey(handleKey);
     plotEl.setPointerCapture(event.pointerId);
 
-    const anchorMs = startOfCalendarDay(anchorDate).getTime();
-    const initialOverride = useTimelineStore.getState().tacticalRangeOverride;
-    const initialRange = resolveEffectiveRange(grid, initialOverride);
+    const rect = plotEl.getBoundingClientRect();
+    const plotWidth = Math.max(1, rect.width);
+    const baseStartMs = (grid.baseStart || grid.start).getTime();
+    const baseEndMs = (grid.baseEnd || grid.end).getTime();
+    const override = useTimelineStore.getState().tacticalRangeOverride;
+    const originStartMs = override?.startMs ?? baseStartMs;
+    const originEndMs = override?.endMs ?? baseEndMs;
+    // Use base span for px→ms so outward expansion stays responsive (not stuck).
+    const spanForScale = Math.max(1, baseEndMs - baseStartMs);
+    const msPerPx = spanForScale / plotWidth;
+    const originX = event.clientX;
 
-    const applyRange = (startMs, endMs) => {
-      const clamped = clampTacticalRangeMs(startMs, endMs);
-      if (!clamped) return;
-      setTacticalRangeOverride(clamped);
+    const apply = (startMs, endMs) => {
+      const next = resolveTacticalEdgeDrag(
+        edge,
+        startMs,
+        endMs,
+        baseStartMs,
+        baseEndMs,
+        originStartMs,
+        originEndMs,
+      );
+      if (next == null) {
+        clearTacticalRangeOverride();
+        return;
+      }
+      setTacticalRangeOverride(next);
     };
 
     const onMove = (ev) => {
-      const pct = pctFromClientX(ev.clientX, plotEl);
-      const override = useTimelineStore.getState().tacticalRangeOverride;
-      const { startMs, endMs } = resolveEffectiveRange(grid, override ?? initialOverride);
-
-      if (edge === "both") {
-        if (pct <= anchorPct) {
-          applyRange(gridStartMsFromAnchorPct(anchorMs, pct, endMs), endMs);
-        } else {
-          applyRange(startMs, gridEndMsFromAnchorPct(anchorMs, pct, startMs));
-        }
-        return;
-      }
-
+      const dx = ev.clientX - originX;
+      // Start extreme: drag left (dx < 0) → earlier start → expand
+      // End extreme: drag right (dx > 0) → later end → expand
       if (edge === "start") {
-        applyRange(gridStartMsFromAnchorPct(anchorMs, pct, endMs), endMs);
+        apply(originStartMs + dx * msPerPx, originEndMs);
       } else {
-        applyRange(startMs, gridEndMsFromAnchorPct(anchorMs, pct, startMs));
+        apply(originStartMs, originEndMs + dx * msPerPx);
       }
     };
 
     const onUp = (ev) => {
-      plotEl.releasePointerCapture(ev.pointerId);
+      try {
+        plotEl.releasePointerCapture(ev.pointerId);
+      } catch {
+        /* already released */
+      }
       plotEl.removeEventListener("pointermove", onMove);
       plotEl.removeEventListener("pointerup", onUp);
       plotEl.removeEventListener("pointercancel", onUp);
       dragEdgeRef.current = null;
       setIsDragging(false);
+      setActiveEdge(null);
+      setActiveHandleKey(null);
     };
 
     plotEl.addEventListener("pointermove", onMove);
     plotEl.addEventListener("pointerup", onUp);
     plotEl.addEventListener("pointercancel", onUp);
-
-    if (!initialOverride) {
-      setTacticalRangeOverride(initialRange);
-    }
     onMove(event);
-  }, [grid, setTacticalRangeOverride]);
+  }, [grid, setTacticalRangeOverride, clearTacticalRangeOverride]);
 
   const onRangeHandleDoubleClick = useCallback((event) => {
     event.preventDefault();
@@ -92,6 +102,8 @@ export function useTacticalRangeDrag(grid) {
 
   return {
     isDragging,
+    activeEdge,
+    activeHandleKey,
     onRangeHandlePointerDown,
     onRangeHandleDoubleClick,
   };

@@ -5262,13 +5262,19 @@ textarea.note-form-field {
   outline: 2px solid color-mix(in oklab, var(--hud) 55%, transparent);
   outline-offset: 2px;
 }
-.tl-tactical-rail.is-dragging-range .tl-tactical-rail__anchor.is-range-handle {
+/* Only the active extreme highlights — never all handles at once. */
+.tl-tactical-rail__anchor.is-range-handle.is-range-active {
   transform: translateX(-50%) scale(1.35);
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--hud) 22%, transparent);
+  z-index: 14;
 }
 .tl-tactical-rail.is-dragging-range {
   cursor: ew-resize;
   user-select: none;
+}
+.tl-tactical-rail.is-dragging-range .tl-tactical-rail__anchor.is-range-handle:not(.is-range-active) {
+  pointer-events: none;
+  opacity: 0.55;
 }
 .tl-tactical-rail__anchor.is-status-past {
   background: var(--tl-dot-past);

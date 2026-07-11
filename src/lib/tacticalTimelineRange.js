@@ -187,8 +187,10 @@ export function applyTacticalRangeOverride(start, end, rangeOverride) {
   return { start: nextStart, end: nextEnd };
 }
 
-/** Minimum visible span when manually stretching range via dots (zoom in). */
+/** Minimum visible span when manually stretching range via dots (zoom in / compress). */
 export const TACTICAL_MIN_RANGE_SPAN_MS = MS_PER_DAY * 3;
+/** Maximum visible span when stretching outward (expand). */
+export const TACTICAL_MAX_RANGE_SPAN_MS = MS_PER_DAY * 366;
 
 /**
  * Keep anchor date at `pct` on the grid by solving for a new start (fixed end).
@@ -217,10 +219,63 @@ export function gridEndMsFromAnchorPct(anchorMs, pct, startMs) {
 /**
  * @param {number} startMs
  * @param {number} endMs
+ * @param {{ minSpanMs?: number, maxSpanMs?: number }} [limits]
  */
-export function clampTacticalRangeMs(startMs, endMs) {
-  if (endMs - startMs < TACTICAL_MIN_RANGE_SPAN_MS) {
+export function clampTacticalRangeMs(startMs, endMs, limits = {}) {
+  const minSpan = limits.minSpanMs ?? TACTICAL_MIN_RANGE_SPAN_MS;
+  const maxSpan = limits.maxSpanMs ?? TACTICAL_MAX_RANGE_SPAN_MS;
+  let nextStart = startMs;
+  let nextEnd = endMs;
+  let span = nextEnd - nextStart;
+  if (span < minSpan) return null;
+  if (span > maxSpan) {
+    const mid = (nextStart + nextEnd) / 2;
+    nextStart = mid - maxSpan / 2;
+    nextEnd = mid + maxSpan / 2;
+  }
+  return {
+    startMs: startOfCalendarDay(new Date(nextStart)).getTime(),
+    endMs: startOfCalendarDay(new Date(nextEnd)).getTime(),
+  };
+}
+
+/**
+ * Apply one-edge drag against the auto base window.
+ * - Expanded beyond base + pull inward → snap that edge to base (and clear if both match base)
+ * - From base / compressed → allow compress to min span; outward expands freely (up to max)
+ * @param {'start' | 'end'} edge
+ * @param {number} startMs
+ * @param {number} endMs
+ * @param {number} baseStartMs
+ * @param {number} baseEndMs
+ * @param {number} originStartMs span at pointer-down
+ * @param {number} originEndMs
+ * @returns {{ startMs: number, endMs: number } | null} null = reset override to base
+ */
+export function resolveTacticalEdgeDrag(
+  edge,
+  startMs,
+  endMs,
+  baseStartMs,
+  baseEndMs,
+  originStartMs,
+  originEndMs,
+) {
+  let nextStart = startMs;
+  let nextEnd = endMs;
+
+  if (edge === "start") {
+    // Was expanded beyond base and pulled inward past base → lock to base.
+    if (originStartMs < baseStartMs && nextStart > baseStartMs) {
+      nextStart = baseStartMs;
+    }
+  } else if (originEndMs > baseEndMs && nextEnd < baseEndMs) {
+    nextEnd = baseEndMs;
+  }
+
+  if (nextStart === baseStartMs && nextEnd === baseEndMs) {
     return null;
   }
-  return { startMs, endMs };
+
+  return clampTacticalRangeMs(nextStart, nextEnd);
 }

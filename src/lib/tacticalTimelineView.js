@@ -67,6 +67,8 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
   const { rangeOverride = null, queueDocCount = 0 } = options;
   let { start, end } = resolveTacticalGridBaseBounds(markerDates, today, { queueDocCount });
   ({ start, end } = applyAutoZoomForQueue(start, end, markerDates, queueDocCount));
+  const baseStart = start;
+  const baseEnd = end;
   ({ start, end } = applyTacticalRangeOverride(start, end, rangeOverride));
 
   const normalized = markerDates.filter(Boolean).map((d) => startOfCalendarDay(d));
@@ -90,6 +92,8 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
   return {
     start,
     end,
+    baseStart,
+    baseEnd,
     pct,
     todayPct: pct(today),
     today: todayDay,

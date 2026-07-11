@@ -261,7 +261,9 @@ function TacticalObjectRow({
         <div
           className={
             "tl-tactical-rail"
-            + (rangeDrag?.isDragging ? " is-dragging-range" : "")
+            + (rangeDrag?.isDragging && rangeDrag?.activeHandleKey?.startsWith(`${row.id}:`)
+              ? " is-dragging-range"
+              : "")
             + (nodeGroups.length === 0 ? " tl-tactical-rail--empty" : "")
           }
         >
@@ -344,14 +346,24 @@ function TacticalObjectRow({
                 const anchorStatus = resolveAnchorStatus(group.date, today);
                 const isFirst = groupIndex === 0;
                 const isLast = groupIndex === nodeGroups.length - 1;
-                const isRangeHandle = enableRangeHandles && nodeGroups.length > 0;
-                const rangeEdge = !isRangeHandle
+                // Only extremes stretch — each end independently (never all at once).
+                const rangeEdge = !enableRangeHandles
                   ? null
-                  : (isFirst && isLast) || (!isFirst && !isLast)
-                    ? "both"
-                    : isFirst
-                      ? "start"
-                      : "end";
+                  : (isFirst && !isLast)
+                    ? "start"
+                    : (isLast && !isFirst)
+                      ? "end"
+                      : (isFirst && isLast)
+                        // Single marker: two hit zones via left/right of the dot on pointer down.
+                        ? "start"
+                        : null;
+                const handleKeyPrefix = `${row.id}:${group.columnKey}:`;
+                const isRangeHandle = Boolean(rangeEdge);
+                const isActiveHandle = Boolean(
+                  rangeDrag?.isDragging
+                  && typeof rangeDrag?.activeHandleKey === "string"
+                  && rangeDrag.activeHandleKey.startsWith(handleKeyPrefix),
+                );
                 const handleClass = [
                   "tl-tactical-rail__anchor",
                   `is-status-${anchorStatus}`,
@@ -359,15 +371,13 @@ function TacticalObjectRow({
                   isRangeHandle ? "is-range-handle" : "",
                   rangeEdge === "start" ? "is-range-start" : "",
                   rangeEdge === "end" ? "is-range-end" : "",
-                  rangeEdge === "both" ? "is-range-both" : "",
+                  isActiveHandle ? "is-range-active" : "",
                 ].filter(Boolean).join(" ");
                 const stretchHint = rangeEdge === "start"
                   ? t("timeline.dragStart")
                   : rangeEdge === "end"
                     ? t("timeline.dragEnd")
-                    : rangeEdge === "both"
-                      ? t("timeline.dragStretch")
-                      : null;
+                    : null;
 
                 return (
                   <span
@@ -375,6 +385,7 @@ function TacticalObjectRow({
                     className={handleClass}
                     style={{ left: `${group.leftPct}%` }}
                     data-tl-anchor={`dot-${row.id}-${group.columnKey}`}
+                    data-range-edge={rangeEdge || undefined}
                     role={isRangeHandle ? "slider" : undefined}
                     aria-label={stretchHint || undefined}
                     title={
@@ -387,12 +398,27 @@ function TacticalObjectRow({
                     tabIndex={isRangeHandle ? 0 : undefined}
                     onPointerDown={
                       rangeEdge
-                        ? (e) => rangeDrag?.onRangeHandlePointerDown(
-                          rangeEdge,
-                          plotRef.current,
-                          e,
-                          { anchorDate: group.date, anchorPct: group.leftPct },
-                        )
+                        ? (e) => {
+                          e.stopPropagation();
+                          // Single-column rail: pick extreme by which side of the dot was grabbed.
+                          let edge = rangeEdge;
+                          if (isFirst && isLast && plotRef.current) {
+                            const pct = (() => {
+                              const rect = plotRef.current.getBoundingClientRect();
+                              if (rect.width <= 0) return group.leftPct;
+                              return ((e.clientX - rect.left) / rect.width) * 100;
+                            })();
+                            edge = pct <= group.leftPct ? "start" : "end";
+                          }
+                          rangeDrag?.onRangeHandlePointerDown(
+                            edge,
+                            plotRef.current,
+                            e,
+                            {
+                              handleKey: `${row.id}:${group.columnKey}:${edge}`,
+                            },
+                          );
+                        }
                         : undefined
                     }
                     onDoubleClick={isRangeHandle ? rangeDrag?.onRangeHandleDoubleClick : undefined}
