@@ -562,6 +562,23 @@ function TacticalObjectRow({
                   >
                     {fmtDate(group.date, "short")}
                   </time>
+                  {(() => {
+                    const groupCompleted = group.items.some((m) => resolveMarkerCompleted(m));
+                    const groupSchedule = resolveTimelineScheduleStatus(group.date, today, {
+                      completed: groupCompleted,
+                    });
+                    if (groupSchedule.kind !== "past-due") return null;
+                    const groupStatusLabel = formatTimelineScheduleStatusLabel(groupSchedule, t);
+                    if (!groupStatusLabel) return null;
+                    return (
+                      <span
+                        className="tl-tactical-node-group__status is-past-due"
+                        title={groupStatusLabel}
+                      >
+                        {groupStatusLabel}
+                      </span>
+                    );
+                  })()}
                 </motion.div>
                 );
               })}
