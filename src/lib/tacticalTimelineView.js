@@ -3,6 +3,9 @@ import {
   applyAutoZoomForQueue,
   applyTacticalRangeOverride,
   resolveTacticalGridBaseBounds,
+  clampTacticalRangeMs,
+  minSpanMsForRulerEdges,
+  maxSpanMsForDifferentDayFolders,
 } from "./tacticalTimelineRange.js";
 import {
   parseDate,
@@ -70,6 +73,16 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
   const baseStart = start;
   const baseEnd = end;
   ({ start, end } = applyTacticalRangeOverride(start, end, rangeOverride));
+  // Never let an override collapse different-day folders (≥1d) on the rail.
+  const folderDates = markerDates.filter(Boolean);
+  const clampedOverride = clampTacticalRangeMs(start.getTime(), end.getTime(), {
+    minSpanMs: minSpanMsForRulerEdges(folderDates),
+    maxSpanMs: maxSpanMsForDifferentDayFolders(folderDates),
+  });
+  if (clampedOverride) {
+    start = startOfCalendarDay(new Date(clampedOverride.startMs));
+    end = startOfCalendarDay(new Date(clampedOverride.endMs));
+  }
 
   const normalized = markerDates.filter(Boolean).map((d) => startOfCalendarDay(d));
   const todayDay = startOfCalendarDay(today);
@@ -101,6 +114,8 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
     monthStart,
     monthEnd,
     markers,
+    /** Folder/doc anchors only — used to stop stretch at ruler extremes. */
+    folderMarkers: normalized,
     ticks: buildGridTicks(start, end, pct, spanDays),
   };
 }

@@ -346,17 +346,16 @@ function TacticalObjectRow({
                 const anchorStatus = resolveAnchorStatus(group.date, today);
                 const isFirst = groupIndex === 0;
                 const isLast = groupIndex === nodeGroups.length - 1;
-                // Only extremes stretch — each end independently (never all at once).
+                // Every folder dot is movable; extremes stretch edges, middles pan with the node.
                 const rangeEdge = !enableRangeHandles
                   ? null
-                  : (isFirst && !isLast)
-                    ? "start"
-                    : (isLast && !isFirst)
-                      ? "end"
-                      : (isFirst && isLast)
-                        // Single marker: two hit zones via left/right of the dot on pointer down.
-                        ? "start"
-                        : null;
+                  : (isFirst && isLast)
+                    ? "start" // side picked on pointer down
+                    : isFirst
+                      ? "start"
+                      : isLast
+                        ? "end"
+                        : "anchor";
                 const handleKeyPrefix = `${row.id}:${group.columnKey}:`;
                 const isRangeHandle = Boolean(rangeEdge);
                 const isActiveHandle = Boolean(
@@ -371,13 +370,16 @@ function TacticalObjectRow({
                   isRangeHandle ? "is-range-handle" : "",
                   rangeEdge === "start" ? "is-range-start" : "",
                   rangeEdge === "end" ? "is-range-end" : "",
+                  rangeEdge === "anchor" ? "is-range-anchor" : "",
                   isActiveHandle ? "is-range-active" : "",
                 ].filter(Boolean).join(" ");
                 const stretchHint = rangeEdge === "start"
                   ? t("timeline.dragStart")
                   : rangeEdge === "end"
                     ? t("timeline.dragEnd")
-                    : null;
+                    : rangeEdge === "anchor"
+                      ? t("timeline.dragNode")
+                      : null;
 
                 return (
                   <span
@@ -400,14 +402,12 @@ function TacticalObjectRow({
                       rangeEdge
                         ? (e) => {
                           e.stopPropagation();
-                          // Single-column rail: pick extreme by which side of the dot was grabbed.
                           let edge = rangeEdge;
                           if (isFirst && isLast && plotRef.current) {
-                            const pct = (() => {
-                              const rect = plotRef.current.getBoundingClientRect();
-                              if (rect.width <= 0) return group.leftPct;
-                              return ((e.clientX - rect.left) / rect.width) * 100;
-                            })();
+                            const rect = plotRef.current.getBoundingClientRect();
+                            const pct = rect.width <= 0
+                              ? group.leftPct
+                              : ((e.clientX - rect.left) / rect.width) * 100;
                             edge = pct <= group.leftPct ? "start" : "end";
                           }
                           rangeDrag?.onRangeHandlePointerDown(
@@ -416,6 +416,7 @@ function TacticalObjectRow({
                             e,
                             {
                               handleKey: `${row.id}:${group.columnKey}:${edge}`,
+                              anchorDate: group.date,
                             },
                           );
                         }

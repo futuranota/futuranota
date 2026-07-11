@@ -1,12 +1,16 @@
 import { useCallback, useRef, useState } from "react";
 import { useTimelineStore } from "../stores/index.js";
-import { resolveTacticalEdgeDrag } from "../lib/tacticalTimelineRange.js";
+import {
+  rangeFromAnchorPct,
+  resolveTacticalEdgeDrag,
+} from "../lib/tacticalTimelineRange.js";
+import { startOfCalendarDay } from "../temporal.js";
 
 /**
- * Stretch zoom via one extreme at a time (delta-based).
- * - Pull outward → expand the visible window
- * - Pull inward from expanded → snap that edge back to the auto base
- * - From base, pull inward → compress (until min span); outward expands again
+ * All folder dots are movable:
+ * - start / end extremes → stretch that edge (outward expand, inward → base)
+ * - middle ("anchor") → drag moves the window so that folder follows the pointer
+ * Different-day folders never collapse below the min rail gap.
  */
 export function useTacticalRangeDrag(grid) {
   const setTacticalRangeOverride = useTimelineStore((s) => s.setTacticalRangeOverride);
@@ -20,10 +24,10 @@ export function useTacticalRangeDrag(grid) {
     edge,
     plotEl,
     event,
-    { handleKey = null } = {},
+    { handleKey = null, anchorDate = null } = {},
   ) => {
     if (!grid || !plotEl) return;
-    if (edge !== "start" && edge !== "end") return;
+    if (edge !== "start" && edge !== "end" && edge !== "anchor") return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -40,12 +44,18 @@ export function useTacticalRangeDrag(grid) {
     const override = useTimelineStore.getState().tacticalRangeOverride;
     const originStartMs = override?.startMs ?? baseStartMs;
     const originEndMs = override?.endMs ?? baseEndMs;
-    // Use base span for px→ms so outward expansion stays responsive (not stuck).
+    const originSpanMs = Math.max(1, originEndMs - originStartMs);
     const spanForScale = Math.max(1, baseEndMs - baseStartMs);
     const msPerPx = spanForScale / plotWidth;
     const originX = event.clientX;
+    const markerDates = grid.folderMarkers?.length
+      ? grid.folderMarkers
+      : (grid.markers || []);
+    const anchorMs = anchorDate
+      ? startOfCalendarDay(anchorDate).getTime()
+      : null;
 
-    const apply = (startMs, endMs) => {
+    const applyEdge = (startMs, endMs) => {
       const next = resolveTacticalEdgeDrag(
         edge,
         startMs,
@@ -54,6 +64,7 @@ export function useTacticalRangeDrag(grid) {
         baseEndMs,
         originStartMs,
         originEndMs,
+        markerDates,
       );
       if (next == null) {
         clearTacticalRangeOverride();
@@ -63,13 +74,21 @@ export function useTacticalRangeDrag(grid) {
     };
 
     const onMove = (ev) => {
-      const dx = ev.clientX - originX;
-      // Start extreme: drag left (dx < 0) → earlier start → expand
-      // End extreme: drag right (dx > 0) → later end → expand
+      const clampedX = Math.min(rect.right, Math.max(rect.left, ev.clientX));
+      const pct = ((clampedX - rect.left) / plotWidth) * 100;
+
+      if (edge === "anchor" && anchorMs != null) {
+        // Middle folder: keep this node under the pointer (movable, not extremes-only).
+        const next = rangeFromAnchorPct(anchorMs, pct, originSpanMs, markerDates);
+        if (next) setTacticalRangeOverride(next);
+        return;
+      }
+
+      const dx = clampedX - originX;
       if (edge === "start") {
-        apply(originStartMs + dx * msPerPx, originEndMs);
+        applyEdge(originStartMs + dx * msPerPx, originEndMs);
       } else {
-        apply(originStartMs, originEndMs + dx * msPerPx);
+        applyEdge(originStartMs, originEndMs + dx * msPerPx);
       }
     };
 

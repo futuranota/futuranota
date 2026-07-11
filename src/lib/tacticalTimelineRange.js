@@ -191,6 +191,59 @@ export function applyTacticalRangeOverride(start, end, rangeOverride) {
 export const TACTICAL_MIN_RANGE_SPAN_MS = MS_PER_DAY * 3;
 /** Maximum visible span when stretching outward (expand). */
 export const TACTICAL_MAX_RANGE_SPAN_MS = MS_PER_DAY * 366;
+/** Pad (%) so extreme folders stop at the ruler edges, not past them. */
+export const TACTICAL_RULER_EDGE_PAD_PCT = 2;
+
+/**
+ * Tightest span where the first/last markers sit on the ruler extremes (pad → 100−pad).
+ * Stretching further would push nodes past the ruler — not allowed.
+ * @param {Date[]} markerDates
+ * @param {number} [padPct]
+ */
+export function minSpanMsForRulerEdges(markerDates, padPct = TACTICAL_RULER_EDGE_PAD_PCT) {
+  const sorted = [...(markerDates || [])]
+    .filter(Boolean)
+    .map((d) => startOfCalendarDay(d).getTime())
+    .sort((a, b) => a - b);
+  if (sorted.length < 2) return TACTICAL_MIN_RANGE_SPAN_MS;
+  const contentMs = sorted[sorted.length - 1] - sorted[0];
+  if (contentMs <= 0) return TACTICAL_MIN_RANGE_SPAN_MS;
+  const usable = Math.max(0.5, (100 - 2 * padPct) / 100);
+  return Math.max(TACTICAL_MIN_RANGE_SPAN_MS, contentMs / usable);
+}
+
+/**
+ * Widest span that still keeps folders ≥1 calendar day apart from collapsing.
+ * Different-day folders must keep at least `minGapPct` of the rail between them.
+ * @param {Date[]} markerDates
+ * @param {number} [minGapPct]
+ */
+export function maxSpanMsForDifferentDayFolders(
+  markerDates,
+  minGapPct = TACTICAL_MIN_COLUMN_GAP_PCT,
+) {
+  const unique = [...new Set(
+    [...(markerDates || [])]
+      .filter(Boolean)
+      .map((d) => startOfCalendarDay(d).getTime()),
+  )].sort((a, b) => a - b);
+
+  if (unique.length < 2) return TACTICAL_MAX_RANGE_SPAN_MS;
+
+  let minAdjacentDays = Infinity;
+  for (let i = 1; i < unique.length; i += 1) {
+    const days = (unique[i] - unique[i - 1]) / MS_PER_DAY;
+    if (days >= 1 && days < minAdjacentDays) minAdjacentDays = days;
+  }
+  if (!Number.isFinite(minAdjacentDays)) return TACTICAL_MAX_RANGE_SPAN_MS;
+
+  const gap = Math.max(1, minGapPct) / 100;
+  const maxSpanDays = minAdjacentDays / gap;
+  return Math.min(
+    TACTICAL_MAX_RANGE_SPAN_MS,
+    Math.max(TACTICAL_MIN_RANGE_SPAN_MS, maxSpanDays * MS_PER_DAY),
+  );
+}
 
 /**
  * Keep anchor date at `pct` on the grid by solving for a new start (fixed end).
@@ -227,11 +280,27 @@ export function clampTacticalRangeMs(startMs, endMs, limits = {}) {
   let nextStart = startMs;
   let nextEnd = endMs;
   let span = nextEnd - nextStart;
-  if (span < minSpan) return null;
+  if (span < minSpan) {
+    // Pin to the edge being dragged so extremes stop at the ruler limit.
+    if (limits.pinEdge === "start") {
+      nextStart = nextEnd - minSpan;
+    } else if (limits.pinEdge === "end") {
+      nextEnd = nextStart + minSpan;
+    } else {
+      return null;
+    }
+    span = nextEnd - nextStart;
+  }
   if (span > maxSpan) {
-    const mid = (nextStart + nextEnd) / 2;
-    nextStart = mid - maxSpan / 2;
-    nextEnd = mid + maxSpan / 2;
+    if (limits.pinEdge === "start") {
+      nextStart = nextEnd - maxSpan;
+    } else if (limits.pinEdge === "end") {
+      nextEnd = nextStart + maxSpan;
+    } else {
+      const mid = (nextStart + nextEnd) / 2;
+      nextStart = mid - maxSpan / 2;
+      nextEnd = mid + maxSpan / 2;
+    }
   }
   return {
     startMs: startOfCalendarDay(new Date(nextStart)).getTime(),
@@ -241,8 +310,7 @@ export function clampTacticalRangeMs(startMs, endMs, limits = {}) {
 
 /**
  * Apply one-edge drag against the auto base window.
- * - Expanded beyond base + pull inward → snap that edge to base (and clear if both match base)
- * - From base / compressed → allow compress to min span; outward expands freely (up to max)
+ * Max compress = extreme folders sit on the ruler edges (both extremes).
  * @param {'start' | 'end'} edge
  * @param {number} startMs
  * @param {number} endMs
@@ -250,6 +318,7 @@ export function clampTacticalRangeMs(startMs, endMs, limits = {}) {
  * @param {number} baseEndMs
  * @param {number} originStartMs span at pointer-down
  * @param {number} originEndMs
+ * @param {Date[]} [markerDates]
  * @returns {{ startMs: number, endMs: number } | null} null = reset override to base
  */
 export function resolveTacticalEdgeDrag(
@@ -260,12 +329,12 @@ export function resolveTacticalEdgeDrag(
   baseEndMs,
   originStartMs,
   originEndMs,
+  markerDates = [],
 ) {
   let nextStart = startMs;
   let nextEnd = endMs;
 
   if (edge === "start") {
-    // Was expanded beyond base and pulled inward past base → lock to base.
     if (originStartMs < baseStartMs && nextStart > baseStartMs) {
       nextStart = baseStartMs;
     }
@@ -277,5 +346,29 @@ export function resolveTacticalEdgeDrag(
     return null;
   }
 
-  return clampTacticalRangeMs(nextStart, nextEnd);
+  const minSpanMs = minSpanMsForRulerEdges(markerDates);
+  const maxSpanMs = maxSpanMsForDifferentDayFolders(markerDates);
+  return clampTacticalRangeMs(nextStart, nextEnd, {
+    minSpanMs,
+    maxSpanMs,
+    pinEdge: edge === "anchor" ? null : edge,
+  });
+}
+
+/**
+ * Pan/zoom so `anchorMs` stays under `pct` (0–100) with the given span.
+ * Used when dragging a non-extreme folder node.
+ * @param {number} anchorMs
+ * @param {number} pct
+ * @param {number} spanMs
+ * @param {Date[]} markerDates
+ */
+export function rangeFromAnchorPct(anchorMs, pct, spanMs, markerDates = []) {
+  const p = Math.min(0.98, Math.max(0.02, pct / 100));
+  const minSpanMs = minSpanMsForRulerEdges(markerDates);
+  const maxSpanMs = maxSpanMsForDifferentDayFolders(markerDates);
+  const span = Math.min(maxSpanMs, Math.max(minSpanMs, spanMs));
+  const startMs = anchorMs - p * span;
+  const endMs = startMs + span;
+  return clampTacticalRangeMs(startMs, endMs, { minSpanMs, maxSpanMs });
 }

@@ -5262,11 +5262,17 @@ textarea.note-form-field {
   outline: 2px solid color-mix(in oklab, var(--hud) 55%, transparent);
   outline-offset: 2px;
 }
-/* Only the active extreme highlights — never all handles at once. */
+/* Only the active handle highlights — never all handles at once. */
 .tl-tactical-rail__anchor.is-range-handle.is-range-active {
   transform: translateX(-50%) scale(1.35);
   box-shadow: 0 0 0 4px color-mix(in oklab, var(--hud) 22%, transparent);
   z-index: 14;
+}
+.tl-tactical-rail__anchor.is-range-handle.is-range-anchor {
+  cursor: grab;
+}
+.tl-tactical-rail__anchor.is-range-handle.is-range-anchor.is-range-active {
+  cursor: grabbing;
 }
 .tl-tactical-rail.is-dragging-range {
   cursor: ew-resize;
