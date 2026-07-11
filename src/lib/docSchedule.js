@@ -5,13 +5,12 @@ import { isoFromAnchorFields } from "./nodeAnchor.js";
 const MS_PER_MINUTE = 60000;
 
 /**
- * Resolve a document's schedule datetime (day + hour + minute) for timeline / content list.
- * Prefers explicit Schedule fields, then launchAt, then linked node anchors, then createdAt.
+ * Explicit document schedule only (Launch / block Schedule) — no createdAt fallback.
+ * Used so timeline placement follows saved schedule over stale canvas dates.
  * @param {object | null | undefined} doc
- * @param {Record<string, object>} [nodeEntitiesById]
  * @returns {Date | null}
  */
-export function resolveDocScheduleDate(doc, nodeEntitiesById = {}) {
+export function resolveExplicitDocScheduleDate(doc) {
   if (!doc) return null;
 
   if (doc.launchAt) {
@@ -28,6 +27,22 @@ export function resolveDocScheduleDate(doc, nodeEntitiesById = {}) {
     const d = parseDate(iso);
     if (d) return d;
   }
+
+  return null;
+}
+
+/**
+ * Resolve a document's schedule datetime (day + hour + minute) for timeline / content list.
+ * Prefers explicit Schedule fields, then launchAt, then linked node anchors, then createdAt.
+ * @param {object | null | undefined} doc
+ * @param {Record<string, object>} [nodeEntitiesById]
+ * @returns {Date | null}
+ */
+export function resolveDocScheduleDate(doc, nodeEntitiesById = {}) {
+  if (!doc) return null;
+
+  const explicit = resolveExplicitDocScheduleDate(doc);
+  if (explicit) return explicit;
 
   for (const entityId of doc.nodeIds || []) {
     const entity = nodeEntitiesById[entityId];

@@ -255,6 +255,7 @@ export function DocExpandedView({
   const [pendingNavigateDocId, setPendingNavigateDocId] = useState(null);
   const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
   const nodeAutosaveTimerRef = useRef(null);
+  const nodeInitialSnapshotRef = useRef(null);
   const docShellRef = useRef(null);
   const docSnapshotRef = useRef(null);
   const pendingCloseActionRef = useRef(null);
@@ -844,6 +845,7 @@ export function DocExpandedView({
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
     setNodeInitialSnapshot(null);
+    nodeInitialSnapshotRef.current = null;
   };
 
   const normalizeNodeContent = (value) => {
@@ -863,8 +865,12 @@ export function DocExpandedView({
   };
 
   const handleRequestCloseNodeModal = () => {
-    // Returning to the file-box always flushes — nodes must feel saved.
-    flushAndCloseNodeModal();
+    // Discard without save — Yes path goes through onSave → flushAndCloseNodeModal.
+    if (nodeAutosaveTimerRef.current) {
+      clearTimeout(nodeAutosaveTimerRef.current);
+      nodeAutosaveTimerRef.current = null;
+    }
+    resetNodeModalState();
   };
 
   const flushAndCloseNodeModal = () => {
@@ -896,6 +902,8 @@ export function DocExpandedView({
         nodeDraftAnchorDate,
         nodeDraftAnchorTime,
       );
+      const savedBlocks = useDocsStore.getState().docs[doc.id]?.blocks;
+      onAfterDocSave?.(doc.id, savedBlocks);
     }
     resetNodeModalState();
   };
@@ -1137,11 +1145,13 @@ export function DocExpandedView({
     });
     syncNodeToParentDoc(savedNodeId, doc.id);
 
-    setNodeInitialSnapshot({
+    const snap = {
       content: normalizeNodeContent(content),
       anchorDate,
       anchorTime,
-    });
+    };
+    setNodeInitialSnapshot(snap);
+    nodeInitialSnapshotRef.current = snap;
   };
 
   const handleNodeContentChange = (content) => {
@@ -1152,8 +1162,11 @@ export function DocExpandedView({
       clearTimeout(nodeAutosaveTimerRef.current);
     }
     const context = { ...activeNodeContext };
-    const anchorDate = nodeDraftAnchorDate;
-    const anchorTime = nodeDraftAnchorTime;
+    // Keep schedule draft-only until explicit Yes/save — autosave content with
+    // the snapshot anchors so a schedule edit alone never commits early.
+    const snap = nodeInitialSnapshotRef.current;
+    const anchorDate = snap?.anchorDate ?? nodeDraftAnchorDate;
+    const anchorTime = snap?.anchorTime ?? nodeDraftAnchorTime;
     nodeAutosaveTimerRef.current = setTimeout(() => {
       persistNodeContentDebounced(content, context, anchorDate, anchorTime);
       nodeAutosaveTimerRef.current = null;
@@ -1273,28 +1286,26 @@ export function DocExpandedView({
     const resolvedAnchorTime = anchorFromBlock.anchorTime || anchorFromNode.anchorTime;
     setNodeDraftAnchorDate(resolvedAnchorDate);
     setNodeDraftAnchorTime(resolvedAnchorTime);
-    setNodeInitialSnapshot({
+    const snap = {
       content: normalizeNodeContent(resolvedNodeDraft),
       anchorDate: resolvedAnchorDate,
       anchorTime: resolvedAnchorTime,
-    });
+    };
+    setNodeInitialSnapshot(snap);
+    nodeInitialSnapshotRef.current = snap;
   };
 
   const supportsScheduleAnchor = (dataType) =>
     dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
 
   const handleNodeAnchorDateChange = (anchorDate) => {
+    // Draft only — persist on Yes/save so close can ask first.
     setNodeDraftAnchorDate(anchorDate);
-    if (!activeNodeContext) return;
-    const { blockIndex } = activeNodeContext;
-    handleBlockAnchorChange(blockIndex, anchorDate, nodeDraftAnchorTime);
   };
 
   const handleNodeAnchorTimeChange = (anchorTime) => {
+    // Draft only — persist on Yes/save so close can ask first.
     setNodeDraftAnchorTime(anchorTime);
-    if (!activeNodeContext) return;
-    const { blockIndex } = activeNodeContext;
-    handleBlockAnchorChange(blockIndex, nodeDraftAnchorDate, anchorTime);
   };
 
   const handleOpenNodeForH1 = (h1Index, h1Block) => handleOpenNodeForBlock(h1Index, h1Block);

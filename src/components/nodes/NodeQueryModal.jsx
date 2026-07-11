@@ -192,6 +192,8 @@ export function NodeQueryModal({
     nodeSnapshotRef.current = {
       content: JSON.stringify(content ?? ""),
       query: query ?? "",
+      anchorDate: anchorDate ?? "",
+      anchorTime: anchorTime ?? "",
     };
     setShowUnsavedConfirm(false);
     // Snapshot only when the node identity/type changes, not on every keystroke.
@@ -202,8 +204,10 @@ export function NodeQueryModal({
     const snap = nodeSnapshotRef.current;
     if (!snap) return false;
     return snap.content !== JSON.stringify(content ?? "")
-      || snap.query !== (query ?? "");
-  }, [content, query]);
+      || snap.query !== (query ?? "")
+      || (snap.anchorDate ?? "") !== (anchorDate ?? "")
+      || (snap.anchorTime ?? "") !== (anchorTime ?? "");
+  }, [content, query, anchorDate, anchorTime]);
 
   const requestDismiss = useCallback(() => {
     if (onSave && hasUnsavedNodeChanges()) {

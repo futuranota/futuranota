@@ -705,6 +705,14 @@ useEffect(() => {
     const referencedNodeIds = [...collectNodeIdsReferencedByBlocks(blocks)];
     useDocsStore.getState().updateDoc(docId, { nodeIds: referencedNodeIds });
 
+    // Apply saved Launch/Schedule onto the timeline rail when this doc is queued.
+    useTimelineStore.getState().refreshTimelineDocSnapshot(docId, {
+      canvasNodes,
+      connections: canvasConns,
+      docsById: useDocsStore.getState().docs,
+      nodeEntitiesById: nodesById,
+    });
+
     if (!orphanNodeIds.length) return;
 
     removeCanvasNodesForEntityIds(orphanNodeIds);
@@ -712,7 +720,7 @@ useEffect(() => {
     for (const nodeId of orphanNodeIds) {
       deleteNode(nodeId);
     }
-  }, [removeCanvasNodesForEntityIds]);
+  }, [removeCanvasNodesForEntityIds, canvasNodes, canvasConns]);
 
   const clearAllCanvasElements = useCallback(() => {
     setCanvasNodes([]);
@@ -1374,7 +1382,16 @@ useEffect(() => {
               setExpandedNodeId(null);
               setExpandedNodeContentFocus(false);
             }}
-            onSaved={() => {
+            onSaved={(entity) => {
+              const parentDocId = entity?.parentDocId || null;
+              if (parentDocId) {
+                useTimelineStore.getState().refreshTimelineDocSnapshot(parentDocId, {
+                  canvasNodes,
+                  connections: canvasConns,
+                  docsById: useDocsStore.getState().docs,
+                  nodeEntitiesById: useNodesStore.getState().nodes,
+                });
+              }
               setExpandedNodeId(null);
               setExpandedNodeContentFocus(false);
             }}

@@ -23,6 +23,7 @@ import {
 } from "./timelineGraph.js";
 import {
   resolveDocScheduleDate,
+  resolveExplicitDocScheduleDate,
   resolveTimelineTimeGap,
   formatTimelineTimeGapPlain,
   formatTimelineTimeGapLabel,
@@ -680,6 +681,10 @@ export function resolveDocTimelineDate(
   docsById,
   meta,
 ) {
+  const doc = docsById[docId];
+  const explicit = resolveExplicitDocScheduleDate(doc);
+  if (explicit) return explicit;
+
   const canvasNode = canvasNodes.find(
     (n) => (n.docId || n.noteId) === docId && isDocumentNode(n),
   );
@@ -689,7 +694,6 @@ export function resolveDocTimelineDate(
     const direct = resolveNodeAnchorDate(canvasNode, meta);
     if (direct) return direct;
   }
-  const doc = docsById[docId];
   const scheduled = resolveDocScheduleDate(doc, meta?.nodeEntitiesById || {});
   if (scheduled) return scheduled;
   return null;
@@ -780,7 +784,8 @@ export function buildTacticalObjectRows(params) {
         const node = nodeById.get(nodeId);
         if (!isDocumentNode(node, item)) continue;
         const docId = node?.docId || node?.noteId || item?.docId;
-        const fullDate = resolveNodeAnchorDate(node || item, meta)
+        const fullDate = (docId ? resolveExplicitDocScheduleDate(docsById[docId]) : null)
+          || resolveNodeAnchorDate(node || item, meta)
           || (docId ? resolveDocScheduleDate(docsById[docId], nodeEntitiesById) : null)
           || wireAnchors.get(nodeId)
           || date;

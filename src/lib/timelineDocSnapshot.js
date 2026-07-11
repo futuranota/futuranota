@@ -1,6 +1,6 @@
 import { resolveNodeAnchorDate, parseDate } from "../temporal.js";
 import { listChildCanvasNodeIdsForDoc } from "./timelineGraph.js";
-import { resolveDocScheduleDate } from "./docSchedule.js";
+import { resolveDocScheduleDate, resolveExplicitDocScheduleDate } from "./docSchedule.js";
 
 function isDocumentNode(node) {
   return node?.canvasKind === "document" || node?.dataType === "document";
@@ -13,6 +13,11 @@ function resolveDocTimelineDateLocal(
   docsById,
   meta,
 ) {
+  const doc = docsById[docId];
+  // Saved Launch / Schedule wins over canvas createdAt (otherwise schedule edits never move the rail).
+  const explicit = resolveExplicitDocScheduleDate(doc);
+  if (explicit) return explicit;
+
   const canvasNode = canvasNodes.find(
     (n) => (n.docId || n.noteId) === docId && isDocumentNode(n),
   );
@@ -22,7 +27,6 @@ function resolveDocTimelineDateLocal(
     const direct = resolveNodeAnchorDate(canvasNode, meta);
     if (direct) return direct;
   }
-  const doc = docsById[docId];
   return resolveDocScheduleDate(doc, meta?.nodeEntitiesById || {});
 }
 

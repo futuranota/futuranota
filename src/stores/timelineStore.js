@@ -439,6 +439,39 @@ export const useTimelineStore = create(
         });
       },
 
+      /**
+       * Re-capture schedule snapshot after a content/doc save so the rail moves with Launch/Schedule.
+       */
+      refreshTimelineDocSnapshot: (
+        docId,
+        {
+          canvasNodes = [],
+          connections = [],
+          docsById = {},
+          nodeEntitiesById = {},
+        } = {},
+      ) => {
+        if (!docId) return;
+        const state = get();
+        if (!state.timelineDocQueue.includes(docId) && !state.timelineDocSnapshotsByDocId[docId]) {
+          return;
+        }
+        const meta = { docsById, nodeEntitiesById };
+        const { anchors: wireAnchors } = buildTacticalWireAnchorMap(canvasNodes, connections, meta);
+        const snapshot = captureTimelineDocSnapshot(docId, {
+          canvasNodes,
+          wireAnchors,
+          docsById,
+          nodeEntitiesById,
+        });
+        set({
+          timelineDocSnapshotsByDocId: {
+            ...state.timelineDocSnapshotsByDocId,
+            [docId]: snapshot,
+          },
+        });
+      },
+
       enqueueTimelineDocsFromCanvasNodes: (
         canvasNodeIds,
         canvasNodes,
