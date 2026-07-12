@@ -237,6 +237,10 @@ export const messages = {
       deleteObjectWithDocs:
         "Delete \"{name}\" and its {count} document(s)? This cannot be undone.",
       deleteObjectEmpty: "Delete \"{name}\"? This cannot be undone.",
+      deleteDocTitle: "Delete folder",
+      deleteDocConfirm:
+        "Delete \"{name}\" and its nodes? This cannot be undone.",
+      deleteCategoryTitle: "Delete category",
       productName: "Product's name",
       documentTitle: "Document title",
       writeDescription: "Write your description",
@@ -263,6 +267,7 @@ export const messages = {
       collapseFiles: "Hide files",
       deleteCategoryConfirm:
         "Delete category \"{name}\" and its {count} box(es)? This cannot be undone.",
+
       folderDensityLabel: "Folder density",
       folderDensityZoomOut: "Show more folders (2 columns)",
       folderDensityZoomIn: "Comfortable view (1 column)",

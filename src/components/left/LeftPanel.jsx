@@ -1553,26 +1553,32 @@ export function LeftPanel({
     onOpenDocument?.(docId, options);
   };
 
-  const handleDeleteDoc = (doc) => {
+  const handleDeleteDoc = async (doc) => {
     const label = resolveProductDocDisplayTitle(doc);
-    if (!window.confirm(`Delete "${label}" and its nodes? This cannot be undone.`)) {
-      return;
-    }
+    const confirmed = await askConfirm({
+      title: t("sidebar.deleteDocTitle"),
+      message: t("sidebar.deleteDocConfirm", { name: label }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
     onDocumentDeleted?.(doc.id);
     removeTimelineDocFromQueue(doc.id);
     deleteDoc(doc.id);
     if (activeId === doc.id) setActiveId(null);
   };
 
-  const handleDeleteCategoryGroup = (group) => {
+  const handleDeleteCategoryGroup = async (group) => {
     const label = group?.label || t("sidebar.docGroupUncategorized");
     const count = group?.docs?.length || 0;
     if (!count) return;
-    if (!window.confirm(
-      t("sidebar.deleteCategoryConfirm", { name: label, count }),
-    )) {
-      return;
-    }
+    const confirmed = await askConfirm({
+      title: t("sidebar.deleteCategoryTitle"),
+      message: t("sidebar.deleteCategoryConfirm", { name: label, count }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
     for (const doc of group.docs) {
       onDocumentDeleted?.(doc.id);
       removeTimelineDocFromQueue(doc.id);
