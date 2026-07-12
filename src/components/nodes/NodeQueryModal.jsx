@@ -620,51 +620,37 @@ export function NodeQueryModal({
                       {formatMmDdYy(createdDate) || "—"}
                     </span>
                   </div>
-                  <div
-                    className={
-                      "doc-meta-chip"
-                      + (completed ? " doc-meta-chip--completed" : "")
-                    }
-                    title={completed ? "Completed" : "Incomplete"}
-                  >
-                    <span className="doc-meta-chip-k">Status</span>
-                    <span
-                      className={
-                        "doc-meta-chip-v is-lowercase"
-                        + (completed ? " is-completed" : " tone-muted")
-                      }
+                  {completed ? (
+                    <div
+                      className="doc-meta-chip doc-meta-chip--completed"
+                      title="Completed"
                     >
-                      {completed ? (
-                        <>
-                          Completed
-                          <img
-                            src="/uploads/Checks.svg"
-                            alt=""
-                            className="doc-meta-chip-completed-icon"
-                            aria-hidden
-                            draggable={false}
-                          />
-                        </>
-                      ) : (
-                        "Incomplete"
-                      )}
-                    </span>
-                  </div>
-                  <div
-                    className="doc-meta-chip doc-meta-chip--source-only"
-                    title={sourceOption?.label || "Source"}
-                  >
-                    {sourceOption ? (
+                      <span className="doc-meta-chip-k">Status</span>
+                      <span className="doc-meta-chip-v is-lowercase is-completed">
+                        Completed
+                        <img
+                          src="/uploads/Checks.svg"
+                          alt=""
+                          className="doc-meta-chip-completed-icon"
+                          aria-hidden
+                          draggable={false}
+                        />
+                      </span>
+                    </div>
+                  ) : null}
+                  {sourceOption ? (
+                    <div
+                      className="doc-meta-chip doc-meta-chip--source-only"
+                      title={sourceOption.label}
+                    >
                       <img
                         src={sourceOption.src}
                         alt=""
                         className="node-query-modal__source-chip-icon"
                         draggable={false}
                       />
-                    ) : (
-                      <span className="doc-meta-chip-v tone-muted is-placeholder">—</span>
-                    )}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -705,7 +691,8 @@ export function NodeQueryModal({
                           "doc-new-campaign-opt doc-new-campaign-opt--completed"
                           + (completed ? " is-on" : "")
                         }
-                        onClick={() => handleCompletedChange(true)}
+                        onClick={() => handleCompletedChange(!completed)}
+                        aria-pressed={completed}
                       >
                         Completed
                         <img
@@ -716,13 +703,6 @@ export function NodeQueryModal({
                           draggable={false}
                         />
                       </button>
-                      <button
-                        type="button"
-                        className={"doc-new-campaign-opt" + (!completed ? " is-on" : "")}
-                        onClick={() => handleCompletedChange(false)}
-                      >
-                        Incomplete
-                      </button>
                     </div>
                   </div>
                   <div className="doc-meta-field doc-meta-field--source">
@@ -730,12 +710,14 @@ export function NodeQueryModal({
                     <div className="node-query-modal__source-grid" role="group" aria-label="Macronode source">
                       <button
                         type="button"
-                        className={"node-query-modal__source-opt" + (!sourceId ? " is-on" : "")}
+                        className={
+                          "node-query-modal__source-opt node-query-modal__source-opt--empty"
+                          + (!sourceId ? " is-on" : "")
+                        }
                         onClick={() => handleSourceIdChange(null)}
                         title="No source"
-                      >
-                        —
-                      </button>
+                        aria-label="No source"
+                      />
                       {DOC_SOURCE_OPTIONS.map((opt) => (
                         <button
                           key={opt.id}

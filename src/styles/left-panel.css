@@ -9603,13 +9603,20 @@ body.doc-content-resizing * {
 
 .node-query-modal__doc-meta .doc-meta-field--source {
   align-items: flex-start;
+  grid-column: 1 / -1;
 }
 
 .node-query-modal__source-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(4, 34px);
+  grid-auto-columns: 34px;
   gap: 6px;
-  max-width: 300px;
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(4 * 34px + 3 * 6px);
+  align-content: end;
+  justify-content: start;
 }
 
 .node-query-modal__source-opt {
@@ -9626,6 +9633,10 @@ body.doc-content-resizing * {
   cursor: pointer;
   font-size: 12px;
   line-height: 1;
+}
+
+.node-query-modal__source-opt--empty.is-on {
+  background: color-mix(in oklab, #fff 10%, transparent);
 }
 
 .node-query-modal__source-opt img {
