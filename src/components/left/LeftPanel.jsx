@@ -1656,6 +1656,18 @@ export function LeftPanel({
     setPanelType("Documents");
   };
 
+  const openCampaignFromToolbar = () => {
+    const targetObjectId = filterObjectId || selectedObjectId;
+    if (targetObjectId) {
+      if (!objectWorkspaceActive) {
+        enterObjectWorkspace(targetObjectId);
+      }
+      setClickFolderView("campaigns");
+      return;
+    }
+    setPanelType("Documents");
+  };
+
   const openLazyTodosFromToolbar = () => {
     const targetObjectId = filterObjectId || selectedObjectId;
     if (targetObjectId) {
@@ -2111,6 +2123,7 @@ export function LeftPanel({
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
                     onOpenProducts={openProductsFromToolbar}
+                    onOpenCampaign={openCampaignFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
@@ -2151,6 +2164,7 @@ export function LeftPanel({
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
+                    onOpenCampaign={openCampaignFromToolbar}
                     onInsertGuide={handleInsertGuide}
                     filterMode="category"
                     filterOptions={categoryFilterOptions}
@@ -2200,6 +2214,95 @@ export function LeftPanel({
                           ? t("sidebar.clearCategoryFilter")
                           : t("sidebar.useNewProduct")}
                       </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "campaigns" ? (
+              <div className="lp-click-folder-detail">
+                <div className="lp-workspace-head">
+                  <ClickFolderBack
+                    iconOnly
+                    inline
+                    onBack={() => setClickFolderView(null)}
+                    label={t("sidebar.campaign")}
+                  />
+                  <div className="lp-folder-density" role="group" aria-label={t("sidebar.folderDensityLabel")}>
+                    <button
+                      type="button"
+                      className="lp-folder-density__btn"
+                      onClick={densifyFolderList}
+                      disabled={folderDensity === "compact"}
+                      title={t("sidebar.folderDensityZoomOut")}
+                      aria-label={t("sidebar.folderDensityZoomOut")}
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      className="lp-folder-density__btn"
+                      onClick={expandFolderList}
+                      disabled={folderDensity === "comfortable"}
+                      title={t("sidebar.folderDensityZoomIn")}
+                      aria-label={t("sidebar.folderDensityZoomIn")}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <PackActionsBar
+                    placement="documents"
+                    companySelected={Boolean(filterObjectId || activeObjectId)}
+                    onOpenImport={openPackImportView}
+                    onOpenStepsLibrary={openStepsLibraryFromToolbar}
+                    onOpenLazyTodos={openLazyTodosFromToolbar}
+                    onOpenUrlTable={openUrlTableFromToolbar}
+                    onOpenPasswordTable={openPasswordTableFromToolbar}
+                    onOpenProducts={openProductsFromToolbar}
+                    onOpenCampaign={openCampaignFromToolbar}
+                    onInsertGuide={handleInsertGuide}
+                  />
+                </div>
+                <TimelineDocQueue
+                  entries={timelineQueueEntries}
+                  docs={docs}
+                  objects={objects}
+                  activeDocId={activeId}
+                  onSelectDoc={handleSelectQueuedDoc}
+                  onOpenDocument={onOpenDocument}
+                  onDeleteDoc={handleDeleteDoc}
+                />
+                <div
+                  className={
+                    "lp-click-folder-detail-list lp-doc-nodes-stack"
+                    + (folderDensity === "compact" ? " lp-doc-nodes-stack--compact" : "")
+                  }
+                >
+                  {filteredContentDocs.length ? (
+                    filteredContentDocs.map((doc) => (
+                      <DocNodesBlockCard
+                        key={doc.id}
+                        doc={doc}
+                        nodes={nodesByDocId.get(doc.id) || []}
+                        objects={objects}
+                        showWhenEmpty
+                        onOpenDoc={() => handleOpenFolderDoc(doc.id)}
+                        onCreateDocument={() => openCreateDocument(doc)}
+                        onDeleteBox={() => handleDeleteDoc(doc)}
+                        onNodeClick={(node) => {
+                          setActiveId(node.id);
+                          setNodeEditContentFocus(false);
+                          setNodeEditId(node.id);
+                        }}
+                        onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                        onNodeDelete={(node) => deleteNode(node.id)}
+                      />
+                    ))
+                  ) : (
+                    <div className="lp-empty">
+                      <p className="dim">{t("sidebar.noCampaignYet")}</p>
+                      <p className="dim">{t("sidebar.useNewCampaign")}</p>
                     </div>
                   )}
                 </div>
@@ -2298,6 +2401,7 @@ export function LeftPanel({
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
                     onOpenProducts={openProductsFromToolbar}
+                    onOpenCampaign={openCampaignFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
