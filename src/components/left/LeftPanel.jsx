@@ -512,7 +512,7 @@ function DocNodesBlockCard({
   onNodeDelete,
   onCreateDocument,
   onDeleteBox,
-  defaultExpanded = true,
+  defaultExpanded = false,
   orphan = false,
   showWhenEmpty = false,
 }) {

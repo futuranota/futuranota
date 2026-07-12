@@ -3,6 +3,7 @@ import {
   checkTimelineTrigger,
   daysUntilTarget,
   resolveReminderLeadMs,
+  REMINDER_LEAD_CAP_MS,
 } from "./checkTimelineTrigger.js";
 import { normalizeDoc } from "./normalizeDoc.js";
 import { isContentDoc } from "./templateDoc.js";
@@ -273,22 +274,23 @@ export function resolveActiveTimelineAlert(params: ResolveTimelineAlertParams): 
 }
 
 /**
- * First folder/macro on the timeline whose start is inside its adaptive lead window.
+ * First folder/macro on the timeline whose start is inside the lead window.
+ * Floating card uses a fixed 30m lead so past/dense events cannot hide the next reminder.
  */
 export function resolveActiveTimelineReminder(
   params: ResolveTimelineAlertParams,
 ): TimelineReminderData | null {
   const now = params.now instanceof Date ? params.now : new Date();
+  const nowMs = now.getTime();
   const skipped = toSkippedSet(params.skippedAlertKeys);
   const targets = collectTimelineReminderTargets(params);
-  let previousStartAtMs: number | null = null;
 
   for (const target of targets) {
     const startAtMs = target.date.getTime();
-    const leadMs = resolveReminderLeadMs(startAtMs, previousStartAtMs);
-    previousStartAtMs = startAtMs;
+    if (!(startAtMs > nowMs)) continue;
 
-    if (skipped.has(target.key)) continue;
+    const occurrenceKey = `${target.key}|${startAtMs}`;
+    if (skipped.has(target.key) || skipped.has(occurrenceKey)) continue;
 
     const reminder = checkMinuteReminder({
       alertKey: target.key,
@@ -296,10 +298,37 @@ export function resolveActiveTimelineReminder(
       workspaceLabel: target.workspaceLabel,
       startAt: target.date,
       kind: target.kind === "macro" ? "macro" : "doc",
-      leadMs,
+      leadMs: REMINDER_LEAD_CAP_MS,
       now,
     });
     if (reminder) return reminder;
   }
   return null;
+}
+
+/** Debug snapshot: upcoming reminder targets and minutes until start. */
+export function inspectTimelineReminderState(params: ResolveTimelineAlertParams) {
+  const now = params.now instanceof Date ? params.now : new Date();
+  const nowMs = now.getTime();
+  const targets = collectTimelineReminderTargets(params);
+  const upcoming = targets
+    .filter((t) => t.date.getTime() > nowMs)
+    .slice(0, 8)
+    .map((t) => {
+      const startAtMs = t.date.getTime();
+      const remainingMs = startAtMs - nowMs;
+      return {
+        key: t.key,
+        label: t.label,
+        startIso: t.date.toISOString(),
+        mins: Math.round(remainingMs / 60_000),
+        inLead: remainingMs > 0 && remainingMs <= REMINDER_LEAD_CAP_MS,
+      };
+    });
+  return {
+    nowIso: now.toISOString(),
+    targetCount: targets.length,
+    upcomingCount: upcoming.length,
+    upcoming,
+  };
 }

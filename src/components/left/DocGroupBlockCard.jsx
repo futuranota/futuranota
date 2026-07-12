@@ -18,7 +18,7 @@ export function DocGroupBlockCard({
   groupLabel,
   groupMeta = "",
   docs = [],
-  defaultExpanded = true,
+  defaultExpanded = false,
   renderDoc,
   onDeleteCategory,
 }) {

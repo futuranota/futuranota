@@ -58,11 +58,14 @@ import { loadCompanyPasswordTableSession } from './lib/passwordTableLibrary.js';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
 import { TimelineReminderCard } from './components/alerts/TimelineReminderCard.jsx';
-import { resolveActiveTimelineReminder } from './lib/resolveTimelineAlert.js';
+import { resolveActiveTimelineReminder, inspectTimelineReminderState } from './lib/resolveTimelineAlert.js';
 import {
   readSkippedTimelineReminderKeys,
   skipTimelineReminderKey,
+  clearSkippedTimelineReminderKeys,
+  reminderOccurrenceKey,
 } from './lib/timelineReminderSkip.js';
+import { unlockTimelineReminderSound } from './lib/timelineReminderSound.js';
 import {
   collectNodeIdsReferencedByBlocks,
   findOrphanNodeIdsForDoc,
@@ -172,6 +175,7 @@ function Dashboard({ company, onBack }) {
   const [timelineReminder, setTimelineReminder] = useState(null);
   const dismissedTimelineReminderKey = useRef(null);
   const [reminderTick, setReminderTick] = useState(0);
+  const reminderEmptyHintShown = useRef(false);
   const [intel, setIntel]             = useState([]);
   const [hasScannedBlogs, setBlogs]   = useState(false);
   const [scanState, setScanState]     = useState("idle");
@@ -372,22 +376,26 @@ useEffect(() => {
 
   useEffect(() => {
     if (!timelineAlertsEnabled) return undefined;
-    const id = window.setInterval(() => setReminderTick((n) => n + 1), 10_000);
+    const id = window.setInterval(() => setReminderTick((n) => n + 1), 3_000);
     return () => window.clearInterval(id);
   }, [timelineAlertsEnabled]);
 
   useEffect(() => {
     if (timelineAlertsEnabled && !prevTimelineAlertsEnabled.current) {
       dismissedTimelineReminderKey.current = null;
+      clearSkippedTimelineReminderKeys();
+      unlockTimelineReminderSound();
+      reminderEmptyHintShown.current = false;
     }
     prevTimelineAlertsEnabled.current = timelineAlertsEnabled;
 
     if (!timelineAlertsEnabled) {
       setTimelineReminder(null);
+      reminderEmptyHintShown.current = false;
       return;
     }
 
-    const reminder = resolveActiveTimelineReminder({
+    const resolveParams = {
       docs,
       objects,
       objectTimelineTitles,
@@ -398,14 +406,40 @@ useEffect(() => {
       timelineDocSnapshotsByDocId,
       timelineAgentSets,
       skippedAlertKeys: readSkippedTimelineReminderKeys(),
-    });
+    };
+
+    const reminder = resolveActiveTimelineReminder(resolveParams);
+    const inspect = inspectTimelineReminderState(resolveParams);
+
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'reminder-debug',hypothesisId:'R2',location:'App.jsx:reminderEffect',message:'reminder resolve',data:{enabled:timelineAlertsEnabled,queueLen:(timelineDocQueue||[]).length,hasReminder:Boolean(reminder),alertKey:reminder?.alertKey||null,minutes:reminder?.minutesRemaining??null,label:reminder?.contentLabel||null,dismissed:dismissedTimelineReminderKey.current,inspect},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     if (!reminder) {
       setTimelineReminder(null);
+      if (!reminderEmptyHintShown.current) {
+        reminderEmptyHintShown.current = true;
+        const next = inspect?.upcoming?.[0];
+        if (next && Number.isFinite(next.mins)) {
+          setToast({
+            message: t("timeline.reminder.noneInWindow", {
+              name: next.label || "task",
+              count: next.mins,
+            }),
+            kind: "dim",
+          });
+        } else {
+          setToast({
+            message: t("timeline.reminder.noneScheduled"),
+            kind: "dim",
+          });
+        }
+      }
       return;
     }
 
-    if (dismissedTimelineReminderKey.current === reminder.alertKey) return;
+    const occurrence = reminderOccurrenceKey(reminder.alertKey, reminder.startAtMs);
+    if (dismissedTimelineReminderKey.current === occurrence) return;
 
     setTimelineReminder(reminder);
   }, [
@@ -1257,12 +1291,21 @@ useEffect(() => {
             <TimelineReminderCard
               reminder={timelineReminder}
               onGotIt={() => {
-                dismissedTimelineReminderKey.current = timelineReminder.alertKey;
+                dismissedTimelineReminderKey.current = reminderOccurrenceKey(
+                  timelineReminder.alertKey,
+                  timelineReminder.startAtMs,
+                );
                 setTimelineReminder(null);
               }}
               onSkip={() => {
-                skipTimelineReminderKey(timelineReminder.alertKey);
-                dismissedTimelineReminderKey.current = timelineReminder.alertKey;
+                skipTimelineReminderKey(
+                  timelineReminder.alertKey,
+                  timelineReminder.startAtMs,
+                );
+                dismissedTimelineReminderKey.current = reminderOccurrenceKey(
+                  timelineReminder.alertKey,
+                  timelineReminder.startAtMs,
+                );
                 setTimelineReminder(null);
               }}
             />

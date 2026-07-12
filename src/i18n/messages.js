@@ -147,14 +147,18 @@ export const messages = {
         subtitle: "{content} starts in {count} minutes ({time})",
         counter: "{count}m · {time}",
         sectionLabel: "Reminder:",
-        headlineOne: "{content} starts in 1 minute",
-        headlineMany: "{content} starts in {count} minutes",
+        headlineOne: "{content} starts soon",
+        headlineMany: "{content} starts soon",
         bodyOne:
-          "This is a reminder that your next task “{name}” is set to start in about a minute. "
+          "This is a reminder that your next task “{name}” is set to start soon. "
           + "If it feels like time to work on it, go ahead — otherwise, readjust and update your schedule. "
           + "Have a good rest of your day.",
         bodyMany:
-          "This is a reminder that your next task “{name}” is set to start in about {count} minutes. "
+          "This is a reminder that your next task “{name}” is set to start soon. "
+          + "If it feels like time to work on it, go ahead — otherwise, readjust and update your schedule. "
+          + "Have a good rest of your day.",
+        body:
+          "This is a reminder that your next task “{name}” is set to start soon. "
           + "If it feels like time to work on it, go ahead — otherwise, readjust and update your schedule. "
           + "Have a good rest of your day.",
         bodyLead: "Just a quick heads-up from your timeline.",
@@ -164,6 +168,8 @@ export const messages = {
         gotIt: "Got it",
         okay: "Okay",
         skip: "Skip",
+        noneInWindow: "Alerts on — next is “{name}” in {count} min (needs ≤30 min to notify).",
+        noneScheduled: "Alerts on — no upcoming scheduled tasks on the timeline.",
       },
       emptyRulerLabel: "Schedule",
       emptyHint: "Enable Select → pick nodes → Insert to timeline",
@@ -925,14 +931,18 @@ export const messages = {
         subtitle: "{content} empieza en {count} minutos ({time})",
         counter: "{count}m · {time}",
         sectionLabel: "Recordatorio:",
-        headlineOne: "{content} empieza en 1 minuto",
-        headlineMany: "{content} empieza en {count} minutos",
+        headlineOne: "{content} empieza pronto",
+        headlineMany: "{content} empieza pronto",
         bodyOne:
-          "Este es un recordatorio de que tu próximo task “{name}” lo activaste para comenzar alrededor de un minuto. "
+          "Este es un recordatorio de que tu próximo task “{name}” lo activaste para comenzar pronto. "
           + "Si consideras que ya es hora de trabajar en ello, comienza; de lo contrario, reajusta y modifica tu schedule. "
           + "Que tengas buen resto del día.",
         bodyMany:
-          "Este es un recordatorio de que tu próximo task “{name}” lo activaste para comenzar alrededor de {count} minutos. "
+          "Este es un recordatorio de que tu próximo task “{name}” lo activaste para comenzar pronto. "
+          + "Si consideras que ya es hora de trabajar en ello, comienza; de lo contrario, reajusta y modifica tu schedule. "
+          + "Que tengas buen resto del día.",
+        body:
+          "Este es un recordatorio de que tu próximo task “{name}” lo activaste para comenzar pronto. "
           + "Si consideras que ya es hora de trabajar en ello, comienza; de lo contrario, reajusta y modifica tu schedule. "
           + "Que tengas buen resto del día.",
         bodyLead: "Un aviso rápido desde tu timeline.",
@@ -942,6 +952,8 @@ export const messages = {
         gotIt: "Entendido",
         okay: "Okay",
         skip: "Skip",
+        noneInWindow: "Alertas on — el próximo es “{name}” en {count} min (hace falta ≤30 min para avisar).",
+        noneScheduled: "Alertas on — no hay tasks próximos con schedule en el timeline.",
       },
       emptyRulerLabel: "Schedule",
       emptyHint: "Activa Select → elige nodos → Insert en timeline",

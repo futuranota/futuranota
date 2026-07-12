@@ -22,6 +22,7 @@ import { useTranslatedText } from "../../hooks/useTranslatedText.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useTimelineStore } from "../../stores/index.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { unlockTimelineReminderSound } from "../../lib/timelineReminderSound.js";
 import { TimelineEventChip } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
 
@@ -1008,7 +1009,10 @@ export function TacticalTimeline({
             <button
               type="button"
               className={`tl-alerts-open-btn tl-alerts-toggle${timelineAlertsEnabled ? " is-on" : ""}`}
-              onClick={toggleTimelineAlertsEnabled}
+              onClick={() => {
+                unlockTimelineReminderSound();
+                toggleTimelineAlertsEnabled();
+              }}
               title={t("timeline.alertsTitle")}
               aria-pressed={timelineAlertsEnabled}
             >
@@ -1054,7 +1058,10 @@ export function TacticalTimeline({
             <button
               type="button"
               className={`tl-alerts-open-btn tl-alerts-toggle${timelineAlertsEnabled ? " is-on" : ""}`}
-              onClick={toggleTimelineAlertsEnabled}
+              onClick={() => {
+                unlockTimelineReminderSound();
+                toggleTimelineAlertsEnabled();
+              }}
               title={t("timeline.alertsTitle")}
               aria-pressed={timelineAlertsEnabled}
             >

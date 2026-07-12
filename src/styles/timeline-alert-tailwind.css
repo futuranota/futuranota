@@ -22,7 +22,7 @@
   position: fixed;
   right: 20px;
   bottom: 20px;
-  z-index: 80;
+  z-index: 2500;
   width: min(300px, calc(100vw - 32px));
   pointer-events: auto;
 }
@@ -33,7 +33,7 @@
   flex-direction: column;
   gap: 0 !important;
   width: 100%;
-  padding: 14px 14px 12px !important;
+  padding: 14px 5px 12px 14px !important;
   border-radius: 10px !important;
   border: 1px solid rgba(255, 255, 255, 0.06) !important;
   background: #1c1c1c !important;
@@ -134,8 +134,10 @@
 .tl-reminder-card__actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
+  margin-right: 0;
+  padding-right: 5px;
 }
 
 .tl-reminder-card__skip {
@@ -145,21 +147,21 @@
   padding: 2px 4px;
   font-size: 11px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.42);
+  color: #8a8a8a;
   cursor: pointer;
 }
 
 .tl-reminder-card__skip:hover {
-  color: rgba(255, 255, 255, 0.85);
+  color: #b0b0b0;
 }
 
 .tl-reminder-card__okay {
   min-height: 26px;
-  padding: 0 11px;
+  padding: 0 12px;
   border-radius: 999px;
   border: none;
-  background: rgba(255, 255, 255, 0.92);
-  color: #141414;
+  background: #ffffff;
+  color: #000000;
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -168,7 +170,7 @@
 }
 
 .tl-reminder-card__okay:hover {
-  opacity: 0.94;
-  background: #fff;
-  color: #141414;
+  opacity: 1;
+  background: #ffffff;
+  color: #000000;
 }
