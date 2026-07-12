@@ -32,8 +32,37 @@ export function resolveExplicitDocScheduleDate(doc) {
 }
 
 /**
+ * Earliest Schedule from linked node entities (anchorAt only — no createdAt).
+ * @param {object | null | undefined} doc
+ * @param {Record<string, object>} [nodeEntitiesById]
+ * @returns {Date | null}
+ */
+export function resolveLinkedNodeScheduleDate(doc, nodeEntitiesById = {}) {
+  if (!doc) return null;
+  let earliest = null;
+  const consider = (entity) => {
+    if (!entity?.anchorAt) return;
+    const d = parseDate(entity.anchorAt);
+    if (!d) return;
+    if (!earliest || d.getTime() < earliest.getTime()) earliest = d;
+  };
+  const seen = new Set();
+  for (const entityId of doc.nodeIds || []) {
+    if (!entityId || seen.has(entityId)) continue;
+    seen.add(entityId);
+    consider(nodeEntitiesById[entityId]);
+  }
+  for (const [entityId, entity] of Object.entries(nodeEntitiesById || {})) {
+    if (entity?.parentDocId !== doc.id || seen.has(entityId)) continue;
+    seen.add(entityId);
+    consider(entity);
+  }
+  return earliest;
+}
+
+/**
  * Resolve a document's schedule datetime (day + hour + minute) for timeline / content list.
- * Prefers explicit Schedule fields, then launchAt, then linked node anchors, then createdAt.
+ * Prefers explicit Schedule fields, then linked node anchors, then createdAt.
  * @param {object | null | undefined} doc
  * @param {Record<string, object>} [nodeEntitiesById]
  * @returns {Date | null}
@@ -44,12 +73,8 @@ export function resolveDocScheduleDate(doc, nodeEntitiesById = {}) {
   const explicit = resolveExplicitDocScheduleDate(doc);
   if (explicit) return explicit;
 
-  for (const entityId of doc.nodeIds || []) {
-    const entity = nodeEntitiesById[entityId];
-    if (!entity?.anchorAt) continue;
-    const d = parseDate(entity.anchorAt);
-    if (d) return d;
-  }
+  const fromNodes = resolveLinkedNodeScheduleDate(doc, nodeEntitiesById);
+  if (fromNodes) return fromNodes;
 
   if (doc.createdAt) {
     const d = parseDate(doc.createdAt);

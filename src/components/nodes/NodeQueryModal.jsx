@@ -415,7 +415,7 @@ export function NodeQueryModal({
                 <button
                   type="button"
                   className="node-query-modal__back-link"
-                  onClick={onBackToDocument}
+                  onClick={requestDismiss}
                 >
                   {t("canvas.returnToDocument")}
                 </button>
@@ -661,7 +661,7 @@ export function NodeQueryModal({
                 onClick={() => {
                   setShowUnsavedConfirm(false);
                   onSave?.();
-                  handleDismiss?.();
+                  // onSave (flush/handleSave) closes the modal; do not dismiss-without-save after.
                 }}
               >
                 {t("unsavedChanges.yes")}

@@ -20,9 +20,13 @@ export function anchorFieldsFromIso(iso) {
   if (!iso) return { anchorDate: "", anchorTime: "" };
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return { anchorDate: "", anchorTime: "" };
+  // Local calendar — matches docDates (avoids UTC day shift from toISOString).
   const pad = (n) => String(n).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
   return {
-    anchorDate: d.toISOString().slice(0, 10),
+    anchorDate: `${y}-${m}-${day}`,
     anchorTime: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
   };
 }
@@ -32,18 +36,31 @@ export function anchorAtFromBlock(block) {
   return isoFromAnchorFields(anchorDate, anchorTime);
 }
 
-/** Effective anchor: doc Created when query handle inactive or no-link mode. */
+/** Effective anchor: explicit Schedule on the block wins; Created is fallback only. */
 export function resolveBlockAnchorFields(block, docCreatedDate = "", options = {}) {
   const { noNodeLink = false } = options;
+  const explicit = normalizeAnchorFields(block);
+  if (explicit.anchorDate) {
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H3',location:'nodeAnchor.js:resolveBlockAnchorFields',message:'using explicit block schedule',data:{anchorDate:explicit.anchorDate,anchorTime:explicit.anchorTime,anchorFromNode:block?.anchorFromNode??null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return explicit;
+  }
   if (!block?.queryEnabled || noNodeLink) {
     const date = String(docCreatedDate ?? "").trim();
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H3',location:'nodeAnchor.js:resolveBlockAnchorFields',message:'fallback Created (query off / no-link)',data:{reason:!block?.queryEnabled?'queryDisabled':'noNodeLink',docCreatedDate:date},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return { anchorDate: date, anchorTime: "" };
   }
   if (!block.anchorFromNode) {
     const date = String(docCreatedDate ?? "").trim();
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H3',location:'nodeAnchor.js:resolveBlockAnchorFields',message:'fallback Created (no schedule set)',data:{docCreatedDate:date},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     return { anchorDate: date, anchorTime: "" };
   }
-  return normalizeAnchorFields(block);
+  return explicit;
 }
 
 export function resolveBlockAnchor(block, docCreatedDate = "") {

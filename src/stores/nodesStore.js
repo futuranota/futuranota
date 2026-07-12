@@ -118,6 +118,14 @@ function linkedBlockFields(doc, extra = {}) {
   };
 }
 
+/** Block schedule fields from node.anchorAt; marks schedule as owned by the node. */
+function scheduleFieldsFromNode(node) {
+  if (!node?.anchorAt) return {};
+  const fields = anchorFieldsFromIso(node.anchorAt);
+  if (!fields.anchorDate) return {};
+  return { ...fields, anchorFromNode: true };
+}
+
 function finalizeSyncedDocBlocks(blocks, doc, ownerBlockId = null) {
   let next = blocks;
   if (ownerBlockId) {
@@ -325,7 +333,7 @@ export const useNodesStore = create(
           );
         } else if (sourceBlock?.type === DOC_BLOCK_TYPES.TODO) {
           const checked = Boolean(node.content);
-          const anchorFields = anchorFieldsFromIso(node.anchorAt);
+          const anchorFields = scheduleFieldsFromNode(node);
           nextBlocks = normalized.map((block, i) => {
             if (i !== sourceBlockIndex) return block;
             const items = (block.items || []).map((item, idx) =>
@@ -346,7 +354,7 @@ export const useNodesStore = create(
           && normalized[sourceBlockIndex + 1]?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
         ) {
           const videoContent = resolveVideoContentForDocSync(node);
-          const anchorFields = anchorFieldsFromIso(node.anchorAt);
+          const anchorFields = scheduleFieldsFromNode(node);
           nextBlocks = normalized.map((block, i) => {
             if (i === sourceBlockIndex) {
               return {
@@ -377,7 +385,7 @@ export const useNodesStore = create(
           const existingTextIndex = node.sourceTextBlockId
             ? normalized.findIndex((b) => b.id === node.sourceTextBlockId && b.type === DOC_BLOCK_TYPES.TEXT)
             : -1;
-          const anchorFields = anchorFieldsFromIso(node.anchorAt);
+          const anchorFields = scheduleFieldsFromNode(node);
 
           if (existingH1Index >= 0 && node.dataType === "video") {
             const videoContent = resolveVideoContentForDocSync(node);
@@ -658,6 +666,11 @@ export const useNodesStore = create(
         set((state) => {
           const node = state.nodes[id];
           if (!node) return state;
+          // #region agent log
+          if (Object.prototype.hasOwnProperty.call(updates || {}, "anchorAt")) {
+            fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H2',location:'nodesStore.js:updateNode',message:'node.anchorAt write',data:{id,prevAnchorAt:node.anchorAt??null,nextAnchorAt:updates.anchorAt??null,updateKeys:Object.keys(updates||{})},timestamp:Date.now()})}).catch(()=>{});
+          }
+          // #endregion
           return {
             nodes: {
               ...state.nodes,

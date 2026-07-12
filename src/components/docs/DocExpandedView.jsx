@@ -79,7 +79,10 @@ function docBlocksHaveText(blocks) {
 function docDraftHasContent(cached) {
   if (!cached) return false;
   if (docBlocksHaveText(cached.blocks)) return true;
-  return Boolean(String(cached.body ?? "").trim());
+  if (Boolean(String(cached.body ?? "").trim())) return true;
+  // Keep Launch/schedule drafts across remount even when body is empty.
+  if (Boolean(String(cached.launchDate ?? "").trim())) return true;
+  return false;
 }
 
 function isEmptyDocState(title, blocks, body) {
@@ -310,6 +313,9 @@ export function DocExpandedView({
     const loadedLaunchDate = useCachedDraft
       ? (cached.launchDate ?? launchDateInputFromIso(normalized.launchAt))
       : launchDateInputFromIso(normalized.launchAt);
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H4',location:'DocExpandedView.jsx:loadDraft',message:'doc draft load launch/created',data:{docId,useCachedDraft,cachedHasText,loadedLaunchDate,storeLaunchAt:normalized.launchAt??null,loadedCreatedDate,storeCreatedAt:normalized.createdAt??null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const loadedCampaignActive = useCachedDraft
       ? (cached.campaignActive ?? Boolean(normalized.campaignActive))
       : Boolean(normalized.campaignActive);
@@ -865,7 +871,10 @@ export function DocExpandedView({
   };
 
   const handleRequestCloseNodeModal = () => {
-    // Discard without save — Yes path goes through onSave → flushAndCloseNodeModal.
+    if (hasNodeUnsavedChanges()) {
+      setShowNodeUnsavedConfirm(true);
+      return;
+    }
     if (nodeAutosaveTimerRef.current) {
       clearTimeout(nodeAutosaveTimerRef.current);
       nodeAutosaveTimerRef.current = null;
@@ -901,6 +910,7 @@ export function DocExpandedView({
         context,
         nodeDraftAnchorDate,
         nodeDraftAnchorTime,
+        { commitSchedule: Boolean(String(nodeDraftAnchorDate || "").trim()) },
       );
       const savedBlocks = useDocsStore.getState().docs[doc.id]?.blocks;
       onAfterDocSave?.(doc.id, savedBlocks);
@@ -1014,7 +1024,7 @@ export function DocExpandedView({
       const next = updateBlockAt(prev, blockIndex, {
         anchorDate,
         anchorTime,
-        anchorFromNode: true,
+        anchorFromNode: Boolean(String(anchorDate || "").trim()),
       });
       const block = next[blockIndex];
       if (block?.nodeId) {
@@ -1030,6 +1040,18 @@ export function DocExpandedView({
         setNodeDraftAnchorDate(anchorDate);
         setNodeDraftAnchorTime(anchorTime);
       }
+      // Persist Schedule into docsStore immediately so remount/tab switch keeps it.
+      if (doc?.id) {
+        const body = docBlocksToBody(next);
+        updateDoc(doc.id, {
+          blocks: next,
+          body,
+          content: body,
+        });
+      }
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H1',location:'DocExpandedView.jsx:handleBlockAnchorChange',message:'block+node schedule persisted',data:{blockIndex,anchorDate,anchorTime,nodeId:block?.nodeId||null,anchorAt:isoFromAnchorFields(anchorDate,anchorTime)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       return next;
     });
   };
@@ -1079,16 +1101,21 @@ export function DocExpandedView({
     }
   };
 
-  const persistNodeContentDebounced = (content, context, anchorDate, anchorTime) => {
+  const persistNodeContentDebounced = (content, context, anchorDate, anchorTime, options = {}) => {
+    const { commitSchedule = false } = options;
     if (isNoNodeLinkMode(resolveBlockNodeLinkColor(draftBlocks[context.blockIndex]))) return;
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
     const block = draftBlocks[blockIndex];
     if (!block || block.type !== blockType) return;
 
     const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
-    const anchorAt = supportsScheduleAnchor(dataType)
+    // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
+    const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
       ? isoFromAnchorFields(anchorDate, anchorTime)
-      : null;
+      : undefined;
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H1-H2',location:'DocExpandedView.jsx:persistNodeContentDebounced',message:'persist node content',data:{commitSchedule,anchorDate:anchorDate||'',anchorTime:anchorTime||'',anchorAt:anchorAt??null,prevNodeAnchorAt:getNode(nodeId||block.nodeId)?.anchorAt??null,blockAnchorDate:block.anchorDate||'',blockAnchorFromNode:block.anchorFromNode??null,draftCreatedDate,nodeId:nodeId||block.nodeId||null,dataType},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     const savedNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
@@ -1098,7 +1125,7 @@ export function DocExpandedView({
       content,
       dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
-      anchorAt,
+      ...(anchorAt !== undefined ? { anchorAt } : {}),
     });
 
     if ((nodeId || block.nodeId) !== savedNodeId) {
@@ -1115,10 +1142,10 @@ export function DocExpandedView({
     if (block.type === DOC_BLOCK_TYPES.TODO) {
       patch.listTitle = block.listTitle || queryText;
     }
-    if (supportsScheduleAnchor(dataType)) {
+    if (commitSchedule && supportsScheduleAnchor(dataType)) {
       patch.anchorDate = anchorDate;
       patch.anchorTime = anchorTime;
-      patch.anchorFromNode = true;
+      patch.anchorFromNode = Boolean(anchorDate);
       patch.queryEnabled = true;
     }
 
@@ -1145,13 +1172,25 @@ export function DocExpandedView({
     });
     syncNodeToParentDoc(savedNodeId, doc.id);
 
-    const snap = {
-      content: normalizeNodeContent(content),
-      anchorDate,
-      anchorTime,
-    };
-    setNodeInitialSnapshot(snap);
-    nodeInitialSnapshotRef.current = snap;
+    if (commitSchedule) {
+      const snap = {
+        content: normalizeNodeContent(content),
+        anchorDate: anchorDate || "",
+        anchorTime: anchorTime || "",
+      };
+      setNodeInitialSnapshot(snap);
+      nodeInitialSnapshotRef.current = snap;
+    } else {
+      setNodeInitialSnapshot((prev) => {
+        const next = {
+          content: normalizeNodeContent(content),
+          anchorDate: prev?.anchorDate ?? "",
+          anchorTime: prev?.anchorTime ?? "",
+        };
+        nodeInitialSnapshotRef.current = next;
+        return next;
+      });
+    }
   };
 
   const handleNodeContentChange = (content) => {
@@ -1162,13 +1201,9 @@ export function DocExpandedView({
       clearTimeout(nodeAutosaveTimerRef.current);
     }
     const context = { ...activeNodeContext };
-    // Keep schedule draft-only until explicit Yes/save — autosave content with
-    // the snapshot anchors so a schedule edit alone never commits early.
-    const snap = nodeInitialSnapshotRef.current;
-    const anchorDate = snap?.anchorDate ?? nodeDraftAnchorDate;
-    const anchorTime = snap?.anchorTime ?? nodeDraftAnchorTime;
+    // Autosave content only — never commit schedule here (avoids wiping anchorAt).
     nodeAutosaveTimerRef.current = setTimeout(() => {
-      persistNodeContentDebounced(content, context, anchorDate, anchorTime);
+      persistNodeContentDebounced(content, context, "", "", { commitSchedule: false });
       nodeAutosaveTimerRef.current = null;
     }, 250);
   };
@@ -1278,34 +1313,58 @@ export function DocExpandedView({
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
-    const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate, {
-      noNodeLink: isNoNodeLinkMode(resolveBlockNodeLinkColor(block)),
-    });
-    const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
-    const resolvedAnchorDate = anchorFromBlock.anchorDate || anchorFromNode.anchorDate;
-    const resolvedAnchorTime = anchorFromBlock.anchorTime || anchorFromNode.anchorTime;
-    setNodeDraftAnchorDate(resolvedAnchorDate);
-    setNodeDraftAnchorTime(resolvedAnchorTime);
-    const snap = {
-      content: normalizeNodeContent(resolvedNodeDraft),
-      anchorDate: resolvedAnchorDate,
-      anchorTime: resolvedAnchorTime,
-    };
-    setNodeInitialSnapshot(snap);
-    nodeInitialSnapshotRef.current = snap;
+    // Prefer saved node.anchorAt once schedule was persisted; block/Created is fallback only.
+    if (existing?.anchorAt) {
+      const fromNode = anchorFieldsFromIso(existing.anchorAt);
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H3',location:'DocExpandedView.jsx:handleOpenNodeForBlock',message:'open node schedule from node.anchorAt',data:{nodeId:existing.id,anchorAt:existing.anchorAt,fromNode,blockAnchorDate:block.anchorDate||'',blockAnchorTime:block.anchorTime||'',blockAnchorFromNode:block.anchorFromNode??null,draftCreatedDate},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      setNodeDraftAnchorDate(fromNode.anchorDate);
+      setNodeDraftAnchorTime(fromNode.anchorTime);
+      const snap = {
+        content: normalizeNodeContent(resolvedNodeDraft),
+        anchorDate: fromNode.anchorDate,
+        anchorTime: fromNode.anchorTime,
+      };
+      setNodeInitialSnapshot(snap);
+      nodeInitialSnapshotRef.current = snap;
+    } else {
+      const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate, {
+        noNodeLink: isNoNodeLinkMode(resolveBlockNodeLinkColor(block)),
+      });
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H3',location:'DocExpandedView.jsx:handleOpenNodeForBlock',message:'open node schedule fallback Created/block',data:{nodeId:existing?.id||null,existingAnchorAt:existing?.anchorAt??null,anchorFromBlock,blockAnchorDate:block.anchorDate||'',blockAnchorTime:block.anchorTime||'',blockAnchorFromNode:block.anchorFromNode??null,blockQueryEnabled:block.queryEnabled??null,draftCreatedDate},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      setNodeDraftAnchorDate(anchorFromBlock.anchorDate);
+      setNodeDraftAnchorTime(anchorFromBlock.anchorTime);
+      const snap = {
+        content: normalizeNodeContent(resolvedNodeDraft),
+        anchorDate: anchorFromBlock.anchorDate,
+        anchorTime: anchorFromBlock.anchorTime,
+      };
+      setNodeInitialSnapshot(snap);
+      nodeInitialSnapshotRef.current = snap;
+    }
   };
 
   const supportsScheduleAnchor = (dataType) =>
     dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
 
   const handleNodeAnchorDateChange = (anchorDate) => {
-    // Draft only — persist on Yes/save so close can ask first.
+    // Persist Schedule immediately — must survive tab switch; never wait for Yes.
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H1',location:'DocExpandedView.jsx:handleNodeAnchorDateChange',message:'schedule date persist immediate',data:{anchorDate,nodeDraftAnchorTime,nodeId:activeNodeContext?.nodeId||null,blockIndex:activeNodeContext?.blockIndex??null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     setNodeDraftAnchorDate(anchorDate);
+    if (!activeNodeContext) return;
+    handleBlockAnchorChange(activeNodeContext.blockIndex, anchorDate, nodeDraftAnchorTime);
   };
 
   const handleNodeAnchorTimeChange = (anchorTime) => {
-    // Draft only — persist on Yes/save so close can ask first.
+    // Persist Schedule immediately — must survive tab switch; never wait for Yes.
     setNodeDraftAnchorTime(anchorTime);
+    if (!activeNodeContext) return;
+    handleBlockAnchorChange(activeNodeContext.blockIndex, nodeDraftAnchorDate, anchorTime);
   };
 
   const handleOpenNodeForH1 = (h1Index, h1Block) => handleOpenNodeForBlock(h1Index, h1Block);
@@ -1390,6 +1449,12 @@ export function DocExpandedView({
           launchDate={isTemplate ? "" : draftLaunchDate}
           onLaunchDateChange={isTemplate ? undefined : (v) => {
             setDraftLaunchDate(v);
+            // Persist Launch immediately — Schedule wins and must survive tab switch.
+            const launchAt = v ? isoFromDateInput(v) : null;
+            updateDoc(doc.id, { launchAt });
+            // #region agent log
+            fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H4',location:'DocExpandedView.jsx:onLaunchDateChange',message:'launchAt persisted to docsStore',data:{docId:doc.id,launchDate:v,launchAt},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
           }}
           campaignActive={draftCampaignActive}
           onCampaignActiveChange={isTemplate ? undefined : (v) => {

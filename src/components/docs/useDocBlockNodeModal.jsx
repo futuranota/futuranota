@@ -67,7 +67,7 @@ export function useDocBlockNodeModal({
       const next = updateBlockAt(prev, blockIndex, {
         anchorDate,
         anchorTime,
-        anchorFromNode: true,
+        anchorFromNode: Boolean(String(anchorDate || "").trim()),
       });
       const block = next[blockIndex];
       if (block?.nodeId) {
@@ -82,6 +82,14 @@ export function useDocBlockNodeModal({
       ) {
         setNodeDraftAnchorDate(anchorDate);
         setNodeDraftAnchorTime(anchorTime);
+      }
+      if (docId) {
+        const body = docBlocksToBody(next);
+        updateDoc(docId, {
+          blocks: next,
+          body,
+          content: body,
+        });
       }
       return next;
     });
@@ -113,16 +121,20 @@ export function useDocBlockNodeModal({
     }
   };
 
-  const persistNodeContentDebounced = (content, context, anchorDate, anchorTime) => {
+  const persistNodeContentDebounced = (content, context, anchorDate, anchorTime, options = {}) => {
+    const { commitSchedule = false } = options;
     if (isNoNodeLinkMode(blockLinkColor(context.blockIndex))) return;
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
     const block = blocks[blockIndex];
     if (!block || block.type !== blockType) return;
 
     const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
-    const anchorAt = supportsScheduleAnchor(dataType)
-      ? isoFromAnchorFields(anchorDate, anchorTime)
-      : null;
+    // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
+    // Never fill Schedule from Created — schedule is independent and always wins when set.
+    const scheduleDate = String(anchorDate || "").trim();
+    const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
+      ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
+      : undefined;
 
     const savedNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
@@ -132,7 +144,7 @@ export function useDocBlockNodeModal({
       content,
       dataType,
       docCreatedAt: isoFromDateInput(createdDate),
-      anchorAt,
+      ...(anchorAt !== undefined ? { anchorAt } : {}),
     });
 
     if ((nodeId || block.nodeId) !== savedNodeId) {
@@ -153,10 +165,10 @@ export function useDocBlockNodeModal({
     if (block.type === DOC_BLOCK_TYPES.TODO) {
       patch.listTitle = block.listTitle || queryText;
     }
-    if (supportsScheduleAnchor(dataType)) {
-      patch.anchorDate = anchorDate;
+    if (commitSchedule && supportsScheduleAnchor(dataType)) {
+      patch.anchorDate = scheduleDate;
       patch.anchorTime = anchorTime;
-      patch.anchorFromNode = true;
+      patch.anchorFromNode = Boolean(scheduleDate);
       patch.queryEnabled = true;
     }
 
@@ -174,8 +186,6 @@ export function useDocBlockNodeModal({
 
     setBlocks(nextBlocks);
 
-    // Persist block↔node link + content into the parent doc immediately so
-    // "return to document" does not leave the node orphaned until an explicit doc Save.
     if (docId) {
       const body = docBlocksToBody(nextBlocks);
       updateDoc(docId, {
@@ -195,10 +205,8 @@ export function useDocBlockNodeModal({
       clearTimeout(nodeAutosaveTimerRef.current);
     }
     const context = { ...activeNodeContext };
-    const anchorDate = nodeDraftAnchorDate;
-    const anchorTime = nodeDraftAnchorTime;
     nodeAutosaveTimerRef.current = setTimeout(() => {
-      persistNodeContentDebounced(content, context, anchorDate, anchorTime);
+      persistNodeContentDebounced(content, context, "", "", { commitSchedule: false });
       nodeAutosaveTimerRef.current = null;
     }, 250);
   };
@@ -294,12 +302,18 @@ export function useDocBlockNodeModal({
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
-    const anchorFromBlock = resolveBlockAnchorFields(block, createdDate, {
-      noNodeLink: isNoNodeLinkMode(blockLinkColor(blockIndex)),
-    });
-    const anchorFromNode = anchorFieldsFromIso(existing?.anchorAt);
-    setNodeDraftAnchorDate(anchorFromBlock.anchorDate || anchorFromNode.anchorDate);
-    setNodeDraftAnchorTime(anchorFromBlock.anchorTime || anchorFromNode.anchorTime);
+    // Prefer saved node.anchorAt once schedule was persisted; block/Created is fallback only.
+    if (existing?.anchorAt) {
+      const fromNode = anchorFieldsFromIso(existing.anchorAt);
+      setNodeDraftAnchorDate(fromNode.anchorDate);
+      setNodeDraftAnchorTime(fromNode.anchorTime);
+    } else {
+      const anchorFromBlock = resolveBlockAnchorFields(block, createdDate, {
+        noNodeLink: isNoNodeLinkMode(blockLinkColor(blockIndex)),
+      });
+      setNodeDraftAnchorDate(anchorFromBlock.anchorDate);
+      setNodeDraftAnchorTime(anchorFromBlock.anchorTime);
+    }
   };
 
   const resetNodeModal = () => {
@@ -341,6 +355,7 @@ export function useDocBlockNodeModal({
         context,
         nodeDraftAnchorDate,
         nodeDraftAnchorTime,
+        { commitSchedule: true },
       );
     }
     resetNodeModal();
@@ -351,12 +366,14 @@ export function useDocBlockNodeModal({
   };
 
   const handleNodeAnchorDateChange = (anchorDate) => {
+    // Persist Schedule immediately — must survive tab switch.
     setNodeDraftAnchorDate(anchorDate);
     if (!activeNodeContext) return;
     handleBlockAnchorChange(activeNodeContext.blockIndex, anchorDate, nodeDraftAnchorTime);
   };
 
   const handleNodeAnchorTimeChange = (anchorTime) => {
+    // Persist Schedule immediately — must survive tab switch.
     setNodeDraftAnchorTime(anchorTime);
     if (!activeNodeContext) return;
     handleBlockAnchorChange(activeNodeContext.blockIndex, nodeDraftAnchorDate, anchorTime);

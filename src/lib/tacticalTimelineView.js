@@ -24,6 +24,7 @@ import {
 import {
   resolveDocScheduleDate,
   resolveExplicitDocScheduleDate,
+  resolveLinkedNodeScheduleDate,
   resolveTimelineTimeGap,
   formatTimelineTimeGapPlain,
   formatTimelineTimeGapLabel,
@@ -682,8 +683,12 @@ export function resolveDocTimelineDate(
   meta,
 ) {
   const doc = docsById[docId];
+  // Priority: Launch/block Schedule → linked node Schedule → canvas → createdAt.
   const explicit = resolveExplicitDocScheduleDate(doc);
   if (explicit) return explicit;
+
+  const fromNodes = resolveLinkedNodeScheduleDate(doc, meta?.nodeEntitiesById || {});
+  if (fromNodes) return fromNodes;
 
   const canvasNode = canvasNodes.find(
     (n) => (n.docId || n.noteId) === docId && isDocumentNode(n),

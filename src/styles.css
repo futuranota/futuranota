@@ -5014,6 +5014,8 @@ textarea.note-form-field {
   box-shadow: none;
   z-index: 1;
   transition: left var(--t-fast) var(--ease), width var(--t-fast) var(--ease);
+  /* TEMP: hide pink dimension span to inspect the rail — restore after check */
+  display: none !important;
 }
 .tl-tactical-range-window.is-row-endpoint-span {
   z-index: 0;

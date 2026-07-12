@@ -1,9 +1,53 @@
 import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
+import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
 import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 
 const STORAGE_KEY = "futura-nota-v1";
+
+/** Pack schedule into nodes.reference JSONB (no dedicated DB column). */
+function referenceWithAnchorAt(node) {
+  const base = node?.reference && typeof node.reference === "object" ? node.reference : {};
+  const anchorAt = node?.anchorAt || base.anchorAt || null;
+  if (!anchorAt) {
+    if (!base.anchorAt) return base;
+    const { anchorAt: _drop, ...rest } = base;
+    return rest;
+  }
+  return { ...base, anchorAt };
+}
+
+/** Read schedule from reference payload or legacy top-level field. */
+function anchorAtFromPersistedNode(node) {
+  if (!node) return null;
+  if (node.anchorAt) return node.anchorAt;
+  const ref = node.reference;
+  if (ref && typeof ref === "object" && ref.anchorAt) return ref.anchorAt;
+  return null;
+}
+
+/**
+ * Restore missing node.anchorAt from linked doc block Schedule fields.
+ * Schedule always wins over createdAt.
+ */
+function backfillNodeAnchorsFromDocs(nodes, docs) {
+  const next = { ...(nodes || {}) };
+  for (const doc of Object.values(docs || {})) {
+    for (const block of doc?.blocks || []) {
+      const nodeId = block?.nodeId;
+      if (!nodeId || !next[nodeId]?.id) continue;
+      if (next[nodeId].anchorAt) continue;
+      const date = String(block.anchorDate || "").trim();
+      if (!date) continue;
+      if (block.anchorFromNode === false) continue;
+      const iso = isoFromAnchorFields(date, block.anchorTime || "");
+      if (!iso) continue;
+      next[nodeId] = { ...next[nodeId], anchorAt: iso };
+    }
+  }
+  return next;
+}
 
 /** Coerce app doc version strings to int4/null for Supabase (version column is integer). */
 function docVersionToDbInt(version) {
@@ -449,6 +493,21 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
       && localDoc.docKind !== "standard") {
       doc.docKind = localDoc.docKind;
     }
+    // Prefer explicit Launch schedule from local when remote wiped it.
+    if (!doc.launchAt && localDoc.launchAt) {
+      doc.launchAt = localDoc.launchAt;
+    }
+  }
+
+  // Schedule (anchorAt) always wins — never let a newer remote row without it wipe local.
+  const localNodes = localState.nodes && typeof localState.nodes === "object" ? localState.nodes : {};
+  for (const [id, node] of Object.entries(nodes)) {
+    const localNode = localNodes[id];
+    if (!node || !localNode) continue;
+    const localAnchor = anchorAtFromPersistedNode(localNode);
+    if (!node.anchorAt && localAnchor) {
+      node.anchorAt = localAnchor;
+    }
   }
 
   // Re-link nodeIds on docs after merge
@@ -461,12 +520,14 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
     }
   }
 
+  const nodesWithSchedule = backfillNodeAnchorsFromDocs(nodes, docs);
+
   return {
     state: {
       ...remoteState,
       objects: rebuildObjectChildren(objectsRaw, docs),
       docs,
-      nodes,
+      nodes: nodesWithSchedule,
       canvasNodes: mergeEntityMapsPreferNewer(
         remoteState.canvasNodes,
         localState.canvasNodes,
@@ -709,9 +770,11 @@ export function initPersistenceMiddleware(stores) {
         }
       });
 
-      // Reconstruct nodes
+      // Reconstruct nodes (schedule lives in reference.anchorAt — no DB column)
       const nodes = {};
       dbNodes.forEach((node) => {
+        const reference = node.reference && typeof node.reference === "object" ? node.reference : {};
+        const anchorAt = anchorAtFromPersistedNode({ reference, anchorAt: node.anchor_at });
         nodes[node.id] = {
           id: node.id,
           parentDocId: node.parent_doc_id,
@@ -719,7 +782,8 @@ export function initPersistenceMiddleware(stores) {
           dataType: node.data_type,
           content: node.content,
           sourceQuery: node.source_query || "",
-          reference: node.reference || {},
+          reference,
+          anchorAt,
           linkedToCanvas: node.linked_to_canvas || false,
           canvasNodeId: node.canvas_node_id || null,
           createdAt: node.created_at,
@@ -806,7 +870,17 @@ export function initPersistenceMiddleware(stores) {
         );
       }
 
-      applyStateToStores(hydratedState);
+      const hydratedNodes = backfillNodeAnchorsFromDocs(
+        hydratedState.nodes,
+        hydratedState.docs,
+      );
+      // #region agent log
+      try {
+        const withAnchor = Object.values(hydratedNodes || {}).filter((n) => n?.anchorAt).length;
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H5',location:'persistenceMiddleware.js:hydrate',message:'hydrate nodes with schedule',data:{preferredLocal,nodeCount:Object.keys(hydratedNodes||{}).length,withAnchor},timestamp:Date.now()})}).catch(()=>{});
+      } catch (_) { /* ignore */ }
+      // #endregion
+      applyStateToStores({ ...hydratedState, nodes: hydratedNodes });
 
       finishWorkspaceHydration();
 
@@ -946,7 +1020,7 @@ export function initPersistenceMiddleware(stores) {
         }
       }
 
-      // 3. Nodes
+      // 3. Nodes — persist Schedule in reference.anchorAt (JSONB)
       const nodesRows = Object.values(state.nodes).map((node) => ({
         id: node.id,
         user_id: userId,
@@ -955,7 +1029,7 @@ export function initPersistenceMiddleware(stores) {
         data_type: node.dataType,
         content: node.content,
         source_query: node.sourceQuery || "",
-        reference: node.reference || {},
+        reference: referenceWithAnchorAt(node),
         linked_to_canvas: node.linkedToCanvas || false,
         canvas_node_id: node.canvasNodeId || null,
         created_at: node.createdAt || now,
@@ -1127,6 +1201,13 @@ export function initPersistenceMiddleware(stores) {
 
   const onVisibilityChange = () => {
     if (document.visibilityState === "hidden") {
+      // #region agent log
+      try {
+        const nodes = useNodesStore.getState().nodes || {};
+        const withAnchor = Object.values(nodes).filter((n) => n?.anchorAt).slice(0, 5).map((n) => ({ id: n.id, anchorAt: n.anchorAt, createdAt: n.createdAt }));
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H5',location:'persistenceMiddleware.js:visibilitychange',message:'tab hidden — flush persistence',data:{nodeCount:Object.keys(nodes).length,withAnchorCount:Object.values(nodes).filter((n)=>n?.anchorAt).length,sampleWithAnchor:withAnchor},timestamp:Date.now()})}).catch(()=>{});
+      } catch (_) { /* ignore */ }
+      // #endregion
       flushPersistenceSyncBestEffort();
     }
   };

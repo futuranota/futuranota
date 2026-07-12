@@ -531,7 +531,9 @@ export const useTimelineStore = create(
 
         const meta = { docsById, nodeEntitiesById };
         const { anchors: wireAnchors } = buildTacticalWireAnchorMap(canvasNodes, connections, meta);
-        for (const docId of touchedDocIds) {
+        // Refresh every queued doc so prior Schedule edits are not stuck on createdAt snapshots.
+        const docsToSnapshot = new Set([...queue, ...touchedDocIds]);
+        for (const docId of docsToSnapshot) {
           snapshots[docId] = captureTimelineDocSnapshot(docId, {
             canvasNodes,
             wireAnchors,

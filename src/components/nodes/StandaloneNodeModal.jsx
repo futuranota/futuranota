@@ -195,10 +195,13 @@ export function StandaloneNodeModal({
     }
     const parentId = parentDocId || null;
     const createdAt = isoFromDateInput(createdDate);
-    const anchorAt =
-      dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX
-        ? isoFromAnchorFields(anchorDate, anchorTime)
-        : null;
+    // Schedule is independent of Created — never copy Created into anchorAt.
+    const scheduleDate = String(anchorDate || "").trim();
+    const supportsSchedule =
+      dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
+    const anchorAt = supportsSchedule
+      ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
+      : null;
 
     if (isNew) {
       const newId = addNode(title, dataType, payload, parentId, {

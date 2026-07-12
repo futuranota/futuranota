@@ -1,6 +1,10 @@
 import { resolveNodeAnchorDate, parseDate } from "../temporal.js";
 import { listChildCanvasNodeIdsForDoc } from "./timelineGraph.js";
-import { resolveDocScheduleDate, resolveExplicitDocScheduleDate } from "./docSchedule.js";
+import {
+  resolveDocScheduleDate,
+  resolveExplicitDocScheduleDate,
+  resolveLinkedNodeScheduleDate,
+} from "./docSchedule.js";
 
 function isDocumentNode(node) {
   return node?.canvasKind === "document" || node?.dataType === "document";
@@ -14,9 +18,12 @@ function resolveDocTimelineDateLocal(
   meta,
 ) {
   const doc = docsById[docId];
-  // Saved Launch / Schedule wins over canvas createdAt (otherwise schedule edits never move the rail).
+  // Priority: Launch/block Schedule → linked node Schedule → canvas → createdAt.
   const explicit = resolveExplicitDocScheduleDate(doc);
   if (explicit) return explicit;
+
+  const fromNodes = resolveLinkedNodeScheduleDate(doc, meta?.nodeEntitiesById || {});
+  if (fromNodes) return fromNodes;
 
   const canvasNode = canvasNodes.find(
     (n) => (n.docId || n.noteId) === docId && isDocumentNode(n),
@@ -50,7 +57,8 @@ function resolveLinkedFileTimelineDate(entityId, entity, meta = {}) {
   const direct = resolveNodeAnchorDate(adapted, meta);
   if (direct) return direct;
 
-  const fromEntity = parseDate(entity.createdAt) || parseDate(entity.anchorAt);
+  // Schedule (anchorAt) wins; createdAt only when no schedule is set.
+  const fromEntity = parseDate(entity.anchorAt) || parseDate(entity.createdAt);
   if (fromEntity) return fromEntity;
 
   const doc = meta.docsById?.[entity.parentDocId];
@@ -128,9 +136,13 @@ export function captureTimelineDocSnapshot(
   for (const nodeId of listChildCanvasNodeIdsForDoc(docId, canvasNodes, nodeEntitiesById)) {
     const node = canvasNodes.find((n) => n.id === nodeId);
     const entity = node?.noteId ? nodeEntitiesById[node.noteId] : null;
-    const raw = wireAnchors.get(nodeId) || resolveNodeAnchorDate(entity || node, meta);
-    if (!raw) continue;
     const entityId = node?.noteId || null;
+    const raw = (entityId
+      ? resolveLinkedFileTimelineDate(entityId, entity, meta)
+      : null)
+      || wireAnchors.get(nodeId)
+      || resolveNodeAnchorDate(entity || node, meta);
+    if (!raw) continue;
     pushChild({
       key: childSnapshotKey(entityId, nodeId),
       entityId,
@@ -212,7 +224,13 @@ export function buildChildMarkersForDoc(
     const entityId = node?.noteId || null;
     const key = childSnapshotKey(entityId, nodeId);
     if (excluded.has(key)) continue;
-    const raw = wireAnchors.get(nodeId) || resolveNodeAnchorDate(item || node, meta);
+    const entity = entityId ? nodeEntitiesById[entityId] : null;
+    // Prefer live schedule (anchorAt) over wire/created fallbacks.
+    const raw = (entityId
+      ? resolveLinkedFileTimelineDate(entityId, entity, meta)
+      : null)
+      || wireAnchors.get(nodeId)
+      || resolveNodeAnchorDate(item || node, meta);
     if (!raw) continue;
     markersByKey.set(key, {
       nodeId,
@@ -224,20 +242,7 @@ export function buildChildMarkersForDoc(
     });
   }
 
-  for (const child of snapshot?.children || []) {
-    const key = child.key || childSnapshotKey(child.entityId, child.canvasNodeId);
-    if (!key || excluded.has(key) || markersByKey.has(key)) continue;
-    markersByKey.set(key, {
-      nodeId: child.canvasNodeId || `snapshot-${key}`,
-      date: new Date(child.dateMs),
-      docId,
-      dataType: child.dataType || "text",
-      entityId: child.entityId || null,
-      childKey: key,
-      snapshot: true,
-    });
-  }
-
+  // Live store entities before snapshot so saved Schedule overrides stale createdAt snapshots.
   for (const entityId of listLinkedFileEntityIds(docId, docsById, nodeEntitiesById)) {
     const key = childSnapshotKey(entityId, null);
     if (!key || excluded.has(key) || markersByKey.has(key)) continue;
@@ -253,6 +258,37 @@ export function buildChildMarkersForDoc(
       entityId,
       childKey: key,
       fromStore: true,
+    });
+  }
+
+  for (const child of snapshot?.children || []) {
+    const key = child.key || childSnapshotKey(child.entityId, child.canvasNodeId);
+    if (!key || excluded.has(key) || markersByKey.has(key)) continue;
+    // If we have a live entity schedule, never keep a stale snapshot date.
+    if (child.entityId) {
+      const entity = nodeEntitiesById[child.entityId];
+      const live = resolveLinkedFileTimelineDate(child.entityId, entity, meta);
+      if (live) {
+        markersByKey.set(key, {
+          nodeId: child.canvasNodeId || `entity-${child.entityId}`,
+          date: live,
+          docId,
+          dataType: child.dataType || entity?.dataType || "text",
+          entityId: child.entityId,
+          childKey: key,
+          fromStore: true,
+        });
+        continue;
+      }
+    }
+    markersByKey.set(key, {
+      nodeId: child.canvasNodeId || `snapshot-${key}`,
+      date: new Date(child.dateMs),
+      docId,
+      dataType: child.dataType || "text",
+      entityId: child.entityId || null,
+      childKey: key,
+      snapshot: true,
     });
   }
 

@@ -49,7 +49,7 @@ export function noteToTrackItem(note) {
   };
 }
 
-/** Resolve anchor date: optional anchorAt; date → content; text/doc → createdAt. */
+/** Resolve anchor date: schedule (anchorAt / Launch) first, then createdAt. */
 export function resolveNodeAnchorDate(node, { nodeEntitiesById = {}, docsById = {} } = {}) {
   if (!node) return null;
 
@@ -62,12 +62,25 @@ export function resolveNodeAnchorDate(node, { nodeEntitiesById = {}, docsById = 
     return parseDate(node.content);
   }
 
-  if (node.dataType === "document") {
+  if (node.dataType === "document" || node.canvasKind === "document") {
     const doc = docsById[node.docId] || docsById[node.noteId];
-    if (doc?.createdAt) return parseDate(doc.createdAt);
+    if (!doc) return null;
+    if (doc.launchAt) {
+      const launch = parseDate(doc.launchAt);
+      if (launch) return launch;
+    }
+    for (const linkedId of doc.nodeIds || []) {
+      const linked = nodeEntitiesById[linkedId];
+      if (!linked?.anchorAt) continue;
+      const scheduled = parseDate(linked.anchorAt);
+      if (scheduled) return scheduled;
+    }
+    if (doc.createdAt) return parseDate(doc.createdAt);
+    return null;
   }
 
   if (node.dataType === "text" || node.dataType === "metric" || node.dataType === "checkbox") {
+    // entity.anchorAt already checked via resolveEntityAnchor above.
     if (entity?.createdAt) return parseDate(entity.createdAt);
     if (entity?.parentDocId) {
       const doc = docsById[entity.parentDocId];
