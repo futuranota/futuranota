@@ -259,6 +259,17 @@ function ClickFolderIcon({ variant, className = "lp-click-folder-box-icon" }) {
     );
   }
 
+  if (variant === "campaigns") {
+    return (
+      <img
+        src="/uploads/botones/gift-event-calendar.svg"
+        alt=""
+        aria-hidden
+        className={`${className} lp-click-folder-box-icon-img`}
+      />
+    );
+  }
+
   return (
     <svg className={className} viewBox="98 83 26 22" fill="none" aria-hidden>
       <path fill="currentColor" d={CLICK_FOLDER_ICON_PATH} />
@@ -2132,6 +2143,16 @@ export function LeftPanel({
                     variant="subgroups"
                     label={t("sidebar.clickFolderDocuments")}
                     onClick={() => setClickFolderView("subgroups")}
+                  />
+                  <ClickFolderBox
+                    variant="groups"
+                    label={t("sidebar.products")}
+                    onClick={() => setClickFolderView("groups")}
+                  />
+                  <ClickFolderBox
+                    variant="campaigns"
+                    label={t("sidebar.campaign")}
+                    onClick={() => setClickFolderView("campaigns")}
                   />
                   <ClickFolderBox
                     variant="knowledge"
