@@ -9136,39 +9136,42 @@ body.doc-content-resizing * {
   min-height: min(82vh, 820px);
   max-height: calc(100vh - 40px);
   margin: 0 auto;
-  /* Keep left margin; right flush */
-  padding: 0 0 0 27px;
+  padding: 0;
   overflow: hidden;
-  background: #151515;
+  background: rgb(22, 26, 29);
+  box-sizing: border-box;
 }
 
+/* Content focus mode — mirror doc-new-inner--content-focus (Folders expand blueprint) */
 .node-query-modal--content-focus {
-  min-height: min(82vh, 820px);
-  --node-body-surface: #151515;
-  background: var(--node-body-surface);
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  --doc-focus-surface: rgb(22, 26, 29);
+  --node-body-surface: rgb(22, 26, 29);
+  background: var(--doc-focus-surface);
 }
 
-/* Keep title editable in expand — only hide meta/footer chrome */
+.node-query-modal--content-focus .node-query-modal__head,
 .node-query-modal--content-focus .node-query-modal__footer-row,
 .node-query-modal--content-focus .node-query-modal__created-row,
 .node-query-modal--content-focus .doc-meta-strip {
   display: none !important;
 }
 
-.node-query-modal--content-focus .node-query-modal__head {
-  flex-shrink: 0;
+.node-query-modal--content-focus .doc-focus-top__category--static {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
-  padding: 18px 40px 10px 0;
-  background: var(--node-body-surface, #151515);
-}
-
-.node-query-modal--content-focus .node-query-modal__head-top {
-  margin-bottom: 8px;
-}
-
-.node-query-modal--content-focus .node-query-modal__query-edit,
-.node-query-modal--content-focus .node-query-modal__query-title {
-  margin-bottom: 0;
+  font-family: "Hanken Grotesk", sans-serif;
+  font-optical-sizing: auto;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  color: #fff;
 }
 
 .node-query-modal--content-focus .node-query-modal__content-box {
@@ -9179,7 +9182,82 @@ body.doc-content-resizing * {
   margin: 0;
   width: 100%;
   border-radius: 0;
-  background: var(--node-body-surface, #151515);
+  background: var(--doc-focus-surface, rgb(22, 26, 29));
+  --doc-body-track: var(--doc-focus-surface, rgb(22, 26, 29));
+}
+
+.node-query-modal--content-focus .node-query-modal__content-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 6px 0 24px 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--doc-focus-surface, rgb(22, 26, 29)) var(--doc-focus-surface, rgb(22, 26, 29));
+  scrollbar-gutter: auto;
+}
+
+.node-query-modal--content-focus .node-query-modal__content-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.node-query-modal--content-focus .node-query-modal__content-scroll::-webkit-scrollbar-track,
+.node-query-modal--content-focus .node-query-modal__content-scroll::-webkit-scrollbar-thumb {
+  background: var(--doc-focus-surface, rgb(22, 26, 29));
+  border: none;
+  border-radius: 0;
+  margin: 0;
+}
+
+.node-query-modal--content-focus .node-query-modal__content-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--doc-focus-surface, rgb(22, 26, 29)) 88%, #fff);
+}
+
+.node-query-modal--content-focus .node-query-modal__content-scroll:focus {
+  outline: none;
+}
+
+.node-query-modal--content-focus .node-query-modal__field-shell {
+  padding: 0;
+  background: transparent;
+}
+
+.node-query-modal--content-focus .node-query-modal__writing-stack {
+  padding: 0;
+  background: transparent;
+}
+
+/* Keep original left text inset; only trim the right so scrollbar sits flush */
+.node-query-modal--content-focus .node-query-modal__body,
+.node-query-modal--content-focus .doc-body-field-wrap__slash textarea,
+.node-query-modal--content-focus .doc-slash-preview,
+.node-query-modal--content-focus .doc-slash-preview__input,
+.node-query-modal--content-focus .doc-unified-prose__field,
+.node-query-modal--content-focus .doc-text-block__field,
+.node-query-modal--content-focus .node-writing-text-field {
+  padding-right: 12px;
+}
+
+.node-query-modal--content-focus .node-query-modal__content-expand-btn {
+  right: 10px;
+}
+
+.node-query-modal--content-focus .node-writing-block-stack__h1 .doc-h1-block,
+.node-query-modal--content-focus .node-writing-block-stack__h2 .doc-h2-block,
+.node-query-modal--content-focus .node-writing-block-stack__h3 .doc-h3-block {
+  padding: 6px 21px 4px 15px;
+  box-sizing: border-box;
+}
+
+.node-query-modal--content-focus .node-writing-block-stack__h1 .doc-h1-block__input,
+.node-query-modal--content-focus .node-writing-block-stack__h2 .doc-h1-block__input,
+.node-query-modal--content-focus .node-writing-block-stack__h3 .doc-h1-block__input {
+  padding-left: 0;
+  padding-right: 12px;
 }
 
 .node-query-modal__content-box--focus {
@@ -9227,19 +9305,12 @@ body.doc-content-resizing * {
   width: 100%;
   margin: 0;
   padding: 0;
-  scrollbar-color: #151515 #151515;
+  scrollbar-color: var(--doc-focus-surface, rgb(22, 26, 29)) var(--doc-focus-surface, rgb(22, 26, 29));
 }
 
 .node-query-modal--content-focus .node-query-modal__content-scroll {
-  /* Zero gap with right edge — scrollbar flush to panel */
   padding-right: 0;
   margin-right: 0;
-}
-
-.node-query-modal--content-focus .node-query-modal__body,
-.node-query-modal--content-focus .node-query-modal__field-shell,
-.node-query-modal--content-focus .node-query-modal__writing-stack {
-  padding-right: 12px;
 }
 
 .node-query-modal__content-expand-btn {

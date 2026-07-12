@@ -11,7 +11,8 @@ import {
   removeWritingBlockAt,
 } from "../../lib/nodeInlineContent.js";
 import { isHeadingBlockType } from "../../lib/textSelectionHeading.js";
-import { syncAutoGrowTextareaHeight } from "../../lib/textareaSelectionRect.js";
+import { syncAutoGrowTextareaHeight, scrollTextareaCaretIntoCameraView } from "../../lib/textareaSelectionRect.js";
+import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
 import { H1BlockView } from "../docs/blocks/H1BlockView.jsx";
 import { H2BlockView } from "../docs/blocks/H2BlockView.jsx";
 import { H3BlockView } from "../docs/blocks/H3BlockView.jsx";
@@ -134,12 +135,51 @@ function focusTextBlockAfter(inputRefs, blocks, afterIndex) {
   return false;
 }
 
+function scrollCaretAfterNewline(blockId) {
+  requestAnimationFrame(() => {
+    const textarea = document.querySelector(
+      `[data-writing-block-id="${blockId}"] textarea`,
+    );
+    if (textarea instanceof HTMLTextAreaElement) {
+      scrollTextareaCaretIntoCameraView(textarea, { behavior: "instant" });
+    }
+  });
+}
+
+function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
+  e.preventDefault();
+  const el = e.currentTarget;
+  const caretStart = el.selectionStart ?? 0;
+  const caretEnd = el.selectionEnd ?? caretStart;
+  const text = el.value ?? "";
+  const nextText = `${text.slice(0, caretStart)}\n${text.slice(caretEnd)}`;
+  const blockId = blocksRef.current[blockIndex]?.id;
+  if (!blockId) return;
+
+  const current = normalizeWritingBlocks(blocksRef.current);
+  updateBlocks(current.map((block, index) => (
+    index === blockIndex ? { ...block, text: nextText } : block
+  )));
+
+  requestAnimationFrame(() => {
+    const textarea = document.querySelector(
+      `[data-writing-block-id="${blockId}"] textarea`,
+    );
+    if (textarea instanceof HTMLTextAreaElement && "setSelectionRange" in textarea) {
+      textarea.focus({ preventScroll: true });
+      textarea.setSelectionRange(caretStart + 1, caretStart + 1);
+    }
+    scrollCaretAfterNewline(blockId);
+  });
+}
+
 export function NodeWritingBlockStack({
   blocks,
   onBlocksChange,
   focusTarget = null,
   onFocusTargetChange,
   slashEnabled = false,
+  contentFocusMode = false,
   className = "",
   textPlaceholder = "Escribe aquí o /macronodo",
   companyObjectId = null,
@@ -292,6 +332,38 @@ export function NodeWritingBlockStack({
     const block = current[blockIndex];
     if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) return;
 
+    const { slash } = splitBodyForSlash(block.text);
+
+    // Folder expand blueprint: Enter inserts newline in the same cell (SlashAwareTextarea scrolls caret).
+    if (contentFocusMode) {
+      if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+        if (slash) {
+          const parsed = parseNodeSlashQuery(slash.slice(1));
+          if (parsed) {
+            e.preventDefault();
+            const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
+            updateBlocks(nextBlocks);
+            focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
+            return;
+          }
+        }
+      }
+
+      if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+        insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks);
+        return;
+      }
+
+      if (e.key === "Escape" && slash) {
+        const { prefix } = splitBodyForSlash(block.text);
+        e.preventDefault();
+        updateBlockAt(blockIndex, { text: prefix });
+        return;
+      }
+
+      return;
+    }
+
     // Slash command confirm (e.g. /macronodo) — keep existing behavior.
     if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       const { slash } = splitBodyForSlash(block.text);
@@ -367,7 +439,7 @@ export function NodeWritingBlockStack({
         focusBlockById(prev.id, "end");
       }
     }
-  }, [focusBlockById, onFocusTargetChange, slashEnabled, updateBlocks]);
+  }, [contentFocusMode, focusBlockById, onFocusTargetChange, slashEnabled, updateBlockAt, updateBlocks]);
 
   const handleTodoItemKeyDown = useCallback((blockIndex, itemIndex, e) => {
     const block = blocksRef.current[blockIndex];
@@ -650,31 +722,58 @@ export function NodeWritingBlockStack({
           <div
             key={block.id}
             data-writing-block-id={block.id}
-            className="node-writing-block-stack__text"
+            className={
+              "node-writing-block-stack__text"
+              + (contentFocusMode ? " doc-text-block" : "")
+            }
           >
-            <textarea
-              ref={(el) => {
-                if (el) {
-                  inputRefs.current[block.id] = el;
-                  syncTextareaHeight(el);
-                } else {
-                  delete inputRefs.current[block.id];
-                }
-              }}
-              className="node-writing-text-field doc-normal-text-field"
-              value={block.text}
-              placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
-              rows={1}
-              autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}
-              onChange={(e) => {
-                updateBlockAt(blockIndex, { text: e.target.value });
-                syncTextareaHeight(e.target);
-              }}
-              onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
-              onFocus={() => setFocusedBlockId(block.id)}
-              onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
+            {contentFocusMode ? (
+              <SlashAwareTextarea
+                inputRef={(el) => {
+                  if (el) {
+                    inputRefs.current[block.id] = el;
+                  } else {
+                    delete inputRefs.current[block.id];
+                  }
+                }}
+                value={block.text}
+                onChange={(text) => updateBlockAt(blockIndex, { text })}
+                onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
+                onFocus={() => setFocusedBlockId(block.id)}
+                onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
+                placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
+                showPlaceholder={block.id === placeholderTextBlockId}
+                autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}
+                wrapClassName="doc-text-block__wrap"
+                className="doc-text-block__field"
+                minHeightPx={28}
+                maxHeightPx={null}
+              />
+            ) : (
+              <textarea
+                ref={(el) => {
+                  if (el) {
+                    inputRefs.current[block.id] = el;
+                    syncTextareaHeight(el);
+                  } else {
+                    delete inputRefs.current[block.id];
+                  }
+                }}
+                className="node-writing-text-field doc-normal-text-field"
+                value={block.text}
+                placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
+                rows={1}
+                autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}
+                onChange={(e) => {
+                  updateBlockAt(blockIndex, { text: e.target.value });
+                  syncTextareaHeight(e.target);
+                }}
+                onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
+                onFocus={() => setFocusedBlockId(block.id)}
+                onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            )}
           </div>
         );
       })}

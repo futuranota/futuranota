@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { IntelSearchButton } from "../shared/IntelSearchButton.jsx";
 import { runIntelSearch } from "../../lib/intelSearch.js";
@@ -101,6 +101,7 @@ export function NodeQueryModal({
   const { t } = useI18n();
   const bodyRef = useRef(null);
   const queryInputRef = useRef(null);
+  const focusCategoryRef = useRef(null);
   const contentScrollRef = useRef(null);
   const [contentFocusMode, setContentFocusMode] = useState(initialContentFocus);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
@@ -129,9 +130,48 @@ export function NodeQueryModal({
   const handleDismiss = onBackToDocument || onClose;
   const showCloseButton = Boolean(onClose && !onBackToDocument);
   const showReturnLink = Boolean(onBackToDocument);
-  const toggleContentFocus = useCallback(() => {
-    setContentFocusMode((value) => !value);
+  const syncFocusCategoryHeight = useCallback(() => {
+    const el = focusCategoryRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
   }, []);
+
+  const focusContentArea = useCallback(() => {
+    const scroll = contentScrollRef.current;
+    if (!scroll) return;
+    const target = scroll.querySelector(
+      "textarea, input:not([type='hidden']), [contenteditable='true']",
+    );
+    if (target instanceof HTMLElement) {
+      target.focus({ preventScroll: true });
+      return;
+    }
+    scroll.focus({ preventScroll: true });
+  }, []);
+
+  const syncQueryInputHeight = useCallback(() => {
+    const el = queryInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+    el.style.overflowY = "hidden";
+  }, []);
+
+  const exitContentFocusMode = useCallback(() => {
+    setContentFocusMode(false);
+    requestAnimationFrame(() => {
+      syncQueryInputHeight();
+    });
+  }, [syncQueryInputHeight]);
+
+  const toggleContentFocus = useCallback(() => {
+    if (contentFocusMode) {
+      exitContentFocusMode();
+      return;
+    }
+    setContentFocusMode(true);
+  }, [contentFocusMode, exitContentFocusMode]);
   const setActiveNodeQueryDraft = useUIStateStore((s) => s.setActiveNodeQueryDraft);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
   const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
@@ -361,18 +401,15 @@ export function NodeQueryModal({
   useEffect(() => {
     if (!contentFocusMode) return undefined;
     const frame = requestAnimationFrame(() => {
-      contentScrollRef.current?.focus();
+      requestAnimationFrame(focusContentArea);
     });
     return () => cancelAnimationFrame(frame);
-  }, [contentFocusMode]);
+  }, [contentFocusMode, focusContentArea]);
 
-  const syncQueryInputHeight = useCallback(() => {
-    const el = queryInputRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-    el.style.overflowY = "hidden";
-  }, []);
+  useLayoutEffect(() => {
+    if (!contentFocusMode) return;
+    syncFocusCategoryHeight();
+  }, [contentFocusMode, query, syncFocusCategoryHeight]);
 
   useEffect(() => {
     syncQueryInputHeight();
@@ -384,7 +421,20 @@ export function NodeQueryModal({
   }, [displayQuery, setActiveNodeQueryDraft]);
 
   useEffect(() => {
+    if (!contentFocusMode) return undefined;
     const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      exitContentFocusMode();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [contentFocusMode, exitContentFocusMode]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (contentFocusMode) return;
       if (e.key === "Escape") {
         e.preventDefault();
         requestDismiss();
@@ -398,7 +448,7 @@ export function NodeQueryModal({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [requestDismiss, onSave]);
+  }, [contentFocusMode, requestDismiss, onSave]);
 
   const handleSearchClick = () => {
     const queryText = (displayQuery || "").trim() || displayQuery;
@@ -428,6 +478,43 @@ export function NodeQueryModal({
         role="dialog"
         aria-labelledby="node-query-modal-title"
       >
+        {contentFocusMode ? (
+          <header className="doc-focus-top">
+            <div className="doc-focus-top__row">
+              {queryEditable ? (
+                <textarea
+                  ref={focusCategoryRef}
+                  className="doc-focus-top__category"
+                  value={query}
+                  placeholder="Got a new Question?"
+                  rows={1}
+                  aria-label="Query or title"
+                  spellCheck={false}
+                  onChange={(e) => {
+                    onQueryChange(e.target.value);
+                    requestAnimationFrame(syncFocusCategoryHeight);
+                  }}
+                />
+              ) : (
+                <p className="doc-focus-top__category doc-focus-top__category--static">
+                  {displayQuery}
+                </p>
+              )}
+              <div className="doc-focus-top__meta">
+                {showCloseButton ? (
+                  <button
+                    type="button"
+                    className="doc-new-head-expand-btn doc-focus-top__close"
+                    onClick={requestDismiss}
+                    aria-label="Close"
+                  >
+                    <span className="doc-new-head-close-x" aria-hidden>×</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </header>
+        ) : null}
         <header className="node-query-modal__head">
           <div
             className={
@@ -774,6 +861,7 @@ export function NodeQueryModal({
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
                 slashEnabled={slashCommandsEnabled}
+                contentFocusMode={contentFocusMode}
                 textPlaceholder={
                   slashCommandsEnabled
                     ? "Escribe aquí o /macronodo"
