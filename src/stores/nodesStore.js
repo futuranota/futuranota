@@ -172,6 +172,8 @@ export const useNodesStore = create(
               sourceBlockId: extra.sourceBlockId ?? null,
               sourceQuery: extra.sourceQuery ?? null,
               anchorAt: extra.anchorAt ?? null,
+              completed: Boolean(extra.completed),
+              sourceId: extra.sourceId ?? null,
               canvasConnections: [],
               linkedToCanvas: false,
               linkedToDoc: Boolean(parentDocId),
@@ -196,6 +198,8 @@ export const useNodesStore = create(
         dataType = "text",
         docCreatedAt = null,
         anchorAt = undefined,
+        completed = undefined,
+        sourceId = undefined,
       }) => {
         const title = (query || "").trim() || "Untitled query";
         const defaultContent = dataType === "checkbox"
@@ -229,6 +233,12 @@ export const useNodesStore = create(
         if (anchorAt !== undefined) {
           payload.anchorAt = anchorAt;
         }
+        if (completed !== undefined) {
+          payload.completed = Boolean(completed);
+        }
+        if (sourceId !== undefined) {
+          payload.sourceId = sourceId;
+        }
 
         if (nodeId) {
           get().updateNode(nodeId, payload);
@@ -244,6 +254,8 @@ export const useNodesStore = create(
           sourceQuery: payload.sourceQuery,
           createdAt: inheritedCreatedAt,
           anchorAt: payload.anchorAt ?? null,
+          completed: payload.completed ?? false,
+          sourceId: payload.sourceId ?? null,
         });
         return id;
       },

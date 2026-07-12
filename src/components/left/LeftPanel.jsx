@@ -890,7 +890,7 @@ function DocCreateModal({
   const [version, setVersion] = useState("");
   const [category, setCategory] = useState(defaultCategory);
   const [launchDate, setLaunchDate] = useState("");
-  const [campaignActive, setCampaignActive] = useState(false);
+  const [campaignActive, setCampaignActive] = useState(createMode === "campaign");
   const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
   const [nodeLinkColor, setNodeLinkColor] = useState("dark");
   const [knowledgeImport, setKnowledgeImport] = useState(null);
@@ -899,7 +899,8 @@ function DocCreateModal({
   const createSnapshotRef = useRef(null);
   const isProductMode = createMode === "product";
   const isKnowledgeMode = createMode === "knowledge";
-  const isContentMode = createMode === "content" || (!isProductMode && !isKnowledgeMode);
+  const isCampaignMode = createMode === "campaign";
+  const isContentMode = createMode === "content" || isCampaignMode || (!isProductMode && !isKnowledgeMode);
   const metaMode = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
   const docKind = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
   /** Products + Content: title and category mirror each other (file-box grouping). */
@@ -926,7 +927,7 @@ function DocCreateModal({
       version: "",
       category: defaultCategory,
       launchDate: "",
-      campaignActive: false,
+      campaignActive: createMode === "campaign",
       subcategoryDocIds: [],
       nodeLinkColor: "dark",
       parentId: fallbackParent,
@@ -1475,6 +1476,21 @@ export function LeftPanel({
     [productDocs, productCategoryFilter],
   );
 
+  const campaignDocs = useMemo(
+    () => contentDocs.filter((doc) => Boolean(doc.campaignActive)),
+    [contentDocs],
+  );
+
+  const campaignCategoryFilterOptions = useMemo(
+    () => buildCategoryFilterOptions(campaignDocs),
+    [campaignDocs],
+  );
+
+  const filteredCampaignDocs = useMemo(
+    () => campaignDocs.filter((doc) => productDocMatchesCategoryFilter(doc, productCategoryFilter)),
+    [campaignDocs, productCategoryFilter],
+  );
+
   const filteredContentDocs = useMemo(
     () => contentDocs.filter((doc) => contentDocMatchesProductFilter(doc, docs, contentProductFilter)),
     [contentDocs, docs, contentProductFilter],
@@ -1483,6 +1499,11 @@ export function LeftPanel({
   const groupedProductDocs = useMemo(
     () => groupProductDocsFromList(filteredProductDocs, t("sidebar.docGroupUncategorized")),
     [filteredProductDocs, t],
+  );
+
+  const groupedCampaignDocs = useMemo(
+    () => groupProductDocsFromList(filteredCampaignDocs, t("sidebar.docGroupUncategorized")),
+    [filteredCampaignDocs, t],
   );
 
   useEffect(() => {
@@ -1651,6 +1672,18 @@ export function LeftPanel({
         enterObjectWorkspace(targetObjectId);
       }
       setClickFolderView("groups");
+      return;
+    }
+    setPanelType("Documents");
+  };
+
+  const openCampaignFromToolbar = () => {
+    const targetObjectId = filterObjectId || selectedObjectId;
+    if (targetObjectId) {
+      if (!objectWorkspaceActive) {
+        enterObjectWorkspace(targetObjectId);
+      }
+      setClickFolderView("campaign");
       return;
     }
     setPanelType("Documents");
@@ -1936,7 +1969,9 @@ export function LeftPanel({
     ? "product"
     : clickFolderView === "knowledge"
       ? "knowledge"
-      : "content";
+      : clickFolderView === "campaign"
+        ? "campaign"
+        : "content";
 
   return (
     <div className="left-panel">
@@ -2111,6 +2146,7 @@ export function LeftPanel({
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
                     onOpenProducts={openProductsFromToolbar}
+                    onOpenCampaign={openCampaignFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
@@ -2151,6 +2187,8 @@ export function LeftPanel({
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
+                    onOpenProducts={openProductsFromToolbar}
+                    onOpenCampaign={openCampaignFromToolbar}
                     onInsertGuide={handleInsertGuide}
                     filterMode="category"
                     filterOptions={categoryFilterOptions}
@@ -2199,6 +2237,80 @@ export function LeftPanel({
                         {productCategoryFilter
                           ? t("sidebar.clearCategoryFilter")
                           : t("sidebar.useNewProduct")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "campaign" ? (
+              <div className="lp-click-folder-detail">
+                <div className="lp-workspace-head">
+                  <ClickFolderBack
+                    iconOnly
+                    inline
+                    onBack={() => setClickFolderView(null)}
+                    label={t("sidebar.campaign")}
+                  />
+                  <PackActionsBar
+                    placement="documents"
+                    companySelected={Boolean(filterObjectId || activeObjectId)}
+                    onOpenImport={openPackImportView}
+                    onOpenStepsLibrary={openStepsLibraryFromToolbar}
+                    onOpenLazyTodos={openLazyTodosFromToolbar}
+                    onOpenUrlTable={openUrlTableFromToolbar}
+                    onOpenPasswordTable={openPasswordTableFromToolbar}
+                    onOpenProducts={openProductsFromToolbar}
+                    onOpenCampaign={openCampaignFromToolbar}
+                    onInsertGuide={handleInsertGuide}
+                    filterMode="category"
+                    filterOptions={campaignCategoryFilterOptions}
+                    filterValue={productCategoryFilter}
+                    onFilterChange={setProductCategoryFilter}
+                  />
+                </div>
+                <TimelineDocQueue
+                  entries={timelineQueueEntries}
+                  docs={docs}
+                  objects={objects}
+                  activeDocId={activeId}
+                  onSelectDoc={handleSelectQueuedDoc}
+                  onOpenDocument={onOpenDocument}
+                  onDeleteDoc={handleDeleteDoc}
+                />
+                <div className="lp-click-folder-detail-list lp-doc-groups-stack">
+                  {groupedCampaignDocs.length ? (
+                    groupedCampaignDocs.map((group) => (
+                      <DocGroupBlockCard
+                        key={group.id}
+                        groupLabel={group.label}
+                        groupMeta={t("sidebar.docsInBlock", { count: group.docs.length })}
+                        docs={group.docs}
+                        onDeleteCategory={() => handleDeleteCategoryGroup(group)}
+                        renderDoc={(doc) => (
+                          <DocCompactRow
+                            key={doc.id}
+                            doc={doc}
+                            active={activeId === doc.id}
+                            onSelect={() => handleSelectFolderDoc(doc.id)}
+                            onOpen={() => handleOpenFolderDoc(doc.id)}
+                            onDelete={() => handleDeleteDoc(doc)}
+                          />
+                        )}
+                      />
+                    ))
+                  ) : (
+                    <div className="lp-empty">
+                      <p className="dim">
+                        {productCategoryFilter
+                          ? t("sidebar.noCampaignsInCategory")
+                          : t("sidebar.noCampaignsYet")}
+                      </p>
+                      <p className="dim">
+                        {productCategoryFilter
+                          ? t("sidebar.clearCategoryFilter")
+                          : t("sidebar.useNewCampaign")}
                       </p>
                     </div>
                   )}
@@ -2298,6 +2410,7 @@ export function LeftPanel({
                     onOpenUrlTable={openUrlTableFromToolbar}
                     onOpenPasswordTable={openPasswordTableFromToolbar}
                     onOpenProducts={openProductsFromToolbar}
+                    onOpenCampaign={openCampaignFromToolbar}
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>

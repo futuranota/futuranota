@@ -239,6 +239,7 @@ export function buildChildMarkersForDoc(
       dataType: node?.dataType || item?.dataType || "text",
       entityId,
       childKey: key,
+      completed: Boolean(entity?.completed),
     });
   }
 
@@ -258,6 +259,7 @@ export function buildChildMarkersForDoc(
       entityId,
       childKey: key,
       fromStore: true,
+      completed: Boolean(entity?.completed),
     });
   }
 
@@ -277,6 +279,7 @@ export function buildChildMarkersForDoc(
           entityId: child.entityId,
           childKey: key,
           fromStore: true,
+          completed: Boolean(entity?.completed),
         });
         continue;
       }
@@ -289,6 +292,9 @@ export function buildChildMarkersForDoc(
       entityId: child.entityId || null,
       childKey: key,
       snapshot: true,
+      completed: Boolean(
+        child.entityId && nodeEntitiesById[child.entityId]?.completed,
+      ),
     });
   }
 

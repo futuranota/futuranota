@@ -6,16 +6,21 @@ import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 
 const STORAGE_KEY = "futura-nota-v1";
 
-/** Pack schedule into nodes.reference JSONB (no dedicated DB column). */
-function referenceWithAnchorAt(node) {
-  const base = node?.reference && typeof node.reference === "object" ? node.reference : {};
+/** Pack schedule + status meta into nodes.reference JSONB (no dedicated DB columns). */
+function referenceWithNodeMeta(node) {
+  const base = node?.reference && typeof node.reference === "object" ? { ...node.reference } : {};
   const anchorAt = node?.anchorAt || base.anchorAt || null;
-  if (!anchorAt) {
-    if (!base.anchorAt) return base;
-    const { anchorAt: _drop, ...rest } = base;
-    return rest;
-  }
-  return { ...base, anchorAt };
+  if (anchorAt) base.anchorAt = anchorAt;
+  else delete base.anchorAt;
+
+  if (node?.completed) base.completed = true;
+  else delete base.completed;
+
+  const sourceId = node?.sourceId || null;
+  if (sourceId) base.sourceId = sourceId;
+  else delete base.sourceId;
+
+  return base;
 }
 
 /** Read schedule from reference payload or legacy top-level field. */
@@ -24,6 +29,22 @@ function anchorAtFromPersistedNode(node) {
   if (node.anchorAt) return node.anchorAt;
   const ref = node.reference;
   if (ref && typeof ref === "object" && ref.anchorAt) return ref.anchorAt;
+  return null;
+}
+
+function completedFromPersistedNode(node) {
+  if (!node) return false;
+  if (node.completed != null) return Boolean(node.completed);
+  const ref = node.reference;
+  if (ref && typeof ref === "object") return Boolean(ref.completed);
+  return false;
+}
+
+function sourceIdFromPersistedNode(node) {
+  if (!node) return null;
+  if (node.sourceId) return node.sourceId;
+  const ref = node.reference;
+  if (ref && typeof ref === "object" && ref.sourceId) return ref.sourceId;
   return null;
 }
 
@@ -784,6 +805,8 @@ export function initPersistenceMiddleware(stores) {
           sourceQuery: node.source_query || "",
           reference,
           anchorAt,
+          completed: completedFromPersistedNode({ reference, completed: node.completed }),
+          sourceId: sourceIdFromPersistedNode({ reference, sourceId: node.source_id }),
           linkedToCanvas: node.linked_to_canvas || false,
           canvasNodeId: node.canvas_node_id || null,
           createdAt: node.created_at,
@@ -1029,7 +1052,7 @@ export function initPersistenceMiddleware(stores) {
         data_type: node.dataType,
         content: node.content,
         source_query: node.sourceQuery || "",
-        reference: referenceWithAnchorAt(node),
+        reference: referenceWithNodeMeta(node),
         linked_to_canvas: node.linkedToCanvas || false,
         canvas_node_id: node.canvasNodeId || null,
         created_at: node.createdAt || now,

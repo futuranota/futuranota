@@ -42,8 +42,24 @@ import {
   resolveNodeParentDocId,
 } from "../../lib/nodeParentAdoption.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
+import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
+import { useAuthStore } from "../../stores/authStore.js";
+import { formatMmDdYy } from "../../lib/docDates.js";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
+
+function openDatePicker(e) {
+  e.stopPropagation();
+  const input = e.currentTarget;
+  if (typeof input.showPicker === "function") {
+    try {
+      input.showPicker();
+    } catch {
+      /* some browsers reject showPicker outside direct user gesture */
+    }
+  }
+}
 
 /**
  * Node editor modal — Figma 296:627.
@@ -59,6 +75,10 @@ export function NodeQueryModal({
   dataTypes = DEFAULT_DATA_TYPES,
   createdDate,
   onCreatedDateChange,
+  completed = false,
+  onCompletedChange,
+  sourceId = null,
+  onSourceIdChange,
   parentDocLabel,
   parentDocId = "",
   onParentDocIdChange,
@@ -102,6 +122,10 @@ export function NodeQueryModal({
     || adoptableDocsById[resolvedParentDocId]?.parentObjectId
     || null;
   const dateEditable = Boolean(onCreatedDateChange);
+  const userEmail = useAuthStore((s) => s.user?.email);
+  const showStatusMeta = canUseDocStatusMeta(userEmail) && typeof onCompletedChange === "function";
+  const sourceOption = showStatusMeta ? resolveDocSource(sourceId) : null;
+  const [statusMetaExpanded, setStatusMetaExpanded] = useState(false);
   const handleDismiss = onBackToDocument || onClose;
   const showCloseButton = Boolean(onClose && !onBackToDocument);
   const showReturnLink = Boolean(onBackToDocument);
@@ -455,18 +479,139 @@ export function NodeQueryModal({
             </h2>
           )}
 
-          <div className="node-query-modal__created-row">
-            <span className="node-query-modal__key">Created:</span>
-            <input
-              type="date"
-              className="node-query-modal__date"
-              value={createdDate}
-              readOnly={!dateEditable}
-              tabIndex={dateEditable ? 0 : -1}
-              aria-readonly={!dateEditable}
-              onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
-            />
-          </div>
+          {!showStatusMeta ? (
+            <div className="node-query-modal__created-row">
+              <span className="node-query-modal__key">Created:</span>
+              <input
+                type="date"
+                className="node-query-modal__date"
+                value={createdDate}
+                readOnly={!dateEditable}
+                tabIndex={dateEditable ? 0 : -1}
+                aria-readonly={!dateEditable}
+                onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
+              />
+            </div>
+          ) : null}
+
+          {showStatusMeta ? (
+            <div
+              className={
+                "doc-meta-strip node-query-modal__doc-meta"
+                + (statusMetaExpanded ? " doc-meta-strip--open" : "")
+              }
+            >
+              <div className="doc-meta-strip__summary">
+                <div className="doc-meta-strip__chips" role="list">
+                  <div className="doc-meta-chip" title={createdDate || "Created"}>
+                    <span className="doc-meta-chip-k">Created</span>
+                    <span className="doc-meta-chip-v tone-muted">
+                      {formatMmDdYy(createdDate) || "—"}
+                    </span>
+                  </div>
+                  <div className="doc-meta-chip" title={completed ? "Completed" : "Incomplete"}>
+                    <span className="doc-meta-chip-k">Status</span>
+                    <span className="doc-meta-chip-v tone-muted is-lowercase">
+                      {completed ? "Completed" : "Incomplete"}
+                    </span>
+                  </div>
+                  <div
+                    className="doc-meta-chip doc-meta-chip--source-only"
+                    title={sourceOption?.label || "Source"}
+                  >
+                    {sourceOption ? (
+                      <img
+                        src={sourceOption.src}
+                        alt=""
+                        className="node-query-modal__source-chip-icon"
+                        draggable={false}
+                      />
+                    ) : (
+                      <span className="doc-meta-chip-v tone-muted is-placeholder">—</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="doc-meta-strip__toggle"
+                  onClick={() => setStatusMetaExpanded((v) => !v)}
+                  aria-expanded={statusMetaExpanded}
+                  aria-label={statusMetaExpanded ? "Hide meta fields" : "Edit meta fields"}
+                  title={statusMetaExpanded ? "Hide" : "Edit"}
+                >
+                  <span className="doc-meta-strip__chevron" aria-hidden>
+                    {statusMetaExpanded ? "▾" : "›"}
+                  </span>
+                </button>
+              </div>
+
+              <div className="doc-meta-strip__drawer" aria-hidden={!statusMetaExpanded}>
+                <div className="doc-meta-strip__fields">
+                  <label className="doc-meta-field">
+                    <span className="doc-meta-field-k">Created</span>
+                    <input
+                      type="date"
+                      className="doc-new-date doc-meta-field-input"
+                      value={createdDate}
+                      readOnly={!dateEditable}
+                      tabIndex={dateEditable ? 0 : -1}
+                      aria-readonly={!dateEditable}
+                      onChange={dateEditable ? (e) => onCreatedDateChange(e.target.value) : undefined}
+                      onClick={dateEditable ? openDatePicker : undefined}
+                      onFocus={dateEditable ? openDatePicker : undefined}
+                    />
+                  </label>
+                  <div className="doc-meta-field">
+                    <span className="doc-meta-field-k">Status</span>
+                    <div className="doc-new-campaign-toggle" role="group" aria-label="Macronode status">
+                      <button
+                        type="button"
+                        className={"doc-new-campaign-opt" + (completed ? " is-on" : "")}
+                        onClick={() => onCompletedChange(true)}
+                      >
+                        Completed
+                      </button>
+                      <button
+                        type="button"
+                        className={"doc-new-campaign-opt" + (!completed ? " is-on" : "")}
+                        onClick={() => onCompletedChange(false)}
+                      >
+                        Incomplete
+                      </button>
+                    </div>
+                  </div>
+                  <div className="doc-meta-field doc-meta-field--source">
+                    <span className="doc-meta-field-k">Source</span>
+                    <div className="node-query-modal__source-grid" role="group" aria-label="Macronode source">
+                      <button
+                        type="button"
+                        className={"node-query-modal__source-opt" + (!sourceId ? " is-on" : "")}
+                        onClick={() => onSourceIdChange?.(null)}
+                        title="No source"
+                      >
+                        —
+                      </button>
+                      {DOC_SOURCE_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className={"node-query-modal__source-opt" + (sourceId === opt.id ? " is-on" : "")}
+                          onClick={() => {
+                            onSourceIdChange?.(opt.id);
+                            setStatusMetaExpanded(false);
+                          }}
+                          title={opt.label}
+                          aria-label={opt.label}
+                        >
+                          <img src={opt.src} alt="" draggable={false} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </header>
 
         <div

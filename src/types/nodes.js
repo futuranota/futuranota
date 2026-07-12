@@ -12,6 +12,8 @@
  * @property {string} createdAt
  * @property {string} [updatedAt]
  * @property {string|null} [anchorAt] — optional schedule ISO for text/checkbox (wires + canvas)
+ * @property {boolean} [completed] — user-marked schedule completion (overrides past-due on timeline)
+ * @property {string|null} [sourceId] — Source catalog id (uploads/source icons)
  */
 
 export {};

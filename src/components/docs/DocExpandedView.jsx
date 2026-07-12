@@ -251,6 +251,8 @@ export function DocExpandedView({
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
+  const [nodeDraftCompleted, setNodeDraftCompleted] = useState(false);
+  const [nodeDraftSourceId, setNodeDraftSourceId] = useState(null);
   const [nodeInitialSnapshot, setNodeInitialSnapshot] = useState(null);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
   const [isDraftReady, setIsDraftReady] = useState(false);
@@ -850,6 +852,8 @@ export function DocExpandedView({
     setNodeDraftContent("");
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
+    setNodeDraftCompleted(false);
+    setNodeDraftSourceId(null);
     setNodeInitialSnapshot(null);
     nodeInitialSnapshotRef.current = null;
   };
@@ -867,6 +871,8 @@ export function DocExpandedView({
       normalizeNodeContent(nodeDraftContent) !== nodeInitialSnapshot.content
       || nodeDraftAnchorDate !== nodeInitialSnapshot.anchorDate
       || nodeDraftAnchorTime !== nodeInitialSnapshot.anchorTime
+      || Boolean(nodeDraftCompleted) !== Boolean(nodeInitialSnapshot.completed)
+      || (nodeDraftSourceId || null) !== (nodeInitialSnapshot.sourceId || null)
     );
   };
 
@@ -1126,6 +1132,8 @@ export function DocExpandedView({
       dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
       ...(anchorAt !== undefined ? { anchorAt } : {}),
+      completed: nodeDraftCompleted,
+      sourceId: nodeDraftSourceId,
     });
 
     if ((nodeId || block.nodeId) !== savedNodeId) {
@@ -1177,6 +1185,8 @@ export function DocExpandedView({
         content: normalizeNodeContent(content),
         anchorDate: anchorDate || "",
         anchorTime: anchorTime || "",
+        completed: Boolean(nodeDraftCompleted),
+        sourceId: nodeDraftSourceId || null,
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
@@ -1186,6 +1196,8 @@ export function DocExpandedView({
           content: normalizeNodeContent(content),
           anchorDate: prev?.anchorDate ?? "",
           anchorTime: prev?.anchorTime ?? "",
+          completed: Boolean(nodeDraftCompleted),
+          sourceId: nodeDraftSourceId || null,
         };
         nodeInitialSnapshotRef.current = next;
         return next;
@@ -1313,6 +1325,8 @@ export function DocExpandedView({
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
+    setNodeDraftCompleted(Boolean(existing?.completed));
+    setNodeDraftSourceId(existing?.sourceId ?? null);
     // Prefer saved node.anchorAt once schedule was persisted; block/Created is fallback only.
     if (existing?.anchorAt) {
       const fromNode = anchorFieldsFromIso(existing.anchorAt);
@@ -1325,6 +1339,8 @@ export function DocExpandedView({
         content: normalizeNodeContent(resolvedNodeDraft),
         anchorDate: fromNode.anchorDate,
         anchorTime: fromNode.anchorTime,
+        completed: Boolean(existing?.completed),
+        sourceId: existing?.sourceId ?? null,
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
@@ -1341,6 +1357,8 @@ export function DocExpandedView({
         content: normalizeNodeContent(resolvedNodeDraft),
         anchorDate: anchorFromBlock.anchorDate,
         anchorTime: anchorFromBlock.anchorTime,
+        completed: Boolean(existing?.completed),
+        sourceId: existing?.sourceId ?? null,
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
@@ -1517,6 +1535,10 @@ export function DocExpandedView({
           dataType={activeNodeContext.dataType}
           onContentChange={handleNodeContentChange}
           createdDate={draftCreatedDate}
+          completed={nodeDraftCompleted}
+          onCompletedChange={setNodeDraftCompleted}
+          sourceId={nodeDraftSourceId}
+          onSourceIdChange={setNodeDraftSourceId}
           parentDocLabel={parentDocLabel}
           onSave={handleNodeModalSave}
           onBackToDocument={handleRequestCloseNodeModal}

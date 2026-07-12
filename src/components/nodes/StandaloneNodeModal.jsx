@@ -181,6 +181,8 @@ export function StandaloneNodeModal({
   const initialAnchor = anchorFieldsFromIso(node?.anchorAt);
   const [anchorDate, setAnchorDate] = useState(initialAnchor.anchorDate);
   const [anchorTime, setAnchorTime] = useState(initialAnchor.anchorTime);
+  const [completed, setCompleted] = useState(() => Boolean(node?.completed));
+  const [sourceId, setSourceId] = useState(() => node?.sourceId ?? null);
 
   const handleDataTypeChange = (nextType) => {
     setDataType(nextType);
@@ -208,6 +210,8 @@ export function StandaloneNodeModal({
         sourceQuery: title,
         createdAt,
         anchorAt,
+        completed,
+        sourceId,
       });
       if (parentId) {
         syncNodeToParentDoc(newId, parentId);
@@ -235,6 +239,8 @@ export function StandaloneNodeModal({
       linkedToDoc: Boolean(parentId),
       createdAt,
       anchorAt,
+      completed,
+      sourceId,
     });
     if (parentId) {
       syncNodeToParentDoc(node.id, parentId);
@@ -259,6 +265,10 @@ export function StandaloneNodeModal({
       ]}
       createdDate={createdDate || todayDateInputValue()}
       onCreatedDateChange={setCreatedDate}
+      completed={completed}
+      onCompletedChange={setCompleted}
+      sourceId={sourceId}
+      onSourceIdChange={setSourceId}
       parentDocId={parentDocId}
       onParentDocIdChange={setParentDocId}
       docs={docList}

@@ -57,6 +57,8 @@ export function useDocBlockNodeModal({
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
+  const [nodeDraftCompleted, setNodeDraftCompleted] = useState(false);
+  const [nodeDraftSourceId, setNodeDraftSourceId] = useState(null);
   const nodeAutosaveTimerRef = useRef(null);
 
   const blockLinkColor = (blockIndex) =>
@@ -145,6 +147,8 @@ export function useDocBlockNodeModal({
       dataType,
       docCreatedAt: isoFromDateInput(createdDate),
       ...(anchorAt !== undefined ? { anchorAt } : {}),
+      completed: nodeDraftCompleted,
+      sourceId: nodeDraftSourceId,
     });
 
     if ((nodeId || block.nodeId) !== savedNodeId) {
@@ -302,6 +306,8 @@ export function useDocBlockNodeModal({
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
+    setNodeDraftCompleted(Boolean(existing?.completed));
+    setNodeDraftSourceId(existing?.sourceId ?? null);
     // Prefer saved node.anchorAt once schedule was persisted; block/Created is fallback only.
     if (existing?.anchorAt) {
       const fromNode = anchorFieldsFromIso(existing.anchorAt);
@@ -325,6 +331,8 @@ export function useDocBlockNodeModal({
     setNodeDraftContent("");
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
+    setNodeDraftCompleted(false);
+    setNodeDraftSourceId(null);
   };
 
   const flushAndCloseNodeModal = () => {
@@ -402,6 +410,10 @@ export function useDocBlockNodeModal({
       dataType={activeNodeContext.dataType}
       onContentChange={handleNodeContentChange}
       createdDate={createdDate}
+      completed={nodeDraftCompleted}
+      onCompletedChange={setNodeDraftCompleted}
+      sourceId={nodeDraftSourceId}
+      onSourceIdChange={setNodeDraftSourceId}
       parentDocLabel={docTitle.trim() || "New document"}
       onSave={handleNodeModalSave}
       onBackToDocument={flushAndCloseNodeModal}
