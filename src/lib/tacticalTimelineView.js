@@ -31,6 +31,7 @@ import {
   formatTimelineTimeGapLabel,
   formatSameDayPairLabel,
   formatNowUntilScheduleLabel,
+  isSameDayScheduleCountdownActive,
 } from "./docSchedule.js";
 import {
   resolveQueuedDocTimelineDate,
@@ -563,8 +564,19 @@ export function buildNowToNextGapSegment(nodeGroups, grid, options = {}) {
     ? options.now
     : (grid.now instanceof Date ? grid.now : new Date());
   const loupe = options.loupe || null;
-  const upcoming = nodeGroups.find((g) => g?.date && g.date.getTime() > now.getTime());
-  if (!upcoming) return null;
+  const upcomingIdx = nodeGroups.findIndex((g) => g?.date && g.date.getTime() > now.getTime());
+  if (upcomingIdx < 0) return null;
+  const upcoming = nodeGroups[upcomingIdx];
+  const pairNext = nodeGroups[upcomingIdx + 1];
+
+  // When A↔B same-day sched is already in live countdown (now ≥ A−1m),
+  // that pair owns the remaining-time label — don't also show "today in Xm".
+  if (
+    pairNext?.date
+    && isSameDayScheduleCountdownActive(upcoming.date, pairNext.date, now)
+  ) {
+    return null;
+  }
 
   const nowPctRaw = Number.isFinite(options.todayLeftPct)
     ? options.todayLeftPct
@@ -648,9 +660,10 @@ export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
       pairHeadline: pairMeta?.headline || null,
       pairDetail: pairMeta?.detail || null,
       label: pairMeta?.singleLine || formatTimelineTimeGapPlain(timeGap),
+      isLiveCountdown: Boolean(pairMeta?.isLiveCountdown),
       schedule,
       gapDays: timeGap.days,
-      gapMinutes: timeGap.minutes,
+      gapMinutes: pairMeta?.remainingMinutes ?? timeGap.minutes,
     });
   }
   return segments;

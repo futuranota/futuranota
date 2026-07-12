@@ -183,8 +183,24 @@ export function formatTimelineTimeGapLabel(gap, t) {
 }
 
 /**
- * Same-day pair center label: fixed schedule gap between nodes A↔B.
- * Live countdown lives on the thermometer → next-node segment only.
+ * Same-day A↔B schedule starts live countdown 1 minute before A
+ * (now >= A − 1m and now < B). Until then the gap stays fixed (e.g. sched 45m).
+ * @param {Date} from
+ * @param {Date} to
+ * @param {Date} [now]
+ */
+export function isSameDayScheduleCountdownActive(from, to, now = new Date()) {
+  if (!(from instanceof Date) || !(to instanceof Date)) return false;
+  if (!sameCalendarDay(from, to)) return false;
+  const a = from.getTime() <= to.getTime() ? from : to;
+  const b = from.getTime() <= to.getTime() ? to : from;
+  const nowMs = now.getTime();
+  return nowMs >= a.getTime() - MS_PER_MINUTE && nowMs < b.getTime();
+}
+
+/**
+ * Same-day pair center label: work window until the next doc schedule.
+ * e.g. “next schedule starts in 45m” (fixed until A−1m, then live countdown).
  * @param {{ from: Date, to: Date, now?: Date, hasExplicitTime?: boolean }} args
  * @param {(key: string, vars?: object) => string} [t]
  */
@@ -199,35 +215,36 @@ export function formatSameDayPairLabel({ from, to, now = new Date(), hasExplicit
   else if (dayDelta === 0) statusKind = "today";
 
   const useT = typeof t === "function";
-  const headline = useT ? t("timeline.sameDay") : "same day";
-  const durationPlain = formatDurationMinutesPlain(gap.minutes);
-  const schedPart = gap.minutes < 1
-    ? ""
-    : (useT ? t("timeline.schedDuration", { duration: durationPlain }) : `sched ${durationPlain}`);
+  const a = from.getTime() <= to.getTime() ? from : to;
+  const b = from.getTime() <= to.getTime() ? to : from;
+  const live = statusKind === "today" && isSameDayScheduleCountdownActive(from, to, now);
 
-  let detail = schedPart;
-
-  if (statusKind === "past-due") {
-    const status = useT ? t("timeline.pastDueParen") : "(past due)";
-    detail = schedPart ? `${schedPart} ${status}` : status;
-  } else if (statusKind === "pending") {
-    const status = useT ? t("timeline.pendingParen") : "(pending)";
-    detail = schedPart ? `${schedPart} ${status}` : status;
-  } else if (statusKind === "today") {
-    // Fixed A↔B schedule; if the whole pair already passed now → past due.
-    const later = from.getTime() <= to.getTime() ? to : from;
-    if (later.getTime() < now.getTime()) {
-      const status = useT ? t("timeline.pastDueParen") : "(past due)";
-      detail = schedPart ? `${schedPart} ${status}` : status;
-      statusKind = "past-due";
-    } else {
-      detail = schedPart;
-    }
+  let durationPlain = formatDurationMinutesPlain(gap.minutes);
+  let remainingMinutes = null;
+  if (live) {
+    // Same schedule window A→B: stay at full gap until A, then tick down to B.
+    const effectiveStart = Math.max(now.getTime(), a.getTime());
+    remainingMinutes = Math.max(1, Math.round((b.getTime() - effectiveStart) / MS_PER_MINUTE));
+    durationPlain = formatDurationMinutesPlain(remainingMinutes);
   }
 
-  const singleLine = detail
-    ? `${headline} · ${detail}`
-    : headline;
+  const minutes = live ? remainingMinutes : gap.minutes;
+  let headline = useT ? t("timeline.nextSchedule") : "next schedule";
+  let detail = minutes >= 1
+    ? (useT
+      ? t("timeline.startsInDuration", { duration: durationPlain })
+      : `starts in ${durationPlain}`)
+    : (useT ? t("timeline.startsNow") : "starts now");
+
+  if (statusKind === "past-due" || (statusKind === "today" && b.getTime() < now.getTime())) {
+    statusKind = "past-due";
+    headline = useT ? t("timeline.nextSchedulePastDue") : "next schedule passed";
+    detail = useT ? t("timeline.pastDueParen") : "(past due)";
+  } else if (statusKind === "pending") {
+    detail = `${detail} ${useT ? t("timeline.pendingParen") : "(pending)"}`;
+  }
+
+  const singleLine = `${headline} · ${detail}`;
 
   return {
     headline,
@@ -235,8 +252,9 @@ export function formatSameDayPairLabel({ from, to, now = new Date(), hasExplicit
     singleLine,
     statusKind,
     gap,
-    remainingMinutes: null,
+    remainingMinutes: live ? remainingMinutes : null,
     schedDuration: durationPlain,
+    isLiveCountdown: live,
   };
 }
 

@@ -428,6 +428,7 @@ function TacticalObjectRow({
                           + (segment.scheduleKind ? ` is-${segment.scheduleKind}` : "")
                           + (segment.isSameDayGap ? " is-same-day" : "")
                           + (segment.isNowGap ? " is-now-gap" : "")
+                          + (segment.isLiveCountdown || pair?.isLiveCountdown ? " is-live-countdown" : "")
                           + (pair ? " is-pair-stack" : "")
                         }
                         title={gapText || undefined}

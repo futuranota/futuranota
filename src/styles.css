@@ -5156,25 +5156,34 @@ textarea.note-form-field {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   white-space: normal;
   text-align: center;
-  max-width: min(160px, 90%);
-  padding: 4px 8px;
+  max-width: min(108px, 28vw);
+  padding: 3px 7px;
   border-radius: 8px;
-  line-height: 1.15;
+  line-height: 1.12;
   z-index: 12;
 }
 .tl-tactical-segment__label-head {
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 700;
-  letter-spacing: 0.03em;
-  color: color-mix(in oklab, #c9a574 90%, var(--text));
+  letter-spacing: 0.02em;
+  color: color-mix(in oklab, var(--text-2) 88%, var(--text));
 }
 .tl-tactical-segment__label-detail {
   font-size: 9px;
-  font-weight: 600;
+  font-weight: 650;
   color: color-mix(in oklab, #c9a574 85%, var(--text));
+}
+/* “starts in n minutes” — orange work-window cue */
+.tl-tactical-segment__label.is-same-day .tl-tactical-segment__label-detail,
+.tl-tactical-segment__label.is-today.is-pair-stack .tl-tactical-segment__label-detail,
+.tl-tactical-segment__label.is-live-countdown .tl-tactical-segment__label-detail {
+  color: #e8a05c;
+}
+.tl-tactical-row.is-child-row .tl-tactical-segment__label.is-same-day .tl-tactical-segment__label-detail {
+  color: #e8a05c;
 }
 .tl-tactical-segment__label.is-past-due .tl-tactical-segment__label-detail,
 .tl-tactical-segment__label.is-past-due.is-pair-stack .tl-tactical-segment__label-detail {
@@ -5186,11 +5195,12 @@ textarea.note-form-field {
   bottom: 0;
   transform: translate(-50%, 110%);
 }
-/* Macronodo rails: [same day] matches mint dots */
-.tl-tactical-row.is-child-row .tl-tactical-segment__label.is-same-day,
-.tl-tactical-row.is-child-row .tl-tactical-segment__label.is-same-day .tl-tactical-segment__label-head {
-  color: color-mix(in oklab, var(--tl-macronodo-bright) 90%, var(--text));
+/* Macronodo rails: keep “next schedule” readable; orange stays on starts-in */
+.tl-tactical-row.is-child-row .tl-tactical-segment__label.is-same-day {
   border-color: color-mix(in oklab, var(--tl-macronodo) 55%, var(--hairline));
+}
+.tl-tactical-row.is-child-row .tl-tactical-segment__label.is-same-day .tl-tactical-segment__label-head {
+  color: color-mix(in oklab, var(--text-2) 88%, var(--text));
 }
 .tl-tactical-row.is-child-row .tl-tactical-segment.is-adjacent-gap.is-same-day-gap .tl-tactical-segment__edge {
   background: color-mix(in oklab, var(--tl-macronodo) 55%, var(--dim));
