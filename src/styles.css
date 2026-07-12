@@ -5142,6 +5142,16 @@ textarea.note-form-field {
   color: color-mix(in oklab, #c9a574 90%, var(--text));
   border-color: color-mix(in oklab, #c9a574 55%, var(--hairline));
 }
+.tl-tactical-segment.is-now-gap .tl-tactical-segment__edge {
+  background: color-mix(in oklab, #c9a574 55%, transparent);
+  opacity: 0.9;
+  height: 2px;
+}
+.tl-tactical-segment__label.is-now-gap {
+  color: color-mix(in oklab, #c9a574 95%, var(--text));
+  border-color: color-mix(in oklab, #c9a574 60%, var(--hairline));
+  z-index: 14;
+}
 .tl-tactical-segment__label.is-pair-stack {
   display: flex;
   flex-direction: column;
@@ -5274,6 +5284,13 @@ textarea.note-form-field {
 .tl-tactical-rail__today-date {
   font-weight: 500;
   opacity: 0.85;
+}
+.tl-tactical-rail__today-time {
+  display: block;
+  font-size: 8px;
+  font-weight: 500;
+  opacity: 0.85;
+  letter-spacing: 0.02em;
 }
 .tl-tactical-rail__today-line {
   display: none;

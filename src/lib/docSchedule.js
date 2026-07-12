@@ -183,11 +183,12 @@ export function formatTimelineTimeGapLabel(gap, t) {
 }
 
 /**
- * Same-day pair center label: "same day" + "sched 45m (past due)" / today remaining.
+ * Same-day pair center label: fixed schedule gap between nodes A↔B.
+ * Live countdown lives on the thermometer → next-node segment only.
  * @param {{ from: Date, to: Date, now?: Date, hasExplicitTime?: boolean }} args
  * @param {(key: string, vars?: object) => string} [t]
  */
-export function formatSameDayPairLabel({ from, to, now = new Date(), hasExplicitTime = true }, t) {
+export function formatSameDayPairLabel({ from, to, now = new Date(), hasExplicitTime: _hasExplicitTime = true }, t) {
   const gap = resolveTimelineTimeGap(from, to);
   const day = startOfCalendarDay(from);
   const today = startOfCalendarDay(now);
@@ -205,7 +206,6 @@ export function formatSameDayPairLabel({ from, to, now = new Date(), hasExplicit
     : (useT ? t("timeline.schedDuration", { duration: durationPlain }) : `sched ${durationPlain}`);
 
   let detail = schedPart;
-  let remainingMinutes = null;
 
   if (statusKind === "past-due") {
     const status = useT ? t("timeline.pastDueParen") : "(past due)";
@@ -213,29 +213,16 @@ export function formatSameDayPairLabel({ from, to, now = new Date(), hasExplicit
   } else if (statusKind === "pending") {
     const status = useT ? t("timeline.pendingParen") : "(pending)";
     detail = schedPart ? `${schedPart} ${status}` : status;
-  } else if (statusKind === "today" && hasExplicitTime && gap.minutes >= 1) {
-    // Today only: remaining time between the two set timers relative to now.
-    const earlier = from.getTime() <= to.getTime() ? from : to;
-    const later = from.getTime() <= to.getTime() ? to : from;
-    const nowMs = now.getTime();
-    if (nowMs < earlier.getTime()) {
-      remainingMinutes = Math.max(0, Math.round((earlier.getTime() - nowMs) / MS_PER_MINUTE));
-      const until = useT
-        ? t("timeline.timeUntil", { duration: formatDurationMinutesPlain(remainingMinutes) })
-        : `in ${formatDurationMinutesPlain(remainingMinutes)}`;
-      detail = `${schedPart} · ${until}`;
-    } else if (nowMs < later.getTime()) {
-      remainingMinutes = Math.max(0, Math.round((later.getTime() - nowMs) / MS_PER_MINUTE));
-      const left = useT
-        ? t("timeline.timeLeft", { duration: formatDurationMinutesPlain(remainingMinutes) })
-        : `${formatDurationMinutesPlain(remainingMinutes)} left`;
-      detail = `${schedPart} · ${left}`;
-    } else {
-      const status = useT ? t("timeline.pastDueParen") : "(past due)";
-      detail = `${schedPart} ${status}`;
-    }
   } else if (statusKind === "today") {
-    detail = schedPart;
+    // Fixed A↔B schedule; if the whole pair already passed now → past due.
+    const later = from.getTime() <= to.getTime() ? to : from;
+    if (later.getTime() < now.getTime()) {
+      const status = useT ? t("timeline.pastDueParen") : "(past due)";
+      detail = schedPart ? `${schedPart} ${status}` : status;
+      statusKind = "past-due";
+    } else {
+      detail = schedPart;
+    }
   }
 
   const singleLine = detail
@@ -248,8 +235,56 @@ export function formatSameDayPairLabel({ from, to, now = new Date(), hasExplicit
     singleLine,
     statusKind,
     gap,
-    remainingMinutes,
+    remainingMinutes: null,
     schedDuration: durationPlain,
+  };
+}
+
+/**
+ * Live countdown from wall-clock now → next upcoming schedule (thermometer gap).
+ * Same-day with clock → minute countdown; other days → pending day label (no fake minutes).
+ * @param {{ target: Date, now?: Date, hasExplicitTime?: boolean }} args
+ * @param {(key: string, vars?: object) => string} [t]
+ */
+export function formatNowUntilScheduleLabel({ target, now = new Date(), hasExplicitTime = true }, t) {
+  const to = target instanceof Date ? target : parseDate(target);
+  if (!to) return null;
+  const nowMs = now.getTime();
+  const targetMs = to.getTime();
+  if (!(targetMs > nowMs)) return null;
+
+  const useT = typeof t === "function";
+  const sameDay = sameCalendarDay(now, to);
+  const remainingMinutes = Math.max(1, Math.round((targetMs - nowMs) / MS_PER_MINUTE));
+
+  if (sameDay && hasExplicitTime) {
+    const duration = formatDurationMinutesPlain(remainingMinutes);
+    const headline = useT ? t("timeline.today") : "today";
+    const detail = useT
+      ? t("timeline.untilReminder", { duration })
+      : `in ${duration}`;
+    return {
+      headline,
+      detail,
+      singleLine: `${headline} · ${detail}`,
+      statusKind: "today",
+      remainingMinutes,
+      sameDay: true,
+    };
+  }
+
+  const days = Math.max(1, daysBetween(startOfCalendarDay(now), startOfCalendarDay(to)));
+  const headline = useT ? t("timeline.pending") : "Pending";
+  const detail = useT
+    ? t("timeline.pendingDays", { count: days, s: days === 1 ? "" : "s" })
+    : `Pending ${days} day${days === 1 ? "" : "s"}`;
+  return {
+    headline,
+    detail,
+    singleLine: detail,
+    statusKind: "pending",
+    remainingMinutes: sameDay ? remainingMinutes : null,
+    sameDay: false,
   };
 }
 

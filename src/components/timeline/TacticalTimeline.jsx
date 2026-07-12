@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { daysBetween, fmtDate } from "../../data.jsx";
 import { buildChipDisplay, startOfCalendarDay } from "../../temporal.js";
@@ -12,7 +12,7 @@ import {
   formatTimelineScheduleStatusLabel,
   formatTimelineTimeGapLabel,
 } from "../../lib/tacticalTimelineView.js";
-import { formatSameDayPairLabel } from "../../lib/docSchedule.js";
+import { formatSameDayPairLabel, formatNowUntilScheduleLabel } from "../../lib/docSchedule.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
 import { resolveNodeIdForTimelineMarker } from "../../lib/timelineSelection.js";
@@ -51,7 +51,21 @@ function resolveAgentSetChipClass(marker) {
   return `is-agent-set is-status-${status}`;
 }
 
-function TacticalRulerBar({ grid, today, t }) {
+/** Local clock for thermometer caption (e.g. 9:11 PM). */
+function fmtClock(d) {
+  const date = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(date.getTime())) return "";
+  let h = date.getHours();
+  const m = String(date.getMinutes()).padStart(2, "0");
+  const period = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${m} ${period}`;
+}
+
+function TacticalRulerBar({ grid, today, now, t }) {
+  const markerAt = now instanceof Date ? now : today;
+  const inRange = Boolean(grid && markerAt >= grid.start && markerAt <= grid.end);
+  const thermoPct = grid?.nowPct ?? grid?.todayPct ?? 0;
   return (
     <>
       <div className="tl-tactical-ruler" aria-hidden>
@@ -63,25 +77,25 @@ function TacticalRulerBar({ grid, today, t }) {
           />
         ))}
       </div>
-      {grid && today >= grid.start && today <= grid.end && (
+      {grid && inRange && (
         <div
           className="tl-tactical-rail__past"
-          style={{ width: `${grid.todayPct}%` }}
+          style={{ width: `${thermoPct}%` }}
           aria-hidden
         />
       )}
-      {grid && today >= grid.start && today <= grid.end && (
+      {grid && inRange && (
         <div
           className="tl-tactical-rail__future"
-          style={{ left: `${grid.todayPct}%`, width: `${Math.max(0, 100 - grid.todayPct)}%` }}
+          style={{ left: `${thermoPct}%`, width: `${Math.max(0, 100 - thermoPct)}%` }}
           aria-hidden
         />
       )}
       <div className="tl-tactical-rail__axis" aria-hidden />
-      {grid && today >= grid.start && today <= grid.end && (
+      {grid && inRange && (
         <div
           className="tl-tactical-rail__today is-thermometer"
-          style={{ left: `${grid.todayPct}%` }}
+          style={{ left: `${thermoPct}%` }}
         >
           <div className="tl-tactical-rail__today-head">
             <span className="tl-tactical-rail__today-pill">
@@ -91,6 +105,9 @@ function TacticalRulerBar({ grid, today, t }) {
           <span className="tl-tactical-rail__today-stem" aria-hidden />
           <span className="tl-tactical-rail__today-caption">
             <span className="tl-tactical-rail__today-date">{fmtDate(today, "short")}</span>
+            {markerAt ? (
+              <span className="tl-tactical-rail__today-time">{fmtClock(markerAt)}</span>
+            ) : null}
           </span>
         </div>
       )}
@@ -105,14 +122,14 @@ function resolveMarkerCompleted(marker) {
   return Boolean(marker?.completed || marker?.isCompleted);
 }
 
-function TacticalDecorativeRuler({ grid, today, t }) {
+function TacticalDecorativeRuler({ grid, today, now, t }) {
   return (
     <div className="tl-tactical-decorative-ruler" aria-hidden>
       <div className="tl-tactical-rail tl-tactical-rail--decorative">
         <div className="tl-tactical-rail__inset">
           <div className="tl-tactical-rail__plot">
             <div className="tl-tactical-bar tl-tactical-bar--decorative">
-              <TacticalRulerBar grid={grid} today={today} t={t} />
+              <TacticalRulerBar grid={grid} today={today} now={now} t={t} />
             </div>
           </div>
         </div>
@@ -134,6 +151,7 @@ function TacticalRowGroup({
   groupIndex = 0,
   docChildLinks,
   today,
+  now,
   grid,
   trackItemsById,
   docsById,
@@ -170,6 +188,7 @@ function TacticalRowGroup({
           row={row}
           nudgeRail={groupIndex > 0 || rowIndex > 0}
           today={today}
+          now={now}
           grid={grid}
           trackItemsById={trackItemsById}
           docsById={docsById}
@@ -196,6 +215,7 @@ function TacticalObjectRow({
   row,
   nudgeRail = false,
   today,
+  now,
   grid,
   trackItemsById,
   docsById,
@@ -276,7 +296,7 @@ function TacticalObjectRow({
             <div className="tl-tactical-rail__inset">
             <div className="tl-tactical-rail__plot" ref={plotRef}>
             <div className="tl-tactical-bar">
-              <TacticalRulerBar grid={grid} today={today} t={t} />
+              <TacticalRulerBar grid={grid} today={today} now={now} t={t} />
               {nodeGroups.length > 0 ? (
                 <>
               {segments.map((segment) => (
@@ -301,20 +321,28 @@ function TacticalObjectRow({
                     "tl-tactical-segment"
                     + (segment.isAdjacentGap ? " is-adjacent-gap" : "")
                     + (segment.isSameDayGap ? " is-same-day-gap" : "")
+                    + (segment.isNowGap ? " is-now-gap" : "")
                     + (segment.isRowEndpointSpan ? " is-row-endpoint-span" : "")
                   }
                   style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
                 >
                   <span className="tl-tactical-segment__edge" aria-hidden />
                   {segment.isAdjacentGap ? (() => {
-                    const pair = segment.isSameDayGap && segment.fromDate && segment.toDate
-                      ? formatSameDayPairLabel({
-                        from: segment.fromDate,
-                        to: segment.toDate,
-                        now: new Date(),
-                        hasExplicitTime: (segment.gapMinutes || 0) >= 1,
+                    const clock = now instanceof Date ? now : new Date();
+                    const pair = segment.isNowGap && segment.toDate
+                      ? formatNowUntilScheduleLabel({
+                        target: segment.toDate,
+                        now: clock,
+                        hasExplicitTime: Boolean(segment.isSameDayGap),
                       }, t)
-                      : null;
+                      : (segment.isSameDayGap && segment.fromDate && segment.toDate
+                        ? formatSameDayPairLabel({
+                          from: segment.fromDate,
+                          to: segment.toDate,
+                          now: clock,
+                          hasExplicitTime: (segment.gapMinutes || 0) >= 1,
+                        }, t)
+                        : null);
                     const gapText = pair?.singleLine
                       || formatTimelineScheduleStatusLabel(segment.schedule, t, {
                         gapDays: segment.gapDays,
@@ -327,6 +355,7 @@ function TacticalObjectRow({
                           "tl-tactical-segment__label"
                           + (segment.scheduleKind ? ` is-${segment.scheduleKind}` : "")
                           + (segment.isSameDayGap ? " is-same-day" : "")
+                          + (segment.isNowGap ? " is-now-gap" : "")
                           + (pair ? " is-pair-stack" : "")
                         }
                         title={gapText || undefined}
@@ -645,6 +674,14 @@ export function TacticalTimeline({
     return n === 1 ? "y" : "ies";
   };
 
+  // Wall-clock ticker — thermometer + countdown advance every minute.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    setNow(new Date());
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const primaryTimelineObjectId = useMemo(
     () => resolvePrimaryTimelineObjectId({
       explicitId: explicitPrimaryId,
@@ -673,7 +710,7 @@ export function TacticalTimeline({
       timelineExcludedChildrenByDocId,
       timelineAgentSets,
       expandedDocIds,
-      today,
+      today: now,
       filterObjectId,
       inheritObjMode,
       primaryTimelineObjectId,
@@ -692,7 +729,7 @@ export function TacticalTimeline({
       timelineExcludedChildrenByDocId,
       timelineAgentSets,
       expandedDocIds,
-      today,
+      now,
       filterObjectId,
       inheritObjMode,
       primaryTimelineObjectId,
@@ -713,11 +750,12 @@ export function TacticalTimeline({
   const rangeDrag = useTacticalRangeDrag(grid);
   const hasQueue = timelineDocQueue.length > 0 || timelineAgentSets.length > 0;
   const emptyGrid = useMemo(
-    () => buildTacticalDisplayGrid([], today, {
+    () => buildTacticalDisplayGrid([], now, {
       rangeOverride: tacticalRangeOverride,
       queueDocCount: 0,
+      now,
     }),
-    [today, tacticalRangeOverride],
+    [now, tacticalRangeOverride],
   );
   const activeGrid = grid || emptyGrid;
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
@@ -863,6 +901,7 @@ export function TacticalTimeline({
                 groupIndex={groupIndex}
                 docChildLinks={docChildLinks}
                 today={today}
+                now={now}
                 grid={activeGrid}
                 trackItemsById={trackItemsById}
                 docsById={docsById}
@@ -878,7 +917,7 @@ export function TacticalTimeline({
                 t={t}
               />
             )) : (
-              <TacticalDecorativeRuler grid={activeGrid} today={today} t={t} />
+              <TacticalDecorativeRuler grid={activeGrid} today={today} now={now} t={t} />
             )}
           </div>
         </>
@@ -898,7 +937,7 @@ export function TacticalTimeline({
             </button>
           </div>
           <div className="tl-tactical-body">
-            <TacticalDecorativeRuler grid={emptyGrid} today={today} t={t} />
+            <TacticalDecorativeRuler grid={emptyGrid} today={today} now={now} t={t} />
           </div>
         </>
       )}
