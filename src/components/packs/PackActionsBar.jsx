@@ -97,6 +97,28 @@ export function PackActionsBar({
           <span className="pack-actions__btn-label">{t("pack.stepsLibrary")}</span>
         </button>
       ) : null}
+      {companySelected && onOpenProducts ? (
+        <button
+          type="button"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+          onClick={onOpenProducts}
+          title={t("pack.productsTitle")}
+        >
+          <PackActionsToolbarIcon src={PRODUCTS_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.products")}</span>
+        </button>
+      ) : null}
+      {companySelected && onOpenCampaign ? (
+        <button
+          type="button"
+          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
+          onClick={onOpenCampaign}
+          title={t("pack.campaignTitle")}
+        >
+          <PackActionsToolbarIcon src={CAMPAIGN_ICON_SRC} />
+          <span className="pack-actions__btn-label">{t("pack.campaign")}</span>
+        </button>
+      ) : null}
       {companySelected && onOpenLazyTodos ? (
         <button
           type="button"
@@ -128,28 +150,6 @@ export function PackActionsBar({
         >
           <PackActionsToolbarIcon src={PASSWORD_TABLE_ICON_SRC} />
           <span className="pack-actions__btn-label">{t("pack.passwordTable")}</span>
-        </button>
-      ) : null}
-      {companySelected && onOpenProducts ? (
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenProducts}
-          title={t("pack.productsTitle")}
-        >
-          <PackActionsToolbarIcon src={PRODUCTS_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.products")}</span>
-        </button>
-      ) : null}
-      {companySelected && onOpenCampaign ? (
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenCampaign}
-          title={t("pack.campaignTitle")}
-        >
-          <PackActionsToolbarIcon src={CAMPAIGN_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.campaign")}</span>
         </button>
       ) : null}
       {placement === "documents" && onInsertGuide ? (
