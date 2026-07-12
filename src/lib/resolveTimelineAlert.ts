@@ -1,8 +1,13 @@
-import { checkTimelineTrigger, daysUntilTarget } from "./checkTimelineTrigger.js";
+import {
+  checkMinuteReminder,
+  checkTimelineTrigger,
+  daysUntilTarget,
+  resolveReminderLeadMs,
+} from "./checkTimelineTrigger.js";
 import { normalizeDoc } from "./normalizeDoc.js";
 import { isContentDoc } from "./templateDoc.js";
 import { parseDate } from "../temporal.js";
-import type { TimelineAlertData } from "../types/timelineAlert";
+import type { TimelineAlertData, TimelineReminderData } from "../types/timelineAlert";
 
 type ScheduleTarget = {
   key: string;
@@ -10,6 +15,8 @@ type ScheduleTarget = {
   label: string;
   kind: "set" | "doc" | "macro" | "launch";
   kindLabel: string;
+  /** Object / workspace name for greeting (“Hola {workspace}”). */
+  workspaceLabel?: string;
 };
 
 type ResolveTimelineAlertParams = {
@@ -23,16 +30,25 @@ type ResolveTimelineAlertParams = {
     parentDocId?: string;
     content?: unknown;
   }>;
+  nodeEntities?: Record<string, {
+    anchorAt?: string | null;
+    title?: string;
+    dataType?: string;
+    parentDocId?: string | null;
+    linkedToDoc?: string | null;
+  }>;
   timelineDocQueue?: string[];
   timelineDocSnapshotsByDocId?: Record<string, {
     anchorDateMs?: number | null;
-    children?: Array<{ key?: string; dateMs?: number }>;
+    children?: Array<{ key?: string; entityId?: string; dateMs?: number; dataType?: string }>;
   }>;
   timelineAgentSets?: Array<{
     id?: string;
     title?: string;
     triggerAt?: string;
   }>;
+  now?: Date;
+  skippedAlertKeys?: Set<string> | string[];
 };
 
 function timelineTitleForObject(
@@ -62,12 +78,19 @@ function addTarget(
   });
 }
 
+function toSkippedSet(skipped?: Set<string> | string[]) {
+  if (!skipped) return new Set<string>();
+  if (skipped instanceof Set) return skipped;
+  return new Set(skipped.filter(Boolean));
+}
+
 export function collectTimelineScheduleTargets({
   docs = {},
   objects = {},
   objectTimelineTitles = {},
   selectedObjectId = null,
   canvasNodes = [],
+  nodeEntities = {},
   timelineDocQueue = [],
   timelineDocSnapshotsByDocId = {},
   timelineAgentSets = [],
@@ -96,13 +119,17 @@ export function collectTimelineScheduleTargets({
       ? timelineTitleForObject(objectId, objects, objectTimelineTitles)
       : label;
 
-    if (snap?.anchorDateMs) {
+    const folderDate = snap?.anchorDateMs
+      ? new Date(snap.anchorDateMs)
+      : parseDate(doc.scheduleStartAt || doc.launchAt);
+    if (folderDate && !Number.isNaN(folderDate.getTime())) {
       addTarget(targets, seen, {
         key: `doc-${docId}`,
-        date: new Date(snap.anchorDateMs),
-        label: objectTitle,
+        date: folderDate,
+        label,
         kind: "doc",
         kindLabel: "Document",
+        workspaceLabel: objectTitle,
       });
     } else if (doc.scheduleStartAt || doc.launchAt) {
       const launch = parseDate(doc.scheduleStartAt || doc.launchAt);
@@ -110,23 +137,59 @@ export function collectTimelineScheduleTargets({
         addTarget(targets, seen, {
           key: `doc-${docId}`,
           date: launch,
-          label: objectTitle,
+          label,
           kind: "doc",
           kindLabel: "Document",
+          workspaceLabel: objectTitle,
         });
       }
     }
 
+    const childKeysSeen = new Set<string>();
     for (const child of snap?.children || []) {
-      if (!Number.isFinite(child.dateMs)) continue;
-      const childKey = child.key || `child-${child.dateMs}`;
+      const entityId = child.entityId || null;
+      const childKey = child.key || entityId || `child-${child.dateMs}`;
+      childKeysSeen.add(childKey);
+      const liveEntity = entityId ? nodeEntities[entityId] : null;
+      const liveDate = liveEntity?.anchorAt ? parseDate(liveEntity.anchorAt) : null;
+      const date = liveDate
+        || (Number.isFinite(child.dateMs) ? new Date(child.dateMs as number) : null);
+      if (!date || Number.isNaN(date.getTime())) continue;
+      const childLabel = (liveEntity?.title || "").trim()
+        || `${label} · ${child.dataType || liveEntity?.dataType || "macro"}`;
       addTarget(targets, seen, {
         key: `macro-${docId}-${childKey}`,
-        date: new Date(child.dateMs as number),
-        label: `${label} · macro`,
+        date,
+        label: childLabel,
         kind: "macro",
         kindLabel: "Macro",
+        workspaceLabel: objectTitle,
       });
+    }
+
+    // Live linked nodes (schedule changed after timeline insert / not yet in snapshot).
+    for (const [entityId, entity] of Object.entries(nodeEntities)) {
+      if (!entity) continue;
+      const parentId = entity.parentDocId || entity.linkedToDoc || null;
+      if (parentId !== docId) continue;
+      const date = parseDate(entity.anchorAt);
+      if (!date) continue;
+      const childKey = entityId;
+      if (childKeysSeen.has(childKey) || childKeysSeen.has(`entity:${entityId}`)) continue;
+      childKeysSeen.add(childKey);
+      addTarget(targets, seen, {
+        key: `macro-${docId}-${childKey}`,
+        date,
+        label: (entity.title || "").trim() || `${label} · ${entity.dataType || "macro"}`,
+        kind: "macro",
+        kindLabel: "Macro",
+        workspaceLabel: objectTitle,
+      });
+    }
+
+    // Keep launch-style object titles available for modal list compatibility.
+    if (objectTitle && objectTitle !== label && folderDate) {
+      /* no-op — modal still uses collect for all kinds below */
     }
   }
 
@@ -184,6 +247,13 @@ export function collectTimelineScheduleTargets({
   return targets.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
+/** Folders + macros from the timeline queue only (for floating reminder). */
+export function collectTimelineReminderTargets(params: ResolveTimelineAlertParams): ScheduleTarget[] {
+  return collectTimelineScheduleTargets(params).filter(
+    (t) => t.kind === "doc" || t.kind === "macro",
+  );
+}
+
 export function resolveTimelineAlertsList(params: ResolveTimelineAlertParams) {
   return collectTimelineScheduleTargets(params).map((target) => ({
     key: target.key,
@@ -198,6 +268,38 @@ export function resolveTimelineAlertsList(params: ResolveTimelineAlertParams) {
 export function resolveActiveTimelineAlert(params: ResolveTimelineAlertParams): TimelineAlertData | null {
   for (const entry of resolveTimelineAlertsList(params)) {
     if (entry.alert) return entry.alert;
+  }
+  return null;
+}
+
+/**
+ * First folder/macro on the timeline whose start is inside its adaptive lead window.
+ */
+export function resolveActiveTimelineReminder(
+  params: ResolveTimelineAlertParams,
+): TimelineReminderData | null {
+  const now = params.now instanceof Date ? params.now : new Date();
+  const skipped = toSkippedSet(params.skippedAlertKeys);
+  const targets = collectTimelineReminderTargets(params);
+  let previousStartAtMs: number | null = null;
+
+  for (const target of targets) {
+    const startAtMs = target.date.getTime();
+    const leadMs = resolveReminderLeadMs(startAtMs, previousStartAtMs);
+    previousStartAtMs = startAtMs;
+
+    if (skipped.has(target.key)) continue;
+
+    const reminder = checkMinuteReminder({
+      alertKey: target.key,
+      contentLabel: target.label,
+      workspaceLabel: target.workspaceLabel,
+      startAt: target.date,
+      kind: target.kind === "macro" ? "macro" : "doc",
+      leadMs,
+      now,
+    });
+    if (reminder) return reminder;
   }
   return null;
 }

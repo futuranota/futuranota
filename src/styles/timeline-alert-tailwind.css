@@ -16,3 +16,159 @@
     }
   }
 }
+
+/* Testimonial-style reminder Card — compact + soft contrast */
+.tl-reminder-card-wrap {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 80;
+  width: min(300px, calc(100vw - 32px));
+  pointer-events: auto;
+}
+
+.tl-reminder-card.fn-card,
+.tl-reminder-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0 !important;
+  width: 100%;
+  padding: 14px 14px 12px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background: #1c1c1c !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.88);
+  overflow: hidden;
+}
+
+.tl-reminder-card__content.fn-card__content,
+.tl-reminder-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 !important;
+}
+
+.tl-reminder-card__field-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.tl-reminder-card__greeting {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.tl-reminder-card__headline {
+  margin: 0;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.tl-reminder-card__footer.fn-card__footer,
+.tl-reminder-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 0 !important;
+  border: none;
+}
+
+.tl-reminder-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tl-reminder-card__icon {
+  display: block;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  pointer-events: none;
+}
+
+.tl-reminder-card__identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.tl-reminder-card__name {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-reminder-card__handle {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.42);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-reminder-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tl-reminder-card__skip {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.42);
+  cursor: pointer;
+}
+
+.tl-reminder-card__skip:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.tl-reminder-card__okay {
+  min-height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: #141414;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tl-reminder-card__okay:hover {
+  opacity: 0.94;
+  background: #fff;
+  color: #141414;
+}

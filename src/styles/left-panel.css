@@ -3495,6 +3495,18 @@
   padding-top: 0;
 }
 
+.doc-meta-schedule-hint {
+  grid-column: 1 / -1;
+  margin: -2px 0 0;
+  padding: 0;
+  font-family: var(--sans);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: #5c5f63;
+}
+
 .doc-meta-schedule-clear {
   margin: 0;
   padding: 0;

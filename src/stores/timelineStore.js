@@ -36,7 +36,7 @@ export const useTimelineStore = create(
       zoomedPlanId: null,
       zoomedObjectId: null,
       objectTimelineTitles: {},
-      /** Opt-in: show TimelineAlertToast when checkTimelineTrigger fires (30/7/1d). */
+      /** Opt-in: floating minute reminder when a folder/macro start is inside its lead window. */
       timelineAlertsEnabled: readTimelineAlertsEnabled(),
       /** Multi-select on canvas + doc queue in left panel for timeline insert. */
       timelineQueueMode: false,

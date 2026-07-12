@@ -57,8 +57,12 @@ import {
 import { loadCompanyPasswordTableSession } from './lib/passwordTableLibrary.js';
 import { StandaloneNodeModal } from './components/nodes/StandaloneNodeModal.jsx';
 import { VideoReferencePanel } from './components/intel/VideoReferencePanel.jsx';
-import { TimelineAlertToast } from './components/alerts/TimelineAlertToast.tsx';
-import { resolveActiveTimelineAlert } from './lib/resolveTimelineAlert.js';
+import { TimelineReminderCard } from './components/alerts/TimelineReminderCard.jsx';
+import { resolveActiveTimelineReminder } from './lib/resolveTimelineAlert.js';
+import {
+  readSkippedTimelineReminderKeys,
+  skipTimelineReminderKey,
+} from './lib/timelineReminderSkip.js';
 import {
   collectNodeIdsReferencedByBlocks,
   findOrphanNodeIdsForDoc,
@@ -165,8 +169,9 @@ function applyTheme(t, themeMode = t.theme) {
 function Dashboard({ company, onBack }) {
   const [today, setToday]             = useState(() => getToday());
   const [toast, setToast]             = useState(null);
-  const [timelineAlert, setTimelineAlert] = useState(null);
-  const dismissedTimelineAlertKey = useRef(null);
+  const [timelineReminder, setTimelineReminder] = useState(null);
+  const dismissedTimelineReminderKey = useRef(null);
+  const [reminderTick, setReminderTick] = useState(0);
   const [intel, setIntel]             = useState([]);
   const [hasScannedBlogs, setBlogs]   = useState(false);
   const [scanState, setScanState]     = useState("idle");
@@ -366,36 +371,43 @@ useEffect(() => {
   }, []);
 
   useEffect(() => {
+    if (!timelineAlertsEnabled) return undefined;
+    const id = window.setInterval(() => setReminderTick((n) => n + 1), 10_000);
+    return () => window.clearInterval(id);
+  }, [timelineAlertsEnabled]);
+
+  useEffect(() => {
     if (timelineAlertsEnabled && !prevTimelineAlertsEnabled.current) {
-      dismissedTimelineAlertKey.current = null;
+      dismissedTimelineReminderKey.current = null;
     }
     prevTimelineAlertsEnabled.current = timelineAlertsEnabled;
 
     if (!timelineAlertsEnabled) {
-      setTimelineAlert(null);
+      setTimelineReminder(null);
       return;
     }
 
-    const alert = resolveActiveTimelineAlert({
+    const reminder = resolveActiveTimelineReminder({
       docs,
       objects,
       objectTimelineTitles,
       selectedObjectId: selectedObjectId || filterObjectId,
       canvasNodes,
+      nodeEntities,
       timelineDocQueue,
       timelineDocSnapshotsByDocId,
       timelineAgentSets,
+      skippedAlertKeys: readSkippedTimelineReminderKeys(),
     });
 
-    if (!alert) {
-      setTimelineAlert(null);
+    if (!reminder) {
+      setTimelineReminder(null);
       return;
     }
 
-    const key = `${alert.title}|${alert.campaignRef}`;
-    if (dismissedTimelineAlertKey.current === key) return;
+    if (dismissedTimelineReminderKey.current === reminder.alertKey) return;
 
-    setTimelineAlert(alert);
+    setTimelineReminder(reminder);
   }, [
     timelineAlertsEnabled,
     docs,
@@ -404,7 +416,9 @@ useEffect(() => {
     selectedObjectId,
     filterObjectId,
     canvasNodes,
+    nodeEntities,
     today,
+    reminderTick,
     timelineDocQueue,
     timelineDocSnapshotsByDocId,
     timelineAgentSets,
@@ -1239,12 +1253,17 @@ useEffect(() => {
           {scanState === "scanning-blogs" && (
             <ScanOverlay logs={scanLogs} kind="blogs" />
           )}
-          {timelineAlert ? (
-            <TimelineAlertToast
-              alert={timelineAlert}
-              onDismiss={() => {
-                dismissedTimelineAlertKey.current = `${timelineAlert.title}|${timelineAlert.campaignRef}`;
-                setTimelineAlert(null);
+          {timelineReminder ? (
+            <TimelineReminderCard
+              reminder={timelineReminder}
+              onGotIt={() => {
+                dismissedTimelineReminderKey.current = timelineReminder.alertKey;
+                setTimelineReminder(null);
+              }}
+              onSkip={() => {
+                skipTimelineReminderKey(timelineReminder.alertKey);
+                dismissedTimelineReminderKey.current = timelineReminder.alertKey;
+                setTimelineReminder(null);
               }}
             />
           ) : null}

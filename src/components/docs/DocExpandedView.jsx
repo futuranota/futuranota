@@ -3,6 +3,7 @@ import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useObjectsStore } from "../../stores/objectsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
+import { useTimelineStore } from "../../stores/timelineStore.js";
 import { usePlanStore } from "../../stores/planStore.js";
 import { getPlanLimits } from "../../lib/planConfig.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
@@ -1240,6 +1241,13 @@ export function DocExpandedView({
           body,
           content: body,
         });
+        const canvasSnap = useUIStateStore.getState().canvasSearchSnapshot;
+        useTimelineStore.getState().refreshTimelineDocSnapshot(doc.id, {
+          canvasNodes: canvasSnap?.nodes || [],
+          connections: canvasSnap?.connections || [],
+          docsById: useDocsStore.getState().docs,
+          nodeEntitiesById: useNodesStore.getState().nodes,
+        });
       }
       // #region agent log
       fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H1',location:'DocExpandedView.jsx:handleBlockAnchorChange',message:'block+node schedule persisted',data:{blockIndex,anchorDate,anchorTime,nodeId:block?.nodeId||null,anchorAt:isoFromAnchorFields(anchorDate,anchorTime)},timestamp:Date.now()})}).catch(()=>{});
@@ -1376,6 +1384,13 @@ export function DocExpandedView({
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
+      const canvasSnap = useUIStateStore.getState().canvasSearchSnapshot;
+      useTimelineStore.getState().refreshTimelineDocSnapshot(doc.id, {
+        canvasNodes: canvasSnap?.nodes || [],
+        connections: canvasSnap?.connections || [],
+        docsById: useDocsStore.getState().docs,
+        nodeEntitiesById: useNodesStore.getState().nodes,
+      });
     } else {
       setNodeInitialSnapshot((prev) => {
         const next = {

@@ -86,6 +86,7 @@ function docVersionFromDb(version) {
 
 let initialized = false;
 let isSyncedWithRemote = false;
+let hydrateInFlight = false;
 let lastSyncWarnAt = 0;
 
 function warnSyncOnce(message) {
@@ -374,6 +375,11 @@ function isLocalRicherThanRemote(local, remote) {
 
   if (L.docCount === 0 && L.nodeCount === 0 && L.objectCount === 0) return false;
 
+  // Never wipe a larger remote entity set with a smaller local snapshot.
+  // (This caused Content list / Next / node loss when reopening localhost.)
+  if (R.nodeCount > L.nodeCount) return false;
+  if (R.docCount > L.docCount) return false;
+
   // Empty remote vs non-empty local — classic wipe after debounce miss
   if (R.docCount === 0 && L.docCount > 0) return true;
   if (R.objectCount === 0 && L.objectCount > 0) return true;
@@ -381,14 +387,26 @@ function isLocalRicherThanRemote(local, remote) {
 
   // Local has more entities and at least as much content
   if (L.docCount > R.docCount && L.contentChars >= R.contentChars) return true;
+  if (L.nodeCount > R.nodeCount && L.contentChars >= R.contentChars) return true;
 
-  // Local is newer and not poorer in content
-  if (L.maxUpdated > R.maxUpdated + 1500 && L.contentChars >= Math.floor(R.contentChars * 0.9)) {
+  // Local is newer and not poorer in content — only when entity counts aren't behind
+  if (
+    L.nodeCount >= R.nodeCount
+    && L.docCount >= R.docCount
+    && L.maxUpdated > R.maxUpdated + 1500
+    && L.contentChars >= Math.floor(R.contentChars * 0.9)
+  ) {
     return true;
   }
 
   // Local has substantially more text with similar entity counts
-  if (L.contentChars > R.contentChars * 1.25 && L.docCount >= R.docCount) return true;
+  if (
+    L.contentChars > R.contentChars * 1.25
+    && L.docCount >= R.docCount
+    && L.nodeCount >= R.nodeCount
+  ) {
+    return true;
+  }
 
   return false;
 }
@@ -709,6 +727,8 @@ export function initPersistenceMiddleware(stores) {
   };
 
   const loadFromSupabase = async () => {
+    if (hydrateInFlight) return;
+    hydrateInFlight = true;
     try {
       const configErr = getSupabaseConfigError();
       if (configErr) {
@@ -895,14 +915,22 @@ export function initPersistenceMiddleware(stores) {
       };
 
       const localSnapshot = readLocalWorkspaceSnapshot();
-      const { state: hydratedState, preferredLocal } = mergeRemoteWithLocalSnapshot(
+      const { state: hydratedFromDisk, preferredLocal } = mergeRemoteWithLocalSnapshot(
         remoteState,
         localSnapshot,
       );
 
-      if (preferredLocal) {
+      // Protect in-memory edits that haven't flushed to localStorage yet (tab switch / re-auth).
+      const memorySnapshot = sanitizePersistedSnapshot(getLocalState());
+      const { state: hydratedState, preferredLocal: preferredMemory } = mergeRemoteWithLocalSnapshot(
+        hydratedFromDisk,
+        memorySnapshot,
+      );
+
+      if (preferredLocal || preferredMemory) {
         console.warn(
-          "Supabase hydrate looked poorer than localStorage — keeping local workspace and pushing to remote.",
+          "Supabase hydrate looked poorer than local workspace — keeping local data and pushing to remote.",
+          { preferredLocal, preferredMemory },
         );
       }
 
@@ -913,7 +941,7 @@ export function initPersistenceMiddleware(stores) {
       // #region agent log
       try {
         const withAnchor = Object.values(hydratedNodes || {}).filter((n) => n?.anchorAt).length;
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H5',location:'persistenceMiddleware.js:hydrate',message:'hydrate nodes with schedule',data:{preferredLocal,nodeCount:Object.keys(hydratedNodes||{}).length,withAnchor},timestamp:Date.now()})}).catch(()=>{});
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H5',location:'persistenceMiddleware.js:hydrate',message:'hydrate nodes with schedule',data:{preferredLocal:preferredLocal||preferredMemory,nodeCount:Object.keys(hydratedNodes||{}).length,withAnchor},timestamp:Date.now()})}).catch(()=>{});
       } catch (_) { /* ignore */ }
       // #endregion
       applyStateToStores({ ...hydratedState, nodes: hydratedNodes });
@@ -963,7 +991,7 @@ export function initPersistenceMiddleware(stores) {
       }
 
       // If we kept local over a poorer remote, push immediately so the next reload is safe.
-      if (preferredLocal) {
+      if (preferredLocal || preferredMemory) {
         syncToSupabase(finalState).catch((err) => {
           console.warn("Failed to push preferred-local workspace to Supabase:", err);
         });
@@ -978,6 +1006,8 @@ export function initPersistenceMiddleware(stores) {
         );
       }
       loadLocalFallback();
+    } finally {
+      hydrateInFlight = false;
     }
   };
 
@@ -1260,10 +1290,11 @@ export function initPersistenceMiddleware(stores) {
   // Cargar datos al iniciar
   loadFromSupabase();
 
-  // Escuchar cambios de sesión — recargar datos cuando el usuario cambia
+  // Escuchar cambios de sesión — recargar solo en login real, no en cada refresh de token
   supabase.auth.onAuthStateChange((event) => {
     if (event === "SIGNED_IN") {
-      isSyncedWithRemote = false;
+      // Initial boot already called loadFromSupabase(); skip duplicate wipe on auth echo.
+      if (isSyncedWithRemote || hydrateInFlight) return;
       loadFromSupabase();
     }
     if (event === "SIGNED_OUT") {

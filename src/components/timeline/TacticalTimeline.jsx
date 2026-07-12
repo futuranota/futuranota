@@ -24,7 +24,6 @@ import { useTimelineStore } from "../../stores/index.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { TimelineEventChip } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
-import { TimelineAlertsModal } from "./TimelineAlertsModal.jsx";
 
 function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
   const family = resolveParentTagFamilyStyle(objectId, objectsById);
@@ -783,10 +782,8 @@ export function TacticalTimeline({
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const removeTimelineChildFromQueue = useTimelineStore((s) => s.removeTimelineChildFromQueue);
   const removeTimelineAgentSet = useTimelineStore((s) => s.removeTimelineAgentSet);
-  const timelineAlertsOpen = useUIStateStore((s) => s.timelineAlertsOpen);
-  const openTimelineAlerts = useUIStateStore((s) => s.openTimelineAlerts);
-  const closeTimelineAlerts = useUIStateStore((s) => s.closeTimelineAlerts);
-  const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
+  const toggleTimelineAlertsEnabled = useTimelineStore((s) => s.toggleTimelineAlertsEnabled);
   const tacticalRangeOverride = useTimelineStore((s) => s.tacticalRangeOverride);
   const tacticalLoupe = useTimelineStore((s) => s.tacticalLoupe);
   const tacticalPairStretches = useTimelineStore((s) => s.tacticalPairStretches);
@@ -1010,11 +1007,13 @@ export function TacticalTimeline({
             </span>
             <button
               type="button"
-              className="tl-alerts-open-btn"
-              onClick={openTimelineAlerts}
+              className={`tl-alerts-open-btn tl-alerts-toggle${timelineAlertsEnabled ? " is-on" : ""}`}
+              onClick={toggleTimelineAlertsEnabled}
               title={t("timeline.alertsTitle")}
+              aria-pressed={timelineAlertsEnabled}
             >
-              {t("timeline.alerts")}
+              <span className="tl-alerts-dot" aria-hidden="true" />
+              {timelineAlertsEnabled ? t("timeline.alertsOn") : t("timeline.alertsOff")}
             </button>
           </div>
 
@@ -1054,11 +1053,13 @@ export function TacticalTimeline({
             </span>
             <button
               type="button"
-              className="tl-alerts-open-btn"
-              onClick={openTimelineAlerts}
+              className={`tl-alerts-open-btn tl-alerts-toggle${timelineAlertsEnabled ? " is-on" : ""}`}
+              onClick={toggleTimelineAlertsEnabled}
               title={t("timeline.alertsTitle")}
+              aria-pressed={timelineAlertsEnabled}
             >
-              {t("timeline.alerts")}
+              <span className="tl-alerts-dot" aria-hidden="true" />
+              {timelineAlertsEnabled ? t("timeline.alertsOn") : t("timeline.alertsOff")}
             </button>
           </div>
           <div className="tl-tactical-body">
@@ -1066,18 +1067,6 @@ export function TacticalTimeline({
           </div>
         </>
       )}
-      <TimelineAlertsModal
-        open={timelineAlertsOpen}
-        onClose={closeTimelineAlerts}
-        docs={docsById}
-        objects={objectsById}
-        objectTimelineTitles={objectTimelineTitles}
-        selectedObjectId={selectedObjectId || filterObjectId}
-        canvasNodes={canvasNodes}
-        timelineDocQueue={timelineDocQueue}
-        timelineDocSnapshotsByDocId={timelineDocSnapshotsByDocId}
-        timelineAgentSets={timelineAgentSets}
-      />
     </div>
   );
 }

@@ -1196,8 +1196,9 @@ textarea.field {
 /* Intel folder tabs (Calendar / Forecast / Launch radar / Market Hype) */
 .intel-folders-section {
   flex-shrink: 0;
-  margin: 14px -18px 0;
-  padding: 14px 10px 0;
+  /* Match .col-body padding (14px) so the bleed never triggers a horizontal scrollbar */
+  margin: 14px -14px 0;
+  padding: 14px 14px 0;
   border-top: 1px solid var(--hairline);
 }
 .intel-folder-bar {
@@ -1387,6 +1388,10 @@ textarea.field {
   color: var(--text-1);
 }
 .col-body { flex: 1; min-height: 0; }
+/* Intel / notes columns: vertical scroll only — hide accidental x overflow */
+.col-body.scroll {
+  overflow-x: hidden;
+}
 .col-section {
   padding: 14px;
   border-bottom: 1px solid var(--hairline);
@@ -4575,6 +4580,30 @@ textarea.note-form-field {
   cursor: pointer;
   white-space: nowrap;
 }
+.tl-alerts-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tl-alerts-toggle.is-on {
+  color: #7dcea0;
+  border-color: rgba(125, 206, 160, 0.35);
+}
+
+.tl-alerts-toggle.is-on .tl-alerts-dot {
+  background: #7dcea0;
+  box-shadow: 0 0 0 3px rgba(125, 206, 160, 0.2);
+}
+
+.tl-alerts-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+}
+
 .tl-alerts-open-btn:hover {
   border-color: var(--glass-border-2);
   color: var(--text);

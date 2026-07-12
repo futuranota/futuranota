@@ -385,6 +385,7 @@ export function DocMetaStrip({
                     parentId={parentId}
                     excludeDocId={docId}
                   />
+                  <p className="doc-meta-schedule-hint">{t("meta.scheduleHint")}</p>
                   {scheduleDuration ? (
                     <div className="doc-meta-field doc-meta-field--readonly">
                       <span className="doc-meta-field-k">{t("meta.scheduleDuration")}</span>
