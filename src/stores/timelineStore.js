@@ -66,10 +66,11 @@ export const useTimelineStore = create(
       /** Manual zoom-out: extend visible grid start/end (ms, calendar day). */
       tacticalRangeOverride: null,
       /**
-       * Local loupe on a middle folder node (visual only — does not pan the window).
-       * { focusMs, targetPct }
+       * Pair stretches persist per row + focus node (targetPct on that rail only).
+       * Never pans the shared folder window. [{ rowId, focusMs, pairNextMs, targetPct }]
        */
       tacticalLoupe: null,
+      tacticalPairStretches: [],
 
       getEffectiveCanvasMode: () => {
         const s = get();
@@ -312,6 +313,7 @@ export const useTimelineStore = create(
         timelineAgentSets: [],
         tacticalRangeOverride: null,
         tacticalLoupe: null,
+        tacticalPairStretches: [],
       }),
 
       setTacticalRangeOverride: (override) => set({ tacticalRangeOverride: override }),
@@ -322,9 +324,45 @@ export const useTimelineStore = create(
 
       clearTacticalLoupe: () => set({ tacticalLoupe: null }),
 
+      setTacticalPairStretch: (stretch) => {
+        if (!stretch || !stretch.rowId || !Number.isFinite(stretch.targetPct)) return;
+        const isToday = stretch.focusKey === "today";
+        if (!isToday && stretch.focusMs == null) return;
+        set((state) => {
+          const rowId = String(stretch.rowId);
+          const focusKey = isToday ? "today" : null;
+          const focusMs = isToday ? null : Number(stretch.focusMs);
+          const pairNextMs = stretch.pairNextMs != null ? Number(stretch.pairNextMs) : null;
+          const targetPct = Math.min(100, Math.max(0, Number(stretch.targetPct)));
+          const rest = (state.tacticalPairStretches || []).filter((s) => {
+            if (String(s.rowId) !== rowId) return true;
+            if (isToday) return s.focusKey !== "today";
+            return !(s.focusKey !== "today" && Number(s.focusMs) === focusMs);
+          });
+          return {
+            tacticalPairStretches: [
+              ...rest,
+              { rowId, focusKey, focusMs, pairNextMs, targetPct },
+            ],
+          };
+        });
+      },
+
+      clearTacticalPairStretches: () => set({ tacticalPairStretches: [] }),
+
+      clearTacticalPairStretchesForRow: (rowId) => {
+        if (!rowId) return;
+        set((state) => ({
+          tacticalPairStretches: (state.tacticalPairStretches || []).filter(
+            (s) => String(s.rowId) !== String(rowId),
+          ),
+        }));
+      },
+
       clearTacticalViewOverrides: () => set({
         tacticalRangeOverride: null,
         tacticalLoupe: null,
+        tacticalPairStretches: [],
       }),
 
       removeTimelineAgentSet: (setId) => {
@@ -435,6 +473,7 @@ export const useTimelineStore = create(
             // Recompute auto zoom for the new set (don't keep a stale stretch window).
             tacticalRangeOverride: null,
             tacticalLoupe: null,
+            tacticalPairStretches: [],
           };
         });
       },
@@ -584,6 +623,7 @@ export const useTimelineStore = create(
           // Fresh auto zoom after insert — avoids collapsed month snap / stale stretch.
           tacticalRangeOverride: null,
           tacticalLoupe: null,
+          tacticalPairStretches: [],
         });
         return {
           ok: true,

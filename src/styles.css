@@ -5220,6 +5220,29 @@ textarea.note-form-field {
 .tl-tactical-rail__today.is-thermometer {
   z-index: 9;
 }
+.tl-tactical-rail__today.is-thermometer.is-range-handle {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+.tl-tactical-rail__today.is-thermometer.is-range-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 28px;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+.tl-tactical-rail__today.is-thermometer.is-range-handle.is-range-active {
+  cursor: grabbing;
+}
+.tl-tactical-rail__today.is-thermometer.is-range-handle .tl-tactical-rail__today-pill,
+.tl-tactical-rail__today.is-thermometer.is-range-handle .tl-tactical-rail__today-stem,
+.tl-tactical-rail__today.is-thermometer.is-range-handle .tl-tactical-rail__today-caption {
+  pointer-events: none;
+}
 .tl-tactical-rail__today-head {
   position: absolute;
   top: 2px;
@@ -5372,7 +5395,11 @@ textarea.note-form-field {
 .tl-tactical-rail__anchor.is-range-handle.is-range-anchor {
   cursor: grab;
 }
-.tl-tactical-rail__anchor.is-range-handle.is-range-anchor.is-range-active {
+.tl-tactical-rail__anchor.is-range-handle.is-range-sticker {
+  cursor: grab;
+}
+.tl-tactical-rail__anchor.is-range-handle.is-range-anchor.is-range-active,
+.tl-tactical-rail__anchor.is-range-handle.is-range-sticker.is-range-active {
   cursor: grabbing;
 }
 .tl-tactical-rail.is-dragging-range {

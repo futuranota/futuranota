@@ -6,7 +6,8 @@ import {
   clampTacticalRangeMs,
   minSpanMsForRulerEdges,
   maxSpanMsForDifferentDayFolders,
-  resolveTacticalLoupe,
+  applyAllPairStretchesOnRail,
+  buildStretchUnitsWithToday,
   applyTacticalLoupePct,
   applyTacticalLoupeSegment,
 } from "./tacticalTimelineRange.js";
@@ -89,15 +90,21 @@ export function buildTacticalDisplayGrid(markerDates, today, options = {}) {
   const baseStart = start;
   const baseEnd = end;
   ({ start, end } = applyTacticalRangeOverride(start, end, rangeOverride));
-  // Never let an override collapse different-day folders (≥1d) on the rail.
+  // Keep a pure 24h today pie intact — the 3-day stretch floor would
+  // squash hour:minute and put 10pm on top of 9:43pm.
   const folderDates = markerDates.filter(Boolean);
-  const clampedOverride = clampTacticalRangeMs(start.getTime(), end.getTime(), {
-    minSpanMs: minSpanMsForRulerEdges(folderDates),
-    maxSpanMs: maxSpanMsForDifferentDayFolders(folderDates),
-  });
-  if (clampedOverride) {
-    start = startOfCalendarDay(new Date(clampedOverride.startMs));
-    end = startOfCalendarDay(new Date(clampedOverride.endMs));
+  const spanMs = end.getTime() - start.getTime();
+  const isDayClockPie = spanMs > 0 && spanMs <= 86400000 + 1000;
+  // Sticker pan on the 24h pie must keep continuous hours — skip the 3-day floor.
+  if (!isDayClockPie) {
+    const clampedOverride = clampTacticalRangeMs(start.getTime(), end.getTime(), {
+      minSpanMs: minSpanMsForRulerEdges(folderDates),
+      maxSpanMs: maxSpanMsForDifferentDayFolders(folderDates),
+    });
+    if (clampedOverride) {
+      start = startOfCalendarDay(new Date(clampedOverride.startMs));
+      end = startOfCalendarDay(new Date(clampedOverride.endMs));
+    }
   }
 
   const normalized = markerDates.filter(Boolean).map((d) => startOfCalendarDay(d));
@@ -457,25 +464,40 @@ export function groupDisplayRowsByObject(orderedRows) {
 
 export function buildRowTimelineRail(columns, grid, options = {}) {
   if (!columns?.length || !grid) {
-    return { nodeGroups: [], segments: [] };
+    return {
+      nodeGroups: [],
+      segments: [],
+      todayLeftPct: null,
+      todayPairNextDate: null,
+    };
   }
 
-  const markerDates = options.markerDates || columns.map((c) => c.date);
-  const loupe = resolveTacticalLoupe(options.loupe || null, grid, markerDates);
+  const pairStretches = options.pairStretches || [];
   const now = options.now instanceof Date
     ? options.now
     : (grid.now instanceof Date ? grid.now : new Date());
-  const nodeGroups = assignColumnLeftPcts(columns, grid, loupe, { now });
+  const nowPctRaw = grid.nowPct ?? grid.todayPct ?? grid.pct(now);
+
+  // Clock layout, inject today into stretch chain, then pair-stretch left→right.
+  const laidOut = assignColumnLeftPcts(columns, grid, null, { now });
+  const { units, todayIdx } = buildStretchUnitsWithToday(laidOut, now, nowPctRaw);
+  applyAllPairStretchesOnRail(units, pairStretches);
+
+  const todayUnit = todayIdx >= 0 ? units[todayIdx] : null;
+  const todayLeftPct = todayUnit ? todayUnit.leftPct : nowPctRaw;
+  const todayPairNext = todayIdx >= 0 && todayIdx < units.length - 1
+    ? units[todayIdx + 1]
+    : null;
+  const nodeGroups = units.filter((u) => !u.isToday);
 
   const wireSegments = (options.segments || []).map((seg) =>
-    applyTacticalLoupeSegment(seg, loupe),
+    applyTacticalLoupeSegment(seg, null),
   );
   const gapSegments = buildAdjacentDayGapSegments(columns, grid, {
     today: grid.today || null,
     now,
-    loupe,
+    loupe: null,
   }).map((seg, idx) => {
-    // Align gap band to fan-out positions (same-day nodes are not on pure grid.pct).
     if (idx + 1 >= nodeGroups.length) return seg;
     const prev = nodeGroups[idx];
     const next = nodeGroups[idx + 1];
@@ -483,7 +505,11 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
     const widthPct = Math.max(Math.abs(next.leftPct - prev.leftPct), 0.5);
     return { ...seg, leftPct, widthPct };
   });
-  const nowGap = buildNowToNextGapSegment(nodeGroups, grid, { now, loupe });
+  const nowGap = buildNowToNextGapSegment(nodeGroups, grid, {
+    now,
+    loupe: null,
+    todayLeftPct,
+  });
   const rowSpan = (() => {
     if (nodeGroups.length === 1) {
       return {
@@ -515,7 +541,13 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
     ...wireSegments,
   ];
 
-  return { nodeGroups, segments };
+  return {
+    nodeGroups,
+    segments,
+    todayLeftPct,
+    todayPairNextDate: todayPairNext?.date || null,
+    todayStretchable: Boolean(todayPairNext),
+  };
 }
 
 /**
@@ -534,11 +566,12 @@ export function buildNowToNextGapSegment(nodeGroups, grid, options = {}) {
   const upcoming = nodeGroups.find((g) => g?.date && g.date.getTime() > now.getTime());
   if (!upcoming) return null;
 
-  const nowPctRaw = grid.nowPct ?? grid.todayPct ?? grid.pct(now);
+  const nowPctRaw = Number.isFinite(options.todayLeftPct)
+    ? options.todayLeftPct
+    : (grid.nowPct ?? grid.todayPct ?? grid.pct(now));
   const nowPct = applyTacticalLoupePct(nowPctRaw, loupe);
-  // Prefer chip position; if still collapsed (sub-hour on wide grid), open a readable band.
   let nextPct = Number(upcoming.leftPct) || 0;
-  if (nextPct < nowPct + NOW_TO_NEXT_MIN_GAP_PCT) {
+  if (nextPct <= nowPct) {
     nextPct = Math.min(98, nowPct + NOW_TO_NEXT_MIN_GAP_PCT);
   }
 
@@ -553,7 +586,7 @@ export function buildNowToNextGapSegment(nodeGroups, grid, options = {}) {
   return {
     key: `now-gap-${upcoming.columnKey}`,
     leftPct: nowPct,
-    widthPct: Math.max(nextPct - nowPct, NOW_TO_NEXT_MIN_GAP_PCT * 0.5),
+    widthPct: Math.max(nextPct - nowPct, 0.4),
     isDocDimension: false,
     isAdjacentGap: true,
     isNowGap: true,
@@ -656,25 +689,131 @@ export function buildTimelineColumns(markers) {
   }));
 }
 
-/** Minimum horizontal gap (%) between same-day doc nodes — must clear chip + bridge label. */
+/** Preferred horizontal gap (%) between same-day docs on multi-day (zoomed-out) rails. */
 const SAME_DAY_FANOUT_GAP_PCT = 26;
 /** Soft minimum between different-day consecutive columns after fan-out. */
 const COLUMN_MIN_GAP_PCT = 10;
+/** Absolute floor so chips never stack when cramped on multi-day rails. */
+const MIN_VISIBLE_GAP_PCT = 10;
+/** On a 24h clock ruler, only nudge if two same-day chips would overlap. */
+const SAME_DAY_CLOCK_MIN_GAP_PCT = 2.5;
 /**
- * Minimum visual distance from live thermometer → next upcoming schedule.
- * Hour deltas on a multi-day grid are tiny (~0.4%/h); without this the
- * countdown band collapses and chips sit on top of "today".
+ * Only when a future schedule sits on/under the thermometer.
+ * Do NOT invent a large gap — 9:43pm must stay just before 10:00pm on the 24h pie.
  */
-const NOW_TO_NEXT_MIN_GAP_PCT = 16;
+const NOW_TO_NEXT_MIN_GAP_PCT = 1.25;
+
+function isClockDayGrid(grid) {
+  // 24h pie, or today+tomorrow pending — keep hour:minute vs thermometer.
+  return Number(grid?.spanDays) > 0 && Number(grid.spanDays) <= 2;
+}
+
+function preferredGapPct(prevDate, nextDate, clockScale = false) {
+  if (sameCalendarDay(prevDate, nextDate)) {
+    return clockScale ? SAME_DAY_CLOCK_MIN_GAP_PCT : Math.min(SAME_DAY_FANOUT_GAP_PCT, 22);
+  }
+  return COLUMN_MIN_GAP_PCT;
+}
 
 /**
- * Keep chronology, but fan out same-day columns so they read as separate nodes
- * with a relevant horizontal distance (chip + "same day / sched" label between).
- * Different-day positions stay on true grid.pct unless a same-day cluster needs room.
- * Future schedules are pushed right of the live thermometer so
- * [current-time]----[set timer] stays readable.
+ * When multi-day packing clamps several nodes to ~98%, they stack.
+ * Skip aggressive refit on 24h clock grids — true hour positions win.
+ * @param {Array<{ date: Date, leftPct: number }>} natural
+ * @param {number} start
+ * @param {number} end exclusive
+ * @param {number} leftFloor
+ * @param {number} [rightBound]
+ */
+function refitColumnRange(natural, start, end, leftFloor, rightBound = 98) {
+  const count = end - start;
+  if (count <= 0) return;
+  const floor = Math.max(2, Math.min(leftFloor, rightBound));
+  if (count === 1) {
+    natural[start].leftPct = Math.min(rightBound, Math.max(floor, natural[start].leftPct));
+    return;
+  }
+
+  const idealGaps = [];
+  for (let k = start + 1; k < end; k += 1) {
+    idealGaps.push(preferredGapPct(natural[k - 1].date, natural[k].date, false));
+  }
+  const available = Math.max(MIN_VISIBLE_GAP_PCT, rightBound - floor);
+  const idealSpan = idealGaps.reduce((sum, g) => sum + g, 0);
+  const minSpan = MIN_VISIBLE_GAP_PCT * (count - 1);
+
+  let gaps = idealGaps;
+  if (idealSpan > available) {
+    if (minSpan >= available) {
+      for (let i = 0; i < count; i += 1) {
+        natural[start + i].leftPct = floor + (i / (count - 1)) * available;
+      }
+      return;
+    }
+    const scale = (available - minSpan) / Math.max(0.001, idealSpan - minSpan);
+    gaps = idealGaps.map((g) => (
+      MIN_VISIBLE_GAP_PCT + (g - MIN_VISIBLE_GAP_PCT) * scale
+    ));
+  }
+
+  const span = gaps.reduce((sum, g) => sum + g, 0);
+  let preferredFirst = Math.max(floor, Math.min(natural[start].leftPct, rightBound));
+  if (preferredFirst + span > rightBound) {
+    preferredFirst = Math.max(floor, rightBound - span);
+  }
+
+  let x = preferredFirst;
+  natural[start].leftPct = x;
+  for (let i = 1; i < count; i += 1) {
+    x += gaps[i - 1];
+    natural[start + i].leftPct = Math.min(rightBound, x);
+  }
+}
+
+/**
+ * Detect clamp-collapse on multi-day rails only.
+ * @param {Array<{ date: Date, leftPct: number }>} natural
+ * @param {{ pct: (d: Date) => number, nowPct?: number, todayPct?: number, spanDays?: number }} grid
+ * @param {object | null} loupe
+ * @param {Date | null} now
+ */
+function ensureVisibleColumnSeparation(natural, grid, loupe, now) {
+  if (natural.length < 2) return;
+  if (isClockDayGrid(grid)) return;
+
+  const collapsed = natural.some((col, k) => (
+    k > 0 && col.leftPct < natural[k - 1].leftPct + MIN_VISIBLE_GAP_PCT - 0.05
+  ));
+  if (!collapsed) return;
+
+  let packStart = 0;
+  let leftFloor = 2;
+  if (now) {
+    const nowPct = applyTacticalLoupePct(
+      grid.nowPct ?? grid.todayPct ?? grid.pct(now),
+      loupe,
+    );
+    const firstFuture = natural.findIndex((c) => c.date.getTime() > now.getTime());
+    if (firstFuture > 0) {
+      packStart = firstFuture;
+      leftFloor = Math.max(
+        natural[firstFuture - 1].leftPct + MIN_VISIBLE_GAP_PCT,
+        nowPct + NOW_TO_NEXT_MIN_GAP_PCT,
+      );
+    } else if (firstFuture === 0) {
+      leftFloor = nowPct + NOW_TO_NEXT_MIN_GAP_PCT;
+    }
+  }
+
+  refitColumnRange(natural, packStart, natural.length, leftFloor, 98);
+}
+
+/**
+ * Place columns on the rail.
+ * On a 24h clock ruler: keep true hour:minute so the thermometer sits before
+ * an upcoming schedule (9:43pm before 10:00pm). Same-day fan-out only on
+ * zoomed-out multi-day grids where hours would otherwise collapse.
  * @param {Array<{ date: Date, columnKey: string }>} columns
- * @param {{ pct: (d: Date) => number, nowPct?: number, now?: Date }} grid
+ * @param {{ pct: (d: Date) => number, nowPct?: number, now?: Date, spanDays?: number }} grid
  * @param {object | null} loupe
  * @param {{ now?: Date | null }} [options]
  */
@@ -683,94 +822,81 @@ function assignColumnLeftPcts(columns, grid, loupe = null, options = {}) {
   const now = options.now instanceof Date
     ? options.now
     : (grid.now instanceof Date ? grid.now : null);
+  const clockScale = isClockDayGrid(grid);
   const natural = columns.map((col) => ({
     ...col,
     leftPct: applyTacticalLoupePct(grid.pct(col.date), loupe),
   }));
 
-  let i = 0;
-  while (i < natural.length) {
-    let j = i + 1;
-    while (
-      j < natural.length
-      && sameCalendarDay(natural[i].date, natural[j].date)
-    ) {
-      j += 1;
-    }
-    const count = j - i;
-    if (count > 1) {
-      // Anchor on true schedule times (hour+minute), NOT midnight — otherwise
-      // tonight's 10pm cluster sits left of the live thermometer.
-      const naturalCenter = natural
-        .slice(i, j)
-        .reduce((sum, col) => sum + col.leftPct, 0) / count;
-      const dayAnchor = naturalCenter;
-      const gapPct = SAME_DAY_FANOUT_GAP_PCT;
-      const prevEdge = i > 0 ? natural[i - 1].leftPct : 0;
-      const nextEdge = j < natural.length ? natural[j].leftPct : 100;
-      const pad = COLUMN_MIN_GAP_PCT * 0.5;
-      const roomLeft = prevEdge + pad;
-      const roomRight = nextEdge - pad;
-      const available = Math.max(gapPct, roomRight - roomLeft);
+  if (!clockScale) {
+    let i = 0;
+    while (i < natural.length) {
+      let j = i + 1;
+      while (
+        j < natural.length
+        && sameCalendarDay(natural[i].date, natural[j].date)
+      ) {
+        j += 1;
+      }
+      const count = j - i;
+      if (count > 1) {
+        const naturalCenter = natural
+          .slice(i, j)
+          .reduce((sum, col) => sum + col.leftPct, 0) / count;
+        const dayAnchor = naturalCenter;
+        const gapPct = SAME_DAY_FANOUT_GAP_PCT;
+        const prevEdge = i > 0 ? natural[i - 1].leftPct : 0;
+        const nextEdge = j < natural.length ? natural[j].leftPct : 100;
+        const pad = COLUMN_MIN_GAP_PCT * 0.5;
+        const roomLeft = prevEdge + pad;
+        const roomRight = nextEdge - pad;
+        const available = Math.max(gapPct, roomRight - roomLeft);
 
-      // If neighbors are tight, still keep a readable same-day span.
-      let useGap = gapPct;
-      if ((count - 1) * gapPct > available && count > 1) {
-        useGap = Math.max(16, available / (count - 1));
-      }
-      const span = (count - 1) * useGap;
-      let startPct = dayAnchor - span / 2;
-      const minStart = Math.max(2, roomLeft);
-      const maxStart = Math.min(98 - span, roomRight - span);
-      if (minStart <= maxStart) {
-        startPct = Math.max(minStart, Math.min(startPct, maxStart));
-      } else {
-        // Not enough room between neighbors — still separate same-day nodes.
-        startPct = Math.max(2, Math.min(dayAnchor - span / 2, 98 - span));
-      }
+        let useGap = gapPct;
+        if ((count - 1) * gapPct > available && count > 1) {
+          useGap = Math.max(MIN_VISIBLE_GAP_PCT, available / (count - 1));
+        }
+        const span = (count - 1) * useGap;
+        let startPct = dayAnchor - span / 2;
+        const minStart = Math.max(2, roomLeft);
+        const maxStart = Math.min(98 - span, roomRight - span);
+        if (minStart <= maxStart) {
+          startPct = Math.max(minStart, Math.min(startPct, maxStart));
+        } else {
+          startPct = Math.max(2, Math.min(dayAnchor - span / 2, 98 - span));
+        }
 
-      for (let k = 0; k < count; k += 1) {
-        natural[i + k].leftPct = Math.min(98, Math.max(2, startPct + k * useGap));
+        for (let k = 0; k < count; k += 1) {
+          natural[i + k].leftPct = Math.min(98, Math.max(2, startPct + k * useGap));
+        }
       }
+      i = j;
     }
-    i = j;
   }
 
-  // Final pass: never let consecutive same-day nodes sit on top of each other.
+  // Keep chronological order with a small minimum gap (clock scale = tiny).
   for (let k = 1; k < natural.length; k += 1) {
-    const minGap = sameCalendarDay(natural[k - 1].date, natural[k].date)
-      ? Math.min(SAME_DAY_FANOUT_GAP_PCT, 22)
-      : COLUMN_MIN_GAP_PCT;
+    const minGap = preferredGapPct(natural[k - 1].date, natural[k].date, clockScale);
     if (natural[k].leftPct < natural[k - 1].leftPct + minGap) {
-      natural[k].leftPct = Math.min(98, natural[k - 1].leftPct + minGap);
+      natural[k].leftPct = natural[k - 1].leftPct + minGap;
     }
   }
 
-  // Push upcoming schedules right of the thermometer so the countdown band fits.
+  // Thermometer rule: future schedules must sit after now — but keep true clock
+  // distance when already correct (do not invent a 16% fake gap).
   if (now) {
     const nowPct = applyTacticalLoupePct(
       grid.nowPct ?? grid.todayPct ?? grid.pct(now),
       loupe,
     );
-    let firstFuture = true;
     for (let k = 0; k < natural.length; k += 1) {
       if (!(natural[k].date.getTime() > now.getTime())) continue;
-      const minLeft = firstFuture
-        ? nowPct + NOW_TO_NEXT_MIN_GAP_PCT
-        : (k > 0 ? natural[k - 1].leftPct + (
-          sameCalendarDay(natural[k - 1].date, natural[k].date)
-            ? Math.min(SAME_DAY_FANOUT_GAP_PCT, 22)
-            : COLUMN_MIN_GAP_PCT
-        ) : nowPct + NOW_TO_NEXT_MIN_GAP_PCT);
-      if (natural[k].leftPct < minLeft) {
-        natural[k].leftPct = Math.min(98, minLeft);
+      if (natural[k].leftPct <= nowPct) {
+        natural[k].leftPct = Math.min(98, nowPct + NOW_TO_NEXT_MIN_GAP_PCT);
       }
-      firstFuture = false;
     }
     for (let k = 1; k < natural.length; k += 1) {
-      const minGap = sameCalendarDay(natural[k - 1].date, natural[k].date)
-        ? Math.min(SAME_DAY_FANOUT_GAP_PCT, 22)
-        : COLUMN_MIN_GAP_PCT;
+      const minGap = preferredGapPct(natural[k - 1].date, natural[k].date, clockScale);
       if (natural[k].leftPct < natural[k - 1].leftPct + minGap) {
         natural[k].leftPct = Math.min(98, natural[k - 1].leftPct + minGap);
       }
@@ -782,29 +908,9 @@ function assignColumnLeftPcts(columns, grid, loupe = null, options = {}) {
     for (const col of natural) {
       col.leftPct = Math.max(2, col.leftPct - overflow);
     }
-    // Re-assert thermometer → next timer after overflow compression.
-    if (now) {
-      const nowPct = applyTacticalLoupePct(
-        grid.nowPct ?? grid.todayPct ?? grid.pct(now),
-        loupe,
-      );
-      let firstFuture = true;
-      for (let k = 0; k < natural.length; k += 1) {
-        if (!(natural[k].date.getTime() > now.getTime())) continue;
-        const minLeft = firstFuture
-          ? nowPct + NOW_TO_NEXT_MIN_GAP_PCT
-          : natural[k - 1].leftPct + (
-            sameCalendarDay(natural[k - 1].date, natural[k].date)
-              ? Math.min(SAME_DAY_FANOUT_GAP_PCT, 22)
-              : COLUMN_MIN_GAP_PCT
-          );
-        if (natural[k].leftPct < minLeft) {
-          natural[k].leftPct = Math.min(98, minLeft);
-        }
-        firstFuture = false;
-      }
-    }
   }
+
+  ensureVisibleColumnSeparation(natural, grid, loupe, now);
 
   return natural;
 }
@@ -864,6 +970,7 @@ export function buildTacticalObjectRows(params) {
     primaryTimelineObjectId = null,
     rangeOverride = null,
     loupe = null,
+    pairStretches = [],
   } = params;
 
   const tactical = buildTimelineChains({
@@ -1077,8 +1184,11 @@ export function buildTacticalObjectRows(params) {
     const segments = dimensionSegmentsByRow.get(row.id) || [];
     row.rail = buildRowTimelineRail(row.columns, displayGrid, {
       segments,
-      loupe,
-      markerDates: folderMarkerDates.length > 0 ? folderMarkerDates : fallbackMarkerDates,
+      // Only this row's stretches — never bleed into folder rails.
+      pairStretches: (pairStretches || []).filter(
+        (s) => s && String(s.rowId) === String(row.id),
+      ),
+      markerDates: (row.columns || []).map((col) => col.date).filter(Boolean),
       now: today,
     });
   }

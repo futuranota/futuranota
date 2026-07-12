@@ -62,10 +62,34 @@ function fmtClock(d) {
   return `${h}:${m} ${period}`;
 }
 
-function TacticalRulerBar({ grid, today, now, t }) {
+function TacticalRulerBar({
+  grid,
+  today,
+  now,
+  t,
+  todayLeftPct = null,
+  todayStretchable = false,
+  todayPairNextDate = null,
+  rowId = null,
+  rangeDrag = null,
+  plotRef = null,
+  localOnly = true,
+}) {
   const markerAt = now instanceof Date ? now : today;
   const inRange = Boolean(grid && markerAt >= grid.start && markerAt <= grid.end);
-  const thermoPct = grid?.nowPct ?? grid?.todayPct ?? 0;
+  const thermoPct = Number.isFinite(todayLeftPct)
+    ? todayLeftPct
+    : (grid?.nowPct ?? grid?.todayPct ?? 0);
+  const todayHandleKey = rowId ? `${rowId}:today:anchor` : null;
+  const isTodayActive = Boolean(
+    rangeDrag?.isDragging
+    && todayHandleKey
+    && rangeDrag?.activeHandleKey === todayHandleKey,
+  );
+  const canStretchToday = Boolean(
+    todayStretchable && todayPairNextDate && rowId && rangeDrag && plotRef,
+  );
+
   return (
     <>
       <div className="tl-tactical-ruler" aria-hidden>
@@ -94,8 +118,46 @@ function TacticalRulerBar({ grid, today, now, t }) {
       <div className="tl-tactical-rail__axis" aria-hidden />
       {grid && inRange && (
         <div
-          className="tl-tactical-rail__today is-thermometer"
+          className={
+            "tl-tactical-rail__today is-thermometer"
+            + (canStretchToday ? " is-range-handle is-range-anchor" : "")
+            + (isTodayActive ? " is-range-active" : "")
+          }
           style={{ left: `${thermoPct}%` }}
+          role={canStretchToday ? "slider" : undefined}
+          tabIndex={canStretchToday ? 0 : undefined}
+          aria-label={canStretchToday ? (t ? t("timeline.dragToday") : "Drag today") : undefined}
+          title={canStretchToday ? (t ? t("timeline.dragToday") : undefined) : undefined}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(thermoPct)}
+          onPointerDown={
+            canStretchToday
+              ? (e) => {
+                e.stopPropagation();
+                rangeDrag.onRangeHandlePointerDown(
+                  "anchor",
+                  plotRef.current,
+                  e,
+                  {
+                    handleKey: todayHandleKey,
+                    focusKey: "today",
+                    pairNextDate: todayPairNextDate,
+                    rowId,
+                    allowRangePan: false,
+                  },
+                );
+              }
+              : undefined
+          }
+          onDoubleClick={
+            canStretchToday
+              ? (e) => rangeDrag.onRangeHandleDoubleClick(e, {
+                rowId,
+                localOnly,
+              })
+              : undefined
+          }
         >
           <div className="tl-tactical-rail__today-head">
             <span className="tl-tactical-rail__today-pill">
@@ -200,9 +262,7 @@ function TacticalRowGroup({
           onChipDoubleClick={onChipDoubleClick}
           onChipRemove={onChipRemove}
           queuedDocIds={queuedDocIds}
-          enableRangeHandles={
-            row.rowKind === "object" && (row.rail?.nodeGroups?.length ?? 0) > 0
-          }
+          enableRangeHandles={(row.rail?.nodeGroups?.length ?? 0) > 0}
           rangeDrag={rangeDrag}
           t={t}
         />
@@ -237,7 +297,7 @@ function TacticalObjectRow({
   const meta = { nodeEntitiesById, docsById };
   const trackObject = objectsById[row.objectId] || null;
   const isChildRow = row.rowKind === "children";
-  const { nodeGroups = [], segments = [] } = row.rail || {};
+  const { nodeGroups = [], segments = [], todayLeftPct = null, todayPairNextDate = null, todayStretchable = false } = row.rail || {};
   const chainNodes = row.chain
     ? row.chain.nodeIds.map((id) => trackItemsById.get(id)).filter(Boolean)
     : [];
@@ -296,7 +356,19 @@ function TacticalObjectRow({
             <div className="tl-tactical-rail__inset">
             <div className="tl-tactical-rail__plot" ref={plotRef}>
             <div className="tl-tactical-bar">
-              <TacticalRulerBar grid={grid} today={today} now={now} t={t} />
+              <TacticalRulerBar
+                grid={grid}
+                today={today}
+                now={now}
+                t={t}
+                todayLeftPct={todayLeftPct}
+                todayStretchable={todayStretchable && enableRangeHandles}
+                todayPairNextDate={todayPairNextDate}
+                rowId={row.id}
+                rangeDrag={rangeDrag}
+                plotRef={plotRef}
+                localOnly={isChildRow}
+              />
               {nodeGroups.length > 0 ? (
                 <>
               {segments.map((segment) => (
@@ -398,16 +470,14 @@ function TacticalObjectRow({
                 const anchorStatus = resolveAnchorStatus(group.date, today);
                 const isFirst = groupIndex === 0;
                 const isLast = groupIndex === nodeGroups.length - 1;
-                // Every folder dot is movable; extremes stretch edges, middles pan with the node.
+                const pairNext = !isLast ? nodeGroups[groupIndex + 1] : null;
+                // Every node with a next: individual pair stretch (1 moves, 2 static, …).
+                // Doc/child rails never pan the shared folder timeline.
                 const rangeEdge = !enableRangeHandles
                   ? null
-                  : (isFirst && isLast)
-                    ? "start" // side picked on pointer down
-                    : isFirst
-                      ? "start"
-                      : isLast
-                        ? "end"
-                        : "anchor";
+                  : pairNext
+                    ? "anchor"
+                    : (!isChildRow && isFirst && isLast ? "start" : null);
                 const handleKeyPrefix = `${row.id}:${group.columnKey}:`;
                 const isRangeHandle = Boolean(rangeEdge);
                 const isActiveHandle = Boolean(
@@ -425,13 +495,11 @@ function TacticalObjectRow({
                   rangeEdge === "anchor" ? "is-range-anchor" : "",
                   isActiveHandle ? "is-range-active" : "",
                 ].filter(Boolean).join(" ");
-                const stretchHint = rangeEdge === "start"
-                  ? t("timeline.dragStart")
-                  : rangeEdge === "end"
-                    ? t("timeline.dragEnd")
-                    : rangeEdge === "anchor"
-                      ? t("timeline.dragNode")
-                      : null;
+                const stretchHint = rangeEdge === "anchor"
+                  ? t("timeline.dragNode")
+                  : rangeEdge === "start"
+                    ? t("timeline.dragStart")
+                    : null;
 
                 return (
                   <span
@@ -455,7 +523,7 @@ function TacticalObjectRow({
                         ? (e) => {
                           e.stopPropagation();
                           let edge = rangeEdge;
-                          if (isFirst && isLast && plotRef.current) {
+                          if (isFirst && isLast && !pairNext && plotRef.current) {
                             const rect = plotRef.current.getBoundingClientRect();
                             const pct = rect.width <= 0
                               ? group.leftPct
@@ -469,12 +537,26 @@ function TacticalObjectRow({
                             {
                               handleKey: `${row.id}:${group.columnKey}:${edge}`,
                               anchorDate: group.date,
+                              markerDates: nodeGroups
+                                .map((g) => g.date)
+                                .filter(Boolean),
+                              pairNextDate: pairNext?.date || null,
+                              rowId: row.id,
+                              // Children/doc cords: pair only — never move folder timeline.
+                              allowRangePan: !isChildRow && !pairNext,
                             },
                           );
                         }
                         : undefined
                     }
-                    onDoubleClick={isRangeHandle ? rangeDrag?.onRangeHandleDoubleClick : undefined}
+                    onDoubleClick={
+                      isRangeHandle
+                        ? (e) => rangeDrag?.onRangeHandleDoubleClick(e, {
+                          rowId: row.id,
+                          localOnly: isChildRow,
+                        })
+                        : undefined
+                    }
                   >
                     <span className="tl-tactical-rail__anchor-core" aria-hidden />
                   </span>
@@ -667,6 +749,7 @@ export function TacticalTimeline({
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
   const tacticalRangeOverride = useTimelineStore((s) => s.tacticalRangeOverride);
   const tacticalLoupe = useTimelineStore((s) => s.tacticalLoupe);
+  const tacticalPairStretches = useTimelineStore((s) => s.tacticalPairStretches);
   const { t, locale } = useI18n();
   const pluralS = (n) => (n === 1 ? "" : "s");
   const familySuffix = (n) => {
@@ -716,6 +799,7 @@ export function TacticalTimeline({
       primaryTimelineObjectId,
       rangeOverride: tacticalRangeOverride,
       loupe: tacticalLoupe,
+      pairStretches: tacticalPairStretches,
     }),
     [
       canvasNodes,
@@ -735,6 +819,7 @@ export function TacticalTimeline({
       primaryTimelineObjectId,
       tacticalRangeOverride,
       tacticalLoupe,
+      tacticalPairStretches,
     ],
   );
 
