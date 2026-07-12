@@ -13,6 +13,11 @@ const MS_PER_MINUTE = 60000;
 export function resolveExplicitDocScheduleDate(doc) {
   if (!doc) return null;
 
+  if (doc.scheduleStartAt) {
+    const d = parseDate(doc.scheduleStartAt);
+    if (d) return d;
+  }
+
   if (doc.launchAt) {
     const d = parseDate(doc.launchAt);
     if (d) return d;
@@ -91,6 +96,7 @@ export function resolveDocScheduleDate(doc, nodeEntitiesById = {}) {
  */
 export function docScheduleHasExplicitTime(doc, nodeEntitiesById = {}) {
   if (!doc) return false;
+  if (doc.scheduleStartAt && /T\d{2}:\d{2}/.test(String(doc.scheduleStartAt))) return true;
   if (doc.launchAt && /T\d{2}:\d{2}/.test(String(doc.launchAt))) return true;
   for (const block of doc.blocks || []) {
     if (String(block?.anchorDate || "").trim() && String(block?.anchorTime || "").trim()) {

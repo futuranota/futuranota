@@ -518,6 +518,14 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
     if (!doc.launchAt && localDoc.launchAt) {
       doc.launchAt = localDoc.launchAt;
     }
+    if (!doc.scheduleStartAt && (localDoc.scheduleStartAt || localDoc.launchAt)) {
+      doc.scheduleStartAt = localDoc.scheduleStartAt || localDoc.launchAt;
+    }
+    if (!doc.scheduleFinishAt && (localDoc.scheduleFinishAt || localDoc.scheduleStartAt || localDoc.launchAt)) {
+      doc.scheduleFinishAt = localDoc.scheduleFinishAt
+        || localDoc.scheduleStartAt
+        || localDoc.launchAt;
+    }
   }
 
   // Schedule (anchorAt) always wins — never let a newer remote row without it wipe local.
@@ -781,7 +789,12 @@ export function initPersistenceMiddleware(stores) {
           subcategoryDocIds: camp.subcategory_doc_ids || [],
           version: docVersionFromDb(camp.version),
           category: camp.category || "",
-          launchAt: camp.launch_at || null,
+          launchAt: camp.launch_at || camp.schedule_start_at || null,
+          scheduleStartAt: camp.schedule_start_at || camp.launch_at || null,
+          scheduleFinishAt: camp.schedule_finish_at
+            || camp.schedule_start_at
+            || camp.launch_at
+            || null,
           campaignActive: camp.campaign_active !== false,
           nodeLinkColor: camp.node_link_color || "mint",
           knowledgeImport: camp.knowledge_import || null,
@@ -1025,7 +1038,12 @@ export function initPersistenceMiddleware(stores) {
         version: docVersionToDbInt(doc.version),
         // DB column is VARCHAR(50) — truncate so one long category cannot fail the whole upsert batch.
         category: String(doc.category || "").slice(0, 50),
-        launch_at: doc.launchAt || null,
+        launch_at: doc.scheduleStartAt || doc.launchAt || null,
+        schedule_start_at: doc.scheduleStartAt || doc.launchAt || null,
+        schedule_finish_at: doc.scheduleFinishAt
+          || doc.scheduleStartAt
+          || doc.launchAt
+          || null,
         campaign_active: doc.campaignActive !== false,
         node_link_color: doc.nodeLinkColor || "mint",
         knowledge_import: doc.knowledgeImport || null,

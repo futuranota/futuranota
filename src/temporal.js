@@ -65,6 +65,10 @@ export function resolveNodeAnchorDate(node, { nodeEntitiesById = {}, docsById = 
   if (node.dataType === "document" || node.canvasKind === "document") {
     const doc = docsById[node.docId] || docsById[node.noteId];
     if (!doc) return null;
+    if (doc.scheduleStartAt) {
+      const start = parseDate(doc.scheduleStartAt);
+      if (start) return start;
+    }
     if (doc.launchAt) {
       const launch = parseDate(doc.launchAt);
       if (launch) return launch;

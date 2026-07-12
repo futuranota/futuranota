@@ -14,9 +14,15 @@ import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 import {
   dateInputFromIso,
+  formatMmDdYy,
   isoFromDateInput,
   launchDateInputFromIso,
+  todayDateInputValue,
 } from "../../lib/docDates.js";
+import {
+  folderSchedulePickerMinDateInput,
+  validateFolderSchedule,
+} from "../../lib/folderScheduleReservation.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import {
   isTemplateDoc,
@@ -82,6 +88,7 @@ function docDraftHasContent(cached) {
   if (Boolean(String(cached.body ?? "").trim())) return true;
   // Keep Launch/schedule drafts across remount even when body is empty.
   if (Boolean(String(cached.launchDate ?? "").trim())) return true;
+  if (Boolean(String(cached.scheduleStartDate ?? "").trim())) return true;
   return false;
 }
 
@@ -141,6 +148,8 @@ function buildDocEditorDraft({
   version,
   category,
   launchDate,
+  scheduleStartDate,
+  scheduleFinishDate,
   campaignActive,
   nodeLinkColor,
   parentId,
@@ -157,6 +166,8 @@ function buildDocEditorDraft({
     version: version ?? "",
     category: category ?? "",
     launchDate: launchDate ?? "",
+    scheduleStartDate: scheduleStartDate ?? "",
+    scheduleFinishDate: scheduleFinishDate ?? "",
     campaignActive: Boolean(campaignActive),
     nodeLinkColor: nodeLinkColor ?? "dark",
     parentId: parentId ?? "",
@@ -175,6 +186,8 @@ function buildDocPersistSnapshot({
   version = "",
   category = "",
   launchAt = null,
+  scheduleStartAt = null,
+  scheduleFinishAt = null,
   campaignActive = false,
   parentObjectId = "",
   nodeLinkColor = "dark",
@@ -186,6 +199,8 @@ function buildDocPersistSnapshot({
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const serializedBody = docBlocksToBody(normalizedBlocks) || body || "";
   const ids = Array.isArray(subcategoryDocIds) ? subcategoryDocIds : [];
+  const startAt = scheduleStartAt ?? launchAt ?? null;
+  const finishAt = scheduleFinishAt ?? startAt ?? null;
   return {
     title: title ?? "",
     blocks: normalizedBlocks,
@@ -193,7 +208,9 @@ function buildDocPersistSnapshot({
     createdAt: isoFromDateInput(createdDate),
     version: String(version ?? "").trim(),
     category: String(category ?? "").trim(),
-    launchAt: launchAt ?? null,
+    launchAt: startAt,
+    scheduleStartAt: startAt,
+    scheduleFinishAt: finishAt,
     campaignActive: Boolean(campaignActive),
     parentObjectId: parentObjectId || "",
     nodeLinkColor: nodeLinkColor ?? "dark",
@@ -240,6 +257,8 @@ export function DocExpandedView({
   const [draftVersion, setDraftVersion] = useState("");
   const [draftCategory, setDraftCategory] = useState("");
   const [draftLaunchDate, setDraftLaunchDate] = useState("");
+  const [draftScheduleStartDate, setDraftScheduleStartDate] = useState("");
+  const [draftScheduleFinishDate, setDraftScheduleFinishDate] = useState("");
   const [draftCampaignActive, setDraftCampaignActive] = useState(false);
   const [draftNodeLinkColor, setDraftNodeLinkColor] = useState("dark");
   const [draftParentId, setDraftParentId] = useState("");
@@ -315,6 +334,16 @@ export function DocExpandedView({
     const loadedLaunchDate = useCachedDraft
       ? (cached.launchDate ?? launchDateInputFromIso(normalized.launchAt))
       : launchDateInputFromIso(normalized.launchAt);
+    const loadedScheduleStartDate = useCachedDraft
+      ? (cached.scheduleStartDate
+        ?? launchDateInputFromIso(normalized.scheduleStartAt)
+        ?? loadedLaunchDate)
+      : (launchDateInputFromIso(normalized.scheduleStartAt) || loadedLaunchDate);
+    const loadedScheduleFinishDate = useCachedDraft
+      ? (cached.scheduleFinishDate
+        ?? launchDateInputFromIso(normalized.scheduleFinishAt)
+        ?? loadedScheduleStartDate)
+      : (launchDateInputFromIso(normalized.scheduleFinishAt) || loadedScheduleStartDate);
     // #region agent log
     fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H4',location:'DocExpandedView.jsx:loadDraft',message:'doc draft load launch/created',data:{docId,useCachedDraft,cachedHasText,loadedLaunchDate,storeLaunchAt:normalized.launchAt??null,loadedCreatedDate,storeCreatedAt:normalized.createdAt??null},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
@@ -348,6 +377,8 @@ export function DocExpandedView({
       setDraftVersion(loadedVersion);
       setDraftCategory(loadedCategory);
       setDraftLaunchDate(loadedLaunchDate);
+      setDraftScheduleStartDate(loadedScheduleStartDate);
+      setDraftScheduleFinishDate(loadedScheduleFinishDate);
       setDraftCampaignActive(loadedCampaignActive);
       setDraftNodeLinkColor(loadedNodeLinkColor);
       setDraftParentId(loadedParentId);
@@ -363,6 +394,8 @@ export function DocExpandedView({
       setDraftVersion(loadedVersion);
       setDraftCategory(loadedCategory);
       setDraftLaunchDate(loadedLaunchDate);
+      setDraftScheduleStartDate(loadedScheduleStartDate);
+      setDraftScheduleFinishDate(loadedScheduleFinishDate);
       setDraftCampaignActive(loadedCampaignActive);
       setDraftNodeLinkColor(loadedNodeLinkColor);
       setDraftParentId(loadedParentId);
@@ -385,7 +418,15 @@ export function DocExpandedView({
       createdDate: loadedCreatedDate,
       version: loadedVersion,
       category: loadedCategory,
-      launchAt: loadedLaunchDate ? isoFromDateInput(loadedLaunchDate) : null,
+      launchAt: loadedScheduleStartDate
+        ? isoFromDateInput(loadedScheduleStartDate)
+        : (loadedLaunchDate ? isoFromDateInput(loadedLaunchDate) : null),
+      scheduleStartAt: loadedScheduleStartDate
+        ? isoFromDateInput(loadedScheduleStartDate)
+        : null,
+      scheduleFinishAt: loadedScheduleFinishDate
+        ? isoFromDateInput(loadedScheduleFinishDate)
+        : null,
       campaignActive: loadedCampaignActive,
       parentObjectId: loadedParentId,
       nodeLinkColor: loadedNodeLinkColor,
@@ -467,6 +508,8 @@ export function DocExpandedView({
           version: draftVersion,
           category: draftCategory,
           launchDate: draftLaunchDate,
+          scheduleStartDate: draftScheduleStartDate,
+          scheduleFinishDate: draftScheduleFinishDate,
           campaignActive: draftCampaignActive,
           nodeLinkColor: draftNodeLinkColor,
           parentId: draftParentId,
@@ -489,6 +532,8 @@ export function DocExpandedView({
     draftVersion,
     draftCategory,
     draftLaunchDate,
+    draftScheduleStartDate,
+    draftScheduleFinishDate,
     draftCampaignActive,
     draftNodeLinkColor,
     draftParentId,
@@ -500,12 +545,20 @@ export function DocExpandedView({
 
   useEffect(() => {
     if (!docId) return undefined;
-    const launchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
+    const scheduleStartAt = draftScheduleStartDate
+      ? isoFromDateInput(draftScheduleStartDate)
+      : null;
+    const launchAt = scheduleStartAt
+      || (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null);
     useUIStateStore.getState().setActiveDocMetaDraft({
       docId,
       version: draftVersion,
       category: draftCategory,
       launchAt,
+      scheduleStartAt,
+      scheduleFinishAt: draftScheduleFinishDate
+        ? isoFromDateInput(draftScheduleFinishDate)
+        : null,
       campaignActive: draftCampaignActive,
       subcategoryDocIds: draftSubcategoryDocIds,
       parentObjectId: draftParentId || "",
@@ -516,12 +569,22 @@ export function DocExpandedView({
     draftVersion,
     draftCategory,
     draftLaunchDate,
+    draftScheduleStartDate,
+    draftScheduleFinishDate,
     draftCampaignActive,
     draftSubcategoryDocIds,
     draftParentId,
   ]);
 
-  const draftLaunchAt = draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null;
+  const draftLaunchAt = draftScheduleStartDate
+    ? isoFromDateInput(draftScheduleStartDate)
+    : (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null);
+  const draftScheduleStartAt = draftScheduleStartDate
+    ? isoFromDateInput(draftScheduleStartDate)
+    : null;
+  const draftScheduleFinishAt = draftScheduleFinishDate
+    ? isoFromDateInput(draftScheduleFinishDate)
+    : null;
 
   const hasUnsavedDocChanges = useCallback(() => {
     const snap = docSnapshotRef.current;
@@ -540,6 +603,8 @@ export function DocExpandedView({
       version: draftVersion,
       category: draftCategory,
       launchAt: draftLaunchAt,
+      scheduleStartAt: draftScheduleStartAt,
+      scheduleFinishAt: draftScheduleFinishAt,
       campaignActive: draftCampaignActive,
       parentObjectId: draftParentId,
       nodeLinkColor: draftNodeLinkColor,
@@ -557,6 +622,8 @@ export function DocExpandedView({
     draftVersion,
     draftCategory,
     draftLaunchAt,
+    draftScheduleStartAt,
+    draftScheduleFinishAt,
     draftCampaignActive,
     draftParentId,
     draftNodeLinkColor,
@@ -645,6 +712,8 @@ export function DocExpandedView({
     version: draftVersion,
     category: draftCategory,
     launchAt: draftLaunchAt,
+    scheduleStartAt: draftScheduleStartAt,
+    scheduleFinishAt: draftScheduleFinishAt,
     campaignActive: draftCampaignActive,
     parentObjectId: draftParentId,
     nodeLinkColor: draftNodeLinkColor,
@@ -669,8 +738,104 @@ export function DocExpandedView({
   const isProductMode = metaMode === "product";
   const isKnowledgeMode = metaMode === "knowledge";
   const isContentMode = metaMode === "content";
+  const useFolderSchedule = isContentMode && !draftCampaignActive;
+  const scheduleStartMin = useFolderSchedule
+    ? folderSchedulePickerMinDateInput()
+    : todayDateInputValue();
   /** Products + Content: title and category mirror each other (file-box grouping). */
   const syncTitleWithCategory = isProductMode || isContentMode;
+
+  const alertFolderScheduleError = (check) => {
+    if (!check || check.ok) return;
+    if (check.code === "required") {
+      window.alert(t("meta.scheduleRequired"));
+    } else if (check.code === "finishBeforeStart") {
+      window.alert(t("meta.scheduleFinishBeforeStart"));
+    } else if (check.code === "overlap") {
+      const until = check.conflict?.finish
+        ? formatMmDdYy(check.conflict.finish.toISOString())
+        : "";
+      window.alert(t("meta.scheduleOverlap", {
+        title: check.conflict?.title || "Folder",
+        until,
+        minStart: formatMmDdYy(check.minStart || scheduleStartMin)
+          || check.minStart
+          || scheduleStartMin,
+      }));
+    } else {
+      window.alert(t("meta.scheduleInvalid"));
+    }
+  };
+
+  const persistFolderScheduleToStore = (startInput, finishInput) => {
+    const startAt = startInput ? isoFromDateInput(startInput) : null;
+    const finishAt = finishInput ? isoFromDateInput(finishInput) : null;
+    updateDoc(doc.id, {
+      scheduleStartAt: startAt,
+      scheduleFinishAt: finishAt,
+      launchAt: startAt,
+    });
+  };
+
+  const handleScheduleStartDateChange = (value) => {
+    if (!value) {
+      setDraftScheduleStartDate("");
+      setDraftScheduleFinishDate("");
+      setDraftLaunchDate("");
+      persistFolderScheduleToStore("", "");
+      return;
+    }
+    const minStart = scheduleStartMin || todayDateInputValue();
+    const clamped = value < minStart ? minStart : value;
+    const finish = draftScheduleFinishDate && draftScheduleFinishDate >= clamped
+      ? draftScheduleFinishDate
+      : clamped;
+    const check = validateFolderSchedule(
+      clamped,
+      finish,
+      allDocs,
+      draftParentId,
+      { excludeDocId: docId },
+    );
+    if (!check.ok) {
+      alertFolderScheduleError(check);
+      return;
+    }
+    setDraftScheduleStartDate(clamped);
+    setDraftScheduleFinishDate(finish);
+    setDraftLaunchDate(clamped);
+    persistFolderScheduleToStore(clamped, finish);
+  };
+
+  const handleScheduleFinishDateChange = (value) => {
+    if (!value) {
+      setDraftScheduleFinishDate("");
+      persistFolderScheduleToStore(draftScheduleStartDate, "");
+      return;
+    }
+    const start = draftScheduleStartDate || scheduleStartMin || todayDateInputValue();
+    const finish = value < start ? start : value;
+    const check = validateFolderSchedule(
+      start,
+      finish,
+      allDocs,
+      draftParentId,
+      { excludeDocId: docId },
+    );
+    if (!check.ok) {
+      alertFolderScheduleError(check);
+      return;
+    }
+    setDraftScheduleFinishDate(finish);
+    persistFolderScheduleToStore(start, finish);
+  };
+
+  const handleScheduleDatesClear = () => {
+    setDraftScheduleStartDate("");
+    setDraftScheduleFinishDate("");
+    setDraftLaunchDate("");
+    persistFolderScheduleToStore("", "");
+  };
 
   const handleDeleteDoc = () => {
     const category = draftCategory.trim();
@@ -763,6 +928,20 @@ export function DocExpandedView({
       ? (draftCategory.trim() || title)
       : draftCategory;
 
+    if (useFolderSchedule) {
+      const check = validateFolderSchedule(
+        draftScheduleStartDate,
+        draftScheduleFinishDate,
+        allDocs,
+        draftParentId,
+        { excludeDocId: docId },
+      );
+      if (!check.ok) {
+        alertFolderScheduleError(check);
+        return;
+      }
+    }
+
     const savedSnapshot = buildDocPersistSnapshot({
       title,
       blocks: blocksToSave,
@@ -771,12 +950,15 @@ export function DocExpandedView({
       version: draftVersion,
       category: categoryToSave,
       launchAt: draftLaunchAt,
+      scheduleStartAt: useFolderSchedule ? draftScheduleStartAt : draftLaunchAt,
+      scheduleFinishAt: useFolderSchedule ? draftScheduleFinishAt : draftLaunchAt,
       campaignActive: draftCampaignActive,
       parentObjectId: isKnowledgeMode ? "" : draftParentId,
       nodeLinkColor: draftNodeLinkColor,
       docKind: draftDocKind,
       templateKind: draftTemplateKind,
       subcategoryDocIds: draftSubcategoryDocIds,
+      knowledgeImport: draftKnowledgeImport,
     });
     updateDoc(doc.id, {
       title,
@@ -787,6 +969,8 @@ export function DocExpandedView({
       version: savedSnapshot.version,
       category: savedSnapshot.category,
       launchAt: savedSnapshot.launchAt,
+      scheduleStartAt: savedSnapshot.scheduleStartAt,
+      scheduleFinishAt: savedSnapshot.scheduleFinishAt,
       campaignActive: savedSnapshot.campaignActive,
       nodeLinkColor: savedSnapshot.nodeLinkColor,
       docKind: savedSnapshot.docKind,
@@ -821,6 +1005,8 @@ export function DocExpandedView({
       version: draftVersion,
       category: draftCategory,
       launchAt: draftLaunchAt,
+      scheduleStartAt: draftScheduleStartAt,
+      scheduleFinishAt: draftScheduleFinishAt,
       campaignActive: draftCampaignActive,
       parentObjectId: isKnowledgeMode ? "" : draftParentId,
       nodeLinkColor: draftNodeLinkColor,
@@ -1465,7 +1651,7 @@ export function DocExpandedView({
             if (syncTitleWithCategory) setDraftTitle(v);
           }}
           launchDate={isTemplate ? "" : draftLaunchDate}
-          onLaunchDateChange={isTemplate ? undefined : (v) => {
+          onLaunchDateChange={isTemplate || useFolderSchedule ? undefined : (v) => {
             setDraftLaunchDate(v);
             // Persist Launch immediately — Schedule wins and must survive tab switch.
             const launchAt = v ? isoFromDateInput(v) : null;
@@ -1474,8 +1660,15 @@ export function DocExpandedView({
             fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H4',location:'DocExpandedView.jsx:onLaunchDateChange',message:'launchAt persisted to docsStore',data:{docId:doc.id,launchDate:v,launchAt},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
           }}
+          scheduleStartDate={useFolderSchedule ? draftScheduleStartDate : ""}
+          onScheduleStartDateChange={useFolderSchedule ? handleScheduleStartDateChange : undefined}
+          scheduleFinishDate={useFolderSchedule ? draftScheduleFinishDate : ""}
+          onScheduleFinishDateChange={useFolderSchedule ? handleScheduleFinishDateChange : undefined}
+          scheduleStartMin={useFolderSchedule ? scheduleStartMin : ""}
+          onScheduleDatesClear={useFolderSchedule ? handleScheduleDatesClear : undefined}
+          useFolderSchedule={useFolderSchedule}
           campaignActive={draftCampaignActive}
-          onCampaignActiveChange={isTemplate ? undefined : (v) => {
+          onCampaignActiveChange={isTemplate || useFolderSchedule ? undefined : (v) => {
             setDraftCampaignActive(v);
           }}
           parentId={draftParentId}

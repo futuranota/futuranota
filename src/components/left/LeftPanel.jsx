@@ -20,7 +20,11 @@ import { getAgentsForUser, AGENT_MARKETING_GUIDE } from "../../lib/agents/regist
 import { useAuthStore } from "../../stores/authStore.js";
 import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
-import { isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
+import { formatMmDdYy, isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
+import {
+  folderSchedulePickerMinDateInput,
+  validateFolderSchedule,
+} from "../../lib/folderScheduleReservation.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
 import { DocListTitle } from "../docs/DocListTitle.jsx";
 import { docBlocksToBody, normalizeDocBlocks } from "../../lib/docBlocks.js";
@@ -845,6 +849,8 @@ function buildDocCreateSnapshot({
   version,
   category,
   launchDate,
+  scheduleStartDate,
+  scheduleFinishDate,
   campaignActive,
   subcategoryDocIds,
   nodeLinkColor,
@@ -858,6 +864,8 @@ function buildDocCreateSnapshot({
     version: String(version ?? "").trim(),
     category: String(category ?? "").trim(),
     launchDate: launchDate ?? "",
+    scheduleStartDate: scheduleStartDate ?? "",
+    scheduleFinishDate: scheduleFinishDate ?? "",
     campaignActive: Boolean(campaignActive),
     subcategoryDocIds: Array.isArray(subcategoryDocIds) ? [...subcategoryDocIds] : [],
     nodeLinkColor: nodeLinkColor ?? "dark",
@@ -890,6 +898,8 @@ function DocCreateModal({
   const [version, setVersion] = useState("");
   const [category, setCategory] = useState(defaultCategory);
   const [launchDate, setLaunchDate] = useState("");
+  const [scheduleStartDate, setScheduleStartDate] = useState("");
+  const [scheduleFinishDate, setScheduleFinishDate] = useState("");
   const [campaignActive, setCampaignActive] = useState(createMode === "campaign");
   const [subcategoryDocIds, setSubcategoryDocIds] = useState([]);
   const [nodeLinkColor, setNodeLinkColor] = useState("dark");
@@ -901,10 +911,17 @@ function DocCreateModal({
   const isKnowledgeMode = createMode === "knowledge";
   const isCampaignMode = createMode === "campaign";
   const isContentMode = createMode === "content" || isCampaignMode || (!isProductMode && !isKnowledgeMode);
+  const useFolderSchedule = createMode === "content";
   const metaMode = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
   const docKind = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
   /** Products + Content: title and category mirror each other (file-box grouping). */
   const syncTitleWithCategory = isProductMode || isContentMode;
+
+  const scheduleStartMin = useMemo(() => {
+    if (!useFolderSchedule) return todayDateInputValue();
+    // Today only — overlap vs other folders is validated on change/save.
+    return folderSchedulePickerMinDateInput();
+  }, [useFolderSchedule]);
 
   useEffect(() => {
     setParentId(fallbackParent);
@@ -919,6 +936,41 @@ function DocCreateModal({
     titleRef.current?.select();
   }, []);
 
+  // Seed Schedule Start/Finish once when opening Documents create.
+  const scheduleSeededRef = useRef(false);
+  useEffect(() => {
+    if (!useFolderSchedule || scheduleSeededRef.current) return;
+    const minStart = scheduleStartMin || todayDateInputValue();
+    setScheduleStartDate(minStart);
+    setScheduleFinishDate(minStart);
+    scheduleSeededRef.current = true;
+  }, [useFolderSchedule, scheduleStartMin]);
+
+  const handleScheduleStartChange = (value) => {
+    if (!value) {
+      setScheduleStartDate("");
+      setScheduleFinishDate("");
+      return;
+    }
+    const clamped = scheduleStartMin && value < scheduleStartMin ? scheduleStartMin : value;
+    setScheduleStartDate(clamped);
+    setScheduleFinishDate((finish) => (!finish || finish < clamped ? clamped : finish));
+  };
+
+  const handleScheduleFinishChange = (value) => {
+    if (!value) {
+      setScheduleFinishDate("");
+      return;
+    }
+    const start = scheduleStartDate || scheduleStartMin || todayDateInputValue();
+    setScheduleFinishDate(value < start ? start : value);
+  };
+
+  const handleScheduleDatesClear = () => {
+    setScheduleStartDate("");
+    setScheduleFinishDate("");
+  };
+
   useEffect(() => {
     createSnapshotRef.current = buildDocCreateSnapshot({
       title: "",
@@ -927,6 +979,8 @@ function DocCreateModal({
       version: "",
       category: defaultCategory,
       launchDate: "",
+      scheduleStartDate: useFolderSchedule ? (scheduleStartMin || todayDateInputValue()) : "",
+      scheduleFinishDate: useFolderSchedule ? (scheduleStartMin || todayDateInputValue()) : "",
       campaignActive: createMode === "campaign",
       subcategoryDocIds: [],
       nodeLinkColor: "dark",
@@ -946,6 +1000,8 @@ function DocCreateModal({
       version,
       category,
       launchDate,
+      scheduleStartDate,
+      scheduleFinishDate,
       campaignActive,
       subcategoryDocIds,
       nodeLinkColor,
@@ -959,6 +1015,8 @@ function DocCreateModal({
       version,
       category,
       launchDate,
+      scheduleStartDate,
+      scheduleFinishDate,
       campaignActive,
       subcategoryDocIds,
       nodeLinkColor,
@@ -1050,6 +1108,44 @@ function DocCreateModal({
         : (title.trim() || finalCategory || t("sidebar.newDocument"));
     const autoTags = isKnowledgeMode ? [] : (parentObject?.name ? [parentObject.name] : []);
     const serializedBody = docBlocksToBody(blocks) || body;
+
+    let scheduleStartAt = null;
+    let scheduleFinishAt = null;
+    let launchAt = launchDate ? isoFromDateInput(launchDate) : null;
+
+    if (useFolderSchedule) {
+      const check = validateFolderSchedule(
+        scheduleStartDate,
+        scheduleFinishDate,
+        allDocs || [],
+        parentId,
+      );
+      if (!check.ok) {
+        if (check.code === "required") {
+          window.alert(t("meta.scheduleRequired"));
+        } else if (check.code === "finishBeforeStart") {
+          window.alert(t("meta.scheduleFinishBeforeStart"));
+        } else if (check.code === "overlap") {
+          const until = check.conflict?.finish
+            ? formatMmDdYy(check.conflict.finish.toISOString())
+            : "";
+          window.alert(t("meta.scheduleOverlap", {
+            title: check.conflict?.title || "Folder",
+            until,
+            minStart: formatMmDdYy(check.minStart || scheduleStartMin)
+              || check.minStart
+              || scheduleStartMin,
+          }));
+        } else {
+          window.alert(t("meta.scheduleInvalid"));
+        }
+        return;
+      }
+      scheduleStartAt = isoFromDateInput(scheduleStartDate);
+      scheduleFinishAt = isoFromDateInput(scheduleFinishDate);
+      launchAt = scheduleStartAt;
+    }
+
     onSubmit({
       title: finalTitle,
       parentObjectId: isKnowledgeMode ? null : (parentId || null),
@@ -1059,7 +1155,9 @@ function DocCreateModal({
       createdAt: isoFromDateInput(createdDate),
       version: version.trim(),
       category: finalCategory,
-      launchAt: launchDate ? isoFromDateInput(launchDate) : null,
+      launchAt,
+      scheduleStartAt,
+      scheduleFinishAt,
       campaignActive,
       subcategoryDocIds,
       nodeLinkColor,
@@ -1099,6 +1197,13 @@ function DocCreateModal({
           onCategoryChange={handleCategoryChange}
           launchDate={launchDate}
           onLaunchDateChange={setLaunchDate}
+          scheduleStartDate={scheduleStartDate}
+          onScheduleStartDateChange={handleScheduleStartChange}
+          scheduleFinishDate={scheduleFinishDate}
+          onScheduleFinishDateChange={handleScheduleFinishChange}
+          scheduleStartMin={scheduleStartMin}
+          onScheduleDatesClear={handleScheduleDatesClear}
+          useFolderSchedule={useFolderSchedule}
           campaignActive={campaignActive}
           onCampaignActiveChange={setCampaignActive}
           subcategoryDocIds={subcategoryDocIds}
@@ -1925,7 +2030,12 @@ export function LeftPanel({
           subcategoryDocIds: data.subcategoryDocIds ?? data.templateSubcategoryDocIds ?? [],
           version: data.version ?? "",
           category: data.category ?? "",
-          launchAt: data.launchAt ?? null,
+          launchAt: data.launchAt ?? data.scheduleStartAt ?? null,
+          scheduleStartAt: data.scheduleStartAt ?? data.launchAt ?? null,
+          scheduleFinishAt: data.scheduleFinishAt
+            ?? data.scheduleStartAt
+            ?? data.launchAt
+            ?? null,
           campaignActive: Boolean(data.campaignActive),
           nodeLinkColor: data.nodeLinkColor ?? "dark",
           knowledgeImport: data.knowledgeImport ?? null,

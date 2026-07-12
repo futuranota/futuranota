@@ -18,11 +18,29 @@ export function emptyDocCampaignFields() {
     version: "",
     category: "",
     launchAt: null,
+    scheduleStartAt: null,
+    scheduleFinishAt: null,
     campaignActive: false,
     nodeLinkColor: "dark",
     knowledgeImport: null,
     launchRadarSnapshot: null,
     reportPresentation: null,
+  };
+}
+
+/** Prefer scheduleStartAt; legacy launchAt fills a 1-day reservation. */
+function resolveNormalizedScheduleFields(doc, base) {
+  let scheduleStartAt = doc.scheduleStartAt ?? null;
+  let scheduleFinishAt = doc.scheduleFinishAt ?? null;
+  const launchAt = doc.launchAt ?? base.launchAt;
+  if (!scheduleStartAt && launchAt) scheduleStartAt = launchAt;
+  if (!scheduleFinishAt && scheduleStartAt) scheduleFinishAt = scheduleStartAt;
+  // Mirror launchAt ← start so older timeline resolvers keep working.
+  const mirroredLaunch = scheduleStartAt ?? launchAt ?? null;
+  return {
+    scheduleStartAt,
+    scheduleFinishAt,
+    launchAt: mirroredLaunch,
   };
 }
 
@@ -50,7 +68,7 @@ export function normalizeDoc(doc) {
         : base.subcategoryDocIds,
     version: typeof doc.version === "string" ? doc.version : base.version,
     category: typeof doc.category === "string" ? doc.category : base.category,
-    launchAt: doc.launchAt ?? base.launchAt,
+    ...resolveNormalizedScheduleFields(doc, base),
     campaignActive: Boolean(doc.campaignActive),
     nodeLinkColor: normalizeNodeLinkColorId(doc.nodeLinkColor ?? base.nodeLinkColor),
     knowledgeImport: normalizeKnowledgeImport(doc.knowledgeImport),

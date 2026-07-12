@@ -626,7 +626,12 @@ useEffect(() => {
               normalizedDoc.subcategoryDocIds,
             ),
             contentCategory: normalizedDoc.category?.trim() || "",
-            launchAt: normalizedDoc.launchAt ?? null,
+            launchAt: normalizedDoc.scheduleStartAt ?? normalizedDoc.launchAt ?? null,
+            scheduleStartAt: normalizedDoc.scheduleStartAt ?? normalizedDoc.launchAt ?? null,
+            scheduleFinishAt: normalizedDoc.scheduleFinishAt
+              ?? normalizedDoc.scheduleStartAt
+              ?? normalizedDoc.launchAt
+              ?? null,
             campaignActive: Boolean(normalizedDoc.campaignActive),
           }
         : {}),

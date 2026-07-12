@@ -3462,7 +3462,7 @@
 }
 
 .doc-meta-strip--open .doc-meta-strip__drawer {
-  max-height: 280px;
+  max-height: 640px;
   opacity: 1;
   margin-top: 8px;
   overflow: visible;
@@ -3488,6 +3488,181 @@
 
 .doc-meta-field--readonly {
   justify-content: flex-end;
+}
+
+.doc-meta-field--schedule-clear {
+  justify-content: flex-end;
+  padding-top: 0;
+}
+
+.doc-meta-schedule-clear {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: #7e7a76;
+  cursor: pointer;
+}
+
+.doc-meta-schedule-clear:hover {
+  color: color-mix(in oklab, #d8d8d8 85%, #7e7a76);
+}
+
+.doc-meta-field--schedule-date {
+  position: relative;
+  align-items: stretch;
+}
+
+.doc-meta-schedule-date-trigger {
+  width: 100%;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  background: #151515;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: #d8d8d8;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doc-meta-schedule-date-trigger.is-empty {
+  color: #7e7a76;
+}
+
+.doc-meta-schedule-date-trigger.is-open,
+.doc-meta-schedule-date-trigger:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.doc-meta-schedule-cal {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  min-width: 220px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: #151515;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.doc-meta-schedule-cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.doc-meta-schedule-cal__month {
+  flex: 1;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: #d8d8d8;
+  text-transform: capitalize;
+}
+
+.doc-meta-schedule-cal__nav {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  background: transparent;
+  color: #9aa0a2;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.doc-meta-schedule-cal__nav:hover {
+  color: #d8d8d8;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.doc-meta-schedule-cal__weekdays,
+.doc-meta-schedule-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.doc-meta-schedule-cal__wd {
+  font-family: var(--sans);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: #5c5f63;
+  padding: 2px 0 6px;
+}
+
+.doc-meta-schedule-cal__pad {
+  aspect-ratio: 1;
+}
+
+.doc-meta-schedule-cal__day {
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #d8d8d8;
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.doc-meta-schedule-cal__day:hover:not(:disabled):not(.is-reserved) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.doc-meta-schedule-cal__day.is-selected {
+  background: color-mix(in oklab, #57d68a 22%, transparent);
+  color: #57d68a;
+}
+
+.doc-meta-schedule-cal__day.is-reserved,
+.doc-meta-schedule-cal__day.is-disabled {
+  cursor: not-allowed;
+  color: #5c5f63;
+}
+
+.doc-meta-schedule-cal__day.is-reserved .doc-meta-schedule-cal__day-num {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  opacity: 0.72;
+}
+
+.doc-meta-schedule-cal__day.is-reserved {
+  background: color-mix(in oklab, #9aa0a2 8%, transparent);
+}
+
+.doc-meta-schedule-cal__hint {
+  margin: 8px 0 0;
+  font-family: var(--sans);
+  font-size: 9px;
+  line-height: 1.35;
+  color: #7e7a76;
 }
 
 .doc-meta-field-k {

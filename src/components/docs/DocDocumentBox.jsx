@@ -83,6 +83,13 @@ export function DocDocumentBox({
   onCategoryChange,
   launchDate = "",
   onLaunchDateChange,
+  scheduleStartDate = "",
+  onScheduleStartDateChange,
+  scheduleFinishDate = "",
+  onScheduleFinishDateChange,
+  scheduleStartMin = "",
+  onScheduleDatesClear,
+  useFolderSchedule = false,
   campaignActive = false,
   onCampaignActiveChange,
   nodeLinkColor = "dark",
@@ -685,6 +692,13 @@ export function DocDocumentBox({
           onCategoryChange={onCategoryChange}
           launchDate={launchDate}
           onLaunchDateChange={onLaunchDateChange}
+          scheduleStartDate={scheduleStartDate}
+          onScheduleStartDateChange={onScheduleStartDateChange}
+          scheduleFinishDate={scheduleFinishDate}
+          onScheduleFinishDateChange={onScheduleFinishDateChange}
+          scheduleStartMin={scheduleStartMin}
+          onScheduleDatesClear={onScheduleDatesClear}
+          useFolderSchedule={useFolderSchedule}
           campaignActive={campaignActive}
           onCampaignActiveChange={onCampaignActiveChange}
           parentId={parentId}

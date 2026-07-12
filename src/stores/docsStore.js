@@ -68,7 +68,16 @@ export const useDocsStore = create(
               subcategoryDocIds: campaign.subcategoryDocIds ?? campaign.templateSubcategoryDocIds ?? [],
               version: campaign.version ?? "",
               category: campaign.category ?? "",
-              launchAt: campaign.launchAt ?? null,
+              launchAt: campaign.launchAt
+                ?? campaign.scheduleStartAt
+                ?? null,
+              scheduleStartAt: campaign.scheduleStartAt
+                ?? campaign.launchAt
+                ?? null,
+              scheduleFinishAt: campaign.scheduleFinishAt
+                ?? campaign.scheduleStartAt
+                ?? campaign.launchAt
+                ?? null,
               campaignActive: Boolean(campaign.campaignActive),
               nodeLinkColor: campaign.nodeLinkColor,
               knowledgeImport: campaign.knowledgeImport ?? null,

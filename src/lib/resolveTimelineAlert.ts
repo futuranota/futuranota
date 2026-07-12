@@ -104,8 +104,8 @@ export function collectTimelineScheduleTargets({
         kind: "doc",
         kindLabel: "Document",
       });
-    } else if (doc.launchAt) {
-      const launch = parseDate(doc.launchAt);
+    } else if (doc.scheduleStartAt || doc.launchAt) {
+      const launch = parseDate(doc.scheduleStartAt || doc.launchAt);
       if (launch) {
         addTarget(targets, seen, {
           key: `doc-${docId}`,
@@ -144,12 +144,14 @@ export function collectTimelineScheduleTargets({
 
     const contentDocs = Object.values(docs).filter((raw) => {
       const doc = normalizeDoc(raw);
-      return isContentDoc(doc) && doc.parentObjectId === objectId && doc.launchAt;
+      return isContentDoc(doc)
+        && doc.parentObjectId === objectId
+        && (doc.scheduleStartAt || doc.launchAt);
     });
 
     for (const raw of contentDocs) {
       const doc = normalizeDoc(raw);
-      const launch = parseDate(doc.launchAt);
+      const launch = parseDate(doc.scheduleStartAt || doc.launchAt);
       if (!launch) continue;
       addTarget(targets, seen, {
         key: `launch-${doc.id}`,

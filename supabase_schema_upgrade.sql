@@ -46,6 +46,8 @@ ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS subcategory_doc_ids JSONB;
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS version VARCHAR(20);
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS category VARCHAR(50);
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS launch_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS schedule_start_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS schedule_finish_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS campaign_active BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS node_link_color VARCHAR(20);
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS knowledge_import JSONB;

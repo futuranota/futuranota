@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { getToday } from "../../data.jsx";
 import { formatCampaignLabel, formatWindowDays } from "../../lib/docMetaBar.js";
 import { formatMmDdYy, isoFromDateInput } from "../../lib/docDates.js";
+import { formatFolderScheduleDuration } from "../../lib/folderScheduleReservation.js";
+import { FolderScheduleDateField } from "./FolderScheduleDateField.jsx";
 import {
   importKnowledgeFile,
   KNOWLEDGE_FILE_ACCEPT,
@@ -14,6 +16,7 @@ import { SubcategoryField } from "./SubcategoryField.jsx";
 import { ProductCategorySubcategoryField } from "./ProductCategorySubcategoryField.jsx";
 import { ProductCategoryField } from "./ProductCategoryField.jsx";
 import { ProductVersionField } from "./ProductVersionField.jsx";
+import { useI18n } from "../../i18n/useI18n.js";
 
 function openDatePicker(e) {
   e.stopPropagation();
@@ -146,6 +149,12 @@ export function DocMetaStrip({
   onCategoryChange,
   launchDate = "",
   onLaunchDateChange,
+  scheduleStartDate = "",
+  onScheduleStartDateChange,
+  scheduleFinishDate = "",
+  onScheduleFinishDateChange,
+  scheduleStartMin = "",
+  onScheduleDatesClear,
   campaignActive = false,
   onCampaignActiveChange,
   parentId = "",
@@ -157,16 +166,21 @@ export function DocMetaStrip({
   onNodeLinkColorChange,
   objects = null,
   showCampaignMeta = false,
+  /** Documents folder reservation UI (Start/Finish). Campaign create keeps Launch. */
+  useFolderSchedule = false,
   metaMode = "campaign",
   onKnowledgeFileImport,
   knowledgeImport = null,
   hasKnowledgeImport = false,
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const isProductMode = metaMode === "product";
   const isContentMode = metaMode === "content";
   const isKnowledgeMode = metaMode === "knowledge";
   const isLegacyCampaign = metaMode === "campaign" && showCampaignMeta;
+  const showFolderSchedule = isContentMode && useFolderSchedule;
+  const showContentCampaignMeta = isContentMode && !useFolderSchedule;
   const showMetaFields = isProductMode || isContentMode || isLegacyCampaign || isKnowledgeMode;
   const launchIso = launchDate ? isoFromDateInput(launchDate) : null;
   const today = getToday();
@@ -189,11 +203,16 @@ export function DocMetaStrip({
         ? `${subcategoryDocIds.length} product${subcategoryDocIds.length === 1 ? "" : "s"}`
         : null;
 
-  const campaignSummary = (isLegacyCampaign || isContentMode)
+  const campaignSummary = (isLegacyCampaign || showContentCampaignMeta)
     ? formatCampaignLabel(campaignActive)
     : null;
 
   const launchFormatted = formatMmDdYy(launchDate);
+  const scheduleStartFormatted = formatMmDdYy(scheduleStartDate);
+  const scheduleFinishFormatted = formatMmDdYy(scheduleFinishDate);
+  const scheduleDuration = showFolderSchedule
+    ? formatFolderScheduleDuration(scheduleStartDate, scheduleFinishDate, t)
+    : null;
   const importedFile = normalizeKnowledgeImport(knowledgeImport);
 
   return (
@@ -208,12 +227,28 @@ export function DocMetaStrip({
           ) : null}
           {isContentMode ? (
             <>
-              <MetaChip label="Brand" value={brandSummary} />
-              <MetaChip label="Category" value={category.trim() || null} asTag />
-              <MetaChip label="Campaign" value={campaignSummary} valueLowercase />
-              <MetaChip label="Subcategories" value={subcategorySummary} />
-              <MetaChip label="Launch" value={launchFormatted || null} />
-              <MetaChip label="Window" value={windowSummary} />
+              <MetaChip label={t("meta.brand")} value={brandSummary} />
+              <MetaChip label={t("meta.category")} value={category.trim() || null} asTag />
+              {showFolderSchedule ? (
+                <>
+                  <MetaChip
+                    label={t("meta.scheduleStart")}
+                    value={scheduleStartFormatted || null}
+                  />
+                  <MetaChip
+                    label={t("meta.scheduleFinish")}
+                    value={scheduleFinishFormatted || null}
+                  />
+                  <MetaChip label={t("meta.scheduleDuration")} value={scheduleDuration} />
+                </>
+              ) : (
+                <>
+                  <MetaChip label={t("meta.campaign")} value={campaignSummary} valueLowercase />
+                  <MetaChip label={t("meta.launch")} value={launchFormatted || null} />
+                  <MetaChip label={t("meta.window")} value={windowSummary} />
+                </>
+              )}
+              <MetaChip label={t("meta.subcategories")} value={subcategorySummary} />
             </>
           ) : null}
           {isLegacyCampaign ? (
@@ -295,31 +330,33 @@ export function DocMetaStrip({
 
           {isContentMode ? (
             <>
-              <div className="doc-meta-field">
-                <span className="doc-meta-field-k">Campaign</span>
-                <div className="doc-new-campaign-toggle" role="group" aria-label="Campaign status">
-                  <button
-                    type="button"
-                    className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCampaignActiveChange(true);
-                    }}
-                  >
-                    Active
-                  </button>
-                  <button
-                    type="button"
-                    className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCampaignActiveChange(false);
-                    }}
-                  >
-                    inactive
-                  </button>
+              {showContentCampaignMeta ? (
+                <div className="doc-meta-field">
+                  <span className="doc-meta-field-k">{t("meta.campaign")}</span>
+                  <div className="doc-new-campaign-toggle" role="group" aria-label="Campaign status">
+                    <button
+                      type="button"
+                      className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCampaignActiveChange?.(true);
+                      }}
+                    >
+                      Active
+                    </button>
+                    <button
+                      type="button"
+                      className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCampaignActiveChange?.(false);
+                      }}
+                    >
+                      inactive
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : null}
               <ProductCategoryField
                 value={category}
                 onChange={onCategoryChange}
@@ -328,17 +365,66 @@ export function DocMetaStrip({
                 allDocs={allDocs}
                 docId={docId}
               />
-              <label className="doc-meta-field">
-                <span className="doc-meta-field-k">Launch</span>
-                <input
-                  type="date"
-                  className="doc-new-date doc-meta-field-input"
-                  value={launchDate}
-                  onChange={(e) => onLaunchDateChange(e.target.value)}
-                  onClick={openDatePicker}
-                  onFocus={openDatePicker}
-                />
-              </label>
+              {showFolderSchedule ? (
+                <>
+                  <FolderScheduleDateField
+                    label={t("meta.scheduleStart")}
+                    value={scheduleStartDate}
+                    onChange={onScheduleStartDateChange}
+                    minDate={scheduleStartMin || undefined}
+                    allDocs={allDocs}
+                    parentId={parentId}
+                    excludeDocId={docId}
+                  />
+                  <FolderScheduleDateField
+                    label={t("meta.scheduleFinish")}
+                    value={scheduleFinishDate}
+                    onChange={onScheduleFinishDateChange}
+                    minDate={scheduleStartDate || scheduleStartMin || undefined}
+                    allDocs={allDocs}
+                    parentId={parentId}
+                    excludeDocId={docId}
+                  />
+                  {scheduleDuration ? (
+                    <div className="doc-meta-field doc-meta-field--readonly">
+                      <span className="doc-meta-field-k">{t("meta.scheduleDuration")}</span>
+                      <span className="doc-new-meta-readonly">{scheduleDuration}</span>
+                    </div>
+                  ) : null}
+                  {(scheduleStartDate || scheduleFinishDate) && onScheduleDatesClear ? (
+                    <div className="doc-meta-field doc-meta-field--schedule-clear">
+                      <button
+                        type="button"
+                        className="doc-meta-schedule-clear"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onScheduleDatesClear();
+                        }}
+                      >
+                        {t("meta.scheduleClear")}
+                      </button>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <label className="doc-meta-field">
+                    <span className="doc-meta-field-k">{t("meta.launch")}</span>
+                    <input
+                      type="date"
+                      className="doc-new-date doc-meta-field-input"
+                      value={launchDate}
+                      onChange={(e) => onLaunchDateChange?.(e.target.value)}
+                      onClick={openDatePicker}
+                      onFocus={openDatePicker}
+                    />
+                  </label>
+                  <div className="doc-meta-field doc-meta-field--readonly">
+                    <span className="doc-meta-field-k">{t("meta.window")}</span>
+                    <span className="doc-new-meta-readonly">{windowSummary}</span>
+                  </div>
+                </>
+              )}
               {showProductSubcategories ? (
                 <ProductCategorySubcategoryField
                   parentId={parentId}
@@ -348,10 +434,6 @@ export function DocMetaStrip({
                   excludeDocId={docId}
                 />
               ) : null}
-              <div className="doc-meta-field doc-meta-field--readonly">
-                <span className="doc-meta-field-k">Window</span>
-                <span className="doc-new-meta-readonly">{windowSummary}</span>
-              </div>
             </>
           ) : null}
 

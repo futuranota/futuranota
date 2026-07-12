@@ -46,6 +46,8 @@
  * @property {string} [version]
  * @property {string} [category]
  * @property {string|null} [launchAt]
+ * @property {string|null} [scheduleStartAt] — folder reservation start (timeline anchor)
+ * @property {string|null} [scheduleFinishAt] — folder reservation end (inclusive)
  * @property {boolean} [campaignActive]
  * @property {import('../lib/launchRadarSnapshot.js').LaunchRadarSnapshot} [launchRadarSnapshot]
  * @property {{ kind?: string, animateOnOpen?: boolean, animatedAt?: string|null }} [reportPresentation]
