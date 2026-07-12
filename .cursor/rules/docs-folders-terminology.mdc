@@ -1,0 +1,28 @@
+---
+description: UI terminology — macronodes are documents; sidebar Documents are folders
+alwaysApply: true
+---
+
+# Documents vs folders (terminology)
+
+When the user shares a **ref**, mockup, or talks about the left panel / canvas / timeline, use this mapping — do **not** confuse labels with the old model.
+
+## Mapping
+
+| User / UI language | Means | Old name (avoid assuming) |
+|---|---|---|
+| **Document** / documento | Scheduled content unit on canvas & timeline (chip, schedule, body) | **Macronodo** / node card |
+| **Documents** (sidebar section) | **Folders** — category boxes that contain documents | Panel that used to imply “docs list” only |
+| **Folder** / caja / box | Folder container in Documents sidebar | — |
+
+## Rules
+
+- **Macronodos = documentos.** A “macronode” ref is a **document**, not a folder.
+- **“Documents” (panel) = folders.** Opening Documents shows **folder boxes**; inside each box are the **documents**.
+- Timeline / product model still holds: folder = class/category; document = scheduled unit (`anchorDate` / `anchorTime` / etc.).
+- In copy and code comments prefer **document** / **folder** over macronode unless fixing legacy identifiers.
+
+## Quick check
+
+- Ref of a **box with children** → folder.
+- Ref of a **single scheduled unit / canvas chip / open editor** → document (ex-macronode).

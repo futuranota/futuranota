@@ -6764,14 +6764,22 @@ textarea.note-form-field {
   align-items: flex-start;
   justify-content: center;
   padding: 24px;
-  overflow-y: auto;
+  overflow: hidden;
   background: rgba(0, 0, 0, 0.72);
+  scrollbar-width: none;
+}
+
+.doc-overlay-global::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .doc-overlay-global:has(.doc-new-inner--content-focus) {
   align-items: stretch;
   padding: 20px;
   z-index: 280;
+  overflow: hidden;
 }
 
 .doc-overlay-global--node-active {
@@ -6780,35 +6788,44 @@ textarea.note-form-field {
 }
 
 .doc-overlay-global-card {
-  width: min(620px, calc(100vw - 48px));
-  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, calc(100vw - 48px));
+  max-width: 560px;
   min-height: 356px;
-  max-height: none;
-  overflow: visible;
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
   background: #151515;
   border: none;
   border-radius: 14px;
   box-shadow: 0 28px 64px rgba(0, 0, 0, 0.68);
-  padding: 22px 15px 18px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) #151515;
+  /* Left margin kept; 5px right padding (non-expand) */
+  padding: 22px 5px 18px 15px;
+  scrollbar-width: none;
 }
 
 .doc-overlay-global-card::-webkit-scrollbar {
-  width: 8px;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
-.doc-overlay-global-card::-webkit-scrollbar-track {
-  background: #151515;
-}
-
-.doc-overlay-global-card::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
-  border-radius: 4px;
+.doc-overlay-global-card > div:first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .doc-overlay-global-card .fn-doc-expanded {
   min-height: 0;
+}
+
+.doc-overlay-global-card .doc-new-inner {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .node-overlay-global-card {
@@ -6831,11 +6848,12 @@ textarea.note-form-field {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Expand: left inset comes from content padding; right stays flush */
   padding: 0;
   width: min(920px, calc(100vw - 40px));
   max-width: none;
-  height: auto;
-  max-height: none;
+  height: min(82vh, 820px);
+  max-height: calc(100vh - 40px);
   min-height: min(82vh, 820px);
   background: rgb(22, 26, 29);
   box-sizing: border-box;
@@ -6852,6 +6870,7 @@ textarea.note-form-field {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .doc-overlay-global-card:has(.doc-new-inner--content-focus) .notes-doc-editor-hint {

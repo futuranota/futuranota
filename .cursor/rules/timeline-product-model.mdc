@@ -9,6 +9,8 @@ The timeline’s job is to **track time and schedules** so users organize work b
 
 ## Folder vs document
 
+**UI labels:** sidebar **Documents** = folders (boxes); what used to be called **macronodes** = documents. See `docs-folders-terminology.mdc`.
+
 - **Folder = category / class** (e.g. Math, Marketing, Sales). Everything inside belongs to that class.
 - **Document = scheduled unit** inside its folder — **day + hour + minute** from the document Schedule section (`anchorDate` / `anchorTime` / `anchorAt` / `launchAt`).
 - Folders relate to **other folders** on the timeline (sequence / focus over days).

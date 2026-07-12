@@ -17,13 +17,23 @@ Cuando menciones algo en el chat, lo trato como el **problema más reciente** y 
 
 Futura Nota es una webapp cuyo objetivo primordial es ayudar a **emprendedores jóvenes que empiezan de cero** a obtener su primer negocio — y en general a cualquier persona que ya tenga una habilidad (cantar, un instrumento, deportes, manualidades, pintura, cerámica, tejer, etc.) y conectarla con un **producto ya hecho** que Futura vende en su propio marketplace.
 
+### Terminología UI (no confundir en refs)
+
+| Dicen / UI | Significa | Antes se llamaba |
+|---|---|---|
+| **Documento** | Unidad con schedule en canvas / timeline / editor | **Macronodo** |
+| **Documents** (sidebar) | **Folders** — cajas/categorías que contienen documentos | Panel “documents” mal leído como lista de docs |
+| **Folder** / caja / box | Contenedor en el sidebar Documents | — |
+
+Regla: **macronodos = documentos**; **Documents (panel) = folders**. Regla Cursor: `.cursor/rules/docs-folders-terminology.mdc`.
+
 ### El software (note-taker orientado a eventos)
 
 - Combinación de **Obsidian + Notion**, con **Google Search API** integrada en el espacio de trabajo.
-- Los **documentos son objetos**: un objeto puede contener documentos y nodos.
-- Un documento puede ser el título padre (ej. `"marketing"`) de su objeto padre (ej. `"mi webapp"`). Dentro van preguntas, investigaciones y dudas del usuario; cada búsqueda puede crear un **nodo** y consultar el buscador interno.
+- **Folder** = categoría/clase; **documento** = unidad scheduleada dentro del folder.
+- Un folder puede agrupar documentos; los documentos viven en canvas y timeline con día + hora.
 - Enfoque exclusivo en **organizar eventos** en un **timeline** (pasado · presente · futuro).
-- Cada nodo tiene `schedule` y `date`; **`schedule` tiene mayor autoridad** — representa el set de tiempo para completar algo.
+- Cada documento tiene `schedule` / anchor; **`schedule` tiene mayor autoridad** — representa el set de tiempo para completar algo.
 
 ### Librería y campañas
 
