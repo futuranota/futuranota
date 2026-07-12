@@ -73,6 +73,23 @@ function listLinkedFileEntityIds(docId, docsById = {}, nodeEntitiesById = {}) {
   return linkedEntityIds;
 }
 
+/**
+ * Timeline-only: parent folder reads as Completed when it has ≥1 linked child
+ * nodes and every one is marked completed. Empty folders stay date-driven.
+ * @param {string} docId
+ * @param {Record<string, object>} [docsById]
+ * @param {Record<string, object>} [nodeEntitiesById]
+ */
+export function isFolderTimelineCompleted(docId, docsById = {}, nodeEntitiesById = {}) {
+  if (!docId) return false;
+  const linkedIds = listLinkedFileEntityIds(docId, docsById, nodeEntitiesById);
+  if (linkedIds.size === 0) return false;
+  for (const entityId of linkedIds) {
+    if (!nodeEntitiesById[entityId]?.completed) return false;
+  }
+  return true;
+}
+
 function minDateMsFromNodes(nodeIds, canvasNodes, wireAnchors, meta) {
   let minMs = null;
   const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));

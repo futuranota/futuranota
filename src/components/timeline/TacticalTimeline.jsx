@@ -13,6 +13,7 @@ import {
   formatTimelineTimeGapLabel,
 } from "../../lib/tacticalTimelineView.js";
 import { formatSameDayPairLabel, formatNowUntilScheduleLabel } from "../../lib/docSchedule.js";
+import { isFolderTimelineCompleted } from "../../lib/timelineDocSnapshot.js";
 import { resolveParentTagFamilyStyle } from "../../lib/objectColors.js";
 import { resolvePrimaryTimelineObjectId } from "../../lib/timelinePrimary.js";
 import { resolveNodeIdForTimelineMarker } from "../../lib/timelineSelection.js";
@@ -177,11 +178,19 @@ function TacticalRulerBar({
   );
 }
 
-function resolveMarkerCompleted(marker) {
+function resolveMarkerCompleted(marker, nodeEntitiesById = {}, docsById = {}) {
   if (marker?.dataType === "agent-set") {
     return marker.setStatus === "ready";
   }
-  return Boolean(marker?.completed || marker?.isCompleted);
+  // Folder chips: Completed only when every linked child node is completed.
+  if (marker?.dataType === "document" && marker?.docId) {
+    if (typeof marker.completed === "boolean") return marker.completed;
+    return isFolderTimelineCompleted(marker.docId, docsById, nodeEntitiesById);
+  }
+  if (marker?.completed || marker?.isCompleted) return true;
+  const entityId = marker?.entityId;
+  if (entityId && nodeEntitiesById[entityId]?.completed) return true;
+  return false;
 }
 
 function TacticalDecorativeRuler({ grid, today, now, t }) {
@@ -598,7 +607,7 @@ function TacticalObjectRow({
                       const schedule = resolveTimelineScheduleStatus(
                         marker.date || group.date,
                         today,
-                        { completed: resolveMarkerCompleted(marker) },
+                        { completed: resolveMarkerCompleted(marker, nodeEntitiesById, docsById) },
                       );
                       const isPastDue = schedule.kind === "past-due";
                       const isPending = schedule.kind === "pending";
@@ -686,19 +695,49 @@ function TacticalObjectRow({
                     {fmtDate(group.date, "short")}
                   </time>
                   {(() => {
-                    const groupCompleted = group.items.some((m) => resolveMarkerCompleted(m));
+                    // Folders: Completed only when every folder in the group is done.
+                    // Child nodes: any completed still shows the group cue (existing).
+                    const groupCompleted = isChildRow
+                      ? group.items.some((m) =>
+                        resolveMarkerCompleted(m, nodeEntitiesById, docsById),
+                      )
+                      : group.items.length > 0
+                        && group.items.every((m) =>
+                          resolveMarkerCompleted(m, nodeEntitiesById, docsById),
+                        );
                     const groupSchedule = resolveTimelineScheduleStatus(group.date, today, {
                       completed: groupCompleted,
                     });
-                    if (groupSchedule.kind !== "past-due") return null;
+                    // Show Past due or Completed under the date — not pending/today.
+                    if (
+                      groupSchedule.kind !== "past-due"
+                      && groupSchedule.kind !== "completed"
+                    ) {
+                      return null;
+                    }
                     const groupStatusLabel = formatTimelineScheduleStatusLabel(groupSchedule, t);
                     if (!groupStatusLabel) return null;
+                    const isGroupCompleted = groupSchedule.kind === "completed";
                     return (
                       <span
-                        className="tl-tactical-node-group__status is-past-due"
+                        className={
+                          "tl-tactical-node-group__status"
+                          + (isGroupCompleted ? " is-completed" : " is-past-due")
+                        }
                         title={groupStatusLabel}
                       >
-                        {groupStatusLabel}
+                        <span className="tl-tactical-node-group__status-row">
+                          {groupStatusLabel}
+                          {isGroupCompleted ? (
+                            <img
+                              src="/uploads/Checks.svg"
+                              alt=""
+                              className="tl-tactical-node-group__status-icon"
+                              aria-hidden
+                              draggable={false}
+                            />
+                          ) : null}
+                        </span>
                       </span>
                     );
                   })()}

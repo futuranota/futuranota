@@ -36,6 +36,7 @@ import {
 import {
   resolveQueuedDocTimelineDate,
   buildChildMarkersForDoc,
+  isFolderTimelineCompleted,
 } from "./timelineDocSnapshot.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
@@ -1056,6 +1057,9 @@ export function buildTacticalObjectRows(params) {
           date: fullDate,
           docId,
           dataType: "document",
+          completed: Boolean(
+            docId && isFolderTimelineCompleted(docId, docsById, nodeEntitiesById),
+          ),
         });
       }
     }
@@ -1085,6 +1089,9 @@ export function buildTacticalObjectRows(params) {
         virtual: !canvasDoc,
         dataType: "document",
         queued: true,
+        completed: Boolean(
+          docId && isFolderTimelineCompleted(docId, docsById, nodeEntitiesById),
+        ),
       });
     }
 

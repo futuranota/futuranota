@@ -9146,18 +9146,66 @@ body.doc-content-resizing * {
 
 /* Keep Status/Created chips compact like folder docs; source is icon-only. */
 .node-query-modal__doc-meta .doc-meta-chip {
-  padding: 2px 4px;
+  padding: 1px 3px;
   gap: 0;
   min-height: 0;
 }
 
 .node-query-modal__doc-meta .doc-meta-chip-k {
   line-height: 1;
+  font-size: 7.5px;
+  letter-spacing: 0.03em;
 }
 
 .node-query-modal__doc-meta .doc-meta-chip-v {
   min-height: 0;
-  line-height: 1.15;
+  font-size: 8px;
+  line-height: 1.1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.node-query-modal__doc-meta .doc-meta-chip--completed {
+  justify-content: center;
+}
+
+.node-query-modal__doc-meta .doc-meta-chip-v.is-completed {
+  color: #57d68a;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.doc-meta-chip-completed-icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  object-fit: contain;
+  pointer-events: none;
+  filter: brightness(0) saturate(100%) invert(78%) sepia(42%) saturate(520%) hue-rotate(93deg) brightness(102%) contrast(92%);
+}
+
+.doc-new-campaign-opt--completed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.doc-new-campaign-opt--completed.is-on,
+.doc-meta-strip__fields .doc-new-campaign-opt--completed.is-on {
+  color: #57d68a;
+  border-color: color-mix(in oklab, #4ade80 55%, transparent);
+  background: color-mix(in oklab, #4ade80 10%, transparent);
+}
+
+.doc-new-campaign-opt--completed:not(.is-on) .doc-meta-chip-completed-icon {
+  filter: brightness(0) invert(0.45);
+  opacity: 0.75;
 }
 
 .node-query-modal__doc-meta .doc-meta-chip--source-only {

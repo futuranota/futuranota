@@ -249,6 +249,16 @@ export function StandaloneNodeModal({
     onClose?.();
   };
 
+  const handleCompletedChange = (value) => {
+    setCompleted(value);
+    if (node?.id) updateNode(node.id, { completed: Boolean(value) });
+  };
+
+  const handleSourceIdChange = (value) => {
+    setSourceId(value);
+    if (node?.id) updateNode(node.id, { sourceId: value ?? null });
+  };
+
   return (
     <NodeQueryModal
       query={query}
@@ -266,9 +276,9 @@ export function StandaloneNodeModal({
       createdDate={createdDate || todayDateInputValue()}
       onCreatedDateChange={setCreatedDate}
       completed={completed}
-      onCompletedChange={setCompleted}
+      onCompletedChange={handleCompletedChange}
       sourceId={sourceId}
-      onSourceIdChange={setSourceId}
+      onSourceIdChange={handleSourceIdChange}
       parentDocId={parentDocId}
       onParentDocIdChange={setParentDocId}
       docs={docList}

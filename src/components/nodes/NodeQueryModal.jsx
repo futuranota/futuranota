@@ -218,6 +218,8 @@ export function NodeQueryModal({
       query: query ?? "",
       anchorDate: anchorDate ?? "",
       anchorTime: anchorTime ?? "",
+      completed: Boolean(completed),
+      sourceId: sourceId ?? null,
     };
     setShowUnsavedConfirm(false);
     // Snapshot only when the node identity/type changes, not on every keystroke.
@@ -230,8 +232,30 @@ export function NodeQueryModal({
     return snap.content !== JSON.stringify(content ?? "")
       || snap.query !== (query ?? "")
       || (snap.anchorDate ?? "") !== (anchorDate ?? "")
-      || (snap.anchorTime ?? "") !== (anchorTime ?? "");
-  }, [content, query, anchorDate, anchorTime]);
+      || (snap.anchorTime ?? "") !== (anchorTime ?? "")
+      || Boolean(snap.completed) !== Boolean(completed)
+      || (snap.sourceId || null) !== (sourceId || null);
+  }, [content, query, anchorDate, anchorTime, completed, sourceId]);
+
+  /** Status/Source persist live to the store — keep dismiss snapshot in sync. */
+  const syncMetaSnapshot = useCallback((nextCompleted, nextSourceId) => {
+    if (!nodeSnapshotRef.current) return;
+    nodeSnapshotRef.current = {
+      ...nodeSnapshotRef.current,
+      completed: Boolean(nextCompleted),
+      sourceId: nextSourceId ?? null,
+    };
+  }, []);
+
+  const handleCompletedChange = useCallback((value) => {
+    onCompletedChange?.(value);
+    syncMetaSnapshot(value, sourceId);
+  }, [onCompletedChange, syncMetaSnapshot, sourceId]);
+
+  const handleSourceIdChange = useCallback((value) => {
+    onSourceIdChange?.(value);
+    syncMetaSnapshot(completed, value);
+  }, [onSourceIdChange, syncMetaSnapshot, completed]);
 
   const requestDismiss = useCallback(() => {
     if (onSave && hasUnsavedNodeChanges()) {
@@ -509,10 +533,34 @@ export function NodeQueryModal({
                       {formatMmDdYy(createdDate) || "—"}
                     </span>
                   </div>
-                  <div className="doc-meta-chip" title={completed ? "Completed" : "Incomplete"}>
+                  <div
+                    className={
+                      "doc-meta-chip"
+                      + (completed ? " doc-meta-chip--completed" : "")
+                    }
+                    title={completed ? "Completed" : "Incomplete"}
+                  >
                     <span className="doc-meta-chip-k">Status</span>
-                    <span className="doc-meta-chip-v tone-muted is-lowercase">
-                      {completed ? "Completed" : "Incomplete"}
+                    <span
+                      className={
+                        "doc-meta-chip-v is-lowercase"
+                        + (completed ? " is-completed" : " tone-muted")
+                      }
+                    >
+                      {completed ? (
+                        <>
+                          Completed
+                          <img
+                            src="/uploads/Checks.svg"
+                            alt=""
+                            className="doc-meta-chip-completed-icon"
+                            aria-hidden
+                            draggable={false}
+                          />
+                        </>
+                      ) : (
+                        "Incomplete"
+                      )}
                     </span>
                   </div>
                   <div
@@ -566,15 +614,25 @@ export function NodeQueryModal({
                     <div className="doc-new-campaign-toggle" role="group" aria-label="Macronode status">
                       <button
                         type="button"
-                        className={"doc-new-campaign-opt" + (completed ? " is-on" : "")}
-                        onClick={() => onCompletedChange(true)}
+                        className={
+                          "doc-new-campaign-opt doc-new-campaign-opt--completed"
+                          + (completed ? " is-on" : "")
+                        }
+                        onClick={() => handleCompletedChange(true)}
                       >
                         Completed
+                        <img
+                          src="/uploads/Checks.svg"
+                          alt=""
+                          className="doc-meta-chip-completed-icon"
+                          aria-hidden
+                          draggable={false}
+                        />
                       </button>
                       <button
                         type="button"
                         className={"doc-new-campaign-opt" + (!completed ? " is-on" : "")}
-                        onClick={() => onCompletedChange(false)}
+                        onClick={() => handleCompletedChange(false)}
                       >
                         Incomplete
                       </button>
@@ -586,7 +644,7 @@ export function NodeQueryModal({
                       <button
                         type="button"
                         className={"node-query-modal__source-opt" + (!sourceId ? " is-on" : "")}
-                        onClick={() => onSourceIdChange?.(null)}
+                        onClick={() => handleSourceIdChange(null)}
                         title="No source"
                       >
                         —
@@ -597,7 +655,7 @@ export function NodeQueryModal({
                           type="button"
                           className={"node-query-modal__source-opt" + (sourceId === opt.id ? " is-on" : "")}
                           onClick={() => {
-                            onSourceIdChange?.(opt.id);
+                            handleSourceIdChange(opt.id);
                             setStatusMetaExpanded(false);
                           }}
                           title={opt.label}

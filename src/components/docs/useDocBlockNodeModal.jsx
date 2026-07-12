@@ -411,9 +411,17 @@ export function useDocBlockNodeModal({
       onContentChange={handleNodeContentChange}
       createdDate={createdDate}
       completed={nodeDraftCompleted}
-      onCompletedChange={setNodeDraftCompleted}
+      onCompletedChange={(v) => {
+        setNodeDraftCompleted(v);
+        const id = activeNodeContext?.nodeId;
+        if (id) updateNode(id, { completed: Boolean(v) });
+      }}
       sourceId={nodeDraftSourceId}
-      onSourceIdChange={setNodeDraftSourceId}
+      onSourceIdChange={(v) => {
+        setNodeDraftSourceId(v);
+        const id = activeNodeContext?.nodeId;
+        if (id) updateNode(id, { sourceId: v ?? null });
+      }}
       parentDocLabel={docTitle.trim() || "New document"}
       onSave={handleNodeModalSave}
       onBackToDocument={flushAndCloseNodeModal}

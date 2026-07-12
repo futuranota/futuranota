@@ -1536,9 +1536,35 @@ export function DocExpandedView({
           onContentChange={handleNodeContentChange}
           createdDate={draftCreatedDate}
           completed={nodeDraftCompleted}
-          onCompletedChange={setNodeDraftCompleted}
+          onCompletedChange={(v) => {
+            setNodeDraftCompleted(v);
+            const id = activeNodeContext?.nodeId;
+            if (id) updateNode(id, { completed: Boolean(v) });
+            setNodeInitialSnapshot((prev) => (
+              prev ? { ...prev, completed: Boolean(v) } : prev
+            ));
+            if (nodeInitialSnapshotRef.current) {
+              nodeInitialSnapshotRef.current = {
+                ...nodeInitialSnapshotRef.current,
+                completed: Boolean(v),
+              };
+            }
+          }}
           sourceId={nodeDraftSourceId}
-          onSourceIdChange={setNodeDraftSourceId}
+          onSourceIdChange={(v) => {
+            setNodeDraftSourceId(v);
+            const id = activeNodeContext?.nodeId;
+            if (id) updateNode(id, { sourceId: v ?? null });
+            setNodeInitialSnapshot((prev) => (
+              prev ? { ...prev, sourceId: v ?? null } : prev
+            ));
+            if (nodeInitialSnapshotRef.current) {
+              nodeInitialSnapshotRef.current = {
+                ...nodeInitialSnapshotRef.current,
+                sourceId: v ?? null,
+              };
+            }
+          }}
           parentDocLabel={parentDocLabel}
           onSave={handleNodeModalSave}
           onBackToDocument={handleRequestCloseNodeModal}
