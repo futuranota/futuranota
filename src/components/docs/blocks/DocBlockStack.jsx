@@ -25,6 +25,7 @@ import {
   removeEmbedVideoPairFromVideoIndex,
   replaceBlockFromSlashInLinkable,
   replaceBlocksFromSlashInText,
+  replaceBlocksFromSlashInImageSplitBody,
   replaceBlocksFromSlashWithEmbedVideo,
   stepEntryHasContent,
   updateBlockAt,
@@ -89,6 +90,7 @@ import { MetricBlockView } from "./MetricBlockView.jsx";
 import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 import { VideoEmbedBlockView } from "./VideoEmbedBlockView.jsx";
 import { ImageBlockView } from "./ImageBlockView.jsx";
+import { ImageSplitBlockView } from "./ImageSplitBlockView.jsx";
 import { CodeBlockView } from "./CodeBlockView.jsx";
 import { PasswordVaultBlockView } from "./PasswordVaultBlockView.jsx";
 import { LinkVaultBlockView } from "./LinkVaultBlockView.jsx";
@@ -755,6 +757,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     );
     if (
       parsed.type === DOC_BLOCK_TYPES.IMAGE
+      || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -979,6 +982,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     );
     if (
       parsed.type === DOC_BLOCK_TYPES.IMAGE
+      || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -989,6 +993,38 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         ? ensureEmptyTextBlockAfter(next, newIndex)
         : next;
       setBlocks(withTail);
+      onFocusBlock?.(newBlock.id);
+      requestContentGrow();
+      return newBlock.id;
+    }
+    finalizeSlashInsert(next, newBlock.id);
+    return newBlock.id;
+  };
+
+  const tryConfirmSlashInImageSplitBody = (blockIndex, bodyValue) => {
+    const { slash } = splitBodyForSlash(bodyValue);
+    if (!slash) return false;
+    const parsed = parseSlashQuery(slash.slice(1));
+    if (!parsed || !canInsertSlashBlock(parsed)) return false;
+
+    const newBlock = createDocBlockFromSlash(parsed);
+    let next = replaceBlocksFromSlashInImageSplitBody(
+      blocksRef.current,
+      blockIndex,
+      bodyValue,
+      newBlock,
+    );
+    if (
+      parsed.type === DOC_BLOCK_TYPES.IMAGE
+      || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+      || parsed.type === DOC_BLOCK_TYPES.CODE
+      || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.AGENT
+    ) {
+      const newIndex = next.findIndex((b) => b.id === newBlock.id);
+      if (newIndex >= 0) next = ensureEmptyTextBlockAfter(next, newIndex);
+      setBlocks(next);
       onFocusBlock?.(newBlock.id);
       requestContentGrow();
       return newBlock.id;
@@ -1514,6 +1550,113 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onDelete={async () => {
                 const ok = await confirmDeleteCommandBlock("doc.blockDelete.image");
+                if (!ok) return;
+                removeCommandBlockAt(index);
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT ? (
+            <ImageSplitBlockView
+              block={block}
+              autoFocusBody={focusBlockId === block.id && Boolean(block.imageSaved)}
+              onChange={(patch) => {
+                let next = updateBlockAt(blocksRef.current, index, patch);
+                if (patch.imageSaved && patch.src) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
+                if (patch.imageSaved && patch.src) {
+                  requestContentGrow();
+                }
+              }}
+              onBodySpill={({ keepBody, spillText }) => {
+                let next = updateBlockAt(blocksRef.current, index, { body: keepBody });
+                next = ensureEmptyTextBlockAfter(next, index);
+                const afterIndex = index + 1;
+                const after = next[afterIndex];
+                if (after?.type === DOC_BLOCK_TYPES.TEXT) {
+                  const merged = spillText
+                    ? `${spillText}${after.text || ""}`
+                    : (after.text || "");
+                  if (spillText) {
+                    next = updateBlockAt(next, afterIndex, { text: merged });
+                  }
+                  setBlocks(next);
+                  onFocusBlock?.(after.id);
+                  focusBlockCaret(after.id, spillText ? spillText.length : 0);
+                } else {
+                  setBlocks(next);
+                }
+                requestContentGrow();
+              }}
+              onBodyKeyDown={(e) => {
+                if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
+                const bodyValue = e.currentTarget?.value ?? block.body ?? "";
+                const { slash } = splitBodyForSlash(bodyValue);
+                const caret = e.currentTarget?.selectionStart ?? bodyValue.length;
+                const caretEnd = e.currentTarget?.selectionEnd ?? caret;
+                const atEnd = caret === caretEnd && caret >= bodyValue.length;
+
+                if (e.key === "Enter" && !e.shiftKey) {
+                  if (slash) {
+                    const newId = tryConfirmSlashInImageSplitBody(index, bodyValue);
+                    if (newId) {
+                      e.preventDefault();
+                      requestContentGrow();
+                    }
+                    return;
+                  }
+
+                  // Exit split column → full-width text cell below
+                  if (atEnd) {
+                    e.preventDefault();
+                    let next = ensureEmptyTextBlockAfter(blocksRef.current, index);
+                    setBlocks(next);
+                    const after = next[index + 1];
+                    if (after?.type === DOC_BLOCK_TYPES.TEXT) {
+                      onFocusBlock?.(after.id);
+                      focusBlockCaret(after.id, 0);
+                    }
+                    requestContentGrow();
+                    return;
+                  }
+
+                  // Enter mid-body: keep before caret, spill after to next cell
+                  e.preventDefault();
+                  const keepBody = bodyValue.slice(0, caret);
+                  const spillText = bodyValue.slice(caretEnd);
+                  let next = updateBlockAt(blocksRef.current, index, { body: keepBody });
+                  next = ensureEmptyTextBlockAfter(next, index);
+                  const after = next[index + 1];
+                  if (after?.type === DOC_BLOCK_TYPES.TEXT) {
+                    const merged = spillText
+                      ? `${spillText}${after.text || ""}`
+                      : (after.text || "");
+                    if (spillText || !after.text) {
+                      next = updateBlockAt(next, index + 1, { text: merged });
+                    }
+                    setBlocks(next);
+                    onFocusBlock?.(after.id);
+                    focusBlockCaret(after.id, 0);
+                  } else {
+                    setBlocks(next);
+                  }
+                  requestContentGrow();
+                  return;
+                }
+
+                if (e.key === "Escape" && slash) {
+                  const { prefix } = splitBodyForSlash(bodyValue);
+                  e.preventDefault();
+                  updateAt(index, { body: prefix });
+                  return;
+                }
+
+                onBodyKeyDown?.(e);
+              }}
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.imageSplit");
                 if (!ok) return;
                 removeCommandBlockAt(index);
               }}

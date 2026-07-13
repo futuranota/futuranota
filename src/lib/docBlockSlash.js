@@ -64,6 +64,13 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
+    label: "Image split",
+    ghostHint: "image-split",
+    aliases: ["image-split", "imagesplit", "image split", "split"],
+    blockType: DOC_BLOCK_TYPES.IMAGE_SPLIT,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
     label: "Code",
     ghostHint: "code",
     aliases: ["code", "codigo", "snippet", "codeblock"],
@@ -220,6 +227,10 @@ export function createDocBlockFromSlash(parsed) {
 
   if (parsed.type === DOC_BLOCK_TYPES.IMAGE) {
     return createDocBlock(DOC_BLOCK_TYPES.IMAGE, { openFilePicker: true });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { openFilePicker: true });
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.CODE) {

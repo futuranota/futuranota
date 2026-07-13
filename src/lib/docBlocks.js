@@ -17,6 +17,7 @@ const DOC_BLOCK_TYPES = {
   PRODUCT_CARD: "product_card",
   VIDEO_EMBED: "video_embed",
   IMAGE: "image",
+  IMAGE_SPLIT: "image_split",
   CODE: "code",
   PASSWORD_VAULT: "password_vault",
   LINK_VAULT: "link_vault",
@@ -305,6 +306,27 @@ function normalizeImageBlock(block) {
   };
 }
 
+export const IMAGE_SPLIT_TITLE_MAX = 50;
+export const IMAGE_SPLIT_DESC_MAX = 160;
+
+function normalizeImageSplitBlock(block) {
+  const title = String(block?.overlayTitle ?? block?.title ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);
+  const description = String(block?.overlayDescription ?? block?.description ?? "")
+    .slice(0, IMAGE_SPLIT_DESC_MAX);
+  return {
+    overlayTitle: title,
+    overlayDescription: description,
+    src: block?.src || "",
+    name: block?.name || "",
+    alt: block?.alt || "",
+    width: Number.isFinite(block?.width) ? block.width : 0,
+    height: Number.isFinite(block?.height) ? block.height : 0,
+    imageSaved: Boolean(block?.imageSaved && block?.src),
+    openFilePicker: Boolean(block?.openFilePicker),
+    body: String(block?.body ?? ""),
+  };
+}
+
 function normalizeCodeBlock(block) {
   const code = block?.code || "";
   const hasCode = Boolean(code.trim());
@@ -431,6 +453,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     return {
       ...base,
       type: DOC_BLOCK_TYPES.IMAGE,
+      ...normalized,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+    const normalized = normalizeImageSplitBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.IMAGE_SPLIT,
       ...normalized,
     };
   }
@@ -604,6 +635,13 @@ export function normalizeDocBlock(block) {
     });
   }
 
+  if (type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, {
+      id: block.id,
+      ...normalizeImageSplitBlock(block),
+    });
+  }
+
   if (type === DOC_BLOCK_TYPES.CODE) {
     return createDocBlock(DOC_BLOCK_TYPES.CODE, {
       id: block.id,
@@ -719,6 +757,13 @@ export function docBlockHasContent(block) {
   }
   if (type === DOC_BLOCK_TYPES.IMAGE) {
     return Boolean((block.src || "").trim()) || Boolean(block.imageSaved);
+  }
+  if (type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+    return Boolean((block.src || "").trim())
+      || Boolean(block.imageSaved)
+      || Boolean((block.overlayTitle || "").trim())
+      || Boolean((block.overlayDescription || "").trim())
+      || Boolean((block.body || "").trim());
   }
   if (type === DOC_BLOCK_TYPES.CODE) {
     return Boolean((block.code || "").trim()) || Boolean(block.codeSaved);
@@ -880,7 +925,8 @@ function parseProductCardSection(section) {
 function parseImageSection(section) {
   const lines = section.split("\n");
   const first = lines[0]?.trim() || "";
-  if (!first.startsWith("::image")) return null;
+  // Exact ::image only — do not match ::image_split
+  if (!/^::image(?:\s|$)/.test(first)) return null;
   const payload = lines.slice(1).join("\n").trim();
   if (!payload) return createDocBlock(DOC_BLOCK_TYPES.IMAGE);
   try {
@@ -888,6 +934,20 @@ function parseImageSection(section) {
     return createDocBlock(DOC_BLOCK_TYPES.IMAGE, parsed);
   } catch {
     return createDocBlock(DOC_BLOCK_TYPES.IMAGE);
+  }
+}
+
+function parseImageSplitSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::image_split")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT);
   }
 }
 
@@ -1012,6 +1072,12 @@ export function docBlocksFromBody(body) {
       continue;
     }
 
+    const imageSplitBlock = parseImageSplitSection(section);
+    if (imageSplitBlock) {
+      blocks.push(imageSplitBlock);
+      continue;
+    }
+
     const imageBlock = parseImageSection(section);
     if (imageBlock) {
       blocks.push(imageBlock);
@@ -1122,6 +1188,20 @@ export function docBlocksToBody(blocks) {
           width: block.width || 0,
           height: block.height || 0,
           imageSaved: Boolean(block.imageSaved),
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+        const normalized = normalizeImageSplitBlock(block);
+        return `::image_split\n${JSON.stringify({
+          overlayTitle: normalized.overlayTitle,
+          overlayDescription: normalized.overlayDescription,
+          src: normalized.src,
+          name: normalized.name,
+          alt: normalized.alt,
+          width: normalized.width,
+          height: normalized.height,
+          imageSaved: normalized.imageSaved,
+          body: normalized.body,
         })}`;
       }
       if (block.type === DOC_BLOCK_TYPES.CODE) {
@@ -1255,6 +1335,18 @@ export function replaceBlockFromSlashInLinkable(blocks, blockIndex, fieldValue, 
   return next;
 }
 
+export function replaceBlocksFromSlashInImageSplitBody(blocks, blockIndex, bodyValue, newBlock) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[blockIndex];
+  if (!block || block.type !== DOC_BLOCK_TYPES.IMAGE_SPLIT) return normalized;
+
+  const { prefix } = splitBodyForSlash(bodyValue);
+  const next = [...normalized];
+  next[blockIndex] = normalizeDocBlock({ ...block, body: prefix });
+  next.splice(blockIndex + 1, 0, normalizeDocBlock(newBlock));
+  return next;
+}
+
 export function ensureEmptyTextBlockAfter(blocks, blockIndex) {
   const normalized = normalizeDocBlocks(blocks);
   if (blockIndex < 0 || blockIndex >= normalized.length) return normalized;
@@ -1298,6 +1390,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.PRODUCT_CARD
     || block.type === DOC_BLOCK_TYPES.VIDEO_EMBED
     || block.type === DOC_BLOCK_TYPES.IMAGE
+    || block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
     || block.type === DOC_BLOCK_TYPES.CODE
     || block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
     || block.type === DOC_BLOCK_TYPES.LINK_VAULT
