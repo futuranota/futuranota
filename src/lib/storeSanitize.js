@@ -100,5 +100,12 @@ export function sanitizePersistedSnapshot(parsed) {
     snapshot.scheduledCompletedTaskKeys = parsed.scheduledCompletedTaskKeys;
   }
 
+  if (Array.isArray(parsed.deletedDocIds)) {
+    snapshot.deletedDocIds = parsed.deletedDocIds.filter(Boolean);
+  }
+  if (Array.isArray(parsed.deletedNodeIds)) {
+    snapshot.deletedNodeIds = parsed.deletedNodeIds.filter(Boolean);
+  }
+
   return snapshot;
 }

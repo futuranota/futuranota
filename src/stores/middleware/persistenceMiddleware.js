@@ -90,6 +90,9 @@ let initialized = false;
 let isSyncedWithRemote = false;
 let hydrateInFlight = false;
 let lastSyncWarnAt = 0;
+/** Serialize remote writes so a stale in-flight upsert cannot resurrect deleted folders. */
+let syncInFlight = null;
+let syncNeedsRerun = false;
 
 /** Doc/node IDs deleted locally that hydrate must not resurrect until remote orphan cleanup lands. */
 const pendingDeletedDocIds = new Set();
@@ -109,6 +112,9 @@ export function markDocsDeletedForSync(docIds, nodeIds = []) {
   for (const id of nodes) {
     if (id) pendingDeletedNodeIds.add(id);
   }
+  // #region agent log
+  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'pre-fix',hypothesisId:'A',location:'persistenceMiddleware.js:markDocsDeletedForSync',message:'tombstone set',data:{docIds:docs.filter(Boolean),nodeIds:nodes.filter(Boolean),pendingDocs:[...pendingDeletedDocIds],pendingNodes:[...pendingDeletedNodeIds]},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
 }
 
 /**
@@ -136,6 +142,15 @@ function stripPendingDeletesFromState(state) {
   if (!state || typeof state !== "object") return state;
   let docs = omitPendingDeletedIds(state.docs, pendingDeletedDocIds);
   const nodes = omitPendingDeletedIds(state.nodes, pendingDeletedNodeIds);
+  // #region agent log
+  if (pendingDeletedDocIds.size > 0) {
+    const before = Object.keys(state.docs || {});
+    const after = Object.keys(docs || {});
+    const stripped = before.filter((id) => pendingDeletedDocIds.has(id) && !after.includes(id));
+    const stillPresent = before.filter((id) => pendingDeletedDocIds.has(id) && after.includes(id));
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'pre-fix',hypothesisId:'C',location:'persistenceMiddleware.js:stripPendingDeletesFromState',message:'strip pending deletes',data:{pendingDocs:[...pendingDeletedDocIds],stripped,stillPresent,docCountBefore:before.length,docCountAfter:after.length},timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
   if (docs === state.docs && nodes === state.nodes) return state;
 
   // Keep doc.nodeIds consistent after stripping resurrected nodes (copy-on-write).
@@ -170,12 +185,25 @@ function stripPendingDeletesFromState(state) {
 function clearResolvedDeleteTombstones(localDocIds, localNodeIds) {
   const localDocs = new Set(localDocIds);
   const localNodes = new Set(localNodeIds);
+  const clearedDocs = [];
+  const clearedNodes = [];
   for (const id of [...pendingDeletedDocIds]) {
-    if (!localDocs.has(id)) pendingDeletedDocIds.delete(id);
+    if (!localDocs.has(id)) {
+      pendingDeletedDocIds.delete(id);
+      clearedDocs.push(id);
+    }
   }
   for (const id of [...pendingDeletedNodeIds]) {
-    if (!localNodes.has(id)) pendingDeletedNodeIds.delete(id);
+    if (!localNodes.has(id)) {
+      pendingDeletedNodeIds.delete(id);
+      clearedNodes.push(id);
+    }
   }
+  // #region agent log
+  if (clearedDocs.length || clearedNodes.length) {
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'pre-fix',hypothesisId:'B',location:'persistenceMiddleware.js:clearResolvedDeleteTombstones',message:'tombstones cleared after orphan ok',data:{clearedDocs,clearedNodes,remainingPendingDocs:[...pendingDeletedDocIds],localDocCount:localDocs.size},timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
 }
 
 function warnSyncOnce(message) {
@@ -401,7 +429,25 @@ function emptyWorkspaceSnapshot() {
     primaryTimelineObjectId: null,
     scheduledAutoRunEnabled: true,
     scheduledCompletedTaskKeys: [],
+    deletedDocIds: [],
+    deletedNodeIds: [],
   };
+}
+
+/**
+ * Restore in-memory tombstones from a persisted snapshot (reload / paint).
+ * @param {Record<string, unknown>|null|undefined} data
+ */
+function restorePendingDeletesFromSnapshot(data) {
+  if (!data || typeof data !== "object") return;
+  const docs = Array.isArray(data.deletedDocIds) ? data.deletedDocIds : [];
+  const nodes = Array.isArray(data.deletedNodeIds) ? data.deletedNodeIds : [];
+  for (const id of docs) {
+    if (id) pendingDeletedDocIds.add(id);
+  }
+  for (const id of nodes) {
+    if (id) pendingDeletedNodeIds.add(id);
+  }
 }
 
 /**
@@ -740,19 +786,33 @@ export function initPersistenceMiddleware(stores) {
     primaryTimelineObjectId: useTimelineStore.getState().primaryTimelineObjectId,
     scheduledAutoRunEnabled: useScheduledTasksStore.getState().autoRunEnabled,
     scheduledCompletedTaskKeys: useScheduledTasksStore.getState().completedTaskKeys,
+    deletedDocIds: [...pendingDeletedDocIds],
+    deletedNodeIds: [...pendingDeletedNodeIds],
   });
 
   const applyStateToStores = (data) => {
     if (!data) return;
-    const objects = pruneStrayDefaultYo(data.objects || {});
+    restorePendingDeletesFromSnapshot(data);
+    const stripped = stripPendingDeletesFromState(data);
+    // #region agent log
+    {
+      const pending = [...pendingDeletedDocIds];
+      const incomingDocs = Object.keys(stripped.docs || {});
+      const resurrected = pending.filter((id) => incomingDocs.includes(id));
+      if (pending.length || resurrected.length) {
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'post-fix',hypothesisId:'E',location:'persistenceMiddleware.js:applyStateToStores',message:'apply state to stores',data:{pending,resurrected,incomingDocCount:incomingDocs.length,sampleTitles:resurrected.slice(0,5).map((id)=>({id,title:stripped.docs?.[id]?.title}))},timestamp:Date.now()})}).catch(()=>{});
+      }
+    }
+    // #endregion
+    const objects = pruneStrayDefaultYo(stripped.objects || {});
     useObjectsStore.setState({ objects });
     const normalizedDocs = {};
-    if (data.docs) {
-      for (const [id, doc] of Object.entries(data.docs)) {
+    if (stripped.docs) {
+      for (const [id, doc] of Object.entries(stripped.docs)) {
         normalizedDocs[id] = normalizeDoc(doc);
       }
     }
-    let nodes = data.nodes || {};
+    let nodes = stripped.nodes || {};
     const repaired = repairDocNodeLinks(normalizedDocs, nodes);
     if (repaired) {
       for (const [id, doc] of Object.entries(repaired.docs)) {
@@ -763,35 +823,35 @@ export function initPersistenceMiddleware(stores) {
     useDocsStore.setState({ docs: normalizedDocs });
     useNodesStore.setState({ nodes });
     useCanvasStore.setState({
-      canvasNodes: data.canvasNodes || {},
-      canvasConnections: data.canvasConnections || {},
-      groupings: data.groupings || {},
+      canvasNodes: stripped.canvasNodes || {},
+      canvasConnections: stripped.canvasConnections || {},
+      groupings: stripped.groupings || {},
     });
-    if (data.timelines) {
+    if (stripped.timelines) {
       useTimelineStore.setState({
-        timelines: data.timelines,
-        currentTier: data.currentTier || "all",
+        timelines: stripped.timelines,
+        currentTier: stripped.currentTier || "all",
       });
     }
-    if (Array.isArray(data.timelineDocQueue)) {
+    if (Array.isArray(stripped.timelineDocQueue)) {
       useTimelineStore.setState({
-        timelineDocQueue: data.timelineDocQueue,
-        timelineDocQueueFocusByDocId: data.timelineDocQueueFocusByDocId || {},
-        timelineDocSnapshotsByDocId: data.timelineDocSnapshotsByDocId || {},
-        timelineExcludedChildrenByDocId: data.timelineExcludedChildrenByDocId || {},
-        timelineAgentSets: Array.isArray(data.timelineAgentSets) ? data.timelineAgentSets : [],
-        expandedDocIds: Array.isArray(data.expandedDocIds) ? data.expandedDocIds : [],
-        primaryTimelineObjectId: data.primaryTimelineObjectId || null,
+        timelineDocQueue: stripped.timelineDocQueue,
+        timelineDocQueueFocusByDocId: stripped.timelineDocQueueFocusByDocId || {},
+        timelineDocSnapshotsByDocId: stripped.timelineDocSnapshotsByDocId || {},
+        timelineExcludedChildrenByDocId: stripped.timelineExcludedChildrenByDocId || {},
+        timelineAgentSets: Array.isArray(stripped.timelineAgentSets) ? stripped.timelineAgentSets : [],
+        expandedDocIds: Array.isArray(stripped.expandedDocIds) ? stripped.expandedDocIds : [],
+        primaryTimelineObjectId: stripped.primaryTimelineObjectId || null,
       });
     }
-    if (typeof data.scheduledAutoRunEnabled === "boolean"
-      || Array.isArray(data.scheduledCompletedTaskKeys)) {
+    if (typeof stripped.scheduledAutoRunEnabled === "boolean"
+      || Array.isArray(stripped.scheduledCompletedTaskKeys)) {
       useScheduledTasksStore.setState({
-        autoRunEnabled: typeof data.scheduledAutoRunEnabled === "boolean"
-          ? data.scheduledAutoRunEnabled
+        autoRunEnabled: typeof stripped.scheduledAutoRunEnabled === "boolean"
+          ? stripped.scheduledAutoRunEnabled
           : true,
-        completedTaskKeys: Array.isArray(data.scheduledCompletedTaskKeys)
-          ? data.scheduledCompletedTaskKeys
+        completedTaskKeys: Array.isArray(stripped.scheduledCompletedTaskKeys)
+          ? stripped.scheduledCompletedTaskKeys
           : [],
       });
     }
@@ -1136,14 +1196,46 @@ export function initPersistenceMiddleware(stores) {
     }
   };
 
-  const syncToSupabase = async (state) => {
+  const syncToSupabase = async (_stateArg) => {
     if (!isSyncedWithRemote) return;
 
-    const userId = await resolveSyncUserId();
-    if (!userId) {
-      console.warn("No authenticated user — skipping Supabase sync.");
-      return;
+    if (syncInFlight) {
+      syncNeedsRerun = true;
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'post-fix',hypothesisId:'D',location:'persistenceMiddleware.js:syncToSupabase:queue',message:'sync queued behind in-flight',data:{pending:[...pendingDeletedDocIds]},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      try {
+        await syncInFlight;
+      } catch {
+        // prior sync logged its own error
+      }
+      // If the in-flight run already consumed the rerun flag, we are done; otherwise
+      // start a fresh live sync (covers the race where the flag was set too late).
+      if (syncInFlight) return syncInFlight;
+      return syncToSupabase();
     }
+
+    const runSync = async () => {
+      do {
+        syncNeedsRerun = false;
+
+        const userId = await resolveSyncUserId();
+        if (!userId) {
+          console.warn("No authenticated user — skipping Supabase sync.");
+          return;
+        }
+
+        // Always read live store — debounce snapshots can re-upsert deleted folders.
+        const state = stripPendingDeletesFromState(getLocalState());
+
+        // #region agent log
+        {
+          const liveDocIds = Object.keys(state?.docs || {});
+          const pending = [...pendingDeletedDocIds];
+          const resurrectInLive = pending.filter((id) => liveDocIds.includes(id));
+          fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'post-fix',hypothesisId:'D',location:'persistenceMiddleware.js:syncToSupabase:start',message:'sync start — live stripped state',data:{pending,liveDocCount:liveDocIds.length,resurrectInLive,queuedRerun:syncNeedsRerun},timestamp:Date.now()})}).catch(()=>{});
+        }
+        // #endregion
 
     try {
       const now = new Date().toISOString();
@@ -1175,7 +1267,9 @@ export function initPersistenceMiddleware(stores) {
       }
 
       // 2. Campaigns
-      const campaignsRows = Object.values(state.docs).map((doc) => ({
+      const campaignsRows = Object.values(state.docs || {})
+        .filter((doc) => doc?.id && !pendingDeletedDocIds.has(doc.id))
+        .map((doc) => ({
         id: doc.id,
         user_id: userId,
         company_id: doc.parentObjectId,
@@ -1203,7 +1297,7 @@ export function initPersistenceMiddleware(stores) {
         node_link_color: doc.nodeLinkColor || "mint",
         knowledge_import: doc.knowledgeImport || null,
         created_at: doc.createdAt || now,
-        updated_at: now,
+        updated_at: doc.updatedAt || now,
       }));
 
       const campaignLocalIds = campaignsRows.map((r) => r.id);
@@ -1217,7 +1311,9 @@ export function initPersistenceMiddleware(stores) {
       const campaignsOrphansOk = await deleteOrphanRows("campaigns", userId, campaignLocalIds);
 
       // 3. Nodes — persist Schedule in reference.anchorAt (JSONB)
-      const nodesRows = Object.values(state.nodes).map((node) => ({
+      const nodesRows = Object.values(state.nodes || {})
+        .filter((node) => node?.id && !pendingDeletedNodeIds.has(node.id))
+        .map((node) => ({
         id: node.id,
         user_id: userId,
         parent_doc_id: node.parentDocId,
@@ -1229,7 +1325,7 @@ export function initPersistenceMiddleware(stores) {
         linked_to_canvas: node.linkedToCanvas || false,
         canvas_node_id: node.canvasNodeId || null,
         created_at: node.createdAt || now,
-        updated_at: now,
+        updated_at: node.updatedAt || now,
       }));
 
       const nodeLocalIds = nodesRows.map((r) => r.id);
@@ -1365,6 +1461,13 @@ export function initPersistenceMiddleware(stores) {
     } catch (err) {
       console.error("Supabase write failed:", err.message || err);
     }
+      } while (syncNeedsRerun);
+    };
+
+    syncInFlight = runSync().finally(() => {
+      syncInFlight = null;
+    });
+    await syncInFlight;
   };
 
   const debouncedRemoteSync = debounce(syncToSupabase, 1500);
