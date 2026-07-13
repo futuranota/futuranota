@@ -55,9 +55,14 @@ export function ensureCompanyObject(company) {
     });
   }
 
-  const { setSelectedObjectId, setFilterObjectId } = useUIStateStore.getState();
+  const {
+    setSelectedObjectId,
+    setFilterObjectId,
+    requestEnterObjectWorkspace,
+  } = useUIStateStore.getState();
   setSelectedObjectId(objectId);
   setFilterObjectId(objectId);
+  requestEnterObjectWorkspace(objectId);
 
   return objectId;
 }

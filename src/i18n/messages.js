@@ -258,6 +258,8 @@ export const messages = {
       useNewKnowledge: "Use + new to add corpus documents",
       noContentForProduct: "No content docs link this product",
       noContentYet: "No content docs yet",
+      noContentUncategorized: "You have {count} unclassified document(s) — open Content to review them",
+      folderDocCount: "{count} docs",
       clearContentFilter: "Choose Content again to clear",
       useNewContent: "Use + new to create content",
       insertNode: "Insert document",

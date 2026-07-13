@@ -2,6 +2,7 @@ import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
+import { repairDocNodeLinks } from "../../lib/resolveDocBlockNodes.js";
 import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 
 const STORAGE_KEY = "futura-nota-v1";
@@ -651,8 +652,16 @@ export function initPersistenceMiddleware(stores) {
         normalizedDocs[id] = normalizeDoc(doc);
       }
     }
+    let nodes = data.nodes || {};
+    const repaired = repairDocNodeLinks(normalizedDocs, nodes);
+    if (repaired) {
+      for (const [id, doc] of Object.entries(repaired.docs)) {
+        normalizedDocs[id] = normalizeDoc(doc);
+      }
+      nodes = repaired.nodes;
+    }
     useDocsStore.setState({ docs: normalizedDocs });
-    useNodesStore.setState({ nodes: data.nodes || {} });
+    useNodesStore.setState({ nodes });
     useCanvasStore.setState({
       canvasNodes: data.canvasNodes || {},
       canvasConnections: data.canvasConnections || {},

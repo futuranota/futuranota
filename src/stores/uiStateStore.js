@@ -286,6 +286,12 @@ export const useUIStateStore = create(
         set({ leftPanelNavigateRequest: { ...payload, ts: Date.now() } }),
       clearLeftPanelNavigateRequest: () => set({ leftPanelNavigateRequest: null }),
 
+      /** One-shot: enter company document workspace (e.g. after company selector). */
+      requestEnterWorkspaceId: null,
+      requestEnterObjectWorkspace: (objectId) =>
+        set({ requestEnterWorkspaceId: objectId || null }),
+      clearRequestEnterObjectWorkspace: () => set({ requestEnterWorkspaceId: null }),
+
       setActiveDocMetaDraft: (draft) => set({ activeDocMetaDraft: draft }),
       clearActiveDocMetaDraft: () => set({ activeDocMetaDraft: null }),
 

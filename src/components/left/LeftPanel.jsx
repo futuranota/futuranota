@@ -38,10 +38,13 @@ import {
   formatProductDocTitle,
   listProductDocs,
   listContentDocs,
+  listUncategorizedDocs,
   listKnowledgeDocs,
   resolveProductDocDisplayTitle,
   resolveKnowledgeDocDisplayTitle,
 } from "../../lib/templateDoc.js";
+import { findObjectIdByName } from "../../lib/storeSanitize.js";
+import { buildNodesByDocIdMap } from "../../lib/resolveDocBlockNodes.js";
 import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
 import {
   buildCategoryFilterOptions,
@@ -61,6 +64,24 @@ import { TranslatedText } from "../shared/TranslatedText.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { PANEL_TYPES, usePanelTypeLabels } from "../../i18n/panelTypes.js";
+
+/** Resolve company object id when nav snapshot or store ids are stale after hydrate. */
+function resolveLeftPanelObjectId(
+  snapObjectId,
+  objects,
+  { companyName = null, filterObjectId = null, selectedObjectId = null } = {},
+) {
+  if (snapObjectId && objects[snapObjectId]) return snapObjectId;
+  if (filterObjectId && objects[filterObjectId]) return filterObjectId;
+  if (selectedObjectId && objects[selectedObjectId]) return selectedObjectId;
+  if (companyName) {
+    const byName = findObjectIdByName(objects, companyName);
+    if (byName && objects[byName]) return byName;
+  }
+  const ids = Object.keys(objects || {});
+  if (ids.length === 1) return ids[0];
+  return null;
+}
 
 function startObjectDrag(e, objectId) {
   setCanvasDragData(e.dataTransfer, { kind: "object", objectId });
@@ -1407,6 +1428,7 @@ function TimelineDocQueue({
 }
 
 export function LeftPanel({
+  companyName = null,
   onInsertToCanvas,
   onInsertAgent,
   onOpenDocument,
@@ -1457,6 +1479,8 @@ export function LeftPanel({
   const expandFolderList = useUIStateStore((s) => s.expandFolderList);
   const leftPanelNavigateRequest = useUIStateStore((s) => s.leftPanelNavigateRequest);
   const clearLeftPanelNavigateRequest = useUIStateStore((s) => s.clearLeftPanelNavigateRequest);
+  const requestEnterWorkspaceId = useUIStateStore((s) => s.requestEnterWorkspaceId);
+  const clearRequestEnterObjectWorkspace = useUIStateStore((s) => s.clearRequestEnterObjectWorkspace);
 
   /* stores */
   const objects    = useObjectsStore(s => s.objects);
@@ -1536,15 +1560,12 @@ export function LeftPanel({
     [filteredNodeList, docs],
   );
 
-  const nodesByDocId = useMemo(() => {
-    const map = new Map();
-    for (const node of objectScopedNodes) {
-      if (!node.parentDocId) continue;
-      if (!map.has(node.parentDocId)) map.set(node.parentDocId, []);
-      map.get(node.parentDocId).push(node);
-    }
-    return map;
-  }, [objectScopedNodes]);
+  // Resolve folder children from block.nodeId (editor source of truth) + parentDocId.
+  // Many persisted nodes have parentDocId wiped; counting only parentDocId shows "0 documents".
+  const nodesByDocId = useMemo(
+    () => buildNodesByDocIdMap(docs, nodes),
+    [docs, nodes],
+  );
 
   const openCreateDocument = useCallback((parentDoc = null) => {
     setCreateDocumentParentDocId(parentDoc?.id || null);
@@ -1567,6 +1588,10 @@ export function LeftPanel({
   );
   const contentDocs = useMemo(
     () => (filterObjectId ? listContentDocs(docs, filterObjectId) : []),
+    [docs, filterObjectId],
+  );
+  const uncategorizedDocs = useMemo(
+    () => (filterObjectId ? listUncategorizedDocs(docs, filterObjectId) : []),
     [docs, filterObjectId],
   );
   const knowledgeDocs = useMemo(() => listKnowledgeDocs(docs), [docs]);
@@ -1599,6 +1624,11 @@ export function LeftPanel({
   const filteredContentDocs = useMemo(
     () => contentDocs.filter((doc) => contentDocMatchesProductFilter(doc, docs, contentProductFilter)),
     [contentDocs, docs, contentProductFilter],
+  );
+
+  const filteredUncategorizedDocs = useMemo(
+    () => (contentProductFilter ? [] : uncategorizedDocs),
+    [uncategorizedDocs, contentProductFilter],
   );
 
   const groupedProductDocs = useMemo(
@@ -1732,6 +1762,18 @@ export function LeftPanel({
     setFolderOpen(false);
   };
 
+  // Enter workspace when company is selected from selector (ensureCompanyObject).
+  useEffect(() => {
+    if (!requestEnterWorkspaceId || !objects[requestEnterWorkspaceId]) return;
+    clearLeftPanelNavSnapshot();
+    enterObjectWorkspace(requestEnterWorkspaceId);
+    clearRequestEnterObjectWorkspace();
+  }, [
+    requestEnterWorkspaceId,
+    objects,
+    clearRequestEnterObjectWorkspace,
+  ]);
+
   const openStepsLibraryFromToolbar = () => {
     const targetObjectId = filterObjectId || selectedObjectId;
     if (targetObjectId) {
@@ -1864,15 +1906,33 @@ export function LeftPanel({
       return;
     }
 
-    const objectId = snap.selectedObjectId || snap.filterObjectId || null;
-    if (objectId && !objects[objectId]) {
-      // Hydrate still in flight, or company was deleted — keep waiting briefly.
-      const objectCount = Object.keys(objects || {}).length;
-      if (objectCount > 0) {
-        setLeftPanelNavRestored(true);
-      }
+    const rawObjectId = snap.selectedObjectId || snap.filterObjectId || null;
+    const objectCount = Object.keys(objects || {}).length;
+
+    if (rawObjectId && !objects[rawObjectId] && objectCount === 0) {
+      // Hydrate still in flight — keep waiting.
       return;
     }
+
+    const resolvedObjectId = resolveLeftPanelObjectId(rawObjectId, objects, {
+      companyName,
+      filterObjectId,
+      selectedObjectId,
+    });
+
+    if (rawObjectId && !resolvedObjectId) {
+      clearLeftPanelNavSnapshot();
+      setSelectedObjectId(null);
+      setFilterObjectId(null);
+      setLeftPanelNavRestored(true);
+      return;
+    }
+
+    if (rawObjectId && rawObjectId !== resolvedObjectId) {
+      clearLeftPanelNavSnapshot();
+    }
+
+    const objectId = resolvedObjectId;
 
     if (snap.objectWorkspaceActive && objectId && objects[objectId]) {
       setSelectedObjectId(objectId);
@@ -1894,6 +1954,9 @@ export function LeftPanel({
   }, [
     leftPanelNavRestored,
     objects,
+    companyName,
+    filterObjectId,
+    selectedObjectId,
     setSelectedObjectId,
     setFilterObjectId,
   ]);
@@ -1902,10 +1965,47 @@ export function LeftPanel({
   useEffect(() => {
     if (leftPanelNavRestored) return undefined;
     const timer = window.setTimeout(() => {
+      const snap = readLeftPanelNavSnapshot();
+      if (!snap) {
+        setLeftPanelNavRestored(true);
+        return;
+      }
+      const rawObjectId = snap.selectedObjectId || snap.filterObjectId || null;
+      const resolvedObjectId = resolveLeftPanelObjectId(rawObjectId, objects, {
+        companyName,
+        filterObjectId,
+        selectedObjectId,
+      });
+      if (resolvedObjectId && objects[resolvedObjectId]) {
+        setSelectedObjectId(resolvedObjectId);
+        setFilterObjectId(resolvedObjectId);
+        if (snap.objectWorkspaceActive) {
+          setObjectWorkspaceActive(true);
+          const nextPanel = ["Documents", "Nodes", "Objects"].includes(snap.panelType)
+            ? snap.panelType
+            : "Documents";
+          setPanelType(nextPanel);
+          if (typeof snap.clickFolderView === "string" || snap.clickFolderView === null) {
+            setClickFolderView(snap.clickFolderView);
+          }
+        }
+      } else if (rawObjectId) {
+        clearLeftPanelNavSnapshot();
+        setSelectedObjectId(null);
+        setFilterObjectId(null);
+      }
       setLeftPanelNavRestored(true);
     }, 4000);
     return () => window.clearTimeout(timer);
-  }, [leftPanelNavRestored]);
+  }, [
+    leftPanelNavRestored,
+    objects,
+    companyName,
+    filterObjectId,
+    selectedObjectId,
+    setSelectedObjectId,
+    setFilterObjectId,
+  ]);
 
   // Persist sidebar navigation so reload does not bounce back to Company root.
   useEffect(() => {
@@ -2539,32 +2639,57 @@ export function LeftPanel({
                     + (folderDensity === "compact" ? " lp-doc-nodes-stack--compact" : "")
                   }
                 >
-                  {filteredContentDocs.length ? (
-                    filteredContentDocs.map((doc) => (
-                      <DocNodesBlockCard
-                        key={doc.id}
-                        doc={doc}
-                        nodes={nodesByDocId.get(doc.id) || []}
-                        objects={objects}
-                        showWhenEmpty
-                        onOpenDoc={() => handleOpenFolderDoc(doc.id)}
-                        onCreateDocument={() => openCreateDocument(doc)}
-                        onDeleteBox={() => handleDeleteDoc(doc)}
-                        onNodeClick={(node) => {
-                          setActiveId(node.id);
-                          setNodeEditContentFocus(false);
-                          setNodeEditId(node.id);
-                        }}
-                        onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                        onNodeDelete={(node) => deleteNode(node.id)}
-                      />
-                    ))
+                  {filteredContentDocs.length || filteredUncategorizedDocs.length ? (
+                    <>
+                      {filteredContentDocs.map((doc) => (
+                        <DocNodesBlockCard
+                          key={doc.id}
+                          doc={doc}
+                          nodes={nodesByDocId.get(doc.id) || []}
+                          objects={objects}
+                          showWhenEmpty
+                          onOpenDoc={() => handleOpenFolderDoc(doc.id)}
+                          onCreateDocument={() => openCreateDocument(doc)}
+                          onDeleteBox={() => handleDeleteDoc(doc)}
+                          onNodeClick={(node) => {
+                            setActiveId(node.id);
+                            setNodeEditContentFocus(false);
+                            setNodeEditId(node.id);
+                          }}
+                          onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                          onNodeDelete={(node) => deleteNode(node.id)}
+                        />
+                      ))}
+                      {filteredUncategorizedDocs.map((doc) => (
+                        <DocNodesBlockCard
+                          key={doc.id}
+                          doc={doc}
+                          nodes={nodesByDocId.get(doc.id) || []}
+                          objects={objects}
+                          showWhenEmpty
+                          onOpenDoc={() => handleOpenFolderDoc(doc.id)}
+                          onCreateDocument={() => openCreateDocument(doc)}
+                          onDeleteBox={() => handleDeleteDoc(doc)}
+                          onNodeClick={(node) => {
+                            setActiveId(node.id);
+                            setNodeEditContentFocus(false);
+                            setNodeEditId(node.id);
+                          }}
+                          onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                          onNodeDelete={(node) => deleteNode(node.id)}
+                        />
+                      ))}
+                    </>
                   ) : (
                     <div className="lp-empty">
                       <p className="dim">
                         {contentProductFilter
                           ? t("sidebar.noContentForProduct")
-                          : t("sidebar.noContentYet")}
+                          : filterObjectId && getDocsByObject(filterObjectId).length > 0
+                            ? t("sidebar.noContentUncategorized", {
+                              count: getDocsByObject(filterObjectId).length,
+                            })
+                            : t("sidebar.noContentYet")}
                       </p>
                       <p className="dim">
                         {contentProductFilter
@@ -2593,6 +2718,25 @@ export function LeftPanel({
               <p className="lp-context-label"><TranslatedText text={activeObject.name} /></p>
             ) : null}
             <div className="lp-doc-nodes-stack">
+              {groupedNodeViews.sections.map(({ doc, nodes: sectionNodes }) => (
+                <DocNodesBlockCard
+                  key={doc.id}
+                  doc={doc}
+                  nodes={sectionNodes}
+                  objects={objects}
+                  showWhenEmpty
+                  onOpenDoc={() => handleOpenFolderDoc(doc.id)}
+                  onCreateDocument={() => openCreateDocument(doc)}
+                  onDeleteBox={() => handleDeleteDoc(doc)}
+                  onNodeClick={(node) => {
+                    setActiveId(node.id);
+                    setNodeEditContentFocus(false);
+                    setNodeEditId(node.id);
+                  }}
+                  onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                  onNodeDelete={(node) => deleteNode(node.id)}
+                />
+              ))}
               {groupedNodeViews.orphans.length ? (
                 <DocNodesBlockCard
                   doc={null}
@@ -2609,7 +2753,7 @@ export function LeftPanel({
                 />
               ) : null}
             </div>
-            {!groupedNodeViews.orphans.length ? (
+            {!groupedNodeViews.sections.length && !groupedNodeViews.orphans.length ? (
               <div className="lp-empty">
                 <p>{t("sidebar.noNodesYet")}</p>
                 <p className="dim">{t("sidebar.createNewNodeAbove")}</p>

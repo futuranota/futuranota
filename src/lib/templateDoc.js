@@ -326,6 +326,14 @@ export function listContentDocs(allDocs, parentObjectId) {
     .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
 }
 
+/** Docs under an object that do not match content, product, knowledge, or template. */
+export function listUncategorizedDocs(allDocs, parentObjectId) {
+  if (!parentObjectId) return [];
+  return siblingDocsUnderParent(allDocs, parentObjectId)
+    .filter((doc) => !isContentDoc(doc) && !isProductDoc(doc) && !isKnowledgeDoc(doc) && !isTemplateDoc(doc))
+    .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+}
+
 /** Global knowledge corpus docs (no parent object). */
 export function listKnowledgeDocs(allDocs) {
   return Object.values(allDocs || {})

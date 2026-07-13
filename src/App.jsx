@@ -1231,6 +1231,7 @@ useEffect(() => {
       <div className="dash-main">
         <div className="dash-col">
           <LeftPanel
+            companyName={company?.name || null}
             onInsertToCanvas={insertNodeToCanvas}
             onInsertAgent={handleInsertAgent}
             onOpenDocument={openDocumentOverlay}
