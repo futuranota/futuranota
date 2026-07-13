@@ -9365,7 +9365,7 @@ body.doc-content-resizing * {
 
 .node-query-overlay--expanded .lp-modal.node-query-modal {
   width: min(920px, calc(100vw - 40px));
-  max-width: none;
+  max-width: min(920px, calc(100vw - 40px));
   height: min(82vh, 820px);
   min-height: min(82vh, 820px);
   max-height: calc(100vh - 40px);
@@ -9374,6 +9374,7 @@ body.doc-content-resizing * {
   padding: 0 0 0 27px;
   overflow: hidden;
   background: #151515;
+  flex: 0 1 auto;
 }
 
 .node-query-overlay--content-focus {
@@ -9385,7 +9386,7 @@ body.doc-content-resizing * {
 
 .node-query-overlay--content-focus .lp-modal.node-query-modal {
   width: min(920px, calc(100vw - 40px));
-  max-width: none;
+  max-width: min(920px, calc(100vw - 40px));
   height: min(82vh, 820px);
   min-height: min(82vh, 820px);
   max-height: calc(100vh - 40px);
@@ -9394,14 +9395,25 @@ body.doc-content-resizing * {
   overflow: hidden;
   background: rgb(22, 26, 29);
   box-sizing: border-box;
+  /* Do not flex-grow past the 920 cap (row overlay + flex:1 on focus class). */
+  flex: 0 1 auto;
 }
 
 /* Content focus mode — mirror doc-new-inner--content-focus (Folders expand blueprint) */
+/* Width lives on the modal itself (same footprint as folder expand), not only via overlay parent. */
+.lp-modal.node-query-modal.node-query-modal--content-focus {
+  width: min(920px, calc(100vw - 40px));
+  max-width: min(920px, calc(100vw - 40px));
+  height: min(82vh, 820px);
+  min-height: min(82vh, 820px);
+  max-height: calc(100vh - 40px);
+  margin: 0 auto;
+  flex: 0 1 auto;
+}
+
 .node-query-modal--content-focus {
-  flex: 1 1 auto;
   min-height: 0;
   height: 100%;
-  width: 100%;
   overflow: hidden;
   --doc-focus-surface: rgb(22, 26, 29);
   --node-body-surface: rgb(22, 26, 29);

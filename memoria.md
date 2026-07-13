@@ -63,6 +63,13 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Document expand width 980px (2026-07-13)** — Al expandir un documento (ex-macronodo), objetivo final 980px; verificación en **920px** (mismo footprint que folder).
+
+- Runtime: toggle `contentFocusMode` sí dispara (logs hyp A); `embedded=false`.
+- CSS de overlay `--content-focus` sí está servido por Vite (`min(920px,…)`).
+- Fix defensivo: width/max-width en `.lp-modal.node-query-modal.node-query-modal--content-focus` (como folder) + `flex: 0 1 auto` (antes `flex:1` + `width:100%` podían pelear con el cap).
+- Archivo: `src/styles/left-panel.css`. Instrumentación sigue en `NodeQueryModal.jsx`.
+
 **Macronode title ↔ folder H1 sync (2026-07-13)** — El título del nodo de color y el del documento/H1 divergían (ej. chip `( modified)` vs doc sin ese sufijo).
 
 - Causa: rename en canvas/Standalone actualizaba `nodesStore` pero no llamaba `syncNodeToParentDoc`; abrir desde H1 leía el block stale; content-focus ocultaba Save.
