@@ -87,7 +87,10 @@ export function formatProductSubcategoryLine(doc) {
 /** Display title for product docs in lists and selectors. */
 export function resolveProductDocDisplayTitle(doc) {
   if (!doc) return "Untitled";
-  if (!isProductDoc(doc)) return doc.title?.trim() || "Untitled";
+  if (!isProductDoc(doc)) {
+    // Content folders: title and category mirror; prefer title, fall back to category.
+    return doc.title?.trim() || doc.category?.trim() || "Untitled";
+  }
   return formatProductDocTitle(doc.category, doc.version)
     || doc.title?.trim()
     || doc.category?.trim()

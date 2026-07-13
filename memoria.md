@@ -63,6 +63,12 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Folder title → left panel sync (2026-07-13)** — Renombrar un Folder no actualizaba el label del Documents sidebar.
+
+- Causa: el título solo vivía en draft hasta Save; el left panel lee `docsStore.doc.title`. En content-focus Save está oculto.
+- Fix: `persistFolderTitleToStore` en content mode (title+category → `updateDoc` en vivo, como Schedule) + snapshot sync para no marcar unsaved; fallback `title || category` en `resolveProductDocDisplayTitle`.
+- Archivos: `DocExpandedView.jsx`, `templateDoc.js`.
+
 **Folder boxes UX (2026-07-09)** — Reorganizar sidebar para reducir estiramiento del canvas:
 
 - Panel **Documents** → **Folder**; cajas con icono `box-closed.svg`; collapse muestra documents (ex-nodes).

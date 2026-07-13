@@ -778,6 +778,20 @@ export function DocExpandedView({
     });
   };
 
+  /** Content folders: mirror title↔category into docsStore so the left panel updates live. */
+  const persistFolderTitleToStore = (nextTitle) => {
+    if (!isContentMode || !doc?.id) return;
+    const title = String(nextTitle ?? "").trim();
+    if (!title) return;
+    updateDoc(doc.id, { title, category: title });
+    setInitialSnapshot((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, title, category: title };
+      docSnapshotRef.current = JSON.stringify(next);
+      return next;
+    });
+  };
+
   const handleScheduleStartDateChange = (value) => {
     if (!value) {
       setDraftScheduleStartDate("");
@@ -1633,6 +1647,7 @@ export function DocExpandedView({
           onTitleChange={(v) => {
             setDraftTitle(v);
             if (syncTitleWithCategory) setDraftCategory(v);
+            if (isContentMode) persistFolderTitleToStore(v);
           }}
           titlePlaceholder={
             isProductMode
@@ -1664,6 +1679,7 @@ export function DocExpandedView({
           onCategoryChange={isTemplate ? undefined : (v) => {
             setDraftCategory(v);
             if (syncTitleWithCategory) setDraftTitle(v);
+            if (isContentMode) persistFolderTitleToStore(v);
           }}
           launchDate={isTemplate ? "" : draftLaunchDate}
           onLaunchDateChange={isTemplate || useFolderSchedule ? undefined : (v) => {
