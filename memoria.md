@@ -63,6 +63,12 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Macronode title ↔ folder H1 sync (2026-07-13)** — El título del nodo de color y el del documento/H1 divergían (ej. chip `( modified)` vs doc sin ese sufijo).
+
+- Causa: rename en canvas/Standalone actualizaba `nodesStore` pero no llamaba `syncNodeToParentDoc`; abrir desde H1 leía el block stale; content-focus ocultaba Save.
+- Fix: sync en canvas + live title en Standalone; H1/TODO/DATE/METRIC en folder empujan al nodo; al abrir folder se reconcilián títulos desde el nodo (`reconcileLinkedBlockTitlesFromNodes`); modal desde H1 prefiere título del nodo.
+- Archivos: `App.jsx`, `StandaloneNodeModal.jsx`, `DocExpandedView.jsx`, `DocBlockStack.jsx`, `docNodeSync.js`.
+
 **Folder title → left panel sync (2026-07-13)** — Renombrar un Folder no actualizaba el label del Documents sidebar.
 
 - Causa: el título solo vivía en draft hasta Save; el left panel lee `docsStore.doc.title`. En content-focus Save está oculto.

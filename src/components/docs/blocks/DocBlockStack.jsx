@@ -228,6 +228,17 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   const blockLinkColor = (block) => resolveBlockNodeLinkColor(block);
   const blockLinksEnabled = (block) => !isNoNodeLinkMode(blockLinkColor(block));
+
+  /** Macronode title edits in the folder push immediately to the linked node (+ left panel). */
+  const syncLinkedBlockTitleToNode = (block, nextTitle) => {
+    if (!isDocBlockLinkedToNode(block) || !block.nodeId) return;
+    const title = String(nextTitle ?? "").trim() || "Untitled query";
+    useNodesStore.getState().updateNode(block.nodeId, {
+      title,
+      sourceQuery: title,
+    });
+  };
+
   const isMarketingGuideReport = reportPresentation?.kind === "marketing-guide-v1";
   const isSocialHypeReport = reportPresentation?.kind === "social-hype-v1";
   const isAnalystReport = reportPresentation?.kind === "analyst-strategic-v2"
@@ -1365,7 +1376,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     : "Heading 1"
               }
               onChange={(title) => {
-                updateAt(index, { title });
+                updateAt(index, { title, sourceQuery: title });
+                syncLinkedBlockTitleToNode(block, title);
                 if (h1HasVideoEmbedSibling(blocksRef.current, index)) {
                   onVideoEmbedH1TitleChange?.(index);
                 }
@@ -1415,7 +1427,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               title={block.title || ""}
               date={block.date || ""}
               time={block.time || ""}
-              onTitleChange={(title) => updateAt(index, { title })}
+              onTitleChange={(title) => {
+                updateAt(index, { title, sourceQuery: title });
+                syncLinkedBlockTitleToNode(block, title);
+              }}
               onDateChange={(date) => updateAt(index, { date })}
               onTimeChange={(time) => updateAt(index, { time })}
               onQueryHandleClick={() => openNode?.(index, block)}
@@ -1428,7 +1443,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               title={block.title || ""}
               value={block.value != null ? String(block.value) : ""}
               unit={block.unit || ""}
-              onTitleChange={(title) => updateAt(index, { title })}
+              onTitleChange={(title) => {
+                updateAt(index, { title, sourceQuery: title });
+                syncLinkedBlockTitleToNode(block, title);
+              }}
               onValueChange={(value) => updateAt(index, { value })}
               onUnitChange={(unit) => updateAt(index, { unit })}
               onQueryHandleClick={() => openNode?.(index, block)}
@@ -1685,7 +1703,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.TODO ? (
             <DocTodoPlanBlockView
               listTitle={block.listTitle ?? "Todo list:"}
-              onListTitleChange={(listTitle) => updateAt(index, { listTitle })}
+              onListTitleChange={(listTitle) => {
+                updateAt(index, { listTitle, sourceQuery: listTitle });
+                syncLinkedBlockTitleToNode(block, listTitle);
+              }}
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={blockLinkColor(block)}
               linksEnabled={blockLinksEnabled(block)}

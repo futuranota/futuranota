@@ -791,10 +791,17 @@ useEffect(() => {
         nextEdits.title = String(edits.title).trim() || "Untitled query";
       }
       if (target?.noteId && nextEdits.title != null) {
-        useNodesStore.getState().updateNode(target.noteId, {
+        const nodesApi = useNodesStore.getState();
+        nodesApi.updateNode(target.noteId, {
           title: nextEdits.title,
           sourceQuery: nextEdits.title,
         });
+        // Keep linked H1 / parent folder listing in sync with the colored macronode title.
+        const entity = nodesApi.getNode(target.noteId);
+        const parentDocId = entity?.parentDocId || null;
+        if (parentDocId) {
+          nodesApi.syncNodeToParentDoc(target.noteId, parentDocId);
+        }
       }
       return all.map((n) => (n.id === canvasNodeId ? { ...n, ...nextEdits } : n));
     });

@@ -259,10 +259,23 @@ export function StandaloneNodeModal({
     if (node?.id) updateNode(node.id, { sourceId: value ?? null });
   };
 
+  /** Live-persist title so content-focus (Save hidden) still syncs chip + parent folder H1. */
+  const handleQueryChange = (nextQuery) => {
+    setQuery(nextQuery);
+    if (isNew || !node?.id) return;
+    const title = String(nextQuery ?? "").trim();
+    if (!title) return;
+    updateNode(node.id, { title, sourceQuery: title });
+    const parentId = parentDocId || node.parentDocId || null;
+    if (parentId) {
+      syncNodeToParentDoc(node.id, parentId);
+    }
+  };
+
   return (
     <NodeQueryModal
       query={query}
-      onQueryChange={setQuery}
+      onQueryChange={handleQueryChange}
       content={content}
       onContentChange={setContent}
       dataType={dataType}

@@ -575,6 +575,45 @@ export function isDocBlockLinkedToNode(block) {
   return !isNoNodeLinkMode(resolveBlockNodeLinkColor(block));
 }
 
+/**
+ * Node title is source of truth for linked macronodes.
+ * Align H1/TODO/DATE/METRIC block titles with the linked node entity.
+ */
+export function reconcileLinkedBlockTitlesFromNodes(blocks, nodesById = {}) {
+  const normalized = normalizeDocBlocks(blocks);
+  let changed = false;
+  const next = normalized.map((block) => {
+    if (!isDocBlockLinkedToNode(block)) return block;
+    const node = nodesById[block.nodeId];
+    if (!node) return block;
+    const synced = (node.sourceQuery || node.title || "").trim();
+    if (!synced) return block;
+
+    if (
+      block.type === DOC_BLOCK_TYPES.H1
+      || block.type === DOC_BLOCK_TYPES.DATE
+      || block.type === DOC_BLOCK_TYPES.METRIC
+    ) {
+      if ((block.title || "").trim() === synced && (block.sourceQuery || "").trim() === synced) {
+        return block;
+      }
+      changed = true;
+      return { ...block, title: synced, sourceQuery: synced };
+    }
+
+    if (block.type === DOC_BLOCK_TYPES.TODO) {
+      if ((block.listTitle || "").trim() === synced && (block.sourceQuery || "").trim() === synced) {
+        return block;
+      }
+      changed = true;
+      return { ...block, listTitle: synced, sourceQuery: synced };
+    }
+
+    return block;
+  });
+  return changed ? next : normalized;
+}
+
 /** H1 index when textBlockIndex is the primary answer slot under a linked H1, else -1. */
 export function getLinkedOwnerIndexForTextBlock(blocks, textBlockIndex) {
   const h1Index = getH1IndexForTextBlock(blocks, textBlockIndex);

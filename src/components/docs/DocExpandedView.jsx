@@ -65,6 +65,7 @@ import {
   unlinkNodeFromDocBlocks,
   getOwnedTextBlockIndices,
   isDocBlockLinkedToNode,
+  reconcileLinkedBlockTitlesFromNodes,
   shouldMirrorNodeContentInDoc,
 } from "../../lib/docNodeSync.js";
 import {
@@ -302,15 +303,22 @@ export function DocExpandedView({
     const d = useDocsStore.getState().docs[docId];
     if (!d) return;
     const cached = useUIStateStore.getState().docEditorDrafts[docId];
-    const loadedBlocks = normalizeDocBlocks(
+    const loadedBlocksRaw = normalizeDocBlocks(
       d.blocks?.length ? d.blocks : docBlocksFromBody(d.body ?? d.content ?? ""),
     );
+    const nodesById = useNodesStore.getState().nodes;
+    const loadedBlocks = reconcileLinkedBlockTitlesFromNodes(loadedBlocksRaw, nodesById);
+    // Heal stale H1/TODO titles in the store when the linked node was renamed elsewhere.
+    if (loadedBlocks !== loadedBlocksRaw) {
+      useDocsStore.getState().updateDoc(docId, { blocks: loadedBlocks });
+    }
     const normalized = normalizeDoc(d);
     const savedTitle = isProductDoc(normalized)
       ? (normalized.category?.trim() || normalized.title?.trim() || "")
       : (d.title ?? "");
     const loadedHasText = docBlocksHaveText(loadedBlocks);
-    const cachedBlocks = cached?.blocks?.length ? normalizeDocBlocks(cached.blocks) : [];
+    const cachedBlocksRaw = cached?.blocks?.length ? normalizeDocBlocks(cached.blocks) : [];
+    const cachedBlocks = reconcileLinkedBlockTitlesFromNodes(cachedBlocksRaw, nodesById);
     const cachedHasText = docDraftHasContent(cached);
     const preferStoreContent = Boolean(
       normalized.reportPresentation?.animateOnOpen
@@ -1535,7 +1543,14 @@ export function DocExpandedView({
       blockIndex,
       blockType: block.type,
       nodeId: ensuredNodeId || block.nodeId || null,
-      query: getBlockQueryText(block),
+      // Linked macronode title lives on the node entity — prefer it over a stale H1.
+      query: (
+        (existing
+          ? (existing.sourceQuery || existing.title || "")
+          : ""
+        ).trim()
+        || getBlockQueryText(block)
+      ),
       dataType,
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
