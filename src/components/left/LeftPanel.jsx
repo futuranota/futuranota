@@ -1477,6 +1477,7 @@ export function LeftPanel({
   const folderDensity = useUIStateStore((s) => s.folderDensity);
   const densifyFolderList = useUIStateStore((s) => s.densifyFolderList);
   const expandFolderList = useUIStateStore((s) => s.expandFolderList);
+  const workspaceHydrated = useUIStateStore((s) => s.workspaceHydrated);
   const leftPanelNavigateRequest = useUIStateStore((s) => s.leftPanelNavigateRequest);
   const clearLeftPanelNavigateRequest = useUIStateStore((s) => s.clearLeftPanelNavigateRequest);
   const requestEnterWorkspaceId = useUIStateStore((s) => s.requestEnterWorkspaceId);
@@ -2281,8 +2282,14 @@ export function LeftPanel({
               ))}
               {filteredObjectList.length === 0 && (
                 <div className="lp-empty">
-                  <p>{t("sidebar.noObjectsYet")}</p>
-                  <p className="dim">{t("sidebar.createFirstModel")}</p>
+                  {!workspaceHydrated ? (
+                    <p className="dim">{t("common.loading")}</p>
+                  ) : (
+                    <>
+                      <p>{t("sidebar.noObjectsYet")}</p>
+                      <p className="dim">{t("sidebar.createFirstModel")}</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>

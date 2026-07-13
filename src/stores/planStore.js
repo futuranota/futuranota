@@ -32,6 +32,8 @@ import {
 
 export { FREE_LIMITS, TOKEN_COSTS } from "../lib/planConfig.js";
 
+const PLAN_CACHE_KEY = "futura-nota-plan-cache-v1";
+
 const DEFAULT_PROFILE = {
   plan: "free",
   calendarUsed: false,
@@ -47,6 +49,77 @@ const DEFAULT_PROFILE = {
   stripeSubscriptionId: null,
   billingStatus: null,
 };
+
+/** @returns {typeof DEFAULT_PROFILE | null} */
+function readCachedPlanProfile() {
+  try {
+    const raw = localStorage.getItem(PLAN_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const plan = parsed.plan === "pro" ? "pro" : "free";
+    return {
+      ...DEFAULT_PROFILE,
+      ...parsed,
+      plan,
+      tokensBalance: toFiniteNumber(parsed.tokensBalance, getTokensCap(plan)) ?? getTokensCap(plan),
+      searchCount: toFiniteNumber(parsed.searchCount, 0) ?? 0,
+      weatherActionsCount: Math.max(0, Math.floor(toFiniteNumber(parsed.weatherActionsCount, 0) ?? 0)),
+      referralCreditsBalance: Math.max(0, toFiniteNumber(parsed.referralCreditsBalance, 0) ?? 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** @param {typeof DEFAULT_PROFILE} profile */
+function writeCachedPlanProfile(profile) {
+  if (!profile) return;
+  try {
+    localStorage.setItem(PLAN_CACHE_KEY, JSON.stringify({
+      plan: profile.plan === "pro" ? "pro" : "free",
+      calendarUsed: Boolean(profile.calendarUsed),
+      calendarSearchesCount: profile.calendarSearchesCount ?? 0,
+      calendarPeriodStart: profile.calendarPeriodStart ?? null,
+      weatherUsed: Boolean(profile.weatherUsed),
+      weatherActionsCount: profile.weatherActionsCount ?? 0,
+      searchCount: profile.searchCount ?? 0,
+      tokensBalance: profile.tokensBalance,
+      tokensPeriodStart: profile.tokensPeriodStart ?? null,
+      campaignLiveUsed: Boolean(profile.campaignLiveUsed),
+      referralCreditsBalance: profile.referralCreditsBalance ?? 0,
+      stripeSubscriptionId: profile.stripeSubscriptionId ?? null,
+      billingStatus: profile.billingStatus ?? null,
+      cachedAt: Date.now(),
+    }));
+  } catch {
+    // private mode / quota
+  }
+}
+
+function clearCachedPlanProfile() {
+  try {
+    localStorage.removeItem(PLAN_CACHE_KEY);
+  } catch {
+    // private mode / quota
+  }
+}
+
+const CACHED_PROFILE = typeof window !== "undefined" ? readCachedPlanProfile() : null;
+const BOOT_PROFILE = CACHED_PROFILE
+  ? {
+    ...CACHED_PROFILE,
+    weatherActionsCount: CACHED_PROFILE.weatherActionsCount ?? readLocalWeatherActionsUsed(),
+    weatherUsed: Boolean(
+      CACHED_PROFILE.weatherUsed
+      || (CACHED_PROFILE.weatherActionsCount ?? readLocalWeatherActionsUsed()) >= 1,
+    ),
+  }
+  : {
+    ...DEFAULT_PROFILE,
+    weatherActionsCount: typeof window !== "undefined" ? readLocalWeatherActionsUsed() : 0,
+    weatherUsed: typeof window !== "undefined" ? readLocalWeatherActionsUsed() >= 1 : false,
+  };
 
 function isSameUtcMonth(a, b) {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
@@ -254,9 +327,10 @@ async function ensureProfileRow(userId) {
 export const usePlanStore = create(
   devtools(
     (set, get) => ({
-      profile: { ...DEFAULT_PROFILE },
+      profile: { ...BOOT_PROFILE },
       loading: true,
-      loaded: false,
+      loaded: Boolean(CACHED_PROFILE),
+      fromCache: Boolean(CACHED_PROFILE),
 
       isPro: () => get().profile.plan === "pro",
 
@@ -383,6 +457,7 @@ export const usePlanStore = create(
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id;
         if (!userId) {
+          clearCachedPlanProfile();
           set({
             profile: {
               ...DEFAULT_PROFILE,
@@ -391,6 +466,7 @@ export const usePlanStore = create(
             },
             loading: false,
             loaded: true,
+            fromCache: false,
           });
           return;
         }
@@ -433,7 +509,9 @@ export const usePlanStore = create(
         if (isAdminUser && !isAdminBillingBypassEnabled() && !data) {
           const seeded = await get().refillCreditsToFull();
           if (seeded) {
-            set({ profile: get().profile, loading: false, loaded: true });
+            const next = get().profile;
+            writeCachedPlanProfile(next);
+            set({ profile: next, loading: false, loaded: true, fromCache: false });
             return;
           }
         }
@@ -522,7 +600,8 @@ export const usePlanStore = create(
           }
         }
 
-        set({ profile, loading: false, loaded: true });
+        set({ profile, loading: false, loaded: true, fromCache: false });
+        writeCachedPlanProfile(profile);
       },
 
       setPlan: async (plan) => {

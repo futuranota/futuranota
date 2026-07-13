@@ -17,8 +17,31 @@ export function PlanUsagePanel({ compact = false }) {
   const showReferralModal = useReferralModalStore((s) => s.show);
   const [bannerHidden, setBannerHidden] = useState(isReferralBannerDismissed);
   const profile = usePlanStore((s) => s.profile);
+  const loading = usePlanStore((s) => s.loading);
+  const loaded = usePlanStore((s) => s.loaded);
+  const fromCache = usePlanStore((s) => s.fromCache);
   const searchCount = usePlanStore((s) => s.profile.searchCount);
   const tokensBalance = usePlanStore((s) => s.profile.tokensBalance);
+
+  // Avoid flashing Starter 10/10 while the real Pro profile is still loading and
+  // we have no cached plan from the previous session.
+  const awaitingProfile = loading && !loaded && !fromCache;
+  if (awaitingProfile) {
+    return (
+      <div className={"plan-usage plan-usage--loading" + (compact ? " plan-usage--compact" : "")}>
+        <div className="plan-usage__head">
+          <span className="plan-usage__label plan-usage__label--skeleton">···</span>
+          <span className="plan-usage__tokens plan-usage__tokens--skeleton" aria-hidden>
+            ···
+          </span>
+        </div>
+        <div className="plan-usage__bar">
+          <div className="plan-usage__fill plan-usage__fill--skeleton" style={{ width: "40%" }} />
+        </div>
+      </div>
+    );
+  }
+
   const { cap, counter, remaining } = getCreditsDisplay({ ...profile, searchCount, tokensBalance });
   const creditsExpired = cap > 0 && remaining <= 0;
   const rows = getPlanFeatureRows(profile.plan);

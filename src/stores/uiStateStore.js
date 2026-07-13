@@ -89,6 +89,13 @@ export const useUIStateStore = create(
       /** Content/Folder list density: comfortable = 1 col (max), compact = 2 cols. */
       folderDensity: readFolderDensity(),
 
+      /**
+       * True after first local or remote workspace paint.
+       * Prevents "No companies yet" flash while Supabase hydrate is in flight.
+       */
+      workspaceHydrated: false,
+      setWorkspaceHydrated: (value) => set({ workspaceHydrated: Boolean(value) }),
+
       focusedCanvasNodeId: null,
       selectedCanvasNodeIds: [],
       isDrawingConnection: false,

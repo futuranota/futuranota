@@ -4,6 +4,7 @@ import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
 import { repairDocNodeLinks } from "../../lib/resolveDocBlockNodes.js";
 import { useScheduledTasksStore } from "../scheduledTasksStore.js";
+import { useUIStateStore } from "../uiStateStore.js";
 
 const STORAGE_KEY = "futura-nota-v1";
 
@@ -704,23 +705,37 @@ export function initPersistenceMiddleware(stores) {
       useObjectsStore.setState({ objects: pruned });
     }
     const nextObjects = useObjectsStore.getState().objects;
-    if (Object.keys(nextObjects).length > 0) return;
+    if (Object.keys(nextObjects).length > 0) {
+      useUIStateStore.getState().setWorkspaceHydrated(true);
+      return;
+    }
     if (!findObjectIdByName(nextObjects, "yo")) {
       addObject("yo", "");
     }
+    useUIStateStore.getState().setWorkspaceHydrated(true);
   };
 
-  const loadLocalFallback = () => {
+  /** Instant UI paint from disk — do not seed default "yo" (remote may still arrive). */
+  const paintLocalWorkspace = () => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         const data = sanitizePersistedSnapshot(parsed);
-        if (data) applyStateToStores(data);
+        if (data) {
+          applyStateToStores(data);
+          useUIStateStore.getState().setWorkspaceHydrated(true);
+          return true;
+        }
       }
     } catch (e) {
       console.error("Failed to read from localStorage:", e);
     }
+    return false;
+  };
+
+  const loadLocalFallback = () => {
+    paintLocalWorkspace();
     finishWorkspaceHydration();
   };
 
@@ -992,6 +1007,7 @@ export function initPersistenceMiddleware(stores) {
 
       isSyncedWithRemote = true;
       console.log("Supabase sync loaded for user:", userId);
+      finishWorkspaceHydration();
       const finalState = getLocalState();
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(finalState));
@@ -1017,6 +1033,7 @@ export function initPersistenceMiddleware(stores) {
       loadLocalFallback();
     } finally {
       hydrateInFlight = false;
+      useUIStateStore.getState().setWorkspaceHydrated(true);
     }
   };
 
@@ -1296,7 +1313,9 @@ export function initPersistenceMiddleware(stores) {
   window.addEventListener("beforeunload", flushPersistenceSyncBestEffort);
   document.addEventListener("visibilitychange", onVisibilityChange);
 
-  // Cargar datos al iniciar
+  // Paint local workspace immediately so reload does not flash empty companies.
+  // Remote hydrate merges on top; seed default "yo" only after hydrate finishes.
+  paintLocalWorkspace();
   loadFromSupabase();
 
   // Escuchar cambios de sesión — recargar solo en login real, no en cada refresh de token
@@ -1309,6 +1328,7 @@ export function initPersistenceMiddleware(stores) {
     if (event === "SIGNED_OUT") {
       isSyncedWithRemote = false;
       debouncedRemoteSync.cancel();
+      useUIStateStore.getState().setWorkspaceHydrated(false);
       const empty = emptyWorkspaceSnapshot();
       applyStateToStores(empty);
       try {
@@ -1321,6 +1341,7 @@ export function initPersistenceMiddleware(stores) {
       } catch {
         // private mode / quota
       }
+      useUIStateStore.getState().setWorkspaceHydrated(true);
     }
   });
 

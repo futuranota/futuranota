@@ -90,6 +90,11 @@ export const useAuthStore = create((set) => ({
     await flushPersistenceSync();
     clearPendingProCheckout();
     clearLeftPanelNavSnapshot();
+    try {
+      localStorage.removeItem("futura-nota-plan-cache-v1");
+    } catch {
+      // private mode / quota
+    }
     await supabase.auth.signOut();
     set({ user: null, session: null });
   },

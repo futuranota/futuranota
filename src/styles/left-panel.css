@@ -1797,6 +1797,22 @@
   transition: width 0.25s ease;
 }
 
+.plan-usage__label--skeleton,
+.plan-usage__tokens--skeleton {
+  opacity: 0.45;
+  letter-spacing: 0.12em;
+}
+
+.plan-usage__fill--skeleton {
+  opacity: 0.35;
+  animation: plan-usage-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes plan-usage-pulse {
+  0%, 100% { opacity: 0.28; }
+  50% { opacity: 0.5; }
+}
+
 .plan-usage__table {
   width: 100%;
   font-size: 10px;
