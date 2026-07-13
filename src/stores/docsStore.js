@@ -9,6 +9,10 @@ import {
   normalizeDocBlocks,
 } from "../lib/docBlocks.js";
 import { emptyDocCampaignFields, normalizeDoc } from "../lib/normalizeDoc.js";
+import {
+  flushPersistenceSync,
+  markDocsDeletedForSync,
+} from "./middleware/persistenceMiddleware.js";
 
 export const useDocsStore = create(
   devtools(
@@ -228,6 +232,9 @@ export const useDocsStore = create(
 
       deleteDoc: (id) => {
         const linkedNodes = useNodesStore.getState().getNodesByDoc(id);
+        const linkedNodeIds = linkedNodes.map((node) => node.id).filter(Boolean);
+        // Tombstone before local remove so an in-flight hydrate cannot resurrect.
+        markDocsDeletedForSync(id, linkedNodeIds);
         for (const node of linkedNodes) {
           useNodesStore.getState().deleteNode(node.id);
         }
@@ -239,6 +246,9 @@ export const useDocsStore = create(
           const next = { ...state.docs };
           delete next[id];
           return { docs: next };
+        });
+        flushPersistenceSync().catch((err) => {
+          console.warn("Flush after folder delete failed:", err);
         });
       },
     }),

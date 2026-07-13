@@ -543,6 +543,9 @@ function DocNodesBlockCard({
   defaultExpanded = false,
   orphan = false,
   showWhenEmpty = false,
+  selectMode = false,
+  selected = false,
+  onToggleSelect,
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -579,10 +582,17 @@ function DocNodesBlockCard({
     return () => document.removeEventListener("pointerdown", closeMenu);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!selectMode) return;
+    clearLongPress();
+    setMenuOpen(false);
+    setExpanded(false);
+  }, [selectMode]);
+
   if (!nodes.length && !showWhenEmpty && !orphan) return null;
 
   const handlePointerDown = (e) => {
-    if (e.button !== 0 || orphan || !onDeleteBox) return;
+    if (selectMode || e.button !== 0 || orphan || !onDeleteBox) return;
     suppressClickRef.current = false;
     pointerStartRef.current = { x: e.clientX, y: e.clientY };
     clearLongPress();
@@ -593,6 +603,7 @@ function DocNodesBlockCard({
   };
 
   const handlePointerMove = (e) => {
+    if (selectMode) return;
     const dx = e.clientX - pointerStartRef.current.x;
     const dy = e.clientY - pointerStartRef.current.y;
     if (Math.hypot(dx, dy) > 8) clearLongPress();
@@ -601,6 +612,10 @@ function DocNodesBlockCard({
   const handlePointerUp = () => clearLongPress();
 
   const handleHeadClick = () => {
+    if (selectMode) {
+      if (!orphan && doc?.id) onToggleSelect?.(doc.id);
+      return;
+    }
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
@@ -620,7 +635,10 @@ function DocNodesBlockCard({
         "lp-doc-nodes-block"
         + (orphan ? " lp-doc-nodes-block--orphan" : "")
         + (menuOpen ? " is-menu-open" : "")
+        + (selectMode ? " lp-doc-nodes-block--select-mode" : "")
+        + (selected ? " is-selected" : "")
       }
+      aria-selected={selectMode ? selected : undefined}
     >
       <div className="lp-doc-nodes-block__head">
         <button
@@ -632,9 +650,16 @@ function DocNodesBlockCard({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           onPointerLeave={handlePointerUp}
-          aria-expanded={expanded}
+          aria-expanded={selectMode ? undefined : expanded}
+          aria-pressed={selectMode ? selected : undefined}
         >
-          {!orphan && doc ? (
+          {selectMode && !orphan ? (
+            <span
+              className={"lp-doc-nodes-block__check" + (selected ? " is-checked" : "")}
+              aria-hidden
+            />
+          ) : null}
+          {!orphan && doc && !selectMode ? (
             <span
               className="lp-doc-drag-area lp-doc-drag-area--compact"
               draggable
@@ -673,7 +698,7 @@ function DocNodesBlockCard({
               ) : (
                 <DocListTitle doc={doc} />
               )}
-              {!orphan ? (
+              {!orphan && !selectMode ? (
                 <span
                   className="lp-expand-btn"
                   role="button"
@@ -709,19 +734,21 @@ function DocNodesBlockCard({
               {!orphan && parent ? ` · ↳ ${parent.name}` : ""}
             </span>
           </div>
-          <span
-            className={"lp-doc-nodes-block__chevron" + (expanded ? "" : " is-collapsed")}
-            aria-hidden
-          >
-            <img
-              src="/uploads/control.svg"
-              alt=""
-              className="lp-doc-nodes-block__chevron-img"
-            />
-          </span>
+          {!selectMode ? (
+            <span
+              className={"lp-doc-nodes-block__chevron" + (expanded ? "" : " is-collapsed")}
+              aria-hidden
+            >
+              <img
+                src="/uploads/control.svg"
+                alt=""
+                className="lp-doc-nodes-block__chevron-img"
+              />
+            </span>
+          ) : null}
         </button>
       </div>
-      {menuOpen && onDeleteBox ? (
+      {menuOpen && onDeleteBox && !selectMode ? (
         <div className="lp-doc-nodes-block__press-actions">
           <button
             type="button"
@@ -736,7 +763,7 @@ function DocNodesBlockCard({
           </button>
         </div>
       ) : null}
-      {expanded ? (
+      {expanded && !selectMode ? (
         <div className="lp-doc-nodes-block__body">
           {nodes.map((node) => (
             <NodeCompactRow
@@ -1486,6 +1513,8 @@ export function LeftPanel({
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
   const [lazyTodosActive, setLazyTodosActive] = useState(false);
   const [leftPanelNavRestored, setLeftPanelNavRestored] = useState(false);
+  const [folderBulkDeleteMode, setFolderBulkDeleteMode] = useState(false);
+  const [selectedFolderIds, setSelectedFolderIds] = useState([]);
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
@@ -1747,6 +1776,57 @@ export function LeftPanel({
     deleteDoc(doc.id);
     if (activeId === doc.id) setActiveId(null);
   };
+
+  const exitFolderBulkDeleteMode = useCallback(() => {
+    setFolderBulkDeleteMode(false);
+    setSelectedFolderIds([]);
+  }, []);
+
+  const toggleFolderBulkDeleteMode = useCallback(() => {
+    setFolderBulkDeleteMode((active) => {
+      if (active) {
+        setSelectedFolderIds([]);
+        return false;
+      }
+      setSelectedFolderIds([]);
+      return true;
+    });
+  }, []);
+
+  const toggleFolderSelect = useCallback((docId) => {
+    if (!docId) return;
+    setSelectedFolderIds((prev) => (
+      prev.includes(docId)
+        ? prev.filter((id) => id !== docId)
+        : [...prev, docId]
+    ));
+  }, []);
+
+  const handleDeleteSelectedFolders = async () => {
+    const ids = selectedFolderIds.filter((id) => docs[id]);
+    if (!ids.length) return;
+    const confirmed = await askConfirm({
+      title: t("sidebar.deleteDocsTitle"),
+      message: t("sidebar.deleteDocsConfirm", { count: ids.length }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+    playTrashBoxSound();
+    for (const id of ids) {
+      onDocumentDeleted?.(id);
+      removeTimelineDocFromQueue(id);
+      deleteDoc(id);
+      if (activeId === id) setActiveId(null);
+    }
+    exitFolderBulkDeleteMode();
+  };
+
+  useEffect(() => {
+    if (clickFolderView !== "subgroups" && folderBulkDeleteMode) {
+      exitFolderBulkDeleteMode();
+    }
+  }, [clickFolderView, folderBulkDeleteMode, exitFolderBulkDeleteMode]);
 
   const handleDeleteCategoryGroup = async (group) => {
     const label = group?.label || t("sidebar.docGroupUncategorized");
@@ -2623,6 +2703,23 @@ export function LeftPanel({
                   <div className="lp-folder-density" role="group" aria-label={t("sidebar.folderDensityLabel")}>
                     <button
                       type="button"
+                      className={
+                        "lp-folder-density__btn lp-folder-select-btn"
+                        + (folderBulkDeleteMode ? " is-active" : "")
+                      }
+                      onClick={toggleFolderBulkDeleteMode}
+                      title={
+                        folderBulkDeleteMode
+                          ? t("sidebar.folderSelectDeleteActive")
+                          : t("sidebar.folderSelectDeleteTitle")
+                      }
+                      aria-label={t("sidebar.folderSelectDeleteTitle")}
+                      aria-pressed={folderBulkDeleteMode}
+                    >
+                      {t("sidebar.folderSelectDelete")}
+                    </button>
+                    <button
+                      type="button"
                       className="lp-folder-density__btn"
                       onClick={densifyFolderList}
                       disabled={folderDensity === "compact"}
@@ -2655,6 +2752,30 @@ export function LeftPanel({
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
+                {folderBulkDeleteMode ? (
+                  <div className="lp-folder-bulk-bar" role="status">
+                    <span className="lp-folder-bulk-bar__count">
+                      {t("sidebar.folderSelectDeleteCount", { count: selectedFolderIds.length })}
+                    </span>
+                    <div className="lp-folder-bulk-bar__actions">
+                      <button
+                        type="button"
+                        className="btn xs ghost"
+                        onClick={exitFolderBulkDeleteMode}
+                      >
+                        {t("sidebar.folderSelectDeleteDone")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn xs lp-folder-bulk-bar__delete"
+                        disabled={selectedFolderIds.length === 0}
+                        onClick={handleDeleteSelectedFolders}
+                      >
+                        {t("sidebar.folderSelectDeleteAction")}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
                   docs={docs}
@@ -2668,6 +2789,7 @@ export function LeftPanel({
                   className={
                     "lp-click-folder-detail-list lp-doc-nodes-stack"
                     + (folderDensity === "compact" ? " lp-doc-nodes-stack--compact" : "")
+                    + (folderBulkDeleteMode ? " lp-doc-nodes-stack--selecting" : "")
                   }
                 >
                   {filteredContentDocs.length || filteredUncategorizedDocs.length ? (
@@ -2679,6 +2801,9 @@ export function LeftPanel({
                           nodes={nodesByDocId.get(doc.id) || []}
                           objects={objects}
                           showWhenEmpty
+                          selectMode={folderBulkDeleteMode}
+                          selected={selectedFolderIds.includes(doc.id)}
+                          onToggleSelect={toggleFolderSelect}
                           onOpenDoc={() => handleOpenFolderDoc(doc.id)}
                           onCreateDocument={() => openCreateDocument(doc)}
                           onDeleteBox={() => handleDeleteDoc(doc)}
@@ -2698,6 +2823,9 @@ export function LeftPanel({
                           nodes={nodesByDocId.get(doc.id) || []}
                           objects={objects}
                           showWhenEmpty
+                          selectMode={folderBulkDeleteMode}
+                          selected={selectedFolderIds.includes(doc.id)}
+                          onToggleSelect={toggleFolderSelect}
                           onOpenDoc={() => handleOpenFolderDoc(doc.id)}
                           onCreateDocument={() => openCreateDocument(doc)}
                           onDeleteBox={() => handleDeleteDoc(doc)}

@@ -91,6 +91,93 @@ let isSyncedWithRemote = false;
 let hydrateInFlight = false;
 let lastSyncWarnAt = 0;
 
+/** Doc/node IDs deleted locally that hydrate must not resurrect until remote orphan cleanup lands. */
+const pendingDeletedDocIds = new Set();
+const pendingDeletedNodeIds = new Set();
+
+/**
+ * Mark folders (docs) and cascaded nodes as intentionally deleted so merge cannot restore them.
+ * @param {string|string[]} docIds
+ * @param {string|string[]} [nodeIds]
+ */
+export function markDocsDeletedForSync(docIds, nodeIds = []) {
+  const docs = Array.isArray(docIds) ? docIds : [docIds];
+  const nodes = Array.isArray(nodeIds) ? nodeIds : [nodeIds];
+  for (const id of docs) {
+    if (id) pendingDeletedDocIds.add(id);
+  }
+  for (const id of nodes) {
+    if (id) pendingDeletedNodeIds.add(id);
+  }
+}
+
+/**
+ * @param {Record<string, object>|null|undefined} map
+ * @param {Set<string>} pendingIds
+ */
+function omitPendingDeletedIds(map, pendingIds) {
+  if (!map || typeof map !== "object" || pendingIds.size === 0) return map || {};
+  let changed = false;
+  const out = { ...map };
+  for (const id of pendingIds) {
+    if (id in out) {
+      delete out[id];
+      changed = true;
+    }
+  }
+  return changed ? out : map;
+}
+
+/**
+ * Drop intentionally-deleted docs/nodes from a merged workspace snapshot.
+ * @param {Record<string, unknown>} state
+ */
+function stripPendingDeletesFromState(state) {
+  if (!state || typeof state !== "object") return state;
+  let docs = omitPendingDeletedIds(state.docs, pendingDeletedDocIds);
+  const nodes = omitPendingDeletedIds(state.nodes, pendingDeletedNodeIds);
+  if (docs === state.docs && nodes === state.nodes) return state;
+
+  // Keep doc.nodeIds consistent after stripping resurrected nodes (copy-on-write).
+  if (pendingDeletedNodeIds.size > 0 && docs && typeof docs === "object") {
+    let docsCopied = docs !== state.docs;
+    const nextDocs = docsCopied ? docs : { ...docs };
+    for (const [id, doc] of Object.entries(nextDocs)) {
+      if (!doc || typeof doc !== "object" || !Array.isArray(doc.nodeIds)) continue;
+      const filtered = doc.nodeIds.filter((nid) => nid && !pendingDeletedNodeIds.has(nid) && nodes?.[nid]);
+      if (filtered.length !== doc.nodeIds.length) {
+        if (!docsCopied) {
+          docsCopied = true;
+        }
+        nextDocs[id] = { ...doc, nodeIds: filtered };
+      }
+    }
+    docs = nextDocs;
+  }
+
+  const next = { ...state, docs, nodes };
+  if (next.objects && typeof next.objects === "object") {
+    next.objects = rebuildObjectChildren(next.objects, docs);
+  }
+  return next;
+}
+
+/**
+ * Clear tombstones for IDs that are no longer local (remote orphan cleanup succeeded).
+ * @param {Iterable<string>} localDocIds
+ * @param {Iterable<string>} localNodeIds
+ */
+function clearResolvedDeleteTombstones(localDocIds, localNodeIds) {
+  const localDocs = new Set(localDocIds);
+  const localNodes = new Set(localNodeIds);
+  for (const id of [...pendingDeletedDocIds]) {
+    if (!localDocs.has(id)) pendingDeletedDocIds.delete(id);
+  }
+  for (const id of [...pendingDeletedNodeIds]) {
+    if (!localNodes.has(id)) pendingDeletedNodeIds.delete(id);
+  }
+}
+
 function warnSyncOnce(message) {
   const now = Date.now();
   if (now - lastSyncWarnAt < 15_000) return;
@@ -180,6 +267,13 @@ async function resolveSyncUserId() {
  * @param {string} userId
  * @param {string[]} localIds
  */
+/**
+ * Delete remote rows for this user that are not in localIds.
+ * @param {string} table
+ * @param {string} userId
+ * @param {string[]} localIds
+ * @returns {Promise<boolean>} true when select/delete succeeded (or nothing to delete)
+ */
 async function deleteOrphanRows(table, userId, localIds) {
   const { data: remoteRows, error: selectErr } = await supabase
     .from(table)
@@ -188,7 +282,7 @@ async function deleteOrphanRows(table, userId, localIds) {
 
   if (selectErr) {
     console.error(formatSupabaseError(selectErr, `Select ${table} for cleanup`));
-    return;
+    return false;
   }
 
   const localSet = new Set(localIds);
@@ -196,7 +290,7 @@ async function deleteOrphanRows(table, userId, localIds) {
     .map((row) => row.id)
     .filter((id) => id && !localSet.has(id));
 
-  if (!orphanIds.length) return;
+  if (!orphanIds.length) return true;
 
   const { error: deleteErr } = await supabase
     .from(table)
@@ -206,7 +300,9 @@ async function deleteOrphanRows(table, userId, localIds) {
 
   if (deleteErr) {
     console.error(formatSupabaseError(deleteErr, `Delete orphans in ${table}`));
+    return false;
   }
+  return true;
 }
 
 /**
@@ -472,12 +568,15 @@ function rebuildObjectChildren(objects, docs) {
  */
 function mergeRemoteWithLocalSnapshot(remoteState, localState) {
   if (!localState) {
-    return { state: remoteState, preferredLocal: false };
+    return {
+      state: stripPendingDeletesFromState(remoteState),
+      preferredLocal: false,
+    };
   }
 
   if (isLocalRicherThanRemote(localState, remoteState)) {
     return {
-      state: {
+      state: stripPendingDeletesFromState({
         ...remoteState,
         objects: localState.objects || {},
         docs: localState.docs || {},
@@ -486,7 +585,7 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
         canvasConnections: localState.canvasConnections || remoteState.canvasConnections || {},
         groupings: localState.groupings || remoteState.groupings || {},
         timelines: localState.timelines || remoteState.timelines || {},
-      },
+      }),
       preferredLocal: true,
     };
   }
@@ -572,7 +671,7 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
   const nodesWithSchedule = backfillNodeAnchorsFromDocs(nodes, docs);
 
   return {
-    state: {
+    state: stripPendingDeletesFromState({
       ...remoteState,
       objects: rebuildObjectChildren(objectsRaw, docs),
       docs,
@@ -593,7 +692,7 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
         remoteState.timelines,
         localState.timelines,
       ),
-    },
+    }),
     preferredLocal: false,
   };
 }
@@ -1107,15 +1206,15 @@ export function initPersistenceMiddleware(stores) {
         updated_at: now,
       }));
 
+      const campaignLocalIds = campaignsRows.map((r) => r.id);
       if (campaignsRows.length > 0) {
-        const ok = await runUpsert(
+        await runUpsert(
           "Upsert campaigns",
           supabase.from("campaigns").upsert(campaignsRows, upsertOpts),
         );
-        if (ok) {
-          await deleteOrphanRows("campaigns", userId, campaignsRows.map((r) => r.id));
-        }
       }
+      // Always purge remote campaigns missing locally (includes last-folder delete).
+      const campaignsOrphansOk = await deleteOrphanRows("campaigns", userId, campaignLocalIds);
 
       // 3. Nodes — persist Schedule in reference.anchorAt (JSONB)
       const nodesRows = Object.values(state.nodes).map((node) => ({
@@ -1133,14 +1232,17 @@ export function initPersistenceMiddleware(stores) {
         updated_at: now,
       }));
 
+      const nodeLocalIds = nodesRows.map((r) => r.id);
       if (nodesRows.length > 0) {
-        const ok = await runUpsert(
+        await runUpsert(
           "Upsert nodes",
           supabase.from("nodes").upsert(nodesRows, upsertOpts),
         );
-        if (ok) {
-          await deleteOrphanRows("nodes", userId, nodesRows.map((r) => r.id));
-        }
+      }
+      const nodesOrphansOk = await deleteOrphanRows("nodes", userId, nodeLocalIds);
+
+      if (campaignsOrphansOk && nodesOrphansOk) {
+        clearResolvedDeleteTombstones(campaignLocalIds, nodeLocalIds);
       }
 
       // 4. Canvas nodes
@@ -1327,6 +1429,8 @@ export function initPersistenceMiddleware(stores) {
     }
     if (event === "SIGNED_OUT") {
       isSyncedWithRemote = false;
+      pendingDeletedDocIds.clear();
+      pendingDeletedNodeIds.clear();
       debouncedRemoteSync.cancel();
       useUIStateStore.getState().setWorkspaceHydrated(false);
       const empty = emptyWorkspaceSnapshot();
