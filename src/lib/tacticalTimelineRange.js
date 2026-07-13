@@ -12,7 +12,12 @@ export const TACTICAL_TIGHT_TARGET_GAP_PCT = 20;
 /** Include "today" in a tight window only if it is near the folder cluster. */
 export const TACTICAL_TIGHT_TODAY_REACH_DAYS = 45;
 /** Minimum horizontal gap (%) used when estimating crowded auto-zoom. */
-export const TACTICAL_MIN_COLUMN_GAP_PCT = 11;
+export const TACTICAL_MIN_COLUMN_GAP_PCT = 10;
+/**
+ * Floor when compressing a pair on the live rail.
+ * Must stay ≤ layout packing (`MIN_VISIBLE_GAP_PCT` / today→next nudge) or drags no-op.
+ */
+export const TACTICAL_PAIR_STRETCH_MIN_GAP_PCT = 1;
 /** Local loupe: how far (%) the warp influence reaches from the focused node. */
 export const TACTICAL_LOUPE_RADIUS_PCT = 28;
 /** Cap how far a middle node can visually travel from its true date position. */
@@ -608,11 +613,11 @@ export function buildStretchUnitsWithToday(nodeGroups, now, nowPct) {
 
 /**
  * Pair stretch against already-laid-out rail positions (after fan-out / now-push).
- * Focus moves; next stays pinned; other nodes outside the pair freeze.
+ * Focus moves; next OR previous stays pinned; other nodes outside the pair freeze.
  * Supports focusKey === "today" for the thermometer unit.
- * @param {{ focusMs?: number, focusKey?: string | null, targetPct?: number, pairNextMs?: number | null } | null} raw
+ * @param {{ focusMs?: number, focusKey?: string | null, targetPct?: number, pairNextMs?: number | null, pairPrevMs?: number | null } | null} raw
  * @param {Array<{ date: Date, leftPct: number, isToday?: boolean }>} nodeGroups
- * @returns {{ focusIdx: number, nextIdx: number, focusLeftPct: number, nextLeftPct: number, deltaPct: number } | null}
+ * @returns {{ focusIdx: number, nextIdx: number, focusLeftPct: number, nextLeftPct: number, deltaPct: number, pinPrev?: boolean } | null}
  */
 export function resolvePairStretchOnRail(raw, nodeGroups) {
   if (!raw || !nodeGroups?.length) return null;
@@ -636,7 +641,47 @@ export function resolvePairStretchOnRail(raw, nodeGroups) {
       );
     }
   }
-  if (focusIdx < 0 || focusIdx >= nodeGroups.length - 1) return null;
+  if (focusIdx < 0) return null;
+
+  const minGap = TACTICAL_PAIR_STRETCH_MIN_GAP_PCT;
+  const maxShift = TACTICAL_PAIR_MAX_SHIFT_PCT;
+  const focusLeftPct = nodeGroups[focusIdx].leftPct;
+  let deltaPct = targetPct - focusLeftPct;
+
+  // Last node (or explicit pairPrev): pin previous, move focus.
+  const wantsPrevPin = raw.pairPrevMs != null
+    || (raw.pairNextMs == null && focusIdx === nodeGroups.length - 1 && focusIdx > 0);
+
+  if (wantsPrevPin) {
+    let prevIdx = focusIdx - 1;
+    if (raw.pairPrevMs != null) {
+      const prevMs = Number(raw.pairPrevMs);
+      const found = nodeGroups.findIndex((g) => (
+        !g?.isToday && g?.date && g.date.getTime() === prevMs
+      ));
+      if (found >= 0 && found < focusIdx) prevIdx = found;
+    }
+    if (prevIdx < 0) return null;
+    const prevLeftPct = nodeGroups[prevIdx].leftPct;
+    const maxToward = Math.min(
+      maxShift,
+      Math.max(0, (focusLeftPct - prevLeftPct) - minGap),
+    );
+    const maxAway = Math.min(maxShift, Math.max(0, 98 - focusLeftPct));
+    if (deltaPct < 0) deltaPct = Math.max(deltaPct, -maxToward);
+    else deltaPct = Math.min(deltaPct, maxAway);
+    if (Math.abs(deltaPct) < 0.05) return null;
+    return {
+      focusIdx,
+      nextIdx: prevIdx,
+      focusLeftPct,
+      nextLeftPct: prevLeftPct,
+      deltaPct,
+      pinPrev: true,
+    };
+  }
+
+  if (focusIdx >= nodeGroups.length - 1) return null;
 
   let nextIdx = focusIdx + 1;
   if (raw.pairNextMs != null) {
@@ -647,21 +692,27 @@ export function resolvePairStretchOnRail(raw, nodeGroups) {
     if (found > focusIdx) nextIdx = found;
   }
 
-  const focusLeftPct = nodeGroups[focusIdx].leftPct;
   const nextLeftPct = nodeGroups[nextIdx].leftPct;
-  const minGap = TACTICAL_MIN_COLUMN_GAP_PCT;
-  let deltaPct = targetPct - focusLeftPct;
 
   if (nextLeftPct >= focusLeftPct) {
-    const maxToward = Math.max(0, (nextLeftPct - focusLeftPct) - minGap);
-    const maxAway = focusIdx > 0
-      ? Math.max(0, (focusLeftPct - nodeGroups[focusIdx - 1].leftPct) - minGap)
-      : Math.max(0, focusLeftPct - 2);
+    const maxToward = Math.min(
+      maxShift,
+      Math.max(0, (nextLeftPct - focusLeftPct) - minGap),
+    );
+    const maxAway = Math.min(
+      maxShift,
+      focusIdx > 0
+        ? Math.max(0, (focusLeftPct - nodeGroups[focusIdx - 1].leftPct) - minGap)
+        : Math.max(0, focusLeftPct - 2),
+    );
     if (deltaPct > 0) deltaPct = Math.min(deltaPct, maxToward);
     else deltaPct = Math.max(deltaPct, -maxAway);
   } else {
-    const maxToward = Math.max(0, (focusLeftPct - nextLeftPct) - minGap);
-    const maxAway = Math.max(0, 98 - focusLeftPct);
+    const maxToward = Math.min(
+      maxShift,
+      Math.max(0, (focusLeftPct - nextLeftPct) - minGap),
+    );
+    const maxAway = Math.min(maxShift, Math.max(0, 98 - focusLeftPct));
     if (deltaPct < 0) deltaPct = Math.max(deltaPct, -maxToward);
     else deltaPct = Math.min(deltaPct, maxAway);
   }
@@ -673,14 +724,15 @@ export function resolvePairStretchOnRail(raw, nodeGroups) {
     focusLeftPct,
     nextLeftPct,
     deltaPct,
+    pinPrev: false,
   };
 }
 
 /**
- * Mutate nodeGroups[].leftPct for a pair stretch (next pinned).
- * Prior nodes (index < focus) never move.
+ * Mutate nodeGroups[].leftPct for a pair stretch (next or previous pinned).
+ * Prior nodes (index < focus) never move when pinning next.
  * @param {Array<{ leftPct: number }>} nodeGroups
- * @param {{ focusIdx: number, nextIdx: number, focusLeftPct: number, nextLeftPct: number, deltaPct: number }} stretch
+ * @param {{ focusIdx: number, nextIdx: number, focusLeftPct: number, nextLeftPct: number, deltaPct: number, pinPrev?: boolean }} stretch
  */
 export function applyPairStretchOnRail(nodeGroups, stretch) {
   if (!stretch || !nodeGroups?.length) return nodeGroups;
@@ -690,7 +742,18 @@ export function applyPairStretchOnRail(nodeGroups, stretch) {
     focusLeftPct,
     nextLeftPct,
     deltaPct,
+    pinPrev = false,
   } = stretch;
+
+  if (pinPrev) {
+    // Previous stays; only the focus (last / trailing) node slides.
+    nodeGroups[focusIdx].leftPct = Math.min(98, Math.max(2, focusLeftPct + deltaPct));
+    if (nextIdx >= 0 && nextIdx < nodeGroups.length) {
+      nodeGroups[nextIdx].leftPct = nextLeftPct;
+    }
+    return nodeGroups;
+  }
+
   const span = nextLeftPct - focusLeftPct;
   const newFocus = focusLeftPct + deltaPct;
 
@@ -719,7 +782,7 @@ export function applyPairStretchOnRail(nodeGroups, stretch) {
  * Replay committed pair stretches left→right so later drags never move earlier nodes.
  * Today (thermometer) sorts before schedule nodes when present in the chain.
  * @param {Array<{ date: Date, leftPct: number, isToday?: boolean }>} nodeGroups
- * @param {Array<{ focusMs?: number, focusKey?: string, pairNextMs?: number | null, targetPct: number }>} stretches
+ * @param {Array<{ focusMs?: number, focusKey?: string, pairNextMs?: number | null, pairPrevMs?: number | null, targetPct: number }>} stretches
  */
 export function applyAllPairStretchesOnRail(nodeGroups, stretches) {
   if (!nodeGroups?.length || !stretches?.length) return nodeGroups;
@@ -737,6 +800,7 @@ export function applyAllPairStretchesOnRail(nodeGroups, stretches) {
       focusMs: spec.focusMs,
       focusKey: spec.focusKey || null,
       pairNextMs: spec.pairNextMs,
+      pairPrevMs: spec.pairPrevMs,
       targetPct: spec.targetPct,
     }, nodeGroups);
     if (live) applyPairStretchOnRail(nodeGroups, live);

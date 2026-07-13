@@ -409,27 +409,34 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 0;
   width: 92px;
   min-width: 92px;
   height: 38px;
   min-height: 38px;
-  padding: 0;
-  font-size: 0;
-  color: transparent;
+  padding: 0 12px 0 30px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #676363;
   margin-left: auto;
-  background: center / 92px 38px no-repeat url("/uploads/botones/plus-new-1.svg");
+  overflow: visible;
+  background:
+    center / 92px 38px no-repeat url("/uploads/botones/plus-new-stickers.svg"),
+    center / 92px 38px no-repeat url("/uploads/new-plus.png");
   border: none;
-  border-radius: 0;
+  border-radius: 4px;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition: transform 120ms ease, filter 120ms ease, color 120ms ease;
   box-sizing: border-box;
 }
 
 .lp-new-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   filter: brightness(1.03);
+  color: #8a909c;
 }
 
 .lp-new-btn:disabled {
@@ -473,14 +480,11 @@
 }
 
 .lp-new-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  color: transparent;
+  position: relative;
+  z-index: 1;
   pointer-events: none;
+  color: inherit;
+  white-space: nowrap;
 }
 
 .lp-content {
@@ -1144,8 +1148,8 @@
 
 .lp-doc-card-title-row {
   display: inline-flex;
-  align-items: flex-start;
-  gap: 3px;
+  align-items: center;
+  gap: 4px;
   max-width: 100%;
 }
 
@@ -1159,16 +1163,30 @@
   flex-shrink: 0;
   margin: 0;
   padding: 0;
-  line-height: 1.3;
+  align-self: center;
 }
 
 .lp-expand-btn {
-  font-size: 10px;
-  color: var(--dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  font-size: 0;
+  color: transparent;
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 0;
+  flex-shrink: 0;
+}
+
+.lp-expand-btn-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  pointer-events: none;
 }
 
 .lp-node-card {
@@ -1461,18 +1479,32 @@
 }
 
 .lp-doc-nodes-block__head .lp-expand-btn {
-  align-self: flex-start;
+  align-self: center;
   margin: 0;
-  padding: 0;
-  line-height: 1.3;
 }
 
 .lp-doc-nodes-block__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  font-size: 10px;
-  color: var(--dim);
-  line-height: 1.4;
-  padding-top: 2px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  line-height: 0;
+}
+
+.lp-doc-nodes-block__chevron-img {
+  display: block;
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  opacity: 0.75;
+  transition: transform 0.15s ease;
+}
+
+.lp-doc-nodes-block__chevron.is-collapsed .lp-doc-nodes-block__chevron-img {
+  transform: rotate(-90deg);
 }
 
 .lp-doc-nodes-block__body {
@@ -4075,6 +4107,8 @@
   width: 100%;
   overflow: hidden;
   --doc-focus-surface: rgb(22, 26, 29);
+  /* Match compact doc modal content width (~560px shell) so slash widgets keep proportion */
+  --doc-widget-max: 540px;
   background: var(--doc-focus-surface);
 }
 
@@ -4240,6 +4274,40 @@
 
 .doc-new-inner--content-focus .doc-new-content-expand-btn {
   right: 10px;
+}
+
+/*
+ * Expanded document: slash/widget blocks keep compact intrinsic width,
+ * centered in the writing column. Image + product card stay full-bleed.
+ * Prose (text / H1–H3) stays full-bleed for reading.
+ *
+ * --doc-widget-max matches the /code card shell; url / password / agent
+ * drop their side padding so their cards share that same outer width.
+ */
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-code-block-wrap),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-code-block),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-video-embed-block),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-metric-block),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-date-block),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-vault-block),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-todo-block),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-todo-plan),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-agent-cell),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-step-sequence),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-embedded-calendar),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-embedded-forecast),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-widget-snapshot) {
+  max-width: min(var(--doc-widget-max, 540px), 100%);
+  width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* Match /code outer card width (code wrap has no side padding) */
+.doc-new-inner--content-focus .doc-block-stack .doc-vault-block--slash-stack,
+.doc-new-inner--content-focus .doc-block-stack .doc-agent-cell {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .doc-new-content-shrink-handle {
@@ -4737,13 +4805,6 @@ body.doc-content-resizing * {
   font-size: 11px;
 }
 
-.doc-agent-cell__card {
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  overflow: hidden;
-}
-
 .doc-agent-cell__input {
   display: block;
   width: 100%;
@@ -4761,6 +4822,15 @@ body.doc-content-resizing * {
   letter-spacing: 0.2px;
   color: #fff;
   box-sizing: border-box;
+  cursor: text;
+}
+
+.doc-agent-cell__card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+  cursor: text;
 }
 
 .doc-agent-cell__input::placeholder {
@@ -6707,6 +6777,68 @@ body.doc-content-resizing * {
   color: rgba(255, 255, 255, 0.52);
 }
 
+.doc-code-block__view-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.doc-code-block__view-tab {
+  height: 22px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.doc-code-block__view-tab.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.doc-code-block__view-tab:hover:not(.is-active) {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.doc-code-block__preview-hint {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.doc-code-block--live-preview {
+  background: #151515;
+}
+
+.doc-code-block__live-preview {
+  width: 100%;
+  min-height: 180px;
+  background: #fff;
+}
+
+.doc-code-block__iframe {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  height: 240px;
+  border: 0;
+  background: #fff;
+}
+
+.doc-code-block--compact .doc-code-block__iframe {
+  min-height: 160px;
+  height: 180px;
+}
+
 .doc-code-block__hover-actions {
   display: inline-flex;
   align-items: center;
@@ -7596,7 +7728,8 @@ body.doc-content-resizing * {
   width: 100%;
   min-width: 0;
   margin: 0;
-  padding: 6px 4px;
+  padding: 10px 8px;
+  min-height: 36px;
   box-sizing: border-box;
   border: none;
   border-radius: 4px;
@@ -7610,6 +7743,7 @@ body.doc-content-resizing * {
   color: #fff;
   resize: none;
   overflow: hidden;
+  cursor: text;
 }
 
 .doc-vault-block--slash-stack .doc-vault-block__stack-field--name {
@@ -7813,8 +7947,8 @@ body.doc-content-resizing * {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 10px 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -7828,28 +7962,31 @@ body.doc-content-resizing * {
 
 .doc-vault-block--slash-row .doc-vault-block__row-field--description,
 .doc-vault-block--slash-row .doc-vault-block__row-field--password {
-  min-height: 28px;
-  height: 28px;
+  min-height: 36px;
+  height: 36px;
   padding-top: 0;
   padding-bottom: 0;
+  padding-left: 8px;
+  padding-right: 8px;
   color: #fff;
+  cursor: text;
 }
 
 .doc-vault-block--slash-row .doc-vault-block__row-field--password {
-  padding-right: 30px;
+  padding-right: 34px;
 }
 
 .doc-vault-block--slash-row .doc-vault-block__row-eye {
   position: absolute;
   top: 50%;
-  right: 0;
+  right: 2px;
   transform: translateY(-50%);
 }
 
 .doc-vault-block--slash-row .doc-vault-block__row-save {
   align-self: center;
   margin-top: 0;
-  height: 30px;
+  height: 36px;
 }
 
 .doc-vault-block--slash-row .doc-vault-block__row-entry:hover .doc-vault-block__stack-remove,
@@ -9167,6 +9304,7 @@ body.doc-content-resizing * {
   overflow: hidden;
   --doc-focus-surface: rgb(22, 26, 29);
   --node-body-surface: rgb(22, 26, 29);
+  --doc-widget-max: 540px;
   background: var(--doc-focus-surface);
 }
 
@@ -9260,6 +9398,39 @@ body.doc-content-resizing * {
 
 .node-query-modal--content-focus .node-query-modal__content-expand-btn {
   right: 10px;
+}
+
+/* Expanded node: same intrinsic + centered widgets (image/product card excluded) */
+.node-query-modal--content-focus .node-writing-block-stack__code,
+.node-query-modal--content-focus .node-writing-block-stack__vault,
+.node-query-modal--content-focus .node-writing-block-stack__agent,
+.node-query-modal--content-focus .node-writing-block-stack__steps,
+.node-query-modal--content-focus .node-writing-block-stack__todo,
+.node-query-modal--content-focus .doc-code-block-wrap,
+.node-query-modal--content-focus .doc-code-block,
+.node-query-modal--content-focus .doc-video-embed-block,
+.node-query-modal--content-focus .doc-metric-block,
+.node-query-modal--content-focus .doc-date-block,
+.node-query-modal--content-focus .doc-vault-block,
+.node-query-modal--content-focus .doc-todo-block,
+.node-query-modal--content-focus .doc-todo-plan,
+.node-query-modal--content-focus .doc-agent-cell,
+.node-query-modal--content-focus .doc-step-sequence,
+.node-query-modal--content-focus .doc-embedded-calendar,
+.node-query-modal--content-focus .doc-embedded-forecast,
+.node-query-modal--content-focus .doc-widget-snapshot {
+  max-width: min(var(--doc-widget-max, 540px), 100%);
+  width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* Match /code card width — node code wrap uses 15px inset; keep vault/agent aligned */
+.node-query-modal--content-focus .node-writing-block-stack__code .doc-code-block-wrap,
+.node-query-modal--content-focus .node-writing-block-stack__vault .doc-vault-block--slash-stack,
+.node-query-modal--content-focus .node-writing-block-stack__agent .doc-agent-cell {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .node-query-modal--content-focus .node-writing-block-stack__h1 .doc-h1-block,

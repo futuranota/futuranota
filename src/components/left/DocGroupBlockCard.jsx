@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n/useI18n.js";
+import { playClosedBoxSound } from "../../lib/closedBoxSound.js";
 
 const CATEGORY_LONG_PRESS_MS = 550;
 
@@ -79,6 +80,7 @@ export function DocGroupBlockCard({
       setMenuOpen(false);
       return;
     }
+    playClosedBoxSound();
     setExpanded((value) => !value);
   };
 
@@ -117,7 +119,16 @@ export function DocGroupBlockCard({
               <span className="fn-card-meta">{groupMeta}</span>
             ) : null}
           </div>
-          <span className="lp-doc-nodes-block__chevron" aria-hidden>{expanded ? "▾" : "▸"}</span>
+          <span
+            className={"lp-doc-nodes-block__chevron" + (expanded ? "" : " is-collapsed")}
+            aria-hidden
+          >
+            <img
+              src="/uploads/control.svg"
+              alt=""
+              className="lp-doc-nodes-block__chevron-img"
+            />
+          </span>
         </button>
       </div>
       {menuOpen && onDeleteCategory ? (

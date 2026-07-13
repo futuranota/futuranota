@@ -55,20 +55,47 @@ export function LinkVaultBlockView({
     }
   }, [entries.length]);
 
+  const rootRef = useRef(null);
+
+  const focusDraftField = useCallback((preferredEl) => {
+    const root = rootRef.current;
+    const active = document.activeElement;
+    if (
+      root
+      && active instanceof HTMLElement
+      && root.contains(active)
+      && active.matches("input, textarea")
+    ) {
+      return;
+    }
+    preferredEl?.focus({ preventScroll: true });
+  }, []);
+
+  const handleCardPointerDown = useCallback((event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("input, textarea, select, button, a, label")) return;
+    event.preventDefault();
+    setIsAdding(true);
+    window.requestAnimationFrame(() => {
+      nameRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
   useEffect(() => {
     if (!openAddForm) return;
     setIsAdding(true);
-    const timer = window.setTimeout(() => nameRef.current?.focus(), 0);
+    const timer = window.setTimeout(() => focusDraftField(nameRef.current), 0);
     return () => window.clearTimeout(timer);
-  }, [openAddForm]);
+  }, [openAddForm, focusDraftField]);
 
   useEffect(() => {
     if (!addFormRequest) return;
     setIsAdding(true);
     setDraft(EMPTY_DRAFT);
-    const timer = window.setTimeout(() => nameRef.current?.focus(), 0);
+    const timer = window.setTimeout(() => focusDraftField(nameRef.current), 0);
     return () => window.clearTimeout(timer);
-  }, [addFormRequest]);
+  }, [addFormRequest, focusDraftField]);
 
   useEffect(() => {
     if (!flushDraftRef) return undefined;
@@ -139,6 +166,7 @@ export function LinkVaultBlockView({
   if (slashStack) {
     return (
       <div
+        ref={rootRef}
         className={
           "doc-vault-block doc-vault-block--link doc-vault-block--slash-stack"
           + (compact ? " doc-vault-block--compact" : "")
@@ -160,7 +188,10 @@ export function LinkVaultBlockView({
           </div>
         ) : null}
 
-        <div className="doc-vault-block__slash-card">
+        <div
+          className="doc-vault-block__slash-card"
+          onMouseDown={handleCardPointerDown}
+        >
           {visibleEntries.length > 0 ? (
             <ul className="doc-vault-block__stack-list">
               {visibleEntries.map((entry) => (

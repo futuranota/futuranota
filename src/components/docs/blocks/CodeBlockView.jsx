@@ -5,6 +5,10 @@ import {
   normalizeCodeLanguage,
 } from "../../../lib/codeBlockLanguages.js";
 import { highlightCodeSnippet } from "../../../lib/highlightCodeSnippet.js";
+import {
+  buildCodePreviewSrcDoc,
+  isCodePreviewable,
+} from "../../../lib/codeBlockPreview.js";
 import { MarkdownPreview } from "./MarkdownPreview.jsx";
 
 async function copyTextToClipboard(text) {
@@ -52,9 +56,16 @@ export function CodeBlockView({
 }) {
   const textareaRef = useRef(null);
   const [copied, setCopied] = useState(false);
+  const [savedTab, setSavedTab] = useState("preview"); // preview | code
   const normalizedLanguage = normalizeCodeLanguage(language);
   const isMarkdownPreview = normalizedLanguage === "markdown";
+  const canLivePreview = isCodePreviewable(normalizedLanguage);
   const isSavedView = Boolean(codeSaved && code.trim());
+
+  useEffect(() => {
+    if (!isSavedView || !canLivePreview) return;
+    setSavedTab("preview");
+  }, [isSavedView, canLivePreview, code, normalizedLanguage]);
 
   useEffect(() => {
     if (!autoFocus || isSavedView) return;
@@ -69,13 +80,25 @@ export function CodeBlockView({
     syncCodeTextareaHeight(textareaRef.current);
   }, [code, isSavedView]);
 
+  const showCodePane = !canLivePreview || savedTab === "code";
+  const showPreviewPane = canLivePreview && savedTab === "preview";
+
   const highlightedHtml = useMemo(
     () => (
-      isSavedView && !isMarkdownPreview
+      isSavedView && !isMarkdownPreview && showCodePane
         ? highlightCodeSnippet(code, normalizedLanguage)
         : ""
     ),
-    [code, isMarkdownPreview, isSavedView, normalizedLanguage],
+    [code, isMarkdownPreview, isSavedView, normalizedLanguage, showCodePane],
+  );
+
+  const previewSrcDoc = useMemo(
+    () => (
+      isSavedView && canLivePreview
+        ? buildCodePreviewSrcDoc(normalizedLanguage, code)
+        : ""
+    ),
+    [canLivePreview, code, isSavedView, normalizedLanguage],
   );
 
   const handleCopy = useCallback(async () => {
@@ -134,12 +157,41 @@ export function CodeBlockView({
             "doc-code-block doc-code-block--saved"
             + (compact ? " doc-code-block--compact" : "")
             + (isMarkdownPreview ? " doc-code-block--markdown-preview" : "")
+            + (showPreviewPane ? " doc-code-block--live-preview" : "")
           }
         >
           <div className="doc-code-block__header">
             <span className="doc-code-block__lang-badge">
               {codeLanguageLabel(normalizedLanguage)}
             </span>
+            {canLivePreview ? (
+              <div className="doc-code-block__view-tabs" role="tablist" aria-label="Code view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={savedTab === "preview"}
+                  className={
+                    "doc-code-block__view-tab"
+                    + (savedTab === "preview" ? " is-active" : "")
+                  }
+                  onClick={() => setSavedTab("preview")}
+                >
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={savedTab === "code"}
+                  className={
+                    "doc-code-block__view-tab"
+                    + (savedTab === "code" ? " is-active" : "")
+                  }
+                  onClick={() => setSavedTab("code")}
+                >
+                  Code
+                </button>
+              </div>
+            ) : null}
           </div>
           {isMarkdownPreview ? (
             <button
@@ -150,6 +202,16 @@ export function CodeBlockView({
             >
               <MarkdownPreview source={code} />
             </button>
+          ) : showPreviewPane ? (
+            <div className="doc-code-block__live-preview">
+              <iframe
+                className="doc-code-block__iframe"
+                title={`${codeLanguageLabel(normalizedLanguage)} preview`}
+                sandbox="allow-scripts"
+                srcDoc={previewSrcDoc}
+                loading="lazy"
+              />
+            </div>
           ) : (
             <button
               type="button"
@@ -210,6 +272,9 @@ export function CodeBlockView({
               ))}
             </select>
           </label>
+          {canLivePreview ? (
+            <span className="doc-code-block__preview-hint">Preview after save</span>
+          ) : null}
         </div>
         <textarea
           ref={textareaRef}
@@ -223,7 +288,13 @@ export function CodeBlockView({
           placeholder={
             isMarkdownPreview
               ? "# Write or paste markdown here"
-              : "// Write or paste your code here"
+              : canLivePreview
+                ? normalizedLanguage === "css"
+                  ? "/* CSS — preview shows sample content after save */"
+                  : normalizedLanguage === "html"
+                    ? "<!-- HTML — live preview after save -->"
+                    : "// JavaScript — live preview after save"
+                : "// Write or paste your code here"
           }
           onChange={(e) => {
             onCodeChange?.(e.target.value);

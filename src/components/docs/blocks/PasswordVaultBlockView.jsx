@@ -46,21 +46,48 @@ export function PasswordVaultBlockView({
     }
   }, [entries.length]);
 
+  const rootRef = useRef(null);
+
+  const focusDraftField = useCallback((preferredEl) => {
+    const root = rootRef.current;
+    const active = document.activeElement;
+    if (
+      root
+      && active instanceof HTMLElement
+      && root.contains(active)
+      && active.matches("input, textarea")
+    ) {
+      return;
+    }
+    preferredEl?.focus({ preventScroll: true });
+  }, []);
+
+  const handleCardPointerDown = useCallback((event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("input, textarea, select, button, a, label")) return;
+    event.preventDefault();
+    setIsAdding(true);
+    window.requestAnimationFrame(() => {
+      descriptionRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
   useEffect(() => {
     if (!openAddForm) return;
     setIsAdding(true);
-    const timer = window.setTimeout(() => descriptionRef.current?.focus(), 0);
+    const timer = window.setTimeout(() => focusDraftField(descriptionRef.current), 0);
     return () => window.clearTimeout(timer);
-  }, [openAddForm]);
+  }, [openAddForm, focusDraftField]);
 
   useEffect(() => {
     if (!addFormRequest) return;
     setIsAdding(true);
     setDraft(EMPTY_DRAFT);
     setShowPassword(false);
-    const timer = window.setTimeout(() => descriptionRef.current?.focus(), 0);
+    const timer = window.setTimeout(() => focusDraftField(descriptionRef.current), 0);
     return () => window.clearTimeout(timer);
-  }, [addFormRequest]);
+  }, [addFormRequest, focusDraftField]);
 
   useEffect(() => {
     if (!flushDraftRef) return undefined;
@@ -137,6 +164,7 @@ export function PasswordVaultBlockView({
   if (slashStack) {
     return (
       <div
+        ref={rootRef}
         className={
           "doc-vault-block doc-vault-block--password doc-vault-block--slash-stack doc-vault-block--slash-row"
           + (compact ? " doc-vault-block--compact" : "")
@@ -158,7 +186,10 @@ export function PasswordVaultBlockView({
           </div>
         ) : null}
 
-        <div className="doc-vault-block__slash-card">
+        <div
+          className="doc-vault-block__slash-card"
+          onMouseDown={handleCardPointerDown}
+        >
           {visibleEntries.length > 0 ? (
             <ul className="doc-vault-block__row-list">
               {visibleEntries.map((entry) => {

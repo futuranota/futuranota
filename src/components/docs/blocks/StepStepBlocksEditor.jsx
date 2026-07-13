@@ -17,6 +17,8 @@ import {
   stepEntryHasContent,
   updateBlockAt,
 } from "../../../lib/docBlocks.js";
+import { useI18n } from "../../../i18n/useI18n.js";
+import { useConfirmStore } from "../../../stores/confirmStore.js";
 import { CodeBlockView } from "./CodeBlockView.jsx";
 import { DocSlashCommandPicker } from "./DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./SlashAwareTextarea.jsx";
@@ -53,6 +55,7 @@ function renderCodeBlock({
   interactive,
   updateAt,
   setBlocks,
+  confirmDeleteCode,
 }) {
   const hasCode = Boolean((block.code || "").trim());
   const showSaved = Boolean(block.codeSaved && hasCode);
@@ -76,8 +79,9 @@ function renderCodeBlock({
           setBlocks(next);
         } : undefined}
         onEdit={interactive ? () => updateAt(index, { codeSaved: false }) : undefined}
-        onDelete={interactive ? () => {
-          if (!window.confirm("¿Eliminar este bloque de código?")) return;
+        onDelete={interactive ? async () => {
+          const ok = await confirmDeleteCode?.();
+          if (!ok) return;
           let next = removeBlockAt(safeBlocks, index);
           if (!next.length) {
             next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
@@ -101,8 +105,19 @@ export function StepStepBlocksEditor({
   stepId = "step",
   onOuterKeyDown,
 }) {
+  const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const safeBlocks = useMemo(() => normalizeStepBlocks(blocks), [blocks]);
   const interactive = Boolean(onBlocksChange);
+
+  const confirmDeleteCode = useCallback(() => (
+    askConfirm({
+      title: t("doc.blockDelete.title"),
+      message: t("doc.blockDelete.code"),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    })
+  ), [askConfirm, t]);
 
   const setBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeStepBlocks(nextBlocks));
@@ -196,6 +211,7 @@ export function StepStepBlocksEditor({
         interactive,
         updateAt,
         setBlocks,
+        confirmDeleteCode,
       });
     }
 

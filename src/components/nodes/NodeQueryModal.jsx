@@ -140,6 +140,14 @@ export function NodeQueryModal({
   const focusContentArea = useCallback(() => {
     const scroll = contentScrollRef.current;
     if (!scroll) return;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement
+      && scroll.contains(active)
+      && active.matches("textarea, input:not([type='hidden']), [contenteditable='true']")
+    ) {
+      return;
+    }
     const target = scroll.querySelector(
       "textarea, input:not([type='hidden']), [contenteditable='true']",
     );

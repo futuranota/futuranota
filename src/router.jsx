@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { DomPageTranslator } from './components/shared/DomPageTranslator.jsx';
+import { MarkLoading } from './components/shared/MarkLoading.jsx';
 import { MarketingLayout } from './marketing/layout/MarketingLayout.jsx';
 import { HomePage } from './marketing/pages/HomePage.jsx';
 import { HorizonPage } from './marketing/pages/HorizonPage.jsx';
@@ -28,7 +29,7 @@ function ProtectedRoute({ children }) {
   if (loading) return (
     <div className="landing">
       <div className="landing-card glass" style={{ maxWidth: 300, textAlign: 'center' }}>
-        <span style={{ fontFamily: 'var(--mono)', color: 'var(--dim)' }}>Loading…</span>
+        <MarkLoading />
       </div>
     </div>
   );

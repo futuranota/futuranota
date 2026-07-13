@@ -64,6 +64,8 @@ import { TranslatedText } from "../shared/TranslatedText.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { PANEL_TYPES, usePanelTypeLabels } from "../../i18n/panelTypes.js";
+import { playTrashBoxSound } from "../../lib/trashBoxSound.js";
+import { playClosedBoxSound } from "../../lib/closedBoxSound.js";
 
 /** Resolve company object id when nav snapshot or store ids are stale after hydrate. */
 function resolveLeftPanelObjectId(
@@ -361,7 +363,12 @@ function DocListCard({
                 }
               }}
             >
-              ↗
+              <img
+                src="/uploads/expand.svg"
+                alt=""
+                aria-hidden
+                className="lp-expand-btn-icon"
+              />
             </span>
           </div>
           <span className="fn-card-meta">
@@ -602,6 +609,7 @@ function DocNodesBlockCard({
       setMenuOpen(false);
       return;
     }
+    playClosedBoxSound();
     setExpanded((value) => !value);
   };
 
@@ -683,7 +691,12 @@ function DocNodesBlockCard({
                     }
                   }}
                 >
-                  ↗
+                  <img
+                    src="/uploads/expand.svg"
+                    alt=""
+                    aria-hidden
+                    className="lp-expand-btn-icon"
+                  />
                 </span>
               ) : null}
             </div>
@@ -696,7 +709,16 @@ function DocNodesBlockCard({
               {!orphan && parent ? ` · ↳ ${parent.name}` : ""}
             </span>
           </div>
-          <span className="lp-doc-nodes-block__chevron" aria-hidden>{expanded ? "▾" : "▸"}</span>
+          <span
+            className={"lp-doc-nodes-block__chevron" + (expanded ? "" : " is-collapsed")}
+            aria-hidden
+          >
+            <img
+              src="/uploads/control.svg"
+              alt=""
+              className="lp-doc-nodes-block__chevron-img"
+            />
+          </span>
         </button>
       </div>
       {menuOpen && onDeleteBox ? (
@@ -1719,6 +1741,7 @@ export function LeftPanel({
       cancelLabel: t("common.cancel"),
     });
     if (!confirmed) return;
+    playTrashBoxSound();
     onDocumentDeleted?.(doc.id);
     removeTimelineDocFromQueue(doc.id);
     deleteDoc(doc.id);
@@ -1736,6 +1759,7 @@ export function LeftPanel({
       cancelLabel: t("common.cancel"),
     });
     if (!confirmed) return;
+    playTrashBoxSound();
     for (const doc of group.docs) {
       onDocumentDeleted?.(doc.id);
       removeTimelineDocFromQueue(doc.id);

@@ -25,7 +25,11 @@ export function AgentBlockView({
   useEffect(() => {
     if (!autoFocus) return undefined;
     const timer = window.setTimeout(() => {
-      textareaRef.current?.focus();
+      const el = textareaRef.current;
+      if (!el) return;
+      const active = document.activeElement;
+      if (active === el) return;
+      el.focus({ preventScroll: true });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [autoFocus]);
@@ -37,6 +41,14 @@ export function AgentBlockView({
   const handleKeyDown = (e) => {
     onKeyDown?.(e);
     e.stopPropagation();
+  };
+
+  const handleCardPointerDown = (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("textarea, button, a, label")) return;
+    event.preventDefault();
+    textareaRef.current?.focus({ preventScroll: true });
   };
 
   return (
@@ -62,7 +74,7 @@ export function AgentBlockView({
           </div>
         ) : null}
       </div>
-      <div className="doc-agent-cell__card">
+      <div className="doc-agent-cell__card" onMouseDown={handleCardPointerDown}>
         <textarea
           ref={textareaRef}
           className="doc-agent-cell__input"

@@ -333,6 +333,7 @@ export const useTimelineStore = create(
           const focusKey = isToday ? "today" : null;
           const focusMs = isToday ? null : Number(stretch.focusMs);
           const pairNextMs = stretch.pairNextMs != null ? Number(stretch.pairNextMs) : null;
+          const pairPrevMs = stretch.pairPrevMs != null ? Number(stretch.pairPrevMs) : null;
           const targetPct = Math.min(100, Math.max(0, Number(stretch.targetPct)));
           const rest = (state.tacticalPairStretches || []).filter((s) => {
             if (String(s.rowId) !== rowId) return true;
@@ -342,7 +343,7 @@ export const useTimelineStore = create(
           return {
             tacticalPairStretches: [
               ...rest,
-              { rowId, focusKey, focusMs, pairNextMs, targetPct },
+              { rowId, focusKey, focusMs, pairNextMs, pairPrevMs, targetPct },
             ],
           };
         });

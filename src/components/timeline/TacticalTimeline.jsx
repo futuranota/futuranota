@@ -481,11 +481,12 @@ function TacticalObjectRow({
                 const isFirst = groupIndex === 0;
                 const isLast = groupIndex === nodeGroups.length - 1;
                 const pairNext = !isLast ? nodeGroups[groupIndex + 1] : null;
-                // Every node with a next: individual pair stretch (1 moves, 2 static, …).
+                const pairPrev = groupIndex > 0 ? nodeGroups[groupIndex - 1] : null;
+                // Node with a next: stretch vs next. Last node: stretch vs previous.
                 // Doc/child rails never pan the shared folder timeline.
                 const rangeEdge = !enableRangeHandles
                   ? null
-                  : pairNext
+                  : (pairNext || pairPrev)
                     ? "anchor"
                     : (!isChildRow && isFirst && isLast ? "start" : null);
                 const handleKeyPrefix = `${row.id}:${group.columnKey}:`;
@@ -533,7 +534,7 @@ function TacticalObjectRow({
                         ? (e) => {
                           e.stopPropagation();
                           let edge = rangeEdge;
-                          if (isFirst && isLast && !pairNext && plotRef.current) {
+                          if (isFirst && isLast && !pairNext && !pairPrev && plotRef.current) {
                             const rect = plotRef.current.getBoundingClientRect();
                             const pct = rect.width <= 0
                               ? group.leftPct
@@ -551,9 +552,10 @@ function TacticalObjectRow({
                                 .map((g) => g.date)
                                 .filter(Boolean),
                               pairNextDate: pairNext?.date || null,
+                              pairPrevDate: !pairNext ? (pairPrev?.date || null) : null,
                               rowId: row.id,
                               // Children/doc cords: pair only — never move folder timeline.
-                              allowRangePan: !isChildRow && !pairNext,
+                              allowRangePan: !isChildRow && !pairNext && !pairPrev,
                             },
                           );
                         }

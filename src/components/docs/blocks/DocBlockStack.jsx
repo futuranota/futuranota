@@ -48,6 +48,7 @@ import {
   replaceProseSegmentInBlocks,
 } from "../../../lib/docProseUnified.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+import { useConfirmStore } from "../../../stores/confirmStore.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
 import { useDocsStore } from "../../../stores/docsStore.js";
 import { queueUrlTableEntry } from "../../../lib/urlTableSession.js";
@@ -153,6 +154,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   companyObjectId = null,
 }, ref) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
   const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
@@ -641,6 +643,26 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       focusBlockCaret(focusId);
     }
   };
+
+  const confirmDeleteCommandBlock = useCallback(async (messageKey) => (
+    askConfirm({
+      title: t("doc.blockDelete.title"),
+      message: t(messageKey),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    })
+  ), [askConfirm, t]);
+
+  const removeCommandBlockAt = useCallback((index, { grow = false } = {}) => {
+    let next = removeBlockAt(blocksRef.current, index);
+    if (!next.length) {
+      next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+    }
+    setBlocks(next);
+    const focusIndex = Math.min(index, next.length - 1);
+    onFocusBlock?.(next[focusIndex]?.id);
+    if (grow) requestContentGrow();
+  }, [onFocusBlock]);
 
   const finalizeSlashInsert = (nextBlocks, newBlockId, focusBlockId = newBlockId) => {
     const newIndex = nextBlocks.findIndex((b) => b.id === newBlockId);
@@ -1419,15 +1441,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               block={block}
               onChange={(patch) => updateAt(index, patch)}
               onInsertToCanvas={onInsertProductToCanvas}
-              onDelete={() => {
-                if (!window.confirm("Delete this product card from the document?")) return;
-                let next = removeBlockAt(blocksRef.current, index);
-                if (!next.length) {
-                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-                }
-                setBlocks(next);
-                const focusIndex = Math.min(index, next.length - 1);
-                onFocusBlock?.(next[focusIndex]?.id);
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.productCard");
+                if (!ok) return;
+                removeCommandBlockAt(index);
               }}
             />
           ) : null}
@@ -1451,7 +1468,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   requestContentGrow();
                 }
               }}
-              onDelete={() => removeEmbedVideoSection(index)}
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.video");
+                if (!ok) return;
+                removeEmbedVideoSection(index);
+              }}
             />
           ) : null}
 
@@ -1473,15 +1494,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   requestContentGrow();
                 }
               }}
-              onDelete={() => {
-                if (!window.confirm(t("doc.imageBlock.deleteConfirm"))) return;
-                let next = removeBlockAt(blocksRef.current, index);
-                if (!next.length) {
-                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-                }
-                setBlocks(next);
-                const focusIndex = Math.min(index, next.length - 1);
-                onFocusBlock?.(next[focusIndex]?.id);
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.image");
+                if (!ok) return;
+                removeCommandBlockAt(index);
               }}
             />
           ) : null}
@@ -1510,15 +1526,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 updateAt(index, { codeSaved: false });
                 onFocusBlock?.(block.id);
               }}
-              onDelete={() => {
-                if (!window.confirm("¿Eliminar este bloque de código?")) return;
-                let next = removeBlockAt(blocksRef.current, index);
-                if (!next.length) {
-                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-                }
-                setBlocks(next);
-                const focusIndex = Math.min(index, next.length - 1);
-                onFocusBlock?.(next[focusIndex]?.id);
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.code");
+                if (!ok) return;
+                removeCommandBlockAt(index);
               }}
             />
           ) : null}
@@ -1547,15 +1558,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 setBlocks(next);
                 requestContentGrow();
               }}
-              onDeleteVault={() => {
-                if (!window.confirm("¿Eliminar este bloque de contraseñas?")) return;
-                let next = removeBlockAt(blocksRef.current, index);
-                if (!next.length) {
-                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-                }
-                setBlocks(next);
-                const focusIndex = Math.min(index, next.length - 1);
-                onFocusBlock?.(next[focusIndex]?.id);
+              onDeleteVault={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.password");
+                if (!ok) return;
+                removeCommandBlockAt(index);
               }}
             />
           ) : null}
@@ -1585,15 +1591,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 setBlocks(next);
                 requestContentGrow();
               }}
-              onDeleteVault={() => {
-                if (!window.confirm("¿Eliminar este bloque de links?")) return;
-                let next = removeBlockAt(blocksRef.current, index);
-                if (!next.length) {
-                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-                }
-                setBlocks(next);
-                const focusIndex = Math.min(index, next.length - 1);
-                onFocusBlock?.(next[focusIndex]?.id);
+              onDeleteVault={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.link");
+                if (!ok) return;
+                removeCommandBlockAt(index);
               }}
             />
           ) : null}
@@ -1607,15 +1608,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 setBlocks(next);
                 requestContentGrow();
               }}
-              onDelete={() => {
-                let next = removeBlockAt(blocksRef.current, index);
-                if (!next.length) {
-                  next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
-                }
-                setBlocks(next);
-                const focusIndex = Math.min(index, next.length - 1);
-                onFocusBlock?.(next[focusIndex]?.id);
-                requestContentGrow();
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.agent");
+                if (!ok) return;
+                removeCommandBlockAt(index, { grow: true });
               }}
             />
           ) : null}
@@ -1663,8 +1659,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 requestContentGrow();
                 onFocusBlock?.(block.id);
               }}
-              onDeleteBlock={() => {
-                if (!window.confirm("¿Eliminar este bloque Step by step?")) return;
+              onDeleteBlock={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.stepSequence");
+                if (!ok) return;
                 const removedBlock = blocksRef.current[index];
                 const wasSavedPlaybook = Boolean(
                   removedBlock?.type === DOC_BLOCK_TYPES.STEP_SEQUENCE && removedBlock?.saved,

@@ -30,6 +30,7 @@ export function useTacticalRangeDrag(grid) {
       anchorDate = null,
       markerDates: rowMarkerDates = null,
       pairNextDate = null,
+      pairPrevDate = null,
       rowId = null,
       allowRangePan = false,
       focusKey = null,
@@ -67,6 +68,9 @@ export function useTacticalRangeDrag(grid) {
       : null;
     const pairNextMs = pairNextDate instanceof Date && !Number.isNaN(pairNextDate.getTime())
       ? pairNextDate.getTime()
+      : null;
+    const pairPrevMs = pairPrevDate instanceof Date && !Number.isNaN(pairPrevDate.getTime())
+      ? pairPrevDate.getTime()
       : null;
     const stretchMode = Boolean(event.shiftKey) && (edge === "start" || edge === "end") && allowRangePan;
 
@@ -119,6 +123,7 @@ export function useTacticalRangeDrag(grid) {
           focusKey: isTodayFocus ? "today" : null,
           focusMs: isTodayFocus ? null : anchorMs,
           pairNextMs,
+          pairPrevMs,
           targetPct: pct,
         });
         return;

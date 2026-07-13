@@ -25,6 +25,8 @@ import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx"
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { queuePasswordTableEntry } from "../../lib/passwordTableSession.js";
+import { useI18n } from "../../i18n/useI18n.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useNodeTextSelectionToolbar } from "./useNodeTextSelectionToolbar.jsx";
 
 function syncTextareaHeight(el) {
@@ -184,6 +186,8 @@ export function NodeWritingBlockStack({
   textPlaceholder = "Escribe aquí o /macronodo",
   companyObjectId = null,
 }) {
+  const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const inputRefs = useRef({});
   const stackRef = useRef(null);
   const blocksRef = useRef(blocks);
@@ -253,6 +257,17 @@ export function NodeWritingBlockStack({
     updateBlocks(removeWritingBlockAt(blocksRef.current, blockIndex));
     onFocusTargetChange?.(null);
   }, [onFocusTargetChange, updateBlocks]);
+
+  const confirmRemoveCommandBlock = useCallback(async (blockIndex, messageKey) => {
+    const ok = await askConfirm({
+      title: t("doc.blockDelete.title"),
+      message: t(messageKey),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!ok) return;
+    removeBlockAt(blockIndex);
+  }, [askConfirm, removeBlockAt, t]);
 
   const removeEmptyHeadingAndFocus = useCallback((headingIndex) => {
     const current = normalizeWritingBlocks(blocksRef.current);
@@ -613,7 +628,7 @@ export function NodeWritingBlockStack({
                   updateBlockAt(blockIndex, { codeSaved: false });
                   onFocusTargetChange?.({ blockIndex, focusCode: true });
                 }}
-                onDelete={() => removeBlockAt(blockIndex)}
+                onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.code")}
               />
             </div>
           );
@@ -638,7 +653,7 @@ export function NodeWritingBlockStack({
                   removeBlockAt(blockIndex);
                 } : null}
                 onEntriesChange={companyObjectId ? undefined : (entries) => updateBlockAt(blockIndex, { entries })}
-                onDeleteVault={() => removeBlockAt(blockIndex)}
+                onDeleteVault={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.password")}
               />
             </div>
           );
@@ -664,7 +679,7 @@ export function NodeWritingBlockStack({
                   removeBlockAt(blockIndex);
                 } : null}
                 onEntriesChange={companyObjectId ? undefined : (entries) => updateBlockAt(blockIndex, { entries })}
-                onDeleteVault={() => removeBlockAt(blockIndex)}
+                onDeleteVault={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.link")}
               />
             </div>
           );
@@ -684,7 +699,7 @@ export function NodeWritingBlockStack({
                   focusTarget?.blockIndex === blockIndex && focusTarget?.focusAgent
                 }
                 onInstructionChange={(instruction) => updateBlockAt(blockIndex, { instruction })}
-                onDelete={() => removeBlockAt(blockIndex)}
+                onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.agent")}
               />
             </div>
           );
@@ -712,7 +727,7 @@ export function NodeWritingBlockStack({
                   updateBlockAt(blockIndex, { steps: finalizedSteps, saved: true });
                 }}
                 onEditRequest={() => updateBlockAt(blockIndex, { saved: false })}
-                onDeleteBlock={() => removeBlockAt(blockIndex)}
+                onDeleteBlock={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.stepSequence")}
               />
             </div>
           );

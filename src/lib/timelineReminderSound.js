@@ -1,5 +1,7 @@
 /** Timeline reminder SFX — short pop when the floating card appears. */
 
+import { isAppSoundMuted } from "./appSoundPrefs.js";
+
 export const TIMELINE_REMINDER_SOUND_SRC = "/uploads/sounds/pop-over.mp3";
 
 /** @type {HTMLAudioElement | null} */
@@ -56,6 +58,7 @@ export function unlockTimelineReminderSound() {
  * @param {string} [alertKey]
  */
 export function playTimelineReminderSound(alertKey = "") {
+  if (isAppSoundMuted()) return;
   const audio = getSharedAudio();
   if (!audio) return;
 
