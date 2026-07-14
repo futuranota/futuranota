@@ -589,14 +589,24 @@ export function DocExpandedView({
     if (!doc?.id || removedIds.length === 0) return;
 
     // Persist folder removals so store does not remarge deleted titles.
+    // Keep parentDocId — unlink from body must not drop left-panel membership.
     for (const nodeId of removedIds) {
       updateNode(nodeId, {
         sourceBlockId: undefined,
         sourceTextBlockId: undefined,
+        parentDocId: doc.id,
+        linkedToDoc: true,
       });
+      useDocsStore.getState().addNodeToDoc(doc.id, nodeId);
     }
     updateDoc(doc.id, { blocks: next });
     storeLinkedNodeIdsKeyRef.current = [...nextIds].sort().join("|");
+    setInitialSnapshot((prev) => {
+      if (!prev) return prev;
+      const aligned = { ...prev, blocks: next };
+      docSnapshotRef.current = JSON.stringify(aligned);
+      return aligned;
+    });
   }, [doc?.id, updateDoc, updateNode]);
 
   useEffect(() => {
@@ -1446,6 +1456,14 @@ export function DocExpandedView({
       .map((b) => b.nodeId)
       .sort()
       .join("|");
+
+    // Align dirty baseline so close/Yes does not treat unlink as a stale save wipe.
+    setInitialSnapshot((prev) => {
+      if (!prev) return prev;
+      const aligned = { ...prev, blocks: next };
+      docSnapshotRef.current = JSON.stringify(aligned);
+      return aligned;
+    });
 
     if (activeNodeContext?.nodeId === nodeId) {
       setActiveNodeContext(null);

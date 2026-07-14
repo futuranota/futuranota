@@ -174,7 +174,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
-  const removeNodeFromDoc = useDocsStore((s) => s.removeNodeFromDoc);
   const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
@@ -609,15 +608,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
     if (nodeId) {
       const node = getNode(nodeId);
-      if (node?.parentDocId) {
-        removeNodeFromDoc(node.parentDocId, nodeId);
-      }
+      const folderId = node?.parentDocId || null;
+      // Drop the widget layers/link from the body, but keep the document in the folder panel.
       updateNode(nodeId, {
-        parentDocId: null,
-        linkedToDoc: false,
+        ...(folderId ? { parentDocId: folderId, linkedToDoc: true } : {}),
         sourceBlockId: undefined,
         sourceTextBlockId: undefined,
       });
+      if (folderId) {
+        addNodeToDoc(folderId, nodeId);
+      }
     }
 
     const nextEmbedded = buildDetachedWidgetEmbedded(block, snapshotSrc);
@@ -639,7 +639,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     next = ensureWritableDocTail(next);
     setBlocks(next);
     onFocusBlock?.(block.id);
-  }, [getNode, updateNode, removeNodeFromDoc, onFocusBlock]);
+  }, [getNode, updateNode, addNodeToDoc, onFocusBlock]);
 
   const handleRemoveWidgetSnapshot = useCallback((blockIndex) => {
     const current = blocksRef.current;

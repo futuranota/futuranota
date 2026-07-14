@@ -67,8 +67,7 @@ import {
 } from './lib/timelineReminderSkip.js';
 import { unlockTimelineReminderSound } from './lib/timelineReminderSound.js';
 import {
-  collectNodeIdsReferencedByBlocks,
-  findOrphanNodeIdsForDoc,
+  collectDocNodeIdsForSave,
 } from './lib/docNodeSync.js';
 import {
   adoptOrphanNodeToDocument,
@@ -84,7 +83,6 @@ import {
 } from './lib/timelineSelection.js';
 import {
   collectCanvasNodeIdsForDoc,
-  collectCanvasNodeIdsForEntityIds,
   syncContentDocCanvasNodes,
 } from './lib/canvasDocSync.js';
 import { nextCompactPosition } from './lib/canvasMath.js';
@@ -737,26 +735,12 @@ useEffect(() => {
     }
   };
 
-  const removeCanvasNodesForEntityIds = useCallback((entityNodeIds) => {
-    const ids = (entityNodeIds || []).filter(Boolean);
-    if (!ids.length) return;
-    let idsToRemove = null;
-    setCanvasNodes((all) => {
-      idsToRemove = collectCanvasNodeIdsForEntityIds(all, ids);
-      if (!idsToRemove.size) return all;
-      return all.filter((n) => !idsToRemove.has(n.id));
-    });
-    if (idsToRemove?.size) {
-      pruneCanvasRefs(idsToRemove);
-    }
-  }, []);
-
   const handleAfterDocSave = useCallback((docId, blocks) => {
     if (!docId) return;
     const nodesById = useNodesStore.getState().nodes;
-    const orphanNodeIds = findOrphanNodeIdsForDoc(docId, blocks, nodesById);
-    const referencedNodeIds = [...collectNodeIdsReferencedByBlocks(blocks)];
-    useDocsStore.getState().updateDoc(docId, { nodeIds: referencedNodeIds });
+    // Keep panel members even without body layers (unlink ≠ hard-delete).
+    const nodeIds = collectDocNodeIdsForSave(docId, blocks, nodesById);
+    useDocsStore.getState().updateDoc(docId, { nodeIds });
 
     // Apply saved Launch/Schedule onto the timeline rail when this doc is queued.
     useTimelineStore.getState().refreshTimelineDocSnapshot(docId, {
@@ -765,15 +749,7 @@ useEffect(() => {
       docsById: useDocsStore.getState().docs,
       nodeEntitiesById: nodesById,
     });
-
-    if (!orphanNodeIds.length) return;
-
-    removeCanvasNodesForEntityIds(orphanNodeIds);
-    const deleteNode = useNodesStore.getState().deleteNode;
-    for (const nodeId of orphanNodeIds) {
-      deleteNode(nodeId);
-    }
-  }, [removeCanvasNodesForEntityIds, canvasNodes, canvasConns]);
+  }, [canvasNodes, canvasConns]);
 
   const clearAllCanvasElements = useCallback(() => {
     setCanvasNodes([]);

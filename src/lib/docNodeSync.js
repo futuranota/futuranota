@@ -616,6 +616,25 @@ export function isDocBlockLinkedToNode(block) {
 }
 
 /**
+ * Drop leading empty TEXT shells (placeholder newlines) so a new linked owner
+ * starts at the first cell instead of after ~N blank lines.
+ * Does not remove ANSWER/CONTINUATION slots or embeds.
+ */
+export function stripLeadingEmptyTextBlocks(blocks) {
+  const normalized = normalizeDocBlocks(blocks);
+  let start = 0;
+  while (start < normalized.length) {
+    const block = normalized[start];
+    if (block?.type !== DOC_BLOCK_TYPES.TEXT) break;
+    if (block.macroNodeSlot) break;
+    if (block.embedded?.kind) break;
+    if (!isEmptyTextBlock(block)) break;
+    start += 1;
+  }
+  return start === 0 ? normalized : normalized.slice(start);
+}
+
+/**
  * When Create a new Document syncs into a parent folder, the open editor draft
  * may lag behind the store. Append any linked owner bundles missing from draft.
  */
@@ -656,7 +675,9 @@ export function mergeMissingLinkedOwnerBundles(draftBlocks, storeBlocks) {
   }
 
   if (!toAppend.length) return draftBlocks;
-  return ensureWritableDocTail([...draft, ...toAppend]);
+  // First linked title into an empty-ish draft: collapse leading blank TEXTs.
+  const base = stripLeadingEmptyTextBlocks(draft);
+  return ensureWritableDocTail([...base, ...toAppend]);
 }
 
 /**
@@ -895,15 +916,32 @@ export function collectNodeIdsReferencedByBlocks(blocks) {
   return ids;
 }
 
-/** Nodes belonging to a doc that are no longer tied to any block after save. */
-export function findOrphanNodeIdsForDoc(docId, blocks, nodesById = {}) {
-  if (!docId) return [];
-  const referenced = collectNodeIdsReferencedByBlocks(blocks);
-  const orphans = [];
+/** Nodes still belonging to a folder (panel membership), with or without body layers. */
+export function collectFolderMemberNodeIds(docId, nodesById = {}) {
+  const ids = new Set();
+  if (!docId) return ids;
   for (const node of Object.values(nodesById)) {
-    if (node?.parentDocId === docId && !referenced.has(node.id)) {
-      orphans.push(node.id);
-    }
+    if (node?.parentDocId === docId) ids.add(node.id);
   }
-  return orphans;
+  return ids;
+}
+
+/**
+ * Union of block-linked node ids and folder members (`parentDocId === docId`).
+ * Unlinked docs stay on the left panel without body layers.
+ */
+export function collectDocNodeIdsForSave(docId, blocks, nodesById = {}) {
+  const ids = collectNodeIdsReferencedByBlocks(blocks);
+  for (const id of collectFolderMemberNodeIds(docId, nodesById)) {
+    ids.add(id);
+  }
+  return [...ids];
+}
+
+/**
+ * @deprecated Hard-delete after save must not treat "parentDocId without block"
+ * as orphan — those are intentional folder members. Always returns [].
+ */
+export function findOrphanNodeIdsForDoc() {
+  return [];
 }

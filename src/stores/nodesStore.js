@@ -30,6 +30,7 @@ import {
   mergeMissingLinkedOwnerBundles,
   removeLinkedOwnerBundleFromBlocks,
   resolveLinkedAnswerTextIndex,
+  stripLeadingEmptyTextBlocks,
   unlinkNodeFromDocBlocks,
 } from "../lib/docNodeSync.js";
 import { purgeNodeFromTimelineAndCanvas } from "../lib/nodeSurfacePurge.js";
@@ -526,7 +527,7 @@ export const useNodesStore = create(
               queryEnabled: true,
             });
             sourceBlockId = dateBlock.id;
-            nextBlocks = [...normalized, dateBlock];
+            nextBlocks = [...stripLeadingEmptyTextBlocks(normalized), dateBlock];
           } else if (node.dataType === "metric") {
             const metricContent =
               node.content && typeof node.content === "object"
@@ -541,7 +542,7 @@ export const useNodesStore = create(
               queryEnabled: true,
             });
             sourceBlockId = metricBlock.id;
-            nextBlocks = [...normalized, metricBlock];
+            nextBlocks = [...stripLeadingEmptyTextBlocks(normalized), metricBlock];
           } else if (node.dataType === "checkbox") {
             const todoContent = normalizeNodeTodoContent(node.content, syncedTitle);
             const todoBlock = createDocBlock(DOC_BLOCK_TYPES.TODO, {
@@ -555,7 +556,7 @@ export const useNodesStore = create(
               ...anchorFields,
             });
             sourceBlockId = todoBlock.id;
-            nextBlocks = [...normalized, todoBlock];
+            nextBlocks = [...stripLeadingEmptyTextBlocks(normalized), todoBlock];
           } else if (node.dataType === "video") {
             const videoContent = resolveVideoContentForDocSync(node);
             const h1Block = createDocBlock(DOC_BLOCK_TYPES.H1, {
@@ -570,7 +571,7 @@ export const useNodesStore = create(
             });
             sourceBlockId = h1Block.id;
             sourceTextBlockId = null;
-            nextBlocks = [...normalized, h1Block, videoBlock];
+            nextBlocks = [...stripLeadingEmptyTextBlocks(normalized), h1Block, videoBlock];
           } else {
             const h1Block = createDocBlock(DOC_BLOCK_TYPES.H1, {
               title: syncedTitle,
@@ -585,7 +586,7 @@ export const useNodesStore = create(
             });
             sourceBlockId = h1Block.id;
             sourceTextBlockId = textBlock.id;
-            nextBlocks = [...normalized, h1Block, textBlock];
+            nextBlocks = [...stripLeadingEmptyTextBlocks(normalized), h1Block, textBlock];
           }
         }
 
