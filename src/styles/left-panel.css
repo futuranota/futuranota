@@ -6023,7 +6023,7 @@ body.doc-content-resizing * {
 /* Description under linked Create-node title (open folder) */
 .doc-linked-macro-desc {
   display: block;
-  margin: 2px 21px 10px 15px;
+  margin: 1px 21px 4px 15px;
   padding: 0;
   box-sizing: border-box;
   font-size: 12px;
@@ -6067,7 +6067,7 @@ body.doc-content-resizing * {
 
 /* H1 block — same scale as To do header */
 .doc-h1-block {
-  padding: 6px 21px 4px 15px;
+  padding: 4px 21px 2px 15px;
   box-sizing: border-box;
   overflow: visible;
 }
@@ -6274,6 +6274,38 @@ body.doc-content-resizing * {
 
 .doc-block-stack__item:has(.doc-text-block) {
   min-height: 0;
+}
+
+/* Pack linked Title + Description stacks: less air between consecutive macronodes */
+.doc-block-stack__item:has(.doc-linked-macro-desc) + .doc-block-stack__item:has(.doc-h1-block),
+.doc-block-stack__item:has(.doc-linked-macro-desc) + .doc-block-stack__item:has(.doc-todo-block) {
+  margin-top: 4px;
+}
+
+/* Empty TEXT shell right after a linked Description — collapse vertical space */
+.doc-block-stack__item:has(.doc-linked-macro-desc) + .doc-block-stack__item:has(.doc-text-block) {
+  margin-top: 0;
+}
+
+.doc-block-stack__item:has(.doc-linked-macro-desc) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block {
+  gap: 0;
+}
+
+.doc-block-stack__item:has(.doc-linked-macro-desc) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block__field,
+.doc-block-stack__item:has(.doc-linked-macro-desc) + .doc-block-stack__item:has(.doc-text-block) .doc-slash-field__input {
+  min-height: 6px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* H1 after a packed empty TEXT that followed a Description */
+.doc-block-stack__item:has(.doc-linked-macro-desc)
+  + .doc-block-stack__item:has(.doc-text-block)
+  + .doc-block-stack__item:has(.doc-h1-block),
+.doc-block-stack__item:has(.doc-linked-macro-desc)
+  + .doc-block-stack__item:has(.doc-text-block)
+  + .doc-block-stack__item:has(.doc-todo-block) {
+  margin-top: 4px;
 }
 
 .doc-block-stack__item--unified-prose {

@@ -175,6 +175,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
   const removeNodeFromDoc = useDocsStore((s) => s.removeNodeFromDoc);
+  const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
+  const updateDoc = useDocsStore((s) => s.updateDoc);
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
   const stackRef = useRef(null);
@@ -1292,14 +1294,40 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       const current = blocksRef.current;
       const prevId = index > 0 ? current[index - 1]?.id : null;
       const nextBlock = current[index + 1];
-      let next;
+      // Linked title: remove layers from folder but keep document in left panel.
       if (block.nodeId) {
-        next = removeLinkedOwnerBundleFromBlocks(current, block.nodeId).blocks;
-        updateNode(block.nodeId, {
-          sourceBlockId: undefined,
-          sourceTextBlockId: undefined,
-        });
-      } else if (block.type === DOC_BLOCK_TYPES.H1 && nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+        if (onDetachFromNode) {
+          onDetachFromNode(index);
+          if (prevId) focusBlockCaret(prevId);
+          return;
+        }
+        const nodeId = block.nodeId;
+        const folderId = getNode(nodeId)?.parentDocId || null;
+        const { blocks: next } = removeLinkedOwnerBundleFromBlocks(current, nodeId);
+        const nextBlocks = next.length
+          ? next
+          : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+        setBlocks(nextBlocks);
+        if (folderId) {
+          updateDoc(folderId, { blocks: nextBlocks });
+          updateNode(nodeId, {
+            sourceBlockId: undefined,
+            sourceTextBlockId: undefined,
+            parentDocId: folderId,
+            linkedToDoc: true,
+          });
+          addNodeToDoc(folderId, nodeId);
+        } else {
+          updateNode(nodeId, {
+            sourceBlockId: undefined,
+            sourceTextBlockId: undefined,
+          });
+        }
+        if (prevId) focusBlockCaret(prevId);
+        return;
+      }
+      let next;
+      if (block.type === DOC_BLOCK_TYPES.H1 && nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
         next = removeEmbedVideoPairAt(current, index);
       } else {
         next = removeBlockAt(current, index);

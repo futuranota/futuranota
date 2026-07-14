@@ -32,6 +32,7 @@ import {
   resolveLinkedAnswerTextIndex,
   unlinkNodeFromDocBlocks,
 } from "../lib/docNodeSync.js";
+import { purgeNodeFromTimelineAndCanvas } from "../lib/nodeSurfacePurge.js";
 import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/nodeTodoContent.js";
 import {
   getNodeWritingPlainText,
@@ -673,6 +674,8 @@ export const useNodesStore = create(
       deleteNodeAndDocBlocks: (nodeId) => {
         const node = get().nodes[nodeId];
         if (!node) return;
+        // Timeline + canvas first (while node still exists for canvas unlink meta).
+        purgeNodeFromTimelineAndCanvas(nodeId);
         const docId = node.parentDocId || null;
         if (docId) {
           const doc = useDocsStore.getState().getDoc(docId);

@@ -345,6 +345,9 @@ export const messages = {
       deleteDocTitle: "Delete folder",
       deleteDocConfirm:
         "Delete \"{name}\" and its nodes? This cannot be undone.",
+      deleteNodeTitle: "Delete document",
+      deleteNodeConfirm:
+        "Delete \"{name}\"? This cannot be undone.",
       deleteCategoryTitle: "Delete category",
       productName: "Product's name",
       documentTitle: "Document title",

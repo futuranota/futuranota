@@ -1580,6 +1580,7 @@ export function LeftPanel({
   const deleteObjectWithCascade = useObjectsStore(s => s.deleteObjectWithCascade);
   const nodes      = useNodesStore(s => s.nodes);
   const deleteNode = useNodesStore(s => s.deleteNode);
+  const deleteNodeAndDocBlocks = useNodesStore(s => s.deleteNodeAndDocBlocks);
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
 
@@ -1808,6 +1809,21 @@ export function LeftPanel({
     removeTimelineDocFromQueue(doc.id);
     deleteDoc(doc.id);
     if (activeId === doc.id) setActiveId(null);
+  };
+
+  const handleDeleteNode = async (node) => {
+    if (!node?.id) return;
+    const label = String(node.title || node.sourceQuery || t("sidebar.newDocument")).trim()
+      || t("sidebar.newDocument");
+    const confirmed = await askConfirm({
+      title: t("sidebar.deleteNodeTitle"),
+      message: t("sidebar.deleteNodeConfirm", { name: label }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+    playTrashBoxSound();
+    deleteNodeAndDocBlocks(node.id);
   };
 
   const exitFolderBulkDeleteMode = useCallback(() => {
@@ -2868,7 +2884,7 @@ export function LeftPanel({
                             setNodeEditId(node.id);
                           }}
                           onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                          onNodeDelete={(node) => deleteNode(node.id)}
+                          onNodeDelete={handleDeleteNode}
                         />
                       ))}
                       {filteredUncategorizedDocs.map((doc) => (
@@ -2890,7 +2906,7 @@ export function LeftPanel({
                             setNodeEditId(node.id);
                           }}
                           onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                          onNodeDelete={(node) => deleteNode(node.id)}
+                          onNodeDelete={handleDeleteNode}
                         />
                       ))}
                     </>
@@ -2948,7 +2964,7 @@ export function LeftPanel({
                     setNodeEditId(node.id);
                   }}
                   onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                  onNodeDelete={(node) => deleteNode(node.id)}
+                  onNodeDelete={handleDeleteNode}
                 />
               ))}
               {groupedNodeViews.orphans.length ? (
@@ -2963,7 +2979,7 @@ export function LeftPanel({
                     setNodeEditId(node.id);
                   }}
                   onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                  onNodeDelete={(node) => deleteNode(node.id)}
+                  onNodeDelete={handleDeleteNode}
                 />
               ) : null}
             </div>
