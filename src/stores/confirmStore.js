@@ -29,14 +29,16 @@ export const useConfirmStore = create((set, get) => ({
     confirmLabel = "Confirm",
     cancelLabel = "Cancel",
     tone = "danger",
+    hideCancel = false,
   }) => new Promise((resolve) => {
     set({
       payload: {
         title,
         message,
         confirmLabel,
-        cancelLabel,
+        cancelLabel: hideCancel ? "" : cancelLabel,
         tone,
+        hideCancel: Boolean(hideCancel),
         resolve,
       },
     });

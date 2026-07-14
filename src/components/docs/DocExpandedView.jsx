@@ -11,6 +11,7 @@ import { normalizeKnowledgeImport } from "../../lib/knowledgeImport.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { Modal } from "../shared/Modal.jsx";
 import { UnsavedChangesConfirm } from "../shared/UnsavedChangesConfirm.jsx";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 import {
@@ -21,7 +22,9 @@ import {
   todayDateInputValue,
 } from "../../lib/docDates.js";
 import {
+  folderScheduleDateInputBounds,
   folderSchedulePickerMinDateInput,
+  isDateInputWithinFolderSchedule,
   validateFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
@@ -243,6 +246,7 @@ export function DocExpandedView({
   registerCloseInterceptor = null,
 }) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const doc = useDocsStore((s) => s.docs[docId]);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const addDoc = useDocsStore((s) => s.addDoc);
@@ -863,29 +867,43 @@ export function DocExpandedView({
   const scheduleStartMin = useFolderSchedule
     ? folderSchedulePickerMinDateInput()
     : todayDateInputValue();
+  /** Child document Schedule dates must stay inside this folder’s reservation. */
+  const childScheduleBounds = isContentMode
+    ? folderScheduleDateInputBounds({
+      scheduleStartAt: draftScheduleStartAt || doc?.scheduleStartAt || null,
+      scheduleFinishAt: draftScheduleFinishAt || doc?.scheduleFinishAt || null,
+      launchAt: draftLaunchAt || doc?.launchAt || null,
+    })
+    : null;
   /** Products + Content: title and category mirror each other (file-box grouping). */
   const syncTitleWithCategory = isProductMode || isContentMode;
 
-  const alertFolderScheduleError = (check) => {
+  const alertFolderScheduleError = async (check) => {
     if (!check || check.ok) return;
-    if (check.code === "required") {
-      window.alert(t("meta.scheduleRequired"));
+    let message = t("meta.scheduleInvalid");
+    if (check.code === "required" || check.code === "partial") {
+      message = t("meta.schedulePartial");
     } else if (check.code === "finishBeforeStart") {
-      window.alert(t("meta.scheduleFinishBeforeStart"));
+      message = t("meta.scheduleFinishBeforeStart");
     } else if (check.code === "overlap") {
       const until = check.conflict?.finish
         ? formatMmDdYy(check.conflict.finish.toISOString())
         : "";
-      window.alert(t("meta.scheduleOverlap", {
+      message = t("meta.scheduleOverlap", {
         title: check.conflict?.title || "Folder",
         until,
         minStart: formatMmDdYy(check.minStart || scheduleStartMin)
           || check.minStart
           || scheduleStartMin,
-      }));
-    } else {
-      window.alert(t("meta.scheduleInvalid"));
+      });
     }
+    await askConfirm({
+      title: t("meta.scheduleTitle"),
+      message,
+      confirmLabel: t("common.ok"),
+      tone: "default",
+      hideCancel: true,
+    });
   };
 
   const persistFolderScheduleToStore = (startInput, finishInput) => {
@@ -912,7 +930,7 @@ export function DocExpandedView({
     });
   };
 
-  const handleScheduleStartDateChange = (value) => {
+  const handleScheduleStartDateChange = async (value) => {
     if (!value) {
       setDraftScheduleStartDate("");
       setDraftScheduleFinishDate("");
@@ -933,7 +951,7 @@ export function DocExpandedView({
       { excludeDocId: docId },
     );
     if (!check.ok) {
-      alertFolderScheduleError(check);
+      await alertFolderScheduleError(check);
       return;
     }
     setDraftScheduleStartDate(clamped);
@@ -942,13 +960,13 @@ export function DocExpandedView({
     persistFolderScheduleToStore(clamped, finish);
   };
 
-  const handleScheduleFinishDateChange = (value) => {
+  const handleScheduleFinishDateChange = async (value) => {
     if (!value) {
       setDraftScheduleFinishDate("");
       persistFolderScheduleToStore(draftScheduleStartDate, "");
       return;
     }
-    const start = draftScheduleStartDate || scheduleStartMin || todayDateInputValue();
+    const start = draftScheduleStartDate || value;
     const finish = value < start ? start : value;
     const check = validateFolderSchedule(
       start,
@@ -958,8 +976,12 @@ export function DocExpandedView({
       { excludeDocId: docId },
     );
     if (!check.ok) {
-      alertFolderScheduleError(check);
+      await alertFolderScheduleError(check);
       return;
+    }
+    if (!draftScheduleStartDate) {
+      setDraftScheduleStartDate(start);
+      setDraftLaunchDate(start);
     }
     setDraftScheduleFinishDate(finish);
     persistFolderScheduleToStore(start, finish);
@@ -1038,7 +1060,7 @@ export function DocExpandedView({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const title = resolvePersistTitle({
       draftTitle,
       draftCategory,
@@ -1072,7 +1094,7 @@ export function DocExpandedView({
         { excludeDocId: docId },
       );
       if (!check.ok) {
-        alertFolderScheduleError(check);
+        await alertFolderScheduleError(check);
         return;
       }
     }
@@ -1709,14 +1731,41 @@ export function DocExpandedView({
   const supportsScheduleAnchor = (dataType) =>
     dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
 
-  const handleNodeAnchorDateChange = (anchorDate) => {
+  const folderDocForChildSchedule = isContentMode
+    ? {
+      scheduleStartAt: draftScheduleStartAt || doc?.scheduleStartAt || null,
+      scheduleFinishAt: draftScheduleFinishAt || doc?.scheduleFinishAt || null,
+      launchAt: draftLaunchAt || doc?.launchAt || null,
+    }
+    : null;
+
+  const alertChildScheduleOutOfRange = async () => {
+    if (!childScheduleBounds) return;
+    await askConfirm({
+      title: t("meta.scheduleTitle"),
+      message: t("meta.childScheduleOutOfRange", {
+        min: formatMmDdYy(childScheduleBounds.minDate) || childScheduleBounds.minDate,
+        max: formatMmDdYy(childScheduleBounds.maxDate) || childScheduleBounds.maxDate,
+      }),
+      confirmLabel: t("common.ok"),
+      tone: "default",
+      hideCancel: true,
+    });
+  };
+
+  const handleNodeAnchorDateChange = async (anchorDate) => {
+    const nextDate = String(anchorDate || "").trim();
+    if (nextDate && !isDateInputWithinFolderSchedule(nextDate, folderDocForChildSchedule)) {
+      await alertChildScheduleOutOfRange();
+      return;
+    }
     // Persist Schedule immediately — must survive tab switch; never wait for Yes.
     // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H1',location:'DocExpandedView.jsx:handleNodeAnchorDateChange',message:'schedule date persist immediate',data:{anchorDate,nodeDraftAnchorTime,nodeId:activeNodeContext?.nodeId||null,blockIndex:activeNodeContext?.blockIndex??null},timestamp:Date.now()})}).catch(()=>{});
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H1',location:'DocExpandedView.jsx:handleNodeAnchorDateChange',message:'schedule date persist immediate',data:{anchorDate:nextDate,nodeDraftAnchorTime,nodeId:activeNodeContext?.nodeId||null,blockIndex:activeNodeContext?.blockIndex??null},timestamp:Date.now()})}).catch(()=>{});
     // #endregion
-    setNodeDraftAnchorDate(anchorDate);
+    setNodeDraftAnchorDate(nextDate);
     if (!activeNodeContext) return;
-    handleBlockAnchorChange(activeNodeContext.blockIndex, anchorDate, nodeDraftAnchorTime);
+    handleBlockAnchorChange(activeNodeContext.blockIndex, nextDate, nodeDraftAnchorTime);
   };
 
   const handleNodeAnchorTimeChange = (anchorTime) => {
@@ -1925,6 +1974,8 @@ export function DocExpandedView({
           anchorTime={nodeDraftAnchorTime}
           onAnchorDateChange={handleNodeAnchorDateChange}
           onAnchorTimeChange={handleNodeAnchorTimeChange}
+          scheduleMinDate={childScheduleBounds?.minDate || ""}
+          scheduleMaxDate={childScheduleBounds?.maxDate || ""}
           onClose={handleRequestCloseNodeModal}
           onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
           entityNodeId={activeNodeContext.nodeId || null}

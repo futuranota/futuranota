@@ -10,6 +10,10 @@ export function BlockAnchorFields({
   showContentToggle = false,
   contentExpanded = true,
   onContentToggle,
+  /** YYYY-MM-DD inclusive floor from parent folder reservation (optional). */
+  minDate = "",
+  /** YYYY-MM-DD inclusive ceiling from parent folder reservation (optional). */
+  maxDate = "",
 }) {
   const rootClass = [
     "doc-block-anchor",
@@ -20,6 +24,9 @@ export function BlockAnchorFields({
   ]
     .filter(Boolean)
     .join(" ");
+
+  const min = String(minDate || "").trim() || undefined;
+  const max = String(maxDate || "").trim() || undefined;
 
   return (
     <div className={rootClass}>
@@ -42,6 +49,8 @@ export function BlockAnchorFields({
         type="date"
         className="doc-block-anchor__date"
         value={anchorDate}
+        min={min}
+        max={max}
         readOnly={readOnly}
         tabIndex={readOnly ? -1 : 0}
         aria-readonly={readOnly}

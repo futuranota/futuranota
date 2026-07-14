@@ -32,6 +32,48 @@ export function resolveFolderScheduleRange(doc) {
   return { start, finish };
 }
 
+/**
+ * Inclusive YYYY-MM-DD bounds for child document Schedule date pickers.
+ * Time remains unconstrained. Null when the folder has no reservation.
+ * @param {object | null | undefined} doc
+ * @returns {{ minDate: string, maxDate: string } | null}
+ */
+export function folderScheduleDateInputBounds(doc) {
+  const range = resolveFolderScheduleRange(doc);
+  if (!range) return null;
+  return {
+    minDate: calendarDateInputValue(range.start),
+    maxDate: calendarDateInputValue(range.finish),
+  };
+}
+
+/**
+ * True when dateInput is empty, or folder has no range, or date is inside the range.
+ * @param {string} dateInput YYYY-MM-DD
+ * @param {object | null | undefined} doc
+ */
+export function isDateInputWithinFolderSchedule(dateInput, doc) {
+  const bounds = folderScheduleDateInputBounds(doc);
+  if (!bounds) return true;
+  const d = String(dateInput || "").trim();
+  if (!d) return true;
+  return d >= bounds.minDate && d <= bounds.maxDate;
+}
+
+/**
+ * Clamp YYYY-MM-DD into folder range (or leave empty / pass through when no range).
+ * @param {string} dateInput
+ * @param {object | null | undefined} doc
+ */
+export function clampDateInputToFolderSchedule(dateInput, doc) {
+  const bounds = folderScheduleDateInputBounds(doc);
+  const d = String(dateInput || "").trim();
+  if (!bounds || !d) return d;
+  if (d < bounds.minDate) return bounds.minDate;
+  if (d > bounds.maxDate) return bounds.maxDate;
+  return d;
+}
+
 /** Content/campaign folders in an Object — not products, knowledge, or templates. */
 export function isReservableFolderDoc(doc) {
   if (!doc?.parentObjectId) return false;
@@ -150,8 +192,12 @@ export function validateFolderSchedule(
 ) {
   const startStr = String(startInput || "").trim();
   const finishStr = String(finishInput || "").trim();
+  // Optional: leave both empty (folder not reserved on the timeline).
+  if (!startStr && !finishStr) {
+    return { ok: true };
+  }
   if (!startStr || !finishStr) {
-    return { ok: false, code: "required" };
+    return { ok: false, code: "partial" };
   }
   const start = startOfCalendarDay(parseDate(`${startStr}T12:00:00`));
   const finish = startOfCalendarDay(parseDate(`${finishStr}T12:00:00`));

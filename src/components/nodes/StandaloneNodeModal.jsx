@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
@@ -6,9 +6,16 @@ import { listAdoptableDocs, resolveNodeParentDocId } from "../../lib/nodeParentA
 import { anchorFieldsFromIso, isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import {
   dateInputFromIso,
+  formatMmDdYy,
   isoFromDateInput,
   todayDateInputValue,
 } from "../../lib/docDates.js";
+import {
+  folderScheduleDateInputBounds,
+  isDateInputWithinFolderSchedule,
+} from "../../lib/folderScheduleReservation.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
+import { useI18n } from "../../i18n/useI18n.js";
 import { NodeQueryModal } from "./NodeQueryModal.jsx";
 import {
   parseCalendarEventNodeContent,
@@ -157,6 +164,8 @@ export function StandaloneNodeModal({
   onSaved,
   onDeleted,
 }) {
+  const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const addNode = useNodesStore((s) => s.addNode);
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
@@ -164,6 +173,7 @@ export function StandaloneNodeModal({
   const removeNodeSyncFromDoc = useNodesStore((s) => s.removeNodeSyncFromDoc);
   const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
   const removeNodeFromDoc = useDocsStore((s) => s.removeNodeFromDoc);
+  const docsByStoreId = useDocsStore((s) => s.docs);
 
   const isNew = !node;
   const docList = listAdoptableDocs(docs, { parentObjectId });
@@ -184,12 +194,40 @@ export function StandaloneNodeModal({
   const [completed, setCompleted] = useState(() => Boolean(node?.completed));
   const [sourceId, setSourceId] = useState(() => node?.sourceId ?? null);
 
+  const parentFolderDoc = parentDocId
+    ? (docsByStoreId?.[parentDocId] || docsById[parentDocId] || null)
+    : null;
+  const childScheduleBounds = useMemo(
+    () => folderScheduleDateInputBounds(parentFolderDoc),
+    [parentFolderDoc],
+  );
+
+  const handleAnchorDateChange = async (next) => {
+    const nextDate = String(next || "").trim();
+    if (nextDate && !isDateInputWithinFolderSchedule(nextDate, parentFolderDoc)) {
+      if (childScheduleBounds) {
+        await askConfirm({
+          title: t("meta.scheduleTitle"),
+          message: t("meta.childScheduleOutOfRange", {
+            min: formatMmDdYy(childScheduleBounds.minDate) || childScheduleBounds.minDate,
+            max: formatMmDdYy(childScheduleBounds.maxDate) || childScheduleBounds.maxDate,
+          }),
+          confirmLabel: t("common.ok"),
+          tone: "default",
+          hideCancel: true,
+        });
+      }
+      return;
+    }
+    setAnchorDate(nextDate);
+  };
+
   const handleDataTypeChange = (nextType) => {
     setDataType(nextType);
     setContent((prev) => normalizeContentForType(nextType, prev));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const title = query.trim() || "Untitled query";
     let payload = parseContentForSave(content, dataType);
     if (node && dataType === NODE_DATA_TYPES.TEXT && parseCalendarEventNodeContent(node.content)) {
@@ -201,6 +239,25 @@ export function StandaloneNodeModal({
     const scheduleDate = String(anchorDate || "").trim();
     const supportsSchedule =
       dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
+    if (
+      supportsSchedule
+      && scheduleDate
+      && !isDateInputWithinFolderSchedule(scheduleDate, parentFolderDoc)
+    ) {
+      if (childScheduleBounds) {
+        await askConfirm({
+          title: t("meta.scheduleTitle"),
+          message: t("meta.childScheduleOutOfRange", {
+            min: formatMmDdYy(childScheduleBounds.minDate) || childScheduleBounds.minDate,
+            max: formatMmDdYy(childScheduleBounds.maxDate) || childScheduleBounds.maxDate,
+          }),
+          confirmLabel: t("common.ok"),
+          tone: "default",
+          hideCancel: true,
+        });
+      }
+      return;
+    }
     const anchorAt = supportsSchedule
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
       : null;
@@ -308,8 +365,10 @@ export function StandaloneNodeModal({
       parentObjectId={parentObjectId}
       anchorDate={anchorDate}
       anchorTime={anchorTime}
-      onAnchorDateChange={setAnchorDate}
+      onAnchorDateChange={handleAnchorDateChange}
       onAnchorTimeChange={setAnchorTime}
+      scheduleMinDate={childScheduleBounds?.minDate || ""}
+      scheduleMaxDate={childScheduleBounds?.maxDate || ""}
       onSave={handleSave}
       onClose={onClose}
       embedded={embedded}

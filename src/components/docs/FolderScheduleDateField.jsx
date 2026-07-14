@@ -107,7 +107,7 @@ export function FolderScheduleDateField({
     setViewMonth(next.getMonth());
   };
 
-  const display = formatMmDdYy(value) || "—";
+  const display = formatMmDdYy(value) || "mm/dd/yyyy";
 
   return (
     <div className="doc-meta-field doc-meta-field--schedule-date" ref={rootRef}>

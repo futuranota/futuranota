@@ -97,6 +97,9 @@ export function NodeQueryModal({
   anchorTime = "",
   onAnchorDateChange,
   onAnchorTimeChange,
+  /** Inclusive YYYY-MM-DD from parent folder reservation (optional). */
+  scheduleMinDate = "",
+  scheduleMaxDate = "",
   embedded = false,
 }) {
   const { t } = useI18n();
@@ -926,6 +929,8 @@ export function NodeQueryModal({
                 anchorTime={anchorTime}
                 onAnchorDateChange={onAnchorDateChange}
                 onAnchorTimeChange={onAnchorTimeChange}
+                minDate={scheduleMinDate}
+                maxDate={scheduleMaxDate}
               />
             ) : null}
             {showTextSizeControls ? (

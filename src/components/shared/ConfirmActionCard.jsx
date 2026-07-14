@@ -44,18 +44,20 @@ export function ConfirmActionCard() {
           {payload.message}
         </p>
         <div className="confirm-action-card__actions">
-          <button
-            type="button"
-            className="btn xs confirm-action-card__cancel"
-            onClick={() => answer(false)}
-          >
-            {payload.cancelLabel}
-          </button>
+          {!payload.hideCancel ? (
+            <button
+              type="button"
+              className="btn xs confirm-action-card__cancel"
+              onClick={() => answer(false)}
+            >
+              {payload.cancelLabel}
+            </button>
+          ) : null}
           <button
             type="button"
             className={[
               "btn xs confirm-action-card__confirm",
-              payload.tone === "default"
+              payload.tone === "default" || payload.hideCancel
                 ? "confirm-action-card__confirm--default"
                 : "confirm-action-card__confirm--danger",
             ].join(" ")}

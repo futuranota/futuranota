@@ -971,6 +971,7 @@ function DocCreateModal({
   onInsertToCanvas,
 }) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [blocks, setBlocks] = useState([]);
@@ -1019,15 +1020,33 @@ function DocCreateModal({
     titleRef.current?.select();
   }, []);
 
-  // Seed Schedule Start/Finish once when opening Documents create.
-  const scheduleSeededRef = useRef(false);
-  useEffect(() => {
-    if (!useFolderSchedule || scheduleSeededRef.current) return;
-    const minStart = scheduleStartMin || todayDateInputValue();
-    setScheduleStartDate(minStart);
-    setScheduleFinishDate(minStart);
-    scheduleSeededRef.current = true;
-  }, [useFolderSchedule, scheduleStartMin]);
+  const alertFolderScheduleError = async (check) => {
+    if (!check || check.ok) return;
+    let message = t("meta.scheduleInvalid");
+    if (check.code === "required" || check.code === "partial") {
+      message = t("meta.schedulePartial");
+    } else if (check.code === "finishBeforeStart") {
+      message = t("meta.scheduleFinishBeforeStart");
+    } else if (check.code === "overlap") {
+      const until = check.conflict?.finish
+        ? formatMmDdYy(check.conflict.finish.toISOString())
+        : "";
+      message = t("meta.scheduleOverlap", {
+        title: check.conflict?.title || "Folder",
+        until,
+        minStart: formatMmDdYy(check.minStart || scheduleStartMin)
+          || check.minStart
+          || scheduleStartMin,
+      });
+    }
+    await askConfirm({
+      title: t("meta.scheduleTitle"),
+      message,
+      confirmLabel: t("common.ok"),
+      tone: "default",
+      hideCancel: true,
+    });
+  };
 
   const handleScheduleStartChange = (value) => {
     if (!value) {
@@ -1045,7 +1064,8 @@ function DocCreateModal({
       setScheduleFinishDate("");
       return;
     }
-    const start = scheduleStartDate || scheduleStartMin || todayDateInputValue();
+    const start = scheduleStartDate || value;
+    if (!scheduleStartDate) setScheduleStartDate(start);
     setScheduleFinishDate(value < start ? start : value);
   };
 
@@ -1063,8 +1083,8 @@ function DocCreateModal({
       category: defaultCategory,
       icon: "",
       launchDate: "",
-      scheduleStartDate: useFolderSchedule ? (scheduleStartMin || todayDateInputValue()) : "",
-      scheduleFinishDate: useFolderSchedule ? (scheduleStartMin || todayDateInputValue()) : "",
+      scheduleStartDate: "",
+      scheduleFinishDate: "",
       campaignActive: createMode === "campaign",
       subcategoryDocIds: [],
       nodeLinkColor: "dark",
@@ -1159,6 +1179,12 @@ function DocCreateModal({
     docTitle: title,
     nodeLinkColor,
     onInsertToCanvas,
+    parentFolderDoc: useFolderSchedule
+      ? {
+        scheduleStartAt: scheduleStartDate ? isoFromDateInput(scheduleStartDate) : null,
+        scheduleFinishAt: scheduleFinishDate ? isoFromDateInput(scheduleFinishDate) : null,
+      }
+      : null,
   });
 
   const handleVersionCommit = (trimmedVersion) => {
@@ -1181,7 +1207,7 @@ function DocCreateModal({
     setBody("");
   };
 
-  const submitDoc = () => {
+  const submitDoc = async () => {
     const trimmedCategory = category.trim();
     const productName = title.trim() || trimmedCategory;
     const finalCategory = (isProductMode || isContentMode)
@@ -1207,29 +1233,16 @@ function DocCreateModal({
         parentId,
       );
       if (!check.ok) {
-        if (check.code === "required") {
-          window.alert(t("meta.scheduleRequired"));
-        } else if (check.code === "finishBeforeStart") {
-          window.alert(t("meta.scheduleFinishBeforeStart"));
-        } else if (check.code === "overlap") {
-          const until = check.conflict?.finish
-            ? formatMmDdYy(check.conflict.finish.toISOString())
-            : "";
-          window.alert(t("meta.scheduleOverlap", {
-            title: check.conflict?.title || "Folder",
-            until,
-            minStart: formatMmDdYy(check.minStart || scheduleStartMin)
-              || check.minStart
-              || scheduleStartMin,
-          }));
-        } else {
-          window.alert(t("meta.scheduleInvalid"));
-        }
+        await alertFolderScheduleError(check);
         return;
       }
-      scheduleStartAt = isoFromDateInput(scheduleStartDate);
-      scheduleFinishAt = isoFromDateInput(scheduleFinishDate);
-      launchAt = scheduleStartAt;
+      const hasSchedule = Boolean(String(scheduleStartDate || "").trim())
+        && Boolean(String(scheduleFinishDate || "").trim());
+      if (hasSchedule) {
+        scheduleStartAt = isoFromDateInput(scheduleStartDate);
+        scheduleFinishAt = isoFromDateInput(scheduleFinishDate);
+        launchAt = scheduleStartAt;
+      }
     }
 
     onSubmit({

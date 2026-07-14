@@ -28,7 +28,14 @@ import {
 } from "../../lib/docNodeSync.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
+import {
+  folderScheduleDateInputBounds,
+  isDateInputWithinFolderSchedule,
+} from "../../lib/folderScheduleReservation.js";
+import { formatMmDdYy } from "../../lib/docDates.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
+import { useI18n } from "../../i18n/useI18n.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 
 function supportsScheduleAnchor(dataType) {
@@ -46,12 +53,17 @@ export function useDocBlockNodeModal({
   docTitle = "New document",
   nodeLinkColor = "dark",
   onInsertToCanvas,
+  /** Parent folder schedule bounds ({ scheduleStartAt, scheduleFinishAt } or full doc). */
+  parentFolderDoc = null,
 }) {
+  const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const getNode = useNodesStore((s) => s.getNode);
   const updateNode = useNodesStore((s) => s.updateNode);
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
   const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
   const updateDoc = useDocsStore((s) => s.updateDoc);
+  const childScheduleBounds = folderScheduleDateInputBounds(parentFolderDoc);
 
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
@@ -373,11 +385,27 @@ export function useDocBlockNodeModal({
     flushAndCloseNodeModal();
   };
 
-  const handleNodeAnchorDateChange = (anchorDate) => {
+  const handleNodeAnchorDateChange = async (anchorDate) => {
+    const nextDate = String(anchorDate || "").trim();
+    if (nextDate && !isDateInputWithinFolderSchedule(nextDate, parentFolderDoc)) {
+      if (childScheduleBounds) {
+        await askConfirm({
+          title: t("meta.scheduleTitle"),
+          message: t("meta.childScheduleOutOfRange", {
+            min: formatMmDdYy(childScheduleBounds.minDate) || childScheduleBounds.minDate,
+            max: formatMmDdYy(childScheduleBounds.maxDate) || childScheduleBounds.maxDate,
+          }),
+          confirmLabel: t("common.ok"),
+          tone: "default",
+          hideCancel: true,
+        });
+      }
+      return;
+    }
     // Persist Schedule immediately — must survive tab switch.
-    setNodeDraftAnchorDate(anchorDate);
+    setNodeDraftAnchorDate(nextDate);
     if (!activeNodeContext) return;
-    handleBlockAnchorChange(activeNodeContext.blockIndex, anchorDate, nodeDraftAnchorTime);
+    handleBlockAnchorChange(activeNodeContext.blockIndex, nextDate, nodeDraftAnchorTime);
   };
 
   const handleNodeAnchorTimeChange = (anchorTime) => {
@@ -429,6 +457,8 @@ export function useDocBlockNodeModal({
       anchorTime={nodeDraftAnchorTime}
       onAnchorDateChange={handleNodeAnchorDateChange}
       onAnchorTimeChange={handleNodeAnchorTimeChange}
+      scheduleMinDate={childScheduleBounds?.minDate || ""}
+      scheduleMaxDate={childScheduleBounds?.maxDate || ""}
       onClose={flushAndCloseNodeModal}
       onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
       entityNodeId={activeNodeContext.nodeId || null}

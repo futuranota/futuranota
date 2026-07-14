@@ -14,6 +14,7 @@ export const messages = {
     common: {
       cancel: "Cancel",
       confirm: "Confirm",
+      ok: "OK",
       save: "Save",
       delete: "delete",
       retry: "Retry",
@@ -165,9 +166,13 @@ export const messages = {
       schedulePrevMonth: "Previous month",
       scheduleNextMonth: "Next month",
       scheduleRequired: "Schedule start and finish are required.",
+      schedulePartial: "Set both schedule start and finish, or leave both empty.",
       scheduleFinishBeforeStart: "Schedule finish must be on or after schedule start.",
       scheduleInvalid: "Enter a valid schedule start and finish.",
       scheduleOverlap: "“{title}” is reserved until {until}. Start on {minStart} or later.",
+      scheduleTitle: "Schedule",
+      childScheduleOutOfRange:
+        "Pick a date between {min} and {max} (this folder’s schedule). Time can be any hour.",
     },
     timeline: {
       title: "Timeline",
@@ -1006,9 +1011,13 @@ export const messages = {
       schedulePrevMonth: "Mes anterior",
       scheduleNextMonth: "Mes siguiente",
       scheduleRequired: "Inicio y fin del schedule son obligatorios.",
+      schedulePartial: "Completá inicio y fin del schedule, o dejá ambos vacíos.",
       scheduleFinishBeforeStart: "El fin del schedule debe ser el mismo día o después del inicio.",
       scheduleInvalid: "Introduce un inicio y fin de schedule válidos.",
       scheduleOverlap: "“{title}” está reservado hasta {until}. Empieza el {minStart} o después.",
+      scheduleTitle: "Schedule",
+      childScheduleOutOfRange:
+        "Elegí una fecha entre {min} y {max} (schedule del folder). La hora puede ser cualquiera.",
     },
     timeline: {
       title: "Timeline",
