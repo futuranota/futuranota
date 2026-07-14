@@ -29,7 +29,13 @@ const DOC_BLOCK_TYPES = {
 
 export const DEFAULT_AGENT_BLOCK_TITLE = "Agent";
 
-const DEFAULT_CHECKBOX_LIST_TITLE = "Todo list:";
+export const DEFAULT_CHECKBOX_LIST_TITLE = "Todo list:";
+
+/** Right column of Image card: plain text or embedded todo. */
+export const IMAGE_SPLIT_BODY_MODE = {
+  TEXT: "text",
+  TODO: "todo",
+};
 
 export function createTodoItem(patch = {}) {
   return {
@@ -38,6 +44,19 @@ export function createTodoItem(patch = {}) {
     checked: false,
     ...patch,
   };
+}
+
+function normalizeEmbeddedTodoItems(rawItems) {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
+    return [createTodoItem()];
+  }
+  return rawItems.map((item) =>
+    createTodoItem({
+      id: item?.id,
+      text: item?.text || "",
+      checked: Boolean(item?.checked),
+    }),
+  );
 }
 
 export function normalizeStepCode(code) {
@@ -323,11 +342,110 @@ export const BANNER_HEADLINE_MAX = 280;
 /** Hard ceiling for banner headline lines (~doc cell line count). */
 export const BANNER_HEADLINE_MAX_LINES = 9;
 
+/**
+ * Convert image-split ↔ moodboard / banner ↔ moodboard (preserve id + best-effort fields).
+ * @param {object} block
+ * @param {"image_split"|"moodboard"|"banner"} targetType
+ */
+export function convertImageLayoutBlock(block, targetType) {
+  if (!block || typeof block !== "object") return null;
+  const id = block.id;
+
+  if (targetType === DOC_BLOCK_TYPES.MOODBOARD) {
+    if (block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+      const imageSaved = Boolean(block.imageSaved && block.src);
+      return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, {
+        id,
+        caption: String(block.overlayTitle || "").slice(0, MOODBOARD_CAPTION_MAX),
+        a: {
+          src: block.src || "",
+          name: block.name || "",
+          alt: block.alt || "",
+          width: block.width || 0,
+          height: block.height || 0,
+          imageSaved,
+        },
+        body: String(block.body || ""),
+        bodyMode: block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+          ? IMAGE_SPLIT_BODY_MODE.TODO
+          : IMAGE_SPLIT_BODY_MODE.TEXT,
+        todoListTitle: block.todoListTitle,
+        todoItems: block.todoItems,
+        moodboardSaved: Boolean(block.splitSaved && imageSaved),
+        openFilePicker: false,
+      });
+    }
+    if (block.type === DOC_BLOCK_TYPES.BANNER) {
+      const imageSaved = Boolean(block.imageSaved && block.src);
+      return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, {
+        id,
+        caption: String(block.headline || "").slice(0, MOODBOARD_CAPTION_MAX),
+        a: {
+          src: block.src || "",
+          name: block.name || "",
+          alt: block.alt || "",
+          width: block.width || 0,
+          height: block.height || 0,
+          imageSaved,
+        },
+        moodboardSaved: Boolean(block.bannerSaved && imageSaved),
+        openFilePicker: false,
+      });
+    }
+  }
+
+  if (targetType === DOC_BLOCK_TYPES.IMAGE_SPLIT && block.type === DOC_BLOCK_TYPES.MOODBOARD) {
+    const a = block.a || {};
+    const imageSaved = Boolean(a.imageSaved && a.src);
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, {
+      id,
+      overlayTitle: String(block.caption || "").slice(0, IMAGE_SPLIT_TITLE_MAX),
+      overlayDescription: "",
+      src: a.src || "",
+      name: a.name || "",
+      alt: a.alt || "",
+      width: a.width || 0,
+      height: a.height || 0,
+      imageSaved,
+      body: String(block.body || ""),
+      bodyMode: block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+        ? IMAGE_SPLIT_BODY_MODE.TODO
+        : IMAGE_SPLIT_BODY_MODE.TEXT,
+      todoListTitle: block.todoListTitle,
+      todoItems: block.todoItems,
+      splitSaved: Boolean(block.moodboardSaved && imageSaved),
+      openFilePicker: false,
+    });
+  }
+
+  if (targetType === DOC_BLOCK_TYPES.BANNER && block.type === DOC_BLOCK_TYPES.MOODBOARD) {
+    const a = block.a || {};
+    const imageSaved = Boolean(a.imageSaved && a.src);
+    return createDocBlock(DOC_BLOCK_TYPES.BANNER, {
+      id,
+      headline: String(block.caption || "").slice(0, BANNER_HEADLINE_MAX),
+      src: a.src || "",
+      name: a.name || "",
+      alt: a.alt || "",
+      width: a.width || 0,
+      height: a.height || 0,
+      imageSaved,
+      bannerSaved: Boolean(block.moodboardSaved && imageSaved),
+      openFilePicker: false,
+    });
+  }
+
+  return null;
+}
+
 function normalizeImageSplitBlock(block) {
   const title = String(block?.overlayTitle ?? block?.title ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);
   const description = String(block?.overlayDescription ?? block?.description ?? "")
     .slice(0, IMAGE_SPLIT_DESC_MAX);
   const imageSaved = Boolean(block?.imageSaved && block?.src);
+  const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+    ? IMAGE_SPLIT_BODY_MODE.TODO
+    : IMAGE_SPLIT_BODY_MODE.TEXT;
   return {
     overlayTitle: title,
     overlayDescription: description,
@@ -339,7 +457,31 @@ function normalizeImageSplitBlock(block) {
     imageSaved,
     openFilePicker: Boolean(block?.openFilePicker),
     body: String(block?.body ?? ""),
+    bodyMode,
+    todoListTitle: String(block?.todoListTitle ?? DEFAULT_CHECKBOX_LIST_TITLE),
+    todoItems: bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+      ? normalizeEmbeddedTodoItems(block?.todoItems)
+      : Array.isArray(block?.todoItems)
+        ? normalizeEmbeddedTodoItems(block.todoItems)
+        : [],
     splitSaved: Boolean(block?.splitSaved) && imageSaved,
+  };
+}
+
+/**
+ * Confirm `/todo` inside Image card body → embed compact todo in the right column
+ * (does not insert a sibling TODO block).
+ * @param {object} block
+ * @param {string} bodyValue
+ */
+export function applyTodoSlashToImageSplit(block, _bodyValue) {
+  if (!block || block.type !== DOC_BLOCK_TYPES.IMAGE_SPLIT) return null;
+  return {
+    body: "",
+    bodyMode: IMAGE_SPLIT_BODY_MODE.TODO,
+    todoListTitle: DEFAULT_CHECKBOX_LIST_TITLE,
+    todoItems: [createTodoItem()],
+    splitSaved: false,
   };
 }
 
@@ -359,11 +501,21 @@ function normalizeMoodboardBlock(block) {
   const a = normalizeMoodboardSlot(block?.a);
   const b = normalizeMoodboardSlot(block?.b);
   const bothSaved = Boolean(a.imageSaved && b.imageSaved);
+  const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+    ? IMAGE_SPLIT_BODY_MODE.TODO
+    : IMAGE_SPLIT_BODY_MODE.TEXT;
   return {
     caption: String(block?.caption ?? "").slice(0, MOODBOARD_CAPTION_MAX),
     a,
     b,
     body: String(block?.body ?? ""),
+    bodyMode,
+    todoListTitle: String(block?.todoListTitle ?? DEFAULT_CHECKBOX_LIST_TITLE),
+    todoItems: bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+      ? normalizeEmbeddedTodoItems(block?.todoItems)
+      : Array.isArray(block?.todoItems)
+        ? normalizeEmbeddedTodoItems(block.todoItems)
+        : [],
     openFilePicker: Boolean(block?.openFilePicker),
     moodboardSaved: Boolean(block?.moodboardSaved) && bothSaved,
   };
@@ -848,12 +1000,20 @@ export function docBlockHasContent(block) {
     return Boolean((block.src || "").trim()) || Boolean(block.imageSaved);
   }
   if (type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+    const hasTodo = block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+      && (
+        Boolean((block.todoListTitle || "").trim())
+        || (Array.isArray(block.todoItems) && block.todoItems.some((item) =>
+          Boolean((item?.text || "").trim()) || Boolean(item?.checked)
+        ))
+      );
     return Boolean((block.src || "").trim())
       || Boolean(block.imageSaved)
       || Boolean(block.splitSaved)
       || Boolean((block.overlayTitle || "").trim())
       || Boolean((block.overlayDescription || "").trim())
-      || Boolean((block.body || "").trim());
+      || Boolean((block.body || "").trim())
+      || hasTodo;
   }
   if (type === DOC_BLOCK_TYPES.MOODBOARD) {
     const normalized = normalizeMoodboardBlock(block);
@@ -1346,6 +1506,9 @@ export function docBlocksToBody(blocks) {
           height: normalized.height,
           imageSaved: normalized.imageSaved,
           body: normalized.body,
+          bodyMode: normalized.bodyMode,
+          todoListTitle: normalized.todoListTitle,
+          todoItems: normalized.todoItems,
           splitSaved: normalized.splitSaved,
         })}`;
       }
@@ -1356,6 +1519,9 @@ export function docBlocksToBody(blocks) {
           a: normalized.a,
           b: normalized.b,
           body: normalized.body,
+          bodyMode: normalized.bodyMode,
+          todoListTitle: normalized.todoListTitle,
+          todoItems: normalized.todoItems,
           moodboardSaved: normalized.moodboardSaved,
         })}`;
       }

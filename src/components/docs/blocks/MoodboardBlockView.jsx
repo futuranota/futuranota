@@ -88,6 +88,7 @@ export function MoodboardBlockView({
   onSave,
   onEdit,
   onDelete,
+  onConvertLayout,
   onBodyKeyDown,
   autoFocusBody = false,
 }) {
@@ -582,7 +583,7 @@ export function MoodboardBlockView({
             />
           </div>
 
-          <div className="doc-moodboard__card-actions">
+          <div className="doc-moodboard__float-actions">
             {isEdit ? (
               <button
                 type="button"
@@ -604,6 +605,24 @@ export function MoodboardBlockView({
                 {t("doc.moodboard.edit")}
               </button>
             )}
+            {onConvertLayout ? (
+              <>
+                <button
+                  type="button"
+                  className="doc-moodboard__switch"
+                  onClick={() => onConvertLayout("image_split")}
+                >
+                  {t("doc.layoutSwitch.imageSplit")}
+                </button>
+                <button
+                  type="button"
+                  className="doc-moodboard__switch"
+                  onClick={() => onConvertLayout("banner")}
+                >
+                  {t("doc.layoutSwitch.banner")}
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
 

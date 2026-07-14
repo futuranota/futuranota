@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
 import {
+  createTodoItem,
   IMAGE_SPLIT_BODY_MAX_LINES,
+  IMAGE_SPLIT_BODY_MODE,
   IMAGE_SPLIT_DESC_MAX,
   IMAGE_SPLIT_TITLE_MAX,
 } from "../../../lib/docBlocks.js";
+import {
+  IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
+  splitBodyForSlash,
+} from "../../../lib/docBlockSlash.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+import {
+  resolveSlashGhostOverlayPosition,
+} from "../../../lib/textareaSelectionRect.js";
 
 /**
  * @param {CSSStyleDeclaration} style
@@ -99,6 +108,7 @@ function bodyTextFitsHeight(source, text, maxHeight) {
 /**
  * Unified image-split: title/desc caps, body hard-capped at
  * IMAGE_SPLIT_BODY_MAX_LINES, red caret at stop.
+ * Right column can be text or an embedded compact todo (`/todo`).
  */
 export function ImageSplitBlockView({
   block,
@@ -106,8 +116,11 @@ export function ImageSplitBlockView({
   onSave,
   onEdit,
   onDelete,
+  onConvertLayout,
   onBodyKeyDown,
   autoFocusBody = false,
+  focusTodoItemId = null,
+  bodySlashGhostHints = IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
 }) {
   const { t } = useI18n();
   const inputRef = useRef(null);
@@ -115,18 +128,39 @@ export function ImageSplitBlockView({
   const rowRef = useRef(null);
   const titleRef = useRef(null);
   const bodyTextareaRef = useRef(null);
+  const bodyWrapRef = useRef(null);
+  const todoInputRefs = useRef({});
   const titleLimitTimerRef = useRef(null);
   const bodyLimitTimerRef = useRef(null);
-  const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState(null);
-  const [bodyMaxHeight, setBodyMaxHeight] = useState(null);
-  const bodyMaxHeightRef = useRef(null);
+  const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const [titleAtLimit, setTitleAtLimit] = useState(false);
   const [bodyAtLimit, setBodyAtLimit] = useState(false);
+  const [bodyMaxHeight, setBodyMaxHeight] = useState(null);
+  const bodyMaxHeightRef = useRef(null);
+  const [hintIndex, setHintIndex] = useState(0);
+  const [ghostPos, setGhostPos] = useState(null);
+
   const imageSaved = Boolean(block?.imageSaved && block?.src);
   const splitSaved = Boolean(block?.splitSaved && imageSaved);
   const isEdit = !splitSaved;
+  const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+    ? IMAGE_SPLIT_BODY_MODE.TODO
+    : IMAGE_SPLIT_BODY_MODE.TEXT;
+  const isTodoBody = bodyMode === IMAGE_SPLIT_BODY_MODE.TODO;
+  const todoItems = Array.isArray(block?.todoItems) && block.todoItems.length > 0
+    ? block.todoItems
+    : [createTodoItem()];
+
+  const bodyValue = block?.body || "";
+  const { slash: bodySlash } = splitBodyForSlash(bodyValue);
+  const showSlashGhost = Boolean(
+    isEdit && !isTodoBody && bodySlash && /^\/\s*$/.test(bodySlash),
+  );
+  const ghostHints = Array.isArray(bodySlashGhostHints) && bodySlashGhostHints.length > 0
+    ? bodySlashGhostHints
+    : IMAGE_CARD_BODY_SLASH_GHOST_HINTS;
 
   const pulseTitleLimit = useCallback(() => {
     setTitleAtLimit(true);
@@ -161,7 +195,9 @@ export function ImageSplitBlockView({
 
     const sync = () => {
       const bodyEl = bodyTextareaRef.current
-        || row.querySelector(".doc-image-split__body-field, .doc-image-split__body-static");
+        || row.querySelector(
+          ".doc-image-split__body-field, .doc-image-split__body-static, .doc-image-split__embedded-todo",
+        );
       const { lineHeight, padY } = measureBodyLineMetrics(bodyEl);
       // Cap body + card at 17 lines so macronodes (wider) don't grow past folders.
       const writeHeight = Math.max(
@@ -190,7 +226,38 @@ export function ImageSplitBlockView({
       card.style.minHeight = "";
       card.style.maxHeight = "";
     };
-  }, [imageSaved, block?.overlayTitle, block?.overlayDescription, splitSaved]);
+  }, [imageSaved, block?.overlayTitle, block?.overlayDescription, splitSaved, isTodoBody]);
+
+  useEffect(() => {
+    if (!showSlashGhost) {
+      setHintIndex(0);
+      return undefined;
+    }
+    const interval = window.setInterval(() => {
+      setHintIndex((i) => (i + 1) % ghostHints.length);
+    }, 2000);
+    return () => window.clearInterval(interval);
+  }, [showSlashGhost, ghostHints]);
+
+  const syncGhostPosition = useCallback(() => {
+    if (!showSlashGhost) {
+      setGhostPos(null);
+      return;
+    }
+    const el = bodyTextareaRef.current;
+    const wrap = bodyWrapRef.current;
+    if (!el || !wrap) return;
+    setGhostPos(resolveSlashGhostOverlayPosition(el, wrap));
+  }, [showSlashGhost]);
+
+  useLayoutEffect(() => {
+    syncGhostPosition();
+  }, [bodyValue, showSlashGhost, hintIndex, syncGhostPosition]);
+
+  useEffect(() => {
+    if (!focusTodoItemId || !isTodoBody) return;
+    todoInputRefs.current[focusTodoItemId]?.focus();
+  }, [focusTodoItemId, isTodoBody, todoItems.length]);
 
   const handleFiles = async (files) => {
     if (!isEdit) return;
@@ -256,6 +323,71 @@ export function ImageSplitBlockView({
   const handleFieldChange = (patch) => {
     if (!isEdit) return;
     onChange?.({ ...patch, splitSaved: false });
+  };
+
+  const handleTodoPatch = (patch, { keepSaved = false } = {}) => {
+    if (keepSaved) {
+      onChange?.(patch);
+      return;
+    }
+    if (!isEdit) return;
+    onChange?.({ ...patch, splitSaved: false });
+  };
+
+  const updateTodoItem = (index, itemPatch, opts) => {
+    const next = todoItems.map((item, i) => (i === index ? { ...item, ...itemPatch } : item));
+    handleTodoPatch({ todoItems: next }, opts);
+  };
+
+  const addTodoItem = (afterIndex = todoItems.length - 1) => {
+    if (!isEdit) return null;
+    const newItem = createTodoItem();
+    const next = [
+      ...todoItems.slice(0, afterIndex + 1),
+      newItem,
+      ...todoItems.slice(afterIndex + 1),
+    ];
+    handleTodoPatch({ todoItems: next });
+    return newItem.id;
+  };
+
+  const clearTodoBodyToText = () => {
+    handleTodoPatch({
+      bodyMode: IMAGE_SPLIT_BODY_MODE.TEXT,
+      body: "",
+      todoItems: [],
+      todoListTitle: block?.todoListTitle,
+    });
+  };
+
+  const handleTodoItemKeyDown = (index, event) => {
+    if (!isEdit) return;
+    const item = todoItems[index];
+    if (!item) return;
+
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      const newId = addTodoItem(index);
+      requestAnimationFrame(() => {
+        if (newId) todoInputRefs.current[newId]?.focus();
+      });
+      return;
+    }
+
+    const atStart = event.target?.selectionStart === 0 && event.target?.selectionEnd === 0;
+    if ((event.key === "Backspace" || event.key === "Delete") && !item.text && atStart) {
+      event.preventDefault();
+      if (todoItems.length > 1) {
+        const next = todoItems.filter((_, i) => i !== index);
+        handleTodoPatch({ todoItems: next });
+        const focusTarget = next[Math.min(index, next.length - 1)];
+        requestAnimationFrame(() => {
+          if (focusTarget) todoInputRefs.current[focusTarget.id]?.focus();
+        });
+      } else {
+        clearTodoBodyToText();
+      }
+    }
   };
 
   const handleTitleChange = (event) => {
@@ -531,7 +663,7 @@ export function ImageSplitBlockView({
             </div>
           )}
 
-          <div className="doc-image-split__card-actions">
+          <div className="doc-image-split__float-actions">
             {isEdit ? (
               <button
                 type="button"
@@ -553,37 +685,137 @@ export function ImageSplitBlockView({
                 {t("doc.imageSplit.edit")}
               </button>
             )}
+            {onConvertLayout ? (
+              <button
+                type="button"
+                className="doc-image-split__switch"
+                onClick={() => onConvertLayout("moodboard")}
+              >
+                {t("doc.layoutSwitch.moodboard")}
+              </button>
+            ) : null}
           </div>
         </div>
 
         <div className="doc-image-split__side">
-          <div className="doc-image-split__body">
-            {isEdit ? (
-              <textarea
-                ref={bodyTextareaRef}
+          <div
+            className="doc-image-split__body"
+            ref={bodyWrapRef}
+            style={bodyMaxHeight ? {
+              height: `${bodyMaxHeight}px`,
+              maxHeight: `${bodyMaxHeight}px`,
+            } : undefined}
+          >
+            {isTodoBody ? (
+              <div
                 className={
-                  "doc-image-split__body-field"
-                  + (bodyAtLimit ? " doc-image-split__body-field--at-limit" : "")
+                  "doc-image-split__embedded-todo"
+                  + (isEdit ? "" : " doc-image-split__embedded-todo--saved")
                 }
-                value={block?.body || ""}
-                placeholder={t("doc.imageSplit.bodyPlaceholder")}
-                aria-label={t("doc.imageSplit.bodyPlaceholder")}
-                spellCheck={false}
-                autoFocus={autoFocusBody}
-                onChange={handleBodyChange}
-                onKeyDown={handleBodyKeyDown}
-                onPaste={handleBodyPaste}
-                style={bodyMaxHeight ? {
-                  height: `${bodyMaxHeight}px`,
-                  maxHeight: `${bodyMaxHeight}px`,
-                } : undefined}
-              />
+              >
+                <div className="doc-image-split__embedded-todo-header">
+                  <input
+                    type="text"
+                    className="doc-image-split__embedded-todo-title"
+                    value={block?.todoListTitle || ""}
+                    placeholder={t("doc.imageSplit.todoTitlePlaceholder")}
+                    aria-label={t("doc.imageSplit.todoTitlePlaceholder")}
+                    readOnly={!isEdit}
+                    onChange={(e) => handleTodoPatch({ todoListTitle: e.target.value })}
+                  />
+                  {isEdit ? (
+                    <button
+                      type="button"
+                      className="doc-image-split__embedded-todo-new"
+                      onClick={() => {
+                        const newId = addTodoItem(todoItems.length - 1);
+                        requestAnimationFrame(() => {
+                          if (newId) todoInputRefs.current[newId]?.focus();
+                        });
+                      }}
+                    >
+                      +
+                    </button>
+                  ) : null}
+                </div>
+                <div className="doc-image-split__embedded-todo-rows">
+                  {todoItems.map((item, index) => (
+                    <div className="doc-image-split__embedded-todo-row" key={item.id}>
+                      <button
+                        type="button"
+                        className={
+                          "doc-image-split__embedded-todo-check"
+                          + (item.checked ? " is-checked" : "")
+                        }
+                        aria-label={item.checked ? "Mark incomplete" : "Mark complete"}
+                        onClick={() => updateTodoItem(index, { checked: !item.checked }, {
+                          keepSaved: !isEdit,
+                        })}
+                      >
+                        <span aria-hidden />
+                      </button>
+                      <input
+                        ref={(el) => {
+                          if (el) todoInputRefs.current[item.id] = el;
+                          else delete todoInputRefs.current[item.id];
+                        }}
+                        type="text"
+                        className="doc-image-split__embedded-todo-input"
+                        data-image-split-todo-id={item.id}
+                        value={item.text}
+                        readOnly={!isEdit}
+                        placeholder={t("doc.imageSplit.todoItemPlaceholder")}
+                        onChange={(e) => updateTodoItem(index, { text: e.target.value })}
+                        onKeyDown={(e) => handleTodoItemKeyDown(index, e)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : isEdit ? (
+              <>
+                <textarea
+                  ref={bodyTextareaRef}
+                  className={
+                    "doc-image-split__body-field"
+                    + (bodyAtLimit ? " doc-image-split__body-field--at-limit" : "")
+                  }
+                  value={bodyValue}
+                  placeholder={t("doc.imageSplit.bodyPlaceholder")}
+                  aria-label={t("doc.imageSplit.bodyPlaceholder")}
+                  spellCheck={false}
+                  autoFocus={autoFocusBody}
+                  onChange={handleBodyChange}
+                  onKeyDown={handleBodyKeyDown}
+                  onPaste={handleBodyPaste}
+                  onSelect={syncGhostPosition}
+                  onClick={syncGhostPosition}
+                  onKeyUp={syncGhostPosition}
+                  style={bodyMaxHeight ? {
+                    height: `${bodyMaxHeight}px`,
+                    maxHeight: `${bodyMaxHeight}px`,
+                  } : undefined}
+                />
+                {showSlashGhost && ghostPos ? (
+                  <span
+                    className="doc-image-split__slash-ghost"
+                    aria-hidden
+                    style={{
+                      left: `${ghostPos.left}px`,
+                      top: `${ghostPos.top}px`,
+                      lineHeight: `${ghostPos.lineHeight}px`,
+                    }}
+                  >
+                    {ghostHints[hintIndex] ?? ghostHints[0]}
+                  </span>
+                ) : null}
+              </>
             ) : (
               <div
                 className="doc-image-split__body-static"
                 style={bodyMaxHeight ? { height: bodyMaxHeight, maxHeight: bodyMaxHeight } : undefined}
               >
-                {block?.body || ""}
+                {bodyValue}
               </div>
             )}
           </div>

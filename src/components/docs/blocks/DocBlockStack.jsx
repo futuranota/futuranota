@@ -9,9 +9,12 @@ import {
   forwardRef,
 } from "react";
 import {
+  convertImageLayoutBlock,
   createDocBlock,
   createTodoItem,
+  applyTodoSlashToImageSplit,
   DOC_BLOCK_TYPES,
+  IMAGE_SPLIT_BODY_MODE,
   ensureEmptyTextBlockAfter,
   ensureWritableDocTail,
   hasProductCardBlock,
@@ -25,7 +28,6 @@ import {
   removeEmbedVideoPairFromVideoIndex,
   replaceBlockFromSlashInLinkable,
   replaceBlocksFromSlashInText,
-  replaceBlocksFromSlashInImageSplitBody,
   replaceBlocksFromSlashInMoodboardBody,
   replaceBlocksFromSlashWithEmbedVideo,
   stepEntryHasContent,
@@ -35,6 +37,8 @@ import {
   createDocBlockFromSlash,
   DOCUMENT_SLASH_COMMANDS,
   DOCUMENT_SLASH_GHOST_HINTS,
+  IMAGE_CARD_BODY_SLASH_COMMANDS,
+  IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
   parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
@@ -1024,35 +1028,23 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const tryConfirmSlashInImageSplitBody = (blockIndex, bodyValue) => {
     const { slash } = splitBodyForSlash(bodyValue);
     if (!slash) return false;
-    const parsed = parseScopedSlash(slash.slice(1));
-    if (!parsed || !canInsertSlashBlock(parsed)) return false;
-
-    const newBlock = createDocBlockFromSlash(parsed);
-    let next = replaceBlocksFromSlashInImageSplitBody(
-      blocksRef.current,
-      blockIndex,
-      bodyValue,
-      newBlock,
+    const parsed = parseSlashQueryFromCommands(
+      slash.slice(1),
+      IMAGE_CARD_BODY_SLASH_COMMANDS,
     );
-    if (
-      parsed.type === DOC_BLOCK_TYPES.IMAGE
-      || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
-      || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
-      || parsed.type === DOC_BLOCK_TYPES.BANNER
-      || parsed.type === DOC_BLOCK_TYPES.CODE
-      || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
-      || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
-      || parsed.type === DOC_BLOCK_TYPES.AGENT
-    ) {
-      const newIndex = next.findIndex((b) => b.id === newBlock.id);
-      if (newIndex >= 0) next = ensureEmptyTextBlockAfter(next, newIndex);
-      setBlocks(next);
-      onFocusBlock?.(newBlock.id);
-      requestContentGrow();
-      return newBlock.id;
-    }
-    finalizeSlashInsert(next, newBlock.id);
-    return newBlock.id;
+    if (!parsed || parsed.type !== DOC_BLOCK_TYPES.TODO) return false;
+
+    const block = blocksRef.current[blockIndex];
+    const patch = applyTodoSlashToImageSplit(block, bodyValue);
+    if (!patch) return false;
+
+    const next = updateBlockAt(blocksRef.current, blockIndex, patch);
+    setBlocks(next);
+    const focusId = patch.todoItems?.[0]?.id ?? null;
+    setTodoFocusItemId(focusId);
+    onFocusBlock?.(block?.id);
+    requestContentGrow();
+    return block?.id || true;
   };
 
   const tryConfirmSlashInMoodboardBody = (blockIndex, bodyValue) => {
@@ -1619,6 +1611,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             <ImageSplitBlockView
               block={block}
               autoFocusBody={focusBlockId === block.id && Boolean(block.imageSaved) && !block.splitSaved}
+              focusTodoItemId={
+                focusBlockId === block.id && block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+                  ? todoFocusItemId
+                  : null
+              }
+              bodySlashGhostHints={IMAGE_CARD_BODY_SLASH_GHOST_HINTS}
               onChange={(patch) => {
                 let next = updateBlockAt(blocksRef.current, index, patch);
                 if (patch.imageSaved && patch.src) {
@@ -1644,6 +1642,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               onEdit={() => {
                 updateAt(index, { splitSaved: false });
                 onFocusBlock?.(block.id);
+              }}
+              onConvertLayout={(targetType) => {
+                const converted = convertImageLayoutBlock(block, targetType);
+                if (!converted) return;
+                const next = normalizeDocBlocks(
+                  blocksRef.current.map((entry, i) => (i === index ? converted : entry)),
+                );
+                setBlocks(next);
+                onFocusBlock?.(converted.id);
+                requestContentGrow();
               }}
               onDelete={async () => {
                 const ok = await confirmDeleteCommandBlock("doc.blockDelete.imageSplit");
@@ -1710,6 +1718,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 updateAt(index, { moodboardSaved: false });
                 onFocusBlock?.(block.id);
               }}
+              onConvertLayout={(targetType) => {
+                const converted = convertImageLayoutBlock(block, targetType);
+                if (!converted) return;
+                const next = normalizeDocBlocks(
+                  blocksRef.current.map((entry, i) => (i === index ? converted : entry)),
+                );
+                setBlocks(next);
+                onFocusBlock?.(converted.id);
+                requestContentGrow();
+              }}
               onDelete={async () => {
                 const ok = await confirmDeleteCommandBlock("doc.blockDelete.moodboard");
                 if (!ok) return;
@@ -1769,6 +1787,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               onEdit={() => {
                 updateAt(index, { bannerSaved: false });
                 onFocusBlock?.(block.id);
+              }}
+              onConvertLayout={(targetType) => {
+                const converted = convertImageLayoutBlock(block, targetType);
+                if (!converted) return;
+                const next = normalizeDocBlocks(
+                  blocksRef.current.map((entry, i) => (i === index ? converted : entry)),
+                );
+                setBlocks(next);
+                onFocusBlock?.(converted.id);
+                requestContentGrow();
               }}
               onDelete={async () => {
                 const ok = await confirmDeleteCommandBlock("doc.blockDelete.banner");

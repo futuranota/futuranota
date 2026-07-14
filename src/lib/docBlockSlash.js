@@ -64,24 +64,18 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Image split",
-    ghostHint: "image-split",
-    aliases: ["image-split", "imagesplit", "image split", "split"],
+    label: "Image card",
+    ghostHint: "image card",
+    aliases: [
+      "imagecard",
+      "image-card",
+      "image card",
+      "image-split",
+      "imagesplit",
+      "image split",
+      "split",
+    ],
     blockType: DOC_BLOCK_TYPES.IMAGE_SPLIT,
-    nodeDataType: NODE_DATA_TYPES.TEXT,
-  },
-  {
-    label: "Moodboard",
-    ghostHint: "moodboard",
-    aliases: ["moodboard", "mood", "board"],
-    blockType: DOC_BLOCK_TYPES.MOODBOARD,
-    nodeDataType: NODE_DATA_TYPES.TEXT,
-  },
-  {
-    label: "Banner",
-    ghostHint: "banner",
-    aliases: ["banner", "image-text", "imagetext", "imagetextbanner"],
-    blockType: DOC_BLOCK_TYPES.BANNER,
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
@@ -160,6 +154,15 @@ export const NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
 
 /** Slash commands for nodes opened from a folder — same writing toolkit. */
 export const DOC_LINKED_NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
+
+/** Slash commands allowed inside Image card body (space-constrained column). */
+export const IMAGE_CARD_BODY_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
+  (cmd) => cmd.blockType === DOC_BLOCK_TYPES.TODO,
+);
+
+export const IMAGE_CARD_BODY_SLASH_GHOST_HINTS = IMAGE_CARD_BODY_SLASH_COMMANDS.map(
+  (c) => c.ghostHint ?? c.label,
+);
 
 /** Slash commands allowed inside a step-by-step instruction field. */
 export const STEP_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(

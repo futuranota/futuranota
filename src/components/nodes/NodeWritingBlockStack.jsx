@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createTodoItem } from "../../lib/docBlocks.js";
-import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
+import { createTodoItem, convertImageLayoutBlock, applyTodoSlashToImageSplit, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
 import {
   DOCUMENT_SLASH_GHOST_HINTS,
+  IMAGE_CARD_BODY_SLASH_COMMANDS,
+  IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
   parseNodeSlashQuery,
+  parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
 import {
@@ -809,8 +811,49 @@ export function NodeWritingBlockStack({
                 onEdit={() => {
                   updateBlockAt(blockIndex, { splitSaved: false });
                 }}
+                onConvertLayout={(targetType) => {
+                  const converted = convertImageLayoutBlock(block, targetType);
+                  if (!converted) return;
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex ? { ...converted, type: converted.type } : entry
+                  ));
+                  updateBlocks(normalizeWritingBlocks(next));
+                }}
                 onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.imageSplit")}
-                onBodyKeyDown={undefined}
+                bodySlashGhostHints={IMAGE_CARD_BODY_SLASH_GHOST_HINTS}
+                focusTodoItemId={
+                  block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+                    ? focusTarget?.itemId ?? null
+                    : null
+                }
+                onBodyKeyDown={(e) => {
+                  const bodyValue = e.currentTarget?.value ?? block.body ?? "";
+                  const { slash } = splitBodyForSlash(bodyValue);
+
+                  if (e.key === "Enter" && !e.shiftKey && slash) {
+                    const parsed = parseSlashQueryFromCommands(
+                      slash.slice(1),
+                      IMAGE_CARD_BODY_SLASH_COMMANDS,
+                    );
+                    if (!parsed || parsed.type !== DOC_BLOCK_TYPES.TODO) return;
+                    const patch = applyTodoSlashToImageSplit(block, bodyValue);
+                    if (!patch) return;
+                    e.preventDefault();
+                    updateBlockAt(blockIndex, patch);
+                    onFocusTargetChange?.({
+                      blockIndex,
+                      itemId: patch.todoItems?.[0]?.id ?? null,
+                    });
+                    return;
+                  }
+
+                  if (e.key === "Escape" && slash) {
+                    const { prefix } = splitBodyForSlash(bodyValue);
+                    e.preventDefault();
+                    updateBlockAt(blockIndex, { body: prefix });
+                  }
+                }}
               />
             </div>
           );
@@ -854,6 +897,15 @@ export function NodeWritingBlockStack({
                 }}
                 onEdit={() => {
                   updateBlockAt(blockIndex, { moodboardSaved: false });
+                }}
+                onConvertLayout={(targetType) => {
+                  const converted = convertImageLayoutBlock(block, targetType);
+                  if (!converted) return;
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex ? { ...converted, type: converted.type } : entry
+                  ));
+                  updateBlocks(normalizeWritingBlocks(next));
                 }}
                 onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.moodboard")}
                 onBodyKeyDown={undefined}
@@ -900,6 +952,15 @@ export function NodeWritingBlockStack({
                 }}
                 onEdit={() => {
                   updateBlockAt(blockIndex, { bannerSaved: false });
+                }}
+                onConvertLayout={(targetType) => {
+                  const converted = convertImageLayoutBlock(block, targetType);
+                  if (!converted) return;
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex ? { ...converted, type: converted.type } : entry
+                  ));
+                  updateBlocks(normalizeWritingBlocks(next));
                 }}
                 onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.banner")}
               />

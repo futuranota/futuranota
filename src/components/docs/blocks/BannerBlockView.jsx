@@ -89,6 +89,7 @@ export function BannerBlockView({
   onSave,
   onEdit,
   onDelete,
+  onConvertLayout,
 }) {
   const { t } = useI18n();
   const inputRef = useRef(null);
@@ -396,7 +397,7 @@ export function BannerBlockView({
           </div>
         </div>
 
-        <div className="doc-banner__card-actions">
+        <div className="doc-banner__float-actions">
           {isEdit ? (
             <button
               type="button"
@@ -418,6 +419,15 @@ export function BannerBlockView({
               {t("doc.banner.edit")}
             </button>
           )}
+          {onConvertLayout ? (
+            <button
+              type="button"
+              className="doc-banner__switch"
+              onClick={() => onConvertLayout("moodboard")}
+            >
+              {t("doc.layoutSwitch.moodboard")}
+            </button>
+          ) : null}
         </div>
       </div>
 
