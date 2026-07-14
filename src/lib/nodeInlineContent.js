@@ -472,7 +472,7 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
     };
   }
   if (parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
-    const docShape = createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { openFilePicker: true });
+    const docShape = createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { openFilePicker: false });
     return {
       ...docShape,
       id: generateId("NIS"),

@@ -122,9 +122,7 @@ export function DocDocumentBox({
   const isContentMode = metaMode === "content";
   const isKnowledgeMode = metaMode === "knowledge";
   /**
-   * Content folders: Create node + free description only.
-   * Rich blocks (image, todo, code, …) belong in opened macronodes/docs.
-   * Existing non-node blocks in folders stay visible; new inserts are blocked by slash set.
+   * Folders: Create node only. Writing toolkit (image-split, …) lives in documents/macronodes.
    */
   const isFolderSlashSurface = metaMode === "content" || docKind === "content";
   const slashCommands = isFolderSlashSurface ? FOLDER_SLASH_COMMANDS : DOCUMENT_SLASH_COMMANDS;

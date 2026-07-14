@@ -807,11 +807,8 @@ export function NodeWritingBlockStack({
                 onEdit={() => {
                   updateBlockAt(blockIndex, { splitSaved: false });
                 }}
+                onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.imageSplit")}
                 onBodyKeyDown={undefined}
-              />
-              <LinkedNodeDocActions
-                onDetach={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.imageSplit")}
-                label={t("canvas.removeFromNode")}
               />
             </div>
           );

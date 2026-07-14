@@ -6858,6 +6858,7 @@ body.doc-content-resizing * {
   border-radius: 5px;
   background: #F1F1F1;
   align-self: flex-start;
+  overflow: hidden;
 }
 
 .doc-image-split__title {
@@ -6879,6 +6880,7 @@ body.doc-content-resizing * {
   text-overflow: clip;
   caret-color: #3A6F7A;
   transition: caret-color 160ms ease;
+  flex: 0 0 auto;
 }
 
 .doc-image-split__title--at-limit {
@@ -6907,6 +6909,7 @@ body.doc-content-resizing * {
   max-height: 3.6em;
   overflow: hidden;
   field-sizing: content;
+  flex: 0 0 auto;
 }
 
 .doc-image-split__desc::placeholder {
@@ -6917,11 +6920,13 @@ body.doc-content-resizing * {
   position: relative;
   width: 100%;
   margin-top: 6px;
-  aspect-ratio: 421 / 296;
+  margin-bottom: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  aspect-ratio: auto;
   border-radius: 2px;
   overflow: hidden;
   background: rgba(0, 0, 0, 0.06);
-  flex-shrink: 0;
 }
 
 .doc-image-split__img {
@@ -6969,8 +6974,9 @@ body.doc-content-resizing * {
   justify-content: center;
   gap: 4px;
   width: 100%;
-  margin-top: 6px;
-  aspect-ratio: 421 / 296;
+  height: 100%;
+  margin: 0;
+  aspect-ratio: auto;
   padding: 12px;
   border: 1px dashed rgba(22, 26, 29, 0.22);
   border-radius: 2px;
@@ -6982,6 +6988,14 @@ body.doc-content-resizing * {
   transition:
     border-color 120ms ease,
     background 120ms ease;
+}
+
+.doc-image-split__media--empty {
+  aspect-ratio: auto;
+}
+
+.doc-image-split__media--empty .doc-image-split__dropzone {
+  margin-top: 0;
 }
 
 .doc-image-split__dropzone:hover,
@@ -7093,11 +7107,14 @@ body.doc-content-resizing * {
   white-space: pre-wrap;
 }
 
-.doc-image-split__foot {
+.doc-image-split__card-actions {
   display: flex;
   justify-content: flex-start;
-  margin-top: 4px;
-  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  margin-top: 0;
+  min-height: 13px;
+  flex: 0 0 auto;
 }
 
 .doc-image-split__save,
@@ -7114,11 +7131,11 @@ body.doc-content-resizing * {
 }
 
 .doc-image-split__save {
-  color: #f3a6a6;
+  color: #c45c5c;
 }
 
 .doc-image-split__save:hover:not(:disabled) {
-  color: #ffbdbd;
+  color: #a84848;
 }
 
 .doc-image-split__save:disabled {
@@ -7127,11 +7144,18 @@ body.doc-content-resizing * {
 }
 
 .doc-image-split__edit {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(58, 111, 122, 0.7);
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+
+.doc-image-split__card:hover .doc-image-split__edit,
+.doc-image-split__card:focus-within .doc-image-split__edit {
+  opacity: 1;
 }
 
 .doc-image-split__edit:hover {
-  color: #fff;
+  color: #3A6F7A;
 }
 
 .doc-image-split__title[readonly],

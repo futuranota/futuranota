@@ -308,6 +308,8 @@ function normalizeImageBlock(block) {
 
 export const IMAGE_SPLIT_TITLE_MAX = 160;
 export const IMAGE_SPLIT_DESC_MAX = 220;
+/** Hard ceiling for the right-hand body (doc font ~14px / lh 1.45). */
+export const IMAGE_SPLIT_BODY_MAX_LINES = 17;
 
 function normalizeImageSplitBlock(block) {
   const title = String(block?.overlayTitle ?? block?.title ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);

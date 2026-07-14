@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
 import {
+  IMAGE_SPLIT_BODY_MAX_LINES,
   IMAGE_SPLIT_DESC_MAX,
   IMAGE_SPLIT_TITLE_MAX,
 } from "../../../lib/docBlocks.js";
@@ -19,20 +20,7 @@ function resolveLineHeightPx(style, fallback = 20.3) {
 }
 
 /**
- * Snap UP so card and body share the same foot.
- * @param {number} rawHeight
- * @param {number} lineHeight
- * @param {number} padY
- */
-function snapHeightToLinesUp(rawHeight, lineHeight, padY) {
-  if (!(rawHeight > 0) || !(lineHeight > 0)) return rawHeight;
-  const usable = Math.max(0, rawHeight - padY);
-  const lines = Math.max(1, Math.ceil(usable / lineHeight - 1e-6));
-  return Math.round(lines * lineHeight + padY);
-}
-
-/**
- * @param {HTMLTextAreaElement|null} el
+ * @param {HTMLElement|null} el
  */
 function measureBodyLineMetrics(el) {
   if (!el) {
@@ -109,13 +97,15 @@ function bodyTextFitsHeight(source, text, maxHeight) {
 }
 
 /**
- * Unified image-split: hard text caps + red caret when at stop limit.
+ * Unified image-split: title/desc caps, body hard-capped at
+ * IMAGE_SPLIT_BODY_MAX_LINES, red caret at stop.
  */
 export function ImageSplitBlockView({
   block,
   onChange,
   onSave,
   onEdit,
+  onDelete,
   onBodyKeyDown,
   autoFocusBody = false,
 }) {
@@ -170,26 +160,20 @@ export function ImageSplitBlockView({
     if (!card || !row || typeof ResizeObserver === "undefined") return undefined;
 
     const sync = () => {
-      card.style.minHeight = "";
-
-      const natural = Math.round(card.getBoundingClientRect().height);
-      if (!(natural > 0)) return;
-
-      const { lineHeight, padY } = measureBodyLineMetrics(bodyTextareaRef.current);
-      const target = snapHeightToLinesUp(natural, lineHeight, padY);
-      const grow = Math.max(0, target - natural);
-
-      if (grow > 0 && grow <= lineHeight + 1) {
-        card.style.minHeight = `${target}px`;
-      }
-
-      // Hard write box ends one line above Save (Save sits in .foot below).
+      const bodyEl = bodyTextareaRef.current
+        || row.querySelector(".doc-image-split__body-field, .doc-image-split__body-static");
+      const { lineHeight, padY } = measureBodyLineMetrics(bodyEl);
+      // Cap body + card at 17 lines so macronodes (wider) don't grow past folders.
       const writeHeight = Math.max(
         Math.round(lineHeight + padY),
-        Math.round(target - lineHeight),
+        Math.round(IMAGE_SPLIT_BODY_MAX_LINES * lineHeight + padY),
       );
 
       row.style.setProperty("--image-split-body-max", `${writeHeight}px`);
+      card.style.height = `${writeHeight}px`;
+      card.style.minHeight = `${writeHeight}px`;
+      card.style.maxHeight = `${writeHeight}px`;
+
       bodyMaxHeightRef.current = writeHeight;
       setBodyMaxHeight((prev) => (prev === writeHeight ? prev : writeHeight));
     };
@@ -199,9 +183,12 @@ export function ImageSplitBlockView({
       requestAnimationFrame(sync);
     });
     ro.observe(card);
+    ro.observe(row);
     return () => {
       ro.disconnect();
+      card.style.height = "";
       card.style.minHeight = "";
+      card.style.maxHeight = "";
     };
   }, [imageSaved, block?.overlayTitle, block?.overlayDescription, splitSaved]);
 
@@ -256,6 +243,14 @@ export function ImageSplitBlockView({
       splitSaved: false,
     });
     setError(null);
+  };
+
+  const handleRemoveBlock = () => {
+    if (onDelete) {
+      onDelete();
+      return;
+    }
+    handleClearImage();
   };
 
   const handleFieldChange = (patch) => {
@@ -318,8 +313,7 @@ export function ImageSplitBlockView({
     const el = bodyTextareaRef.current;
     const maxH = resolveBodyMaxHeight();
 
-    // Hard stop: same idea as title (one-line card) — no growth past the box
-    // that ends before the Save button.
+    // Hard stop: no growth past the fixed body box (aligned to the card).
     if (next.length >= prev.length) {
       if (!maxH || !el || !bodyTextFitsHeight(el, next, maxH)) {
         pulseBodyLimit();
@@ -470,10 +464,64 @@ export function ImageSplitBlockView({
                   >
                     {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
                   </button>
+                  {onDelete ? (
+                    <button
+                      type="button"
+                      className="doc-image-split__media-btn"
+                      onClick={handleRemoveBlock}
+                      disabled={uploading}
+                    >
+                      {t("doc.imageBlock.remove")}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="doc-image-split__media doc-image-split__media--empty">
+              <button
+                type="button"
+                className={
+                  "doc-image-split__dropzone"
+                  + (dragOver ? " doc-image-split__dropzone--active" : "")
+                  + (uploading ? " doc-image-split__dropzone--busy" : "")
+                }
+                disabled={uploading || !isEdit}
+                onClick={() => isEdit && inputRef.current?.click()}
+                onDragEnter={(event) => {
+                  if (!isEdit) return;
+                  event.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragOver={(event) => {
+                  if (!isEdit) return;
+                  event.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  setDragOver(false);
+                }}
+                onDrop={(event) => {
+                  if (!isEdit) return;
+                  event.preventDefault();
+                  setDragOver(false);
+                  handleFiles(event.dataTransfer?.files);
+                }}
+              >
+                <span className="doc-image-split__dropzone-title">
+                  {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.uploadLabel")}
+                </span>
+                <span className="doc-image-split__dropzone-hint">
+                  {t("doc.imageBlock.uploadHint")}
+                </span>
+              </button>
+              {isEdit && onDelete ? (
+                <div className="doc-image-split__media-actions">
                   <button
                     type="button"
                     className="doc-image-split__media-btn"
-                    onClick={handleClearImage}
+                    onClick={handleRemoveBlock}
                     disabled={uploading}
                   >
                     {t("doc.imageBlock.remove")}
@@ -481,45 +529,31 @@ export function ImageSplitBlockView({
                 </div>
               ) : null}
             </div>
-          ) : (
-            <button
-              type="button"
-              className={
-                "doc-image-split__dropzone"
-                + (dragOver ? " doc-image-split__dropzone--active" : "")
-                + (uploading ? " doc-image-split__dropzone--busy" : "")
-              }
-              disabled={uploading || !isEdit}
-              onClick={() => isEdit && inputRef.current?.click()}
-              onDragEnter={(event) => {
-                if (!isEdit) return;
-                event.preventDefault();
-                setDragOver(true);
-              }}
-              onDragOver={(event) => {
-                if (!isEdit) return;
-                event.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={(event) => {
-                event.preventDefault();
-                setDragOver(false);
-              }}
-              onDrop={(event) => {
-                if (!isEdit) return;
-                event.preventDefault();
-                setDragOver(false);
-                handleFiles(event.dataTransfer?.files);
-              }}
-            >
-              <span className="doc-image-split__dropzone-title">
-                {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.uploadLabel")}
-              </span>
-              <span className="doc-image-split__dropzone-hint">
-                {t("doc.imageBlock.uploadHint")}
-              </span>
-            </button>
           )}
+
+          <div className="doc-image-split__card-actions">
+            {isEdit ? (
+              <button
+                type="button"
+                className="doc-image-split__save"
+                disabled={!canSave}
+                onClick={() => {
+                  if (!canSave) return;
+                  onSave?.();
+                }}
+              >
+                {t("doc.imageSplit.save")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="doc-image-split__edit"
+                onClick={() => onEdit?.()}
+              >
+                {t("doc.imageSplit.edit")}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="doc-image-split__side">
@@ -551,30 +585,6 @@ export function ImageSplitBlockView({
               >
                 {block?.body || ""}
               </div>
-            )}
-          </div>
-
-          <div className="doc-image-split__foot">
-            {isEdit ? (
-              <button
-                type="button"
-                className="doc-image-split__save"
-                disabled={!canSave}
-                onClick={() => {
-                  if (!canSave) return;
-                  onSave?.();
-                }}
-              >
-                {t("doc.imageSplit.save")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="doc-image-split__edit"
-                onClick={() => onEdit?.()}
-              >
-                {t("doc.imageSplit.edit")}
-              </button>
             )}
           </div>
         </div>

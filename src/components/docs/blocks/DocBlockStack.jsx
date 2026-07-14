@@ -1602,6 +1602,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 updateAt(index, { splitSaved: false });
                 onFocusBlock?.(block.id);
               }}
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.imageSplit");
+                if (!ok) return;
+                removeCommandBlockAt(index);
+              }}
               onBodyKeyDown={(e) => {
                 if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
                 const bodyValue = e.currentTarget?.value ?? block.body ?? "";

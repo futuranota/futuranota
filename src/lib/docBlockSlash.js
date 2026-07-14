@@ -242,7 +242,7 @@ export function createDocBlockFromSlash(parsed) {
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
-    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { openFilePicker: true });
+    return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { openFilePicker: false });
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.CODE) {
