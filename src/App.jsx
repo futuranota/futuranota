@@ -73,6 +73,7 @@ import {
   adoptOrphanNodeToDocument,
   releaseStaleNodeParentRefs,
 } from './lib/nodeParentAdoption.js';
+import { pruneStaleTimelineSnapshotChildren } from './lib/nodeSurfacePurge.js';
 import { AdoptNodeConfirmModal } from './components/nodes/AdoptNodeConfirmModal.jsx';
 import { useI18n, translate } from './i18n/useI18n.js';
 import { buildMetaBarFromCanvas } from './lib/docMetaBar.js';
@@ -481,6 +482,12 @@ useEffect(() => {
       return { ...cn, parentDocId: null };
     }));
   }, [docs]);
+
+  // Drop snapshot children for entities no longer in the folder (left-panel deleted /
+  // parentDocId wiped) so the rail cannot resurrect them.
+  useEffect(() => {
+    pruneStaleTimelineSnapshotChildren(docs, nodeEntities);
+  }, [docs, nodeEntities]);
 
   /* ── SCAN BLOGS ─ */
   const scanBlogs = () => {

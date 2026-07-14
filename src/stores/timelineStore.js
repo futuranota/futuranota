@@ -436,29 +436,48 @@ export const useTimelineStore = create(
         });
       },
 
-      removeTimelineEntityFromSnapshots: (entityId) => {
+      /**
+       * Hard-delete / left-panel delete: strip entity from every folder snapshot and
+       * exclude the key (same as timeline chip ×) so it cannot reappear on the rail.
+       */
+      removeTimelineEntityFromSnapshots: (entityId, parentDocId = null) => {
         if (!entityId) return;
         set((state) => {
           const nextSnap = { ...state.timelineDocSnapshotsByDocId };
+          const nextExcl = { ...state.timelineExcludedChildrenByDocId };
           let snapChanged = false;
+          let exclChanged = false;
+
+          const excludeOnDoc = (docId) => {
+            if (!docId) return;
+            const prev = nextExcl[docId] || [];
+            if (prev.includes(entityId)) return;
+            nextExcl[docId] = [...prev, entityId];
+            exclChanged = true;
+          };
+
+          if (parentDocId) excludeOnDoc(parentDocId);
+
           for (const [docId, snap] of Object.entries(nextSnap)) {
-            const filtered = snap.children.filter((c) => c.entityId !== entityId && c.key !== entityId);
-            if (filtered.length !== snap.children.length) {
+            const children = snap?.children || [];
+            const filtered = children.filter(
+              (c) => c.entityId !== entityId && c.key !== entityId,
+            );
+            if (filtered.length !== children.length) {
               nextSnap[docId] = { ...snap, children: filtered };
               snapChanged = true;
+              excludeOnDoc(docId);
             }
           }
-          const nextExcl = { ...state.timelineExcludedChildrenByDocId };
-          let exclChanged = false;
-          for (const [docId, keys] of Object.entries(nextExcl)) {
-            if (!keys.includes(entityId)) continue;
-            nextExcl[docId] = keys.filter((k) => k !== entityId);
-            exclChanged = true;
-          }
+
           if (!snapChanged && !exclChanged) return state;
           return {
-            timelineDocSnapshotsByDocId: snapChanged ? nextSnap : state.timelineDocSnapshotsByDocId,
-            timelineExcludedChildrenByDocId: exclChanged ? nextExcl : state.timelineExcludedChildrenByDocId,
+            timelineDocSnapshotsByDocId: snapChanged
+              ? nextSnap
+              : state.timelineDocSnapshotsByDocId,
+            timelineExcludedChildrenByDocId: exclChanged
+              ? nextExcl
+              : state.timelineExcludedChildrenByDocId,
           };
         });
       },

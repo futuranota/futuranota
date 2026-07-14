@@ -34,6 +34,7 @@ import {
   unlinkNodeFromDocBlocks,
 } from "../lib/docNodeSync.js";
 import { purgeNodeFromTimelineAndCanvas } from "../lib/nodeSurfacePurge.js";
+import { markDocsDeletedForSync } from "./middleware/persistenceMiddleware.js";
 import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/nodeTodoContent.js";
 import {
   getNodeWritingPlainText,
@@ -675,17 +676,31 @@ export const useNodesStore = create(
       deleteNodeAndDocBlocks: (nodeId) => {
         const node = get().nodes[nodeId];
         if (!node) return;
+        const docsStore = useDocsStore.getState();
+        // Prefer live parent; also scrub any doc that still lists this nodeId.
+        const parentIds = new Set();
+        if (node.parentDocId) parentIds.add(node.parentDocId);
+        for (const doc of Object.values(docsStore.docs || {})) {
+          if ((doc?.nodeIds || []).includes(nodeId)) parentIds.add(doc.id);
+        }
         // Timeline + canvas first (while node still exists for canvas unlink meta).
-        purgeNodeFromTimelineAndCanvas(nodeId);
-        const docId = node.parentDocId || null;
-        if (docId) {
-          const doc = useDocsStore.getState().getDoc(docId);
+        // Same outcome as confirming delete in left panel AND × on the rail.
+        for (const docId of parentIds) {
+          purgeNodeFromTimelineAndCanvas(nodeId, docId);
+        }
+        if (!parentIds.size) {
+          purgeNodeFromTimelineAndCanvas(nodeId, null);
+        }
+        // Block hydrate from resurrecting the hard-deleted entity.
+        markDocsDeletedForSync([], [nodeId]);
+        for (const docId of parentIds) {
+          const doc = docsStore.getDoc(docId);
           if (doc) {
             const { blocks: nextBlocks } = removeLinkedOwnerBundleFromBlocks(
               doc.blocks,
               nodeId,
             );
-            useDocsStore.getState().updateDoc(docId, { blocks: nextBlocks });
+            docsStore.updateDoc(docId, { blocks: nextBlocks });
             const draft = useUIStateStore.getState().docEditorDrafts[docId];
             if (draft?.blocks) {
               const { blocks: draftBlocks } = removeLinkedOwnerBundleFromBlocks(
@@ -698,7 +713,7 @@ export const useNodesStore = create(
               });
             }
           }
-          useDocsStore.getState().removeNodeFromDoc(docId, nodeId);
+          docsStore.removeNodeFromDoc(docId, nodeId);
         }
         set((state) => {
           const next = { ...state.nodes };

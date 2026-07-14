@@ -42,27 +42,22 @@ function childSnapshotKey(entityId, canvasNodeId) {
 }
 
 /**
- * Resolve a timeline date for a linked file entity (store node), even when it is
- * not placed on the canvas. `resolveNodeAnchorDate` expects canvas-shaped nodes
- * with `noteId`, so we adapt the entity first and fall back to doc dates.
+ * Resolve a timeline date for a folder child entity (store node).
+ * Explicit Schedule only (`anchorAt` / date content) — never createdAt or the
+ * parent folder reservation. Those fallbacks flood the rail with "ghost" chips
+ * for unlinked / unscheduled panel members (especially after orphan-keep).
  */
-function resolveLinkedFileTimelineDate(entityId, entity, meta = {}) {
+function resolveLinkedFileTimelineDate(entityId, entity, _meta = {}) {
   if (!entityId || !entity) return null;
-  const adapted = {
-    noteId: entityId,
-    dataType: entity.dataType,
-    content: entity.content,
-    anchorAt: entity.anchorAt,
-  };
-  const direct = resolveNodeAnchorDate(adapted, meta);
-  if (direct) return direct;
-
-  // Schedule (anchorAt) wins; createdAt only when no schedule is set.
-  const fromEntity = parseDate(entity.anchorAt) || parseDate(entity.createdAt);
-  if (fromEntity) return fromEntity;
-
-  const doc = meta.docsById?.[entity.parentDocId];
-  return resolveDocScheduleDate(doc, meta.nodeEntitiesById || {});
+  const fromAnchor = parseDate(entity.anchorAt);
+  if (fromAnchor) return fromAnchor;
+  if (entity.dataType === "date") {
+    const raw = entity.content && typeof entity.content === "object"
+      ? entity.content.date
+      : entity.content;
+    return parseDate(raw);
+  }
+  return null;
 }
 
 function listLinkedFileEntityIds(docId, docsById = {}, nodeEntitiesById = {}) {
@@ -71,6 +66,15 @@ function listLinkedFileEntityIds(docId, docsById = {}, nodeEntitiesById = {}) {
     if (entity?.parentDocId === docId) linkedEntityIds.add(entityId);
   }
   return linkedEntityIds;
+}
+
+/** True when the entity still belongs to this folder (panel membership). */
+function entityBelongsToDoc(entityId, docId, docsById = {}, nodeEntitiesById = {}) {
+  if (!entityId || !docId) return false;
+  const entity = nodeEntitiesById[entityId];
+  if (!entity) return false;
+  if (entity.parentDocId === docId) return true;
+  return (docsById[docId]?.nodeIds || []).includes(entityId);
 }
 
 /**
@@ -154,11 +158,12 @@ export function captureTimelineDocSnapshot(
     const node = canvasNodes.find((n) => n.id === nodeId);
     const entity = node?.noteId ? nodeEntitiesById[node.noteId] : null;
     const entityId = node?.noteId || null;
+    // Store entities: Schedule only. Canvas-only nodes may use wire/canvas anchors.
     const raw = (entityId
       ? resolveLinkedFileTimelineDate(entityId, entity, meta)
       : null)
       || wireAnchors.get(nodeId)
-      || resolveNodeAnchorDate(entity || node, meta);
+      || (!entityId ? resolveNodeAnchorDate(node, meta) : null);
     if (!raw) continue;
     pushChild({
       key: childSnapshotKey(entityId, nodeId),
@@ -242,12 +247,12 @@ export function buildChildMarkersForDoc(
     const key = childSnapshotKey(entityId, nodeId);
     if (excluded.has(key)) continue;
     const entity = entityId ? nodeEntitiesById[entityId] : null;
-    // Prefer live schedule (anchorAt) over wire/created fallbacks.
+    // Prefer live Schedule; never fall back to createdAt for store entities.
     const raw = (entityId
       ? resolveLinkedFileTimelineDate(entityId, entity, meta)
       : null)
       || wireAnchors.get(nodeId)
-      || resolveNodeAnchorDate(item || node, meta);
+      || (!entityId ? resolveNodeAnchorDate(item || node, meta) : null);
     if (!raw) continue;
     markersByKey.set(key, {
       nodeId,
@@ -283,35 +288,37 @@ export function buildChildMarkersForDoc(
   for (const child of snapshot?.children || []) {
     const key = child.key || childSnapshotKey(child.entityId, child.canvasNodeId);
     if (!key || excluded.has(key) || markersByKey.has(key)) continue;
-    // If we have a live entity schedule, never keep a stale snapshot date.
+    // Never resurrect snapshot chips for deleted / unlinked entities.
+    // Orphans with parentDocId=null still exist in the store and previously
+    // reappeared via this fallback after left-panel delete / hydrate.
     if (child.entityId) {
+      if (!entityBelongsToDoc(child.entityId, docId, docsById, nodeEntitiesById)) continue;
       const entity = nodeEntitiesById[child.entityId];
       const live = resolveLinkedFileTimelineDate(child.entityId, entity, meta);
-      if (live) {
-        markersByKey.set(key, {
-          nodeId: child.canvasNodeId || `entity-${child.entityId}`,
-          date: live,
-          docId,
-          dataType: child.dataType || entity?.dataType || "text",
-          entityId: child.entityId,
-          childKey: key,
-          fromStore: true,
-          completed: Boolean(entity?.completed),
-        });
-        continue;
-      }
+      if (!live) continue;
+      markersByKey.set(key, {
+        nodeId: child.canvasNodeId || `entity-${child.entityId}`,
+        date: live,
+        docId,
+        dataType: child.dataType || entity?.dataType || "text",
+        entityId: child.entityId,
+        childKey: key,
+        fromStore: true,
+        completed: Boolean(entity?.completed),
+      });
+      continue;
     }
+    // Canvas-only snapshot child (no store entity id).
+    if (!child.canvasNodeId || !nodeById?.get?.(child.canvasNodeId)) continue;
     markersByKey.set(key, {
-      nodeId: child.canvasNodeId || `snapshot-${key}`,
+      nodeId: child.canvasNodeId,
       date: new Date(child.dateMs),
       docId,
       dataType: child.dataType || "text",
-      entityId: child.entityId || null,
+      entityId: null,
       childKey: key,
       snapshot: true,
-      completed: Boolean(
-        child.entityId && nodeEntitiesById[child.entityId]?.completed,
-      ),
+      completed: false,
     });
   }
 
