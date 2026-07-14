@@ -25,6 +25,7 @@ export const NODE_BLOCK_TYPES = {
   IMAGE: "image",
   IMAGE_SPLIT: "image_split",
   MOODBOARD: "moodboard",
+  BANNER: "banner",
   PRODUCT_CARD: "product_card",
 };
 
@@ -251,6 +252,14 @@ export function normalizeWritingBlocks(blocks) {
         type: NODE_BLOCK_TYPES.MOODBOARD,
       };
     }
+    if (block?.type === NODE_BLOCK_TYPES.BANNER || block?.type === DOC_BLOCK_TYPES.BANNER) {
+      const docShape = createDocBlock(DOC_BLOCK_TYPES.BANNER, block);
+      return {
+        ...docShape,
+        id: block.id || docShape.id || generateId("NBN"),
+        type: NODE_BLOCK_TYPES.BANNER,
+      };
+    }
     if (block?.type === NODE_BLOCK_TYPES.PRODUCT_CARD || block?.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
       const docShape = createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, block);
       return {
@@ -333,6 +342,12 @@ export function nodeWritingBlocksHaveContent(blocks) {
         || Boolean(block.moodboardSaved)
         || Boolean((block.caption || "").trim())
         || Boolean((block.body || "").trim());
+    }
+    if (block.type === NODE_BLOCK_TYPES.BANNER) {
+      return Boolean((block.src || "").trim())
+        || Boolean(block.imageSaved)
+        || Boolean(block.bannerSaved)
+        || Boolean((block.headline || "").trim());
     }
     if (block.type === NODE_BLOCK_TYPES.PRODUCT_CARD) {
       return Boolean(block.specsSaved)
@@ -501,6 +516,14 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
       ...docShape,
       id: generateId("NMB"),
       type: NODE_BLOCK_TYPES.MOODBOARD,
+    };
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.BANNER) {
+    const docShape = createDocBlock(DOC_BLOCK_TYPES.BANNER, { openFilePicker: false });
+    return {
+      ...docShape,
+      id: generateId("NBN"),
+      type: NODE_BLOCK_TYPES.BANNER,
     };
   }
   if (parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {

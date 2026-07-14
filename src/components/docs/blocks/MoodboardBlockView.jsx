@@ -3,8 +3,7 @@ import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
 import {
   IMAGE_SPLIT_BODY_MAX_LINES,
   MOODBOARD_CAPTION_MAX,
-  MOODBOARD_SLOT_A_MAX,
-  MOODBOARD_SLOT_B_MAX,
+  MOODBOARD_CAPTION_MAX_LINES,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 
@@ -39,7 +38,7 @@ function measureBodyLineMetrics(el) {
  * @param {string} text
  * @param {number} maxHeight
  */
-function bodyTextFitsHeight(source, text, maxHeight) {
+function textFitsFixedHeight(source, text, maxHeight) {
   if (!(maxHeight > 0)) return false;
   if (!source) return false;
   const probe = document.createElement("textarea");
@@ -70,13 +69,18 @@ function bodyTextFitsHeight(source, text, maxHeight) {
   return fits;
 }
 
-const SLOT_LIMITS = {
-  a: MOODBOARD_SLOT_A_MAX,
-  b: MOODBOARD_SLOT_B_MAX,
-};
+/**
+ * Max pixel height for N caption lines.
+ * @param {HTMLTextAreaElement|null} el
+ * @param {number} lines
+ */
+function captionMaxHeightPx(el, lines = MOODBOARD_CAPTION_MAX_LINES) {
+  const { lineHeight, padY } = measureBodyLineMetrics(el);
+  return Math.round(lines * lineHeight + padY);
+}
 
 /**
- * Moodboard: two compressed image slots + Pangolin caption + 17-line body.
+ * Moodboard: two WebP image slots + Pangolin caption (≤2 lines) + 17-line body.
  */
 export function MoodboardBlockView({
   block,
@@ -181,15 +185,13 @@ export function MoodboardBlockView({
       return;
     }
 
-    const limits = SLOT_LIMITS[slotKey] || MOODBOARD_SLOT_A_MAX;
     setUploadingSlot(slotKey);
     setError(null);
 
     try {
+      // Always convert to WebP; keep source resolution — slot size is CSS (object-fit).
       const converted = await convertFileToWebpData(file, {
         idPrefix: slotKey === "a" ? "MBDA" : "MBDB",
-        maxWidth: limits.width,
-        maxHeight: limits.height,
       });
       if (!converted) {
         setError(t("doc.imageBlock.convertFailed"));
@@ -243,9 +245,18 @@ export function MoodboardBlockView({
 
   const handleCaptionChange = (event) => {
     if (!isEdit) return;
-    const next = event.target.value.slice(0, MOODBOARD_CAPTION_MAX);
+    const next = String(event.target.value ?? "").slice(0, MOODBOARD_CAPTION_MAX);
     const prev = block?.caption || "";
     if (next === prev) return;
+
+    const el = captionRef.current;
+    const maxH = captionMaxHeightPx(el);
+    if (next.length >= prev.length && el && !textFitsFixedHeight(el, next, maxH)) {
+      pulseCaptionLimit();
+      event.target.value = prev;
+      return;
+    }
+
     if (next.length >= MOODBOARD_CAPTION_MAX && next.length >= prev.length) {
       pulseCaptionLimit();
     }
@@ -254,23 +265,67 @@ export function MoodboardBlockView({
 
   const handleCaptionKeyDown = (event) => {
     if (!isEdit) return;
+    const el = captionRef.current;
+    const maxH = captionMaxHeightPx(el);
+    const cur = block?.caption || "";
+
     if (event.key === "Enter") {
-      event.preventDefault();
-      pulseCaptionLimit();
+      const start = el?.selectionStart ?? cur.length;
+      const end = el?.selectionEnd ?? start;
+      const next = `${cur.slice(0, start)}\n${cur.slice(end)}`.slice(0, MOODBOARD_CAPTION_MAX);
+      if (!el || !textFitsFixedHeight(el, next, maxH)) {
+        event.preventDefault();
+        pulseCaptionLimit();
+      }
       return;
     }
+
     const isPrintable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
-    if (!isPrintable) return;
+    if (!isPrintable || !el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? start;
+    const next = `${cur.slice(0, start)}${event.key}${cur.slice(end)}`;
+    if (next.length > MOODBOARD_CAPTION_MAX || !textFitsFixedHeight(el, next, maxH)) {
+      event.preventDefault();
+      pulseCaptionLimit();
+    }
+  };
+
+  const handleCaptionPaste = (event) => {
+    if (!isEdit) return;
     const el = captionRef.current;
     if (!el) return;
+    const paste = event.clipboardData?.getData("text") ?? "";
+    if (!paste) return;
+
+    event.preventDefault();
     const start = el.selectionStart ?? 0;
     const end = el.selectionEnd ?? start;
     const cur = block?.caption || "";
-    const next = `${cur.slice(0, start)}${event.key}${cur.slice(end)}`;
-    if (next.length > MOODBOARD_CAPTION_MAX) {
-      event.preventDefault();
+    const maxH = captionMaxHeightPx(el);
+
+    let next = `${cur.slice(0, start)}${paste}${cur.slice(end)}`.slice(0, MOODBOARD_CAPTION_MAX);
+    if (!textFitsFixedHeight(el, next, maxH)) {
+      let lo = 0;
+      let hi = Math.min(paste.length, MOODBOARD_CAPTION_MAX);
+      let best = 0;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const candidate = `${cur.slice(0, start)}${paste.slice(0, mid)}${cur.slice(end)}`
+          .slice(0, MOODBOARD_CAPTION_MAX);
+        if (textFitsFixedHeight(el, candidate, maxH)) {
+          best = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      next = `${cur.slice(0, start)}${paste.slice(0, best)}${cur.slice(end)}`
+        .slice(0, MOODBOARD_CAPTION_MAX);
       pulseCaptionLimit();
     }
+
+    if (next !== cur) handleFieldChange({ caption: next });
   };
 
   const resolveBodyMaxHeight = () => bodyMaxHeightRef.current || bodyMaxHeight;
@@ -285,7 +340,7 @@ export function MoodboardBlockView({
     const maxH = resolveBodyMaxHeight();
 
     if (next.length >= prev.length) {
-      if (!maxH || !el || !bodyTextFitsHeight(el, next, maxH)) {
+      if (!maxH || !el || !textFitsFixedHeight(el, next, maxH)) {
         pulseBodyLimit();
         event.target.value = prev;
         return;
@@ -309,7 +364,7 @@ export function MoodboardBlockView({
       const start = el?.selectionStart ?? cur.length;
       const end = el?.selectionEnd ?? start;
       const next = `${cur.slice(0, start)}\n${cur.slice(end)}`;
-      if (!maxH || !el || !bodyTextFitsHeight(el, next, maxH)) {
+      if (!maxH || !el || !textFitsFixedHeight(el, next, maxH)) {
         event.preventDefault();
         pulseBodyLimit();
       }
@@ -325,7 +380,7 @@ export function MoodboardBlockView({
     const start = el.selectionStart ?? 0;
     const end = el.selectionEnd ?? start;
     const next = `${cur.slice(0, start)}${event.key}${cur.slice(end)}`;
-    if (next.length > cur.length && (!maxH || !bodyTextFitsHeight(el, next, maxH))) {
+    if (next.length > cur.length && (!maxH || !textFitsFixedHeight(el, next, maxH))) {
       event.preventDefault();
       pulseBodyLimit();
     }
@@ -352,14 +407,14 @@ export function MoodboardBlockView({
 
     let next = `${cur.slice(0, start)}${paste}${cur.slice(end)}`;
 
-    if (!bodyTextFitsHeight(el, next, maxH)) {
+    if (!textFitsFixedHeight(el, next, maxH)) {
       let lo = 0;
       let hi = paste.length;
       let best = 0;
       while (lo <= hi) {
         const mid = (lo + hi) >> 1;
         const candidate = `${cur.slice(0, start)}${paste.slice(0, mid)}${cur.slice(end)}`;
-        if (bodyTextFitsHeight(el, candidate, maxH)) {
+        if (textFitsFixedHeight(el, candidate, maxH)) {
           best = mid;
           lo = mid + 1;
         } else {
@@ -508,20 +563,22 @@ export function MoodboardBlockView({
           <div className="doc-moodboard__board">
             {renderSlot("a")}
             {renderSlot("b")}
-            <input
+            <textarea
               ref={captionRef}
-              type="text"
               className={
                 "doc-moodboard__caption"
                 + (captionAtLimit ? " doc-moodboard__caption--at-limit" : "")
               }
               value={block?.caption || ""}
               maxLength={MOODBOARD_CAPTION_MAX}
+              rows={MOODBOARD_CAPTION_MAX_LINES}
               placeholder={t("doc.moodboard.captionPlaceholder")}
               aria-label={t("doc.moodboard.captionLabel")}
               readOnly={!isEdit}
+              spellCheck={false}
               onChange={handleCaptionChange}
               onKeyDown={handleCaptionKeyDown}
+              onPaste={handleCaptionPaste}
             />
           </div>
 

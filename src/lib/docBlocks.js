@@ -19,6 +19,7 @@ const DOC_BLOCK_TYPES = {
   IMAGE: "image",
   IMAGE_SPLIT: "image_split",
   MOODBOARD: "moodboard",
+  BANNER: "banner",
   CODE: "code",
   PASSWORD_VAULT: "password_vault",
   LINK_VAULT: "link_vault",
@@ -312,11 +313,15 @@ export const IMAGE_SPLIT_DESC_MAX = 220;
 /** Hard ceiling for the right-hand body (doc font ~14px / lh 1.45). */
 export const IMAGE_SPLIT_BODY_MAX_LINES = 17;
 
-/** Short Pangolin caption on moodboard left card. */
-export const MOODBOARD_CAPTION_MAX = 40;
-/** WebP downscale targets matching set slot CSS sizes. */
-export const MOODBOARD_SLOT_A_MAX = Object.freeze({ width: 258, height: 197 });
-export const MOODBOARD_SLOT_B_MAX = Object.freeze({ width: 159, height: 140 });
+/** Short Pangolin caption on moodboard left card (≤2 lines in UI). */
+export const MOODBOARD_CAPTION_MAX = 64;
+/** Hard ceiling for Pangolin caption lines in the card. */
+export const MOODBOARD_CAPTION_MAX_LINES = 2;
+
+/** Banner headline (bold copy beside image). */
+export const BANNER_HEADLINE_MAX = 180;
+/** Hard ceiling for banner headline lines in the card. */
+export const BANNER_HEADLINE_MAX_LINES = 5;
 
 function normalizeImageSplitBlock(block) {
   const title = String(block?.overlayTitle ?? block?.title ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);
@@ -361,6 +366,21 @@ function normalizeMoodboardBlock(block) {
     body: String(block?.body ?? ""),
     openFilePicker: Boolean(block?.openFilePicker),
     moodboardSaved: Boolean(block?.moodboardSaved) && bothSaved,
+  };
+}
+
+function normalizeBannerBlock(block) {
+  const imageSaved = Boolean(block?.imageSaved && block?.src);
+  return {
+    headline: String(block?.headline ?? block?.overlayTitle ?? "").slice(0, BANNER_HEADLINE_MAX),
+    src: block?.src || "",
+    name: block?.name || "",
+    alt: block?.alt || "",
+    width: Number.isFinite(block?.width) ? block.width : 0,
+    height: Number.isFinite(block?.height) ? block.height : 0,
+    imageSaved,
+    openFilePicker: Boolean(block?.openFilePicker),
+    bannerSaved: Boolean(block?.bannerSaved) && imageSaved,
   };
 }
 
@@ -508,6 +528,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     return {
       ...base,
       type: DOC_BLOCK_TYPES.MOODBOARD,
+      ...normalized,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.BANNER) {
+    const normalized = normalizeBannerBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.BANNER,
       ...normalized,
     };
   }
@@ -695,6 +724,13 @@ export function normalizeDocBlock(block) {
     });
   }
 
+  if (type === DOC_BLOCK_TYPES.BANNER) {
+    return createDocBlock(DOC_BLOCK_TYPES.BANNER, {
+      id: block.id,
+      ...normalizeBannerBlock(block),
+    });
+  }
+
   if (type === DOC_BLOCK_TYPES.CODE) {
     return createDocBlock(DOC_BLOCK_TYPES.CODE, {
       id: block.id,
@@ -826,6 +862,12 @@ export function docBlockHasContent(block) {
       || Boolean(normalized.moodboardSaved)
       || Boolean((normalized.caption || "").trim())
       || Boolean((normalized.body || "").trim());
+  }
+  if (type === DOC_BLOCK_TYPES.BANNER) {
+    return Boolean((block.src || "").trim())
+      || Boolean(block.imageSaved)
+      || Boolean(block.bannerSaved)
+      || Boolean((block.headline || "").trim());
   }
   if (type === DOC_BLOCK_TYPES.CODE) {
     return Boolean((block.code || "").trim()) || Boolean(block.codeSaved);
@@ -1027,6 +1069,20 @@ function parseMoodboardSection(section) {
   }
 }
 
+function parseBannerSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::banner")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.BANNER);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.BANNER, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.BANNER);
+  }
+}
+
 function parseCodeSection(section) {
   const lines = section.split("\n");
   const first = lines[0]?.trim() || "";
@@ -1157,6 +1213,12 @@ export function docBlocksFromBody(body) {
     const moodboardBlock = parseMoodboardSection(section);
     if (moodboardBlock) {
       blocks.push(moodboardBlock);
+      continue;
+    }
+
+    const bannerBlock = parseBannerSection(section);
+    if (bannerBlock) {
+      blocks.push(bannerBlock);
       continue;
     }
 
@@ -1295,6 +1357,19 @@ export function docBlocksToBody(blocks) {
           b: normalized.b,
           body: normalized.body,
           moodboardSaved: normalized.moodboardSaved,
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.BANNER) {
+        const normalized = normalizeBannerBlock(block);
+        return `::banner\n${JSON.stringify({
+          headline: normalized.headline,
+          src: normalized.src,
+          name: normalized.name,
+          alt: normalized.alt,
+          width: normalized.width,
+          height: normalized.height,
+          imageSaved: normalized.imageSaved,
+          bannerSaved: normalized.bannerSaved,
         })}`;
       }
       if (block.type === DOC_BLOCK_TYPES.CODE) {
@@ -1497,6 +1572,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.IMAGE
     || block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
     || block.type === DOC_BLOCK_TYPES.MOODBOARD
+    || block.type === DOC_BLOCK_TYPES.BANNER
     || block.type === DOC_BLOCK_TYPES.CODE
     || block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
     || block.type === DOC_BLOCK_TYPES.LINK_VAULT

@@ -78,6 +78,13 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
+    label: "Banner",
+    ghostHint: "banner",
+    aliases: ["banner", "image-text", "imagetext", "imagetextbanner"],
+    blockType: DOC_BLOCK_TYPES.BANNER,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
     label: "Code",
     ghostHint: "code",
     aliases: ["code", "codigo", "snippet", "codeblock"],
@@ -254,6 +261,10 @@ export function createDocBlockFromSlash(parsed) {
 
   if (parsed.type === DOC_BLOCK_TYPES.MOODBOARD) {
     return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, { openFilePicker: false });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.BANNER) {
+    return createDocBlock(DOC_BLOCK_TYPES.BANNER, { openFilePicker: false });
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.CODE) {

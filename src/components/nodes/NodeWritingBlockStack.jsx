@@ -30,6 +30,7 @@ import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx"
 import { ImageBlockView } from "../docs/blocks/ImageBlockView.jsx";
 import { ImageSplitBlockView } from "../docs/blocks/ImageSplitBlockView.jsx";
 import { MoodboardBlockView } from "../docs/blocks/MoodboardBlockView.jsx";
+import { BannerBlockView } from "../docs/blocks/BannerBlockView.jsx";
 import { ProductCardBlockView } from "../docs/blocks/ProductCardBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
@@ -856,6 +857,51 @@ export function NodeWritingBlockStack({
                 }}
                 onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.moodboard")}
                 onBodyKeyDown={undefined}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.BANNER) {
+          return (
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__banner"
+            >
+              <BannerBlockView
+                block={block}
+                onChange={(patch) => {
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex
+                      ? { ...entry, ...patch, type: NODE_BLOCK_TYPES.BANNER }
+                      : entry
+                  ));
+                  if (patch.imageSaved && patch.src) {
+                    next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  }
+                  updateBlocks(next);
+                }}
+                onSave={() => {
+                  if (!(block.imageSaved && block.src)) return;
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex
+                      ? { ...entry, bannerSaved: true, type: NODE_BLOCK_TYPES.BANNER }
+                      : entry
+                  ));
+                  next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  updateBlocks(next);
+                  const after = next[blockIndex + 1];
+                  if (after?.type === NODE_BLOCK_TYPES.TEXT) {
+                    onFocusTargetChange?.({ blockIndex: blockIndex + 1, focusText: true });
+                  }
+                }}
+                onEdit={() => {
+                  updateBlockAt(blockIndex, { bannerSaved: false });
+                }}
+                onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.banner")}
               />
             </div>
           );
