@@ -46,6 +46,7 @@ export function SlashAwareTextarea({
   inputRef: externalRef,
   ariaLabel,
   onAfterInput,
+  ghostHints = DOC_SLASH_GHOST_HINTS,
 }) {
   const internalRef = useRef(null);
   const wrapRef = useRef(null);
@@ -89,12 +90,15 @@ export function SlashAwareTextarea({
       setHintIndex(0);
       return;
     }
+    const hints = Array.isArray(ghostHints) && ghostHints.length > 0
+      ? ghostHints
+      : DOC_SLASH_GHOST_HINTS;
     setHintIndex(0);
     const interval = setInterval(() => {
-      setHintIndex((i) => (i + 1) % DOC_SLASH_GHOST_HINTS.length);
+      setHintIndex((i) => (i + 1) % hints.length);
     }, 2000);
     return () => clearInterval(interval);
-  }, [showGhost, slash]);
+  }, [showGhost, slash, ghostHints]);
 
   useLayoutEffect(() => {
     syncGhostPosition();
@@ -123,7 +127,10 @@ export function SlashAwareTextarea({
     };
   }, [showGhost, syncGhostPosition, textareaRef]);
 
-  const ghostHint = DOC_SLASH_GHOST_HINTS[hintIndex] ?? DOC_SLASH_GHOST_HINTS[0];
+  const resolvedGhostHints = Array.isArray(ghostHints) && ghostHints.length > 0
+    ? ghostHints
+    : DOC_SLASH_GHOST_HINTS;
+  const ghostHint = resolvedGhostHints[hintIndex] ?? resolvedGhostHints[0];
 
   const focusField = useCallback(
     (placeCaretAtEnd = false) => {

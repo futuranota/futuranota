@@ -32,7 +32,9 @@ import {
 } from "../../../lib/docBlocks.js";
 import {
   createDocBlockFromSlash,
-  parseSlashQuery,
+  DOCUMENT_SLASH_COMMANDS,
+  DOCUMENT_SLASH_GHOST_HINTS,
+  parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
 import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode } from "../../../lib/docNodeSync.js";
@@ -154,6 +156,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   onReportAnimationComplete = null,
   onSavedStepSequenceRemoved = null,
   companyObjectId = null,
+  slashCommands = DOCUMENT_SLASH_COMMANDS,
+  slashGhostHints = DOCUMENT_SLASH_GHOST_HINTS,
 }, ref) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -166,10 +170,19 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const openNode = onOpenNodeForBlock || onOpenNodeForH1;
   const blocksRef = useRef(blocks);
   const stackRef = useRef(null);
+  const slashCommandsRef = useRef(slashCommands);
 
   useLayoutEffect(() => {
     blocksRef.current = blocks;
   }, [blocks]);
+
+  useLayoutEffect(() => {
+    slashCommandsRef.current = slashCommands;
+  }, [slashCommands]);
+
+  const parseScopedSlash = useCallback((query) => (
+    parseSlashQueryFromCommands(query, slashCommandsRef.current)
+  ), []);
 
   const resyncAllTextHeights = useCallback(() => {
     const root = stackRef.current;
@@ -282,7 +295,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const insertSlashCommandForOwner = (ownerIndex, alias) => {
-    const parsed = parseSlashQuery(alias);
+    const parsed = parseScopedSlash(alias);
     if (!parsed || !canInsertSlashBlock(parsed)) return;
 
     const ownerBlock = blocksRef.current[ownerIndex];
@@ -325,7 +338,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   };
 
   const insertSlashCommandAtFocus = (alias) => {
-    const parsed = parseSlashQuery(alias);
+    const parsed = parseScopedSlash(alias);
     if (!parsed || !canInsertSlashBlock(parsed)) return;
 
     if (parsed.focusTextBlock) {
@@ -961,7 +974,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const tryConfirmSlashInText = (blockIndex, textValue) => {
     const { slash } = splitBodyForSlash(textValue);
     if (!slash) return false;
-    const parsed = parseSlashQuery(slash.slice(1));
+    const parsed = parseScopedSlash(slash.slice(1));
     if (!parsed || !canInsertSlashBlock(parsed)) return false;
 
     return insertSlashFromText(blockIndex, textValue, parsed);
@@ -970,7 +983,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const tryConfirmSlashInLinkable = (blockIndex, fieldValue) => {
     const { slash } = splitBodyForSlash(fieldValue);
     if (!slash) return false;
-    const parsed = parseSlashQuery(slash.slice(1));
+    const parsed = parseScopedSlash(slash.slice(1));
     if (!parsed || !canInsertSlashBlock(parsed)) return false;
 
     const newBlock = createDocBlockFromSlash(parsed);
@@ -1004,7 +1017,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const tryConfirmSlashInImageSplitBody = (blockIndex, bodyValue) => {
     const { slash } = splitBodyForSlash(bodyValue);
     if (!slash) return false;
-    const parsed = parseSlashQuery(slash.slice(1));
+    const parsed = parseScopedSlash(slash.slice(1));
     if (!parsed || !canInsertSlashBlock(parsed)) return false;
 
     const newBlock = createDocBlockFromSlash(parsed);
@@ -1156,7 +1169,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
       const { slash } = splitBodyForSlash(fieldValue);
       if (slash) {
-        const parsed = parseSlashQuery(slash.slice(1));
+        const parsed = parseScopedSlash(slash.slice(1));
         if (parsed && canInsertSlashBlock(parsed)) {
           tryConfirmSlashInLinkable(index, fieldValue);
           return;
@@ -1421,6 +1434,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               queryEnabled={Boolean(block.queryEnabled)}
               nodeLinkColor={blockLinkColor(block)}
               linksEnabled={Boolean(block.macronodeHeading) && blockLinksEnabled(block)}
+              ghostHints={slashGhostHints}
               onFocus={() => {
                 if (collapsedPadWriteByOwnerId[block.id]) return;
                 onFocusBlock?.(block.id);
@@ -1435,6 +1449,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               value={block.title || ""}
               placeholder="Heading 2"
               linksEnabled={false}
+              ghostHints={slashGhostHints}
               onChange={(title) => updateAt(index, { title })}
               onFocus={() => {
                 if (collapsedPadWriteByOwnerId[block.id]) return;
@@ -1449,6 +1464,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               value={block.title || ""}
               placeholder="Heading 3"
               linksEnabled={false}
+              ghostHints={slashGhostHints}
               onChange={(title) => updateAt(index, { title })}
               onFocus={() => {
                 if (collapsedPadWriteByOwnerId[block.id]) return;
@@ -1843,6 +1859,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               if (isLinkedContinuation) {
                 return (
                   <TextBlockView
+                    ghostHints={slashGhostHints}
                     value={block.text || ""}
                     placeholder={bodyPlaceholder}
                     showPlaceholder={false}
@@ -1857,6 +1874,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               return (
             <TextBlockView
               value={block.text || ""}
+              ghostHints={slashGhostHints}
               analystReportStyle={isAnalystReport && isPrimaryReportBlock}
               reportAnimate={shouldAnimateReport && isPrimaryReportBlock}
               reportStaticView={
@@ -1935,6 +1953,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             <div data-collapsed-write-field={collapsedActiveWriteId}>
               <TextBlockView
                 value={collapsedWriteBlock?.text || ""}
+                ghostHints={slashGhostHints}
                 onChange={(text) => {
                   const writeIndex = blocksRef.current.findIndex(
                     (b) => b.id === collapsedActiveWriteId,

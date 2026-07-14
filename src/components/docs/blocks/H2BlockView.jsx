@@ -11,6 +11,7 @@ export function H2BlockView({
   onQueryHandleClick,
   onFocus,
   placeholder = "Heading 2",
+  ghostHints,
 }) {
   return (
     <div className="doc-h2-block">
@@ -27,6 +28,7 @@ export function H2BlockView({
         placeholder={placeholder}
         ariaLabel="Heading 2"
         multiline
+        ghostHints={ghostHints}
       />
     </div>
   );

@@ -56,6 +56,7 @@ export function DocQueryHandleRow({
   multiline = false,
   minHeightPx = 22,
   maxHeightPx = 200,
+  ghostHints,
 }) {
   const inputRef = useRef(null);
 
@@ -112,6 +113,7 @@ export function DocQueryHandleRow({
           className="doc-h1-block__input doc-h1-block__input--multiline"
           minHeightPx={minHeightPx}
           maxHeightPx={maxHeightPx}
+          ghostHints={ghostHints}
         />
       ) : (
         <input

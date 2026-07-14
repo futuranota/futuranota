@@ -41,6 +41,7 @@ export function TextBlockView({
   onReportAnimationComplete = null,
   reportStaticView = false,
   onSelectAllRequest = null,
+  ghostHints,
 }) {
   const { t } = useI18n();
   const continuationRef = useRef(null);
@@ -207,6 +208,7 @@ export function TextBlockView({
         className={reportFieldClass}
         minHeightPx={28}
         maxHeightPx={maxHeightPx}
+        ghostHints={ghostHints}
       />
       {onDetachFromNode ? (
         <LinkedNodeDocActions
@@ -228,6 +230,7 @@ export function TextBlockView({
           className="doc-text-block__field doc-text-block__field--continuation"
           minHeightPx={28}
           maxHeightPx={maxHeightPx}
+          ghostHints={ghostHints}
         />
       ) : null}
     </div>

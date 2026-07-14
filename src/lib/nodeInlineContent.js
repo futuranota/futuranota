@@ -22,6 +22,9 @@ export const NODE_BLOCK_TYPES = {
   LINK_VAULT: "link_vault",
   AGENT: "agent",
   STEP_SEQUENCE: "step_sequence",
+  IMAGE: "image",
+  IMAGE_SPLIT: "image_split",
+  PRODUCT_CARD: "product_card",
 };
 
 export function isNodeWritingBody(content) {
@@ -223,6 +226,30 @@ export function normalizeWritingBlocks(blocks) {
         saved: docShape.saved,
       };
     }
+    if (block?.type === NODE_BLOCK_TYPES.IMAGE || block?.type === DOC_BLOCK_TYPES.IMAGE) {
+      const docShape = createDocBlock(DOC_BLOCK_TYPES.IMAGE, block);
+      return {
+        ...docShape,
+        id: block.id || docShape.id || generateId("NIM"),
+        type: NODE_BLOCK_TYPES.IMAGE,
+      };
+    }
+    if (block?.type === NODE_BLOCK_TYPES.IMAGE_SPLIT || block?.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+      const docShape = createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, block);
+      return {
+        ...docShape,
+        id: block.id || docShape.id || generateId("NIS"),
+        type: NODE_BLOCK_TYPES.IMAGE_SPLIT,
+      };
+    }
+    if (block?.type === NODE_BLOCK_TYPES.PRODUCT_CARD || block?.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
+      const docShape = createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, block);
+      return {
+        ...docShape,
+        id: block.id || docShape.id || generateId("NPC"),
+        type: NODE_BLOCK_TYPES.PRODUCT_CARD,
+      };
+    }
     return {
       id: block?.id || generateId("NTX"),
       type: NODE_BLOCK_TYPES.TEXT,
@@ -287,6 +314,14 @@ export function nodeWritingBlocksHaveContent(blocks) {
     }
     if (block.type === NODE_BLOCK_TYPES.STEP_SEQUENCE) {
       return block.steps.some((step) => (step.text || "").trim());
+    }
+    if (block.type === NODE_BLOCK_TYPES.IMAGE || block.type === NODE_BLOCK_TYPES.IMAGE_SPLIT) {
+      return Boolean((block.src || "").trim()) || Boolean(block.imageSaved);
+    }
+    if (block.type === NODE_BLOCK_TYPES.PRODUCT_CARD) {
+      return Boolean(block.specsSaved)
+        || Boolean((block.title || "").trim())
+        || (Array.isArray(block.images) && block.images.some((img) => img?.src));
     }
     return block.text.trim();
   });
@@ -428,6 +463,33 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
   if (parsed.type === DOC_BLOCK_TYPES.STEP_SEQUENCE) {
     return createInlineStepSequenceBlock();
   }
+  if (parsed.type === DOC_BLOCK_TYPES.IMAGE) {
+    const docShape = createDocBlock(DOC_BLOCK_TYPES.IMAGE, { openFilePicker: true });
+    return {
+      ...docShape,
+      id: generateId("NIM"),
+      type: NODE_BLOCK_TYPES.IMAGE,
+    };
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+    const docShape = createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { openFilePicker: true });
+    return {
+      ...docShape,
+      id: generateId("NIS"),
+      type: NODE_BLOCK_TYPES.IMAGE_SPLIT,
+    };
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
+    const docShape = createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, {
+      title: "ProductCard",
+      openFilePicker: false,
+    });
+    return {
+      ...docShape,
+      id: generateId("NPC"),
+      type: NODE_BLOCK_TYPES.PRODUCT_CARD,
+    };
+  }
   return null;
 }
 
@@ -489,6 +551,20 @@ export function appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix = "")
       reusedVault: false,
       reusedAgent: false,
     };
+  }
+
+  if (parsed?.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
+    const normalized = normalizeWritingBlocks(blocks);
+    for (let index = normalized.length - 1; index >= 0; index -= 1) {
+      if (normalized[index].type === NODE_BLOCK_TYPES.PRODUCT_CARD) {
+        return {
+          blocks: normalized,
+          insertedIndex: index,
+          reusedVault: false,
+          reusedAgent: false,
+        };
+      }
+    }
   }
 
   const vaultNodeType =

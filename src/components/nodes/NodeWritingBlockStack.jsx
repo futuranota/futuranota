@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createTodoItem } from "../../lib/docBlocks.js";
 import { DOC_BLOCK_TYPES } from "../../lib/docBlocks.js";
-import { parseNodeSlashQuery, splitBodyForSlash } from "../../lib/docBlockSlash.js";
+import {
+  DOCUMENT_SLASH_GHOST_HINTS,
+  parseNodeSlashQuery,
+  splitBodyForSlash,
+} from "../../lib/docBlockSlash.js";
 import {
   applySlashInTextBlock,
   createEmptyTextBlock,
+  ensureEmptyTextBlockAfterNode,
   insertBlockAfterIndex,
   NODE_BLOCK_TYPES,
   normalizeWritingBlocks,
@@ -22,6 +27,9 @@ import { PasswordVaultBlockView } from "../docs/blocks/PasswordVaultBlockView.js
 import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { AgentBlockView } from "../docs/blocks/AgentBlockView.jsx";
 import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx";
+import { ImageBlockView } from "../docs/blocks/ImageBlockView.jsx";
+import { ImageSplitBlockView } from "../docs/blocks/ImageSplitBlockView.jsx";
+import { ProductCardBlockView } from "../docs/blocks/ProductCardBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { queuePasswordTableEntry } from "../../lib/passwordTableSession.js";
@@ -185,6 +193,8 @@ export function NodeWritingBlockStack({
   className = "",
   textPlaceholder = "Escribe aquí o /macronodo",
   companyObjectId = null,
+  parseSlashQuery = parseNodeSlashQuery,
+  slashGhostHints = DOCUMENT_SLASH_GHOST_HINTS,
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -353,7 +363,7 @@ export function NodeWritingBlockStack({
     if (contentFocusMode) {
       if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
         if (slash) {
-          const parsed = parseNodeSlashQuery(slash.slice(1));
+          const parsed = parseSlashQuery(slash.slice(1));
           if (parsed) {
             e.preventDefault();
             const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
@@ -383,7 +393,7 @@ export function NodeWritingBlockStack({
     if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       const { slash } = splitBodyForSlash(block.text);
       if (slash) {
-        const parsed = parseNodeSlashQuery(slash.slice(1));
+        const parsed = parseSlashQuery(slash.slice(1));
         if (parsed) {
           e.preventDefault();
           const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
@@ -454,7 +464,7 @@ export function NodeWritingBlockStack({
         focusBlockById(prev.id, "end");
       }
     }
-  }, [contentFocusMode, focusBlockById, onFocusTargetChange, slashEnabled, updateBlockAt, updateBlocks]);
+  }, [contentFocusMode, focusBlockById, onFocusTargetChange, parseSlashQuery, slashEnabled, updateBlockAt, updateBlocks]);
 
   const handleTodoItemKeyDown = useCallback((blockIndex, itemIndex, e) => {
     const block = blocksRef.current[blockIndex];
@@ -733,6 +743,96 @@ export function NodeWritingBlockStack({
           );
         }
 
+        if (block.type === NODE_BLOCK_TYPES.IMAGE) {
+          return (
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__image"
+            >
+              <ImageBlockView
+                block={block}
+                onChange={(patch) => {
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex ? { ...entry, ...patch, type: NODE_BLOCK_TYPES.IMAGE } : entry
+                  ));
+                  if (patch.imageSaved && patch.src) {
+                    next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  }
+                  updateBlocks(next);
+                }}
+                onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.image")}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.IMAGE_SPLIT) {
+          return (
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__image-split"
+            >
+              <ImageSplitBlockView
+                block={block}
+                onChange={(patch) => {
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex
+                      ? { ...entry, ...patch, type: NODE_BLOCK_TYPES.IMAGE_SPLIT }
+                      : entry
+                  ));
+                  if (patch.imageSaved && patch.src) {
+                    next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  }
+                  updateBlocks(next);
+                }}
+                onSave={() => {
+                  if (!(block.imageSaved && block.src)) return;
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex
+                      ? { ...entry, splitSaved: true, type: NODE_BLOCK_TYPES.IMAGE_SPLIT }
+                      : entry
+                  ));
+                  next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  updateBlocks(next);
+                  const after = next[blockIndex + 1];
+                  if (after?.type === NODE_BLOCK_TYPES.TEXT) {
+                    onFocusTargetChange?.({ blockIndex: blockIndex + 1, focusText: true });
+                  }
+                }}
+                onEdit={() => {
+                  updateBlockAt(blockIndex, { splitSaved: false });
+                }}
+                onBodyKeyDown={undefined}
+              />
+              <LinkedNodeDocActions
+                onDetach={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.imageSplit")}
+                label={t("canvas.removeFromNode")}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.PRODUCT_CARD) {
+          return (
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__product"
+            >
+              <ProductCardBlockView
+                block={block}
+                onChange={(patch) => updateBlockAt(blockIndex, patch)}
+                onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.productCard")}
+              />
+            </div>
+          );
+        }
+
         return (
           <div
             key={block.id}
@@ -763,6 +863,7 @@ export function NodeWritingBlockStack({
                 className="doc-text-block__field"
                 minHeightPx={28}
                 maxHeightPx={null}
+                ghostHints={slashGhostHints}
               />
             ) : (
               <textarea

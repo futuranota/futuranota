@@ -123,25 +123,29 @@ export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
 );
 
-/** Slash commands available in standalone node editors (not full documents). */
-export const NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
-  (cmd) => !cmd.macronodeHeading
-    && (
-      cmd.blockType === DOC_BLOCK_TYPES.H1
-      || cmd.blockType === DOC_BLOCK_TYPES.H2
-      || cmd.blockType === DOC_BLOCK_TYPES.H3
-      || cmd.blockType === DOC_BLOCK_TYPES.TODO
-      || cmd.blockType === DOC_BLOCK_TYPES.CODE
-      || cmd.blockType === DOC_BLOCK_TYPES.PASSWORD_VAULT
-      || cmd.blockType === DOC_BLOCK_TYPES.LINK_VAULT
-      || cmd.blockType === DOC_BLOCK_TYPES.AGENT
-    ),
+/** Content folders: only create / link nodes (macronodes). */
+export const FOLDER_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
+  (cmd) => Boolean(cmd.macronodeHeading),
 );
 
-/** Slash commands for nodes opened from a document — all doc tools except Create node. */
-export const DOC_LINKED_NODE_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
+/** Documents (and node writing surfaces): all tools except Create node. */
+export const DOCUMENT_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
   (cmd) => !cmd.macronodeHeading,
 );
+
+export const FOLDER_SLASH_GHOST_HINTS = FOLDER_SLASH_COMMANDS.map(
+  (c) => c.ghostHint ?? c.label,
+);
+
+export const DOCUMENT_SLASH_GHOST_HINTS = DOCUMENT_SLASH_COMMANDS.map(
+  (c) => c.ghostHint ?? c.label,
+);
+
+/** Slash commands available in node editors (macronodes / docs). */
+export const NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
+
+/** Slash commands for nodes opened from a folder — same writing toolkit. */
+export const DOC_LINKED_NODE_SLASH_COMMANDS = DOCUMENT_SLASH_COMMANDS;
 
 /** Slash commands allowed inside a step-by-step instruction field. */
 export const STEP_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
@@ -150,6 +154,14 @@ export const STEP_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
 
 export function parseSlashQuery(query) {
   return parseSlashQueryFromCommands(query, DOC_SLASH_COMMANDS);
+}
+
+export function parseFolderSlashQuery(query) {
+  return parseSlashQueryFromCommands(query, FOLDER_SLASH_COMMANDS);
+}
+
+export function parseDocumentSlashQuery(query) {
+  return parseSlashQueryFromCommands(query, DOCUMENT_SLASH_COMMANDS);
 }
 
 export function parseDocLinkedNodeSlashQuery(query) {

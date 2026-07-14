@@ -11,6 +11,7 @@ export function H3BlockView({
   onQueryHandleClick,
   onFocus,
   placeholder = "Heading 3",
+  ghostHints,
 }) {
   return (
     <div className="doc-h3-block">
@@ -27,6 +28,7 @@ export function H3BlockView({
         placeholder={placeholder}
         ariaLabel="Heading 3"
         multiline
+        ghostHints={ghostHints}
       />
     </div>
   );

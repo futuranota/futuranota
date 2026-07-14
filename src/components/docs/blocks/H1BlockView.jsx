@@ -11,6 +11,7 @@ export function H1BlockView({
   onQueryHandleClick,
   onFocus,
   placeholder = "Create a title",
+  ghostHints,
 }) {
   return (
     <div className="doc-h1-block">
@@ -27,6 +28,7 @@ export function H1BlockView({
         placeholder={placeholder}
         ariaLabel="Title block query or title"
         multiline
+        ghostHints={ghostHints}
       />
     </div>
   );

@@ -15,6 +15,7 @@ import {
   isDocLinkedNodeSlashCommandEnabled,
   NODE_SLASH_COMMANDS,
   DOC_LINKED_NODE_SLASH_COMMANDS,
+  DOCUMENT_SLASH_GHOST_HINTS,
   parseNodeSlashQuery,
   parseDocLinkedNodeSlashQuery,
 } from "../../lib/docBlockSlash.js";
@@ -368,6 +369,12 @@ export function NodeQueryModal({
       setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true });
     } else if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
       setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
+    } else if (
+      parsed.type === DOC_BLOCK_TYPES.IMAGE
+      || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+      || parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
+    ) {
+      setWritingFocusTarget({ blockIndex: insertedIndex });
     } else if (
       parsed.type === DOC_BLOCK_TYPES.H1
       || parsed.type === DOC_BLOCK_TYPES.H2
@@ -864,6 +871,12 @@ export function NodeQueryModal({
                 onFocusTargetChange={setWritingFocusTarget}
                 slashEnabled={slashCommandsEnabled}
                 contentFocusMode={contentFocusMode}
+                parseSlashQuery={resolveSlashQuery}
+                slashGhostHints={
+                  linkedFromDocument
+                    ? DOCUMENT_SLASH_GHOST_HINTS
+                    : undefined
+                }
                 textPlaceholder={
                   slashCommandsEnabled
                     ? "Escribe aquí o /macronodo"

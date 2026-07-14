@@ -11,7 +11,13 @@ import {
 import {
   createDocBlockFromSlash,
   createBlocksFromSlash,
-  parseSlashQuery,
+  DOCUMENT_SLASH_COMMANDS,
+  DOCUMENT_SLASH_GHOST_HINTS,
+  FOLDER_SLASH_COMMANDS,
+  FOLDER_SLASH_GHOST_HINTS,
+  parseDocumentSlashQuery,
+  parseFolderSlashQuery,
+  parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
 import { findLinkableBlockIndexForFocus } from "../../lib/docNodeSync.js";
@@ -115,6 +121,15 @@ export function DocDocumentBox({
   const isProductMode = metaMode === "product";
   const isContentMode = metaMode === "content";
   const isKnowledgeMode = metaMode === "knowledge";
+  /**
+   * Content folders: Create node + free description only.
+   * Rich blocks (image, todo, code, …) belong in opened macronodes/docs.
+   * Existing non-node blocks in folders stay visible; new inserts are blocked by slash set.
+   */
+  const isFolderSlashSurface = metaMode === "content" || docKind === "content";
+  const slashCommands = isFolderSlashSurface ? FOLDER_SLASH_COMMANDS : DOCUMENT_SLASH_COMMANDS;
+  const slashGhostHints = isFolderSlashSurface ? FOLDER_SLASH_GHOST_HINTS : DOCUMENT_SLASH_GHOST_HINTS;
+  const parseScopedSlashQuery = isFolderSlashSurface ? parseFolderSlashQuery : parseDocumentSlashQuery;
   const showCampaignMeta = Boolean(onVersionChange) && !isTemplate && !isProductMode && !isKnowledgeMode;
   const resolvedSubcategoryDocIds = subcategoryDocIds?.length
     ? subcategoryDocIds
@@ -500,7 +515,7 @@ export function DocDocumentBox({
   }, [docId, blocksStructureKey, hasBlocks, syncContentBoxHeight]);
 
   const isSlashCommandEnabled = useCallback((cmd) => {
-    const parsed = parseSlashQuery(cmd.aliases[0]);
+    const parsed = parseSlashQueryFromCommands(cmd.aliases[0], slashCommands);
     if (!parsed) return false;
     if (
       parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
@@ -509,7 +524,7 @@ export function DocDocumentBox({
       return false;
     }
     return true;
-  }, [hasBlocks, normalizedBlocks]);
+  }, [hasBlocks, normalizedBlocks, slashCommands]);
 
   const insertSlashCommandFromPicker = useCallback((alias) => {
     if (hasBlocks) {
@@ -518,7 +533,7 @@ export function DocDocumentBox({
       return;
     }
 
-    const parsed = parseSlashQuery(alias);
+    const parsed = parseScopedSlashQuery(alias);
     if (!parsed || !isSlashCommandEnabled({ aliases: [alias] })) return;
 
     const { prefix } = splitBodyForSlash(body);
@@ -536,12 +551,13 @@ export function DocDocumentBox({
     isSlashCommandEnabled,
     onBlocksChange,
     onBodyChange,
+    parseScopedSlashQuery,
     requestContentBoxGrow,
   ]);
 
   const handleSlashConfirmFromBody = () => {
     if (!slashTail) return false;
-    const parsed = parseSlashQuery(slashTail.slice(1));
+    const parsed = parseScopedSlashQuery(slashTail.slice(1));
     if (!parsed) return false;
     if (
       parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
@@ -794,6 +810,8 @@ export function DocDocumentBox({
               companyObjectId={parentId || null}
               reportPresentation={reportPresentation}
               onReportAnimationComplete={onReportAnimationComplete}
+              slashCommands={slashCommands}
+              slashGhostHints={slashGhostHints}
             />
           ) : (
             <div
@@ -817,6 +835,7 @@ export function DocDocumentBox({
                 className="doc-new-body-field"
                 minHeightPx={26}
                 maxHeightPx={520}
+                ghostHints={slashGhostHints}
               />
             </div>
           )}
@@ -835,6 +854,7 @@ export function DocDocumentBox({
           />
         ) : null}
         <DocSlashCommandPicker
+          commands={slashCommands}
           onSelectCommand={insertSlashCommandFromPicker}
           isCommandEnabled={isSlashCommandEnabled}
           variant="floating"
