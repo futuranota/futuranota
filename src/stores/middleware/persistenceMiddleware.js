@@ -88,6 +88,8 @@ function docVersionFromDb(version) {
 
 let initialized = false;
 let isSyncedWithRemote = false;
+/** Last completed flush of companies/campaigns/nodes to cloud. Guards SIGNED_OUT wipe. */
+let lastCloudFlushOk = true;
 let hydrateInFlight = false;
 let lastSyncWarnAt = 0;
 /** Serialize remote writes so a stale in-flight upsert cannot resurrect deleted folders. */
@@ -524,14 +526,36 @@ function isLocalRicherThanRemote(local, remote) {
   if (R.nodeCount > L.nodeCount) return false;
   if (R.docCount > L.docCount) return false;
 
+  // Cross-browser: if remote is clearly newer, do NOT keep an older localStorage
+  // wholesale — that overwrote fresher cloud data and resurfaced "old folders".
+  if (
+    R.maxUpdated > 0
+    && L.maxUpdated > 0
+    && R.maxUpdated > L.maxUpdated + 2000
+  ) {
+    return false;
+  }
+
   // Empty remote vs non-empty local — classic wipe after debounce miss
   if (R.docCount === 0 && L.docCount > 0) return true;
   if (R.objectCount === 0 && L.objectCount > 0) return true;
   if (R.nodeCount === 0 && L.nodeCount > 0 && L.contentChars > R.contentChars) return true;
 
-  // Local has more entities and at least as much content
-  if (L.docCount > R.docCount && L.contentChars >= R.contentChars) return true;
-  if (L.nodeCount > R.nodeCount && L.contentChars >= R.contentChars) return true;
+  // Local has more entities and at least as much content (and is not behind in time)
+  if (
+    L.docCount > R.docCount
+    && L.contentChars >= R.contentChars
+    && L.maxUpdated >= R.maxUpdated - 5000
+  ) {
+    return true;
+  }
+  if (
+    L.nodeCount > R.nodeCount
+    && L.contentChars >= R.contentChars
+    && L.maxUpdated >= R.maxUpdated - 5000
+  ) {
+    return true;
+  }
 
   // Local is newer and not poorer in content — only when entity counts aren't behind
   if (
@@ -543,11 +567,12 @@ function isLocalRicherThanRemote(local, remote) {
     return true;
   }
 
-  // Local has substantially more text with similar entity counts
+  // Local has substantially more text with similar entity counts (and is not older)
   if (
     L.contentChars > R.contentChars * 1.25
     && L.docCount >= R.docCount
     && L.nodeCount >= R.nodeCount
+    && L.maxUpdated >= R.maxUpdated - 1500
   ) {
     return true;
   }
@@ -754,7 +779,7 @@ function readLocalWorkspaceSnapshot() {
   }
 }
 
-let flushPersistenceSyncImpl = async () => {};
+let flushPersistenceSyncImpl = async () => ({ ok: true });
 
 export function initPersistenceMiddleware(stores) {
   if (initialized || typeof window === "undefined") return;
@@ -922,7 +947,10 @@ export function initPersistenceMiddleware(stores) {
 
       const userId = await resolveSyncUserId();
       if (!userId) {
-        console.log("No session — loading from localStorage.");
+        console.warn(
+          "[futura-nota] No Supabase session — workspace stays in this browser's "
+            + "localStorage only (futura-nota-v1). Log in to sync across browsers.",
+        );
         loadLocalFallback();
         return;
       }
@@ -1113,7 +1141,9 @@ export function initPersistenceMiddleware(stores) {
 
       if (preferredLocal || preferredMemory) {
         console.warn(
-          "Supabase hydrate looked poorer than local workspace — keeping local data and pushing to remote.",
+          "[futura-nota] Hydrate kept LOCAL workspace over Supabase "
+            + "(local looked richer). If another browser shows old folders, "
+            + "clear localStorage key futura-nota-v1 there and reload while logged in.",
           { preferredLocal, preferredMemory },
         );
       }
@@ -1198,7 +1228,7 @@ export function initPersistenceMiddleware(stores) {
   };
 
   const syncToSupabase = async (_stateArg) => {
-    if (!isSyncedWithRemote) return;
+    if (!isSyncedWithRemote) return true;
 
     if (syncInFlight) {
       syncNeedsRerun = true;
@@ -1217,13 +1247,14 @@ export function initPersistenceMiddleware(stores) {
     }
 
     const runSync = async () => {
+      let criticalOk = true;
       do {
         syncNeedsRerun = false;
 
         const userId = await resolveSyncUserId();
         if (!userId) {
           console.warn("No authenticated user — skipping Supabase sync.");
-          return;
+          return false;
         }
 
         // Always read live store — debounce snapshots can re-upsert deleted folders.
@@ -1262,12 +1293,13 @@ export function initPersistenceMiddleware(stores) {
           "Upsert companies",
           supabase.from("companies").upsert(companiesRows, upsertOpts),
         );
+        if (!ok) criticalOk = false;
         if (ok) {
           await deleteOrphanRows("companies", userId, companiesRows.map((r) => r.id));
         }
       }
 
-      // 2. Campaigns
+      // 2. Campaigns (folders = doc_kind content)
       const campaignsRows = Object.values(state.docs || {})
         .filter((doc) => doc?.id && !pendingDeletedDocIds.has(doc.id))
         .map((doc) => ({
@@ -1303,14 +1335,24 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       const campaignLocalIds = campaignsRows.map((r) => r.id);
+      // Empty local = intentional wipe (last folder deleted) → orphan-delete still runs.
+      let campaignsUpsertOk = true;
       if (campaignsRows.length > 0) {
-        await runUpsert(
+        campaignsUpsertOk = await runUpsert(
           "Upsert campaigns",
           supabase.from("campaigns").upsert(campaignsRows, upsertOpts),
         );
+        if (!campaignsUpsertOk) {
+          criticalOk = false;
+          console.error(
+            "Upsert campaigns failed — skipping orphan delete to avoid wiping remote folders",
+            { attemptedCount: campaignsRows.length },
+          );
+        }
       }
-      // Always purge remote campaigns missing locally (includes last-folder delete).
-      const campaignsOrphansOk = await deleteOrphanRows("campaigns", userId, campaignLocalIds);
+      const campaignsOrphansOk = campaignsUpsertOk
+        ? await deleteOrphanRows("campaigns", userId, campaignLocalIds)
+        : false;
 
       // 3. Nodes — persist Schedule in reference.anchorAt (JSONB)
       const nodesRows = Object.values(state.nodes || {})
@@ -1331,13 +1373,17 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       const nodeLocalIds = nodesRows.map((r) => r.id);
+      let nodesUpsertOk = true;
       if (nodesRows.length > 0) {
-        await runUpsert(
+        nodesUpsertOk = await runUpsert(
           "Upsert nodes",
           supabase.from("nodes").upsert(nodesRows, upsertOpts),
         );
+        if (!nodesUpsertOk) criticalOk = false;
       }
-      const nodesOrphansOk = await deleteOrphanRows("nodes", userId, nodeLocalIds);
+      const nodesOrphansOk = nodesUpsertOk
+        ? await deleteOrphanRows("nodes", userId, nodeLocalIds)
+        : false;
 
       if (campaignsOrphansOk && nodesOrphansOk) {
         clearResolvedDeleteTombstones(campaignLocalIds, nodeLocalIds);
@@ -1459,17 +1505,23 @@ export function initPersistenceMiddleware(stores) {
         );
       }
 
-      console.log("Supabase sync complete for user:", userId);
+      if (criticalOk) {
+        console.log("Supabase sync complete for user:", userId);
+      } else {
+        console.warn("Supabase sync finished with critical upsert failures for user:", userId);
+      }
     } catch (err) {
+      criticalOk = false;
       console.error("Supabase write failed:", err.message || err);
     }
       } while (syncNeedsRerun);
+      return criticalOk;
     };
 
     syncInFlight = runSync().finally(() => {
       syncInFlight = null;
     });
-    await syncInFlight;
+    return await syncInFlight;
   };
 
   const debouncedRemoteSync = debounce(syncToSupabase, 1500);
@@ -1483,9 +1535,26 @@ export function initPersistenceMiddleware(stores) {
       // quota / private mode
     }
     const userId = await resolveSyncUserId();
-    if (!userId) return;
+    if (!userId) {
+      lastCloudFlushOk = false;
+      return { ok: false, reason: "no_user" };
+    }
     isSyncedWithRemote = true;
-    await syncToSupabase(currentState);
+    try {
+      const syncOk = await syncToSupabase(currentState);
+      const ok = syncOk !== false;
+      lastCloudFlushOk = ok;
+      if (!ok) {
+        console.error(
+          "Cloud flush failed: required upsert (companies/campaigns/nodes) did not succeed",
+        );
+      }
+      return { ok };
+    } catch (err) {
+      lastCloudFlushOk = false;
+      console.error("Cloud flush failed:", err?.message || err);
+      return { ok: false, error: err };
+    }
   };
 
   /** Sync localStorage + kick remote write without awaiting (safe for unload). */
@@ -1537,6 +1606,15 @@ export function initPersistenceMiddleware(stores) {
       pendingDeletedDocIds.clear();
       pendingDeletedNodeIds.clear();
       debouncedRemoteSync.cancel();
+      // Keep local workspace if the last cloud flush failed — otherwise a new folder
+      // that only lived in localStorage would be wiped before it ever reached Supabase.
+      if (!lastCloudFlushOk) {
+        console.warn(
+          "SIGNED_OUT: skipping workspace wipe — last cloud flush did not confirm sync",
+        );
+        useUIStateStore.getState().setWorkspaceHydrated(true);
+        return;
+      }
       useUIStateStore.getState().setWorkspaceHydrated(false);
       const empty = emptyWorkspaceSnapshot();
       applyStateToStores(empty);
@@ -1578,6 +1656,7 @@ export function initPersistenceMiddleware(stores) {
 
 export { STORAGE_KEY };
 
+/** @returns {Promise<{ ok: boolean, reason?: string, error?: unknown }>} */
 export async function flushPersistenceSync() {
-  await flushPersistenceSyncImpl();
+  return flushPersistenceSyncImpl();
 }

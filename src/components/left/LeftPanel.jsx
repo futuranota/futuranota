@@ -31,6 +31,7 @@ import { docBlocksToBody, normalizeDocBlocks } from "../../lib/docBlocks.js";
 import { UnsavedChangesConfirm } from "../shared/UnsavedChangesConfirm.jsx";
 import { useDocBlockNodeModal, linkBlockNodesToDoc } from "../docs/useDocBlockNodeModal.jsx";
 import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
+import { flushPersistenceSync } from "../../stores/middleware/persistenceMiddleware.js";
 import {
   isTemplateDoc,
   isKnowledgeDoc,
@@ -1510,6 +1511,7 @@ export function LeftPanel({
   onStepPlaybookRemoved,
   timelineCanvasSelection = [],
   canvasNodesForQueue = [],
+  onNotify = null,
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -2226,7 +2228,7 @@ export function LeftPanel({
     setEditObjectId(null);
   };
 
-  const handleCreate = (data) => {
+  const handleCreate = async (data) => {
     if (panelType === "Objects") {
       if (planProfile.plan === "free" && Object.keys(objects).length >= FREE_LIMITS.maxObjects) {
         showUpgradeModal("object_limit");
@@ -2270,6 +2272,27 @@ export function LeftPanel({
       }
       setActiveId(null);
       setShowCreate(false);
+      if (newDocId) {
+        console.log("[folder sync] created", newDocId, "— flushing to cloud");
+        try {
+          const flush = await flushPersistenceSync();
+          if (!flush?.ok) {
+            console.warn("[folder sync] flush failed", newDocId, flush?.reason || flush);
+            onNotify?.(
+              "No se pudo guardar en la nube. El folder quedó local; no cierres sesión hasta que sync OK.",
+              "warm",
+            );
+          } else {
+            console.log("[folder sync] flush ok", newDocId);
+          }
+        } catch (err) {
+          console.warn("[folder sync] flush threw", newDocId, err?.message || err);
+          onNotify?.(
+            "No se pudo guardar en la nube. El folder quedó local; no cierres sesión hasta que sync OK.",
+            "warm",
+          );
+        }
+      }
       if (newDocId && onOpenDocument) {
         onOpenDocument(newDocId);
       }

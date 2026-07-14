@@ -6034,12 +6034,35 @@ body.doc-content-resizing * {
 }
 
 .doc-linked-macro-desc .folder-doc-row__desc-label {
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.88);
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: 700;
+  font-optical-sizing: var(--font-doc-optical-sizing);
+  line-height: var(--font-doc-line-height);
+  letter-spacing: var(--font-doc-letter-spacing);
+  color: #929292;
+}
+
+.doc-linked-macro-desc .folder-doc-row__desc-excerpt {
+  font-family: var(--font-doc);
+  font-size: var(--font-doc-size);
+  font-weight: var(--font-doc-weight);
+  font-optical-sizing: var(--font-doc-optical-sizing);
+  line-height: var(--font-doc-line-height);
+  letter-spacing: var(--font-doc-letter-spacing);
+  color: #fff;
 }
 
 .doc-linked-macro-desc .folder-doc-row__continue {
-  font-size: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  color: #EFF26E;
+  text-decoration-color: #EFF26E;
+}
+
+.doc-linked-macro-desc .folder-doc-row__continue:hover {
+  color: #EFF26E;
+  filter: brightness(1.08);
 }
 
 /* H1 block — same scale as To do header */

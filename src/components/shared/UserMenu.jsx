@@ -80,7 +80,11 @@ export function UserMenu() {
 
   const handleLogout = async () => {
     setOpen(false);
-    await signOut();
+    const result = await signOut();
+    if (result && result.ok === false) {
+      window.alert(result.error || "No se pudo guardar en la nube. Intentá de nuevo antes de cerrar sesión.");
+      return;
+    }
     navigate("/login", { replace: true });
   };
 

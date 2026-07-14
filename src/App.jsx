@@ -1253,6 +1253,7 @@ useEffect(() => {
             onStepPlaybookRemoved={handleStepPlaybookRemoved}
             timelineCanvasSelection={selection}
             canvasNodesForQueue={canvasNodes}
+            onNotify={(message, kind = "warm") => setToast({ message, kind })}
           />
         </div>
 

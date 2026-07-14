@@ -87,7 +87,13 @@ export const useAuthStore = create((set) => ({
   },
 
   signOut: async () => {
-    await flushPersistenceSync();
+    const flush = await flushPersistenceSync();
+    if (!flush?.ok) {
+      const message =
+        "No se pudo guardar en la nube. Intentá de nuevo antes de cerrar sesión.";
+      console.error("Logout aborted — cloud flush failed:", flush?.reason || flush?.error || flush);
+      return { ok: false, error: message };
+    }
     clearPendingProCheckout();
     clearLeftPanelNavSnapshot();
     try {
@@ -97,6 +103,7 @@ export const useAuthStore = create((set) => ({
     }
     await supabase.auth.signOut();
     set({ user: null, session: null });
+    return { ok: true };
   },
 
   resetPasswordForEmail: async (email) => {
