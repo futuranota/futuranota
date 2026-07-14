@@ -99,7 +99,9 @@ export const messages = {
         titleLabel: "Overlay title",
         descPlaceholder: "Short description (optional)",
         descLabel: "Overlay description",
-        bodyPlaceholder: "Write here, or type / for a new block",
+        bodyPlaceholder: "Caption / notes for this split",
+        save: "Save",
+        edit: "Edit",
       },
       blockDelete: {
         title: "Delete block",
@@ -913,7 +915,9 @@ export const messages = {
         titleLabel: "Título del overlay",
         descPlaceholder: "Descripción corta (opcional)",
         descLabel: "Descripción del overlay",
-        bodyPlaceholder: "Escribí aquí, o / para un bloque nuevo",
+        bodyPlaceholder: "Texto del split (se queda en el bloque)",
+        save: "Guardar",
+        edit: "Editar",
       },
       blockDelete: {
         title: "Eliminar bloque",

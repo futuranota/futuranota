@@ -1559,7 +1559,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT ? (
             <ImageSplitBlockView
               block={block}
-              autoFocusBody={focusBlockId === block.id && Boolean(block.imageSaved)}
+              autoFocusBody={focusBlockId === block.id && Boolean(block.imageSaved) && !block.splitSaved}
               onChange={(patch) => {
                 let next = updateBlockAt(blocksRef.current, index, patch);
                 if (patch.imageSaved && patch.src) {
@@ -1570,79 +1570,33 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   requestContentGrow();
                 }
               }}
-              onBodySpill={({ keepBody, spillText }) => {
-                let next = updateBlockAt(blocksRef.current, index, { body: keepBody });
+              onSave={() => {
+                if (!(block.imageSaved && block.src)) return;
+                let next = updateBlockAt(blocksRef.current, index, { splitSaved: true });
                 next = ensureEmptyTextBlockAfter(next, index);
-                const afterIndex = index + 1;
-                const after = next[afterIndex];
-                if (after?.type === DOC_BLOCK_TYPES.TEXT) {
-                  const merged = spillText
-                    ? `${spillText}${after.text || ""}`
-                    : (after.text || "");
-                  if (spillText) {
-                    next = updateBlockAt(next, afterIndex, { text: merged });
-                  }
-                  setBlocks(next);
-                  onFocusBlock?.(after.id);
-                  focusBlockCaret(after.id, spillText ? spillText.length : 0);
-                } else {
-                  setBlocks(next);
+                setBlocks(next);
+                const textBlock = next[index + 1];
+                if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {
+                  onFocusBlock?.(textBlock.id);
+                  focusBlockCaret(textBlock.id, 0);
                 }
                 requestContentGrow();
+              }}
+              onEdit={() => {
+                updateAt(index, { splitSaved: false });
+                onFocusBlock?.(block.id);
               }}
               onBodyKeyDown={(e) => {
                 if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
                 const bodyValue = e.currentTarget?.value ?? block.body ?? "";
                 const { slash } = splitBodyForSlash(bodyValue);
-                const caret = e.currentTarget?.selectionStart ?? bodyValue.length;
-                const caretEnd = e.currentTarget?.selectionEnd ?? caret;
-                const atEnd = caret === caretEnd && caret >= bodyValue.length;
 
-                if (e.key === "Enter" && !e.shiftKey) {
-                  if (slash) {
-                    const newId = tryConfirmSlashInImageSplitBody(index, bodyValue);
-                    if (newId) {
-                      e.preventDefault();
-                      requestContentGrow();
-                    }
-                    return;
-                  }
-
-                  // Exit split column → full-width text cell below
-                  if (atEnd) {
+                if (e.key === "Enter" && !e.shiftKey && slash) {
+                  const newId = tryConfirmSlashInImageSplitBody(index, bodyValue);
+                  if (newId) {
                     e.preventDefault();
-                    let next = ensureEmptyTextBlockAfter(blocksRef.current, index);
-                    setBlocks(next);
-                    const after = next[index + 1];
-                    if (after?.type === DOC_BLOCK_TYPES.TEXT) {
-                      onFocusBlock?.(after.id);
-                      focusBlockCaret(after.id, 0);
-                    }
                     requestContentGrow();
-                    return;
                   }
-
-                  // Enter mid-body: keep before caret, spill after to next cell
-                  e.preventDefault();
-                  const keepBody = bodyValue.slice(0, caret);
-                  const spillText = bodyValue.slice(caretEnd);
-                  let next = updateBlockAt(blocksRef.current, index, { body: keepBody });
-                  next = ensureEmptyTextBlockAfter(next, index);
-                  const after = next[index + 1];
-                  if (after?.type === DOC_BLOCK_TYPES.TEXT) {
-                    const merged = spillText
-                      ? `${spillText}${after.text || ""}`
-                      : (after.text || "");
-                    if (spillText || !after.text) {
-                      next = updateBlockAt(next, index + 1, { text: merged });
-                    }
-                    setBlocks(next);
-                    onFocusBlock?.(after.id);
-                    focusBlockCaret(after.id, 0);
-                  } else {
-                    setBlocks(next);
-                  }
-                  requestContentGrow();
                   return;
                 }
 
@@ -1654,11 +1608,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 }
 
                 onBodyKeyDown?.(e);
-              }}
-              onDelete={async () => {
-                const ok = await confirmDeleteCommandBlock("doc.blockDelete.imageSplit");
-                if (!ok) return;
-                removeCommandBlockAt(index);
               }}
             />
           ) : null}

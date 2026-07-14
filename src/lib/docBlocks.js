@@ -306,13 +306,14 @@ function normalizeImageBlock(block) {
   };
 }
 
-export const IMAGE_SPLIT_TITLE_MAX = 50;
-export const IMAGE_SPLIT_DESC_MAX = 160;
+export const IMAGE_SPLIT_TITLE_MAX = 160;
+export const IMAGE_SPLIT_DESC_MAX = 220;
 
 function normalizeImageSplitBlock(block) {
   const title = String(block?.overlayTitle ?? block?.title ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);
   const description = String(block?.overlayDescription ?? block?.description ?? "")
     .slice(0, IMAGE_SPLIT_DESC_MAX);
+  const imageSaved = Boolean(block?.imageSaved && block?.src);
   return {
     overlayTitle: title,
     overlayDescription: description,
@@ -321,9 +322,10 @@ function normalizeImageSplitBlock(block) {
     alt: block?.alt || "",
     width: Number.isFinite(block?.width) ? block.width : 0,
     height: Number.isFinite(block?.height) ? block.height : 0,
-    imageSaved: Boolean(block?.imageSaved && block?.src),
+    imageSaved,
     openFilePicker: Boolean(block?.openFilePicker),
     body: String(block?.body ?? ""),
+    splitSaved: Boolean(block?.splitSaved) && imageSaved,
   };
 }
 
@@ -761,6 +763,7 @@ export function docBlockHasContent(block) {
   if (type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
     return Boolean((block.src || "").trim())
       || Boolean(block.imageSaved)
+      || Boolean(block.splitSaved)
       || Boolean((block.overlayTitle || "").trim())
       || Boolean((block.overlayDescription || "").trim())
       || Boolean((block.body || "").trim());
@@ -1202,6 +1205,7 @@ export function docBlocksToBody(blocks) {
           height: normalized.height,
           imageSaved: normalized.imageSaved,
           body: normalized.body,
+          splitSaved: normalized.splitSaved,
         })}`;
       }
       if (block.type === DOC_BLOCK_TYPES.CODE) {
