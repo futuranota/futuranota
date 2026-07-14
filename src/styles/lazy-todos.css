@@ -375,47 +375,10 @@
   gap: 8px;
 }
 
-.lazy-todo-queue-panel__title {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-}
-
 .lazy-todo-queue-panel__body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-
-.lazy-todo-queue-panel__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.lazy-todo-queue-panel__search {
-  flex: 1 1 160px;
-  min-width: 0;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(232, 220, 200, 0.14);
-  background: color-mix(in oklab, var(--panel-2) 92%, #0e1116);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 13px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  box-sizing: border-box;
-}
-
-.lazy-todo-queue-panel__search:focus {
-  outline: none;
-  border-color: color-mix(in oklab, var(--hud) 40%, rgba(232, 220, 200, 0.16));
-}
-
-.lazy-todo-queue-panel__new-btn {
-  flex-shrink: 0;
 }
 
 .lazy-todo-queue-panel__list {

@@ -46,14 +46,14 @@ export function LazyTodoQueuePanel({
             type="button"
             className="lp-click-folder-back lp-click-folder-back--inline"
             onClick={onClose}
-            aria-label={t("common.back")}
-            title={t("common.back")}
+            aria-label={`Back — ${t("pack.lazyTodosQueueTitle")}`}
+            title={`Back — ${t("pack.lazyTodosQueueTitle")}`}
           >
             <span className="lp-click-folder-back-icon" aria-hidden />
+            <span className="lp-click-folder-back-label is-lowercase">
+              {t("pack.lazyTodosQueueTitle")}
+            </span>
           </button>
-          <h3 className="pack-wizard__title lazy-todo-queue-panel__title">
-            {t("pack.lazyTodosQueueTitle")}
-          </h3>
         </div>
 
         <div className="pack-wizard__body lazy-todo-queue-panel__body">
@@ -61,21 +61,24 @@ export function LazyTodoQueuePanel({
             <p className="pack-wizard__lead">{t("lazyTodos.enterCompanyFirst")}</p>
           ) : (
             <>
-              <div className="lazy-todo-queue-panel__toolbar">
-                <input
-                  type="search"
-                  className="lazy-todo-queue-panel__search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t("lazyTodos.searchPlaceholder")}
-                  aria-label={t("lazyTodos.searchPlaceholder")}
-                  onKeyDown={stopBubble}
-                  onKeyUp={stopBubble}
-                  onMouseDown={stopBubble}
-                />
+              <div className="lp-library-toolbar">
+                <div className="lp-library-search-wrap">
+                  <span className="lp-library-search-icon" aria-hidden />
+                  <input
+                    type="search"
+                    className="lp-library-search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t("lazyTodos.searchPlaceholder")}
+                    aria-label={t("lazyTodos.searchPlaceholder")}
+                    onKeyDown={stopBubble}
+                    onKeyUp={stopBubble}
+                    onMouseDown={stopBubble}
+                  />
+                </div>
                 <button
                   type="button"
-                  className="btn xs workspace-action-btn lazy-todo-queue-panel__new-btn"
+                  className="lp-library-new-btn"
                   onClick={onNew}
                 >
                   {t("lazyTodos.new")}

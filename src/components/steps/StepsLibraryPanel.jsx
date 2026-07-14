@@ -68,12 +68,14 @@ export function StepsLibraryPanel({
             type="button"
             className="lp-click-folder-back lp-click-folder-back--inline"
             onClick={onClose}
-            aria-label={t("common.back")}
-            title={t("common.back")}
+            aria-label={`Back — ${t("pack.stepsLibraryTitle")}`}
+            title={`Back — ${t("pack.stepsLibraryTitle")}`}
           >
             <span className="lp-click-folder-back-icon" aria-hidden />
+            <span className="lp-click-folder-back-label is-lowercase">
+              {t("pack.stepsLibraryTitle")}
+            </span>
           </button>
-          <h3 className="pack-wizard__title steps-library-panel__title">{t("pack.stepsLibraryTitle")}</h3>
         </div>
 
         <div className="pack-wizard__body steps-library-panel__body">
@@ -81,18 +83,21 @@ export function StepsLibraryPanel({
             <p className="pack-wizard__lead">{t("stepsLibrary.enterCompanyFirst")}</p>
           ) : (
             <>
-              <div className="steps-library-panel__toolbar">
-                <input
-                  type="search"
-                  className="steps-library-panel__search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={t("stepsLibrary.searchPlaceholder")}
-                  aria-label={t("stepsLibrary.searchPlaceholder")}
-                />
+              <div className="lp-library-toolbar">
+                <div className="lp-library-search-wrap">
+                  <span className="lp-library-search-icon" aria-hidden />
+                  <input
+                    type="search"
+                    className="lp-library-search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t("stepsLibrary.searchPlaceholder")}
+                    aria-label={t("stepsLibrary.searchPlaceholder")}
+                  />
+                </div>
                 <button
                   type="button"
-                  className="btn xs workspace-action-btn steps-library-panel__new-btn"
+                  className="lp-library-new-btn"
                   onClick={onNew}
                 >
                   {t("stepsLibrary.new")}

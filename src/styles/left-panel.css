@@ -797,7 +797,8 @@
 
 .lp-workspace-head .lp-click-folder-back--inline {
   flex-shrink: 0;
-  height: 24px;
+  min-height: 24px;
+  height: auto;
 }
 
 .lp-workspace-head .pack-actions {
