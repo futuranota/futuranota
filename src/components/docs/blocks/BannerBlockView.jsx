@@ -74,7 +74,10 @@ function textFitsFixedHeight(source, text, maxHeight) {
  */
 function headlineMaxHeightPx(el, lines = BANNER_HEADLINE_MAX_LINES) {
   const { lineHeight, padY } = measureHeadlineMetrics(el);
-  return Math.round(lines * lineHeight + padY);
+  const fromLines = Math.round(lines * lineHeight + padY);
+  if (!el || !(el.clientHeight > 0)) return fromLines;
+  // Visible box may be shorter than the 9-line budget; never write past what's on screen.
+  return Math.min(fromLines, Math.round(el.clientHeight));
 }
 
 /**

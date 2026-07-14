@@ -319,9 +319,9 @@ export const MOODBOARD_CAPTION_MAX = 64;
 export const MOODBOARD_CAPTION_MAX_LINES = 2;
 
 /** Banner headline (bold copy beside image). */
-export const BANNER_HEADLINE_MAX = 180;
-/** Hard ceiling for banner headline lines in the card. */
-export const BANNER_HEADLINE_MAX_LINES = 5;
+export const BANNER_HEADLINE_MAX = 280;
+/** Hard ceiling for banner headline lines (~doc cell line count). */
+export const BANNER_HEADLINE_MAX_LINES = 9;
 
 function normalizeImageSplitBlock(block) {
   const title = String(block?.overlayTitle ?? block?.title ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);
