@@ -65,6 +65,8 @@ import {
   unlinkNodeFromDocBlocks,
   getOwnedTextBlockIndices,
   isDocBlockLinkedToNode,
+  mergeMissingLinkedOwnerBundles,
+  removeLinkedOwnerBundleFromBlocks,
   reconcileLinkedBlockTitlesFromNodes,
   shouldMirrorNodeContentInDoc,
 } from "../../lib/docNodeSync.js";
@@ -253,12 +255,15 @@ export function DocExpandedView({
   const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
   const updateNode = useNodesStore((s) => s.updateNode);
   const deleteNode = useNodesStore((s) => s.deleteNode);
-  const deleteNodeEntity = useNodesStore((s) => s.deleteNodeEntity);
 
   const [selectionModal, setSelectionModal] = useState(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftBody, setDraftBody] = useState("");
   const [draftBlocks, setDraftBlocks] = useState([]);
+  const draftBlocksRef = useRef(draftBlocks);
+  draftBlocksRef.current = draftBlocks;
+  /** Linked nodeIds last seen in docsStore for this open folder (prevents remarge loops). */
+  const storeLinkedNodeIdsKeyRef = useRef("");
   const [draftCreatedDate, setDraftCreatedDate] = useState("");
   const [draftVersion, setDraftVersion] = useState("");
   const [draftCategory, setDraftCategory] = useState("");
@@ -331,7 +336,11 @@ export function DocExpandedView({
     );
     const useCachedDraft = cached && !preferStoreContent && cachedHasText;
 
-    const blocksForSnapshot = useCachedDraft ? cachedBlocks : loadedBlocks;
+    const blocksForSnapshotRaw = useCachedDraft ? cachedBlocks : loadedBlocks;
+    const blocksForSnapshot = mergeMissingLinkedOwnerBundles(
+      blocksForSnapshotRaw,
+      loadedBlocks,
+    );
     const loadedTitle = useCachedDraft ? (cached.title ?? savedTitle) : savedTitle;
     const loadedBody = useCachedDraft
       ? (cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")))
@@ -458,8 +467,74 @@ export function DocExpandedView({
     setInitialSnapshot(openSnapshot);
     docSnapshotRef.current = JSON.stringify(openSnapshot);
     setShowUnsavedConfirm(false);
+    storeLinkedNodeIdsKeyRef.current = blocksForSnapshot
+      .filter((b) => b?.nodeId)
+      .map((b) => b.nodeId)
+      .sort()
+      .join("|");
     setIsDraftReady(true);
   }, [docId]);
+
+  /**
+   * When Create a new Document syncs into docsStore while this folder is open,
+   * pull only *new* linked titles into the draft — never remarge removals.
+   */
+  useEffect(() => {
+    if (!doc || !isDraftReady) return;
+
+    const storeBlocks = normalizeDocBlocks(
+      doc.blocks?.length ? doc.blocks : docBlocksFromBody(doc.body ?? doc.content ?? ""),
+    );
+    const storeLinkedKey = storeBlocks
+      .filter((b) => b?.nodeId)
+      .map((b) => b.nodeId)
+      .sort()
+      .join("|");
+    if (storeLinkedKey === storeLinkedNodeIdsKeyRef.current) return;
+
+    const prevIds = new Set(
+      storeLinkedNodeIdsKeyRef.current
+        ? storeLinkedNodeIdsKeyRef.current.split("|").filter(Boolean)
+        : [],
+    );
+    const hasNewLinkedIds = storeBlocks.some(
+      (b) => b?.nodeId && !prevIds.has(b.nodeId),
+    );
+    storeLinkedNodeIdsKeyRef.current = storeLinkedKey;
+
+    if (!hasNewLinkedIds) {
+      // Panel delete purged the node — strip leftover title layers from the open draft.
+      const nodesById = useNodesStore.getState().nodes;
+      let pruned = draftBlocksRef.current;
+      let changed = false;
+      for (const block of draftBlocksRef.current) {
+        if (!block?.nodeId || nodesById[block.nodeId]) continue;
+        pruned = removeLinkedOwnerBundleFromBlocks(pruned, block.nodeId).blocks;
+        changed = true;
+      }
+      if (changed) {
+        setDraftBlocks(pruned);
+        setInitialSnapshot((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev, blocks: pruned };
+          docSnapshotRef.current = JSON.stringify(next);
+          return next;
+        });
+      }
+      return;
+    }
+
+    const merged = mergeMissingLinkedOwnerBundles(draftBlocksRef.current, storeBlocks);
+    if (JSON.stringify(merged) === JSON.stringify(draftBlocksRef.current)) return;
+
+    setDraftBlocks(merged);
+    setInitialSnapshot((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, blocks: merged };
+      docSnapshotRef.current = JSON.stringify(next);
+      return next;
+    });
+  }, [doc, doc?.blocks, isDraftReady]);
 
   useEffect(() => {
     if (!doc || !isDraftReady) return;
@@ -498,6 +573,27 @@ export function DocExpandedView({
       return next;
     });
   }, [doc, doc?.reportPresentation?.animateOnOpen, isDraftReady, initialSnapshot, draftBlocks, draftBody]);
+
+  const handleDraftBlocksChange = useCallback((next) => {
+    const prev = draftBlocksRef.current;
+    const prevIds = new Set(prev.filter((b) => b?.nodeId).map((b) => b.nodeId));
+    const nextIds = new Set(next.filter((b) => b?.nodeId).map((b) => b.nodeId));
+    const removedIds = [...prevIds].filter((id) => !nextIds.has(id));
+
+    setDraftBlocks(next);
+
+    if (!doc?.id || removedIds.length === 0) return;
+
+    // Persist folder removals so store does not remarge deleted titles.
+    for (const nodeId of removedIds) {
+      updateNode(nodeId, {
+        sourceBlockId: undefined,
+        sourceTextBlockId: undefined,
+      });
+    }
+    updateDoc(doc.id, { blocks: next });
+    storeLinkedNodeIdsKeyRef.current = [...nextIds].sort().join("|");
+  }, [doc?.id, updateDoc, updateNode]);
 
   useEffect(() => {
     if (!docId || !isDraftReady) return undefined;
@@ -1311,27 +1407,23 @@ export function DocExpandedView({
     const nodeId = block?.nodeId;
     if (!nodeId) return;
 
-    const node = getNode(nodeId);
-    let next = draftBlocks;
-
-    if (block?.type === DOC_BLOCK_TYPES.H1) {
-      const owned = getOwnedTextBlockIndices(draftBlocks, ownerIndex);
-      const primaryTextIndex = owned[0] ?? -1;
-      const primaryText = primaryTextIndex >= 0 ? draftBlocks[primaryTextIndex] : null;
-
-      if (primaryText && isEmbeddableWidgetBlock(primaryText)) {
-        const snapshotSrc = await captureDocBlockWidgetSnapshot(primaryText.id);
-        const textBlockEmbedded = buildDetachedWidgetEmbedded(primaryText, snapshotSrc);
-        next = unlinkNodeFromDocBlocks(draftBlocks, ownerIndex, node, { textBlockEmbedded });
-      } else {
-        next = unlinkNodeFromDocBlocks(draftBlocks, ownerIndex, node);
-      }
-    } else {
-      next = unlinkNodeFromDocBlocks(draftBlocks, ownerIndex, node);
-    }
-
+    // Remove title + Description layers from the folder body, but keep the
+    // document entity so it still appears under the folder in the left panel.
+    const { blocks: next } = removeLinkedOwnerBundleFromBlocks(draftBlocks, nodeId);
     setDraftBlocks(next);
-    deleteNodeEntity(nodeId);
+    updateDoc(doc.id, { blocks: next });
+    updateNode(nodeId, {
+      sourceBlockId: undefined,
+      sourceTextBlockId: undefined,
+      parentDocId: doc.id,
+      linkedToDoc: true,
+    });
+    useDocsStore.getState().addNodeToDoc(doc.id, nodeId);
+    storeLinkedNodeIdsKeyRef.current = next
+      .filter((b) => b?.nodeId)
+      .map((b) => b.nodeId)
+      .sort()
+      .join("|");
 
     if (activeNodeContext?.nodeId === nodeId) {
       setActiveNodeContext(null);
@@ -1697,9 +1789,7 @@ export function DocExpandedView({
             setDraftBody(v);
           }}
           blocks={draftBlocks}
-          onBlocksChange={(next) => {
-            setDraftBlocks(next);
-          }}
+          onBlocksChange={handleDraftBlocksChange}
           createdDate={draftCreatedDate}
           onCreatedDateChange={(v) => {
             setDraftCreatedDate(v);

@@ -3,6 +3,7 @@ import {
   createTodoItem,
   DOC_BLOCK_TYPES,
   ensureEmptyTextBlockAfter,
+  ensureWritableDocTail,
   getVideoEmbedBlockAfterH1,
   h1HasVideoEmbedSibling,
   insertBlockAfter,
@@ -569,10 +570,93 @@ export function getLinkedOwnerForContinuationSlot(blocks, textBlockIndex) {
   return -1;
 }
 
+/**
+ * Remove a linked macronode's H1/TODO (and owned answer/video/continuation)
+ * from folder blocks. Does not touch the node entity.
+ */
+export function removeLinkedOwnerBundleFromBlocks(blocks, nodeId) {
+  const normalized = normalizeDocBlocks(blocks);
+  if (!nodeId) return { blocks: normalized, removed: false };
+
+  const ownerIndex = normalized.findIndex((b) => b?.nodeId === nodeId);
+  if (ownerIndex < 0) return { blocks: normalized, removed: false };
+
+  const owner = normalized[ownerIndex];
+  const dropIds = new Set([owner.id]);
+
+  if (
+    owner.type === DOC_BLOCK_TYPES.H1
+    && normalized[ownerIndex + 1]?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+  ) {
+    dropIds.add(normalized[ownerIndex + 1].id);
+  }
+
+  for (const textIndex of getOwnedTextBlockIndices(normalized, ownerIndex)) {
+    dropIds.add(normalized[textIndex].id);
+  }
+
+  for (let i = 0; i < normalized.length; i += 1) {
+    const block = normalized[i];
+    if (block?.macroNodeSlot !== MACRO_NODE_TEXT_SLOT.CONTINUATION) continue;
+    if (getOwningScheduleBlockIndexForText(normalized, i) === ownerIndex) {
+      dropIds.add(block.id);
+    }
+  }
+
+  const next = ensureWritableDocTail(
+    normalized.filter((block) => !dropIds.has(block.id)),
+  );
+  return { blocks: next, removed: true };
+}
+
 /** Zustand node ids still referenced by saved doc blocks (h1, todo, date, metric, …). */
 export function isDocBlockLinkedToNode(block) {
   if (!block?.nodeId || !block.queryEnabled) return false;
   return !isNoNodeLinkMode(resolveBlockNodeLinkColor(block));
+}
+
+/**
+ * When Create a new Document syncs into a parent folder, the open editor draft
+ * may lag behind the store. Append any linked owner bundles missing from draft.
+ */
+export function mergeMissingLinkedOwnerBundles(draftBlocks, storeBlocks) {
+  const draft = normalizeDocBlocks(draftBlocks);
+  const store = normalizeDocBlocks(storeBlocks);
+  const draftNodeIds = new Set();
+  for (const block of draft) {
+    if (block?.nodeId) draftNodeIds.add(block.nodeId);
+  }
+
+  const toAppend = [];
+  const consumed = new Set();
+  for (let i = 0; i < store.length; i += 1) {
+    if (consumed.has(i)) continue;
+    const owner = store[i];
+    if (!isDocBlockLinkedToNode(owner)) continue;
+    if (draftNodeIds.has(owner.nodeId)) continue;
+
+    toAppend.push(owner);
+    consumed.add(i);
+
+    if (
+      owner.type === DOC_BLOCK_TYPES.H1
+      && store[i + 1]?.type === DOC_BLOCK_TYPES.VIDEO_EMBED
+    ) {
+      toAppend.push(store[i + 1]);
+      consumed.add(i + 1);
+    }
+
+    for (const textIndex of getOwnedTextBlockIndices(store, i)) {
+      if (consumed.has(textIndex)) continue;
+      const textBlock = store[textIndex];
+      if (isMacroContinuationTextBlock(textBlock)) continue;
+      toAppend.push(textBlock);
+      consumed.add(textIndex);
+    }
+  }
+
+  if (!toAppend.length) return draftBlocks;
+  return ensureWritableDocTail([...draft, ...toAppend]);
 }
 
 /**

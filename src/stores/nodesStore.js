@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 import { useDocsStore } from "./docsStore.js";
+import { useUIStateStore } from "./uiStateStore.js";
 import { injectNodeAnswerIntoDocBody } from "../lib/sync.js";
 import {
   createDocBlock,
@@ -21,7 +22,16 @@ import {
   getForecastDisplayText,
 } from "../lib/forecastNodeDisplay.js";
 import { parseWeatherForecastNodeContent } from "../lib/forecastSearch.js";
-import { ensureContinuationAfterLinkedOwner, findMacroContinuationIndex, isMacroContinuationTextBlock, MACRO_NODE_TEXT_SLOT, resolveLinkedAnswerTextIndex, unlinkNodeFromDocBlocks } from "../lib/docNodeSync.js";
+import {
+  ensureContinuationAfterLinkedOwner,
+  findMacroContinuationIndex,
+  isMacroContinuationTextBlock,
+  MACRO_NODE_TEXT_SLOT,
+  mergeMissingLinkedOwnerBundles,
+  removeLinkedOwnerBundleFromBlocks,
+  resolveLinkedAnswerTextIndex,
+  unlinkNodeFromDocBlocks,
+} from "../lib/docNodeSync.js";
 import { normalizeNodeTodoContent, createDefaultNodeTodoContent } from "../lib/nodeTodoContent.js";
 import {
   getNodeWritingPlainText,
@@ -110,12 +120,19 @@ function buildSyncedTextBlockFields(node) {
   return { text: buildSyncedNodeText(node) };
 }
 
+/** Fields for macronode titles synced into a parent folder (Create a new Document). */
 function linkedBlockFields(doc, extra = {}) {
   return {
     queryEnabled: true,
+    macronodeHeading: true,
     nodeLinkColor: resolveAdoptedBlockNodeLinkColor(doc),
     ...extra,
   };
+}
+
+/** Panel Create a new Document: synced title+Description, no color-link handle (continue reading opens). */
+function panelSyncedBlockFields(doc) {
+  return linkedBlockFields(doc, { hideColorLink: true });
 }
 
 /** Block schedule fields from node.anchorAt; marks schedule as owned by the node. */
@@ -530,7 +547,7 @@ export const useNodesStore = create(
               listTitle: todoContent.listTitle || syncedTitle,
               sourceQuery: syncedTitle,
               nodeId: node.id,
-              ...linkedBlockFields(doc),
+              ...panelSyncedBlockFields(doc),
               items: todoContent.items?.length
                 ? todoContent.items
                 : [createTodoItem()],
@@ -544,7 +561,7 @@ export const useNodesStore = create(
               title: syncedTitle,
               sourceQuery: syncedTitle,
               nodeId: node.id,
-              ...linkedBlockFields(doc),
+              ...panelSyncedBlockFields(doc),
               ...anchorFields,
             });
             const videoBlock = buildVideoEmbedDocBlock(videoContent, {
@@ -558,7 +575,7 @@ export const useNodesStore = create(
               title: syncedTitle,
               sourceQuery: syncedTitle,
               nodeId: node.id,
-              ...linkedBlockFields(doc),
+              ...panelSyncedBlockFields(doc),
               ...anchorFields,
             });
             const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, {
@@ -571,9 +588,23 @@ export const useNodesStore = create(
           }
         }
 
+        const finalizedBlocks = finalizeSyncedDocBlocks(nextBlocks, doc, sourceBlockId);
         useDocsStore.getState().updateDoc(docId, {
-          blocks: finalizeSyncedDocBlocks(nextBlocks, doc, sourceBlockId),
+          blocks: finalizedBlocks,
         });
+        // Keep open-folder editor draft in sync so new Create-a-new-Document
+        // titles + Description layers appear even while the folder modal is open.
+        const draft = useUIStateStore.getState().docEditorDrafts[docId];
+        if (draft) {
+          const mergedBlocks = mergeMissingLinkedOwnerBundles(
+            draft.blocks || [],
+            finalizedBlocks,
+          );
+          useUIStateStore.getState().setDocEditorDraft(docId, {
+            ...draft,
+            blocks: mergedBlocks,
+          });
+        }
         get().updateNode(nodeId, {
           parentDocId: docId,
           linkedToDoc: true,
@@ -638,12 +669,32 @@ export const useNodesStore = create(
         });
       },
 
+      /** Remove node entity and purge its title/Description blocks from parent folder. */
       deleteNodeAndDocBlocks: (nodeId) => {
         const node = get().nodes[nodeId];
         if (!node) return;
-        get().removeNodeSyncFromDoc(nodeId, node.parentDocId || null);
-        if (node.parentDocId) {
-          useDocsStore.getState().removeNodeFromDoc(node.parentDocId, nodeId);
+        const docId = node.parentDocId || null;
+        if (docId) {
+          const doc = useDocsStore.getState().getDoc(docId);
+          if (doc) {
+            const { blocks: nextBlocks } = removeLinkedOwnerBundleFromBlocks(
+              doc.blocks,
+              nodeId,
+            );
+            useDocsStore.getState().updateDoc(docId, { blocks: nextBlocks });
+            const draft = useUIStateStore.getState().docEditorDrafts[docId];
+            if (draft?.blocks) {
+              const { blocks: draftBlocks } = removeLinkedOwnerBundleFromBlocks(
+                draft.blocks,
+                nodeId,
+              );
+              useUIStateStore.getState().setDocEditorDraft(docId, {
+                ...draft,
+                blocks: draftBlocks,
+              });
+            }
+          }
+          useDocsStore.getState().removeNodeFromDoc(docId, nodeId);
         }
         set((state) => {
           const next = { ...state.nodes };
@@ -654,39 +705,48 @@ export const useNodesStore = create(
 
       removeNodeSyncFromDoc: (nodeId, docId = null) => {
         const node = get().nodes[nodeId];
-        if (!node?.sourceBlockId && !node?.sourceTextBlockId) return;
-
-        const targetDocId = docId || node.parentDocId;
+        const targetDocId = docId || node?.parentDocId;
         if (!targetDocId) return;
 
         const doc = useDocsStore.getState().getDoc(targetDocId);
         if (!doc) return;
 
-        const normalized = normalizeDocBlocks(doc.blocks);
-        const nextBlocks = normalized.filter(
-          (b) => b.id !== node.sourceBlockId && b.id !== node.sourceTextBlockId,
+        const { blocks: nextBlocks, removed } = removeLinkedOwnerBundleFromBlocks(
+          doc.blocks,
+          nodeId,
         );
-        if (nextBlocks.length === normalized.length) return;
-
-        useDocsStore.getState().updateDoc(targetDocId, {
-          blocks: ensureWritableDocTail(nextBlocks),
-        });
-        get().updateNode(nodeId, { sourceBlockId: undefined, sourceTextBlockId: undefined });
+        if (!removed) {
+          // Legacy fallback for sourceBlockId-only refs
+          if (!node?.sourceBlockId && !node?.sourceTextBlockId) return;
+          const normalized = normalizeDocBlocks(doc.blocks);
+          const filtered = normalized.filter(
+            (b) => b.id !== node.sourceBlockId && b.id !== node.sourceTextBlockId,
+          );
+          if (filtered.length === normalized.length) return;
+          useDocsStore.getState().updateDoc(targetDocId, {
+            blocks: ensureWritableDocTail(filtered),
+          });
+        } else {
+          useDocsStore.getState().updateDoc(targetDocId, { blocks: nextBlocks });
+        }
+        if (node) {
+          get().updateNode(nodeId, { sourceBlockId: undefined, sourceTextBlockId: undefined });
+        }
       },
 
       updateNode: (id, updates) =>
         set((state) => {
-          const node = state.nodes[id];
-          if (!node) return state;
+          const existing = state.nodes[id];
+          if (!existing) return state;
           // #region agent log
           if (Object.prototype.hasOwnProperty.call(updates || {}, "anchorAt")) {
-            fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H2',location:'nodesStore.js:updateNode',message:'node.anchorAt write',data:{id,prevAnchorAt:node.anchorAt??null,nextAnchorAt:updates.anchorAt??null,updateKeys:Object.keys(updates||{})},timestamp:Date.now()})}).catch(()=>{});
+            fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H2',location:'nodesStore.js:updateNode',message:'node.anchorAt write',data:{id,prevAnchorAt:existing.anchorAt??null,nextAnchorAt:updates.anchorAt??null,updateKeys:Object.keys(updates||{})},timestamp:Date.now()})}).catch(()=>{});
           }
           // #endregion
           return {
             nodes: {
               ...state.nodes,
-              [id]: { ...node, ...updates, updatedAt: new Date().toISOString() },
+              [id]: { ...existing, ...updates, updatedAt: new Date().toISOString() },
             },
           };
         }),
@@ -733,17 +793,7 @@ export const useNodesStore = create(
         }),
 
       deleteNode: (id) => {
-        const node = get().nodes[id];
-        if (node?.parentDocId && (node.sourceBlockId || node.sourceTextBlockId)) {
-          get().detachNodeFromDocAsCopy(id);
-        } else if (node?.parentDocId) {
-          useDocsStore.getState().removeNodeFromDoc(node.parentDocId, id);
-        }
-        set((state) => {
-          const next = { ...state.nodes };
-          delete next[id];
-          return { nodes: next };
-        });
+        get().deleteNodeAndDocBlocks(id);
       },
     }),
     { name: "NodesStore" },

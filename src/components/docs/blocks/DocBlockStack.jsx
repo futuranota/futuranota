@@ -42,7 +42,7 @@ import {
   parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
-import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode } from "../../../lib/docNodeSync.js";
+import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import {
   buildDetachedWidgetEmbedded,
@@ -65,6 +65,7 @@ import { H1BlockView } from "./H1BlockView.jsx";
 import { H2BlockView } from "./H2BlockView.jsx";
 import { H3BlockView } from "./H3BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
+import { LinkedMacronodeDescription } from "../LinkedMacronodeDescription.jsx";
 
 function findLastDocVaultBlockIndex(blocks, blockType) {
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
@@ -1292,7 +1293,13 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       const prevId = index > 0 ? current[index - 1]?.id : null;
       const nextBlock = current[index + 1];
       let next;
-      if (block.type === DOC_BLOCK_TYPES.H1 && nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
+      if (block.nodeId) {
+        next = removeLinkedOwnerBundleFromBlocks(current, block.nodeId).blocks;
+        updateNode(block.nodeId, {
+          sourceBlockId: undefined,
+          sourceTextBlockId: undefined,
+        });
+      } else if (block.type === DOC_BLOCK_TYPES.H1 && nextBlock?.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
         next = removeEmbedVideoPairAt(current, index);
       } else {
         next = removeBlockAt(current, index);
@@ -1450,33 +1457,45 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           hidden={itemHidden}
         >
           {block.type === DOC_BLOCK_TYPES.H1 ? (
-            <H1BlockView
-              value={block.title || ""}
-              placeholder={
-                h1HasVideoEmbedSibling(blocksRef.current, index)
-                  ? "Create video title"
-                  : block.macronodeHeading
-                    ? "Create a title"
-                    : "Heading 1"
-              }
-              onChange={(title) => {
-                updateAt(index, { title, sourceQuery: title });
-                syncLinkedBlockTitleToNode(block, title);
-                if (h1HasVideoEmbedSibling(blocksRef.current, index)) {
-                  onVideoEmbedH1TitleChange?.(index);
+            <>
+              <H1BlockView
+                value={block.title || ""}
+                placeholder={
+                  h1HasVideoEmbedSibling(blocksRef.current, index)
+                    ? "Create video title"
+                    : block.macronodeHeading
+                      ? "Create a title"
+                      : "Heading 1"
                 }
-              }}
-              queryEnabled={Boolean(block.queryEnabled)}
-              nodeLinkColor={blockLinkColor(block)}
-              linksEnabled={Boolean(block.macronodeHeading) && blockLinksEnabled(block)}
-              ghostHints={slashGhostHints}
-              onFocus={() => {
-                if (collapsedPadWriteByOwnerId[block.id]) return;
-                onFocusBlock?.(block.id);
-              }}
-              onQueryHandleClick={() => handleQueryHandleClick(index)}
-              onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
-            />
+                onChange={(title) => {
+                  updateAt(index, { title, sourceQuery: title });
+                  syncLinkedBlockTitleToNode(block, title);
+                  if (h1HasVideoEmbedSibling(blocksRef.current, index)) {
+                    onVideoEmbedH1TitleChange?.(index);
+                  }
+                }}
+                queryEnabled={Boolean(block.queryEnabled)}
+                nodeLinkColor={blockLinkColor(block)}
+                linksEnabled={
+                  Boolean(block.macronodeHeading)
+                  && blockLinksEnabled(block)
+                  && !block.hideColorLink
+                }
+                ghostHints={slashGhostHints}
+                onFocus={() => {
+                  if (collapsedPadWriteByOwnerId[block.id]) return;
+                  onFocusBlock?.(block.id);
+                }}
+                onQueryHandleClick={() => handleQueryHandleClick(index)}
+                onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+              />
+              {isDocBlockLinkedToNode(block) ? (
+                <LinkedMacronodeDescription
+                  nodeId={block.nodeId}
+                  onContinue={() => handleQueryHandleClick(index)}
+                />
+              ) : null}
+            </>
           ) : null}
 
           {block.type === DOC_BLOCK_TYPES.H2 ? (
@@ -1987,37 +2006,45 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           ) : null}
 
           {block.type === DOC_BLOCK_TYPES.TODO ? (
-            <DocTodoPlanBlockView
-              listTitle={block.listTitle ?? "Todo list:"}
-              onListTitleChange={(listTitle) => {
-                updateAt(index, { listTitle, sourceQuery: listTitle });
-                syncLinkedBlockTitleToNode(block, listTitle);
-              }}
-              queryEnabled={Boolean(block.queryEnabled)}
-              nodeLinkColor={blockLinkColor(block)}
-              linksEnabled={blockLinksEnabled(block)}
-              onFocus={() => {
-                if (collapsedPadWriteByOwnerId[block.id]) return;
-                onFocusBlock?.(block.id);
-              }}
-              items={block.items || []}
-              focusItemId={todoFocusItemId}
-              onItemsChange={(items) => updateAt(index, { items })}
-              onItemKeyDown={(itemIndex, e) => handleTodoItemKeyDown(index, itemIndex, e)}
-              onAddItem={() => {
-                const newItem = createTodoItem({ text: "" });
-                updateAt(index, { items: [...(block.items || []), newItem] });
-                setTodoFocusItemId(newItem.id);
-              }}
-              onDragHandlePointerDown={handleDragPointerDown}
-              onQueryHandleClick={() => handleQueryHandleClick(index)}
-              onListTitleKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
-              onDetachFromNode={
-                isDocBlockLinkedToNode(block) && onDetachFromNode
-                  ? () => onDetachFromNode(index)
-                  : null
-              }
-            />
+            <>
+              <DocTodoPlanBlockView
+                listTitle={block.listTitle ?? "Todo list:"}
+                onListTitleChange={(listTitle) => {
+                  updateAt(index, { listTitle, sourceQuery: listTitle });
+                  syncLinkedBlockTitleToNode(block, listTitle);
+                }}
+                queryEnabled={Boolean(block.queryEnabled)}
+                nodeLinkColor={blockLinkColor(block)}
+                linksEnabled={blockLinksEnabled(block) && !block.hideColorLink}
+                onFocus={() => {
+                  if (collapsedPadWriteByOwnerId[block.id]) return;
+                  onFocusBlock?.(block.id);
+                }}
+                items={block.items || []}
+                focusItemId={todoFocusItemId}
+                onItemsChange={(items) => updateAt(index, { items })}
+                onItemKeyDown={(itemIndex, e) => handleTodoItemKeyDown(index, itemIndex, e)}
+                onAddItem={() => {
+                  const newItem = createTodoItem({ text: "" });
+                  updateAt(index, { items: [...(block.items || []), newItem] });
+                  setTodoFocusItemId(newItem.id);
+                }}
+                onDragHandlePointerDown={handleDragPointerDown}
+                onQueryHandleClick={() => handleQueryHandleClick(index)}
+                onListTitleKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
+                onDetachFromNode={
+                  isDocBlockLinkedToNode(block) && onDetachFromNode
+                    ? () => onDetachFromNode(index)
+                    : null
+                }
+              />
+              {isDocBlockLinkedToNode(block) ? (
+                <LinkedMacronodeDescription
+                  nodeId={block.nodeId}
+                  onContinue={() => handleQueryHandleClick(index)}
+                />
+              ) : null}
+            </>
           ) : null}
 
           {block.type === DOC_BLOCK_TYPES.TEXT && !isCollapsedPadWriteBlock(block.id) ? (

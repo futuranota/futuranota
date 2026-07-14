@@ -1,0 +1,48 @@
+---
+description: Macronode Description layers under titles synced into a parent folder
+globs: src/components/docs/**/*.{jsx,js},src/components/left/LeftPanel.jsx,src/components/nodes/StandaloneNodeModal.jsx,src/stores/nodesStore.js,src/lib/nodeWritingExcerpt.js,src/lib/docNodeSync.js
+alwaysApply: false
+---
+
+# Folder macronode Description sync
+
+## Creation path (source of truth)
+
+1. Left panel → expand a **folder** box
+2. Click **Create a new Document** (sets `parentDocId`)
+3. User writes title + body in the macronode → Save
+4. `syncNodeToParentDoc` inserts/updates a linked H1 title inside the parent folder with `hideColorLink: true`
+
+This must work for **every** new document with a parent folder — not a one-off title.
+
+## Where Description appears
+
+| Surface | Behavior |
+|---|---|
+| Left panel folder expand | **Title only** (File icon + title) |
+| Open folder body | Under each **linked** macronode title (H1/TODO): `Description: {excerpt} continue reading` (+ Completed if on) |
+
+## Color node link (query handle)
+
+| Origin | Color handle |
+|---|---|
+| **Create a new Document** (left panel) | **Hidden** (`hideColorLink`) — `continue reading` opens the doc |
+| Link created **inside the open folder** (Create node + color) | **Shown** as today |
+
+## Delete rules
+
+1. **Delete from left panel expand** → purge node entity **and** title/Description/blocks from the parent folder (`deleteNode` → `deleteNodeAndDocBlocks`).
+2. **Remove layers inside the open folder** (detach / empty-title delete) → strip the linked owner bundle from folder blocks, but **keep** the document under the folder in the left panel (`parentDocId` retained).
+
+## Data
+
+- Excerpt from `node.content` **body** via `getNodeWritingExcerpt` / `getNodeWritingBodyPlainText` (max 120)
+- `continue reading` opens that macronode
+- `mergeMissingLinkedOwnerBundles` + draft purge when node deleted from panel
+
+## Key files
+
+- `LinkedMacronodeDescription.jsx` — Description line under linked titles
+- `DocBlockStack.jsx` — mounts Description; respects `hideColorLink`
+- `nodesStore.syncNodeToParentDoc` + `panelSyncedBlockFields`
+- `docNodeSync.removeLinkedOwnerBundleFromBlocks` / `mergeMissingLinkedOwnerBundles`

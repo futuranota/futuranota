@@ -272,12 +272,22 @@ export function StandaloneNodeModal({
     }
   };
 
+  /** Live-persist body so Folder Description excerpt updates while writing. */
+  const handleContentChange = (nextContent) => {
+    setContent(nextContent);
+    if (isNew || !node?.id) return;
+    if (dataType !== NODE_DATA_TYPES.TEXT) return;
+    if (parseCalendarEventNodeContent(node.content)) return;
+    const payload = parseContentForSave(nextContent, dataType);
+    updateNode(node.id, { content: payload });
+  };
+
   return (
     <NodeQueryModal
       query={query}
       onQueryChange={handleQueryChange}
       content={content}
-      onContentChange={setContent}
+      onContentChange={handleContentChange}
       dataType={dataType}
       onDataTypeChange={handleDataTypeChange}
       dataTypes={[

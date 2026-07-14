@@ -764,6 +764,7 @@ export function normalizeDocBlock(block) {
       macronodeHeading: block.macronodeHeading != null
         ? Boolean(block.macronodeHeading)
         : Boolean(block.nodeId || queryEnabled),
+      hideColorLink: Boolean(block.hideColorLink),
     });
   }
 
@@ -802,6 +803,7 @@ export function normalizeDocBlock(block) {
       nodeLinkColor: block.nodeLinkColor != null
         ? normalizeNodeLinkColorId(block.nodeLinkColor)
         : NO_NODE_LINK_COLOR_ID,
+      hideColorLink: Boolean(block.hideColorLink),
     });
   }
 
