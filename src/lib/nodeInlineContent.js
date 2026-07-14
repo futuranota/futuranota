@@ -24,6 +24,7 @@ export const NODE_BLOCK_TYPES = {
   STEP_SEQUENCE: "step_sequence",
   IMAGE: "image",
   IMAGE_SPLIT: "image_split",
+  MOODBOARD: "moodboard",
   PRODUCT_CARD: "product_card",
 };
 
@@ -242,6 +243,14 @@ export function normalizeWritingBlocks(blocks) {
         type: NODE_BLOCK_TYPES.IMAGE_SPLIT,
       };
     }
+    if (block?.type === NODE_BLOCK_TYPES.MOODBOARD || block?.type === DOC_BLOCK_TYPES.MOODBOARD) {
+      const docShape = createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, block);
+      return {
+        ...docShape,
+        id: block.id || docShape.id || generateId("NMB"),
+        type: NODE_BLOCK_TYPES.MOODBOARD,
+      };
+    }
     if (block?.type === NODE_BLOCK_TYPES.PRODUCT_CARD || block?.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {
       const docShape = createDocBlock(DOC_BLOCK_TYPES.PRODUCT_CARD, block);
       return {
@@ -317,6 +326,13 @@ export function nodeWritingBlocksHaveContent(blocks) {
     }
     if (block.type === NODE_BLOCK_TYPES.IMAGE || block.type === NODE_BLOCK_TYPES.IMAGE_SPLIT) {
       return Boolean((block.src || "").trim()) || Boolean(block.imageSaved);
+    }
+    if (block.type === NODE_BLOCK_TYPES.MOODBOARD) {
+      return Boolean(block.a?.imageSaved)
+        || Boolean(block.b?.imageSaved)
+        || Boolean(block.moodboardSaved)
+        || Boolean((block.caption || "").trim())
+        || Boolean((block.body || "").trim());
     }
     if (block.type === NODE_BLOCK_TYPES.PRODUCT_CARD) {
       return Boolean(block.specsSaved)
@@ -477,6 +493,14 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
       ...docShape,
       id: generateId("NIS"),
       type: NODE_BLOCK_TYPES.IMAGE_SPLIT,
+    };
+  }
+  if (parsed.type === DOC_BLOCK_TYPES.MOODBOARD) {
+    const docShape = createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, { openFilePicker: false });
+    return {
+      ...docShape,
+      id: generateId("NMB"),
+      type: NODE_BLOCK_TYPES.MOODBOARD,
     };
   }
   if (parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD) {

@@ -29,15 +29,45 @@ export function blobToDataUrl(blob) {
 }
 
 /**
+ * @param {number} srcW
+ * @param {number} srcH
+ * @param {number} [maxWidth]
+ * @param {number} [maxHeight]
+ */
+function resolveRasterSize(srcW, srcH, maxWidth, maxHeight) {
+  const hasMaxW = Number.isFinite(maxWidth) && maxWidth > 0;
+  const hasMaxH = Number.isFinite(maxHeight) && maxHeight > 0;
+  if (!hasMaxW && !hasMaxH) {
+    return { width: srcW, height: srcH };
+  }
+  const scale = Math.min(
+    1,
+    hasMaxW ? maxWidth / srcW : 1,
+    hasMaxH ? maxHeight / srcH : 1,
+  );
+  return {
+    width: Math.max(1, Math.round(srcW * scale)),
+    height: Math.max(1, Math.round(srcH * scale)),
+  };
+}
+
+/**
  * @param {HTMLImageElement} image
- * @param {{ quality?: number }} [options]
+ * @param {{ quality?: number, maxWidth?: number, maxHeight?: number }} [options]
  * @returns {Promise<{ blob: Blob, width: number, height: number }|null>}
  */
 export async function rasterizeImageToWebpBlob(image, options = {}) {
   const quality = options.quality ?? DEFAULT_WEBP_QUALITY;
-  const width = image.naturalWidth || image.width;
-  const height = image.naturalHeight || image.height;
-  if (!width || !height) return null;
+  const srcW = image.naturalWidth || image.width;
+  const srcH = image.naturalHeight || image.height;
+  if (!srcW || !srcH) return null;
+
+  const { width, height } = resolveRasterSize(
+    srcW,
+    srcH,
+    options.maxWidth,
+    options.maxHeight,
+  );
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -57,7 +87,7 @@ export async function rasterizeImageToWebpBlob(image, options = {}) {
 
 /**
  * @param {File|Blob} file
- * @param {{ quality?: number, fileName?: string, idPrefix?: string }} [options]
+ * @param {{ quality?: number, fileName?: string, idPrefix?: string, maxWidth?: number, maxHeight?: number }} [options]
  * @returns {Promise<{ id: string, src: string, name: string, width: number, height: number }|null>}
  */
 export async function convertFileToWebpData(file, options = {}) {
@@ -86,9 +116,9 @@ export async function convertFileToWebpData(file, options = {}) {
 }
 
 /**
- * Accepts png, jpg, svg, gif, webp, etc. Output keeps the source pixel size 1:1.
+ * Accepts png, jpg, svg, gif, webp, etc. Optionally downscales via maxWidth/maxHeight.
  * @param {string|File|Blob} source URL, data URL, File, or Blob
- * @param {{ quality?: number, fileName?: string, idPrefix?: string }} [options]
+ * @param {{ quality?: number, fileName?: string, idPrefix?: string, maxWidth?: number, maxHeight?: number }} [options]
  * @returns {Promise<{ id: string, src: string, name: string, width: number, height: number }|null>}
  */
 export async function convertImageSourceToWebp(source, options = {}) {

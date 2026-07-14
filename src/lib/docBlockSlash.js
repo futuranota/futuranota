@@ -71,6 +71,13 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
+    label: "Moodboard",
+    ghostHint: "moodboard",
+    aliases: ["moodboard", "mood", "board"],
+    blockType: DOC_BLOCK_TYPES.MOODBOARD,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
     label: "Code",
     ghostHint: "code",
     aliases: ["code", "codigo", "snippet", "codeblock"],
@@ -243,6 +250,10 @@ export function createDocBlockFromSlash(parsed) {
 
   if (parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
     return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, { openFilePicker: false });
+  }
+
+  if (parsed.type === DOC_BLOCK_TYPES.MOODBOARD) {
+    return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, { openFilePicker: false });
   }
 
   if (parsed.type === DOC_BLOCK_TYPES.CODE) {

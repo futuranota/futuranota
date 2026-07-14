@@ -29,6 +29,7 @@ import { AgentBlockView } from "../docs/blocks/AgentBlockView.jsx";
 import { StepSequenceBlockView } from "../docs/blocks/StepSequenceBlockView.jsx";
 import { ImageBlockView } from "../docs/blocks/ImageBlockView.jsx";
 import { ImageSplitBlockView } from "../docs/blocks/ImageSplitBlockView.jsx";
+import { MoodboardBlockView } from "../docs/blocks/MoodboardBlockView.jsx";
 import { ProductCardBlockView } from "../docs/blocks/ProductCardBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
@@ -808,6 +809,52 @@ export function NodeWritingBlockStack({
                   updateBlockAt(blockIndex, { splitSaved: false });
                 }}
                 onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.imageSplit")}
+                onBodyKeyDown={undefined}
+              />
+            </div>
+          );
+        }
+
+        if (block.type === NODE_BLOCK_TYPES.MOODBOARD) {
+          return (
+            <div
+              key={block.id}
+              data-writing-block-id={block.id}
+              className="node-writing-block-stack__moodboard"
+            >
+              <MoodboardBlockView
+                block={block}
+                onChange={(patch) => {
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex
+                      ? { ...entry, ...patch, type: NODE_BLOCK_TYPES.MOODBOARD }
+                      : entry
+                  ));
+                  if (patch.a?.imageSaved || patch.b?.imageSaved) {
+                    next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  }
+                  updateBlocks(next);
+                }}
+                onSave={() => {
+                  if (!(block.a?.imageSaved && block.b?.imageSaved)) return;
+                  let next = normalizeWritingBlocks(blocksRef.current);
+                  next = next.map((entry, index) => (
+                    index === blockIndex
+                      ? { ...entry, moodboardSaved: true, type: NODE_BLOCK_TYPES.MOODBOARD }
+                      : entry
+                  ));
+                  next = ensureEmptyTextBlockAfterNode(next, blockIndex);
+                  updateBlocks(next);
+                  const after = next[blockIndex + 1];
+                  if (after?.type === NODE_BLOCK_TYPES.TEXT) {
+                    onFocusTargetChange?.({ blockIndex: blockIndex + 1, focusText: true });
+                  }
+                }}
+                onEdit={() => {
+                  updateBlockAt(blockIndex, { moodboardSaved: false });
+                }}
+                onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.moodboard")}
                 onBodyKeyDown={undefined}
               />
             </div>

@@ -372,6 +372,7 @@ export function NodeQueryModal({
     } else if (
       parsed.type === DOC_BLOCK_TYPES.IMAGE
       || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+      || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
       || parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
     ) {
       setWritingFocusTarget({ blockIndex: insertedIndex });

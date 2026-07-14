@@ -18,6 +18,7 @@ const DOC_BLOCK_TYPES = {
   VIDEO_EMBED: "video_embed",
   IMAGE: "image",
   IMAGE_SPLIT: "image_split",
+  MOODBOARD: "moodboard",
   CODE: "code",
   PASSWORD_VAULT: "password_vault",
   LINK_VAULT: "link_vault",
@@ -311,6 +312,12 @@ export const IMAGE_SPLIT_DESC_MAX = 220;
 /** Hard ceiling for the right-hand body (doc font ~14px / lh 1.45). */
 export const IMAGE_SPLIT_BODY_MAX_LINES = 17;
 
+/** Short Pangolin caption on moodboard left card. */
+export const MOODBOARD_CAPTION_MAX = 40;
+/** WebP downscale targets matching set slot CSS sizes. */
+export const MOODBOARD_SLOT_A_MAX = Object.freeze({ width: 258, height: 197 });
+export const MOODBOARD_SLOT_B_MAX = Object.freeze({ width: 159, height: 140 });
+
 function normalizeImageSplitBlock(block) {
   const title = String(block?.overlayTitle ?? block?.title ?? "").slice(0, IMAGE_SPLIT_TITLE_MAX);
   const description = String(block?.overlayDescription ?? block?.description ?? "")
@@ -328,6 +335,32 @@ function normalizeImageSplitBlock(block) {
     openFilePicker: Boolean(block?.openFilePicker),
     body: String(block?.body ?? ""),
     splitSaved: Boolean(block?.splitSaved) && imageSaved,
+  };
+}
+
+function normalizeMoodboardSlot(slot) {
+  const src = slot?.src || "";
+  return {
+    src,
+    name: slot?.name || "",
+    alt: slot?.alt || "",
+    width: Number.isFinite(slot?.width) ? slot.width : 0,
+    height: Number.isFinite(slot?.height) ? slot.height : 0,
+    imageSaved: Boolean(slot?.imageSaved && src),
+  };
+}
+
+function normalizeMoodboardBlock(block) {
+  const a = normalizeMoodboardSlot(block?.a);
+  const b = normalizeMoodboardSlot(block?.b);
+  const bothSaved = Boolean(a.imageSaved && b.imageSaved);
+  return {
+    caption: String(block?.caption ?? "").slice(0, MOODBOARD_CAPTION_MAX),
+    a,
+    b,
+    body: String(block?.body ?? ""),
+    openFilePicker: Boolean(block?.openFilePicker),
+    moodboardSaved: Boolean(block?.moodboardSaved) && bothSaved,
   };
 }
 
@@ -466,6 +499,15 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     return {
       ...base,
       type: DOC_BLOCK_TYPES.IMAGE_SPLIT,
+      ...normalized,
+    };
+  }
+
+  if (type === DOC_BLOCK_TYPES.MOODBOARD) {
+    const normalized = normalizeMoodboardBlock(patch);
+    return {
+      ...base,
+      type: DOC_BLOCK_TYPES.MOODBOARD,
       ...normalized,
     };
   }
@@ -646,6 +688,13 @@ export function normalizeDocBlock(block) {
     });
   }
 
+  if (type === DOC_BLOCK_TYPES.MOODBOARD) {
+    return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, {
+      id: block.id,
+      ...normalizeMoodboardBlock(block),
+    });
+  }
+
   if (type === DOC_BLOCK_TYPES.CODE) {
     return createDocBlock(DOC_BLOCK_TYPES.CODE, {
       id: block.id,
@@ -769,6 +818,14 @@ export function docBlockHasContent(block) {
       || Boolean((block.overlayTitle || "").trim())
       || Boolean((block.overlayDescription || "").trim())
       || Boolean((block.body || "").trim());
+  }
+  if (type === DOC_BLOCK_TYPES.MOODBOARD) {
+    const normalized = normalizeMoodboardBlock(block);
+    return Boolean(normalized.a.imageSaved)
+      || Boolean(normalized.b.imageSaved)
+      || Boolean(normalized.moodboardSaved)
+      || Boolean((normalized.caption || "").trim())
+      || Boolean((normalized.body || "").trim());
   }
   if (type === DOC_BLOCK_TYPES.CODE) {
     return Boolean((block.code || "").trim()) || Boolean(block.codeSaved);
@@ -956,6 +1013,20 @@ function parseImageSplitSection(section) {
   }
 }
 
+function parseMoodboardSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::moodboard")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD);
+  try {
+    const parsed = JSON.parse(payload);
+    return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, parsed);
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD);
+  }
+}
+
 function parseCodeSection(section) {
   const lines = section.split("\n");
   const first = lines[0]?.trim() || "";
@@ -1080,6 +1151,12 @@ export function docBlocksFromBody(body) {
     const imageSplitBlock = parseImageSplitSection(section);
     if (imageSplitBlock) {
       blocks.push(imageSplitBlock);
+      continue;
+    }
+
+    const moodboardBlock = parseMoodboardSection(section);
+    if (moodboardBlock) {
+      blocks.push(moodboardBlock);
       continue;
     }
 
@@ -1208,6 +1285,16 @@ export function docBlocksToBody(blocks) {
           imageSaved: normalized.imageSaved,
           body: normalized.body,
           splitSaved: normalized.splitSaved,
+        })}`;
+      }
+      if (block.type === DOC_BLOCK_TYPES.MOODBOARD) {
+        const normalized = normalizeMoodboardBlock(block);
+        return `::moodboard\n${JSON.stringify({
+          caption: normalized.caption,
+          a: normalized.a,
+          b: normalized.b,
+          body: normalized.body,
+          moodboardSaved: normalized.moodboardSaved,
         })}`;
       }
       if (block.type === DOC_BLOCK_TYPES.CODE) {
@@ -1353,6 +1440,18 @@ export function replaceBlocksFromSlashInImageSplitBody(blocks, blockIndex, bodyV
   return next;
 }
 
+export function replaceBlocksFromSlashInMoodboardBody(blocks, blockIndex, bodyValue, newBlock) {
+  const normalized = normalizeDocBlocks(blocks);
+  const block = normalized[blockIndex];
+  if (!block || block.type !== DOC_BLOCK_TYPES.MOODBOARD) return normalized;
+
+  const { prefix } = splitBodyForSlash(bodyValue);
+  const next = [...normalized];
+  next[blockIndex] = normalizeDocBlock({ ...block, body: prefix });
+  next.splice(blockIndex + 1, 0, normalizeDocBlock(newBlock));
+  return next;
+}
+
 export function ensureEmptyTextBlockAfter(blocks, blockIndex) {
   const normalized = normalizeDocBlocks(blocks);
   if (blockIndex < 0 || blockIndex >= normalized.length) return normalized;
@@ -1397,6 +1496,7 @@ export function getActiveContentBlock(blocks) {
     || block.type === DOC_BLOCK_TYPES.VIDEO_EMBED
     || block.type === DOC_BLOCK_TYPES.IMAGE
     || block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+    || block.type === DOC_BLOCK_TYPES.MOODBOARD
     || block.type === DOC_BLOCK_TYPES.CODE
     || block.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
     || block.type === DOC_BLOCK_TYPES.LINK_VAULT

@@ -26,6 +26,7 @@ import {
   replaceBlockFromSlashInLinkable,
   replaceBlocksFromSlashInText,
   replaceBlocksFromSlashInImageSplitBody,
+  replaceBlocksFromSlashInMoodboardBody,
   replaceBlocksFromSlashWithEmbedVideo,
   stepEntryHasContent,
   updateBlockAt,
@@ -93,6 +94,7 @@ import { ProductCardBlockView } from "./ProductCardBlockView.jsx";
 import { VideoEmbedBlockView } from "./VideoEmbedBlockView.jsx";
 import { ImageBlockView } from "./ImageBlockView.jsx";
 import { ImageSplitBlockView } from "./ImageSplitBlockView.jsx";
+import { MoodboardBlockView } from "./MoodboardBlockView.jsx";
 import { CodeBlockView } from "./CodeBlockView.jsx";
 import { PasswordVaultBlockView } from "./PasswordVaultBlockView.jsx";
 import { LinkVaultBlockView } from "./LinkVaultBlockView.jsx";
@@ -771,6 +773,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     if (
       parsed.type === DOC_BLOCK_TYPES.IMAGE
       || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+      || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -996,6 +999,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     if (
       parsed.type === DOC_BLOCK_TYPES.IMAGE
       || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+      || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -1030,6 +1034,40 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     if (
       parsed.type === DOC_BLOCK_TYPES.IMAGE
       || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+      || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
+      || parsed.type === DOC_BLOCK_TYPES.CODE
+      || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+      || parsed.type === DOC_BLOCK_TYPES.AGENT
+    ) {
+      const newIndex = next.findIndex((b) => b.id === newBlock.id);
+      if (newIndex >= 0) next = ensureEmptyTextBlockAfter(next, newIndex);
+      setBlocks(next);
+      onFocusBlock?.(newBlock.id);
+      requestContentGrow();
+      return newBlock.id;
+    }
+    finalizeSlashInsert(next, newBlock.id);
+    return newBlock.id;
+  };
+
+  const tryConfirmSlashInMoodboardBody = (blockIndex, bodyValue) => {
+    const { slash } = splitBodyForSlash(bodyValue);
+    if (!slash) return false;
+    const parsed = parseScopedSlash(slash.slice(1));
+    if (!parsed || !canInsertSlashBlock(parsed)) return false;
+
+    const newBlock = createDocBlockFromSlash(parsed);
+    let next = replaceBlocksFromSlashInMoodboardBody(
+      blocksRef.current,
+      blockIndex,
+      bodyValue,
+      newBlock,
+    );
+    if (
+      parsed.type === DOC_BLOCK_TYPES.IMAGE
+      || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+      || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
       || parsed.type === DOC_BLOCK_TYPES.CODE
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
@@ -1614,6 +1652,71 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
                 if (e.key === "Enter" && !e.shiftKey && slash) {
                   const newId = tryConfirmSlashInImageSplitBody(index, bodyValue);
+                  if (newId) {
+                    e.preventDefault();
+                    requestContentGrow();
+                  }
+                  return;
+                }
+
+                if (e.key === "Escape" && slash) {
+                  const { prefix } = splitBodyForSlash(bodyValue);
+                  e.preventDefault();
+                  updateAt(index, { body: prefix });
+                  return;
+                }
+
+                onBodyKeyDown?.(e);
+              }}
+            />
+          ) : null}
+
+          {block.type === DOC_BLOCK_TYPES.MOODBOARD ? (
+            <MoodboardBlockView
+              block={block}
+              autoFocusBody={
+                focusBlockId === block.id
+                && Boolean(block.a?.imageSaved && block.b?.imageSaved)
+                && !block.moodboardSaved
+              }
+              onChange={(patch) => {
+                let next = updateBlockAt(blocksRef.current, index, patch);
+                if (patch.a?.imageSaved || patch.b?.imageSaved) {
+                  next = ensureEmptyTextBlockAfter(next, index);
+                }
+                setBlocks(next);
+                if (patch.a?.imageSaved || patch.b?.imageSaved) {
+                  requestContentGrow();
+                }
+              }}
+              onSave={() => {
+                if (!(block.a?.imageSaved && block.b?.imageSaved)) return;
+                let next = updateBlockAt(blocksRef.current, index, { moodboardSaved: true });
+                next = ensureEmptyTextBlockAfter(next, index);
+                setBlocks(next);
+                const textBlock = next[index + 1];
+                if (textBlock?.type === DOC_BLOCK_TYPES.TEXT) {
+                  onFocusBlock?.(textBlock.id);
+                  focusBlockCaret(textBlock.id, 0);
+                }
+                requestContentGrow();
+              }}
+              onEdit={() => {
+                updateAt(index, { moodboardSaved: false });
+                onFocusBlock?.(block.id);
+              }}
+              onDelete={async () => {
+                const ok = await confirmDeleteCommandBlock("doc.blockDelete.moodboard");
+                if (!ok) return;
+                removeCommandBlockAt(index);
+              }}
+              onBodyKeyDown={(e) => {
+                if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
+                const bodyValue = e.currentTarget?.value ?? block.body ?? "";
+                const { slash } = splitBodyForSlash(bodyValue);
+
+                if (e.key === "Enter" && !e.shiftKey && slash) {
+                  const newId = tryConfirmSlashInMoodboardBody(index, bodyValue);
                   if (newId) {
                     e.preventDefault();
                     requestContentGrow();
