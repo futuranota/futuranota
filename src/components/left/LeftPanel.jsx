@@ -808,35 +808,6 @@ function DocNodesBlockCard({
   );
 }
 
-function groupNodesByDocument(filteredNodes, docs) {
-  const byDoc = new Map();
-  const orphans = [];
-
-  for (const node of filteredNodes) {
-    const docId = node.parentDocId;
-    if (!docId || !docs[docId]) {
-      orphans.push(node);
-      continue;
-    }
-    if (!byDoc.has(docId)) byDoc.set(docId, []);
-    byDoc.get(docId).push(node);
-  }
-
-  const sections = [...byDoc.entries()]
-    .map(([docId, nodes]) => ({ doc: docs[docId], nodes }))
-    .sort((a, b) => {
-      const titleA = (isKnowledgeDoc(a.doc)
-        ? resolveKnowledgeDocDisplayTitle(a.doc)
-        : resolveProductDocDisplayTitle(a.doc)).toLowerCase();
-      const titleB = (isKnowledgeDoc(b.doc)
-        ? resolveKnowledgeDocDisplayTitle(b.doc)
-        : resolveProductDocDisplayTitle(b.doc)).toLowerCase();
-      return titleA.localeCompare(titleB);
-    });
-
-  return { sections, orphans };
-}
-
 /* ─────────────────────────────────────────────
    MODAL: Create Object  "CREATE YOUR MODEL"
 ───────────────────────────────────────────── */
@@ -1623,16 +1594,17 @@ export function LeftPanel({
     .map((obj) => ({ object: obj, docs: getDocsByObject(obj.id) }))
     .filter((section) => section.docs.length > 0);
 
-  const objectScopedNodes = useMemo(() => {
+  // Independent Documents: only orphans scoped to this company/corpus.
+  // Never pull parentless nodes from other corpus objects.
+  const independentNodes = useMemo(() => {
     if (!activeObjectId) return [];
-    const docIds = new Set(getDocsByObject(activeObjectId).map((doc) => doc.id));
     return nodeList.filter((node) => {
-      if (!node.parentDocId) return true;
-      return docIds.has(node.parentDocId);
+      if (node.parentDocId) return false;
+      return node.objectId === activeObjectId;
     });
-  }, [activeObjectId, nodeList, docs, getDocsByObject]);
+  }, [activeObjectId, nodeList]);
 
-  const filteredNodeList = objectScopedNodes.filter((node) => {
+  const filteredIndependentNodes = independentNodes.filter((node) => {
     const q = nodeSearch.trim().toLowerCase();
     if (!q) return true;
     const title = (node.sourceQuery || node.title || "").toLowerCase();
@@ -1640,11 +1612,6 @@ export function LeftPanel({
       typeof node.content === "string" ? node.content.toLowerCase() : JSON.stringify(node.content || "").toLowerCase();
     return title.includes(q) || content.includes(q);
   });
-
-  const groupedNodeViews = useMemo(
-    () => groupNodesByDocument(filteredNodeList, docs),
-    [filteredNodeList, docs],
-  );
 
   // Resolve folder children from block.nodeId (editor source of truth) + parentDocId.
   // Many persisted nodes have parentDocId wiped; counting only parentDocId shows "0 documents".
@@ -2934,7 +2901,7 @@ export function LeftPanel({
           </div>
         )}
 
-        {/* LOOSE DOCUMENTS — orphans only */}
+        {/* Independent Documents — parentless docs for this corpus only */}
         {panelType === "Nodes" && objectWorkspaceActive && !nodeEditId && (
           <>
             <input
@@ -2948,47 +2915,22 @@ export function LeftPanel({
               <p className="lp-context-label"><TranslatedText text={activeObject.name} /></p>
             ) : null}
             <div className="lp-doc-nodes-stack">
-              {groupedNodeViews.sections.map(({ doc, nodes: sectionNodes }) => (
-                <DocNodesBlockCard
-                  key={doc.id}
-                  doc={doc}
-                  nodes={sectionNodes}
-                  objects={objects}
-                  showWhenEmpty
-                  onOpenDoc={() => handleOpenFolderDoc(doc.id)}
-                  onCreateDocument={() => openCreateDocument(doc)}
-                  onDeleteBox={() => handleDeleteDoc(doc)}
-                  onNodeClick={(node) => {
-                    setActiveId(node.id);
-                    setNodeEditContentFocus(false);
-                    setNodeEditId(node.id);
-                  }}
-                  onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                  onNodeDelete={handleDeleteNode}
-                />
-              ))}
-              {groupedNodeViews.orphans.length ? (
-                <DocNodesBlockCard
-                  doc={null}
-                  orphan
-                  nodes={groupedNodeViews.orphans}
-                  objects={objects}
-                  onNodeClick={(node) => {
-                    setActiveId(node.id);
-                    setNodeEditContentFocus(false);
-                    setNodeEditId(node.id);
-                  }}
-                  onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                  onNodeDelete={handleDeleteNode}
-                />
-              ) : null}
+              <DocNodesBlockCard
+                doc={null}
+                orphan
+                nodes={filteredIndependentNodes}
+                objects={objects}
+                showWhenEmpty
+                defaultExpanded
+                onNodeClick={(node) => {
+                  setActiveId(node.id);
+                  setNodeEditContentFocus(false);
+                  setNodeEditId(node.id);
+                }}
+                onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                onNodeDelete={handleDeleteNode}
+              />
             </div>
-            {!groupedNodeViews.sections.length && !groupedNodeViews.orphans.length ? (
-              <div className="lp-empty">
-                <p>{t("sidebar.noNodesYet")}</p>
-                <p className="dim">{t("sidebar.createNewNodeAbove")}</p>
-              </div>
-            ) : null}
           </>
         )}
 

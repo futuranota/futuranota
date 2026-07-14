@@ -248,11 +248,14 @@ export function releaseStaleNodeParentRefs(docsById = {}) {
   for (const node of nodesStore.getAllNodes()) {
     if (!node.parentDocId) continue;
     if (isValidParentDoc(node.parentDocId, docsById)) continue;
+    const staleDoc = docsById[node.parentDocId];
     nodesStore.updateNode(node.id, {
       parentDocId: null,
       linkedToDoc: false,
       sourceBlockId: undefined,
       sourceTextBlockId: undefined,
+      // Keep corpus membership so Independent Documents stays company-scoped.
+      objectId: node.objectId || staleDoc?.parentObjectId || null,
     });
     released.push(node.id);
   }

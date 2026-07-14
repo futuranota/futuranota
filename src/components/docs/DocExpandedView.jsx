@@ -1232,7 +1232,31 @@ export function DocExpandedView({
     );
   };
 
-  const handleRequestCloseNodeModal = () => {
+  const childNodeScheduleIncomplete = () => {
+    if (!childScheduleBounds || !activeNodeContext) return false;
+    const dataType = activeNodeContext.dataType;
+    if (dataType !== NODE_DATA_TYPES.TEXT && dataType !== NODE_DATA_TYPES.CHECKBOX) {
+      return false;
+    }
+    return !String(nodeDraftAnchorDate || "").trim()
+      || !String(nodeDraftAnchorTime || "").trim();
+  };
+
+  const ensureChildScheduleOrRemind = async () => {
+    if (!childNodeScheduleIncomplete()) return true;
+    await askConfirm({
+      title: t("meta.childScheduleRequiredTitle"),
+      message: t("meta.childScheduleRequiredBody"),
+      confirmLabel: t("common.ok"),
+      tone: "default",
+      hideCancel: true,
+      iconSrc: "/uploads/CalendarDots.svg",
+    });
+    return false;
+  };
+
+  const handleRequestCloseNodeModal = async () => {
+    if (!(await ensureChildScheduleOrRemind())) return;
     if (hasNodeUnsavedChanges()) {
       setShowNodeUnsavedConfirm(true);
       return;
@@ -1244,7 +1268,8 @@ export function DocExpandedView({
     resetNodeModalState();
   };
 
-  const flushAndCloseNodeModal = () => {
+  const flushAndCloseNodeModal = async () => {
+    if (!(await ensureChildScheduleOrRemind())) return;
     if (!activeNodeContext) {
       resetNodeModalState();
       return;
@@ -1280,8 +1305,9 @@ export function DocExpandedView({
     resetNodeModalState();
   };
 
-  const handleSendQueryToIntelSearch = () => {
-    flushAndCloseNodeModal();
+  const handleSendQueryToIntelSearch = async () => {
+    if (!(await ensureChildScheduleOrRemind())) return;
+    await flushAndCloseNodeModal();
     onClose();
   };
 
@@ -2043,12 +2069,14 @@ export function DocExpandedView({
         open={showNodeUnsavedConfirm}
         promptKey="nodePrompt"
         titleId="node-unsaved-confirm-title"
-        onYes={() => {
+        onYes={async () => {
+          setShowNodeUnsavedConfirm(false);
+          if (!(await ensureChildScheduleOrRemind())) return;
           handleNodeModalSave();
-          setShowNodeUnsavedConfirm(false);
         }}
-        onNo={() => {
+        onNo={async () => {
           setShowNodeUnsavedConfirm(false);
+          if (!(await ensureChildScheduleOrRemind())) return;
           resetNodeModalState();
         }}
       />

@@ -34,6 +34,16 @@
     0 1px 0 rgba(255, 255, 255, 0.06) inset;
 }
 
+.confirm-action-card__icon {
+  display: block;
+  width: 40px;
+  height: 40px;
+  margin: 0 0 12px;
+  object-fit: contain;
+  /* CalendarDots.svg ships dark fill; invert for dark panels */
+  filter: brightness(0) invert(0.92);
+}
+
 .confirm-action-card__title {
   margin: 0 0 10px;
   font-family: var(--sans);

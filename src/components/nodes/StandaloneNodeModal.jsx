@@ -2,7 +2,11 @@ import { useMemo, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
-import { listAdoptableDocs, resolveNodeParentDocId } from "../../lib/nodeParentAdoption.js";
+import {
+  listAdoptableDocs,
+  resolveAdoptableDocLabel,
+  resolveNodeParentDocId,
+} from "../../lib/nodeParentAdoption.js";
 import { anchorFieldsFromIso, isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import {
   dateInputFromIso,
@@ -150,7 +154,7 @@ function parseContentForSave(text, dataType) {
 }
 
 /**
- * Create or edit a document (node entity) from Folder / Loose documents.
+ * Create or edit a document (node entity) from Folder / Independent Documents.
  */
 export function StandaloneNodeModal({
   node = null,
@@ -176,6 +180,9 @@ export function StandaloneNodeModal({
   const docsByStoreId = useDocsStore((s) => s.docs);
 
   const isNew = !node;
+  // Parent folder assign/rename only for Independent Documents (no persisted parent).
+  // Docs already inside a folder must not show the parent switcher.
+  const canAssignParent = isNew ? !initialParentDocId : !node?.parentDocId;
   const docList = listAdoptableDocs(docs, { parentObjectId });
   const [query, setQuery] = useState(() => getNodeDisplayTitle(node) || "");
   const [dataType, setDataType] = useState(node?.dataType || NODE_DATA_TYPES.TEXT);
@@ -185,6 +192,22 @@ export function StandaloneNodeModal({
     if (isNew && initialParentDocId) return initialParentDocId;
     return resolveNodeParentDocId(node, null, docsById, { parentObjectId }) || "";
   });
+  const lockedParentLabel = useMemo(() => {
+    if (canAssignParent) return "";
+    const id = parentDocId || node?.parentDocId || initialParentDocId || "";
+    if (!id) return "";
+    const doc = docsByStoreId?.[id]
+      || docList.find((d) => d.id === id)
+      || null;
+    return doc ? resolveAdoptableDocLabel(doc) : "";
+  }, [
+    canAssignParent,
+    parentDocId,
+    node?.parentDocId,
+    initialParentDocId,
+    docsByStoreId,
+    docList,
+  ]);
   const [createdDate, setCreatedDate] = useState(() =>
     dateInputFromIso(node?.createdAt),
   );
@@ -262,6 +285,28 @@ export function StandaloneNodeModal({
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
       : null;
 
+    const corpusObjectId = parentId
+      ? (docsByStoreId?.[parentId]?.parentObjectId || parentObjectId || null)
+      : (parentObjectId || node?.objectId || null);
+
+    const scheduleIncomplete = Boolean(
+      supportsSchedule
+      && childScheduleBounds
+      && (!scheduleDate || !String(anchorTime || "").trim()),
+    );
+    if (scheduleIncomplete) {
+      await askConfirm({
+        title: t("meta.childScheduleRequiredTitle"),
+        message: t("meta.childScheduleRequiredBody"),
+        confirmLabel: t("common.ok"),
+        tone: "default",
+        hideCancel: true,
+        iconSrc: "/uploads/CalendarDots.svg",
+      });
+      if (isNew) return;
+      // Existing docs: persist content/meta, but keep the panel open.
+    }
+
     if (isNew) {
       const newId = addNode(title, dataType, payload, parentId, {
         sourceQuery: title,
@@ -269,6 +314,7 @@ export function StandaloneNodeModal({
         anchorAt,
         completed,
         sourceId,
+        objectId: corpusObjectId,
       });
       if (parentId) {
         syncNodeToParentDoc(newId, parentId);
@@ -280,11 +326,11 @@ export function StandaloneNodeModal({
     }
 
     const prevParent = node.parentDocId || null;
-    if (prevParent && prevParent !== parentId) {
+    if (canAssignParent && prevParent && prevParent !== parentId) {
       removeNodeSyncFromDoc(node.id, prevParent);
       removeNodeFromDoc(prevParent, node.id);
     }
-    if (parentId) {
+    if (canAssignParent && parentId) {
       addNodeToDoc(parentId, node.id);
     }
     updateNode(node.id, {
@@ -292,17 +338,25 @@ export function StandaloneNodeModal({
       sourceQuery: title,
       dataType,
       content: payload,
-      parentDocId: parentId,
-      linkedToDoc: Boolean(parentId),
+      ...(canAssignParent
+        ? {
+          parentDocId: parentId,
+          linkedToDoc: Boolean(parentId),
+          objectId: corpusObjectId,
+        }
+        : {
+          objectId: node.objectId || corpusObjectId,
+        }),
       createdAt,
       anchorAt,
       completed,
       sourceId,
     });
-    if (parentId) {
+    if (canAssignParent && parentId) {
       syncNodeToParentDoc(node.id, parentId);
     }
     onSaved?.(getNode(node.id));
+    if (scheduleIncomplete) return;
     onClose?.();
   };
 
@@ -360,7 +414,8 @@ export function StandaloneNodeModal({
       sourceId={sourceId}
       onSourceIdChange={handleSourceIdChange}
       parentDocId={parentDocId}
-      onParentDocIdChange={setParentDocId}
+      onParentDocIdChange={canAssignParent ? setParentDocId : undefined}
+      parentDocLabel={canAssignParent ? undefined : (lockedParentLabel || undefined)}
       docs={docList}
       parentObjectId={parentObjectId}
       anchorDate={anchorDate}

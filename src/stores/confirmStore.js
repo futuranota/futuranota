@@ -7,6 +7,7 @@ import { create } from "zustand";
  * @property {string} [confirmLabel]
  * @property {string} [cancelLabel]
  * @property {'danger'|'default'} [tone]
+ * @property {string} [iconSrc]
  * @property {(value: boolean) => void} resolve
  */
 
@@ -21,6 +22,7 @@ export const useConfirmStore = create((set, get) => ({
    * @param {string} [options.confirmLabel]
    * @param {string} [options.cancelLabel]
    * @param {'danger'|'default'} [options.tone]
+   * @param {string} [options.iconSrc]
    * @returns {Promise<boolean>}
    */
   ask: ({
@@ -30,6 +32,7 @@ export const useConfirmStore = create((set, get) => ({
     cancelLabel = "Cancel",
     tone = "danger",
     hideCancel = false,
+    iconSrc = "",
   }) => new Promise((resolve) => {
     set({
       payload: {
@@ -39,6 +42,7 @@ export const useConfirmStore = create((set, get) => ({
         cancelLabel: hideCancel ? "" : cancelLabel,
         tone,
         hideCancel: Boolean(hideCancel),
+        iconSrc: String(iconSrc || "").trim(),
         resolve,
       },
     });

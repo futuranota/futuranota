@@ -188,7 +188,8 @@ export const useNodesStore = create(
               content,
               parentDocId,
               parentNodeId: null,
-              objectId: null,
+              // Company/corpus scope for Independent Documents (parentless nodes).
+              objectId: extra.objectId ?? null,
               sourceBlockId: extra.sourceBlockId ?? null,
               sourceQuery: extra.sourceQuery ?? null,
               anchorAt: extra.anchorAt ?? null,
@@ -276,6 +277,7 @@ export const useNodesStore = create(
           anchorAt: payload.anchorAt ?? null,
           completed: payload.completed ?? false,
           sourceId: payload.sourceId ?? null,
+          objectId: parentDoc?.parentObjectId ?? null,
         });
         return id;
       },

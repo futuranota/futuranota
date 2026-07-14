@@ -4943,7 +4943,8 @@ body.doc-content-resizing * {
 
 /* Plan-style todo block — macro node title + animated subtask list */
 .doc-todo-plan {
-  padding: 11px 21px 14px 15px;
+  /* Tighter vertical padding so title ↔ list ↔ writing feel closer */
+  padding: 6px 21px 8px 15px;
   box-sizing: border-box;
 }
 
@@ -4952,7 +4953,7 @@ body.doc-content-resizing * {
   align-items: center;
   gap: 8px;
   min-height: 21px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .doc-todo-plan__title-input {
@@ -5008,9 +5009,10 @@ body.doc-content-resizing * {
 .doc-todo-plan__macro-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 6px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 5px 8px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -5823,8 +5825,10 @@ body.doc-content-resizing * {
 }
 
 .doc-todo-plan__macro-title {
-  flex: 1;
+  /* Don't stretch — keep 1/3 + chevron glued to the title text */
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: calc(100% - 56px);
   font-family: var(--sans);
   font-size: 12px;
   font-weight: 700;
@@ -5837,6 +5841,7 @@ body.doc-content-resizing * {
 
 .doc-todo-plan__macro-meta {
   flex-shrink: 0;
+  margin-left: 2px;
   font-family: var(--sans);
   font-size: 10px;
   font-weight: 500;
@@ -5846,6 +5851,7 @@ body.doc-content-resizing * {
 
 .doc-todo-plan__chevron {
   flex-shrink: 0;
+  margin-left: 0;
   font-size: 14px;
   line-height: 1;
   color: rgba(255, 255, 255, 0.45);
@@ -5859,7 +5865,7 @@ body.doc-content-resizing * {
 
 .doc-todo-plan__list-wrap {
   position: relative;
-  padding: 0 8px 8px 4px;
+  padding: 0 8px 4px 4px;
 }
 
 .doc-todo-plan__guide {
@@ -6505,7 +6511,9 @@ body.doc-content-resizing * {
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
-  padding-top: 8px;
+  /* Tighter so Schedule / Aa sit closer to the writing surface above */
+  padding-top: 2px;
+  padding-bottom: 0;
 }
 
 .node-query-modal__footer-start {
@@ -10593,18 +10601,18 @@ body.doc-content-resizing * {
 
 .node-query-modal__head {
   flex-shrink: 0;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .node-query-modal__head-top {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
+  gap: 4px;
+  min-height: 24px;
   padding-right: 0;
   margin-top: -4px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .node-query-modal__head-top--closable {
@@ -11050,7 +11058,7 @@ body.doc-content-resizing * {
 
 /* Query/title is for long questions — compact, bold, same color as doc titles */
 .node-query-modal__query-title {
-  margin: 0 0 6px;
+  margin: 0 0 3px;
   font-family: var(--sans);
   font-size: 15px;
   font-weight: 700;
@@ -11064,7 +11072,7 @@ body.doc-content-resizing * {
 .node-query-modal__query-edit {
   display: block;
   width: 100%;
-  margin: 0 0 6px;
+  margin: 0 0 3px;
   min-width: 0;
 }
 
@@ -11135,21 +11143,23 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__parent-select {
-  flex: 1 1 auto;
+  /* Shrink to label width so the ▾ sits next to "Content list", not far right. */
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: min(240px, calc(100% - 40px));
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.2;
   color: rgba(216, 216, 216, 0.55);
   background: transparent;
-  max-width: none;
   margin-left: 0;
-  padding: 0 28px 0 0;
+  padding: 0 14px 0 0;
   appearance: none;
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23888888' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 12px center;
+  background-position: right 1px center;
   background-size: 8px 5px;
 }
 
@@ -11183,8 +11193,13 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__doc-meta {
-  margin: 4px 0 10px;
+  /* Less air between title (Nike) and the writing surface */
+  margin: 1px 0 4px;
   border: none;
+}
+
+.node-query-modal__doc-meta .doc-meta-strip__summary {
+  min-height: 20px;
 }
 
 /* Hide Created/Status labels — show centered values only */
@@ -11193,7 +11208,7 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__doc-meta .doc-meta-chip {
-  padding: 4px 3px;
+  padding: 1px 3px;
   gap: 0;
   min-height: 0;
   align-items: center;
@@ -11378,7 +11393,7 @@ body.doc-content-resizing * {
   flex-direction: column;
   min-height: 210px;
   max-height: 210px;
-  margin: 0 0 10px;
+  margin: 0 0 4px;
   width: 100%;
   border-radius: 6px;
   overflow: hidden;
@@ -11522,6 +11537,11 @@ body.doc-content-resizing * {
 .node-writing-block-stack__vault .doc-vault-block,
 .node-writing-block-stack__agent .doc-agent-cell {
   padding: 0 15px;
+}
+
+.node-writing-block-stack__todo .doc-todo-plan {
+  padding-top: 2px;
+  padding-bottom: 4px;
 }
 
 /* Match todo-list card inset + surface (not edge-to-edge dark panel) */

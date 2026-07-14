@@ -173,6 +173,9 @@ export const messages = {
       scheduleTitle: "Schedule",
       childScheduleOutOfRange:
         "Pick a date between {min} and {max} (this folder’s schedule). Time can be any hour.",
+      childScheduleRequiredTitle: "Set a date and time",
+      childScheduleRequiredBody:
+        "This folder has an active schedule. Assign a date and time to this document before closing the panel.",
     },
     timeline: {
       title: "Timeline",
@@ -272,12 +275,12 @@ export const messages = {
     sidebar: {
       panelObjects: "Company",
       panelDocuments: "Folder",
-      panelNodes: "Loose documents",
+      panelNodes: "Independent Documents",
       clickFolderDocuments: "Documents",
       allObjects: "all objects",
       allCompanies: "all companies",
       allDocuments: "all documents",
-      allNodes: "all loose documents",
+      allNodes: "all independent documents",
       newButton: "+ new",
       openFolderFirst: "Open a folder first",
       createNew: "Create new {type}",
@@ -358,16 +361,16 @@ export const messages = {
       newDocument: "New document",
       searchNodes: "Search documents…",
       searchNodesPlaceholder: "Search documents",
-      allNodesLabel: "all loose documents",
+      allNodesLabel: "all independent documents",
       noNodesInDoc: "No documents in this box",
-      noNodesYet: "No loose documents yet",
+      noNodesYet: "No independent documents yet",
       createNewNodeAbove: "Create new document above",
       nodesInBlock: "{count} documents",
       docsInBlock: "{count} docs",
       filesInBlock: "{count} documents",
       boxesInBlock: "{count} boxes",
       docGroupUncategorized: "Uncategorized",
-      unlinkedNodes: "Loose documents",
+      unlinkedNodes: "Independent Documents",
       openDocument: "Open box",
       openBox: "Open box",
       openInDocument: "Open in document",
@@ -1021,6 +1024,9 @@ export const messages = {
       scheduleTitle: "Schedule",
       childScheduleOutOfRange:
         "Elegí una fecha entre {min} y {max} (schedule del folder). La hora puede ser cualquiera.",
+      childScheduleRequiredTitle: "Asigná una fecha y hora",
+      childScheduleRequiredBody:
+        "Este folder tiene un schedule activo. Asignale una fecha y hora a este documento antes de cerrar el panel.",
     },
     timeline: {
       title: "Timeline",

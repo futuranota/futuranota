@@ -37,6 +37,16 @@ export function ConfirmActionCard() {
         aria-labelledby="confirm-action-title"
         aria-describedby="confirm-action-message"
       >
+        {payload.iconSrc ? (
+          <img
+            className="confirm-action-card__icon"
+            src={payload.iconSrc}
+            alt=""
+            width={40}
+            height={40}
+            decoding="async"
+          />
+        ) : null}
         <h2 id="confirm-action-title" className="confirm-action-card__title">
           {payload.title}
         </h2>

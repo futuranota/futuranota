@@ -47,6 +47,9 @@ import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
+
+const CHILD_SCHEDULE_REQUIRED_ICON = "/uploads/CalendarDots.svg";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
 
@@ -103,6 +106,7 @@ export function NodeQueryModal({
   embedded = false,
 }) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const bodyRef = useRef(null);
   const queryInputRef = useRef(null);
   const focusCategoryRef = useRef(null);
@@ -312,13 +316,42 @@ export function NodeQueryModal({
     syncMetaSnapshot(completed, value);
   }, [onSourceIdChange, syncMetaSnapshot, completed]);
 
-  const requestDismiss = useCallback(() => {
+  /** Folder reservation active → child TEXT/CHECKBOX must have date+time before close. */
+  const ensureChildScheduleOrRemind = useCallback(async () => {
+    const folderScheduleActive =
+      Boolean(String(scheduleMinDate || "").trim())
+      && Boolean(String(scheduleMaxDate || "").trim());
+    if (!showScheduleAnchor || !folderScheduleActive) return true;
+    const missingDate = !String(anchorDate || "").trim();
+    const missingTime = !String(anchorTime || "").trim();
+    if (!missingDate && !missingTime) return true;
+    await askConfirm({
+      title: t("meta.childScheduleRequiredTitle"),
+      message: t("meta.childScheduleRequiredBody"),
+      confirmLabel: t("common.ok"),
+      tone: "default",
+      hideCancel: true,
+      iconSrc: CHILD_SCHEDULE_REQUIRED_ICON,
+    });
+    return false;
+  }, [
+    showScheduleAnchor,
+    scheduleMinDate,
+    scheduleMaxDate,
+    anchorDate,
+    anchorTime,
+    askConfirm,
+    t,
+  ]);
+
+  const requestDismiss = useCallback(async () => {
+    if (!(await ensureChildScheduleOrRemind())) return;
     if (onSave && hasUnsavedNodeChanges()) {
       setShowUnsavedConfirm(true);
       return;
     }
     handleDismiss?.();
-  }, [onSave, hasUnsavedNodeChanges, handleDismiss]);
+  }, [ensureChildScheduleOrRemind, onSave, hasUnsavedNodeChanges, handleDismiss]);
 
   const slashCommandsEnabled = Boolean(onDataTypeChange) || Boolean(onBackToDocument);
   const linkedFromDocument = Boolean(onBackToDocument);
@@ -968,8 +1001,9 @@ export function NodeQueryModal({
               <button
                 type="button"
                 className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
-                onClick={() => {
+                onClick={async () => {
                   setShowUnsavedConfirm(false);
+                  if (!(await ensureChildScheduleOrRemind())) return;
                   onSave?.();
                   // onSave (flush/handleSave) closes the modal; do not dismiss-without-save after.
                 }}
@@ -979,8 +1013,9 @@ export function NodeQueryModal({
               <button
                 type="button"
                 className="doc-unsaved-confirm__btn"
-                onClick={() => {
+                onClick={async () => {
                   setShowUnsavedConfirm(false);
+                  if (!(await ensureChildScheduleOrRemind())) return;
                   handleDismiss?.();
                 }}
               >

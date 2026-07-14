@@ -489,6 +489,29 @@ useEffect(() => {
     pruneStaleTimelineSnapshotChildren(docs, nodeEntities);
   }, [docs, nodeEntities]);
 
+  // Legacy parentless nodes had objectId=null and leaked across corpus.
+  // Backfill company from canvas wiring (or the sole company when unambiguous).
+  useEffect(() => {
+    const updateNode = useNodesStore.getState().updateNode;
+    const nodesById = useNodesStore.getState().nodes;
+    const objectIds = Object.keys(objects || {});
+    const soleObjectId = objectIds.length === 1 ? objectIds[0] : null;
+
+    for (const cn of canvasNodes) {
+      if (!cn?.noteId) continue;
+      const entity = nodesById[cn.noteId];
+      if (!entity || entity.parentDocId || entity.objectId) continue;
+      const objectId = resolveCanvasNodeObjectId(cn, docs, nodesById) || soleObjectId;
+      if (objectId) updateNode(entity.id, { objectId });
+    }
+
+    if (!soleObjectId) return;
+    for (const entity of Object.values(nodesById)) {
+      if (!entity || entity.parentDocId || entity.objectId) continue;
+      updateNode(entity.id, { objectId: soleObjectId });
+    }
+  }, [canvasNodes, docs, objects, nodeEntities]);
+
   /* ── SCAN BLOGS ─ */
   const scanBlogs = () => {
     setScanState("scanning-blogs");
