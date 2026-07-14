@@ -1,0 +1,57 @@
+---
+description: DocParentHeadPicker — banner object-parent selector API, CSS, where it is used, and how to restore it on Folders
+globs: "**/DocParentHeadPicker.jsx,**/DocDocumentBox.jsx,**/left-panel.css,**/docs/**/*.jsx"
+alwaysApply: false
+---
+
+# DocParentHeadPicker (memory)
+
+Banner control that picks the **parent object** (company / brand / corpus), **not** a parent folder document.
+
+Component: [`src/components/docs/DocParentHeadPicker.jsx`](src/components/docs/DocParentHeadPicker.jsx)  
+Styles: [`src/styles/left-panel.css`](src/styles/left-panel.css) (`.doc-parent-head-picker*`)
+
+## API
+
+| Prop | Role |
+|---|---|
+| `parentId` | Current object id (`""` = no parent) |
+| `onParentIdChange` | `(id: string) => void` — if absent, trigger is non-clickable |
+| `objects` | List of company/corpus objects `{ id, name, … }` |
+| `iconSrc` | Optional; defaults to `DOC_FILE_TXT_ICON` |
+
+Mounted from [`DocDocumentBox`](src/components/docs/DocDocumentBox.jsx) when:
+
+```js
+showParentPicker = Boolean(onParentIdChange && objects?.length && !isKnowledgeMode)
+```
+
+## UI structure
+
+1. **Trigger** (`.doc-parent-head-picker__trigger`): file icon (`.doc-new-head-icon`) + label (`.doc-new-doc-label`) — parent name or `"Select parent"`.
+2. **Menu** (`.doc-parent-head-picker__menu`, `role="listbox"`):
+   - `"No parent"` → `pick("")`
+   - One row per object → `pick(obj.id)`
+3. Outside click closes the menu. States: `is-clickable`, `is-open`, `is-empty`, `is-active` on items.
+
+## Where it is used
+
+| Surface | Parent UI |
+|---|---|
+| Folders create (`createMode === "content"`) | **Hidden** — Phase 1 company workspace already sets `defaultParentId` / `parentObjectId` |
+| Folders edit (`metaMode === "content"`) | **Hidden** — keep existing `parentObjectId` on save; list cards show `↳ parent` |
+| Product / Campaign create & expand | Shown via `onParentIdChange` |
+| Templates (`TemplateCreateModal`) | Shown |
+| Knowledge | Hidden (`onParentIdChange` undefined / knowledge guard) |
+
+Do **not** delete the component or CSS — other modes still need them.
+
+## How to restore on Folders
+
+1. Create: in `DocCreateModal` (`LeftPanel.jsx`), pass `onParentIdChange={setParentId}` again for `createMode === "content"`.
+2. Edit: in `DocExpandedView.jsx`, pass `onParentIdChange` for content mode again (not only non-content).
+3. Banner fallback: in `DocDocumentBox`, if Folders should show a static icon/label without a picker, remove the `isContentMode ? null` branch that skips the fallback.
+
+## Parent elsewhere
+
+Folder cards in Documents list already show `↳ ${parent.name}` (`DocListCard` / `DocNodesBlockCard` in `LeftPanel.jsx`). That is enough context without the banner picker.

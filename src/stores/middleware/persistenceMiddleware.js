@@ -992,6 +992,7 @@ export function initPersistenceMiddleware(stores) {
           subcategoryDocIds: camp.subcategory_doc_ids || [],
           version: docVersionFromDb(camp.version),
           category: camp.category || "",
+          icon: typeof camp.icon === "string" ? camp.icon : "",
           launchAt: camp.launch_at || camp.schedule_start_at || null,
           scheduleStartAt: camp.schedule_start_at || camp.launch_at || null,
           scheduleFinishAt: camp.schedule_finish_at
@@ -1287,6 +1288,7 @@ export function initPersistenceMiddleware(stores) {
         version: docVersionToDbInt(doc.version),
         // DB column is VARCHAR(50) — truncate so one long category cannot fail the whole upsert batch.
         category: String(doc.category || "").slice(0, 50),
+        icon: typeof doc.icon === "string" && doc.icon.trim() ? doc.icon : null,
         launch_at: doc.scheduleStartAt || doc.launchAt || null,
         schedule_start_at: doc.scheduleStartAt || doc.launchAt || null,
         schedule_finish_at: doc.scheduleFinishAt

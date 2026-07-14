@@ -45,6 +45,7 @@
  * @property {string} updatedAt
  * @property {string} [version]
  * @property {string} [category]
+ * @property {string} [icon] — custom folder icon (URL or WebP data URL); empty = default boxes
  * @property {string|null} [launchAt]
  * @property {string|null} [scheduleStartAt] — folder reservation start (timeline anchor)
  * @property {string|null} [scheduleFinishAt] — folder reservation end (inclusive)

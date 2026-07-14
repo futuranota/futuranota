@@ -341,7 +341,7 @@ export const messages = {
       productName: "Product's name",
       documentTitle: "Document title",
       writeDescription: "Write your description",
-      categoryFileBox: "Describe Category",
+      categoryFileBox: "Describe Folder",
       newProduct: "New product",
       newKnowledge: "New knowledge",
       newDocument: "New document",

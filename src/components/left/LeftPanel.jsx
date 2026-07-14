@@ -678,13 +678,22 @@ function DocNodesBlockCard({
           ) : null}
           {!orphan ? (
             <span className={"lp-doc-icon lp-doc-icon--box" + (expanded ? " lp-doc-icon--box-open" : "")}>
-              <img
-                src={expanded ? "/uploads/open-box.svg" : "/uploads/box-closed.svg"}
-                alt=""
-                aria-hidden
-                className="lp-item-icon-img lp-box-icon-img"
-                key={expanded ? "open" : "closed"}
-              />
+              {(doc?.icon || "").trim() ? (
+                <img
+                  src={(doc.icon || "").trim()}
+                  alt=""
+                  aria-hidden
+                  className="lp-folder-custom-icon"
+                />
+              ) : (
+                <img
+                  src={expanded ? "/uploads/open-box.svg" : "/uploads/box-closed.svg"}
+                  alt=""
+                  aria-hidden
+                  className="lp-item-icon-img lp-box-icon-img"
+                  key={expanded ? "open" : "closed"}
+                />
+              )}
             </span>
           ) : (
             <span className="lp-doc-icon lp-doc-icon--box">
@@ -918,6 +927,7 @@ function buildDocCreateSnapshot({
   blocks,
   version,
   category,
+  icon,
   launchDate,
   scheduleStartDate,
   scheduleFinishDate,
@@ -933,6 +943,7 @@ function buildDocCreateSnapshot({
     blocks: normalizeDocBlocks(blocks),
     version: String(version ?? "").trim(),
     category: String(category ?? "").trim(),
+    icon: String(icon ?? "").trim(),
     launchDate: launchDate ?? "",
     scheduleStartDate: scheduleStartDate ?? "",
     scheduleFinishDate: scheduleFinishDate ?? "",
@@ -967,6 +978,7 @@ function DocCreateModal({
   const [createdDate, setCreatedDate] = useState(todayDateInputValue);
   const [version, setVersion] = useState("");
   const [category, setCategory] = useState(defaultCategory);
+  const [icon, setIcon] = useState("");
   const [launchDate, setLaunchDate] = useState("");
   const [scheduleStartDate, setScheduleStartDate] = useState("");
   const [scheduleFinishDate, setScheduleFinishDate] = useState("");
@@ -1048,6 +1060,7 @@ function DocCreateModal({
       blocks: [],
       version: "",
       category: defaultCategory,
+      icon: "",
       launchDate: "",
       scheduleStartDate: useFolderSchedule ? (scheduleStartMin || todayDateInputValue()) : "",
       scheduleFinishDate: useFolderSchedule ? (scheduleStartMin || todayDateInputValue()) : "",
@@ -1069,6 +1082,7 @@ function DocCreateModal({
       blocks,
       version,
       category,
+      icon,
       launchDate,
       scheduleStartDate,
       scheduleFinishDate,
@@ -1084,6 +1098,7 @@ function DocCreateModal({
       blocks,
       version,
       category,
+      icon,
       launchDate,
       scheduleStartDate,
       scheduleFinishDate,
@@ -1225,6 +1240,7 @@ function DocCreateModal({
       createdAt: isoFromDateInput(createdDate),
       version: version.trim(),
       category: finalCategory,
+      icon: createMode === "content" ? (icon || "") : "",
       launchAt,
       scheduleStartAt,
       scheduleFinishAt,
@@ -1282,7 +1298,9 @@ function DocCreateModal({
           nodeLinkColor={nodeLinkColor}
           onNodeLinkColorChange={setNodeLinkColor}
           parentId={parentId}
-          onParentIdChange={setParentId}
+          onParentIdChange={createMode === "content" ? undefined : setParentId}
+          icon={createMode === "content" ? icon : ""}
+          onIconChange={createMode === "content" ? setIcon : undefined}
           objects={objects}
           docKind={docKind}
           metaMode={metaMode}
@@ -2235,6 +2253,7 @@ export function LeftPanel({
           subcategoryDocIds: data.subcategoryDocIds ?? data.templateSubcategoryDocIds ?? [],
           version: data.version ?? "",
           category: data.category ?? "",
+          icon: typeof data.icon === "string" ? data.icon : "",
           launchAt: data.launchAt ?? data.scheduleStartAt ?? null,
           scheduleStartAt: data.scheduleStartAt ?? data.launchAt ?? null,
           scheduleFinishAt: data.scheduleFinishAt

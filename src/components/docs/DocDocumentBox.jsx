@@ -28,6 +28,7 @@ import {
 } from "../../lib/docNodeLinkColors.js";
 import { DocMetaStrip } from "./DocMetaStrip.jsx";
 import { DocParentHeadPicker } from "./DocParentHeadPicker.jsx";
+import { FolderIconPicker } from "./FolderIconPicker.jsx";
 import { TemplateMetaStrip } from "../templates/TemplateMetaStrip.jsx";
 import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
@@ -66,6 +67,8 @@ export function DocDocumentBox({
   parentId,
   onParentIdChange,
   objects = null,
+  icon = "",
+  onIconChange,
   onSave,
   onCloseAfterSave,
   onCloseExpand,
@@ -607,7 +610,7 @@ export function DocDocumentBox({
               ref={focusCategoryRef}
               className="doc-focus-top__category"
               value={focusCategoryLabel}
-              placeholder={titlePlaceholder || "Describe Category"}
+              placeholder={titlePlaceholder || "Describe Folder"}
               rows={1}
               aria-label="Category"
               onChange={(e) => {
@@ -651,7 +654,12 @@ export function DocDocumentBox({
               onParentIdChange={onParentIdChange}
               objects={objects}
             />
-          ) : (
+          ) : isContentMode && onIconChange ? (
+            <FolderIconPicker
+              icon={icon}
+              onIconChange={onIconChange}
+            />
+          ) : isContentMode ? null : (
             <>
               <img className="doc-new-head-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />
               {docHeaderLabel ? (

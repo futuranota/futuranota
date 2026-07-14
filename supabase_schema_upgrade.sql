@@ -45,6 +45,7 @@ ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS template_kind VARCHAR(50);
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS subcategory_doc_ids JSONB;
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS version VARCHAR(20);
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS category VARCHAR(50);
+ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS icon TEXT;
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS launch_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS schedule_start_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE public.campaigns ADD COLUMN IF NOT EXISTS schedule_finish_at TIMESTAMP WITH TIME ZONE;

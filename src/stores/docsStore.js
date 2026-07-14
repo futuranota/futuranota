@@ -72,6 +72,7 @@ export const useDocsStore = create(
               subcategoryDocIds: campaign.subcategoryDocIds ?? campaign.templateSubcategoryDocIds ?? [],
               version: campaign.version ?? "",
               category: campaign.category ?? "",
+              icon: typeof campaign.icon === "string" ? campaign.icon : "",
               launchAt: campaign.launchAt
                 ?? campaign.scheduleStartAt
                 ?? null,

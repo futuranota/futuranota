@@ -1100,6 +1100,15 @@
   object-fit: contain;
 }
 
+.lp-doc-nodes-block--docs .lp-doc-icon--box .lp-folder-custom-icon,
+.lp-doc-nodes-block__head .lp-doc-icon--box .lp-folder-custom-icon {
+  width: 1.35em;
+  height: 1.35em;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
 .lp-doc-group-category {
   display: block;
   font-size: var(--lp-doc-group-font-size, 11px);
@@ -2296,8 +2305,8 @@
   border-radius: 14px;
   border: none;
   box-shadow: 0 28px 64px rgba(0, 0, 0, 0.68);
-  /* Left margin kept; 5px right padding (non-expand) */
-  padding: 22px 5px 18px 15px;
+  /* Match left inset on the right so Save isn't flush to the edge */
+  padding: 22px 15px 18px 15px;
   scrollbar-width: none;
 }
 
@@ -2459,6 +2468,62 @@
   height: 29px;
   flex-shrink: 0;
   object-fit: contain;
+}
+
+.doc-folder-icon-picker {
+  flex-shrink: 0;
+  padding-left: 4px;
+}
+
+.doc-folder-icon-picker__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+  background: #151515;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.doc-folder-icon-picker__btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.doc-folder-icon-picker__btn.is-empty:hover:not(:disabled),
+.doc-folder-icon-picker__btn.is-custom:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.doc-folder-icon-picker__btn.is-uploading {
+  opacity: 0.55;
+}
+
+.doc-folder-icon-picker__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.doc-folder-icon-picker__img--placeholder {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  filter: brightness(0) invert(0.72);
+}
+
+.lp-folder-custom-icon {
+  width: 1.35em;
+  height: 1.35em;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
 }
 
 .doc-parent-head-picker {

@@ -149,6 +149,7 @@ function buildDocEditorDraft({
   createdDate,
   version,
   category,
+  icon,
   launchDate,
   scheduleStartDate,
   scheduleFinishDate,
@@ -167,6 +168,7 @@ function buildDocEditorDraft({
     createdDate: createdDate ?? "",
     version: version ?? "",
     category: category ?? "",
+    icon: icon ?? "",
     launchDate: launchDate ?? "",
     scheduleStartDate: scheduleStartDate ?? "",
     scheduleFinishDate: scheduleFinishDate ?? "",
@@ -187,6 +189,7 @@ function buildDocPersistSnapshot({
   createdDate,
   version = "",
   category = "",
+  icon = "",
   launchAt = null,
   scheduleStartAt = null,
   scheduleFinishAt = null,
@@ -210,6 +213,7 @@ function buildDocPersistSnapshot({
     createdAt: isoFromDateInput(createdDate),
     version: String(version ?? "").trim(),
     category: String(category ?? "").trim(),
+    icon: String(icon ?? "").trim(),
     launchAt: startAt,
     scheduleStartAt: startAt,
     scheduleFinishAt: finishAt,
@@ -258,6 +262,7 @@ export function DocExpandedView({
   const [draftCreatedDate, setDraftCreatedDate] = useState("");
   const [draftVersion, setDraftVersion] = useState("");
   const [draftCategory, setDraftCategory] = useState("");
+  const [draftIcon, setDraftIcon] = useState("");
   const [draftLaunchDate, setDraftLaunchDate] = useState("");
   const [draftScheduleStartDate, setDraftScheduleStartDate] = useState("");
   const [draftScheduleFinishDate, setDraftScheduleFinishDate] = useState("");
@@ -340,6 +345,9 @@ export function DocExpandedView({
     const loadedCategory = useCachedDraft
       ? (cached.category ?? normalized.category ?? "")
       : (normalized.category ?? "");
+    const loadedIcon = useCachedDraft
+      ? (cached.icon ?? normalized.icon ?? "")
+      : (normalized.icon ?? "");
     const loadedLaunchDate = useCachedDraft
       ? (cached.launchDate ?? launchDateInputFromIso(normalized.launchAt))
       : launchDateInputFromIso(normalized.launchAt);
@@ -385,6 +393,7 @@ export function DocExpandedView({
       setDraftCreatedDate(loadedCreatedDate);
       setDraftVersion(loadedVersion);
       setDraftCategory(loadedCategory);
+      setDraftIcon(loadedIcon);
       setDraftLaunchDate(loadedLaunchDate);
       setDraftScheduleStartDate(loadedScheduleStartDate);
       setDraftScheduleFinishDate(loadedScheduleFinishDate);
@@ -402,6 +411,7 @@ export function DocExpandedView({
       setDraftCreatedDate(loadedCreatedDate);
       setDraftVersion(loadedVersion);
       setDraftCategory(loadedCategory);
+      setDraftIcon(loadedIcon);
       setDraftLaunchDate(loadedLaunchDate);
       setDraftScheduleStartDate(loadedScheduleStartDate);
       setDraftScheduleFinishDate(loadedScheduleFinishDate);
@@ -427,6 +437,7 @@ export function DocExpandedView({
       createdDate: loadedCreatedDate,
       version: loadedVersion,
       category: loadedCategory,
+      icon: loadedIcon,
       launchAt: loadedScheduleStartDate
         ? isoFromDateInput(loadedScheduleStartDate)
         : (loadedLaunchDate ? isoFromDateInput(loadedLaunchDate) : null),
@@ -516,6 +527,7 @@ export function DocExpandedView({
           createdDate: draftCreatedDate,
           version: draftVersion,
           category: draftCategory,
+          icon: draftIcon,
           launchDate: draftLaunchDate,
           scheduleStartDate: draftScheduleStartDate,
           scheduleFinishDate: draftScheduleFinishDate,
@@ -540,6 +552,7 @@ export function DocExpandedView({
     draftCreatedDate,
     draftVersion,
     draftCategory,
+    draftIcon,
     draftLaunchDate,
     draftScheduleStartDate,
     draftScheduleFinishDate,
@@ -611,6 +624,7 @@ export function DocExpandedView({
       createdDate: draftCreatedDate,
       version: draftVersion,
       category: draftCategory,
+      icon: draftIcon,
       launchAt: draftLaunchAt,
       scheduleStartAt: draftScheduleStartAt,
       scheduleFinishAt: draftScheduleFinishAt,
@@ -630,6 +644,7 @@ export function DocExpandedView({
     draftCreatedDate,
     draftVersion,
     draftCategory,
+    draftIcon,
     draftLaunchAt,
     draftScheduleStartAt,
     draftScheduleFinishAt,
@@ -720,6 +735,7 @@ export function DocExpandedView({
     createdDate: draftCreatedDate,
     version: draftVersion,
     category: draftCategory,
+    icon: draftIcon,
     launchAt: draftLaunchAt,
     scheduleStartAt: draftScheduleStartAt,
     scheduleFinishAt: draftScheduleFinishAt,
@@ -972,6 +988,7 @@ export function DocExpandedView({
       createdDate: draftCreatedDate,
       version: draftVersion,
       category: categoryToSave,
+      icon: isContentMode ? (draftIcon || "") : "",
       launchAt: draftLaunchAt,
       scheduleStartAt: useFolderSchedule ? draftScheduleStartAt : draftLaunchAt,
       scheduleFinishAt: useFolderSchedule ? draftScheduleFinishAt : draftLaunchAt,
@@ -991,6 +1008,7 @@ export function DocExpandedView({
       createdAt: savedSnapshot.createdAt,
       version: savedSnapshot.version,
       category: savedSnapshot.category,
+      icon: savedSnapshot.icon,
       launchAt: savedSnapshot.launchAt,
       scheduleStartAt: savedSnapshot.scheduleStartAt,
       scheduleFinishAt: savedSnapshot.scheduleFinishAt,
@@ -1027,6 +1045,7 @@ export function DocExpandedView({
       createdDate: draftCreatedDate,
       version: draftVersion,
       category: draftCategory,
+      icon: isContentMode ? (draftIcon || "") : "",
       launchAt: draftLaunchAt,
       scheduleStartAt: draftScheduleStartAt,
       scheduleFinishAt: draftScheduleFinishAt,
@@ -1670,7 +1689,7 @@ export function DocExpandedView({
               : isKnowledgeMode
                 ? "Document title"
                 : isContentMode
-                  ? "Describe Category"
+                  ? "Describe Folder"
                   : "Write your description"
           }
           body={draftBody}
@@ -1718,9 +1737,14 @@ export function DocExpandedView({
             setDraftCampaignActive(v);
           }}
           parentId={draftParentId}
-          onParentIdChange={isKnowledgeMode ? undefined : (v) => {
+          onParentIdChange={isKnowledgeMode || isContentMode ? undefined : (v) => {
             setDraftParentId(v);
           }}
+          icon={isContentMode ? draftIcon : ""}
+          onIconChange={isContentMode ? (v) => {
+            setDraftIcon(v);
+            updateDoc(doc.id, { icon: v || "" });
+          } : undefined}
           docKind={draftDocKind}
           metaMode={metaMode}
           templateKind={draftTemplateKind}
