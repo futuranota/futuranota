@@ -48,6 +48,66 @@ export function folderScheduleDateInputBounds(doc) {
 }
 
 /**
+ * True when the folder has an active reservation (Start resolved).
+ * @param {object | null | undefined} doc
+ */
+export function isFolderScheduleReserved(doc) {
+  return Boolean(resolveFolderScheduleRange(doc));
+}
+
+/**
+ * Drop date/time schedule from every child node + mirrored block fields when
+ * the parent folder loses its reservation (avoids timeline ghosts).
+ * @param {string} folderDocId
+ * @param {{
+ *   getDoc: (id: string) => object | null | undefined,
+ *   updateDoc: (id: string, patch: object) => void,
+ *   getNodesByDoc: (id: string) => object[],
+ *   updateNode: (id: string, patch: object) => void,
+ * }} stores
+ */
+export function clearChildScheduleAnchorsForFolder(folderDocId, stores) {
+  if (!folderDocId || !stores) return 0;
+  const { getDoc, updateDoc, getNodesByDoc, updateNode } = stores;
+  let cleared = 0;
+
+  const nodes = typeof getNodesByDoc === "function" ? getNodesByDoc(folderDocId) : [];
+  for (const node of nodes || []) {
+    if (!node?.id) continue;
+    if (node.anchorAt == null || node.anchorAt === "") continue;
+    updateNode(node.id, { anchorAt: null });
+    cleared += 1;
+  }
+
+  const doc = typeof getDoc === "function" ? getDoc(folderDocId) : null;
+  const blocks = Array.isArray(doc?.blocks) ? doc.blocks : null;
+  if (blocks && typeof updateDoc === "function") {
+    let blocksChanged = false;
+    const nextBlocks = blocks.map((block) => {
+      if (!block || typeof block !== "object") return block;
+      const hasSchedule = Boolean(
+        String(block.anchorDate || "").trim()
+        || String(block.anchorTime || "").trim()
+        || block.anchorFromNode,
+      );
+      if (!hasSchedule) return block;
+      blocksChanged = true;
+      return {
+        ...block,
+        anchorDate: "",
+        anchorTime: "",
+        anchorFromNode: false,
+      };
+    });
+    if (blocksChanged) {
+      updateDoc(folderDocId, { blocks: nextBlocks });
+    }
+  }
+
+  return cleared;
+}
+
+/**
  * True when dateInput is empty, or folder has no range, or date is inside the range.
  * @param {string} dateInput YYYY-MM-DD
  * @param {object | null | undefined} doc

@@ -243,9 +243,16 @@ export function NodeQueryModal({
     }
   }, [checkboxTodoContent, updateTodoContent]);
 
-  const showScheduleAnchor =
+  /** Parent folder reservation (min+max). Without it, Date/Time stay hidden. */
+  const folderScheduleActive =
+    Boolean(String(scheduleMinDate || "").trim())
+    && Boolean(String(scheduleMaxDate || "").trim());
+
+  const canScheduleChild =
     Boolean(onAnchorDateChange)
     && (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX);
+
+  const showScheduleAnchor = canScheduleChild && folderScheduleActive;
 
   const calendarPayload =
     dataType === NODE_DATA_TYPES.TEXT ? parseCalendarEventNodeContent(content) : null;
@@ -318,10 +325,7 @@ export function NodeQueryModal({
 
   /** Folder reservation active → child TEXT/CHECKBOX must have date+time before close. */
   const ensureChildScheduleOrRemind = useCallback(async () => {
-    const folderScheduleActive =
-      Boolean(String(scheduleMinDate || "").trim())
-      && Boolean(String(scheduleMaxDate || "").trim());
-    if (!showScheduleAnchor || !folderScheduleActive) return true;
+    if (!showScheduleAnchor) return true;
     const missingDate = !String(anchorDate || "").trim();
     const missingTime = !String(anchorTime || "").trim();
     if (!missingDate && !missingTime) return true;
@@ -336,13 +340,17 @@ export function NodeQueryModal({
     return false;
   }, [
     showScheduleAnchor,
-    scheduleMinDate,
-    scheduleMaxDate,
     anchorDate,
     anchorTime,
     askConfirm,
     t,
   ]);
+
+  const handleFooterSave = useCallback(async () => {
+    if (!onSave) return;
+    if (!(await ensureChildScheduleOrRemind())) return;
+    onSave();
+  }, [onSave, ensureChildScheduleOrRemind]);
 
   const requestDismiss = useCallback(async () => {
     if (!(await ensureChildScheduleOrRemind())) return;
@@ -965,6 +973,15 @@ export function NodeQueryModal({
                 minDate={scheduleMinDate}
                 maxDate={scheduleMaxDate}
               />
+            ) : null}
+            {onSave ? (
+              <button
+                type="button"
+                className="btn xs node-query-modal__footer-save"
+                onClick={handleFooterSave}
+              >
+                save
+              </button>
             ) : null}
             {showTextSizeControls ? (
               <ContentTextSizeControls

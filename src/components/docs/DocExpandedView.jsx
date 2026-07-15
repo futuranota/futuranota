@@ -25,6 +25,7 @@ import {
   todayDateInputValue,
 } from "../../lib/docDates.js";
 import {
+  clearChildScheduleAnchorsForFolder,
   folderScheduleDateInputBounds,
   folderSchedulePickerMinDateInput,
   isDateInputWithinFolderSchedule,
@@ -928,6 +929,27 @@ export function DocExpandedView({
       scheduleFinishAt: finishAt,
       launchAt: startAt,
     });
+    // Reservation off → strip child anchors so the timeline has no ghosts.
+    if (!startAt && !finishAt) {
+      clearChildScheduleAnchorsForFolder(doc.id, {
+        getDoc: (id) => useDocsStore.getState().getDoc(id),
+        updateDoc,
+        getNodesByDoc: (id) => useNodesStore.getState().getNodesByDoc(id),
+        updateNode,
+      });
+      setNodeDraftAnchorDate("");
+      setNodeDraftAnchorTime("");
+      setNodeInitialSnapshot((prev) => (
+        prev ? { ...prev, anchorDate: "", anchorTime: "" } : prev
+      ));
+      if (nodeInitialSnapshotRef.current) {
+        nodeInitialSnapshotRef.current = {
+          ...nodeInitialSnapshotRef.current,
+          anchorDate: "",
+          anchorTime: "",
+        };
+      }
+    }
   };
 
   /** Content folders: mirror title↔category into docsStore so the left panel updates live. */
