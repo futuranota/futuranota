@@ -2772,13 +2772,14 @@
   padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   cursor: pointer;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.86);
+  /* Match × to border stroke */
+  color: rgba(255, 255, 255, 0.16);
   font-family: var(--sans);
   font-size: 14px;
   font-weight: 500;
@@ -2787,7 +2788,8 @@
 .doc-new-head-expand-btn:hover,
 .doc-new-head-expand-btn:focus-visible {
   border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.08);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.28);
   outline: none;
 }
 
@@ -3042,6 +3044,8 @@
   justify-content: flex-start;
   text-align: left;
   padding-left: 0;
+  /* Keep chip-table vertical slot when only date remains */
+  padding-top: 6px;
   border-right: none;
 }
 
@@ -6535,9 +6539,9 @@ body.doc-content-resizing * {
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
-  /* Tighter so Schedule / Aa sit closer to the writing surface above */
-  padding-top: 2px;
-  padding-bottom: 0;
+  /* Equal top/bottom — same total as before (2px), no taller row / no smaller text */
+  padding-top: 1px;
+  padding-bottom: 1px;
 }
 
 .node-query-modal__footer-start {
@@ -10702,6 +10706,15 @@ body.doc-content-resizing * {
   margin-left: auto;
   flex-shrink: 0;
   align-self: center;
+  /* Align × with [+] floating picker (right: 12px / 10px in content box) */
+  padding-right: 12px;
+}
+
+/* Folder × pill in the doc header actions row (not absolute) */
+.node-query-modal__head-actions .doc-new-head-expand-btn {
+  position: static;
+  top: auto;
+  right: auto;
 }
 
 .node-query-modal__back-link {
@@ -11243,6 +11256,8 @@ body.doc-content-resizing * {
 
 .node-query-modal__doc-meta .doc-meta-chip:only-child {
   padding-left: 0;
+  /* Keep chip-table vertical slot when icons are gone (don't hug the title) */
+  padding-top: 6px;
   align-items: flex-start;
   justify-content: flex-start;
   text-align: left;

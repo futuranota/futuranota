@@ -137,8 +137,8 @@ export function NodeQueryModal({
   const sourceOption = showStatusMeta ? resolveDocSource(sourceId) : null;
   const [statusMetaExpanded, setStatusMetaExpanded] = useState(false);
   const handleDismiss = onBackToDocument || onClose;
-  const showCloseButton = Boolean(onClose && !onBackToDocument);
-  const showReturnLink = Boolean(onBackToDocument);
+  /** Same × pill as folder DocDocumentBox (also when opened from a folder). */
+  const showCloseButton = Boolean(handleDismiss);
   const syncFocusCategoryHeight = useCallback(() => {
     const el = focusCategoryRef.current;
     if (!el) return;
@@ -593,7 +593,7 @@ export function NodeQueryModal({
           <div
             className={
               "node-query-modal__head-top"
-              + ((showCloseButton || showReturnLink) ? " node-query-modal__head-top--closable" : "")
+              + (showCloseButton ? " node-query-modal__head-top--closable" : "")
             }
           >
             <img
@@ -620,19 +620,10 @@ export function NodeQueryModal({
               <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
             ) : null}
             <div className="node-query-modal__head-actions">
-              {showReturnLink ? (
-                <button
-                  type="button"
-                  className="node-query-modal__back-link"
-                  onClick={requestDismiss}
-                >
-                  {t("canvas.returnToDocument")}
-                </button>
-              ) : null}
               {showCloseButton ? (
                 <button
                   type="button"
-                  className="doc-new-head-expand-btn node-query-modal__close"
+                  className="doc-new-head-expand-btn"
                   onClick={requestDismiss}
                   aria-label="Close"
                 >

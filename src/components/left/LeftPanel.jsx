@@ -45,6 +45,7 @@ import {
   resolveKnowledgeDocDisplayTitle,
 } from "../../lib/templateDoc.js";
 import { findObjectIdByName } from "../../lib/storeSanitize.js";
+import { resolveDocSource } from "../../lib/docSources.js";
 import { buildNodesByDocIdMap } from "../../lib/resolveDocBlockNodes.js";
 import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
 import {
@@ -477,6 +478,8 @@ function getNodeDisplayTitle(node) {
 function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
   const { t } = useI18n();
   const displayTitle = getNodeDisplayTitle(node);
+  const source = resolveDocSource(node?.sourceId);
+  const iconSrc = source?.src || "/uploads/File.svg";
 
   return (
     <div className="lp-doc-nodes-block__node">
@@ -484,11 +487,11 @@ function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
         type="button"
         className="lp-doc-nodes-block__node-main"
         onClick={onClick}
-        title={displayTitle}
+        title={source ? `${displayTitle} · ${source.label}` : displayTitle}
       >
         <span className="lp-node-type-icon lp-node-type-icon--compact lp-node-type-icon--file">
           <img
-            src="/uploads/File.svg"
+            src={iconSrc}
             alt=""
             aria-hidden
             className="lp-node-type-icon-img lp-icon-white"

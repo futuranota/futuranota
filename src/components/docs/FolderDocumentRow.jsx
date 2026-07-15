@@ -1,4 +1,5 @@
 import { getNodeWritingExcerpt } from "../../lib/nodeWritingExcerpt.js";
+import { resolveDocSource } from "../../lib/docSources.js";
 import { useI18n } from "../../i18n/useI18n.js";
 
 function getNodeDisplayTitle(node) {
@@ -21,6 +22,9 @@ export function FolderDocumentRow({
   const completed = Boolean(node?.completed);
   const { excerpt } = getNodeWritingExcerpt(node?.content);
   const hasExcerpt = Boolean(excerpt);
+  const source = resolveDocSource(node?.sourceId);
+  const showIcon = showFileIcon || Boolean(source);
+  const iconSrc = source?.src || "/uploads/File.svg";
 
   const open = (e) => {
     e?.stopPropagation?.();
@@ -46,12 +50,12 @@ export function FolderDocumentRow({
         type="button"
         className="folder-doc-row__main"
         onClick={open}
-        title={title}
+        title={source ? `${title} · ${source.label}` : title}
       >
-        {showFileIcon ? (
+        {showIcon ? (
           <span className="lp-node-type-icon lp-node-type-icon--compact lp-node-type-icon--file">
             <img
-              src="/uploads/File.svg"
+              src={iconSrc}
               alt=""
               aria-hidden
               className="lp-node-type-icon-img lp-icon-white"
