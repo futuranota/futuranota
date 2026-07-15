@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Mark } from './Mark.jsx';
+import { MailchimpSubscribeForm } from './MailchimpSubscribeForm.jsx';
 import { PATHS, sectionPath } from '../lib/paths.js';
 import { getSite, FOOTER_SECTION_SLUGS } from '../lib/content.js';
 import { useSiteTina, siteTinaProps } from '../context/TinaVisualEditing.jsx';
@@ -21,19 +22,10 @@ export function Footer() {
             <span className="brand__mark"><Mark /></span>
             <span className="brand__type">FUTURA<span className="brand__type-thin"> NOTA</span></span>
           </Link>
-          <form className="footer__news" onSubmit={(e) => e.preventDefault()}>
-            <div className="footer__news-row">
-              <input
-                id="news"
-                type="email"
-                placeholder={footer.newsletterPlaceholder}
-                className="footer__input"
-                aria-label="Email for newsletter"
-                {...siteTinaProps('footer.newsletterPlaceholder')}
-              />
-              <button className="btn btn-primary btn-sm" type="submit">Subscribe</button>
-            </div>
-          </form>
+          <MailchimpSubscribeForm
+            placeholder={footer.newsletterPlaceholder}
+            inputProps={siteTinaProps('footer.newsletterPlaceholder')}
+          />
         </div>
         <div className="footer__cols">
           {footer.columns.map(({ heading, links }) => (

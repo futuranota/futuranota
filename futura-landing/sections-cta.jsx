@@ -42,11 +42,23 @@ function Footer() {
         <div className="footer__brand">
           <a href={window.FN_NAV.home} className="brand"><span className="brand__mark"><Mark /></span><span className="brand__type">FUTURA<span className="brand__type-thin"> NOTA</span></span></a>
           <p className="muted footer__tag">The future of taking notes — for the people who ship before the window closes.</p>
-          <form className="footer__news" onSubmit={(e) => e.preventDefault()}>
-            <label className="mono-sm faint" htmlFor="news">Stay ahead of the trends</label>
+          <form
+            className="footer__news"
+            action="https://ticketradius.us1.list-manage.com/subscribe/post?u=a8c21b422d28dbeec55f9f9ce&id=fbaad13d3a&f_id=00d1d0e0f0"
+            method="post"
+            target="_blank"
+            noValidate
+            name="mc-embedded-subscribe-form"
+            id="mc-embedded-subscribe-form"
+          >
+            <label className="mono-sm faint" htmlFor="mce-EMAIL">Stay ahead of the trends</label>
             <div className="footer__news-row">
-              <input id="news" type="email" placeholder="you@studio.com" className="footer__input" />
-              <button className="btn btn-primary btn-sm" type="submit">Subscribe</button>
+              <input id="mce-EMAIL" type="email" name="EMAIL" placeholder="you@studio.com" className="footer__input required email" required autoComplete="email" aria-label="Email for newsletter" />
+              <input type="hidden" name="tags" value="3182309" />
+              <div aria-hidden="true" style={{ position: "absolute", left: "-5000px" }}>
+                <input type="text" name="b_a8c21b422d28dbeec55f9f9ce_fbaad13d3a" tabIndex={-1} defaultValue="" />
+              </div>
+              <button className="btn btn-primary btn-sm" type="submit" name="subscribe" id="mc-embedded-subscribe">Subscribe</button>
             </div>
           </form>
         </div>
