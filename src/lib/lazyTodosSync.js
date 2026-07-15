@@ -204,10 +204,12 @@ export function initLazyTodosSync(useLazyTodosStore) {
       const { items: localItems, deletedIds } = useLazyTodosStore.getState();
       const merged = mergeLazyTodoLists(localItems, remoteItems, deletedIds);
       useLazyTodosStore.getState().replaceItems(merged);
+      useLazyTodosStore.getState().requeueOrphanedActives?.();
       hasCompletedHydrate = true;
-      await syncLazyTodosToSupabase(merged, {
+      const { items: afterRequeue, deletedIds: afterDeleted } = useLazyTodosStore.getState();
+      await syncLazyTodosToSupabase(afterRequeue, {
         allowOrphanDelete: true,
-        deletedIds,
+        deletedIds: afterDeleted,
         onOrphansDeleted: (cleared) => {
           useLazyTodosStore.getState().clearDeletedIds?.(cleared);
         },
@@ -218,6 +220,9 @@ export function initLazyTodosSync(useLazyTodosStore) {
   };
 
   hydrateFromRemote();
+
+  // Recover lists orphaned as `active` after reload before remote hydrate returns.
+  useLazyTodosStore.getState().requeueOrphanedActives?.();
 
   supabase.auth.onAuthStateChange((event) => {
     if (event === "SIGNED_IN") {

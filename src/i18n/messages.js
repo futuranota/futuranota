@@ -719,6 +719,7 @@ export const messages = {
       todoLabel: "To do",
       reminderPlaceholder: "Write a reminder…",
       closeTab: "Close tab",
+      save: "Save",
       completed: "Completed",
       completedConfirm: "Have you finished this to-do list? It will be permanently deleted.",
       completedTitle: "Mark as completed",

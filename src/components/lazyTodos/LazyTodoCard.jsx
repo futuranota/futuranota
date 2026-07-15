@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createTodoItem } from "../../lib/docBlocks.js";
 import { handleLazyTodoItemKeyDown } from "../../lib/lazyTodoItemKeyDown.js";
 import { lazyTodoProgress } from "../../lib/lazyTodos.js";
@@ -9,10 +9,24 @@ import { useI18n } from "../../i18n/useI18n.js";
 const COMPLETED_ICON_SRC = "/uploads/completed.svg";
 
 /**
+ * Meaningful checklist rows (ignore blank stubs).
+ * @param {{ text?: string, checked?: boolean }[]} items
+ */
+function checklistItems(items) {
+  return (items || []).filter((row) => String(row?.text ?? "").trim());
+}
+
+function allChecklistDone(items) {
+  const rows = checklistItems(items);
+  return rows.length > 0 && rows.every((row) => Boolean(row.checked));
+}
+
+/**
  * @param {Object} props
  * @param {import("../../lib/lazyTodos.js").LazyTodoItem & { id: string }} props.item
  * @param {(patch: Partial<import("../../lib/lazyTodos.js").LazyTodoItem>) => void} props.onChange
  * @param {() => void} props.onCompleted
+ * @param {() => void} [props.onSave]
  * @param {() => void} [props.onCloseTab]
  * @param {'dashboard' | 'default'} [props.variant]
  */
@@ -20,6 +34,7 @@ export function LazyTodoCard({
   item,
   onChange,
   onCompleted,
+  onSave,
   onCloseTab,
   variant = "default",
 }) {
@@ -28,22 +43,49 @@ export function LazyTodoCard({
   const [focusItemId, setFocusItemId] = useState(null);
   const { done, total } = lazyTodoProgress(item);
   const isDashboard = variant === "dashboard";
+  const suppressAutoCompleteRef = useRef(false);
+  const prevAllDoneRef = useRef(allChecklistDone(item.items));
+  const confirmOpenRef = useRef(false);
 
   const stopBubble = (event) => {
     event.stopPropagation();
   };
 
   const handleCompletedClick = async () => {
-    const confirmed = await askConfirm({
-      title: t("lazyTodos.completedTitle"),
-      message: t("lazyTodos.completedConfirm"),
-      confirmLabel: t("lazyTodos.completed"),
-      cancelLabel: t("common.cancel"),
-      tone: "default",
-    });
-    if (!confirmed) return;
-    onCompleted?.();
+    if (confirmOpenRef.current) return;
+    confirmOpenRef.current = true;
+    try {
+      const confirmed = await askConfirm({
+        title: t("lazyTodos.completedTitle"),
+        message: t("lazyTodos.completedConfirm"),
+        confirmLabel: t("lazyTodos.completed"),
+        cancelLabel: t("common.cancel"),
+        tone: "default",
+      });
+      if (!confirmed) {
+        suppressAutoCompleteRef.current = true;
+        return;
+      }
+      suppressAutoCompleteRef.current = false;
+      onCompleted?.();
+    } finally {
+      confirmOpenRef.current = false;
+    }
   };
+
+  useEffect(() => {
+    const allDone = allChecklistDone(item.items);
+    const crossed = allDone && !prevAllDoneRef.current;
+    prevAllDoneRef.current = allDone;
+
+    if (!allDone) {
+      suppressAutoCompleteRef.current = false;
+      return;
+    }
+    if (!crossed || suppressAutoCompleteRef.current || confirmOpenRef.current) return;
+    void handleCompletedClick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react when checklist completion flips
+  }, [item.items]);
 
   const completedButton = (
     <button
@@ -140,6 +182,13 @@ export function LazyTodoCard({
 
       {isDashboard ? (
         <footer className="lazy-todo-card__footer">
+          <button
+            type="button"
+            className="lazy-todo-card__save-btn"
+            onClick={() => onSave?.()}
+          >
+            {t("lazyTodos.save")}
+          </button>
           <button
             type="button"
             className="btn xs lazy-todo-card__complete-btn lazy-todo-card__complete-btn--footer"

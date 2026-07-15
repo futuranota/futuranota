@@ -10,12 +10,14 @@ import { useI18n } from "../../i18n/useI18n.js";
  * @param {(patch: Partial<import("../../lib/lazyTodos.js").LazyTodoItem>) => void} props.onChange
  * @param {() => void} props.onCloseTab
  * @param {() => void} props.onCompleted
+ * @param {() => void} [props.onSave]
  */
 export function LazyTodoDashboardOverlay({
   session,
   onChange,
   onCloseTab,
   onCompleted,
+  onSave,
 }) {
   const { t } = useI18n();
 
@@ -56,6 +58,7 @@ export function LazyTodoDashboardOverlay({
           onChange={onChange}
           onCloseTab={onCloseTab}
           onCompleted={onCompleted}
+          onSave={onSave}
         />
       </div>
     </div>,

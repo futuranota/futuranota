@@ -1102,6 +1102,10 @@ useEffect(() => {
     });
   }, [parkLazyTodo, removeLazyTodo]);
 
+  const handleLazyTodoSave = useCallback(() => {
+    handleLazyTodoCloseTab();
+  }, [handleLazyTodoCloseTab]);
+
   const handleLazyTodoCompleted = useCallback(() => {
     setActiveLazyTodo((current) => {
       if (current?.id) removeLazyTodo(current.id);
@@ -1411,6 +1415,7 @@ useEffect(() => {
           session={activeLazyTodo}
           onChange={handleLazyTodoChange}
           onCloseTab={handleLazyTodoCloseTab}
+          onSave={handleLazyTodoSave}
           onCompleted={handleLazyTodoCompleted}
         />
       ) : null}

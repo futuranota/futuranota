@@ -88,10 +88,36 @@
 .lazy-todo-card--dashboard .lazy-todo-card__footer {
   flex-shrink: 0;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 10px 16px 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__save-btn {
+  border: none;
+  padding: 5px 14px;
+  border-radius: 4px;
+  background: #fff;
+  color: #000;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: none;
+  cursor: pointer;
+  min-height: 32px;
+  transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__save-btn:hover:not(:disabled) {
+  background: #e8e8e8;
+}
+
+.lazy-todo-card--dashboard .lazy-todo-card__save-btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__complete-btn--footer {
@@ -101,6 +127,7 @@
   font-weight: 600;
   min-height: 32px;
   padding: 0 14px;
+  margin-left: auto;
 }
 
 .lazy-todo-card--dashboard .lazy-todo-card__complete-btn--footer:hover:not(:disabled) {

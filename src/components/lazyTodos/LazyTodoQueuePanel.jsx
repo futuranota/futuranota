@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLazyTodosStore } from "../../stores/lazyTodosStore.js";
 import {
   filterLazyTodos,
@@ -24,7 +24,12 @@ export function LazyTodoQueuePanel({
 }) {
   const { t } = useI18n();
   const items = useLazyTodosStore((s) => s.items);
+  const requeueOrphanedActives = useLazyTodosStore((s) => s.requeueOrphanedActives);
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    requeueOrphanedActives?.();
+  }, [requeueOrphanedActives]);
 
   const queuedItems = useMemo(() => {
     const scoped = items.filter((item) => (

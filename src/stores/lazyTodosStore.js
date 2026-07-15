@@ -264,6 +264,45 @@ export const useLazyTodosStore = create(
         get().updateItem(id, { status: "active" });
       },
 
+      /**
+       * After reload/HMR the overlay closes but items can stay `active` and
+       * disappear from Unfinished (queued-only). Requeue those with content;
+       * drop empty active drafts.
+       * @param {string|null} [exceptId] Keep this id active (currently open overlay).
+       */
+      requeueOrphanedActives: (exceptId = null) => {
+        const state = get();
+        /** @type {LazyTodoItem[]} */
+        const items = [];
+        const deletedIds = [...state.deletedIds];
+        let changed = false;
+
+        for (const item of state.items) {
+          if (item.status !== "active" || (exceptId && item.id === exceptId)) {
+            items.push(item);
+            continue;
+          }
+          if (!lazyTodoHasContent(item)) {
+            changed = true;
+            if (item.id && !deletedIds.includes(item.id)) {
+              deletedIds.push(item.id);
+            }
+            continue;
+          }
+          changed = true;
+          items.push(normalizeItem({
+            ...item,
+            status: "queued",
+            updatedAt: nowIso(),
+          }));
+        }
+
+        if (!changed) return;
+        persistItems(items);
+        persistDeletedIds(deletedIds);
+        set({ items, deletedIds });
+      },
+
       getQueuedForObject: (objectId) => {
         const items = get().items;
         return items.filter((item) => (
