@@ -50,6 +50,7 @@ import { formatMmDdYy } from "../../lib/docDates.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 
 const CHILD_SCHEDULE_REQUIRED_ICON = "/uploads/CalendarDots.svg";
+const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
 
@@ -977,10 +978,18 @@ export function NodeQueryModal({
             {onSave ? (
               <button
                 type="button"
-                className="btn xs node-query-modal__footer-save"
+                className="doc-content-text-size-controls__btn node-query-modal__footer-save is-active"
                 onClick={handleFooterSave}
+                aria-label={t("common.save")}
+                title={t("common.save")}
               >
-                save
+                <img
+                  src={NODE_FOOTER_SAVE_ICON}
+                  alt=""
+                  width={48}
+                  height={22}
+                  draggable={false}
+                />
               </button>
             ) : null}
             {showTextSizeControls ? (
