@@ -1884,6 +1884,12 @@
   height: 1.15em;
 }
 
+/* Match list title color (`var(--dim)` / #757b87) — not pure white */
+.lp-doc-nodes-block__node .lp-node-type-icon-img.lp-icon-white {
+  filter: brightness(0) saturate(100%) invert(49%) sepia(8%) saturate(520%) hue-rotate(185deg) brightness(93%) contrast(88%);
+  opacity: 1;
+}
+
 .lp-doc-nodes-block__node-title {
   flex: 1;
   min-width: 0;
@@ -4440,6 +4446,8 @@
   --doc-focus-surface: rgb(22, 26, 29);
   /* Match compact doc modal content width (~560px shell) so slash widgets keep proportion */
   --doc-widget-max: 540px;
+  /* /code stands alone wider than other slash widgets */
+  --doc-code-max: 820px;
   background: var(--doc-focus-surface);
 }
 
@@ -4612,11 +4620,9 @@
  * centered in the writing column. Image + product card stay full-bleed.
  * Prose (text / H1–H3) stays full-bleed for reading.
  *
- * --doc-widget-max matches the /code card shell; url / password / agent
- * drop their side padding so their cards share that same outer width.
+ * --doc-widget-max = compact slash cards; /code uses --doc-code-max (wider).
+ * url / password / agent drop side padding so cards share the compact outer width.
  */
-.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-code-block-wrap),
-.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-code-block),
 .doc-new-inner--content-focus .doc-block-stack__item:has(.doc-video-embed-block),
 .doc-new-inner--content-focus .doc-block-stack__item:has(.doc-metric-block),
 .doc-new-inner--content-focus .doc-block-stack__item:has(.doc-date-block),
@@ -4631,6 +4637,16 @@
   max-width: min(var(--doc-widget-max, 540px), 100%);
   width: 100%;
   margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* /code: wider shell so it reads as its own surface, with side inset */
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-code-block-wrap),
+.doc-new-inner--content-focus .doc-block-stack__item:has(.doc-code-block) {
+  max-width: min(var(--doc-code-max, 820px), 100%);
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 16px;
   box-sizing: border-box;
 }
 
@@ -10832,6 +10848,7 @@ body.doc-content-resizing * {
   --doc-focus-surface: rgb(22, 26, 29);
   --node-body-surface: rgb(22, 26, 29);
   --doc-widget-max: 540px;
+  --doc-code-max: 820px;
   background: var(--doc-focus-surface);
 }
 
@@ -10928,13 +10945,10 @@ body.doc-content-resizing * {
 }
 
 /* Expanded node: same intrinsic + centered widgets (image/product card excluded) */
-.node-query-modal--content-focus .node-writing-block-stack__code,
 .node-query-modal--content-focus .node-writing-block-stack__vault,
 .node-query-modal--content-focus .node-writing-block-stack__agent,
 .node-query-modal--content-focus .node-writing-block-stack__steps,
 .node-query-modal--content-focus .node-writing-block-stack__todo,
-.node-query-modal--content-focus .doc-code-block-wrap,
-.node-query-modal--content-focus .doc-code-block,
 .node-query-modal--content-focus .doc-video-embed-block,
 .node-query-modal--content-focus .doc-metric-block,
 .node-query-modal--content-focus .doc-date-block,
@@ -10952,8 +10966,23 @@ body.doc-content-resizing * {
   box-sizing: border-box;
 }
 
-/* Match /code card width — node code wrap uses 15px inset; keep vault/agent aligned */
-.node-query-modal--content-focus .node-writing-block-stack__code .doc-code-block-wrap,
+/* /code: wider independent shell, with side inset */
+.node-query-modal--content-focus .node-writing-block-stack__code,
+.node-query-modal--content-focus .doc-code-block-wrap,
+.node-query-modal--content-focus .doc-code-block {
+  max-width: min(var(--doc-code-max, 820px), 100%);
+  width: 100%;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+/* Keep a bit of side padding — not edge-to-edge */
+.node-query-modal--content-focus .node-writing-block-stack__code .doc-code-block-wrap {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* Match vault/agent flush (code keeps its own inset above) */
 .node-query-modal--content-focus .node-writing-block-stack__vault .doc-vault-block--slash-stack,
 .node-query-modal--content-focus .node-writing-block-stack__agent .doc-agent-cell {
   padding-left: 0;

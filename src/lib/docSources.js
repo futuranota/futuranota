@@ -1,27 +1,32 @@
 /**
  * Macronode Source catalog — visual reference for where intel/content came from.
- * Assets live in public/uploads/source/
+ * Most assets live in public/uploads/source/; a few brand logos are in public/uploads/.
  */
 
 /** @typedef {{ id: string, label: string, src: string }} DocSourceOption */
 
 const SOURCE_DIR = "/uploads/source";
+const UPLOADS_DIR = "/uploads";
 
 /** @type {DocSourceOption[]} */
 export const DOC_SOURCE_OPTIONS = [
   { id: "article", label: "Article", src: `${SOURCE_DIR}/Article.svg` },
   { id: "book", label: "Book", src: `${SOURCE_DIR}/BookBookmark.svg` },
   { id: "books", label: "Books", src: `${SOURCE_DIR}/Books.svg` },
+  { id: "claude", label: "Claude", src: `${UPLOADS_DIR}/claude-color.svg` },
   { id: "discord", label: "Discord", src: `${SOURCE_DIR}/DiscordLogo.svg` },
   { id: "facebook", label: "Facebook", src: `${SOURCE_DIR}/FacebookLogo.svg` },
   { id: "figma", label: "Figma", src: `${SOURCE_DIR}/FigmaLogo.svg` },
+  { id: "gemini", label: "Gemini", src: `${UPLOADS_DIR}/gemini-color.svg` },
   { id: "globe", label: "Web", src: `${SOURCE_DIR}/Globe.svg` },
   { id: "google", label: "Google", src: `${SOURCE_DIR}/GoogleLogo.png` },
+  { id: "grok", label: "Grok", src: `${UPLOADS_DIR}/grok.svg` },
   { id: "instagram", label: "Instagram", src: `${SOURCE_DIR}/InstagramLogo.svg` },
   { id: "search", label: "Search", src: `${SOURCE_DIR}/MagnifyingGlass.svg` },
   { id: "medium", label: "Medium", src: `${SOURCE_DIR}/MediumLogo.svg` },
   { id: "megaphone", label: "Ads / promo", src: `${SOURCE_DIR}/MegaphoneSimple.svg` },
   { id: "messenger", label: "Messenger", src: `${SOURCE_DIR}/MessengerLogo.svg` },
+  { id: "microsoft", label: "Microsoft", src: `${UPLOADS_DIR}/microsoft-color.svg` },
   { id: "openai", label: "OpenAI", src: `${SOURCE_DIR}/OpenAiLogo.svg` },
   { id: "pinterest", label: "Pinterest", src: `${SOURCE_DIR}/PinterestLogo.svg` },
   { id: "reddit", label: "Reddit", src: `${SOURCE_DIR}/RedditLogo.svg` },
