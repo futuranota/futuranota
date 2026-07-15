@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
+import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
+
+const DOC_SAVE_LOADING_MIN_MS = 700;
 import {
   listAdoptableDocs,
   resolveAdoptableDocLabel,
@@ -216,6 +219,7 @@ export function StandaloneNodeModal({
   const [anchorTime, setAnchorTime] = useState(initialAnchor.anchorTime);
   const [completed, setCompleted] = useState(() => Boolean(node?.completed));
   const [sourceId, setSourceId] = useState(() => node?.sourceId ?? null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const parentFolderDoc = parentDocId
     ? (docsByStoreId?.[parentDocId] || docsById[parentDocId] || null)
@@ -251,6 +255,7 @@ export function StandaloneNodeModal({
   };
 
   const handleSave = async () => {
+    if (isSaving) return;
     const title = query.trim() || "Untitled query";
     let payload = parseContentForSave(content, dataType);
     if (node && dataType === NODE_DATA_TYPES.TEXT && parseCalendarEventNodeContent(node.content)) {
@@ -307,57 +312,66 @@ export function StandaloneNodeModal({
       // Existing docs: persist content/meta, but keep the panel open.
     }
 
-    if (isNew) {
-      const newId = addNode(title, dataType, payload, parentId, {
+    setIsSaving(true);
+    try {
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, DOC_SAVE_LOADING_MIN_MS);
+      });
+
+      if (isNew) {
+        const newId = addNode(title, dataType, payload, parentId, {
+          sourceQuery: title,
+          createdAt,
+          anchorAt,
+          completed,
+          sourceId,
+          objectId: corpusObjectId,
+        });
+        if (parentId) {
+          syncNodeToParentDoc(newId, parentId);
+        }
+        const entity = getNode(newId);
+        onSaved?.(entity);
+        onClose?.();
+        return;
+      }
+
+      const prevParent = node.parentDocId || null;
+      if (canAssignParent && prevParent && prevParent !== parentId) {
+        removeNodeSyncFromDoc(node.id, prevParent);
+        removeNodeFromDoc(prevParent, node.id);
+      }
+      if (canAssignParent && parentId) {
+        addNodeToDoc(parentId, node.id);
+      }
+      updateNode(node.id, {
+        title,
         sourceQuery: title,
+        dataType,
+        content: payload,
+        ...(canAssignParent
+          ? {
+            parentDocId: parentId,
+            linkedToDoc: Boolean(parentId),
+            objectId: corpusObjectId,
+          }
+          : {
+            objectId: node.objectId || corpusObjectId,
+          }),
         createdAt,
         anchorAt,
         completed,
         sourceId,
-        objectId: corpusObjectId,
       });
-      if (parentId) {
-        syncNodeToParentDoc(newId, parentId);
+      if (canAssignParent && parentId) {
+        syncNodeToParentDoc(node.id, parentId);
       }
-      const entity = getNode(newId);
-      onSaved?.(entity);
+      onSaved?.(getNode(node.id));
+      if (scheduleIncomplete) return;
       onClose?.();
-      return;
+    } finally {
+      setIsSaving(false);
     }
-
-    const prevParent = node.parentDocId || null;
-    if (canAssignParent && prevParent && prevParent !== parentId) {
-      removeNodeSyncFromDoc(node.id, prevParent);
-      removeNodeFromDoc(prevParent, node.id);
-    }
-    if (canAssignParent && parentId) {
-      addNodeToDoc(parentId, node.id);
-    }
-    updateNode(node.id, {
-      title,
-      sourceQuery: title,
-      dataType,
-      content: payload,
-      ...(canAssignParent
-        ? {
-          parentDocId: parentId,
-          linkedToDoc: Boolean(parentId),
-          objectId: corpusObjectId,
-        }
-        : {
-          objectId: node.objectId || corpusObjectId,
-        }),
-      createdAt,
-      anchorAt,
-      completed,
-      sourceId,
-    });
-    if (canAssignParent && parentId) {
-      syncNodeToParentDoc(node.id, parentId);
-    }
-    onSaved?.(getNode(node.id));
-    if (scheduleIncomplete) return;
-    onClose?.();
   };
 
   const handleCompletedChange = (value) => {
@@ -394,54 +408,57 @@ export function StandaloneNodeModal({
   };
 
   return (
-    <NodeQueryModal
-      query={query}
-      onQueryChange={handleQueryChange}
-      content={content}
-      onContentChange={handleContentChange}
-      dataType={dataType}
-      onDataTypeChange={handleDataTypeChange}
-      dataTypes={[
-        NODE_DATA_TYPES.TEXT,
-        NODE_DATA_TYPES.DATE,
-        NODE_DATA_TYPES.CHECKBOX,
-        NODE_DATA_TYPES.VIDEO,
-      ]}
-      createdDate={createdDate || todayDateInputValue()}
-      onCreatedDateChange={setCreatedDate}
-      completed={completed}
-      onCompletedChange={handleCompletedChange}
-      sourceId={sourceId}
-      onSourceIdChange={handleSourceIdChange}
-      parentDocId={parentDocId}
-      onParentDocIdChange={canAssignParent ? setParentDocId : undefined}
-      parentDocLabel={canAssignParent ? undefined : (lockedParentLabel || undefined)}
-      docs={docList}
-      parentObjectId={parentObjectId}
-      anchorDate={anchorDate}
-      anchorTime={anchorTime}
-      onAnchorDateChange={handleAnchorDateChange}
-      onAnchorTimeChange={setAnchorTime}
-      scheduleMinDate={childScheduleBounds?.minDate || ""}
-      scheduleMaxDate={childScheduleBounds?.maxDate || ""}
-      onSave={handleSave}
-      onClose={onClose}
-      embedded={embedded}
-      initialContentFocus={initialContentFocus}
-      entityNodeId={node?.id ?? null}
-      intelSearchMeta={
-        node?.id
-          ? {
-              queryNodeEntityId: node.id,
-              queryCanvasNodeId,
-              docId: parentDocId || node.parentDocId || null,
-              blockIndex:
-                (parentDocId || node.parentDocId) === node.parentDocId
-                  ? resolveNodeBlockIndex(node, docs)
-                  : null,
-            }
-          : null
-      }
-    />
+    <>
+      <NodeQueryModal
+        query={query}
+        onQueryChange={handleQueryChange}
+        content={content}
+        onContentChange={handleContentChange}
+        dataType={dataType}
+        onDataTypeChange={handleDataTypeChange}
+        dataTypes={[
+          NODE_DATA_TYPES.TEXT,
+          NODE_DATA_TYPES.DATE,
+          NODE_DATA_TYPES.CHECKBOX,
+          NODE_DATA_TYPES.VIDEO,
+        ]}
+        createdDate={createdDate || todayDateInputValue()}
+        onCreatedDateChange={setCreatedDate}
+        completed={completed}
+        onCompletedChange={handleCompletedChange}
+        sourceId={sourceId}
+        onSourceIdChange={handleSourceIdChange}
+        parentDocId={parentDocId}
+        onParentDocIdChange={canAssignParent ? setParentDocId : undefined}
+        parentDocLabel={canAssignParent ? undefined : (lockedParentLabel || undefined)}
+        docs={docList}
+        parentObjectId={parentObjectId}
+        anchorDate={anchorDate}
+        anchorTime={anchorTime}
+        onAnchorDateChange={handleAnchorDateChange}
+        onAnchorTimeChange={setAnchorTime}
+        scheduleMinDate={childScheduleBounds?.minDate || ""}
+        scheduleMaxDate={childScheduleBounds?.maxDate || ""}
+        onSave={handleSave}
+        onClose={onClose}
+        embedded={embedded}
+        initialContentFocus={initialContentFocus}
+        entityNodeId={node?.id ?? null}
+        intelSearchMeta={
+          node?.id
+            ? {
+                queryNodeEntityId: node.id,
+                queryCanvasNodeId,
+                docId: parentDocId || node.parentDocId || null,
+                blockIndex:
+                  (parentDocId || node.parentDocId) === node.parentDocId
+                    ? resolveNodeBlockIndex(node, docs)
+                    : null,
+              }
+            : null
+        }
+      />
+      <MarkLoadingOverlay open={isSaving} label="Saving…" />
+    </>
   );
 }

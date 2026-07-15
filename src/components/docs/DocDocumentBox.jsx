@@ -34,13 +34,14 @@ import { isTemplateDoc } from "../../lib/templateDoc.js";
 import { DocBlockStack } from "./blocks/DocBlockStack.jsx";
 import { DocSlashCommandPicker } from "./blocks/DocSlashCommandPicker.jsx";
 import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
-import { SearchSpinner } from "../shared/SearchSpinner.jsx";
+import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { hasKnowledgeImport, knowledgeNotesHasContent } from "../../lib/knowledgeImport.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { ContentTextSizeControls } from "./ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
-const SAVE_LOADING_MIN_MS = 400;
+/** Long enough for the Mark write cycle to read while saving. */
+const SAVE_LOADING_MIN_MS = 700;
 
 const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;
@@ -884,16 +885,10 @@ export function DocDocumentBox({
           onClick={handleSaveClick}
           aria-busy={isSaving}
         >
-          {isSaving ? (
-            <>
-              <SearchSpinner size={14} />
-              <span>Saving…</span>
-            </>
-          ) : (
-            "save"
-          )}
+          {isSaving ? "Saving…" : "save"}
         </button>
       </div>
+      <MarkLoadingOverlay open={isSaving} label="Saving…" />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { resolveOAuthReturn } from '../lib/authRedirect.js';
 import { PATHS } from '../marketing/lib/paths.js';
 import { useAuthStore } from '../stores/authStore.js';
 import { tryRedirectPendingProCheckout } from '../lib/redirectPendingProCheckout.js';
+import { MarkLoading } from '../components/shared/MarkLoading.jsx';
 
 /** Handles Google OAuth return, then sends user to the dashboard. */
 export function AuthCallbackPage() {
@@ -87,7 +88,7 @@ export function AuthCallbackPage() {
   return (
     <div className="landing">
       <div className="landing-card glass" style={{ maxWidth: 320, textAlign: 'center' }}>
-        <span style={{ fontFamily: 'var(--mono)', color: 'var(--dim)' }}>{status}</span>
+        <MarkLoading label={status} />
       </div>
     </div>
   );

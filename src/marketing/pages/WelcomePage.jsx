@@ -20,6 +20,7 @@ import {
 } from '../../lib/pendingCheckout.js';
 import { usePendingProCheckoutRedirect } from '../../lib/usePendingProCheckoutRedirect.js';
 import { useI18n } from '../../i18n/useI18n.js';
+import { MarkLoadingOverlay } from '../../components/shared/MarkLoading.jsx';
 import '../styles/marketing.css';
 import '../styles/sections.css';
 
@@ -158,14 +159,27 @@ export function WelcomePage() {
   const proAwaitingPayment = Boolean(user && hasPendingProCheckout(user));
   const awaitingStripe = proAwaitingPayment && redirecting;
   const formLoading = loading || awaitingStripe;
-  const submitLoadingLabel = awaitingStripe ? t('proCheckoutAbandon.redirecting') : undefined;
+  const submitLoadingLabel = awaitingStripe
+    ? t('proCheckoutAbandon.redirecting')
+    : (loading
+      ? (tab === 'signup' ? 'Creating account…' : 'Signing in…')
+      : undefined);
   const showInbox = sent && !proAwaitingPayment;
   const checkoutErrorMessage = checkoutError && /too many/i.test(checkoutError)
     ? t('proCheckoutAbandon.rateLimited')
     : checkoutError;
+  /** Session check, form submit, Google OAuth wait, or post-login redirect. */
+  const showMarkGate = Boolean(
+    formLoading
+    || (authLoading && !showInbox)
+    || (user && onAuthPage && !showInbox && !checkoutError),
+  );
+  const markGateLabel = submitLoadingLabel
+    || (user && onAuthPage ? 'Opening Futura Nota…' : 'Loading…');
 
   return (
     <div className="auth-split-wrap" data-screen-label="welcome">
+      <MarkLoadingOverlay open={showMarkGate} label={markGateLabel} />
       {showInbox ? (
         <div className="auth-split-success card">
           <span className="auth-done__mark"><span className="back-link__arrow" style={{ transform: 'none' }}>✓</span></span>

@@ -7518,6 +7518,34 @@ textarea.note-form-field {
 }
 
 /* Brand Mark writing loader (page / auth gates) */
+.mark-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+  pointer-events: all;
+}
+
+.mark-loading-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 14, 0.72);
+}
+
+.mark-loading-overlay__card {
+  position: relative;
+  z-index: 1;
+  width: min(300px, 100%);
+  padding: 28px 22px 24px;
+  border-radius: 14px;
+  text-align: center;
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.55);
+}
+
 .mark-loading {
   display: flex;
   flex-direction: column;

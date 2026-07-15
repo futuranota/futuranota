@@ -12,8 +12,11 @@ import { useI18n } from "../../i18n/useI18n.js";
 import { Modal } from "../shared/Modal.jsx";
 import { UnsavedChangesConfirm } from "../shared/UnsavedChangesConfirm.jsx";
 import { useConfirmStore } from "../../stores/confirmStore.js";
+import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
+
+const NODE_SAVE_LOADING_MIN_MS = 700;
 import {
   dateInputFromIso,
   formatMmDdYy,
@@ -294,6 +297,7 @@ export function DocExpandedView({
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
   const [pendingNavigateDocId, setPendingNavigateDocId] = useState(null);
   const [showNodeUnsavedConfirm, setShowNodeUnsavedConfirm] = useState(false);
+  const [isSavingNode, setIsSavingNode] = useState(false);
   const nodeAutosaveTimerRef = useRef(null);
   const nodeInitialSnapshotRef = useRef(null);
   const docShellRef = useRef(null);
@@ -1268,41 +1272,59 @@ export function DocExpandedView({
     resetNodeModalState();
   };
 
-  const flushAndCloseNodeModal = async () => {
+  const flushAndCloseNodeModal = async ({ withMarkLoader = false } = {}) => {
     if (!(await ensureChildScheduleOrRemind())) return;
     if (!activeNodeContext) {
       resetNodeModalState();
       return;
     }
-    if (nodeAutosaveTimerRef.current) {
-      clearTimeout(nodeAutosaveTimerRef.current);
-      nodeAutosaveTimerRef.current = null;
+
+    const runFlush = () => {
+      if (nodeAutosaveTimerRef.current) {
+        clearTimeout(nodeAutosaveTimerRef.current);
+        nodeAutosaveTimerRef.current = null;
+      }
+
+      const context = { ...activeNodeContext };
+      const { blockIndex, nodeId, dataType, blockType } = context;
+      const block = draftBlocks[blockIndex];
+      if (block && block.type === blockType) {
+        const existingNode = (nodeId || block.nodeId) ? getNode(nodeId || block.nodeId) : null;
+        let contentToSave = nodeDraftContent;
+        if (
+          existingNode
+          && dataType === NODE_DATA_TYPES.TEXT
+          && parseCalendarEventNodeContent(existingNode.content)
+        ) {
+          contentToSave = existingNode.content;
+        }
+        persistNodeContentDebounced(
+          contentToSave,
+          context,
+          nodeDraftAnchorDate,
+          nodeDraftAnchorTime,
+          { commitSchedule: Boolean(String(nodeDraftAnchorDate || "").trim()) },
+        );
+        const savedBlocks = useDocsStore.getState().docs[doc.id]?.blocks;
+        onAfterDocSave?.(doc.id, savedBlocks);
+      }
+      resetNodeModalState();
+    };
+
+    if (!withMarkLoader) {
+      runFlush();
+      return;
     }
 
-    const context = { ...activeNodeContext };
-    const { blockIndex, nodeId, dataType, blockType } = context;
-    const block = draftBlocks[blockIndex];
-    if (block && block.type === blockType) {
-      const existingNode = (nodeId || block.nodeId) ? getNode(nodeId || block.nodeId) : null;
-      let contentToSave = nodeDraftContent;
-      if (
-        existingNode
-        && dataType === NODE_DATA_TYPES.TEXT
-        && parseCalendarEventNodeContent(existingNode.content)
-      ) {
-        contentToSave = existingNode.content;
-      }
-      persistNodeContentDebounced(
-        contentToSave,
-        context,
-        nodeDraftAnchorDate,
-        nodeDraftAnchorTime,
-        { commitSchedule: Boolean(String(nodeDraftAnchorDate || "").trim()) },
-      );
-      const savedBlocks = useDocsStore.getState().docs[doc.id]?.blocks;
-      onAfterDocSave?.(doc.id, savedBlocks);
+    setIsSavingNode(true);
+    try {
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, NODE_SAVE_LOADING_MIN_MS);
+      });
+      runFlush();
+    } finally {
+      setIsSavingNode(false);
     }
-    resetNodeModalState();
   };
 
   const handleSendQueryToIntelSearch = async () => {
@@ -1822,7 +1844,7 @@ export function DocExpandedView({
   const handleOpenNodeForH1 = (h1Index, h1Block) => handleOpenNodeForBlock(h1Index, h1Block);
 
   const handleNodeModalSave = () => {
-    flushAndCloseNodeModal();
+    flushAndCloseNodeModal({ withMarkLoader: true });
   };
 
   const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
@@ -2080,6 +2102,7 @@ export function DocExpandedView({
           resetNodeModalState();
         }}
       />
+      <MarkLoadingOverlay open={isSavingNode} label="Saving…" />
     </>
   );
 }
