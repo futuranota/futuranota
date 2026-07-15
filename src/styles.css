@@ -7007,8 +7007,8 @@ textarea.note-form-field {
   border: none;
   border-radius: 14px;
   box-shadow: 0 28px 64px rgba(0, 0, 0, 0.68);
-  /* Left margin kept; 5px right padding (non-expand) */
-  padding: 22px 5px 18px 15px;
+  /* Match create-folder shell: even left/right inset so Save isn't flush */
+  padding: 22px 15px 18px 15px;
   scrollbar-width: none;
 }
 

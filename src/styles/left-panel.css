@@ -1332,7 +1332,7 @@
 
 .folder-doc-row__desc-label {
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.88);
+  color: #fff;
 }
 
 .folder-doc-row--compact .folder-doc-row__desc-label {
@@ -1345,23 +1345,28 @@
   border: none;
   background: transparent;
   font: inherit;
+  font-size: 10px;
+  font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 2px;
-  color: rgba(255, 255, 255, 0.85);
+  color: #6555EF;
+  text-decoration-color: #6555EF;
   cursor: pointer;
 }
 
 .folder-doc-row__continue:hover {
-  color: #fff;
+  color: #6555EF;
+  filter: brightness(1.08);
 }
 
 .folder-doc-row--compact .folder-doc-row__continue {
-  color: rgba(255, 255, 255, 0.62);
-  text-decoration-color: rgba(255, 255, 255, 0.35);
+  font-size: 8px;
+  color: #6555EF;
+  text-decoration-color: #6555EF;
 }
 
 .folder-doc-row--compact .folder-doc-row__continue:hover {
-  color: var(--text, #fff);
+  color: #6555EF;
   text-decoration-color: currentColor;
 }
 
@@ -3030,6 +3035,16 @@
   border-right: none;
 }
 
+/* Solo date chip (default): sit under the title, left — not mid-panel */
+.doc-meta-chip:only-child {
+  flex: 0 1 auto;
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
+  padding-left: 0;
+  border-right: none;
+}
+
 .doc-meta-chip-k {
   display: block;
   width: 100%;
@@ -3042,6 +3057,10 @@
   line-height: 1;
   margin: 0;
   text-align: center;
+}
+
+.doc-meta-chip:only-child .doc-meta-chip-k {
+  text-align: left;
 }
 
 .doc-meta-chip-v {
@@ -3058,6 +3077,11 @@
   text-overflow: ellipsis;
   margin: 0;
   text-align: center;
+}
+
+.doc-meta-chip:only-child .doc-meta-chip-v {
+  text-align: left;
+  width: auto;
 }
 
 .doc-meta-chip-v.tone-created {
@@ -6046,7 +6070,7 @@ body.doc-content-resizing * {
   font-optical-sizing: var(--font-doc-optical-sizing);
   line-height: var(--font-doc-line-height);
   letter-spacing: var(--font-doc-letter-spacing);
-  color: #929292;
+  color: #fff;
 }
 
 .doc-linked-macro-desc .folder-doc-row__desc-excerpt {
@@ -6060,14 +6084,14 @@ body.doc-content-resizing * {
 }
 
 .doc-linked-macro-desc .folder-doc-row__continue {
-  font-size: 11px;
-  font-weight: 400;
-  color: #EFF26E;
-  text-decoration-color: #EFF26E;
+  font-size: 9px;
+  font-weight: 700;
+  color: #6555EF;
+  text-decoration-color: #6555EF;
 }
 
 .doc-linked-macro-desc .folder-doc-row__continue:hover {
-  color: #EFF26E;
+  color: #6555EF;
   filter: brightness(1.08);
 }
 
@@ -10690,17 +10714,18 @@ body.doc-content-resizing * {
   letter-spacing: 0.32px;
   line-height: 1.2;
   cursor: pointer;
-  padding: 0;
+  /* Match Search / [+] right inset so Return shares the same vertical edge */
+  padding: 4px 12px 4px 8px;
   opacity: 0.9;
   border-radius: 4px;
   transition: background 120ms ease, color 120ms ease;
+  box-sizing: border-box;
 }
 
 .node-query-modal__back-link:hover {
   background: #e8dcc8;
   color: #3a3428;
   border-radius: 4px;
-  padding: 4px 8px;
 }
 
 .node-query-modal__expand-btn {
@@ -11202,7 +11227,7 @@ body.doc-content-resizing * {
   min-height: 20px;
 }
 
-/* Hide Created/Status labels — show centered values only */
+/* Hide Created/Status labels — show values only */
 .node-query-modal__doc-meta .doc-meta-chip-k {
   display: none;
 }
@@ -11216,6 +11241,13 @@ body.doc-content-resizing * {
   text-align: center;
 }
 
+.node-query-modal__doc-meta .doc-meta-chip:only-child {
+  padding-left: 0;
+  align-items: flex-start;
+  justify-content: flex-start;
+  text-align: left;
+}
+
 .node-query-modal__doc-meta .doc-meta-chip-v {
   min-height: 0;
   font-size: 9px;
@@ -11227,6 +11259,12 @@ body.doc-content-resizing * {
   width: 100%;
   box-sizing: border-box;
   text-align: center;
+}
+
+.node-query-modal__doc-meta .doc-meta-chip:only-child .doc-meta-chip-v {
+  justify-content: flex-start;
+  text-align: left;
+  width: auto;
 }
 
 .node-query-modal__doc-meta .doc-meta-chip--completed {
