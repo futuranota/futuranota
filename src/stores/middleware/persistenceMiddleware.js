@@ -7,6 +7,10 @@ import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 import { useUIStateStore } from "../uiStateStore.js";
 
 const STORAGE_KEY = "futura-nota-v1";
+/** Cross-tab delete ledger — other open /app tabs must not re-upsert ghost folders. */
+const TOMBSTONE_LEDGER_KEY = "futura-nota-deleted-v1";
+/** Keep tombstones after remote SELECT says gone so a sibling tab cannot race-reupsert. */
+const TOMBSTONE_CLEAR_GRACE_MS = 15_000;
 
 /** Pack schedule + status meta into nodes.reference JSONB (no dedicated DB columns). */
 function referenceWithNodeMeta(node) {
@@ -99,6 +103,69 @@ let syncNeedsRerun = false;
 /** Doc/node IDs deleted locally that hydrate must not resurrect until remote orphan cleanup lands. */
 const pendingDeletedDocIds = new Set();
 const pendingDeletedNodeIds = new Set();
+/** When each id was tombstoned — used for clear grace against cross-tab upsert races. */
+const deletedDocMarkedAt = new Map();
+const deletedNodeMarkedAt = new Map();
+/** Bumps whenever a folder/node is tombstoned — hydrate uses this to re-strip mid-flight deletes. */
+let deleteTombstoneRevision = 0;
+
+/**
+ * Broadcast delete tombstones so every open tab stops upserting those ids.
+ * Ledger is union-only on adopt; clearing only shrinks this tab's write.
+ */
+function writeTombstoneLedger() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const payload = {
+      docs: [...pendingDeletedDocIds],
+      nodes: [...pendingDeletedNodeIds],
+      revision: deleteTombstoneRevision,
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(TOMBSTONE_LEDGER_KEY, JSON.stringify(payload));
+  } catch {
+    // private mode / quota
+  }
+}
+
+function readTombstoneLedger() {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(TOMBSTONE_LEDGER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Union ledger into in-memory tombstones (never removes).
+ * @param {Record<string, unknown>|null|undefined} ledger
+ * @returns {boolean}
+ */
+function adoptTombstoneLedger(ledger) {
+  if (!ledger || typeof ledger !== "object") return false;
+  const docs = Array.isArray(ledger.docs) ? ledger.docs : [];
+  const nodes = Array.isArray(ledger.nodes) ? ledger.nodes : [];
+  let changed = false;
+  const now = Date.now();
+  for (const id of docs) {
+    if (!id || pendingDeletedDocIds.has(id)) continue;
+    pendingDeletedDocIds.add(id);
+    if (!deletedDocMarkedAt.has(id)) deletedDocMarkedAt.set(id, now);
+    changed = true;
+  }
+  for (const id of nodes) {
+    if (!id || pendingDeletedNodeIds.has(id)) continue;
+    pendingDeletedNodeIds.add(id);
+    if (!deletedNodeMarkedAt.has(id)) deletedNodeMarkedAt.set(id, now);
+    changed = true;
+  }
+  if (changed) deleteTombstoneRevision += 1;
+  return changed;
+}
 
 /**
  * Mark folders (docs) and cascaded nodes as intentionally deleted so merge cannot restore them.
@@ -108,14 +175,28 @@ const pendingDeletedNodeIds = new Set();
 export function markDocsDeletedForSync(docIds, nodeIds = []) {
   const docs = Array.isArray(docIds) ? docIds : [docIds];
   const nodes = Array.isArray(nodeIds) ? nodeIds : [nodeIds];
+  let changed = false;
+  const now = Date.now();
   for (const id of docs) {
-    if (id) pendingDeletedDocIds.add(id);
+    if (id && !pendingDeletedDocIds.has(id)) {
+      pendingDeletedDocIds.add(id);
+      deletedDocMarkedAt.set(id, now);
+      changed = true;
+    }
   }
   for (const id of nodes) {
-    if (id) pendingDeletedNodeIds.add(id);
+    if (id && !pendingDeletedNodeIds.has(id)) {
+      pendingDeletedNodeIds.add(id);
+      deletedNodeMarkedAt.set(id, now);
+      changed = true;
+    }
+  }
+  if (changed) {
+    deleteTombstoneRevision += 1;
+    writeTombstoneLedger();
   }
   // #region agent log
-  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'pre-fix',hypothesisId:'A',location:'persistenceMiddleware.js:markDocsDeletedForSync',message:'tombstone set',data:{docIds:docs.filter(Boolean),nodeIds:nodes.filter(Boolean),pendingDocs:[...pendingDeletedDocIds],pendingNodes:[...pendingDeletedNodeIds]},timestamp:Date.now()})}).catch(()=>{});
+  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'post-fix',hypothesisId:'H1',location:'persistenceMiddleware.js:markDocsDeletedForSync',message:'tombstone set',data:{docIds:docs.filter(Boolean),nodeIds:nodes.filter(Boolean),pendingDocs:[...pendingDeletedDocIds],revision:deleteTombstoneRevision,hydrateInFlight},timestamp:Date.now()})}).catch(()=>{});
   // #endregion
 }
 
@@ -180,32 +261,141 @@ function stripPendingDeletesFromState(state) {
 }
 
 /**
+ * Hard-delete tombstoned ids from a remote table (batched).
+ * @param {string} table
+ * @param {string} userId
+ * @param {Set<string>} idSet
+ * @returns {Promise<boolean>}
+ */
+async function purgeTombstonedRows(table, userId, idSet) {
+  const ids = [...idSet].filter(Boolean);
+  if (!ids.length) return true;
+  const CHUNK = 100;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .eq("user_id", userId)
+      .in("id", chunk);
+    if (error) {
+      console.error(formatSupabaseError(error, `Purge tombstones in ${table}`));
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Drop tombstones only after SELECT proves those ids are gone from remote.
+ * Never clear just because local upsert omitted them (stale hydrate can reintroduce them).
+ * Never clear while hydrate is in flight — that race restores folders without a page reload.
+ * @param {string} table
+ * @param {string} userId
+ * @param {Set<string>} idSet
+ */
+async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
+  if (hydrateInFlight) {
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'post-fix',hypothesisId:'B',location:'persistenceMiddleware.js:clearTombstonesConfirmedAbsent',message:'skip clear — hydrate in flight',data:{table,pending:[...idSet]},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return;
+  }
+  const ids = [...idSet].filter(Boolean);
+  if (!ids.length) return;
+  const CHUNK = 100;
+  const stillRemote = new Set();
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from(table)
+      .select("id")
+      .eq("user_id", userId)
+      .in("id", chunk);
+    if (error) {
+      console.error(formatSupabaseError(error, `Verify tombstones in ${table}`));
+      return;
+    }
+    for (const row of data || []) {
+      if (row?.id) stillRemote.add(row.id);
+    }
+  }
+  const cleared = [];
+  const heldForGrace = [];
+  const now = Date.now();
+  const markedAtMap = table === "campaigns" ? deletedDocMarkedAt : deletedNodeMarkedAt;
+  for (const id of ids) {
+    if (stillRemote.has(id)) continue;
+    const markedAt = markedAtMap.get(id) || 0;
+    if (now - markedAt < TOMBSTONE_CLEAR_GRACE_MS) {
+      heldForGrace.push(id);
+      continue;
+    }
+    idSet.delete(id);
+    markedAtMap.delete(id);
+    cleared.push(id);
+  }
+  if (cleared.length) writeTombstoneLedger();
+  // #region agent log
+  if (cleared.length || stillRemote.size || heldForGrace.length) {
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'post-fix',hypothesisId:'H4',location:'persistenceMiddleware.js:clearTombstonesConfirmedAbsent',message:'tombstones verified against remote',data:{table,cleared,heldForGrace,stillRemote:[...stillRemote],remaining:[...idSet]},timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
+}
+
+/**
+ * When the user deletes mid-hydrate, a stale remote payload would union folders
+ * back into the live store without a page reload. Keep live ids + never reintroduce
+ * remote-only ids while deletes were active.
+ * @param {Record<string, object>|null|undefined} hydratedMap
+ * @param {Record<string, object>|null|undefined} liveMap
+ * @param {Set<string>} pendingIds
+ * @param {boolean} deletesHappened
+ */
+function preferLiveMapAfterMidFlightDeletes(hydratedMap, liveMap, pendingIds, deletesHappened) {
+  const hydrated = hydratedMap && typeof hydratedMap === "object" ? hydratedMap : {};
+  const live = liveMap && typeof liveMap === "object" ? liveMap : {};
+  if (!deletesHappened && pendingIds.size === 0) {
+    return omitPendingDeletedIds(hydrated, pendingIds);
+  }
+  const out = {};
+  for (const [id, item] of Object.entries(live)) {
+    if (!id || !item || pendingIds.has(id)) continue;
+    out[id] = item;
+  }
+  for (const [id, item] of Object.entries(hydrated)) {
+    if (!id || !item || pendingIds.has(id)) continue;
+    // Stale remote-only rows (deleted in this session, or never in live after paint+delete).
+    if (!(id in live)) continue;
+    if (!out[id]) out[id] = item;
+  }
+  return out;
+}
+
+/**
  * Clear tombstones for IDs that are no longer local (remote orphan cleanup succeeded).
+ * @deprecated Prefer clearTombstonesConfirmedAbsent — local-absence clear races with stale hydrate.
  * @param {Iterable<string>} localDocIds
  * @param {Iterable<string>} localNodeIds
  */
 function clearResolvedDeleteTombstones(localDocIds, localNodeIds) {
-  const localDocs = new Set(localDocIds);
-  const localNodes = new Set(localNodeIds);
-  const clearedDocs = [];
-  const clearedNodes = [];
-  for (const id of [...pendingDeletedDocIds]) {
-    if (!localDocs.has(id)) {
-      pendingDeletedDocIds.delete(id);
-      clearedDocs.push(id);
-    }
+  // Intentionally no-op: clearing by local absence allowed stale hydrate to resurrect
+  // deleted folders and then re-upsert them to production. Tombstones clear only via
+  // clearTombstonesConfirmedAbsent after a remote SELECT proves the rows are gone.
+  void localDocIds;
+  void localNodeIds;
+}
+
+/**
+ * Re-load persisted tombstones from disk before applying a hydrate payload.
+ */
+function refreshTombstonesFromDisk() {
+  try {
+    restorePendingDeletesFromSnapshot(readLocalWorkspaceSnapshot());
+    adoptTombstoneLedger(readTombstoneLedger());
+  } catch {
+    // ignore
   }
-  for (const id of [...pendingDeletedNodeIds]) {
-    if (!localNodes.has(id)) {
-      pendingDeletedNodeIds.delete(id);
-      clearedNodes.push(id);
-    }
-  }
-  // #region agent log
-  if (clearedDocs.length || clearedNodes.length) {
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'pre-fix',hypothesisId:'B',location:'persistenceMiddleware.js:clearResolvedDeleteTombstones',message:'tombstones cleared after orphan ok',data:{clearedDocs,clearedNodes,remainingPendingDocs:[...pendingDeletedDocIds],localDocCount:localDocs.size},timestamp:Date.now()})}).catch(()=>{});
-  }
-  // #endregion
 }
 
 function warnSyncOnce(message) {
@@ -444,11 +634,16 @@ function restorePendingDeletesFromSnapshot(data) {
   if (!data || typeof data !== "object") return;
   const docs = Array.isArray(data.deletedDocIds) ? data.deletedDocIds : [];
   const nodes = Array.isArray(data.deletedNodeIds) ? data.deletedNodeIds : [];
+  const now = Date.now();
   for (const id of docs) {
-    if (id) pendingDeletedDocIds.add(id);
+    if (!id) continue;
+    pendingDeletedDocIds.add(id);
+    if (!deletedDocMarkedAt.has(id)) deletedDocMarkedAt.set(id, now);
   }
   for (const id of nodes) {
-    if (id) pendingDeletedNodeIds.add(id);
+    if (!id) continue;
+    pendingDeletedNodeIds.add(id);
+    if (!deletedNodeMarkedAt.has(id)) deletedNodeMarkedAt.set(id, now);
   }
 }
 
@@ -823,10 +1018,16 @@ export function initPersistenceMiddleware(stores) {
     {
       const pending = [...pendingDeletedDocIds];
       const incomingDocs = Object.keys(stripped.docs || {});
-      const resurrected = pending.filter((id) => incomingDocs.includes(id));
-      if (pending.length || resurrected.length) {
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'post-fix',hypothesisId:'E',location:'persistenceMiddleware.js:applyStateToStores',message:'apply state to stores',data:{pending,resurrected,incomingDocCount:incomingDocs.length,sampleTitles:resurrected.slice(0,5).map((id)=>({id,title:stripped.docs?.[id]?.title}))},timestamp:Date.now()})}).catch(()=>{});
-      }
+      const resurrectedIds = pending.filter((id) => incomingDocs.includes(id));
+      const titleSample = Object.values(stripped.docs || {}).slice(0, 12).map((d) => ({
+        id: d?.id,
+        title: d?.title || d?.category || null,
+      }));
+      const ghostTitles = resurrectedIds.map((id) => ({
+        id,
+        title: stripped.docs?.[id]?.title || null,
+      }));
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H1',location:'persistenceMiddleware.js:applyStateToStores',message:'apply state to stores',data:{pendingCount:pending.length,pending,resurrectedIds,ghostTitles,incomingDocCount:incomingDocs.length,titleSample},timestamp:Date.now()})}).catch(()=>{});
     }
     // #endregion
     const objects = pruneStrayDefaultYo(stripped.objects || {});
@@ -937,6 +1138,7 @@ export function initPersistenceMiddleware(stores) {
   const loadFromSupabase = async () => {
     if (hydrateInFlight) return;
     hydrateInFlight = true;
+    const tombstoneRevisionAtStart = deleteTombstoneRevision;
     try {
       const configErr = getSupabaseConfigError();
       if (configErr) {
@@ -1126,6 +1328,9 @@ export function initPersistenceMiddleware(stores) {
         currentTier: "all",
       };
 
+      // Re-arm tombstones before merge so remote-only ghosts cannot union back in.
+      refreshTombstonesFromDisk();
+
       const localSnapshot = readLocalWorkspaceSnapshot();
       const { state: hydratedFromDisk, preferredLocal } = mergeRemoteWithLocalSnapshot(
         remoteState,
@@ -1158,9 +1363,66 @@ export function initPersistenceMiddleware(stores) {
         fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H5',location:'persistenceMiddleware.js:hydrate',message:'hydrate nodes with schedule',data:{preferredLocal:preferredLocal||preferredMemory,nodeCount:Object.keys(hydratedNodes||{}).length,withAnchor},timestamp:Date.now()})}).catch(()=>{});
       } catch (_) { /* ignore */ }
       // #endregion
-      applyStateToStores({ ...hydratedState, nodes: hydratedNodes });
+      // Re-arm tombstones from disk + memory so mid-flight deletes win over stale remote.
+      refreshTombstonesFromDisk();
+      const liveNow = sanitizePersistedSnapshot(getLocalState());
+      restorePendingDeletesFromSnapshot(liveNow);
+      const deletesHappened = deleteTombstoneRevision !== tombstoneRevisionAtStart
+        || pendingDeletedDocIds.size > 0
+        || pendingDeletedNodeIds.size > 0;
+      if (deletesHappened) {
+        console.warn(
+          "[futura-nota] Hydrate saw deletes mid-flight — keeping live folders, ignoring stale remote ghosts.",
+          {
+            before: tombstoneRevisionAtStart,
+            after: deleteTombstoneRevision,
+            pendingDocs: [...pendingDeletedDocIds],
+          },
+        );
+      }
+      const safeDocs = preferLiveMapAfterMidFlightDeletes(
+        hydratedState.docs,
+        liveNow?.docs,
+        pendingDeletedDocIds,
+        deletesHappened,
+      );
+      const safeNodes = preferLiveMapAfterMidFlightDeletes(
+        hydratedNodes,
+        liveNow?.nodes,
+        pendingDeletedNodeIds,
+        deletesHappened,
+      );
+      // #region agent log
+      {
+        const liveIds = new Set(Object.keys(liveNow?.docs || {}));
+        const hydratedIds = Object.keys(hydratedState.docs || {});
+        const safeIds = Object.keys(safeDocs || {});
+        const remoteOnlyDropped = hydratedIds.filter((id) => !liveIds.has(id) && !safeIds.includes(id));
+        const remoteOnlyKept = hydratedIds.filter((id) => !liveIds.has(id) && safeIds.includes(id));
+        const remoteOnlyKeptTitles = remoteOnlyKept.map((id) => ({
+          id,
+          title: hydratedState.docs?.[id]?.title || null,
+        }));
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H2',location:'persistenceMiddleware.js:hydrate:safeDocs',message:'hydrate safeDocs gate',data:{deletesHappened,revisionStart:tombstoneRevisionAtStart,revisionNow:deleteTombstoneRevision,pendingDocs:[...pendingDeletedDocIds],liveCount:liveIds.size,hydratedCount:hydratedIds.length,safeCount:safeIds.length,remoteOnlyDroppedCount:remoteOnlyDropped.length,remoteOnlyKeptTitles,preferredLocal:Boolean(preferredLocal||preferredMemory)},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion
+      const objectsForApply = deletesHappened
+        ? rebuildObjectChildren(liveNow?.objects || hydratedState.objects || {}, safeDocs)
+        : rebuildObjectChildren(hydratedState.objects || {}, safeDocs);
+      applyStateToStores({
+        ...hydratedState,
+        objects: objectsForApply,
+        docs: safeDocs,
+        nodes: safeNodes,
+      });
 
       finishWorkspaceHydration();
+
+      // Tombstones can clear now that hydrate has applied without resurrecting.
+      if (pendingDeletedDocIds.size || pendingDeletedNodeIds.size) {
+        await clearTombstonesConfirmedAbsent("campaigns", userId, pendingDeletedDocIds);
+        await clearTombstonesConfirmedAbsent("nodes", userId, pendingDeletedNodeIds);
+      }
 
       const docIds = Object.keys(useDocsStore.getState().docs || {});
       let timelineUi = pickTimelineUiState(loadLocalTimelineUiFallback());
@@ -1333,6 +1595,14 @@ export function initPersistenceMiddleware(stores) {
         created_at: doc.createdAt || now,
         updated_at: doc.updatedAt || now,
       }));
+      // #region agent log
+      {
+        const pending = [...pendingDeletedDocIds];
+        const upsertNames = campaignsRows.slice(0, 20).map((r) => ({ id: r.id, name: r.name }));
+        const pendingStillInState = pending.filter((id) => Boolean(state.docs?.[id]));
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H3',location:'persistenceMiddleware.js:syncToSupabase:campaigns',message:'campaigns upsert batch',data:{rowCount:campaignsRows.length,pending,pendingStillInState,upsertNames,hydrateInFlight},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion
 
       const campaignLocalIds = campaignsRows.map((r) => r.id);
       // Empty local = intentional wipe (last folder deleted) → orphan-delete still runs.
@@ -1352,6 +1622,10 @@ export function initPersistenceMiddleware(stores) {
       }
       const campaignsOrphansOk = campaignsUpsertOk
         ? await deleteOrphanRows("campaigns", userId, campaignLocalIds)
+        : false;
+      // Explicitly DELETE tombstoned folders even if orphan select glitches.
+      const campaignsTombstoneOk = campaignsUpsertOk
+        ? await purgeTombstonedRows("campaigns", userId, pendingDeletedDocIds)
         : false;
 
       // 3. Nodes — persist Schedule in reference.anchorAt (JSONB)
@@ -1384,9 +1658,16 @@ export function initPersistenceMiddleware(stores) {
       const nodesOrphansOk = nodesUpsertOk
         ? await deleteOrphanRows("nodes", userId, nodeLocalIds)
         : false;
+      const nodesTombstoneOk = nodesUpsertOk
+        ? await purgeTombstonedRows("nodes", userId, pendingDeletedNodeIds)
+        : false;
 
-      if (campaignsOrphansOk && nodesOrphansOk) {
-        clearResolvedDeleteTombstones(campaignLocalIds, nodeLocalIds);
+      // Only drop tombstones after remote SELECT proves the rows are gone.
+      if (campaignsOrphansOk && campaignsTombstoneOk) {
+        await clearTombstonesConfirmedAbsent("campaigns", userId, pendingDeletedDocIds);
+      }
+      if (nodesOrphansOk && nodesTombstoneOk) {
+        await clearTombstonesConfirmedAbsent("nodes", userId, pendingDeletedNodeIds);
       }
 
       // 4. Canvas nodes
@@ -1592,7 +1873,44 @@ export function initPersistenceMiddleware(stores) {
   // Paint local workspace immediately so reload does not flash empty companies.
   // Remote hydrate merges on top; seed default "yo" only after hydrate finishes.
   paintLocalWorkspace();
+  adoptTombstoneLedger(readTombstoneLedger());
   loadFromSupabase();
+
+  // Sibling /app tabs: adopt delete ledger so they stop re-upserting ghost folders.
+  window.addEventListener("storage", (event) => {
+    if (event.key !== TOMBSTONE_LEDGER_KEY || !event.newValue) return;
+    let ledger = null;
+    try {
+      ledger = JSON.parse(event.newValue);
+    } catch {
+      return;
+    }
+    if (!adoptTombstoneLedger(ledger)) return;
+    const docsState = useDocsStore.getState().docs || {};
+    const nodesState = useNodesStore.getState().nodes || {};
+    let docsChanged = false;
+    let nodesChanged = false;
+    const nextDocs = { ...docsState };
+    const nextNodes = { ...nodesState };
+    for (const id of pendingDeletedDocIds) {
+      if (id in nextDocs) {
+        delete nextDocs[id];
+        docsChanged = true;
+      }
+    }
+    for (const id of pendingDeletedNodeIds) {
+      if (id in nextNodes) {
+        delete nextNodes[id];
+        nodesChanged = true;
+      }
+    }
+    if (docsChanged) useDocsStore.setState({ docs: nextDocs });
+    if (nodesChanged) useNodesStore.setState({ nodes: nextNodes });
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'post-fix',hypothesisId:'H4',location:'persistenceMiddleware.js:storage:tombstoneLedger',message:'adopted cross-tab tombstones',data:{pendingDocs:[...pendingDeletedDocIds],docsChanged,nodesChanged},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    debouncedRemoteSync();
+  });
 
   // Escuchar cambios de sesión — recargar solo en login real, no en cada refresh de token
   supabase.auth.onAuthStateChange((event) => {
@@ -1605,6 +1923,13 @@ export function initPersistenceMiddleware(stores) {
       isSyncedWithRemote = false;
       pendingDeletedDocIds.clear();
       pendingDeletedNodeIds.clear();
+      deletedDocMarkedAt.clear();
+      deletedNodeMarkedAt.clear();
+      try {
+        localStorage.removeItem(TOMBSTONE_LEDGER_KEY);
+      } catch {
+        // private mode / quota
+      }
       debouncedRemoteSync.cancel();
       // Keep local workspace if the last cloud flush failed — otherwise a new folder
       // that only lived in localStorage would be wiped before it ever reached Supabase.
@@ -1654,7 +1979,7 @@ export function initPersistenceMiddleware(stores) {
   });
 }
 
-export { STORAGE_KEY };
+export { STORAGE_KEY, TOMBSTONE_LEDGER_KEY };
 
 /** @returns {Promise<{ ok: boolean, reason?: string, error?: unknown }>} */
 export async function flushPersistenceSync() {

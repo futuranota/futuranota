@@ -1764,12 +1764,18 @@ export function LeftPanel({
 
   const handleDeleteDoc = async (doc) => {
     const label = resolveProductDocDisplayTitle(doc);
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H5',location:'LeftPanel.jsx:handleDeleteDoc',message:'delete confirm starting',data:{docId:doc?.id||null,label},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const confirmed = await askConfirm({
       title: t("sidebar.deleteDocTitle"),
       message: t("sidebar.deleteDocConfirm", { name: label }),
       confirmLabel: t("common.delete"),
       cancelLabel: t("common.cancel"),
     });
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H5',location:'LeftPanel.jsx:handleDeleteDoc',message:'delete confirm result',data:{docId:doc?.id||null,confirmed},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!confirmed) return;
     playTrashBoxSound();
     onDocumentDeleted?.(doc.id);

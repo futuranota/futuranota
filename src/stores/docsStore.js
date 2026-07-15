@@ -232,6 +232,7 @@ export const useDocsStore = create(
         get().updateDoc(id, { syncedWithCanvas: synced }),
 
       deleteDoc: (id) => {
+        const existing = get().docs[id];
         const linkedNodes = useNodesStore.getState().getNodesByDoc(id);
         const linkedNodeIds = linkedNodes.map((node) => node.id).filter(Boolean);
         // Tombstone before local remove so an in-flight hydrate cannot resurrect.
@@ -249,7 +250,7 @@ export const useDocsStore = create(
           return { docs: next };
         });
         // #region agent log
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'pre-fix',hypothesisId:'A',location:'docsStore.js:deleteDoc',message:'folder removed from store',data:{deletedId:id,remainingDocIds:Object.keys(get().docs),remainingCount:Object.keys(get().docs).length},timestamp:Date.now()})}).catch(()=>{});
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H5',location:'docsStore.js:deleteDoc',message:'folder deleted locally',data:{deletedId:id,title:existing?.title||null,linkedNodeCount:linkedNodeIds.length,remainingCount:Object.keys(get().docs).length,hydrateHint:'watch_apply_after'},timestamp:Date.now()})}).catch(()=>{});
         // #endregion
         flushPersistenceSync().catch((err) => {
           console.warn("Flush after folder delete failed:", err);
