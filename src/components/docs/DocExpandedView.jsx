@@ -31,6 +31,7 @@ import {
   isDateInputWithinFolderSchedule,
   validateFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
+import { confirmChildScheduleOrDiscard } from "../../lib/childScheduleConfirm.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import {
   isTemplateDoc,
@@ -1270,32 +1271,119 @@ export function DocExpandedView({
 
   const ensureChildScheduleOrRemind = async () => {
     if (!childNodeScheduleIncomplete()) return true;
-    await askConfirm({
-      title: t("meta.childScheduleRequiredTitle"),
-      message: t("meta.childScheduleRequiredBody"),
-      confirmLabel: t("common.ok"),
-      tone: "default",
-      hideCancel: true,
-      iconSrc: "/uploads/CalendarDots.svg",
-    });
-    return false;
+    return confirmChildScheduleOrDiscard(askConfirm, t, "/uploads/CalendarDots.svg");
   };
 
-  const handleRequestCloseNodeModal = async () => {
-    if (!(await ensureChildScheduleOrRemind())) return;
-    if (hasNodeUnsavedChanges()) {
-      setShowNodeUnsavedConfirm(true);
-      return;
+  const restoreNodeContentFromSnapshot = (normalized, dataType) => {
+    if (normalized == null) return "";
+    if (typeof normalized !== "string") return normalized;
+    const trimmed = normalized.trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      try {
+        return JSON.parse(normalized);
+      } catch {
+        /* keep string */
+      }
     }
+    if (dataType === NODE_DATA_TYPES.CHECKBOX && (normalized === "true" || normalized === "false")) {
+      return normalized === "true";
+    }
+    return normalized;
+  };
+
+  /** Drop draft + undo autosave/live writes so close & not save leaves no edits. */
+  const discardNodeModalWithoutSave = () => {
     if (nodeAutosaveTimerRef.current) {
       clearTimeout(nodeAutosaveTimerRef.current);
       nodeAutosaveTimerRef.current = null;
     }
+
+    const context = activeNodeContext;
+    const snap = nodeInitialSnapshotRef.current;
+    if (context && snap) {
+      const { blockIndex, nodeId, dataType, blockType } = context;
+      const restoredContent = restoreNodeContentFromSnapshot(snap.content, dataType);
+      const restoredCompleted = Boolean(snap.completed);
+      const restoredSourceId = snap.sourceId || null;
+      const restoredAnchorDate = snap.anchorDate || "";
+      const restoredAnchorTime = snap.anchorTime || "";
+      const canSchedule = dataType === NODE_DATA_TYPES.TEXT
+        || dataType === NODE_DATA_TYPES.CHECKBOX;
+      const restoredAnchorAt = canSchedule
+        ? isoFromAnchorFields(restoredAnchorDate, restoredAnchorTime)
+        : undefined;
+
+      if (nodeId) {
+        updateNode(nodeId, {
+          content: restoredContent,
+          completed: restoredCompleted,
+          sourceId: restoredSourceId,
+          ...(restoredAnchorAt !== undefined ? { anchorAt: restoredAnchorAt } : {}),
+        });
+        syncNodeToParentDoc(nodeId, doc.id);
+      }
+
+      const block = draftBlocks[blockIndex];
+      if (block && block.type === blockType) {
+        let nextBlocks = draftBlocks;
+        if (shouldMirrorNodeContentInDoc(block)) {
+          nextBlocks = setContentForNodeBlock(
+            nextBlocks,
+            blockIndex,
+            restoredContent,
+            dataType,
+          );
+          if (dataType === NODE_DATA_TYPES.TEXT) {
+            nextBlocks = setAnswerBelowH1(
+              nextBlocks,
+              blockIndex,
+              typeof restoredContent === "string" ? restoredContent : "",
+            );
+          }
+        }
+        if (canSchedule) {
+          nextBlocks = updateBlockAt(nextBlocks, blockIndex, {
+            anchorDate: restoredAnchorDate,
+            anchorTime: restoredAnchorTime,
+            anchorFromNode: Boolean(String(restoredAnchorDate || "").trim()),
+          });
+        }
+        if (nextBlocks !== draftBlocks) {
+          setDraftBlocks(nextBlocks);
+          const body = docBlocksToBody(nextBlocks);
+          updateDoc(doc.id, {
+            blocks: nextBlocks,
+            body,
+            content: body,
+          });
+        }
+      }
+    }
+
     resetNodeModalState();
   };
 
+  const handleRequestCloseNodeModal = async () => {
+    const gate = await ensureChildScheduleOrRemind();
+    if (gate === "stay") return;
+    if (gate === "discard") {
+      discardNodeModalWithoutSave();
+      return;
+    }
+    if (hasNodeUnsavedChanges()) {
+      setShowNodeUnsavedConfirm(true);
+      return;
+    }
+    discardNodeModalWithoutSave();
+  };
+
   const flushAndCloseNodeModal = async ({ withMarkLoader = false } = {}) => {
-    if (!(await ensureChildScheduleOrRemind())) return;
+    const gate = await ensureChildScheduleOrRemind();
+    if (gate === "stay") return;
+    if (gate === "discard") {
+      discardNodeModalWithoutSave();
+      return;
+    }
     if (!activeNodeContext) {
       resetNodeModalState();
       return;
@@ -1350,7 +1438,12 @@ export function DocExpandedView({
   };
 
   const handleSendQueryToIntelSearch = async () => {
-    if (!(await ensureChildScheduleOrRemind())) return;
+    const gate = await ensureChildScheduleOrRemind();
+    if (gate === "stay") return;
+    if (gate === "discard") {
+      discardNodeModalWithoutSave();
+      return;
+    }
     await flushAndCloseNodeModal();
     onClose();
   };
@@ -1617,6 +1710,8 @@ export function DocExpandedView({
     });
     syncNodeToParentDoc(savedNodeId, doc.id);
 
+    // Only intentional Save/flush advances the discard baseline.
+    // Autosave must leave the open snapshot alone so "close & not save" can revert.
     if (commitSchedule) {
       const snap = {
         content: normalizeNodeContent(content),
@@ -1633,18 +1728,6 @@ export function DocExpandedView({
         connections: canvasSnap?.connections || [],
         docsById: useDocsStore.getState().docs,
         nodeEntitiesById: useNodesStore.getState().nodes,
-      });
-    } else {
-      setNodeInitialSnapshot((prev) => {
-        const next = {
-          content: normalizeNodeContent(content),
-          anchorDate: prev?.anchorDate ?? "",
-          anchorTime: prev?.anchorTime ?? "",
-          completed: Boolean(nodeDraftCompleted),
-          sourceId: nodeDraftSourceId || null,
-        };
-        nodeInitialSnapshotRef.current = next;
-        return next;
       });
     }
   };
@@ -2030,34 +2113,17 @@ export function DocExpandedView({
             setNodeDraftCompleted(v);
             const id = activeNodeContext?.nodeId;
             if (id) updateNode(id, { completed: Boolean(v) });
-            setNodeInitialSnapshot((prev) => (
-              prev ? { ...prev, completed: Boolean(v) } : prev
-            ));
-            if (nodeInitialSnapshotRef.current) {
-              nodeInitialSnapshotRef.current = {
-                ...nodeInitialSnapshotRef.current,
-                completed: Boolean(v),
-              };
-            }
           }}
           sourceId={nodeDraftSourceId}
           onSourceIdChange={(v) => {
             setNodeDraftSourceId(v);
             const id = activeNodeContext?.nodeId;
             if (id) updateNode(id, { sourceId: v ?? null });
-            setNodeInitialSnapshot((prev) => (
-              prev ? { ...prev, sourceId: v ?? null } : prev
-            ));
-            if (nodeInitialSnapshotRef.current) {
-              nodeInitialSnapshotRef.current = {
-                ...nodeInitialSnapshotRef.current,
-                sourceId: v ?? null,
-              };
-            }
           }}
           parentDocLabel={parentDocLabel}
           onSave={handleNodeModalSave}
           onBackToDocument={handleRequestCloseNodeModal}
+          onCloseWithoutSave={discardNodeModalWithoutSave}
           anchorDate={nodeDraftAnchorDate}
           anchorTime={nodeDraftAnchorTime}
           onAnchorDateChange={handleNodeAnchorDateChange}
@@ -2115,13 +2181,17 @@ export function DocExpandedView({
         titleId="node-unsaved-confirm-title"
         onYes={async () => {
           setShowNodeUnsavedConfirm(false);
-          if (!(await ensureChildScheduleOrRemind())) return;
+          const gate = await ensureChildScheduleOrRemind();
+          if (gate === "stay") return;
+          if (gate === "discard") {
+            discardNodeModalWithoutSave();
+            return;
+          }
           handleNodeModalSave();
         }}
-        onNo={async () => {
+        onNo={() => {
           setShowNodeUnsavedConfirm(false);
-          if (!(await ensureChildScheduleOrRemind())) return;
-          resetNodeModalState();
+          discardNodeModalWithoutSave();
         }}
       />
       <MarkLoadingOverlay open={isSavingNode} label="Saving…" />

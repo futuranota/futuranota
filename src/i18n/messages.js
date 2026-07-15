@@ -176,6 +176,7 @@ export const messages = {
       childScheduleRequiredTitle: "Set a date and time",
       childScheduleRequiredBody:
         "This folder has an active schedule. Assign a date and time to this document before closing the panel.",
+      childScheduleCloseWithoutSave: "close & not save",
     },
     timeline: {
       title: "Timeline",
@@ -1028,6 +1029,7 @@ export const messages = {
       childScheduleRequiredTitle: "Asigná una fecha y hora",
       childScheduleRequiredBody:
         "Este folder tiene un schedule activo. Asignale una fecha y hora a este documento antes de cerrar el panel.",
+      childScheduleCloseWithoutSave: "cerrar sin guardar",
     },
     timeline: {
       title: "Timeline",

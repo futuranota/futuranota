@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
@@ -21,6 +21,7 @@ import {
   folderScheduleDateInputBounds,
   isDateInputWithinFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
+import { confirmChildScheduleOrDiscard } from "../../lib/childScheduleConfirm.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { NodeQueryModal } from "./NodeQueryModal.jsx";
@@ -220,6 +221,37 @@ export function StandaloneNodeModal({
   const [completed, setCompleted] = useState(() => Boolean(node?.completed));
   const [sourceId, setSourceId] = useState(() => node?.sourceId ?? null);
   const [isSaving, setIsSaving] = useState(false);
+  const openSnapshotRef = useRef({
+    query: getNodeDisplayTitle(node) || "",
+    content: node?.content ?? null,
+    createdAt: node?.createdAt ?? null,
+    anchorAt: node?.anchorAt ?? null,
+    completed: Boolean(node?.completed),
+    sourceId: node?.sourceId ?? null,
+    dataType: node?.dataType || NODE_DATA_TYPES.TEXT,
+    parentDocId: node?.parentDocId || initialParentDocId || null,
+  });
+
+  const discardWithoutSave = () => {
+    if (!isNew && node?.id) {
+      const snap = openSnapshotRef.current;
+      updateNode(node.id, {
+        title: snap.query,
+        sourceQuery: snap.query,
+        content: snap.content,
+        createdAt: snap.createdAt,
+        anchorAt: snap.anchorAt,
+        completed: snap.completed,
+        sourceId: snap.sourceId,
+        dataType: snap.dataType,
+      });
+      const parentId = snap.parentDocId || node.parentDocId || null;
+      if (parentId) {
+        syncNodeToParentDoc(node.id, parentId);
+      }
+    }
+    onClose?.();
+  };
 
   const parentFolderDoc = parentDocId
     ? (docsByStoreId?.[parentDocId] || docsById[parentDocId] || null)
@@ -300,16 +332,19 @@ export function StandaloneNodeModal({
       && (!scheduleDate || !String(anchorTime || "").trim()),
     );
     if (scheduleIncomplete) {
-      await askConfirm({
-        title: t("meta.childScheduleRequiredTitle"),
-        message: t("meta.childScheduleRequiredBody"),
-        confirmLabel: t("common.ok"),
-        tone: "default",
-        hideCancel: true,
-        iconSrc: "/uploads/CalendarDots.svg",
-      });
-      if (isNew) return;
-      // Existing docs: persist content/meta, but keep the panel open.
+      const gate = await confirmChildScheduleOrDiscard(
+        askConfirm,
+        t,
+        "/uploads/CalendarDots.svg",
+      );
+      if (gate === "stay") {
+        // New docs cannot be created without schedule; existing stay open after OK.
+        if (isNew) return;
+      } else {
+        // close & not save — revert live-persisted edits
+        discardWithoutSave();
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -367,6 +402,7 @@ export function StandaloneNodeModal({
         syncNodeToParentDoc(node.id, parentId);
       }
       onSaved?.(getNode(node.id));
+      // Incomplete schedule: keep panel open so they can assign date/time.
       if (scheduleIncomplete) return;
       onClose?.();
     } finally {
@@ -441,6 +477,7 @@ export function StandaloneNodeModal({
         scheduleMaxDate={childScheduleBounds?.maxDate || ""}
         onSave={handleSave}
         onClose={onClose}
+        onCloseWithoutSave={discardWithoutSave}
         embedded={embedded}
         initialContentFocus={initialContentFocus}
         entityNodeId={node?.id ?? null}

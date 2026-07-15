@@ -48,6 +48,7 @@ import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
+import { confirmChildScheduleOrDiscard } from "../../lib/childScheduleConfirm.js";
 
 const CHILD_SCHEDULE_REQUIRED_ICON = "/uploads/CalendarDots.svg";
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
@@ -92,6 +93,8 @@ export function NodeQueryModal({
   onClose,
   onSave,
   onBackToDocument,
+  /** Close and discard without re-running schedule/unsaved gates (optional). */
+  onCloseWithoutSave,
   initialContentFocus = false,
   onSendToIntelSearch,
   onInsertToCanvas: _onInsertToCanvas,
@@ -324,21 +327,16 @@ export function NodeQueryModal({
     syncMetaSnapshot(completed, value);
   }, [onSourceIdChange, syncMetaSnapshot, completed]);
 
-  /** Folder reservation active → child TEXT/CHECKBOX must have date+time before close. */
+  /**
+   * Folder reservation active → child TEXT/CHECKBOX must have date+time.
+   * @returns {Promise<true|"stay"|"discard">}
+   */
   const ensureChildScheduleOrRemind = useCallback(async () => {
     if (!showScheduleAnchor) return true;
     const missingDate = !String(anchorDate || "").trim();
     const missingTime = !String(anchorTime || "").trim();
     if (!missingDate && !missingTime) return true;
-    await askConfirm({
-      title: t("meta.childScheduleRequiredTitle"),
-      message: t("meta.childScheduleRequiredBody"),
-      confirmLabel: t("common.ok"),
-      tone: "default",
-      hideCancel: true,
-      iconSrc: CHILD_SCHEDULE_REQUIRED_ICON,
-    });
-    return false;
+    return confirmChildScheduleOrDiscard(askConfirm, t, CHILD_SCHEDULE_REQUIRED_ICON);
   }, [
     showScheduleAnchor,
     anchorDate,
@@ -347,20 +345,45 @@ export function NodeQueryModal({
     t,
   ]);
 
+  const discardWithoutSave = useCallback(() => {
+    // Prefer explicit discard so parent can skip re-prompting schedule.
+    if (typeof onCloseWithoutSave === "function") {
+      onCloseWithoutSave();
+      return;
+    }
+    handleDismiss?.();
+  }, [onCloseWithoutSave, handleDismiss]);
+
   const handleFooterSave = useCallback(async () => {
     if (!onSave) return;
-    if (!(await ensureChildScheduleOrRemind())) return;
+    const gate = await ensureChildScheduleOrRemind();
+    if (gate === "stay") return;
+    if (gate === "discard") {
+      discardWithoutSave();
+      return;
+    }
     onSave();
-  }, [onSave, ensureChildScheduleOrRemind]);
+  }, [onSave, ensureChildScheduleOrRemind, discardWithoutSave]);
 
   const requestDismiss = useCallback(async () => {
-    if (!(await ensureChildScheduleOrRemind())) return;
+    const gate = await ensureChildScheduleOrRemind();
+    if (gate === "stay") return;
+    if (gate === "discard") {
+      discardWithoutSave();
+      return;
+    }
     if (onSave && hasUnsavedNodeChanges()) {
       setShowUnsavedConfirm(true);
       return;
     }
     handleDismiss?.();
-  }, [ensureChildScheduleOrRemind, onSave, hasUnsavedNodeChanges, handleDismiss]);
+  }, [
+    ensureChildScheduleOrRemind,
+    discardWithoutSave,
+    onSave,
+    hasUnsavedNodeChanges,
+    handleDismiss,
+  ]);
 
   const slashCommandsEnabled = Boolean(onDataTypeChange) || Boolean(onBackToDocument);
   const linkedFromDocument = Boolean(onBackToDocument);
@@ -1020,7 +1043,12 @@ export function NodeQueryModal({
                 className="doc-unsaved-confirm__btn doc-unsaved-confirm__btn--yes"
                 onClick={async () => {
                   setShowUnsavedConfirm(false);
-                  if (!(await ensureChildScheduleOrRemind())) return;
+                  const gate = await ensureChildScheduleOrRemind();
+                  if (gate === "stay") return;
+                  if (gate === "discard") {
+                    discardWithoutSave();
+                    return;
+                  }
                   onSave?.();
                   // onSave (flush/handleSave) closes the modal; do not dismiss-without-save after.
                 }}
@@ -1030,10 +1058,9 @@ export function NodeQueryModal({
               <button
                 type="button"
                 className="doc-unsaved-confirm__btn"
-                onClick={async () => {
+                onClick={() => {
                   setShowUnsavedConfirm(false);
-                  if (!(await ensureChildScheduleOrRemind())) return;
-                  handleDismiss?.();
+                  discardWithoutSave();
                 }}
               >
                 {t("unsavedChanges.no")}
