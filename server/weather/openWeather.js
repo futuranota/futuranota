@@ -7,7 +7,7 @@ export const DEFAULT_CITY = "New York,US";
 export const FORECAST_DAILY_HORIZON = 7;
 /** OpenWeather 2.5 /forecast returns 3-hour steps (~5 full days + partial 6th). */
 export const OPENWEATHER_MAX_DAILY_DAYS = 6;
-export const WEATHER_CACHE_VERSION = "v4";
+export const WEATHER_CACHE_VERSION = "v5";
 export const WEATHER_ERROR_LOCATION_NOT_FOUND = "location_not_found";
 export const WEATHER_ERROR_NOT_CONFIGURED = "openweather_not_configured";
 
@@ -191,6 +191,32 @@ function getCityDateIso(timezoneOffsetSec, unixMs = Date.now()) {
   return `${y}-${m}-${d}`;
 }
 
+/** OpenWeather list entries are UTC (`dt` / `dt_txt`); bucket by city-local calendar day. */
+function entryUnixMs(entry) {
+  if (Number.isFinite(entry?.dt)) return entry.dt * 1000;
+  const raw = entry?.dt_txt;
+  if (typeof raw === "string" && raw.length >= 19) {
+    const ms = Date.parse(`${raw.slice(0, 10)}T${raw.slice(11, 19)}Z`);
+    if (Number.isFinite(ms)) return ms;
+  }
+  return null;
+}
+
+function getEntryCityDateIso(entry, timezoneOffsetSec = 0) {
+  const ms = entryUnixMs(entry);
+  if (ms == null) return entry?.dt_txt?.slice(0, 10) || null;
+  return getCityDateIso(timezoneOffsetSec, ms);
+}
+
+function getEntryCityHour(entry, timezoneOffsetSec = 0) {
+  const ms = entryUnixMs(entry);
+  if (ms == null) {
+    const hour = Number(entry?.dt_txt?.slice(11, 13));
+    return Number.isNaN(hour) ? null : hour;
+  }
+  return new Date(ms + timezoneOffsetSec * 1000).getUTCHours();
+}
+
 function weekdayShortFromIso(dateIso) {
   const [y, m, d] = dateIso.split("-").map(Number);
   const day = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
@@ -213,21 +239,22 @@ function dayLabelForDate(dateIso, cityTodayIso) {
   return `${weekdayShortFromIso(dateIso)} · ${shortDate}`;
 }
 
-function filterEntriesByPeriod(entries, period) {
+function filterEntriesByPeriod(entries, period, timezoneOffsetSec = 0) {
   return entries.filter((entry) => {
-    const hour = Number(entry.dt_txt?.slice(11, 13));
-    if (Number.isNaN(hour)) return period === "all";
+    const hour = getEntryCityHour(entry, timezoneOffsetSec);
+    if (hour == null) return period === "all";
     if (period === "day") return hour >= 6 && hour < 18;
     if (period === "night") return hour < 6 || hour >= 18;
     return true;
   });
 }
 
-function pickRepresentativeEntry(entries, targetHour) {
+function pickRepresentativeEntry(entries, targetHour, timezoneOffsetSec = 0) {
   let best = entries[0];
   let bestDistance = Infinity;
   for (const entry of entries) {
-    const hour = Number(entry.dt_txt?.slice(11, 13));
+    const hour = getEntryCityHour(entry, timezoneOffsetSec);
+    if (hour == null) continue;
     const distance = Math.abs(hour - targetHour);
     if (distance < bestDistance) {
       bestDistance = distance;
@@ -237,8 +264,8 @@ function pickRepresentativeEntry(entries, targetHour) {
   return best;
 }
 
-function aggregatePeriodEntries(entries, period, dateIso, displayPeriod = period) {
-  const scoped = filterEntriesByPeriod(entries, period);
+function aggregatePeriodEntries(entries, period, dateIso, displayPeriod = period, timezoneOffsetSec = 0) {
+  const scoped = filterEntriesByPeriod(entries, period, timezoneOffsetSec);
   if (!scoped.length) return null;
 
   let high = -Infinity;
@@ -254,7 +281,7 @@ function aggregatePeriodEntries(entries, period, dateIso, displayPeriod = period
   }
 
   const targetHour = displayPeriod === "night" ? 3 : displayPeriod === "day" ? 14 : 12;
-  const representative = pickRepresentativeEntry(scoped, targetHour);
+  const representative = pickRepresentativeEntry(scoped, targetHour, timezoneOffsetSec);
   const weather = representative?.weather?.[0] || {};
   const wind = representative?.wind || {};
   const main = representative?.main || {};
@@ -280,10 +307,10 @@ function aggregatePeriodEntries(entries, period, dateIso, displayPeriod = period
   };
 }
 
-function groupForecastEntries(list) {
+function groupForecastEntries(list, timezoneOffsetSec = 0) {
   const byDate = new Map();
   for (const entry of list) {
-    const dateIso = entry.dt_txt?.slice(0, 10);
+    const dateIso = getEntryCityDateIso(entry, timezoneOffsetSec);
     if (!dateIso) continue;
     const bucket = byDate.get(dateIso) || [];
     bucket.push(entry);
@@ -292,16 +319,16 @@ function groupForecastEntries(list) {
   return byDate;
 }
 
-function entriesForNightPeriod(byDate, dateIso) {
+function entriesForNightPeriod(byDate, dateIso, timezoneOffsetSec = 0) {
   const sameDay = byDate.get(dateIso) || [];
   const nextDateIso = nextDateIsoString(dateIso);
   const nextDayEarly = (byDate.get(nextDateIso) || []).filter((entry) => {
-    const hour = Number(entry.dt_txt?.slice(11, 13));
-    return hour < 6;
+    const hour = getEntryCityHour(entry, timezoneOffsetSec);
+    return hour != null && hour < 6;
   });
   const sameDayLate = sameDay.filter((entry) => {
-    const hour = Number(entry.dt_txt?.slice(11, 13));
-    return hour >= 18;
+    const hour = getEntryCityHour(entry, timezoneOffsetSec);
+    return hour != null && hour >= 18;
   });
   return [...sameDayLate, ...nextDayEarly];
 }
@@ -315,12 +342,12 @@ function aggregateDailyFromEntries(byDate, dateIso, timezoneOffsetSec) {
   const entries = byDate.get(dateIso) || [];
   if (!entries.length) return null;
 
-  const all = aggregatePeriodEntries(entries, "all", dateIso);
-  const day = aggregatePeriodEntries(entries, "day", dateIso) || all;
-  const nightEntries = entriesForNightPeriod(byDate, dateIso);
+  const all = aggregatePeriodEntries(entries, "all", dateIso, "all", timezoneOffsetSec);
+  const day = aggregatePeriodEntries(entries, "day", dateIso, "day", timezoneOffsetSec) || all;
+  const nightEntries = entriesForNightPeriod(byDate, dateIso, timezoneOffsetSec);
   const night = (nightEntries.length
-    ? aggregatePeriodEntries(nightEntries, "all", dateIso, "night")
-    : null) || aggregatePeriodEntries(entries, "night", dateIso, "night") || all;
+    ? aggregatePeriodEntries(nightEntries, "all", dateIso, "night", timezoneOffsetSec)
+    : null) || aggregatePeriodEntries(entries, "night", dateIso, "night", timezoneOffsetSec) || all;
   if (!all) return null;
 
   const cityTodayIso = getCityDateIso(timezoneOffsetSec);
@@ -438,8 +465,8 @@ export async function fetchOpenWeatherDailyForecast(location = {}, horizonDays =
   }
 
   const list = Array.isArray(data?.list) ? data.list : [];
-  const grouped = groupForecastEntries(list);
   const timezoneOffsetSec = Number(data?.city?.timezone) || 0;
+  const grouped = groupForecastEntries(list, timezoneOffsetSec);
   const cityTodayIso = getCityDateIso(timezoneOffsetSec);
   const sortedDates = [...grouped.keys()]
     .sort()
