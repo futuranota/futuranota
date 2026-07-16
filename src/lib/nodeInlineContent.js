@@ -272,6 +272,10 @@ export function normalizeWritingBlocks(blocks) {
       id: block?.id || generateId("NTX"),
       type: NODE_BLOCK_TYPES.TEXT,
       text: block?.text || "",
+      // Keep inline Intel widgets (calendar/forecast) attached to the text cell.
+      ...(block?.embedded && typeof block.embedded === "object"
+        ? { embedded: block.embedded }
+        : {}),
     };
   });
 }
@@ -354,7 +358,7 @@ export function nodeWritingBlocksHaveContent(blocks) {
         || Boolean((block.title || "").trim())
         || (Array.isArray(block.images) && block.images.some((img) => img?.src));
     }
-    return block.text.trim();
+    return Boolean(block.embedded) || block.text.trim();
   });
 }
 
@@ -362,6 +366,7 @@ export function nodeWritingBlocksHaveContent(blocks) {
 export function nodeWritingBlocksHaveStructure(blocks) {
   return normalizeWritingBlocks(blocks).some((block) => {
     if (block.type !== NODE_BLOCK_TYPES.TEXT) return true;
+    if (block.embedded) return true;
     return block.text.trim();
   });
 }
@@ -394,7 +399,9 @@ export function nodeDraftContentForStorage(content, dataType = "text") {
 
   const { blocks } = parseNodeWritingBody(content);
   const normalized = normalizeWritingBlocks(blocks);
-  const hasStructure = normalized.some((block) => block.type !== NODE_BLOCK_TYPES.TEXT);
+  const hasStructure = normalized.some(
+    (block) => block.type !== NODE_BLOCK_TYPES.TEXT || block.embedded,
+  );
   if (hasStructure) {
     return serializeNodeWritingBody({ blocks: normalized });
   }
@@ -415,7 +422,9 @@ export function getNodeWritingPlainText(blocks) {
 }
 
 function isEmptyTextBlock(block) {
-  return block?.type === NODE_BLOCK_TYPES.TEXT && !(block.text || "").trim();
+  return block?.type === NODE_BLOCK_TYPES.TEXT
+    && !block.embedded
+    && !(block.text || "").trim();
 }
 
 /** Keep an empty text block at the end so the user can keep writing. */

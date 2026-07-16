@@ -96,6 +96,13 @@ import { useScheduledAgentRunner } from './hooks/useScheduledAgentRunner.js';
 import { useScheduledTasksStore } from './stores/scheduledTasksStore.js';
 import { initialNodeShapeFromSlash } from './lib/docBlockSlash.js';
 import { mergeVideoNodeContent } from './lib/videoEmbed.js';
+import { parseWeatherForecastNodeContent } from './lib/forecastSearch.js';
+import {
+  appendIntelWidgetToNodeContent,
+  buildForecastEmbeddedFromPayload,
+  nodeContentAcceptsIntelWidget,
+} from './lib/nodeIntelWidget.js';
+import { parseNodeWritingBody } from './lib/nodeInlineContent.js';
 import { NODE_DATA_TYPES } from './lib/nodeDataTypes.js';
 import { ensureCompanyObject } from './lib/ensureCompanyObject.js';
 import { supabase } from './lib/supabaseClient';
@@ -608,6 +615,63 @@ useEffect(() => {
     }
     const created = useNodesStore.getState().getNode(nodeId);
     if (created) insertNodeToCanvas(created, { center: true });
+  };
+
+  /* Connect a macronode with a forecast node on canvas → paste the widget instance
+     into the macronode body (writing tail stays editable below the widget). */
+  const handleCanvasConnectionCreated = (fromId, toId) => {
+    const nodesById = useNodesStore.getState().nodes;
+    const endpoints = [fromId, toId]
+      .map((id) => canvasNodes.find((n) => n.id === id))
+      .filter(Boolean);
+    if (endpoints.length !== 2) return;
+
+    const resolveEntity = (cn) => (cn?.noteId ? nodesById[cn.noteId] : null);
+    const forecastEnd = endpoints.find((cn) => Boolean(
+      parseWeatherForecastNodeContent(resolveEntity(cn)?.content ?? cn?.content),
+    ));
+    if (!forecastEnd) return;
+
+    const targetEnd = endpoints.find((cn) => cn !== forecastEnd);
+    const targetEntity = resolveEntity(targetEnd);
+    if (!targetEntity) return;
+    if (["document", "object", "agent"].includes(targetEnd.canvasKind)) return;
+    // Only macronodes (text writing bodies) — date/metric content has its own semantics.
+    if (targetEntity.dataType && targetEntity.dataType !== "text") return;
+    if (parseWeatherForecastNodeContent(targetEntity.content)) return;
+    if (!nodeContentAcceptsIntelWidget(targetEntity.content)) return;
+
+    const payload = parseWeatherForecastNodeContent(
+      resolveEntity(forecastEnd)?.content ?? forecastEnd.content,
+    );
+    if (!payload) return;
+
+    // Dedupe: same forecast instance already pasted into this macronode.
+    const { blocks } = parseNodeWritingBody(targetEntity.content);
+    const alreadyEmbedded = blocks.some((block) => (
+      block?.embedded?.kind === "weather-forecast"
+      && block.embedded.payload?.fetchedAt === payload.fetchedAt
+      && block.embedded.payload?.uiDate === payload.uiDate
+    ));
+    if (alreadyEmbedded) return;
+
+    const embedded = buildForecastEmbeddedFromPayload(payload);
+    if (!embedded) return;
+    const result = appendIntelWidgetToNodeContent(targetEntity.content, embedded);
+    if (!result) return;
+
+    useNodesStore.getState().updateNode(targetEntity.id, { content: result.content });
+    const parentDocId = targetEntity.parentDocId || null;
+    if (parentDocId) {
+      useNodesStore.getState().syncNodeToParentDoc(targetEntity.id, parentDocId);
+      if (expandedDocId === parentDocId) {
+        setDocViewGeneration((n) => n + 1);
+      }
+    }
+    setToast({
+      message: `Forecast pasted into "${targetEntity.title || targetEnd.title || "node"}"`,
+      kind: "ok",
+    });
   };
 
   const handleInsertEventNode = ({ title, payload, sourceNode, anchorAt }) => {
@@ -1298,6 +1362,7 @@ useEffect(() => {
             onRequestDocAdoption={handleRequestDocAdoption}
             onDocumentAdoptOrphan={handleDocumentAdoptOrphan}
             onRunAgent={handleRunAgent}
+            onConnectionCreated={handleCanvasConnectionCreated}
             scheduledAutoRunEnabled={scheduledAutoRunEnabled}
             onToggleScheduledAutoRun={() => {
               useScheduledTasksStore.getState().setAutoRunEnabled(!scheduledAutoRunEnabled);

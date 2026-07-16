@@ -11656,6 +11656,19 @@ body.doc-content-resizing * {
   margin-top: 0;
 }
 
+/* Inline Intel widget (forecast/calendar) pasted into a macronode:
+   widget takes its own space, writing continues below. */
+.node-writing-block-stack__text--embedded {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.node-writing-block-stack__text .doc-embedded-widget-stack {
+  width: 100%;
+  max-width: min(var(--doc-widget-max, 540px), 100%);
+}
+
 .node-writing-block-stack__text:last-child .node-writing-text-field {
   min-height: 72px;
 }

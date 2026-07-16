@@ -846,6 +846,7 @@ function BlueprintCanvas({
   onRequestDocAdoption,
   onDocumentAdoptOrphan,
   onRunAgent,
+  onConnectionCreated,
   scheduledAutoRunEnabled = true,
   onToggleScheduledAutoRun,
 }) {
@@ -1587,7 +1588,7 @@ function BlueprintCanvas({
       if (!validateEdge(fromId, toId, excludeConnectionId)) {
         clearConnectState();
         setRewiring(null);
-        return;
+        return false;
       }
 
       const fromNode = nodes.find((n) => n.id === fromId);
@@ -1606,6 +1607,7 @@ function BlueprintCanvas({
       setConnections(addOrUpdateConn);
       clearConnectState();
       setRewiring(null);
+      return true;
     };
 
     if (rewiring) {
@@ -1665,6 +1667,8 @@ function BlueprintCanvas({
     void applyAdoptionAndConnect(fromId, toId, null, (conns) => {
       if (conns.some((c) => c.from === fromId && c.to === toId)) return conns;
       return [...conns, { from: fromId, to: toId, id: shortId("CN") }];
+    }).then((created) => {
+      if (created) onConnectionCreated?.(fromId, toId);
     });
   };
 

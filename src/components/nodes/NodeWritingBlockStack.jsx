@@ -35,6 +35,11 @@ import { MoodboardBlockView } from "../docs/blocks/MoodboardBlockView.jsx";
 import { BannerBlockView } from "../docs/blocks/BannerBlockView.jsx";
 import { ProductCardBlockView } from "../docs/blocks/ProductCardBlockView.jsx";
 import { LinkedNodeDocActions } from "../docs/blocks/LinkedNodeDocActions.jsx";
+import {
+  EmbeddedWidgetStack,
+  hasRenderableEmbeddedWidget,
+} from "../docs/blocks/EmbeddedWidgetStack.jsx";
+import { removeEmbeddedFromWritingBlock } from "../../lib/nodeIntelWidget.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { queuePasswordTableEntry } from "../../lib/passwordTableSession.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -984,6 +989,17 @@ export function NodeWritingBlockStack({
           );
         }
 
+        const embeddedWidget = hasRenderableEmbeddedWidget(block.embedded)
+          ? (
+            <EmbeddedWidgetStack
+              embedded={block.embedded}
+              onRemove={() => {
+                updateBlocks(removeEmbeddedFromWritingBlock(blocksRef.current, blockIndex));
+              }}
+            />
+          )
+          : null;
+
         return (
           <div
             key={block.id}
@@ -991,8 +1007,10 @@ export function NodeWritingBlockStack({
             className={
               "node-writing-block-stack__text"
               + (contentFocusMode ? " doc-text-block" : "")
+              + (embeddedWidget ? " node-writing-block-stack__text--embedded" : "")
             }
           >
+            {embeddedWidget}
             {contentFocusMode ? (
               <SlashAwareTextarea
                 inputRef={(el) => {
