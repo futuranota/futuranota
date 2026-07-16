@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { buildReferralShareMessage } from "../lib/referralShareMessage.js";
+import {
+  buildReferralShareMessage,
+  copyReferralShareMessage,
+} from "../lib/referralShareMessage.js";
 import { useNavigate } from "react-router-dom";
 import { PATHS } from "../marketing/lib/paths.js";
 import { usePlanStore } from "../stores/planStore.js";
@@ -190,7 +193,7 @@ export function PlansPage() {
   const handleCopyReferral = async () => {
     if (!shareMessage) return;
     try {
-      await navigator.clipboard.writeText(shareMessage);
+      await copyReferralShareMessage(shareMessage, affiliate?.url || "");
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {

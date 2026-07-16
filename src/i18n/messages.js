@@ -751,6 +751,11 @@ export const messages = {
       return: "Return",
       returnHome: "Return to home",
       openMenu: "Open menu",
+      newsletterTitle: "Subscribe to our newsletter 📬",
+      newsletterBody:
+        "Subscribe to get a weekly interactive Futura canvas with the latest business market trends, AI-powered market predictions, and trends ready for your brand.",
+      newsletterPlaceholder: "Your email here",
+      newsletterSubmit: "Subscribe",
     },
     nodeForm: {
       text: "Text",
@@ -1347,6 +1352,19 @@ export const messages = {
       reasonExport: "La exportación técnica (JSON/PDF) está en Pro. Mejora para desbloquear exports.",
       reasonStepsLibrary: "Busca Steps files en todas las empresas con Pro.",
       reasonGeneric: "Mejora a Pro para desbloquear uso ilimitado.",
+    },
+    marketing: {
+      blogs: "Blogs",
+      logIn: "Iniciar sesión",
+      signUp: "Regístrate gratis",
+      return: "Volver",
+      returnHome: "Volver al inicio",
+      openMenu: "Abrir menú",
+      newsletterTitle: "Suscríbete a nuestro newsletter 📬",
+      newsletterBody:
+        "Suscríbete para recibir cada semana un lienzo interactivo de Futura con las últimas tendencias de negocio del mercado actual, predicciones de mercado con las herramientas de IA y tendencias listas para tu marca.",
+      newsletterPlaceholder: "Tu email aquí",
+      newsletterSubmit: "Suscribirme",
     },
     plans: {
       title: "Planes",

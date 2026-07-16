@@ -4,6 +4,7 @@ import { MailchimpSubscribeForm } from './MailchimpSubscribeForm.jsx';
 import { PATHS, sectionPath } from '../lib/paths.js';
 import { getSite, FOOTER_SECTION_SLUGS } from '../lib/content.js';
 import { useSiteTina, siteTinaProps } from '../context/TinaVisualEditing.jsx';
+import { useI18n } from '../../i18n/useI18n.js';
 
 function footerHref(label) {
   const slug = FOOTER_SECTION_SLUGS[label];
@@ -13,6 +14,7 @@ function footerHref(label) {
 export function Footer() {
   const siteTina = useSiteTina();
   const { footer } = siteTina?.document ?? getSite();
+  const { t } = useI18n();
 
   return (
     <footer className="footer" data-screen-label="footer">
@@ -22,9 +24,13 @@ export function Footer() {
             <span className="brand__mark"><Mark /></span>
             <span className="brand__type">FUTURA<span className="brand__type-thin"> NOTA</span></span>
           </Link>
+          <div className="footer__news-intro">
+            <h3 className="footer__news-title">{t('marketing.newsletterTitle')}</h3>
+            <p className="footer__news-body">{t('marketing.newsletterBody')}</p>
+          </div>
           <MailchimpSubscribeForm
-            placeholder={footer.newsletterPlaceholder}
-            inputProps={siteTinaProps('footer.newsletterPlaceholder')}
+            placeholder={t('marketing.newsletterPlaceholder')}
+            submitLabel={t('marketing.newsletterSubmit')}
           />
         </div>
         <div className="footer__cols">

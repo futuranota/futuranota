@@ -4,7 +4,10 @@ import { Modal } from "../shared/Modal.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { fetchAffiliateLink, fetchReferralHistory } from "../../lib/billingApi.js";
 import { REFERRAL_REWARD_CREDITS } from "../../lib/referralConstants.js";
-import { buildReferralShareMessage } from "../../lib/referralShareMessage.js";
+import {
+  buildReferralShareMessage,
+  copyReferralShareMessage,
+} from "../../lib/referralShareMessage.js";
 
 function GiftIcon({ size = 16 }) {
   return (
@@ -56,7 +59,7 @@ export function ReferralModal({ open, onClose }) {
   const handleCopy = async () => {
     if (!shareMessage) return;
     try {
-      await navigator.clipboard.writeText(shareMessage);
+      await copyReferralShareMessage(shareMessage, affiliateUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
