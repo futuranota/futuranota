@@ -1362,6 +1362,14 @@ a.blog.card:hover {
   align-items: center;
   justify-content: center;
 }
+.footer__news-status {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  max-width: 380px;
+}
+.footer__news-status--success { color: var(--accent); }
+.footer__news-status--error { color: oklch(0.72 0.14 25); }
 .footer__end {
   padding: 28px 0 36px;
   text-align: center;
