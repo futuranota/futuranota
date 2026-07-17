@@ -371,6 +371,8 @@ export const messages = {
       docsInBlock: "{count} docs",
       filesInBlock: "{count} documents",
       boxesInBlock: "{count} boxes",
+      scheduleActive: "Schedule",
+      scheduleProgressAria: "{percent}% completed",
       docGroupUncategorized: "Uncategorized",
       unlinkedNodes: "Independent Documents",
       openDocument: "Open box",
@@ -882,6 +884,10 @@ export const messages = {
       label: "Apariencia",
       lightTitle: "Modo claro",
       darkTitle: "Modo oscuro",
+    },
+    sidebar: {
+      scheduleActive: "Schedule activo",
+      scheduleProgressAria: "{percent}% completado",
     },
     canvas: {
       adoptNodeTitle: "¿Hacer hijo de este documento?",

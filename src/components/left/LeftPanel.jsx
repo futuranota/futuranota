@@ -475,11 +475,23 @@ function getNodeDisplayTitle(node) {
   return (node.sourceQuery || node.title || "Untitled query").trim() || "Untitled query";
 }
 
-function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
+/** Local clock time from node.anchorAt (e.g. "9:30 PM"); empty if missing/invalid. */
+function formatNodeScheduleTime(anchorAt) {
+  if (!anchorAt) return "";
+  const d = new Date(anchorAt);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function NodeCompactRow({ node, onClick, onInsert, onDelete, showScheduleTime = false }) {
   const { t } = useI18n();
   const displayTitle = getNodeDisplayTitle(node);
   const source = resolveDocSource(node?.sourceId);
   const iconSrc = source?.src || "/uploads/File.svg";
+  const scheduleTime = showScheduleTime ? formatNodeScheduleTime(node?.anchorAt) : "";
 
   return (
     <div className="lp-doc-nodes-block__node">
@@ -487,7 +499,11 @@ function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
         type="button"
         className="lp-doc-nodes-block__node-main"
         onClick={onClick}
-        title={source ? `${displayTitle} · ${source.label}` : displayTitle}
+        title={
+          scheduleTime
+            ? `${displayTitle} · ${scheduleTime}`
+            : (source ? `${displayTitle} · ${source.label}` : displayTitle)
+        }
       >
         <span className="lp-node-type-icon lp-node-type-icon--compact lp-node-type-icon--file">
           <img
@@ -498,6 +514,9 @@ function NodeCompactRow({ node, onClick, onInsert, onDelete }) {
           />
         </span>
         <span className="lp-doc-nodes-block__node-title">{displayTitle}</span>
+        {scheduleTime ? (
+          <span className="lp-doc-nodes-block__node-time tnum">{scheduleTime}</span>
+        ) : null}
       </button>
       <div className="lp-doc-nodes-block__node-actions">
         <button
@@ -566,6 +585,20 @@ function DocNodesBlockCard({
     : isKnowledge
       ? resolveKnowledgeDocDisplayTitle(doc)
       : resolveProductDocDisplayTitle(doc);
+
+  const hasFolderSchedule = Boolean(
+    !orphan
+    && doc
+    && doc.scheduleStartAt
+    && doc.scheduleFinishAt
+    && !isTemplate
+    && !isKnowledge,
+  );
+  const totalCount = nodes.length;
+  const completedCount = nodes.filter((node) => Boolean(node?.completed)).length;
+  const progressPercent = totalCount > 0
+    ? Math.min(100, Math.round((completedCount / totalCount) * 100))
+    : 0;
 
   const clearLongPress = () => {
     if (longPressTimer.current) {
@@ -644,6 +677,12 @@ function DocNodesBlockCard({
       }
       aria-selected={selectMode ? selected : undefined}
     >
+      {hasFolderSchedule && !selectMode ? (
+        <span className="lp-folder-schedule-corner" title={t("sidebar.scheduleActive")}>
+          <span className="lp-folder-schedule-corner__dot" aria-hidden />
+          {t("sidebar.scheduleActive")}
+        </span>
+      ) : null}
       <div className="lp-doc-nodes-block__head">
         <button
           type="button"
@@ -778,10 +817,31 @@ function DocNodesBlockCard({
       ) : null}
       {expanded && !selectMode ? (
         <div className="lp-doc-nodes-block__body">
+          {hasFolderSchedule ? (
+            <div
+              className="lp-folder-schedule-progress"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progressPercent}
+              aria-label={t("sidebar.scheduleProgressAria", { percent: String(progressPercent) })}
+            >
+              <div className="lp-folder-schedule-progress__track">
+                <div
+                  className="lp-folder-schedule-progress__fill"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <span className="lp-folder-schedule-progress__pct tnum">
+                {progressPercent}%
+              </span>
+            </div>
+          ) : null}
           {nodes.map((node) => (
             <NodeCompactRow
               key={node.id}
               node={node}
+              showScheduleTime={hasFolderSchedule}
               onClick={() => onNodeClick?.(node)}
               onInsert={() => onNodeInsert?.(node)}
               onDelete={() => onNodeDelete?.(node)}
