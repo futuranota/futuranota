@@ -840,6 +840,19 @@ export function NodeQueryModal({
           }
           style={showTextSizeControls ? typographyStyle : undefined}
         >
+          <button
+            type="button"
+            className={
+              "doc-new-content-expand-btn node-query-modal__content-expand-btn"
+              + (contentFocusMode ? " is-focus" : "")
+            }
+            onClick={toggleContentFocus}
+            aria-label={contentFocusMode ? t("canvas.collapseNode") : t("canvas.expandNode")}
+            aria-pressed={contentFocusMode}
+            title={contentFocusMode ? t("canvas.collapseNode") : t("canvas.expandNode")}
+          >
+            <span className="doc-new-content-expand-btn__icon" aria-hidden />
+          </button>
           <div
             ref={contentScrollRef}
             tabIndex={-1}
@@ -848,19 +861,6 @@ export function NodeQueryModal({
               + (contentFocusMode ? " node-query-modal__content-scroll--focus" : "")
             }
           >
-            <button
-              type="button"
-              className={
-                "doc-new-content-expand-btn node-query-modal__content-expand-btn"
-                + (contentFocusMode ? " is-focus" : "")
-              }
-              onClick={toggleContentFocus}
-              aria-label={contentFocusMode ? t("canvas.collapseNode") : t("canvas.expandNode")}
-              aria-pressed={contentFocusMode}
-              title={contentFocusMode ? t("canvas.collapseNode") : t("canvas.expandNode")}
-            >
-              <span className="doc-new-content-expand-btn__icon" aria-hidden />
-            </button>
           {dataType === NODE_DATA_TYPES.VIDEO ? (
             <VideoEmbedBar
               nodeId={entityNodeId}

@@ -11470,6 +11470,8 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__content-box {
+  /* Anchor for the sticky expand button (stays put while content scrolls). */
+  position: relative;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;

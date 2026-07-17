@@ -759,6 +759,19 @@ export function DocDocumentBox({
         }
         style={typographyStyle}
       >
+        <button
+          type="button"
+          className={
+            "doc-new-content-expand-btn"
+            + (contentFocusMode ? " is-focus" : "")
+          }
+          onClick={toggleContentFocus}
+          aria-label={contentFocusMode ? "Back to document" : "Focus on content"}
+          aria-pressed={contentFocusMode}
+          title={contentFocusMode ? "Back to document" : "Expand content"}
+        >
+          <span className="doc-new-content-expand-btn__icon" aria-hidden />
+        </button>
         <div
           ref={contentScrollRef}
           tabIndex={-1}
@@ -768,19 +781,6 @@ export function DocDocumentBox({
             + (contentFocusMode ? " doc-new-content-scroll--focus" : "")
           }
         >
-          <button
-            type="button"
-            className={
-              "doc-new-content-expand-btn"
-              + (contentFocusMode ? " is-focus" : "")
-            }
-            onClick={toggleContentFocus}
-            aria-label={contentFocusMode ? "Back to document" : "Focus on content"}
-            aria-pressed={contentFocusMode}
-            title={contentFocusMode ? "Back to document" : "Expand content"}
-          >
-            <span className="doc-new-content-expand-btn__icon" aria-hidden />
-          </button>
           {showKnowledgeImportHint ? (
             <div className="doc-knowledge-import-hint" role="note">
               <p className="doc-knowledge-import-hint__text">{t("sidebar.knowledgeImportHint")}</p>
