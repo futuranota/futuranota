@@ -5065,6 +5065,15 @@ textarea.note-form-field {
 .timeline.tl-tactical--empty .tl-tactical-decorative-ruler {
   flex: 0 0 auto;
 }
+.tl-tactical-empty-hint {
+  margin: 10px 0 0;
+  padding: 0 12px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-2);
+  opacity: 0.85;
+}
 :root[data-theme="light"] .timeline.tl-tactical {
   --tl-dot-active: #14181e;
   --tl-dot-past: color-mix(in oklab, #14181e 38%, var(--dim));

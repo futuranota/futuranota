@@ -874,6 +874,9 @@ export function TacticalTimeline({
   );
   const rangeDrag = useTacticalRangeDrag(grid);
   const hasQueue = timelineDocQueue.length > 0 || timelineAgentSets.length > 0;
+  // All companies (no filter) stays private — only show row data for a selected company.
+  const companySelected = Boolean(filterObjectId);
+  const showTimelineData = hasQueue && companySelected;
   const emptyGrid = useMemo(
     () => buildTacticalDisplayGrid([], now, {
       rangeOverride: tacticalRangeOverride,
@@ -972,7 +975,7 @@ export function TacticalTimeline({
     <div
       className={
         "timeline stacked tl-tactical"
-        + (hasQueue ? "" : " tl-tactical--empty")
+        + (showTimelineData ? "" : " tl-tactical--empty")
         + (isSheetExpanded ? " is-sheet-expanded" : " is-sheet-peek")
       }
     >
@@ -993,7 +996,7 @@ export function TacticalTimeline({
           </span>
         </button>
       </div>
-      {hasQueue ? (
+      {showTimelineData ? (
         <>
           <div className="tl-tactical-header">
             <span className="tl-tactical-header__title">
@@ -1073,6 +1076,11 @@ export function TacticalTimeline({
           </div>
           <div className="tl-tactical-body">
             <TacticalDecorativeRuler grid={emptyGrid} today={today} now={now} t={t} />
+            {hasQueue && !companySelected ? (
+              <p className="tl-tactical-empty-hint" role="status">
+                {t("timeline.selectCompanyHint")}
+              </p>
+            ) : null}
           </div>
         </>
       )}
