@@ -37,6 +37,7 @@ import { SlashAwareTextarea } from "./blocks/SlashAwareTextarea.jsx";
 import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { hasKnowledgeImport, knowledgeNotesHasContent } from "../../lib/knowledgeImport.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
 import { ContentTextSizeControls } from "./ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
@@ -163,6 +164,28 @@ export function DocDocumentBox({
     }
     return seen.size;
   }, [blocks]);
+  const folderTaskTotal = useNodesStore((s) => (
+    docId
+      ? Object.values(s.nodes).reduce(
+        (n, node) => (node?.parentDocId === docId ? n + 1 : n),
+        0,
+      )
+      : 0
+  ));
+  const folderTaskDone = useNodesStore((s) => (
+    docId
+      ? Object.values(s.nodes).reduce(
+        (n, node) => (node?.parentDocId === docId && node?.completed ? n + 1 : n),
+        0,
+      )
+      : 0
+  ));
+  const hasSchedulePie = Boolean(
+    useFolderSchedule && scheduleStartDate && scheduleFinishDate && folderTaskTotal > 0,
+  );
+  const schedulePct = hasSchedulePie
+    ? Math.min(100, Math.round((folderTaskDone / folderTaskTotal) * 100))
+    : 0;
   const bodyPlaceholder = isKnowledgeMode
     ? (knowledgeImportActive
       ? t("sidebar.knowledgeNotesImportPlaceholder")
@@ -622,6 +645,44 @@ export function DocDocumentBox({
               }}
             />
             <div className="doc-focus-top__meta">
+              {hasSchedulePie ? (
+                <span
+                  className="doc-focus-top__progress"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={schedulePct}
+                  aria-label={t("sidebar.scheduleProgressAria", { percent: String(schedulePct) })}
+                  title={t("sidebar.scheduleProgressAria", { percent: String(schedulePct) })}
+                >
+                  <svg
+                    className="doc-focus-top__progress-pie"
+                    viewBox="0 0 16 16"
+                    aria-hidden
+                  >
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r="6"
+                      fill="none"
+                      stroke="rgba(255, 255, 255, 0.14)"
+                      strokeWidth="2.6"
+                    />
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r="6"
+                      fill="none"
+                      stroke="#85da99"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeDasharray={`${(schedulePct / 100) * 37.7} 37.7`}
+                      transform="rotate(-90 8 8)"
+                    />
+                  </svg>
+                  <span className="doc-focus-top__progress-pct tnum">{schedulePct}%</span>
+                </span>
+              ) : null}
               {linkedNodeCount > 0 ? (
                 <span className="doc-focus-top__nodes" title={t("sidebar.filesInBlock", { count: linkedNodeCount })}>
                   <span className="doc-focus-top__nodes-dot" aria-hidden />
