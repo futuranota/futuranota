@@ -299,14 +299,26 @@ export function DocMetaStrip({
         <div className="doc-meta-strip__fields">
           <label className="doc-meta-field">
             <span className="doc-meta-field-k">Created</span>
-            <input
-              type="date"
-              className="doc-new-date doc-meta-field-input"
-              value={createdDate}
-              onChange={(e) => onCreatedDateChange(e.target.value)}
-              onClick={openDatePicker}
-              onFocus={openDatePicker}
-            />
+            {onCreatedDateChange ? (
+              <input
+                type="date"
+                className="doc-new-date doc-meta-field-input"
+                value={createdDate}
+                onChange={(e) => onCreatedDateChange(e.target.value)}
+                onClick={openDatePicker}
+                onFocus={openDatePicker}
+              />
+            ) : (
+              <input
+                type="date"
+                className="doc-new-date doc-meta-field-input is-readonly"
+                value={createdDate}
+                readOnly
+                tabIndex={-1}
+                aria-readonly="true"
+                title="Created date is fixed at creation"
+              />
+            )}
           </label>
 
           {isProductMode ? (

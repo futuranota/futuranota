@@ -1310,7 +1310,6 @@ function DocCreateModal({
           blocks={blocks}
           onBlocksChange={setBlocks}
           createdDate={createdDate}
-          onCreatedDateChange={setCreatedDate}
           version={version}
           onVersionChange={setVersion}
           onVersionCommit={handleVersionCommit}

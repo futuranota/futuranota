@@ -4174,6 +4174,16 @@
   filter: invert(1) brightness(1.5) contrast(1.1);
 }
 
+.doc-meta-strip__fields .doc-new-date.is-readonly {
+  opacity: 0.72;
+  cursor: default;
+  pointer-events: none;
+}
+
+.doc-meta-strip__fields .doc-new-date.is-readonly::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
 .doc-meta-strip__fields .doc-new-select {
   width: 100%;
   max-width: 100%;

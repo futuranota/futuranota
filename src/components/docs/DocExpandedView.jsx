@@ -1168,7 +1168,8 @@ export function DocExpandedView({
       blocks: savedSnapshot.blocks,
       content: savedSnapshot.body,
       body: savedSnapshot.body,
-      createdAt: savedSnapshot.createdAt,
+      // Created is immutable after the folder exists — never rewrite from the draft.
+      createdAt: doc.createdAt || savedSnapshot.createdAt,
       version: savedSnapshot.version,
       category: savedSnapshot.category,
       icon: savedSnapshot.icon,
@@ -2019,9 +2020,6 @@ export function DocExpandedView({
           blocks={draftBlocks}
           onBlocksChange={handleDraftBlocksChange}
           createdDate={draftCreatedDate}
-          onCreatedDateChange={(v) => {
-            setDraftCreatedDate(v);
-          }}
           version={isTemplate ? "" : draftVersion}
           onVersionChange={isTemplate ? undefined : (v) => {
             setDraftVersion(v);

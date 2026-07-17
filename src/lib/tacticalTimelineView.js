@@ -15,6 +15,7 @@ import {
   resolveNodeAnchorDate,
   sameCalendarDay,
   startOfCalendarDay,
+  parseDate,
 } from "../temporal.js";
 import { resolveObjectStroke, softColorFromStroke } from "./objectColors.js";
 import { buildTimelineChains } from "./timelineChains.js";
@@ -707,6 +708,58 @@ export function buildTimelineColumns(markers) {
   }));
 }
 
+/**
+ * Object-row (folder rail) columns on the single shared ruler.
+ * Folders that share a calendar day collapse into ONE column: they stack
+ * vertically (oldest Created on top = priority, newest below) and the day
+ * label (Today / Jul 17) renders once under the stack.
+ * Date markers, agent sets, and other non-folder markers keep the regular
+ * one-column-per-unit layout.
+ * @param {Array<{ nodeId: string, date: Date, docId?: string, dataType?: string }>} markers
+ * @param {Record<string, object>} docsById
+ */
+export function buildObjectRowFolderColumns(markers, docsById = {}) {
+  const folderMarkers = markers.filter((m) => m.dataType === "document" && m.docId);
+  const otherMarkers = markers.filter((m) => !(m.dataType === "document" && m.docId));
+
+  const createdMs = (marker) => {
+    const fromCreated = parseDate(docsById[marker.docId]?.createdAt);
+    if (fromCreated) return fromCreated.getTime();
+    return marker.date instanceof Date ? marker.date.getTime() : 0;
+  };
+
+  /** @type {Map<number, typeof folderMarkers>} */
+  const byDay = new Map();
+  for (const marker of folderMarkers) {
+    const dayMs = startOfCalendarDay(marker.date).getTime();
+    if (!byDay.has(dayMs)) byDay.set(dayMs, []);
+    byDay.get(dayMs).push(marker);
+  }
+
+  const folderColumns = [...byDay.entries()].map(([dayMs, group]) => {
+    // Oldest created first → renders at the top of the vertical stack.
+    group.sort((a, b) => {
+      const dt = createdMs(a) - createdMs(b);
+      if (dt !== 0) return dt;
+      return String(a.docId || "").localeCompare(String(b.docId || ""));
+    });
+    const anchor = group[0];
+    return {
+      columnKey: `folder-day-${dayMs}-${group.map((m) => m.nodeId).join("_")}`,
+      date: anchor.date,
+      items: group,
+    };
+  });
+
+  const otherColumns = buildTimelineColumns(otherMarkers);
+
+  return [...folderColumns, ...otherColumns].sort((a, b) => {
+    const dt = a.date.getTime() - b.date.getTime();
+    if (dt !== 0) return dt;
+    return String(a.columnKey).localeCompare(String(b.columnKey));
+  });
+}
+
 /** Preferred horizontal gap (%) between same-day docs on multi-day (zoomed-out) rails. */
 const SAME_DAY_FANOUT_GAP_PCT = 26;
 /** Soft minimum between different-day consecutive columns after fan-out. */
@@ -1145,7 +1198,9 @@ export function buildTacticalObjectRows(params) {
     }
 
     const docMarkers = [...markerByKey.values()];
-    const columns = buildTimelineColumns(docMarkers);
+    // Single shared ruler: same-day folders stack vertically in one column
+    // (oldest Created on top = priority), date label renders under the stack.
+    const columns = buildObjectRowFolderColumns(docMarkers, docsById);
 
     displayRows.push({
       id: `object-${objectId}`,
