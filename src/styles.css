@@ -2524,6 +2524,42 @@ textarea.field {
   color: var(--mute);
 }
 
+.doc-embedded-forecast {
+  position: relative;
+}
+.doc-embedded-forecast__remove-corner {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, transform 120ms ease;
+}
+.doc-embedded-forecast:hover .doc-embedded-forecast__remove-corner,
+.doc-embedded-forecast__remove-corner:focus-visible {
+  opacity: 1;
+}
+.doc-embedded-forecast__remove-corner:hover {
+  background: rgba(230, 57, 70, 0.28);
+  transform: scale(1.06);
+}
+.doc-embedded-forecast__remove-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+
 .doc-embedded-forecast__actions,
 .doc-embedded-calendar__actions {
   display: flex;

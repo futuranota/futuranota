@@ -1,5 +1,7 @@
 import { ForecastNodeView } from "../../intel/ForecastNodeView.jsx";
 
+const DELETE_ICON = "/uploads/delete.svg";
+
 export function EmbeddedForecastBlockView({
   payload,
   onRemove,
@@ -13,15 +15,15 @@ export function EmbeddedForecastBlockView({
         <ForecastNodeView payload={payload} compact={false} className="doc-embedded-forecast__body" />
       </div>
       {onRemove ? (
-        <div className="doc-embedded-forecast__actions">
-          <button
-            type="button"
-            className="doc-embedded-forecast__remove btn xs ghost"
-            onClick={onRemove}
-          >
-            {removeLabel}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="doc-embedded-forecast__remove-corner"
+          onClick={onRemove}
+          title={removeLabel}
+          aria-label={removeLabel}
+        >
+          <img src={DELETE_ICON} alt="" aria-hidden className="doc-embedded-forecast__remove-icon" />
+        </button>
       ) : null}
     </div>
   );
