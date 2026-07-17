@@ -1692,10 +1692,6 @@ export function LeftPanel({
     [filteredProductDocs, t],
   );
 
-  const groupedCampaignDocs = useMemo(
-    () => groupProductDocsFromList(filteredCampaignDocs, t("sidebar.docGroupUncategorized")),
-    [filteredCampaignDocs, t],
-  );
 
   useEffect(() => {
     setClickFolderView(null);
@@ -2647,25 +2643,25 @@ export function LeftPanel({
                   onOpenDocument={onOpenDocument}
                   onDeleteDoc={handleDeleteDoc}
                 />
-                <div className="lp-click-folder-detail-list lp-doc-groups-stack">
-                  {groupedCampaignDocs.length ? (
-                    groupedCampaignDocs.map((group) => (
-                      <DocGroupBlockCard
-                        key={group.id}
-                        groupLabel={group.label}
-                        groupMeta={t("sidebar.docsInBlock", { count: group.docs.length })}
-                        docs={group.docs}
-                        onDeleteCategory={() => handleDeleteCategoryGroup(group)}
-                        renderDoc={(doc) => (
-                          <DocCompactRow
-                            key={doc.id}
-                            doc={doc}
-                            active={activeId === doc.id}
-                            onSelect={() => handleSelectFolderDoc(doc.id)}
-                            onOpen={() => handleOpenFolderDoc(doc.id)}
-                            onDelete={() => handleDeleteDoc(doc)}
-                          />
-                        )}
+                <div className="lp-click-folder-detail-list lp-doc-nodes-stack">
+                  {filteredCampaignDocs.length ? (
+                    filteredCampaignDocs.map((doc) => (
+                      <DocNodesBlockCard
+                        key={doc.id}
+                        doc={doc}
+                        nodes={nodesByDocId.get(doc.id) || []}
+                        objects={objects}
+                        showWhenEmpty
+                        onOpenDoc={() => handleOpenFolderDoc(doc.id)}
+                        onCreateDocument={() => openCreateDocument(doc)}
+                        onDeleteBox={() => handleDeleteDoc(doc)}
+                        onNodeClick={(node) => {
+                          setActiveId(node.id);
+                          setNodeEditContentFocus(false);
+                          setNodeEditId(node.id);
+                        }}
+                        onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                        onNodeDelete={handleDeleteNode}
                       />
                     ))
                   ) : (
