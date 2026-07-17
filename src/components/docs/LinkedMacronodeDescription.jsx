@@ -1,6 +1,7 @@
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { getNodeWritingExcerpt } from "../../lib/nodeWritingExcerpt.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import { CompletedChip } from "./FolderDocumentRow.jsx";
 
 /**
  * Description layer under every macronode title synced into a parent folder.
@@ -29,11 +30,7 @@ export function LinkedMacronodeDescription({ nodeId, onContinue }) {
     onContinue?.();
   };
 
-  const completedChip = completed ? (
-    <span className="folder-doc-row__completed">
-      {t("sidebar.docCompleted")}
-    </span>
-  ) : null;
+  const completedChip = completed ? <CompletedChip /> : null;
 
   if (!hasExcerpt) {
     return (

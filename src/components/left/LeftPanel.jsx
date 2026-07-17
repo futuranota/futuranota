@@ -771,14 +771,26 @@ function DocNodesBlockCard({
               {!orphan && isKnowledge
                 ? (doc.knowledgeImport?.fileName ? " · file imported" : " · knowledge")
                 : ""}
-              {!orphan && parent ? ` · ↳ ${parent.name}` : ""}
-              {hasFolderSchedule && !selectMode ? (
-                <span
-                  className="lp-folder-schedule-dot"
-                  title={t("sidebar.scheduleActive")}
-                  aria-label={t("sidebar.scheduleActive")}
-                />
-              ) : null}
+              {!orphan && parent ? (
+                <span className="fn-card-meta__parent">
+                  {` · ↳ ${parent.name}`}
+                  {hasFolderSchedule && !selectMode ? (
+                    <span
+                      className="lp-folder-schedule-dot"
+                      title={t("sidebar.scheduleActive")}
+                      aria-label={t("sidebar.scheduleActive")}
+                    />
+                  ) : null}
+                </span>
+              ) : (
+                hasFolderSchedule && !selectMode ? (
+                  <span
+                    className="lp-folder-schedule-dot"
+                    title={t("sidebar.scheduleActive")}
+                    aria-label={t("sidebar.scheduleActive")}
+                  />
+                ) : null
+              )}
             </span>
           </div>
           {!selectMode ? (

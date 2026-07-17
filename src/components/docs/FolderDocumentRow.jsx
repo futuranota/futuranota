@@ -6,6 +6,18 @@ function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "Untitled query").trim() || "Untitled query";
 }
 
+/** "Completed" chip: check + label in the surrounding text color, sized like continue reading. */
+export function CompletedChip() {
+  const { t } = useI18n();
+  const label = t("sidebar.docCompleted");
+  return (
+    <span className="completed-chip">
+      <span className="completed-chip__check" aria-hidden>✓</span>
+      {label}
+    </span>
+  );
+}
+
 /**
  * Folder child row: Title always; Description + continue reading when body has text;
  * Completed chip only when active (beside title if no excerpt, else on Description line).
@@ -31,11 +43,7 @@ export function FolderDocumentRow({
     onOpen?.(node);
   };
 
-  const completedChip = completed ? (
-    <span className="folder-doc-row__completed">
-      {t("sidebar.docCompleted")}
-    </span>
-  ) : null;
+  const completedChip = completed ? <CompletedChip /> : null;
 
   return (
     <div
