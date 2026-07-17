@@ -1012,6 +1012,8 @@ export function buildTacticalObjectRows(params) {
   const { chains, wireAnchors, trackItemsById, classifiedConnections } = tactical;
   const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
   const meta = { nodeEntitiesById, docsById, objectsById };
+  // Timeline is opt-in: only docs explicitly inserted (queued) render markers.
+  const queuedDocIdSet = new Set(timelineDocQueue);
 
   const objectIds = [];
   const seenObj = new Set();
@@ -1034,7 +1036,8 @@ export function buildTacticalObjectRows(params) {
     if (!node?.parentDocId) continue;
     addObjectId(docsById[node.parentDocId]?.parentObjectId);
   }
-  for (const ch of chains) addObjectId(ch.objectId);
+  // Chains no longer create rows on their own — dragging a folder to the
+  // canvas must not surface it on the timeline until "Insert to timeline".
 
   const chainByObjectId = new Map();
   for (const ch of chains) {
@@ -1061,6 +1064,8 @@ export function buildTacticalObjectRows(params) {
         const node = nodeById.get(nodeId);
         if (!isDocumentNode(node, item)) continue;
         const docId = node?.docId || node?.noteId || item?.docId;
+        // Canvas presence alone is not enough — the doc must have been inserted.
+        if (!docId || !queuedDocIdSet.has(docId)) continue;
         const campaignCreated = docId ? resolveCampaignFolderCreatedDate(docsById[docId]) : null;
         const fullDate = campaignCreated
           || (docId ? resolveExplicitDocScheduleDate(docsById[docId]) : null)

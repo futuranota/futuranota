@@ -352,6 +352,11 @@ function Dashboard({ company, onBack }) {
           : "Timeline updated",
       kind: "ok",
     });
+
+    // Insert is a one-shot action: leave Select mode and drop the numbered
+    // picks so the green active area turns off until the user re-enables it.
+    useTimelineStore.getState().setTimelineQueueMode(false);
+    setSelection([]);
   }, [selection, canvasNodes, nodeEntities, docs, canvasConns, objects, enqueueTimelineDocsFromCanvasNodes]);
 
   const handleTimelineCanvasSelectMany = useCallback(
