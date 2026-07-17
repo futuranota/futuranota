@@ -65,6 +65,9 @@ export function crossFamilyObjectPairKey(objectIdA, objectIdB) {
  * @param {Record<string, object>} nodeEntitiesById
  * @param {Record<string, object>} objectsById
  * @param {string|null} [excludeConnectionId]
+ * @param {import('../types/timelineTactical.js').ClassifiedConnection|null} [draft]
+ * True when the same folder-pair (or date-pair) wire of the same kind already exists.
+ * Allows both Document↔Document AND Date↔Date between the same two companies.
  */
 export function hasCrossFamilyLinkBetweenObjects(
   objectIdA,
@@ -75,9 +78,11 @@ export function hasCrossFamilyLinkBetweenObjects(
   nodeEntitiesById = {},
   objectsById = {},
   excludeConnectionId = null,
+  draft = null,
 ) {
   const targetKey = crossFamilyObjectPairKey(objectIdA, objectIdB);
   if (!targetKey) return false;
+  const draftKey = draft ? crossFamilyTimelinePairKey(draft) : null;
   const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
   for (const c of connections) {
     if (excludeConnectionId && c.id === excludeConnectionId) continue;
@@ -90,7 +95,14 @@ export function hasCrossFamilyLinkBetweenObjects(
     );
     if (!isCrossFamilyConnectionKind(classified.kind)) continue;
     const pairKey = crossFamilyObjectPairKey(classified.fromObjectId, classified.toObjectId);
-    if (pairKey === targetKey) return true;
+    if (pairKey !== targetKey) continue;
+    // Same company pair is OK for a different wire kind / folder pair.
+    if (draftKey) {
+      const existingKey = crossFamilyTimelinePairKey(classified);
+      if (existingKey === draftKey) return true;
+      continue;
+    }
+    return true;
   }
   return false;
 }
@@ -170,10 +182,11 @@ export function validateCanvasConnectionAttempt({
       nodeEntitiesById,
       objectsById,
       excludeConnectionId,
+      classified,
     )) {
       return {
         ok: false,
-        message: "Only one cross-family link is allowed between these two objects.",
+        message: "These two folders (or dates) are already linked across families.",
         classified,
       };
     }
@@ -233,7 +246,7 @@ export function isAllowedIntraFamilyTimeChainLink(from, to) {
   return allowed.has(`${a}:${b}`);
 }
 
-function isTacticalDocumentNode(node) {
+export function isTacticalDocumentNode(node) {
   if (!node) return false;
   return node.canvasKind === "document" || node.dataType === "document";
 }

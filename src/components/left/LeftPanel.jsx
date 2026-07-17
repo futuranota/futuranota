@@ -48,6 +48,7 @@ import { findObjectIdByName } from "../../lib/storeSanitize.js";
 import { resolveDocSource } from "../../lib/docSources.js";
 import { buildNodesByDocIdMap } from "../../lib/resolveDocBlockNodes.js";
 import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
+import { setCorpusTimelineAuthority } from "../../lib/timelineCorpusAuthority.js";
 import {
   buildCategoryFilterOptions,
   contentDocMatchesProductFilter,
@@ -1802,6 +1803,7 @@ export function LeftPanel({
     if (doc?.parentObjectId) {
       setFilterObjectId(doc.parentObjectId);
       setSelectedObjectId(doc.parentObjectId);
+      setCorpusTimelineAuthority(doc.parentObjectId);
     }
   };
 
@@ -1923,6 +1925,8 @@ export function LeftPanel({
     setSelectedObjectId(objectId);
     setFilterObjectId(objectId);
     setActiveId(objectId);
+    // Opening a company sets Corpus authority for guest-folder inheritance.
+    setCorpusTimelineAuthority(objectId);
   };
 
   const enterObjectWorkspace = (objectId) => {
@@ -2057,6 +2061,7 @@ export function LeftPanel({
     setSelectedObjectId(null);
     setFilterObjectId(null);
     setActiveId(null);
+    setCorpusTimelineAuthority(null);
     setNodeSearch("");
     clearLeftPanelNavSnapshot();
   };
@@ -2112,6 +2117,7 @@ export function LeftPanel({
     if (snap.objectWorkspaceActive && objectId && objects[objectId]) {
       setSelectedObjectId(objectId);
       setFilterObjectId(objectId);
+      setCorpusTimelineAuthority(objectId);
       setObjectWorkspaceActive(true);
       const nextPanel = ["Documents", "Nodes", "Objects"].includes(snap.panelType)
         ? snap.panelType
@@ -2123,6 +2129,7 @@ export function LeftPanel({
     } else if (objectId && objects[objectId]) {
       setSelectedObjectId(objectId);
       setFilterObjectId(objectId);
+      setCorpusTimelineAuthority(objectId);
     }
 
     setLeftPanelNavRestored(true);

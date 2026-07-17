@@ -66,6 +66,7 @@ import {
   reminderOccurrenceKey,
 } from './lib/timelineReminderSkip.js';
 import { unlockTimelineReminderSound } from './lib/timelineReminderSound.js';
+import { setCorpusTimelineAuthority } from './lib/timelineCorpusAuthority.js';
 import {
   collectDocNodeIdsForSave,
 } from './lib/docNodeSync.js';
@@ -332,6 +333,7 @@ function Dashboard({ company, onBack }) {
       const objectId = [...insertedObjectIds][0];
       setFilterObjectId(objectId);
       setSelectedObjectId(objectId);
+      setCorpusTimelineAuthority(objectId);
     }
 
     const parts = [];
@@ -430,11 +432,15 @@ useEffect(() => {
       objects,
       objectTimelineTitles,
       selectedObjectId: selectedObjectId || filterObjectId,
+      primaryObjectId: useTimelineStore.getState().primaryTimelineObjectId || selectedObjectId || filterObjectId,
+      inheritObjMode: useTimelineStore.getState().inheritObjMode,
       canvasNodes,
+      canvasConnections: canvasConns,
       nodeEntities,
       timelineDocQueue,
       timelineDocSnapshotsByDocId,
       timelineAgentSets,
+      timelineDateNodeIds,
       skippedAlertKeys: readSkippedTimelineReminderKeys(),
     };
 
@@ -480,12 +486,14 @@ useEffect(() => {
     selectedObjectId,
     filterObjectId,
     canvasNodes,
+    canvasConns,
     nodeEntities,
     today,
     reminderTick,
     timelineDocQueue,
     timelineDocSnapshotsByDocId,
     timelineAgentSets,
+    timelineDateNodeIds,
   ]);
 
   useEffect(() => {

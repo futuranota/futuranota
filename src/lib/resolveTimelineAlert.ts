@@ -8,6 +8,7 @@ import {
 import { normalizeDoc } from "./normalizeDoc.js";
 import { isContentDoc } from "./templateDoc.js";
 import { parseDate } from "../temporal.js";
+import { buildGuestInheritanceProjections } from "./timelineInheritance.js";
 import type { TimelineAlertData, TimelineReminderData } from "../types/timelineAlert";
 
 type ScheduleTarget = {
@@ -25,12 +26,20 @@ type ResolveTimelineAlertParams = {
   objects?: Record<string, { name?: string }>;
   objectTimelineTitles?: Record<string, string>;
   selectedObjectId?: string | null;
+  primaryObjectId?: string | null;
+  inheritObjMode?: boolean;
   canvasNodes?: Array<{
+    id?: string;
     canvasKind?: string;
+    dataType?: string;
     docId?: string;
     parentDocId?: string;
     content?: unknown;
+    title?: string;
+    launchAt?: string | null;
+    noteId?: string;
   }>;
+  canvasConnections?: Array<{ id?: string; from?: string; to?: string }>;
   nodeEntities?: Record<string, {
     anchorAt?: string | null;
     title?: string;
@@ -48,6 +57,7 @@ type ResolveTimelineAlertParams = {
     title?: string;
     triggerAt?: string;
   }>;
+  timelineDateNodeIds?: string[];
   now?: Date;
   skippedAlertKeys?: Set<string> | string[];
 };
@@ -90,11 +100,15 @@ export function collectTimelineScheduleTargets({
   objects = {},
   objectTimelineTitles = {},
   selectedObjectId = null,
+  primaryObjectId = null,
+  inheritObjMode = false,
   canvasNodes = [],
+  canvasConnections = [],
   nodeEntities = {},
   timelineDocQueue = [],
   timelineDocSnapshotsByDocId = {},
   timelineAgentSets = [],
+  timelineDateNodeIds = [],
 }: ResolveTimelineAlertParams): ScheduleTarget[] {
   const targets: ScheduleTarget[] = [];
   const seen = new Set<string>();
@@ -245,13 +259,38 @@ export function collectTimelineScheduleTargets({
     });
   }
 
+  // Guest folders under Corpus authority — use inherited effective Created/Launch.
+  const authorityId = primaryObjectId || selectedObjectId || null;
+  if (inheritObjMode && authorityId) {
+    const projections = buildGuestInheritanceProjections({
+      connections: canvasConnections,
+      canvasNodes,
+      docsById: docs as Record<string, object>,
+      nodeEntitiesById: nodeEntities as Record<string, object>,
+      objectsById: objects as Record<string, object>,
+      primaryObjectId: authorityId,
+      timelineDocQueue,
+      timelineDateNodeIds,
+    });
+    for (const alert of projections.alertTargets) {
+      addTarget(targets, seen, {
+        key: alert.key,
+        date: alert.date,
+        label: alert.label,
+        kind: alert.kind as ScheduleTarget["kind"],
+        kindLabel: alert.kindLabel,
+        workspaceLabel: alert.workspaceLabel,
+      });
+    }
+  }
+
   return targets.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 /** Folders + macros from the timeline queue only (for floating reminder). */
 export function collectTimelineReminderTargets(params: ResolveTimelineAlertParams): ScheduleTarget[] {
   return collectTimelineScheduleTargets(params).filter(
-    (t) => t.kind === "doc" || t.kind === "macro",
+    (t) => t.kind === "doc" || t.kind === "macro" || t.kind === "launch",
   );
 }
 

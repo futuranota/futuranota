@@ -2827,6 +2827,19 @@ textarea.field {
 .cnode-port.right:hover { transform: translateY(-50%) scale(1.4); background: var(--hud); }
 .cnode-port.left   { left: -5px; top: 50%; transform: translateY(-50%); }
 .cnode-port.left:hover { transform: translateY(-50%) scale(1.4); background: var(--hud); }
+.cnode-port.top {
+  left: 50%;
+  top: -5px;
+  transform: translateX(-50%);
+}
+.cnode-port.top:hover { transform: translateX(-50%) scale(1.4); background: var(--hud); }
+.cnode-port.bottom {
+  left: 50%;
+  bottom: -5px;
+  top: auto;
+  transform: translateX(-50%);
+}
+.cnode-port.bottom:hover { transform: translateX(-50%) scale(1.4); background: var(--hud); }
 .cnode-port.rewire-end {
   background: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 35%, transparent);
@@ -5107,6 +5120,7 @@ textarea.note-form-field {
   font-size: 9.5px;
 }
 .tl-tactical-body {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -5153,6 +5167,25 @@ textarea.note-form-field {
   opacity: 1;
   stroke: color-mix(in oklab, var(--tl-family-accent, var(--tl-accent)) 80%, var(--hud));
 }
+
+.tl-tactical-cross-links {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+}
+.tl-tactical-cross-links__line {
+  stroke: color-mix(in oklab, var(--hud) 55%, var(--text));
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+.tl-tactical-cross-links__atom {
+  opacity: 0.9;
+}
+
 /* 2nd rail onward: shift bar+dots down toward left label (transform = no reflow / label stays) */
 .tl-tactical-row.is-rail-nudge .tl-tactical-bar {
   transform: translateY(10px);

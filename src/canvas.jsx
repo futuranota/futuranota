@@ -60,6 +60,11 @@ import {
 import { useTimelineStore } from './stores/index.js';
 import { organizeCanvasNodes } from './lib/canvasMath.js';
 import { computeSpotlightView, getWiredVisibleNodeIds } from './lib/canvasSpotlight.js';
+import {
+  shouldShowCrossFamilyCenterPorts,
+  normalizeCrossFamilyConnectionEndpoints,
+  resolveCanvasWireTemporalLabel,
+} from './lib/canvasInheritWire.js';
 /* canvas.jsx — Blueprint Canvas v3
  *
  * Notes ↔ Nodes ↔ Blueprints. Three-tier model:
@@ -273,6 +278,7 @@ function CanvasNode({
   timelineSelectable = true,
   timelineQueueMode = false,
   selectionIndex = null,
+  showCenterPorts = false,
   onRunAgent,
 }) {
   const ref = useRef(null);
@@ -799,30 +805,61 @@ function CanvasNode({
           <span style={{ fontFamily: "var(--mono)" }}>{node.id}</span>
         </div>
       )}
-      <div
-        className={"cnode-port left" + (selConn && selConn.to === node.id ? " rewire-end" : "")}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          if (selConn && selConn.to === node.id) onStartRewire(selConn.id, "to");
-        }}
-        onMouseUp={(e) => {
-          e.stopPropagation();
-          if (rewiring?.end === "to") onPortMouseUp(node.id);
-          else if (isConnectingFrom) onPortMouseUp(node.id);
-        }}
-      />
-      <div
-        className={"cnode-port right" + (selConn && selConn.from === node.id ? " rewire-end" : "")}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          if (selConn && selConn.from === node.id) onStartRewire(selConn.id, "from");
-          else onStartConnect(node.id);
-        }}
-        onMouseUp={(e) => {
-          e.stopPropagation();
-          if (rewiring?.end === "from") onPortMouseUp(node.id);
-        }}
-      />
+      {showCenterPorts ? (
+        <>
+          <div
+            className={"cnode-port top" + (selConn && selConn.to === node.id ? " rewire-end" : "")}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              if (selConn && selConn.to === node.id) onStartRewire(selConn.id, "to");
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              if (rewiring?.end === "to") onPortMouseUp(node.id);
+              else if (isConnectingFrom) onPortMouseUp(node.id);
+            }}
+          />
+          <div
+            className={"cnode-port bottom" + (selConn && selConn.from === node.id ? " rewire-end" : "")}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              if (selConn && selConn.from === node.id) onStartRewire(selConn.id, "from");
+              else onStartConnect(node.id);
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              if (rewiring?.end === "from") onPortMouseUp(node.id);
+            }}
+          />
+        </>
+      ) : (
+        <>
+          <div
+            className={"cnode-port left" + (selConn && selConn.to === node.id ? " rewire-end" : "")}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              if (selConn && selConn.to === node.id) onStartRewire(selConn.id, "to");
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              if (rewiring?.end === "to") onPortMouseUp(node.id);
+              else if (isConnectingFrom) onPortMouseUp(node.id);
+            }}
+          />
+          <div
+            className={"cnode-port right" + (selConn && selConn.from === node.id ? " rewire-end" : "")}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              if (selConn && selConn.from === node.id) onStartRewire(selConn.id, "from");
+              else onStartConnect(node.id);
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              if (rewiring?.end === "from") onPortMouseUp(node.id);
+            }}
+          />
+        </>
+      )}
       <button type="button" className="cnode-del icon-del-btn" onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}>×</button>
     </div>
   );
@@ -865,6 +902,7 @@ function BlueprintCanvas({
   const pendingCount = upcomingTasks.length;
   const effectiveTimelineQueueMode = timelineQueueMode && timelineSelectEnabled;
   const inheritObjMode = useTimelineStore((s) => s.inheritObjMode);
+  const primaryTimelineObjectId = useTimelineStore((s) => s.primaryTimelineObjectId);
   const temporalMeta = { docsById, nodeEntitiesById, objectsById };
   const orphanEntityCanvasNodes = useMemo(
     () => listOrphanEntityCanvasNodes(nodes, nodeEntitiesById),
@@ -1521,21 +1559,20 @@ function BlueprintCanvas({
     setConnectingFrom(id);
     setConnectHoverTarget(null);
     const node = nodes.find((n) => n.id === id);
-    if (node) setHoverConnect({ x: node.x + (node._w || 200), y: node.y + (node._h || 80) / 2 });
-  };
-
-  const handleStartRewire = (connId, end) => {
-    const c = connections.find((x) => x.id === connId);
-    if (!c) return;
-    setRewiring({ connId, end });
-    setConnectingFrom(null);
-    setConnectHoverTarget(null);
-    if (end === "from") {
-      const node = nodes.find((n) => n.id === c.from);
-      if (node) setHoverConnect({ x: node.x + (node._w || 200), y: node.y + (node._h || 80) / 2 });
-    } else {
-      const node = nodes.find((n) => n.id === c.to);
-      if (node) setHoverConnect({ x: node.x, y: node.y + (node._h || 80) / 2 });
+    if (node) {
+      const useCenter = shouldShowCrossFamilyCenterPorts(node, {
+        inheritObjMode,
+        canvasNodes: nodes,
+        docsById,
+        nodeEntitiesById,
+        connectingFromId: id,
+        objectsById,
+      });
+      const w = node._w || 200;
+      const h = node._h || 80;
+      setHoverConnect(useCenter
+        ? { x: node.x + w / 2, y: node.y + h }
+        : { x: node.x + w, y: node.y + h / 2 });
     }
   };
 
@@ -1577,6 +1614,34 @@ function BlueprintCanvas({
     return isCrossFamilyConnectionKind(classified.kind) ? "vertical" : "horizontal";
   }, [nodes, docsById, nodeEntitiesById, objectsById]);
 
+  const handleStartRewire = (connId, end) => {
+    const c = connections.find((x) => x.id === connId);
+    if (!c) return;
+    setRewiring({ connId, end });
+    setConnectingFrom(null);
+    setConnectHoverTarget(null);
+    const layout = connectionLayoutFor(c.from, c.to);
+    if (end === "from") {
+      const node = nodes.find((n) => n.id === c.from);
+      if (node) {
+        const w = node._w || 200;
+        const h = node._h || 80;
+        setHoverConnect(layout === "vertical"
+          ? { x: node.x + w / 2, y: node.y + h }
+          : { x: node.x + w, y: node.y + h / 2 });
+      }
+    } else {
+      const node = nodes.find((n) => n.id === c.to);
+      if (node) {
+        const w = node._w || 200;
+        const h = node._h || 80;
+        setHoverConnect(layout === "vertical"
+          ? { x: node.x + w / 2, y: node.y }
+          : { x: node.x, y: node.y + h / 2 });
+      }
+    }
+  };
+
   const handlePortMouseUp = (portNodeId) => {
     const clearConnectState = () => {
       setConnectingFrom(null);
@@ -1584,15 +1649,25 @@ function BlueprintCanvas({
       setConnectHoverTarget(null);
     };
 
-    const applyAdoptionAndConnect = async (fromId, toId, excludeConnectionId, addOrUpdateConn) => {
+    const applyAdoptionAndConnect = async (fromId, toId, excludeConnectionId, mutateConns) => {
       if (!validateEdge(fromId, toId, excludeConnectionId)) {
         clearConnectState();
         setRewiring(null);
         return false;
       }
 
-      const fromNode = nodes.find((n) => n.id === fromId);
-      const toNode = nodes.find((n) => n.id === toId);
+      const normalized = normalizeCrossFamilyConnectionEndpoints(fromId, toId, {
+        canvasNodes: nodes,
+        docsById,
+        nodeEntitiesById,
+        objectsById,
+        primaryObjectId: primaryTimelineObjectId,
+      });
+      const nextFrom = normalized.from;
+      const nextTo = normalized.to;
+
+      const fromNode = nodes.find((n) => n.id === nextFrom);
+      const toNode = nodes.find((n) => n.id === nextTo);
       const adoption = detectDocAdoptionOnConnect(
         fromNode,
         toNode,
@@ -1604,10 +1679,10 @@ function BlueprintCanvas({
         await onRequestDocAdoption(adoption);
       }
 
-      setConnections(addOrUpdateConn);
+      setConnections((conns) => mutateConns(conns, nextFrom, nextTo));
       clearConnectState();
       setRewiring(null);
-      return true;
+      return { ok: true, from: nextFrom, to: nextTo };
     };
 
     if (rewiring) {
@@ -1644,10 +1719,10 @@ function BlueprintCanvas({
         setConnectHoverTarget(null);
         return;
       }
-      void applyAdoptionAndConnect(nextFrom, nextTo, connId, (conns) => {
+      void applyAdoptionAndConnect(nextFrom, nextTo, connId, (conns, hostFrom, guestTo) => {
         const existing = conns.find((x) => x.id === connId);
         if (!existing) return conns;
-        return conns.map((x) => (x.id === connId ? { ...x, from: nextFrom, to: nextTo } : x));
+        return conns.map((x) => (x.id === connId ? { ...x, from: hostFrom, to: guestTo } : x));
       });
       return;
     }
@@ -1664,11 +1739,11 @@ function BlueprintCanvas({
       return;
     }
 
-    void applyAdoptionAndConnect(fromId, toId, null, (conns) => {
-      if (conns.some((c) => c.from === fromId && c.to === toId)) return conns;
-      return [...conns, { from: fromId, to: toId, id: shortId("CN") }];
-    }).then((created) => {
-      if (created) onConnectionCreated?.(fromId, toId);
+    void applyAdoptionAndConnect(fromId, toId, null, (conns, hostFrom, guestTo) => {
+      if (conns.some((c) => c.from === hostFrom && c.to === guestTo)) return conns;
+      return [...conns, { from: hostFrom, to: guestTo, id: shortId("CN") }];
+    }).then((result) => {
+      if (result?.ok) onConnectionCreated?.(result.from, result.to);
     });
   };
 
@@ -1760,7 +1835,16 @@ function BlueprintCanvas({
       b = target;
     }
     const label = a && b
-      ? computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta)
+      ? resolveCanvasWireTemporalLabel(
+        a,
+        b,
+        today,
+        nodes,
+        connections,
+        blueprints,
+        temporalMeta,
+        computeEdgeTemporalLabel,
+      )
       : null;
     const mid = bezierMidpoint(p1, p2);
     const layout = a && b ? connectionLayoutFor(a.id, b.id) : "horizontal";
@@ -2248,7 +2332,16 @@ function BlueprintCanvas({
             const layout = connectionLayoutFor(c.from, c.to);
             const { p1, p2 } = endpointsForConnection(a, b, layout);
             const d = pathBetween(p1, p2, layout);
-            const label = computeEdgeTemporalLabel(a, b, today, nodes, connections, blueprints, temporalMeta);
+            const label = resolveCanvasWireTemporalLabel(
+              a,
+              b,
+              today,
+              nodes,
+              connections,
+              blueprints,
+              temporalMeta,
+              computeEdgeTemporalLabel,
+            );
             const mid = bezierMidpoint(p1, p2);
             const selected = selectedConnectionId === c.id;
             const linkColor = resolveConnectionLinkColor(a, b, temporalMeta);
@@ -2302,6 +2395,16 @@ function BlueprintCanvas({
             allConnections={connections}
             selectedConnectionId={selectedConnectionId}
             connections={connections}
+            showCenterPorts={shouldShowCrossFamilyCenterPorts(n, {
+              inheritObjMode,
+              canvasNodes: nodes,
+              docsById,
+              nodeEntitiesById,
+              connectingFromId: connectingFrom,
+              rewiring,
+              connections,
+              objectsById,
+            })}
             onAddToSelection={handleAddToSelection}
             onTapToggle={handleTapToggle}
             onMove={handleMove}

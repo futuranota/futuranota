@@ -37,6 +37,18 @@
  */
 
 /**
+ * @typedef {Object} InheritanceMarkerProvenance
+ * @property {Date|string|null} [ownDate]
+ * @property {Date|string|null} [effectiveAt]
+ * @property {string|null} [authorityObjectId]
+ * @property {string|null} [sourceObjectId]
+ * @property {string|null} [inheritedFromDocId]
+ * @property {'createdAt'|'launchAt'|null} [inheritanceKind]
+ * @property {string|null} [connectionId]
+ * @property {boolean} [inherited]
+ */
+
+/**
  * @typedef {Object} TacticalWireAnchorResult
  * @property {Map<string, Date>} anchors
  * @property {ClassifiedConnection[]} classifiedConnections

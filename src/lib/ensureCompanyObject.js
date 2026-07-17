@@ -3,6 +3,7 @@ import { deriveAnnouncementDateIso } from "./launchCadenceMath.js";
 import { initStores } from "../stores/initStores.js";
 import { useObjectsStore } from "../stores/objectsStore.js";
 import { useUIStateStore } from "../stores/uiStateStore.js";
+import { setCorpusTimelineAuthority } from "./timelineCorpusAuthority.js";
 
 /**
  * Ensures a business object exists for a company target selection and injects
@@ -62,6 +63,7 @@ export function ensureCompanyObject(company) {
   } = useUIStateStore.getState();
   setSelectedObjectId(objectId);
   setFilterObjectId(objectId);
+  setCorpusTimelineAuthority(objectId);
   requestEnterObjectWorkspace(objectId);
 
   return objectId;

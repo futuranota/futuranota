@@ -25,6 +25,7 @@ import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { unlockTimelineReminderSound } from "../../lib/timelineReminderSound.js";
 import { TimelineEventChip, TimelineCalendarIcon } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
+import { TimelineCrossLinks } from "./TimelineCrossLinks.jsx";
 
 function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
   const family = resolveParentTagFamilyStyle(objectId, objectsById);
@@ -410,23 +411,32 @@ function TacticalObjectRow({
                   <span className="tl-tactical-segment__edge" aria-hidden />
                   {segment.isAdjacentGap ? (() => {
                     const clock = now instanceof Date ? now : new Date();
+                    const launchTarget = segment.isLaunchCountdownGap
+                      ? (segment.launchDate || segment.toDate || segment.fromDate)
+                      : null;
                     const pair = segment.isNowGap && segment.toDate
                       ? formatNowUntilScheduleLabel({
                         target: segment.toDate,
                         now: clock,
                         hasExplicitTime: Boolean(segment.isSameDayGap),
                       }, t)
-                      : (segment.isSameDayGap && segment.fromDate && segment.toDate
-                        ? formatSameDayPairLabel({
-                          from: segment.fromDate,
-                          to: segment.toDate,
+                      : (launchTarget
+                        ? formatNowUntilScheduleLabel({
+                          target: launchTarget,
                           now: clock,
-                          hasExplicitTime: (segment.gapMinutes || 0) >= 1,
+                          hasExplicitTime: true,
                         }, t)
-                        : null);
+                        : (segment.isSameDayGap && segment.fromDate && segment.toDate
+                          ? formatSameDayPairLabel({
+                            from: segment.fromDate,
+                            to: segment.toDate,
+                            now: clock,
+                            hasExplicitTime: (segment.gapMinutes || 0) >= 1,
+                          }, t)
+                          : null));
                     const gapText = pair?.singleLine
                       || formatTimelineScheduleStatusLabel(segment.schedule, t, {
-                        gapDays: segment.gapDays,
+                        gapDays: segment.isLaunchCountdownGap ? undefined : segment.gapDays,
                       })
                       || formatTimelineTimeGapLabel(segment.timeGap, t)
                       || segment.label;
@@ -882,7 +892,7 @@ export function TacticalTimeline({
     ],
   );
 
-  const { displayRows, trackItemsById, grid } = view;
+  const { displayRows, trackItemsById, grid, inheritanceCrossLinks = [] } = view;
   const rowGroups = useMemo(
     () => groupDisplayRowsByObject(displayRows),
     [displayRows],
@@ -909,6 +919,7 @@ export function TacticalTimeline({
   const activeGrid = grid || emptyGrid;
   const objectRowCount = displayRows.filter((r) => r.rowKind === "object").length;
   const chipClickTimerRef = useRef(null);
+  const tacticalBodyRef = useRef(null);
 
   useEffect(() => () => {
     if (chipClickTimerRef.current) {
@@ -1061,7 +1072,11 @@ export function TacticalTimeline({
             </button>
           </div>
 
-          <div className="tl-tactical-body">
+          <div className="tl-tactical-body" ref={tacticalBodyRef}>
+            <TimelineCrossLinks
+              links={inheritanceCrossLinks}
+              containerRef={tacticalBodyRef}
+            />
             {rowGroups.length > 0 ? rowGroups.map((group, groupIndex) => (
               <TacticalRowGroup
                 key={group.objectId}

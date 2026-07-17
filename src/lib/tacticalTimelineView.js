@@ -43,6 +43,7 @@ import {
   collectFolderLinkedDateMarkers,
   resolveCampaignFolderCreatedDate,
 } from "./campaignTimelineRail.js";
+import { buildGuestInheritanceProjections } from "./timelineInheritance.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
 const DOC_WIRE_DIMENSION_KINDS = new Set([
@@ -625,6 +626,7 @@ export function buildNowToNextGapSegment(nodeGroups, grid, options = {}) {
 
 /**
  * Visible time metrics between consecutive columns (day gaps + same-day sched).
+ * Folder ↔ Launch/date uses now→launch countdown (never a fake same-day doc gap).
  * @param {ReturnType<typeof buildTimelineColumns>} columns
  * @param {ReturnType<typeof buildTacticalDisplayGrid>} grid
  */
@@ -641,6 +643,41 @@ export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
     const timeGap = resolveTimelineTimeGap(prev.date, next.date);
     const sameDay = timeGap.kind === "same-day";
     const segment = buildDimensionSegmentBetweenColumns(prev, next, grid, loupe);
+    const folderLaunchPair = isFolderLaunchColumnPair(prev, next);
+    const launchDate = folderLaunchPair
+      ? (columnHasLaunchOrDate(next) ? next.date : prev.date)
+      : null;
+
+    if (folderLaunchPair && launchDate) {
+      const schedule = resolveTimelineScheduleStatus(launchDate, today || now);
+      const pairMeta = formatNowUntilScheduleLabel({
+        target: launchDate,
+        now,
+        hasExplicitTime: true,
+      });
+      segments.push({
+        ...segment,
+        key: `day-gap-${prev.columnKey}-${next.columnKey}`,
+        isDocDimension: false,
+        isAdjacentGap: true,
+        isSameDayGap: false,
+        isLaunchCountdownGap: true,
+        fromDate: prev.date,
+        toDate: next.date,
+        launchDate,
+        scheduleKind: pairMeta?.statusKind || schedule?.kind || null,
+        timeGap,
+        pairHeadline: pairMeta?.headline || null,
+        pairDetail: pairMeta?.detail || null,
+        label: pairMeta?.singleLine || null,
+        isLiveCountdown: Boolean(pairMeta?.remainingMinutes != null && schedule?.kind === "today"),
+        schedule,
+        gapDays: schedule?.absDays ?? timeGap.days,
+        gapMinutes: pairMeta?.remainingMinutes ?? null,
+      });
+      continue;
+    }
+
     const later = prev.date.getTime() <= next.date.getTime() ? next.date : prev.date;
     const schedule = (!sameDay && today)
       ? resolveTimelineScheduleStatus(later, today)
@@ -673,6 +710,21 @@ export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
     });
   }
   return segments;
+}
+
+function columnHasFolderDocument(col) {
+  return (col?.items || []).some((it) => it.dataType === "document" && it.docId);
+}
+
+function columnHasLaunchOrDate(col) {
+  return (col?.items || []).some(
+    (it) => it.dataType === "date" || it.canvasKind === "launch" || it.timeMarker,
+  );
+}
+
+function isFolderLaunchColumnPair(prev, next) {
+  return (columnHasFolderDocument(prev) && columnHasLaunchOrDate(next))
+    || (columnHasLaunchOrDate(prev) && columnHasFolderDocument(next));
 }
 
 /**
@@ -1218,6 +1270,61 @@ export function buildTacticalObjectRows(params) {
       chain,
     });
 
+    // Guest projections under this Corpus host (Home Depot ← Futura Nota).
+    if (
+      inheritObjMode
+      && primaryTimelineObjectId
+      && objectId === primaryTimelineObjectId
+    ) {
+      const projections = buildGuestInheritanceProjections({
+        connections,
+        canvasNodes,
+        docsById,
+        nodeEntitiesById,
+        objectsById,
+        primaryObjectId: primaryTimelineObjectId,
+        timelineDocQueue,
+        timelineDateNodeIds,
+      });
+      const guestsByDoc = new Map();
+      for (const marker of projections.guestFolderMarkers) {
+        if (!marker.docId) continue;
+        if (!guestsByDoc.has(marker.docId)) guestsByDoc.set(marker.docId, []);
+        guestsByDoc.get(marker.docId).push(marker);
+      }
+      for (const marker of projections.guestLaunchMarkers) {
+        if (!marker.docId) continue;
+        if (!guestsByDoc.has(marker.docId)) guestsByDoc.set(marker.docId, []);
+        guestsByDoc.get(marker.docId).push(marker);
+      }
+      for (const [guestDocId, markers] of guestsByDoc) {
+        const guestDoc = docsById[guestDocId];
+        const guestTitle = (guestDoc?.title || guestDoc?.category || "Guest folder").trim();
+        const guestObjectId = guestDoc?.parentObjectId || markers[0]?.sourceObjectId || null;
+        displayRows.push({
+          id: `inherit-${objectId}-${guestDocId}`,
+          rowKind: "object",
+          objectId,
+          guestObjectId,
+          guestDocId,
+          objectName: guestTitle,
+          label: guestTitle,
+          objectColor,
+          colorSoft,
+          isCorpus: false,
+          isPrimary: false,
+          isInheritLayer: true,
+          hasCrossLink: true,
+          inherited: true,
+          columns: buildTimelineColumns(markers),
+          chain: null,
+        });
+      }
+      // Stash connector descriptors on the host row for the overlay.
+      const hostRow = displayRows.find((r) => r.id === `object-${objectId}`);
+      if (hostRow) hostRow.inheritanceCrossLinks = projections.crossLinks;
+    }
+
     for (const docId of expandedDocIds) {
       const snap = timelineDocSnapshotsByDocId[docId];
       const objectIdForDoc = docsById[docId]?.parentObjectId || snap?.objectId;
@@ -1304,5 +1411,7 @@ export function buildTacticalObjectRows(params) {
     ...tactical,
     grid: displayGrid,
     displayRows: orderedRows,
+    inheritanceCrossLinks: orderedRows
+      .flatMap((r) => r.inheritanceCrossLinks || []),
   };
 }
