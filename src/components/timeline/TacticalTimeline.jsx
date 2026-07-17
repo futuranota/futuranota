@@ -411,32 +411,23 @@ function TacticalObjectRow({
                   <span className="tl-tactical-segment__edge" aria-hidden />
                   {segment.isAdjacentGap ? (() => {
                     const clock = now instanceof Date ? now : new Date();
-                    const launchTarget = segment.isLaunchCountdownGap
-                      ? (segment.launchDate || segment.toDate || segment.fromDate)
-                      : null;
                     const pair = segment.isNowGap && segment.toDate
                       ? formatNowUntilScheduleLabel({
                         target: segment.toDate,
                         now: clock,
                         hasExplicitTime: Boolean(segment.isSameDayGap),
                       }, t)
-                      : (launchTarget
-                        ? formatNowUntilScheduleLabel({
-                          target: launchTarget,
+                      : (segment.isSameDayGap && segment.fromDate && segment.toDate
+                        ? formatSameDayPairLabel({
+                          from: segment.fromDate,
+                          to: segment.toDate,
                           now: clock,
-                          hasExplicitTime: true,
+                          hasExplicitTime: (segment.gapMinutes || 0) >= 1,
                         }, t)
-                        : (segment.isSameDayGap && segment.fromDate && segment.toDate
-                          ? formatSameDayPairLabel({
-                            from: segment.fromDate,
-                            to: segment.toDate,
-                            now: clock,
-                            hasExplicitTime: (segment.gapMinutes || 0) >= 1,
-                          }, t)
-                          : null));
+                        : null);
                     const gapText = pair?.singleLine
                       || formatTimelineScheduleStatusLabel(segment.schedule, t, {
-                        gapDays: segment.isLaunchCountdownGap ? undefined : segment.gapDays,
+                        gapDays: segment.gapDays,
                       })
                       || formatTimelineTimeGapLabel(segment.timeGap, t)
                       || segment.label;

@@ -6,7 +6,6 @@ import {
   resolveCanvasWireTemporalLabel,
   shouldShowCrossFamilyCenterPorts,
 } from "./canvasInheritWire.js";
-import { buildAdjacentDayGapSegments } from "./tacticalTimelineView.js";
 
 function makeDoc(id, objectId, extra = {}) {
   return {
@@ -140,37 +139,4 @@ describe("canvas inherit wire UX", () => {
     expect(wireLabel).toMatch(/Pending 15 days/i);
   });
 
-  it("buildAdjacentDayGapSegments uses launch countdown for folder↔launch columns", () => {
-    const folderDate = new Date("2026-07-17T10:00:00.000Z");
-    const launchDate = new Date("2026-07-17T18:00:00.000Z");
-    const now = new Date("2026-07-10T12:00:00.000Z");
-    const columns = [
-      {
-        columnKey: "folder",
-        date: folderDate,
-        leftPct: 20,
-        items: [{ dataType: "document", docId: "hdFolder", date: folderDate }],
-      },
-      {
-        columnKey: "launch",
-        date: launchDate,
-        leftPct: 60,
-        items: [{ dataType: "date", canvasKind: "launch", timeMarker: true, date: launchDate }],
-      },
-    ];
-    const grid = {
-      today: now,
-      pct: (d) => (d === folderDate ? 20 : 60),
-      todayPct: 10,
-      nowPct: 10,
-    };
-
-    const segments = buildAdjacentDayGapSegments(columns, grid, { now, today: now });
-    expect(segments).toHaveLength(1);
-    expect(segments[0].isLaunchCountdownGap).toBe(true);
-    expect(segments[0].isSameDayGap).toBe(false);
-    expect(segments[0].schedule?.kind).toBe("pending");
-    expect(segments[0].label).toMatch(/Pending 7 days/i);
-    expect(segments[0].label || "").not.toMatch(/same day|next schedule/i);
-  });
 });

@@ -626,7 +626,6 @@ export function buildNowToNextGapSegment(nodeGroups, grid, options = {}) {
 
 /**
  * Visible time metrics between consecutive columns (day gaps + same-day sched).
- * Folder ↔ Launch/date uses now→launch countdown (never a fake same-day doc gap).
  * @param {ReturnType<typeof buildTimelineColumns>} columns
  * @param {ReturnType<typeof buildTacticalDisplayGrid>} grid
  */
@@ -643,41 +642,6 @@ export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
     const timeGap = resolveTimelineTimeGap(prev.date, next.date);
     const sameDay = timeGap.kind === "same-day";
     const segment = buildDimensionSegmentBetweenColumns(prev, next, grid, loupe);
-    const folderLaunchPair = isFolderLaunchColumnPair(prev, next);
-    const launchDate = folderLaunchPair
-      ? (columnHasLaunchOrDate(next) ? next.date : prev.date)
-      : null;
-
-    if (folderLaunchPair && launchDate) {
-      const schedule = resolveTimelineScheduleStatus(launchDate, today || now);
-      const pairMeta = formatNowUntilScheduleLabel({
-        target: launchDate,
-        now,
-        hasExplicitTime: true,
-      });
-      segments.push({
-        ...segment,
-        key: `day-gap-${prev.columnKey}-${next.columnKey}`,
-        isDocDimension: false,
-        isAdjacentGap: true,
-        isSameDayGap: false,
-        isLaunchCountdownGap: true,
-        fromDate: prev.date,
-        toDate: next.date,
-        launchDate,
-        scheduleKind: pairMeta?.statusKind || schedule?.kind || null,
-        timeGap,
-        pairHeadline: pairMeta?.headline || null,
-        pairDetail: pairMeta?.detail || null,
-        label: pairMeta?.singleLine || null,
-        isLiveCountdown: Boolean(pairMeta?.remainingMinutes != null && schedule?.kind === "today"),
-        schedule,
-        gapDays: schedule?.absDays ?? timeGap.days,
-        gapMinutes: pairMeta?.remainingMinutes ?? null,
-      });
-      continue;
-    }
-
     const later = prev.date.getTime() <= next.date.getTime() ? next.date : prev.date;
     const schedule = (!sameDay && today)
       ? resolveTimelineScheduleStatus(later, today)
@@ -710,21 +674,6 @@ export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
     });
   }
   return segments;
-}
-
-function columnHasFolderDocument(col) {
-  return (col?.items || []).some((it) => it.dataType === "document" && it.docId);
-}
-
-function columnHasLaunchOrDate(col) {
-  return (col?.items || []).some(
-    (it) => it.dataType === "date" || it.canvasKind === "launch" || it.timeMarker,
-  );
-}
-
-function isFolderLaunchColumnPair(prev, next) {
-  return (columnHasFolderDocument(prev) && columnHasLaunchOrDate(next))
-    || (columnHasLaunchOrDate(prev) && columnHasFolderDocument(next));
 }
 
 /**
@@ -1367,7 +1316,14 @@ export function buildTacticalObjectRows(params) {
   const orderedRows = [];
   for (const objectRow of [...primaryRows, ...inheritRows]) {
     orderedRows.push(objectRow);
-    orderedRows.push(...(childRowsByObjectId.get(objectRow.objectId) || []));
+    // Children attach once, to the family's own ruler — never repeated under
+    // inherit-projection rows that share the same objectId.
+    if (objectRow.inherited) continue;
+    const childRows = childRowsByObjectId.get(objectRow.objectId);
+    if (childRows) {
+      orderedRows.push(...childRows);
+      childRowsByObjectId.delete(objectRow.objectId);
+    }
   }
 
   // Scale the grid from folder (object-row) dates so child rows don't force month zoom-out.

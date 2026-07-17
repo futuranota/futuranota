@@ -116,6 +116,10 @@ export function listInheritanceLinks({
     const sides = resolveHostGuestSides(c, primaryObjectId);
     if (!sides) continue;
     if (sides.hostObjectId !== primaryObjectId) continue;
+    // Wire direction is authoritative: inheritance only flows host → guest.
+    // Working inside the guest company (guest = primary) must NOT flip the
+    // relationship and project the host's folders as inherited rows.
+    if (c.fromObjectId !== primaryObjectId) continue;
     const key = `${c.kind}::${sides.hostDocId || sides.hostNodeId}::${sides.guestDocId || sides.guestNodeId}`;
     if (seen.has(key)) continue;
     seen.add(key);

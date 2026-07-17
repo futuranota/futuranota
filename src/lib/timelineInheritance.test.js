@@ -186,4 +186,24 @@ describe("cross-family folder inheritance", () => {
     expect(projections.crossLinks.length).toBeGreaterThanOrEqual(1);
     expect(projections.alertTargets.some((a) => a.key.includes("fnFolder"))).toBe(true);
   });
+
+  it("does not flip inheritance when working inside the guest company", () => {
+    // Same wire (Home Depot → Futura Nota), but the guest is now primary:
+    // Futura Nota's own timeline must NOT show Home Depot folders as inherited.
+    const projections = buildGuestInheritanceProjections({
+      connections: [{ id: "c1", from: "cn-hd", to: "cn-fn" }],
+      canvasNodes,
+      docsById,
+      nodeEntitiesById: {},
+      objectsById,
+      primaryObjectId: "futura",
+      timelineDocQueue: ["hdFolder", "fnFolder"],
+      timelineDateNodeIds: ["cn-hd-launch"],
+    });
+
+    expect(projections.guestFolderMarkers).toHaveLength(0);
+    expect(projections.guestLaunchMarkers).toHaveLength(0);
+    expect(projections.crossLinks).toHaveLength(0);
+    expect(projections.alertTargets).toHaveLength(0);
+  });
 });
