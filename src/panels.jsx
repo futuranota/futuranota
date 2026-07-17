@@ -838,6 +838,8 @@ function IntelPanel({
 }) {
   const { t } = useI18n();
   const planProfile = usePlanStore((s) => s.profile);
+  const filterObjectId = useUIStateStore((s) => s.filterObjectId);
+  const activeCompanyObjectId = selectedObjectId || filterObjectId || null;
   const intelLocked = isIntelPanelLocked(planProfile);
   const tabOptions = useIntelTabOptions();
   const pluralS = (n) => (n === 1 ? "" : "s");
@@ -1033,7 +1035,7 @@ function IntelPanel({
           searchQuery={youtubeSearchQuery}
           parentDocId={intelParentDocId}
           blockIndex={intelBlockIndex}
-          companyObjectId={selectedObjectId}
+          companyObjectId={activeCompanyObjectId}
           onClose={handleYoutubePanelClose}
           onSlashCreateNode={onSlashCreateNode}
         />

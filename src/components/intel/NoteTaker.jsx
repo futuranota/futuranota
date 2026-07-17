@@ -76,6 +76,9 @@ export function NoteTaker({
   const updateNode = useNodesStore((s) => s.updateNode);
   const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
   const showToast = useUIStateStore((s) => s.showToast);
+  const activeCorpusObjectId = useUIStateStore(
+    (s) => s.selectedObjectId || s.filterObjectId || null,
+  );
 
   const [resolvedNodeId, setResolvedNodeId] = useState(nodeIdProp);
   const node = useNodesStore((s) => (resolvedNodeId ? s.nodes[resolvedNodeId] : null));
@@ -94,6 +97,7 @@ export function NoteTaker({
   const companyObjectId = companyObjectIdProp
     ?? parentDoc?.parentObjectId
     ?? nodeLinkedDoc?.parentObjectId
+    ?? activeCorpusObjectId
     ?? null;
 
   useEffect(() => {
@@ -268,6 +272,8 @@ export function NoteTaker({
       const dataType = linkedNode?.dataType || NODE_DATA_TYPES.TEXT;
       const nodeContent = buildNodeContentPayload(draftBody, dataType, linkedNode);
 
+      // Parentless YouTube/Intel notes belong in Independent Documents — need corpus objectId.
+      const corpusObjectId = companyObjectId || linkedNode?.objectId || null;
       const newId = addNode(
         nodeTitle,
         dataType,
@@ -276,6 +282,7 @@ export function NoteTaker({
         {
           sourceQuery: nodeTitle,
           sourceBlockId: linkedNode?.sourceBlockId || undefined,
+          objectId: corpusObjectId,
         },
       );
       setResolvedNodeId(newId);
@@ -289,6 +296,7 @@ export function NoteTaker({
       addNode,
       blockIndex,
       buildNodeContentPayload,
+      companyObjectId,
       createOrUpdateNodeFromDocBlock,
       parentDocId,
       resolveTargetNodeId,
@@ -357,14 +365,20 @@ export function NoteTaker({
           ? buildNodeContentPayload(draftBody, NODE_DATA_TYPES.VIDEO, liveNode)
           : contentPayload;
 
+        const parentId = liveNode.parentDocId || parentDocId || null;
+        const corpusObjectId = companyObjectId || liveNode.objectId || null;
+
         updateNode(targetNodeId, {
           content: nextContent,
           ...(parentDocId && !liveNode.parentDocId
             ? { parentDocId, linkedToDoc: true }
             : {}),
+          // Keep parentless notes scoped so they appear under Independent Documents.
+          ...(!parentId && corpusObjectId && liveNode.objectId !== corpusObjectId
+            ? { objectId: corpusObjectId }
+            : {}),
         });
 
-        const parentId = liveNode.parentDocId || parentDocId || null;
         if (parentId) {
           syncNodeToParentDoc(targetNodeId, parentId);
         }
@@ -374,7 +388,10 @@ export function NoteTaker({
           await wait(SAVE_MIN_MS - elapsed);
         }
 
-        showToast(parentId ? "Guardado en el documento" : "Guardado en NODES", "success");
+        showToast(
+          parentId ? "Guardado en el documento" : "Guardado en Independent Documents",
+          "success",
+        );
         if (closeAfter) onClose?.();
         return true;
       } catch {
@@ -386,6 +403,7 @@ export function NoteTaker({
     },
     [
       buildNodeContentPayload,
+      companyObjectId,
       createIntelNode,
       draftTitle,
       fixedTitle,

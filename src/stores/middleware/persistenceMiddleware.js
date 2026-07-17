@@ -12,7 +12,7 @@ const TOMBSTONE_LEDGER_KEY = "futura-nota-deleted-v1";
 /** Keep tombstones after remote SELECT says gone so a sibling tab cannot race-reupsert. */
 const TOMBSTONE_CLEAR_GRACE_MS = 15_000;
 
-/** Pack schedule + status meta into nodes.reference JSONB (no dedicated DB columns). */
+/** Pack schedule + status + corpus meta into nodes.reference JSONB (no dedicated DB columns). */
 function referenceWithNodeMeta(node) {
   const base = node?.reference && typeof node.reference === "object" ? { ...node.reference } : {};
   const anchorAt = node?.anchorAt || base.anchorAt || null;
@@ -25,6 +25,11 @@ function referenceWithNodeMeta(node) {
   const sourceId = node?.sourceId || null;
   if (sourceId) base.sourceId = sourceId;
   else delete base.sourceId;
+
+  // Independent Documents scope (parentless nodes) — no nodes.object_id column.
+  const objectId = node?.objectId || null;
+  if (objectId) base.objectId = objectId;
+  else delete base.objectId;
 
   return base;
 }
@@ -51,6 +56,14 @@ function sourceIdFromPersistedNode(node) {
   if (node.sourceId) return node.sourceId;
   const ref = node.reference;
   if (ref && typeof ref === "object" && ref.sourceId) return ref.sourceId;
+  return null;
+}
+
+function objectIdFromPersistedNode(node) {
+  if (!node) return null;
+  if (node.objectId) return node.objectId;
+  const ref = node.reference;
+  if (ref && typeof ref === "object" && ref.objectId) return ref.objectId;
   return null;
 }
 
@@ -1254,6 +1267,7 @@ export function initPersistenceMiddleware(stores) {
           anchorAt,
           completed: completedFromPersistedNode({ reference, completed: node.completed }),
           sourceId: sourceIdFromPersistedNode({ reference, sourceId: node.source_id }),
+          objectId: objectIdFromPersistedNode({ reference, objectId: node.object_id }),
           linkedToCanvas: node.linked_to_canvas || false,
           canvasNodeId: node.canvas_node_id || null,
           createdAt: node.created_at,
