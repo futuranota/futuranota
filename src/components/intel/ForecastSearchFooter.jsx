@@ -4,8 +4,10 @@ import {
   buildForecastNodePayload,
   buildForecastNodeTitle,
   fetchForecastForNode,
+  formatForecastUiDate,
   getForecastSearchGate,
   resolveActiveForecastNode,
+  resolveForecastTargetDate,
 } from "../../lib/forecastSearch.js";
 import {
   getWeatherLocationKey,
@@ -21,10 +23,9 @@ import {
 import { useForecastPanelStore } from "../../stores/forecastPanelStore.js";
 import { useWeatherLocationStore } from "../../stores/weatherLocationStore.js";
 import { ForecastConditionIcon, ForecastIconRain, ForecastIconWind } from "./ForecastIcons.jsx";
+import { SearchIcon } from "./CalendarEventCanvas.jsx";
 import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { usePlanStore } from "../../stores/planStore.js";
-
-const FORECAST_SEARCH_ICON = "/uploads/botones/search-active.svg";
 
 function TempPair({ high, low }) {
   return (
@@ -198,6 +199,8 @@ export function ForecastSearchFooter({
 
   const loading = status === "loading";
   const insertDisabled = !canUseWeatherAction;
+  const targetDate = activeNode ? resolveForecastTargetDate(activeNode).date : null;
+  const pillDate = targetDate ? formatForecastUiDate(targetDate) : "";
 
   return (
     <div className="forecast-search-footer">
@@ -205,8 +208,9 @@ export function ForecastSearchFooter({
         <button
           type="button"
           className={
-            "forecast-search-footer__btn"
+            "cal-event-canvas__search-pill forecast-search-footer__pill"
             + (loading ? " is-loading" : "")
+            + (pillDate ? " has-date" : "")
             + (canSearch ? "" : " is-disabled")
           }
           onClick={handleSearch}
@@ -219,7 +223,19 @@ export function ForecastSearchFooter({
           {loading ? (
             <SearchSpinner size={14} />
           ) : (
-            <img src={FORECAST_SEARCH_ICON} alt="" aria-hidden className="forecast-search-footer__icon" />
+            <>
+              <span
+                className={
+                  "cal-event-canvas__date tnum"
+                  + (pillDate ? "" : " cal-event-canvas__date--placeholder")
+                }
+              >
+                {pillDate || "month/day"}
+              </span>
+              {!pillDate ? (
+                <SearchIcon className="cal-event-canvas__search-icon" size={14} />
+              ) : null}
+            </>
           )}
         </button>
         {!result && hint ? (

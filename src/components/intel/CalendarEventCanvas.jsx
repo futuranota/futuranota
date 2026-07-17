@@ -20,7 +20,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 const CALENDAR_EVENT_ILLUSTRATION = "/uploads/botones/e-c.svg";
 const DEFAULT_RANGE_ID = "week";
 
-function SearchIcon({ className = "", size = 14 }) {
+export function SearchIcon({ className = "", size = 14 }) {
   return (
     <svg
       className={className}

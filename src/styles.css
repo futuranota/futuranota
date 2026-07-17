@@ -3369,37 +3369,9 @@ input:focus, textarea:focus, button:focus, select:focus { outline: none; }
   color: var(--text-2);
   opacity: 0.85;
 }
-.forecast-search-footer__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  line-height: 0;
-  opacity: 0.92;
-  transition: opacity 120ms ease, transform 120ms ease;
-}
-.forecast-search-footer__btn:hover:not(:disabled) {
-  opacity: 1;
-}
-.forecast-search-footer__btn.is-disabled,
-.forecast-search-footer__btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  transform: none;
-}
-.forecast-search-footer__btn.is-loading {
-  width: 57px;
-  height: 21px;
-  cursor: wait;
-}
-.forecast-search-footer__icon {
-  display: block;
-  width: 57px;
-  height: 21px;
+/* Forecast search pill reuses .cal-event-canvas__search-pill (same color/hover/placeholder as Calendar). */
+.forecast-search-footer__pill {
+  margin-top: 0;
 }
 .forecast-search-result {
   margin-top: 10px;
