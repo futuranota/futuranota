@@ -629,7 +629,7 @@ function TacticalObjectRow({
                           objectTint: accent,
                         };
                       const chipName = isTimeMarker
-                        ? (display.dateLabel || fmtDate(marker.date || group.date, "short"))
+                        ? (marker.title || "Launch").trim() || "Launch"
                         : isAgentSet
                           ? resolveAgentSetChipLabel(marker, t)
                           : isMacronodo
@@ -677,7 +677,9 @@ function TacticalObjectRow({
                           }
                           title={
                             isTimeMarker
-                              ? (marker.title || display.dateLabel || undefined)
+                              ? [marker.title || "Launch", display.dateLabel]
+                                .filter(Boolean)
+                                .join(" · ")
                               : display.dateLabel
                                 || (isAgentSet
                                   ? t("timeline.agentSetHint")

@@ -36,8 +36,10 @@ function resolveNormalizedScheduleFields(doc, base) {
   const launchAt = doc.launchAt ?? base.launchAt;
   if (!scheduleStartAt && launchAt) scheduleStartAt = launchAt;
   if (!scheduleFinishAt && scheduleStartAt) scheduleFinishAt = scheduleStartAt;
-  // Mirror launchAt ← start so older timeline resolvers keep working.
-  const mirroredLaunch = scheduleStartAt ?? launchAt ?? null;
+  // Launch is its own field — never clobber an explicit launchAt with the
+  // schedule reservation (that froze the Launch date node on stale dates).
+  // Only fill launchAt from start when the doc has no launch of its own.
+  const mirroredLaunch = launchAt ?? scheduleStartAt ?? null;
   return {
     scheduleStartAt,
     scheduleFinishAt,

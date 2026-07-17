@@ -1241,11 +1241,10 @@ export function initPersistenceMiddleware(stores) {
           version: docVersionFromDb(camp.version),
           category: camp.category || "",
           icon: typeof camp.icon === "string" ? camp.icon : "",
-          launchAt: camp.launch_at || camp.schedule_start_at || null,
-          scheduleStartAt: camp.schedule_start_at || camp.launch_at || null,
+          launchAt: camp.launch_at || null,
+          scheduleStartAt: camp.schedule_start_at || null,
           scheduleFinishAt: camp.schedule_finish_at
             || camp.schedule_start_at
-            || camp.launch_at
             || null,
           campaignActive: camp.campaign_active !== false,
           nodeLinkColor: camp.node_link_color || "mint",
@@ -1603,11 +1602,11 @@ export function initPersistenceMiddleware(stores) {
         // DB column is VARCHAR(50) — truncate so one long category cannot fail the whole upsert batch.
         category: String(doc.category || "").slice(0, 50),
         icon: typeof doc.icon === "string" && doc.icon.trim() ? doc.icon : null,
-        launch_at: doc.scheduleStartAt || doc.launchAt || null,
-        schedule_start_at: doc.scheduleStartAt || doc.launchAt || null,
+        // Keep Launch and Schedule as separate columns — never write schedule into launch_at.
+        launch_at: doc.launchAt || null,
+        schedule_start_at: doc.scheduleStartAt || null,
         schedule_finish_at: doc.scheduleFinishAt
           || doc.scheduleStartAt
-          || doc.launchAt
           || null,
         campaign_active: doc.campaignActive !== false,
         node_link_color: doc.nodeLinkColor || "mint",

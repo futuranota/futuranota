@@ -214,8 +214,10 @@ function buildDocPersistSnapshot({
   const normalizedBlocks = normalizeDocBlocks(blocks);
   const serializedBody = docBlocksToBody(normalizedBlocks) || body || "";
   const ids = Array.isArray(subcategoryDocIds) ? subcategoryDocIds : [];
-  const startAt = scheduleStartAt ?? launchAt ?? null;
-  const finishAt = scheduleFinishAt ?? startAt ?? null;
+  // Keep Launch and Schedule independent — callers decide what to pass.
+  const resolvedLaunchAt = launchAt ?? null;
+  const resolvedScheduleStart = scheduleStartAt ?? null;
+  const resolvedScheduleFinish = scheduleFinishAt ?? resolvedScheduleStart ?? null;
   return {
     title: title ?? "",
     blocks: normalizedBlocks,
@@ -224,9 +226,9 @@ function buildDocPersistSnapshot({
     version: String(version ?? "").trim(),
     category: String(category ?? "").trim(),
     icon: String(icon ?? "").trim(),
-    launchAt: startAt,
-    scheduleStartAt: startAt,
-    scheduleFinishAt: finishAt,
+    launchAt: resolvedLaunchAt,
+    scheduleStartAt: resolvedScheduleStart,
+    scheduleFinishAt: resolvedScheduleFinish,
     campaignActive: Boolean(campaignActive),
     parentObjectId: parentObjectId || "",
     nodeLinkColor: nodeLinkColor ?? "dark",
@@ -457,9 +459,7 @@ export function DocExpandedView({
       version: loadedVersion,
       category: loadedCategory,
       icon: loadedIcon,
-      launchAt: loadedScheduleStartDate
-        ? isoFromDateInput(loadedScheduleStartDate)
-        : (loadedLaunchDate ? isoFromDateInput(loadedLaunchDate) : null),
+      launchAt: loadedLaunchDate ? isoFromDateInput(loadedLaunchDate) : null,
       scheduleStartAt: loadedScheduleStartDate
         ? isoFromDateInput(loadedScheduleStartDate)
         : null,
@@ -686,8 +686,13 @@ export function DocExpandedView({
     const scheduleStartAt = draftScheduleStartDate
       ? isoFromDateInput(draftScheduleStartDate)
       : null;
-    const launchAt = scheduleStartAt
-      || (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null);
+    const launchFromField = draftLaunchDate
+      ? isoFromDateInput(draftLaunchDate)
+      : null;
+    // Campaign: Launch field only. Content folders: Schedule may mirror into launchAt.
+    const launchAt = draftCampaignActive
+      ? launchFromField
+      : (scheduleStartAt || launchFromField);
     useUIStateStore.getState().setActiveDocMetaDraft({
       docId,
       version: draftVersion,
@@ -714,9 +719,12 @@ export function DocExpandedView({
     draftParentId,
   ]);
 
-  const draftLaunchAt = draftScheduleStartDate
-    ? isoFromDateInput(draftScheduleStartDate)
-    : (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null);
+  // Campaign Launch ≠ Schedule. Never let a stale scheduleStartAt clobber launchAt.
+  const draftLaunchAt = draftCampaignActive
+    ? (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null)
+    : (draftScheduleStartDate
+      ? isoFromDateInput(draftScheduleStartDate)
+      : (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null));
   const draftScheduleStartAt = draftScheduleStartDate
     ? isoFromDateInput(draftScheduleStartDate)
     : null;

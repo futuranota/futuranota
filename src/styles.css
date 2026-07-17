@@ -6021,14 +6021,28 @@ textarea.note-form-field {
     0 0 0 1px color-mix(in oklab, var(--tl-macronodo) 18%, transparent);
   color: color-mix(in oklab, var(--tl-macronodo-bright) 70%, var(--text));
 }
+/* Date/Launch markers: same card silhouette as docs, #151515 base + calendar icon. */
 .tl-event-chip--card.is-time-marker {
   background: #151515;
-  border-radius: 999px;
-  border-left-color: color-mix(in oklab, var(--hud) 55%, transparent);
+  border-radius: 6px;
+  border-left-width: 3px;
+  border-left-color: color-mix(in oklab, var(--hud) 70%, transparent);
   padding-left: 2px;
 }
 .tl-event-chip--card.is-time-marker .tl-chip-card-body {
-  padding: 5px 10px 5px 2px;
+  padding: 5px 8px 5px 2px;
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact.is-time-marker {
+  background: #151515;
+  box-shadow:
+    0 1px 4px color-mix(in oklab, #000 18%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--hud) 22%, var(--glass-border));
+}
+.tl-tactical-rail .tl-event-chip--card.is-compact.is-time-marker:hover {
+  background: color-mix(in oklab, #151515 92%, var(--text) 8%);
+  box-shadow:
+    0 3px 10px color-mix(in oklab, #000 22%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--hud) 40%, var(--hairline));
 }
 .tl-event-chip--card.has-leading-icon {
   display: inline-flex;

@@ -800,18 +800,23 @@ useEffect(() => {
               normalizedDoc.subcategoryDocIds,
             ),
             contentCategory: normalizedDoc.category?.trim() || "",
-            launchAt: normalizedDoc.scheduleStartAt ?? normalizedDoc.launchAt ?? null,
-            scheduleStartAt: normalizedDoc.scheduleStartAt ?? normalizedDoc.launchAt ?? null,
+            launchAt: normalizedDoc.launchAt ?? null,
+            scheduleStartAt: normalizedDoc.scheduleStartAt ?? null,
             scheduleFinishAt: normalizedDoc.scheduleFinishAt
               ?? normalizedDoc.scheduleStartAt
-              ?? normalizedDoc.launchAt
               ?? null,
             campaignActive: Boolean(normalizedDoc.campaignActive),
           }
         : {}),
     });
 
-    setCanvasNodes((all) => [...all, docCanvasNode]);
+    // Sync immediately so the Launch date child node lands next to the folder
+    // (the docs-effect alone won't re-run on canvas inserts).
+    setCanvasNodes((all) => syncContentDocCanvasNodes(
+      [...all, docCanvasNode],
+      useDocsStore.getState().docs,
+      { expandedDocId, activeDocMetaDraft },
+    ));
     setSelection([docCanvasNode.id]);
     setToast({
       message: `Document placed · "${normalizedDoc.title}"`,
