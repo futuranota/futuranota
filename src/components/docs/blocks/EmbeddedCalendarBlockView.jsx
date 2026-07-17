@@ -1,5 +1,7 @@
 import { CalendarEventDisplay } from "../../intel/CalendarEventDisplay.jsx";
 
+const DELETE_ICON = "/uploads/delete.svg";
+
 export function EmbeddedCalendarBlockView({
   displayModel,
   onRemove,
@@ -13,15 +15,15 @@ export function EmbeddedCalendarBlockView({
         <CalendarEventDisplay model={displayModel} className="doc-embedded-calendar__body" />
       </div>
       {onRemove ? (
-        <div className="doc-embedded-calendar__actions">
-          <button
-            type="button"
-            className="doc-embedded-calendar__remove btn xs ghost"
-            onClick={onRemove}
-          >
-            {removeLabel}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="doc-embedded-calendar__remove-corner"
+          onClick={onRemove}
+          title={removeLabel}
+          aria-label={removeLabel}
+        >
+          <img src={DELETE_ICON} alt="" aria-hidden className="doc-embedded-calendar__remove-icon" />
+        </button>
       ) : null}
     </div>
   );

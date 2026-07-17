@@ -97,8 +97,10 @@ import { useScheduledTasksStore } from './stores/scheduledTasksStore.js';
 import { initialNodeShapeFromSlash } from './lib/docBlockSlash.js';
 import { mergeVideoNodeContent } from './lib/videoEmbed.js';
 import { parseWeatherForecastNodeContent } from './lib/forecastSearch.js';
+import { parseCalendarEventNodeContent } from './lib/eventCalendarSearch.js';
 import {
   appendIntelWidgetToNodeContent,
+  buildCalendarEmbeddedFromPayload,
   buildForecastEmbeddedFromPayload,
   nodeContentAcceptsIntelWidget,
 } from './lib/nodeIntelWidget.js';
@@ -617,7 +619,7 @@ useEffect(() => {
     if (created) insertNodeToCanvas(created, { center: true });
   };
 
-  /* Connect a macronode with a forecast node on canvas → paste the widget instance
+  /* Connect a macronode with a forecast/calendar node on canvas → paste the widget
      into the macronode body (writing tail stays editable below the widget). */
   const handleCanvasConnectionCreated = (fromId, toId) => {
     const nodesById = useNodesStore.getState().nodes;
@@ -627,35 +629,48 @@ useEffect(() => {
     if (endpoints.length !== 2) return;
 
     const resolveEntity = (cn) => (cn?.noteId ? nodesById[cn.noteId] : null);
-    const forecastEnd = endpoints.find((cn) => Boolean(
-      parseWeatherForecastNodeContent(resolveEntity(cn)?.content ?? cn?.content),
-    ));
-    if (!forecastEnd) return;
+    const resolveWidget = (cn) => {
+      const content = resolveEntity(cn)?.content ?? cn?.content;
+      const forecast = parseWeatherForecastNodeContent(content);
+      if (forecast) return { kind: "weather-forecast", payload: forecast, end: cn };
+      const calendar = parseCalendarEventNodeContent(content);
+      if (calendar) return { kind: "calendar-event", payload: calendar, end: cn };
+      return null;
+    };
 
-    const targetEnd = endpoints.find((cn) => cn !== forecastEnd);
+    const widget = endpoints.map(resolveWidget).find(Boolean);
+    if (!widget) return;
+
+    const targetEnd = endpoints.find((cn) => cn !== widget.end);
     const targetEntity = resolveEntity(targetEnd);
     if (!targetEntity) return;
     if (["document", "object", "agent"].includes(targetEnd.canvasKind)) return;
     // Only macronodes (text writing bodies) — date/metric content has its own semantics.
     if (targetEntity.dataType && targetEntity.dataType !== "text") return;
     if (parseWeatherForecastNodeContent(targetEntity.content)) return;
+    if (parseCalendarEventNodeContent(targetEntity.content)) return;
     if (!nodeContentAcceptsIntelWidget(targetEntity.content)) return;
 
-    const payload = parseWeatherForecastNodeContent(
-      resolveEntity(forecastEnd)?.content ?? forecastEnd.content,
-    );
-    if (!payload) return;
+    const { payload, kind: widgetKind } = widget;
 
-    // Dedupe: same forecast instance already pasted into this macronode.
+    // Dedupe: same widget instance already pasted into this macronode.
     const { blocks } = parseNodeWritingBody(targetEntity.content);
-    const alreadyEmbedded = blocks.some((block) => (
-      block?.embedded?.kind === "weather-forecast"
-      && block.embedded.payload?.fetchedAt === payload.fetchedAt
-      && block.embedded.payload?.uiDate === payload.uiDate
-    ));
+    const alreadyEmbedded = widgetKind === "weather-forecast"
+      ? blocks.some((block) => (
+        block?.embedded?.kind === "weather-forecast"
+        && block.embedded.payload?.fetchedAt === payload.fetchedAt
+        && block.embedded.payload?.uiDate === payload.uiDate
+      ))
+      : blocks.some((block) => (
+        block?.embedded?.kind === "calendar-event"
+        && block.embedded.eventId === payload.eventId
+        && block.embedded.uiDate === payload.uiDate
+      ));
     if (alreadyEmbedded) return;
 
-    const embedded = buildForecastEmbeddedFromPayload(payload);
+    const embedded = widgetKind === "weather-forecast"
+      ? buildForecastEmbeddedFromPayload(payload)
+      : buildCalendarEmbeddedFromPayload(payload);
     if (!embedded) return;
     const result = appendIntelWidgetToNodeContent(targetEntity.content, embedded);
     if (!result) return;
@@ -669,7 +684,9 @@ useEffect(() => {
       }
     }
     setToast({
-      message: `Forecast pasted into "${targetEntity.title || targetEnd.title || "node"}"`,
+      message: widgetKind === "weather-forecast"
+        ? `Forecast pasted into "${targetEntity.title || targetEnd.title || "node"}"`
+        : `Calendar event pasted into "${targetEntity.title || targetEnd.title || "node"}"`,
       kind: "ok",
     });
   };

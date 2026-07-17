@@ -27,6 +27,9 @@ export function buildCalendarEmbeddedFromPayload(payload) {
   return {
     kind: "calendar-event",
     displayModel,
+    // Kept for canvas-connection dedupe (same event + date already pasted).
+    eventId: payload.eventId || null,
+    uiDate: payload.uiDate || null,
   };
 }
 

@@ -2524,10 +2524,12 @@ textarea.field {
   color: var(--mute);
 }
 
-.doc-embedded-forecast {
+.doc-embedded-forecast,
+.doc-embedded-calendar {
   position: relative;
 }
-.doc-embedded-forecast__remove-corner {
+.doc-embedded-forecast__remove-corner,
+.doc-embedded-calendar__remove-corner {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -2546,14 +2548,18 @@ textarea.field {
   transition: opacity 120ms ease, background 120ms ease, transform 120ms ease;
 }
 .doc-embedded-forecast:hover .doc-embedded-forecast__remove-corner,
-.doc-embedded-forecast__remove-corner:focus-visible {
+.doc-embedded-forecast__remove-corner:focus-visible,
+.doc-embedded-calendar:hover .doc-embedded-calendar__remove-corner,
+.doc-embedded-calendar__remove-corner:focus-visible {
   opacity: 1;
 }
-.doc-embedded-forecast__remove-corner:hover {
+.doc-embedded-forecast__remove-corner:hover,
+.doc-embedded-calendar__remove-corner:hover {
   background: rgba(230, 57, 70, 0.28);
   transform: scale(1.06);
 }
-.doc-embedded-forecast__remove-icon {
+.doc-embedded-forecast__remove-icon,
+.doc-embedded-calendar__remove-icon {
   display: block;
   width: 28px;
   height: 28px;
