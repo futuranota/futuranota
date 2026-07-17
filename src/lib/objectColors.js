@@ -141,6 +141,10 @@ export function resolveCanvasNodeObjectId(node, docsById = {}, nodeEntitiesById 
     const doc = docsById[node.docId || node.noteId];
     return doc?.parentObjectId || null;
   }
+  // Launch / canvas child dates are parented to a folder doc.
+  if (node.parentDocId && docsById[node.parentDocId]) {
+    return docsById[node.parentDocId].parentObjectId || null;
+  }
   if (node.noteId && nodeEntitiesById[node.noteId]) {
     const entity = nodeEntitiesById[node.noteId];
     const doc = entity.parentDocId ? docsById[entity.parentDocId] : null;

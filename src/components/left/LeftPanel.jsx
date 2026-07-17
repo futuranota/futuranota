@@ -1725,7 +1725,10 @@ export function LeftPanel({
   );
 
   const filteredContentDocs = useMemo(
-    () => contentDocs.filter((doc) => contentDocMatchesProductFilter(doc, docs, contentProductFilter)),
+    () => contentDocs.filter((doc) => (
+      !doc.campaignActive
+      && contentDocMatchesProductFilter(doc, docs, contentProductFilter)
+    )),
     [contentDocs, docs, contentProductFilter],
   );
 
@@ -2664,6 +2667,45 @@ export function LeftPanel({
                     onBack={() => setClickFolderView(null)}
                     label={t("sidebar.campaign")}
                   />
+                  <div className="lp-folder-density" role="group" aria-label={t("sidebar.folderDensityLabel")}>
+                    <button
+                      type="button"
+                      className={
+                        "lp-folder-density__btn lp-folder-select-btn"
+                        + (folderBulkDeleteMode ? " is-active" : "")
+                      }
+                      onClick={toggleFolderBulkDeleteMode}
+                      title={
+                        folderBulkDeleteMode
+                          ? t("sidebar.folderSelectDeleteActive")
+                          : t("sidebar.folderSelectDeleteTitle")
+                      }
+                      aria-label={t("sidebar.folderSelectDeleteTitle")}
+                      aria-pressed={folderBulkDeleteMode}
+                    >
+                      {t("sidebar.folderSelectDelete")}
+                    </button>
+                    <button
+                      type="button"
+                      className="lp-folder-density__btn"
+                      onClick={densifyFolderList}
+                      disabled={folderDensity === "compact"}
+                      title={t("sidebar.folderDensityZoomOut")}
+                      aria-label={t("sidebar.folderDensityZoomOut")}
+                    >
+                      −
+                    </button>
+                    <button
+                      type="button"
+                      className="lp-folder-density__btn"
+                      onClick={expandFolderList}
+                      disabled={folderDensity === "comfortable"}
+                      title={t("sidebar.folderDensityZoomIn")}
+                      aria-label={t("sidebar.folderDensityZoomIn")}
+                    >
+                      +
+                    </button>
+                  </div>
                   <PackActionsBar
                     placement="documents"
                     companySelected={Boolean(filterObjectId || activeObjectId)}
@@ -2681,6 +2723,30 @@ export function LeftPanel({
                     onFilterChange={setProductCategoryFilter}
                   />
                 </div>
+                {folderBulkDeleteMode ? (
+                  <div className="lp-folder-bulk-bar" role="status">
+                    <span className="lp-folder-bulk-bar__count">
+                      {t("sidebar.folderSelectDeleteCount", { count: selectedFolderIds.length })}
+                    </span>
+                    <div className="lp-folder-bulk-bar__actions">
+                      <button
+                        type="button"
+                        className="btn xs ghost"
+                        onClick={exitFolderBulkDeleteMode}
+                      >
+                        {t("sidebar.folderSelectDeleteDone")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn xs lp-folder-bulk-bar__delete"
+                        disabled={selectedFolderIds.length === 0}
+                        onClick={handleDeleteSelectedFolders}
+                      >
+                        {t("sidebar.folderSelectDeleteAction")}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <TimelineDocQueue
                   entries={timelineQueueEntries}
                   docs={docs}
@@ -2690,7 +2756,13 @@ export function LeftPanel({
                   onOpenDocument={onOpenDocument}
                   onDeleteDoc={handleDeleteDoc}
                 />
-                <div className="lp-click-folder-detail-list lp-doc-nodes-stack">
+                <div
+                  className={
+                    "lp-click-folder-detail-list lp-doc-nodes-stack"
+                    + (folderDensity === "compact" ? " lp-doc-nodes-stack--compact" : "")
+                    + (folderBulkDeleteMode ? " lp-doc-nodes-stack--selecting" : "")
+                  }
+                >
                   {filteredCampaignDocs.length ? (
                     filteredCampaignDocs.map((doc) => (
                       <DocNodesBlockCard
@@ -2699,6 +2771,9 @@ export function LeftPanel({
                         nodes={nodesByDocId.get(doc.id) || []}
                         objects={objects}
                         showWhenEmpty
+                        selectMode={folderBulkDeleteMode}
+                        selected={selectedFolderIds.includes(doc.id)}
+                        onToggleSelect={toggleFolderSelect}
                         onOpenDoc={() => handleOpenFolderDoc(doc.id)}
                         onCreateDocument={() => openCreateDocument(doc)}
                         onDeleteBox={() => handleDeleteDoc(doc)}

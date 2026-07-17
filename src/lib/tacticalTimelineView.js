@@ -38,6 +38,10 @@ import {
   buildChildMarkersForDoc,
   isFolderTimelineCompleted,
 } from "./timelineDocSnapshot.js";
+import {
+  collectFolderLinkedDateMarkers,
+  resolveCampaignFolderCreatedDate,
+} from "./campaignTimelineRail.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
 const DOC_WIRE_DIMENSION_KINDS = new Set([
@@ -940,6 +944,10 @@ export function resolveDocTimelineDate(
   meta,
 ) {
   const doc = docsById[docId];
+  // Campaign folders: Created positions the chip; Launch lives on the date node.
+  const campaignCreated = resolveCampaignFolderCreatedDate(doc);
+  if (campaignCreated) return campaignCreated;
+
   // Priority: Launch/block Schedule → linked node Schedule → canvas → createdAt.
   const explicit = resolveExplicitDocScheduleDate(doc);
   if (explicit) return explicit;
@@ -977,6 +985,7 @@ export function buildTacticalObjectRows(params) {
   timelineDocSnapshotsByDocId = {},
   timelineExcludedChildrenByDocId = {},
   timelineAgentSets = [],
+  timelineDateNodeIds = [],
   expandedDocIds = [],
     today = new Date(),
     filterObjectId = null,
@@ -1020,6 +1029,11 @@ export function buildTacticalObjectRows(params) {
   for (const agentSet of timelineAgentSets) {
     addObjectId(agentSet.objectId);
   }
+  for (const dateNodeId of timelineDateNodeIds) {
+    const node = canvasNodes.find((n) => n.id === dateNodeId);
+    if (!node?.parentDocId) continue;
+    addObjectId(docsById[node.parentDocId]?.parentObjectId);
+  }
   for (const ch of chains) addObjectId(ch.objectId);
 
   const chainByObjectId = new Map();
@@ -1047,7 +1061,9 @@ export function buildTacticalObjectRows(params) {
         const node = nodeById.get(nodeId);
         if (!isDocumentNode(node, item)) continue;
         const docId = node?.docId || node?.noteId || item?.docId;
-        const fullDate = (docId ? resolveExplicitDocScheduleDate(docsById[docId]) : null)
+        const campaignCreated = docId ? resolveCampaignFolderCreatedDate(docsById[docId]) : null;
+        const fullDate = campaignCreated
+          || (docId ? resolveExplicitDocScheduleDate(docsById[docId]) : null)
           || resolveNodeAnchorDate(node || item, meta)
           || (docId ? resolveDocScheduleDate(docsById[docId], nodeEntitiesById) : null)
           || wireAnchors.get(nodeId)
@@ -1072,14 +1088,15 @@ export function buildTacticalObjectRows(params) {
         (n) => (n.docId || n.noteId) === docId && isDocumentNode(n),
       );
       if (canvasDoc && markerByKey.has(canvasDoc.id)) continue;
-      const date = resolveQueuedDocTimelineDate(
-        docId,
-        canvasNodes,
-        wireAnchors,
-        docsById,
-        meta,
-        snap,
-      );
+      const date = resolveCampaignFolderCreatedDate(docsById[docId])
+        || resolveQueuedDocTimelineDate(
+          docId,
+          canvasNodes,
+          wireAnchors,
+          docsById,
+          meta,
+          snap,
+        );
       if (!date) continue;
       const key = canvasDoc?.id || `virtual-${docId}`;
       markerByKey.set(key, {
@@ -1110,6 +1127,16 @@ export function buildTacticalObjectRows(params) {
         setTitle: agentSet.title,
         virtual: true,
       });
+    }
+
+    for (const dateMarker of collectFolderLinkedDateMarkers({
+      objectId,
+      canvasNodes,
+      docsById,
+      nodeEntitiesById,
+      allowedDateNodeIds: timelineDateNodeIds,
+    })) {
+      markerByKey.set(dateMarker.nodeId, dateMarker);
     }
 
     const docMarkers = [...markerByKey.values()];

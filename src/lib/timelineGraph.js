@@ -450,6 +450,11 @@ export function listChildCanvasNodeIdsForDoc(docId, canvasNodes, nodeEntitiesByI
   if (!docId) return [];
   return canvasNodes
     .filter((n) => {
+      // Folder chip itself — never a child of its own expand row.
+      if (n.canvasKind === "document" || n.dataType === "document") return false;
+      // Launch / date markers live on the parent rail, not in the children row.
+      if (n.dataType === "date" || n.canvasKind === "launch") return false;
+      if (n.parentDocId === docId) return true;
       if (!n.noteId) return false;
       return nodeEntitiesById[n.noteId]?.parentDocId === docId;
     })

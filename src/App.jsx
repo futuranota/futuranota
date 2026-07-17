@@ -89,6 +89,7 @@ import {
 import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { resolveCanvasNodeObjectId } from './lib/objectColors.js';
+import { isTimelineDateCanvasNode } from './lib/campaignTimelineRail.js';
 import { isContentDoc, isKnowledgeDoc, resolveLinkedProductCategories } from './lib/templateDoc.js';
 import { AGENT_CAMPAIGN_ANALYST, getAgentCanvasTitle } from './lib/agents/registry.js';
 import { executeAgentRun } from './lib/agents/executeAgentRun.js';
@@ -233,6 +234,7 @@ function Dashboard({ company, onBack }) {
   const toggleTimelineQueueMode = useTimelineStore((s) => s.toggleTimelineQueueMode);
   const enqueueTimelineDocsFromCanvasNodes = useTimelineStore((s) => s.enqueueTimelineDocsFromCanvasNodes);
   const timelineDocQueue = useTimelineStore((s) => s.timelineDocQueue);
+  const timelineDateNodeIds = useTimelineStore((s) => s.timelineDateNodeIds);
   const timelineDocSnapshotsByDocId = useTimelineStore((s) => s.timelineDocSnapshotsByDocId);
   const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
   const knowledgeFolderActive = useUIStateStore((s) => s.knowledgeFolderActive);
@@ -269,6 +271,17 @@ function Dashboard({ company, onBack }) {
         setSelectedObjectId(doc.parentObjectId);
       }
       if (!timelineQueueMode) return true;
+      // Date/launch markers can be selected even when their parent folder is already queued.
+      if (isTimelineDateCanvasNode(node)) {
+        if (timelineDateNodeIds.includes(node.id)) {
+          setToast({
+            message: "Date is already on the timeline",
+            kind: "warm",
+          });
+          return false;
+        }
+        return true;
+      }
       if (docId && timelineDocQueue.includes(docId)) {
         setToast({
           message: `"${doc?.title || "Document"}" is already on the timeline`,
@@ -284,6 +297,7 @@ function Dashboard({ company, onBack }) {
       nodeEntities,
       docs,
       timelineDocQueue,
+      timelineDateNodeIds,
       setFilterObjectId,
       setSelectedObjectId,
     ],
@@ -326,6 +340,9 @@ function Dashboard({ company, onBack }) {
     }
     if (result.setsAdded > 0) {
       parts.push(`${result.setsAdded} set${result.setsAdded === 1 ? "" : "s"}`);
+    }
+    if (result.datesAdded > 0) {
+      parts.push(`${result.datesAdded} date${result.datesAdded === 1 ? "" : "s"}`);
     }
     setToast({
       message: parts.length

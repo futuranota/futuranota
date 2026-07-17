@@ -63,6 +63,13 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Campaign folders = regular folders + Created date (2026-07-17)** — Sección Campaign:
+
+1. Expand de hijos (macronodos) igual que folders de Content (panel + timeline child rows; `parentDocId` canvas children; density/bulk select en Campaign).
+2. Al insertar el folder Campaign al timeline, la fecha del chip es **`createdAt`** (no `launchAt`). El campo Launch se mantiene; Launch va en el date node.
+
+Archivos: `LeftPanel.jsx`, `timelineGraph.js`, `timelineDocSnapshot.js`, `tacticalTimelineView.js`, `campaignTimelineRail.js`.
+
 **Document expand width 980px (2026-07-13)** — Al expandir un documento (ex-macronodo), objetivo final 980px; verificación en **920px** (mismo footprint que folder).
 
 - Runtime: toggle `contentFocusMode` sí dispara (logs hyp A); `embedded=false`.

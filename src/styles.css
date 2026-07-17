@@ -6021,6 +6021,33 @@ textarea.note-form-field {
     0 0 0 1px color-mix(in oklab, var(--tl-macronodo) 18%, transparent);
   color: color-mix(in oklab, var(--tl-macronodo-bright) 70%, var(--text));
 }
+.tl-event-chip--card.is-time-marker {
+  background: #151515;
+  border-radius: 999px;
+  border-left-color: color-mix(in oklab, var(--hud) 55%, transparent);
+  padding-left: 2px;
+}
+.tl-event-chip--card.is-time-marker .tl-chip-card-body {
+  padding: 5px 10px 5px 2px;
+}
+.tl-event-chip--card.has-leading-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.tl-chip-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  color: color-mix(in oklab, var(--hud) 80%, var(--text));
+}
+.tl-chip-calendar-icon {
+  display: block;
+}
 @keyframes tl-agent-set-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.72; }

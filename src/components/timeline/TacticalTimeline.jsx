@@ -23,7 +23,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 import { useTimelineStore } from "../../stores/index.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { unlockTimelineReminderSound } from "../../lib/timelineReminderSound.js";
-import { TimelineEventChip } from "./TimelineEventChip.jsx";
+import { TimelineEventChip, TimelineCalendarIcon } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
 
 function resolveFamilyAccent(objectId, objectsById, fallbackColor) {
@@ -601,22 +601,26 @@ function TacticalObjectRow({
                         ? nodeEntitiesById[marker.entityId]
                         : null;
                       const isAgentSet = marker.dataType === "agent-set";
+                      const isTimeMarker = Boolean(marker.timeMarker);
                       const isMacronodo = Boolean(
                         marker.dataType
                         && marker.dataType !== "document"
-                        && !isAgentSet,
+                        && !isAgentSet
+                        && !isTimeMarker,
                       );
                       const schedule = resolveTimelineScheduleStatus(
                         marker.date || group.date,
                         today,
                         { completed: resolveMarkerCompleted(marker, nodeEntitiesById, docsById) },
                       );
-                      const isPastDue = schedule.kind === "past-due";
-                      const isPending = schedule.kind === "pending";
-                      const isCompleted = schedule.kind === "completed";
-                      const fallbackName = isMacronodo
-                        ? (entity?.title || entity?.name || marker.dataType).trim()
-                        : (docsById[marker.docId]?.title || "Document").trim();
+                      const isPastDue = !isTimeMarker && schedule.kind === "past-due";
+                      const isPending = !isTimeMarker && schedule.kind === "pending";
+                      const isCompleted = !isTimeMarker && schedule.kind === "completed";
+                      const fallbackName = isTimeMarker
+                        ? (marker.title || "Date").trim()
+                        : isMacronodo
+                          ? (entity?.title || entity?.name || marker.dataType).trim()
+                          : (docsById[marker.docId]?.title || "Document").trim();
                       const display = item
                         ? buildChipDisplay(item, trackObject, meta, chipExtras)
                         : {
@@ -624,22 +628,27 @@ function TacticalObjectRow({
                           dateLabel: fmtDate(marker.date, "short"),
                           objectTint: accent,
                         };
-                      const chipName = isAgentSet
-                        ? resolveAgentSetChipLabel(marker, t)
-                        : isMacronodo
-                          ? `${display.name} · ${marker.dataType}`
-                          : display.name;
+                      const chipName = isTimeMarker
+                        ? (display.dateLabel || fmtDate(marker.date || group.date, "short"))
+                        : isAgentSet
+                          ? resolveAgentSetChipLabel(marker, t)
+                          : isMacronodo
+                            ? `${display.name} · ${marker.dataType}`
+                            : display.name;
                       // Gap between same-day nodes owns "sched Xm (past due)" — chips stay clean.
                       const chipLabel = chipName;
                       const dataAnchor = isAgentSet
                         ? `set-${marker.agentSetId}`
-                        : marker.dataType === "document" && marker.docId
-                          ? `doc-${marker.docId}`
-                          : `node-${marker.nodeId}`;
+                        : isTimeMarker
+                          ? `date-${marker.nodeId}`
+                          : marker.dataType === "document" && marker.docId
+                            ? `doc-${marker.docId}`
+                            : `node-${marker.nodeId}`;
                       const isQueuedDoc = marker.dataType === "document"
                         && marker.docId
                         && queuedDocIds?.has(marker.docId);
-                      const canRemove = isAgentSet
+                      const canRemove = isTimeMarker
+                        || isAgentSet
                         || isQueuedDoc
                         || (isMacronodo && marker.childKey);
                       const macronodoGreen = "#86A296";
@@ -650,6 +659,7 @@ function TacticalObjectRow({
                           variant="card"
                           compact
                           name={chipLabel}
+                          leadingIcon={isTimeMarker ? <TimelineCalendarIcon /> : null}
                           familyAccent={isMacronodo ? macronodoGreen : familyAccent}
                           objectTint={isMacronodo ? macronodoGreen : (display.objectTint || accent)}
                           focused={focusedNoteId === (item?.noteId || marker.nodeId)}
@@ -657,6 +667,7 @@ function TacticalObjectRow({
                           statusBadge={isAgentSet ? (marker.setStatus || "pending") : null}
                           className={
                             [
+                              isTimeMarker ? "is-time-marker" : "",
                               isAgentSet ? resolveAgentSetChipClass(marker) : "",
                               isMacronodo ? "is-macronodo" : "",
                               isPastDue ? "is-past-due" : "",
@@ -665,14 +676,16 @@ function TacticalObjectRow({
                             ].filter(Boolean).join(" ")
                           }
                           title={
-                            display.dateLabel
-                              || (isAgentSet
-                                ? t("timeline.agentSetHint")
-                                : marker.dataType === "document"
-                                  ? t("timeline.docChipHint")
-                                  : marker.docId
-                                    ? t("timeline.childChipHint")
-                                    : undefined)
+                            isTimeMarker
+                              ? (marker.title || display.dateLabel || undefined)
+                              : display.dateLabel
+                                || (isAgentSet
+                                  ? t("timeline.agentSetHint")
+                                  : marker.dataType === "document"
+                                    ? t("timeline.docChipHint")
+                                    : marker.docId
+                                      ? t("timeline.childChipHint")
+                                      : undefined)
                           }
                           onClick={() => onChipClick(marker, row)}
                           onDoubleClick={() => onChipDoubleClick(marker, row)}
@@ -774,6 +787,7 @@ export function TacticalTimeline({
   const timelineDocSnapshotsByDocId = useTimelineStore((s) => s.timelineDocSnapshotsByDocId);
   const timelineExcludedChildrenByDocId = useTimelineStore((s) => s.timelineExcludedChildrenByDocId);
   const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
+  const timelineDateNodeIds = useTimelineStore((s) => s.timelineDateNodeIds);
   const timelineSheet = useUIStateStore((s) => s.timelineSheet);
   const toggleTimelineSheet = useUIStateStore((s) => s.toggleTimelineSheet);
   const isSheetExpanded = timelineSheet === "expanded";
@@ -785,6 +799,7 @@ export function TacticalTimeline({
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const removeTimelineChildFromQueue = useTimelineStore((s) => s.removeTimelineChildFromQueue);
   const removeTimelineAgentSet = useTimelineStore((s) => s.removeTimelineAgentSet);
+  const removeTimelineDateNode = useTimelineStore((s) => s.removeTimelineDateNode);
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
   const toggleTimelineAlertsEnabled = useTimelineStore((s) => s.toggleTimelineAlertsEnabled);
   const tacticalRangeOverride = useTimelineStore((s) => s.tacticalRangeOverride);
@@ -832,6 +847,7 @@ export function TacticalTimeline({
       timelineDocSnapshotsByDocId,
       timelineExcludedChildrenByDocId,
       timelineAgentSets,
+      timelineDateNodeIds,
       expandedDocIds,
       today: now,
       filterObjectId,
@@ -852,6 +868,7 @@ export function TacticalTimeline({
       timelineDocSnapshotsByDocId,
       timelineExcludedChildrenByDocId,
       timelineAgentSets,
+      timelineDateNodeIds,
       expandedDocIds,
       now,
       filterObjectId,
@@ -873,7 +890,9 @@ export function TacticalTimeline({
     [displayRows, expandedDocIds],
   );
   const rangeDrag = useTacticalRangeDrag(grid);
-  const hasQueue = timelineDocQueue.length > 0 || timelineAgentSets.length > 0;
+  const hasQueue = timelineDocQueue.length > 0
+    || timelineAgentSets.length > 0
+    || timelineDateNodeIds.length > 0;
   // All companies (no filter) stays private — only show row data for a selected company.
   const companySelected = Boolean(filterObjectId);
   const showTimelineData = hasQueue && companySelected;
@@ -905,6 +924,16 @@ export function TacticalTimeline({
   /** Parent doc chip = folder: toggle children. Macronode = open node modal (not whole doc). */
   const runChipClick = (marker, row) => {
     const docId = marker.docId || null;
+
+    if (marker.timeMarker) {
+      setTimelineFocus({
+        level: "doc",
+        objectId: row.objectId,
+        docId,
+        canvasNodeId: marker.virtual ? null : marker.nodeId,
+      });
+      return;
+    }
 
     if (marker.dataType === "document" && docId) {
       const willExpand = !expandedDocIds.includes(docId);
@@ -958,6 +987,10 @@ export function TacticalTimeline({
   };
 
   const handleChipRemove = (marker) => {
+    if (marker.timeMarker && marker.nodeId) {
+      removeTimelineDateNode(marker.nodeId);
+      return;
+    }
     if (marker.dataType === "agent-set" && marker.agentSetId) {
       removeTimelineAgentSet(marker.agentSetId);
       return;

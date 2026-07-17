@@ -1,5 +1,6 @@
 import { resolveNodeAnchorDate, parseDate } from "../temporal.js";
 import { listChildCanvasNodeIdsForDoc } from "./timelineGraph.js";
+import { resolveCampaignFolderCreatedDate } from "./campaignTimelineRail.js";
 import {
   resolveDocScheduleDate,
   resolveExplicitDocScheduleDate,
@@ -18,6 +19,10 @@ function resolveDocTimelineDateLocal(
   meta,
 ) {
   const doc = docsById[docId];
+  // Campaign folders: Created positions the chip; Launch lives on the date node.
+  const campaignCreated = resolveCampaignFolderCreatedDate(doc);
+  if (campaignCreated) return campaignCreated;
+
   // Priority: Launch/block Schedule → linked node Schedule → canvas → createdAt.
   const explicit = resolveExplicitDocScheduleDate(doc);
   if (explicit) return explicit;
@@ -43,9 +48,10 @@ function childSnapshotKey(entityId, canvasNodeId) {
 
 /**
  * Resolve a timeline date for a folder child entity (store node).
- * Explicit Schedule only (`anchorAt` / date content) — never createdAt or the
- * parent folder reservation. Those fallbacks flood the rail with "ghost" chips
- * for unlinked / unscheduled panel members (especially after orphan-keep).
+ * Prefer Schedule (`anchorAt` / date content). If still parented to a folder
+ * (`parentDocId`) but missing Schedule, fall back to `createdAt` so expand
+ * shows linked docs (campaign + regular). Never use createdAt for orphan-kept
+ * ghosts (`parentDocId` wiped) — those used to flood the child rail.
  */
 function resolveLinkedFileTimelineDate(entityId, entity, _meta = {}) {
   if (!entityId || !entity) return null;
@@ -56,6 +62,10 @@ function resolveLinkedFileTimelineDate(entityId, entity, _meta = {}) {
       ? entity.content.date
       : entity.content;
     return parseDate(raw);
+  }
+  // Still a member of a folder — Created is enough to place the expand chip.
+  if (entity.parentDocId) {
+    return parseDate(entity.createdAt) || null;
   }
   return null;
 }
@@ -177,6 +187,8 @@ export function captureTimelineDocSnapshot(
   for (const entityId of listLinkedFileEntityIds(docId, docsById, nodeEntitiesById)) {
     const entity = nodeEntitiesById[entityId];
     if (!entity) continue;
+    // Date entities are rail markers, not expand children.
+    if (entity.dataType === "date") continue;
     const raw = resolveLinkedFileTimelineDate(entityId, entity, meta);
     if (!raw) continue;
     pushChild({
@@ -270,7 +282,7 @@ export function buildChildMarkersForDoc(
     const key = childSnapshotKey(entityId, null);
     if (!key || excluded.has(key) || markersByKey.has(key)) continue;
     const entity = nodeEntitiesById[entityId];
-    if (!entity) continue;
+    if (!entity || entity.dataType === "date") continue;
     const raw = resolveLinkedFileTimelineDate(entityId, entity, meta);
     if (!raw) continue;
     markersByKey.set(key, {
@@ -281,7 +293,7 @@ export function buildChildMarkersForDoc(
       entityId,
       childKey: key,
       fromStore: true,
-      completed: Boolean(entity?.completed),
+      completed: Boolean(entity.completed),
     });
   }
 

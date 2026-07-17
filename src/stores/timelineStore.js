@@ -3,6 +3,10 @@ import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 import { resolveCanvasNodeObjectId } from "../lib/objectColors.js";
 import {
+  isTimelineDateCanvasNode,
+  resolveTimelineDateNodeDate,
+} from "../lib/campaignTimelineRail.js";
+import {
   pushDocToTimelineQueue,
   resolveHeadlineBlockIdForCanvasNode,
   resolveParentDocIdForCanvasNode,
@@ -50,6 +54,8 @@ export const useTimelineStore = create(
       timelineExcludedChildrenByDocId: {},
       /** Scheduled agent triggers pinned to timeline (Set / Ready chips). */
       timelineAgentSets: [],
+      /** Canvas date/launch node ids manually inserted as rail time markers. */
+      timelineDateNodeIds: [],
       /** Cognitive snapshot mode (Trace Funix) — Intel / mixed doc+object queries. */
       traceFunixMode: false,
       /** Fase 2: cross-family doc links + timeline inherit (Bloque A). */
@@ -311,6 +317,7 @@ export const useTimelineStore = create(
         timelineDocSnapshotsByDocId: {},
         timelineExcludedChildrenByDocId: {},
         timelineAgentSets: [],
+        timelineDateNodeIds: [],
         tacticalRangeOverride: null,
         tacticalLoupe: null,
         tacticalPairStretches: [],
@@ -370,6 +377,13 @@ export const useTimelineStore = create(
         if (!setId) return;
         set((state) => ({
           timelineAgentSets: state.timelineAgentSets.filter((set) => set.id !== setId),
+        }));
+      },
+
+      removeTimelineDateNode: (nodeId) => {
+        if (!nodeId) return;
+        set((state) => ({
+          timelineDateNodeIds: state.timelineDateNodeIds.filter((id) => id !== nodeId),
         }));
       },
 
@@ -544,7 +558,11 @@ export const useTimelineStore = create(
         for (const canvasId of canvasNodeIds) {
           const node = nodeById.get(canvasId);
           if (!node) continue;
-          const objectId = resolveCanvasNodeObjectId(node, docsById, nodeEntitiesById);
+          let objectId = resolveCanvasNodeObjectId(node, docsById, nodeEntitiesById);
+          // Date/launch markers resolve family through their parent folder doc.
+          if (!objectId && isTimelineDateCanvasNode(node) && node.parentDocId) {
+            objectId = docsById[node.parentDocId]?.parentObjectId || null;
+          }
           if (objectId) familyIds.add(objectId);
         }
         if (familyIds.size > 1) {
@@ -558,12 +576,25 @@ export const useTimelineStore = create(
         let queue = get().timelineDocQueue;
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
         const snapshots = { ...get().timelineDocSnapshotsByDocId };
+        const dateNodeIds = new Set(get().timelineDateNodeIds);
         const touchedDocIds = new Set();
         const nodesByDocId = new Map();
         let added = 0;
+        let datesAdded = 0;
+        let dateNodesTouched = 0;
         for (const canvasId of canvasNodeIds) {
           const node = nodeById.get(canvasId);
           if (!node) continue;
+          // Dates are time markers on the rail — never queued as docs.
+          if (isTimelineDateCanvasNode(node)) {
+            if (!resolveTimelineDateNodeDate(node)) continue;
+            dateNodesTouched += 1;
+            if (!dateNodeIds.has(node.id)) {
+              dateNodeIds.add(node.id);
+              datesAdded += 1;
+            }
+            continue;
+          }
           const docId = resolveParentDocIdForCanvasNode(node, nodeEntitiesById, docsById);
           if (!docId) continue;
           touchedDocIds.add(docId);
@@ -580,7 +611,7 @@ export const useTimelineStore = create(
           if (focusBlockId) focusByDocId[docId] = focusBlockId;
         }
 
-        if (!touchedDocIds.size) {
+        if (!touchedDocIds.size && !dateNodesTouched) {
           return {
             ok: false,
             code: "NO_DOCS",
@@ -590,32 +621,34 @@ export const useTimelineStore = create(
 
         const meta = { docsById, nodeEntitiesById };
         const { anchors: wireAnchors } = buildTacticalWireAnchorMap(canvasNodes, connections, meta);
-        // Refresh every queued doc so prior Schedule edits are not stuck on createdAt snapshots.
-        const docsToSnapshot = new Set([...queue, ...touchedDocIds]);
-        for (const docId of docsToSnapshot) {
-          snapshots[docId] = captureTimelineDocSnapshot(docId, {
+        if (touchedDocIds.size) {
+          // Refresh every queued doc so prior Schedule edits are not stuck on createdAt snapshots.
+          const docsToSnapshot = new Set([...queue, ...touchedDocIds]);
+          for (const docId of docsToSnapshot) {
+            snapshots[docId] = captureTimelineDocSnapshot(docId, {
+              canvasNodes,
+              wireAnchors,
+              docsById,
+              nodeEntitiesById,
+              preferredCanvasNodeIds: nodesByDocId.get(docId) || [],
+            });
+          }
+
+          const missingDateDocIds = [...touchedDocIds].filter((docId) => !resolveQueuedDocTimelineDate(
+            docId,
             canvasNodes,
             wireAnchors,
             docsById,
-            nodeEntitiesById,
-            preferredCanvasNodeIds: nodesByDocId.get(docId) || [],
-          });
-        }
-
-        const missingDateDocIds = [...touchedDocIds].filter((docId) => !resolveQueuedDocTimelineDate(
-          docId,
-          canvasNodes,
-          wireAnchors,
-          docsById,
-          meta,
-          snapshots[docId],
-        ));
-        if (missingDateDocIds.length) {
-          return {
-            ok: false,
-            code: "NO_ANCHOR_DATE",
-            message: "Timeline needs at least one dated node or wire anchor on the selected document.",
-          };
+            meta,
+            snapshots[docId],
+          ));
+          if (missingDateDocIds.length) {
+            return {
+              ok: false,
+              code: "NO_ANCHOR_DATE",
+              message: "Timeline needs at least one dated node or wire anchor on the selected document.",
+            };
+          }
         }
 
         const excluded = { ...get().timelineExcludedChildrenByDocId };
@@ -640,6 +673,7 @@ export const useTimelineStore = create(
           timelineDocSnapshotsByDocId: snapshots,
           timelineExcludedChildrenByDocId: excluded,
           timelineAgentSets,
+          timelineDateNodeIds: [...dateNodeIds],
           // Fresh auto zoom after insert — avoids collapsed month snap / stale stretch.
           tacticalRangeOverride: null,
           tacticalLoupe: null,
@@ -649,7 +683,8 @@ export const useTimelineStore = create(
           ok: true,
           added,
           setsAdded,
-          refreshed: added === 0 && setsAdded === 0,
+          datesAdded,
+          refreshed: added === 0 && setsAdded === 0 && datesAdded === 0,
         };
       },
 
