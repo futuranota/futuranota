@@ -5216,6 +5216,30 @@ textarea.note-form-field {
   padding-left: 12px;
   border-left: 2px solid color-mix(in oklab, var(--tl-family-accent, var(--tl-accent)) 55%, var(--hairline));
 }
+/* Guest folder strip: chips only (no second ruler), aligned under host date. */
+.tl-tactical-row.is-inherit-guest {
+  padding-top: 2px;
+  padding-bottom: 8px;
+  min-height: 0;
+}
+.tl-tactical-row.is-inherit-guest .tl-tactical-bar--guest-strip {
+  display: none;
+}
+.tl-tactical-row.is-inherit-guest .tl-tactical-rail--guest-strip {
+  min-height: 0;
+}
+.tl-tactical-row.is-inherit-guest .tl-tactical-rail__plot {
+  min-height: 0;
+}
+.tl-tactical-row.is-inherit-guest .tl-tactical-rail__nodes {
+  margin-top: 0;
+  padding-top: 0;
+}
+.tl-tactical-row.is-inherit-guest .tl-tactical-rail__remaining,
+.tl-tactical-row.is-inherit-guest .tl-tactical-segment,
+.tl-tactical-row.is-inherit-guest .tl-tactical-range-window {
+  display: none;
+}
 .tl-tactical-row.is-child-row,
 .tl-tactical-row.is-corpus {
   padding-left: 0;

@@ -23,6 +23,8 @@ function calendarDateInputValue(d) {
  */
 export function resolveFolderScheduleRange(doc) {
   if (!doc) return null;
+  // Campaign Launch is reference metadata, never a task reservation.
+  if (doc.campaignActive) return null;
   const startRaw = parseDate(doc.scheduleStartAt) || parseDate(doc.launchAt);
   if (!startRaw) return null;
   const finishRaw = parseDate(doc.scheduleFinishAt) || startRaw;
@@ -137,6 +139,7 @@ export function clampDateInputToFolderSchedule(dateInput, doc) {
 /** Content/campaign folders in an Object — not products, knowledge, or templates. */
 export function isReservableFolderDoc(doc) {
   if (!doc?.parentObjectId) return false;
+  if (doc.campaignActive) return false;
   if (isProductDoc(doc) || isKnowledgeDoc(doc) || isTemplateDoc(doc)) return false;
   return true;
 }

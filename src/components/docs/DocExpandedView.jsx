@@ -891,12 +891,13 @@ export function DocExpandedView({
   const scheduleStartMin = useFolderSchedule
     ? folderSchedulePickerMinDateInput()
     : todayDateInputValue();
-  /** Child document Schedule dates must stay inside this folder’s reservation. */
-  const childScheduleBounds = isContentMode
+  /** Only task-oriented Content folders impose Schedule on child documents. */
+  const childScheduleBounds = useFolderSchedule
     ? folderScheduleDateInputBounds({
       scheduleStartAt: draftScheduleStartAt || doc?.scheduleStartAt || null,
       scheduleFinishAt: draftScheduleFinishAt || doc?.scheduleFinishAt || null,
-      launchAt: draftLaunchAt || doc?.launchAt || null,
+      launchAt: null,
+      campaignActive: false,
     })
     : null;
   /** Products + Content: title and category mirror each other (file-box grouping). */
@@ -1153,8 +1154,9 @@ export function DocExpandedView({
       category: categoryToSave,
       icon: isContentMode ? (draftIcon || "") : "",
       launchAt: draftLaunchAt,
-      scheduleStartAt: useFolderSchedule ? draftScheduleStartAt : draftLaunchAt,
-      scheduleFinishAt: useFolderSchedule ? draftScheduleFinishAt : draftLaunchAt,
+      // Campaign Launch is research metadata, not a Schedule reservation.
+      scheduleStartAt: useFolderSchedule ? draftScheduleStartAt : null,
+      scheduleFinishAt: useFolderSchedule ? draftScheduleFinishAt : null,
       campaignActive: draftCampaignActive,
       parentObjectId: isKnowledgeMode ? "" : draftParentId,
       nodeLinkColor: draftNodeLinkColor,

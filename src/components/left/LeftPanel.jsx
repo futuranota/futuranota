@@ -590,6 +590,7 @@ function DocNodesBlockCard({
   const hasFolderSchedule = Boolean(
     !orphan
     && doc
+    && !doc.campaignActive
     && doc.scheduleStartAt
     && doc.scheduleFinishAt
     && !isTemplate
@@ -1799,12 +1800,6 @@ export function LeftPanel({
   const handleSelectQueuedDoc = (docId) => {
     if (!docId) return;
     setActiveId(docId);
-    const doc = docs[docId];
-    if (doc?.parentObjectId) {
-      setFilterObjectId(doc.parentObjectId);
-      setSelectedObjectId(doc.parentObjectId);
-      setCorpusTimelineAuthority(doc.parentObjectId);
-    }
   };
 
   const handleOpenFolderDoc = (docId, options = {}) => {
@@ -2297,6 +2292,7 @@ export function LeftPanel({
       }
     } else if (panelType === "Documents") {
       const parentId = data.parentObjectId || null;
+      const isCampaignFolder = Boolean(data.campaignActive);
       const newDocId = addDoc(
         data.title,
         parentId,
@@ -2313,13 +2309,19 @@ export function LeftPanel({
           version: data.version ?? "",
           category: data.category ?? "",
           icon: typeof data.icon === "string" ? data.icon : "",
-          launchAt: data.launchAt ?? data.scheduleStartAt ?? null,
-          scheduleStartAt: data.scheduleStartAt ?? data.launchAt ?? null,
-          scheduleFinishAt: data.scheduleFinishAt
-            ?? data.scheduleStartAt
-            ?? data.launchAt
-            ?? null,
-          campaignActive: Boolean(data.campaignActive),
+          launchAt: isCampaignFolder
+            ? (data.launchAt ?? null)
+            : (data.launchAt ?? data.scheduleStartAt ?? null),
+          scheduleStartAt: isCampaignFolder
+            ? null
+            : (data.scheduleStartAt ?? data.launchAt ?? null),
+          scheduleFinishAt: isCampaignFolder
+            ? null
+            : (data.scheduleFinishAt
+              ?? data.scheduleStartAt
+              ?? data.launchAt
+              ?? null),
+          campaignActive: isCampaignFolder,
           nodeLinkColor: data.nodeLinkColor ?? "dark",
           knowledgeImport: data.knowledgeImport ?? null,
         },

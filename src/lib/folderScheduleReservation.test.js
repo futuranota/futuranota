@@ -21,6 +21,18 @@ describe("folder schedule reservation gate", () => {
       maxDate: "2026-07-20",
     });
   });
+
+  it("never treats campaign Launch as a Schedule reservation", () => {
+    const campaign = {
+      campaignActive: true,
+      launchAt: "2026-07-26T12:00:00.000Z",
+      // Legacy aliases must also be ignored.
+      scheduleStartAt: "2026-07-26T12:00:00.000Z",
+      scheduleFinishAt: "2026-07-26T12:00:00.000Z",
+    };
+    expect(isFolderScheduleReserved(campaign)).toBe(false);
+    expect(folderScheduleDateInputBounds(campaign)).toBeNull();
+  });
 });
 
 describe("clearChildScheduleAnchorsForFolder", () => {

@@ -1219,12 +1219,10 @@ export function buildTacticalObjectRows(params) {
       chain,
     });
 
-    // Guest projections under this Corpus host (Home Depot ← Futura Nota).
-    if (
-      inheritObjMode
-      && primaryTimelineObjectId
-      && objectId === primaryTimelineObjectId
-    ) {
+    // Guest projections under this host company. The persisted wire is the
+    // source of truth — do not gate on the Obj-Obj toggle, which Select mode
+    // turns off (they are mutually exclusive canvas modes).
+    if (primaryTimelineObjectId && objectId === primaryTimelineObjectId) {
       const projections = buildGuestInheritanceProjections({
         connections,
         canvasNodes,
@@ -1246,32 +1244,37 @@ export function buildTacticalObjectRows(params) {
         if (!guestsByDoc.has(marker.docId)) guestsByDoc.set(marker.docId, []);
         guestsByDoc.get(marker.docId).push(marker);
       }
-      for (const [guestDocId, markers] of guestsByDoc) {
-        const guestDoc = docsById[guestDocId];
-        const guestTitle = (guestDoc?.title || guestDoc?.category || "Guest folder").trim();
-        const guestObjectId = guestDoc?.parentObjectId || markers[0]?.sourceObjectId || null;
-        displayRows.push({
-          id: `inherit-${objectId}-${guestDocId}`,
-          rowKind: "object",
-          objectId,
-          guestObjectId,
-          guestDocId,
-          objectName: guestTitle,
-          label: guestTitle,
-          objectColor,
-          colorSoft,
-          isCorpus: false,
-          isPrimary: false,
-          isInheritLayer: true,
-          hasCrossLink: true,
-          inherited: true,
-          columns: buildTimelineColumns(markers),
-          chain: null,
-        });
-      }
       // Stash connector descriptors on the host row for the overlay.
+      // Guest rows are pushed after children so expand stays above the guest strip.
       const hostRow = displayRows.find((r) => r.id === `object-${objectId}`);
-      if (hostRow) hostRow.inheritanceCrossLinks = projections.crossLinks;
+      if (hostRow) {
+        hostRow.inheritanceCrossLinks = projections.crossLinks;
+        hostRow._pendingGuestRows = [];
+        for (const [guestDocId, markers] of guestsByDoc) {
+          const guestDoc = docsById[guestDocId];
+          const guestTitle = (guestDoc?.title || guestDoc?.category || "Guest folder").trim();
+          const guestObjectId = guestDoc?.parentObjectId || markers[0]?.sourceObjectId || null;
+          hostRow._pendingGuestRows.push({
+            id: `inherit-${objectId}-${guestDocId}`,
+            rowKind: "inherit-guest",
+            objectId,
+            guestObjectId,
+            guestDocId,
+            objectName: guestTitle,
+            label: guestTitle,
+            objectColor,
+            colorSoft,
+            isCorpus: false,
+            isPrimary: false,
+            isInheritLayer: true,
+            hasCrossLink: true,
+            inherited: true,
+            hideRuler: true,
+            columns: buildTimelineColumns(markers),
+            chain: null,
+          });
+        }
+      }
     }
 
     for (const docId of expandedDocIds) {
@@ -1302,10 +1305,21 @@ export function buildTacticalObjectRows(params) {
         columns: buildTimelineColumns(childMarkers),
       });
     }
+
+    // Host → children → guest strip (canvas-like stack under the same family).
+    const hostRowForGuests = displayRows.find((r) => r.id === `object-${objectId}`);
+    if (hostRowForGuests?._pendingGuestRows?.length) {
+      displayRows.push(...hostRowForGuests._pendingGuestRows);
+      delete hostRowForGuests._pendingGuestRows;
+    }
   }
 
-  const primaryRows = displayRows.filter((r) => r.rowKind === "object" && !r.isInheritLayer);
-  const inheritRows = displayRows.filter((r) => r.rowKind === "object" && r.isInheritLayer);
+  const primaryRows = displayRows.filter((r) => r.rowKind === "object" && !r.inherited);
+  const inheritRowsByObjectId = new Map();
+  for (const row of displayRows.filter((r) => r.rowKind === "inherit-guest")) {
+    if (!inheritRowsByObjectId.has(row.objectId)) inheritRowsByObjectId.set(row.objectId, []);
+    inheritRowsByObjectId.get(row.objectId).push(row);
+  }
   const childRowsByObjectId = new Map();
   for (const row of displayRows.filter((r) => r.rowKind === "children")) {
     if (!childRowsByObjectId.has(row.objectId)) childRowsByObjectId.set(row.objectId, []);
@@ -1314,21 +1328,28 @@ export function buildTacticalObjectRows(params) {
 
   /** @type {typeof displayRows} */
   const orderedRows = [];
-  for (const objectRow of [...primaryRows, ...inheritRows]) {
+  for (const objectRow of primaryRows) {
     orderedRows.push(objectRow);
-    // Children attach once, to the family's own ruler — never repeated under
-    // inherit-projection rows that share the same objectId.
-    if (objectRow.inherited) continue;
+    // Children attach once, to the family's own ruler — never under guest strips.
     const childRows = childRowsByObjectId.get(objectRow.objectId);
     if (childRows) {
       orderedRows.push(...childRows);
       childRowsByObjectId.delete(objectRow.objectId);
     }
+    const guestRows = inheritRowsByObjectId.get(objectRow.objectId);
+    if (guestRows) {
+      orderedRows.push(...guestRows);
+      inheritRowsByObjectId.delete(objectRow.objectId);
+    }
+  }
+  for (const leftover of inheritRowsByObjectId.values()) {
+    orderedRows.push(...leftover);
   }
 
-  // Scale the grid from folder (object-row) dates so child rows don't force month zoom-out.
+  // Scale the grid from folder dates (host + guest chips) so child rows don't
+  // force month zoom-out. Guest chips share the host date → same X → straight cord.
   const folderMarkerDates = orderedRows
-    .filter((row) => row.rowKind === "object")
+    .filter((row) => row.rowKind === "object" || row.rowKind === "inherit-guest")
     .flatMap((row) => (row.columns || []).map((col) => col.date));
   const fallbackMarkerDates = orderedRows.flatMap((row) =>
     (row.columns || []).map((col) => col.date),
@@ -1351,13 +1372,16 @@ export function buildTacticalObjectRows(params) {
   );
 
   for (const row of orderedRows) {
-    const segments = dimensionSegmentsByRow.get(row.id) || [];
+    const isGuestStrip = row.rowKind === "inherit-guest";
+    const segments = isGuestStrip ? [] : (dimensionSegmentsByRow.get(row.id) || []);
     row.rail = buildRowTimelineRail(row.columns, displayGrid, {
       segments,
       // Only this row's stretches — never bleed into folder rails.
-      pairStretches: (pairStretches || []).filter(
-        (s) => s && String(s.rowId) === String(row.id),
-      ),
+      pairStretches: isGuestStrip
+        ? []
+        : (pairStretches || []).filter(
+          (s) => s && String(s.rowId) === String(row.id),
+        ),
       markerDates: (row.columns || []).map((col) => col.date).filter(Boolean),
       now: today,
     });

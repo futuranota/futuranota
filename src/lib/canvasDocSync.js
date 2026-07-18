@@ -1,4 +1,3 @@
-import { shortId } from "../data.jsx";
 import { launchDateInputFromIso } from "./docDates.js";
 import { normalizeDoc } from "./normalizeDoc.js";
 import {
@@ -57,11 +56,21 @@ function resolveDocLaunchAt(doc, docId, draft) {
   return normalizeDoc(doc).launchAt ?? null;
 }
 
+/** Launch date nodes are exclusive to Campaign folders (not plain Schedules). */
+function resolveDocCampaignActive(doc, docId, draft) {
+  if (draft?.docId === docId && draft.campaignActive !== undefined) {
+    return Boolean(draft.campaignActive);
+  }
+  return Boolean(normalizeDoc(doc).campaignActive);
+}
+
 export function buildLaunchDateCanvasNode(launchAt, parentDocId) {
   const dateContent = launchDateInputFromIso(launchAt);
   if (!dateContent || !parentDocId) return null;
   return {
-    id: shortId("CN"),
+    // Deterministic id: a remove→respawn cycle keeps the same node id, so
+    // timeline references (timelineDateNodeIds) survive instead of orphaning.
+    id: `CN-launch-${parentDocId}`,
     title: "Launch",
     dataType: "date",
     content: dateContent,
@@ -137,11 +146,13 @@ export function syncContentDocCanvasNodes(
         changed = true;
         return null;
       }
-      const launchAt = resolveDocLaunchAt(
-        doc,
-        node.parentDocId,
-        expandedDocId === node.parentDocId ? activeDocMetaDraft : null,
-      );
+      const draft = expandedDocId === node.parentDocId ? activeDocMetaDraft : null;
+      // Campaigns only: a plain Schedule must never render as a Launch node.
+      if (!resolveDocCampaignActive(doc, node.parentDocId, draft)) {
+        changed = true;
+        return null;
+      }
+      const launchAt = resolveDocLaunchAt(doc, node.parentDocId, draft);
       const dateContent = launchDateInputFromIso(launchAt);
       if (!dateContent) {
         changed = true;
@@ -162,11 +173,11 @@ export function syncContentDocCanvasNodes(
     const doc = docsById[node.docId];
     if (!doc || !isContentDoc(doc)) continue;
 
-    const launchAt = resolveDocLaunchAt(
-      doc,
-      node.docId,
-      expandedDocId === node.docId ? activeDocMetaDraft : null,
-    );
+    const draft = expandedDocId === node.docId ? activeDocMetaDraft : null;
+    // Auto-spawned Launch child nodes are exclusive to Campaign folders.
+    if (!resolveDocCampaignActive(doc, node.docId, draft)) continue;
+
+    const launchAt = resolveDocLaunchAt(doc, node.docId, draft);
     const dateContent = launchDateInputFromIso(launchAt);
     if (!dateContent) continue;
 

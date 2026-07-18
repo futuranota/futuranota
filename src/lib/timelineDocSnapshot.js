@@ -48,13 +48,19 @@ function childSnapshotKey(entityId, canvasNodeId) {
 
 /**
  * Resolve a timeline date for a folder child entity (store node).
- * Prefer Schedule (`anchorAt` / date content). If still parented to a folder
- * (`parentDocId`) but missing Schedule, fall back to `createdAt` so expand
- * shows linked docs (campaign + regular). Never use createdAt for orphan-kept
- * ghosts (`parentDocId` wiped) — those used to flood the child rail.
+ * Regular task folders prefer Schedule (`anchorAt` / date content).
+ * Campaign children are research references, so they always use `createdAt`
+ * and never inherit task ordering from an old anchor. If still parented but
+ * unscheduled, createdAt keeps the child visible. Orphans remain excluded.
  */
-function resolveLinkedFileTimelineDate(entityId, entity, _meta = {}) {
+function resolveLinkedFileTimelineDate(entityId, entity, meta = {}) {
   if (!entityId || !entity) return null;
+  const parentDoc = entity.parentDocId
+    ? meta.docsById?.[entity.parentDocId]
+    : null;
+  if (parentDoc?.campaignActive && entity.dataType !== "date") {
+    return parseDate(entity.createdAt) || null;
+  }
   const fromAnchor = parseDate(entity.anchorAt);
   if (fromAnchor) return fromAnchor;
   if (entity.dataType === "date") {

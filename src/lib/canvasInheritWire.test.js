@@ -61,26 +61,32 @@ const canvasNodes = [
 ];
 
 describe("canvas inherit wire UX", () => {
-  it("normalizes endpoints so authority host is from and guest is to", () => {
-    const flipped = normalizeCrossFamilyConnectionEndpoints("cn-fn", "cn-hd", {
+  it("uses the explicitly selected company as parent when creating the wire", () => {
+    const a = normalizeCrossFamilyConnectionEndpoints("cn-fn", "cn-hd", {
       canvasNodes,
       docsById,
-      nodeEntitiesById: {},
       objectsById,
       primaryObjectId: "home",
     });
-    expect(flipped.from).toBe("cn-hd");
-    expect(flipped.to).toBe("cn-fn");
+    expect(a.from).toBe("cn-hd");
+    expect(a.to).toBe("cn-fn");
 
-    const already = normalizeCrossFamilyConnectionEndpoints("cn-hd", "cn-fn", {
+    const b = normalizeCrossFamilyConnectionEndpoints("cn-hd", "cn-fn", {
       canvasNodes,
       docsById,
-      nodeEntitiesById: {},
       objectsById,
-      primaryObjectId: "home",
+      primaryObjectId: "futura",
     });
-    expect(already.from).toBe("cn-hd");
-    expect(already.to).toBe("cn-fn");
+    expect(b.from).toBe("cn-fn");
+    expect(b.to).toBe("cn-hd");
+
+    const noAuthority = normalizeCrossFamilyConnectionEndpoints("cn-fn", "cn-hd", {
+      canvasNodes,
+      docsById,
+      objectsById,
+    });
+    expect(noAuthority.from).toBe("cn-fn");
+    expect(noAuthority.to).toBe("cn-hd");
   });
 
   it("shows center ports only in inherit mode when another company is on canvas", () => {

@@ -66,7 +66,6 @@ import {
   reminderOccurrenceKey,
 } from './lib/timelineReminderSkip.js';
 import { unlockTimelineReminderSound } from './lib/timelineReminderSound.js';
-import { setCorpusTimelineAuthority } from './lib/timelineCorpusAuthority.js';
 import {
   collectDocNodeIdsForSave,
 } from './lib/docNodeSync.js';
@@ -226,8 +225,6 @@ function Dashboard({ company, onBack }) {
   const nodeEntities = useNodesStore((s) => s.nodes);
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
-  const setFilterObjectId = useUIStateStore((s) => s.setFilterObjectId);
-  const setSelectedObjectId = useUIStateStore((s) => s.setSelectedObjectId);
   const activeDocMetaDraft = useUIStateStore((s) => s.activeDocMetaDraft);
   const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
@@ -267,10 +264,6 @@ function Dashboard({ company, onBack }) {
       const docId = resolveParentDocIdForCanvasNode(node, nodeEntities, docs);
       const doc = docId ? docs[docId] : null;
       if (isKnowledgeDoc(doc)) return true;
-      if (doc?.parentObjectId) {
-        setFilterObjectId(doc.parentObjectId);
-        setSelectedObjectId(doc.parentObjectId);
-      }
       if (!timelineQueueMode) return true;
       // Date/launch markers can be selected even when their parent folder is already queued.
       if (isTimelineDateCanvasNode(node)) {
@@ -299,8 +292,6 @@ function Dashboard({ company, onBack }) {
       docs,
       timelineDocQueue,
       timelineDateNodeIds,
-      setFilterObjectId,
-      setSelectedObjectId,
     ],
   );
 
@@ -320,20 +311,6 @@ function Dashboard({ company, onBack }) {
         kind: "warm",
       });
       return;
-    }
-
-    const insertedObjectIds = new Set();
-    for (const canvasId of selection) {
-      const node = canvasNodes.find((n) => n.id === canvasId);
-      if (!node) continue;
-      const objectId = resolveCanvasNodeObjectId(node, docs, nodeEntities);
-      if (objectId) insertedObjectIds.add(objectId);
-    }
-    if (insertedObjectIds.size === 1) {
-      const objectId = [...insertedObjectIds][0];
-      setFilterObjectId(objectId);
-      setSelectedObjectId(objectId);
-      setCorpusTimelineAuthority(objectId);
     }
 
     const parts = [];

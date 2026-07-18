@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
-import { resolveCanvasNodeObjectId } from "../lib/objectColors.js";
 import {
   isTimelineDateCanvasNode,
   resolveTimelineDateNodeDate,
@@ -554,24 +553,8 @@ export const useTimelineStore = create(
         objectsById = {},
       ) => {
         const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
-        const familyIds = new Set();
-        for (const canvasId of canvasNodeIds) {
-          const node = nodeById.get(canvasId);
-          if (!node) continue;
-          let objectId = resolveCanvasNodeObjectId(node, docsById, nodeEntitiesById);
-          // Date/launch markers resolve family through their parent folder doc.
-          if (!objectId && isTimelineDateCanvasNode(node) && node.parentDocId) {
-            objectId = docsById[node.parentDocId]?.parentObjectId || null;
-          }
-          if (objectId) familyIds.add(objectId);
-        }
-        if (familyIds.size > 1) {
-          return {
-            ok: false,
-            code: "MULTI_FAMILY",
-            message: "Insert to timeline requires nodes from a single object family.",
-          };
-        }
+        // Multi-family selections are allowed: each folder renders on its own
+        // company timeline, and cross-company guests surface via inherit wires.
 
         let queue = get().timelineDocQueue;
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };

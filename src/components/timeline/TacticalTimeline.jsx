@@ -272,7 +272,11 @@ function TacticalRowGroup({
           onChipDoubleClick={onChipDoubleClick}
           onChipRemove={onChipRemove}
           queuedDocIds={queuedDocIds}
-          enableRangeHandles={(row.rail?.nodeGroups?.length ?? 0) > 0}
+          enableRangeHandles={
+            row.rowKind !== "inherit-guest"
+            && !row.hideRuler
+            && (row.rail?.nodeGroups?.length ?? 0) > 0
+          }
           rangeDrag={rangeDrag}
           t={t}
         />
@@ -307,6 +311,7 @@ function TacticalObjectRow({
   const meta = { nodeEntitiesById, docsById };
   const trackObject = objectsById[row.objectId] || null;
   const isChildRow = row.rowKind === "children";
+  const isGuestStrip = row.rowKind === "inherit-guest" || Boolean(row.hideRuler);
   const { nodeGroups = [], segments = [], todayLeftPct = null, todayPairNextDate = null, todayStretchable = false } = row.rail || {};
   const chainNodes = row.chain
     ? row.chain.nodeIds.map((id) => trackItemsById.get(id)).filter(Boolean)
@@ -321,20 +326,24 @@ function TacticalObjectRow({
   const lastGroupDate = nodeGroups.length ? nodeGroups[nodeGroups.length - 1].date : null;
   const lastDay = lastGroupDate ? startOfCalendarDay(lastGroupDate) : null;
   const todayDay = startOfCalendarDay(today);
-  const daysLeft = lastDay && lastDay.getTime() > todayDay.getTime()
+  // Guest strips have no ruler / days-left — only the host family rail owns that chrome.
+  const daysLeft = !isGuestStrip && lastDay && lastDay.getTime() > todayDay.getTime()
     ? daysBetween(today, lastGroupDate)
     : 0;
   const daysLeftCenterPct = resolveDaysLeftCenterPct(nodeGroups);
   const pluralS = (n) => (n === 1 ? "" : "s");
   const objectNameLabel = useTranslatedText(row.objectName);
+  const showRulerChrome = !isGuestStrip;
+  const guestSegments = isGuestStrip ? [] : segments;
 
   const rowClass = [
     "tl-tactical-row",
     row.isCorpus ? "is-corpus" : "is-satellite",
     row.isInheritLayer ? "is-inherit-layer" : "",
+    isGuestStrip ? "is-inherit-guest" : "",
     isChildRow ? "is-child-row" : "",
     row.hasCrossLink ? "is-linked-row" : "",
-    nudgeRail ? "is-rail-nudge" : "",
+    nudgeRail && !isGuestStrip ? "is-rail-nudge" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -357,6 +366,7 @@ function TacticalObjectRow({
         <div
           className={
             "tl-tactical-rail"
+            + (isGuestStrip ? " tl-tactical-rail--guest-strip" : "")
             + (rangeDrag?.isDragging && rangeDrag?.activeHandleKey?.startsWith(`${row.id}:`)
               ? " is-dragging-range"
               : "")
@@ -365,7 +375,8 @@ function TacticalObjectRow({
         >
             <div className="tl-tactical-rail__inset">
             <div className="tl-tactical-rail__plot" ref={plotRef}>
-            <div className="tl-tactical-bar">
+            <div className={"tl-tactical-bar" + (isGuestStrip ? " tl-tactical-bar--guest-strip" : "")}>
+              {showRulerChrome ? (
               <TacticalRulerBar
                 grid={grid}
                 today={today}
@@ -379,9 +390,10 @@ function TacticalObjectRow({
                 plotRef={plotRef}
                 localOnly={isChildRow}
               />
+              ) : null}
               {nodeGroups.length > 0 ? (
                 <>
-              {segments.map((segment) => (
+              {showRulerChrome ? guestSegments.map((segment) => (
                 (segment.isDocDimension || segment.isRowEndpointSpan) ? (
                 <div
                   key={`range-${segment.key}`}
@@ -395,8 +407,8 @@ function TacticalObjectRow({
                   aria-hidden
                 />
                 ) : null
-              ))}
-              {segments.map((segment) => (
+              )) : null}
+              {showRulerChrome ? guestSegments.map((segment) => (
                 <div
                   key={segment.key}
                   className={
@@ -455,8 +467,8 @@ function TacticalObjectRow({
                     );
                   })() : null}
                 </div>
-              ))}
-              {daysLeft > 0 && (
+              )) : null}
+              {showRulerChrome && daysLeft > 0 && (
                 <div
                   className="tl-tactical-rail__remaining"
                   style={{ left: `${daysLeftCenterPct}%` }}
@@ -471,6 +483,7 @@ function TacticalObjectRow({
             </div>
             {nodeGroups.length > 0 ? (
             <>
+            {showRulerChrome ? (
             <div className="tl-tactical-rail__anchors">
               {nodeGroups.map((group, groupIndex) => {
                 const anchorAlign = resolveNodeAnchorAlign(
@@ -576,6 +589,7 @@ function TacticalObjectRow({
                 );
               })}
             </div>
+            ) : null}
             <div className="tl-tactical-rail__nodes">
               {nodeGroups.map((group, groupIndex) => {
                 const anchorAlign = resolveNodeAnchorAlign(

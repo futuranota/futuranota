@@ -19,7 +19,6 @@ import {
   isCrossFamilyConnectionKind,
   isTacticalDocumentNode,
 } from "./timelineGraph.js";
-import { resolveHostGuestSides } from "./timelineInheritance.js";
 
 /** @param {object | null | undefined} node */
 export function isCanvasLaunchOrDateNode(node) {
@@ -138,7 +137,11 @@ export function shouldShowCrossFamilyCenterPorts(node, {
 }
 
 /**
- * Force cross-family wire direction: from = Corpus authority host, to = guest.
+ * Set cross-family wire direction when the connection is created.
+ * The explicitly opened company is the parent (`from`) only at that moment.
+ * With no selected company (or one unrelated to both endpoints), preserve the
+ * user's drag direction rather than assuming authority.
+ *
  * @returns {{ from: string, to: string }}
  */
 export function normalizeCrossFamilyConnectionEndpoints(
@@ -152,20 +155,25 @@ export function normalizeCrossFamilyConnectionEndpoints(
     primaryObjectId = null,
   } = {},
 ) {
-  const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
+  if (!primaryObjectId) return { from: fromId, to: toId };
+
   const classified = classifyCanvasConnection(
     { id: "draft", from: fromId, to: toId },
-    nodeById,
+    new Map(canvasNodes.map((node) => [node.id, node])),
     docsById,
     nodeEntitiesById,
     objectsById,
   );
-  if (!isCrossFamilyConnectionKind(classified.kind) || !primaryObjectId) {
+  if (!isCrossFamilyConnectionKind(classified.kind)) {
     return { from: fromId, to: toId };
   }
-  const sides = resolveHostGuestSides(classified, primaryObjectId);
-  if (!sides) return { from: fromId, to: toId };
-  return { from: sides.hostNodeId, to: sides.guestNodeId };
+  if (classified.fromObjectId === primaryObjectId) {
+    return { from: fromId, to: toId };
+  }
+  if (classified.toObjectId === primaryObjectId) {
+    return { from: toId, to: fromId };
+  }
+  return { from: fromId, to: toId };
 }
 
 /**

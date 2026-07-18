@@ -1,6 +1,7 @@
 /**
  * Cross-company folder inheritance projections (timeline-scoped, non-mutating).
- * Host Corpus authority owns effective Created / Launch for guest folders.
+ * Wire `from` = parent/host; wire `to` = guest. No wire → no inheritance.
+ * Viewing a company only surfaces guests for wires that start in that company.
  */
 
 import { parseDate } from "../temporal.js";
@@ -10,7 +11,6 @@ import {
   buildClassifiedConnections,
   isCrossFamilyConnectionKind,
 } from "./timelineGraph.js";
-import { resolvePrimarySecondarySides } from "./timelinePrimary.js";
 import {
   resolveCampaignFolderCreatedDate,
   resolveTimelineDateNodeDate,
@@ -19,70 +19,73 @@ import {
 import { resolveExplicitDocScheduleDate } from "./docSchedule.js";
 
 /**
- * Host folder Created date used for guest alignment.
+ * Host folder effective date used for guest alignment.
+ * Mirrors the host chip's own display order (campaign Created → explicit
+ * Schedule/Launch → createdAt) so the guest lands on the same date the host
+ * shows — rule: guest inherits the host's data unless dates already match.
  * @param {object|null|undefined} hostDoc
  * @returns {Date|null}
  */
 export function resolveHostFolderCreatedDate(hostDoc) {
   if (!hostDoc) return null;
   return resolveCampaignFolderCreatedDate(hostDoc)
-    || parseDate(hostDoc.createdAt)
     || resolveExplicitDocScheduleDate(hostDoc)
+    || parseDate(hostDoc.createdAt)
     || null;
 }
 
 /**
- * Host Launch date from canvas date/launch node or doc.launchAt.
+ * Host Launch date — campaigns only, explicit timeline date nodes only.
+ * A Launch chip is inherited only when the host has a canvas date/launch node
+ * that was inserted on the rail (`timelineDateNodeIds`). Never use Schedule
+ * (`scheduleStartAt`) or bare `doc.launchAt` — those are not Launch markers.
+ *
  * @param {string} hostDocId
  * @param {object[]} canvasNodes
- * @param {Record<string, object>} docsById
+ * @param {Record<string, object>} _docsById
  * @param {string[]} [timelineDateNodeIds]
  * @returns {Date|null}
  */
 export function resolveHostFolderLaunchDate(
   hostDocId,
   canvasNodes = [],
-  docsById = {},
+  _docsById = {},
   timelineDateNodeIds = [],
 ) {
   if (!hostDocId) return null;
   const allowed = new Set(timelineDateNodeIds || []);
+  if (allowed.size === 0) return null;
+
   for (const node of canvasNodes) {
     if (!isTimelineDateCanvasNode(node)) continue;
     if (node.parentDocId !== hostDocId) continue;
-    if (allowed.size && !allowed.has(node.id)) continue;
+    if (!allowed.has(node.id)) continue;
     const d = resolveTimelineDateNodeDate(node);
     if (d) return d;
   }
-  const doc = docsById[hostDocId];
-  return parseDate(doc?.launchAt) || parseDate(doc?.scheduleStartAt) || null;
+  return null;
 }
 
 /**
  * Resolve host/guest sides for a classified cross-family connection.
+ * Parent = persisted wire `from`, guest = persisted wire `to`. The company
+ * selected when the wire was created already determined that direction.
+ *
  * @param {import('../types/timelineTactical.js').ClassifiedConnection} classified
- * @param {string|null} primaryObjectId
  * @returns {{ hostObjectId: string, guestObjectId: string, hostDocId: string|null, guestDocId: string|null, hostNodeId: string, guestNodeId: string }|null}
  */
-export function resolveHostGuestSides(classified, primaryObjectId) {
+export function resolveHostGuestSides(classified) {
   if (!classified || !isCrossFamilyConnectionKind(classified.kind)) return null;
   if (!classified.fromObjectId || !classified.toObjectId) return null;
+  if (classified.fromObjectId === classified.toObjectId) return null;
 
-  const { primarySide, secondarySide } = resolvePrimarySecondarySides(
-    classified.fromObjectId,
-    classified.toObjectId,
-    primaryObjectId,
-  );
-  if (!primarySide || !secondarySide) return null;
-
-  const hostIsFrom = primarySide === "from";
   return {
-    hostObjectId: hostIsFrom ? classified.fromObjectId : classified.toObjectId,
-    guestObjectId: hostIsFrom ? classified.toObjectId : classified.fromObjectId,
-    hostDocId: hostIsFrom ? classified.fromDocId : classified.toDocId,
-    guestDocId: hostIsFrom ? classified.toDocId : classified.fromDocId,
-    hostNodeId: hostIsFrom ? classified.from : classified.to,
-    guestNodeId: hostIsFrom ? classified.to : classified.from,
+    hostObjectId: classified.fromObjectId,
+    guestObjectId: classified.toObjectId,
+    hostDocId: classified.fromDocId,
+    guestDocId: classified.toDocId,
+    hostNodeId: classified.from,
+    guestNodeId: classified.to,
     connectionId: classified.id,
     kind: classified.kind,
   };
@@ -113,13 +116,11 @@ export function listInheritanceLinks({
   const links = [];
   const seen = new Set();
   for (const c of classified) {
-    const sides = resolveHostGuestSides(c, primaryObjectId);
+    const sides = resolveHostGuestSides(c);
     if (!sides) continue;
+    // Only show guest projections while viewing the company that owns the
+    // wire's `from` (parent). No wire → no inheritance assumptions.
     if (sides.hostObjectId !== primaryObjectId) continue;
-    // Wire direction is authoritative: inheritance only flows host → guest.
-    // Working inside the guest company (guest = primary) must NOT flip the
-    // relationship and project the host's folders as inherited rows.
-    if (c.fromObjectId !== primaryObjectId) continue;
     const key = `${c.kind}::${sides.hostDocId || sides.hostNodeId}::${sides.guestDocId || sides.guestNodeId}`;
     if (seen.has(key)) continue;
     seen.add(key);

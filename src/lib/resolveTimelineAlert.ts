@@ -224,12 +224,13 @@ export function collectTimelineScheduleTargets({
       const doc = normalizeDoc(raw);
       return isContentDoc(doc)
         && doc.parentObjectId === objectId
-        && (doc.scheduleStartAt || doc.launchAt);
+        && doc.campaignActive
+        && doc.launchAt;
     });
 
     for (const raw of contentDocs) {
       const doc = normalizeDoc(raw);
-      const launch = parseDate(doc.scheduleStartAt || doc.launchAt);
+      const launch = parseDate(doc.launchAt);
       if (!launch) continue;
       addTarget(targets, seen, {
         key: `launch-${doc.id}`,
