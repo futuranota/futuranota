@@ -1,0 +1,47 @@
+---
+description: Egress sync — version gate on hydrate + Page Visibility on agent runner (implemented).
+alwaysApply: true
+---
+
+# Egress / sync optimization (implemented)
+
+Stack stays Supabase. Key modules: `src/lib/workspaceVersionGate.js`, gate inside `persistenceMiddleware.js`, visibility in `useScheduledAgentRunner.js`. Run `supabase_workspace_version.sql` in Supabase SQL Editor for the RPC (fallback light selects exist without it).
+
+## Architecture truth (do not misdiagnose)
+
+- Workspace sync lives in `src/stores/middleware/persistenceMiddleware.js`.
+- On `/app` boot: paint `localStorage` (`futura-nota-v1`), then `loadFromSupabase()` runs **7× `SELECT *`**: `companies`, `campaigns`, `nodes`, `canvas_nodes`, `canvas_connections`, `groupings`, `timelines`.
+- Writes are push-on-change (`debouncedRemoteSync` ~1.5s), not a 15s canvas pull.
+- `src/hooks/useScheduledAgentRunner.js` polls every **15s locally** (Zustand only). It does **not** download the canvas from Supabase.
+- `visibilitychange` already flushes push on hide; that is not a version gate.
+
+## Priority 1 — Version gate before hydrate (main egress win)
+
+Before the 7 heavy `SELECT *` in `loadFromSupabase()`:
+
+1. Light check: `max(updated_at)` across workspace tables for the user (prefer RPC `get_workspace_version(user_id)` or per-table `updated_at` order/limit).
+2. Compare to local `lastSyncedAt` / local max updated (persist in snapshot + localStorage).
+3. **Equal** → skip full hydrate (local is source of truth).
+4. **Remote newer** → run full hydrate; then set `lastSyncedAt` from remote max.
+
+### Hard constraints
+
+- Update `lastSyncedAt` **only after successful** hydrate or cloud flush — never on local edit alone.
+- Never skip hydrate while `pendingDeletedDocIds` / `pendingDeletedNodeIds` (tombstones) are active.
+- Do **not** add a 15s canvas poll “with version check” — that would add traffic.
+- Folder zombie deletes are a related sync bug; do not weaken tombstones/orphan delete for the gate.
+
+## Priority 2 — Page Visibility on agent runner (companion)
+
+In `useScheduledAgentRunner.js`:
+
+- On `document.hidden` → `clearInterval` immediately.
+- On visible again → run one `tick()` then restart the 15s interval.
+
+Low egress impact; avoids background CPU / agent side effects.
+
+## Out of scope for this brief
+
+- Migrating off Supabase.
+- Apple-style per-document lazy load (future, higher complexity).
+- Rewriting merge/hydrate from scratch unless user asks for the delete-resurrection bug separately.

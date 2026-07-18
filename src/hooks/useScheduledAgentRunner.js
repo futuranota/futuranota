@@ -21,6 +21,7 @@ function canRunTimelineAgentSet(agentSet, canvasNodes) {
 
 /**
  * Poll timeline agent sets + canvas wiring; auto-run when schedule is due (app open).
+ * Pauses while the tab is hidden (Page Visibility API).
  * @param {object} params
  */
 export function useScheduledAgentRunner({
@@ -38,6 +39,7 @@ export function useScheduledAgentRunner({
     if (!enabled) return undefined;
 
     const tick = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       if (runningRef.current) return;
       const scheduledStore = useScheduledTasksStore.getState();
       if (scheduledStore.runningTaskKey) return;
@@ -132,9 +134,42 @@ export function useScheduledAgentRunner({
       }
     };
 
-    tick();
-    const intervalId = setInterval(tick, POLL_MS);
-    return () => clearInterval(intervalId);
+    let intervalId = null;
+
+    const startPolling = () => {
+      if (intervalId != null) return;
+      tick();
+      intervalId = window.setInterval(tick, POLL_MS);
+    };
+
+    const stopPolling = () => {
+      if (intervalId == null) return;
+      window.clearInterval(intervalId);
+      intervalId = null;
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+        return;
+      }
+      startPolling();
+    };
+
+    if (typeof document !== "undefined" && document.hidden) {
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      return () => {
+        stopPolling();
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+      };
+    }
+
+    startPolling();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      stopPolling();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [
     enabled,
     canvasNodes,

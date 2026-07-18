@@ -3,6 +3,14 @@ import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
 import { repairDocNodeLinks } from "../../lib/resolveDocBlockNodes.js";
+import {
+  clearLastSyncedAt,
+  fetchWorkspaceVersion,
+  maxUpdatedAtFromRows,
+  readLastSyncedAt,
+  shouldSkipFullHydrate,
+  writeLastSyncedAt,
+} from "../../lib/workspaceVersionGate.js";
 import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 import { useUIStateStore } from "../uiStateStore.js";
 
@@ -1025,6 +1033,8 @@ export function initPersistenceMiddleware(stores) {
     scheduledCompletedTaskKeys: useScheduledTasksStore.getState().completedTaskKeys,
     deletedDocIds: [...pendingDeletedDocIds],
     deletedNodeIds: [...pendingDeletedNodeIds],
+    // Mirror only — authoritative gate key is LAST_SYNCED_AT_KEY (never bump on local edit).
+    lastSyncedAt: readLastSyncedAt(),
   });
 
   const applyStateToStores = (data) => {
@@ -1153,7 +1163,13 @@ export function initPersistenceMiddleware(stores) {
     }
   };
 
-  const loadFromSupabase = async () => {
+  /**
+   * @param {{ hydrateOnVersionError?: boolean }} [opts]
+   *   hydrateOnVersionError: on boot true (full hydrate if version probe fails);
+   *   on tab-focus false (keep local — avoid egress spikes when RPC is down).
+   */
+  const loadFromSupabase = async (opts = {}) => {
+    const { hydrateOnVersionError = true } = opts;
     if (hydrateInFlight) return;
     hydrateInFlight = true;
     const tombstoneRevisionAtStart = deleteTombstoneRevision;
@@ -1172,6 +1188,45 @@ export function initPersistenceMiddleware(stores) {
             + "localStorage only (futura-nota-v1). Log in to sync across browsers.",
         );
         loadLocalFallback();
+        return;
+      }
+
+      const hasPendingDeletes =
+        pendingDeletedDocIds.size > 0 || pendingDeletedNodeIds.size > 0;
+      const lastSyncedAt = readLastSyncedAt();
+      let remoteVersion = null;
+      let versionFetchFailed = false;
+      try {
+        remoteVersion = await fetchWorkspaceVersion(supabase, userId);
+      } catch (versionErr) {
+        versionFetchFailed = true;
+        console.warn(
+          "[futura-nota] Workspace version check failed —",
+          hydrateOnVersionError ? "falling through to full hydrate." : "keeping local snapshot.",
+          versionErr?.message || versionErr,
+        );
+      }
+
+      if (
+        !versionFetchFailed
+        && shouldSkipFullHydrate({
+          lastSyncedAt,
+          remoteVersion,
+          hasPendingDeletes,
+        })
+      ) {
+        isSyncedWithRemote = true;
+        finishWorkspaceHydration();
+        console.log(
+          "[futura-nota] Version gate: skipped full hydrate (local in sync).",
+          { lastSyncedAt, remoteVersion },
+        );
+        return;
+      }
+
+      if (versionFetchFailed && !hydrateOnVersionError) {
+        isSyncedWithRemote = true;
+        finishWorkspaceHydration();
         return;
       }
 
@@ -1479,6 +1534,19 @@ export function initPersistenceMiddleware(stores) {
       isSyncedWithRemote = true;
       console.log("Supabase sync loaded for user:", userId);
       finishWorkspaceHydration();
+      const hydratedVersion =
+        maxUpdatedAtFromRows([
+          ...(dbCompanies || []),
+          ...(dbCampaigns || []),
+          ...(dbNodes || []),
+          ...(dbCanvasNodes || []),
+          ...(dbCanvasConnections || []),
+          ...(dbGroupings || []),
+          ...(dbTimelines || []),
+        ]) || remoteVersion;
+      if (hydratedVersion) {
+        writeLastSyncedAt(hydratedVersion);
+      }
       const finalState = getLocalState();
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(finalState));
@@ -1806,6 +1874,8 @@ export function initPersistenceMiddleware(stores) {
       }
 
       if (criticalOk) {
+        // Gate token only after a confirmed cloud write (not on local edit alone).
+        writeLastSyncedAt(now);
         console.log("Supabase sync complete for user:", userId);
       } else {
         console.warn("Supabase sync finished with critical upsert failures for user:", userId);
@@ -1882,6 +1952,13 @@ export function initPersistenceMiddleware(stores) {
       } catch (_) { /* ignore */ }
       // #endregion
       flushPersistenceSyncBestEffort();
+      return;
+    }
+    // Tab visible again: version-gated re-check (no full SELECT * if unchanged).
+    if (isSyncedWithRemote && !hydrateInFlight) {
+      loadFromSupabase({ hydrateOnVersionError: false }).catch((err) => {
+        console.warn("Version-gated focus hydrate failed:", err?.message || err);
+      });
     }
   };
 
@@ -1944,6 +2021,7 @@ export function initPersistenceMiddleware(stores) {
       pendingDeletedNodeIds.clear();
       deletedDocMarkedAt.clear();
       deletedNodeMarkedAt.clear();
+      clearLastSyncedAt();
       try {
         localStorage.removeItem(TOMBSTONE_LEDGER_KEY);
       } catch {
