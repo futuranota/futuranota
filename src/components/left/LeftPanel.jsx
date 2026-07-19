@@ -1570,6 +1570,7 @@ export function LeftPanel({
   const [leftPanelNavRestored, setLeftPanelNavRestored] = useState(false);
   const [folderBulkDeleteMode, setFolderBulkDeleteMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState([]);
+  const [folderSearchQuery, setFolderSearchQuery] = useState("");
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
@@ -1738,6 +1739,29 @@ export function LeftPanel({
     [uncategorizedDocs, contentProductFilter],
   );
 
+  const folderSearchNeedle = folderSearchQuery.trim().toLowerCase();
+
+  const matchesFolderSearch = useCallback((doc) => {
+    if (!folderSearchNeedle) return true;
+    const title = String(doc?.title || "").toLowerCase();
+    return title.includes(folderSearchNeedle);
+  }, [folderSearchNeedle]);
+
+  const visibleCampaignDocs = useMemo(
+    () => filteredCampaignDocs.filter(matchesFolderSearch),
+    [filteredCampaignDocs, matchesFolderSearch],
+  );
+
+  const visibleContentDocs = useMemo(
+    () => filteredContentDocs.filter(matchesFolderSearch),
+    [filteredContentDocs, matchesFolderSearch],
+  );
+
+  const visibleUncategorizedDocs = useMemo(
+    () => filteredUncategorizedDocs.filter(matchesFolderSearch),
+    [filteredUncategorizedDocs, matchesFolderSearch],
+  );
+
   const groupedProductDocs = useMemo(
     () => groupProductDocsFromList(filteredProductDocs, t("sidebar.docGroupUncategorized")),
     [filteredProductDocs, t],
@@ -1890,10 +1914,20 @@ export function LeftPanel({
   };
 
   useEffect(() => {
-    if (clickFolderView !== "subgroups" && folderBulkDeleteMode) {
+    const inFolderSelectView =
+      clickFolderView === "subgroups" || clickFolderView === "campaign";
+    if (!inFolderSelectView && folderBulkDeleteMode) {
       exitFolderBulkDeleteMode();
     }
-  }, [clickFolderView, folderBulkDeleteMode, exitFolderBulkDeleteMode]);
+    if (!inFolderSelectView && folderSearchQuery) {
+      setFolderSearchQuery("");
+    }
+  }, [
+    clickFolderView,
+    folderBulkDeleteMode,
+    folderSearchQuery,
+    exitFolderBulkDeleteMode,
+  ]);
 
   const handleDeleteCategoryGroup = async (group) => {
     const label = group?.label || t("sidebar.docGroupUncategorized");
@@ -2731,6 +2765,19 @@ export function LeftPanel({
                     onFilterChange={setProductCategoryFilter}
                   />
                 </div>
+                <div className="lp-library-toolbar lp-folder-search-toolbar">
+                  <div className="lp-library-search-wrap">
+                    <span className="lp-library-search-icon" aria-hidden />
+                    <input
+                      type="search"
+                      className="lp-library-search"
+                      value={folderSearchQuery}
+                      onChange={(e) => setFolderSearchQuery(e.target.value)}
+                      placeholder={t("sidebar.folderSearchPlaceholder")}
+                      aria-label={t("sidebar.folderSearchPlaceholder")}
+                    />
+                  </div>
+                </div>
                 {folderBulkDeleteMode ? (
                   <div className="lp-folder-bulk-bar" role="status">
                     <span className="lp-folder-bulk-bar__count">
@@ -2771,8 +2818,8 @@ export function LeftPanel({
                     + (folderBulkDeleteMode ? " lp-doc-nodes-stack--selecting" : "")
                   }
                 >
-                  {filteredCampaignDocs.length ? (
-                    filteredCampaignDocs.map((doc) => (
+                  {visibleCampaignDocs.length ? (
+                    visibleCampaignDocs.map((doc) => (
                       <DocNodesBlockCard
                         key={doc.id}
                         doc={doc}
@@ -2797,14 +2844,18 @@ export function LeftPanel({
                   ) : (
                     <div className="lp-empty">
                       <p className="dim">
-                        {productCategoryFilter
-                          ? t("sidebar.noCampaignsInCategory")
-                          : t("sidebar.noCampaignsYet")}
+                        {folderSearchNeedle
+                          ? t("sidebar.noFoldersMatch")
+                          : productCategoryFilter
+                            ? t("sidebar.noCampaignsInCategory")
+                            : t("sidebar.noCampaignsYet")}
                       </p>
                       <p className="dim">
-                        {productCategoryFilter
-                          ? t("sidebar.clearCategoryFilter")
-                          : t("sidebar.useNewCampaign")}
+                        {folderSearchNeedle
+                          ? t("sidebar.noFoldersMatchHint")
+                          : productCategoryFilter
+                            ? t("sidebar.clearCategoryFilter")
+                            : t("sidebar.useNewCampaign")}
                       </p>
                     </div>
                   )}
@@ -2925,6 +2976,19 @@ export function LeftPanel({
                     onInsertGuide={handleInsertGuide}
                   />
                 </div>
+                <div className="lp-library-toolbar lp-folder-search-toolbar">
+                  <div className="lp-library-search-wrap">
+                    <span className="lp-library-search-icon" aria-hidden />
+                    <input
+                      type="search"
+                      className="lp-library-search"
+                      value={folderSearchQuery}
+                      onChange={(e) => setFolderSearchQuery(e.target.value)}
+                      placeholder={t("sidebar.folderSearchPlaceholder")}
+                      aria-label={t("sidebar.folderSearchPlaceholder")}
+                    />
+                  </div>
+                </div>
                 {folderBulkDeleteMode ? (
                   <div className="lp-folder-bulk-bar" role="status">
                     <span className="lp-folder-bulk-bar__count">
@@ -2965,9 +3029,9 @@ export function LeftPanel({
                     + (folderBulkDeleteMode ? " lp-doc-nodes-stack--selecting" : "")
                   }
                 >
-                  {filteredContentDocs.length || filteredUncategorizedDocs.length ? (
+                  {visibleContentDocs.length || visibleUncategorizedDocs.length ? (
                     <>
-                      {filteredContentDocs.map((doc) => (
+                      {visibleContentDocs.map((doc) => (
                         <DocNodesBlockCard
                           key={doc.id}
                           doc={doc}
@@ -2989,7 +3053,7 @@ export function LeftPanel({
                           onNodeDelete={handleDeleteNode}
                         />
                       ))}
-                      {filteredUncategorizedDocs.map((doc) => (
+                      {visibleUncategorizedDocs.map((doc) => (
                         <DocNodesBlockCard
                           key={doc.id}
                           doc={doc}
@@ -3015,18 +3079,22 @@ export function LeftPanel({
                   ) : (
                     <div className="lp-empty">
                       <p className="dim">
-                        {contentProductFilter
-                          ? t("sidebar.noContentForProduct")
-                          : filterObjectId && getDocsByObject(filterObjectId).length > 0
-                            ? t("sidebar.noContentUncategorized", {
-                              count: getDocsByObject(filterObjectId).length,
-                            })
-                            : t("sidebar.noContentYet")}
+                        {folderSearchNeedle
+                          ? t("sidebar.noFoldersMatch")
+                          : contentProductFilter
+                            ? t("sidebar.noContentForProduct")
+                            : filterObjectId && getDocsByObject(filterObjectId).length > 0
+                              ? t("sidebar.noContentUncategorized", {
+                                count: getDocsByObject(filterObjectId).length,
+                              })
+                              : t("sidebar.noContentYet")}
                       </p>
                       <p className="dim">
-                        {contentProductFilter
-                          ? t("sidebar.clearContentFilter")
-                          : t("sidebar.useNewContent")}
+                        {folderSearchNeedle
+                          ? t("sidebar.noFoldersMatchHint")
+                          : contentProductFilter
+                            ? t("sidebar.clearContentFilter")
+                            : t("sidebar.useNewContent")}
                       </p>
                     </div>
                   )}

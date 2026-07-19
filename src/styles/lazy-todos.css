@@ -398,8 +398,31 @@
 
 /* Queue panel — steps-files style */
 .lazy-todo-queue-panel__head {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+}
+
+.lazy-todo-queue-panel__list--selecting .lazy-todo-queue-panel__item {
+  cursor: pointer;
+}
+
+.lazy-todo-queue-panel__item--select-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.lazy-todo-queue-panel__item--select-mode.is-selected {
+  border-color: rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  background: color-mix(in oklab, #151515 82%, #fff 8%);
+}
+
+.lazy-todo-queue-panel__item--select-mode .lp-doc-nodes-block__check {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .lazy-todo-queue-panel__body {

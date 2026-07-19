@@ -1510,6 +1510,15 @@
   cursor: default;
 }
 
+.lp-folder-search-toolbar {
+  margin: 0 0 8px;
+}
+
+.lp-folder-search-toolbar .lp-library-search-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
 .lp-folder-bulk-bar {
   display: flex;
   align-items: center;

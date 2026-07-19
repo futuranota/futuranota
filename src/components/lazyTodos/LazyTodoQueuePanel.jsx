@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLazyTodosStore } from "../../stores/lazyTodosStore.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 import {
   filterLazyTodos,
   lazyTodoDisplayTitle,
@@ -24,8 +25,12 @@ export function LazyTodoQueuePanel({
 }) {
   const { t } = useI18n();
   const items = useLazyTodosStore((s) => s.items);
+  const removeItem = useLazyTodosStore((s) => s.removeItem);
   const requeueOrphanedActives = useLazyTodosStore((s) => s.requeueOrphanedActives);
+  const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   useEffect(() => {
     requeueOrphanedActives?.();
@@ -38,6 +43,47 @@ export function LazyTodoQueuePanel({
     ));
     return sortLazyTodosNewestFirst(filterLazyTodos(scoped, query));
   }, [items, objectId, query]);
+
+  const exitBulkSelectMode = useCallback(() => {
+    setBulkSelectMode(false);
+    setSelectedIds([]);
+  }, []);
+
+  const toggleBulkSelectMode = useCallback(() => {
+    setBulkSelectMode((active) => {
+      if (active) {
+        setSelectedIds([]);
+        return false;
+      }
+      setSelectedIds([]);
+      return true;
+    });
+  }, []);
+
+  const toggleSelect = useCallback((id) => {
+    if (!id) return;
+    setSelectedIds((prev) => (
+      prev.includes(id)
+        ? prev.filter((entry) => entry !== id)
+        : [...prev, id]
+    ));
+  }, []);
+
+  const handleDeleteSelected = async () => {
+    const ids = selectedIds.filter(Boolean);
+    if (!ids.length) return;
+    const confirmed = await askConfirm({
+      title: t("lazyTodos.deleteSelectedTitle"),
+      message: t("lazyTodos.deleteSelectedConfirm", { count: ids.length }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+    for (const id of ids) {
+      removeItem(id);
+    }
+    exitBulkSelectMode();
+  };
 
   const stopBubble = (event) => {
     event.stopPropagation();
@@ -59,6 +105,25 @@ export function LazyTodoQueuePanel({
               {t("pack.lazyTodosQueueTitle")}
             </span>
           </button>
+          {objectId ? (
+            <button
+              type="button"
+              className={
+                "lp-folder-density__btn lp-folder-select-btn"
+                + (bulkSelectMode ? " is-active" : "")
+              }
+              onClick={toggleBulkSelectMode}
+              title={
+                bulkSelectMode
+                  ? t("lazyTodos.selectActive")
+                  : t("lazyTodos.selectTitle")
+              }
+              aria-label={t("lazyTodos.selectTitle")}
+              aria-pressed={bulkSelectMode}
+            >
+              {t("lazyTodos.select")}
+            </button>
+          ) : null}
         </div>
 
         <div className="pack-wizard__body lazy-todo-queue-panel__body">
@@ -85,17 +150,79 @@ export function LazyTodoQueuePanel({
                   type="button"
                   className="lp-library-new-btn"
                   onClick={onNew}
+                  disabled={bulkSelectMode}
                 >
                   {t("lazyTodos.new")}
                 </button>
               </div>
 
+              {bulkSelectMode ? (
+                <div className="lp-folder-bulk-bar" role="status">
+                  <span className="lp-folder-bulk-bar__count">
+                    {t("lazyTodos.selectCount", { count: selectedIds.length })}
+                  </span>
+                  <div className="lp-folder-bulk-bar__actions">
+                    <button
+                      type="button"
+                      className="btn xs ghost"
+                      onClick={exitBulkSelectMode}
+                    >
+                      {t("lazyTodos.selectDone")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn xs lp-folder-bulk-bar__delete"
+                      disabled={selectedIds.length === 0}
+                      onClick={handleDeleteSelected}
+                    >
+                      {t("lazyTodos.deleteSelected")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {queuedItems.length ? (
-                <ul className="lazy-todo-queue-panel__list">
+                <ul
+                  className={
+                    "lazy-todo-queue-panel__list"
+                    + (bulkSelectMode ? " lazy-todo-queue-panel__list--selecting" : "")
+                  }
+                >
                   {queuedItems.map((item) => {
                     const { done, total } = lazyTodoProgress(item);
+                    const selected = selectedIds.includes(item.id);
                     return (
-                      <li key={item.id} className="lazy-todo-queue-panel__item">
+                      <li
+                        key={item.id}
+                        className={
+                          "lazy-todo-queue-panel__item"
+                          + (bulkSelectMode ? " lazy-todo-queue-panel__item--select-mode" : "")
+                          + (selected ? " is-selected" : "")
+                        }
+                        onClick={bulkSelectMode ? () => toggleSelect(item.id) : undefined}
+                        onKeyDown={
+                          bulkSelectMode
+                            ? (event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                toggleSelect(item.id);
+                              }
+                            }
+                            : undefined
+                        }
+                        role={bulkSelectMode ? "button" : undefined}
+                        tabIndex={bulkSelectMode ? 0 : undefined}
+                        aria-pressed={bulkSelectMode ? selected : undefined}
+                      >
+                        {bulkSelectMode ? (
+                          <span
+                            className={
+                              "lp-doc-nodes-block__check"
+                              + (selected ? " is-checked" : "")
+                            }
+                            aria-hidden
+                          />
+                        ) : null}
                         <div className="lazy-todo-queue-panel__item-main">
                           <div className="lazy-todo-queue-panel__item-head">
                             <span className="lazy-todo-queue-panel__item-title">
@@ -111,23 +238,33 @@ export function LazyTodoQueuePanel({
                             </p>
                           ) : null}
                         </div>
-                        <div className="lazy-todo-queue-panel__item-actions">
-                          <button
-                            type="button"
-                            className="btn xs pack-actions__btn pack-actions__btn--toolbar panel-list-open-btn"
-                            onClick={() => onOpenItem?.(item)}
-                          >
-                            {t("common.open")}
-                          </button>
-                        </div>
+                        {!bulkSelectMode ? (
+                          <div className="lazy-todo-queue-panel__item-actions">
+                            <button
+                              type="button"
+                              className="btn xs pack-actions__btn pack-actions__btn--toolbar panel-list-open-btn"
+                              onClick={() => onOpenItem?.(item)}
+                            >
+                              {t("common.open")}
+                            </button>
+                          </div>
+                        ) : null}
                       </li>
                     );
                   })}
                 </ul>
               ) : (
                 <div className="lp-empty lazy-todo-queue-panel__empty">
-                  <p>{t("lazyTodos.queueEmptyTitle")}</p>
-                  <p className="dim">{t("lazyTodos.queueEmptyHint")}</p>
+                  <p>
+                    {query.trim()
+                      ? t("lazyTodos.queueNoMatch")
+                      : t("lazyTodos.queueEmptyTitle")}
+                  </p>
+                  <p className="dim">
+                    {query.trim()
+                      ? t("lazyTodos.queueNoMatchHint")
+                      : t("lazyTodos.queueEmptyHint")}
+                  </p>
                 </div>
               )}
             </>
