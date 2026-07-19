@@ -819,6 +819,7 @@ export function TacticalTimeline({
   const timelineExcludedChildrenByDocId = useTimelineStore((s) => s.timelineExcludedChildrenByDocId);
   const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
   const timelineDateNodeIds = useTimelineStore((s) => s.timelineDateNodeIds);
+  const timelineDateSnapshotsById = useTimelineStore((s) => s.timelineDateSnapshotsById);
   const timelineSheet = useUIStateStore((s) => s.timelineSheet);
   const toggleTimelineSheet = useUIStateStore((s) => s.toggleTimelineSheet);
   const isSheetExpanded = timelineSheet === "expanded";
@@ -880,6 +881,7 @@ export function TacticalTimeline({
       timelineExcludedChildrenByDocId,
       timelineAgentSets,
       timelineDateNodeIds,
+      timelineDateSnapshotsById,
       expandedDocIds,
       today: now,
       filterObjectId,
@@ -901,6 +903,7 @@ export function TacticalTimeline({
       timelineExcludedChildrenByDocId,
       timelineAgentSets,
       timelineDateNodeIds,
+      timelineDateSnapshotsById,
       expandedDocIds,
       now,
       filterObjectId,
@@ -1000,8 +1003,16 @@ export function TacticalTimeline({
             folderDocId: docId,
             sourceEntityId: nodeId,
             canvasNodes,
+            dateSnapshotsById: timelineDateSnapshotsById,
           });
-          useTimelineStore.setState({ timelineDateNodeIds: synced });
+          const nextSnaps = Object.fromEntries(
+            Object.entries(timelineDateSnapshotsById || {})
+              .filter(([id]) => synced.includes(id)),
+          );
+          useTimelineStore.setState({
+            timelineDateNodeIds: synced,
+            timelineDateSnapshotsById: nextSnaps,
+          });
         }
         setTimelineFocus({
           level: "children",

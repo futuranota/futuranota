@@ -685,6 +685,7 @@ function pickTimelineUiState(state) {
     timelineExcludedChildrenByDocId: state.timelineExcludedChildrenByDocId || {},
     timelineAgentSets: Array.isArray(state.timelineAgentSets) ? state.timelineAgentSets : [],
     timelineDateNodeIds: Array.isArray(state.timelineDateNodeIds) ? state.timelineDateNodeIds : [],
+    timelineDateSnapshotsById: state.timelineDateSnapshotsById || {},
     expandedDocIds: Array.isArray(state.expandedDocIds) ? state.expandedDocIds : [],
     primaryTimelineObjectId: state.primaryTimelineObjectId || null,
     currentTier: typeof state.currentTier === "string" ? state.currentTier : "all",
@@ -704,6 +705,7 @@ function filterTimelineUiToExistingDocs(ui, docIds) {
     timelineDocSnapshotsByDocId: filterMap(ui.timelineDocSnapshotsByDocId),
     timelineExcludedChildrenByDocId: filterMap(ui.timelineExcludedChildrenByDocId),
     timelineDateNodeIds: Array.isArray(ui.timelineDateNodeIds) ? ui.timelineDateNodeIds : [],
+    timelineDateSnapshotsById: ui.timelineDateSnapshotsById || {},
     expandedDocIds: (ui.expandedDocIds || []).filter((docId) => docSet.has(docId)),
   };
 }
@@ -724,6 +726,7 @@ function emptyWorkspaceSnapshot() {
     timelineExcludedChildrenByDocId: {},
     timelineAgentSets: [],
     timelineDateNodeIds: [],
+    timelineDateSnapshotsById: {},
     expandedDocIds: [],
     primaryTimelineObjectId: null,
     scheduledAutoRunEnabled: true,
@@ -1110,6 +1113,7 @@ export function initPersistenceMiddleware(stores) {
     timelineExcludedChildrenByDocId: useTimelineStore.getState().timelineExcludedChildrenByDocId,
     timelineAgentSets: useTimelineStore.getState().timelineAgentSets,
     timelineDateNodeIds: useTimelineStore.getState().timelineDateNodeIds,
+    timelineDateSnapshotsById: useTimelineStore.getState().timelineDateSnapshotsById,
     expandedDocIds: useTimelineStore.getState().expandedDocIds,
     primaryTimelineObjectId: useTimelineStore.getState().primaryTimelineObjectId,
     scheduledAutoRunEnabled: useScheduledTasksStore.getState().autoRunEnabled,
@@ -1177,6 +1181,7 @@ export function initPersistenceMiddleware(stores) {
         timelineExcludedChildrenByDocId: stripped.timelineExcludedChildrenByDocId || {},
         timelineAgentSets: Array.isArray(stripped.timelineAgentSets) ? stripped.timelineAgentSets : [],
         timelineDateNodeIds: Array.isArray(stripped.timelineDateNodeIds) ? stripped.timelineDateNodeIds : [],
+        timelineDateSnapshotsById: stripped.timelineDateSnapshotsById || {},
         expandedDocIds: Array.isArray(stripped.expandedDocIds) ? stripped.expandedDocIds : [],
         primaryTimelineObjectId: stripped.primaryTimelineObjectId || null,
       });
@@ -1614,6 +1619,7 @@ export function initPersistenceMiddleware(stores) {
         timelineExcludedChildrenByDocId: filteredTimelineUi.timelineExcludedChildrenByDocId,
         timelineAgentSets: filteredTimelineUi.timelineAgentSets,
         timelineDateNodeIds: filteredTimelineUi.timelineDateNodeIds,
+        timelineDateSnapshotsById: filteredTimelineUi.timelineDateSnapshotsById || {},
         expandedDocIds: filteredTimelineUi.expandedDocIds,
         primaryTimelineObjectId: filteredTimelineUi.primaryTimelineObjectId,
         currentTier: filteredTimelineUi.currentTier,

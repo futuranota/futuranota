@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 import {
+  captureTimelineDateSnapshot,
   isTimelineDateCanvasNode,
   resolveTimelineDateNodeDate,
 } from "../lib/campaignTimelineRail.js";
@@ -64,6 +65,8 @@ export const useTimelineStore = create(
       timelineAgentSets: [],
       /** Canvas date/launch node ids manually inserted as rail time markers. */
       timelineDateNodeIds: [],
+      /** Persisted date/Launch payloads — survive canvas delete until × or switch. */
+      timelineDateSnapshotsById: {},
       /** Cognitive snapshot mode (Trace Funix) — Intel / mixed doc+object queries. */
       traceFunixMode: false,
       /** Fase 2: cross-family doc links + timeline inherit (Bloque A). */
@@ -326,6 +329,7 @@ export const useTimelineStore = create(
         timelineExcludedChildrenByDocId: {},
         timelineAgentSets: [],
         timelineDateNodeIds: [],
+        timelineDateSnapshotsById: {},
         tacticalRangeOverride: null,
         tacticalLoupe: null,
         tacticalPairStretches: [],
@@ -390,9 +394,13 @@ export const useTimelineStore = create(
 
       removeTimelineDateNode: (nodeId) => {
         if (!nodeId) return;
-        set((state) => ({
-          timelineDateNodeIds: state.timelineDateNodeIds.filter((id) => id !== nodeId),
-        }));
+        set((state) => {
+          const { [nodeId]: _drop, ...dateSnapRest } = state.timelineDateSnapshotsById || {};
+          return {
+            timelineDateNodeIds: state.timelineDateNodeIds.filter((id) => id !== nodeId),
+            timelineDateSnapshotsById: dateSnapRest,
+          };
+        });
       },
 
       updateTimelineAgentSetStatus: (setId, status, error = null) => {
@@ -418,6 +426,15 @@ export const useTimelineStore = create(
           const { [docId]: _removed, ...focusRest } = state.timelineDocQueueFocusByDocId;
           const { [docId]: _snap, ...snapRest } = state.timelineDocSnapshotsByDocId;
           const { [docId]: _excl, ...exclRest } = state.timelineExcludedChildrenByDocId;
+          const dateSnaps = state.timelineDateSnapshotsById || {};
+          const dropDateIds = new Set(
+            Object.entries(dateSnaps)
+              .filter(([, snap]) => snap?.parentDocId === docId)
+              .map(([id]) => id),
+          );
+          const nextDateSnaps = Object.fromEntries(
+            Object.entries(dateSnaps).filter(([id]) => !dropDateIds.has(id)),
+          );
           return {
             timelineDocQueue: state.timelineDocQueue.filter((id) => id !== docId),
             timelineDocQueueFocusByDocId: focusRest,
@@ -425,6 +442,8 @@ export const useTimelineStore = create(
             timelineExcludedChildrenByDocId: exclRest,
             timelineAgentSets: state.timelineAgentSets.filter((set) => set.docId !== docId),
             expandedDocIds: state.expandedDocIds.filter((id) => id !== docId),
+            timelineDateNodeIds: state.timelineDateNodeIds.filter((id) => !dropDateIds.has(id)),
+            timelineDateSnapshotsById: nextDateSnaps,
           };
         });
       },
@@ -570,6 +589,7 @@ export const useTimelineStore = create(
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
         const snapshots = { ...get().timelineDocSnapshotsByDocId };
         const dateNodeIds = new Set(get().timelineDateNodeIds);
+        const dateSnapshotsById = { ...(get().timelineDateSnapshotsById || {}) };
         const touchedDocIds = new Set();
         const nodesByDocId = new Map();
         let added = 0;
@@ -580,16 +600,54 @@ export const useTimelineStore = create(
         /** @type {string[]} */
         let removedCampaignIds = [];
 
+        const pruneDateSnapshotsToIds = () => {
+          for (const id of Object.keys(dateSnapshotsById)) {
+            if (!dateNodeIds.has(id)) delete dateSnapshotsById[id];
+          }
+        };
+
         for (const canvasId of canvasNodeIds) {
           const node = nodeById.get(canvasId);
           if (!node) continue;
           // Dates are time markers on the rail — never queued as docs.
+          // Select the Launch/date node → Insert pins it permanently (snapshot).
           if (isTimelineDateCanvasNode(node)) {
-            if (!resolveTimelineDateNodeDate(node)) continue;
+            const dateSnap = captureTimelineDateSnapshot(node);
+            if (!dateSnap) continue;
+            // Launch cannot sit before today on the rail.
+            if (node.canvasKind === "launch" && !resolveTimelineDateNodeDate(node)) continue;
             dateNodesTouched += 1;
             if (!dateNodeIds.has(node.id)) {
               dateNodeIds.add(node.id);
               datesAdded += 1;
+            }
+            dateSnapshotsById[node.id] = dateSnap;
+
+            // Inserting a campaign Launch can switch the folder source to that file.
+            if (node.canvasKind === "launch" && node.parentDocId && node.sourceNodeId) {
+              const folder = docsById[node.parentDocId];
+              const entity = nodeEntitiesById[node.sourceNodeId];
+              if (folder?.campaignActive && entity && canSetCampaignTimelineSource(folder, entity)) {
+                useDocsStore.getState().updateDoc(folder.id, {
+                  timelineSourceNodeId: entity.id,
+                });
+                useNodesStore.getState().updateNode(entity.id, {
+                  campaignStatus: CAMPAIGN_DOC_STATUS_ACTIVE,
+                  completed: false,
+                });
+                const synced = syncCampaignFolderLaunchDateQueue(dateNodeIds, {
+                  folderDocId: folder.id,
+                  sourceEntityId: entity.id,
+                  canvasNodes,
+                  dateSnapshotsById,
+                });
+                dateNodeIds.clear();
+                for (const id of synced) dateNodeIds.add(id);
+                pruneDateSnapshotsToIds();
+                if (!campaignFoldersInserted.includes(folder.id) && queue.includes(folder.id)) {
+                  campaignFoldersInserted.push(folder.id);
+                }
+              }
             }
             continue;
           }
@@ -614,8 +672,8 @@ export const useTimelineStore = create(
           );
           if (focusBlockId) focusByDocId[docId] = focusBlockId;
 
-          // Same parent campaign folder: freshest file wins — previous source
-          // file leaves the expand queue; Launch date type switches with it.
+          // Same parent campaign folder: freshest file wins. Launch is NOT
+          // auto-queued — select the Launch date node and Insert separately.
           const entityId = node.noteId || null;
           const entity = entityId ? nodeEntitiesById[entityId] : null;
           if (folder?.campaignActive && entity && canSetCampaignTimelineSource(folder, entity)) {
@@ -626,18 +684,15 @@ export const useTimelineStore = create(
               campaignStatus: CAMPAIGN_DOC_STATUS_ACTIVE,
               completed: false,
             });
-            const launchId = `CN-launch-node-${entity.id}`;
-            const hadLaunch = dateNodeIds.has(launchId);
             const synced = syncCampaignFolderLaunchDateQueue(dateNodeIds, {
               folderDocId: docId,
               sourceEntityId: entity.id,
               canvasNodes,
+              dateSnapshotsById,
             });
             dateNodeIds.clear();
             for (const id of synced) dateNodeIds.add(id);
-            if (!hadLaunch && dateNodeIds.has(launchId)) {
-              datesAdded += 1;
-            }
+            pruneDateSnapshotsToIds();
           }
           if (folder?.campaignActive && !campaignFoldersInserted.includes(docId)) {
             campaignFoldersInserted.push(docId);
@@ -675,8 +730,11 @@ export const useTimelineStore = create(
             for (const dateId of [...dateNodeIds]) {
               const dateNode = nodeById.get(dateId)
                 || canvasNodes.find((n) => n.id === dateId);
-              if (dateNode?.parentDocId && removedSet.has(dateNode.parentDocId)) {
+              const parentDocId = dateNode?.parentDocId
+                || dateSnapshotsById[dateId]?.parentDocId;
+              if (parentDocId && removedSet.has(parentDocId)) {
                 dateNodeIds.delete(dateId);
+                delete dateSnapshotsById[dateId];
               }
             }
           }
@@ -761,6 +819,8 @@ export const useTimelineStore = create(
           ? get().expandedDocIds.filter((id) => !removedCampaignSet.has(id))
           : get().expandedDocIds;
 
+        pruneDateSnapshotsToIds();
+
         set({
           timelineDocQueue: queue,
           timelineDocQueueFocusByDocId: focusByDocId,
@@ -768,6 +828,7 @@ export const useTimelineStore = create(
           timelineExcludedChildrenByDocId: excluded,
           timelineAgentSets: nextAgentSets,
           timelineDateNodeIds: [...dateNodeIds],
+          timelineDateSnapshotsById: dateSnapshotsById,
           expandedDocIds: nextExpanded,
           // Fresh auto zoom after insert — avoids collapsed month snap / stale stretch.
           tacticalRangeOverride: null,

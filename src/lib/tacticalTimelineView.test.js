@@ -25,6 +25,7 @@ describe("tactical inherit-guest + children ordering", () => {
       createdAt: "2026-07-02T12:00:00.000Z",
       campaignActive: true,
       launchAt: "2026-07-26T12:00:00.000Z",
+      timelineSourceNodeId: "campaignResearch",
       blocks: [],
       nodeIds: ["campaignResearch"],
     },
@@ -44,7 +45,9 @@ describe("tactical inherit-guest + children ordering", () => {
       dataType: "text",
       title: "Research note",
       createdAt: "2026-07-05T10:00:00.000Z",
-      // Legacy task data must not control Campaign research chronology.
+      campaignStatus: "active",
+      launchAt: "2026-07-26T15:00:00.000Z",
+      // Schedule must not control Campaign expand chronology.
       anchorAt: "2026-07-25T18:00:00.000Z",
     },
   };
@@ -136,7 +139,7 @@ describe("tactical inherit-guest + children ordering", () => {
     expect(withWire.displayRows.some((r) => r.id === "children-fnFolder")).toBe(true);
   });
 
-  it("places Campaign research children by Created, not Schedule", () => {
+  it("places Campaign expand children on Launch, not Schedule", () => {
     const view = buildTacticalObjectRows({
       canvasNodes,
       connections: [],
@@ -155,6 +158,6 @@ describe("tactical inherit-guest + children ordering", () => {
     expect(childRow).toBeTruthy();
     expect(childRow.columns).toHaveLength(1);
     expect(childRow.columns[0].date.toISOString())
-      .toBe("2026-07-05T10:00:00.000Z");
+      .toBe("2026-07-26T15:00:00.000Z");
   });
 });

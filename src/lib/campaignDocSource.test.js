@@ -96,7 +96,7 @@ describe("campaignDocSource", () => {
     expect(removed).toEqual(["folder-1"]);
   });
 
-  it("switches Launch date type when the source file changes", () => {
+  it("drops other folder Launches on switch without auto-adding from canvas", () => {
     const launchA = campaignLaunchCanvasNodeId("node-a");
     const launchD = campaignLaunchCanvasNodeId("node-d");
     const canvasNodes = [
@@ -108,7 +108,8 @@ describe("campaignDocSource", () => {
       [launchA, "CN-date-other"],
       { folderDocId: "folder-1", sourceEntityId: "node-d", canvasNodes },
     );
-    expect(next).toContain(launchD);
+    // Launch D is on canvas but was not queued — do not auto-insert.
+    expect(next).not.toContain(launchD);
     expect(next).toContain("CN-date-other");
     expect(next).not.toContain(launchA);
     expect(isCampaignSourceLaunchDateNode(

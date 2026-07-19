@@ -1080,6 +1080,7 @@ export function buildTacticalObjectRows(params) {
   timelineExcludedChildrenByDocId = {},
   timelineAgentSets = [],
   timelineDateNodeIds = [],
+  timelineDateSnapshotsById = {},
   expandedDocIds = [],
     today = new Date(),
     filterObjectId = null,
@@ -1127,8 +1128,10 @@ export function buildTacticalObjectRows(params) {
   }
   for (const dateNodeId of timelineDateNodeIds) {
     const node = canvasNodes.find((n) => n.id === dateNodeId);
-    if (!node?.parentDocId) continue;
-    addObjectId(docsById[node.parentDocId]?.parentObjectId);
+    const parentDocId = node?.parentDocId
+      || timelineDateSnapshotsById[dateNodeId]?.parentDocId;
+    if (!parentDocId) continue;
+    addObjectId(docsById[parentDocId]?.parentObjectId);
   }
   // Chains no longer create rows on their own — dragging a folder to the
   // canvas must not surface it on the timeline until "Insert to timeline".
@@ -1243,6 +1246,7 @@ export function buildTacticalObjectRows(params) {
       docsById,
       nodeEntitiesById,
       allowedDateNodeIds: timelineDateNodeIds,
+      dateSnapshotsById: timelineDateSnapshotsById,
       today,
     })) {
       markerByKey.set(dateMarker.nodeId, dateMarker);

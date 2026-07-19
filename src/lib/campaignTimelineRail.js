@@ -109,7 +109,38 @@ function resolveDateParentDocId(node, docsById = {}) {
 }
 
 /**
+ * Persist a date/Launch marker so it stays on the rail after canvas delete.
+ * Removed only via timeline close (×) or campaign source switch.
+ * @param {object|null|undefined} node
+ * @returns {object|null}
+ */
+export function captureTimelineDateSnapshot(node) {
+  if (!isTimelineDateCanvasNode(node) || !node.id) return null;
+  let raw = null;
+  if (node.launchAt) raw = parseDate(node.launchAt);
+  if (!raw) raw = parseDateContent(node.content);
+  if (!raw && Number.isFinite(node.dateMs)) {
+    const fromMs = new Date(node.dateMs);
+    if (!Number.isNaN(fromMs.getTime())) raw = fromMs;
+  }
+  if (!raw || Number.isNaN(raw.getTime())) return null;
+  return {
+    id: node.id,
+    parentDocId: node.parentDocId || null,
+    title: (node.title || (node.canvasKind === "launch" ? "Launch" : "Date")).trim() || "Date",
+    canvasKind: node.canvasKind || null,
+    dataType: "date",
+    launchAt: node.launchAt || null,
+    content: node.content ?? null,
+    sourceNodeId: node.sourceNodeId || null,
+    dateMs: raw.getTime(),
+  };
+}
+
+/**
  * Collect manually inserted date markers for an object row.
+ * Uses live canvas nodes when present; otherwise persisted snapshots
+ * (so deleting Launch from canvas does not drop it from the timeline).
  *
  * @param {object} opts
  * @param {string} opts.objectId
@@ -117,6 +148,7 @@ function resolveDateParentDocId(node, docsById = {}) {
  * @param {Record<string, object>} [opts.docsById]
  * @param {Record<string, object>} [opts.nodeEntitiesById]
  * @param {Set<string>|string[]} [opts.allowedDateNodeIds]
+ * @param {Record<string, object>} [opts.dateSnapshotsById]
  * @param {Date} [opts.today]
  * @returns {object[]}
  */
@@ -126,46 +158,61 @@ export function collectFolderLinkedDateMarkers({
   docsById = {},
   nodeEntitiesById = {},
   allowedDateNodeIds = [],
+  dateSnapshotsById = {},
   today = new Date(),
 } = {}) {
-  if (!objectId || !canvasNodes.length) return [];
+  if (!objectId) return [];
 
   const allowedIds = allowedDateNodeIds instanceof Set
     ? allowedDateNodeIds
     : new Set(allowedDateNodeIds);
   if (!allowedIds.size) return [];
 
+  const liveById = new Map(
+    canvasNodes.filter((n) => n?.id).map((n) => [n.id, n]),
+  );
+
   /** @type {object[]} */
   const markers = [];
   /** @type {Set<string>} */
   const seen = new Set();
 
-  for (const node of canvasNodes) {
-    if (!isTimelineDateCanvasNode(node)) continue;
-    if (!allowedIds.has(node.id)) continue;
-    if (seen.has(node.id)) continue;
+  for (const id of allowedIds) {
+    if (seen.has(id)) continue;
+    const live = liveById.get(id);
+    const snap = dateSnapshotsById[id] || null;
+    const node = live || (snap ? { ...snap, id } : null);
+    if (!node || !isTimelineDateCanvasNode(node)) continue;
 
-    const date = resolveTimelineDateNodeDate(node, today);
+    let date = resolveTimelineDateNodeDate(node, today);
+    if (!date && Number.isFinite(snap?.dateMs)) {
+      date = node.canvasKind === "launch"
+        ? clampTimelineLaunchNotBeforeToday(new Date(snap.dateMs), today)
+        : new Date(snap.dateMs);
+    }
     if (!date) continue;
 
-    const parentDocId = resolveDateParentDocId(node, docsById);
+    const parentDocId = resolveDateParentDocId(node, docsById) || snap?.parentDocId || null;
     const parentDoc = parentDocId ? docsById[parentDocId] : null;
     // Campaigns: only the current source file's Launch date type on the rail.
     if (!isCampaignSourceLaunchDateNode(node, parentDoc)) continue;
 
-    const objectForNode = resolveCanvasNodeObjectId(node, docsById, nodeEntitiesById)
+    const objectForNode = (live
+      ? resolveCanvasNodeObjectId(live, docsById, nodeEntitiesById)
+      : null)
       || (parentDocId ? docsById[parentDocId]?.parentObjectId : null);
     if (objectForNode !== objectId) continue;
 
-    seen.add(node.id);
+    seen.add(id);
     markers.push({
-      nodeId: node.id,
+      nodeId: id,
       date,
       docId: parentDocId || undefined,
       dataType: "date",
       timeMarker: true,
       title: (node.title || (node.canvasKind === "launch" ? "Launch" : "Date")).trim() || "Date",
       canvasKind: node.canvasKind || null,
+      fromSnapshot: !live,
     });
   }
 

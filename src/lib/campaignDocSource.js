@@ -158,31 +158,40 @@ export function isCampaignSourceLaunchDateNode(dateNode, folderDoc) {
 
 /**
  * One Launch date type on the rail per campaign folder — the active source's.
- * Drops other launches for that folder; adds the source launch if present on canvas.
+ * Drops other launches for that folder. Does **not** auto-add Launch from canvas;
+ * Launch enters only via Select → Insert on the date node (or stays if already queued).
  * @param {Iterable<string>} dateNodeIds
  * @param {object} opts
  * @param {string} opts.folderDocId
  * @param {string|null} opts.sourceEntityId
  * @param {object[]} [opts.canvasNodes]
+ * @param {Record<string, object>} [opts.dateSnapshotsById]
  * @returns {string[]}
  */
 export function syncCampaignFolderLaunchDateQueue(
   dateNodeIds,
-  { folderDocId, sourceEntityId = null, canvasNodes = [] } = {},
+  {
+    folderDocId,
+    sourceEntityId = null,
+    canvasNodes = [],
+    dateSnapshotsById = {},
+  } = {},
 ) {
   if (!folderDocId) return [...dateNodeIds];
   const keepLaunchId = sourceEntityId ? campaignLaunchCanvasNodeId(sourceEntityId) : null;
   const next = new Set();
   for (const id of dateNodeIds) {
     const node = canvasNodes.find((n) => n.id === id);
-    if (node?.canvasKind === "launch" && node.parentDocId === folderDocId) {
-      if (keepLaunchId && node.id === keepLaunchId) next.add(id);
+    const snap = dateSnapshotsById[id];
+    const parentDocId = node?.parentDocId || snap?.parentDocId || null;
+    const isLaunch = Boolean(
+      node?.canvasKind === "launch" || snap?.canvasKind === "launch",
+    );
+    if (isLaunch && parentDocId === folderDocId) {
+      if (keepLaunchId && id === keepLaunchId) next.add(id);
       continue;
     }
     next.add(id);
-  }
-  if (keepLaunchId && canvasNodes.some((n) => n.id === keepLaunchId)) {
-    next.add(keepLaunchId);
   }
   return [...next];
 }
