@@ -204,7 +204,14 @@ describe("cross-family folder inheritance", () => {
 
     expect(projections.guestLaunchMarkers.length).toBeGreaterThanOrEqual(1);
     expect(projections.guestLaunchMarkers[0].inheritanceKind).toBe("launchAt");
-    expect(projections.crossLinks.length).toBeGreaterThanOrEqual(1);
+    expect(projections.guestLaunchMarkers[0].canvasKind).toBe("launch");
+    // Folder + Launch vertical uprights for the 4-vector window.
+    expect(projections.crossLinks).toHaveLength(2);
+    expect(projections.crossLinks.map((l) => l.kind).sort()).toEqual(["folder", "launch"]);
+    expect(projections.crossLinks.find((l) => l.kind === "launch")).toMatchObject({
+      primaryAnchor: "date-cn-hd-launch",
+      inheritAnchor: "date-inherit-launch-fnFolder",
+    });
     expect(projections.alertTargets.some((a) => a.key.includes("fnFolder"))).toBe(true);
   });
 

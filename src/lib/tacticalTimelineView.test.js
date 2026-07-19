@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildTacticalObjectRows } from "./tacticalTimelineView.js";
+import {
+  buildTacticalObjectRows,
+  syncGuestRailToHostPositions,
+} from "./tacticalTimelineView.js";
 
 describe("tactical inherit-guest + children ordering", () => {
   const objectsById = {
@@ -97,7 +100,7 @@ describe("tactical inherit-guest + children ordering", () => {
     expect(guestIdx).toBeGreaterThan(childIdx);
 
     const guest = view.displayRows[guestIdx];
-    expect(guest.hideRuler).toBe(true);
+    expect(guest.hideRuler).toBe(false);
     expect(guest.isInheritLayer).toBe(true);
     // Schedule alone must not invent a Launch chip on the guest strip.
     const guestTypes = (guest.columns || []).flatMap((c) =>
@@ -159,5 +162,64 @@ describe("tactical inherit-guest + children ordering", () => {
     expect(childRow.columns).toHaveLength(1);
     expect(childRow.columns[0].date.toISOString())
       .toBe("2026-07-26T15:00:00.000Z");
+  });
+
+  it("pins guest folder center to host folder when host stretch moves", () => {
+    const launchNode = {
+      id: "cn-fn-launch",
+      canvasKind: "launch",
+      dataType: "date",
+      parentDocId: "fnFolder",
+      title: "Launch",
+      content: "2026-08-02",
+      launchAt: "2026-08-02T12:00:00.000Z",
+    };
+    const view = buildTacticalObjectRows({
+      canvasNodes: [...canvasNodes, launchNode],
+      connections: [{ id: "w1", from: "cn-fn", to: "cn-hd" }],
+      docsById: {
+        ...docsById,
+        fnFolder: {
+          ...docsById.fnFolder,
+          campaignActive: true,
+          launchAt: "2026-08-02T12:00:00.000Z",
+        },
+      },
+      nodeEntitiesById,
+      objectsById,
+      timelineDocQueue: ["fnFolder", "hdFolder"],
+      timelineDocSnapshotsByDocId: {},
+      timelineDateNodeIds: ["cn-fn-launch"],
+      expandedDocIds: [],
+      today: new Date("2026-07-19T12:00:00.000Z"),
+      filterObjectId: "futura",
+      primaryTimelineObjectId: "futura",
+      pairStretches: [{
+        rowId: "object-futura",
+        focusMs: new Date("2026-07-26T12:00:00.000Z").getTime(),
+        pairNextMs: new Date("2026-08-02T12:00:00.000Z").getTime(),
+        targetPct: 35,
+      }],
+    });
+
+    const host = view.displayRows.find((r) => r.id === "object-futura");
+    const guest = view.displayRows.find((r) => r.rowKind === "inherit-guest");
+    expect(host?.rail?.nodeGroups?.length).toBeGreaterThan(0);
+    expect(guest?.rail?.nodeGroups?.length).toBeGreaterThan(0);
+
+    const hostFolder = host.rail.nodeGroups.find((g) =>
+      (g.items || []).some((i) => i.docId === "fnFolder" && i.dataType === "document"),
+    );
+    const guestFolder = guest.rail.nodeGroups.find((g) =>
+      (g.items || []).some((i) => i.dataType === "document" && i.inherited),
+    );
+    expect(hostFolder).toBeTruthy();
+    expect(guestFolder).toBeTruthy();
+    expect(guestFolder.leftPct).toBe(hostFolder.leftPct);
+
+    // Manual sync still centers after an independent host nudge.
+    hostFolder.leftPct = 42;
+    syncGuestRailToHostPositions(host, guest);
+    expect(guestFolder.leftPct).toBe(42);
   });
 });

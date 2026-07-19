@@ -61,6 +61,7 @@ type ResolveTimelineAlertParams = {
     triggerAt?: string;
   }>;
   timelineDateNodeIds?: string[];
+  timelineDateSnapshotsById?: Record<string, object>;
   now?: Date;
   skippedAlertKeys?: Set<string> | string[];
 };
@@ -112,6 +113,7 @@ export function collectTimelineScheduleTargets({
   timelineDocSnapshotsByDocId = {},
   timelineAgentSets = [],
   timelineDateNodeIds = [],
+  timelineDateSnapshotsById = {},
 }: ResolveTimelineAlertParams): ScheduleTarget[] {
   const targets: ScheduleTarget[] = [];
   const seen = new Set<string>();
@@ -305,6 +307,7 @@ export function collectTimelineScheduleTargets({
       primaryObjectId: authorityId,
       timelineDocQueue,
       timelineDateNodeIds,
+      timelineDateSnapshotsById,
     });
     for (const alert of projections.alertTargets) {
       addTarget(targets, seen, {

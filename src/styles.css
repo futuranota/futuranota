@@ -5175,15 +5175,33 @@ textarea.note-form-field {
   z-index: 4;
   overflow: visible;
 }
-.tl-tactical-cross-links__line {
-  stroke: color-mix(in oklab, var(--hud) 55%, var(--text));
-  stroke-width: 1.5;
-  stroke-dasharray: 3 4;
+/* Thick glass uprights — frosted gray tube over a soft glow underlay. */
+.tl-tactical-cross-links__line-glass {
+  stroke: color-mix(in oklab, #d8dce0 28%, transparent);
+  stroke-width: 10;
   stroke-linecap: round;
-  opacity: 0.75;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.55;
+  filter: blur(1.2px);
+}
+.tl-tactical-cross-links__line {
+  stroke: color-mix(in oklab, #c4c9cc 62%, transparent);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.82;
+  transition: stroke var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+.tl-tactical-row-group:hover .tl-tactical-cross-links__line-glass {
+  opacity: 0.7;
+}
+.tl-tactical-row-group:hover .tl-tactical-cross-links__line {
+  stroke: color-mix(in oklab, #dce0e2 70%, transparent);
+  opacity: 0.95;
 }
 .tl-tactical-cross-links__atom {
-  opacity: 0.9;
+  opacity: 0.75;
+  filter: grayscale(0.85) brightness(1.2);
 }
 
 /* 2nd rail onward: shift bar+dots down toward left label (transform = no reflow / label stays) */
@@ -5216,29 +5234,19 @@ textarea.note-form-field {
   padding-left: 12px;
   border-left: 2px solid color-mix(in oklab, var(--tl-family-accent, var(--tl-accent)) 55%, var(--hairline));
 }
-/* Guest folder strip: chips only (no second ruler), aligned under host date. */
+/* Guest inherit row: full ruler twin — no horizontal pad (keeps chips on the column axis). */
 .tl-tactical-row.is-inherit-guest {
-  padding-top: 2px;
-  padding-bottom: 8px;
-  min-height: 0;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  padding-left: 0;
+  border-left: none;
+}
+.tl-tactical-row.is-inherit-guest .tl-tactical-row__label {
+  border-left: 2px solid color-mix(in oklab, var(--tl-family-accent, var(--tl-accent)) 55%, var(--hairline));
+  padding-left: 8px;
 }
 .tl-tactical-row.is-inherit-guest .tl-tactical-bar--guest-strip {
-  display: none;
-}
-.tl-tactical-row.is-inherit-guest .tl-tactical-rail--guest-strip {
-  min-height: 0;
-}
-.tl-tactical-row.is-inherit-guest .tl-tactical-rail__plot {
-  min-height: 0;
-}
-.tl-tactical-row.is-inherit-guest .tl-tactical-rail__nodes {
-  margin-top: 0;
-  padding-top: 0;
-}
-.tl-tactical-row.is-inherit-guest .tl-tactical-rail__remaining,
-.tl-tactical-row.is-inherit-guest .tl-tactical-segment,
-.tl-tactical-row.is-inherit-guest .tl-tactical-range-window {
-  display: none;
+  display: block;
 }
 .tl-tactical-row.is-child-row,
 .tl-tactical-row.is-corpus {

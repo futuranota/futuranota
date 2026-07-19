@@ -35,6 +35,33 @@ export function resolveHostFolderCreatedDate(hostDoc) {
 }
 
 /**
+ * Host Launch canvas/snapshot node id on the timeline (for vertical cross anchors).
+ * @returns {string|null}
+ */
+export function resolveHostFolderLaunchNodeId(
+  hostDocId,
+  canvasNodes = [],
+  timelineDateNodeIds = [],
+  dateSnapshotsById = {},
+) {
+  if (!hostDocId) return null;
+  const allowed = new Set(timelineDateNodeIds || []);
+  if (!allowed.size) return null;
+
+  for (const id of allowed) {
+    const node = canvasNodes.find((n) => n.id === id);
+    const snap = dateSnapshotsById[id];
+    const parentDocId = node?.parentDocId || snap?.parentDocId || null;
+    if (parentDocId !== hostDocId) continue;
+    const isLaunch = Boolean(
+      node?.canvasKind === "launch" || snap?.canvasKind === "launch",
+    );
+    if (isLaunch) return id;
+  }
+  return null;
+}
+
+/**
  * Host Launch date — campaigns only, explicit timeline date nodes only.
  * A Launch chip is inherited only when the host has a canvas date/launch node
  * that was inserted on the rail (`timelineDateNodeIds`). Never use Schedule
@@ -44,6 +71,7 @@ export function resolveHostFolderCreatedDate(hostDoc) {
  * @param {object[]} canvasNodes
  * @param {Record<string, object>} _docsById
  * @param {string[]} [timelineDateNodeIds]
+ * @param {Record<string, object>} [dateSnapshotsById]
  * @returns {Date|null}
  */
 export function resolveHostFolderLaunchDate(
@@ -51,6 +79,7 @@ export function resolveHostFolderLaunchDate(
   canvasNodes = [],
   _docsById = {},
   timelineDateNodeIds = [],
+  dateSnapshotsById = {},
 ) {
   if (!hostDocId) return null;
   const allowed = new Set(timelineDateNodeIds || []);
@@ -61,6 +90,18 @@ export function resolveHostFolderLaunchDate(
     if (node.parentDocId !== hostDocId) continue;
     if (!allowed.has(node.id)) continue;
     const d = resolveTimelineDateNodeDate(node);
+    if (d) return d;
+  }
+  // Persisted Launch snapshot after canvas delete.
+  for (const id of allowed) {
+    const snap = dateSnapshotsById[id];
+    if (!snap || snap.parentDocId !== hostDocId) continue;
+    if (snap.canvasKind !== "launch" && snap.dataType !== "date") continue;
+    if (Number.isFinite(snap.dateMs)) {
+      const d = new Date(snap.dateMs);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    const d = resolveTimelineDateNodeDate(snap);
     if (d) return d;
   }
   return null;
@@ -145,6 +186,7 @@ export function buildGuestInheritanceProjections({
   primaryObjectId = null,
   timelineDocQueue = [],
   timelineDateNodeIds = [],
+  timelineDateSnapshotsById = {},
 } = {}) {
   const queued = new Set(timelineDocQueue || []);
   const links = listInheritanceLinks({
@@ -209,8 +251,10 @@ export function buildGuestInheritanceProjections({
       };
       guestFolderMarkers.push(folderMarker);
 
+      // Vertical vector: host folder chip → guest folder chip.
       crossLinks.push({
         key: `inherit-doc-${hostDocId}-${guestDocId}`,
+        kind: "folder",
         primaryAnchor: `doc-${hostDocId}`,
         inheritAnchor: `doc-${guestDocId}`,
         primaryNodeId: hostCanvas?.id || `doc-${hostDocId}`,
@@ -233,20 +277,29 @@ export function buildGuestInheritanceProjections({
         hostDocId,
       });
 
+      const hostLaunchNodeId = resolveHostFolderLaunchNodeId(
+        hostDocId,
+        canvasNodes,
+        timelineDateNodeIds,
+        timelineDateSnapshotsById,
+      );
       const hostLaunch = resolveHostFolderLaunchDate(
         hostDocId,
         canvasNodes,
         docsById,
         timelineDateNodeIds,
+        timelineDateSnapshotsById,
       );
       if (hostLaunch) {
+        const guestLaunchNodeId = `inherit-launch-${guestDocId}`;
         const launchMarker = {
-          nodeId: `inherit-launch-${guestDocId}`,
+          nodeId: guestLaunchNodeId,
           date: hostLaunch,
           ownDate: parseDate(guestDoc?.launchAt) || null,
           effectiveAt: hostLaunch,
           docId: guestDocId,
           dataType: "date",
+          canvasKind: "launch",
           timeMarker: true,
           title: "Launch",
           inherited: true,
@@ -258,6 +311,22 @@ export function buildGuestInheritanceProjections({
           virtual: true,
         };
         guestLaunchMarkers.push(launchMarker);
+
+        // Vertical vector: host Launch → guest Launch (closes the 4-way cross).
+        if (hostLaunchNodeId) {
+          crossLinks.push({
+            key: `inherit-launch-${hostDocId}-${guestDocId}`,
+            kind: "launch",
+            primaryAnchor: `date-${hostLaunchNodeId}`,
+            inheritAnchor: `date-${guestLaunchNodeId}`,
+            primaryNodeId: hostLaunchNodeId,
+            inheritNodeId: guestLaunchNodeId,
+            authoritativeObjectId: primaryObjectId,
+            secondaryObjectId: link.guestObjectId,
+            connectionId: link.connectionId,
+          });
+        }
+
         alertTargets.push({
           key: `inherit-launch-${primaryObjectId}-${guestDocId}`,
           date: hostLaunch,

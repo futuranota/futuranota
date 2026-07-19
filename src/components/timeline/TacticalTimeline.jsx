@@ -279,11 +279,8 @@ function TacticalRowGroup({
           onChipDoubleClick={onChipDoubleClick}
           onChipRemove={onChipRemove}
           queuedDocIds={queuedDocIds}
-          enableRangeHandles={
-            row.rowKind !== "inherit-guest"
-            && !row.hideRuler
-            && (row.rail?.nodeGroups?.length ?? 0) > 0
-          }
+          enableRangeHandles={(row.rail?.nodeGroups?.length ?? 0) > 0
+            && (row.rowKind === "object" || row.rowKind === "inherit-guest")}
           rangeDrag={rangeDrag}
           t={t}
         />
@@ -318,7 +315,9 @@ function TacticalObjectRow({
   const meta = { nodeEntitiesById, docsById };
   const trackObject = objectsById[row.objectId] || null;
   const isChildRow = row.rowKind === "children";
-  const isGuestStrip = row.rowKind === "inherit-guest" || Boolean(row.hideRuler);
+  const isGuestStrip = row.rowKind === "inherit-guest";
+  // Guest stretch writes to the host row so both rails share one motion instance.
+  const stretchRowId = isGuestStrip ? `object-${row.objectId}` : row.id;
   const { nodeGroups = [], segments = [], todayLeftPct = null, todayPairNextDate = null, todayStretchable = false } = row.rail || {};
   const chainNodes = row.chain
     ? row.chain.nodeIds.map((id) => trackItemsById.get(id)).filter(Boolean)
@@ -333,15 +332,13 @@ function TacticalObjectRow({
   const lastGroupDate = nodeGroups.length ? nodeGroups[nodeGroups.length - 1].date : null;
   const lastDay = lastGroupDate ? startOfCalendarDay(lastGroupDate) : null;
   const todayDay = startOfCalendarDay(today);
-  // Guest strips have no ruler / days-left — only the host family rail owns that chrome.
-  const daysLeft = !isGuestStrip && lastDay && lastDay.getTime() > todayDay.getTime()
+  const daysLeft = lastDay && lastDay.getTime() > todayDay.getTime()
     ? daysBetween(today, lastGroupDate)
     : 0;
   const daysLeftCenterPct = resolveDaysLeftCenterPct(nodeGroups);
   const pluralS = (n) => (n === 1 ? "" : "s");
   const objectNameLabel = useTranslatedText(row.objectName);
-  const showRulerChrome = !isGuestStrip;
-  const guestSegments = isGuestStrip ? [] : segments;
+  const visibleSegments = segments;
 
   const rowClass = [
     "tl-tactical-row",
@@ -350,7 +347,7 @@ function TacticalObjectRow({
     isGuestStrip ? "is-inherit-guest" : "",
     isChildRow ? "is-child-row" : "",
     row.hasCrossLink ? "is-linked-row" : "",
-    nudgeRail && !isGuestStrip ? "is-rail-nudge" : "",
+    nudgeRail ? "is-rail-nudge" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -383,7 +380,6 @@ function TacticalObjectRow({
             <div className="tl-tactical-rail__inset">
             <div className="tl-tactical-rail__plot" ref={plotRef}>
             <div className={"tl-tactical-bar" + (isGuestStrip ? " tl-tactical-bar--guest-strip" : "")}>
-              {showRulerChrome ? (
               <TacticalRulerBar
                 grid={grid}
                 today={today}
@@ -392,15 +388,14 @@ function TacticalObjectRow({
                 todayLeftPct={todayLeftPct}
                 todayStretchable={todayStretchable && enableRangeHandles}
                 todayPairNextDate={todayPairNextDate}
-                rowId={row.id}
+                rowId={stretchRowId}
                 rangeDrag={rangeDrag}
                 plotRef={plotRef}
-                localOnly={isChildRow}
+                localOnly={isChildRow || isGuestStrip}
               />
-              ) : null}
               {nodeGroups.length > 0 ? (
                 <>
-              {showRulerChrome ? guestSegments.map((segment) => (
+              {visibleSegments.map((segment) => (
                 (segment.isDocDimension || segment.isRowEndpointSpan) ? (
                 <div
                   key={`range-${segment.key}`}
@@ -414,8 +409,8 @@ function TacticalObjectRow({
                   aria-hidden
                 />
                 ) : null
-              )) : null}
-              {showRulerChrome ? guestSegments.map((segment) => (
+              ))}
+              {visibleSegments.map((segment) => (
                 <div
                   key={segment.key}
                   className={
@@ -475,8 +470,8 @@ function TacticalObjectRow({
                     );
                   })() : null}
                 </div>
-              )) : null}
-              {showRulerChrome && daysLeft > 0 && (
+              ))}
+              {daysLeft > 0 && (
                 <div
                   className="tl-tactical-rail__remaining"
                   style={{ left: `${daysLeftCenterPct}%` }}
@@ -491,7 +486,6 @@ function TacticalObjectRow({
             </div>
             {nodeGroups.length > 0 ? (
             <>
-            {showRulerChrome ? (
             <div className="tl-tactical-rail__anchors">
               {nodeGroups.map((group, groupIndex) => {
                 const anchorAlign = resolveNodeAnchorAlign(
@@ -505,13 +499,13 @@ function TacticalObjectRow({
                 const pairNext = !isLast ? nodeGroups[groupIndex + 1] : null;
                 const pairPrev = groupIndex > 0 ? nodeGroups[groupIndex - 1] : null;
                 // Node with a next: stretch vs next. Last node: stretch vs previous.
-                // Doc/child rails never pan the shared folder timeline.
+                // Guest stretch targets the host rowId (linked instance).
                 const rangeEdge = !enableRangeHandles
                   ? null
                   : (pairNext || pairPrev)
                     ? "anchor"
-                    : (!isChildRow && isFirst && isLast ? "start" : null);
-                const handleKeyPrefix = `${row.id}:${group.columnKey}:`;
+                    : (!isChildRow && !isGuestStrip && isFirst && isLast ? "start" : null);
+                const handleKeyPrefix = `${stretchRowId}:${group.columnKey}:`;
                 const isRangeHandle = Boolean(rangeEdge);
                 const isActiveHandle = Boolean(
                   rangeDrag?.isDragging
@@ -568,16 +562,16 @@ function TacticalObjectRow({
                             plotRef.current,
                             e,
                             {
-                              handleKey: `${row.id}:${group.columnKey}:${edge}`,
+                              handleKey: `${stretchRowId}:${group.columnKey}:${edge}`,
                               anchorDate: group.date,
                               markerDates: nodeGroups
                                 .map((g) => g.date)
                                 .filter(Boolean),
                               pairNextDate: pairNext?.date || null,
                               pairPrevDate: !pairNext ? (pairPrev?.date || null) : null,
-                              rowId: row.id,
-                              // Children/doc cords: pair only — never move folder timeline.
-                              allowRangePan: !isChildRow && !pairNext && !pairPrev,
+                              rowId: stretchRowId,
+                              // Guest/children: pair only — never pan the shared folder range.
+                              allowRangePan: !isChildRow && !isGuestStrip && !pairNext && !pairPrev,
                             },
                           );
                         }
@@ -586,8 +580,8 @@ function TacticalObjectRow({
                     onDoubleClick={
                       isRangeHandle
                         ? (e) => rangeDrag?.onRangeHandleDoubleClick(e, {
-                          rowId: row.id,
-                          localOnly: isChildRow,
+                          rowId: stretchRowId,
+                          localOnly: isChildRow || isGuestStrip,
                         })
                         : undefined
                     }
@@ -597,7 +591,6 @@ function TacticalObjectRow({
                 );
               })}
             </div>
-            ) : null}
             <div className="tl-tactical-rail__nodes">
               {nodeGroups.map((group, groupIndex) => {
                 const anchorAlign = resolveNodeAnchorAlign(

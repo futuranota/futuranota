@@ -1,13 +1,22 @@
 import { useLayoutEffect, useState } from "react";
 
 const CROSS_LINK_ATOM_ICON = "/uploads/botones/Atom.svg";
-const CROSS_LINK_ATOM_SIZE = 23;
+const CROSS_LINK_ATOM_SIZE = 18;
 
 /**
- * Body-level vertical connectors between host and guest folder cards.
- * Measures card centers via data-tl-anchor across the whole timeline body.
+ * Inheritance columns are plumb: one X from the host chip, straight down.
+ * (Bezier curves looked wavy when folder chip centers were a few px apart.)
+ */
+function buildColumnWirePath(x, y1, y2) {
+  if (y2 <= y1 + 2) return null;
+  return `M ${x} ${y1} L ${x} ${y2}`;
+}
+
+/**
+ * Body-level vertical connectors between host and guest folder/Launch chips.
+ * Thick glass gray uprights of the 4-vector window — always straight columns.
  *
- * @param {{ key: string, primaryAnchor?: string, inheritAnchor?: string, primaryNodeId?: string, inheritNodeId?: string }[]} links
+ * @param {{ key: string, kind?: string, primaryAnchor?: string, inheritAnchor?: string, primaryNodeId?: string, inheritNodeId?: string }[]} links
  */
 export function TimelineCrossLinks({
   links = [],
@@ -45,20 +54,19 @@ export function TimelineCrossLinks({
         const toRect = inheritEl.getBoundingClientRect();
         const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
         const x2 = toRect.left + toRect.width / 2 - containerRect.left;
+        // Plumb column through both chip centers (guest is synced under host).
+        const x = (x1 + x2) / 2;
         const y1 = fromRect.bottom - containerRect.top + 2;
         const y2 = toRect.top - containerRect.top - 2;
-        if (y2 <= y1 + 4) continue;
+        const d = buildColumnWirePath(x, y1, y2);
+        if (!d) continue;
 
-        const x = (x1 + x2) / 2;
         next.push({
           key: link.key,
-          x1,
-          x2,
+          kind: link.kind || "folder",
+          d,
           x,
-          y1,
-          y2,
           atomY: (y1 + y2) / 2,
-          straight: Math.abs(x1 - x2) < 4,
         });
       }
 
@@ -66,12 +74,14 @@ export function TimelineCrossLinks({
     };
 
     measure();
+    const raf = requestAnimationFrame(measure);
     const ro = typeof ResizeObserver !== "undefined"
       ? new ResizeObserver(measure)
       : null;
     ro?.observe(container);
     window.addEventListener("resize", measure);
     return () => {
+      cancelAnimationFrame(raf);
       ro?.disconnect();
       window.removeEventListener("resize", measure);
     };
@@ -90,24 +100,28 @@ export function TimelineCrossLinks({
       height={height}
       aria-hidden
     >
-      {segments.map((seg) => {
-        const path = seg.straight
-          ? `M ${seg.x1} ${seg.y1} L ${seg.x2} ${seg.y2}`
-          : `M ${seg.x1} ${seg.y1} C ${seg.x1} ${(seg.y1 + seg.y2) / 2}, ${seg.x2} ${(seg.y1 + seg.y2) / 2}, ${seg.x2} ${seg.y2}`;
-        return (
-          <g key={seg.key}>
-            <path d={path} className="tl-tactical-cross-links__line" fill="none" />
-            <image
-              href={CROSS_LINK_ATOM_ICON}
-              x={seg.x - atomHalf}
-              y={seg.atomY - atomHalf}
-              width={CROSS_LINK_ATOM_SIZE}
-              height={CROSS_LINK_ATOM_SIZE}
-              className="tl-tactical-cross-links__atom"
-            />
-          </g>
-        );
-      })}
+      {segments.map((seg) => (
+        <g key={seg.key} className={`tl-tactical-cross-links__seg is-${seg.kind}`}>
+          <path
+            d={seg.d}
+            className="tl-tactical-cross-links__line-glass"
+            fill="none"
+          />
+          <path
+            d={seg.d}
+            className="tl-tactical-cross-links__line"
+            fill="none"
+          />
+          <image
+            href={CROSS_LINK_ATOM_ICON}
+            x={seg.x - atomHalf}
+            y={seg.atomY - atomHalf}
+            width={CROSS_LINK_ATOM_SIZE}
+            height={CROSS_LINK_ATOM_SIZE}
+            className="tl-tactical-cross-links__atom"
+          />
+        </g>
+      ))}
     </svg>
   );
 }

@@ -628,6 +628,7 @@ export function buildNowToNextGapSegment(nodeGroups, grid, options = {}) {
 
 /**
  * Campaign folder chip ↔ Launch date type on the same rail.
+ * Also true for inherited guest folder ↔ inherited Launch (window cross).
  * @param {{ items?: object[] }} prevCol
  * @param {{ items?: object[] }} nextCol
  * @param {Record<string, object>} [docsById]
@@ -638,10 +639,9 @@ function isCampaignFolderLaunchGap(prevCol, nextCol, docsById = {}) {
   const isLaunch = (m) => Boolean(
     m && (m.canvasKind === "launch" || (m.dataType === "date" && m.timeMarker)),
   );
+  const isFolderDoc = (m) => Boolean(m?.dataType === "document" && m.docId);
   const isCampaignFolder = (m) => Boolean(
-    m?.dataType === "document"
-    && m.docId
-    && docsById[m.docId]?.campaignActive,
+    isFolderDoc(m) && docsById[m.docId]?.campaignActive,
   );
   const launchNext = nextItems.find(isLaunch);
   const campPrev = prevItems.find(isCampaignFolder);
@@ -654,6 +654,16 @@ function isCampaignFolderLaunchGap(prevCol, nextCol, docsById = {}) {
   if (launchPrev && campNext) {
     return !launchPrev.docId || launchPrev.docId === campNext.docId
       || nextItems.some((m) => isCampaignFolder(m) && m.docId === launchPrev.docId);
+  }
+
+  // Guest strip: inherited folder + inherited Launch share the same rainbow window.
+  const folderPrev = prevItems.find(isFolderDoc);
+  const folderNext = nextItems.find(isFolderDoc);
+  if (folderPrev && launchNext && (folderPrev.inherited || launchNext.inherited)) {
+    return !launchNext.docId || launchNext.docId === folderPrev.docId;
+  }
+  if (launchPrev && folderNext && (launchPrev.inherited || folderNext.inherited)) {
+    return !launchPrev.docId || launchPrev.docId === folderNext.docId;
   }
   return false;
 }
@@ -1286,6 +1296,7 @@ export function buildTacticalObjectRows(params) {
         primaryObjectId: primaryTimelineObjectId,
         timelineDocQueue,
         timelineDateNodeIds,
+        timelineDateSnapshotsById,
       });
       const guestsByDoc = new Map();
       for (const marker of projections.guestFolderMarkers) {
@@ -1323,7 +1334,7 @@ export function buildTacticalObjectRows(params) {
             isInheritLayer: true,
             hasCrossLink: true,
             inherited: true,
-            hideRuler: true,
+            hideRuler: false,
             columns: buildTimelineColumns(markers),
             chain: null,
           });
@@ -1428,11 +1439,15 @@ export function buildTacticalObjectRows(params) {
   for (const row of orderedRows) {
     const isGuestStrip = row.rowKind === "inherit-guest";
     const segments = isGuestStrip ? [] : (dimensionSegmentsByRow.get(row.id) || []);
+    const hostRowId = isGuestStrip ? `object-${row.objectId}` : null;
     row.rail = buildRowTimelineRail(row.columns, displayGrid, {
       segments,
-      // Only this row's stretches — never bleed into folder rails.
+      // Guest strip reuses the host row's pair stretches so drag/stretch on the
+      // host folder moves the inherited chips with the same motion.
       pairStretches: isGuestStrip
-        ? []
+        ? (pairStretches || []).filter(
+          (s) => s && String(s.rowId) === String(hostRowId),
+        )
         : (pairStretches || []).filter(
           (s) => s && String(s.rowId) === String(row.id),
         ),
@@ -1442,6 +1457,13 @@ export function buildTacticalObjectRows(params) {
     });
   }
 
+  // Pin guest chip centers to the host instance (folder + Launch).
+  for (const guest of orderedRows) {
+    if (guest.rowKind !== "inherit-guest") continue;
+    const host = orderedRows.find((r) => r.id === `object-${guest.objectId}`);
+    if (host) syncGuestRailToHostPositions(host, guest);
+  }
+
   return {
     ...tactical,
     grid: displayGrid,
@@ -1449,4 +1471,79 @@ export function buildTacticalObjectRows(params) {
     inheritanceCrossLinks: orderedRows
       .flatMap((r) => r.inheritanceCrossLinks || []),
   };
+}
+
+/**
+ * Align guest strip leftPct to the host folder/Launch the guest inherits from.
+ * Keeps vertical cross-links centered when the host chip is stretched/moved.
+ * @param {{ rail?: { nodeGroups?: object[], segments?: object[] } }} hostRow
+ * @param {{ rail?: { nodeGroups?: object[], segments?: object[] } }} guestRow
+ */
+export function syncGuestRailToHostPositions(hostRow, guestRow) {
+  const hostGroups = hostRow?.rail?.nodeGroups || [];
+  const guestGroups = guestRow?.rail?.nodeGroups || [];
+  if (!hostGroups.length || !guestGroups.length) return;
+
+  /** @type {Map<string, number>} */
+  const hostFolderPct = new Map();
+  /** @type {Map<string, number>} */
+  const hostLaunchPct = new Map();
+
+  for (const group of hostGroups) {
+    const pct = Number(group.leftPct);
+    if (!Number.isFinite(pct)) continue;
+    for (const item of group.items || []) {
+      if (item?.dataType === "document" && item.docId) {
+        hostFolderPct.set(item.docId, pct);
+      }
+      if (item?.canvasKind === "launch" || item?.timeMarker) {
+        const parentId = item.docId || item.parentDocId;
+        if (parentId) hostLaunchPct.set(parentId, pct);
+      }
+    }
+  }
+
+  const isLaunchItem = (item) => Boolean(
+    item && (item.canvasKind === "launch" || item.timeMarker || item.dataType === "date"),
+  );
+  const isDocItem = (item) => Boolean(item?.dataType === "document" && item.docId);
+
+  for (const group of guestGroups) {
+    let pct = null;
+    for (const item of group.items || []) {
+      if (!item?.inherited || !item.inheritedFromDocId) continue;
+      const hostId = item.inheritedFromDocId;
+      if (isDocItem(item)) pct = hostFolderPct.get(hostId) ?? pct;
+      else if (isLaunchItem(item)) pct = hostLaunchPct.get(hostId) ?? pct;
+    }
+    // Fallback: same instant + same kind as host column (centers the node on the upright).
+    if (pct == null && group.date) {
+      const gMs = group.date.getTime();
+      const guestLaunch = (group.items || []).some(isLaunchItem);
+      const guestDoc = (group.items || []).some(isDocItem);
+      const hostMatch = hostGroups.find((hg) => {
+        if (!hg?.date || hg.date.getTime() !== gMs) return false;
+        const items = hg.items || [];
+        if (guestLaunch) return items.some(isLaunchItem);
+        if (guestDoc) return items.some(isDocItem);
+        return false;
+      });
+      if (hostMatch) pct = Number(hostMatch.leftPct);
+    }
+    if (pct != null && Number.isFinite(pct)) group.leftPct = pct;
+  }
+
+  const segments = guestRow.rail?.segments || [];
+  for (let i = 1; i < guestGroups.length; i += 1) {
+    const prev = guestGroups[i - 1];
+    const next = guestGroups[i];
+    const leftPct = Math.min(prev.leftPct, next.leftPct);
+    const widthPct = Math.max(Math.abs(next.leftPct - prev.leftPct), 0.5);
+    const key = `day-gap-${prev.columnKey}-${next.columnKey}`;
+    const seg = segments.find((s) => s.key === key);
+    if (seg) {
+      seg.leftPct = leftPct;
+      seg.widthPct = widthPct;
+    }
+  }
 }
