@@ -23,7 +23,7 @@ export const TACTICAL_LOUPE_RADIUS_PCT = 28;
 /** Cap how far a middle node can visually travel from its true date position. */
 export const TACTICAL_LOUPE_MAX_SHIFT_PCT = 18;
 /** Pair stretch (node ↔ next): allow a wider pull so first→second feels usable. */
-export const TACTICAL_PAIR_MAX_SHIFT_PCT = 42;
+export const TACTICAL_PAIR_MAX_SHIFT_PCT = 72;
 /** Extra soft pull applied to the governing extreme (legacy soft loupe only). */
 export const TACTICAL_LOUPE_EXTREME_COUPLE = 0.4;
 const MS_PER_DAY = 86400000;
@@ -611,6 +611,14 @@ export function buildStretchUnitsWithToday(nodeGroups, now, nowPct) {
   return { units, todayIdx: insertAt };
 }
 
+/** Nearest schedule column before `fromIdx` (skip thermometer). */
+function prevScheduleIdx(nodeGroups, fromIdx) {
+  for (let i = fromIdx - 1; i >= 0; i -= 1) {
+    if (!nodeGroups[i]?.isToday) return i;
+  }
+  return -1;
+}
+
 /**
  * Pair stretch against already-laid-out rail positions (after fan-out / now-push).
  * Focus moves; next OR previous stays pinned; other nodes outside the pair freeze.
@@ -653,7 +661,7 @@ export function resolvePairStretchOnRail(raw, nodeGroups) {
     || (raw.pairNextMs == null && focusIdx === nodeGroups.length - 1 && focusIdx > 0);
 
   if (wantsPrevPin) {
-    let prevIdx = focusIdx - 1;
+    let prevIdx = prevScheduleIdx(nodeGroups, focusIdx);
     if (raw.pairPrevMs != null) {
       const prevMs = Number(raw.pairPrevMs);
       const found = nodeGroups.findIndex((g) => (
@@ -667,6 +675,7 @@ export function resolvePairStretchOnRail(raw, nodeGroups) {
       maxShift,
       Math.max(0, (focusLeftPct - prevLeftPct) - minGap),
     );
+    // Launch / trailing node: freer slide toward the right edge.
     const maxAway = Math.min(maxShift, Math.max(0, 98 - focusLeftPct));
     if (deltaPct < 0) deltaPct = Math.max(deltaPct, -maxToward);
     else deltaPct = Math.min(deltaPct, maxAway);
@@ -691,8 +700,14 @@ export function resolvePairStretchOnRail(raw, nodeGroups) {
     ));
     if (found > focusIdx) nextIdx = found;
   }
+  // Prefer next schedule column (skip thermometer sitting between folder @ today and Launch).
+  while (nextIdx < nodeGroups.length && nodeGroups[nextIdx]?.isToday) {
+    nextIdx += 1;
+  }
+  if (nextIdx >= nodeGroups.length) return null;
 
   const nextLeftPct = nodeGroups[nextIdx].leftPct;
+  const prevSched = prevScheduleIdx(nodeGroups, focusIdx);
 
   if (nextLeftPct >= focusLeftPct) {
     const maxToward = Math.min(
@@ -701,8 +716,8 @@ export function resolvePairStretchOnRail(raw, nodeGroups) {
     );
     const maxAway = Math.min(
       maxShift,
-      focusIdx > 0
-        ? Math.max(0, (focusLeftPct - nodeGroups[focusIdx - 1].leftPct) - minGap)
+      prevSched >= 0
+        ? Math.max(0, (focusLeftPct - nodeGroups[prevSched].leftPct) - minGap)
         : Math.max(0, focusLeftPct - 2),
     );
     if (deltaPct > 0) deltaPct = Math.min(deltaPct, maxToward);
@@ -761,6 +776,8 @@ export function applyPairStretchOnRail(nodeGroups, stretch) {
     // Freeze everything before the focus — stretching #2 must not move #1.
     if (i < focusIdx) continue;
     if (i > nextIdx) continue;
+    // Thermometer stays put when stretching folder ↔ Launch across "today".
+    if (nodeGroups[i]?.isToday) continue;
     if (i === nextIdx) {
       nodeGroups[i].leftPct = nextLeftPct;
       continue;
