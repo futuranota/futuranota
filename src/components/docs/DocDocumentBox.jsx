@@ -103,6 +103,7 @@ export function DocDocumentBox({
   useFolderSchedule = false,
   campaignActive = false,
   onCampaignActiveChange,
+  deferCampaignStatusToChildren = false,
   nodeLinkColor = "dark",
   onNodeLinkColorChange,
   docKind = "standard",
@@ -794,6 +795,7 @@ export function DocDocumentBox({
           useFolderSchedule={useFolderSchedule}
           campaignActive={campaignActive}
           onCampaignActiveChange={onCampaignActiveChange}
+          deferCampaignStatusToChildren={deferCampaignStatusToChildren}
           parentId={parentId}
           subcategoryDocIds={resolvedSubcategoryDocIds}
           onSubcategoryDocIdsChange={handleSubcategoryDocIdsChange}

@@ -255,9 +255,22 @@ function Dashboard({ company, onBack }) {
         selectedObjectId,
         expandedDocId,
         activeDocMetaDraft,
+        timelineDocQueue,
+        nodeEntitiesById: nodeEntities,
         today,
       }),
-    [selection, canvasNodes, docs, objects, selectedObjectId, expandedDocId, activeDocMetaDraft, today],
+    [
+      selection,
+      canvasNodes,
+      docs,
+      objects,
+      selectedObjectId,
+      expandedDocId,
+      activeDocMetaDraft,
+      timelineDocQueue,
+      nodeEntities,
+      today,
+    ],
   );
 
   const handleTimelineCanvasSelect = useCallback(

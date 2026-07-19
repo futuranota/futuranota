@@ -696,9 +696,9 @@ export function DocExpandedView({
     const launchFromField = draftLaunchDate
       ? isoFromDateInput(draftLaunchDate)
       : null;
-    // Campaign: Launch field only. Content folders: Schedule may mirror into launchAt.
+    // Campaign folders: Launch on child docs only. Content: Schedule may mirror launchAt.
     const launchAt = draftCampaignActive
-      ? launchFromField
+      ? null
       : (scheduleStartAt || launchFromField);
     useUIStateStore.getState().setActiveDocMetaDraft({
       docId,
@@ -726,9 +726,9 @@ export function DocExpandedView({
     draftParentId,
   ]);
 
-  // Campaign Launch ≠ Schedule. Never let a stale scheduleStartAt clobber launchAt.
+  // Campaign folders do not own Launch (child docs do). Content may mirror Schedule.
   const draftLaunchAt = draftCampaignActive
-    ? (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null)
+    ? null
     : (draftScheduleStartDate
       ? isoFromDateInput(draftScheduleStartDate)
       : (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null));
@@ -2084,16 +2084,16 @@ export function DocExpandedView({
             if (syncTitleWithCategory) setDraftTitle(v);
             if (isContentMode) persistFolderTitleToStore(v);
           }}
-          launchDate={isTemplate ? "" : draftLaunchDate}
-          onLaunchDateChange={isTemplate || useFolderSchedule ? undefined : (v) => {
-            setDraftLaunchDate(v);
-            // Persist Launch immediately — Schedule wins and must survive tab switch.
-            const launchAt = v ? isoFromDateInput(v) : null;
-            updateDoc(doc.id, { launchAt });
-            // #region agent log
-            fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H4',location:'DocExpandedView.jsx:onLaunchDateChange',message:'launchAt persisted to docsStore',data:{docId:doc.id,launchDate:v,launchAt},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
-          }}
+          launchDate={isTemplate || draftCampaignActive ? "" : draftLaunchDate}
+          onLaunchDateChange={
+            isTemplate || useFolderSchedule || draftCampaignActive
+              ? undefined
+              : (v) => {
+                setDraftLaunchDate(v);
+                const launchAt = v ? isoFromDateInput(v) : null;
+                updateDoc(doc.id, { launchAt });
+              }
+          }
           scheduleStartDate={useFolderSchedule ? draftScheduleStartDate : ""}
           onScheduleStartDateChange={useFolderSchedule ? handleScheduleStartDateChange : undefined}
           scheduleFinishDate={useFolderSchedule ? draftScheduleFinishDate : ""}
@@ -2102,9 +2102,14 @@ export function DocExpandedView({
           onScheduleDatesClear={useFolderSchedule ? handleScheduleDatesClear : undefined}
           useFolderSchedule={useFolderSchedule}
           campaignActive={draftCampaignActive}
-          onCampaignActiveChange={isTemplate || useFolderSchedule ? undefined : (v) => {
-            setDraftCampaignActive(v);
-          }}
+          onCampaignActiveChange={
+            isTemplate || useFolderSchedule || draftCampaignActive
+              ? undefined
+              : (v) => {
+                setDraftCampaignActive(v);
+              }
+          }
+          deferCampaignStatusToChildren={Boolean(draftCampaignActive)}
           parentId={draftParentId}
           onParentIdChange={isKnowledgeMode || isContentMode ? undefined : (v) => {
             setDraftParentId(v);

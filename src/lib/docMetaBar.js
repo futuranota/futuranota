@@ -8,6 +8,10 @@ import {
   isProductDoc,
   resolveLinkedProductCategories,
 } from "./templateDoc.js";
+import {
+  isCampaignDocActive,
+  resolveCampaignSourceNode,
+} from "./campaignDocSource.js";
 
 export { emptyDocCampaignFields } from "./normalizeDoc.js";
 export { DOC_NODE_LINK_COLORS } from "./docNodeLinkColors.js";
@@ -44,6 +48,24 @@ export function formatWindowDays(today, launchAt) {
   return `${n} days`;
 }
 
+/**
+ * Window label from child doc window fields, else countdown from launchAt.
+ * @param {Date} today
+ * @param {object|null|undefined} sourceNode
+ * @returns {string|null}
+ */
+export function formatSourceWindowDays(today, sourceNode) {
+  if (!sourceNode) return null;
+  const start = parseLaunchDate(sourceNode.windowStartAt);
+  const end = parseLaunchDate(sourceNode.windowEndAt);
+  if (start && end) {
+    const span = Math.max(0, daysBetween(start, end));
+    if (span === 0) return "0 days";
+    return `${span} days`;
+  }
+  return formatWindowDays(today, sourceNode.launchAt);
+}
+
 /** Comma-separated labels for linked subcategory documents. */
 export function formatSubcategoriesDisplay(allDocs, docIds = []) {
   const lines = resolveSubcategoryLines(allDocs, docIds);
@@ -60,11 +82,16 @@ function resolveMetaBarCategory(doc) {
   return formatProductSubcategoryLine(doc) || category || null;
 }
 
+/**
+ * Campaign folder MetaBar: CAMPAIGN / LAUNCH / WINDOW from the source child doc.
+ * Folder keeps corpus / brand / category / subcategories only.
+ */
 export function buildMetaBarFromDoc({
   doc,
   objectsById = {},
   selectedObjectId = null,
   allDocs = {},
+  nodeEntitiesById = {},
   today = getToday(),
 }) {
   const selectedObject =
@@ -91,7 +118,6 @@ export function buildMetaBarFromDoc({
     normalized.parentObjectId && objectsById[normalized.parentObjectId]
       ? objectsById[normalized.parentObjectId]
       : null;
-  const launchDate = parseLaunchDate(normalized.launchAt);
   const brandFromDoc = parent?.brand?.trim() || null;
   const linkedProducts = isContentDoc(normalized)
     ? resolveLinkedProductCategories(allDocs, normalized.subcategoryDocIds)
@@ -100,18 +126,42 @@ export function buildMetaBarFromDoc({
     ? linkedProducts.join(", ")
     : formatSubcategoriesDisplay(allDocs, normalized.subcategoryDocIds);
 
+  let campaign = null;
+  let launch = null;
+  let windowLabel = null;
+
+  if (normalized.campaignActive) {
+    // Container folder: status + dates live on the source child document.
+    const source = resolveCampaignSourceNode(normalized, nodeEntitiesById)
+      || (normalized.timelineSourceNodeId
+        ? nodeEntitiesById[normalized.timelineSourceNodeId]
+        : null);
+    if (source) {
+      campaign = formatCampaignLabel(isCampaignDocActive(source));
+      const launchDate = parseLaunchDate(source.launchAt);
+      launch = launchDate ? formatMmDdYy(launchDate) : null;
+      windowLabel = formatSourceWindowDays(today, source);
+    }
+  } else {
+    // Non-campaign folders may still surface their own launch (content schedule mirror).
+    const launchDate = parseLaunchDate(normalized.launchAt);
+    campaign = null;
+    launch = launchDate ? formatMmDdYy(launchDate) : null;
+    windowLabel = formatWindowDays(today, normalized.launchAt);
+  }
+
   return {
     corpus,
     brand: brandFromSelection || brandFromDoc,
     product: resolveMetaBarCategory(normalized),
-    campaign: formatCampaignLabel(normalized.campaignActive),
+    campaign,
     subcategories: subcategoriesDisplay,
-    launch: launchDate ? formatMmDdYy(launchDate) : null,
-    window: formatWindowDays(today, normalized.launchAt),
+    launch,
+    window: windowLabel,
   };
 }
 
-/** Merge canvas node snapshot fields into doc for MetaBar (content launch, category, etc.). */
+/** Merge canvas node snapshot fields into doc for MetaBar (content category, container flag). */
 export function mergeDocWithCanvasNodeMetadata(doc, node) {
   if (!doc) return null;
   const normalized = normalizeDoc(doc);
@@ -120,7 +170,7 @@ export function mergeDocWithCanvasNodeMetadata(doc, node) {
   return normalizeDoc({
     ...normalized,
     category: node.contentCategory || normalized.category,
-    launchAt: normalized.launchAt ?? node.launchAt ?? null,
+    // Do not pull Launch from canvas folder card — child source owns it.
     campaignActive: normalized.campaignActive ?? Boolean(node.campaignActive),
   });
 }
@@ -139,6 +189,21 @@ export function resolveActiveDocFromCanvas(selection, canvasNodes, docs) {
   return null;
 }
 
+/**
+ * Last campaign folder permanently queued on the timeline.
+ * @param {string[]} timelineDocQueue
+ * @param {Record<string, object>} docs
+ * @returns {object|null}
+ */
+export function resolveCampaignFolderFromTimelineQueue(timelineDocQueue = [], docs = {}) {
+  if (!Array.isArray(timelineDocQueue) || !timelineDocQueue.length) return null;
+  for (let i = timelineDocQueue.length - 1; i >= 0; i -= 1) {
+    const doc = docs[timelineDocQueue[i]];
+    if (doc?.campaignActive) return normalizeDoc(doc);
+  }
+  return null;
+}
+
 export function buildMetaBarFromCanvas({
   selection = [],
   canvasNodes = [],
@@ -147,6 +212,8 @@ export function buildMetaBarFromCanvas({
   selectedObjectId = null,
   expandedDocId = null,
   activeDocMetaDraft = null,
+  timelineDocQueue = [],
+  nodeEntitiesById = {},
   today = getToday(),
 }) {
   let doc = null;
@@ -160,11 +227,16 @@ export function buildMetaBarFromCanvas({
     doc = resolveActiveDocFromCanvas(selection, canvasNodes, docs);
   }
 
+  if (!doc) {
+    doc = resolveCampaignFolderFromTimelineQueue(timelineDocQueue, docs);
+  }
+
   return buildMetaBarFromDoc({
     doc,
     objectsById,
     selectedObjectId,
     allDocs: docs,
+    nodeEntitiesById,
     today,
   });
 }

@@ -1271,7 +1271,10 @@ function DocCreateModal({
 
     let scheduleStartAt = null;
     let scheduleFinishAt = null;
-    let launchAt = launchDate ? isoFromDateInput(launchDate) : null;
+    // Campaign folders: Launch lives on child docs — do not set folder.launchAt.
+    let launchAt = isCampaignMode
+      ? null
+      : (launchDate ? isoFromDateInput(launchDate) : null);
 
     if (useFolderSchedule) {
       const check = validateFolderSchedule(
@@ -1306,7 +1309,7 @@ function DocCreateModal({
       launchAt,
       scheduleStartAt,
       scheduleFinishAt,
-      campaignActive,
+      campaignActive: isCampaignMode ? true : campaignActive,
       subcategoryDocIds,
       nodeLinkColor,
       docKind,
@@ -1342,8 +1345,8 @@ function DocCreateModal({
           onVersionCommit={handleVersionCommit}
           category={category}
           onCategoryChange={handleCategoryChange}
-          launchDate={launchDate}
-          onLaunchDateChange={setLaunchDate}
+          launchDate={isCampaignMode ? "" : launchDate}
+          onLaunchDateChange={isCampaignMode ? undefined : setLaunchDate}
           scheduleStartDate={scheduleStartDate}
           onScheduleStartDateChange={handleScheduleStartChange}
           scheduleFinishDate={scheduleFinishDate}
@@ -1351,8 +1354,9 @@ function DocCreateModal({
           scheduleStartMin={scheduleStartMin}
           onScheduleDatesClear={handleScheduleDatesClear}
           useFolderSchedule={useFolderSchedule}
-          campaignActive={campaignActive}
-          onCampaignActiveChange={setCampaignActive}
+          campaignActive={isCampaignMode ? true : campaignActive}
+          onCampaignActiveChange={isCampaignMode ? undefined : setCampaignActive}
+          deferCampaignStatusToChildren={isCampaignMode}
           subcategoryDocIds={subcategoryDocIds}
           onSubcategoryDocIdsChange={setSubcategoryDocIds}
           allDocs={allDocs}
@@ -2368,8 +2372,9 @@ export function LeftPanel({
           version: data.version ?? "",
           category: data.category ?? "",
           icon: typeof data.icon === "string" ? data.icon : "",
+          // Campaign folders: Launch lives on child docs only.
           launchAt: isCampaignFolder
-            ? (data.launchAt ?? null)
+            ? null
             : (data.launchAt ?? data.scheduleStartAt ?? null),
           scheduleStartAt: isCampaignFolder
             ? null

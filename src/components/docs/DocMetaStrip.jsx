@@ -166,7 +166,12 @@ export function DocMetaStrip({
   onNodeLinkColorChange,
   objects = null,
   showCampaignMeta = false,
-  /** Documents folder reservation UI (Start/Finish). Campaign create keeps Launch. */
+  /**
+   * Campaign folder container: Active / Launch / Window live on child docs.
+   * Hide those editors on the folder; keep category / subcategories / brand.
+   */
+  deferCampaignStatusToChildren = false,
+  /** Documents folder reservation UI (Start/Finish). */
   useFolderSchedule = false,
   metaMode = "campaign",
   onKnowledgeFileImport,
@@ -180,7 +185,11 @@ export function DocMetaStrip({
   const isKnowledgeMode = metaMode === "knowledge";
   const isLegacyCampaign = metaMode === "campaign" && showCampaignMeta;
   const showFolderSchedule = isContentMode && useFolderSchedule;
-  const showContentCampaignMeta = isContentMode && !useFolderSchedule;
+  const showContentCampaignMeta = isContentMode
+    && !useFolderSchedule
+    && !deferCampaignStatusToChildren;
+  const showFolderCampaignStatus = (isLegacyCampaign || showContentCampaignMeta)
+    && !deferCampaignStatusToChildren;
   const showMetaFields = isProductMode || isContentMode || isLegacyCampaign || isKnowledgeMode;
   const launchIso = launchDate ? isoFromDateInput(launchDate) : null;
   const today = getToday();
@@ -203,7 +212,7 @@ export function DocMetaStrip({
         ? `${subcategoryDocIds.length} product${subcategoryDocIds.length === 1 ? "" : "s"}`
         : null;
 
-  const campaignSummary = (isLegacyCampaign || showContentCampaignMeta)
+  const campaignSummary = showFolderCampaignStatus
     ? formatCampaignLabel(campaignActive)
     : null;
 
@@ -241,13 +250,13 @@ export function DocMetaStrip({
                   />
                   <MetaChip label={t("meta.scheduleDuration")} value={scheduleDuration} />
                 </>
-              ) : (
+              ) : showFolderCampaignStatus ? (
                 <>
                   <MetaChip label={t("meta.campaign")} value={campaignSummary} valueLowercase />
                   <MetaChip label={t("meta.launch")} value={launchFormatted || null} />
                   <MetaChip label={t("meta.window")} value={windowSummary} />
                 </>
-              )}
+              ) : null}
               <MetaChip label={t("meta.subcategories")} value={subcategorySummary} />
             </>
           ) : null}
@@ -255,10 +264,16 @@ export function DocMetaStrip({
             <>
               <MetaChip label="Brand" value={brandSummary} />
               <MetaChip label="Version" value={version.trim() || null} />
-              <MetaChip label="Campaign" value={campaignSummary} valueLowercase />
+              {showFolderCampaignStatus ? (
+                <MetaChip label="Campaign" value={campaignSummary} valueLowercase />
+              ) : null}
               <MetaChip label="Category" value={category.trim() || null} asTag />
-              <MetaChip label="Launch" value={launchFormatted || null} />
-              <MetaChip label="Window" value={windowSummary} />
+              {showFolderCampaignStatus ? (
+                <>
+                  <MetaChip label="Launch" value={launchFormatted || null} />
+                  <MetaChip label="Window" value={windowSummary} />
+                </>
+              ) : null}
               {showLegacySubcategories ? (
                 <MetaChip label="Subcategories" value={subcategorySummary} />
               ) : null}
@@ -483,31 +498,33 @@ export function DocMetaStrip({
                 allDocs={allDocs}
                 docId={docId}
               />
-              <div className="doc-meta-field">
-                <span className="doc-meta-field-k">Campaign</span>
-                <div className="doc-new-campaign-toggle" role="group" aria-label="Campaign status">
-                  <button
-                    type="button"
-                    className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCampaignActiveChange(true);
-                    }}
-                  >
-                    Active
-                  </button>
-                  <button
-                    type="button"
-                    className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCampaignActiveChange(false);
-                    }}
-                  >
-                    inactive
-                  </button>
+              {showFolderCampaignStatus ? (
+                <div className="doc-meta-field">
+                  <span className="doc-meta-field-k">Campaign</span>
+                  <div className="doc-new-campaign-toggle" role="group" aria-label="Campaign status">
+                    <button
+                      type="button"
+                      className={"doc-new-campaign-opt" + (campaignActive ? " is-on" : "")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCampaignActiveChange(true);
+                      }}
+                    >
+                      Active
+                    </button>
+                    <button
+                      type="button"
+                      className={"doc-new-campaign-opt" + (!campaignActive ? " is-on" : "")}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCampaignActiveChange(false);
+                      }}
+                    >
+                      inactive
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : null}
               <ProductCategoryField
                 value={category}
                 onChange={onCategoryChange}
@@ -515,17 +532,19 @@ export function DocMetaStrip({
                 allDocs={allDocs}
                 docId={docId}
               />
-              <label className="doc-meta-field">
-                <span className="doc-meta-field-k">Launch</span>
-                <input
-                  type="date"
-                  className="doc-new-date doc-meta-field-input"
-                  value={launchDate}
-                  onChange={(e) => onLaunchDateChange(e.target.value)}
-                  onClick={openDatePicker}
-                  onFocus={openDatePicker}
-                />
-              </label>
+              {showFolderCampaignStatus ? (
+                <label className="doc-meta-field">
+                  <span className="doc-meta-field-k">Launch</span>
+                  <input
+                    type="date"
+                    className="doc-new-date doc-meta-field-input"
+                    value={launchDate}
+                    onChange={(e) => onLaunchDateChange(e.target.value)}
+                    onClick={openDatePicker}
+                    onFocus={openDatePicker}
+                  />
+                </label>
+              ) : null}
               {showLegacySubcategories ? (
                 <SubcategoryField
                   parentId={parentId}
@@ -535,10 +554,12 @@ export function DocMetaStrip({
                   excludeDocId={docId}
                 />
               ) : null}
-              <div className="doc-meta-field doc-meta-field--readonly">
-                <span className="doc-meta-field-k">Window</span>
-                <span className="doc-new-meta-readonly">{windowSummary}</span>
-              </div>
+              {showFolderCampaignStatus ? (
+                <div className="doc-meta-field doc-meta-field--readonly">
+                  <span className="doc-meta-field-k">Window</span>
+                  <span className="doc-new-meta-readonly">{windowSummary}</span>
+                </div>
+              ) : null}
             </>
           ) : null}
 

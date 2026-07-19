@@ -51,17 +51,14 @@ export function collectCanvasNodeIdsForEntityIds(canvasNodes, entityNodeIds = []
 }
 
 /**
- * Campaign folders: launch comes from the active timeline source document.
- * Legacy fallback: folder.launchAt.
+ * Campaign folders: launch comes from the timeline source child document only.
+ * Folder.launchAt is not used.
  */
 function resolveDocLaunchAt(doc, docId, draft, nodesById = {}) {
-  if (draft?.docId === docId && draft.launchAt !== undefined) {
-    return draft.launchAt;
-  }
   const normalized = normalizeDoc(doc);
   if (normalized.campaignActive) {
-    if (draft?.timelineSourceNodeId !== undefined || draft?.sourceLaunchAt !== undefined) {
-      if (draft.sourceLaunchAt !== undefined) return draft.sourceLaunchAt;
+    if (draft?.docId === docId && draft.sourceLaunchAt !== undefined) {
+      return draft.sourceLaunchAt;
     }
     const source = resolveCampaignSourceNode(
       {
@@ -70,8 +67,10 @@ function resolveDocLaunchAt(doc, docId, draft, nodesById = {}) {
       },
       nodesById,
     );
-    if (source?.launchAt) return source.launchAt;
-    return normalized.launchAt ?? null;
+    return source?.launchAt ?? null;
+  }
+  if (draft?.docId === docId && draft.launchAt !== undefined) {
+    return draft.launchAt;
   }
   return normalized.launchAt ?? null;
 }
