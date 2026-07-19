@@ -1,6 +1,9 @@
 import { resolveNodeAnchorDate, parseDate } from "../temporal.js";
 import { listChildCanvasNodeIdsForDoc } from "./timelineGraph.js";
-import { resolveCampaignFolderTimelineDate } from "./campaignTimelineRail.js";
+import {
+  clampTimelineLaunchNotBeforeToday,
+  resolveCampaignFolderTimelineDate,
+} from "./campaignTimelineRail.js";
 import {
   resolveDocScheduleDate,
   resolveExplicitDocScheduleDate,
@@ -19,8 +22,12 @@ function resolveDocTimelineDateLocal(
   meta,
 ) {
   const doc = docsById[docId];
-  // Campaign folders: active source launchAt, else Created.
-  const campaignDate = resolveCampaignFolderTimelineDate(doc, meta?.nodeEntitiesById || {});
+  // Campaign folders: parent chip = today (Launch is a separate rail marker).
+  const campaignDate = resolveCampaignFolderTimelineDate(
+    doc,
+    meta?.nodeEntitiesById || {},
+    meta?.today instanceof Date ? meta.today : new Date(),
+  );
   if (campaignDate) return campaignDate;
 
   // Priority: Launch/block Schedule → linked node Schedule → canvas → createdAt.
@@ -57,9 +64,11 @@ function resolveLinkedFileTimelineDate(entityId, entity, meta = {}) {
     ? meta.docsById?.[entity.parentDocId]
     : null;
   if (parentDoc?.campaignActive && entity.dataType !== "date") {
-    return parseDate(entity.launchAt)
-      || parseDate(entity.createdAt)
-      || null;
+    const launch = parseDate(entity.launchAt);
+    const today = meta?.today instanceof Date ? meta.today : new Date();
+    // Expand child follows Launch, but never left of today.
+    if (launch) return clampTimelineLaunchNotBeforeToday(launch, today);
+    return null;
   }
   const fromAnchor = parseDate(entity.anchorAt);
   if (fromAnchor) return fromAnchor;
@@ -170,10 +179,16 @@ export function captureTimelineDocSnapshot(
     if (preferredMs != null) anchorDate = new Date(preferredMs);
   }
 
+  const parentDoc = docsById[docId];
+  const campaignSourceOnly = parentDoc?.campaignActive
+    ? (parentDoc.timelineSourceNodeId || null)
+    : null;
+
   for (const nodeId of listChildCanvasNodeIdsForDoc(docId, canvasNodes, nodeEntitiesById)) {
     const node = canvasNodes.find((n) => n.id === nodeId);
     const entity = node?.noteId ? nodeEntitiesById[node.noteId] : null;
     const entityId = node?.noteId || null;
+    if (campaignSourceOnly && entityId !== campaignSourceOnly) continue;
     // Store entities: Schedule only. Canvas-only nodes may use wire/canvas anchors.
     const raw = (entityId
       ? resolveLinkedFileTimelineDate(entityId, entity, meta)
@@ -191,6 +206,7 @@ export function captureTimelineDocSnapshot(
   }
 
   for (const entityId of listLinkedFileEntityIds(docId, docsById, nodeEntitiesById)) {
+    if (campaignSourceOnly && entityId !== campaignSourceOnly) continue;
     const entity = nodeEntitiesById[entityId];
     if (!entity) continue;
     // Date entities are rail markers, not expand children.
@@ -255,6 +271,11 @@ export function buildChildMarkersForDoc(
 ) {
   const meta = { nodeEntitiesById, docsById };
   const excluded = new Set(excludedKeys);
+  const parentDoc = docsById[docId];
+  // Campaigns: expand shows only the single queued source file (one at a time).
+  const campaignSourceOnly = parentDoc?.campaignActive
+    ? (parentDoc.timelineSourceNodeId || null)
+    : null;
   /** @type {Map<string, object>} */
   const markersByKey = new Map();
 
@@ -262,6 +283,7 @@ export function buildChildMarkersForDoc(
     const node = nodeById.get(nodeId);
     const item = trackItemsById.get(nodeId);
     const entityId = node?.noteId || null;
+    if (campaignSourceOnly && entityId !== campaignSourceOnly) continue;
     const key = childSnapshotKey(entityId, nodeId);
     if (excluded.has(key)) continue;
     const entity = entityId ? nodeEntitiesById[entityId] : null;
@@ -272,7 +294,6 @@ export function buildChildMarkersForDoc(
       || wireAnchors.get(nodeId)
       || (!entityId ? resolveNodeAnchorDate(item || node, meta) : null);
     if (!raw) continue;
-    const parentDoc = docsById[docId];
     markersByKey.set(key, {
       nodeId,
       date: raw,
@@ -292,13 +313,13 @@ export function buildChildMarkersForDoc(
 
   // Live store entities before snapshot so saved Schedule overrides stale createdAt snapshots.
   for (const entityId of listLinkedFileEntityIds(docId, docsById, nodeEntitiesById)) {
+    if (campaignSourceOnly && entityId !== campaignSourceOnly) continue;
     const key = childSnapshotKey(entityId, null);
     if (!key || excluded.has(key) || markersByKey.has(key)) continue;
     const entity = nodeEntitiesById[entityId];
     if (!entity || entity.dataType === "date") continue;
     const raw = resolveLinkedFileTimelineDate(entityId, entity, meta);
     if (!raw) continue;
-    const parentDoc = docsById[docId];
     markersByKey.set(key, {
       nodeId: `entity-${entityId}`,
       date: raw,
@@ -319,6 +340,7 @@ export function buildChildMarkersForDoc(
   for (const child of snapshot?.children || []) {
     const key = child.key || childSnapshotKey(child.entityId, child.canvasNodeId);
     if (!key || excluded.has(key) || markersByKey.has(key)) continue;
+    if (campaignSourceOnly && child.entityId && child.entityId !== campaignSourceOnly) continue;
     // Never resurrect snapshot chips for deleted / unlinked entities.
     // Orphans with parentDocId=null still exist in the store and previously
     // reappeared via this fallback after left-panel delete / hydrate.

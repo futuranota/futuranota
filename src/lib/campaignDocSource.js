@@ -84,6 +84,8 @@ export function resolveCampaignSourceMicroLabel(folderDoc, nodesById = {}) {
 
 /**
  * Whether a node under a campaign folder can become the timeline source.
+ * Insert-to-timeline may switch source regardless of active/inactive — the
+ * freshest inserted file wins for that parent folder.
  * @param {object|null|undefined} folderDoc
  * @param {object|null|undefined} node
  * @returns {boolean}
@@ -91,5 +93,96 @@ export function resolveCampaignSourceMicroLabel(folderDoc, nodesById = {}) {
 export function canSetCampaignTimelineSource(folderDoc, node) {
   if (!folderDoc?.campaignActive || !node?.id) return false;
   if (node.parentDocId !== folderDoc.id) return false;
-  return isCampaignDocActive(node);
+  if (node.dataType === "date") return false;
+  return true;
+}
+
+/**
+ * Campaigns enter the timeline only via a file (entity) on canvas — not the
+ * bare folder document card.
+ * @param {object|null|undefined} canvasNode
+ * @param {Record<string, object>} [nodeEntitiesById]
+ * @param {Record<string, object>} [docsById]
+ * @returns {boolean}
+ */
+export function isCampaignTimelineFileInsert(canvasNode, nodeEntitiesById = {}, docsById = {}) {
+  if (!canvasNode?.noteId) return false;
+  const entity = nodeEntitiesById[canvasNode.noteId];
+  if (!entity?.parentDocId) return false;
+  return Boolean(docsById[entity.parentDocId]?.campaignActive);
+}
+
+/**
+ * Timeline queue: at most one campaign folder. Keep `keepDocId`, drop the rest.
+ * @param {string[]} queue
+ * @param {Record<string, object>} docsById
+ * @param {string|null} keepDocId
+ * @returns {{ queue: string[], removed: string[] }}
+ */
+export function replaceCampaignFoldersInTimelineQueue(queue, docsById = {}, keepDocId = null) {
+  /** @type {string[]} */
+  const removed = [];
+  const next = (queue || []).filter((id) => {
+    if (!docsById[id]?.campaignActive) return true;
+    if (keepDocId && id === keepDocId) return true;
+    removed.push(id);
+    return false;
+  });
+  return { queue: next, removed };
+}
+
+/**
+ * Deterministic canvas Launch node id for a campaign file.
+ * @param {string} entityId
+ * @returns {string}
+ */
+export function campaignLaunchCanvasNodeId(entityId) {
+  return `CN-launch-node-${entityId}`;
+}
+
+/**
+ * Whether a Launch/date canvas node belongs to the folder's current source file.
+ * Non-campaign dates always pass.
+ * @param {object|null|undefined} dateNode
+ * @param {object|null|undefined} folderDoc
+ * @returns {boolean}
+ */
+export function isCampaignSourceLaunchDateNode(dateNode, folderDoc) {
+  if (!folderDoc?.campaignActive) return true;
+  if (!dateNode || dateNode.canvasKind !== "launch") return true;
+  const sourceId = folderDoc.timelineSourceNodeId || null;
+  if (!sourceId) return false;
+  if (dateNode.sourceNodeId === sourceId) return true;
+  return dateNode.id === campaignLaunchCanvasNodeId(sourceId);
+}
+
+/**
+ * One Launch date type on the rail per campaign folder — the active source's.
+ * Drops other launches for that folder; adds the source launch if present on canvas.
+ * @param {Iterable<string>} dateNodeIds
+ * @param {object} opts
+ * @param {string} opts.folderDocId
+ * @param {string|null} opts.sourceEntityId
+ * @param {object[]} [opts.canvasNodes]
+ * @returns {string[]}
+ */
+export function syncCampaignFolderLaunchDateQueue(
+  dateNodeIds,
+  { folderDocId, sourceEntityId = null, canvasNodes = [] } = {},
+) {
+  if (!folderDocId) return [...dateNodeIds];
+  const keepLaunchId = sourceEntityId ? campaignLaunchCanvasNodeId(sourceEntityId) : null;
+  const next = new Set();
+  for (const id of dateNodeIds) {
+    const node = canvasNodes.find((n) => n.id === id);
+    if (node?.canvasKind === "launch" && node.parentDocId === folderDocId) {
+      if (keepLaunchId && node.id === keepLaunchId) next.add(id);
+      continue;
+    }
+    next.add(id);
+  }
+  if (keepLaunchId && canvasNodes.some((n) => n.id === keepLaunchId)) {
+    next.add(keepLaunchId);
+  }
+  return [...next];
 }

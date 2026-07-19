@@ -16,8 +16,15 @@ import {
 } from "../lib/timelineDocSnapshot.js";
 import { buildTacticalWireAnchorMap } from "../lib/timelineAnchors.js";
 import { captureTimelineAgentSetsForInsert } from "../lib/agents/captureTimelineAgentSets.js";
-import { canSetCampaignTimelineSource } from "../lib/campaignDocSource.js";
+import {
+  CAMPAIGN_DOC_STATUS_ACTIVE,
+  canSetCampaignTimelineSource,
+  isCampaignTimelineFileInsert,
+  replaceCampaignFoldersInTimelineQueue,
+  syncCampaignFolderLaunchDateQueue,
+} from "../lib/campaignDocSource.js";
 import { useDocsStore } from "./docsStore.js";
+import { useNodesStore } from "./nodesStore.js";
 
 const TIMELINE_ALERTS_KEY = "futura-timeline-alerts";
 
@@ -558,7 +565,8 @@ export const useTimelineStore = create(
         // Multi-family selections are allowed: each folder renders on its own
         // company timeline, and cross-company guests surface via inherit wires.
 
-        let queue = get().timelineDocQueue;
+        const prevQueue = get().timelineDocQueue;
+        let queue = prevQueue;
         const focusByDocId = { ...get().timelineDocQueueFocusByDocId };
         const snapshots = { ...get().timelineDocSnapshotsByDocId };
         const dateNodeIds = new Set(get().timelineDateNodeIds);
@@ -567,6 +575,11 @@ export const useTimelineStore = create(
         let added = 0;
         let datesAdded = 0;
         let dateNodesTouched = 0;
+        /** @type {string[]} Campaign folder ids inserted via a file in this batch (order preserved). */
+        const campaignFoldersInserted = [];
+        /** @type {string[]} */
+        let removedCampaignIds = [];
+
         for (const canvasId of canvasNodeIds) {
           const node = nodeById.get(canvasId);
           if (!node) continue;
@@ -582,12 +595,18 @@ export const useTimelineStore = create(
           }
           const docId = resolveParentDocIdForCanvasNode(node, nodeEntitiesById, docsById);
           if (!docId) continue;
+          const folder = docsById[docId];
+
+          // Campaigns: only a file (entity) on canvas can enter the timeline —
+          // not the bare folder document card.
+          if (folder?.campaignActive && !isCampaignTimelineFileInsert(node, nodeEntitiesById, docsById)) {
+            continue;
+          }
+
           touchedDocIds.add(docId);
           if (!nodesByDocId.has(docId)) nodesByDocId.set(docId, []);
           nodesByDocId.get(docId).push(canvasId);
-          const prevLen = queue.length;
           queue = pushDocToTimelineQueue(queue, docId);
-          if (queue.length > prevLen) added += 1;
           const focusBlockId = resolveHeadlineBlockIdForCanvasNode(
             node,
             nodeEntitiesById,
@@ -595,26 +614,95 @@ export const useTimelineStore = create(
           );
           if (focusBlockId) focusByDocId[docId] = focusBlockId;
 
-          // Campaign child insert → that document becomes the folder timeline source.
+          // Same parent campaign folder: freshest file wins — previous source
+          // file leaves the expand queue; Launch date type switches with it.
           const entityId = node.noteId || null;
           const entity = entityId ? nodeEntitiesById[entityId] : null;
-          const folder = docsById[docId];
-          if (entity && canSetCampaignTimelineSource(folder, entity)) {
+          if (folder?.campaignActive && entity && canSetCampaignTimelineSource(folder, entity)) {
             useDocsStore.getState().updateDoc(docId, {
               timelineSourceNodeId: entity.id,
             });
+            useNodesStore.getState().updateNode(entity.id, {
+              campaignStatus: CAMPAIGN_DOC_STATUS_ACTIVE,
+              completed: false,
+            });
+            const launchId = `CN-launch-node-${entity.id}`;
+            const hadLaunch = dateNodeIds.has(launchId);
+            const synced = syncCampaignFolderLaunchDateQueue(dateNodeIds, {
+              folderDocId: docId,
+              sourceEntityId: entity.id,
+              canvasNodes,
+            });
+            dateNodeIds.clear();
+            for (const id of synced) dateNodeIds.add(id);
+            if (!hadLaunch && dateNodeIds.has(launchId)) {
+              datesAdded += 1;
+            }
+          }
+          if (folder?.campaignActive && !campaignFoldersInserted.includes(docId)) {
+            campaignFoldersInserted.push(docId);
           }
         }
+
+        // Live docs after source switches (caller snapshot may be stale).
+        const liveDocsById = { ...docsById, ...useDocsStore.getState().docs };
+
+        // Campaigns: one product on the timeline at a time — new insert replaces
+        // any other campaign folder already in the queue.
+        if (campaignFoldersInserted.length) {
+          const keepCampaignId = campaignFoldersInserted[campaignFoldersInserted.length - 1];
+          for (const extraId of campaignFoldersInserted) {
+            if (extraId === keepCampaignId) continue;
+            touchedDocIds.delete(extraId);
+            nodesByDocId.delete(extraId);
+            delete focusByDocId[extraId];
+            queue = queue.filter((id) => id !== extraId);
+          }
+          const { queue: nextQueue, removed: removedCampaigns } = replaceCampaignFoldersInTimelineQueue(
+            queue,
+            liveDocsById,
+            keepCampaignId,
+          );
+          queue = nextQueue;
+          removedCampaignIds = removedCampaigns;
+          for (const removedId of removedCampaigns) {
+            delete focusByDocId[removedId];
+            delete snapshots[removedId];
+          }
+          // Drop launch date markers that belonged to the replaced campaign folder(s).
+          if (removedCampaigns.length) {
+            const removedSet = new Set(removedCampaigns);
+            for (const dateId of [...dateNodeIds]) {
+              const dateNode = nodeById.get(dateId)
+                || canvasNodes.find((n) => n.id === dateId);
+              if (dateNode?.parentDocId && removedSet.has(dateNode.parentDocId)) {
+                dateNodeIds.delete(dateId);
+              }
+            }
+          }
+        }
+
+        const prevQueueSet = new Set(prevQueue);
+        added = [...touchedDocIds].filter((id) => queue.includes(id) && !prevQueueSet.has(id)).length;
 
         if (!touchedDocIds.size && !dateNodesTouched) {
           return {
             ok: false,
             code: "NO_DOCS",
-            message: "Selected nodes are not linked to a document.",
+            message: campaignFoldersInserted.length === 0
+              && canvasNodeIds.some((id) => {
+                const n = nodeById.get(id);
+                const docId = n
+                  ? resolveParentDocIdForCanvasNode(n, nodeEntitiesById, liveDocsById)
+                  : null;
+                return Boolean(docId && liveDocsById[docId]?.campaignActive);
+              })
+              ? "Campaigns enter the timeline from a file on canvas (Select → Insert)."
+              : "Selected nodes are not linked to a document.",
           };
         }
 
-        const meta = { docsById, nodeEntitiesById };
+        const meta = { docsById: liveDocsById, nodeEntitiesById };
         const { anchors: wireAnchors } = buildTacticalWireAnchorMap(canvasNodes, connections, meta);
         if (touchedDocIds.size) {
           // Refresh every queued doc so prior Schedule edits are not stuck on createdAt snapshots.
@@ -623,7 +711,7 @@ export const useTimelineStore = create(
             snapshots[docId] = captureTimelineDocSnapshot(docId, {
               canvasNodes,
               wireAnchors,
-              docsById,
+              docsById: liveDocsById,
               nodeEntitiesById,
               preferredCanvasNodeIds: nodesByDocId.get(docId) || [],
             });
@@ -633,7 +721,7 @@ export const useTimelineStore = create(
             docId,
             canvasNodes,
             wireAnchors,
-            docsById,
+            liveDocsById,
             meta,
             snapshots[docId],
           ));
@@ -650,6 +738,9 @@ export const useTimelineStore = create(
         for (const docId of touchedDocIds) {
           excluded[docId] = [];
         }
+        for (const removedId of removedCampaignIds) {
+          delete excluded[removedId];
+        }
 
         const { sets: timelineAgentSets, added: setsAdded } = captureTimelineAgentSetsForInsert({
           canvasNodeIds,
@@ -662,13 +753,22 @@ export const useTimelineStore = create(
           existingSets: get().timelineAgentSets,
         });
 
+        const removedCampaignSet = new Set(removedCampaignIds);
+        const nextAgentSets = removedCampaignSet.size
+          ? timelineAgentSets.filter((set) => !removedCampaignSet.has(set.docId))
+          : timelineAgentSets;
+        const nextExpanded = removedCampaignSet.size
+          ? get().expandedDocIds.filter((id) => !removedCampaignSet.has(id))
+          : get().expandedDocIds;
+
         set({
           timelineDocQueue: queue,
           timelineDocQueueFocusByDocId: focusByDocId,
           timelineDocSnapshotsByDocId: snapshots,
           timelineExcludedChildrenByDocId: excluded,
-          timelineAgentSets,
+          timelineAgentSets: nextAgentSets,
           timelineDateNodeIds: [...dateNodeIds],
+          expandedDocIds: nextExpanded,
           // Fresh auto zoom after insert — avoids collapsed month snap / stale stretch.
           tacticalRangeOverride: null,
           tacticalLoupe: null,
@@ -679,6 +779,7 @@ export const useTimelineStore = create(
           added,
           setsAdded,
           datesAdded,
+          replacedCampaigns: removedCampaignIds.length,
           refreshed: added === 0 && setsAdded === 0 && datesAdded === 0,
         };
       },

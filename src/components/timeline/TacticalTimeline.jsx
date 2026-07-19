@@ -24,7 +24,12 @@ import { useTimelineStore } from "../../stores/index.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { unlockTimelineReminderSound } from "../../lib/timelineReminderSound.js";
-import { canSetCampaignTimelineSource } from "../../lib/campaignDocSource.js";
+import {
+  CAMPAIGN_DOC_STATUS_ACTIVE,
+  canSetCampaignTimelineSource,
+  syncCampaignFolderLaunchDateQueue,
+} from "../../lib/campaignDocSource.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
 import { TimelineEventChip, TimelineCalendarIcon } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
 import { TimelineCrossLinks } from "./TimelineCrossLinks.jsx";
@@ -986,6 +991,16 @@ export function TacticalTimeline({
       ) {
         if (parentFolder.timelineSourceNodeId !== nodeId) {
           updateDoc(docId, { timelineSourceNodeId: nodeId });
+          useNodesStore.getState().updateNode(nodeId, {
+            campaignStatus: CAMPAIGN_DOC_STATUS_ACTIVE,
+            completed: false,
+          });
+          const synced = syncCampaignFolderLaunchDateQueue(timelineDateNodeIds, {
+            folderDocId: docId,
+            sourceEntityId: nodeId,
+            canvasNodes,
+          });
+          useTimelineStore.setState({ timelineDateNodeIds: synced });
         }
         setTimelineFocus({
           level: "children",

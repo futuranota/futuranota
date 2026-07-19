@@ -2,11 +2,19 @@
  * Manually inserted date markers for the object rail.
  * Dates only separate folders / track time — they are not folders or documents.
  * Gate: Select → Insert to timeline (`allowedDateNodeIds`). Never auto-add.
+ *
+ * Campaign model:
+ * - Parent folder chip sits on **today** (time runs as days pass).
+ * - Launch date type is the **future** event for the inserted source file.
+ * - Launch never renders left of today (no reverse on the rail).
  */
 
 import { parseDate } from "./dates.js";
+import { startOfCalendarDay } from "../temporal.js";
 import { resolveCanvasNodeObjectId } from "./objectColors.js";
-import { resolveCampaignFolderSourceDate } from "./campaignDocSource.js";
+import {
+  isCampaignSourceLaunchDateNode,
+} from "./campaignDocSource.js";
 
 /**
  * @param {unknown} content
@@ -32,38 +40,60 @@ export function isTimelineDateCanvasNode(node) {
 }
 
 /**
- * Campaign folder chip date = Created (fallback when no active source launch).
+ * Campaign folder chip = today (thermometer day). Days advance with the clock.
  * @param {object|null|undefined} doc
+ * @param {Date} [today]
  * @returns {Date|null}
  */
-export function resolveCampaignFolderCreatedDate(doc) {
+export function resolveCampaignFolderCreatedDate(doc, today = new Date()) {
   if (!doc?.campaignActive) return null;
-  return parseDate(doc.createdAt) || parseDate(doc.updatedAt);
+  return startOfCalendarDay(today);
 }
 
 /**
- * Prefer active source document launchAt; else Created.
+ * Parent campaign folder always measures time from today — not launchAt.
+ * Launch is a separate future marker on the rail.
  * @param {object|null|undefined} doc
- * @param {Record<string, object>} [nodesById]
+ * @param {Record<string, object>} [_nodesById]
+ * @param {Date} [today]
  * @returns {Date|null}
  */
-export function resolveCampaignFolderTimelineDate(doc, nodesById = {}) {
+export function resolveCampaignFolderTimelineDate(doc, _nodesById = {}, today = new Date()) {
   if (!doc?.campaignActive) return null;
-  return resolveCampaignFolderSourceDate(doc, nodesById)
-    || resolveCampaignFolderCreatedDate(doc);
+  return startOfCalendarDay(today);
+}
+
+/**
+ * Launch / date markers cannot sit before today on the campaign rail.
+ * @param {Date|null|undefined} date
+ * @param {Date} [today]
+ * @returns {Date|null}
+ */
+export function clampTimelineLaunchNotBeforeToday(date, today = new Date()) {
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const todayDay = startOfCalendarDay(today);
+  const day = startOfCalendarDay(date);
+  if (day.getTime() < todayDay.getTime()) return null;
+  return date;
 }
 
 /**
  * @param {object|null|undefined} node
+ * @param {Date} [today]
  * @returns {Date|null}
  */
-export function resolveTimelineDateNodeDate(node) {
+export function resolveTimelineDateNodeDate(node, today = new Date()) {
   if (!node) return null;
+  let raw = null;
   if (node.launchAt) {
-    const fromLaunch = parseDate(node.launchAt);
-    if (fromLaunch) return fromLaunch;
+    raw = parseDate(node.launchAt);
   }
-  return parseDateContent(node.content);
+  if (!raw) raw = parseDateContent(node.content);
+  if (!raw) return null;
+  if (node.canvasKind === "launch") {
+    return clampTimelineLaunchNotBeforeToday(raw, today);
+  }
+  return raw;
 }
 
 /**
@@ -87,6 +117,7 @@ function resolveDateParentDocId(node, docsById = {}) {
  * @param {Record<string, object>} [opts.docsById]
  * @param {Record<string, object>} [opts.nodeEntitiesById]
  * @param {Set<string>|string[]} [opts.allowedDateNodeIds]
+ * @param {Date} [opts.today]
  * @returns {object[]}
  */
 export function collectFolderLinkedDateMarkers({
@@ -95,6 +126,7 @@ export function collectFolderLinkedDateMarkers({
   docsById = {},
   nodeEntitiesById = {},
   allowedDateNodeIds = [],
+  today = new Date(),
 } = {}) {
   if (!objectId || !canvasNodes.length) return [];
 
@@ -113,10 +145,14 @@ export function collectFolderLinkedDateMarkers({
     if (!allowedIds.has(node.id)) continue;
     if (seen.has(node.id)) continue;
 
-    const date = resolveTimelineDateNodeDate(node);
+    const date = resolveTimelineDateNodeDate(node, today);
     if (!date) continue;
 
     const parentDocId = resolveDateParentDocId(node, docsById);
+    const parentDoc = parentDocId ? docsById[parentDocId] : null;
+    // Campaigns: only the current source file's Launch date type on the rail.
+    if (!isCampaignSourceLaunchDateNode(node, parentDoc)) continue;
+
     const objectForNode = resolveCanvasNodeObjectId(node, docsById, nodeEntitiesById)
       || (parentDocId ? docsById[parentDocId]?.parentObjectId : null);
     if (objectForNode !== objectId) continue;

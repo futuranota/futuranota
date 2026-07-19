@@ -146,7 +146,9 @@ export function collectTimelineScheduleTargets({
         ? doc.timelineSourceNodeId
         : null;
       const source = sourceId ? nodeEntities[sourceId] : null;
-      if (source?.campaignStatus === "active") {
+      // Reminder follows the inserted source file's Launch (future event),
+      // not the folder chip (which tracks today).
+      if (source) {
         campaignSourceDate = parseDate(source.launchAt) || null;
       }
     }

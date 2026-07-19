@@ -1,25 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { startOfCalendarDay } from "../temporal.js";
 import {
+  clampTimelineLaunchNotBeforeToday,
   resolveCampaignFolderCreatedDate,
   resolveCampaignFolderTimelineDate,
+  resolveTimelineDateNodeDate,
 } from "./campaignTimelineRail.js";
 
 describe("campaignTimelineRail", () => {
-  it("falls back to Created when no active source launch", () => {
-    const doc = {
-      campaignActive: true,
-      createdAt: "2026-07-10T12:00:00.000Z",
-      timelineSourceNodeId: null,
-    };
-    expect(resolveCampaignFolderCreatedDate(doc)?.toISOString())
-      .toBe("2026-07-10T12:00:00.000Z");
-    expect(resolveCampaignFolderTimelineDate(doc, {})?.toISOString())
-      .toBe("2026-07-10T12:00:00.000Z");
-  });
+  const today = new Date(2026, 6, 19, 12, 0, 0);
 
-  it("prefers active source document launchAt over Created", () => {
+  it("places the campaign folder chip on today (not launchAt)", () => {
     const doc = {
-      id: "folder-1",
       campaignActive: true,
       createdAt: "2026-07-10T12:00:00.000Z",
       timelineSourceNodeId: "node-d",
@@ -32,26 +24,28 @@ describe("campaignTimelineRail", () => {
         launchAt: "2026-09-15T15:30:00.000Z",
       },
     };
-    expect(resolveCampaignFolderTimelineDate(doc, nodes)?.toISOString())
-      .toBe("2026-09-15T15:30:00.000Z");
+    const expected = startOfCalendarDay(today).getTime();
+    expect(resolveCampaignFolderTimelineDate(doc, nodes, today)?.getTime()).toBe(expected);
+    expect(resolveCampaignFolderCreatedDate(doc, today)?.getTime()).toBe(expected);
   });
 
-  it("ignores inactive source and falls back to Created", () => {
-    const doc = {
-      id: "folder-1",
-      campaignActive: true,
-      createdAt: "2026-07-10T12:00:00.000Z",
-      timelineSourceNodeId: "node-a",
-    };
-    const nodes = {
-      "node-a": {
-        id: "node-a",
-        parentDocId: "folder-1",
-        campaignStatus: "inactive",
-        launchAt: "2026-09-15T15:30:00.000Z",
-      },
-    };
-    expect(resolveCampaignFolderTimelineDate(doc, nodes)?.toISOString())
-      .toBe("2026-07-10T12:00:00.000Z");
+  it("does not place Launch markers before today (no reverse)", () => {
+    const past = new Date(2026, 6, 1, 12, 0, 0);
+    const future = new Date(2026, 7, 2, 15, 0, 0);
+    expect(clampTimelineLaunchNotBeforeToday(past, today)).toBeNull();
+    expect(clampTimelineLaunchNotBeforeToday(future, today)?.getTime())
+      .toBe(future.getTime());
+
+    const pastLaunch = resolveTimelineDateNodeDate({
+      canvasKind: "launch",
+      launchAt: past.toISOString(),
+    }, today);
+    expect(pastLaunch).toBeNull();
+
+    const futureLaunch = resolveTimelineDateNodeDate({
+      canvasKind: "launch",
+      launchAt: future.toISOString(),
+    }, today);
+    expect(futureLaunch?.getTime()).toBe(future.getTime());
   });
 });

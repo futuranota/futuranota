@@ -999,8 +999,12 @@ export function resolveDocTimelineDate(
   meta,
 ) {
   const doc = docsById[docId];
-  // Campaign folders: active source launchAt, else Created.
-  const campaignDate = resolveCampaignFolderTimelineDate(doc, meta?.nodeEntitiesById || {});
+  // Campaign folders: parent chip = today (Launch is a separate rail marker).
+  const campaignDate = resolveCampaignFolderTimelineDate(
+    doc,
+    meta?.nodeEntitiesById || {},
+    meta?.today instanceof Date ? meta.today : new Date(),
+  );
   if (campaignDate) return campaignDate;
 
   // Priority: Launch/block Schedule → linked node Schedule → canvas → createdAt.
@@ -1066,7 +1070,7 @@ export function buildTacticalObjectRows(params) {
 
   const { chains, wireAnchors, trackItemsById, classifiedConnections } = tactical;
   const nodeById = new Map(canvasNodes.map((n) => [n.id, n]));
-  const meta = { nodeEntitiesById, docsById, objectsById };
+  const meta = { nodeEntitiesById, docsById, objectsById, today };
   // Timeline is opt-in: only docs explicitly inserted (queued) render markers.
   const queuedDocIdSet = new Set(timelineDocQueue);
 
@@ -1122,7 +1126,7 @@ export function buildTacticalObjectRows(params) {
         // Canvas presence alone is not enough — the doc must have been inserted.
         if (!docId || !queuedDocIdSet.has(docId)) continue;
         const campaignDate = docId
-          ? resolveCampaignFolderTimelineDate(docsById[docId], nodeEntitiesById)
+          ? resolveCampaignFolderTimelineDate(docsById[docId], nodeEntitiesById, today)
           : null;
         const fullDate = campaignDate
           || (docId ? resolveExplicitDocScheduleDate(docsById[docId]) : null)
@@ -1153,7 +1157,7 @@ export function buildTacticalObjectRows(params) {
         (n) => (n.docId || n.noteId) === docId && isDocumentNode(n),
       );
       if (canvasDoc && markerByKey.has(canvasDoc.id)) continue;
-      const date = resolveCampaignFolderTimelineDate(docsById[docId], nodeEntitiesById)
+      const date = resolveCampaignFolderTimelineDate(docsById[docId], nodeEntitiesById, today)
         || resolveQueuedDocTimelineDate(
           docId,
           canvasNodes,
@@ -1204,6 +1208,7 @@ export function buildTacticalObjectRows(params) {
       docsById,
       nodeEntitiesById,
       allowedDateNodeIds: timelineDateNodeIds,
+      today,
     })) {
       markerByKey.set(dateMarker.nodeId, dateMarker);
     }
