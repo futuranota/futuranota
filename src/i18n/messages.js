@@ -81,6 +81,11 @@ export const messages = {
       scheduledAutoRunTitle: "Run wired macro tasks automatically when their schedule is due (while the app is open)",
       scheduledDueCount: "{count} task(s) due now",
       scheduledPendingCount: "{count} scheduled task(s)",
+      importObject: "Import Object",
+      importObjectTitle: "Pin the current company as the dashboard/timeline target so you can browse other companies without losing it",
+      importObjectHeld: "Import: {name}",
+      importObjectHeldTitle: "Dashboard and timeline stay on {name}. Click again to release.",
+      importObjectNeedCompany: "Select a company first to pin Import Object",
     },
     doc: {
       imageBlock: {
@@ -969,6 +974,11 @@ export const messages = {
       scheduledAutoRunTitle: "Ejecutar tasks de macronodos cableados cuando llegue su horario (con la app abierta)",
       scheduledDueCount: "{count} task(s) listos",
       scheduledPendingCount: "{count} task(s) programados",
+      importObject: "Import Object",
+      importObjectTitle: "Fija la compañía actual como objetivo del dashboard/timeline para navegar otras compañías sin perderla",
+      importObjectHeld: "Import: {name}",
+      importObjectHeldTitle: "Dashboard y timeline se quedan en {name}. Clic de nuevo para soltar.",
+      importObjectNeedCompany: "Selecciona una compañía primero para fijar Import Object",
     },
     doc: {
       imageBlock: {

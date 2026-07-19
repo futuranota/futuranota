@@ -8,6 +8,7 @@ export { useLazyTodosStore } from "./lazyTodosStore.js";
 export { useUrlTableStore } from "./urlTableStore.js";
 export { usePasswordTableStore } from "./passwordTableStore.js";
 export { useUIStateStore } from "./uiStateStore.js";
+export { useObjectTargetHoldStore } from "./objectTargetHoldStore.js";
 export { usePlanStore, FREE_LIMITS, TOKEN_COSTS } from "./planStore.js";
 export {
   formatTokenCount,

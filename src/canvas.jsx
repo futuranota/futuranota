@@ -877,6 +877,9 @@ function BlueprintCanvas({
   timelineQueueMode = false,
   timelineSelectEnabled = true,
   onToggleTimelineQueueMode,
+  heldObjectId = null,
+  heldObjectName = null,
+  onToggleObjectHold,
   onTimelineCanvasSelect,
   onTimelineCanvasSelectMany,
   onNotify,
@@ -2161,6 +2164,25 @@ function BlueprintCanvas({
               {pendingCount > 0 ? ` (${pendingCount})` : ""}
             </button>
           </>
+        ) : null}
+        {typeof onToggleObjectHold === "function" ? (
+          <button
+            type="button"
+            className={
+              "btn xs btn-import-object"
+              + (heldObjectId ? " is-active" : " ghost")
+            }
+            onClick={onToggleObjectHold}
+            title={
+              heldObjectId
+                ? t("canvas.importObjectHeldTitle", { name: heldObjectName || "Company" })
+                : t("canvas.importObjectTitle")
+            }
+          >
+            {heldObjectId
+              ? t("canvas.importObjectHeld", { name: heldObjectName || "Company" })
+              : t("canvas.importObject")}
+          </button>
         ) : null}
         {hiddenCount > 0 && (
           <button className="btn xs" onClick={handleShowAll} title={t("canvas.showAllTitle")}>

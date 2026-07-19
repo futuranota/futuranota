@@ -2062,6 +2062,14 @@ textarea.field {
     0 0 0 1px color-mix(in oklab, var(--cool) 45%, transparent),
     0 0 12px color-mix(in oklab, var(--cool) 25%, transparent);
 }
+.btn-import-object.is-active {
+  color: var(--warm);
+  border-color: color-mix(in oklab, var(--warm) 55%, var(--glass-border));
+  background: var(--warm-soft);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--warm) 55%, transparent),
+    0 0 12px color-mix(in oklab, var(--warm) 30%, transparent);
+}
 .canvas-marquee {
   position: absolute;
   border: 1px solid color-mix(in oklab, var(--hud) 65%, #9aa3b8);

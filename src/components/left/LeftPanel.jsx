@@ -49,6 +49,7 @@ import { resolveDocSource } from "../../lib/docSources.js";
 import { buildNodesByDocIdMap } from "../../lib/resolveDocBlockNodes.js";
 import { buildTimelineQueueEntries } from "../../lib/timelineSelection.js";
 import { setCorpusTimelineAuthority } from "../../lib/timelineCorpusAuthority.js";
+import { useObjectTargetHoldStore } from "../../stores/objectTargetHoldStore.js";
 import {
   buildCategoryFilterOptions,
   contentDocMatchesProductFilter,
@@ -1983,8 +1984,9 @@ export function LeftPanel({
     setSelectedObjectId(objectId);
     setFilterObjectId(objectId);
     setActiveId(objectId);
-    // Opening a company sets Corpus authority for guest-folder inheritance.
-    setCorpusTimelineAuthority(objectId);
+    // Import Object pin keeps Dashboard/Timeline on the held host while browsing.
+    const heldId = useObjectTargetHoldStore.getState().heldObjectId;
+    setCorpusTimelineAuthority(heldId || objectId);
   };
 
   const enterObjectWorkspace = (objectId) => {
@@ -2119,7 +2121,8 @@ export function LeftPanel({
     setSelectedObjectId(null);
     setFilterObjectId(null);
     setActiveId(null);
-    setCorpusTimelineAuthority(null);
+    const heldId = useObjectTargetHoldStore.getState().heldObjectId;
+    setCorpusTimelineAuthority(heldId || null);
     setNodeSearch("");
     clearLeftPanelNavSnapshot();
   };
@@ -2172,10 +2175,13 @@ export function LeftPanel({
 
     const objectId = resolvedObjectId;
 
+    const heldId = useObjectTargetHoldStore.getState().heldObjectId;
+    const authorityId = (heldId && objects[heldId]) ? heldId : objectId;
+
     if (snap.objectWorkspaceActive && objectId && objects[objectId]) {
       setSelectedObjectId(objectId);
       setFilterObjectId(objectId);
-      setCorpusTimelineAuthority(objectId);
+      setCorpusTimelineAuthority(authorityId);
       setObjectWorkspaceActive(true);
       const nextPanel = ["Documents", "Nodes", "Objects"].includes(snap.panelType)
         ? snap.panelType
@@ -2187,7 +2193,7 @@ export function LeftPanel({
     } else if (objectId && objects[objectId]) {
       setSelectedObjectId(objectId);
       setFilterObjectId(objectId);
-      setCorpusTimelineAuthority(objectId);
+      setCorpusTimelineAuthority(authorityId);
     }
 
     setLeftPanelNavRestored(true);

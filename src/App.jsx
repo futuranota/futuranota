@@ -17,11 +17,14 @@ import {
   useObjectsStore,
   useTimelineStore,
   useUIStateStore,
+  useObjectTargetHoldStore,
   usePlanStore,
   useUpgradeModalStore,
   useReferralModalStore,
   FREE_LIMITS,
 } from './stores/index.js';
+import { resolveEffectiveDashboardObjectId } from './lib/objectTargetHold.js';
+import { setCorpusTimelineAuthority } from './lib/timelineCorpusAuthority.js';
 import { useLazyTodosStore } from './stores/lazyTodosStore.js';
 import { cloneLazyTodo } from './lib/lazyTodos.js';
 import { lazyTodoHasContent } from './lib/lazyTodoItemKeyDown.js';
@@ -228,6 +231,19 @@ function Dashboard({ company, onBack }) {
   const nodeEntities = useNodesStore((s) => s.nodes);
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const heldObjectId = useObjectTargetHoldStore((s) => s.heldObjectId);
+  const holdObjectTarget = useObjectTargetHoldStore((s) => s.hold);
+  const releaseObjectTarget = useObjectTargetHoldStore((s) => s.release);
+  const reconcileObjectHold = useObjectTargetHoldStore((s) => s.reconcile);
+  // Import Object pin: Dashboard/Timeline stay on the held company while sidebar browses freely.
+  const dashboardObjectId = resolveEffectiveDashboardObjectId(heldObjectId, filterObjectId);
+  const dashboardSelectedObjectId = resolveEffectiveDashboardObjectId(
+    heldObjectId,
+    selectedObjectId || filterObjectId,
+  );
+  const heldObjectName = heldObjectId
+    ? (objects[heldObjectId]?.name || objects[heldObjectId]?.title || "").trim() || "Company"
+    : null;
   const activeDocMetaDraft = useUIStateStore((s) => s.activeDocMetaDraft);
   const objectTimelineTitles = useTimelineStore((s) => s.objectTimelineTitles);
   const timelineAlertsEnabled = useTimelineStore((s) => s.timelineAlertsEnabled);
@@ -252,7 +268,7 @@ function Dashboard({ company, onBack }) {
         canvasNodes,
         docs,
         objectsById: objects,
-        selectedObjectId,
+        selectedObjectId: dashboardSelectedObjectId,
         expandedDocId,
         activeDocMetaDraft,
         timelineDocQueue,
@@ -264,7 +280,7 @@ function Dashboard({ company, onBack }) {
       canvasNodes,
       docs,
       objects,
-      selectedObjectId,
+      dashboardSelectedObjectId,
       expandedDocId,
       activeDocMetaDraft,
       timelineDocQueue,
@@ -364,6 +380,42 @@ function Dashboard({ company, onBack }) {
     [timelineQueueMode, handleTimelineCanvasSelect],
   );
 
+  // Import Object: pin current company as Dashboard/Timeline target (indefinite toggle).
+  const handleToggleObjectHold = useCallback(() => {
+    if (heldObjectId) {
+      releaseObjectTarget();
+      const browsing = filterObjectId || selectedObjectId || null;
+      setCorpusTimelineAuthority(browsing);
+      return;
+    }
+    const target = filterObjectId || selectedObjectId || null;
+    if (!target) {
+      setToast({
+        message: t("canvas.importObjectNeedCompany"),
+        kind: "warm",
+      });
+      return;
+    }
+    holdObjectTarget(target);
+    setCorpusTimelineAuthority(target);
+  }, [
+    heldObjectId,
+    filterObjectId,
+    selectedObjectId,
+    holdObjectTarget,
+    releaseObjectTarget,
+    t,
+  ]);
+
+  useEffect(() => {
+    const pinned = useObjectTargetHoldStore.getState().heldObjectId;
+    reconcileObjectHold(objects);
+    // Pinned company deleted → release hold and point authority at current browse target.
+    if (pinned && !objects[pinned]) {
+      setCorpusTimelineAuthority(filterObjectId || selectedObjectId || null);
+    }
+  }, [objects, reconcileObjectHold, filterObjectId, selectedObjectId]);
+
 
   //modified 
 
@@ -424,8 +476,8 @@ useEffect(() => {
       docs,
       objects,
       objectTimelineTitles,
-      selectedObjectId: selectedObjectId || filterObjectId,
-      primaryObjectId: useTimelineStore.getState().primaryTimelineObjectId || selectedObjectId || filterObjectId,
+      selectedObjectId: dashboardSelectedObjectId,
+      primaryObjectId: useTimelineStore.getState().primaryTimelineObjectId || dashboardObjectId,
       inheritObjMode: useTimelineStore.getState().inheritObjMode,
       canvasNodes,
       canvasConnections: canvasConns,
@@ -476,8 +528,8 @@ useEffect(() => {
     docs,
     objects,
     objectTimelineTitles,
-    selectedObjectId,
-    filterObjectId,
+    dashboardSelectedObjectId,
+    dashboardObjectId,
     canvasNodes,
     canvasConns,
     nodeEntities,
@@ -1468,6 +1520,9 @@ useEffect(() => {
             timelineSelectEnabled={!knowledgeFolderActive}
             onToggleTimelineQueueMode={toggleTimelineQueueMode}
             onInsertToTimeline={handleInsertToTimeline}
+            heldObjectId={heldObjectId}
+            heldObjectName={heldObjectName}
+            onToggleObjectHold={handleToggleObjectHold}
             onTimelineCanvasSelect={handleTimelineCanvasSelect}
             onTimelineCanvasSelectMany={handleTimelineCanvasSelectMany}
             onNotify={(message, kind = "warm") => setToast({ message, kind })}
@@ -1540,7 +1595,7 @@ useEffect(() => {
             onInsertEventNode={handleInsertEventNode}
             onSlashCreateNode={createNodeFromSlashAndInsert}
             objectsById={objects}
-            selectedObjectId={selectedObjectId}
+            selectedObjectId={dashboardSelectedObjectId}
           />
         </div>
       </div>
@@ -1554,7 +1609,7 @@ useEffect(() => {
         docsById={docs}
         objectsById={objects}
         nodeEntitiesById={nodeEntities}
-        filterObjectId={filterObjectId}
+        filterObjectId={dashboardObjectId}
         onOpenDocument={openDocumentOverlay}
         onOpenNode={openNodeOverlay}
       />
@@ -1636,7 +1691,7 @@ useEffect(() => {
               || "").trim()
           }
           parentDocId={nodeEntities[expandedNodeId]?.parentDocId ?? null}
-          companyObjectId={filterObjectId || selectedObjectId || null}
+          companyObjectId={dashboardObjectId || dashboardSelectedObjectId || null}
           onClose={() => setExpandedNodeId(null)}
           onSlashCreateNode={createNodeFromSlashAndInsert}
         />
@@ -1644,7 +1699,7 @@ useEffect(() => {
           <StandaloneNodeModal
             node={nodeEntities[expandedNodeId]}
             docs={Object.values(docs)}
-            parentObjectId={filterObjectId || selectedObjectId || null}
+            parentObjectId={dashboardObjectId || dashboardSelectedObjectId || null}
             queryCanvasNodeId={
               canvasNodes.find((n) => n.noteId === expandedNodeId)?.id ?? null
             }

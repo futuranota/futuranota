@@ -6,6 +6,7 @@ import { getSupabaseConfigError } from '../lib/supabaseClient';
 import { flushPersistenceSync } from './middleware/persistenceMiddleware.js';
 import { clearPendingProCheckout } from '../lib/pendingCheckout.js';
 import { clearLeftPanelNavSnapshot } from './uiStateStore.js';
+import { useObjectTargetHoldStore } from './objectTargetHoldStore.js';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -96,6 +97,7 @@ export const useAuthStore = create((set) => ({
     }
     clearPendingProCheckout();
     clearLeftPanelNavSnapshot();
+    useObjectTargetHoldStore.getState().release();
     try {
       localStorage.removeItem("futura-nota-plan-cache-v1");
     } catch {
