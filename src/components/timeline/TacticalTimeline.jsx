@@ -21,8 +21,10 @@ import { useTacticalRangeDrag } from "../../hooks/useTacticalRangeDrag.js";
 import { useTranslatedText } from "../../hooks/useTranslatedText.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useTimelineStore } from "../../stores/index.js";
+import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { unlockTimelineReminderSound } from "../../lib/timelineReminderSound.js";
+import { canSetCampaignTimelineSource } from "../../lib/campaignDocSource.js";
 import { TimelineEventChip, TimelineCalendarIcon } from "./TimelineEventChip.jsx";
 import { TimelineDocChildLinks } from "./TimelineDocChildLinks.jsx";
 import { TimelineCrossLinks } from "./TimelineCrossLinks.jsx";
@@ -668,12 +670,17 @@ function TacticalObjectRow({
                         || (isMacronodo && marker.childKey);
                       const macronodoGreen = "#86A296";
 
+                      const sourceMicro = !isTimeMarker && !isMacronodo && !isAgentSet
+                        ? (marker.sourceMicroLabel || "")
+                        : "";
+
                       return (
                         <TimelineEventChip
                           key={marker.nodeId}
                           variant="card"
                           compact
                           name={chipLabel}
+                          microLabel={sourceMicro || null}
                           leadingIcon={isTimeMarker ? <TimelineCalendarIcon /> : null}
                           familyAccent={isMacronodo ? macronodoGreen : familyAccent}
                           objectTint={isMacronodo ? macronodoGreen : (display.objectTint || accent)}
@@ -685,6 +692,7 @@ function TacticalObjectRow({
                               isTimeMarker ? "is-time-marker" : "",
                               isAgentSet ? resolveAgentSetChipClass(marker) : "",
                               isMacronodo ? "is-macronodo" : "",
+                              marker.isTimelineSource ? "is-timeline-source" : "",
                               isPastDue ? "is-past-due" : "",
                               isPending ? "is-pending" : "",
                               isCompleted ? "is-completed" : "",
@@ -813,6 +821,7 @@ export function TacticalTimeline({
   const explicitPrimaryId = useTimelineStore((s) => s.primaryTimelineObjectId);
   const setTimelineFocus = useTimelineStore((s) => s.setTimelineFocus);
   const toggleExpandedDocId = useTimelineStore((s) => s.toggleExpandedDocId);
+  const updateDoc = useDocsStore((s) => s.updateDoc);
   const removeTimelineDocFromQueue = useTimelineStore((s) => s.removeTimelineDocFromQueue);
   const removeTimelineChildFromQueue = useTimelineStore((s) => s.removeTimelineChildFromQueue);
   const removeTimelineAgentSet = useTimelineStore((s) => s.removeTimelineAgentSet);
@@ -967,6 +976,25 @@ export function TacticalTimeline({
 
     if (marker.dataType !== "agent-set") {
       const nodeId = resolveNodeIdForTimelineMarker(marker, canvasNodes);
+      const parentFolder = docId ? docsById[docId] : null;
+      const entity = nodeId ? nodeEntitiesById[nodeId] : null;
+      // Campaign expand: click an active child to switch the folder launch source.
+      if (
+        parentFolder?.campaignActive
+        && entity
+        && canSetCampaignTimelineSource(parentFolder, entity)
+      ) {
+        if (parentFolder.timelineSourceNodeId !== nodeId) {
+          updateDoc(docId, { timelineSourceNodeId: nodeId });
+        }
+        setTimelineFocus({
+          level: "children",
+          objectId: row.objectId,
+          docId,
+          canvasNodeId: marker.virtual ? null : marker.nodeId,
+        });
+        return;
+      }
       if (nodeId && onOpenNode) {
         onOpenNode(nodeId);
       }
@@ -1000,6 +1028,20 @@ export function TacticalTimeline({
         canvasNodeId: marker.virtual ? null : marker.nodeId,
       });
       return;
+    }
+    // Campaign child: double-click opens the document (single-click switches source).
+    if (marker.dataType !== "document" && marker.dataType !== "agent-set" && !marker.timeMarker) {
+      const nodeId = resolveNodeIdForTimelineMarker(marker, canvasNodes);
+      if (nodeId && onOpenNode) {
+        onOpenNode(nodeId);
+        setTimelineFocus({
+          level: "children",
+          objectId: row.objectId,
+          docId,
+          canvasNodeId: marker.virtual ? null : marker.nodeId,
+        });
+        return;
+      }
     }
     runChipClick(marker, row);
   };

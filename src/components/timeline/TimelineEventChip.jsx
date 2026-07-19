@@ -20,6 +20,7 @@ export function TimelineCalendarIcon({ className = "" }) {
 export function TimelineEventChip({
   name,
   dateLabel,
+  microLabel = null,
   objectTint,
   familyAccent,
   variant = "sphere",
@@ -74,6 +75,9 @@ export function TimelineEventChip({
         ) : null}
         <span className="tl-chip-card-body">
           <span className="tl-chip-card-title">{name}</span>
+          {microLabel ? (
+            <span className="tl-chip-card-micro">{microLabel}</span>
+          ) : null}
           {!compact && dateLabel ? (
             <span className="tl-chip-card-date">{dateLabel}</span>
           ) : null}

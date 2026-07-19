@@ -4,6 +4,7 @@ import {
   isContentDoc,
   resolveLinkedProductCategories,
 } from "./templateDoc.js";
+import { resolveCampaignSourceNode } from "./campaignDocSource.js";
 
 export const CANVAS_DOC_CHILD_OFFSET_X = 248;
 
@@ -49,11 +50,30 @@ export function collectCanvasNodeIdsForEntityIds(canvasNodes, entityNodeIds = []
   return ids;
 }
 
-function resolveDocLaunchAt(doc, docId, draft) {
+/**
+ * Campaign folders: launch comes from the active timeline source document.
+ * Legacy fallback: folder.launchAt.
+ */
+function resolveDocLaunchAt(doc, docId, draft, nodesById = {}) {
   if (draft?.docId === docId && draft.launchAt !== undefined) {
     return draft.launchAt;
   }
-  return normalizeDoc(doc).launchAt ?? null;
+  const normalized = normalizeDoc(doc);
+  if (normalized.campaignActive) {
+    if (draft?.timelineSourceNodeId !== undefined || draft?.sourceLaunchAt !== undefined) {
+      if (draft.sourceLaunchAt !== undefined) return draft.sourceLaunchAt;
+    }
+    const source = resolveCampaignSourceNode(
+      {
+        ...normalized,
+        timelineSourceNodeId: draft?.timelineSourceNodeId ?? normalized.timelineSourceNodeId,
+      },
+      nodesById,
+    );
+    if (source?.launchAt) return source.launchAt;
+    return normalized.launchAt ?? null;
+  }
+  return normalized.launchAt ?? null;
 }
 
 /** Launch date nodes are exclusive to Campaign folders (not plain Schedules). */
@@ -64,19 +84,23 @@ function resolveDocCampaignActive(doc, docId, draft) {
   return Boolean(normalizeDoc(doc).campaignActive);
 }
 
-export function buildLaunchDateCanvasNode(launchAt, parentDocId) {
+export function buildLaunchDateCanvasNode(launchAt, parentDocId, {
+  id = null,
+  sourceNodeId = null,
+} = {}) {
   const dateContent = launchDateInputFromIso(launchAt);
   if (!dateContent || !parentDocId) return null;
   return {
     // Deterministic id: a remove→respawn cycle keeps the same node id, so
     // timeline references (timelineDateNodeIds) survive instead of orphaning.
-    id: `CN-launch-${parentDocId}`,
+    id: id || `CN-launch-${parentDocId}`,
     title: "Launch",
     dataType: "date",
     content: dateContent,
     canvasKind: "launch",
     parentDocId,
     launchAt: launchAt ?? null,
+    sourceNodeId: sourceNodeId || null,
   };
 }
 
@@ -106,6 +130,7 @@ function nodesEqual(a, b) {
     && a.title === b.title
     && a.contentCategory === b.contentCategory
     && a.campaignActive === b.campaignActive
+    && a.sourceNodeId === b.sourceNodeId
     && JSON.stringify(a.linkedProductCategories || [])
       === JSON.stringify(b.linkedProductCategories || [])
   );
@@ -113,11 +138,21 @@ function nodesEqual(a, b) {
 
 /**
  * Keep content-doc canvas nodes and their Launch date child nodes in sync with doc store (and optional live draft).
+ * @param {object[]} canvasNodes
+ * @param {Record<string, object>} docs
+ * @param {object} [opts]
+ * @param {string|null} [opts.expandedDocId]
+ * @param {object|null} [opts.activeDocMetaDraft]
+ * @param {Record<string, object>} [opts.nodeEntitiesById]
  */
 export function syncContentDocCanvasNodes(
   canvasNodes,
   docs,
-  { expandedDocId = null, activeDocMetaDraft = null } = {},
+  {
+    expandedDocId = null,
+    activeDocMetaDraft = null,
+    nodeEntitiesById = {},
+  } = {},
 ) {
   const docsById = docs || {};
   let changed = false;
@@ -131,7 +166,7 @@ export function syncContentDocCanvasNodes(
       }
       if (!isContentDoc(doc)) return node;
       const draft = expandedDocId === node.docId ? activeDocMetaDraft : null;
-      const launchAt = resolveDocLaunchAt(doc, node.docId, draft);
+      const launchAt = resolveDocLaunchAt(doc, node.docId, draft, nodeEntitiesById);
       const patched = patchContentDocCanvasNode(node, doc, docsById, launchAt, draft);
       if (!nodesEqual(node, patched)) {
         changed = true;
@@ -152,15 +187,38 @@ export function syncContentDocCanvasNodes(
         changed = true;
         return null;
       }
-      const launchAt = resolveDocLaunchAt(doc, node.parentDocId, draft);
+
+      // Per-document launch nodes stay tied to their source entity's launchAt.
+      if (node.sourceNodeId) {
+        const entity = nodeEntitiesById[node.sourceNodeId];
+        const launchAt = entity?.launchAt || null;
+        const dateContent = launchDateInputFromIso(launchAt);
+        if (!dateContent) {
+          changed = true;
+          return null;
+        }
+        if (node.content !== dateContent || node.launchAt !== launchAt) {
+          changed = true;
+          return { ...node, content: dateContent, launchAt };
+        }
+        return node;
+      }
+
+      const launchAt = resolveDocLaunchAt(doc, node.parentDocId, draft, nodeEntitiesById);
       const dateContent = launchDateInputFromIso(launchAt);
       if (!dateContent) {
         changed = true;
         return null;
       }
-      if (node.content !== dateContent || node.launchAt !== launchAt) {
+      const source = resolveCampaignSourceNode(normalizeDoc(doc), nodeEntitiesById);
+      const sourceNodeId = source?.id || null;
+      if (
+        node.content !== dateContent
+        || node.launchAt !== launchAt
+        || node.sourceNodeId !== sourceNodeId
+      ) {
         changed = true;
-        return { ...node, content: dateContent, launchAt };
+        return { ...node, content: dateContent, launchAt, sourceNodeId };
       }
       return node;
     }
@@ -168,25 +226,32 @@ export function syncContentDocCanvasNodes(
     return node;
   }).filter(Boolean);
 
+  // Folder-level Launch beside a campaign folder document card (source-driven).
   for (const node of next) {
     if (node.canvasKind !== "document" || !node.docId) continue;
     const doc = docsById[node.docId];
     if (!doc || !isContentDoc(doc)) continue;
 
     const draft = expandedDocId === node.docId ? activeDocMetaDraft : null;
-    // Auto-spawned Launch child nodes are exclusive to Campaign folders.
     if (!resolveDocCampaignActive(doc, node.docId, draft)) continue;
 
-    const launchAt = resolveDocLaunchAt(doc, node.docId, draft);
+    const launchAt = resolveDocLaunchAt(doc, node.docId, draft, nodeEntitiesById);
     const dateContent = launchDateInputFromIso(launchAt);
     if (!dateContent) continue;
 
-    const hasLaunch = next.some(
-      (n) => n.canvasKind === "launch" && n.parentDocId === node.docId,
+    const hasFolderLaunch = next.some(
+      (n) => n.canvasKind === "launch"
+        && n.parentDocId === node.docId
+        && !n.sourceNodeId,
     );
-    if (hasLaunch) continue;
+    // Prefer per-document launch nodes when a source entity is already on canvas.
+    const source = resolveCampaignSourceNode(normalizeDoc(doc), nodeEntitiesById);
+    if (source && next.some((n) => n.noteId === source.id)) continue;
+    if (hasFolderLaunch) continue;
 
-    const launchNode = buildLaunchDateCanvasNode(launchAt, node.docId);
+    const launchNode = buildLaunchDateCanvasNode(launchAt, node.docId, {
+      sourceNodeId: source?.id || null,
+    });
     if (!launchNode) continue;
 
     changed = true;
@@ -196,6 +261,34 @@ export function syncContentDocCanvasNodes(
         ...launchNode,
         x: node.x + CANVAS_DOC_CHILD_OFFSET_X,
         y: node.y,
+      },
+    ];
+  }
+
+  // Per campaign document on canvas: spawn its own Launch date type beside it.
+  for (const node of [...next]) {
+    if (!node.noteId || node.canvasKind === "launch") continue;
+    const entity = nodeEntitiesById[node.noteId];
+    if (!entity?.parentDocId || !entity.launchAt) continue;
+    const folder = docsById[entity.parentDocId];
+    if (!folder?.campaignActive) continue;
+
+    const launchId = `CN-launch-node-${entity.id}`;
+    if (next.some((n) => n.id === launchId)) continue;
+
+    const launchNode = buildLaunchDateCanvasNode(entity.launchAt, entity.parentDocId, {
+      id: launchId,
+      sourceNodeId: entity.id,
+    });
+    if (!launchNode) continue;
+
+    changed = true;
+    next = [
+      ...next,
+      {
+        ...launchNode,
+        x: (node.x || 0) + CANVAS_DOC_CHILD_OFFSET_X,
+        y: node.y || 0,
       },
     ];
   }

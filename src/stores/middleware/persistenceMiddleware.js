@@ -39,7 +39,90 @@ function referenceWithNodeMeta(node) {
   if (objectId) base.objectId = objectId;
   else delete base.objectId;
 
+  // Campaign document fields (active|inactive + launch + window).
+  if (node?.campaignStatus === "active" || node?.campaignStatus === "inactive") {
+    base.campaignStatus = node.campaignStatus;
+  } else if (base.campaignStatus !== "active" && base.campaignStatus !== "inactive") {
+    delete base.campaignStatus;
+  }
+
+  const launchAt = node?.launchAt || base.launchAt || null;
+  if (launchAt) base.launchAt = launchAt;
+  else delete base.launchAt;
+
+  const windowStartAt = node?.windowStartAt || base.windowStartAt || null;
+  if (windowStartAt) base.windowStartAt = windowStartAt;
+  else delete base.windowStartAt;
+
+  const windowEndAt = node?.windowEndAt || base.windowEndAt || null;
+  if (windowEndAt) base.windowEndAt = windowEndAt;
+  else delete base.windowEndAt;
+
   return base;
+}
+
+function campaignStatusFromPersistedNode(node) {
+  if (!node) return "inactive";
+  if (node.campaignStatus === "active" || node.campaignStatus === "inactive") {
+    return node.campaignStatus;
+  }
+  const ref = node.reference;
+  if (ref && typeof ref === "object") {
+    if (ref.campaignStatus === "active" || ref.campaignStatus === "inactive") {
+      return ref.campaignStatus;
+    }
+  }
+  return "inactive";
+}
+
+function launchAtFromPersistedNode(node) {
+  if (!node) return null;
+  if (node.launchAt) return node.launchAt;
+  const ref = node.reference;
+  if (ref && typeof ref === "object" && ref.launchAt) return ref.launchAt;
+  return null;
+}
+
+function windowStartAtFromPersistedNode(node) {
+  if (!node) return null;
+  if (node.windowStartAt) return node.windowStartAt;
+  const ref = node.reference;
+  if (ref && typeof ref === "object" && ref.windowStartAt) return ref.windowStartAt;
+  return null;
+}
+
+function windowEndAtFromPersistedNode(node) {
+  if (!node) return null;
+  if (node.windowEndAt) return node.windowEndAt;
+  const ref = node.reference;
+  if (ref && typeof ref === "object" && ref.windowEndAt) return ref.windowEndAt;
+  return null;
+}
+
+function timelineSourceNodeIdFromPersistedDoc(camp) {
+  if (!camp) return null;
+  if (typeof camp.timeline_source_node_id === "string" && camp.timeline_source_node_id) {
+    return camp.timeline_source_node_id;
+  }
+  const ki = camp.knowledge_import;
+  if (ki && typeof ki === "object" && typeof ki.timelineSourceNodeId === "string") {
+    return ki.timelineSourceNodeId || null;
+  }
+  return null;
+}
+
+/** knowledge_import JSONB sidecar for timelineSourceNodeId (no dedicated column yet). */
+function stripTimelineSourceFromKnowledgeImport(raw) {
+  if (!raw || typeof raw !== "object") return raw || null;
+  if (!Object.prototype.hasOwnProperty.call(raw, "timelineSourceNodeId")) return raw;
+  const { timelineSourceNodeId: _drop, ...rest } = raw;
+  return Object.keys(rest).length ? rest : null;
+}
+
+function knowledgeImportWithTimelineSource(doc) {
+  const base = stripTimelineSourceFromKnowledgeImport(doc?.knowledgeImport);
+  if (!doc?.campaignActive || !doc?.timelineSourceNodeId) return base;
+  return { ...(base && typeof base === "object" ? base : {}), timelineSourceNodeId: doc.timelineSourceNodeId };
 }
 
 /** Read schedule from reference payload or legacy top-level field. */
@@ -1302,8 +1385,9 @@ export function initPersistenceMiddleware(stores) {
             || camp.schedule_start_at
             || null,
           campaignActive: camp.campaign_active !== false,
+          timelineSourceNodeId: timelineSourceNodeIdFromPersistedDoc(camp),
           nodeLinkColor: camp.node_link_color || "mint",
-          knowledgeImport: camp.knowledge_import || null,
+          knowledgeImport: stripTimelineSourceFromKnowledgeImport(camp.knowledge_import),
         };
         if (camp.company_id && objects[camp.company_id]) {
           objects[camp.company_id].children.push(camp.id);
@@ -1315,6 +1399,7 @@ export function initPersistenceMiddleware(stores) {
       dbNodes.forEach((node) => {
         const reference = node.reference && typeof node.reference === "object" ? node.reference : {};
         const anchorAt = anchorAtFromPersistedNode({ reference, anchorAt: node.anchor_at });
+        const persisted = { reference, completed: node.completed, sourceId: node.source_id, objectId: node.object_id };
         nodes[node.id] = {
           id: node.id,
           parentDocId: node.parent_doc_id,
@@ -1324,9 +1409,13 @@ export function initPersistenceMiddleware(stores) {
           sourceQuery: node.source_query || "",
           reference,
           anchorAt,
-          completed: completedFromPersistedNode({ reference, completed: node.completed }),
-          sourceId: sourceIdFromPersistedNode({ reference, sourceId: node.source_id }),
-          objectId: objectIdFromPersistedNode({ reference, objectId: node.object_id }),
+          completed: completedFromPersistedNode(persisted),
+          campaignStatus: campaignStatusFromPersistedNode({ reference, campaignStatus: node.campaign_status }),
+          launchAt: launchAtFromPersistedNode({ reference, launchAt: node.launch_at }),
+          windowStartAt: windowStartAtFromPersistedNode({ reference }),
+          windowEndAt: windowEndAtFromPersistedNode({ reference }),
+          sourceId: sourceIdFromPersistedNode(persisted),
+          objectId: objectIdFromPersistedNode(persisted),
           linkedToCanvas: node.linked_to_canvas || false,
           canvasNodeId: node.canvas_node_id || null,
           createdAt: node.created_at,
@@ -1678,7 +1767,7 @@ export function initPersistenceMiddleware(stores) {
           || null,
         campaign_active: doc.campaignActive !== false,
         node_link_color: doc.nodeLinkColor || "mint",
-        knowledge_import: doc.knowledgeImport || null,
+        knowledge_import: knowledgeImportWithTimelineSource(doc),
         created_at: doc.createdAt || now,
         updated_at: doc.updatedAt || now,
       }));

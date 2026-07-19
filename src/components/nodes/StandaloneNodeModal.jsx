@@ -40,6 +40,10 @@ import {
   parseNodeWritingBody,
   serializeNodeWritingBody,
 } from "../../lib/nodeInlineContent.js";
+import {
+  CAMPAIGN_DOC_STATUS_INACTIVE,
+  normalizeCampaignDocStatus,
+} from "../../lib/campaignDocSource.js";
 
 function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "").trim();
@@ -194,7 +198,14 @@ export function StandaloneNodeModal({
   const docsById = Object.fromEntries(docList.map((d) => [d.id, d]));
   const [parentDocId, setParentDocId] = useState(() => {
     if (isNew && initialParentDocId) return initialParentDocId;
-    return resolveNodeParentDocId(node, null, docsById, { parentObjectId }) || "";
+    // Keep the real parent even when it is absent from the adoptable picker list
+    // (campaign folders must still drive campaignMode / Launch UI).
+    if (node?.parentDocId && docsByStoreId?.[node.parentDocId]) {
+      return node.parentDocId;
+    }
+    return resolveNodeParentDocId(node, null, { ...docsByStoreId, ...docsById }, { parentObjectId })
+      || node?.parentDocId
+      || "";
   });
   const lockedParentLabel = useMemo(() => {
     if (canAssignParent) return "";
@@ -215,10 +226,25 @@ export function StandaloneNodeModal({
   const [createdDate, setCreatedDate] = useState(() =>
     dateInputFromIso(node?.createdAt),
   );
-  const initialAnchor = anchorFieldsFromIso(node?.anchorAt);
+  const parentFolderDocEarly = (() => {
+    const id = (isNew && initialParentDocId)
+      ? initialParentDocId
+      : (node?.parentDocId || "");
+    return id ? (docsByStoreId?.[id] || null) : null;
+  })();
+  const isCampaignDoc = Boolean(parentFolderDocEarly?.campaignActive);
+  const initialLaunch = anchorFieldsFromIso(
+    isCampaignDoc ? (node?.launchAt || null) : (node?.anchorAt || null),
+  );
+  const initialAnchor = isCampaignDoc
+    ? initialLaunch
+    : anchorFieldsFromIso(node?.anchorAt);
   const [anchorDate, setAnchorDate] = useState(initialAnchor.anchorDate);
   const [anchorTime, setAnchorTime] = useState(initialAnchor.anchorTime);
   const [completed, setCompleted] = useState(() => Boolean(node?.completed));
+  const [campaignStatus, setCampaignStatus] = useState(() =>
+    normalizeCampaignDocStatus(node?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
+  );
   const [sourceId, setSourceId] = useState(() => node?.sourceId ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const openSnapshotRef = useRef({
@@ -253,17 +279,27 @@ export function StandaloneNodeModal({
     onClose?.();
   };
 
-  const parentFolderDoc = parentDocId
-    ? (docsByStoreId?.[parentDocId] || docsById[parentDocId] || null)
+  // Prefer live parent id (state can be empty when listAdoptableDocs omits the folder).
+  const resolvedParentDocId = parentDocId
+    || node?.parentDocId
+    || initialParentDocId
+    || null;
+  const parentFolderDoc = resolvedParentDocId
+    ? (docsByStoreId?.[resolvedParentDocId] || docsById[resolvedParentDocId] || null)
     : null;
+  const campaignDocMode = Boolean(parentFolderDoc?.campaignActive);
   const childScheduleBounds = useMemo(
-    () => folderScheduleDateInputBounds(parentFolderDoc),
-    [parentFolderDoc],
+    () => (campaignDocMode ? null : folderScheduleDateInputBounds(parentFolderDoc)),
+    [parentFolderDoc, campaignDocMode],
   );
 
   const handleAnchorDateChange = async (next) => {
     const nextDate = String(next || "").trim();
-    if (nextDate && !isDateInputWithinFolderSchedule(nextDate, parentFolderDoc)) {
+    if (
+      !campaignDocMode
+      && nextDate
+      && !isDateInputWithinFolderSchedule(nextDate, parentFolderDoc)
+    ) {
       if (childScheduleBounds) {
         await askConfirm({
           title: t("meta.scheduleTitle"),
@@ -296,11 +332,13 @@ export function StandaloneNodeModal({
     const parentId = parentDocId || null;
     const createdAt = isoFromDateInput(createdDate);
     // Schedule is independent of Created — never copy Created into anchorAt.
+    // Campaign docs use the same date inputs for launchAt (not folder Schedule).
     const scheduleDate = String(anchorDate || "").trim();
     const supportsSchedule =
       dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
     if (
-      supportsSchedule
+      !campaignDocMode
+      && supportsSchedule
       && scheduleDate
       && !isDateInputWithinFolderSchedule(scheduleDate, parentFolderDoc)
     ) {
@@ -318,16 +356,24 @@ export function StandaloneNodeModal({
       }
       return;
     }
-    const anchorAt = supportsSchedule
+    const anchorAt = (!campaignDocMode && supportsSchedule)
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
       : null;
+    const launchAt = (campaignDocMode && supportsSchedule)
+      ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
+      : (node?.launchAt ?? null);
+    const windowEndAt = campaignDocMode ? (launchAt || null) : (node?.windowEndAt ?? null);
+    const windowStartAt = campaignDocMode
+      ? (node?.windowStartAt ?? null)
+      : (node?.windowStartAt ?? null);
 
     const corpusObjectId = parentId
       ? (docsByStoreId?.[parentId]?.parentObjectId || parentObjectId || null)
       : (parentObjectId || node?.objectId || null);
 
     const scheduleIncomplete = Boolean(
-      supportsSchedule
+      !campaignDocMode
+      && supportsSchedule
       && childScheduleBounds
       && (!scheduleDate || !String(anchorTime || "").trim()),
     );
@@ -353,14 +399,26 @@ export function StandaloneNodeModal({
         window.setTimeout(resolve, DOC_SAVE_LOADING_MIN_MS);
       });
 
+      const campaignFields = campaignDocMode
+        ? {
+          campaignStatus: normalizeCampaignDocStatus(campaignStatus),
+          launchAt,
+          windowStartAt,
+          windowEndAt,
+          completed: false,
+        }
+        : {
+          completed,
+        };
+
       if (isNew) {
         const newId = addNode(title, dataType, payload, parentId, {
           sourceQuery: title,
           createdAt,
           anchorAt,
-          completed,
           sourceId,
           objectId: corpusObjectId,
+          ...campaignFields,
         });
         if (parentId) {
           syncNodeToParentDoc(newId, parentId);
@@ -395,8 +453,8 @@ export function StandaloneNodeModal({
           }),
         createdAt,
         anchorAt,
-        completed,
         sourceId,
+        ...campaignFields,
       });
       if (canAssignParent && parentId) {
         syncNodeToParentDoc(node.id, parentId);
@@ -413,6 +471,12 @@ export function StandaloneNodeModal({
   const handleCompletedChange = (value) => {
     setCompleted(value);
     if (node?.id) updateNode(node.id, { completed: Boolean(value) });
+  };
+
+  const handleCampaignStatusChange = (value) => {
+    const next = normalizeCampaignDocStatus(value);
+    setCampaignStatus(next);
+    if (node?.id) updateNode(node.id, { campaignStatus: next });
   };
 
   const handleSourceIdChange = (value) => {
@@ -461,7 +525,10 @@ export function StandaloneNodeModal({
         createdDate={createdDate || todayDateInputValue()}
         onCreatedDateChange={setCreatedDate}
         completed={completed}
-        onCompletedChange={handleCompletedChange}
+        onCompletedChange={campaignDocMode ? undefined : handleCompletedChange}
+        campaignMode={campaignDocMode}
+        campaignStatus={campaignStatus}
+        onCampaignStatusChange={campaignDocMode ? handleCampaignStatusChange : undefined}
         sourceId={sourceId}
         onSourceIdChange={handleSourceIdChange}
         parentDocId={parentDocId}

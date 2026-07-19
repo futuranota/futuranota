@@ -1930,6 +1930,28 @@
   font-variant-numeric: tabular-nums;
 }
 
+.lp-doc-nodes-block__node-status {
+  flex-shrink: 0;
+  margin-left: 6px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: lowercase;
+  white-space: nowrap;
+  color: var(--dim);
+}
+
+.lp-doc-nodes-block__node-status.is-active,
+.lp-doc-nodes-block__node-status.is-inactive {
+  font-weight: 800;
+  color: #7e7a76;
+}
+
+.lp-doc-nodes-block__node.is-campaign-active .lp-doc-nodes-block__node-title {
+  color: var(--text);
+}
+
 /* Tiny inline dot — folder has an active Schedule (visible without expanding). */
 .lp-folder-schedule-dot {
   display: inline-block;
@@ -11402,6 +11424,27 @@ body.doc-content-resizing * {
   letter-spacing: 0.01em;
 }
 
+/* Match Status toggle table gray (#7e7a76) + bold */
+.node-query-modal__doc-meta .doc-meta-chip-v.is-campaign-active,
+.node-query-modal__doc-meta .doc-meta-chip-v.is-campaign-inactive {
+  color: #7e7a76;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.doc-meta-strip__fields .doc-new-campaign-opt--active.is-on,
+.doc-meta-strip__fields .doc-new-campaign-opt.is-on {
+  color: #7e7a76;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 800;
+}
+
+.doc-meta-strip__fields .doc-new-campaign-opt:not(.is-on) {
+  font-weight: 700;
+  color: color-mix(in oklab, #7e7a76 70%, transparent);
+}
+
 .doc-meta-chip-completed-icon {
   display: block;
   width: 10px;
@@ -11450,6 +11493,24 @@ body.doc-content-resizing * {
 .node-query-modal__doc-meta .doc-meta-field--source {
   align-items: flex-start;
   grid-column: 1 / -1;
+}
+
+.node-query-modal__doc-meta .doc-meta-field--launch {
+  align-items: flex-start;
+  grid-column: 1 / -1;
+}
+
+.node-query-modal__launch-in-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.node-query-modal__launch-in-meta .doc-block-anchor__date,
+.node-query-modal__launch-in-meta .doc-block-anchor__time {
+  font-size: 12px;
 }
 
 .node-query-modal__source-grid {

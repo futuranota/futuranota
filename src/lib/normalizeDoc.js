@@ -22,6 +22,8 @@ export function emptyDocCampaignFields() {
     scheduleStartAt: null,
     scheduleFinishAt: null,
     campaignActive: false,
+    /** Selected campaign document (node id) that drives the folder timeline date. */
+    timelineSourceNodeId: null,
     nodeLinkColor: "dark",
     knowledgeImport: null,
     launchRadarSnapshot: null,
@@ -74,6 +76,9 @@ export function normalizeDoc(doc) {
     icon: typeof doc.icon === "string" ? doc.icon : base.icon,
     ...resolveNormalizedScheduleFields(doc, base),
     campaignActive: Boolean(doc.campaignActive),
+    timelineSourceNodeId: typeof doc.timelineSourceNodeId === "string" && doc.timelineSourceNodeId
+      ? doc.timelineSourceNodeId
+      : null,
     nodeLinkColor: normalizeNodeLinkColorId(doc.nodeLinkColor ?? base.nodeLinkColor),
     knowledgeImport: normalizeKnowledgeImport(doc.knowledgeImport),
     reportPresentation: doc.reportPresentation ?? base.reportPresentation,

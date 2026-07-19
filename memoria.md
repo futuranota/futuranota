@@ -63,10 +63,14 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
-**Campaign folders = regular folders + Created date (2026-07-17)** — Sección Campaign:
+**Campaign docs → timeline source (2026-07-18)** — En Campaigns, el folder es contenedor; cada documento (node) tiene `active|inactive` + `launchAt` + window. Timeline row 1 = folder + launch del **source** active; micro-iniciales bajo el folder; expand = switch de source (solo active). Insert canvas de un doc active lo setea como source.
 
-1. Expand de hijos (macronodos) igual que folders de Content (panel + timeline child rows; `parentDocId` canvas children; density/bulk select en Campaign).
-2. Al insertar el folder Campaign al timeline, la fecha del chip es **`createdAt`** (no `launchAt`). El campo Launch se mantiene; Launch va en el date node.
+Archivos clave: `campaignDocSource.js`, `nodesStore`, `timelineStore`, `tacticalTimelineView`, `canvasDocSync`, `StandaloneNodeModal`, `TacticalTimeline`.
+
+**Campaign folders = regular folders + Created date (2026-07-17)** — Sección Campaign (parcialmente supersedido por source launch):
+
+1. Expand de hijos (macronodos) igual que folders de Content.
+2. Fallback de fecha del chip = `createdAt` si no hay source active con launch.
 
 Archivos: `LeftPanel.jsx`, `timelineGraph.js`, `timelineDocSnapshot.js`, `tacticalTimelineView.js`, `campaignTimelineRail.js`.
 

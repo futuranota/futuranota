@@ -16,6 +16,8 @@ import {
 } from "../lib/timelineDocSnapshot.js";
 import { buildTacticalWireAnchorMap } from "../lib/timelineAnchors.js";
 import { captureTimelineAgentSetsForInsert } from "../lib/agents/captureTimelineAgentSets.js";
+import { canSetCampaignTimelineSource } from "../lib/campaignDocSource.js";
+import { useDocsStore } from "./docsStore.js";
 
 const TIMELINE_ALERTS_KEY = "futura-timeline-alerts";
 
@@ -592,6 +594,16 @@ export const useTimelineStore = create(
             docsById,
           );
           if (focusBlockId) focusByDocId[docId] = focusBlockId;
+
+          // Campaign child insert → that document becomes the folder timeline source.
+          const entityId = node.noteId || null;
+          const entity = entityId ? nodeEntitiesById[entityId] : null;
+          const folder = docsById[docId];
+          if (entity && canSetCampaignTimelineSource(folder, entity)) {
+            useDocsStore.getState().updateDoc(docId, {
+              timelineSourceNodeId: entity.id,
+            });
+          }
         }
 
         if (!touchedDocIds.size && !dateNodesTouched) {

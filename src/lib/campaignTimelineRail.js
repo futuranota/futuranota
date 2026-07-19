@@ -6,6 +6,7 @@
 
 import { parseDate } from "./dates.js";
 import { resolveCanvasNodeObjectId } from "./objectColors.js";
+import { resolveCampaignFolderSourceDate } from "./campaignDocSource.js";
 
 /**
  * @param {unknown} content
@@ -31,13 +32,25 @@ export function isTimelineDateCanvasNode(node) {
 }
 
 /**
- * Campaign folder chip date = Created (Launch lives on the date node instead).
+ * Campaign folder chip date = Created (fallback when no active source launch).
  * @param {object|null|undefined} doc
  * @returns {Date|null}
  */
 export function resolveCampaignFolderCreatedDate(doc) {
   if (!doc?.campaignActive) return null;
   return parseDate(doc.createdAt) || parseDate(doc.updatedAt);
+}
+
+/**
+ * Prefer active source document launchAt; else Created.
+ * @param {object|null|undefined} doc
+ * @param {Record<string, object>} [nodesById]
+ * @returns {Date|null}
+ */
+export function resolveCampaignFolderTimelineDate(doc, nodesById = {}) {
+  if (!doc?.campaignActive) return null;
+  return resolveCampaignFolderSourceDate(doc, nodesById)
+    || resolveCampaignFolderCreatedDate(doc);
 }
 
 /**

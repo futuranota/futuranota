@@ -320,6 +320,11 @@ export const messages = {
       clickFolderDocs: "Click for documents · hold for edit or delete · drag to canvas",
       clickOpenFolder: "Click to open folder",
       createDocumentInBox: "Create a new Document",
+      campaignDocStatus: "Status",
+      campaignDocActive: "active",
+      campaignDocInactive: "inactive",
+      campaignDocLaunch: "Launch",
+      campaignDocLaunchDate: "Launch date",
       docDescriptionLabel: "Description:",
       continueReading: "continue reading",
       docCompleted: "Completed",
@@ -901,6 +906,11 @@ export const messages = {
     sidebar: {
       scheduleActive: "Schedule activo",
       scheduleProgressAria: "{percent}% completado",
+      campaignDocStatus: "Estado",
+      campaignDocActive: "active",
+      campaignDocInactive: "inactive",
+      campaignDocLaunch: "Launch",
+      campaignDocLaunchDate: "Launch date",
     },
     canvas: {
       adoptNodeTitle: "¿Hacer hijo de este documento?",

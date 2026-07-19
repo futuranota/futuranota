@@ -83,9 +83,12 @@ import {
   resolveHeadlineBlockIdForCanvasNode,
 } from './lib/timelineSelection.js';
 import {
+  buildLaunchDateCanvasNode,
+  CANVAS_DOC_CHILD_OFFSET_X,
   collectCanvasNodeIdsForDoc,
   syncContentDocCanvasNodes,
 } from './lib/canvasDocSync.js';
+import { canSetCampaignTimelineSource } from './lib/campaignDocSource.js';
 import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { resolveCanvasNodeObjectId } from './lib/objectColors.js';
@@ -484,8 +487,33 @@ useEffect(() => {
     setCanvasNodes((prev) => syncContentDocCanvasNodes(prev, docs, {
       expandedDocId,
       activeDocMetaDraft,
+      nodeEntitiesById: nodeEntities,
     }));
-  }, [docs, expandedDocId, activeDocMetaDraft]);
+  }, [docs, nodeEntities, expandedDocId, activeDocMetaDraft]);
+
+  // Keep [campaign doc] —— [launch date] wired when sync spawns a Launch child.
+  useEffect(() => {
+    setCanvasConns((cs) => {
+      let next = null;
+      for (const node of canvasNodes) {
+        if (!node?.noteId) continue;
+        const entity = nodeEntities[node.noteId];
+        if (!entity?.parentDocId || !entity.launchAt) continue;
+        const folder = docs[entity.parentDocId];
+        if (!folder?.campaignActive) continue;
+        const launchId = `CN-launch-node-${entity.id}`;
+        if (!canvasNodes.some((n) => n.id === launchId)) continue;
+        const linked = (next || cs).some((c) => (
+          (c.from === node.id && c.to === launchId)
+          || (c.from === launchId && c.to === node.id)
+        ));
+        if (linked) continue;
+        if (!next) next = [...cs];
+        next.push({ id: shortId("CN"), from: node.id, to: launchId });
+      }
+      return next || cs;
+    });
+  }, [canvasNodes, nodeEntities, docs]);
 
   useEffect(() => {
     const releasedNodeIds = releaseStaleNodeParentRefs(docs);
@@ -582,6 +610,51 @@ useEffect(() => {
     const preferredY = options?.center ? 190 : options?.y;
     const { x, y } = nextCanvasPosition(preferredX, preferredY);
     const newNode = buildCanvasNodeFromEntity(zustandNode, x, y);
+
+    // Campaign document → spawn Launch date type beside it and wire the connection.
+    const parentDoc = zustandNode.parentDocId
+      ? useDocsStore.getState().docs[zustandNode.parentDocId]
+      : null;
+    const launchAt = zustandNode.launchAt || null;
+    if (parentDoc?.campaignActive && launchAt) {
+      const launchNode = buildLaunchDateCanvasNode(launchAt, zustandNode.parentDocId, {
+        id: `CN-launch-node-${zustandNode.id}`,
+        sourceNodeId: zustandNode.id,
+      });
+      if (launchNode) {
+        const placedLaunch = {
+          ...launchNode,
+          x: x + CANVAS_DOC_CHILD_OFFSET_X,
+          y,
+        };
+        setCanvasNodes((all) => {
+          if (all.some((n) => n.id === placedLaunch.id)) {
+            return all.some((n) => n.noteId === zustandNode.id) ? all : [...all, newNode];
+          }
+          return [...all, newNode, placedLaunch];
+        });
+        setCanvasConns((cs) => {
+          if (cs.some((c) => (
+            (c.from === newNode.id && c.to === placedLaunch.id)
+            || (c.from === placedLaunch.id && c.to === newNode.id)
+          ))) {
+            return cs;
+          }
+          return [...cs, { id: shortId("CN"), from: newNode.id, to: placedLaunch.id }];
+        });
+        if (canSetCampaignTimelineSource(parentDoc, zustandNode)) {
+          useDocsStore.getState().updateDoc(parentDoc.id, {
+            timelineSourceNodeId: zustandNode.id,
+          });
+        }
+        setToast({
+          message: `Campaign + Launch · "${newNode.title}"`,
+          kind: "ok",
+        });
+        return;
+      }
+    }
+
     setCanvasNodes((all) => [...all, newNode]);
     setToast({ message: `Node added · "${newNode.title}"`, kind: "ok" });
   };
@@ -805,7 +878,11 @@ useEffect(() => {
     setCanvasNodes((all) => syncContentDocCanvasNodes(
       [...all, docCanvasNode],
       useDocsStore.getState().docs,
-      { expandedDocId, activeDocMetaDraft },
+      {
+        expandedDocId,
+        activeDocMetaDraft,
+        nodeEntitiesById: useNodesStore.getState().nodes,
+      },
     ));
     setSelection([docCanvasNode.id]);
     setToast({

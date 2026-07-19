@@ -7,6 +7,8 @@ export function BlockAnchorFields({
   readOnly = false,
   className = "",
   hideLabel = false,
+  /** Visible label when hideLabel is false (e.g. "Schedule" or "Launch date"). */
+  label = "Schedule",
   showContentToggle = false,
   contentExpanded = true,
   onContentToggle,
@@ -43,7 +45,7 @@ export function BlockAnchorFields({
         </button>
       ) : null}
       {hideLabel ? null : (
-        <span className="doc-block-anchor__label">Schedule</span>
+        <span className="doc-block-anchor__label">{label}</span>
       )}
       <input
         type="date"
@@ -56,7 +58,7 @@ export function BlockAnchorFields({
         aria-readonly={readOnly}
         onChange={readOnly ? undefined : (e) => onAnchorDateChange(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
-        aria-label="Anchor date"
+        aria-label={label === "Launch date" ? "Launch date" : "Anchor date"}
       />
       <input
         type="time"
@@ -67,7 +69,7 @@ export function BlockAnchorFields({
         aria-readonly={readOnly}
         onChange={readOnly ? undefined : (e) => onAnchorTimeChange(e.target.value)}
         onKeyDown={(e) => e.stopPropagation()}
-        aria-label="Anchor time"
+        aria-label={label === "Launch date" ? "Launch time" : "Anchor time"}
       />
     </div>
   );

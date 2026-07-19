@@ -487,23 +487,36 @@ function formatNodeScheduleTime(anchorAt) {
   }).format(d);
 }
 
-function NodeCompactRow({ node, onClick, onInsert, onDelete, showScheduleTime = false }) {
+function NodeCompactRow({
+  node,
+  onClick,
+  onInsert,
+  onDelete,
+  showScheduleTime = false,
+  campaignMode = false,
+}) {
   const { t } = useI18n();
   const displayTitle = getNodeDisplayTitle(node);
   const source = resolveDocSource(node?.sourceId);
   const iconSrc = source?.src || "/uploads/File.svg";
   const scheduleTime = showScheduleTime ? formatNodeScheduleTime(node?.anchorAt) : "";
+  const isCampaignActive = campaignMode && node?.campaignStatus === "active";
+  const campaignStatusLabel = campaignMode
+    ? (isCampaignActive ? t("sidebar.campaignDocActive") : t("sidebar.campaignDocInactive"))
+    : "";
 
   return (
-    <div className="lp-doc-nodes-block__node">
+    <div className={"lp-doc-nodes-block__node" + (isCampaignActive ? " is-campaign-active" : "")}>
       <button
         type="button"
         className="lp-doc-nodes-block__node-main"
         onClick={onClick}
         title={
-          scheduleTime
-            ? `${displayTitle} · ${scheduleTime}`
-            : (source ? `${displayTitle} · ${source.label}` : displayTitle)
+          campaignStatusLabel
+            ? `${displayTitle} · ${campaignStatusLabel}`
+            : scheduleTime
+              ? `${displayTitle} · ${scheduleTime}`
+              : (source ? `${displayTitle} · ${source.label}` : displayTitle)
         }
       >
         <span className="lp-node-type-icon lp-node-type-icon--compact lp-node-type-icon--file">
@@ -515,6 +528,17 @@ function NodeCompactRow({ node, onClick, onInsert, onDelete, showScheduleTime = 
           />
         </span>
         <span className="lp-doc-nodes-block__node-title">{displayTitle}</span>
+        {campaignStatusLabel ? (
+          <span
+            className={
+              "lp-doc-nodes-block__node-status"
+              + (isCampaignActive ? " is-active" : " is-inactive")
+            }
+            data-campaign-status={isCampaignActive ? "active" : "inactive"}
+          >
+            {campaignStatusLabel}
+          </span>
+        ) : null}
         {scheduleTime ? (
           <span className="lp-doc-nodes-block__node-time tnum">{scheduleTime}</span>
         ) : null}
@@ -831,6 +855,7 @@ function DocNodesBlockCard({
               key={node.id}
               node={node}
               showScheduleTime={hasFolderSchedule}
+              campaignMode={Boolean(doc?.campaignActive)}
               onClick={() => onNodeClick?.(node)}
               onInsert={() => onNodeInsert?.(node)}
               onDelete={() => onNodeDelete?.(node)}

@@ -83,6 +83,10 @@ export function NodeQueryModal({
   onCreatedDateChange,
   completed = false,
   onCompletedChange,
+  /** Campaign documents: active|inactive (+ launch) instead of completed. */
+  campaignMode = false,
+  campaignStatus = "inactive",
+  onCampaignStatusChange,
   sourceId = null,
   onSourceIdChange,
   parentDocLabel,
@@ -136,8 +140,11 @@ export function NodeQueryModal({
     || null;
   const dateEditable = Boolean(onCreatedDateChange);
   const userEmail = useAuthStore((s) => s.user?.email);
-  const showStatusMeta = canUseDocStatusMeta(userEmail) && typeof onCompletedChange === "function";
+  const showCampaignStatus = Boolean(campaignMode) && typeof onCampaignStatusChange === "function";
+  const showStatusMeta = showCampaignStatus
+    || (canUseDocStatusMeta(userEmail) && typeof onCompletedChange === "function");
   const sourceOption = showStatusMeta ? resolveDocSource(sourceId) : null;
+  const isCampaignActive = campaignStatus === "active";
   const [statusMetaExpanded, setStatusMetaExpanded] = useState(false);
   const handleDismiss = onBackToDocument || onClose;
   /** Same × pill as folder DocDocumentBox (also when opened from a folder). */
@@ -257,6 +264,10 @@ export function NodeQueryModal({
     && (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX);
 
   const showScheduleAnchor = canScheduleChild && folderScheduleActive;
+  /** Campaign docs: Launch lives in the meta toggle (not the footer Schedule row). */
+  const showLaunchInMeta = Boolean(campaignMode)
+    && canScheduleChild
+    && typeof onAnchorDateChange === "function";
 
   const calendarPayload =
     dataType === NODE_DATA_TYPES.TEXT ? parseCalendarEventNodeContent(content) : null;
@@ -708,7 +719,25 @@ export function NodeQueryModal({
                       {formatMmDdYy(createdDate) || "—"}
                     </span>
                   </div>
-                  {completed ? (
+                  {showCampaignStatus ? (
+                    <div
+                      className={
+                        "doc-meta-chip"
+                        + (isCampaignActive ? " doc-meta-chip--campaign-active" : "")
+                      }
+                      title={isCampaignActive ? t("sidebar.campaignDocActive") : t("sidebar.campaignDocInactive")}
+                    >
+                      <span className="doc-meta-chip-k">{t("sidebar.campaignDocStatus")}</span>
+                      <span
+                        className={
+                          "doc-meta-chip-v is-lowercase"
+                          + (isCampaignActive ? " is-campaign-active" : " is-campaign-inactive")
+                        }
+                      >
+                        {isCampaignActive ? t("sidebar.campaignDocActive") : t("sidebar.campaignDocInactive")}
+                      </span>
+                    </div>
+                  ) : completed ? (
                     <div
                       className="doc-meta-chip doc-meta-chip--completed"
                       title="Completed"
@@ -723,6 +752,18 @@ export function NodeQueryModal({
                           aria-hidden
                           draggable={false}
                         />
+                      </span>
+                    </div>
+                  ) : null}
+                  {showLaunchInMeta && String(anchorDate || "").trim() ? (
+                    <div
+                      className="doc-meta-chip"
+                      title={`${t("sidebar.campaignDocLaunchDate")} ${formatMmDdYy(anchorDate)}${anchorTime ? ` · ${anchorTime}` : ""}`}
+                    >
+                      <span className="doc-meta-chip-k">{t("sidebar.campaignDocLaunchDate")}</span>
+                      <span className="doc-meta-chip-v tone-muted">
+                        {formatMmDdYy(anchorDate) || "—"}
+                        {anchorTime ? ` · ${anchorTime}` : ""}
                       </span>
                     </div>
                   ) : null}
@@ -771,28 +812,71 @@ export function NodeQueryModal({
                     />
                   </label>
                   <div className="doc-meta-field">
-                    <span className="doc-meta-field-k">Status</span>
-                    <div className="doc-new-campaign-toggle" role="group" aria-label="Macronode status">
-                      <button
-                        type="button"
-                        className={
-                          "doc-new-campaign-opt doc-new-campaign-opt--completed"
-                          + (completed ? " is-on" : "")
-                        }
-                        onClick={() => handleCompletedChange(!completed)}
-                        aria-pressed={completed}
-                      >
-                        Completed
-                        <img
-                          src="/uploads/Checks.svg"
-                          alt=""
-                          className="doc-meta-chip-completed-icon"
-                          aria-hidden
-                          draggable={false}
-                        />
-                      </button>
-                    </div>
+                    <span className="doc-meta-field-k">
+                      {showCampaignStatus ? t("sidebar.campaignDocStatus") : "Status"}
+                    </span>
+                    {showCampaignStatus ? (
+                      <div className="doc-new-campaign-toggle" role="group" aria-label={t("sidebar.campaignDocStatus")}>
+                        <button
+                          type="button"
+                          className={
+                            "doc-new-campaign-opt"
+                            + (!isCampaignActive ? " is-on" : "")
+                          }
+                          onClick={() => onCampaignStatusChange?.("inactive")}
+                          aria-pressed={!isCampaignActive}
+                        >
+                          {t("sidebar.campaignDocInactive")}
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            "doc-new-campaign-opt doc-new-campaign-opt--active"
+                            + (isCampaignActive ? " is-on" : "")
+                          }
+                          onClick={() => onCampaignStatusChange?.("active")}
+                          aria-pressed={isCampaignActive}
+                        >
+                          {t("sidebar.campaignDocActive")}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="doc-new-campaign-toggle" role="group" aria-label="Macronode status">
+                        <button
+                          type="button"
+                          className={
+                            "doc-new-campaign-opt doc-new-campaign-opt--completed"
+                            + (completed ? " is-on" : "")
+                          }
+                          onClick={() => handleCompletedChange(!completed)}
+                          aria-pressed={completed}
+                        >
+                          Completed
+                          <img
+                            src="/uploads/Checks.svg"
+                            alt=""
+                            className="doc-meta-chip-completed-icon"
+                            aria-hidden
+                            draggable={false}
+                          />
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  {showLaunchInMeta ? (
+                    <div className="doc-meta-field doc-meta-field--launch">
+                      <span className="doc-meta-field-k">{t("sidebar.campaignDocLaunchDate")}</span>
+                      <BlockAnchorFields
+                        className="node-query-modal__launch-in-meta"
+                        label={t("sidebar.campaignDocLaunchDate")}
+                        hideLabel
+                        anchorDate={anchorDate}
+                        anchorTime={anchorTime}
+                        onAnchorDateChange={onAnchorDateChange}
+                        onAnchorTimeChange={onAnchorTimeChange}
+                      />
+                    </div>
+                  ) : null}
                   <div className="doc-meta-field doc-meta-field--source">
                     <span className="doc-meta-field-k">Source</span>
                     <div className="node-query-modal__source-grid" role="group" aria-label="Macronode source">

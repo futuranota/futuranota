@@ -1,60 +1,57 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildCampaignTimelineMarkers,
-  resolveCampaignActivateDate,
+  resolveCampaignFolderCreatedDate,
+  resolveCampaignFolderTimelineDate,
 } from "./campaignTimelineRail.js";
 
 describe("campaignTimelineRail", () => {
-  it("resolves Activate At only for campaign files", () => {
-    expect(resolveCampaignActivateDate({
+  it("falls back to Created when no active source launch", () => {
+    const doc = {
       campaignActive: true,
-      campaignActivateAt: "2026-07-20T10:00:00.000Z",
-    })?.toISOString()).toBe("2026-07-20T10:00:00.000Z");
-    expect(resolveCampaignActivateDate({
-      campaignActive: true,
-      launchAt: "2026-08-01T12:00:00.000Z",
-    })).toBeNull();
-    expect(resolveCampaignActivateDate({
-      campaignActive: false,
-      campaignActivateAt: "2026-07-20T10:00:00.000Z",
-    })).toBeNull();
+      createdAt: "2026-07-10T12:00:00.000Z",
+      timelineSourceNodeId: null,
+    };
+    expect(resolveCampaignFolderCreatedDate(doc)?.toISOString())
+      .toBe("2026-07-10T12:00:00.000Z");
+    expect(resolveCampaignFolderTimelineDate(doc, {})?.toISOString())
+      .toBe("2026-07-10T12:00:00.000Z");
   });
 
-  it("builds activation + Target Launch markers and spans", () => {
-    const { markers, spans } = buildCampaignTimelineMarkers({
-      objectId: "co1",
-      timelineDocQueue: ["c1", "c2", "other"],
-      docsById: {
-        c1: {
-          id: "c1",
-          parentObjectId: "co1",
-          campaignActive: true,
-          campaignActivateAt: "2026-07-20T10:00:00.000Z",
-          launchAt: "2026-07-25T12:00:00.000Z",
-          campaignCompleted: true,
-        },
-        c2: {
-          id: "c2",
-          parentObjectId: "co1",
-          campaignActive: true,
-          campaignActivateAt: "2026-07-21T09:00:00.000Z",
-        },
-        other: {
-          id: "other",
-          parentObjectId: "co1",
-          campaignActive: false,
-          scheduleStartAt: "2026-07-20T12:00:00.000Z",
-        },
+  it("prefers active source document launchAt over Created", () => {
+    const doc = {
+      id: "folder-1",
+      campaignActive: true,
+      createdAt: "2026-07-10T12:00:00.000Z",
+      timelineSourceNodeId: "node-d",
+    };
+    const nodes = {
+      "node-d": {
+        id: "node-d",
+        parentDocId: "folder-1",
+        campaignStatus: "active",
+        launchAt: "2026-09-15T15:30:00.000Z",
       },
-    });
+    };
+    expect(resolveCampaignFolderTimelineDate(doc, nodes)?.toISOString())
+      .toBe("2026-09-15T15:30:00.000Z");
+  });
 
-    expect(markers).toHaveLength(3);
-    expect(markers[0].campaignMarkerKind).toBe("activation");
-    expect(markers[0].completed).toBe(true);
-    expect(markers[1].campaignMarkerKind).toBe("target-launch");
-    expect(markers[1].title).toBe("Target Launch");
-    expect(markers[2].docId).toBe("c2");
-    expect(spans).toHaveLength(1);
-    expect(spans[0].docId).toBe("c1");
+  it("ignores inactive source and falls back to Created", () => {
+    const doc = {
+      id: "folder-1",
+      campaignActive: true,
+      createdAt: "2026-07-10T12:00:00.000Z",
+      timelineSourceNodeId: "node-a",
+    };
+    const nodes = {
+      "node-a": {
+        id: "node-a",
+        parentDocId: "folder-1",
+        campaignStatus: "inactive",
+        launchAt: "2026-09-15T15:30:00.000Z",
+      },
+    };
+    expect(resolveCampaignFolderTimelineDate(doc, nodes)?.toISOString())
+      .toBe("2026-07-10T12:00:00.000Z");
   });
 });

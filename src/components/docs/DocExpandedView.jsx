@@ -15,6 +15,10 @@ import { useConfirmStore } from "../../stores/confirmStore.js";
 import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
+import {
+  CAMPAIGN_DOC_STATUS_INACTIVE,
+  normalizeCampaignDocStatus,
+} from "../../lib/campaignDocSource.js";
 
 const NODE_SAVE_LOADING_MIN_MS = 700;
 import {
@@ -294,6 +298,9 @@ export function DocExpandedView({
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
   const [nodeDraftCompleted, setNodeDraftCompleted] = useState(false);
+  const [nodeDraftCampaignStatus, setNodeDraftCampaignStatus] = useState(
+    CAMPAIGN_DOC_STATUS_INACTIVE,
+  );
   const [nodeDraftSourceId, setNodeDraftSourceId] = useState(null);
   const [nodeInitialSnapshot, setNodeInitialSnapshot] = useState(null);
   const [initialSnapshot, setInitialSnapshot] = useState(null);
@@ -1247,6 +1254,7 @@ export function DocExpandedView({
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
     setNodeDraftCompleted(false);
+    setNodeDraftCampaignStatus(CAMPAIGN_DOC_STATUS_INACTIVE);
     setNodeDraftSourceId(null);
     setNodeInitialSnapshot(null);
     nodeInitialSnapshotRef.current = null;
@@ -1266,6 +1274,8 @@ export function DocExpandedView({
       || nodeDraftAnchorDate !== nodeInitialSnapshot.anchorDate
       || nodeDraftAnchorTime !== nodeInitialSnapshot.anchorTime
       || Boolean(nodeDraftCompleted) !== Boolean(nodeInitialSnapshot.completed)
+      || normalizeCampaignDocStatus(nodeDraftCampaignStatus)
+        !== normalizeCampaignDocStatus(nodeInitialSnapshot.campaignStatus)
       || (nodeDraftSourceId || null) !== (nodeInitialSnapshot.sourceId || null)
     );
   };
@@ -1672,10 +1682,25 @@ export function DocExpandedView({
       content,
       dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
-      ...(anchorAt !== undefined ? { anchorAt } : {}),
-      completed: nodeDraftCompleted,
+      ...(anchorAt !== undefined && !draftCampaignActive ? { anchorAt } : {}),
+      completed: draftCampaignActive ? false : nodeDraftCompleted,
       sourceId: nodeDraftSourceId,
     });
+
+    if (draftCampaignActive && savedNodeId) {
+      const launchAt = commitSchedule && supportsScheduleAnchor(dataType)
+        ? (String(anchorDate || "").trim()
+          ? isoFromAnchorFields(anchorDate, anchorTime)
+          : null)
+        : undefined;
+      updateNode(savedNodeId, {
+        campaignStatus: normalizeCampaignDocStatus(nodeDraftCampaignStatus),
+        completed: false,
+        ...(launchAt !== undefined
+          ? { launchAt, windowEndAt: launchAt }
+          : {}),
+      });
+    }
 
     if ((nodeId || block.nodeId) !== savedNodeId) {
       setActiveNodeContext((prev) => (prev ? { ...prev, nodeId: savedNodeId } : prev));
@@ -1871,10 +1896,17 @@ export function DocExpandedView({
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
     setNodeDraftCompleted(Boolean(existing?.completed));
+    setNodeDraftCampaignStatus(
+      normalizeCampaignDocStatus(existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
+    );
     setNodeDraftSourceId(existing?.sourceId ?? null);
-    // Prefer saved node.anchorAt once schedule was persisted; block/Created is fallback only.
-    if (existing?.anchorAt) {
-      const fromNode = anchorFieldsFromIso(existing.anchorAt);
+    // Campaign docs: Launch lives on node.launchAt. Content docs: Schedule on anchorAt.
+    const campaignChild = Boolean(draftCampaignActive);
+    const launchOrAnchorIso = campaignChild
+      ? (existing?.launchAt || null)
+      : (existing?.anchorAt || null);
+    if (launchOrAnchorIso) {
+      const fromNode = anchorFieldsFromIso(launchOrAnchorIso);
       // #region agent log
       fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H3',location:'DocExpandedView.jsx:handleOpenNodeForBlock',message:'open node schedule from node.anchorAt',data:{nodeId:existing.id,anchorAt:existing.anchorAt,fromNode,blockAnchorDate:block.anchorDate||'',blockAnchorTime:block.anchorTime||'',blockAnchorFromNode:block.anchorFromNode??null,draftCreatedDate},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
@@ -1885,11 +1917,14 @@ export function DocExpandedView({
         anchorDate: fromNode.anchorDate,
         anchorTime: fromNode.anchorTime,
         completed: Boolean(existing?.completed),
+        campaignStatus: normalizeCampaignDocStatus(
+          existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
+        ),
         sourceId: existing?.sourceId ?? null,
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
-    } else {
+    } else if (!campaignChild) {
       const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate, {
         noNodeLink: isNoNodeLinkMode(resolveBlockNodeLinkColor(block)),
       });
@@ -1903,6 +1938,22 @@ export function DocExpandedView({
         anchorDate: anchorFromBlock.anchorDate,
         anchorTime: anchorFromBlock.anchorTime,
         completed: Boolean(existing?.completed),
+        campaignStatus: CAMPAIGN_DOC_STATUS_INACTIVE,
+        sourceId: existing?.sourceId ?? null,
+      };
+      setNodeInitialSnapshot(snap);
+      nodeInitialSnapshotRef.current = snap;
+    } else {
+      setNodeDraftAnchorDate("");
+      setNodeDraftAnchorTime("");
+      const snap = {
+        content: normalizeNodeContent(resolvedNodeDraft),
+        anchorDate: "",
+        anchorTime: "",
+        completed: false,
+        campaignStatus: normalizeCampaignDocStatus(
+          existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
+        ),
         sourceId: existing?.sourceId ?? null,
       };
       setNodeInitialSnapshot(snap);
@@ -2117,11 +2168,23 @@ export function DocExpandedView({
           onContentChange={handleNodeContentChange}
           createdDate={draftCreatedDate}
           completed={nodeDraftCompleted}
-          onCompletedChange={(v) => {
-            setNodeDraftCompleted(v);
-            const id = activeNodeContext?.nodeId;
-            if (id) updateNode(id, { completed: Boolean(v) });
-          }}
+          onCompletedChange={draftCampaignActive
+            ? undefined
+            : (v) => {
+              setNodeDraftCompleted(v);
+              const id = activeNodeContext?.nodeId;
+              if (id) updateNode(id, { completed: Boolean(v) });
+            }}
+          campaignMode={Boolean(draftCampaignActive)}
+          campaignStatus={nodeDraftCampaignStatus}
+          onCampaignStatusChange={draftCampaignActive
+            ? (v) => {
+              const next = normalizeCampaignDocStatus(v);
+              setNodeDraftCampaignStatus(next);
+              const id = activeNodeContext?.nodeId;
+              if (id) updateNode(id, { campaignStatus: next, completed: false });
+            }
+            : undefined}
           sourceId={nodeDraftSourceId}
           onSourceIdChange={(v) => {
             setNodeDraftSourceId(v);

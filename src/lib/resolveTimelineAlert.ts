@@ -42,7 +42,10 @@ type ResolveTimelineAlertParams = {
   canvasConnections?: Array<{ id?: string; from?: string; to?: string }>;
   nodeEntities?: Record<string, {
     anchorAt?: string | null;
+    launchAt?: string | null;
+    campaignStatus?: string | null;
     title?: string;
+    sourceQuery?: string | null;
     dataType?: string;
     parentDocId?: string | null;
     linkedToDoc?: string | null;
@@ -133,20 +136,34 @@ export function collectTimelineScheduleTargets({
     const objectTitle = objectId
       ? timelineTitleForObject(objectId, objects, objectTimelineTitles)
       : label;
+    const isCampaignFolder = Boolean(doc.campaignActive);
 
-    const folderDate = snap?.anchorDateMs
-      ? new Date(snap.anchorDateMs)
-      : parseDate(doc.scheduleStartAt || doc.launchAt);
+    // Campaign folders: reminder follows the active source document's launchAt
+    // (same role Schedule plays for content folders).
+    let campaignSourceDate: Date | null = null;
+    if (isCampaignFolder) {
+      const sourceId = typeof doc.timelineSourceNodeId === "string"
+        ? doc.timelineSourceNodeId
+        : null;
+      const source = sourceId ? nodeEntities[sourceId] : null;
+      if (source?.campaignStatus === "active") {
+        campaignSourceDate = parseDate(source.launchAt) || null;
+      }
+    }
+
+    const folderDate = campaignSourceDate
+      || (snap?.anchorDateMs ? new Date(snap.anchorDateMs) : null)
+      || parseDate(doc.scheduleStartAt || doc.launchAt);
     if (folderDate && !Number.isNaN(folderDate.getTime())) {
       addTarget(targets, seen, {
         key: `doc-${docId}`,
         date: folderDate,
         label,
-        kind: "doc",
-        kindLabel: "Document",
+        kind: isCampaignFolder ? "launch" : "doc",
+        kindLabel: isCampaignFolder ? "Launch" : "Document",
         workspaceLabel: objectTitle,
       });
-    } else if (doc.scheduleStartAt || doc.launchAt) {
+    } else if (!isCampaignFolder && (doc.scheduleStartAt || doc.launchAt)) {
       const launch = parseDate(doc.scheduleStartAt || doc.launchAt);
       if (launch) {
         addTarget(targets, seen, {
@@ -166,28 +183,41 @@ export function collectTimelineScheduleTargets({
       const childKey = child.key || entityId || `child-${child.dateMs}`;
       childKeysSeen.add(childKey);
       const liveEntity = entityId ? nodeEntities[entityId] : null;
-      const liveDate = liveEntity?.anchorAt ? parseDate(liveEntity.anchorAt) : null;
-      const date = liveDate
-        || (Number.isFinite(child.dateMs) ? new Date(child.dateMs as number) : null);
+      const liveDate = isCampaignFolder
+        ? (liveEntity?.campaignStatus === "active"
+          ? parseDate(liveEntity?.launchAt)
+          : null)
+        : (liveEntity?.anchorAt ? parseDate(liveEntity.anchorAt) : null);
+      // Campaign: only active + launchAt (never stale snap for inactive docs).
+      const date = isCampaignFolder
+        ? liveDate
+        : (liveDate
+          || (Number.isFinite(child.dateMs) ? new Date(child.dateMs as number) : null));
       if (!date || Number.isNaN(date.getTime())) continue;
-      const childLabel = (liveEntity?.title || "").trim()
+      const childLabel = (
+        liveEntity?.title
+        || liveEntity?.sourceQuery
+        || ""
+      ).trim()
         || `${label} · ${child.dataType || liveEntity?.dataType || "macro"}`;
       addTarget(targets, seen, {
         key: `macro-${docId}-${childKey}`,
         date,
         label: childLabel,
-        kind: "macro",
-        kindLabel: "Macro",
+        kind: isCampaignFolder ? "launch" : "macro",
+        kindLabel: isCampaignFolder ? "Launch" : "Macro",
         workspaceLabel: objectTitle,
       });
     }
 
-    // Live linked nodes (schedule changed after timeline insert / not yet in snapshot).
+    // Live linked nodes (schedule / launch changed after timeline insert).
     for (const [entityId, entity] of Object.entries(nodeEntities)) {
       if (!entity) continue;
       const parentId = entity.parentDocId || entity.linkedToDoc || null;
       if (parentId !== docId) continue;
-      const date = parseDate(entity.anchorAt);
+      const date = isCampaignFolder
+        ? (entity.campaignStatus === "active" ? parseDate(entity.launchAt) : null)
+        : parseDate(entity.anchorAt);
       if (!date) continue;
       const childKey = entityId;
       if (childKeysSeen.has(childKey) || childKeysSeen.has(`entity:${entityId}`)) continue;
@@ -195,9 +225,10 @@ export function collectTimelineScheduleTargets({
       addTarget(targets, seen, {
         key: `macro-${docId}-${childKey}`,
         date,
-        label: (entity.title || "").trim() || `${label} · ${entity.dataType || "macro"}`,
-        kind: "macro",
-        kindLabel: "Macro",
+        label: (entity.title || entity.sourceQuery || "").trim()
+          || `${label} · ${entity.dataType || "macro"}`,
+        kind: isCampaignFolder ? "launch" : "macro",
+        kindLabel: isCampaignFolder ? "Launch" : "Macro",
         workspaceLabel: objectTitle,
       });
     }

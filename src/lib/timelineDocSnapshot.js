@@ -1,6 +1,6 @@
 import { resolveNodeAnchorDate, parseDate } from "../temporal.js";
 import { listChildCanvasNodeIdsForDoc } from "./timelineGraph.js";
-import { resolveCampaignFolderCreatedDate } from "./campaignTimelineRail.js";
+import { resolveCampaignFolderTimelineDate } from "./campaignTimelineRail.js";
 import {
   resolveDocScheduleDate,
   resolveExplicitDocScheduleDate,
@@ -19,9 +19,9 @@ function resolveDocTimelineDateLocal(
   meta,
 ) {
   const doc = docsById[docId];
-  // Campaign folders: Created positions the chip; Launch lives on the date node.
-  const campaignCreated = resolveCampaignFolderCreatedDate(doc);
-  if (campaignCreated) return campaignCreated;
+  // Campaign folders: active source launchAt, else Created.
+  const campaignDate = resolveCampaignFolderTimelineDate(doc, meta?.nodeEntitiesById || {});
+  if (campaignDate) return campaignDate;
 
   // Priority: Launch/block Schedule → linked node Schedule → canvas → createdAt.
   const explicit = resolveExplicitDocScheduleDate(doc);
@@ -49,9 +49,7 @@ function childSnapshotKey(entityId, canvasNodeId) {
 /**
  * Resolve a timeline date for a folder child entity (store node).
  * Regular task folders prefer Schedule (`anchorAt` / date content).
- * Campaign children are research references, so they always use `createdAt`
- * and never inherit task ordering from an old anchor. If still parented but
- * unscheduled, createdAt keeps the child visible. Orphans remain excluded.
+ * Campaign children use their own launchAt (then createdAt).
  */
 function resolveLinkedFileTimelineDate(entityId, entity, meta = {}) {
   if (!entityId || !entity) return null;
@@ -59,7 +57,9 @@ function resolveLinkedFileTimelineDate(entityId, entity, meta = {}) {
     ? meta.docsById?.[entity.parentDocId]
     : null;
   if (parentDoc?.campaignActive && entity.dataType !== "date") {
-    return parseDate(entity.createdAt) || null;
+    return parseDate(entity.launchAt)
+      || parseDate(entity.createdAt)
+      || null;
   }
   const fromAnchor = parseDate(entity.anchorAt);
   if (fromAnchor) return fromAnchor;
@@ -272,6 +272,7 @@ export function buildChildMarkersForDoc(
       || wireAnchors.get(nodeId)
       || (!entityId ? resolveNodeAnchorDate(item || node, meta) : null);
     if (!raw) continue;
+    const parentDoc = docsById[docId];
     markersByKey.set(key, {
       nodeId,
       date: raw,
@@ -280,6 +281,12 @@ export function buildChildMarkersForDoc(
       entityId,
       childKey: key,
       completed: Boolean(entity?.completed),
+      campaignStatus: entity?.campaignStatus || null,
+      isTimelineSource: Boolean(
+        parentDoc?.campaignActive
+        && entityId
+        && parentDoc.timelineSourceNodeId === entityId,
+      ),
     });
   }
 
@@ -291,6 +298,7 @@ export function buildChildMarkersForDoc(
     if (!entity || entity.dataType === "date") continue;
     const raw = resolveLinkedFileTimelineDate(entityId, entity, meta);
     if (!raw) continue;
+    const parentDoc = docsById[docId];
     markersByKey.set(key, {
       nodeId: `entity-${entityId}`,
       date: raw,
@@ -300,6 +308,11 @@ export function buildChildMarkersForDoc(
       childKey: key,
       fromStore: true,
       completed: Boolean(entity.completed),
+      campaignStatus: entity.campaignStatus || null,
+      isTimelineSource: Boolean(
+        parentDoc?.campaignActive
+        && parentDoc.timelineSourceNodeId === entityId,
+      ),
     });
   }
 

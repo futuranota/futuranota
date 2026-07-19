@@ -41,8 +41,9 @@ import {
 } from "./timelineDocSnapshot.js";
 import {
   collectFolderLinkedDateMarkers,
-  resolveCampaignFolderCreatedDate,
+  resolveCampaignFolderTimelineDate,
 } from "./campaignTimelineRail.js";
+import { resolveCampaignSourceMicroLabel } from "./campaignDocSource.js";
 import { buildGuestInheritanceProjections } from "./timelineInheritance.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
@@ -998,9 +999,9 @@ export function resolveDocTimelineDate(
   meta,
 ) {
   const doc = docsById[docId];
-  // Campaign folders: Created positions the chip; Launch lives on the date node.
-  const campaignCreated = resolveCampaignFolderCreatedDate(doc);
-  if (campaignCreated) return campaignCreated;
+  // Campaign folders: active source launchAt, else Created.
+  const campaignDate = resolveCampaignFolderTimelineDate(doc, meta?.nodeEntitiesById || {});
+  if (campaignDate) return campaignDate;
 
   // Priority: Launch/block Schedule → linked node Schedule → canvas → createdAt.
   const explicit = resolveExplicitDocScheduleDate(doc);
@@ -1120,8 +1121,10 @@ export function buildTacticalObjectRows(params) {
         const docId = node?.docId || node?.noteId || item?.docId;
         // Canvas presence alone is not enough — the doc must have been inserted.
         if (!docId || !queuedDocIdSet.has(docId)) continue;
-        const campaignCreated = docId ? resolveCampaignFolderCreatedDate(docsById[docId]) : null;
-        const fullDate = campaignCreated
+        const campaignDate = docId
+          ? resolveCampaignFolderTimelineDate(docsById[docId], nodeEntitiesById)
+          : null;
+        const fullDate = campaignDate
           || (docId ? resolveExplicitDocScheduleDate(docsById[docId]) : null)
           || resolveNodeAnchorDate(node || item, meta)
           || (docId ? resolveDocScheduleDate(docsById[docId], nodeEntitiesById) : null)
@@ -1135,6 +1138,9 @@ export function buildTacticalObjectRows(params) {
           completed: Boolean(
             docId && isFolderTimelineCompleted(docId, docsById, nodeEntitiesById),
           ),
+          sourceMicroLabel: docId
+            ? resolveCampaignSourceMicroLabel(docsById[docId], nodeEntitiesById)
+            : "",
         });
       }
     }
@@ -1147,7 +1153,7 @@ export function buildTacticalObjectRows(params) {
         (n) => (n.docId || n.noteId) === docId && isDocumentNode(n),
       );
       if (canvasDoc && markerByKey.has(canvasDoc.id)) continue;
-      const date = resolveCampaignFolderCreatedDate(docsById[docId])
+      const date = resolveCampaignFolderTimelineDate(docsById[docId], nodeEntitiesById)
         || resolveQueuedDocTimelineDate(
           docId,
           canvasNodes,
@@ -1167,6 +1173,10 @@ export function buildTacticalObjectRows(params) {
         queued: true,
         completed: Boolean(
           docId && isFolderTimelineCompleted(docId, docsById, nodeEntitiesById),
+        ),
+        sourceMicroLabel: resolveCampaignSourceMicroLabel(
+          docsById[docId],
+          nodeEntitiesById,
         ),
       });
     }
