@@ -506,6 +506,7 @@ export function buildRowTimelineRail(columns, grid, options = {}) {
     today: grid.today || null,
     now,
     loupe: null,
+    docsById: options.docsById || {},
   }).map((seg, idx) => {
     if (idx + 1 >= nodeGroups.length) return seg;
     const prev = nodeGroups[idx];
@@ -626,6 +627,38 @@ export function buildNowToNextGapSegment(nodeGroups, grid, options = {}) {
 }
 
 /**
+ * Campaign folder chip ↔ Launch date type on the same rail.
+ * @param {{ items?: object[] }} prevCol
+ * @param {{ items?: object[] }} nextCol
+ * @param {Record<string, object>} [docsById]
+ */
+function isCampaignFolderLaunchGap(prevCol, nextCol, docsById = {}) {
+  const prevItems = prevCol?.items || [];
+  const nextItems = nextCol?.items || [];
+  const isLaunch = (m) => Boolean(
+    m && (m.canvasKind === "launch" || (m.dataType === "date" && m.timeMarker)),
+  );
+  const isCampaignFolder = (m) => Boolean(
+    m?.dataType === "document"
+    && m.docId
+    && docsById[m.docId]?.campaignActive,
+  );
+  const launchNext = nextItems.find(isLaunch);
+  const campPrev = prevItems.find(isCampaignFolder);
+  if (campPrev && launchNext) {
+    return !launchNext.docId || launchNext.docId === campPrev.docId
+      || prevItems.some((m) => isCampaignFolder(m) && m.docId === launchNext.docId);
+  }
+  const launchPrev = prevItems.find(isLaunch);
+  const campNext = nextItems.find(isCampaignFolder);
+  if (launchPrev && campNext) {
+    return !launchPrev.docId || launchPrev.docId === campNext.docId
+      || nextItems.some((m) => isCampaignFolder(m) && m.docId === launchPrev.docId);
+  }
+  return false;
+}
+
+/**
  * Visible time metrics between consecutive columns (day gaps + same-day sched).
  * @param {ReturnType<typeof buildTimelineColumns>} columns
  * @param {ReturnType<typeof buildTacticalDisplayGrid>} grid
@@ -635,6 +668,7 @@ export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
   const today = options.today || grid.today || null;
   const loupe = options.loupe || null;
   const now = options.now || new Date();
+  const docsById = options.docsById || {};
 
   const segments = [];
   for (let i = 1; i < columns.length; i += 1) {
@@ -660,6 +694,7 @@ export function buildAdjacentDayGapSegments(columns, grid, options = {}) {
       key: `day-gap-${prev.columnKey}-${next.columnKey}`,
       isDocDimension: false,
       isAdjacentGap: true,
+      isCampaignLaunchSpan: isCampaignFolderLaunchGap(prev, next, docsById),
       isSameDayGap: sameDay,
       fromDate: prev.date,
       toDate: next.date,
@@ -1399,6 +1434,7 @@ export function buildTacticalObjectRows(params) {
         ),
       markerDates: (row.columns || []).map((col) => col.date).filter(Boolean),
       now: today,
+      docsById,
     });
   }
 

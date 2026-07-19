@@ -423,6 +423,7 @@ function TacticalObjectRow({
                     + (segment.isAdjacentGap ? " is-adjacent-gap" : "")
                     + (segment.isSameDayGap ? " is-same-day-gap" : "")
                     + (segment.isNowGap ? " is-now-gap" : "")
+                    + (segment.isCampaignLaunchSpan ? " is-campaign-launch-span" : "")
                     + (segment.isRowEndpointSpan ? " is-row-endpoint-span" : "")
                   }
                   style={{ left: `${segment.leftPct}%`, width: `${segment.widthPct}%` }}
