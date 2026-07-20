@@ -196,6 +196,14 @@ export function syncContentDocCanvasNodes(
           changed = true;
           return null;
         }
+        // Drop Launch if the child document is no longer on the canvas.
+        const sourceOnCanvas = canvasNodes.some(
+          (n) => n.noteId === node.sourceNodeId && n.canvasKind !== "launch",
+        );
+        if (!sourceOnCanvas) {
+          changed = true;
+          return null;
+        }
         if (node.content !== dateContent || node.launchAt !== launchAt) {
           changed = true;
           return { ...node, content: dateContent, launchAt };
@@ -203,68 +211,17 @@ export function syncContentDocCanvasNodes(
         return node;
       }
 
-      const launchAt = resolveDocLaunchAt(doc, node.parentDocId, draft, nodeEntitiesById);
-      const dateContent = launchDateInputFromIso(launchAt);
-      if (!dateContent) {
-        changed = true;
-        return null;
-      }
-      const source = resolveCampaignSourceNode(normalizeDoc(doc), nodeEntitiesById);
-      const sourceNodeId = source?.id || null;
-      if (
-        node.content !== dateContent
-        || node.launchAt !== launchAt
-        || node.sourceNodeId !== sourceNodeId
-      ) {
-        changed = true;
-        return { ...node, content: dateContent, launchAt, sourceNodeId };
-      }
-      return node;
+      // Legacy folder-level Launch (no sourceNodeId): drop — folder drag must not
+      // keep a date beside the folder card.
+      changed = true;
+      return null;
     }
 
     return node;
   }).filter(Boolean);
 
-  // Folder-level Launch beside a campaign folder document card (source-driven).
-  for (const node of next) {
-    if (node.canvasKind !== "document" || !node.docId) continue;
-    const doc = docsById[node.docId];
-    if (!doc || !isContentDoc(doc)) continue;
-
-    const draft = expandedDocId === node.docId ? activeDocMetaDraft : null;
-    if (!resolveDocCampaignActive(doc, node.docId, draft)) continue;
-
-    const launchAt = resolveDocLaunchAt(doc, node.docId, draft, nodeEntitiesById);
-    const dateContent = launchDateInputFromIso(launchAt);
-    if (!dateContent) continue;
-
-    const hasFolderLaunch = next.some(
-      (n) => n.canvasKind === "launch"
-        && n.parentDocId === node.docId
-        && !n.sourceNodeId,
-    );
-    // Prefer per-document launch nodes when a source entity is already on canvas.
-    const source = resolveCampaignSourceNode(normalizeDoc(doc), nodeEntitiesById);
-    if (source && next.some((n) => n.noteId === source.id)) continue;
-    if (hasFolderLaunch) continue;
-
-    const launchNode = buildLaunchDateCanvasNode(launchAt, node.docId, {
-      sourceNodeId: source?.id || null,
-    });
-    if (!launchNode) continue;
-
-    changed = true;
-    next = [
-      ...next,
-      {
-        ...launchNode,
-        x: node.x + CANVAS_DOC_CHILD_OFFSET_X,
-        y: node.y,
-      },
-    ];
-  }
-
   // Per campaign document on canvas: spawn its own Launch date type beside it.
+  // Folder cards alone never spawn Launch (dates follow inserted child docs only).
   for (const node of [...next]) {
     if (!node.noteId || node.canvasKind === "launch") continue;
     const entity = nodeEntitiesById[node.noteId];

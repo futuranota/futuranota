@@ -947,8 +947,8 @@ useEffect(() => {
         : {}),
     });
 
-    // Sync immediately so the Launch date child node lands next to the folder
-    // (the docs-effect alone won't re-run on canvas inserts).
+    // Sync folder card meta only — Campaign Launch dates spawn when a child
+    // document is inserted, not when the folder alone is dropped.
     setCanvasNodes((all) => syncContentDocCanvasNodes(
       [...all, docCanvasNode],
       useDocsStore.getState().docs,
