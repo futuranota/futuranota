@@ -1026,18 +1026,59 @@
   color: rgba(255, 255, 255, 0.28);
 }
 
-/* Equal base widths for name / tag / category / description / url */
+/* Column widths: Description gets the space freed from a narrower URL */
 .url-table-dashboard .doc-vault-block__table th:nth-child(1),
-.url-table-dashboard .doc-vault-block__table td:nth-child(1),
+.url-table-dashboard .doc-vault-block__table td:nth-child(1) {
+  width: 16%;
+}
+
 .url-table-dashboard .doc-vault-block__table th:nth-child(2),
-.url-table-dashboard .doc-vault-block__table td:nth-child(2),
+.url-table-dashboard .doc-vault-block__table td:nth-child(2) {
+  width: 12%;
+}
+
 .url-table-dashboard .doc-vault-block__table th:nth-child(3),
-.url-table-dashboard .doc-vault-block__table td:nth-child(3),
+.url-table-dashboard .doc-vault-block__table td:nth-child(3) {
+  width: 14%;
+}
+
 .url-table-dashboard .doc-vault-block__table th:nth-child(4),
-.url-table-dashboard .doc-vault-block__table td:nth-child(4),
+.url-table-dashboard .doc-vault-block__table td:nth-child(4) {
+  width: 36%;
+}
+
 .url-table-dashboard .doc-vault-block__table th:nth-child(5),
 .url-table-dashboard .doc-vault-block__table td:nth-child(5) {
-  width: 18%;
+  width: 14%;
+}
+
+.url-table-dashboard .doc-vault-block__th-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.url-table-dashboard .doc-vault-block__th-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  background-color: #7d7e81;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.url-table-dashboard .doc-vault-block__th-icon--tag {
+  -webkit-mask-image: url("/uploads/Tag.svg");
+  mask-image: url("/uploads/Tag.svg");
+}
+
+.url-table-dashboard .doc-vault-block__th-icon--info {
+  -webkit-mask-image: url("/uploads/Info.svg");
+  mask-image: url("/uploads/Info.svg");
 }
 
 /* Name column: white when saved, full wrap, left-aligned with cell padding */
@@ -1091,6 +1132,8 @@
 .url-table-dashboard .doc-vault-block__table td:nth-child(5) {
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .url-table-dashboard .doc-vault-block__input--url {
@@ -1104,14 +1147,14 @@
   color: #79b8ff;
   white-space: nowrap;
   word-break: normal;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* Add-form fields blend into the background — no box, no color, equal base */
 /* Add-form row inside the inset table surface */
 .url-table-dashboard .doc-vault-block__form--link {
-  grid-template-columns: 1fr 0.8fr 1fr 1.1fr 1.1fr auto;
+  grid-template-columns: 0.9fr 0.7fr 0.85fr 2fr 0.85fr auto;
   align-items: start;
   padding: 10px;
   border-top: 1px solid var(--url-table-stroke, #313338);

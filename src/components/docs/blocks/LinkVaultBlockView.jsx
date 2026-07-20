@@ -350,9 +350,19 @@ export function LinkVaultBlockView({
             <thead>
               <tr>
                 <th>{L.name}</th>
-                <th>{L.tag}</th>
+                <th>
+                  <span className="doc-vault-block__th-with-icon">
+                    <span className="doc-vault-block__th-icon doc-vault-block__th-icon--tag" aria-hidden />
+                    {L.tag}
+                  </span>
+                </th>
                 <th>{L.category}</th>
-                <th>{L.description}</th>
+                <th>
+                  <span className="doc-vault-block__th-with-icon">
+                    <span className="doc-vault-block__th-icon doc-vault-block__th-icon--info" aria-hidden />
+                    {L.description}
+                  </span>
+                </th>
                 <th>{L.url}</th>
                 <th aria-hidden />
               </tr>
