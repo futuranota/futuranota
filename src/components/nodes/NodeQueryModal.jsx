@@ -47,10 +47,7 @@ import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
-import { useConfirmStore } from "../../stores/confirmStore.js";
-import { confirmChildScheduleOrDiscard } from "../../lib/childScheduleConfirm.js";
 
-const CHILD_SCHEDULE_REQUIRED_ICON = "/uploads/CalendarDots.svg";
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
 const DEFAULT_DATA_TYPES = ["text", "date", "checkbox"];
@@ -114,7 +111,6 @@ export function NodeQueryModal({
   embedded = false,
 }) {
   const { t } = useI18n();
-  const askConfirm = useConfirmStore((s) => s.ask);
   const bodyRef = useRef(null);
   const queryInputRef = useRef(null);
   const focusCategoryRef = useRef(null);
@@ -352,22 +348,11 @@ export function NodeQueryModal({
   }, [onSourceIdChange, syncMetaSnapshot, completed]);
 
   /**
-   * Folder reservation active → child TEXT/CHECKBOX must have date+time.
-   * @returns {Promise<true|"stay"|"discard">}
+   * Child date/time is optional. Folder reservation only limits the picker range
+   * when the user chooses to set a schedule on the document.
+   * @returns {Promise<true>}
    */
-  const ensureChildScheduleOrRemind = useCallback(async () => {
-    if (!showScheduleAnchor) return true;
-    const missingDate = !String(anchorDate || "").trim();
-    const missingTime = !String(anchorTime || "").trim();
-    if (!missingDate && !missingTime) return true;
-    return confirmChildScheduleOrDiscard(askConfirm, t, CHILD_SCHEDULE_REQUIRED_ICON);
-  }, [
-    showScheduleAnchor,
-    anchorDate,
-    anchorTime,
-    askConfirm,
-    t,
-  ]);
+  const ensureChildScheduleOrRemind = useCallback(async () => true, []);
 
   const discardWithoutSave = useCallback(() => {
     // Prefer explicit discard so parent can skip re-prompting schedule.

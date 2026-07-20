@@ -154,10 +154,12 @@ export function useDocBlockNodeModal({
 
     const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
     // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
-    // Never fill Schedule from Created — schedule is independent and always wins when set.
+    // No folder reservation → never persist date/time (Created ≠ Schedule).
     const scheduleDate = String(anchorDate || "").trim();
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
+      ? (childScheduleBounds && scheduleDate
+        ? isoFromAnchorFields(scheduleDate, anchorTime)
+        : null)
       : undefined;
 
     const savedNodeId = createOrUpdateNodeFromDocBlock({
@@ -344,15 +346,17 @@ export function useDocBlockNodeModal({
       normalizeCampaignDocStatus(existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
     );
     setNodeDraftSourceId(existing?.sourceId ?? null);
-    // Campaign: Launch on launchAt. Content: Schedule on anchorAt.
+    // Campaign: Launch on launchAt. Content: Schedule on anchorAt only when
+    // the parent folder has a reservation — never invent from Created.
     const launchOrAnchorIso = campaignDocMode
       ? (existing?.launchAt || null)
       : (existing?.anchorAt || null);
-    if (launchOrAnchorIso) {
+    const folderHasSchedule = Boolean(childScheduleBounds);
+    if (launchOrAnchorIso && (campaignDocMode || folderHasSchedule)) {
       const fromNode = anchorFieldsFromIso(launchOrAnchorIso);
       setNodeDraftAnchorDate(fromNode.anchorDate);
       setNodeDraftAnchorTime(fromNode.anchorTime);
-    } else if (!campaignDocMode) {
+    } else if (!campaignDocMode && folderHasSchedule) {
       const anchorFromBlock = resolveBlockAnchorFields(block, createdDate, {
         noNodeLink: isNoNodeLinkMode(blockLinkColor(blockIndex)),
       });

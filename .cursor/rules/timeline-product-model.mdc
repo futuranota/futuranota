@@ -7,13 +7,22 @@ alwaysApply: true
 
 The timeline’s job is to **track time and schedules** so users organize work by when things happen (sales, emails, blogs, packages, etc.). Alarms/notifications come later; do not treat the timeline as a static folder shelf.
 
+## WHY Schedule (optional)
+
+Schedule exists so users who want to **track projects on the timeline** feel organization, a work limit, and order by folders (classes) + hours. It is **not** mandatory.
+
+- **No folder schedule** → free writing: learn, note, no rush. Do not invent or force dates.
+- **Folder schedule** = explicit reservation `scheduleStartAt` → `scheduleFinishAt` (x–y). Never invent from `launchAt`.
+- **Documents** may set day + hour **only inside that range** when they choose; date/time is optional even under a reservation.
+- **Later:** after inserting on the timeline, user can activate reminders/alarms.
+
 ## Folder vs document
 
 **UI labels:** sidebar **Documents** = folders (boxes); what used to be called **macronodes** = documents. See `docs-folders-terminology.mdc`.
 
 - **Folder = category / class** (e.g. Math, Marketing, Sales). Everything inside belongs to that class.
-- **Document = scheduled unit** inside its folder — **day + hour + minute** from the document Schedule section (`anchorDate` / `anchorTime` / `anchorAt` / `launchAt`).
-- Folders relate to **other folders** on the timeline (sequence / focus over days).
+- **Document = content unit** inside its folder — on the timeline only when it has day + hour (`anchorDate` / `anchorTime` / `anchorAt`) within the folder reservation (if any).
+- Folders relate to **other folders** on the timeline (sequence / focus over days) when reserved.
 - Docs stay **scoped to their folder** — reintegrated on the rail, but independent across classes.
 
 ```
@@ -35,5 +44,5 @@ Marketing  ——(+1 day)——  Sales
 
 ## Current step vs later
 
-- Now: day + hour + minute on documents (Schedule); chronological Content list; same-day docs as separate rail nodes with time-gap labels.
-- Later: alarms/notifications. Keep data model ready; don’t regress chronology.
+- Now: optional day + hour + minute on documents when folder reserved; chronological Content list; same-day docs as separate rail nodes with time-gap labels.
+- Later: alarms/notifications after timeline insert. Keep data model ready; don’t regress chronology.

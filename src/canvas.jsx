@@ -7,7 +7,7 @@ import {
   bezierMidpoint,
   bezierPointAtArcOffset,
 } from './temporal.js';
-import { formatScheduleLabelFromIso } from './lib/nodeAnchor.js';
+import { formatScheduleLabelFromIso, resolveExplicitScheduleIso } from './lib/nodeAnchor.js';
 import { resolveConnectionLinkColor } from './lib/docNodeLinkColors.js';
 import { resolveVideoEmbedFromNodeContent } from './lib/videoEmbed.js';
 import {
@@ -497,7 +497,7 @@ function CanvasNode({
           </div>
         );
       }
-      const anchorIso = entity?.anchorAt || node.anchorAt;
+      const anchorIso = resolveExplicitScheduleIso(entity, node, docsById);
       const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
       const parentTag = resolveCanvasParentDocTag(node, nodeEntitiesById, docsById);
       const tagFamily = resolveCanvasNodeParentTagStyle(
@@ -517,7 +517,7 @@ function CanvasNode({
       const checked = entity
         ? Boolean(entity.content)
         : Boolean(node.content);
-      const anchorIso = entity?.anchorAt || node.anchorAt;
+      const anchorIso = resolveExplicitScheduleIso(entity, node, docsById);
       const scheduleLabel = anchorIso ? formatScheduleLabelFromIso(anchorIso) : "";
       return (
         <div className="cnode-v cnode-v--with-anchor">

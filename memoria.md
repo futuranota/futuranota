@@ -30,10 +30,26 @@ Regla: **macronodos = documentos**; **Documents (panel) = folders**. Regla Curso
 ### El software (note-taker orientado a eventos)
 
 - Combinación de **Obsidian + Notion**, con **Google Search API** integrada en el espacio de trabajo.
-- **Folder** = categoría/clase; **documento** = unidad scheduleada dentro del folder.
-- Un folder puede agrupar documentos; los documentos viven en canvas y timeline con día + hora.
-- Enfoque exclusivo en **organizar eventos** en un **timeline** (pasado · presente · futuro).
-- Cada documento tiene `schedule` / anchor; **`schedule` tiene mayor autoridad** — representa el set de tiempo para completar algo.
+- **Folder** = categoría/clase; **documento** = unidad de contenido dentro del folder (puede ir al timeline si tiene schedule).
+- Un folder puede agrupar documentos; los documentos viven en canvas y, si están scheduleados, en el timeline con día + hora.
+- Enfoque: **organizar trabajo en el tiempo** cuando el usuario quiere — sin forzar prisa.
+
+### WHY — Schedule (producto)
+
+Schedule **no es obligatorio**. Existe para cuando el usuario quiere **trackear proyectos en el timeline**: sentir organización, un límite de trabajo y un orden por folders (clases) + horarios.
+
+| Estado | Qué siente el usuario |
+|---|---|
+| **Sin schedule** en el folder | Escribe sin rush, sin proyecto acotado — aprende, anota, toma su tiempo. |
+| **Con schedule** en el folder | Reservó un rango de fechas (x → y). Los documentos **pueden** elegir día + hora **solo dentro de ese rango**. |
+| **Más adelante** | Al insertar en el timeline puede activar recordatorio/alarma. |
+
+**Reglas duras:**
+
+1. Schedule se **reserva en el folder** (`scheduleStartAt` / `scheduleFinishAt`) — no se dispara suelto ni se inventa desde otros campos.
+2. Sin reserva en el folder → no hay gate de fecha/hora en documentos; Save libre.
+3. Con reserva → date/time del documento es **opcional**; si el usuario la pone, debe caer en el rango x–y.
+4. `launchAt` de campañas / metadata **no es** Schedule de folder. No rellenar Schedule “a ciegas” desde `launchAt`.
 
 ### Librería y campañas
 
@@ -62,6 +78,23 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 ---
 
 ## Problema activo
+
+**Canvas inventaba schedule desde Created (2026-07-20)** — Al insertar un documento sin Schedule, el chip mostraba `schedule: mm/dd/yyyy | 12:00 PM` (Created a mediodía).
+
+- Causa: `resolveBlockAnchorFields` usaba Created como fallback de date; `isoFromAnchorFields` default time `12:00`; canvas leía `entity.anchorAt` sin chequear reserva del folder.
+- Fix: Created ≠ Schedule. Sin reserva en folder → no date/time en save, strip al insertar, canvas solo muestra schedule explícito con folder reservado.
+- Archivos: `nodeAnchor.js`, `temporal.js`, `canvas.jsx`, `App.jsx`, `StandaloneNodeModal.jsx`, `DocExpandedView.jsx`.
+
+**Schedule a ciegas + gate obligatorio (2026-07-20)** — El producto trataba `launchAt` como reserva de folder y bloqueaba Save de documentos sin fecha/hora.
+
+- **Why real:** Schedule solo cuando el usuario reserva x→y en el folder; sin eso = escritura libre. Docs eligen date/time opcional dentro del rango; recordatorios después en timeline.
+- **Por qué se insertaba a ciegas:**
+  1. `resolveFolderScheduleRange` hacía fallback `scheduleStartAt \|\| launchAt`.
+  2. Al crear folder: `scheduleStartAt: data.scheduleStartAt ?? data.launchAt` (y finish igual).
+  3. Al abrir folder: draft de Schedule se rellenaba desde `launchAt`.
+  4. Con “reserva” falsa → `confirmChildScheduleOrDiscard` obligaba date+time al guardar docs.
+- Fix: reserva = solo `scheduleStartAt`/`scheduleFinishAt`; quitar fallbacks a `launchAt`; Save de docs sin forzar schedule.
+- Archivos: `folderScheduleReservation.js`, `LeftPanel.jsx`, `DocExpandedView.jsx`, `StandaloneNodeModal.jsx`, `NodeQueryModal.jsx`.
 
 **Documentos en folders no se guardan / no aparecen en sidebar (2026-07-20)** — Al crear documentos (links/hijos) dentro de un folder, a veces desaparecían del sidebar tras hydrate/reload.
 

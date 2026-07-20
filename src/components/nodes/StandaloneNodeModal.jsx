@@ -21,7 +21,6 @@ import {
   folderScheduleDateInputBounds,
   isDateInputWithinFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
-import { confirmChildScheduleOrDiscard } from "../../lib/childScheduleConfirm.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { NodeQueryModal } from "./NodeQueryModal.jsx";
@@ -357,7 +356,9 @@ export function StandaloneNodeModal({
       }
       return;
     }
-    const anchorAt = (!campaignDocMode && supportsSchedule)
+    // Schedule only when the parent folder has a reservation AND the user set a date.
+    // No folder schedule → never invent date/time from Created.
+    const anchorAt = (!campaignDocMode && supportsSchedule && childScheduleBounds)
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
       : null;
     const launchAt = (campaignDocMode && supportsSchedule)
@@ -372,27 +373,8 @@ export function StandaloneNodeModal({
       ? (docsByStoreId?.[parentId]?.parentObjectId || parentObjectId || null)
       : (parentObjectId || node?.objectId || null);
 
-    const scheduleIncomplete = Boolean(
-      !campaignDocMode
-      && supportsSchedule
-      && childScheduleBounds
-      && (!scheduleDate || !String(anchorTime || "").trim()),
-    );
-    if (scheduleIncomplete) {
-      const gate = await confirmChildScheduleOrDiscard(
-        askConfirm,
-        t,
-        "/uploads/CalendarDots.svg",
-      );
-      if (gate === "stay") {
-        // New docs cannot be created without schedule; existing stay open after OK.
-        if (isNew) return;
-      } else {
-        // close & not save — revert live-persisted edits
-        discardWithoutSave();
-        return;
-      }
-    }
+    // Schedule on child docs is optional. Folder reservation only constrains
+    // the date picker range when the user chooses to set date/time.
 
     setIsSaving(true);
     try {
@@ -469,8 +451,6 @@ export function StandaloneNodeModal({
         syncNodeToParentDoc(node.id, effectiveParentId);
       }
       onSaved?.(getNode(node.id));
-      // Incomplete schedule: keep panel open so they can assign date/time.
-      if (scheduleIncomplete) return;
       onClose?.();
     } finally {
       setIsSaving(false);

@@ -6,7 +6,7 @@ import {
 } from "./folderScheduleReservation.js";
 
 describe("folder schedule reservation gate", () => {
-  it("is reserved only when start/launch resolves", () => {
+  it("is reserved only when explicit scheduleStartAt is set", () => {
     expect(isFolderScheduleReserved(null)).toBe(false);
     expect(isFolderScheduleReserved({})).toBe(false);
     expect(isFolderScheduleReserved({
@@ -20,6 +20,15 @@ describe("folder schedule reservation gate", () => {
       minDate: "2026-07-15",
       maxDate: "2026-07-20",
     });
+  });
+
+  it("never invents Schedule from launchAt alone", () => {
+    expect(isFolderScheduleReserved({
+      launchAt: "2026-07-26T12:00:00.000Z",
+    })).toBe(false);
+    expect(folderScheduleDateInputBounds({
+      launchAt: "2026-07-26T12:00:00.000Z",
+    })).toBeNull();
   });
 
   it("never treats campaign Launch as a Schedule reservation", () => {

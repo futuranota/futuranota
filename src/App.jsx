@@ -98,6 +98,7 @@ import {
   syncContentDocCanvasNodes,
 } from './lib/canvasDocSync.js';
 import { canSetCampaignTimelineSource } from './lib/campaignDocSource.js';
+import { isFolderScheduleReserved } from './lib/folderScheduleReservation.js';
 import { nextCompactPosition } from './lib/canvasMath.js';
 import { normalizeDoc } from './lib/normalizeDoc.js';
 import { resolveCanvasNodeObjectId } from './lib/objectColors.js';
@@ -691,13 +692,26 @@ useEffect(() => {
     const preferredX = options?.center ? 320 : options?.x;
     const preferredY = options?.center ? 190 : options?.y;
     const { x, y } = nextCanvasPosition(preferredX, preferredY);
-    const newNode = buildCanvasNodeFromEntity(zustandNode, x, y);
 
     // Campaign document → spawn Launch date type beside it and wire the connection.
     const parentDoc = zustandNode.parentDocId
       ? useDocsStore.getState().docs[zustandNode.parentDocId]
       : null;
-    const launchAt = zustandNode.launchAt || null;
+
+    // No folder Schedule reservation → strip phantom date/time (never invent from Created).
+    let entityForCanvas = zustandNode;
+    if (
+      zustandNode.anchorAt
+      && parentDoc
+      && !parentDoc.campaignActive
+      && !isFolderScheduleReserved(parentDoc)
+    ) {
+      useNodesStore.getState().updateNode(zustandNode.id, { anchorAt: null });
+      entityForCanvas = { ...zustandNode, anchorAt: null };
+    }
+
+    const newNode = buildCanvasNodeFromEntity(entityForCanvas, x, y);
+    const launchAt = entityForCanvas.launchAt || null;
     if (parentDoc?.campaignActive && launchAt) {
       const launchNode = buildLaunchDateCanvasNode(launchAt, zustandNode.parentDocId, {
         id: `CN-launch-node-${zustandNode.id}`,

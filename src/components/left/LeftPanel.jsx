@@ -2405,18 +2405,17 @@ export function LeftPanel({
           category: data.category ?? "",
           icon: typeof data.icon === "string" ? data.icon : "",
           // Campaign folders: Launch lives on child docs only.
+          // Content: Schedule is explicit only — never invent from launchAt.
+          // When user reserved Schedule, submitDoc already mirrors launchAt ← start.
           launchAt: isCampaignFolder
             ? null
             : (data.launchAt ?? data.scheduleStartAt ?? null),
           scheduleStartAt: isCampaignFolder
             ? null
-            : (data.scheduleStartAt ?? data.launchAt ?? null),
+            : (data.scheduleStartAt ?? null),
           scheduleFinishAt: isCampaignFolder
             ? null
-            : (data.scheduleFinishAt
-              ?? data.scheduleStartAt
-              ?? data.launchAt
-              ?? null),
+            : (data.scheduleFinishAt ?? data.scheduleStartAt ?? null),
           campaignActive: isCampaignFolder,
           nodeLinkColor: data.nodeLinkColor ?? "dark",
           knowledgeImport: data.knowledgeImport ?? null,

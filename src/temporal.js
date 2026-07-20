@@ -84,17 +84,9 @@ export function resolveNodeAnchorDate(node, { nodeEntitiesById = {}, docsById = 
   }
 
   if (node.dataType === "text" || node.dataType === "metric" || node.dataType === "checkbox") {
-    // entity.anchorAt already checked via resolveEntityAnchor above.
-    if (entity?.createdAt) return parseDate(entity.createdAt);
-    if (entity?.parentDocId) {
-      const doc = docsById[entity.parentDocId];
-      if (doc?.createdAt) return parseDate(doc.createdAt);
-    }
-    const text = String(node.content || "");
-    if (/created/i.test(text)) {
-      const iso = text.match(/\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?/);
-      if (iso) return parseDate(iso[0]);
-    }
+    // Explicit Schedule only (entity.anchorAt / node.anchorAt above).
+    // Never invent from createdAt — Created ≠ Schedule.
+    return null;
   }
 
   return null;

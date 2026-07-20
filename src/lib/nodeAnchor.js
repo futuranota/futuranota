@@ -1,5 +1,35 @@
 /** Optional schedule anchor on text/checkbox nodes (wires + canvas display). */
 
+/**
+ * Inline reservation check (mirrors folderScheduleReservation.js) — do not
+ * import that module here: it pulls temporal/data and creates a cycle that
+ * breaks DOC_BLOCK_TYPES initialization (blank page).
+ */
+function folderHasScheduleReservation(doc) {
+  if (!doc || doc.campaignActive) return false;
+  return Boolean(String(doc.scheduleStartAt || "").trim());
+}
+
+/**
+ * Canvas / chip schedule label source.
+ * Only an explicit node.anchorAt counts, and only when the parent folder has a
+ * real Schedule reservation (or the node is folderless). Never Created.
+ * @param {object | null | undefined} entity
+ * @param {object | null | undefined} canvasNode
+ * @param {Record<string, object>} [docsById]
+ * @returns {string|null}
+ */
+export function resolveExplicitScheduleIso(entity, canvasNode = null, docsById = {}) {
+  const iso = entity?.anchorAt || canvasNode?.anchorAt || null;
+  if (!iso) return null;
+  const parentDocId = entity?.parentDocId || canvasNode?.parentDocId || null;
+  if (!parentDocId) return iso;
+  const parent = docsById?.[parentDocId] || null;
+  if (!parent) return iso;
+  // Campaign Launch is separate; content docs need a folder reservation.
+  return folderHasScheduleReservation(parent) ? iso : null;
+}
+
 export function normalizeAnchorFields(blockOrNode) {
   const anchorDate = blockOrNode?.anchorDate || "";
   const anchorTime = blockOrNode?.anchorTime || "";
@@ -36,22 +66,13 @@ export function anchorAtFromBlock(block) {
   return isoFromAnchorFields(anchorDate, anchorTime);
 }
 
-/** Effective anchor: explicit Schedule on the block wins; Created is fallback only. */
-export function resolveBlockAnchorFields(block, docCreatedDate = "", options = {}) {
-  const { noNodeLink = false } = options;
-  const explicit = normalizeAnchorFields(block);
-  if (explicit.anchorDate) {
-    return explicit;
-  }
-  if (!block?.queryEnabled || noNodeLink) {
-    const date = String(docCreatedDate ?? "").trim();
-    return { anchorDate: date, anchorTime: "" };
-  }
-  if (!block.anchorFromNode) {
-    const date = String(docCreatedDate ?? "").trim();
-    return { anchorDate: date, anchorTime: "" };
-  }
-  return explicit;
+/**
+ * Explicit Schedule fields on the block only.
+ * Never invent date/time from Created — without a real schedule the document
+ * stays unscheduled (free writing / no rush).
+ */
+export function resolveBlockAnchorFields(block, _docCreatedDate = "", _options = {}) {
+  return normalizeAnchorFields(block);
 }
 
 export function resolveBlockAnchor(block, docCreatedDate = "") {

@@ -18,6 +18,8 @@ function calendarDateInputValue(d) {
 
 /**
  * Inclusive calendar range for a folder reservation.
+ * Only explicit Schedule fields count — never launchAt (campaign/meta) or other aliases.
+ * Empty schedule = free writing (no reservation, no child date/time gate).
  * @param {object | null | undefined} doc
  * @returns {{ start: Date, finish: Date } | null}
  */
@@ -25,7 +27,7 @@ export function resolveFolderScheduleRange(doc) {
   if (!doc) return null;
   // Campaign Launch is reference metadata, never a task reservation.
   if (doc.campaignActive) return null;
-  const startRaw = parseDate(doc.scheduleStartAt) || parseDate(doc.launchAt);
+  const startRaw = parseDate(doc.scheduleStartAt);
   if (!startRaw) return null;
   const finishRaw = parseDate(doc.scheduleFinishAt) || startRaw;
   const start = startOfCalendarDay(startRaw);

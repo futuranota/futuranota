@@ -35,7 +35,6 @@ import {
   isDateInputWithinFolderSchedule,
   validateFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
-import { confirmChildScheduleOrDiscard } from "../../lib/childScheduleConfirm.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import {
   isTemplateDoc,
@@ -382,8 +381,8 @@ export function DocExpandedView({
     const loadedScheduleStartDate = useCachedDraft
       ? (cached.scheduleStartDate
         ?? launchDateInputFromIso(normalized.scheduleStartAt)
-        ?? loadedLaunchDate)
-      : (launchDateInputFromIso(normalized.scheduleStartAt) || loadedLaunchDate);
+        ?? "")
+      : (launchDateInputFromIso(normalized.scheduleStartAt) || "");
     const loadedScheduleFinishDate = useCachedDraft
       ? (cached.scheduleFinishDate
         ?? launchDateInputFromIso(normalized.scheduleFinishAt)
@@ -1277,20 +1276,10 @@ export function DocExpandedView({
     );
   };
 
-  const childNodeScheduleIncomplete = () => {
-    if (!childScheduleBounds || !activeNodeContext) return false;
-    const dataType = activeNodeContext.dataType;
-    if (dataType !== NODE_DATA_TYPES.TEXT && dataType !== NODE_DATA_TYPES.CHECKBOX) {
-      return false;
-    }
-    return !String(nodeDraftAnchorDate || "").trim()
-      || !String(nodeDraftAnchorTime || "").trim();
-  };
+  const childNodeScheduleIncomplete = () => false;
 
-  const ensureChildScheduleOrRemind = async () => {
-    if (!childNodeScheduleIncomplete()) return true;
-    return confirmChildScheduleOrDiscard(askConfirm, t, "/uploads/CalendarDots.svg");
-  };
+  /** Schedule on child docs is optional — even under a folder reservation. */
+  const ensureChildScheduleOrRemind = async () => true;
 
   const restoreNodeContentFromSnapshot = (normalized, dataType) => {
     if (normalized == null) return "";
@@ -1661,8 +1650,11 @@ export function DocExpandedView({
 
     const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
     // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
+    // No folder reservation → never persist date/time (Created ≠ Schedule).
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? isoFromAnchorFields(anchorDate, anchorTime)
+      ? (childScheduleBounds
+        ? isoFromAnchorFields(anchorDate, anchorTime)
+        : null)
       : undefined;
 
     const savedNodeId = createOrUpdateNodeFromDocBlock({
@@ -1896,7 +1888,7 @@ export function DocExpandedView({
     const launchOrAnchorIso = campaignChild
       ? (existing?.launchAt || null)
       : (existing?.anchorAt || null);
-    if (launchOrAnchorIso) {
+    if (launchOrAnchorIso && (campaignChild || childScheduleBounds)) {
       const fromNode = anchorFieldsFromIso(launchOrAnchorIso);
       setNodeDraftAnchorDate(fromNode.anchorDate);
       setNodeDraftAnchorTime(fromNode.anchorTime);
@@ -1912,7 +1904,7 @@ export function DocExpandedView({
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
-    } else if (!campaignChild) {
+    } else if (!campaignChild && childScheduleBounds) {
       const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate, {
         noNodeLink: isNoNodeLinkMode(resolveBlockNodeLinkColor(block)),
       });
