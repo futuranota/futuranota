@@ -337,6 +337,25 @@ function TacticalObjectRow({
     : 0;
   const daysLeftCenterPct = resolveDaysLeftCenterPct(nodeGroups);
   const pluralS = (n) => (n === 1 ? "" : "s");
+  // Mirror of “N days left”: same center X, opposite side of the bar.
+  let sourceTitleLabel = "";
+  if (!isGuestStrip) {
+    for (const group of nodeGroups) {
+      const sourceMarker = group.items.find(
+        (m) =>
+          m.dataType === "document"
+          && (m.sourceDocTitle || m.sourceMicroLabel),
+      );
+      const label = (
+        sourceMarker?.sourceDocTitle
+        || sourceMarker?.sourceMicroLabel
+        || ""
+      ).trim();
+      if (!label) continue;
+      sourceTitleLabel = label;
+      break;
+    }
+  }
   const objectNameLabel = useTranslatedText(row.objectName);
   const visibleSegments = segments;
 
@@ -425,6 +444,11 @@ function TacticalObjectRow({
                 >
                   <span className="tl-tactical-segment__edge" aria-hidden />
                   {segment.isAdjacentGap ? (() => {
+                    // Multi-day pending/now pills duplicate the yellowish “N days left”.
+                    // Keep only same-day / live-countdown gap chips above the rail.
+                    if (!segment.isSameDayGap && !segment.isLiveCountdown) {
+                      return null;
+                    }
                     const clock = now instanceof Date ? now : new Date();
                     const pair = segment.isNowGap && segment.toDate
                       ? formatNowUntilScheduleLabel({
@@ -471,6 +495,15 @@ function TacticalObjectRow({
                   })() : null}
                 </div>
               ))}
+              {sourceTitleLabel ? (
+                <div
+                  className="tl-tactical-rail__remaining is-source-title"
+                  style={{ left: `${daysLeftCenterPct}%` }}
+                  title={sourceTitleLabel}
+                >
+                  {sourceTitleLabel}
+                </div>
+              ) : null}
               {daysLeft > 0 && (
                 <div
                   className="tl-tactical-rail__remaining"
@@ -669,17 +702,12 @@ function TacticalObjectRow({
                         || (isMacronodo && marker.childKey);
                       const macronodoGreen = "#86A296";
 
-                      const sourceMicro = !isTimeMarker && !isMacronodo && !isAgentSet
-                        ? (marker.sourceMicroLabel || "")
-                        : "";
-
                       return (
                         <TimelineEventChip
                           key={marker.nodeId}
                           variant="card"
                           compact
                           name={chipLabel}
-                          microLabel={sourceMicro || null}
                           leadingIcon={isTimeMarker ? <TimelineCalendarIcon /> : null}
                           familyAccent={isMacronodo ? macronodoGreen : familyAccent}
                           objectTint={isMacronodo ? macronodoGreen : (display.objectTint || accent)}

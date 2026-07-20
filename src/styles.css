@@ -5709,6 +5709,13 @@ textarea.note-form-field {
   pointer-events: none;
   transition: left var(--t-fast) var(--ease);
 }
+.tl-tactical-rail__remaining.is-source-title {
+  top: auto;
+  bottom: 0;
+  max-width: min(140px, 28vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .tl-tactical-rail__anchor {
   position: absolute;
   top: 50%;
@@ -6197,6 +6204,10 @@ textarea.note-form-field {
   color: var(--dim);
   line-height: 1.2;
   text-transform: uppercase;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tl-event-chip--card.is-timeline-source {
   outline: 1px solid color-mix(in oklab, var(--text) 28%, transparent);

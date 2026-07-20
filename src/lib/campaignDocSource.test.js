@@ -9,6 +9,7 @@ import {
   resolveCampaignFolderSourceDate,
   resolveCampaignSourceMicroLabel,
   resolveCampaignSourceNode,
+  resolveCampaignSourceTitle,
   syncCampaignFolderLaunchDateQueue,
 } from "./campaignDocSource.js";
 
@@ -60,6 +61,14 @@ describe("campaignDocSource", () => {
   it("builds micro initials from source title", () => {
     expect(resolveCampaignSourceMicroLabel(folder, nodes)).toBe("CD");
     expect(campaignDocInitials("Campaign IG")).toBe("CI");
+  });
+
+  it("resolves full source document title for the folder chip", () => {
+    expect(resolveCampaignSourceTitle(folder, nodes)).toBe("Campaign D");
+    expect(resolveCampaignSourceTitle(
+      { ...folder, timelineSourceNodeId: "node-a" },
+      nodes,
+    )).toBe("");
   });
 
   it("allows any child file under the folder as timeline source (insert switch)", () => {

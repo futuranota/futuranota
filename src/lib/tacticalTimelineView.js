@@ -43,7 +43,10 @@ import {
   collectFolderLinkedDateMarkers,
   resolveCampaignFolderTimelineDate,
 } from "./campaignTimelineRail.js";
-import { resolveCampaignSourceMicroLabel } from "./campaignDocSource.js";
+import {
+  resolveCampaignSourceMicroLabel,
+  resolveCampaignSourceTitle,
+} from "./campaignDocSource.js";
 import { buildGuestInheritanceProjections } from "./timelineInheritance.js";
 
 /** Doc↔doc wires that draw the temporal dimension band (any family). */
@@ -1193,6 +1196,9 @@ export function buildTacticalObjectRows(params) {
           sourceMicroLabel: docId
             ? resolveCampaignSourceMicroLabel(docsById[docId], nodeEntitiesById)
             : "",
+          sourceDocTitle: docId
+            ? resolveCampaignSourceTitle(docsById[docId], nodeEntitiesById)
+            : "",
         });
       }
     }
@@ -1227,6 +1233,10 @@ export function buildTacticalObjectRows(params) {
           docId && isFolderTimelineCompleted(docId, docsById, nodeEntitiesById),
         ),
         sourceMicroLabel: resolveCampaignSourceMicroLabel(
+          docsById[docId],
+          nodeEntitiesById,
+        ),
+        sourceDocTitle: resolveCampaignSourceTitle(
           docsById[docId],
           nodeEntitiesById,
         ),

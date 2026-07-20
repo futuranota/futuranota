@@ -72,6 +72,18 @@ export function resolveCampaignFolderSourceDate(folderDoc, nodesById = {}) {
 }
 
 /**
+ * Full title of the campaign folder's timeline source document.
+ * @param {object|null|undefined} folderDoc
+ * @param {Record<string, object>} [nodesById]
+ * @returns {string}
+ */
+export function resolveCampaignSourceTitle(folderDoc, nodesById = {}) {
+  const source = resolveCampaignSourceNode(folderDoc, nodesById);
+  if (!source) return "";
+  return String(source.title || source.sourceQuery || "").trim();
+}
+
+/**
  * @param {object|null|undefined} folderDoc
  * @param {Record<string, object>} [nodesById]
  * @returns {string}
