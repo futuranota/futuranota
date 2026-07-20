@@ -627,6 +627,7 @@ function pickTimelineUiState(state) {
     timelineAgentSets: Array.isArray(state.timelineAgentSets) ? state.timelineAgentSets : [],
     timelineDateNodeIds: Array.isArray(state.timelineDateNodeIds) ? state.timelineDateNodeIds : [],
     timelineDateSnapshotsById: state.timelineDateSnapshotsById || {},
+    timelineGuestLinksById: state.timelineGuestLinksById || {},
     expandedDocIds: Array.isArray(state.expandedDocIds) ? state.expandedDocIds : [],
     primaryTimelineObjectId: state.primaryTimelineObjectId || null,
     currentTier: typeof state.currentTier === "string" ? state.currentTier : "all",
@@ -638,6 +639,13 @@ function filterTimelineUiToExistingDocs(ui, docIds) {
   const filterMap = (record) => Object.fromEntries(
     Object.entries(record || {}).filter(([docId]) => docSet.has(docId)),
   );
+  const guestLinksById = Object.fromEntries(
+    Object.entries(ui.timelineGuestLinksById || {}).filter(([, link]) => {
+      if (!link) return false;
+      // Keep if host still exists (guest strip authority); guest may be soft-absent.
+      return Boolean(link.hostDocId && docSet.has(link.hostDocId));
+    }),
+  );
 
   return {
     ...ui,
@@ -647,6 +655,7 @@ function filterTimelineUiToExistingDocs(ui, docIds) {
     timelineExcludedChildrenByDocId: filterMap(ui.timelineExcludedChildrenByDocId),
     timelineDateNodeIds: Array.isArray(ui.timelineDateNodeIds) ? ui.timelineDateNodeIds : [],
     timelineDateSnapshotsById: ui.timelineDateSnapshotsById || {},
+    timelineGuestLinksById: guestLinksById,
     expandedDocIds: (ui.expandedDocIds || []).filter((docId) => docSet.has(docId)),
   };
 }
@@ -668,6 +677,7 @@ function emptyWorkspaceSnapshot() {
     timelineAgentSets: [],
     timelineDateNodeIds: [],
     timelineDateSnapshotsById: {},
+    timelineGuestLinksById: {},
     expandedDocIds: [],
     primaryTimelineObjectId: null,
     scheduledAutoRunEnabled: true,
@@ -1046,6 +1056,7 @@ export function initPersistenceMiddleware(stores) {
     timelineAgentSets: useTimelineStore.getState().timelineAgentSets,
     timelineDateNodeIds: useTimelineStore.getState().timelineDateNodeIds,
     timelineDateSnapshotsById: useTimelineStore.getState().timelineDateSnapshotsById,
+    timelineGuestLinksById: useTimelineStore.getState().timelineGuestLinksById,
     expandedDocIds: useTimelineStore.getState().expandedDocIds,
     primaryTimelineObjectId: useTimelineStore.getState().primaryTimelineObjectId,
     scheduledAutoRunEnabled: useScheduledTasksStore.getState().autoRunEnabled,
@@ -1089,7 +1100,11 @@ export function initPersistenceMiddleware(stores) {
         currentTier: stripped.currentTier || "all",
       });
     }
-    if (Array.isArray(stripped.timelineDocQueue) || Array.isArray(stripped.timelineDateNodeIds)) {
+    if (
+      Array.isArray(stripped.timelineDocQueue)
+      || Array.isArray(stripped.timelineDateNodeIds)
+      || stripped.timelineGuestLinksById
+    ) {
       useTimelineStore.setState({
         timelineDocQueue: Array.isArray(stripped.timelineDocQueue) ? stripped.timelineDocQueue : [],
         timelineDocQueueFocusByDocId: stripped.timelineDocQueueFocusByDocId || {},
@@ -1098,6 +1113,7 @@ export function initPersistenceMiddleware(stores) {
         timelineAgentSets: Array.isArray(stripped.timelineAgentSets) ? stripped.timelineAgentSets : [],
         timelineDateNodeIds: Array.isArray(stripped.timelineDateNodeIds) ? stripped.timelineDateNodeIds : [],
         timelineDateSnapshotsById: stripped.timelineDateSnapshotsById || {},
+        timelineGuestLinksById: stripped.timelineGuestLinksById || {},
         expandedDocIds: Array.isArray(stripped.expandedDocIds) ? stripped.expandedDocIds : [],
         primaryTimelineObjectId: stripped.primaryTimelineObjectId || null,
       });
@@ -1517,6 +1533,7 @@ export function initPersistenceMiddleware(stores) {
         timelineAgentSets: filteredTimelineUi.timelineAgentSets,
         timelineDateNodeIds: filteredTimelineUi.timelineDateNodeIds,
         timelineDateSnapshotsById: filteredTimelineUi.timelineDateSnapshotsById || {},
+        timelineGuestLinksById: filteredTimelineUi.timelineGuestLinksById || {},
         expandedDocIds: filteredTimelineUi.expandedDocIds,
         primaryTimelineObjectId: filteredTimelineUi.primaryTimelineObjectId,
         currentTier: filteredTimelineUi.currentTier,

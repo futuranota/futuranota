@@ -294,23 +294,13 @@ function Dashboard({ company, onBack }) {
       const node = canvasNodes.find((n) => n.id === canvasNodeId);
       if (!node) return true;
       const docId = resolveParentDocIdForCanvasNode(node, nodeEntities, docs);
-      const doc = docId ? docs[docId] : null;
-      if (isKnowledgeDoc(doc)) return true;
+      if (isKnowledgeDoc(docId ? docs[docId] : null)) return true;
       if (!timelineQueueMode) return true;
-      // Date/launch markers can be selected even when their parent folder is already queued.
-      if (isTimelineDateCanvasNode(node)) {
-        if (timelineDateNodeIds.includes(node.id)) {
-          setToast({
-            message: "Date is already on the timeline",
-            kind: "warm",
-          });
-          return false;
-        }
-        return true;
-      }
-      if (docId && timelineDocQueue.includes(docId)) {
+      // Date/launch already pinned: block re-pick. Folder docs already queued stay
+      // markable so host+guest batches work when the host is already on the rail.
+      if (isTimelineDateCanvasNode(node) && timelineDateNodeIds.includes(node.id)) {
         setToast({
-          message: `"${doc?.title || "Document"}" is already on the timeline`,
+          message: "Date is already on the timeline",
           kind: "warm",
         });
         return false;
@@ -322,10 +312,16 @@ function Dashboard({ company, onBack }) {
       canvasNodes,
       nodeEntities,
       docs,
-      timelineDocQueue,
       timelineDateNodeIds,
     ],
   );
+
+  const handleToggleTimelineQueueMode = useCallback(() => {
+    const turningOn = !useTimelineStore.getState().timelineQueueMode;
+    // Clear synchronously before mode flips so the next card click always marks.
+    if (turningOn) setSelection([]);
+    toggleTimelineQueueMode();
+  }, [toggleTimelineQueueMode]);
 
   const handleInsertToTimeline = useCallback(() => {
     if (!selection.length) return;
@@ -433,9 +429,10 @@ useEffect(() => {
 
   const prevTimelineQueueMode = useRef(timelineQueueMode);
   useEffect(() => {
-
     const wasQueue = prevTimelineQueueMode.current;
     prevTimelineQueueMode.current = timelineQueueMode;
+    // Leaving Select: collapse multi-picks back to a single free selection.
+    // (Enter clears synchronously in handleToggleTimelineQueueMode.)
     if (!wasQueue || timelineQueueMode) return;
     setSelection((sel) => {
       const filtered = filterSelectableCanvasNodeIds(sel, canvasNodes, nodeEntities, docs);
@@ -1527,7 +1524,7 @@ useEffect(() => {
             objectsById={objects}
             timelineQueueMode={timelineQueueMode}
             timelineSelectEnabled={!knowledgeFolderActive}
-            onToggleTimelineQueueMode={toggleTimelineQueueMode}
+            onToggleTimelineQueueMode={handleToggleTimelineQueueMode}
             onInsertToTimeline={handleInsertToTimeline}
             heldObjectId={heldObjectId}
             heldObjectName={heldObjectName}

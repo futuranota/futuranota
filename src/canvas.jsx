@@ -313,6 +313,8 @@ function CanvasNode({
     const startY = e.clientY;
     const wasSelected = selected;
 
+    // Select/timeline pick: mark on press so the badge appears even if the
+    // pointerup path is interrupted. Free mode keeps single-select on press.
     if (!wasSelected) {
       onAddToSelection(node.id);
     }
@@ -321,6 +323,8 @@ function CanvasNode({
     const offX = world.x - node.x;
     const offY = world.y - node.y;
     const move = (ev) => {
+      // While picking for timeline, keep cards still — drag fights multi-mark.
+      if (timelineQueueMode) return;
       const w = getWorldFromClient(ev.clientX, ev.clientY);
       onMove(node.id, w.x - offX, w.y - offY);
     };
@@ -329,8 +333,14 @@ function CanvasNode({
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       const dist = Math.hypot(ev.clientX - startX, ev.clientY - startY);
-      if (dist < TAP_THRESHOLD && wasSelected && timelineQueueMode) {
-        onTapToggle(node.id);
+      if (dist >= TAP_THRESHOLD) return;
+      if (timelineQueueMode) {
+        if (wasSelected) {
+          onTapToggle(node.id);
+        } else {
+          // Re-assert mark if press-time add lost a race with Select toggle.
+          onAddToSelection(node.id);
+        }
       }
     };
     window.addEventListener('pointermove', move);
@@ -784,6 +794,8 @@ function CanvasNode({
             title={displayTitle}
             onClick={(e) => {
               e.stopPropagation();
+              // While Select (timeline pick) is on, clicks only mark — don't enter title edit.
+              if (timelineQueueMode) return;
               if (canEditCanvasTitle) setEditing("title");
             }}
           >
@@ -1366,13 +1378,6 @@ function BlueprintCanvas({
         nodeEntitiesById,
         docsById,
       );
-      if (effectiveTimelineQueueMode) {
-        if (selectedNodeIds.length > 1) {
-          onTimelineCanvasSelectMany?.(selectedNodeIds);
-        } else if (selectedNodeIds.length === 1) {
-          onTimelineCanvasSelect?.(selectedNodeIds[0]);
-        }
-      }
       if (!effectiveTimelineQueueMode && selectedNodeIds.length > 1) {
         selectedNodeIds = [selectedNodeIds[selectedNodeIds.length - 1]];
       }
@@ -1380,7 +1385,13 @@ function BlueprintCanvas({
         .map((s, idx) => (rectIntersectsStroke(rect, s) ? idx : -1))
         .filter((idx) => idx >= 0);
       if (effectiveTimelineQueueMode && selectedNodeIds.length > 0) {
-        setSelection((prev) => [...new Set([...prev, ...selectedNodeIds])]);
+        // Gate each id (already-on-timeline) before accumulating picks.
+        const allowedIds = selectedNodeIds.filter(
+          (id) => onTimelineCanvasSelect?.(id) !== false,
+        );
+        if (allowedIds.length > 0) {
+          setSelection((prev) => [...new Set([...prev, ...allowedIds])]);
+        }
       } else {
         setSelection(selectedNodeIds);
       }

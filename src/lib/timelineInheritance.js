@@ -134,6 +134,7 @@ export function resolveHostGuestSides(classified) {
 
 /**
  * List directed inheritance links under the active Corpus authority.
+ * Live canvas wires ∪ persisted guest links (survive canvas delete).
  * @param {object} params
  * @returns {Array<object>}
  */
@@ -144,6 +145,7 @@ export function listInheritanceLinks({
   nodeEntitiesById = {},
   objectsById = {},
   primaryObjectId = null,
+  timelineGuestLinks = [],
 } = {}) {
   if (!primaryObjectId) return [];
   const classified = buildClassifiedConnections(
@@ -167,6 +169,27 @@ export function listInheritanceLinks({
     seen.add(key);
     links.push(sides);
   }
+
+  // Persisted Insert-time links — keep guest chips after canvas wire/chip delete.
+  for (const raw of timelineGuestLinks || []) {
+    if (!raw || raw.hostObjectId !== primaryObjectId) continue;
+    const kind = raw.kind || CONNECTION_KIND_CROSS_FAMILY_DOC;
+    const key = `${kind}::${raw.hostDocId || raw.hostNodeId || ""}::${raw.guestDocId || raw.guestNodeId || ""}`;
+    if (!key || seen.has(key)) continue;
+    if (!raw.hostDocId && !raw.hostNodeId) continue;
+    if (!raw.guestDocId && !raw.guestNodeId) continue;
+    seen.add(key);
+    links.push({
+      kind,
+      hostObjectId: raw.hostObjectId,
+      guestObjectId: raw.guestObjectId || null,
+      hostDocId: raw.hostDocId || null,
+      guestDocId: raw.guestDocId || null,
+      hostNodeId: raw.hostNodeId || null,
+      guestNodeId: raw.guestNodeId || null,
+      connectionId: raw.connectionId || null,
+    });
+  }
   return links;
 }
 
@@ -187,6 +210,7 @@ export function buildGuestInheritanceProjections({
   timelineDocQueue = [],
   timelineDateNodeIds = [],
   timelineDateSnapshotsById = {},
+  timelineGuestLinks = [],
 } = {}) {
   const queued = new Set(timelineDocQueue || []);
   const links = listInheritanceLinks({
@@ -196,6 +220,7 @@ export function buildGuestInheritanceProjections({
     nodeEntitiesById,
     objectsById,
     primaryObjectId,
+    timelineGuestLinks,
   });
 
   /** @type {object[]} */

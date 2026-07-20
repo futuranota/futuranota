@@ -23,8 +23,21 @@ import {
   replaceCampaignFoldersInTimelineQueue,
   syncCampaignFolderLaunchDateQueue,
 } from "../lib/campaignDocSource.js";
+import { buildTimelineGuestLinksFromConnections } from "../lib/timelineGuestLinks.js";
 import { useDocsStore } from "./docsStore.js";
 import { useNodesStore } from "./nodesStore.js";
+
+/** Drop persisted guest links that reference any of the given doc ids. */
+function pruneGuestLinksByDocIds(linksById, docIds) {
+  const drop = new Set((docIds || []).filter(Boolean));
+  if (!drop.size) return linksById || {};
+  const next = {};
+  for (const [id, link] of Object.entries(linksById || {})) {
+    if (drop.has(link?.hostDocId) || drop.has(link?.guestDocId)) continue;
+    next[id] = link;
+  }
+  return next;
+}
 
 const TIMELINE_ALERTS_KEY = "futura-timeline-alerts";
 
@@ -66,6 +79,8 @@ export const useTimelineStore = create(
       timelineDateNodeIds: [],
       /** Persisted date/Launch payloads — survive canvas delete until × or switch. */
       timelineDateSnapshotsById: {},
+      /** Host→guest folder links captured at Insert — survive canvas wire/chip delete. */
+      timelineGuestLinksById: {},
       /** Cognitive snapshot mode (Trace Funix) — Intel / mixed doc+object queries. */
       traceFunixMode: false,
       /** Fase 2: cross-family doc links + timeline inherit (Bloque A). */
@@ -329,6 +344,7 @@ export const useTimelineStore = create(
         timelineAgentSets: [],
         timelineDateNodeIds: [],
         timelineDateSnapshotsById: {},
+        timelineGuestLinksById: {},
         tacticalRangeOverride: null,
         tacticalLoupe: null,
         tacticalPairStretches: [],
@@ -443,6 +459,10 @@ export const useTimelineStore = create(
             expandedDocIds: state.expandedDocIds.filter((id) => id !== docId),
             timelineDateNodeIds: state.timelineDateNodeIds.filter((id) => !dropDateIds.has(id)),
             timelineDateSnapshotsById: nextDateSnaps,
+            timelineGuestLinksById: pruneGuestLinksByDocIds(
+              state.timelineGuestLinksById,
+              [docId],
+            ),
           };
         });
       },
@@ -805,6 +825,24 @@ export const useTimelineStore = create(
 
         pruneDateSnapshotsToIds();
 
+        // Capture cross-family host→guest links so guest strips survive canvas delete.
+        let guestLinksById = { ...(get().timelineGuestLinksById || {}) };
+        if (removedCampaignIds.length) {
+          guestLinksById = pruneGuestLinksByDocIds(guestLinksById, removedCampaignIds);
+        }
+        const capturedGuestLinks = buildTimelineGuestLinksFromConnections({
+          connections,
+          canvasNodes,
+          docsById: liveDocsById,
+          nodeEntitiesById,
+          objectsById,
+          touchedDocIds: [...touchedDocIds],
+        });
+        for (const link of capturedGuestLinks) {
+          if (!link?.id) continue;
+          guestLinksById[link.id] = link;
+        }
+
         set({
           timelineDocQueue: queue,
           timelineDocQueueFocusByDocId: focusByDocId,
@@ -813,6 +851,7 @@ export const useTimelineStore = create(
           timelineAgentSets: nextAgentSets,
           timelineDateNodeIds: [...dateNodeIds],
           timelineDateSnapshotsById: dateSnapshotsById,
+          timelineGuestLinksById: guestLinksById,
           expandedDocIds: nextExpanded,
           // Fresh auto zoom after insert — avoids collapsed month snap / stale stretch.
           tacticalRangeOverride: null,

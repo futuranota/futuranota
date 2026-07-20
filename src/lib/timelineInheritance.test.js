@@ -324,4 +324,40 @@ describe("cross-family folder inheritance", () => {
     );
     expect(withLaunch.toISOString()).toBe("2026-08-01T12:00:00.000Z");
   });
+
+  it("keeps guest folder from persisted links after canvas wire/chip delete", () => {
+    // Host chip + Launch remain; guest chip and cross-family wire are gone.
+    const hostOnlyNodes = canvasNodes.filter((n) => n.id !== "cn-fn");
+    const projections = buildGuestInheritanceProjections({
+      connections: [],
+      canvasNodes: hostOnlyNodes,
+      docsById,
+      nodeEntitiesById: {},
+      objectsById,
+      primaryObjectId: "home",
+      timelineDocQueue: ["hdFolder"],
+      timelineDateNodeIds: ["cn-hd-launch"],
+      timelineGuestLinks: [{
+        id: "cross-family-doc::hdFolder::fnFolder",
+        kind: "cross-family-doc",
+        hostObjectId: "home",
+        guestObjectId: "futura",
+        hostDocId: "hdFolder",
+        guestDocId: "fnFolder",
+        hostNodeId: "cn-hd",
+        guestNodeId: "cn-fn",
+        connectionId: "c1",
+      }],
+    });
+
+    expect(projections.guestFolderMarkers).toHaveLength(1);
+    expect(projections.guestFolderMarkers[0]).toMatchObject({
+      docId: "fnFolder",
+      inherited: true,
+      virtual: true,
+      inheritedFromDocId: "hdFolder",
+      nodeId: "inherit-guest-fnFolder",
+    });
+    expect(projections.guestLaunchMarkers.length).toBeGreaterThanOrEqual(1);
+  });
 });

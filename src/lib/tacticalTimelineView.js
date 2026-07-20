@@ -1094,6 +1094,7 @@ export function buildTacticalObjectRows(params) {
   timelineAgentSets = [],
   timelineDateNodeIds = [],
   timelineDateSnapshotsById = {},
+  timelineGuestLinksById = {},
   expandedDocIds = [],
     today = new Date(),
     filterObjectId = null,
@@ -1307,6 +1308,7 @@ export function buildTacticalObjectRows(params) {
         timelineDocQueue,
         timelineDateNodeIds,
         timelineDateSnapshotsById,
+        timelineGuestLinks: Object.values(timelineGuestLinksById || {}),
       });
       const guestsByDoc = new Map();
       for (const marker of projections.guestFolderMarkers) {

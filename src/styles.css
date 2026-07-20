@@ -2194,6 +2194,7 @@ textarea.field {
 /* ── canvas node ──────────────────────────────── */
 .cnode {
   position: absolute;
+  z-index: 5;
   background: color-mix(in oklab, var(--panel-solid) 80%, transparent);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   backdrop-filter: blur(12px) saturate(140%);

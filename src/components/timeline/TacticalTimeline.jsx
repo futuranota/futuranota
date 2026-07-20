@@ -841,6 +841,7 @@ export function TacticalTimeline({
   const timelineAgentSets = useTimelineStore((s) => s.timelineAgentSets);
   const timelineDateNodeIds = useTimelineStore((s) => s.timelineDateNodeIds);
   const timelineDateSnapshotsById = useTimelineStore((s) => s.timelineDateSnapshotsById);
+  const timelineGuestLinksById = useTimelineStore((s) => s.timelineGuestLinksById);
   const timelineSheet = useUIStateStore((s) => s.timelineSheet);
   const toggleTimelineSheet = useUIStateStore((s) => s.toggleTimelineSheet);
   const isSheetExpanded = timelineSheet === "expanded";
@@ -903,6 +904,7 @@ export function TacticalTimeline({
       timelineAgentSets,
       timelineDateNodeIds,
       timelineDateSnapshotsById,
+      timelineGuestLinksById,
       expandedDocIds,
       today: now,
       filterObjectId,
@@ -925,6 +927,7 @@ export function TacticalTimeline({
       timelineAgentSets,
       timelineDateNodeIds,
       timelineDateSnapshotsById,
+      timelineGuestLinksById,
       expandedDocIds,
       now,
       filterObjectId,
