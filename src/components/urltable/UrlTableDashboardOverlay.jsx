@@ -31,7 +31,7 @@ export function UrlTableDashboardOverlay({
   draftRef.current = draft;
 
   const sessionKey = session
-    ? `${session.objectId ?? ""}:${session.docId ?? ""}:${session.blockId}`
+    ? `${session.objectId ?? ""}:${session.tableId ?? ""}:${session.blockId}`
     : "";
 
   useEffect(() => {
@@ -52,6 +52,7 @@ export function UrlTableDashboardOverlay({
   if (!session) return null;
 
   const objectId = session.objectId;
+  const tableId = session.tableId;
 
   const commitDraftIfReady = (currentEntries) => {
     const currentDraft = draftRef.current;
@@ -74,10 +75,13 @@ export function UrlTableDashboardOverlay({
       console.warn("[url-table] Row Save skipped: missing company objectId");
       return;
     }
-    const stored = queueUrlTableEntry(objectId, entry);
+    const stored = queueUrlTableEntry(objectId, entry, tableId);
     if (!stored) return;
-    const fromStore = useUrlTableStore.getState().getEntriesForObject(objectId);
+    const fromStore = tableId
+      ? useUrlTableStore.getState().getEntriesForTable(tableId)
+      : useUrlTableStore.getState().getEntriesForObject(objectId);
     onChange?.({
+      tableId: stored.tableId || tableId,
       entries: fromStore.map((item) => ({
         id: item.id,
         name: item.name,
@@ -112,17 +116,26 @@ export function UrlTableDashboardOverlay({
     setAddFormRequest((value) => value + 1);
   };
 
+  const titleLabel = String(session.title ?? "").trim() || t("pack.urlTableTitle");
+
   return createPortal(
     <div
       className="url-table-page-overlay"
       role="dialog"
       aria-modal="true"
-      aria-label={t("pack.urlTableTitle")}
+      aria-label={titleLabel}
     >
       <div className="url-table-page-overlay__backdrop" aria-hidden />
       <div className="url-table-page-overlay__shell">
         <header className="url-table-page-overlay__header">
-          <h2 className="url-table-page-overlay__title">{t("pack.urlTableTitle")}</h2>
+          <input
+            type="text"
+            className="url-table-page-overlay__title-input"
+            value={session.title ?? ""}
+            onChange={(e) => onChange?.({ title: e.target.value, saved: false })}
+            placeholder={t("urlTableLibrary.titlePlaceholder")}
+            aria-label={t("urlTableLibrary.titlePlaceholder")}
+          />
           <div className="url-table-page-overlay__search-wrap">
             <span className="url-table-page-overlay__search-icon" aria-hidden />
             <input

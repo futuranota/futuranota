@@ -36,8 +36,10 @@ export function LinkVaultBlockView({
   const draft = isDraftControlled ? controlledDraft : uncontrolledDraft;
   const setDraft = isDraftControlled ? onDraftChange : setUncontrolledDraft;
   const [isAdding, setIsAdding] = useState(entries.length === 0);
+  const [openPicker, setOpenPicker] = useState(/** @type {null|'tag'|'category'} */ (null));
   const nameRef = useRef(null);
   const descRef = useRef(null);
+  const pickerRef = useRef(null);
   const draftRef = useRef(draft);
   const entriesRef = useRef(entries);
   draftRef.current = draft;
@@ -168,7 +170,109 @@ export function LinkVaultBlockView({
     if (!next) return;
     setIsAdding(true);
     setDraft((prev) => ({ ...prev, [field]: next }));
+    setOpenPicker(null);
   }, [setDraft]);
+
+  const uniqueTags = useMemo(() => {
+    const seen = new Set();
+    const values = [];
+    for (const entry of entries) {
+      const value = String(entry.tag ?? "").trim();
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      values.push(value);
+    }
+    return values.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [entries]);
+
+  const uniqueCategories = useMemo(() => {
+    const seen = new Set();
+    const values = [];
+    for (const entry of entries) {
+      const value = String(entry.category ?? "").trim();
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      values.push(value);
+    }
+    return values.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  }, [entries]);
+
+  useEffect(() => {
+    if (!openPicker) return undefined;
+    const onPointerDown = (event) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (pickerRef.current?.contains(target)) return;
+      setOpenPicker(null);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setOpenPicker(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [openPicker]);
+
+  const renderColumnPicker = (field, label, values, emptyLabel) => {
+    const isOpen = openPicker === field;
+    return (
+      <div
+        className={
+          "doc-vault-block__col-picker"
+          + (isOpen ? " is-open" : "")
+        }
+        ref={isOpen ? pickerRef : undefined}
+      >
+        <button
+          type="button"
+          className="doc-vault-block__col-picker-trigger"
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenPicker((prev) => (prev === field ? null : field));
+          }}
+        >
+          <span>{label}</span>
+          <span className="doc-vault-block__col-picker-chevron" aria-hidden />
+        </button>
+        {isOpen ? (
+          <div className="doc-vault-block__col-picker-menu" role="listbox" aria-label={label}>
+            {values.length ? (
+              values.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="option"
+                  className={
+                    "doc-vault-block__col-picker-item"
+                    + (field === "tag"
+                      ? " doc-vault-block__col-picker-item--tag"
+                      : " doc-vault-block__col-picker-item--category")
+                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    applyChipValue(field, value);
+                  }}
+                >
+                  {value}
+                </button>
+              ))
+            ) : (
+              <p className="doc-vault-block__col-picker-empty">{emptyLabel}</p>
+            )}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   const showAddForm = isAdding;
   const showAddButton = !hideAddButton && entries.length > 0 && !isAdding;
@@ -440,8 +544,8 @@ export function LinkVaultBlockView({
           <thead>
             <tr>
               <th>{L.name}</th>
-              <th>{L.tag}</th>
-              <th>{L.category}</th>
+              <th>{renderColumnPicker("tag", L.tag, uniqueTags, "No tags yet")}</th>
+              <th>{renderColumnPicker("category", L.category, uniqueCategories, "No categories yet")}</th>
               <th>
                 <span className="doc-vault-block__th-with-icon">
                   <span className="doc-vault-block__th-icon doc-vault-block__th-icon--info" aria-hidden />

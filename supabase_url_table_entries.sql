@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.url_table_entries (
   category TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   url TEXT NOT NULL DEFAULT '',
+  table_id VARCHAR(50),
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS public.url_table_entries (
 CREATE INDEX IF NOT EXISTS url_table_entries_user_id_idx ON public.url_table_entries (user_id);
 CREATE INDEX IF NOT EXISTS url_table_entries_object_id_idx ON public.url_table_entries (object_id);
 CREATE INDEX IF NOT EXISTS url_table_entries_user_object_idx ON public.url_table_entries (user_id, object_id);
+CREATE INDEX IF NOT EXISTS url_table_entries_table_id_idx ON public.url_table_entries (table_id);
 
 ALTER TABLE public.url_table_entries ENABLE ROW LEVEL SECURITY;
 

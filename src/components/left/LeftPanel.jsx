@@ -64,6 +64,7 @@ import { PackActionsBar } from "../packs/PackActionsBar.jsx";
 import { ImportPackWizard } from "../packs/ImportPackWizard.jsx";
 import { StepsLibraryPanel } from "../steps/StepsLibraryPanel.jsx";
 import { LazyTodoQueuePanel } from "../lazyTodos/LazyTodoQueuePanel.jsx";
+import { UrlTableLibraryPanel } from "../urltable/UrlTableLibraryPanel.jsx";
 import { TranslatedText } from "../shared/TranslatedText.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
@@ -1570,6 +1571,8 @@ export function LeftPanel({
   onRunStepPlaybook,
   onOpenNewStepPlaybook,
   onOpenUrlTableForCompany,
+  onOpenUrlTableRef,
+  onOpenNewUrlTable,
   onOpenPasswordTableForCompany,
   onOpenNewLazyTodo,
   onOpenLazyTodoItem,
@@ -1596,6 +1599,7 @@ export function LeftPanel({
   const [packImportActive, setPackImportActive] = useState(false);
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
   const [lazyTodosActive, setLazyTodosActive] = useState(false);
+  const [urlTableLibraryActive, setUrlTableLibraryActive] = useState(false);
   const [leftPanelNavRestored, setLeftPanelNavRestored] = useState(false);
   const [folderBulkDeleteMode, setFolderBulkDeleteMode] = useState(false);
   const [selectedFolderIds, setSelectedFolderIds] = useState([]);
@@ -1804,6 +1808,7 @@ export function LeftPanel({
     setPackImportActive(false);
     setStepsLibraryActive(false);
     setLazyTodosActive(false);
+    setUrlTableLibraryActive(false);
     setProductCategoryFilter(null);
     setContentProductFilter(null);
   }, [panelType, filterObjectId, setProductCategoryFilter, setContentProductFilter]);
@@ -1812,6 +1817,7 @@ export function LeftPanel({
     setClickFolderView(null);
     setStepsLibraryActive(false);
     setLazyTodosActive(false);
+    setUrlTableLibraryActive(false);
     setPackImportActive(true);
   };
 
@@ -1823,6 +1829,7 @@ export function LeftPanel({
     setClickFolderView(null);
     setPackImportActive(false);
     setLazyTodosActive(false);
+    setUrlTableLibraryActive(false);
     setStepsLibraryActive(true);
   };
 
@@ -1834,11 +1841,24 @@ export function LeftPanel({
     setClickFolderView(null);
     setPackImportActive(false);
     setStepsLibraryActive(false);
+    setUrlTableLibraryActive(false);
     setLazyTodosActive(true);
   };
 
   const closeLazyTodosView = () => {
     setLazyTodosActive(false);
+  };
+
+  const openUrlTableLibraryView = () => {
+    setClickFolderView(null);
+    setPackImportActive(false);
+    setStepsLibraryActive(false);
+    setLazyTodosActive(false);
+    setUrlTableLibraryActive(true);
+  };
+
+  const closeUrlTableLibraryView = () => {
+    setUrlTableLibraryActive(false);
   };
 
   useEffect(() => {
@@ -1992,6 +2012,7 @@ export function LeftPanel({
     setPackImportActive(false);
     setStepsLibraryActive(false);
     setLazyTodosActive(false);
+    setUrlTableLibraryActive(false);
     setShowCreate(false);
     setFolderOpen(false);
   };
@@ -2027,11 +2048,13 @@ export function LeftPanel({
     if (targetObjectId) {
       if (!objectWorkspaceActive) {
         enterObjectWorkspace(targetObjectId);
+      } else {
+        setPanelType("Documents");
       }
-      onOpenUrlTableForCompany?.(targetObjectId);
-      return;
+    } else {
+      setPanelType("Documents");
     }
-    setPanelType("Documents");
+    openUrlTableLibraryView();
   };
 
   const openPasswordTableFromToolbar = () => {
@@ -2090,6 +2113,26 @@ export function LeftPanel({
 
   const handleNewLazyTodoFromQueue = () => {
     onOpenNewLazyTodo?.(filterObjectId || selectedObjectId);
+  };
+
+  const handleOpenUrlTableFromLibrary = (table) => {
+    onOpenUrlTableRef?.(table);
+  };
+
+  const handleNewUrlTableFromLibrary = () => {
+    onOpenNewUrlTable?.(filterObjectId || selectedObjectId);
+  };
+
+  const handleCopiedUrlTableFromLibrary = (session) => {
+    if (session) onOpenUrlTableRef?.({
+      id: session.tableId,
+      tableId: session.tableId,
+      title: session.title || "URL table",
+      preview: "",
+      entryCount: (session.entries || []).length,
+      objectId: session.objectId,
+      entries: session.entries || [],
+    });
   };
 
   const handleNewStepPlaybookFromLibrary = () => {
@@ -2586,6 +2629,16 @@ export function LeftPanel({
           />
         ) : null}
 
+        {panelType === "Documents" && urlTableLibraryActive && !objectWorkspaceActive ? (
+          <UrlTableLibraryPanel
+            objectId={filterObjectId}
+            onClose={closeUrlTableLibraryView}
+            onOpenTable={handleOpenUrlTableFromLibrary}
+            onNew={handleNewUrlTableFromLibrary}
+            onCopied={handleCopiedUrlTableFromLibrary}
+          />
+        ) : null}
+
         {/* DOCUMENTS — click folder navigation */}
         {panelType === "Documents" && objectWorkspaceActive && (
           <div className="lp-click-folders-stack">
@@ -2616,7 +2669,17 @@ export function LeftPanel({
               />
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === null ? (
+            {urlTableLibraryActive ? (
+              <UrlTableLibraryPanel
+                objectId={filterObjectId}
+                onClose={closeUrlTableLibraryView}
+                onOpenTable={handleOpenUrlTableFromLibrary}
+                onNew={handleNewUrlTableFromLibrary}
+                onCopied={handleCopiedUrlTableFromLibrary}
+              />
+            ) : null}
+
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === null ? (
               <>
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -2657,7 +2720,7 @@ export function LeftPanel({
               </>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "groups" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "groups" ? (
               <div className="lp-click-folder-detail">
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -2731,7 +2794,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "campaign" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "campaign" ? (
               <div className="lp-click-folder-detail">
                 <div className="lp-workspace-head">
                   <ClickFolderBack
@@ -2894,7 +2957,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "knowledge" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "knowledge" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -2927,7 +2990,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "agents" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "agents" ? (
               <div className="lp-click-folder-detail">
                 <ClickFolderBack
                   iconOnly
@@ -2946,7 +3009,7 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && clickFolderView === "subgroups" ? (
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "subgroups" ? (
               <div className="lp-click-folder-detail">
                 <div className="lp-workspace-head">
                   <ClickFolderBack

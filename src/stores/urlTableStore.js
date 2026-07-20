@@ -9,6 +9,7 @@ const STORAGE_KEY = "futuranota.urlTableEntries.v1";
  * @typedef {Object} UrlTableStoredEntry
  * @property {string} id
  * @property {string|null} objectId
+ * @property {string|null} tableId
  * @property {string} name
  * @property {string} tag
  * @property {string} category
@@ -52,6 +53,7 @@ function normalizeStoredEntry(entry) {
   return {
     id: String(entry?.id || link.id || generateId("LNK")),
     objectId: entry?.objectId ?? null,
+    tableId: entry?.tableId ?? null,
     name: link.name,
     tag: link.tag,
     category: link.category,
@@ -75,19 +77,21 @@ export const useUrlTableStore = create(
       },
 
       /**
-       * @param {string} objectId
+       * @param {string} tableId
+       * @param {string|null} objectId
        * @param {import("../lib/vaultBlocks.js").LinkEntry} entry
        * @returns {UrlTableStoredEntry|null}
        */
-      addEntry: (objectId, entry) => {
-        if (!objectId || !entry) return null;
+      addEntry: (tableId, objectId, entry) => {
+        if (!tableId || !entry) return null;
         const normalizedLinks = normalizeLinkEntries([entry]);
         if (!normalizedLinks.length) return null;
 
         const now = new Date().toISOString();
         const nextEntry = normalizeStoredEntry({
           ...normalizedLinks[0],
-          objectId,
+          tableId,
+          objectId: objectId ?? null,
           createdAt: now,
           updatedAt: now,
         });
@@ -121,7 +125,63 @@ export const useUrlTableStore = create(
       },
 
       /**
-       * Replace all entries for one company (overlay Save).
+       * Replace all entries for one table.
+       * @param {string} tableId
+       * @param {string|null} objectId
+       * @param {import("../lib/vaultBlocks.js").LinkEntry[]} nextEntries
+       */
+      replaceEntriesForTable: (tableId, objectId, nextEntries) => {
+        if (!tableId) return;
+        const now = new Date().toISOString();
+        const existingById = new Map(
+          get().entries
+            .filter((entry) => entry.tableId === tableId)
+            .map((entry) => [entry.id, entry]),
+        );
+
+        const normalized = normalizeLinkEntries(nextEntries || []).map((entry) => {
+          const prev = existingById.get(entry.id);
+          return normalizeStoredEntry({
+            ...entry,
+            tableId,
+            objectId: objectId ?? prev?.objectId ?? null,
+            createdAt: prev?.createdAt || now,
+            updatedAt: now,
+          });
+        });
+
+        set((state) => {
+          const others = state.entries.filter((entry) => entry.tableId !== tableId);
+          const entries = [...others, ...normalized];
+          persistEntries(entries);
+          return { entries };
+        });
+      },
+
+      /** Remove every entry belonging to a table. */
+      removeEntriesForTable: (tableId) => {
+        if (!tableId) return;
+        set((state) => {
+          const entries = state.entries.filter((entry) => entry.tableId !== tableId);
+          persistEntries(entries);
+          return { entries };
+        });
+      },
+
+      /** @param {string|null} tableId */
+      getEntriesForTable: (tableId) => {
+        if (!tableId) return [];
+        return get().entries.filter((entry) => entry.tableId === tableId);
+      },
+
+      /** @deprecated Prefer getEntriesForTable — kept for slash/migration helpers */
+      getEntriesForObject: (objectId) => {
+        if (!objectId) return [];
+        return get().entries.filter((entry) => entry.objectId === objectId);
+      },
+
+      /**
+       * @deprecated Prefer replaceEntriesForTable
        * @param {string} objectId
        * @param {import("../lib/vaultBlocks.js").LinkEntry[]} nextEntries
        */
@@ -139,6 +199,7 @@ export const useUrlTableStore = create(
           return normalizeStoredEntry({
             ...entry,
             objectId,
+            tableId: prev?.tableId ?? entry.tableId ?? null,
             createdAt: prev?.createdAt || now,
             updatedAt: now,
           });
@@ -150,12 +211,6 @@ export const useUrlTableStore = create(
           persistEntries(entries);
           return { entries };
         });
-      },
-
-      /** @param {string|null} objectId */
-      getEntriesForObject: (objectId) => {
-        if (!objectId) return [];
-        return get().entries.filter((entry) => entry.objectId === objectId);
       },
     }),
     { name: "UrlTableStore" },

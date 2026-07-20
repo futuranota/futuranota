@@ -10,6 +10,9 @@ import { useLazyTodosStore } from "./lazyTodosStore.js";
 import { initLazyTodosSync } from "../lib/lazyTodosSync.js";
 import { useUrlTableStore } from "./urlTableStore.js";
 import { initUrlTableSync } from "../lib/urlTableSync.js";
+import { useUrlTablesStore } from "./urlTablesStore.js";
+import { initUrlTablesSync } from "../lib/urlTablesSync.js";
+import { migrateLocalUrlEntriesToTables } from "../lib/urlTableLibrary.js";
 import { usePasswordTableStore } from "./passwordTableStore.js";
 import { initPasswordTableSync } from "../lib/passwordTableSync.js";
 import { migrateVaultTablesFromCampaignDocs } from "../lib/migrateVaultTablesFromCampaigns.js";
@@ -30,7 +33,9 @@ export function initStores() {
 
   initPersistenceMiddleware(stores);
   initLazyTodosSync(useLazyTodosStore);
+  initUrlTablesSync(useUrlTablesStore);
   initUrlTableSync(useUrlTableStore);
+  migrateLocalUrlEntriesToTables();
   initPasswordTableSync(usePasswordTableStore);
   initSyncMiddleware();
 

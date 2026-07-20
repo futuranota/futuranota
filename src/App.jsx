@@ -49,10 +49,16 @@ import {
   stepPlaybookSessionHasContent,
 } from './lib/stepPlaybookSession.js';
 import {
+  loadCompanyUrlTableSession,
+  loadUrlTableSessionById,
+  createBlankUrlTableForObject,
+  migrateLocalUrlEntriesToTables,
+} from './lib/urlTableLibrary.js';
+import {
   persistUrlTableSessionAndFlush,
   setUrlTableQueueCallback,
+  urlTableSessionFromRef,
 } from './lib/urlTableSession.js';
-import { loadCompanyUrlTableSession } from './lib/urlTableLibrary.js';
 import {
   persistPasswordTableSessionAndFlush,
   setPasswordTableQueueCallback,
@@ -1196,8 +1202,23 @@ useEffect(() => {
 
   const handleOpenUrlTableForCompany = useCallback((objectId) => {
     if (!objectId) return;
+    migrateLocalUrlEntriesToTables();
     setActiveUrlTableSession(loadCompanyUrlTableSession(objectId, t('urlTableLibrary.newDocTitle')));
   }, [t]);
+
+  const handleOpenUrlTableRef = useCallback((table) => {
+    if (!table) return;
+    const session = table.tableId || table.id
+      ? loadUrlTableSessionById(table.tableId || table.id)
+      : urlTableSessionFromRef(table);
+    setActiveUrlTableSession(session);
+  }, []);
+
+  const handleOpenNewUrlTable = useCallback((objectId) => {
+    if (!objectId) return;
+    const session = createBlankUrlTableForObject(objectId, "");
+    if (session) setActiveUrlTableSession(session);
+  }, []);
 
   const handleOpenPasswordTableForCompany = useCallback((objectId) => {
     if (!objectId) return;
@@ -1243,8 +1264,21 @@ useEffect(() => {
     setUrlTableQueueCallback((objectId, entry) => {
       setActiveUrlTableSession((current) => {
         if (!current || current.objectId !== objectId) return current;
+        if (current.tableId && entry.tableId && current.tableId !== entry.tableId) return current;
         if (current.entries.some((item) => item.id === entry.id)) return current;
-        return { ...current, entries: [...current.entries, entry], saved: false };
+        return {
+          ...current,
+          tableId: current.tableId || entry.tableId || null,
+          entries: [...current.entries, {
+            id: entry.id,
+            name: entry.name,
+            tag: entry.tag,
+            category: entry.category,
+            description: entry.description,
+            url: entry.url,
+          }],
+          saved: false,
+        };
       });
     });
     return () => setUrlTableQueueCallback(null);
@@ -1515,6 +1549,8 @@ useEffect(() => {
             onRunStepPlaybook={handleRunStepPlaybook}
             onOpenNewStepPlaybook={handleOpenNewStepPlaybook}
             onOpenUrlTableForCompany={handleOpenUrlTableForCompany}
+            onOpenUrlTableRef={handleOpenUrlTableRef}
+            onOpenNewUrlTable={handleOpenNewUrlTable}
             onOpenPasswordTableForCompany={handleOpenPasswordTableForCompany}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}

@@ -61,7 +61,11 @@ export async function migrateVaultTablesFromCampaignDocs({
       );
       for (const entry of entries) {
         if (existingIds.has(entry.id)) continue;
-        const added = urlStore.addEntry(objectId, entry);
+        const { ensureDefaultUrlTable } = await import("./urlTableLibrary.js");
+        const table = ensureDefaultUrlTable(objectId);
+        const added = table
+          ? urlStore.addEntry(table.id, objectId, entry)
+          : null;
         if (added) {
           existingIds.add(added.id);
           urlMigrated += 1;
@@ -74,7 +78,10 @@ export async function migrateVaultTablesFromCampaignDocs({
     }
 
     if (urlMigrated > 0) {
-      await flushUrlTableSync();
+      await Promise.all([
+        flushUrlTableSync(),
+        import("./urlTablesSync.js").then((m) => m.flushUrlTablesSync()),
+      ]);
     }
     markMigrated(URL_MIGRATION_KEY);
   }

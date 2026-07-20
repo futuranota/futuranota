@@ -48,10 +48,12 @@ export function formatSupabaseError(error, action) {
   if (error.code === 'PGRST204' || msg.includes('schema cache') || msg.includes('does not exist')) {
     const repair = msg.includes('lazy_todos')
       ? 'supabase_lazy_todos.sql'
-      : msg.includes('url_table_entries') || msg.includes('password_table_entries')
+      : msg.includes('url_table_entries') || msg.includes('url_tables') || msg.includes('password_table_entries')
       ? (msg.includes('foreign key') || msg.includes('23503')
         ? 'supabase_vault_tables_repair_fk.sql'
-        : msg.includes('url_table_entries')
+        : msg.includes('url_tables') || msg.includes('table_id')
+          ? 'supabase_url_tables.sql'
+          : msg.includes('url_table_entries')
           ? (msg.includes('tag') || msg.includes('category')
             ? 'supabase_url_table_entries_tag_category.sql'
             : 'supabase_url_table_entries.sql')

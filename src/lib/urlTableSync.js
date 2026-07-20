@@ -27,6 +27,7 @@ function rowToEntry(row) {
   return {
     id: String(row.id || generateId("LNK")),
     objectId: row.object_id ?? null,
+    tableId: row.table_id ?? null,
     name: String(row.name ?? ""),
     tag: String(row.tag ?? ""),
     category: String(row.category ?? ""),
@@ -47,6 +48,7 @@ function entryToRow(entry, userId, now) {
     id: entry.id,
     user_id: userId,
     object_id: entry.objectId || null,
+    table_id: entry.tableId || null,
     name: entry.name ?? "",
     tag: entry.tag ?? "",
     category: entry.category ?? "",

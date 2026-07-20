@@ -700,8 +700,10 @@ export const messages = {
     },
     urlTableLibrary: {
       searchPlaceholder: "Search name, tag, category, description or URL…",
+      searchTablesPlaceholder: "Search URL tables…",
       addRow: "Add link",
       new: "New",
+      copy: "Copy",
       newDocTitle: "URL table",
       defaultTitle: "URL table",
       closeTab: "Close",

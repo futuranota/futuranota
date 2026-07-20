@@ -1,7 +1,10 @@
 import { useUrlTableStore } from "../stores/urlTableStore.js";
+import { useUrlTablesStore } from "../stores/urlTablesStore.js";
 import { flushUrlTableSync } from "./urlTableSync.js";
+import { flushUrlTablesSync } from "./urlTablesSync.js";
 import { normalizeLinkEntries } from "./vaultBlocks.js";
 import { generateId } from "./ids.js";
+import { ensureDefaultUrlTable } from "./urlTableLibrary.js";
 
 /** @type {((objectId: string, entry: import("./vaultBlocks.js").LinkEntry) => void)|null} */
 let urlTableQueueCallback = null;
@@ -16,6 +19,7 @@ export function setUrlTableQueueCallback(callback) {
 /**
  * @typedef {Object} UrlTableSession
  * @property {string|null} objectId
+ * @property {string|null} tableId
  * @property {string|null} docId
  * @property {string} blockId
  * @property {string} title
@@ -25,11 +29,13 @@ export function setUrlTableQueueCallback(callback) {
 
 /**
  * @param {string|null} objectId
+ * @param {string|null} [tableId]
  * @returns {UrlTableSession}
  */
-export function createBlankUrlTableSession(objectId = null) {
+export function createBlankUrlTableSession(objectId = null, tableId = null) {
   return {
     objectId,
+    tableId,
     docId: null,
     blockId: generateId("BLK"),
     title: "",
@@ -45,8 +51,9 @@ export function createBlankUrlTableSession(objectId = null) {
 export function urlTableSessionFromRef(ref) {
   return {
     objectId: ref.objectId ?? null,
-    docId: ref.docId ?? null,
-    blockId: ref.blockId || generateId("BLK"),
+    tableId: ref.tableId || ref.id || null,
+    docId: null,
+    blockId: generateId("BLK"),
     title: ref.title === "URL table" ? "" : (ref.title || ""),
     entries: (ref.entries || []).map((entry) => ({ ...entry })),
     saved: true,
@@ -61,56 +68,73 @@ export function urlTableSessionHasContent(session) {
 }
 
 /**
- * Persist overlay session into the SQL-backed url table store.
+ * Persist overlay session into stores (table meta + entries).
  * @param {UrlTableSession} session
- * @returns {{ objectId: string|null, entryCount: number }}
  */
 export function persistUrlTableSession(session) {
   const objectId = session?.objectId || null;
+  let tableId = session?.tableId || null;
   if (!objectId) {
-    return { objectId: null, entryCount: 0 };
+    return { objectId: null, tableId: null, entryCount: 0 };
+  }
+
+  if (!tableId) {
+    const created = useUrlTablesStore.getState().createTable({
+      objectId,
+      title: session.title || "",
+    });
+    tableId = created.id;
+  } else {
+    useUrlTablesStore.getState().updateTable(tableId, {
+      title: session.title || "",
+      objectId,
+    });
   }
 
   const entries = normalizeLinkEntries(session.entries || []);
-  useUrlTableStore.getState().replaceEntriesForObject(objectId, entries);
-  return { objectId, entryCount: entries.length };
+  useUrlTableStore.getState().replaceEntriesForTable(tableId, objectId, entries);
+  return { objectId, tableId, entryCount: entries.length };
 }
 
 /**
- * Persist overlay session and flush to Supabase immediately.
  * @param {UrlTableSession} session
  */
 export async function persistUrlTableSessionAndFlush(session) {
   const result = persistUrlTableSession(session);
   if (result.objectId) {
-    await flushUrlTableSync();
+    await Promise.all([flushUrlTablesSync(), flushUrlTableSync()]);
   }
   return result;
 }
 
 /**
- * Append one link entry to the company URL table (SQL store).
+ * Append one link entry to a company URL table (default table if unspecified).
  * @param {string} objectId
  * @param {import("./vaultBlocks.js").LinkEntry} entry
- * @returns {import("../stores/urlTableStore.js").UrlTableStoredEntry|null}
+ * @param {string|null} [tableId]
  */
-export function appendEntryToCompanyUrlTable(objectId, entry) {
+export function appendEntryToCompanyUrlTable(objectId, entry, tableId = null) {
   if (!objectId || !entry) return null;
-  return useUrlTableStore.getState().addEntry(objectId, entry);
+  const table = tableId
+    ? useUrlTablesStore.getState().getTableById(tableId)
+    : ensureDefaultUrlTable(objectId);
+  if (!table) return null;
+  return useUrlTableStore.getState().addEntry(table.id, objectId, entry);
 }
 
 /**
- * Queue a link entry into the company URL table (SQL store) and flush to Supabase.
+ * Queue a link entry into the company default URL table and flush.
  * @param {string} objectId
  * @param {import("./vaultBlocks.js").LinkEntry} entry
+ * @param {string|null} [tableId]
  */
-export function queueUrlTableEntry(objectId, entry) {
+export function queueUrlTableEntry(objectId, entry, tableId = null) {
   if (!objectId || !entry) return null;
 
-  const result = appendEntryToCompanyUrlTable(objectId, entry);
+  const result = appendEntryToCompanyUrlTable(objectId, entry, tableId);
   if (result) {
     urlTableQueueCallback?.(objectId, result);
-    flushUrlTableSync().catch((err) => {
+    Promise.all([flushUrlTableSync(), flushUrlTablesSync()]).catch((err) => {
       console.warn("[url-table] flush after queue failed", err);
     });
   }
