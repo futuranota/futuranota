@@ -379,9 +379,13 @@ function Dashboard({ company, onBack }) {
   // Import Object: pin current company as Dashboard/Timeline target (indefinite toggle).
   const handleToggleObjectHold = useCallback(() => {
     if (heldObjectId) {
+      // Stay on the button company (pin). Sync filter/selection so after release
+      // dashboardObjectId does not fall through to sidebar browse (e.g. Home Depot).
+      const stayOn = heldObjectId;
       releaseObjectTarget();
-      const browsing = filterObjectId || selectedObjectId || null;
-      setCorpusTimelineAuthority(browsing);
+      useUIStateStore.getState().setFilterObjectId(stayOn);
+      useUIStateStore.getState().setSelectedObjectId(stayOn);
+      setCorpusTimelineAuthority(stayOn);
       return;
     }
     const target = filterObjectId || selectedObjectId || null;
