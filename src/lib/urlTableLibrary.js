@@ -100,6 +100,8 @@ export function filterUrlTableEntries(entries, query) {
 
   return entries.filter((entry) => (
     String(entry.name ?? "").toLowerCase().includes(normalized)
+    || String(entry.tag ?? "").toLowerCase().includes(normalized)
+    || String(entry.category ?? "").toLowerCase().includes(normalized)
     || String(entry.description ?? "").toLowerCase().includes(normalized)
     || String(entry.url ?? "").toLowerCase().includes(normalized)
   ));
@@ -165,6 +167,8 @@ export function loadCompanyUrlTableSession(objectId, defaultTitle = "URL table")
     entries: entries.map((entry) => ({
       id: entry.id,
       name: entry.name,
+      tag: entry.tag,
+      category: entry.category,
       description: entry.description,
       url: entry.url,
     })),
@@ -187,6 +191,8 @@ export function filterUrlTables(tables, query) {
     if (table.category.toLowerCase().includes(normalized)) return true;
     return table.entries.some((entry) => (
       String(entry.name ?? "").toLowerCase().includes(normalized)
+      || String(entry.tag ?? "").toLowerCase().includes(normalized)
+      || String(entry.category ?? "").toLowerCase().includes(normalized)
       || String(entry.description ?? "").toLowerCase().includes(normalized)
       || String(entry.url ?? "").toLowerCase().includes(normalized)
     ));

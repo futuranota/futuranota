@@ -699,7 +699,7 @@ export const messages = {
       deleteTitle: "Delete step by step",
     },
     urlTableLibrary: {
-      searchPlaceholder: "Search name, description or URL…",
+      searchPlaceholder: "Search name, tag, category, description or URL…",
       addRow: "Add link",
       new: "New",
       newDocTitle: "URL table",

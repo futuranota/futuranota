@@ -13,6 +13,8 @@ export function createLinkEntry(patch = {}) {
   return {
     id: patch.id || generateId("LNK"),
     name: patch.name || "",
+    tag: patch.tag || "",
+    category: patch.category || "",
     description: patch.description || "",
     url: patch.url || "",
   };

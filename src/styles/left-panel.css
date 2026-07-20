@@ -9176,14 +9176,14 @@ body.doc-content-resizing * {
 }
 
 .doc-vault-block__form--link {
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.1fr) auto;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.1fr) auto;
 }
 
 .doc-vault-block--link .doc-vault-block__form--link {
   align-items: start;
 }
 
-.doc-vault-block--link .doc-vault-block__table td:nth-child(2) {
+.doc-vault-block--link .doc-vault-block__table td:nth-child(4) {
   white-space: normal;
   word-break: break-word;
 }
@@ -9283,6 +9283,16 @@ body.doc-content-resizing * {
   letter-spacing: 0.2px;
   line-height: 1.3;
   color: #fff;
+  word-break: break-word;
+}
+
+.doc-vault-block--slash-stack .doc-vault-block__stack-meta {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  line-height: 1.35;
+  color: #7d7e81;
   word-break: break-word;
 }
 

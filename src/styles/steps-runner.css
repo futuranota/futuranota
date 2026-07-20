@@ -1026,14 +1026,18 @@
   color: rgba(255, 255, 255, 0.28);
 }
 
-/* Equal base widths for name / description / url */
+/* Equal base widths for name / tag / category / description / url */
 .url-table-dashboard .doc-vault-block__table th:nth-child(1),
 .url-table-dashboard .doc-vault-block__table td:nth-child(1),
 .url-table-dashboard .doc-vault-block__table th:nth-child(2),
 .url-table-dashboard .doc-vault-block__table td:nth-child(2),
 .url-table-dashboard .doc-vault-block__table th:nth-child(3),
-.url-table-dashboard .doc-vault-block__table td:nth-child(3) {
-  width: 31%;
+.url-table-dashboard .doc-vault-block__table td:nth-child(3),
+.url-table-dashboard .doc-vault-block__table th:nth-child(4),
+.url-table-dashboard .doc-vault-block__table td:nth-child(4),
+.url-table-dashboard .doc-vault-block__table th:nth-child(5),
+.url-table-dashboard .doc-vault-block__table td:nth-child(5) {
+  width: 18%;
 }
 
 /* Name column: white when saved, full wrap, left-aligned with cell padding */
@@ -1051,13 +1055,30 @@
   padding-right: 16px;
 }
 
-/* Description column: left-aligned (matches edit position) */
+/* Tag + Category columns */
 .url-table-dashboard .doc-vault-block__table th:nth-child(2),
-.url-table-dashboard .doc-vault-block__table td:nth-child(2) {
+.url-table-dashboard .doc-vault-block__table td:nth-child(2),
+.url-table-dashboard .doc-vault-block__table th:nth-child(3),
+.url-table-dashboard .doc-vault-block__table td:nth-child(3) {
   text-align: left;
 }
 
-.url-table-dashboard .doc-vault-block__table td:nth-child(2) {
+.url-table-dashboard .doc-vault-block__table td:nth-child(2),
+.url-table-dashboard .doc-vault-block__table td:nth-child(3) {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7d7e81;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Description column: left-aligned (matches edit position) */
+.url-table-dashboard .doc-vault-block__table th:nth-child(4),
+.url-table-dashboard .doc-vault-block__table td:nth-child(4) {
+  text-align: left;
+}
+
+.url-table-dashboard .doc-vault-block__table td:nth-child(4) {
   font-size: 12px;
   font-weight: 600;
   color: #7d7e81;
@@ -1066,8 +1087,8 @@
 }
 
 /* Link column: single line, left-aligned to match edit position */
-.url-table-dashboard .doc-vault-block__table th:nth-child(3),
-.url-table-dashboard .doc-vault-block__table td:nth-child(3) {
+.url-table-dashboard .doc-vault-block__table th:nth-child(5),
+.url-table-dashboard .doc-vault-block__table td:nth-child(5) {
   text-align: left;
   white-space: nowrap;
 }
@@ -1090,7 +1111,7 @@
 /* Add-form fields blend into the background — no box, no color, equal base */
 /* Add-form row inside the inset table surface */
 .url-table-dashboard .doc-vault-block__form--link {
-  grid-template-columns: 1fr 1fr 1fr auto;
+  grid-template-columns: 1fr 0.8fr 1fr 1.1fr 1.1fr auto;
   align-items: start;
   padding: 10px;
   border-top: 1px solid var(--url-table-stroke, #313338);

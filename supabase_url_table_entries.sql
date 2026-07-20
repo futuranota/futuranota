@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS public.url_table_entries (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   object_id VARCHAR(50),
   name TEXT NOT NULL DEFAULT '',
+  tag TEXT NOT NULL DEFAULT '',
+  category TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   url TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),

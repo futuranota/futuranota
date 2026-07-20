@@ -52,7 +52,9 @@ export function formatSupabaseError(error, action) {
       ? (msg.includes('foreign key') || msg.includes('23503')
         ? 'supabase_vault_tables_repair_fk.sql'
         : msg.includes('url_table_entries')
-          ? 'supabase_url_table_entries.sql'
+          ? (msg.includes('tag') || msg.includes('category')
+            ? 'supabase_url_table_entries_tag_category.sql'
+            : 'supabase_url_table_entries.sql')
           : 'supabase_password_table_entries.sql')
       : msg.includes('announcement_date')
       || msg.includes('detection_mode')

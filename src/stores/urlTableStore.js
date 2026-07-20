@@ -10,6 +10,8 @@ const STORAGE_KEY = "futuranota.urlTableEntries.v1";
  * @property {string} id
  * @property {string|null} objectId
  * @property {string} name
+ * @property {string} tag
+ * @property {string} category
  * @property {string} description
  * @property {string} url
  * @property {string} createdAt
@@ -51,6 +53,8 @@ function normalizeStoredEntry(entry) {
     id: String(entry?.id || link.id || generateId("LNK")),
     objectId: entry?.objectId ?? null,
     name: link.name,
+    tag: link.tag,
+    category: link.category,
     description: link.description,
     url: link.url,
     createdAt: entry?.createdAt || now,

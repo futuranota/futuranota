@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createLinkEntry, normalizeUrlInput } from "../../../lib/vaultBlocks.js";
 
-const EMPTY_DRAFT = { name: "", description: "", url: "" };
+const EMPTY_DRAFT = { name: "", tag: "", category: "", description: "", url: "" };
 const URL_FIELD_ICON = "/uploads/url-table.svg";
 
 const DEFAULT_LABELS = {
   name: "Name",
+  tag: "Tag",
+  category: "Category",
   description: "Description",
   url: "URL",
   save: "Save",
@@ -127,6 +129,8 @@ export function LinkVaultBlockView({
     if (!normalized) return entries;
     return entries.filter((entry) => (
       String(entry.name ?? "").toLowerCase().includes(normalized)
+      || String(entry.tag ?? "").toLowerCase().includes(normalized)
+      || String(entry.category ?? "").toLowerCase().includes(normalized)
       || String(entry.description ?? "").toLowerCase().includes(normalized)
       || String(entry.url ?? "").toLowerCase().includes(normalized)
     ));
@@ -198,6 +202,11 @@ export function LinkVaultBlockView({
                 <li key={entry.id} className="doc-vault-block__stack-entry">
                   <div className="doc-vault-block__stack-entry-body">
                     <span className="doc-vault-block__stack-name">{entry.name}</span>
+                    {(entry.tag || entry.category) ? (
+                      <span className="doc-vault-block__stack-meta">
+                        {[entry.tag, entry.category].filter(Boolean).join(" · ")}
+                      </span>
+                    ) : null}
                     {entry.description ? (
                       <span className="doc-vault-block__stack-description">{entry.description}</span>
                     ) : null}
@@ -234,6 +243,24 @@ export function LinkVaultBlockView({
                 value={draft.name}
                 placeholder={L.name}
                 onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+                onKeyDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+              <input
+                className="doc-vault-block__stack-field doc-vault-block__stack-field--tag"
+                type="text"
+                value={draft.tag ?? ""}
+                placeholder={L.tag}
+                onChange={(e) => setDraft((prev) => ({ ...prev, tag: e.target.value }))}
+                onKeyDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+              <input
+                className="doc-vault-block__stack-field doc-vault-block__stack-field--category"
+                type="text"
+                value={draft.category ?? ""}
+                placeholder={L.category}
+                onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value }))}
                 onKeyDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
               />
@@ -323,6 +350,8 @@ export function LinkVaultBlockView({
             <thead>
               <tr>
                 <th>{L.name}</th>
+                <th>{L.tag}</th>
+                <th>{L.category}</th>
                 <th>{L.description}</th>
                 <th>{L.url}</th>
                 <th aria-hidden />
@@ -332,6 +361,8 @@ export function LinkVaultBlockView({
               {visibleEntries.map((entry) => (
                 <tr key={entry.id} className="doc-vault-block__row">
                   <td>{entry.name}</td>
+                  <td>{entry.tag || <span className="doc-vault-block__empty">—</span>}</td>
+                  <td>{entry.category || <span className="doc-vault-block__empty">—</span>}</td>
                   <td>{entry.description || <span className="doc-vault-block__empty">—</span>}</td>
                   <td>
                     <a
@@ -373,6 +404,24 @@ export function LinkVaultBlockView({
             value={draft.name}
             placeholder={L.name}
             onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+            onKeyDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+          <input
+            className="doc-vault-block__input"
+            type="text"
+            value={draft.tag ?? ""}
+            placeholder={L.tag}
+            onChange={(e) => setDraft((prev) => ({ ...prev, tag: e.target.value }))}
+            onKeyDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+          <input
+            className="doc-vault-block__input"
+            type="text"
+            value={draft.category ?? ""}
+            placeholder={L.category}
+            onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value }))}
             onKeyDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           />

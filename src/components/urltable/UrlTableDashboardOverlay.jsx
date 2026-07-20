@@ -25,7 +25,7 @@ export function UrlTableDashboardOverlay({
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [addFormRequest, setAddFormRequest] = useState(0);
-  const [draft, setDraft] = useState({ name: "", description: "", url: "" });
+  const [draft, setDraft] = useState({ name: "", tag: "", category: "", description: "", url: "" });
   const [saving, setSaving] = useState(false);
   const draftRef = useRef(draft);
   draftRef.current = draft;
@@ -35,7 +35,7 @@ export function UrlTableDashboardOverlay({
     : "";
 
   useEffect(() => {
-    setDraft({ name: "", description: "", url: "" });
+    setDraft({ name: "", tag: "", category: "", description: "", url: "" });
     setQuery("");
   }, [sessionKey]);
 
@@ -64,7 +64,7 @@ export function UrlTableDashboardOverlay({
       ...currentDraft,
       url: normalizeUrlInput(currentDraft.url),
     });
-    setDraft({ name: "", description: "", url: "" });
+    setDraft({ name: "", tag: "", category: "", description: "", url: "" });
     return [...currentEntries, entry];
   };
 
@@ -81,12 +81,14 @@ export function UrlTableDashboardOverlay({
       entries: fromStore.map((item) => ({
         id: item.id,
         name: item.name,
+        tag: item.tag,
+        category: item.category,
         description: item.description,
         url: item.url,
       })),
       saved: true,
     });
-    setDraft({ name: "", description: "", url: "" });
+    setDraft({ name: "", tag: "", category: "", description: "", url: "" });
   };
 
   /** Footer Save: persist full table + close. */
@@ -165,7 +167,14 @@ export function UrlTableDashboardOverlay({
             filterQuery={query}
             draft={draft}
             onDraftChange={setDraft}
-            labels={{ name: "Name", description: "Description", url: "URL", save: "Save" }}
+            labels={{
+              name: "Name",
+              tag: "Tag",
+              category: "Category",
+              description: "Description",
+              url: "URL",
+              save: "Save",
+            }}
           />
         </div>
 
