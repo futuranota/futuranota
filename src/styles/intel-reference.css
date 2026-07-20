@@ -385,7 +385,16 @@
   font-optical-sizing: var(--font-doc-optical-sizing);
 }
 
-.note-taker__writing-stack .node-writing-block-stack__text:last-child .node-writing-text-field {
+/* contentFocusMode uses .doc-text-block__field (15px left); scroll already has
+   12px — zero the field inset so the caret matches docs (~15px), not double. */
+.note-taker__writing-stack .doc-text-block__field,
+.note-taker__writing-stack .doc-slash-field__input {
+  padding-left: 3px;
+  padding-right: 0;
+}
+
+.note-taker__writing-stack .node-writing-block-stack__text:last-child .node-writing-text-field,
+.note-taker__writing-stack .node-writing-block-stack__text:last-child .doc-text-block__field {
   min-height: 72px;
 }
 

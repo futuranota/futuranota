@@ -8,43 +8,65 @@ import { clearPendingProCheckout } from '../lib/pendingCheckout.js';
 import { clearLeftPanelNavSnapshot } from './uiStateStore.js';
 import { useObjectTargetHoldStore } from './objectTargetHoldStore.js';
 
-export const useAuthStore = create((set) => ({
+let authListenerBound = false;
+
+export const useAuthStore = create((set, get) => ({
   user: null,
   session: null,
   loading: true,
 
   init: async () => {
-    const onCallback = typeof window !== 'undefined'
-      && window.location.pathname === '/auth/callback';
+    const bindAuthListener = () => {
+      if (authListenerBound) return;
+      authListenerBound = true;
+      supabase.auth.onAuthStateChange((_event, nextSession) => {
+        set({ session: nextSession, user: nextSession?.user ?? null, loading: false });
+      });
+    };
 
-    if (!onCallback) {
-      try {
-        const { session: oauthSession, hadOAuthParams } = await resolveOAuthReturn();
-        if (oauthSession && hadOAuthParams) {
-          set({ session: oauthSession, user: oauthSession.user, loading: false });
-          supabase.auth.onAuthStateChange((_event, session) => {
-            set({ session, user: session?.user ?? null });
-          });
-          return;
+    try {
+      const onCallback = typeof window !== 'undefined'
+        && window.location.pathname === '/auth/callback';
+
+      if (!onCallback) {
+        try {
+          const { session: oauthSession, hadOAuthParams } = await resolveOAuthReturn();
+          if (oauthSession && hadOAuthParams) {
+            set({ session: oauthSession, user: oauthSession.user, loading: false });
+            return;
+          }
+        } catch (err) {
+          console.error('OAuth return failed:', err);
         }
-      } catch (err) {
-        console.error('OAuth return failed:', err);
       }
-    }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    let activeSession = session;
-    const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
-    const expiresSoon = expiresAt > 0 && expiresAt - Date.now() < 60_000;
-    if (session && expiresSoon) {
-      const { data: { session: refreshed } } = await supabase.auth.refreshSession();
-      if (refreshed) activeSession = refreshed;
+      const { data: { session } } = await supabase.auth.getSession();
+      let activeSession = session;
+      const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
+      const expiresSoon = expiresAt > 0 && expiresAt - Date.now() < 60_000;
+      if (session && expiresSoon) {
+        const { data: { session: refreshed } } = await supabase.auth.refreshSession();
+        if (refreshed) activeSession = refreshed;
+      }
+      set({ session: activeSession, user: activeSession?.user ?? null, loading: false });
+    } catch (err) {
+      console.error('Auth init failed:', err);
+    } finally {
+      // Never leave ProtectedRoute / sync stuck on loading forever (HMR, hung OAuth).
+      if (get().loading) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          set({
+            session: session ?? null,
+            user: session?.user ?? null,
+            loading: false,
+          });
+        } catch {
+          set({ loading: false });
+        }
+      }
+      bindAuthListener();
     }
-    set({ session: activeSession, user: activeSession?.user ?? null, loading: false });
-
-    supabase.auth.onAuthStateChange((_event, nextSession) => {
-      set({ session: nextSession, user: nextSession?.user ?? null });
-    });
   },
 
   signIn: async (email, password) => {

@@ -1,6 +1,7 @@
-import { supabase, getSupabaseConfigError, formatSupabaseError } from "./supabaseClient.js";
+import { supabase, formatSupabaseError } from "./supabaseClient.js";
 import { useUrlTableStore } from "../stores/urlTableStore.js";
 import { generateId } from "./ids.js";
+import { resolveSyncUserId } from "./resolveSyncUserId.js";
 
 const SYNC_DEBOUNCE_MS = 1500;
 
@@ -19,25 +20,6 @@ function debounce(fn, ms) {
     timer = null;
   };
   return debounced;
-}
-
-/** @returns {Promise<string|null>} */
-async function resolveSyncUserId() {
-  const configErr = getSupabaseConfigError();
-  if (configErr) return null;
-
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error || !session?.user?.id) return null;
-
-  const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
-  const expiresSoon = expiresAt > 0 && expiresAt - Date.now() < 60_000;
-  if (expiresSoon) {
-    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
-    if (refreshErr) return null;
-    return refreshed.session?.user?.id || null;
-  }
-
-  return session.user.id;
 }
 
 /** @param {Record<string, unknown>} row */

@@ -193,9 +193,6 @@ export function NodeQueryModal({
   }, [syncQueryInputHeight]);
 
   const toggleContentFocus = useCallback(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1d628d'},body:JSON.stringify({sessionId:'1d628d',runId:'pre-fix',hypothesisId:'A',location:'NodeQueryModal.jsx:toggleContentFocus',message:'expand toggle clicked',data:{contentFocusModeBefore:contentFocusMode,embedded,willEnterFocus:!contentFocusMode},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (contentFocusMode) {
       exitContentFocusMode();
       return;
@@ -505,14 +502,6 @@ export function NodeQueryModal({
     return () => cancelAnimationFrame(frame);
   }, [contentFocusMode, focusContentArea]);
 
-  // #region agent log
-  useLayoutEffect(() => {
-    const modal = document.querySelector(".lp-modal.node-query-modal");
-    const overlay = document.querySelector(".node-query-overlay");
-    const cs = modal ? getComputedStyle(modal) : null;
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'1d628d'},body:JSON.stringify({sessionId:'1d628d',runId:'post-fix',hypothesisId:'C',location:'NodeQueryModal.jsx:measureFocusWidth',message:'layout width after focus change',data:{contentFocusMode,embedded,modalClass:modal?.className||null,overlayClass:overlay?.className||null,hasOverlayFocusClass:overlay?.classList?.contains("node-query-overlay--content-focus")||false,hasModalFocusClass:modal?.classList?.contains("node-query-modal--content-focus")||false,offsetWidth:modal?.offsetWidth??null,computedWidth:cs?.width||null,computedMaxWidth:cs?.maxWidth||null,computedFlex:cs?.flex||null,viewportWidth:window.innerWidth},timestamp:Date.now()})}).catch(()=>{});
-  }, [contentFocusMode, embedded]);
-  // #endregion
 
   useLayoutEffect(() => {
     if (!contentFocusMode) return;

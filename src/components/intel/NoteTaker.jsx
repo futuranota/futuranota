@@ -144,10 +144,12 @@ export function NoteTaker({
     return textPayload;
   }, [inlineTodosEnabled]);
 
+  // Sync draft when the panel target identity changes — not on every content
+  // mutation (e.g. Load embed), which would wipe in-progress notes.
   useEffect(() => {
     setWritingBody(readPanelDraft(node, inlineTodosEnabled));
     setWritingFocusTarget(null);
-  }, [inlineTodosEnabled, resolvedNodeId, node?.id, node?.content, node?.dataType]);
+  }, [inlineTodosEnabled, resolvedNodeId, node?.id, node?.dataType]);
 
   const label = node
     ? ((node.sourceQuery || node.title || UNTITLED_LABEL).trim() || UNTITLED_LABEL)
@@ -493,6 +495,7 @@ export function NoteTaker({
                 onBlocksChange={handleWritingBlocksChange}
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
+                contentFocusMode
                 slashEnabled
                 textPlaceholder="Escribe aquí o /macronodo"
                 companyObjectId={companyObjectId}

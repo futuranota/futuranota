@@ -492,9 +492,6 @@ useEffect(() => {
     const reminder = resolveActiveTimelineReminder(resolveParams);
     const inspect = inspectTimelineReminderState(resolveParams);
 
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'reminder-debug',hypothesisId:'R2',location:'App.jsx:reminderEffect',message:'reminder resolve',data:{enabled:timelineAlertsEnabled,queueLen:(timelineDocQueue||[]).length,hasReminder:Boolean(reminder),alertKey:reminder?.alertKey||null,minutes:reminder?.minutesRemaining??null,label:reminder?.contentLabel||null,dismissed:dismissedTimelineReminderKey.current,inspect},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     if (!reminder) {
       setTimelineReminder(null);

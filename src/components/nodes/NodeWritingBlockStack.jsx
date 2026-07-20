@@ -370,6 +370,41 @@ export function NodeWritingBlockStack({
 
     // Folder expand blueprint: Enter inserts newline in the same cell (SlashAwareTextarea scrolls caret).
     if (contentFocusMode) {
+      // Backspace at start → merge with / move to the previous cell (DocBlockStack parity).
+      if (e.key === "Backspace" && isAtInputStart(e)) {
+        if (blockIndex === 0) return;
+        const prev = current[blockIndex - 1];
+        const value = e.currentTarget.value ?? block.text ?? "";
+
+        if (value && prev?.type === NODE_BLOCK_TYPES.TEXT) {
+          e.preventDefault();
+          const joinAt = (prev.text || "").length;
+          const merged = (prev.text || "") + value;
+          const next = current
+            .map((b, i) => (i === blockIndex - 1 ? { ...b, text: merged } : b))
+            .filter((_, i) => i !== blockIndex);
+          updateBlocks(next);
+          onFocusTargetChange?.(null);
+          focusBlockById(prev.id, joinAt);
+          return;
+        }
+
+        if (!value && current.length > 1) {
+          e.preventDefault();
+          const next = current.filter((_, i) => i !== blockIndex);
+          updateBlocks(next.length ? next : [createEmptyTextBlock()]);
+          onFocusTargetChange?.(null);
+          focusBlockById(prev?.id, "end");
+          return;
+        }
+
+        if (value && prev) {
+          e.preventDefault();
+          focusBlockById(prev.id, "end");
+          return;
+        }
+      }
+
       if (slashEnabled && e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
         if (slash) {
           const parsed = parseSlashQuery(slash.slice(1));

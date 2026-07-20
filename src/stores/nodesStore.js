@@ -774,11 +774,6 @@ export const useNodesStore = create(
           if (Object.prototype.hasOwnProperty.call(nextUpdates, "campaignStatus")) {
             nextUpdates.campaignStatus = normalizeCampaignDocStatus(nextUpdates.campaignStatus);
           }
-          // #region agent log
-          if (Object.prototype.hasOwnProperty.call(nextUpdates || {}, "anchorAt")) {
-            fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H2',location:'nodesStore.js:updateNode',message:'node.anchorAt write',data:{id,prevAnchorAt:existing.anchorAt??null,nextAnchorAt:nextUpdates.anchorAt??null,updateKeys:Object.keys(nextUpdates||{})},timestamp:Date.now()})}).catch(()=>{});
-          }
-          // #endregion
           return {
             nodes: {
               ...state.nodes,

@@ -1,4 +1,5 @@
 import { supabase, getSupabaseConfigError, formatSupabaseError } from "../../lib/supabaseClient.js";
+import { resolveSyncUserId } from "../../lib/resolveSyncUserId.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { sanitizePersistedSnapshot, pruneStrayDefaultYo, findObjectIdByName } from "../../lib/storeSanitize.js";
@@ -7,6 +8,7 @@ import {
   clearLastSyncedAt,
   fetchWorkspaceVersion,
   maxUpdatedAtFromRows,
+  parseVersionMs,
   readLastSyncedAt,
   shouldSkipFullHydrate,
   writeLastSyncedAt,
@@ -299,9 +301,6 @@ export function markDocsDeletedForSync(docIds, nodeIds = []) {
     deleteTombstoneRevision += 1;
     writeTombstoneLedger();
   }
-  // #region agent log
-  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'post-fix',hypothesisId:'H1',location:'persistenceMiddleware.js:markDocsDeletedForSync',message:'tombstone set',data:{docIds:docs.filter(Boolean),nodeIds:nodes.filter(Boolean),pendingDocs:[...pendingDeletedDocIds],revision:deleteTombstoneRevision,hydrateInFlight},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 }
 
 /**
@@ -329,15 +328,6 @@ function stripPendingDeletesFromState(state) {
   if (!state || typeof state !== "object") return state;
   let docs = omitPendingDeletedIds(state.docs, pendingDeletedDocIds);
   const nodes = omitPendingDeletedIds(state.nodes, pendingDeletedNodeIds);
-  // #region agent log
-  if (pendingDeletedDocIds.size > 0) {
-    const before = Object.keys(state.docs || {});
-    const after = Object.keys(docs || {});
-    const stripped = before.filter((id) => pendingDeletedDocIds.has(id) && !after.includes(id));
-    const stillPresent = before.filter((id) => pendingDeletedDocIds.has(id) && after.includes(id));
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'pre-fix',hypothesisId:'C',location:'persistenceMiddleware.js:stripPendingDeletesFromState',message:'strip pending deletes',data:{pendingDocs:[...pendingDeletedDocIds],stripped,stillPresent,docCountBefore:before.length,docCountAfter:after.length},timestamp:Date.now()})}).catch(()=>{});
-  }
-  // #endregion
   if (docs === state.docs && nodes === state.nodes) return state;
 
   // Keep doc.nodeIds consistent after stripping resurrected nodes (copy-on-write).
@@ -400,9 +390,6 @@ async function purgeTombstonedRows(table, userId, idSet) {
  */
 async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
   if (hydrateInFlight) {
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'post-fix',hypothesisId:'B',location:'persistenceMiddleware.js:clearTombstonesConfirmedAbsent',message:'skip clear — hydrate in flight',data:{table,pending:[...idSet]},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return;
   }
   const ids = [...idSet].filter(Boolean);
@@ -440,11 +427,6 @@ async function clearTombstonesConfirmedAbsent(table, userId, idSet) {
     cleared.push(id);
   }
   if (cleared.length) writeTombstoneLedger();
-  // #region agent log
-  if (cleared.length || stillRemote.size || heldForGrace.length) {
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'post-fix',hypothesisId:'H4',location:'persistenceMiddleware.js:clearTombstonesConfirmedAbsent',message:'tombstones verified against remote',data:{table,cleared,heldForGrace,stillRemote:[...stillRemote],remaining:[...idSet]},timestamp:Date.now()})}).catch(()=>{});
-  }
-  // #endregion
 }
 
 /**
@@ -550,47 +532,6 @@ function mergeLocalCadenceIntoObjects(objects) {
   }
 }
 
-/**
- * Ensure we have a fresh authenticated session before writes.
- * @returns {Promise<string|null>} user id or null
- */
-async function resolveSyncUserId() {
-  const configErr = getSupabaseConfigError();
-  if (configErr) {
-    warnSyncOnce(configErr);
-    return null;
-  }
-
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error) {
-    warnSyncOnce(`Supabase session error: ${error.message}`);
-    return null;
-  }
-  if (!session?.user?.id) return null;
-
-  const expiresAt = session.expires_at ? session.expires_at * 1000 : 0;
-  const expiresSoon = expiresAt > 0 && expiresAt - Date.now() < 60_000;
-  if (expiresSoon) {
-    const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession();
-    if (refreshErr) {
-      warnSyncOnce(
-        `Supabase session refresh failed (${refreshErr.message}). `
-        + "Reiniciá sesión en /panel — los datos quedan en localStorage.",
-      );
-      return null;
-    }
-    return refreshed.session?.user?.id || null;
-  }
-
-  return session.user.id;
-}
-
-/**
- * Delete remote rows for this user that are no longer in the local id set.
- * @param {string} table
- * @param {string} userId
- * @param {string[]} localIds
- */
 /**
  * Delete remote rows for this user that are not in localIds.
  * @param {string} table
@@ -816,7 +757,8 @@ function workspaceContentScore(state) {
 }
 
 /**
- * True when local snapshot is clearly richer / newer than remote and must not be wiped.
+ * True only when remote looks empty/broken and local must not be wiped.
+ * NEVER prefer local just because it has MORE folders — that re-upserts deletes.
  * @param {Record<string, unknown>|null|undefined} local
  * @param {Record<string, unknown>|null|undefined} remote
  */
@@ -826,84 +768,38 @@ function isLocalRicherThanRemote(local, remote) {
 
   if (L.docCount === 0 && L.nodeCount === 0 && L.objectCount === 0) return false;
 
-  // Never wipe a larger remote entity set with a smaller local snapshot.
-  // (This caused Content list / Next / node loss when reopening localhost.)
-  if (R.nodeCount > L.nodeCount) return false;
-  if (R.docCount > L.docCount) return false;
-
-  // Cross-browser: if remote is clearly newer, do NOT keep an older localStorage
-  // wholesale — that overwrote fresher cloud data and resurfaced "old folders".
-  if (
-    R.maxUpdated > 0
-    && L.maxUpdated > 0
-    && R.maxUpdated > L.maxUpdated + 2000
-  ) {
-    return false;
-  }
-
-  // Empty remote vs non-empty local — classic wipe after debounce miss
+  // Empty / wiped remote vs non-empty local — classic debounce-miss wipe
   if (R.docCount === 0 && L.docCount > 0) return true;
-  if (R.objectCount === 0 && L.objectCount > 0) return true;
-  if (R.nodeCount === 0 && L.nodeCount > 0 && L.contentChars > R.contentChars) return true;
-
-  // Local has more entities and at least as much content (and is not behind in time)
-  if (
-    L.docCount > R.docCount
-    && L.contentChars >= R.contentChars
-    && L.maxUpdated >= R.maxUpdated - 5000
-  ) {
-    return true;
-  }
-  if (
-    L.nodeCount > R.nodeCount
-    && L.contentChars >= R.contentChars
-    && L.maxUpdated >= R.maxUpdated - 5000
-  ) {
-    return true;
-  }
-
-  // Local is newer and not poorer in content — only when entity counts aren't behind
-  if (
-    L.nodeCount >= R.nodeCount
-    && L.docCount >= R.docCount
-    && L.maxUpdated > R.maxUpdated + 1500
-    && L.contentChars >= Math.floor(R.contentChars * 0.9)
-  ) {
-    return true;
-  }
-
-  // Local has substantially more text with similar entity counts (and is not older)
-  if (
-    L.contentChars > R.contentChars * 1.25
-    && L.docCount >= R.docCount
-    && L.nodeCount >= R.nodeCount
-    && L.maxUpdated >= R.maxUpdated - 1500
-  ) {
-    return true;
-  }
+  if (R.objectCount === 0 && L.objectCount > 0 && R.docCount === 0) return true;
+  if (R.nodeCount === 0 && R.docCount === 0 && L.nodeCount > 0) return true;
 
   return false;
 }
 
 /**
- * Union maps by id; when both exist, keep the newer updatedAt (ties → richer string content).
+ * Merge maps: remote decides which ids exist; local can win field content when both exist.
+ * Local-only ids are kept only when created after lastSyncedAt (unsynced creates).
+ * This stops deleted folders in a fat localStorage from resurrecting after purge.
  * @param {Record<string, object>} remoteMap
  * @param {Record<string, object>} localMap
  * @param {(item: object) => number} [contentLen]
+ * @param {{ lastSyncedAt?: string|null, allowAllLocalOnly?: boolean }} [opts]
  */
-function mergeEntityMapsPreferNewer(remoteMap, localMap, contentLen) {
+function mergeEntityMapsPreferNewer(remoteMap, localMap, contentLen, opts = {}) {
   const remote = remoteMap && typeof remoteMap === "object" ? remoteMap : {};
   const local = localMap && typeof localMap === "object" ? localMap : {};
-  const out = { ...remote };
+  const lastSyncedMs = parseVersionMs(opts.lastSyncedAt) || 0;
+  const allowAllLocalOnly = Boolean(opts.allowAllLocalOnly);
+  const out = {};
   const len = typeof contentLen === "function"
     ? contentLen
     : (item) => String(item?.content || item?.body || item?.title || "").length;
 
-  for (const [id, localItem] of Object.entries(local)) {
-    if (!localItem || typeof localItem !== "object") continue;
-    const remoteItem = out[id];
-    if (!remoteItem) {
-      out[id] = localItem;
+  for (const [id, remoteItem] of Object.entries(remote)) {
+    if (!id || !remoteItem || typeof remoteItem !== "object") continue;
+    const localItem = local[id];
+    if (!localItem || typeof localItem !== "object") {
+      out[id] = remoteItem;
       continue;
     }
     const localT = Date.parse(String(localItem.updatedAt || localItem.createdAt || "")) || 0;
@@ -911,6 +807,29 @@ function mergeEntityMapsPreferNewer(remoteMap, localMap, contentLen) {
     if (localT > remoteT) {
       out[id] = localItem;
     } else if (localT === remoteT && len(localItem) > len(remoteItem)) {
+      out[id] = localItem;
+    } else {
+      out[id] = remoteItem;
+    }
+  }
+
+  for (const [id, localItem] of Object.entries(local)) {
+    if (!id || !localItem || typeof localItem !== "object") continue;
+    if (out[id]) continue;
+    if (pendingDeletedDocIds.has(id) || pendingDeletedNodeIds.has(id)) continue;
+    if (allowAllLocalOnly) {
+      out[id] = localItem;
+      continue;
+    }
+    // No sync baseline: only keep local-only when remote has no membership yet
+    // (true first sync). If remote already has rows, local-only = deleted/stale.
+    if (lastSyncedMs <= 0) {
+      if (Object.keys(remote).length === 0) out[id] = localItem;
+      continue;
+    }
+    const createdMs = Date.parse(String(localItem.createdAt || localItem.updatedAt || "")) || 0;
+    // Unsynced create after last successful cloud sync.
+    if (createdMs > lastSyncedMs) {
       out[id] = localItem;
     }
   }
@@ -966,6 +885,8 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
     };
   }
 
+  const mergeOpts = { lastSyncedAt: readLastSyncedAt() };
+
   const docs = mergeEntityMapsPreferNewer(
     remoteState.docs,
     localState.docs,
@@ -976,16 +897,19 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
       }
       return n;
     },
+    mergeOpts,
   );
   const nodes = mergeEntityMapsPreferNewer(
     remoteState.nodes,
     localState.nodes,
     (node) => String(node?.content || "").length + String(node?.title || "").length,
+    mergeOpts,
   );
   const objectsRaw = mergeEntityMapsPreferNewer(
     remoteState.objects,
     localState.objects,
     (obj) => String(obj?.name || "").length,
+    mergeOpts,
   );
 
   // Preserve classification fields when remote row is empty/stale but local still has them.
@@ -1055,18 +979,26 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
       canvasNodes: mergeEntityMapsPreferNewer(
         remoteState.canvasNodes,
         localState.canvasNodes,
+        undefined,
+        mergeOpts,
       ),
       canvasConnections: mergeEntityMapsPreferNewer(
         remoteState.canvasConnections,
         localState.canvasConnections,
+        undefined,
+        mergeOpts,
       ),
       groupings: mergeEntityMapsPreferNewer(
         remoteState.groupings,
         localState.groupings,
+        undefined,
+        mergeOpts,
       ),
       timelines: mergeEntityMapsPreferNewer(
         remoteState.timelines,
         localState.timelines,
+        undefined,
+        mergeOpts,
       ),
     }),
     preferredLocal: false,
@@ -1128,22 +1060,6 @@ export function initPersistenceMiddleware(stores) {
     if (!data) return;
     restorePendingDeletesFromSnapshot(data);
     const stripped = stripPendingDeletesFromState(data);
-    // #region agent log
-    {
-      const pending = [...pendingDeletedDocIds];
-      const incomingDocs = Object.keys(stripped.docs || {});
-      const resurrectedIds = pending.filter((id) => incomingDocs.includes(id));
-      const titleSample = Object.values(stripped.docs || {}).slice(0, 12).map((d) => ({
-        id: d?.id,
-        title: d?.title || d?.category || null,
-      }));
-      const ghostTitles = resurrectedIds.map((id) => ({
-        id,
-        title: stripped.docs?.[id]?.title || null,
-      }));
-      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H1',location:'persistenceMiddleware.js:applyStateToStores',message:'apply state to stores',data:{pendingCount:pending.length,pending,resurrectedIds,ghostTitles,incomingDocCount:incomingDocs.length,titleSample},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion
     const objects = pruneStrayDefaultYo(stripped.objects || {});
     useObjectsStore.setState({ objects });
     const normalizedDocs = {};
@@ -1524,12 +1440,6 @@ export function initPersistenceMiddleware(stores) {
         hydratedState.nodes,
         hydratedState.docs,
       );
-      // #region agent log
-      try {
-        const withAnchor = Object.values(hydratedNodes || {}).filter((n) => n?.anchorAt).length;
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H5',location:'persistenceMiddleware.js:hydrate',message:'hydrate nodes with schedule',data:{preferredLocal:preferredLocal||preferredMemory,nodeCount:Object.keys(hydratedNodes||{}).length,withAnchor},timestamp:Date.now()})}).catch(()=>{});
-      } catch (_) { /* ignore */ }
-      // #endregion
       // Re-arm tombstones from disk + memory so mid-flight deletes win over stale remote.
       refreshTombstonesFromDisk();
       const liveNow = sanitizePersistedSnapshot(getLocalState());
@@ -1559,20 +1469,6 @@ export function initPersistenceMiddleware(stores) {
         pendingDeletedNodeIds,
         deletesHappened,
       );
-      // #region agent log
-      {
-        const liveIds = new Set(Object.keys(liveNow?.docs || {}));
-        const hydratedIds = Object.keys(hydratedState.docs || {});
-        const safeIds = Object.keys(safeDocs || {});
-        const remoteOnlyDropped = hydratedIds.filter((id) => !liveIds.has(id) && !safeIds.includes(id));
-        const remoteOnlyKept = hydratedIds.filter((id) => !liveIds.has(id) && safeIds.includes(id));
-        const remoteOnlyKeptTitles = remoteOnlyKept.map((id) => ({
-          id,
-          title: hydratedState.docs?.[id]?.title || null,
-        }));
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H2',location:'persistenceMiddleware.js:hydrate:safeDocs',message:'hydrate safeDocs gate',data:{deletesHappened,revisionStart:tombstoneRevisionAtStart,revisionNow:deleteTombstoneRevision,pendingDocs:[...pendingDeletedDocIds],liveCount:liveIds.size,hydratedCount:hydratedIds.length,safeCount:safeIds.length,remoteOnlyDroppedCount:remoteOnlyDropped.length,remoteOnlyKeptTitles,preferredLocal:Boolean(preferredLocal||preferredMemory)},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
       const objectsForApply = deletesHappened
         ? rebuildObjectChildren(liveNow?.objects || hydratedState.objects || {}, safeDocs)
         : rebuildObjectChildren(hydratedState.objects || {}, safeDocs);
@@ -1649,8 +1545,12 @@ export function initPersistenceMiddleware(stores) {
         // private mode / quota
       }
 
-      // If we kept local over a poorer remote, push immediately so the next reload is safe.
+      // Only push when remote was empty/broken — never when local merely had MORE folders
+      // (that path re-upserted intentionally deleted campaigns).
       if (preferredLocal || preferredMemory) {
+        console.warn(
+          "[futura-nota] Pushing local workspace because remote looked empty/wiped.",
+        );
         syncToSupabase(finalState).catch((err) => {
           console.warn("Failed to push preferred-local workspace to Supabase:", err);
         });
@@ -1676,9 +1576,6 @@ export function initPersistenceMiddleware(stores) {
 
     if (syncInFlight) {
       syncNeedsRerun = true;
-      // #region agent log
-      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'post-fix',hypothesisId:'D',location:'persistenceMiddleware.js:syncToSupabase:queue',message:'sync queued behind in-flight',data:{pending:[...pendingDeletedDocIds]},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       try {
         await syncInFlight;
       } catch {
@@ -1697,21 +1594,16 @@ export function initPersistenceMiddleware(stores) {
 
         const userId = await resolveSyncUserId();
         if (!userId) {
-          console.warn("No authenticated user — skipping Supabase sync.");
+          warnSyncOnce(
+            "No authenticated user — skipping Supabase sync. "
+            + "Iniciá sesión de nuevo en /login (el token no está disponible para writes).",
+          );
           return false;
         }
 
         // Always read live store — debounce snapshots can re-upsert deleted folders.
         const state = stripPendingDeletesFromState(getLocalState());
 
-        // #region agent log
-        {
-          const liveDocIds = Object.keys(state?.docs || {});
-          const pending = [...pendingDeletedDocIds];
-          const resurrectInLive = pending.filter((id) => liveDocIds.includes(id));
-          fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'79f8b7'},body:JSON.stringify({sessionId:'79f8b7',runId:'post-fix',hypothesisId:'D',location:'persistenceMiddleware.js:syncToSupabase:start',message:'sync start — live stripped state',data:{pending,liveDocCount:liveDocIds.length,resurrectInLive,queuedRerun:syncNeedsRerun},timestamp:Date.now()})}).catch(()=>{});
-        }
-        // #endregion
 
     try {
       const now = new Date().toISOString();
@@ -1777,14 +1669,6 @@ export function initPersistenceMiddleware(stores) {
         created_at: doc.createdAt || now,
         updated_at: doc.updatedAt || now,
       }));
-      // #region agent log
-      {
-        const pending = [...pendingDeletedDocIds];
-        const upsertNames = campaignsRows.slice(0, 20).map((r) => ({ id: r.id, name: r.name }));
-        const pendingStillInState = pending.filter((id) => Boolean(state.docs?.[id]));
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'pre-fix',hypothesisId:'H3',location:'persistenceMiddleware.js:syncToSupabase:campaigns',message:'campaigns upsert batch',data:{rowCount:campaignsRows.length,pending,pendingStillInState,upsertNames,hydrateInFlight},timestamp:Date.now()})}).catch(()=>{});
-      }
-      // #endregion
 
       const campaignLocalIds = campaignsRows.map((r) => r.id);
       // Empty local = intentional wipe (last folder deleted) → orphan-delete still runs.
@@ -1809,6 +1693,13 @@ export function initPersistenceMiddleware(stores) {
       const campaignsTombstoneOk = campaignsUpsertOk
         ? await purgeTombstonedRows("campaigns", userId, pendingDeletedDocIds)
         : false;
+      if (pendingDeletedDocIds.size > 0 && !campaignsTombstoneOk) {
+        criticalOk = false;
+        console.error(
+          "Purge tombstoned campaigns failed — deletes may resurrect until purge succeeds",
+          { pending: [...pendingDeletedDocIds] },
+        );
+      }
 
       // 3. Nodes — persist Schedule in reference.anchorAt (JSONB)
       const nodesRows = Object.values(state.nodes || {})
@@ -1843,6 +1734,13 @@ export function initPersistenceMiddleware(stores) {
       const nodesTombstoneOk = nodesUpsertOk
         ? await purgeTombstonedRows("nodes", userId, pendingDeletedNodeIds)
         : false;
+      if (pendingDeletedNodeIds.size > 0 && !nodesTombstoneOk) {
+        criticalOk = false;
+        console.error(
+          "Purge tombstoned nodes failed — deleted docs may resurrect until purge succeeds",
+          { pending: [...pendingDeletedNodeIds] },
+        );
+      }
 
       // Only drop tombstones after remote SELECT proves the rows are gone.
       if (campaignsOrphansOk && campaignsTombstoneOk) {
@@ -2039,13 +1937,6 @@ export function initPersistenceMiddleware(stores) {
 
   const onVisibilityChange = () => {
     if (document.visibilityState === "hidden") {
-      // #region agent log
-      try {
-        const nodes = useNodesStore.getState().nodes || {};
-        const withAnchor = Object.values(nodes).filter((n) => n?.anchorAt).slice(0, 5).map((n) => ({ id: n.id, anchorAt: n.anchorAt, createdAt: n.createdAt }));
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H5',location:'persistenceMiddleware.js:visibilitychange',message:'tab hidden — flush persistence',data:{nodeCount:Object.keys(nodes).length,withAnchorCount:Object.values(nodes).filter((n)=>n?.anchorAt).length,sampleWithAnchor:withAnchor},timestamp:Date.now()})}).catch(()=>{});
-      } catch (_) { /* ignore */ }
-      // #endregion
       flushPersistenceSyncBestEffort();
       return;
     }
@@ -2097,9 +1988,6 @@ export function initPersistenceMiddleware(stores) {
     }
     if (docsChanged) useDocsStore.setState({ docs: nextDocs });
     if (nodesChanged) useNodesStore.setState({ nodes: nextNodes });
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'93b014'},body:JSON.stringify({sessionId:'93b014',runId:'post-fix',hypothesisId:'H4',location:'persistenceMiddleware.js:storage:tombstoneLedger',message:'adopted cross-tab tombstones',data:{pendingDocs:[...pendingDeletedDocIds],docsChanged,nodesChanged},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     debouncedRemoteSync();
   });
 

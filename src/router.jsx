@@ -50,7 +50,18 @@ export default function AppRouter() {
 
   useEffect(() => {
     init();
-  }, []);
+  }, [init]);
+
+  // HMR / hung OAuth can leave loading=true with a live Supabase token — recover.
+  useEffect(() => {
+    if (!loading) return undefined;
+    const timer = window.setTimeout(() => {
+      if (useAuthStore.getState().loading) {
+        init();
+      }
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [loading, init]);
 
   useEffect(() => {
     if (user) usePlanStore.getState().fetchProfile();

@@ -389,9 +389,6 @@ export function DocExpandedView({
         ?? launchDateInputFromIso(normalized.scheduleFinishAt)
         ?? loadedScheduleStartDate)
       : (launchDateInputFromIso(normalized.scheduleFinishAt) || loadedScheduleStartDate);
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H4',location:'DocExpandedView.jsx:loadDraft',message:'doc draft load launch/created',data:{docId,useCachedDraft,cachedHasText,loadedLaunchDate,storeLaunchAt:normalized.launchAt??null,loadedCreatedDate,storeCreatedAt:normalized.createdAt??null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const loadedCampaignActive = useCachedDraft
       ? (cached.campaignActive ?? Boolean(normalized.campaignActive))
       : Boolean(normalized.campaignActive);
@@ -1602,9 +1599,6 @@ export function DocExpandedView({
           nodeEntitiesById: useNodesStore.getState().nodes,
         });
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H1',location:'DocExpandedView.jsx:handleBlockAnchorChange',message:'block+node schedule persisted',data:{blockIndex,anchorDate,anchorTime,nodeId:block?.nodeId||null,anchorAt:isoFromAnchorFields(anchorDate,anchorTime)},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       return next;
     });
   };
@@ -1670,9 +1664,6 @@ export function DocExpandedView({
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
       ? isoFromAnchorFields(anchorDate, anchorTime)
       : undefined;
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H1-H2',location:'DocExpandedView.jsx:persistNodeContentDebounced',message:'persist node content',data:{commitSchedule,anchorDate:anchorDate||'',anchorTime:anchorTime||'',anchorAt:anchorAt??null,prevNodeAnchorAt:getNode(nodeId||block.nodeId)?.anchorAt??null,blockAnchorDate:block.anchorDate||'',blockAnchorFromNode:block.anchorFromNode??null,draftCreatedDate,nodeId:nodeId||block.nodeId||null,dataType},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const savedNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
@@ -1907,9 +1898,6 @@ export function DocExpandedView({
       : (existing?.anchorAt || null);
     if (launchOrAnchorIso) {
       const fromNode = anchorFieldsFromIso(launchOrAnchorIso);
-      // #region agent log
-      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H3',location:'DocExpandedView.jsx:handleOpenNodeForBlock',message:'open node schedule from node.anchorAt',data:{nodeId:existing.id,anchorAt:existing.anchorAt,fromNode,blockAnchorDate:block.anchorDate||'',blockAnchorTime:block.anchorTime||'',blockAnchorFromNode:block.anchorFromNode??null,draftCreatedDate},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setNodeDraftAnchorDate(fromNode.anchorDate);
       setNodeDraftAnchorTime(fromNode.anchorTime);
       const snap = {
@@ -1928,9 +1916,6 @@ export function DocExpandedView({
       const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate, {
         noNodeLink: isNoNodeLinkMode(resolveBlockNodeLinkColor(block)),
       });
-      // #region agent log
-      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'pre-fix',hypothesisId:'H3',location:'DocExpandedView.jsx:handleOpenNodeForBlock',message:'open node schedule fallback Created/block',data:{nodeId:existing?.id||null,existingAnchorAt:existing?.anchorAt??null,anchorFromBlock,blockAnchorDate:block.anchorDate||'',blockAnchorTime:block.anchorTime||'',blockAnchorFromNode:block.anchorFromNode??null,blockQueryEnabled:block.queryEnabled??null,draftCreatedDate},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       setNodeDraftAnchorDate(anchorFromBlock.anchorDate);
       setNodeDraftAnchorTime(anchorFromBlock.anchorTime);
       const snap = {
@@ -1993,9 +1978,6 @@ export function DocExpandedView({
       return;
     }
     // Persist Schedule immediately — must survive tab switch; never wait for Yes.
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6405ca'},body:JSON.stringify({sessionId:'6405ca',runId:'post-fix',hypothesisId:'H1',location:'DocExpandedView.jsx:handleNodeAnchorDateChange',message:'schedule date persist immediate',data:{anchorDate:nextDate,nodeDraftAnchorTime,nodeId:activeNodeContext?.nodeId||null,blockIndex:activeNodeContext?.blockIndex??null},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     setNodeDraftAnchorDate(nextDate);
     if (!activeNodeContext) return;
     handleBlockAnchorChange(activeNodeContext.blockIndex, nextDate, nodeDraftAnchorTime);
