@@ -163,9 +163,100 @@ export function LinkVaultBlockView({
     onEntriesChange?.(entries.filter((entry) => entry.id !== entryId));
   }, [entries, onEntriesChange]);
 
+  const applyChipValue = useCallback((field, value) => {
+    const next = String(value ?? "").trim();
+    if (!next) return;
+    setIsAdding(true);
+    setDraft((prev) => ({ ...prev, [field]: next }));
+  }, [setDraft]);
+
   const showAddForm = isAdding;
   const showAddButton = !hideAddButton && entries.length > 0 && !isAdding;
   const useMultilineDescription = multilineDescription || slashStack;
+
+  const renderDraftFields = () => (
+    <>
+      <td>
+        <input
+          ref={nameRef}
+          className="doc-vault-block__input"
+          type="text"
+          value={draft.name}
+          placeholder={L.name}
+          onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+      </td>
+      <td>
+        <input
+          className="doc-vault-block__input"
+          type="text"
+          value={draft.tag ?? ""}
+          placeholder={L.tag}
+          onChange={(e) => setDraft((prev) => ({ ...prev, tag: e.target.value }))}
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+      </td>
+      <td>
+        <input
+          className="doc-vault-block__input"
+          type="text"
+          value={draft.category ?? ""}
+          placeholder={L.category}
+          onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value }))}
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+      </td>
+      <td>
+        {useMultilineDescription ? (
+          <textarea
+            ref={descRef}
+            rows={1}
+            className="doc-vault-block__input doc-vault-block__input--description-multiline"
+            value={draft.description}
+            placeholder={L.description}
+            onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
+            onKeyDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <input
+            className="doc-vault-block__input"
+            type="text"
+            value={draft.description}
+            placeholder={L.description}
+            onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
+            onKeyDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+        )}
+      </td>
+      <td>
+        <input
+          className="doc-vault-block__input doc-vault-block__input--url"
+          type="url"
+          value={draft.url}
+          placeholder={L.url}
+          onChange={(e) => setDraft((prev) => ({ ...prev, url: e.target.value }))}
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+      </td>
+      <td className="doc-vault-block__row-actions">
+        <button
+          type="button"
+          className="doc-vault-block__save"
+          disabled={!canSave}
+          onClick={handleSave}
+        >
+          {L.save}
+        </button>
+      </td>
+    </>
+  );
 
   if (slashStack) {
     return (
@@ -344,138 +435,92 @@ export function LinkVaultBlockView({
         </div>
       ) : null}
 
-      {visibleEntries.length > 0 ? (
-        <div className="doc-vault-block__table-wrap">
-          <table className="doc-vault-block__table">
-            <thead>
-              <tr>
-                <th>{L.name}</th>
-                <th>
-                  <span className="doc-vault-block__th-with-icon">
-                    <span className="doc-vault-block__th-icon doc-vault-block__th-icon--tag" aria-hidden />
-                    {L.tag}
-                  </span>
-                </th>
-                <th>{L.category}</th>
-                <th>
-                  <span className="doc-vault-block__th-with-icon">
-                    <span className="doc-vault-block__th-icon doc-vault-block__th-icon--info" aria-hidden />
-                    {L.description}
-                  </span>
-                </th>
-                <th>{L.url}</th>
-                <th aria-hidden />
-              </tr>
-            </thead>
-            <tbody>
-              {visibleEntries.map((entry) => (
-                <tr key={entry.id} className="doc-vault-block__row">
-                  <td>{entry.name}</td>
-                  <td>{entry.tag || <span className="doc-vault-block__empty">—</span>}</td>
-                  <td>{entry.category || <span className="doc-vault-block__empty">—</span>}</td>
-                  <td>{entry.description || <span className="doc-vault-block__empty">—</span>}</td>
-                  <td>
-                    <a
-                      className="doc-vault-block__link"
-                      href={entry.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
+      <div className="doc-vault-block__table-wrap">
+        <table className="doc-vault-block__table">
+          <thead>
+            <tr>
+              <th>{L.name}</th>
+              <th>{L.tag}</th>
+              <th>{L.category}</th>
+              <th>
+                <span className="doc-vault-block__th-with-icon">
+                  <span className="doc-vault-block__th-icon doc-vault-block__th-icon--info" aria-hidden />
+                  {L.description}
+                </span>
+              </th>
+              <th>{L.url}</th>
+              <th aria-hidden />
+            </tr>
+          </thead>
+          <tbody>
+            {visibleEntries.map((entry) => (
+              <tr key={entry.id} className="doc-vault-block__row">
+                <td>{entry.name}</td>
+                <td>
+                  {entry.tag ? (
+                    <button
+                      type="button"
+                      className="doc-vault-block__chip doc-vault-block__chip--tag"
+                      onClick={() => applyChipValue("tag", entry.tag)}
+                      title={`Use tag “${entry.tag}”`}
                     >
-                      {entry.url}
-                    </a>
-                  </td>
-                  <td className="doc-vault-block__row-actions">
-                    <div className="doc-vault-block__hover-actions">
-                      <button
-                        type="button"
-                        className="doc-vault-block__action doc-vault-block__action--close"
-                        onClick={() => handleRemoveEntry(entry.id)}
-                        aria-label={`Eliminar ${entry.name}`}
-                        title="Eliminar"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {showAddForm ? (
-        <div className="doc-vault-block__form doc-vault-block__form--link">
-          <input
-            ref={nameRef}
-            className="doc-vault-block__input"
-            type="text"
-            value={draft.name}
-            placeholder={L.name}
-            onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
-            onKeyDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          />
-          <input
-            className="doc-vault-block__input"
-            type="text"
-            value={draft.tag ?? ""}
-            placeholder={L.tag}
-            onChange={(e) => setDraft((prev) => ({ ...prev, tag: e.target.value }))}
-            onKeyDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          />
-          <input
-            className="doc-vault-block__input"
-            type="text"
-            value={draft.category ?? ""}
-            placeholder={L.category}
-            onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value }))}
-            onKeyDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          />
-          {useMultilineDescription ? (
-            <textarea
-              ref={descRef}
-              rows={1}
-              className="doc-vault-block__input doc-vault-block__input--description-multiline"
-              value={draft.description}
-              placeholder={L.description}
-              onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
-              onKeyDown={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <input
-              className="doc-vault-block__input"
-              type="text"
-              value={draft.description}
-              placeholder={L.description}
-              onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
-              onKeyDown={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            />
-          )}
-          <input
-            className="doc-vault-block__input doc-vault-block__input--url"
-            type="url"
-            value={draft.url}
-            placeholder={L.url}
-            onChange={(e) => setDraft((prev) => ({ ...prev, url: e.target.value }))}
-            onKeyDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          />
-          <button
-            type="button"
-            className="doc-vault-block__save"
-            disabled={!canSave}
-            onClick={handleSave}
-          >
-            {L.save}
-          </button>
-        </div>
-      ) : null}
+                      {entry.tag}
+                    </button>
+                  ) : (
+                    <span className="doc-vault-block__empty">—</span>
+                  )}
+                </td>
+                <td>
+                  {entry.category ? (
+                    <button
+                      type="button"
+                      className="doc-vault-block__chip doc-vault-block__chip--category"
+                      onClick={() => applyChipValue("category", entry.category)}
+                      title={`Use category “${entry.category}”`}
+                    >
+                      {entry.category}
+                    </button>
+                  ) : (
+                    <span className="doc-vault-block__empty">—</span>
+                  )}
+                </td>
+                <td>{entry.description || <span className="doc-vault-block__empty">—</span>}</td>
+                <td>
+                  <a
+                    className="doc-vault-block__link"
+                    href={entry.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {entry.url}
+                  </a>
+                </td>
+                <td className="doc-vault-block__row-actions">
+                  <div className="doc-vault-block__hover-actions">
+                    <button
+                      type="button"
+                      className="doc-vault-block__action doc-vault-block__action--close"
+                      onClick={() => handleRemoveEntry(entry.id)}
+                      aria-label={`Eliminar ${entry.name}`}
+                      title="Eliminar"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          {showAddForm ? (
+            <tfoot>
+              <tr className="doc-vault-block__form-row">
+                {renderDraftFields()}
+              </tr>
+            </tfoot>
+          ) : null}
+        </table>
+      </div>
 
       {showAddButton ? (
         <button
