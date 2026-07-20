@@ -98,8 +98,9 @@ export function canSetCampaignTimelineSource(folderDoc, node) {
 }
 
 /**
- * Campaigns enter the timeline only via a file (entity) on canvas — not the
- * bare folder document card.
+ * True when the canvas selection is a child file entity under a campaign folder
+ * (vs a bare folder document card). Used for source/Launch sync, not as a
+ * timeline admission gate — folder cards enqueue like regular folders.
  * @param {object|null|undefined} canvasNode
  * @param {Record<string, object>} [nodeEntitiesById]
  * @param {Record<string, object>} [docsById]

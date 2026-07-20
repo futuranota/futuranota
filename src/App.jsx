@@ -906,6 +906,18 @@ useEffect(() => {
       useDocsStore.getState().docs[doc.id] || doc,
     );
 
+    const alreadyOnCanvas = canvasNodes.some(
+      (n) => n.canvasKind === "document"
+        && (n.docId === normalizedDoc.id || n.noteId === normalizedDoc.id),
+    );
+    if (alreadyOnCanvas) {
+      setToast({
+        message: `Already on canvas · "${normalizedDoc.title || "folder"}"`,
+        kind: "ok",
+      });
+      return null;
+    }
+
     const { x, y } = nextCanvasPosition(
       worldX != null ? worldX - 50 : undefined,
       worldY != null ? worldY - 40 : undefined,

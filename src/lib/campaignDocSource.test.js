@@ -68,14 +68,16 @@ describe("campaignDocSource", () => {
     expect(resolveCampaignSourceNode(folder, nodes)?.id).toBe("node-d");
   });
 
-  it("requires a file entity for campaign timeline insert", () => {
+  it("detects file-entity inserts vs bare folder cards (source/Launch sync)", () => {
     expect(isCampaignTimelineFileInsert(
       { noteId: "node-d" },
       nodes,
       { "folder-1": folder },
     )).toBe(true);
+    // Bare folder cards still enqueue on the timeline; this helper only
+    // distinguishes file vs folder for source/Launch wiring.
     expect(isCampaignTimelineFileInsert(
-      { canvasKind: "document", docId: "folder-1" },
+      { canvasKind: "document", docId: "folder-1", noteId: "folder-1" },
       nodes,
       { "folder-1": folder },
     )).toBe(false);

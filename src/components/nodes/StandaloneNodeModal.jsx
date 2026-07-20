@@ -420,7 +420,9 @@ export function StandaloneNodeModal({
           objectId: corpusObjectId,
           ...campaignFields,
         });
+        // Keep folder↔child link even when parent picker is locked (campaign folders).
         if (parentId) {
+          addNodeToDoc(parentId, newId);
           syncNodeToParentDoc(newId, parentId);
         }
         const entity = getNode(newId);
@@ -430,34 +432,33 @@ export function StandaloneNodeModal({
       }
 
       const prevParent = node.parentDocId || null;
+      const lockedParentId = !canAssignParent
+        ? (parentId || node.parentDocId || initialParentDocId || null)
+        : null;
+      const effectiveParentId = canAssignParent ? parentId : lockedParentId;
+
       if (canAssignParent && prevParent && prevParent !== parentId) {
         removeNodeSyncFromDoc(node.id, prevParent);
         removeNodeFromDoc(prevParent, node.id);
       }
-      if (canAssignParent && parentId) {
-        addNodeToDoc(parentId, node.id);
+      if (effectiveParentId) {
+        addNodeToDoc(effectiveParentId, node.id);
       }
       updateNode(node.id, {
         title,
         sourceQuery: title,
         dataType,
         content: payload,
-        ...(canAssignParent
-          ? {
-            parentDocId: parentId,
-            linkedToDoc: Boolean(parentId),
-            objectId: corpusObjectId,
-          }
-          : {
-            objectId: node.objectId || corpusObjectId,
-          }),
+        parentDocId: effectiveParentId,
+        linkedToDoc: Boolean(effectiveParentId),
+        objectId: corpusObjectId || node.objectId || null,
         createdAt,
         anchorAt,
         sourceId,
         ...campaignFields,
       });
-      if (canAssignParent && parentId) {
-        syncNodeToParentDoc(node.id, parentId);
+      if (effectiveParentId) {
+        syncNodeToParentDoc(node.id, effectiveParentId);
       }
       onSaved?.(getNode(node.id));
       // Incomplete schedule: keep panel open so they can assign date/time.

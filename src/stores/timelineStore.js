@@ -20,7 +20,6 @@ import { captureTimelineAgentSetsForInsert } from "../lib/agents/captureTimeline
 import {
   CAMPAIGN_DOC_STATUS_ACTIVE,
   canSetCampaignTimelineSource,
-  isCampaignTimelineFileInsert,
   replaceCampaignFoldersInTimelineQueue,
   syncCampaignFolderLaunchDateQueue,
 } from "../lib/campaignDocSource.js";
@@ -655,12 +654,6 @@ export const useTimelineStore = create(
           if (!docId) continue;
           const folder = docsById[docId];
 
-          // Campaigns: only a file (entity) on canvas can enter the timeline —
-          // not the bare folder document card.
-          if (folder?.campaignActive && !isCampaignTimelineFileInsert(node, nodeEntitiesById, docsById)) {
-            continue;
-          }
-
           touchedDocIds.add(docId);
           if (!nodesByDocId.has(docId)) nodesByDocId.set(docId, []);
           nodesByDocId.get(docId).push(canvasId);
@@ -747,16 +740,7 @@ export const useTimelineStore = create(
           return {
             ok: false,
             code: "NO_DOCS",
-            message: campaignFoldersInserted.length === 0
-              && canvasNodeIds.some((id) => {
-                const n = nodeById.get(id);
-                const docId = n
-                  ? resolveParentDocIdForCanvasNode(n, nodeEntitiesById, liveDocsById)
-                  : null;
-                return Boolean(docId && liveDocsById[docId]?.campaignActive);
-              })
-              ? "Campaigns enter the timeline from a file on canvas (Select → Insert)."
-              : "Selected nodes are not linked to a document.",
+            message: "Selected nodes are not linked to a document.",
           };
         }
 

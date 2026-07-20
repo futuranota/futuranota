@@ -1305,7 +1305,8 @@ export function initPersistenceMiddleware(stores) {
           scheduleFinishAt: camp.schedule_finish_at
             || camp.schedule_start_at
             || null,
-          campaignActive: camp.campaign_active !== false,
+          // Match normalizeDoc: only explicit true is a Campaign folder.
+          campaignActive: Boolean(camp.campaign_active),
           timelineSourceNodeId: timelineSourceNodeIdFromPersistedDoc(camp),
           nodeLinkColor: camp.node_link_color || "mint",
           knowledgeImport: stripTimelineSourceFromKnowledgeImport(camp.knowledge_import),
@@ -1663,7 +1664,7 @@ export function initPersistenceMiddleware(stores) {
         schedule_finish_at: doc.scheduleFinishAt
           || doc.scheduleStartAt
           || null,
-        campaign_active: doc.campaignActive !== false,
+        campaign_active: Boolean(doc.campaignActive),
         node_link_color: doc.nodeLinkColor || "mint",
         knowledge_import: knowledgeImportWithTimelineSource(doc),
         created_at: doc.createdAt || now,
