@@ -78,6 +78,8 @@ export const useUIStateStore = create(
       filterObjectId: null,
       /** Sidebar: selected object (corpus) for meta bar */
       selectedObjectId: null,
+      /** True while left panel is inside a company Documents workspace (not companies list). */
+      objectWorkspaceActive: false,
       /** Sidebar: filter nodes by parent document */
       filterDocId: null,
       /** Documents panel: Knowledge folder is open (disables canvas timeline Select). */
@@ -147,6 +149,7 @@ export const useUIStateStore = create(
 
       setFilterObjectId: (id) => set({ filterObjectId: id }),
       setSelectedObjectId: (id) => set({ selectedObjectId: id }),
+      setObjectWorkspaceActive: (active) => set({ objectWorkspaceActive: Boolean(active) }),
       setFilterDocId: (id) => set({ filterDocId: id }),
       setKnowledgeFolderActive: (active) => set({ knowledgeFolderActive: Boolean(active) }),
       setProductCategoryFilter: (query) => set({

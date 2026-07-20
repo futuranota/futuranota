@@ -1587,7 +1587,6 @@ export function LeftPanel({
   const [showCreate, setShowCreate] = useState(false);
   const [editObjectId, setEditObjectId] = useState(null);
   const [folderOpen, setFolderOpen] = useState(false);
-  const [objectWorkspaceActive, setObjectWorkspaceActive] = useState(false);
   const [nodeEditId, setNodeEditId] = useState(null);
   const [nodeEditContentFocus, setNodeEditContentFocus] = useState(false);
   const [nodeSearch, setNodeSearch] = useState("");
@@ -1604,8 +1603,10 @@ export function LeftPanel({
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const objectWorkspaceActive = useUIStateStore((s) => s.objectWorkspaceActive);
   const setFilterObjectId = useUIStateStore((s) => s.setFilterObjectId);
   const setSelectedObjectId = useUIStateStore((s) => s.setSelectedObjectId);
+  const setObjectWorkspaceActive = useUIStateStore((s) => s.setObjectWorkspaceActive);
   const setKnowledgeFolderActive = useUIStateStore((s) => s.setKnowledgeFolderActive);
   const productCategoryFilter = useUIStateStore((s) => s.productCategoryFilter);
   const setProductCategoryFilter = useUIStateStore((s) => s.setProductCategoryFilter);

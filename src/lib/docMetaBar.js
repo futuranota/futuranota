@@ -190,16 +190,25 @@ export function resolveActiveDocFromCanvas(selection, canvasNodes, docs) {
 }
 
 /**
- * Last campaign folder permanently queued on the timeline.
+ * Last campaign folder permanently queued on the timeline for the given company.
+ * Requires company context — never returns a global "last campaign" without ownership.
  * @param {string[]} timelineDocQueue
  * @param {Record<string, object>} docs
+ * @param {string|null} selectedObjectId
  * @returns {object|null}
  */
-export function resolveCampaignFolderFromTimelineQueue(timelineDocQueue = [], docs = {}) {
+export function resolveCampaignFolderFromTimelineQueue(
+  timelineDocQueue = [],
+  docs = {},
+  selectedObjectId = null,
+) {
+  if (!selectedObjectId) return null;
   if (!Array.isArray(timelineDocQueue) || !timelineDocQueue.length) return null;
   for (let i = timelineDocQueue.length - 1; i >= 0; i -= 1) {
     const doc = docs[timelineDocQueue[i]];
-    if (doc?.campaignActive) return normalizeDoc(doc);
+    if (doc?.campaignActive && doc.parentObjectId === selectedObjectId) {
+      return normalizeDoc(doc);
+    }
   }
   return null;
 }
@@ -228,7 +237,11 @@ export function buildMetaBarFromCanvas({
   }
 
   if (!doc) {
-    doc = resolveCampaignFolderFromTimelineQueue(timelineDocQueue, docs);
+    doc = resolveCampaignFolderFromTimelineQueue(
+      timelineDocQueue,
+      docs,
+      selectedObjectId,
+    );
   }
 
   return buildMetaBarFromDoc({

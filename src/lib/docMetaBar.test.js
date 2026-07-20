@@ -62,7 +62,7 @@ describe("docMetaBar campaign source child", () => {
 
   it("resolves campaign folder from timeline queue for MetaBar", () => {
     const docs = { "folder-1": folder, content: { id: "content", campaignActive: false } };
-    expect(resolveCampaignFolderFromTimelineQueue(["content", "folder-1"], docs)?.id)
+    expect(resolveCampaignFolderFromTimelineQueue(["content", "folder-1"], docs, "obj-1")?.id)
       .toBe("folder-1");
     const meta = buildMetaBarFromCanvas({
       selection: [],
@@ -76,5 +76,37 @@ describe("docMetaBar campaign source child", () => {
     });
     expect(meta.campaign).toBe("active");
     expect(meta.launch).toBeTruthy();
+  });
+
+  it("does not resolve Category/Launch/Window from queue without company context", () => {
+    const docs = { "folder-1": folder };
+    expect(resolveCampaignFolderFromTimelineQueue(["folder-1"], docs, null)).toBeNull();
+    const meta = buildMetaBarFromCanvas({
+      selection: [],
+      canvasNodes: [],
+      docs,
+      objectsById,
+      selectedObjectId: null,
+      timelineDocQueue: ["folder-1"],
+      nodeEntitiesById: nodes,
+      today,
+    });
+    expect(meta.product).toBeNull();
+    expect(meta.campaign).toBeNull();
+    expect(meta.launch).toBeNull();
+    expect(meta.window).toBeNull();
+  });
+
+  it("ignores queue campaign folders owned by another company", () => {
+    const docs = {
+      "folder-1": folder,
+      "folder-other": { ...folder, id: "folder-other", parentObjectId: "obj-other" },
+    };
+    expect(
+      resolveCampaignFolderFromTimelineQueue(["folder-other", "folder-1"], docs, "obj-1")?.id,
+    ).toBe("folder-1");
+    expect(
+      resolveCampaignFolderFromTimelineQueue(["folder-other"], docs, "obj-1"),
+    ).toBeNull();
   });
 });

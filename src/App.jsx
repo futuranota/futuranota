@@ -231,6 +231,7 @@ function Dashboard({ company, onBack }) {
   const nodeEntities = useNodesStore((s) => s.nodes);
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const objectWorkspaceActive = useUIStateStore((s) => s.objectWorkspaceActive);
   const heldObjectId = useObjectTargetHoldStore((s) => s.heldObjectId);
   const holdObjectTarget = useObjectTargetHoldStore((s) => s.hold);
   const releaseObjectTarget = useObjectTargetHoldStore((s) => s.release);
@@ -261,33 +262,45 @@ function Dashboard({ company, onBack }) {
   const planProfile = usePlanStore((s) => s.profile);
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
 
-  const metaBarMetadata = useMemo(
-    () =>
-      buildMetaBarFromCanvas({
-        selection,
-        canvasNodes,
-        docs,
-        objectsById: objects,
-        selectedObjectId: dashboardSelectedObjectId,
-        expandedDocId,
-        activeDocMetaDraft,
-        timelineDocQueue,
-        nodeEntitiesById: nodeEntities,
-        today,
-      }),
-    [
+  const metaBarMetadata = useMemo(() => {
+    const showCompanyMeta = Boolean(heldObjectId || objectWorkspaceActive);
+    if (!showCompanyMeta) {
+      return {
+        corpus: null,
+        brand: null,
+        product: null,
+        campaign: null,
+        subcategories: null,
+        launch: null,
+        window: null,
+      };
+    }
+    return buildMetaBarFromCanvas({
       selection,
       canvasNodes,
       docs,
-      objects,
-      dashboardSelectedObjectId,
+      objectsById: objects,
+      selectedObjectId: dashboardSelectedObjectId,
       expandedDocId,
       activeDocMetaDraft,
       timelineDocQueue,
-      nodeEntities,
+      nodeEntitiesById: nodeEntities,
       today,
-    ],
-  );
+    });
+  }, [
+    heldObjectId,
+    objectWorkspaceActive,
+    selection,
+    canvasNodes,
+    docs,
+    objects,
+    dashboardSelectedObjectId,
+    expandedDocId,
+    activeDocMetaDraft,
+    timelineDocQueue,
+    nodeEntities,
+    today,
+  ]);
 
   const handleTimelineCanvasSelect = useCallback(
     (canvasNodeId) => {
