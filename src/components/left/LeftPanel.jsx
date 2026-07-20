@@ -2123,18 +2123,6 @@ export function LeftPanel({
     onOpenNewUrlTable?.(filterObjectId || selectedObjectId);
   };
 
-  const handleCopiedUrlTableFromLibrary = (session) => {
-    if (session) onOpenUrlTableRef?.({
-      id: session.tableId,
-      tableId: session.tableId,
-      title: session.title || "URL table",
-      preview: "",
-      entryCount: (session.entries || []).length,
-      objectId: session.objectId,
-      entries: session.entries || [],
-    });
-  };
-
   const handleNewStepPlaybookFromLibrary = () => {
     onOpenNewStepPlaybook?.(filterObjectId || selectedObjectId);
   };
@@ -2635,7 +2623,6 @@ export function LeftPanel({
             onClose={closeUrlTableLibraryView}
             onOpenTable={handleOpenUrlTableFromLibrary}
             onNew={handleNewUrlTableFromLibrary}
-            onCopied={handleCopiedUrlTableFromLibrary}
           />
         ) : null}
 
@@ -2675,7 +2662,6 @@ export function LeftPanel({
                 onClose={closeUrlTableLibraryView}
                 onOpenTable={handleOpenUrlTableFromLibrary}
                 onNew={handleNewUrlTableFromLibrary}
-                onCopied={handleCopiedUrlTableFromLibrary}
               />
             ) : null}
 

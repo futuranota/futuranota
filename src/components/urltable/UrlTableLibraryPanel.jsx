@@ -1,13 +1,10 @@
 import { useMemo, useState } from "react";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useUrlTablesStore } from "../../stores/urlTablesStore.js";
-import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
   collectSavedUrlTables,
-  duplicateUrlTable,
   filterUrlTables,
-  removeUrlTableFromDoc,
 } from "../../lib/urlTableLibrary.js";
 
 /**
@@ -16,21 +13,16 @@ import {
  * @param {() => void} props.onClose
  * @param {(table: import("../../lib/urlTableLibrary.js").UrlTableRef) => void} props.onOpenTable
  * @param {() => void} props.onNew
- * @param {(session: import("../../lib/urlTableSession.js").UrlTableSession) => void} [props.onCopied]
- * @param {(payload: { tableId: string, docRemoved: boolean }) => void} [props.onTableDeleted]
  */
 export function UrlTableLibraryPanel({
   objectId = null,
   onClose,
   onOpenTable,
   onNew,
-  onCopied,
-  onTableDeleted,
 }) {
   const { t } = useI18n();
   const storeEntries = useUrlTableStore((s) => s.entries);
   const storeTables = useUrlTablesStore((s) => s.tables);
-  const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
 
   const tables = useMemo(
@@ -42,29 +34,6 @@ export function UrlTableLibraryPanel({
     () => filterUrlTables(tables, query),
     [tables, query],
   );
-
-  const handleDeleteTable = async (table) => {
-    if (!table?.tableId && !table?.id) return;
-
-    const confirmed = await askConfirm({
-      title: t("urlTableLibrary.deleteTitle"),
-      message: t("urlTableLibrary.deleteConfirm", { title: table.title }),
-      confirmLabel: t("urlTableLibrary.delete"),
-      cancelLabel: t("common.cancel"),
-    });
-    if (!confirmed) return;
-
-    const { docRemoved } = removeUrlTableFromDoc(table);
-    onTableDeleted?.({
-      tableId: table.tableId || table.id,
-      docRemoved,
-    });
-  };
-
-  const handleCopyTable = (table) => {
-    const session = duplicateUrlTable(table);
-    if (session) onCopied?.(session);
-  };
 
   return (
     <div className="lp-pack-import-detail steps-library-panel">
@@ -132,20 +101,6 @@ export function UrlTableLibraryPanel({
                           onClick={() => onOpenTable?.(table)}
                         >
                           {t("common.open")}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-                          onClick={() => handleCopyTable(table)}
-                        >
-                          {t("urlTableLibrary.copy")}
-                        </button>
-                        <button
-                          type="button"
-                          className="steps-library-panel__delete-btn"
-                          onClick={() => handleDeleteTable(table)}
-                        >
-                          {t("urlTableLibrary.delete")}
                         </button>
                       </div>
                     </li>

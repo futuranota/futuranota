@@ -3,8 +3,15 @@ import { createPortal } from "react-dom";
 import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { createLinkEntry, normalizeUrlInput } from "../../lib/vaultBlocks.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
+import { removeUrlTableFromDoc } from "../../lib/urlTableLibrary.js";
+import { flushUrlTableSync } from "../../lib/urlTableSync.js";
+import { flushUrlTablesSync } from "../../lib/urlTablesSync.js";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
+
+const TITLE_MIN_CH = 12;
+const TITLE_MAX_CH = 42;
 
 /**
  * Dedicated company URL table overlay (toolbar), not the document editor.
@@ -23,11 +30,14 @@ export function UrlTableDashboardOverlay({
   onSaved,
 }) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
   const [addFormRequest, setAddFormRequest] = useState(0);
   const [draft, setDraft] = useState({ name: "", tag: "", category: "", description: "", url: "" });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const draftRef = useRef(draft);
+  const confirmOpenRef = useRef(false);
   draftRef.current = draft;
 
   const sessionKey = session
@@ -53,6 +63,13 @@ export function UrlTableDashboardOverlay({
 
   const objectId = session.objectId;
   const tableId = session.tableId;
+  const titleLabel = String(session.title ?? "").trim() || t("pack.urlTableTitle");
+  const titleValue = session.title ?? "";
+  const titlePlaceholder = t("urlTableLibrary.titlePlaceholder");
+  const titleWidthCh = Math.min(
+    Math.max(titleValue.length || titlePlaceholder.length, TITLE_MIN_CH),
+    TITLE_MAX_CH,
+  );
 
   const commitDraftIfReady = (currentEntries) => {
     const currentDraft = draftRef.current;
@@ -97,7 +114,7 @@ export function UrlTableDashboardOverlay({
 
   /** Footer Save: persist full table + close. */
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || deleting) return;
     if (!objectId) {
       console.warn("[url-table] Footer Save skipped: missing company objectId");
       return;
@@ -112,11 +129,36 @@ export function UrlTableDashboardOverlay({
     }
   };
 
+  const handleDelete = async () => {
+    if (deleting || saving || confirmOpenRef.current) return;
+    if (!tableId) return;
+
+    confirmOpenRef.current = true;
+    try {
+      const confirmed = await askConfirm({
+        title: t("urlTableLibrary.deleteTitle"),
+        message: t("urlTableLibrary.deleteConfirm", { title: titleLabel }),
+        confirmLabel: t("urlTableLibrary.delete"),
+        cancelLabel: t("common.cancel"),
+      });
+      if (!confirmed) return;
+
+      setDeleting(true);
+      try {
+        removeUrlTableFromDoc({ id: tableId, tableId, title: titleLabel });
+        await Promise.all([flushUrlTableSync(), flushUrlTablesSync()]);
+        onCloseTab?.();
+      } finally {
+        setDeleting(false);
+      }
+    } finally {
+      confirmOpenRef.current = false;
+    }
+  };
+
   const handleAddRow = () => {
     setAddFormRequest((value) => value + 1);
   };
-
-  const titleLabel = String(session.title ?? "").trim() || t("pack.urlTableTitle");
 
   return createPortal(
     <div
@@ -131,10 +173,12 @@ export function UrlTableDashboardOverlay({
           <input
             type="text"
             className="url-table-page-overlay__title-input"
-            value={session.title ?? ""}
+            value={titleValue}
             onChange={(e) => onChange?.({ title: e.target.value, saved: false })}
-            placeholder={t("urlTableLibrary.titlePlaceholder")}
-            aria-label={t("urlTableLibrary.titlePlaceholder")}
+            placeholder={titlePlaceholder}
+            aria-label={titlePlaceholder}
+            style={{ width: `${titleWidthCh}ch` }}
+            maxLength={TITLE_MAX_CH}
           />
           <div className="url-table-page-overlay__search-wrap">
             <span className="url-table-page-overlay__search-icon" aria-hidden />
@@ -196,10 +240,20 @@ export function UrlTableDashboardOverlay({
             type="button"
             className="doc-new-action doc-new-action--save url-table-dashboard__save"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || deleting}
           >
             {t("common.save")}
           </button>
+          {tableId ? (
+            <button
+              type="button"
+              className="btn xs url-table-page-overlay__delete-btn"
+              onClick={handleDelete}
+              disabled={saving || deleting}
+            >
+              {t("urlTableLibrary.delete")}
+            </button>
+          ) : null}
         </footer>
       </div>
     </div>,

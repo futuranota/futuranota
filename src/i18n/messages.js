@@ -707,7 +707,7 @@ export const messages = {
       newDocTitle: "URL table",
       defaultTitle: "URL table",
       closeTab: "Close",
-      titlePlaceholder: "Table title",
+      titlePlaceholder: "Create a table title",
       emptyTitle: "No URL tables yet",
       emptyHint: "Tap New to create a URL table for this company.",
       enterCompanyFirst: "Enter a company workspace to browse its URL tables.",
