@@ -1254,7 +1254,12 @@ useEffect(() => {
         console.warn("[url-table] Save did not write to SQL store", result);
         return;
       }
-      setActiveUrlTableSession(null);
+      // Keep overlay open; refresh session from persist result.
+      setActiveUrlTableSession({
+        ...merged,
+        tableId: result.tableId || current.tableId,
+        saved: true,
+      });
     } finally {
       urlTableSaveLockRef.current = false;
     }

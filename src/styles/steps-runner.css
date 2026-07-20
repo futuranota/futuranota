@@ -855,8 +855,12 @@
 }
 
 .url-table-page-overlay__title-input::placeholder {
-  color: #BD747D;
+  color: rgba(255, 255, 255, 0.48);
   font-weight: 500;
+}
+
+.url-table-page-overlay__title-input:placeholder-shown {
+  color: rgba(255, 255, 255, 0.48);
 }
 
 .url-table-page-overlay__title-input:focus {
@@ -1035,9 +1039,9 @@
 }
 
 .url-table-dashboard {
-  --url-chip-tag-bg: #333333;
-  --url-chip-tag-fg: #999999;
-  --url-chip-tag-border: #333333;
+  --url-chip-tag-bg: color-mix(in oklab, #BD747D 16%, transparent);
+  --url-chip-tag-fg: #BD747D;
+  --url-chip-tag-border: transparent;
   --url-chip-category-bg: color-mix(in oklab, #8b5cf6 22%, transparent);
   --url-chip-category-fg: #c4b5fd;
   --url-chip-category-border: color-mix(in oklab, #8b5cf6 45%, transparent);
@@ -1125,6 +1129,20 @@
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.42);
   border-bottom: 1px solid var(--url-table-stroke, #313338);
+}
+
+.url-table-dashboard .doc-vault-block__table th:nth-child(4) {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.url-table-dashboard .doc-vault-block__table th:nth-child(4) .doc-vault-block__th-with-icon {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.url-table-dashboard .doc-vault-block__table th:nth-child(4) .doc-vault-block__th-icon {
+  background-color: rgba(255, 255, 255, 0.72);
 }
 
 .url-table-dashboard .doc-vault-block__table th,
@@ -1310,6 +1328,53 @@
   color: #fff;
 }
 
+.doc-vault-block__col-picker-menu--portal .doc-vault-block__col-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 2px;
+}
+
+.doc-vault-block__col-picker-menu--portal .doc-vault-block__col-picker-row:last-child {
+  margin-bottom: 0;
+}
+
+.doc-vault-block__col-picker-menu--portal .doc-vault-block__col-picker-row .doc-vault-block__col-picker-item {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.doc-vault-block__col-picker-menu--portal .doc-vault-block__col-picker-remove {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.doc-vault-block__col-picker-menu--portal .doc-vault-block__col-picker-row:hover .doc-vault-block__col-picker-remove,
+.doc-vault-block__col-picker-menu--portal .doc-vault-block__col-picker-row:focus-within .doc-vault-block__col-picker-remove {
+  opacity: 1;
+}
+
+.doc-vault-block__col-picker-menu--portal .doc-vault-block__col-picker-remove:hover {
+  color: #fff;
+  background: rgba(220, 80, 80, 0.4);
+}
+
 .doc-vault-block__col-picker-menu--portal .doc-vault-block__col-picker-empty {
   margin: 0;
   padding: 6px 4px;
@@ -1360,9 +1425,30 @@
 .url-table-dashboard .doc-vault-block__table td:nth-child(1) {
   font-size: 12px;
   font-weight: 600;
-  color: #BD747D;
+  color: #999999;
   white-space: normal;
   word-break: break-word;
+}
+
+.url-table-dashboard .doc-vault-block__name-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: none;
+  background: color-mix(in oklab, #999999 16%, transparent);
+  color: #999999;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.url-table-dashboard .doc-vault-block__name-chip-label {
+  min-width: 0;
 }
 
 /* Tag + Category columns */
@@ -1388,11 +1474,12 @@
   gap: 3px;
   max-width: 100%;
   margin: 0;
-  padding: 0 5px 0 4px;
+  padding: 1px 7px;
   border-radius: 999px;
-  border: 1px solid transparent;
+  border: none;
+  background: transparent;
   font-family: var(--sans);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.35;
   letter-spacing: 0.01em;
@@ -1400,19 +1487,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.url-table-dashboard .doc-vault-block__chip-icon {
-  display: block;
+.url-table-dashboard .doc-vault-block__chip-at {
   flex-shrink: 0;
-  width: 11px;
-  height: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
   color: inherit;
-}
-
-.url-table-dashboard .doc-vault-block__chip-icon--tag {
-  color: #999999;
 }
 
 .url-table-dashboard .doc-vault-block__chip-label {
@@ -1422,28 +1505,21 @@
 }
 
 .url-table-dashboard .doc-vault-block__chip--tag {
-  background: #333333;
-  color: #999999;
-  border-color: #333333;
-}
-
-.url-table-dashboard .doc-vault-block__chip--tag .doc-vault-block__chip-icon--tag {
-  color: #999999;
+  background: color-mix(in oklab, #BD747D 16%, transparent);
+  color: #BD747D;
 }
 
 .url-table-dashboard .doc-vault-block__chip--category {
-  background: var(--url-chip-category-bg);
+  background: color-mix(in oklab, #c4b5fd 16%, transparent);
   color: var(--url-chip-category-fg);
-  border-color: var(--url-chip-category-border);
 }
 
-.url-table-dashboard .doc-vault-block__chip:hover {
-  filter: none;
-  background: color-mix(in oklab, #333333 85%, #fff);
+.url-table-dashboard .doc-vault-block__chip--tag:hover {
+  background: color-mix(in oklab, #BD747D 24%, transparent);
 }
 
 .url-table-dashboard .doc-vault-block__chip--category:hover {
-  filter: brightness(1.12);
+  background: color-mix(in oklab, #c4b5fd 24%, transparent);
 }
 
 .url-table-dashboard .doc-vault-block__chip:focus-visible {
@@ -1543,12 +1619,17 @@
 .url-table-dashboard .doc-vault-block__form-row td:first-child .doc-vault-block__input {
   font-size: 12px;
   font-weight: 600;
-  color: #BD747D;
+  color: #999999;
   text-align: left;
 }
 
 .url-table-dashboard .doc-vault-block__form-row td:first-child .doc-vault-block__input::placeholder {
-  color: #BD747D;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.url-table-dashboard .doc-vault-block__form-row td:first-child .doc-vault-block__input:focus,
+.url-table-dashboard .doc-vault-block__form-row td:first-child .doc-vault-block__input:focus-visible {
+  color: #999999;
 }
 
 .url-table-dashboard .doc-vault-block__input--url::placeholder {

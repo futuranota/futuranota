@@ -174,6 +174,24 @@ export function LinkVaultBlockView({
     setOpenPicker(null);
   }, [setDraft]);
 
+  /** Clear a tag/category value from every row that has it (picker delete). */
+  const removeFieldValue = useCallback((field, value) => {
+    const target = String(value ?? "").trim().toLowerCase();
+    if (!target) return;
+    onEntriesChange?.(
+      entries.map((entry) => {
+        const current = String(entry[field] ?? "").trim();
+        if (current.toLowerCase() !== target) return entry;
+        return { ...entry, [field]: "" };
+      }),
+    );
+    setDraft((prev) => {
+      const current = String(prev[field] ?? "").trim();
+      if (current.toLowerCase() !== target) return prev;
+      return { ...prev, [field]: "" };
+    });
+  }, [entries, onEntriesChange, setDraft]);
+
   const uniqueTags = useMemo(() => {
     const seen = new Set();
     const values = [];
@@ -298,18 +316,31 @@ export function LinkVaultBlockView({
             >
               {values.length ? (
                 values.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="option"
-                    className="doc-vault-block__col-picker-item"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      applyChipValue(field, value);
-                    }}
-                  >
-                    {value}
-                  </button>
+                  <div key={value} className="doc-vault-block__col-picker-row">
+                    <button
+                      type="button"
+                      role="option"
+                      className="doc-vault-block__col-picker-item"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        applyChipValue(field, value);
+                      }}
+                    >
+                      {value}
+                    </button>
+                    <button
+                      type="button"
+                      className="doc-vault-block__col-picker-remove"
+                      aria-label={field === "tag" ? `Delete tag ${value}` : `Delete category ${value}`}
+                      title="Delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFieldValue(field, value);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))
               ) : (
                 <p className="doc-vault-block__col-picker-empty">{emptyLabel}</p>
@@ -607,7 +638,15 @@ export function LinkVaultBlockView({
           <tbody>
             {visibleEntries.map((entry) => (
               <tr key={entry.id} className="doc-vault-block__row">
-                <td>{entry.name}</td>
+                <td>
+                  {entry.name ? (
+                    <span className="doc-vault-block__name-chip">
+                      <span className="doc-vault-block__name-chip-label">{entry.name}</span>
+                    </span>
+                  ) : (
+                    <span className="doc-vault-block__empty">—</span>
+                  )}
+                </td>
                 <td>
                   {entry.tag ? (
                     <button
@@ -616,20 +655,7 @@ export function LinkVaultBlockView({
                       onClick={() => applyChipValue("tag", entry.tag)}
                       title={`Use tag “${entry.tag}”`}
                     >
-                      <svg
-                        className="doc-vault-block__chip-icon doc-vault-block__chip-icon--tag"
-                        width="11"
-                        height="11"
-                        viewBox="0 0 27 27"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-hidden
-                      >
-                        <path
-                          d="M25.6616 14.3438L15.1875 3.86966C15.0314 3.71228 14.8455 3.5875 14.6407 3.50258C14.436 3.41767 14.2163 3.3743 13.9947 3.37501H4.21876C3.99498 3.37501 3.78037 3.4639 3.62214 3.62214C3.4639 3.78037 3.37501 3.99498 3.37501 4.21876V13.9947C3.3743 14.2163 3.41767 14.436 3.50258 14.6407C3.5875 14.8455 3.71228 15.0314 3.86966 15.1875L14.3438 25.6616C14.5005 25.8183 14.6865 25.9427 14.8913 26.0275C15.096 26.1123 15.3155 26.156 15.5371 26.156C15.7588 26.156 15.9782 26.1123 16.183 26.0275C16.3878 25.9427 16.5738 25.8183 16.7305 25.6616L25.6616 16.7305C25.8183 16.5738 25.9427 16.3878 26.0275 16.183C26.1123 15.9782 26.156 15.7588 26.156 15.5371C26.156 15.3155 26.1123 15.096 26.0275 14.8913C25.9427 14.6865 25.8183 14.5005 25.6616 14.3438ZM15.5366 24.4688L5.06251 13.9947V5.06251H13.9947L24.4688 15.5366L15.5366 24.4688ZM10.125 8.85938C10.125 9.1097 10.0508 9.3544 9.91171 9.56253C9.77264 9.77066 9.57498 9.93288 9.34372 10.0287C9.11245 10.1245 8.85798 10.1495 8.61247 10.1007C8.36696 10.0519 8.14145 9.93132 7.96445 9.75432C7.78745 9.57731 7.66691 9.3518 7.61808 9.1063C7.56924 8.86079 7.59431 8.60631 7.6901 8.37505C7.78589 8.14379 7.94811 7.94612 8.15624 7.80705C8.36437 7.66799 8.60907 7.59376 8.85938 7.59376C9.19505 7.59376 9.51696 7.7271 9.75432 7.96445C9.99167 8.2018 10.125 8.52372 10.125 8.85938Z"
-                          fill="currentColor"
-                        />
-                      </svg>
+                      <span className="doc-vault-block__chip-at" aria-hidden>@</span>
                       <span className="doc-vault-block__chip-label">{entry.tag}</span>
                     </button>
                   ) : (
@@ -644,7 +670,7 @@ export function LinkVaultBlockView({
                       onClick={() => applyChipValue("category", entry.category)}
                       title={`Use category “${entry.category}”`}
                     >
-                      {entry.category}
+                      <span className="doc-vault-block__chip-label">{entry.category}</span>
                     </button>
                   ) : (
                     <span className="doc-vault-block__empty">—</span>
