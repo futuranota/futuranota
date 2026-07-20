@@ -112,7 +112,7 @@ export function UrlTableDashboardOverlay({
     setDraft({ name: "", tag: "", category: "", description: "", url: "" });
   };
 
-  /** Footer Save: persist full table (keep overlay open). */
+  /** Footer Save: persist full table + close overlay. */
   const handleSave = async () => {
     if (saving || deleting) return;
     if (!objectId) {

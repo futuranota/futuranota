@@ -44,6 +44,7 @@ import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
   normalizeCampaignDocStatus,
 } from "../../lib/campaignDocSource.js";
+import { flushPersistenceSync } from "../../stores/middleware/persistenceMiddleware.js";
 
 function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "").trim();
@@ -424,6 +425,13 @@ export function StandaloneNodeModal({
         if (parentId) {
           addNodeToDoc(parentId, newId);
           syncNodeToParentDoc(newId, parentId);
+        }
+        // Flush immediately (same as folder create) so hydrate can't drop the
+        // local-only node before the debounced cloud upsert lands.
+        try {
+          await flushPersistenceSync();
+        } catch (err) {
+          console.warn("[document sync] flush failed", newId, err);
         }
         const entity = getNode(newId);
         onSaved?.(entity);

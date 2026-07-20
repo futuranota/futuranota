@@ -788,7 +788,9 @@ function isLocalRicherThanRemote(local, remote) {
 
 /**
  * Merge maps: remote decides which ids exist; local can win field content when both exist.
- * Local-only ids are kept only when created after lastSyncedAt (unsynced creates).
+ * Local-only ids are kept when their wall-clock activity is after lastSyncedAt (unsynced creates).
+ * Prefer max(updatedAt, createdAt): Created UI uses noon-of-day (isoFromDateInput), which is
+ * often ≤ lastSyncedAt even for brand-new rows that still have updatedAt = now.
  * This stops deleted folders in a fat localStorage from resurrecting after purge.
  * @param {Record<string, object>} remoteMap
  * @param {Record<string, object>} localMap
@@ -837,9 +839,11 @@ function mergeEntityMapsPreferNewer(remoteMap, localMap, contentLen, opts = {}) 
       if (Object.keys(remote).length === 0) out[id] = localItem;
       continue;
     }
-    const createdMs = Date.parse(String(localItem.createdAt || localItem.updatedAt || "")) || 0;
-    // Unsynced create after last successful cloud sync.
-    if (createdMs > lastSyncedMs) {
+    const updatedMs = Date.parse(String(localItem.updatedAt || "")) || 0;
+    const createdMs = Date.parse(String(localItem.createdAt || "")) || 0;
+    const localMs = Math.max(updatedMs, createdMs);
+    // Unsynced create/edit after last successful cloud sync.
+    if (localMs > lastSyncedMs) {
       out[id] = localItem;
     }
   }

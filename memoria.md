@@ -63,6 +63,12 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Documentos en folders no se guardan / no aparecen en sidebar (2026-07-20)** — Al crear documentos (links/hijos) dentro de un folder, a veces desaparecían del sidebar tras hydrate/reload.
+
+- Causa: `mergeEntityMapsPreferNewer` solo conservaba local-only si `createdAt > lastSyncedAt`, pero Created usa `isoFromDateInput` (mediodía) y `lastSyncedAt` es wall-clock → los docs nuevos del día se descartaban. Además el create de documento no hacía flush inmediato (los folders sí).
+- Fix: merge usa `max(updatedAt, createdAt)`; `StandaloneNodeModal` hace `flushPersistenceSync()` tras create.
+- Archivos: `persistenceMiddleware.js`, `StandaloneNodeModal.jsx`.
+
 **Campaign docs → timeline source (2026-07-18)** — En Campaigns, el folder es contenedor; cada documento (node) tiene `active|inactive` + `launchAt` + window. Timeline row 1 = folder + launch del **source** active; micro-iniciales bajo el folder; expand = switch de source (solo active). Insert canvas de un doc active lo setea como source.
 
 Archivos clave: `campaignDocSource.js`, `nodesStore`, `timelineStore`, `tacticalTimelineView`, `canvasDocSync`, `StandaloneNodeModal`, `TacticalTimeline`.
