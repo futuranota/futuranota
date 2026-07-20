@@ -56,6 +56,24 @@ function isAtInputStart(e) {
   return target.selectionStart === 0 && target.selectionEnd === 0;
 }
 
+/** Zoom-out only: show at most this many trailing empty TEXT cells. */
+const COLLAPSED_MAX_TRAILING_EMPTY = 2;
+
+function getHideTrailingEmptyFromIndex(blocks) {
+  let trailingStart = blocks.length;
+  while (
+    trailingStart > 0
+    && blocks[trailingStart - 1]?.type === NODE_BLOCK_TYPES.TEXT
+    && !blocks[trailingStart - 1].embedded
+    && !(blocks[trailingStart - 1].text || "").trim()
+  ) {
+    trailingStart -= 1;
+  }
+  const trailingCount = blocks.length - trailingStart;
+  if (trailingCount <= COLLAPSED_MAX_TRAILING_EMPTY) return blocks.length;
+  return trailingStart + COLLAPSED_MAX_TRAILING_EMPTY;
+}
+
 function focusVaultTarget(parsed, blocks, blockIndex, onFocusTargetChange) {
   const vaultNodeType = vaultNodeTypeForParsed(parsed);
   if (vaultNodeType === NODE_BLOCK_TYPES.AGENT) {
@@ -543,6 +561,10 @@ export function NodeWritingBlockStack({
   }, [onFocusTargetChange, updateBlockAt]);
 
   const normalizedBlocks = normalizeWritingBlocks(blocks);
+  // Collapsed view: hide extra trailing empty cells (data stays; focus shows all).
+  const hideTrailingEmptyFrom = contentFocusMode
+    ? normalizedBlocks.length
+    : getHideTrailingEmptyFromIndex(normalizedBlocks);
 
   // Show the "Escribe aquí…" placeholder on a single cell only: the focused one,
   // or (when nothing is focused) the first empty text cell.
@@ -594,6 +616,15 @@ export function NodeWritingBlockStack({
     >
       {selectionBubble}
       {normalizedBlocks.map((block, blockIndex) => {
+        if (
+          blockIndex >= hideTrailingEmptyFrom
+          && block.type === NODE_BLOCK_TYPES.TEXT
+          && !block.embedded
+          && !(block.text || "").trim()
+        ) {
+          return null;
+        }
+
         if (block.type === NODE_BLOCK_TYPES.H1) {
           const isMacronodo = Boolean(block.macronodeHeading);
           return renderHeadingBlock(block, blockIndex, {

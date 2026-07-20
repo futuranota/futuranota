@@ -185,12 +185,19 @@ export function NodeQueryModal({
     el.style.overflowY = "hidden";
   }, []);
 
+  const scrollContentToTop = useCallback(() => {
+    const el = contentScrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, []);
+
   const exitContentFocusMode = useCallback(() => {
     setContentFocusMode(false);
     requestAnimationFrame(() => {
       syncQueryInputHeight();
+      // Zoom-out / collapsed: always show the start of the writing (not empty tail cells).
+      scrollContentToTop();
     });
-  }, [syncQueryInputHeight]);
+  }, [syncQueryInputHeight, scrollContentToTop]);
 
   const toggleContentFocus = useCallback(() => {
     if (contentFocusMode) {
@@ -199,6 +206,15 @@ export function NodeQueryModal({
     }
     setContentFocusMode(true);
   }, [contentFocusMode, exitContentFocusMode, embedded]);
+
+  // Open / reopen collapsed: pin scroll to the beginning of the text.
+  useEffect(() => {
+    if (contentFocusMode) return undefined;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(scrollContentToTop);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [contentFocusMode, entityNodeId, scrollContentToTop]);
   const setActiveNodeQueryDraft = useUIStateStore((s) => s.setActiveNodeQueryDraft);
   const triggerIntelSearchFromNode = useUIStateStore((s) => s.triggerIntelSearchFromNode);
   const intelSearchStatus = useUIStateStore((s) => s.intelSearchStatus);
