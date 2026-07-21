@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createLinkEntry, normalizeUrlInput } from "../../../lib/vaultBlocks.js";
+import { findTagConflictInTable } from "../../../lib/urlTableTags.js";
+import { useUrlTableStore } from "../../../stores/urlTableStore.js";
 
 const EMPTY_DRAFT = { name: "", tag: "", category: "", description: "", url: "" };
 const URL_FIELD_ICON = "/uploads/url-table.svg";
@@ -30,6 +32,8 @@ export function LinkVaultBlockView({
   flushDraftRef = null,
   draft: controlledDraft = null,
   onDraftChange = null,
+  objectId = null,
+  tableId = null,
 }) {
   const L = { ...DEFAULT_LABELS, ...(labels || {}) };
   const isDraftControlled = controlledDraft != null && typeof onDraftChange === "function";
@@ -38,6 +42,8 @@ export function LinkVaultBlockView({
   const setDraft = isDraftControlled ? onDraftChange : setUncontrolledDraft;
   const [isAdding, setIsAdding] = useState(entries.length === 0);
   const [openPicker, setOpenPicker] = useState(/** @type {null|'tag'|'category'} */ (null));
+  const [tagError, setTagError] = useState("");
+  const storeEntries = useUrlTableStore((s) => s.entries);
   const nameRef = useRef(null);
   const descRef = useRef(null);
   const pickerRef = useRef(null);
@@ -141,15 +147,62 @@ export function LinkVaultBlockView({
 
   const canSave = Boolean(draft.name.trim() && draft.url.trim());
 
+  const checkTagUnique = useCallback((tag, excludeEntryId = null) => {
+    const trimmed = String(tag ?? "").trim();
+    if (!trimmed) {
+      setTagError("");
+      return true;
+    }
+
+    // Local rows in the open form / session (same table).
+    const localScoped = entries.map((item) => ({
+      ...item,
+      tableId: tableId || item.tableId || "__local__",
+    }));
+    const localTableId = tableId || "__local__";
+    const localConflict = findTagConflictInTable(
+      localScoped,
+      localTableId,
+      trimmed,
+      excludeEntryId,
+    );
+    if (localConflict.conflict) {
+      setTagError(`Tag “${trimmed}” is already used in this table`);
+      return false;
+    }
+
+    if (tableId) {
+      const storeConflict = findTagConflictInTable(
+        storeEntries,
+        tableId,
+        trimmed,
+        excludeEntryId,
+      );
+      if (storeConflict.conflict) {
+        setTagError(`Tag “${trimmed}” is already used in this table`);
+        return false;
+      }
+    }
+
+    setTagError("");
+    return true;
+  }, [entries, storeEntries, tableId]);
+
   const handleSave = useCallback(() => {
     if (!canSave) return;
+    if (!checkTagUnique(draft.tag)) return;
     const entry = createLinkEntry({
       ...draft,
       url: normalizeUrlInput(draft.url),
     });
     if (onSaveEntry) {
-      onSaveEntry(entry);
+      const result = onSaveEntry(entry);
+      if (result === false || result === null) {
+        setTagError(`Tag “${String(draft.tag || "").trim()}” is already used in this table`);
+        return;
+      }
       setDraft(EMPTY_DRAFT);
+      setTagError("");
       // Keep form open so the user can add another row in the overlay.
       setIsAdding(true);
       return;
@@ -159,8 +212,9 @@ export function LinkVaultBlockView({
       entry,
     ]);
     setDraft(EMPTY_DRAFT);
+    setTagError("");
     setIsAdding(false);
-  }, [canSave, draft, entries, onEntriesChange, onSaveEntry]);
+  }, [canSave, checkTagUnique, draft, entries, onEntriesChange, onSaveEntry, setDraft]);
 
   const handleRemoveEntry = useCallback((entryId) => {
     onEntriesChange?.(entries.filter((entry) => entry.id !== entryId));
@@ -372,15 +426,22 @@ export function LinkVaultBlockView({
         />
       </td>
       <td>
-        <input
-          className="doc-vault-block__input"
-          type="text"
-          value={draft.tag ?? ""}
-          placeholder={L.tag}
-          onChange={(e) => setDraft((prev) => ({ ...prev, tag: e.target.value }))}
-          onKeyDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        />
+        <div className="doc-vault-block__tag-field">
+          <input
+            className={`doc-vault-block__input${tagError ? " is-invalid" : ""}`}
+            type="text"
+            value={draft.tag ?? ""}
+            placeholder={L.tag}
+            onChange={(e) => {
+              setTagError("");
+              setDraft((prev) => ({ ...prev, tag: e.target.value }));
+            }}
+            onKeyDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            aria-invalid={Boolean(tagError)}
+          />
+          {tagError ? <p className="doc-vault-block__tag-error">{tagError}</p> : null}
+        </div>
       </td>
       <td>
         <input
@@ -520,15 +581,22 @@ export function LinkVaultBlockView({
                 onKeyDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
               />
-              <input
-                className="doc-vault-block__stack-field doc-vault-block__stack-field--tag"
-                type="text"
-                value={draft.tag ?? ""}
-                placeholder={L.tag}
-                onChange={(e) => setDraft((prev) => ({ ...prev, tag: e.target.value }))}
-                onKeyDown={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
+              <div className="doc-vault-block__tag-field">
+                <input
+                  className={`doc-vault-block__stack-field doc-vault-block__stack-field--tag${tagError ? " is-invalid" : ""}`}
+                  type="text"
+                  value={draft.tag ?? ""}
+                  placeholder={L.tag}
+                  onChange={(e) => {
+                    setTagError("");
+                    setDraft((prev) => ({ ...prev, tag: e.target.value }));
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  aria-invalid={Boolean(tagError)}
+                />
+                {tagError ? <p className="doc-vault-block__tag-error">{tagError}</p> : null}
+              </div>
               <input
                 className="doc-vault-block__stack-field doc-vault-block__stack-field--category"
                 type="text"

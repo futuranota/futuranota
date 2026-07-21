@@ -59,6 +59,8 @@ export function useDocBlockNodeModal({
   onInsertToCanvas,
   /** Parent folder schedule bounds ({ scheduleStartAt, scheduleFinishAt } or full doc). */
   parentFolderDoc = null,
+  /** Company object id — required for /tag mentions inside the node modal. */
+  parentObjectId = null,
 }) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -498,6 +500,7 @@ export function useDocBlockNodeModal({
         if (id) updateNode(id, { sourceId: v ?? null });
       }}
       parentDocLabel={docTitle.trim() || "New document"}
+      parentObjectId={parentObjectId}
       onSave={handleNodeModalSave}
       onBackToDocument={flushAndCloseNodeModal}
       anchorDate={nodeDraftAnchorDate}

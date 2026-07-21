@@ -90,10 +90,10 @@ export function UrlTableDashboardOverlay({
   const handleSaveEntry = (entry) => {
     if (!objectId) {
       console.warn("[url-table] Row Save skipped: missing company objectId");
-      return;
+      return null;
     }
     const stored = queueUrlTableEntry(objectId, entry, tableId);
-    if (!stored) return;
+    if (!stored) return null;
     const fromStore = tableId
       ? useUrlTableStore.getState().getEntriesForTable(tableId)
       : useUrlTableStore.getState().getEntriesForObject(objectId);
@@ -110,6 +110,7 @@ export function UrlTableDashboardOverlay({
       saved: true,
     });
     setDraft({ name: "", tag: "", category: "", description: "", url: "" });
+    return stored;
   };
 
   /** Footer Save: persist full table + close overlay. */
@@ -218,6 +219,8 @@ export function UrlTableDashboardOverlay({
             entries={session.entries}
             onEntriesChange={(entries) => onChange({ entries, saved: false })}
             onSaveEntry={objectId ? handleSaveEntry : null}
+            objectId={objectId}
+            tableId={tableId}
             multilineDescription
             hideAddButton
             addFormRequest={addFormRequest}

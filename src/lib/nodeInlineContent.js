@@ -1,6 +1,7 @@
 import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES } from "./docBlocks.js";
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
+import { normalizeMentions } from "./docMentions.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
 import {
   createDefaultNodeTodoContent,
@@ -38,11 +39,17 @@ export function isNodeWritingBody(content) {
   );
 }
 
-export function createEmptyTextBlock(text = "") {
+export function createEmptyTextBlock(text = "", patch = {}) {
+  const value = text || "";
+  const mentions = normalizeMentions(value, patch.mentions);
   return {
-    id: generateId("NTX"),
+    id: patch.id || generateId("NTX"),
     type: NODE_BLOCK_TYPES.TEXT,
-    text,
+    text: value,
+    ...(mentions.length ? { mentions } : {}),
+    ...(patch.embedded && typeof patch.embedded === "object"
+      ? { embedded: patch.embedded }
+      : {}),
   };
 }
 
@@ -268,10 +275,13 @@ export function normalizeWritingBlocks(blocks) {
         type: NODE_BLOCK_TYPES.PRODUCT_CARD,
       };
     }
+    const text = block?.text || "";
+    const mentions = normalizeMentions(text, block?.mentions);
     return {
       id: block?.id || generateId("NTX"),
       type: NODE_BLOCK_TYPES.TEXT,
-      text: block?.text || "",
+      text,
+      ...(mentions.length ? { mentions } : {}),
       // Keep inline Intel widgets (calendar/forecast) attached to the text cell.
       ...(block?.embedded && typeof block.embedded === "object"
         ? { embedded: block.embedded }
@@ -367,6 +377,7 @@ export function nodeWritingBlocksHaveStructure(blocks) {
   return normalizeWritingBlocks(blocks).some((block) => {
     if (block.type !== NODE_BLOCK_TYPES.TEXT) return true;
     if (block.embedded) return true;
+    if (Array.isArray(block.mentions) && block.mentions.length > 0) return true;
     return block.text.trim();
   });
 }
@@ -400,7 +411,11 @@ export function nodeDraftContentForStorage(content, dataType = "text") {
   const { blocks } = parseNodeWritingBody(content);
   const normalized = normalizeWritingBlocks(blocks);
   const hasStructure = normalized.some(
-    (block) => block.type !== NODE_BLOCK_TYPES.TEXT || block.embedded,
+    (block) => (
+      block.type !== NODE_BLOCK_TYPES.TEXT
+      || block.embedded
+      || (Array.isArray(block.mentions) && block.mentions.length > 0)
+    ),
   );
   if (hasStructure) {
     return serializeNodeWritingBody({ blocks: normalized });

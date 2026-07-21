@@ -15,6 +15,7 @@ import {
   DOCUMENT_SLASH_GHOST_HINTS,
   FOLDER_SLASH_COMMANDS,
   FOLDER_SLASH_GHOST_HINTS,
+  isGuidedTagSlashAction,
   parseDocumentSlashQuery,
   parseFolderSlashQuery,
   parseSlashQueryFromCommands,
@@ -563,6 +564,18 @@ export function DocDocumentBox({
     if (!parsed || !isSlashCommandEnabled({ aliases: [alias] })) return;
 
     const { prefix } = splitBodyForSlash(body);
+    if (isGuidedTagSlashAction(parsed)) {
+      const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix });
+      onBlocksChange?.([textBlock]);
+      onBodyChange?.("");
+      setFocusBlockId(textBlock.id);
+      requestContentBoxGrow();
+      requestAnimationFrame(() => {
+        blockStackRef.current?.openTagMentionPicker?.(textBlock.id, prefix.length);
+      });
+      return;
+    }
+
     const inserted = createBlocksFromSlash(parsed, prefix);
     const focusId = parsed.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED
       ? inserted.find((b) => b.type === DOC_BLOCK_TYPES.H1)?.id
@@ -593,6 +606,17 @@ export function DocDocumentBox({
     }
 
     const { prefix } = splitBodyForSlash(body);
+    if (isGuidedTagSlashAction(parsed)) {
+      const textBlock = createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix });
+      onBlocksChange?.([textBlock]);
+      onBodyChange?.("");
+      setFocusBlockId(textBlock.id);
+      requestAnimationFrame(() => {
+        blockStackRef.current?.openTagMentionPicker?.(textBlock.id, prefix.length);
+      });
+      return true;
+    }
+
     const inserted = createBlocksFromSlash(parsed, prefix);
     const focusId = parsed.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED
       ? inserted.find((b) => b.type === DOC_BLOCK_TYPES.H1)?.id

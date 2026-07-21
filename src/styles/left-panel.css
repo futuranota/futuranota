@@ -6152,6 +6152,332 @@ body.doc-content-resizing * {
   color: #fff;
 }
 
+.doc-slash-field--mentions .doc-slash-field__mirror {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  margin: 0;
+  pointer-events: none;
+  color: #fff;
+  white-space: pre-wrap;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.doc-slash-field--mentions .doc-slash-field__mirror--interactive {
+  pointer-events: auto;
+}
+
+/* Chip look must NOT change glyph metrics (no bold/padding), otherwise the
+   mirror text drifts from the invisible textarea text and the caret breaks. */
+.doc-slash-field__mention {
+  color: #BD747D;
+  background: rgba(189, 116, 125, 0.16);
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.doc-slash-field__input--mentions {
+  color: transparent;
+  caret-color: #fff;
+  -webkit-text-fill-color: transparent;
+}
+
+.doc-slash-field__input--mentions::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.35);
+}
+
+.doc-slash-field__input--mentions-idle {
+  pointer-events: none;
+}
+
+.doc-mention-menu {
+  min-width: 220px;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.doc-mention-menu__empty {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.doc-mention-menu__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doc-mention-menu__item.is-active,
+.doc-mention-menu__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.doc-mention-menu__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.doc-mention-menu__tag-inline {
+  color: #BD747D;
+  font-weight: 700;
+}
+
+.doc-mention-menu__desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-tag-command-picker {
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(360px, calc(100vh - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+.doc-tag-command-picker__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-tag-command-picker__back {
+  margin: 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.doc-tag-command-picker__back:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.doc-tag-command-picker__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.doc-tag-command-picker__search {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+}
+
+.doc-tag-command-picker__search::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.doc-tag-command-picker__list {
+  overflow-y: auto;
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.doc-tag-command-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.doc-tag-command-picker__item--tag {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.doc-tag-command-picker__item.is-active,
+.doc-tag-command-picker__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.doc-tag-command-picker__icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.85;
+  flex: 0 0 auto;
+}
+
+.doc-tag-command-picker__label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.doc-tag-command-picker__name-tag {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.doc-tag-command-picker__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.doc-tag-command-picker__token {
+  color: #BD747D;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.doc-tag-command-picker__desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.doc-tag-command-picker__empty {
+  margin: 0;
+  padding: 12px 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.doc-mention-hover-card {
+  width: min(280px, calc(100vw - 16px));
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #151515;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+.doc-mention-hover-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.doc-mention-hover-card__icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.9;
+}
+
+.doc-mention-hover-card__title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.doc-mention-hover-card__tag {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #BD747D;
+}
+
+.doc-mention-hover-card__body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.doc-mention-hover-card__link {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #9DBE8D;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.doc-mention-hover-card__link:hover {
+  text-decoration: underline;
+}
+
+.doc-slash-field__mention--linked {
+  cursor: pointer;
+}
+
+.doc-slash-field__mention--linked:hover {
+  text-decoration: underline;
+}
+
+.doc-vault-block__tag-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.doc-vault-block__tag-error {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #BD747D;
+}
+
+.doc-vault-block__input.is-invalid,
+.doc-vault-block__stack-field.is-invalid {
+  outline: 1px solid color-mix(in oklab, #BD747D 70%, transparent);
+}
+
 .doc-slash-ghost-hints {
   position: absolute;
   top: 24px;

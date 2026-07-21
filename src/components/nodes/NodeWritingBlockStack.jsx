@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createTodoItem, convertImageLayoutBlock, applyTodoSlashToImageSplit, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
 import {
   DOCUMENT_SLASH_GHOST_HINTS,
   IMAGE_CARD_BODY_SLASH_COMMANDS,
   IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
+  isGuidedTagSlashAction,
   parseNodeSlashQuery,
   parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
+import { insertMentionAtQuery } from "../../lib/docMentions.js";
 import {
   applySlashInTextBlock,
   createEmptyTextBlock,
@@ -18,8 +20,9 @@ import {
   removeWritingBlockAt,
 } from "../../lib/nodeInlineContent.js";
 import { isHeadingBlockType } from "../../lib/textSelectionHeading.js";
-import { syncAutoGrowTextareaHeight, scrollTextareaCaretIntoCameraView } from "../../lib/textareaSelectionRect.js";
+import { scrollTextareaCaretIntoCameraView } from "../../lib/textareaSelectionRect.js";
 import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
+import { DocTagCommandPicker } from "../docs/blocks/DocTagCommandPicker.jsx";
 import { H1BlockView } from "../docs/blocks/H1BlockView.jsx";
 import { H2BlockView } from "../docs/blocks/H2BlockView.jsx";
 import { H3BlockView } from "../docs/blocks/H3BlockView.jsx";
@@ -42,13 +45,12 @@ import {
 import { removeEmbeddedFromWritingBlock } from "../../lib/nodeIntelWidget.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { queuePasswordTableEntry } from "../../lib/passwordTableSession.js";
+import { collectTagCandidatesForObject } from "../../lib/urlTableTags.js";
+import { useUrlTableStore } from "../../stores/urlTableStore.js";
+import { useUrlTablesStore } from "../../stores/urlTablesStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useNodeTextSelectionToolbar } from "./useNodeTextSelectionToolbar.jsx";
-
-function syncTextareaHeight(el) {
-  syncAutoGrowTextareaHeight(el);
-}
 
 function isAtInputStart(e) {
   const target = e.target;
@@ -230,6 +232,21 @@ export function NodeWritingBlockStack({
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
   const [focusedBlockId, setFocusedBlockId] = useState(null);
+  const [tagPickerSession, setTagPickerSession] = useState(null);
+  const urlTableEntries = useUrlTableStore((s) => s.entries);
+  const urlTables = useUrlTablesStore((s) => s.tables);
+  const mentionCandidates = useMemo(() => {
+    if (!companyObjectId) return null;
+    const titleById = new Map(
+      urlTables
+        .filter((table) => table.objectId === companyObjectId)
+        .map((table) => [table.id, table.title || ""]),
+    );
+    return collectTagCandidatesForObject(urlTableEntries, companyObjectId).map((item) => ({
+      ...item,
+      tableTitle: titleById.get(item.tableId) || "",
+    }));
+  }, [companyObjectId, urlTableEntries, urlTables]);
 
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
@@ -378,6 +395,68 @@ export function NodeWritingBlockStack({
     attempt();
   }, []);
 
+  const openGuidedTagPicker = useCallback((blockIndex, textValue) => {
+    const block = blocksRef.current[blockIndex];
+    if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) return;
+    const { prefix } = splitBodyForSlash(textValue);
+    updateBlockAt(blockIndex, { text: prefix });
+    setFocusedBlockId(block.id);
+
+    let anchor = { top: 120, left: 24 };
+    const field = inputRefs.current[block.id];
+    if (field) {
+      const rect = field.getBoundingClientRect();
+      anchor = {
+        top: Math.min(window.innerHeight - 12, rect.bottom + 6),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 320)),
+      };
+      requestAnimationFrame(() => {
+        if ("setSelectionRange" in field) {
+          field.focus({ preventScroll: true });
+          field.setSelectionRange(prefix.length, prefix.length);
+        }
+      });
+    }
+
+    setTagPickerSession({
+      blockId: block.id,
+      blockIndex,
+      caret: prefix.length,
+      anchor,
+    });
+  }, [updateBlockAt]);
+
+  const handleTagPickerSelect = useCallback((candidate) => {
+    if (!tagPickerSession || !candidate) {
+      setTagPickerSession(null);
+      return;
+    }
+    const { blockIndex, caret, blockId } = tagPickerSession;
+    const block = blocksRef.current[blockIndex];
+    if (!block || block.type !== NODE_BLOCK_TYPES.TEXT || block.id !== blockId) {
+      setTagPickerSession(null);
+      return;
+    }
+    const result = insertMentionAtQuery(
+      block.text || "",
+      block.mentions || [],
+      { start: caret, end: caret, query: "" },
+      candidate,
+    );
+    updateBlockAt(blockIndex, {
+      text: result.text,
+      mentions: result.mentions.length ? result.mentions : undefined,
+    });
+    setTagPickerSession(null);
+    requestAnimationFrame(() => {
+      const field = inputRefs.current[blockId];
+      if (field && "setSelectionRange" in field) {
+        field.focus({ preventScroll: true });
+        field.setSelectionRange(result.caret, result.caret);
+      }
+    });
+  }, [tagPickerSession, updateBlockAt]);
+
   const handleTextKeyDown = useCallback((blockIndex, e) => {
     // Render iterates over normalized blocks, so index against the normalized list.
     const current = normalizeWritingBlocks(blocksRef.current);
@@ -428,6 +507,10 @@ export function NodeWritingBlockStack({
           const parsed = parseSlashQuery(slash.slice(1));
           if (parsed) {
             e.preventDefault();
+            if (isGuidedTagSlashAction(parsed)) {
+              openGuidedTagPicker(blockIndex, block.text || "");
+              return;
+            }
             const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
             updateBlocks(nextBlocks);
             focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
@@ -458,6 +541,10 @@ export function NodeWritingBlockStack({
         const parsed = parseSlashQuery(slash.slice(1));
         if (parsed) {
           e.preventDefault();
+          if (isGuidedTagSlashAction(parsed)) {
+            openGuidedTagPicker(blockIndex, block.text || "");
+            return;
+          }
           const nextBlocks = applySlashInTextBlock(current, blockIndex, parsed);
           updateBlocks(nextBlocks);
           focusVaultTarget(parsed, nextBlocks, blockIndex, onFocusTargetChange);
@@ -526,7 +613,7 @@ export function NodeWritingBlockStack({
         focusBlockById(prev.id, "end");
       }
     }
-  }, [contentFocusMode, focusBlockById, onFocusTargetChange, parseSlashQuery, slashEnabled, updateBlockAt, updateBlocks]);
+  }, [contentFocusMode, focusBlockById, onFocusTargetChange, openGuidedTagPicker, parseSlashQuery, slashEnabled, updateBlockAt, updateBlocks]);
 
   const handleTodoItemKeyDown = useCallback((blockIndex, itemIndex, e) => {
     const block = blocksRef.current[blockIndex];
@@ -754,14 +841,17 @@ export function NodeWritingBlockStack({
               <LinkVaultBlockView
                 multilineDescription
                 slashStack
+                objectId={companyObjectId}
                 entries={companyObjectId ? [] : (block.entries || [])}
                 compact
                 openAddForm={
                   focusTarget?.blockIndex === blockIndex && focusTarget?.focusVault
                 }
                 onSaveEntry={companyObjectId ? (entry) => {
-                  queueUrlTableEntry(companyObjectId, entry);
+                  const stored = queueUrlTableEntry(companyObjectId, entry);
+                  if (!stored) return null;
                   removeBlockAt(blockIndex);
+                  return stored;
                 } : null}
                 onEntriesChange={companyObjectId ? undefined : (entries) => updateBlockAt(blockIndex, { entries })}
                 onDeleteVault={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.link")}
@@ -1087,7 +1177,14 @@ export function NodeWritingBlockStack({
                   }
                 }}
                 value={block.text}
-                onChange={(text) => updateBlockAt(blockIndex, { text })}
+                mentions={block.mentions || []}
+                mentionCandidates={mentionCandidates}
+                onChange={(text, meta) => updateBlockAt(blockIndex, {
+                  text,
+                  ...(meta && "mentions" in meta
+                    ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                    : {}),
+                })}
                 onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
                 onFocus={() => setFocusedBlockId(block.id)}
                 onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
@@ -1101,33 +1198,47 @@ export function NodeWritingBlockStack({
                 ghostHints={slashGhostHints}
               />
             ) : (
-              <textarea
-                ref={(el) => {
-                  if (el) {
-                    inputRefs.current[block.id] = el;
-                    syncTextareaHeight(el);
-                  } else {
-                    delete inputRefs.current[block.id];
-                  }
-                }}
-                className="node-writing-text-field doc-normal-text-field"
-                value={block.text}
-                placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
-                rows={1}
-                autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}
-                onChange={(e) => {
-                  updateBlockAt(blockIndex, { text: e.target.value });
-                  syncTextareaHeight(e.target);
-                }}
-                onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
-                onFocus={() => setFocusedBlockId(block.id)}
-                onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
-                onMouseDown={(e) => e.stopPropagation()}
-              />
+              <div onMouseDown={(e) => e.stopPropagation()}>
+                <SlashAwareTextarea
+                  inputRef={(el) => {
+                    if (el) {
+                      inputRefs.current[block.id] = el;
+                    } else {
+                      delete inputRefs.current[block.id];
+                    }
+                  }}
+                  value={block.text}
+                  mentions={block.mentions || []}
+                  mentionCandidates={mentionCandidates}
+                  onChange={(text, meta) => updateBlockAt(blockIndex, {
+                    text,
+                    ...(meta && "mentions" in meta
+                      ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                      : {}),
+                  })}
+                  onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
+                  onFocus={() => setFocusedBlockId(block.id)}
+                  onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
+                  placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
+                  showPlaceholder={block.id === placeholderTextBlockId}
+                  autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}
+                  className="node-writing-text-field doc-normal-text-field"
+                  minHeightPx={28}
+                  maxHeightPx={null}
+                  ghostHints={slashGhostHints}
+                />
+              </div>
             )}
           </div>
         );
       })}
+      <DocTagCommandPicker
+        open={Boolean(tagPickerSession)}
+        companyObjectId={companyObjectId}
+        anchor={tagPickerSession?.anchor || null}
+        onClose={() => setTagPickerSession(null)}
+        onSelect={handleTagPickerSelect}
+      />
     </div>
   );
 }

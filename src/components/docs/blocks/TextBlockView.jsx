@@ -36,12 +36,17 @@ export function TextBlockView({
   onContinuationFocus = null,
   continuationPlaceholder = "",
   continuationAutoFocus = false,
+  continuationMentions = null,
+  onContinuationMentionsChange = null,
   analystReportStyle = false,
   reportAnimate = false,
   onReportAnimationComplete = null,
   reportStaticView = false,
   onSelectAllRequest = null,
   ghostHints,
+  mentions = null,
+  onMentionsChange = null,
+  mentionCandidates = null,
 }) {
   const { t } = useI18n();
   const continuationRef = useRef(null);
@@ -209,6 +214,9 @@ export function TextBlockView({
         minHeightPx={28}
         maxHeightPx={maxHeightPx}
         ghostHints={ghostHints}
+        mentions={mentions}
+        onMentionsChange={onMentionsChange}
+        mentionCandidates={mentionCandidates}
       />
       {onDetachFromNode ? (
         <LinkedNodeDocActions
@@ -231,6 +239,9 @@ export function TextBlockView({
           minHeightPx={28}
           maxHeightPx={maxHeightPx}
           ghostHints={ghostHints}
+          mentions={continuationMentions}
+          onMentionsChange={onContinuationMentionsChange}
+          mentionCandidates={mentionCandidates}
         />
       ) : null}
     </div>

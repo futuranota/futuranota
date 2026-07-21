@@ -109,6 +109,14 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
+    label: "Tag",
+    ghostHint: "tag",
+    aliases: ["tag", "tags", "mentiontag", "icontable", "searchtable", "search table"],
+    blockType: null,
+    guidedAction: "insertTagMention",
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
     label: "Create node",
     ghostHint: "create node",
     aliases: ["node", "createnode", "macronodo", "createtitle", "title"],
@@ -205,11 +213,17 @@ export function parseSlashQueryFromCommands(query, commands = DOC_SLASH_COMMANDS
     macronodeHeading: Boolean(match.macronodeHeading),
     allowsNodeLink: Boolean(match.allowsNodeLink),
     focusTextBlock: Boolean(match.focusTextBlock),
+    guidedAction: match.guidedAction || null,
   };
+}
+
+export function isGuidedTagSlashAction(parsed) {
+  return parsed?.guidedAction === "insertTagMention";
 }
 
 /** Build a new doc block from a parsed slash command. */
 export function createDocBlockFromSlash(parsed) {
+  if (isGuidedTagSlashAction(parsed)) return null;
   if (!parsed?.type) return createDocBlock();
 
   if (parsed.type === DOC_BLOCK_TYPES.H1) {
@@ -298,12 +312,16 @@ export function createBlocksFromSlash(parsed, prefix = "") {
   if (String(prefix).trim()) {
     blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix }));
   }
+  if (isGuidedTagSlashAction(parsed)) {
+    return blocks.length ? blocks : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
+  }
   if (parsed?.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
     blocks.push(...createEmbedVideoBlocks());
   } else {
-    blocks.push(createDocBlockFromSlash(parsed));
+    const block = createDocBlockFromSlash(parsed);
+    if (block) blocks.push(block);
   }
-  return blocks;
+  return blocks.length ? blocks : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
 }
 
 /** Default node entity shape when a slash command is applied outside a document. */
@@ -391,26 +409,7 @@ export function applySlashTailToNodeField(textValue) {
 }
 
 export function parseNodeSlashQuery(query) {
-  const normalized = String(query ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "");
-
-  const match = NODE_SLASH_COMMANDS.find((cmd) =>
-    cmd.aliases.some((alias) => alias.replace(/\s+/g, "") === normalized),
-  );
-
-  if (!match) return null;
-
-  return {
-    type: match.blockType,
-    nodeDataType: match.nodeDataType,
-    label: match.label,
-    compound: Boolean(match.compound),
-    macronodeHeading: Boolean(match.macronodeHeading),
-    allowsNodeLink: Boolean(match.allowsNodeLink),
-    focusTextBlock: Boolean(match.focusTextBlock),
-  };
+  return parseSlashQueryFromCommands(query, NODE_SLASH_COMMANDS);
 }
 
 export function isNodeSlashCommandEnabled(cmd) {

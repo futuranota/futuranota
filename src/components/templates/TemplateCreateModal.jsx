@@ -45,6 +45,7 @@ function TemplateCreateModal({ objects, allDocs, defaultParentId, onSubmit, onCa
     docId: null,
     docTitle: title,
     nodeLinkColor,
+    parentObjectId: parentId || null,
   });
 
   const submitTemplate = () => {

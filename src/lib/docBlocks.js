@@ -2,6 +2,7 @@ import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguag
 import { generateId } from "./ids.js";
 import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
+import { mergeMentionBlocks, normalizeMentions } from "./docMentions.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
 import { parseVideoEmbedInput } from "./videoEmbed.js";
 import { normalizeLinkEntries, normalizePasswordEntries } from "./vaultBlocks.js";
@@ -920,13 +921,16 @@ export function normalizeDocBlock(block) {
     });
   }
 
+  const text = block.text || "";
+  const mentions = normalizeMentions(text, block.mentions);
   return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
-    id: block.id,
-    text: block.text || "",
-    embedded: block.embedded && typeof block.embedded === "object"
-      ? block.embedded
-      : undefined,
-    macroNodeSlot: block.macroNodeSlot || undefined,
+    ...(block.id ? { id: block.id } : {}),
+    text,
+    ...(mentions.length ? { mentions } : {}),
+    ...(block.embedded && typeof block.embedded === "object"
+      ? { embedded: block.embedded }
+      : {}),
+    ...(block.macroNodeSlot ? { macroNodeSlot: block.macroNodeSlot } : {}),
   });
 }
 
@@ -942,9 +946,17 @@ function mergeAdjacentTextBlocks(blocks) {
       && !block.macroNodeSlot
       && !prev.macroNodeSlot
     ) {
+      const combined = mergeMentionBlocks(
+        prev.text || "",
+        prev.mentions || [],
+        block.text || "",
+        block.mentions || [],
+        "\n",
+      );
       merged[merged.length - 1] = {
         ...prev,
-        text: `${prev.text || ""}\n${block.text || ""}`,
+        text: combined.text,
+        ...(combined.mentions.length ? { mentions: combined.mentions } : { mentions: undefined }),
       };
       continue;
     }
@@ -1303,6 +1315,29 @@ function parseStepSequenceSection(section) {
   }
 }
 
+/** Text block with @mention snapshots (plain body cannot carry ranges). */
+function parseTextMentionsSection(section) {
+  const lines = section.split("\n");
+  const first = lines[0]?.trim() || "";
+  if (!first.startsWith("::textmeta")) return null;
+  const payload = lines.slice(1).join("\n").trim();
+  if (!payload) return createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" });
+  try {
+    const parsed = JSON.parse(payload);
+    const text = String(parsed?.text ?? "");
+    const mentions = normalizeMentions(text, parsed?.mentions);
+    return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
+      text,
+      ...(mentions.length ? { mentions } : {}),
+      ...(parsed?.embedded && typeof parsed.embedded === "object"
+        ? { embedded: parsed.embedded }
+        : {}),
+    });
+  } catch {
+    return createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: payload });
+  }
+}
+
 export function docBlocksFromBody(body) {
   const raw = String(body ?? "").trim();
   if (!raw) return [];
@@ -1411,6 +1446,12 @@ export function docBlocksFromBody(body) {
     const stepSequenceBlock = parseStepSequenceSection(section);
     if (stepSequenceBlock) {
       blocks.push(stepSequenceBlock);
+      continue;
+    }
+
+    const textMetaBlock = parseTextMentionsSection(section);
+    if (textMetaBlock) {
+      blocks.push(textMetaBlock);
       continue;
     }
 
@@ -1563,6 +1604,19 @@ export function docBlocksToBody(blocks) {
           title: normalized.title,
           steps: normalized.steps,
           saved: normalized.saved,
+        })}`;
+      }
+      if (
+        block.type === DOC_BLOCK_TYPES.TEXT
+        && Array.isArray(block.mentions)
+        && block.mentions.length > 0
+      ) {
+        return `::textmeta\n${JSON.stringify({
+          text: block.text || "",
+          mentions: block.mentions,
+          ...(block.embedded && typeof block.embedded === "object"
+            ? { embedded: block.embedded }
+            : {}),
         })}`;
       }
       return block.text || "";

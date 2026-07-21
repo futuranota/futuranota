@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { createLinkEntry, normalizeLinkEntries } from "../lib/vaultBlocks.js";
 import { generateId } from "../lib/ids.js";
+import {
+  collectTagCandidatesForObject,
+  findTagConflictInTable,
+} from "../lib/urlTableTags.js";
 
 const STORAGE_KEY = "futuranota.urlTableEntries.v1";
 
@@ -96,6 +100,17 @@ export const useUrlTableStore = create(
           updatedAt: now,
         });
 
+        const conflict = findTagConflictInTable(
+          get().entries,
+          tableId,
+          nextEntry.tag,
+          nextEntry.id,
+        );
+        if (conflict.conflict) {
+          console.warn("[url-table] Tag already used in this table", nextEntry.tag);
+          return null;
+        }
+
         set((state) => {
           if (state.entries.some((item) => item.id === nextEntry.id)) {
             const entries = state.entries.map((item) => (
@@ -131,7 +146,7 @@ export const useUrlTableStore = create(
        * @param {import("../lib/vaultBlocks.js").LinkEntry[]} nextEntries
        */
       replaceEntriesForTable: (tableId, objectId, nextEntries) => {
-        if (!tableId) return;
+        if (!tableId) return false;
         const now = new Date().toISOString();
         const existingById = new Map(
           get().entries
@@ -150,13 +165,40 @@ export const useUrlTableStore = create(
           });
         });
 
+        for (const entry of normalized) {
+          // Cross-table duplicates are allowed. Only block within this table payload.
+          const internal = findTagConflictInTable(
+            normalized.map((item) => ({ ...item, tableId })),
+            tableId,
+            entry.tag,
+            entry.id,
+          );
+          if (internal.conflict) {
+            console.warn("[url-table] Duplicate tags inside one table save", entry.tag);
+            return false;
+          }
+        }
+
         set((state) => {
-          const others = state.entries.filter((entry) => entry.tableId !== tableId);
-          const entries = [...others, ...normalized];
+          const rest = state.entries.filter((entry) => entry.tableId !== tableId);
+          const entries = [...rest, ...normalized];
           persistEntries(entries);
           return { entries };
         });
+        return true;
       },
+
+      /**
+       * Tag candidates for a company (one per entry; duplicate tag text preserved).
+       * @param {string|null} objectId
+       */
+      getUniqueTagsForObject: (objectId) => (
+        collectTagCandidatesForObject(get().entries, objectId)
+      ),
+
+      getTagCandidatesForObject: (objectId) => (
+        collectTagCandidatesForObject(get().entries, objectId)
+      ),
 
       /** Remove every entry belonging to a table. */
       removeEntriesForTable: (tableId) => {

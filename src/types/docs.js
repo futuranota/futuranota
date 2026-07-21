@@ -18,6 +18,19 @@
  */
 
 /**
+ * Snapshot of a URL-table tag mention inserted into a text block.
+ * Visible text stays plain `@tag`; hover uses this frozen description.
+ * @typedef {Object} DocMention
+ * @property {string} id
+ * @property {string|null} sourceEntryId
+ * @property {string} tag
+ * @property {string} description
+ * @property {number} start
+ * @property {number} end
+ * @property {string} insertedAt
+ */
+
+/**
  * @typedef {Object} DocBlock
  * @property {string} id
  * @property {DocBlockType} type
@@ -25,6 +38,7 @@
  * @property {string} [nodeId]
  * @property {string} [sourceQuery]
  * @property {string} [text]
+ * @property {DocMention[]} [mentions]
  * @property {string} [listTitle]
  * @property {TodoItem[]} [items]
  * @property {boolean} [showIntroAnim]

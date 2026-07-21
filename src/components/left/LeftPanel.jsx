@@ -1229,6 +1229,7 @@ function DocCreateModal({
     docTitle: title,
     nodeLinkColor,
     onInsertToCanvas,
+    parentObjectId: isKnowledgeMode ? null : (parentId || null),
     parentFolderDoc: useFolderSchedule
       ? {
         scheduleStartAt: scheduleStartDate ? isoFromDateInput(scheduleStartDate) : null,

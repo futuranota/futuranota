@@ -3,6 +3,7 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   Fragment,
@@ -39,9 +40,12 @@ import {
   DOCUMENT_SLASH_GHOST_HINTS,
   IMAGE_CARD_BODY_SLASH_COMMANDS,
   IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
+  isGuidedTagSlashAction,
   parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
+import { insertMentionAtQuery } from "../../../lib/docMentions.js";
+import { collectTagCandidatesForObject } from "../../../lib/urlTableTags.js";
 import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import {
@@ -61,10 +65,13 @@ import { useNodesStore } from "../../../stores/nodesStore.js";
 import { useDocsStore } from "../../../stores/docsStore.js";
 import { queueUrlTableEntry } from "../../../lib/urlTableSession.js";
 import { queuePasswordTableEntry } from "../../../lib/passwordTableSession.js";
+import { useUrlTableStore } from "../../../stores/urlTableStore.js";
+import { useUrlTablesStore } from "../../../stores/urlTablesStore.js";
 import { H1BlockView } from "./H1BlockView.jsx";
 import { H2BlockView } from "./H2BlockView.jsx";
 import { H3BlockView } from "./H3BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
+import { DocTagCommandPicker } from "./DocTagCommandPicker.jsx";
 import { LinkedMacronodeDescription } from "../LinkedMacronodeDescription.jsx";
 
 function findLastDocVaultBlockIndex(blocks, blockType) {
@@ -172,6 +179,21 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
   const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
+  const [tagPickerSession, setTagPickerSession] = useState(null);
+  const urlTableEntries = useUrlTableStore((s) => s.entries);
+  const urlTables = useUrlTablesStore((s) => s.tables);
+  const mentionCandidates = useMemo(() => {
+    if (!companyObjectId) return null;
+    const titleById = new Map(
+      urlTables
+        .filter((table) => table.objectId === companyObjectId)
+        .map((table) => [table.id, table.title || ""]),
+    );
+    return collectTagCandidatesForObject(urlTableEntries, companyObjectId).map((item) => ({
+      ...item,
+      tableTitle: titleById.get(item.tableId) || "",
+    }));
+  }, [companyObjectId, urlTableEntries, urlTables]);
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
   const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
@@ -746,6 +768,37 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       }
     }
 
+    if (isGuidedTagSlashAction(parsed)) {
+      const { prefix } = splitBodyForSlash(textValue);
+      const currentBlock = blocksRef.current[blockIndex];
+      if (!currentBlock || currentBlock.type !== DOC_BLOCK_TYPES.TEXT) return false;
+      const next = updateBlockAt(blocksRef.current, blockIndex, { text: prefix });
+      setBlocks(next);
+      onFocusBlock?.(currentBlock.id);
+      focusBlockCaret(currentBlock.id, prefix.length);
+
+      let anchor = { top: 120, left: 24 };
+      const field = stackRef.current?.querySelector(
+        `[data-block-id="${currentBlock.id}"] textarea, [data-collapsed-write-field="${currentBlock.id}"] textarea`,
+      );
+      if (field) {
+        const rect = field.getBoundingClientRect();
+        anchor = {
+          top: Math.min(window.innerHeight - 12, rect.bottom + 6),
+          left: Math.max(8, Math.min(rect.left, window.innerWidth - 320)),
+        };
+      }
+
+      setTagPickerSession({
+        blockId: currentBlock.id,
+        blockIndex,
+        caret: prefix.length,
+        anchor,
+      });
+      requestContentGrow();
+      return currentBlock.id;
+    }
+
     if (
       parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
@@ -973,7 +1026,37 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
+  const handleTagPickerSelect = useCallback((candidate) => {
+    if (!tagPickerSession || !candidate) {
+      setTagPickerSession(null);
+      return;
+    }
+    const { blockIndex, caret, blockId } = tagPickerSession;
+    const block = blocksRef.current[blockIndex];
+    if (!block || block.type !== DOC_BLOCK_TYPES.TEXT || block.id !== blockId) {
+      setTagPickerSession(null);
+      return;
+    }
+    const result = insertMentionAtQuery(
+      block.text || "",
+      block.mentions || [],
+      { start: caret, end: caret, query: "" },
+      candidate,
+    );
+    setBlocks(updateBlockAt(blocksRef.current, blockIndex, {
+      text: result.text,
+      mentions: result.mentions.length ? result.mentions : undefined,
+    }));
+    setTagPickerSession(null);
+    onFocusBlock?.(blockId);
+    requestAnimationFrame(() => {
+      focusBlockCaret(blockId, result.caret);
+    });
+    requestContentGrow();
+  }, [focusBlockCaret, onFocusBlock, requestContentGrow, setBlocks, tagPickerSession]);
+
   const canInsertSlashBlock = (parsed) => {
+    if (isGuidedTagSlashAction(parsed)) return true;
     if (
       parsed?.type === DOC_BLOCK_TYPES.PRODUCT_CARD
       && hasProductCardBlock(blocksRef.current)
@@ -1434,8 +1517,36 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     requestContentGrow();
   };
 
+  const openTagMentionPicker = useCallback((blockId, caret = 0) => {
+    const blockIndex = blocksRef.current.findIndex((block) => block.id === blockId);
+    const block = blockIndex >= 0 ? blocksRef.current[blockIndex] : null;
+    if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return;
+
+    let anchor = { top: 120, left: 24 };
+    const field = stackRef.current?.querySelector(
+      `[data-block-id="${blockId}"] textarea, [data-collapsed-write-field="${blockId}"] textarea`,
+    );
+    if (field) {
+      const rect = field.getBoundingClientRect();
+      anchor = {
+        top: Math.min(window.innerHeight - 12, rect.bottom + 6),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 320)),
+      };
+    }
+
+    setTagPickerSession({
+      blockId,
+      blockIndex,
+      caret: Math.max(0, Math.min(caret, String(block.text || "").length)),
+      anchor,
+    });
+    onFocusBlock?.(blockId);
+    focusBlockCaret(blockId, caret);
+  }, [focusBlockCaret, onFocusBlock]);
+
   useImperativeHandle(ref, () => ({
     insertSlashCommand: insertSlashCommandAtFocus,
+    openTagMentionPicker,
     resyncTextHeights: resyncAllTextHeights,
   }));
 
@@ -1921,10 +2032,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             <LinkVaultBlockView
               multilineDescription
               slashStack
+              objectId={companyObjectId}
               entries={companyObjectId ? [] : (block.entries || [])}
               openAddForm={focusBlockId === block.id}
               onSaveEntry={companyObjectId ? (entry) => {
-                queueUrlTableEntry(companyObjectId, entry);
+                const stored = queueUrlTableEntry(companyObjectId, entry);
+                if (!stored) return null;
                 let next = removeBlockAt(blocksRef.current, index);
                 if (!next.length) {
                   next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
@@ -1933,6 +2046,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 const focusIndex = Math.min(index, next.length - 1);
                 onFocusBlock?.(next[focusIndex]?.id);
                 requestContentGrow();
+                return stored;
               } : null}
               onEntriesChange={companyObjectId ? undefined : (entries) => {
                 let next = updateBlockAt(blocksRef.current, index, { entries });
@@ -2094,11 +2208,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   <TextBlockView
                     ghostHints={slashGhostHints}
                     value={block.text || ""}
+                    mentions={block.mentions || []}
+                    mentionCandidates={mentionCandidates}
                     placeholder={bodyPlaceholder}
                     showPlaceholder={false}
                     autoFocus={focusBlockId === block.id && !itemHidden}
                     onFocus={() => onFocusBlock?.(block.id)}
-                    onChange={(text) => updateAt(index, { text })}
+                    onChange={(text, meta) => updateAt(index, {
+                      text,
+                      ...(meta && "mentions" in meta
+                        ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                        : {}),
+                    })}
                     onKeyDown={(e) => handleTextKeyDown(index, e)}
                   />
                 );
@@ -2107,6 +2228,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               return (
             <TextBlockView
               value={block.text || ""}
+              mentions={block.mentions || []}
+              mentionCandidates={mentionCandidates}
               ghostHints={slashGhostHints}
               analystReportStyle={isAnalystReport && isPrimaryReportBlock}
               reportAnimate={shouldAnimateReport && isPrimaryReportBlock}
@@ -2129,9 +2252,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               continuationValue={
                 continuationBlock ? continuationBlock.text || "" : null
               }
+              continuationMentions={continuationBlock?.mentions || []}
               onContinuationChange={
                 continuationIndex >= 0
-                  ? (text) => updateAt(continuationIndex, { text })
+                  ? (text, meta) => updateAt(continuationIndex, {
+                    text,
+                    ...(meta && "mentions" in meta
+                      ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                      : {}),
+                  })
                   : null
               }
               onContinuationKeyDown={
@@ -2153,8 +2282,13 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   ? () => { void handleRemoveEmbeddedBlock(index); }
                   : null
               }
-              onChange={(text) => {
-                updateAt(index, { text });
+              onChange={(text, meta) => {
+                updateAt(index, {
+                  text,
+                  ...(meta && "mentions" in meta
+                    ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                    : {}),
+                });
                 if (isPrimaryAnswerTextForLinkedOwner(blocks, index)) {
                   const h1Index = getH1IndexForTextBlock(blocks, index);
                   const ownerBlock = h1Index >= 0 ? blocks[h1Index] : null;
@@ -2186,12 +2320,21 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             <div data-collapsed-write-field={collapsedActiveWriteId}>
               <TextBlockView
                 value={collapsedWriteBlock?.text || ""}
+                mentions={collapsedWriteBlock?.mentions || []}
+                mentionCandidates={mentionCandidates}
                 ghostHints={slashGhostHints}
-                onChange={(text) => {
+                onChange={(text, meta) => {
                   const writeIndex = blocksRef.current.findIndex(
                     (b) => b.id === collapsedActiveWriteId,
                   );
-                  if (writeIndex >= 0) updateAt(writeIndex, { text });
+                  if (writeIndex >= 0) {
+                    updateAt(writeIndex, {
+                      text,
+                      ...(meta && "mentions" in meta
+                        ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                        : {}),
+                    });
+                  }
                 }}
                 placeholder=""
                 showPlaceholder={false}
@@ -2210,6 +2353,13 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         </Fragment>
         );
       })}
+      <DocTagCommandPicker
+        open={Boolean(tagPickerSession)}
+        companyObjectId={companyObjectId}
+        anchor={tagPickerSession?.anchor || null}
+        onClose={() => setTagPickerSession(null)}
+        onSelect={handleTagPickerSelect}
+      />
     </div>
   );
 });

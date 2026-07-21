@@ -79,6 +79,16 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Menciones @tag en text area: índice no abría + caret/gap roto (2026-07-20)** — Al escribir `@blogs` en el área de escritura de un documento, el menú de tags (índice) no aparecía; con una mención insertada el texto no seguía alineado en la misma línea y el text area se veía con un gap enorme.
+
+- Causas:
+  1. `SlashAwareTextarea` interno leía `textareaRef.current`, pero `NodeWritingBlockStack` pasa `inputRef` como **callback ref** (sin `.current`) → `syncMentionQuery`/`syncHeight`/ghost no encontraban el textarea y el menú `@` nunca abría en documentos.
+  2. Estado React `focused` quedaba stale cuando el campo se enfoca programáticamente (focusBlockById, remounts) → menú bloqueado aunque el usuario escribía.
+  3. `.doc-slash-field__mention { font-weight: 600 }` — el bold cambia el ancho de los glifos en el mirror pero el texto invisible del textarea sigue normal → el texto tras la mención se desalinea, el wrap difiere entre capas y el caret “se rompe” (gap visual).
+- Fix: ref dual (interno + forward a callback/objeto); `syncMentionQuery` deriva focus del DOM (`document.activeElement`) y auto-corrige `focused`; chip de mención sin bold (color + fondo suave, mismas métricas); la mención guarda snapshot de `url` y el hover card muestra el link clickeable (click en el chip con el campo sin foco abre la URL).
+- Archivos: `SlashAwareTextarea.jsx`, `docMentions.js`, `DocMentionHoverCard.jsx`, `left-panel.css`.
+- Nota producto: `@tag` = mención inline de una entrada del URL table de la compañía (chip rosado en la misma línea, texto sigue fluyendo). `/link` sigue siendo el bloque LINK_VAULT (card grande) — para links inline usar `@`.
+
 **Canvas inventaba schedule desde Created (2026-07-20)** — Al insertar un documento sin Schedule, el chip mostraba `schedule: mm/dd/yyyy | 12:00 PM` (Created a mediodía).
 
 - Causa: `resolveBlockAnchorFields` usaba Created como fallback de date; `isoFromAnchorFields` default time `12:00`; canvas leía `entity.anchorAt` sin chequear reserva del folder.
