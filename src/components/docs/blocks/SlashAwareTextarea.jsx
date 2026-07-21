@@ -36,7 +36,7 @@ function collapseDuplicateSlashTail(value) {
   return prefix + fixedTail;
 }
 
-function MentionMirrorContent({ text, mentions, interactive, onMentionEnter, onMentionLeave }) {
+function MentionMirrorContent({ text, mentions, interactive }) {
   const segments = mentionsToSegments(text, mentions);
   return segments.map((segment, index) => {
     if (!segment.text) return null;
@@ -50,8 +50,6 @@ function MentionMirrorContent({ text, mentions, interactive, onMentionEnter, onM
             + (interactive && url ? " doc-slash-field__mention--linked" : "")
           }
           data-mention-id={segment.mention.id}
-          onMouseEnter={interactive ? (event) => onMentionEnter?.(segment.mention, event) : undefined}
-          onMouseLeave={interactive ? () => onMentionLeave?.() : undefined}
           onMouseDown={interactive && url ? (event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -302,6 +300,44 @@ export function SlashAwareTextarea({
     [focusField, focused, textareaRef],
   );
 
+  // The mirror is pointer-events:none while the field is focused, so hover is
+  // resolved by hit-testing mention span rects on wrap mousemove. Works both
+  // focused (events come from the textarea) and blurred (from the mirror).
+  const handleWrapMouseMove = useCallback((event) => {
+    if (!hasMentions) return;
+    const mirror = mirrorRef.current;
+    if (!mirror) return;
+    const x = event.clientX;
+    const y = event.clientY;
+    let hitSpan = null;
+    for (const span of mirror.querySelectorAll("[data-mention-id]")) {
+      for (const rect of span.getClientRects()) {
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          hitSpan = span;
+          break;
+        }
+      }
+      if (hitSpan) break;
+    }
+    if (!hitSpan) {
+      setHoverCard((prev) => (prev ? null : prev));
+      return;
+    }
+    const mentionId = hitSpan.getAttribute("data-mention-id");
+    const mention = normalizedMentions.find((item) => item.id === mentionId);
+    if (!mention) return;
+    const rect = hitSpan.getBoundingClientRect();
+    setHoverCard((prev) => (prev?.mention?.id === mentionId ? prev : {
+      mention,
+      top: rect.bottom + 8,
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
+    }));
+  }, [hasMentions, normalizedMentions]);
+
+  const handleWrapMouseLeave = useCallback(() => {
+    setHoverCard((prev) => (prev ? null : prev));
+  }, []);
+
   const isFieldVisible = useCallback((el) => {
     if (!el) return false;
     if (el.offsetParent !== null) return true;
@@ -426,6 +462,8 @@ export function SlashAwareTextarea({
       ref={wrapRef}
       className={`doc-slash-field ${hasMentions ? "doc-slash-field--mentions" : ""} ${wrapClassName}`.trim()}
       onMouseDown={handleWrapPointerDown}
+      onMouseMove={handleWrapMouseMove}
+      onMouseLeave={handleWrapMouseLeave}
     >
       {hasMentions ? (
         <div
@@ -440,15 +478,6 @@ export function SlashAwareTextarea({
             text={value}
             mentions={normalizedMentions}
             interactive={!focused}
-            onMentionEnter={(mention, event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              setHoverCard({
-                mention,
-                top: rect.bottom + 8,
-                left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
-              });
-            }}
-            onMentionLeave={() => setHoverCard(null)}
           />
         </div>
       ) : null}
@@ -459,6 +488,7 @@ export function SlashAwareTextarea({
         placeholder={showPlaceholder ? placeholder : ""}
         rows={1}
         onChange={(e) => {
+          setHoverCard(null);
           const nextValue = e.target.value;
           if (mentionsEnabled) {
             const nextMentions = applyTextEditToMentions(value, nextValue, normalizedMentions);
@@ -535,7 +565,7 @@ export function SlashAwareTextarea({
         }}
       />
       <DocMentionHoverCard
-        open={Boolean(hoverCard && !focused && hasMentions)}
+        open={Boolean(hoverCard && hasMentions)}
         anchor={hoverCard}
         tag={hoverCard?.mention?.tag}
         description={hoverCard?.mention?.description}

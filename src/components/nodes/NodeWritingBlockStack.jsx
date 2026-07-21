@@ -9,7 +9,11 @@ import {
   parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
-import { insertMentionAtQuery } from "../../lib/docMentions.js";
+import {
+  applyTextEditToMentions,
+  insertMentionAtQuery,
+  mergeMentionBlocks,
+} from "../../lib/docMentions.js";
 import {
   applySlashInTextBlock,
   createEmptyTextBlock,
@@ -196,9 +200,12 @@ function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
   if (!blockId) return;
 
   const current = normalizeWritingBlocks(blocksRef.current);
-  updateBlocks(current.map((block, index) => (
-    index === blockIndex ? { ...block, text: nextText } : block
-  )));
+  updateBlocks(current.map((block, index) => {
+    if (index !== blockIndex) return block;
+    // Shift @mention ranges past the inserted newline so chips survive Enter.
+    const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
+    return { ...block, text: nextText, mentions: mentions.length ? mentions : undefined };
+  }));
 
   requestAnimationFrame(() => {
     const textarea = document.querySelector(
@@ -476,9 +483,21 @@ export function NodeWritingBlockStack({
         if (value && prev?.type === NODE_BLOCK_TYPES.TEXT) {
           e.preventDefault();
           const joinAt = (prev.text || "").length;
-          const merged = (prev.text || "") + value;
+          const mergedResult = mergeMentionBlocks(
+            prev.text || "",
+            prev.mentions || [],
+            value,
+            block.mentions || [],
+            "",
+          );
           const next = current
-            .map((b, i) => (i === blockIndex - 1 ? { ...b, text: merged } : b))
+            .map((b, i) => (i === blockIndex - 1
+              ? {
+                ...b,
+                text: mergedResult.text,
+                mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
+              }
+              : b))
             .filter((_, i) => i !== blockIndex);
           updateBlocks(next);
           onFocusTargetChange?.(null);
@@ -588,9 +607,21 @@ export function NodeWritingBlockStack({
       if (value && prev?.type === NODE_BLOCK_TYPES.TEXT) {
         e.preventDefault();
         const joinAt = (prev.text || "").length;
-        const merged = (prev.text || "") + value;
+        const mergedResult = mergeMentionBlocks(
+          prev.text || "",
+          prev.mentions || [],
+          value,
+          block.mentions || [],
+          "",
+        );
         const next = current
-          .map((b, i) => (i === blockIndex - 1 ? { ...b, text: merged } : b))
+          .map((b, i) => (i === blockIndex - 1
+            ? {
+              ...b,
+              text: mergedResult.text,
+              mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
+            }
+            : b))
           .filter((_, i) => i !== blockIndex);
         updateBlocks(next);
         onFocusTargetChange?.(null);

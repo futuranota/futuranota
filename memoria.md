@@ -89,6 +89,13 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 - Archivos: `SlashAwareTextarea.jsx`, `docMentions.js`, `DocMentionHoverCard.jsx`, `left-panel.css`.
 - Nota producto: `@tag` = mención inline de una entrada del URL table de la compañía (chip rosado en la misma línea, texto sigue fluyendo). `/link` sigue siendo el bloque LINK_VAULT (card grande) — para links inline usar `@`.
 
+**Seguimiento menciones: hover, Enter/merge y scope folders vs documentos (2026-07-20)**
+
+- Hover card con el campo enfocado: el mirror es `pointer-events: none` mientras se escribe, así que el hover se resuelve con hit-test de los rects de los chips en `mousemove` del wrap (funciona enfocado y sin foco). El card muestra description + link siempre.
+- Enter / Backspace ya no “deshabilitan” el `@`: `insertNewlineAtCaret` desplaza los rangos de mención con `applyTextEditToMentions`, y el merge de celdas (Backspace al inicio) usa `mergeMentionBlocks` — antes el texto se movía sin los rangos y `normalizeMentions` descartaba la mención (quedaba texto plano).
+- **Scope (regla de producto)**: los **folders** solo lidian con links / crear-linkear macronodos (`FOLDER_SLASH_COMMANDS`); los **documentos** tienen el toggle completo de comandos (h1, slash, `@`). Por eso `DocBlockStack` solo expone candidatos `@` si su surface de slash incluye `/tag` (`insertTagMention`) — en folder boxes el `@` queda como texto plano y el menú no abre. El área de escritura de documentos (`NodeWritingBlockStack`) mantiene `@` completo.
+- Archivos: `SlashAwareTextarea.jsx`, `NodeWritingBlockStack.jsx`, `DocBlockStack.jsx`.
+
 **Canvas inventaba schedule desde Created (2026-07-20)** — Al insertar un documento sin Schedule, el chip mostraba `schedule: mm/dd/yyyy | 12:00 PM` (Created a mediodía).
 
 - Causa: `resolveBlockAnchorFields` usaba Created como fallback de date; `isoFromAnchorFields` default time `12:00`; canvas leía `entity.anchorAt` sin chequear reserva del folder.

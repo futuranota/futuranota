@@ -44,7 +44,11 @@ import {
   parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
-import { insertMentionAtQuery } from "../../../lib/docMentions.js";
+import {
+  applyTextEditToMentions,
+  insertMentionAtQuery,
+  mergeMentionBlocks,
+} from "../../../lib/docMentions.js";
 import { collectTagCandidatesForObject } from "../../../lib/urlTableTags.js";
 import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
@@ -182,8 +186,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const [tagPickerSession, setTagPickerSession] = useState(null);
   const urlTableEntries = useUrlTableStore((s) => s.entries);
   const urlTables = useUrlTablesStore((s) => s.tables);
+  // @tag mentions follow the slash surface: folders only create/link
+  // macronodes (no /tag command), so @ stays plain text there. Documents get
+  // the full command set including /tag, and only they expose @ candidates.
+  const tagMentionInSurface = useMemo(
+    () => (slashCommands || []).some((cmd) => cmd.guidedAction === "insertTagMention"),
+    [slashCommands],
+  );
   const mentionCandidates = useMemo(() => {
-    if (!companyObjectId) return null;
+    if (!tagMentionInSurface || !companyObjectId) return null;
     const titleById = new Map(
       urlTables
         .filter((table) => table.objectId === companyObjectId)
@@ -193,7 +204,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       ...item,
       tableTitle: titleById.get(item.tableId) || "",
     }));
-  }, [companyObjectId, urlTableEntries, urlTables]);
+  }, [companyObjectId, tagMentionInSurface, urlTableEntries, urlTables]);
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
   const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
@@ -953,10 +964,17 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const caretEnd = el.selectionEnd ?? caretStart;
     const text = el.value ?? "";
     const nextText = `${text.slice(0, caretStart)}\n${text.slice(caretEnd)}`;
-    const blockId = blocksRef.current[blockIndex]?.id;
+    const block = blocksRef.current[blockIndex];
+    const blockId = block?.id;
     if (!blockId) return;
 
-    const next = updateBlockAt(blocksRef.current, blockIndex, { [field]: nextText });
+    const patch = { [field]: nextText };
+    if (field === "text") {
+      // Shift @mention ranges past the inserted newline so chips survive Enter.
+      const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
+      patch.mentions = mentions.length ? mentions : undefined;
+    }
+    const next = updateBlockAt(blocksRef.current, blockIndex, patch);
     setBlocks(next);
     if (field === "text") {
       syncAnswerBelowH1(next, blockIndex, nextText);
@@ -1182,8 +1200,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       if (prev?.type === DOC_BLOCK_TYPES.TEXT) {
         e.preventDefault();
         const joinAt = (prev.text || "").length;
-        const merged = (prev.text || "") + text;
-        let next = updateBlockAt(currentBlocks, blockIndex - 1, { text: merged });
+        const mergedResult = mergeMentionBlocks(
+          prev.text || "",
+          prev.mentions || [],
+          text,
+          block.mentions || [],
+          "",
+        );
+        const merged = mergedResult.text;
+        let next = updateBlockAt(currentBlocks, blockIndex - 1, {
+          text: merged,
+          mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
+        });
         next = removeBlockAt(next, blockIndex);
         const h1Index = getH1IndexForTextBlock(currentBlocks, blockIndex);
         if (h1Index >= 0) onAnswerBelowH1Change?.(h1Index, merged);
