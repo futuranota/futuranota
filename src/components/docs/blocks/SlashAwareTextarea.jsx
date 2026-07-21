@@ -37,25 +37,23 @@ function collapseDuplicateSlashTail(value) {
   return prefix + fixedTail;
 }
 
-function MentionMirrorContent({ text, mentions, interactive }) {
+function MentionMirrorContent({ text, mentions, hoveredId = null }) {
   const segments = mentionsToSegments(text, mentions);
   return segments.map((segment, index) => {
     if (!segment.text) return null;
     if (segment.type === "mention" && segment.mention) {
-      const url = String(segment.mention.url || "").trim();
+      // Clicks are resolved by rect hit-testing on the wrap (works focused
+      // and blurred); the span itself carries no handlers.
       return (
         <span
           key={segment.mention.id || index}
           className={
             "doc-slash-field__mention"
-            + (interactive && url ? " doc-slash-field__mention--linked" : "")
+            + (hoveredId && segment.mention.id === hoveredId
+              ? " doc-slash-field__mention--hovered"
+              : "")
           }
           data-mention-id={segment.mention.id}
-          onMouseDown={interactive && url ? (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            window.open(url, "_blank", "noopener,noreferrer");
-          } : undefined}
         >
           {segment.text}
         </span>
@@ -283,22 +281,46 @@ export function SlashAwareTextarea({
     [textareaRef],
   );
 
+  // Chips live in the mirror, which is pointer-events:none while the field is
+  // focused — so both hover and click are resolved by hit-testing the mention
+  // span rects against the pointer position (works focused and blurred).
+  const findMentionSpanAtPoint = useCallback((x, y) => {
+    const mirror = mirrorRef.current;
+    if (!mirror) return null;
+    for (const span of mirror.querySelectorAll("[data-mention-id]")) {
+      for (const rect of span.getClientRects()) {
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          return span;
+        }
+      }
+    }
+    return null;
+  }, []);
+
   const handleWrapPointerDown = useCallback(
     (event) => {
+      // Chip click = link: open the entry's URL table with the tag prefilled
+      // in the search filter. Beats caret placement even while focused.
+      if (hasMentions && event.button === 0) {
+        const span = findMentionSpanAtPoint(event.clientX, event.clientY);
+        const mentionId = span?.getAttribute("data-mention-id");
+        const mention = mentionId
+          ? normalizedMentions.find((item) => item.id === mentionId)
+          : null;
+        if (mention) {
+          event.preventDefault();
+          event.stopPropagation();
+          setHoverCard(null);
+          openUrlTableForMention(mention);
+          return;
+        }
+      }
       const el = textareaRef.current;
       if (!el || event.target === el) return;
-      // Allow hover interactions on mention spans while blurred.
-      if (
-        !focused
-        && event.target instanceof Element
-        && event.target.closest(".doc-slash-field__mention")
-      ) {
-        return;
-      }
       event.preventDefault();
       focusField(true);
     },
-    [focusField, focused, textareaRef],
+    [findMentionSpanAtPoint, focusField, hasMentions, normalizedMentions, textareaRef],
   );
 
   // Delay-close lets the pointer travel from the chip into the hover card
@@ -325,20 +347,7 @@ export function SlashAwareTextarea({
   // focused (events come from the textarea) and blurred (from the mirror).
   const handleWrapMouseMove = useCallback((event) => {
     if (!hasMentions) return;
-    const mirror = mirrorRef.current;
-    if (!mirror) return;
-    const x = event.clientX;
-    const y = event.clientY;
-    let hitSpan = null;
-    for (const span of mirror.querySelectorAll("[data-mention-id]")) {
-      for (const rect of span.getClientRects()) {
-        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-          hitSpan = span;
-          break;
-        }
-      }
-      if (hitSpan) break;
-    }
+    const hitSpan = findMentionSpanAtPoint(event.clientX, event.clientY);
     if (!hitSpan) {
       scheduleHoverClose();
       return;
@@ -353,7 +362,7 @@ export function SlashAwareTextarea({
       top: rect.bottom + 8,
       left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
     }));
-  }, [cancelHoverClose, hasMentions, normalizedMentions, scheduleHoverClose]);
+  }, [cancelHoverClose, findMentionSpanAtPoint, hasMentions, normalizedMentions, scheduleHoverClose]);
 
   const handleWrapMouseLeave = useCallback(() => {
     scheduleHoverClose();
@@ -478,10 +487,17 @@ export function SlashAwareTextarea({
     hasMentions && !focused ? "doc-slash-field__input--mentions-idle" : "",
   ].filter(Boolean).join(" ");
 
+  const hoveredMentionId = hoverCard?.mention?.id || null;
+
   return (
     <div
       ref={wrapRef}
-      className={`doc-slash-field ${hasMentions ? "doc-slash-field--mentions" : ""} ${wrapClassName}`.trim()}
+      className={[
+        "doc-slash-field",
+        hasMentions ? "doc-slash-field--mentions" : "",
+        hoveredMentionId ? "doc-slash-field--chip-hover" : "",
+        wrapClassName,
+      ].filter(Boolean).join(" ")}
       onMouseDown={handleWrapPointerDown}
       onMouseMove={handleWrapMouseMove}
       onMouseLeave={handleWrapMouseLeave}
@@ -498,7 +514,7 @@ export function SlashAwareTextarea({
           <MentionMirrorContent
             text={value}
             mentions={normalizedMentions}
-            interactive={!focused}
+            hoveredId={hoveredMentionId}
           />
         </div>
       ) : null}
@@ -590,15 +606,8 @@ export function SlashAwareTextarea({
         anchor={hoverCard}
         tag={hoverCard?.mention?.tag}
         description={hoverCard?.mention?.description}
-        url={hoverCard?.mention?.url}
         onMouseEnter={cancelHoverClose}
         onMouseLeave={scheduleHoverClose}
-        onOpenTable={hoverCard?.mention ? () => {
-          const mention = hoverCard.mention;
-          setHoverCard(null);
-          cancelHoverClose();
-          openUrlTableForMention(mention);
-        } : null}
       />
     </div>
   );

@@ -2,22 +2,16 @@ import { createPortal } from "react-dom";
 
 const INFO_ICON = "/uploads/Info.svg";
 
-function displayUrl(url) {
-  const raw = String(url || "").trim();
-  if (!raw) return "";
-  return raw.replace(/^https?:\/\//i, "").replace(/\/$/, "");
-}
-
 /**
  * Hover card for a document @tag mention (uses frozen description snapshot).
+ * Description only — the underlined chip itself is the link that opens the
+ * owning URL table filtered by the tag.
  */
 export function DocMentionHoverCard({
   open,
   anchor = null,
   tag = "",
   description = "",
-  url = "",
-  onOpenTable = null,
   onMouseEnter = null,
   onMouseLeave = null,
 }) {
@@ -25,7 +19,6 @@ export function DocMentionHoverCard({
 
   const body = String(description || "").trim() || "No description";
   const token = tag ? (String(tag).startsWith("@") ? String(tag) : `@${tag}`) : "";
-  const href = String(url || "").trim();
 
   return createPortal(
     <div
@@ -52,30 +45,6 @@ export function DocMentionHoverCard({
       </div>
       {token ? <p className="doc-mention-hover-card__tag">{token}</p> : null}
       <p className="doc-mention-hover-card__body">{body}</p>
-      {href ? (
-        <a
-          className="doc-mention-hover-card__link"
-          href={href}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          {displayUrl(href)}
-        </a>
-      ) : null}
-      {onOpenTable ? (
-        <button
-          type="button"
-          className="doc-mention-hover-card__table-link"
-          onMouseDown={(event) => {
-            // mousedown (not click) so the underlying field never steals focus.
-            event.preventDefault();
-            event.stopPropagation();
-            onOpenTable();
-          }}
-        >
-          Open in URL table
-        </button>
-      ) : null}
     </div>,
     document.body,
   );
