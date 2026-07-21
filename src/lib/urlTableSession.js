@@ -17,6 +17,32 @@ export function setUrlTableQueueCallback(callback) {
 }
 
 /**
+ * @typedef {Object} UrlTableOpenRequest
+ * @property {string|null} tableId
+ * @property {string|null} objectId
+ * @property {string} [searchQuery] - prefills the overlay search bar (live filter)
+ */
+
+/** @type {((request: UrlTableOpenRequest) => void)|null} */
+let urlTableOpenCallback = null;
+
+/** App registers this to open the URL table dashboard from deep components. */
+export function setUrlTableOpenCallback(callback) {
+  urlTableOpenCallback = callback;
+}
+
+/**
+ * Open the URL table overlay (e.g. from a @mention hover card).
+ * @param {UrlTableOpenRequest} request
+ * @returns {boolean} whether a handler was registered
+ */
+export function requestUrlTableOpen(request) {
+  if (typeof urlTableOpenCallback !== "function") return false;
+  urlTableOpenCallback(request);
+  return true;
+}
+
+/**
  * @typedef {Object} UrlTableSession
  * @property {string|null} objectId
  * @property {string|null} tableId

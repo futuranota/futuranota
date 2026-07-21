@@ -56,6 +56,7 @@ import {
 } from './lib/urlTableLibrary.js';
 import {
   persistUrlTableSessionAndFlush,
+  setUrlTableOpenCallback,
   setUrlTableQueueCallback,
   urlTableSessionFromRef,
 } from './lib/urlTableSession.js';
@@ -1302,6 +1303,24 @@ useEffect(() => {
     });
     return () => setUrlTableQueueCallback(null);
   }, []);
+
+  // Open the URL table overlay from deep components (e.g. @mention hover card),
+  // optionally prefilling the search bar so the list opens already filtered.
+  useEffect(() => {
+    setUrlTableOpenCallback(({ tableId, objectId, searchQuery }) => {
+      let session = tableId ? loadUrlTableSessionById(tableId) : null;
+      if (!session && objectId) {
+        migrateLocalUrlEntriesToTables();
+        session = loadCompanyUrlTableSession(objectId, t('urlTableLibrary.newDocTitle'));
+      }
+      if (!session) return;
+      setActiveUrlTableSession({
+        ...session,
+        initialSearch: String(searchQuery ?? ""),
+      });
+    });
+    return () => setUrlTableOpenCallback(null);
+  }, [t]);
 
   const handlePasswordTableSessionChange = useCallback((patch) => {
     setActivePasswordTableSession((current) => {

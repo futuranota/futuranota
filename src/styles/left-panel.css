@@ -6451,6 +6451,24 @@ body.doc-content-resizing * {
   text-decoration: underline;
 }
 
+.doc-mention-hover-card__table-link {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  text-align: left;
+  color: #BD747D;
+  background: rgba(189, 116, 125, 0.12);
+  border: 1px solid rgba(189, 116, 125, 0.28);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.doc-mention-hover-card__table-link:hover {
+  background: rgba(189, 116, 125, 0.2);
+}
+
 .doc-slash-field__mention--linked {
   cursor: pointer;
 }

@@ -8,6 +8,7 @@ import {
   normalizeMentions,
 } from "../../../lib/docMentions.js";
 import { filterTagCandidates } from "../../../lib/urlTableTags.js";
+import { openUrlTableForMention } from "../../../lib/docMentionActions.js";
 import {
   copyTextareaTypography,
   getCaretClientRect,
@@ -300,6 +301,25 @@ export function SlashAwareTextarea({
     [focusField, focused, textareaRef],
   );
 
+  // Delay-close lets the pointer travel from the chip into the hover card
+  // (portaled below the chip) without the card vanishing mid-way.
+  const hoverCloseTimerRef = useRef(null);
+  const cancelHoverClose = useCallback(() => {
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = null;
+    }
+  }, []);
+  const scheduleHoverClose = useCallback(() => {
+    cancelHoverClose();
+    hoverCloseTimerRef.current = setTimeout(() => {
+      hoverCloseTimerRef.current = null;
+      setHoverCard(null);
+    }, 220);
+  }, [cancelHoverClose]);
+
+  useEffect(() => () => cancelHoverClose(), [cancelHoverClose]);
+
   // The mirror is pointer-events:none while the field is focused, so hover is
   // resolved by hit-testing mention span rects on wrap mousemove. Works both
   // focused (events come from the textarea) and blurred (from the mirror).
@@ -320,23 +340,24 @@ export function SlashAwareTextarea({
       if (hitSpan) break;
     }
     if (!hitSpan) {
-      setHoverCard((prev) => (prev ? null : prev));
+      scheduleHoverClose();
       return;
     }
     const mentionId = hitSpan.getAttribute("data-mention-id");
     const mention = normalizedMentions.find((item) => item.id === mentionId);
     if (!mention) return;
+    cancelHoverClose();
     const rect = hitSpan.getBoundingClientRect();
     setHoverCard((prev) => (prev?.mention?.id === mentionId ? prev : {
       mention,
       top: rect.bottom + 8,
       left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
     }));
-  }, [hasMentions, normalizedMentions]);
+  }, [cancelHoverClose, hasMentions, normalizedMentions, scheduleHoverClose]);
 
   const handleWrapMouseLeave = useCallback(() => {
-    setHoverCard((prev) => (prev ? null : prev));
-  }, []);
+    scheduleHoverClose();
+  }, [scheduleHoverClose]);
 
   const isFieldVisible = useCallback((el) => {
     if (!el) return false;
@@ -570,6 +591,14 @@ export function SlashAwareTextarea({
         tag={hoverCard?.mention?.tag}
         description={hoverCard?.mention?.description}
         url={hoverCard?.mention?.url}
+        onMouseEnter={cancelHoverClose}
+        onMouseLeave={scheduleHoverClose}
+        onOpenTable={hoverCard?.mention ? () => {
+          const mention = hoverCard.mention;
+          setHoverCard(null);
+          cancelHoverClose();
+          openUrlTableForMention(mention);
+        } : null}
       />
     </div>
   );

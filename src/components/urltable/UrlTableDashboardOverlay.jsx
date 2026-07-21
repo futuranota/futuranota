@@ -44,10 +44,13 @@ export function UrlTableDashboardOverlay({
     ? `${session.objectId ?? ""}:${session.tableId ?? ""}:${session.blockId}`
     : "";
 
+  const initialSearch = String(session?.initialSearch ?? "");
+
   useEffect(() => {
     setDraft({ name: "", tag: "", category: "", description: "", url: "" });
-    setQuery("");
-  }, [sessionKey]);
+    // Opened from a @mention: land with the tag already in the search filter.
+    setQuery(initialSearch);
+  }, [sessionKey, initialSearch]);
 
   useEffect(() => {
     const onKeyDown = (event) => {

@@ -17,6 +17,9 @@ export function DocMentionHoverCard({
   tag = "",
   description = "",
   url = "",
+  onOpenTable = null,
+  onMouseEnter = null,
+  onMouseLeave = null,
 }) {
   if (!open || !anchor || typeof document === "undefined") return null;
 
@@ -34,6 +37,8 @@ export function DocMentionHoverCard({
         left: anchor.left,
         zIndex: 10070,
       }}
+      onMouseEnter={onMouseEnter || undefined}
+      onMouseLeave={onMouseLeave || undefined}
     >
       <div className="doc-mention-hover-card__header">
         <img
@@ -56,6 +61,20 @@ export function DocMentionHoverCard({
         >
           {displayUrl(href)}
         </a>
+      ) : null}
+      {onOpenTable ? (
+        <button
+          type="button"
+          className="doc-mention-hover-card__table-link"
+          onMouseDown={(event) => {
+            // mousedown (not click) so the underlying field never steals focus.
+            event.preventDefault();
+            event.stopPropagation();
+            onOpenTable();
+          }}
+        >
+          Open in URL table
+        </button>
       ) : null}
     </div>,
     document.body,
