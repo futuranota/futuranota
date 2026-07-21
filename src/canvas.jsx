@@ -38,6 +38,7 @@ import {
 } from './lib/nodeParentAdoption.js';
 import { useI18n } from './i18n/useI18n.js';
 import { AgentCanvasAvatar } from './components/agents/AgentCanvasAvatar.jsx';
+import { useConfirmStore } from './stores/confirmStore.js';
 import { useScheduledTasksStore } from './stores/scheduledTasksStore.js';
 import { listUpcomingScheduledTasks, formatScheduleAtLabel } from './hooks/useScheduledAgentRunner.js';
 import { isScheduleNotDue } from './lib/agents/agentScheduleGate.js';
@@ -903,6 +904,7 @@ function BlueprintCanvas({
   onToggleScheduledAutoRun,
 }) {
   const { t } = useI18n();
+  const askConfirm = useConfirmStore((s) => s.ask);
   const completedTaskKeys = useScheduledTasksStore((s) => s.completedTaskKeys);
   const upcomingTasks = useMemo(
     () => listUpcomingScheduledTasks({
@@ -1888,10 +1890,17 @@ function BlueprintCanvas({
     // eslint-disable-next-line
   }, [nodes.length]);
 
-  const handleClear = () => {
+  const handleClear = async () => {
     const visibleCount = nodes.filter((n) => !n.hidden).length;
     if (!visibleCount && !connections.length && !strokes.length && !importedImage) return;
-    if (!window.confirm(t("canvas.clearConfirm"))) return;
+    const confirmed = await askConfirm({
+      title: t("canvas.clear"),
+      message: t("canvas.clearConfirm"),
+      confirmLabel: t("common.ok"),
+      cancelLabel: t("common.cancel"),
+      tone: "danger",
+    });
+    if (!confirmed) return;
     if (onClearCanvas) {
       onClearCanvas();
     } else {
