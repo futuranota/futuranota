@@ -49,6 +49,10 @@ import {
   insertMentionAtQuery,
   mergeMentionBlocks,
 } from "../../../lib/docMentions.js";
+import {
+  applyTextEditToMarkerRanges,
+  mergeBlockMarkerRanges,
+} from "../../../lib/docTextMarkerRanges.js";
 import { collectTagCandidatesForObject } from "../../../lib/urlTableTags.js";
 import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
@@ -970,9 +974,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
     const patch = { [field]: nextText };
     if (field === "text") {
-      // Shift @mention ranges past the inserted newline so chips survive Enter.
+      // Shift @mention + marker ranges past the inserted newline so they survive Enter.
       const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
       patch.mentions = mentions.length ? mentions : undefined;
+      const markerRanges = applyTextEditToMarkerRanges(block.text || "", nextText, block.markerRanges || []);
+      patch.markerRanges = markerRanges.length ? markerRanges : undefined;
     }
     const next = updateBlockAt(blocksRef.current, blockIndex, patch);
     setBlocks(next);
@@ -1208,9 +1214,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           "",
         );
         const merged = mergedResult.text;
+        const mergedMarkers = mergeBlockMarkerRanges(
+          { text: prev.text || "", markerRanges: prev.markerRanges || [] },
+          { text, markerRanges: block.markerRanges || [] },
+          "",
+        );
         let next = updateBlockAt(currentBlocks, blockIndex - 1, {
           text: merged,
           mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
+          markerRanges: mergedMarkers.length ? mergedMarkers : undefined,
         });
         next = removeBlockAt(next, blockIndex);
         const h1Index = getH1IndexForTextBlock(currentBlocks, blockIndex);
@@ -2238,6 +2250,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     value={block.text || ""}
                     mentions={block.mentions || []}
                     mentionCandidates={mentionCandidates}
+                    markerRanges={block.markerRanges || []}
                     placeholder={bodyPlaceholder}
                     showPlaceholder={false}
                     autoFocus={focusBlockId === block.id && !itemHidden}
@@ -2246,6 +2259,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                       text,
                       ...(meta && "mentions" in meta
                         ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                        : {}),
+                      ...(meta && "markerRanges" in meta
+                        ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
                         : {}),
                     })}
                     onKeyDown={(e) => handleTextKeyDown(index, e)}
@@ -2258,6 +2274,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               value={block.text || ""}
               mentions={block.mentions || []}
               mentionCandidates={mentionCandidates}
+              markerRanges={block.markerRanges || []}
               ghostHints={slashGhostHints}
               analystReportStyle={isAnalystReport && isPrimaryReportBlock}
               reportAnimate={shouldAnimateReport && isPrimaryReportBlock}
@@ -2281,12 +2298,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 continuationBlock ? continuationBlock.text || "" : null
               }
               continuationMentions={continuationBlock?.mentions || []}
+              continuationMarkerRanges={continuationBlock?.markerRanges || []}
               onContinuationChange={
                 continuationIndex >= 0
                   ? (text, meta) => updateAt(continuationIndex, {
                     text,
                     ...(meta && "mentions" in meta
                       ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                      : {}),
+                    ...(meta && "markerRanges" in meta
+                      ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
                       : {}),
                   })
                   : null
@@ -2315,6 +2336,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   text,
                   ...(meta && "mentions" in meta
                     ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                    : {}),
+                  ...(meta && "markerRanges" in meta
+                    ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
                     : {}),
                 });
                 if (isPrimaryAnswerTextForLinkedOwner(blocks, index)) {
@@ -2350,6 +2374,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 value={collapsedWriteBlock?.text || ""}
                 mentions={collapsedWriteBlock?.mentions || []}
                 mentionCandidates={mentionCandidates}
+                markerRanges={collapsedWriteBlock?.markerRanges || []}
                 ghostHints={slashGhostHints}
                 onChange={(text, meta) => {
                   const writeIndex = blocksRef.current.findIndex(
@@ -2360,6 +2385,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                       text,
                       ...(meta && "mentions" in meta
                         ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                        : {}),
+                      ...(meta && "markerRanges" in meta
+                        ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
                         : {}),
                     });
                   }

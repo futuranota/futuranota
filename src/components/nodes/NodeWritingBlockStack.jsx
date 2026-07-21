@@ -15,6 +15,10 @@ import {
   mergeMentionBlocks,
 } from "../../lib/docMentions.js";
 import {
+  applyTextEditToMarkerRanges,
+  mergeBlockMarkerRanges,
+} from "../../lib/docTextMarkerRanges.js";
+import {
   applySlashInTextBlock,
   createEmptyTextBlock,
   ensureEmptyTextBlockAfterNode,
@@ -202,9 +206,15 @@ function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
   const current = normalizeWritingBlocks(blocksRef.current);
   updateBlocks(current.map((block, index) => {
     if (index !== blockIndex) return block;
-    // Shift @mention ranges past the inserted newline so chips survive Enter.
+    // Shift @mention + marker ranges past the inserted newline so they survive Enter.
     const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
-    return { ...block, text: nextText, mentions: mentions.length ? mentions : undefined };
+    const markerRanges = applyTextEditToMarkerRanges(block.text || "", nextText, block.markerRanges || []);
+    return {
+      ...block,
+      text: nextText,
+      mentions: mentions.length ? mentions : undefined,
+      markerRanges: markerRanges.length ? markerRanges : undefined,
+    };
   }));
 
   requestAnimationFrame(() => {
@@ -490,12 +500,18 @@ export function NodeWritingBlockStack({
             block.mentions || [],
             "",
           );
+          const mergedMarkers = mergeBlockMarkerRanges(
+            { text: prev.text || "", markerRanges: prev.markerRanges || [] },
+            { text: value, markerRanges: block.markerRanges || [] },
+            "",
+          );
           const next = current
             .map((b, i) => (i === blockIndex - 1
               ? {
                 ...b,
                 text: mergedResult.text,
                 mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
+                markerRanges: mergedMarkers.length ? mergedMarkers : undefined,
               }
               : b))
             .filter((_, i) => i !== blockIndex);
@@ -614,12 +630,18 @@ export function NodeWritingBlockStack({
           block.mentions || [],
           "",
         );
+        const mergedMarkers = mergeBlockMarkerRanges(
+          { text: prev.text || "", markerRanges: prev.markerRanges || [] },
+          { text: value, markerRanges: block.markerRanges || [] },
+          "",
+        );
         const next = current
           .map((b, i) => (i === blockIndex - 1
             ? {
               ...b,
               text: mergedResult.text,
               mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
+              markerRanges: mergedMarkers.length ? mergedMarkers : undefined,
             }
             : b))
           .filter((_, i) => i !== blockIndex);
@@ -1210,10 +1232,14 @@ export function NodeWritingBlockStack({
                 value={block.text}
                 mentions={block.mentions || []}
                 mentionCandidates={mentionCandidates}
+                markerRanges={block.markerRanges || []}
                 onChange={(text, meta) => updateBlockAt(blockIndex, {
                   text,
                   ...(meta && "mentions" in meta
                     ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                    : {}),
+                  ...(meta && "markerRanges" in meta
+                    ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
                     : {}),
                 })}
                 onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
@@ -1241,10 +1267,14 @@ export function NodeWritingBlockStack({
                   value={block.text}
                   mentions={block.mentions || []}
                   mentionCandidates={mentionCandidates}
+                  markerRanges={block.markerRanges || []}
                   onChange={(text, meta) => updateBlockAt(blockIndex, {
                     text,
                     ...(meta && "mentions" in meta
                       ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                      : {}),
+                    ...(meta && "markerRanges" in meta
+                      ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
                       : {}),
                   })}
                   onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}

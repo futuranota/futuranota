@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { DOC_TEXT_MARKER_COLORS } from "../../../lib/docTextMarkerColors.js";
 
 const TEXT_FORMAT_ITEMS = [
   { id: "bold", label: "Bold" },
@@ -22,6 +23,7 @@ export function DocTextSelectionBubble({
   onBold,
   onSelectFormat,
   onDismiss,
+  markerEnabled = false,
 }) {
   const rootRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -127,6 +129,29 @@ export function DocTextSelectionBubble({
               {item.label}
             </button>
           ))}
+          {markerEnabled && blockKind !== "heading" ? (
+            <div className="doc-text-selection-toolbar__marker-row">
+              <span className="doc-text-selection-toolbar__marker-label">Marker</span>
+              <div className="doc-node-link-colors" role="group" aria-label="Marker colors">
+                {DOC_TEXT_MARKER_COLORS.map((color) => (
+                  <button
+                    key={color.id}
+                    type="button"
+                    aria-label={`Marker ${color.label}`}
+                    title={color.label}
+                    className="doc-node-link-color doc-text-selection-toolbar__marker-swatch"
+                    style={{ "--node-link-swatch": color.swatch }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectFormat?.(`marker:${color.id}`);
+                      setMenuOpen(false);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>,

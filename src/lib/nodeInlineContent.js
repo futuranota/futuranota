@@ -2,6 +2,7 @@ import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES } from "./docBlocks.js"
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { normalizeMentions } from "./docMentions.js";
+import { normalizeMarkerRanges } from "./docTextMarkerRanges.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
 import {
   createDefaultNodeTodoContent,
@@ -42,11 +43,13 @@ export function isNodeWritingBody(content) {
 export function createEmptyTextBlock(text = "", patch = {}) {
   const value = text || "";
   const mentions = normalizeMentions(value, patch.mentions);
+  const markerRanges = normalizeMarkerRanges(value, patch.markerRanges);
   return {
     id: patch.id || generateId("NTX"),
     type: NODE_BLOCK_TYPES.TEXT,
     text: value,
     ...(mentions.length ? { mentions } : {}),
+    ...(markerRanges.length ? { markerRanges } : {}),
     ...(patch.embedded && typeof patch.embedded === "object"
       ? { embedded: patch.embedded }
       : {}),
@@ -277,11 +280,13 @@ export function normalizeWritingBlocks(blocks) {
     }
     const text = block?.text || "";
     const mentions = normalizeMentions(text, block?.mentions);
+    const markerRanges = normalizeMarkerRanges(text, block?.markerRanges);
     return {
       id: block?.id || generateId("NTX"),
       type: NODE_BLOCK_TYPES.TEXT,
       text,
       ...(mentions.length ? { mentions } : {}),
+      ...(markerRanges.length ? { markerRanges } : {}),
       // Keep inline Intel widgets (calendar/forecast) attached to the text cell.
       ...(block?.embedded && typeof block.embedded === "object"
         ? { embedded: block.embedded }

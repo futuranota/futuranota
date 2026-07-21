@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toggleBoldRange } from "../../lib/docTextBoldRanges.js";
+import { toggleMarkerRange } from "../../lib/docTextMarkerRanges.js";
+import { isDocTextMarkerColorId } from "../../lib/docTextMarkerColors.js";
 import {
   applyHeadingToTextBlock,
   demoteHeadingBlockToText,
@@ -173,6 +175,23 @@ export function useNodeTextSelectionToolbar({
           ? { ...entry, text, boldRanges: nextRanges }
           : entry
       ));
+    } else if (formatId.startsWith("marker:")) {
+      const colorId = formatId.slice("marker:".length);
+      if (!isDocTextMarkerColorId(colorId)) {
+        setTextSelectionBubble(null);
+        return;
+      }
+      const block = blocksRef.current[index];
+      const nextRanges = toggleMarkerRange(text, block.markerRanges, start, end, colorId);
+      nextBlocks = blocksRef.current.map((entry, entryIndex) => (
+        entryIndex === index
+          ? {
+            ...entry,
+            text,
+            markerRanges: nextRanges.length ? nextRanges : undefined,
+          }
+          : entry
+      ));
     } else if (formatId === "body") {
       nextBlocks = demoteHeadingBlockToText(blocksRef.current, index);
       nextBlocks = ensureNodeWritingTail(normalizeWritingBlocks(nextBlocks));
@@ -211,7 +230,7 @@ export function useNodeTextSelectionToolbar({
 
     requestAnimationFrame(() => {
       el.focus({ preventScroll: true });
-      if (formatId === "bold") {
+      if (formatId === "bold" || formatId.startsWith("marker:")) {
         el.setSelectionRange(start, end);
       }
     });
@@ -223,6 +242,7 @@ export function useNodeTextSelectionToolbar({
       blockKind={textSelectionBubble.blockKind}
       onSelectFormat={handleSelectFormat}
       onDismiss={dismissTextSelectionBubble}
+      markerEnabled
     />
   ) : null;
 

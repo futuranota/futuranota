@@ -6152,7 +6152,8 @@ body.doc-content-resizing * {
   color: #fff;
 }
 
-.doc-slash-field--mentions .doc-slash-field__mirror {
+.doc-slash-field--mentions .doc-slash-field__mirror,
+.doc-slash-field--markers .doc-slash-field__mirror {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -6166,6 +6167,88 @@ body.doc-content-resizing * {
 
 .doc-slash-field--mentions .doc-slash-field__mirror--interactive {
   pointer-events: auto;
+}
+
+/* Marker-only mirror: paint the ink, keep the real textarea text visible. */
+.doc-slash-field__mirror--ink-only {
+  color: transparent;
+}
+
+/* ── Marker (plumón) strokes ─────────────────────────────────────────
+   Background-only ink under white text; glyph metrics never change.
+   Uneven gradient + organic radii + per-range seed = hand-drawn feel. */
+.doc-text-marker {
+  --marker-ink: rgba(255, 214, 10, 0.32);
+  --marker-ink-soft: rgba(255, 214, 10, 0.16);
+  background: linear-gradient(
+    100deg,
+    var(--marker-ink-soft) 0%,
+    var(--marker-ink) 7%,
+    var(--marker-ink) 50%,
+    var(--marker-ink) 93%,
+    var(--marker-ink-soft) 100%
+  );
+  border-radius: 0.45em 0.25em 0.55em 0.3em / 0.75em 0.4em 0.65em 0.5em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  box-shadow:
+    -0.22em 0 0.04em var(--marker-ink-soft),
+    0.22em 0 0.04em var(--marker-ink-soft);
+}
+
+.doc-text-marker--yellow {
+  --marker-ink: rgba(255, 214, 10, 0.32);
+  --marker-ink-soft: rgba(255, 214, 10, 0.16);
+}
+
+.doc-text-marker--mint {
+  --marker-ink: rgba(133, 218, 153, 0.28);
+  --marker-ink-soft: rgba(133, 218, 153, 0.14);
+}
+
+.doc-text-marker--rose {
+  --marker-ink: rgba(199, 161, 161, 0.30);
+  --marker-ink-soft: rgba(199, 161, 161, 0.15);
+}
+
+.doc-text-marker--blue {
+  --marker-ink: rgba(122, 168, 255, 0.28);
+  --marker-ink-soft: rgba(122, 168, 255, 0.14);
+}
+
+/* Per-range seeds: vary stroke angle + corners so no two strokes match. */
+.doc-text-marker--seed1 {
+  background: linear-gradient(
+    97deg,
+    var(--marker-ink) 0%,
+    var(--marker-ink) 46%,
+    var(--marker-ink) 90%,
+    var(--marker-ink-soft) 100%
+  );
+  border-radius: 0.3em 0.55em 0.35em 0.5em / 0.5em 0.7em 0.45em 0.8em;
+}
+
+.doc-text-marker--seed2 {
+  background: linear-gradient(
+    104deg,
+    var(--marker-ink-soft) 0%,
+    var(--marker-ink) 10%,
+    var(--marker-ink) 55%,
+    var(--marker-ink) 100%
+  );
+  border-radius: 0.5em 0.3em 0.6em 0.25em / 0.65em 0.5em 0.75em 0.4em;
+}
+
+.doc-text-marker--seed3 {
+  background: linear-gradient(
+    99deg,
+    var(--marker-ink) 0%,
+    var(--marker-ink) 40%,
+    var(--marker-ink-soft) 52%,
+    var(--marker-ink) 64%,
+    var(--marker-ink) 100%
+  );
+  border-radius: 0.35em 0.5em 0.3em 0.55em / 0.55em 0.75em 0.5em 0.65em;
 }
 
 /* Chip look must NOT change glyph metrics (no bold/padding), otherwise the
@@ -12287,6 +12370,28 @@ body.doc-content-resizing * {
 
 .doc-text-selection-toolbar__item:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.doc-text-selection-toolbar__marker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+  padding: 7px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.doc-text-selection-toolbar__marker-label {
+  font-family: "Hanken Grotesk", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.doc-text-selection-toolbar__marker-swatch {
+  width: 16px;
+  height: 16px;
 }
 
 .node-query-modal__writing-stack {

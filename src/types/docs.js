@@ -32,6 +32,14 @@
  */
 
 /**
+ * Highlighter stroke over a slice of a text block (plumón ink).
+ * @typedef {Object} DocMarkerRange
+ * @property {number} start
+ * @property {number} end
+ * @property {string} colorId — id from DOC_TEXT_MARKER_COLORS
+ */
+
+/**
  * @typedef {Object} DocBlock
  * @property {string} id
  * @property {DocBlockType} type
@@ -40,6 +48,7 @@
  * @property {string} [sourceQuery]
  * @property {string} [text]
  * @property {DocMention[]} [mentions]
+ * @property {DocMarkerRange[]} [markerRanges]
  * @property {string} [listTitle]
  * @property {TodoItem[]} [items]
  * @property {boolean} [showIntroAnim]
