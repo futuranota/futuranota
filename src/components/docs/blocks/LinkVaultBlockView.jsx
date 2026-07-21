@@ -10,7 +10,7 @@ const EMPTY_DRAFT = { name: "", tag: "", category: "", description: "", url: "" 
 const URL_FIELD_ICON = "/uploads/url-table.svg";
 
 const DEFAULT_LABELS = {
-  name: "Name",
+  name: "Title",
   tag: "Tag",
   category: "Category",
   description: "Description",

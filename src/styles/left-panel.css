@@ -6433,7 +6433,7 @@ body.doc-content-resizing * {
 
 .doc-mention-hover-card__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin-bottom: 6px;
 }
@@ -6446,11 +6446,17 @@ body.doc-content-resizing * {
   opacity: 0.9;
 }
 
-.doc-mention-hover-card__title {
+.doc-mention-hover-card__title,
+.doc-mention-hover-card__name {
+  flex: 1;
   font-size: 12px;
   font-weight: 700;
+  line-height: 1.4;
   letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.92);
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .doc-mention-hover-card__tag {
@@ -9392,6 +9398,18 @@ body.doc-content-resizing * {
   color: rgba(255, 255, 255, 0.88);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   vertical-align: middle;
+}
+
+.doc-vault-block__table td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.doc-vault-block__name-chip,
+.doc-vault-block__name-chip-label {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .doc-vault-block__table tr:last-child td {

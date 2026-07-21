@@ -19,11 +19,12 @@
 
 /**
  * Snapshot of a URL-table tag mention inserted into a text block.
- * Visible text stays plain `@tag`; hover uses this frozen description.
+ * Visible text stays plain `@tag`; hover uses frozen name + description.
  * @typedef {Object} DocMention
  * @property {string} id
  * @property {string|null} sourceEntryId
  * @property {string} tag
+ * @property {string} [name]
  * @property {string} description
  * @property {number} start
  * @property {number} end

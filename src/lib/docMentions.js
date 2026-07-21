@@ -7,6 +7,7 @@ import { computeTextEditDelta } from "./docTextBoldRanges.js";
  * @property {string} id
  * @property {string|null} sourceEntryId
  * @property {string} tag
+ * @property {string} name
  * @property {string} description
  * @property {string} url
  * @property {number} start
@@ -64,6 +65,7 @@ export function normalizeMentions(text, mentions) {
       id: String(raw.id || generateId("MNT")),
       sourceEntryId: raw.sourceEntryId == null ? null : String(raw.sourceEntryId),
       tag,
+      name: String(raw.name ?? ""),
       description: String(raw.description ?? ""),
       url: String(raw.url ?? ""),
       start,
@@ -168,7 +170,7 @@ export function applyTextEditToMentions(prevText, nextText, mentions) {
  * @param {string} text
  * @param {DocMention[]} mentions
  * @param {MentionQuery} activeQuery
- * @param {{ entryId?: string, id?: string, tag: string, description?: string, url?: string }} candidate
+ * @param {{ entryId?: string, id?: string, tag: string, name?: string, description?: string, url?: string }} candidate
  * @returns {{ text: string, mentions: DocMention[], caret: number }}
  */
 export function insertMentionAtQuery(text, mentions, activeQuery, candidate) {
@@ -191,6 +193,7 @@ export function insertMentionAtQuery(text, mentions, activeQuery, candidate) {
     id: generateId("MNT"),
     sourceEntryId: candidate.entryId || candidate.id || null,
     tag,
+    name: String(candidate.name ?? ""),
     description: String(candidate.description ?? ""),
     url: String(candidate.url ?? ""),
     start,

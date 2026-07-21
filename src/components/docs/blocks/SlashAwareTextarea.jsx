@@ -488,6 +488,16 @@ export function SlashAwareTextarea({
   ].filter(Boolean).join(" ");
 
   const hoveredMentionId = hoverCard?.mention?.id || null;
+  const hoveredMention = hoverCard?.mention || null;
+  const hoveredName = (() => {
+    if (!hoveredMention) return "";
+    const entryId = hoveredMention.sourceEntryId;
+    if (entryId && Array.isArray(mentionCandidates)) {
+      const live = mentionCandidates.find((item) => item.entryId === entryId);
+      if (live?.name) return String(live.name);
+    }
+    return String(hoveredMention.name ?? "");
+  })();
 
   return (
     <div
@@ -605,6 +615,7 @@ export function SlashAwareTextarea({
         open={Boolean(hoverCard && hasMentions)}
         anchor={hoverCard}
         tag={hoverCard?.mention?.tag}
+        name={hoveredName}
         description={hoverCard?.mention?.description}
         onMouseEnter={cancelHoverClose}
         onMouseLeave={scheduleHoverClose}

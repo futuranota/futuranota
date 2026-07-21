@@ -12,6 +12,7 @@ const sampleMention = (overrides = {}) => ({
   id: "MNT1",
   sourceEntryId: "E1",
   tag: "blog",
+  name: "Marketing blog",
   description: "Weekly posts",
   start: 0,
   end: 5,
@@ -28,6 +29,7 @@ describe("docMentions", () => {
     ]);
     expect(mentions).toHaveLength(1);
     expect(mentions[0].tag).toBe("blog");
+    expect(mentions[0].name).toBe("Marketing blog");
     expect(mentions[0].start).toBe(4);
     expect(mentions[0].end).toBe(9);
   });
@@ -47,13 +49,14 @@ describe("docMentions", () => {
       "note @bl",
       [],
       { start: 5, end: 8, query: "bl" },
-      { entryId: "E9", tag: "blog", description: "Desc snapshot" },
+      { entryId: "E9", tag: "blog", name: "Weekly digest", description: "Desc snapshot" },
     );
     expect(result.text).toBe("note @blog");
     expect(result.mentions).toHaveLength(1);
     expect(result.mentions[0]).toMatchObject({
       sourceEntryId: "E9",
       tag: "blog",
+      name: "Weekly digest",
       description: "Desc snapshot",
       start: 5,
       end: 10,
@@ -94,6 +97,31 @@ describe("docMentions", () => {
       sampleMention({ description: "Frozen copy", sourceEntryId: "deleted" }),
     ]);
     expect(mentions[0].description).toBe("Frozen copy");
+  });
+
+  it("keeps snapshot name for hover disambiguation", () => {
+    const text = "@blog";
+    const mentions = normalizeMentions(text, [
+      sampleMention({ name: "Frozen title", description: "Frozen copy" }),
+    ]);
+    expect(mentions[0].name).toBe("Frozen title");
+    expect(mentions[0].description).toBe("Frozen copy");
+  });
+
+  it("defaults missing name to empty string on normalize", () => {
+    const text = "@blog";
+    const mentions = normalizeMentions(text, [
+      {
+        id: "MNT1",
+        sourceEntryId: "E1",
+        tag: "blog",
+        description: "Legacy mention without name",
+        start: 0,
+        end: 5,
+        insertedAt: "2026-07-20T00:00:00.000Z",
+      },
+    ]);
+    expect(mentions[0].name).toBe("");
   });
 
   it("merges mention ranges across adjacent text blocks", () => {

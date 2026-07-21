@@ -255,7 +255,7 @@ export function UrlTableDashboardOverlay({
             draft={draft}
             onDraftChange={setDraft}
             labels={{
-              name: "Name",
+              name: "Title",
               tag: "Tag",
               category: "Category",
               description: "Description",
