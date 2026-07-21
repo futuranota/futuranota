@@ -383,6 +383,7 @@ export function nodeWritingBlocksHaveStructure(blocks) {
     if (block.type !== NODE_BLOCK_TYPES.TEXT) return true;
     if (block.embedded) return true;
     if (Array.isArray(block.mentions) && block.mentions.length > 0) return true;
+    if (Array.isArray(block.markerRanges) && block.markerRanges.length > 0) return true;
     return block.text.trim();
   });
 }
@@ -420,6 +421,7 @@ export function nodeDraftContentForStorage(content, dataType = "text") {
       block.type !== NODE_BLOCK_TYPES.TEXT
       || block.embedded
       || (Array.isArray(block.mentions) && block.mentions.length > 0)
+      || (Array.isArray(block.markerRanges) && block.markerRanges.length > 0)
     ),
   );
   if (hasStructure) {
