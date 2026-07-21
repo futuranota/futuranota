@@ -2,10 +2,7 @@ import { create } from "zustand";
 import { devtools } from "zustand/middleware";
 import { createLinkEntry, normalizeLinkEntries } from "../lib/vaultBlocks.js";
 import { generateId } from "../lib/ids.js";
-import {
-  collectTagCandidatesForObject,
-  findTagConflictInTable,
-} from "../lib/urlTableTags.js";
+import { collectTagCandidatesForObject } from "../lib/urlTableTags.js";
 
 const STORAGE_KEY = "futuranota.urlTableEntries.v1";
 
@@ -100,17 +97,6 @@ export const useUrlTableStore = create(
           updatedAt: now,
         });
 
-        const conflict = findTagConflictInTable(
-          get().entries,
-          tableId,
-          nextEntry.tag,
-          nextEntry.id,
-        );
-        if (conflict.conflict) {
-          console.warn("[url-table] Tag already used in this table", nextEntry.tag);
-          return null;
-        }
-
         set((state) => {
           if (state.entries.some((item) => item.id === nextEntry.id)) {
             const entries = state.entries.map((item) => (
@@ -132,6 +118,9 @@ export const useUrlTableStore = create(
       /** @param {string} id */
       removeEntry: (id) => {
         if (!id) return;
+        // #region agent log
+        fetch('http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-A',location:'urlTableStore.js:removeEntry',message:'store removeEntry called',data:{id},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         set((state) => {
           const entries = state.entries.filter((entry) => entry.id !== id);
           persistEntries(entries);
@@ -147,6 +136,9 @@ export const useUrlTableStore = create(
        */
       replaceEntriesForTable: (tableId, objectId, nextEntries) => {
         if (!tableId) return false;
+        // #region agent log
+        fetch('http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-C',location:'urlTableStore.js:replaceEntriesForTable',message:'footer save replace',data:{tableId,incomingIds:(nextEntries||[]).map((e)=>e?.id),storeIdsForTable:get().entries.filter((e)=>e.tableId===tableId).map((e)=>e.id)},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         const now = new Date().toISOString();
         const existingById = new Map(
           get().entries
@@ -164,20 +156,6 @@ export const useUrlTableStore = create(
             updatedAt: now,
           });
         });
-
-        for (const entry of normalized) {
-          // Cross-table duplicates are allowed. Only block within this table payload.
-          const internal = findTagConflictInTable(
-            normalized.map((item) => ({ ...item, tableId })),
-            tableId,
-            entry.tag,
-            entry.id,
-          );
-          if (internal.conflict) {
-            console.warn("[url-table] Duplicate tags inside one table save", entry.tag);
-            return false;
-          }
-        }
 
         set((state) => {
           const rest = state.entries.filter((entry) => entry.tableId !== tableId);

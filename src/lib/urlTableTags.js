@@ -1,7 +1,7 @@
 /**
  * URL-table tag helpers.
- * Tags are unique case-insensitively within a single table (tableId).
- * The same tag text may appear in different tables of the same company.
+ * Duplicate tag text is allowed within the same table and across tables.
+ * Mentions disambiguate by entryId (and Name in the picker UI).
  */
 
 /**
@@ -54,7 +54,7 @@ function toCandidate(entry) {
 
 /**
  * All tagged entries for a company (one candidate per entryId).
- * Duplicate tag text across tables is preserved for disambiguation.
+ * Duplicate tag text within or across tables is preserved for disambiguation.
  * @param {Array<Partial<UrlTableTagCandidate> & { id?: string, tag?: string }>} entries
  * @param {string|null} objectId
  * @returns {UrlTableTagCandidate[]}
@@ -131,46 +131,18 @@ export function collectUniqueTagsForObject(entries, objectId) {
 }
 
 /**
- * Conflict within one table (case-insensitive).
- * @param {Array<{ id?: string, tableId?: string|null, tag?: string }>} entries
- * @param {string|null} tableId
- * @param {string} tag
- * @param {string|null} [excludeEntryId]
+ * @deprecated Duplicate tags are allowed. Always returns no conflict.
  * @returns {{ conflict: boolean, existingId: string|null }}
  */
-export function findTagConflictInTable(entries, tableId, tag, excludeEntryId = null) {
-  const key = normalizeTagKey(tag);
-  if (!tableId || !key || !Array.isArray(entries)) {
-    return { conflict: false, existingId: null };
-  }
-
-  for (const entry of entries) {
-    if (!entry || entry.tableId !== tableId) continue;
-    if (excludeEntryId && entry.id === excludeEntryId) continue;
-    if (normalizeTagKey(entry.tag) === key) {
-      return { conflict: true, existingId: entry.id || null };
-    }
-  }
+export function findTagConflictInTable(_entries, _tableId, _tag, _excludeEntryId = null) {
   return { conflict: false, existingId: null };
 }
 
 /**
- * @deprecated Use findTagConflictInTable. Company-wide uniqueness is no longer the product rule.
- * Kept as a thin wrapper that still scopes by objectId for any leftover callers.
+ * @deprecated Duplicate tags are allowed. Always returns no conflict.
+ * @returns {{ conflict: boolean, existingId: string|null }}
  */
-export function findTagConflict(entries, objectId, tag, excludeEntryId = null) {
-  const key = normalizeTagKey(tag);
-  if (!objectId || !key || !Array.isArray(entries)) {
-    return { conflict: false, existingId: null };
-  }
-
-  for (const entry of entries) {
-    if (!entry || entry.objectId !== objectId) continue;
-    if (excludeEntryId && entry.id === excludeEntryId) continue;
-    if (normalizeTagKey(entry.tag) === key) {
-      return { conflict: true, existingId: entry.id || null };
-    }
-  }
+export function findTagConflict(_entries, _objectId, _tag, _excludeEntryId = null) {
   return { conflict: false, existingId: null };
 }
 

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { createLinkEntry, normalizeUrlInput } from "../../../lib/vaultBlocks.js";
-import { findTagConflictInTable } from "../../../lib/urlTableTags.js";
-import { useUrlTableStore } from "../../../stores/urlTableStore.js";
+import {
+  createLinkEntry,
+  LINK_DESCRIPTION_MAX_LENGTH,
+  normalizeUrlInput,
+} from "../../../lib/vaultBlocks.js";
 
 const EMPTY_DRAFT = { name: "", tag: "", category: "", description: "", url: "" };
 const URL_FIELD_ICON = "/uploads/url-table.svg";
@@ -20,6 +22,7 @@ export function LinkVaultBlockView({
   entries = [],
   onEntriesChange,
   onSaveEntry = null,
+  onDeleteEntry = null,
   onDeleteVault,
   openAddForm = false,
   compact = false,
@@ -42,8 +45,6 @@ export function LinkVaultBlockView({
   const setDraft = isDraftControlled ? onDraftChange : setUncontrolledDraft;
   const [isAdding, setIsAdding] = useState(entries.length === 0);
   const [openPicker, setOpenPicker] = useState(/** @type {null|'tag'|'category'} */ (null));
-  const [tagError, setTagError] = useState("");
-  const storeEntries = useUrlTableStore((s) => s.entries);
   const nameRef = useRef(null);
   const descRef = useRef(null);
   const pickerRef = useRef(null);
@@ -147,62 +148,16 @@ export function LinkVaultBlockView({
 
   const canSave = Boolean(draft.name.trim() && draft.url.trim());
 
-  const checkTagUnique = useCallback((tag, excludeEntryId = null) => {
-    const trimmed = String(tag ?? "").trim();
-    if (!trimmed) {
-      setTagError("");
-      return true;
-    }
-
-    // Local rows in the open form / session (same table).
-    const localScoped = entries.map((item) => ({
-      ...item,
-      tableId: tableId || item.tableId || "__local__",
-    }));
-    const localTableId = tableId || "__local__";
-    const localConflict = findTagConflictInTable(
-      localScoped,
-      localTableId,
-      trimmed,
-      excludeEntryId,
-    );
-    if (localConflict.conflict) {
-      setTagError(`Tag “${trimmed}” is already used in this table`);
-      return false;
-    }
-
-    if (tableId) {
-      const storeConflict = findTagConflictInTable(
-        storeEntries,
-        tableId,
-        trimmed,
-        excludeEntryId,
-      );
-      if (storeConflict.conflict) {
-        setTagError(`Tag “${trimmed}” is already used in this table`);
-        return false;
-      }
-    }
-
-    setTagError("");
-    return true;
-  }, [entries, storeEntries, tableId]);
-
   const handleSave = useCallback(() => {
     if (!canSave) return;
-    if (!checkTagUnique(draft.tag)) return;
     const entry = createLinkEntry({
       ...draft,
       url: normalizeUrlInput(draft.url),
     });
     if (onSaveEntry) {
       const result = onSaveEntry(entry);
-      if (result === false || result === null) {
-        setTagError(`Tag “${String(draft.tag || "").trim()}” is already used in this table`);
-        return;
-      }
+      if (result === false || result === null) return;
       setDraft(EMPTY_DRAFT);
-      setTagError("");
       // Keep form open so the user can add another row in the overlay.
       setIsAdding(true);
       return;
@@ -212,13 +167,18 @@ export function LinkVaultBlockView({
       entry,
     ]);
     setDraft(EMPTY_DRAFT);
-    setTagError("");
     setIsAdding(false);
-  }, [canSave, checkTagUnique, draft, entries, onEntriesChange, onSaveEntry, setDraft]);
+  }, [canSave, draft, entries, onEntriesChange, onSaveEntry, setDraft]);
 
   const handleRemoveEntry = useCallback((entryId) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'post-fix',hypothesisId:'H-A',location:'LinkVaultBlockView.jsx:handleRemoveEntry',message:'row delete requested',data:{entryId,tableId,entriesBefore:entries.length,hasStoreDelete:Boolean(onDeleteEntry)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    // Delete from the SQL-backed store immediately (same immediacy as row Save),
+    // so a later row Save cannot resurrect the row from the store.
+    onDeleteEntry?.(entryId);
     onEntriesChange?.(entries.filter((entry) => entry.id !== entryId));
-  }, [entries, onEntriesChange]);
+  }, [entries, onDeleteEntry, onEntriesChange, tableId]);
 
   const applyChipValue = useCallback((field, value) => {
     const next = String(value ?? "").trim();
@@ -428,19 +388,16 @@ export function LinkVaultBlockView({
       <td>
         <div className="doc-vault-block__tag-field">
           <input
-            className={`doc-vault-block__input${tagError ? " is-invalid" : ""}`}
+            className="doc-vault-block__input"
             type="text"
             value={draft.tag ?? ""}
             placeholder={L.tag}
             onChange={(e) => {
-              setTagError("");
               setDraft((prev) => ({ ...prev, tag: e.target.value }));
             }}
             onKeyDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            aria-invalid={Boolean(tagError)}
           />
-          {tagError ? <p className="doc-vault-block__tag-error">{tagError}</p> : null}
         </div>
       </td>
       <td>
@@ -462,6 +419,7 @@ export function LinkVaultBlockView({
             className="doc-vault-block__input doc-vault-block__input--description-multiline"
             value={draft.description}
             placeholder={L.description}
+            maxLength={LINK_DESCRIPTION_MAX_LENGTH}
             onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
             onKeyDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -472,6 +430,7 @@ export function LinkVaultBlockView({
             type="text"
             value={draft.description}
             placeholder={L.description}
+            maxLength={LINK_DESCRIPTION_MAX_LENGTH}
             onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
             onKeyDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
@@ -583,19 +542,16 @@ export function LinkVaultBlockView({
               />
               <div className="doc-vault-block__tag-field">
                 <input
-                  className={`doc-vault-block__stack-field doc-vault-block__stack-field--tag${tagError ? " is-invalid" : ""}`}
+                  className="doc-vault-block__stack-field doc-vault-block__stack-field--tag"
                   type="text"
                   value={draft.tag ?? ""}
                   placeholder={L.tag}
                   onChange={(e) => {
-                    setTagError("");
                     setDraft((prev) => ({ ...prev, tag: e.target.value }));
                   }}
                   onKeyDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
-                  aria-invalid={Boolean(tagError)}
                 />
-                {tagError ? <p className="doc-vault-block__tag-error">{tagError}</p> : null}
               </div>
               <input
                 className="doc-vault-block__stack-field doc-vault-block__stack-field--category"
@@ -612,6 +568,7 @@ export function LinkVaultBlockView({
                 className="doc-vault-block__stack-field doc-vault-block__stack-field--description"
                 value={draft.description}
                 placeholder={L.description}
+                maxLength={LINK_DESCRIPTION_MAX_LENGTH}
                 onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
                 onKeyDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}

@@ -120,7 +120,7 @@ export function persistUrlTableSession(session) {
   const entries = normalizeLinkEntries(session.entries || []);
   const replaced = useUrlTableStore.getState().replaceEntriesForTable(tableId, objectId, entries);
   if (!replaced) {
-    return { objectId: null, tableId, entryCount: 0, tagConflict: true };
+    return { objectId: null, tableId, entryCount: 0 };
   }
   return { objectId, tableId, entryCount: entries.length };
 }

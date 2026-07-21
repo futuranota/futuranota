@@ -62,6 +62,59 @@ function entryToRow(entry, userId, now) {
 let isHydrating = false;
 let debouncedRemoteSync = null;
 
+/**
+ * Tombstones for rows deleted locally but possibly still present remotely.
+ * Prevents a hydrate that races the delete-flush from resurrecting them.
+ * Cleared after a successful sync (which removes them remotely as orphans).
+ * @type {Set<string>}
+ */
+const pendingDeletedEntryIds = new Set();
+
+/** @param {string} id */
+export function markUrlTableEntryDeleted(id) {
+  if (id) pendingDeletedEntryIds.add(String(id));
+}
+
+/**
+ * Merge remote entries with local ones instead of blindly replacing:
+ * - tombstoned remote rows are dropped (delete-flush race);
+ * - same id → keep the newer updatedAt;
+ * - local-only rows (not yet flushed when the page reloaded) are kept.
+ * @param {import("../stores/urlTableStore.js").UrlTableStoredEntry[]} remoteEntries
+ * @param {import("../stores/urlTableStore.js").UrlTableStoredEntry[]} localEntries
+ */
+function mergeRemoteWithLocal(remoteEntries, localEntries) {
+  const byId = new Map();
+  let tombstonedCount = 0;
+  for (const remote of remoteEntries) {
+    if (pendingDeletedEntryIds.has(remote.id)) {
+      tombstonedCount += 1;
+      continue;
+    }
+    byId.set(remote.id, remote);
+  }
+
+  const localOnlyIds = [];
+  for (const local of localEntries) {
+    if (pendingDeletedEntryIds.has(local.id)) continue;
+    const remote = byId.get(local.id);
+    if (!remote) {
+      byId.set(local.id, local);
+      localOnlyIds.push(local.id);
+      continue;
+    }
+    if (String(local.updatedAt || "") > String(remote.updatedAt || "")) {
+      byId.set(local.id, local);
+    }
+  }
+
+  return {
+    merged: [...byId.values()],
+    localOnlyIds,
+    tombstonedCount,
+  };
+}
+
 /** @param {import("../stores/urlTableStore.js").UrlTableStoredEntry[]} entries */
 async function syncUrlTableToSupabase(entries) {
   const userId = await resolveSyncUserId();
@@ -110,6 +163,8 @@ async function syncUrlTableToSupabase(entries) {
     }
   }
 
+  // Remote now mirrors local: tombstoned rows were deleted as orphans.
+  pendingDeletedEntryIds.clear();
   return true;
 }
 
@@ -153,18 +208,28 @@ export function initUrlTableSync(useUrlTableStore) {
     const remoteEntries = await loadUrlTableFromSupabase();
     if (remoteEntries === null) return;
 
+    const localEntries = useUrlTableStore.getState().entries;
+    const { merged, localOnlyIds, tombstonedCount } = mergeRemoteWithLocal(
+      remoteEntries,
+      localEntries,
+    );
+
+    // #region agent log
+    fetch('http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'post-fix3',hypothesisId:'H-B',location:'urlTableSync.js:hydrateFromRemote',message:'remote hydrate merged with local',data:{remoteCount:remoteEntries.length,localCount:localEntries.length,mergedCount:merged.length,localOnlyIds,tombstonedCount},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     isHydrating = true;
     try {
-      if (remoteEntries.length > 0) {
-        useUrlTableStore.getState().replaceEntries(remoteEntries);
-      } else {
-        const localEntries = useUrlTableStore.getState().entries;
-        if (localEntries.length > 0) {
-          await syncUrlTableToSupabase(localEntries);
-        }
+      if (merged.length > 0) {
+        useUrlTableStore.getState().replaceEntries(merged);
       }
     } finally {
       isHydrating = false;
+    }
+
+    // Push local-only rows (or pending deletes) so remote catches up.
+    if (localOnlyIds.length > 0 || tombstonedCount > 0
+      || (merged.length > 0 && remoteEntries.length === 0)) {
+      await syncUrlTableToSupabase(useUrlTableStore.getState().entries);
     }
   };
 

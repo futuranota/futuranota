@@ -1,8 +1,12 @@
 import { supabase, formatSupabaseError } from "./supabaseClient.js";
 import { createTodoItem } from "./docBlocks.js";
 import { generateId } from "./ids.js";
-import { mergeLazyTodoLists } from "./lazyTodosMerge.js";
+import {
+  filterLazyTodosAgainstDeletedIds,
+  mergeLazyTodoLists,
+} from "./lazyTodosMerge.js";
 import { resolveSyncUserId } from "./resolveSyncUserId.js";
+import { LAZY_TODOS_DELETED_STORAGE_KEY } from "../stores/lazyTodosStore.js";
 
 const SYNC_DEBOUNCE_MS = 1500;
 const DELETE_SYNC_DEBOUNCE_MS = 250;
@@ -73,18 +77,95 @@ let hasCompletedHydrate = false;
 let debouncedRemoteSync = null;
 let debouncedDeleteSync = null;
 
+/** Serialize overlapping upsert/delete so a stale upsert cannot resurrect a tombstoned row. */
+let syncInFlight = null;
+let syncNeedsRerun = false;
+
+/**
+ * Explicit DELETE for tombstoned ids (mirrors folder purgeTombstonedRows).
+ * @param {string} userId
+ * @param {string[]} deletedIds
+ * @returns {Promise<boolean>}
+ */
+async function purgeTombstonedLazyTodos(userId, deletedIds) {
+  const ids = [...new Set(deletedIds)].filter(Boolean);
+  if (!ids.length) return true;
+
+  const CHUNK = 100;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const { error } = await supabase
+      .from("lazy_todos")
+      .delete()
+      .eq("user_id", userId)
+      .in("id", chunk);
+    if (error) {
+      console.warn(formatSupabaseError(error, "Purge tombstoned lazy_todos"));
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Clear tombstones only after a remote SELECT proves the rows are gone.
+ * Never clear while another sync is already queued (syncNeedsRerun).
+ * @param {string} userId
+ * @param {string[]} deletedIds
+ * @param {(cleared: string[]) => void} [onConfirmedAbsent]
+ */
+async function clearLazyTodoTombstonesConfirmedAbsent(
+  userId,
+  deletedIds,
+  onConfirmedAbsent,
+) {
+  if (syncNeedsRerun) return;
+
+  const ids = [...new Set(deletedIds)].filter(Boolean);
+  if (!ids.length) return;
+
+  const CHUNK = 100;
+  const stillRemote = new Set();
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("lazy_todos")
+      .select("id")
+      .eq("user_id", userId)
+      .in("id", chunk);
+    if (error) {
+      console.warn(formatSupabaseError(error, "Confirm lazy_todos tombstones absent"));
+      return;
+    }
+    for (const row of data || []) {
+      if (row?.id) stillRemote.add(row.id);
+    }
+  }
+
+  // Re-check after the SELECT — a delete mid-confirm must keep its tombstone.
+  if (syncNeedsRerun) return;
+
+  const cleared = ids.filter((id) => !stillRemote.has(id));
+  if (cleared.length > 0 && typeof onConfirmedAbsent === "function") {
+    onConfirmedAbsent(cleared);
+  }
+}
+
 /**
  * @param {import("../stores/lazyTodosStore.js").LazyTodoItem[]} items
- * @param {{ allowOrphanDelete?: boolean, deletedIds?: string[] }} [options]
+ * @param {{ allowOrphanDelete?: boolean, deletedIds?: string[], onOrphansDeleted?: (ids: string[]) => void }} [options]
  */
 async function syncLazyTodosToSupabase(items, options = {}) {
   const userId = await resolveSyncUserId();
   if (!userId) return;
 
   const allowOrphanDelete = Boolean(options.allowOrphanDelete) && hasCompletedHydrate;
-  const deletedIds = options.deletedIds || [];
+  const deletedIds = [...new Set(options.deletedIds || [])].filter(Boolean);
   const now = new Date().toISOString();
-  const rows = items.map((item) => itemToRow(item, userId, now));
+
+  // Never upsert rows that are currently tombstoned (stale snapshots / races).
+  const safeItems = filterLazyTodosAgainstDeletedIds(items, deletedIds);
+  const rows = safeItems.map((item) => itemToRow(item, userId, now));
 
   if (rows.length > 0) {
     const { error } = await supabase
@@ -98,6 +179,10 @@ async function syncLazyTodosToSupabase(items, options = {}) {
 
   if (!allowOrphanDelete) return;
 
+  // Explicit purge by tombstone — does not depend on "missing from local list".
+  const purgeOk = await purgeTombstonedLazyTodos(userId, deletedIds);
+  if (!purgeOk) return;
+
   const { data: remoteRows, error: selectErr } = await supabase
     .from("lazy_todos")
     .select("id")
@@ -108,28 +193,79 @@ async function syncLazyTodosToSupabase(items, options = {}) {
     return;
   }
 
-  const localIds = new Set(items.map((item) => item.id));
+  const localIds = new Set(safeItems.map((item) => item.id));
+  // Also treat tombstones as "present locally" for orphan math — already purged above.
+  for (const id of deletedIds) localIds.add(id);
+
   const orphanIds = (remoteRows || [])
     .map((row) => row.id)
-    .filter((id) => !localIds.has(id));
+    .filter((id) => id && !localIds.has(id));
 
-  if (orphanIds.length === 0) return;
-
-  const { error: deleteErr } = await supabase
-    .from("lazy_todos")
-    .delete()
-    .eq("user_id", userId)
-    .in("id", orphanIds);
-
-  if (deleteErr) {
-    console.warn(formatSupabaseError(deleteErr, "Delete lazy_todos"));
-    return;
+  if (orphanIds.length > 0) {
+    const { error: deleteErr } = await supabase
+      .from("lazy_todos")
+      .delete()
+      .eq("user_id", userId)
+      .in("id", orphanIds);
+    if (deleteErr) {
+      console.warn(formatSupabaseError(deleteErr, "Delete lazy_todos"));
+      return;
+    }
   }
 
-  const cleared = orphanIds.filter((id) => deletedIds.includes(id));
-  if (cleared.length > 0 && typeof options.onOrphansDeleted === "function") {
-    options.onOrphansDeleted(cleared);
+  // Only drop tombstones after remote SELECT proves the rows are gone —
+  // never immediately after DELETE (a stale upsert could still be mid-flight elsewhere).
+  await clearLazyTodoTombstonesConfirmedAbsent(
+    userId,
+    deletedIds,
+    options.onOrphansDeleted,
+  );
+}
+
+/**
+ * Queue a sync that always reads live store state when it actually runs.
+ * Overlapping calls coalesce into one follow-up with fresh items/deletedIds.
+ * @param {typeof import("../stores/lazyTodosStore.js").useLazyTodosStore} useLazyTodosStore
+ * @param {{ orphanDelete?: boolean }} [opts]
+ */
+function enqueueLazyTodosSync(useLazyTodosStore, { orphanDelete = true } = {}) {
+  const runOnce = async () => {
+    do {
+      syncNeedsRerun = false;
+      if (isHydrating) {
+        // Hydrate's trailing sync reads live deletedIds; keep a flag so a
+        // post-hydrate enqueue (if any) still runs with fresh state.
+        syncNeedsRerun = true;
+        return;
+      }
+
+      const { items, deletedIds } = useLazyTodosStore.getState();
+      await syncLazyTodosToSupabase(items, {
+        allowOrphanDelete: orphanDelete,
+        deletedIds: deletedIds || [],
+        onOrphansDeleted: (cleared) => {
+          useLazyTodosStore.getState().clearDeletedIds?.(cleared);
+        },
+      });
+    } while (syncNeedsRerun);
+  };
+
+  if (syncInFlight) {
+    syncNeedsRerun = true;
+    return syncInFlight.then(() => {
+      if (syncInFlight) return syncInFlight;
+      if (!syncNeedsRerun) return undefined;
+      syncInFlight = runOnce().finally(() => {
+        syncInFlight = null;
+      });
+      return syncInFlight;
+    });
   }
+
+  syncInFlight = runOnce().finally(() => {
+    syncInFlight = null;
+  });
+  return syncInFlight;
 }
 
 /** @returns {Promise<import("../stores/lazyTodosStore.js").LazyTodoItem[]|null>} */
@@ -152,32 +288,64 @@ export async function loadLazyTodosFromSupabase() {
 }
 
 /**
+ * @param {string[]|null|undefined} ids
+ * @param {typeof import("../stores/lazyTodosStore.js").useLazyTodosStore} useLazyTodosStore
+ */
+function adoptCrossTabDeletedIds(ids, useLazyTodosStore) {
+  const incoming = [...new Set((ids || []).filter((id) => typeof id === "string" && id))];
+  if (!incoming.length) return false;
+
+  const { deletedIds, items, markDeleted, removeItem } = useLazyTodosStore.getState();
+  const known = new Set(deletedIds || []);
+  const fresh = incoming.filter((id) => !known.has(id));
+  if (!fresh.length) {
+    // Still strip any local items that match incoming tombstones (another tab deleted them).
+    let stripped = false;
+    for (const id of incoming) {
+      if (items.some((item) => item.id === id)) {
+        removeItem(id);
+        stripped = true;
+      }
+    }
+    return stripped;
+  }
+
+  markDeleted(fresh);
+  for (const id of fresh) {
+    removeItem(id);
+  }
+  return true;
+}
+
+/**
  * @param {typeof import("../stores/lazyTodosStore.js").useLazyTodosStore} useLazyTodosStore
  */
 export function initLazyTodosSync(useLazyTodosStore) {
   if (typeof window === "undefined") return;
 
-  const runSync = (items, deletedIds, { orphanDelete = true } = {}) => {
-    syncLazyTodosToSupabase(items, {
-      allowOrphanDelete: orphanDelete,
-      deletedIds,
-      onOrphansDeleted: (cleared) => {
-        useLazyTodosStore.getState().clearDeletedIds?.(cleared);
-      },
-    });
-  };
-
-  debouncedRemoteSync = debounce((items, deletedIds) => {
+  debouncedRemoteSync = debounce(() => {
     if (isHydrating) return;
-    runSync(items, deletedIds, { orphanDelete: true });
+    enqueueLazyTodosSync(useLazyTodosStore, { orphanDelete: true });
   }, SYNC_DEBOUNCE_MS);
 
-  debouncedDeleteSync = debounce((items, deletedIds) => {
+  debouncedDeleteSync = debounce(() => {
     if (isHydrating) return;
-    runSync(items, deletedIds, { orphanDelete: true });
+    enqueueLazyTodosSync(useLazyTodosStore, { orphanDelete: true });
   }, DELETE_SYNC_DEBOUNCE_MS);
 
   const hydrateFromRemote = async () => {
+    debouncedRemoteSync?.cancel();
+    debouncedDeleteSync?.cancel();
+
+    // Wait out any in-flight upsert so it cannot race the post-hydrate purge.
+    if (syncInFlight) {
+      try {
+        await syncInFlight;
+      } catch {
+        // prior sync logged its own error
+      }
+    }
+
     const remoteItems = await loadLazyTodosFromSupabase();
     if (remoteItems === null) return;
 
@@ -188,17 +356,13 @@ export function initLazyTodosSync(useLazyTodosStore) {
       useLazyTodosStore.getState().replaceItems(merged);
       useLazyTodosStore.getState().requeueOrphanedActives?.();
       hasCompletedHydrate = true;
-      const { items: afterRequeue, deletedIds: afterDeleted } = useLazyTodosStore.getState();
-      await syncLazyTodosToSupabase(afterRequeue, {
-        allowOrphanDelete: true,
-        deletedIds: afterDeleted,
-        onOrphansDeleted: (cleared) => {
-          useLazyTodosStore.getState().clearDeletedIds?.(cleared);
-        },
-      });
     } finally {
       isHydrating = false;
     }
+
+    // Always flush once after hydrate with live store state (serialized).
+    syncNeedsRerun = false;
+    await enqueueLazyTodosSync(useLazyTodosStore, { orphanDelete: true });
   };
 
   hydrateFromRemote();
@@ -220,6 +384,21 @@ export function initLazyTodosSync(useLazyTodosStore) {
     }
   });
 
+  // Sibling /app tabs: adopt delete tombstones so they stop re-upserting deleted todos.
+  window.addEventListener("storage", (event) => {
+    if (event.key !== LAZY_TODOS_DELETED_STORAGE_KEY || !event.newValue) return;
+    let ids = null;
+    try {
+      ids = JSON.parse(event.newValue);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(ids)) return;
+    if (!adoptCrossTabDeletedIds(ids, useLazyTodosStore)) return;
+    debouncedRemoteSync?.cancel();
+    debouncedDeleteSync?.();
+  });
+
   let prevItems = useLazyTodosStore.getState().items;
   useLazyTodosStore.subscribe((state) => {
     if (isHydrating) {
@@ -234,10 +413,10 @@ export function initLazyTodosSync(useLazyTodosStore) {
 
     if (removed) {
       debouncedRemoteSync?.cancel();
-      debouncedDeleteSync?.(state.items, state.deletedIds || []);
+      debouncedDeleteSync?.();
       return;
     }
 
-    debouncedRemoteSync?.(state.items, state.deletedIds || []);
+    debouncedRemoteSync?.();
   });
 }

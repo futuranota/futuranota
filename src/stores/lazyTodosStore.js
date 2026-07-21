@@ -5,7 +5,9 @@ import { generateId } from "../lib/ids.js";
 import { lazyTodoHasContent } from "../lib/lazyTodoItemKeyDown.js";
 
 const STORAGE_KEY = "futuranota.lazyTodos.v3";
-const DELETED_STORAGE_KEY = "futuranota.lazyTodos.deleted.v1";
+/** Shared with lazyTodosSync for cross-tab tombstone adoption. */
+export const LAZY_TODOS_DELETED_STORAGE_KEY = "futuranota.lazyTodos.deleted.v1";
+const DELETED_STORAGE_KEY = LAZY_TODOS_DELETED_STORAGE_KEY;
 
 /** @typedef {'queued' | 'active'} LazyTodoStatus */
 

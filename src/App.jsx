@@ -1266,11 +1266,6 @@ useEffect(() => {
       const merged = { ...current, entries, saved: true };
       const result = await persistUrlTableSessionAndFlush(merged);
       if (!result?.objectId) {
-        if (result?.tagConflict) {
-          console.warn("[url-table] Save blocked: duplicate tags in this table");
-          window.alert("A tag is already used in this table. Use a unique tag and try again.");
-          return;
-        }
         console.warn("[url-table] Save did not write to SQL store", result);
         return;
       }

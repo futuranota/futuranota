@@ -16,19 +16,16 @@ describe("urlTableTags", () => {
     expect(formatMentionToken("@blog")).toBe("@blog");
   });
 
-  it("finds conflicts only inside the same table", () => {
+  it("never reports tag conflicts (duplicates are allowed)", () => {
     const entries = [
       { id: "1", objectId: "c1", tableId: "t1", tag: "Blog" },
-      { id: "2", objectId: "c1", tableId: "t1", tag: "sales" },
-      { id: "3", objectId: "c1", tableId: "t2", tag: "blog" },
+      { id: "2", objectId: "c1", tableId: "t1", tag: "blog" },
     ];
-    expect(findTagConflictInTable(entries, "t1", "blog").conflict).toBe(true);
-    expect(findTagConflictInTable(entries, "t1", "blog", "1").conflict).toBe(false);
-    expect(findTagConflictInTable(entries, "t2", "sales").conflict).toBe(false);
-    expect(findTagConflictInTable(entries, "t2", "blog").conflict).toBe(true);
+    expect(findTagConflictInTable(entries, "t1", "blog").conflict).toBe(false);
+    expect(findTagConflictInTable(entries, "t1", "Blog", "1").conflict).toBe(false);
   });
 
-  it("keeps duplicate tag text across tables as separate candidates", () => {
+  it("keeps duplicate tag text within and across tables as separate candidates", () => {
     const tags = collectTagCandidatesForObject([
       {
         id: "a",
@@ -52,22 +49,33 @@ describe("urlTableTags", () => {
         id: "c",
         objectId: "c1",
         tableId: "t1",
+        tag: "Blog",
+        name: "Also blogs",
+        description: "second row same table",
+        updatedAt: "2026-07-02T00:00:00.000Z",
+      },
+      {
+        id: "d",
+        objectId: "c1",
+        tableId: "t1",
         tag: "sales",
         name: "Sales",
         description: "",
         updatedAt: "2026-07-01T00:00:00.000Z",
       },
     ], "c1");
-    expect(tags).toHaveLength(3);
-    expect(tags.filter((t) => normalizeTagKey(t.tag) === "blog")).toHaveLength(2);
+    expect(tags).toHaveLength(4);
+    expect(tags.filter((t) => normalizeTagKey(t.tag) === "blog")).toHaveLength(3);
+    expect(tags.map((t) => t.entryId).sort()).toEqual(["a", "b", "c", "d"]);
   });
 
-  it("lists tagged entries for one table only", () => {
+  it("lists tagged entries for one table only (including duplicate tags)", () => {
     const tags = collectTagCandidatesForTable([
       { id: "a", tableId: "t1", tag: "blog", name: "A" },
       { id: "b", tableId: "t2", tag: "blog", name: "B" },
+      { id: "c", tableId: "t1", tag: "blog", name: "C" },
     ], "t1");
-    expect(tags.map((t) => t.entryId)).toEqual(["a"]);
+    expect(tags.map((t) => t.entryId).sort()).toEqual(["a", "c"]);
   });
 
   it("collects unique labels for column pickers", () => {

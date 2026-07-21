@@ -1431,14 +1431,12 @@
 }
 
 .url-table-dashboard .doc-vault-block__name-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
+  display: inline;
   max-width: 100%;
-  padding: 1px 7px;
-  border-radius: 999px;
+  padding: 0;
+  border-radius: 0;
   border: none;
-  background: color-mix(in oklab, #999999 16%, transparent);
+  background: transparent;
   color: #999999;
   font-size: 12px;
   font-weight: 600;

@@ -1,5 +1,16 @@
 import { generateId } from "./ids.js";
 
+/** Max length for URL-table / link-vault description fields. */
+export const LINK_DESCRIPTION_MAX_LENGTH = 500;
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function clampLinkDescription(value) {
+  return String(value ?? "").slice(0, LINK_DESCRIPTION_MAX_LENGTH);
+}
+
 export function createPasswordEntry(patch = {}) {
   return {
     id: patch.id || generateId("PWD"),
@@ -15,7 +26,7 @@ export function createLinkEntry(patch = {}) {
     name: patch.name || "",
     tag: patch.tag || "",
     category: patch.category || "",
-    description: patch.description || "",
+    description: clampLinkDescription(patch.description || ""),
     url: patch.url || "",
   };
 }

@@ -3,6 +3,20 @@
  */
 
 /**
+ * Drop tombstoned ids from a list before upserting to Supabase.
+ * @param {import("../stores/lazyTodosStore.js").LazyTodoItem[]|null|undefined} items
+ * @param {Iterable<string>} [deletedIds]
+ * @returns {import("../stores/lazyTodosStore.js").LazyTodoItem[]}
+ */
+export function filterLazyTodosAgainstDeletedIds(items, deletedIds = []) {
+  const deleted = new Set(
+    [...deletedIds].filter((id) => typeof id === "string" && id),
+  );
+  if (deleted.size === 0) return [...(items || [])].filter((item) => item?.id);
+  return (items || []).filter((item) => item?.id && !deleted.has(item.id));
+}
+
+/**
  * @param {import("../stores/lazyTodosStore.js").LazyTodoItem | null | undefined} item
  */
 export function lazyTodoContentScore(item) {

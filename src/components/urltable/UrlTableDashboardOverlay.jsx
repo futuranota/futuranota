@@ -4,7 +4,7 @@ import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { createLinkEntry, normalizeUrlInput } from "../../lib/vaultBlocks.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { removeUrlTableFromDoc } from "../../lib/urlTableLibrary.js";
-import { flushUrlTableSync } from "../../lib/urlTableSync.js";
+import { flushUrlTableSync, markUrlTableEntryDeleted } from "../../lib/urlTableSync.js";
 import { flushUrlTablesSync } from "../../lib/urlTablesSync.js";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
@@ -95,25 +95,48 @@ export function UrlTableDashboardOverlay({
       console.warn("[url-table] Row Save skipped: missing company objectId");
       return null;
     }
+    // #region agent log
+    const __sessIdsBefore = (session?.entries || []).map((e) => e.id);
+    // #endregion
     const stored = queueUrlTableEntry(objectId, entry, tableId);
     if (!stored) return null;
-    const fromStore = tableId
-      ? useUrlTableStore.getState().getEntriesForTable(tableId)
-      : useUrlTableStore.getState().getEntriesForObject(objectId);
+    // Append only the newly stored entry. Never replace the visible list with
+    // the store: rows deleted in this session must stay deleted even if the
+    // store/remote still holds them (footer Save purges them for good).
+    const sessionEntries = session?.entries || [];
+    const nextEntries = sessionEntries.some((item) => item.id === stored.id)
+      ? sessionEntries
+      : [
+        ...sessionEntries,
+        {
+          id: stored.id,
+          name: stored.name,
+          tag: stored.tag,
+          category: stored.category,
+          description: stored.description,
+          url: stored.url,
+        },
+      ];
+    // #region agent log
+    fetch('http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'post-fix2',hypothesisId:'H-A',location:'UrlTableDashboardOverlay.jsx:handleSaveEntry',message:'row save: append-only session update',data:{tableId,sessionIdsBefore:__sessIdsBefore,sessionIdsAfter:nextEntries.map((e)=>e.id),storedId:stored.id},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     onChange?.({
       tableId: stored.tableId || tableId,
-      entries: fromStore.map((item) => ({
-        id: item.id,
-        name: item.name,
-        tag: item.tag,
-        category: item.category,
-        description: item.description,
-        url: item.url,
-      })),
+      entries: nextEntries,
       saved: true,
     });
     setDraft({ name: "", tag: "", category: "", description: "", url: "" });
     return stored;
+  };
+
+  /** Row delete: remove from SQL store immediately so it cannot resurrect. */
+  const handleDeleteEntry = (entryId) => {
+    if (!entryId) return;
+    markUrlTableEntryDeleted(entryId);
+    useUrlTableStore.getState().removeEntry(entryId);
+    Promise.all([flushUrlTableSync(), flushUrlTablesSync()]).catch((err) => {
+      console.warn("[url-table] flush after row delete failed", err);
+    });
   };
 
   /** Footer Save: persist full table + close overlay. */
@@ -222,6 +245,7 @@ export function UrlTableDashboardOverlay({
             entries={session.entries}
             onEntriesChange={(entries) => onChange({ entries, saved: false })}
             onSaveEntry={objectId ? handleSaveEntry : null}
+            onDeleteEntry={objectId ? handleDeleteEntry : null}
             objectId={objectId}
             tableId={tableId}
             multilineDescription
