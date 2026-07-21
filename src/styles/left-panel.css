@@ -6214,6 +6214,24 @@ body.doc-content-resizing * {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #151515;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  /* Scrollbar camouflaged into the surface, same idiom as the text area.
+     Note: when scrollbar-color is set, Chromium ignores ::-webkit-scrollbar
+     pseudos — the standard property is the one that actually paints. */
+  scrollbar-width: thin;
+  scrollbar-color: #151515 #151515;
+}
+
+.doc-mention-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.doc-mention-menu::-webkit-scrollbar-track {
+  background: #151515;
+}
+
+.doc-mention-menu::-webkit-scrollbar-thumb {
+  background: #151515;
+  border-radius: 4px;
 }
 
 .doc-mention-menu__empty {
