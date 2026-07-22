@@ -13,7 +13,11 @@ import { useI18n } from "../../../i18n/useI18n.js";
 import {
   resolveSlashGhostOverlayPosition,
 } from "../../../lib/textareaSelectionRect.js";
-import { findMaxFittingPrefixLength } from "../../../lib/imageSplitBodyFit.js";
+import {
+  findMaxFittingPrefixLength,
+  resolveLineFitHeight,
+  snapSplitToWordBoundary,
+} from "../../../lib/imageSplitBodyFit.js";
 
 /** Card padding (matches CSS `.doc-image-split__card { padding: 6px }`). */
 const IMAGE_SPLIT_CARD_PAD_PX = 6;
@@ -80,7 +84,7 @@ function createBodyHeightProbe(source) {
     fits(text, maxHeight) {
       if (!(maxHeight > 0)) return false;
       probe.value = text ?? "";
-      return probe.scrollHeight <= maxHeight + 1;
+      return probe.scrollHeight <= maxHeight;
     },
     dispose() {
       probe.remove();
@@ -106,6 +110,7 @@ function bodyTextFitsHeight(source, text, maxHeight) {
 
 /**
  * Largest prefix of `text` that fits in the side box; remainder continues below.
+ * Snaps to a word boundary when the binary-search cut lands mid-token.
  * @param {HTMLElement} source
  * @param {string} text
  * @param {number} maxHeight
@@ -122,7 +127,9 @@ export function splitBodyToFitHeight(source, text, maxHeight) {
 
   const probe = createBodyHeightProbe(source);
   try {
-    const split = findMaxFittingPrefixLength(full, (prefix) => probe.fits(prefix, maxHeight));
+    // Word-snap only walks backward, so the snapped prefix still fits.
+    const raw = findMaxFittingPrefixLength(full, (prefix) => probe.fits(prefix, maxHeight));
+    const split = snapSplitToWordBoundary(full, raw);
     return {
       side: full.slice(0, split),
       below: full.slice(split),
@@ -131,6 +138,39 @@ export function splitBodyToFitHeight(source, text, maxHeight) {
   } finally {
     probe.dispose();
   }
+}
+
+/**
+ * Shrink side prefix until the live textarea no longer overflows vertically.
+ * @param {HTMLTextAreaElement|null} el
+ * @param {string} full
+ * @param {number} split
+ * @returns {{ side: string, below: string, split: number }}
+ */
+function shrinkSplitUntilNoOverflow(el, full, split) {
+  const text = String(full ?? "");
+  let i = Math.max(0, Math.min(split, text.length));
+  if (!el || i <= 0) {
+    return { side: text.slice(0, i), below: text.slice(i), split: i };
+  }
+
+  const previous = el.value;
+  el.value = text.slice(0, i);
+  let guard = 0;
+  while (el.scrollHeight > el.clientHeight + 0.5 && i > 0 && guard < 500) {
+    guard += 1;
+    const next = snapSplitToWordBoundary(text, i - 1);
+    i = next < i ? next : i - 1;
+    el.value = text.slice(0, i);
+  }
+  // Restore controlled value; React will set the final side text next.
+  el.value = previous;
+
+  return {
+    side: text.slice(0, i),
+    below: text.slice(i),
+    split: i,
+  };
 }
 
 /**
@@ -161,6 +201,7 @@ export function ImageSplitBlockView({
   const todoInputRefs = useRef({});
   const bodyLimitTimerRef = useRef(null);
   const sideHeightRef = useRef(null);
+  const sideFitHeightRef = useRef(null);
   const splitIndexRef = useRef(0);
   const pendingCaretRef = useRef(null);
   const bodyFocusZoneRef = useRef("side");
@@ -226,16 +267,36 @@ export function ImageSplitBlockView({
   }, []);
 
   const reflowFromBody = useCallback((fullText) => {
-    const maxH = sideHeightRef.current;
+    const boxH = sideHeightRef.current;
     const el = bodyTextareaRef.current
       || bodyWrapRef.current?.querySelector(
         ".doc-image-split__body-field--side, .doc-image-split__body-static--side",
       );
-    if (!el || !(maxH > 0) || isTodoBody) {
+    if (!el || !(boxH > 0) || isTodoBody) {
       const full = String(fullText ?? "");
       return applySplitResult({ side: full, below: "", split: full.length });
     }
-    return applySplitResult(splitBodyToFitHeight(el, fullText, maxH));
+
+    const { lineHeight, padY } = measureBodyLineMetrics(el);
+    const maxFitH = resolveLineFitHeight(boxH, lineHeight, padY);
+    sideFitHeightRef.current = maxFitH;
+
+    let result = splitBodyToFitHeight(el, fullText, maxFitH);
+
+    // Live textarea can disagree with the probe after image resize — shrink until clean.
+    if (bodyTextareaRef.current && result.split > 0) {
+      const live = bodyTextareaRef.current;
+      // Apply candidate so scrollHeight reflects the real box.
+      const prev = live.value;
+      live.value = result.side;
+      if (live.scrollHeight > live.clientHeight + 0.5) {
+        result = shrinkSplitUntilNoOverflow(live, String(fullText ?? ""), result.split);
+      } else {
+        live.value = prev;
+      }
+    }
+
+    return applySplitResult(result);
   }, [applySplitResult, isTodoBody]);
 
   const restorePendingCaret = useCallback((result) => {
@@ -613,7 +674,7 @@ export function ImageSplitBlockView({
       return;
     }
 
-    const maxH = sideHeightRef.current;
+    const maxH = sideFitHeightRef.current || sideHeightRef.current;
     if (!(maxH > 0)) return;
 
     const isPrintable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
