@@ -49,6 +49,7 @@
  * @property {string} [text]
  * @property {DocMention[]} [mentions]
  * @property {DocMarkerRange[]} [markerRanges]
+ * @property {{ start: number, end: number }[]} [boldRanges]
  * @property {string} [listTitle]
  * @property {TodoItem[]} [items]
  * @property {boolean} [showIntroAnim]

@@ -19,6 +19,10 @@ import {
   mergeBlockMarkerRanges,
 } from "../../lib/docTextMarkerRanges.js";
 import {
+  applyTextEditToBoldRanges,
+  mergeBlockBoldRanges,
+} from "../../lib/docTextBoldRanges.js";
+import {
   applySlashInTextBlock,
   createEmptyTextBlock,
   ensureEmptyTextBlockAfterNode,
@@ -206,14 +210,16 @@ function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
   const current = normalizeWritingBlocks(blocksRef.current);
   updateBlocks(current.map((block, index) => {
     if (index !== blockIndex) return block;
-    // Shift @mention + marker ranges past the inserted newline so they survive Enter.
+    // Shift @mention + marker + bold ranges past the inserted newline so they survive Enter.
     const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
     const markerRanges = applyTextEditToMarkerRanges(block.text || "", nextText, block.markerRanges || []);
+    const boldRanges = applyTextEditToBoldRanges(block.text || "", nextText, block.boldRanges || []);
     return {
       ...block,
       text: nextText,
       mentions: mentions.length ? mentions : undefined,
       markerRanges: markerRanges.length ? markerRanges : undefined,
+      boldRanges: boldRanges.length ? boldRanges : undefined,
     };
   }));
 
@@ -505,6 +511,11 @@ export function NodeWritingBlockStack({
             { text: value, markerRanges: block.markerRanges || [] },
             "",
           );
+          const mergedBolds = mergeBlockBoldRanges(
+            { text: prev.text || "", boldRanges: prev.boldRanges || [] },
+            { text: value, boldRanges: block.boldRanges || [] },
+            "",
+          );
           const next = current
             .map((b, i) => (i === blockIndex - 1
               ? {
@@ -512,6 +523,7 @@ export function NodeWritingBlockStack({
                 text: mergedResult.text,
                 mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
                 markerRanges: mergedMarkers.length ? mergedMarkers : undefined,
+                boldRanges: mergedBolds.length ? mergedBolds : undefined,
               }
               : b))
             .filter((_, i) => i !== blockIndex);
@@ -635,6 +647,11 @@ export function NodeWritingBlockStack({
           { text: value, markerRanges: block.markerRanges || [] },
           "",
         );
+        const mergedBolds = mergeBlockBoldRanges(
+          { text: prev.text || "", boldRanges: prev.boldRanges || [] },
+          { text: value, boldRanges: block.boldRanges || [] },
+          "",
+        );
         const next = current
           .map((b, i) => (i === blockIndex - 1
             ? {
@@ -642,6 +659,7 @@ export function NodeWritingBlockStack({
               text: mergedResult.text,
               mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
               markerRanges: mergedMarkers.length ? mergedMarkers : undefined,
+              boldRanges: mergedBolds.length ? mergedBolds : undefined,
             }
             : b))
           .filter((_, i) => i !== blockIndex);
@@ -1233,6 +1251,7 @@ export function NodeWritingBlockStack({
                 mentions={block.mentions || []}
                 mentionCandidates={mentionCandidates}
                 markerRanges={block.markerRanges || []}
+                boldRanges={block.boldRanges || []}
                 onChange={(text, meta) => updateBlockAt(blockIndex, {
                   text,
                   ...(meta && "mentions" in meta
@@ -1240,6 +1259,9 @@ export function NodeWritingBlockStack({
                     : {}),
                   ...(meta && "markerRanges" in meta
                     ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
+                    : {}),
+                  ...(meta && "boldRanges" in meta
+                    ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
                     : {}),
                 })}
                 onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
@@ -1268,6 +1290,7 @@ export function NodeWritingBlockStack({
                   mentions={block.mentions || []}
                   mentionCandidates={mentionCandidates}
                   markerRanges={block.markerRanges || []}
+                  boldRanges={block.boldRanges || []}
                   onChange={(text, meta) => updateBlockAt(blockIndex, {
                     text,
                     ...(meta && "mentions" in meta
@@ -1275,6 +1298,9 @@ export function NodeWritingBlockStack({
                       : {}),
                     ...(meta && "markerRanges" in meta
                       ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
+                      : {}),
+                    ...(meta && "boldRanges" in meta
+                      ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
                       : {}),
                   })}
                   onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}

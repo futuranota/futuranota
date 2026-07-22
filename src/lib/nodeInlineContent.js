@@ -3,6 +3,7 @@ import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguag
 import { generateId } from "./ids.js";
 import { normalizeMentions } from "./docMentions.js";
 import { normalizeMarkerRanges } from "./docTextMarkerRanges.js";
+import { normalizeBoldRanges } from "./docTextBoldRanges.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
 import {
   createDefaultNodeTodoContent,
@@ -44,12 +45,14 @@ export function createEmptyTextBlock(text = "", patch = {}) {
   const value = text || "";
   const mentions = normalizeMentions(value, patch.mentions);
   const markerRanges = normalizeMarkerRanges(value, patch.markerRanges);
+  const boldRanges = normalizeBoldRanges(value, patch.boldRanges);
   return {
     id: patch.id || generateId("NTX"),
     type: NODE_BLOCK_TYPES.TEXT,
     text: value,
     ...(mentions.length ? { mentions } : {}),
     ...(markerRanges.length ? { markerRanges } : {}),
+    ...(boldRanges.length ? { boldRanges } : {}),
     ...(patch.embedded && typeof patch.embedded === "object"
       ? { embedded: patch.embedded }
       : {}),
@@ -281,12 +284,14 @@ export function normalizeWritingBlocks(blocks) {
     const text = block?.text || "";
     const mentions = normalizeMentions(text, block?.mentions);
     const markerRanges = normalizeMarkerRanges(text, block?.markerRanges);
+    const boldRanges = normalizeBoldRanges(text, block?.boldRanges);
     return {
       id: block?.id || generateId("NTX"),
       type: NODE_BLOCK_TYPES.TEXT,
       text,
       ...(mentions.length ? { mentions } : {}),
       ...(markerRanges.length ? { markerRanges } : {}),
+      ...(boldRanges.length ? { boldRanges } : {}),
       // Keep inline Intel widgets (calendar/forecast) attached to the text cell.
       ...(block?.embedded && typeof block.embedded === "object"
         ? { embedded: block.embedded }
@@ -384,6 +389,7 @@ export function nodeWritingBlocksHaveStructure(blocks) {
     if (block.embedded) return true;
     if (Array.isArray(block.mentions) && block.mentions.length > 0) return true;
     if (Array.isArray(block.markerRanges) && block.markerRanges.length > 0) return true;
+    if (Array.isArray(block.boldRanges) && block.boldRanges.length > 0) return true;
     return block.text.trim();
   });
 }
@@ -422,6 +428,7 @@ export function nodeDraftContentForStorage(content, dataType = "text") {
       || block.embedded
       || (Array.isArray(block.mentions) && block.mentions.length > 0)
       || (Array.isArray(block.markerRanges) && block.markerRanges.length > 0)
+      || (Array.isArray(block.boldRanges) && block.boldRanges.length > 0)
     ),
   );
   if (hasStructure) {

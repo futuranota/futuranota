@@ -10,6 +10,10 @@ import {
   applyTextEditToMarkerRanges,
   normalizeMarkerRanges,
 } from "../../../lib/docTextMarkerRanges.js";
+import {
+  applyTextEditToBoldRanges,
+  normalizeBoldRanges,
+} from "../../../lib/docTextBoldRanges.js";
 import { markerStrokeSeed } from "../../../lib/docTextMarkerColors.js";
 import { buildMirrorSegments } from "../../../lib/docTextMirrorSegments.js";
 import { filterTagCandidates } from "../../../lib/urlTableTags.js";
@@ -42,14 +46,14 @@ function collapseDuplicateSlashTail(value) {
   return prefix + fixedTail;
 }
 
-function MirrorContent({ text, mentions, markerRanges, hoveredId = null }) {
-  const segments = buildMirrorSegments(text, mentions, markerRanges);
+function MirrorContent({ text, mentions, markerRanges, boldRanges, hoveredId = null }) {
+  const segments = buildMirrorSegments(text, mentions, markerRanges, boldRanges);
   return segments.map((segment, index) => {
     if (!segment.text) return null;
 
     // Clicks are resolved by rect hit-testing on the wrap (works focused
     // and blurred); the span itself carries no handlers.
-    const mentionSpan = segment.mention ? (
+    let inner = segment.mention ? (
       <span
         className={
           "doc-slash-field__mention"
@@ -61,11 +65,14 @@ function MirrorContent({ text, mentions, markerRanges, hoveredId = null }) {
       >
         {segment.text}
       </span>
-    ) : null;
+    ) : segment.text;
+
+    // Faux-bold: paint weight via shadow only — never font-weight (metrics).
+    if (segment.bold) {
+      inner = <span className="doc-text-bold">{inner}</span>;
+    }
 
     if (segment.marker) {
-      // Highlighter ink behind the glyphs — background only, so the mirror
-      // metrics never drift from the invisible textarea text.
       const marker = segment.marker;
       return (
         <span
@@ -76,15 +83,15 @@ function MirrorContent({ text, mentions, markerRanges, hoveredId = null }) {
             + ` doc-text-marker--seed${markerStrokeSeed(marker)}`
           }
         >
-          {mentionSpan ?? segment.text}
+          {inner}
         </span>
       );
     }
 
-    if (mentionSpan) {
-      return <span key={segment.mention.id || index}>{mentionSpan}</span>;
+    if (segment.mention || segment.bold) {
+      return <span key={segment.mention?.id || index}>{inner}</span>;
     }
-    return <span key={index}>{segment.text}</span>;
+    return <span key={index}>{inner}</span>;
   });
 }
 
@@ -92,6 +99,7 @@ function MirrorContent({ text, mentions, markerRanges, hoveredId = null }) {
  * Textarea for slash commands at end of a line.
  * Optional company @tag mentions: autocomplete + pink mirror + hover card.
  * Optional marker (highlighter) ranges: plumón ink painted in the mirror.
+ * Optional bold ranges: faux-bold in the mirror (no font-weight metric shift).
  */
 export function SlashAwareTextarea({
   value,
@@ -115,6 +123,7 @@ export function SlashAwareTextarea({
   onMentionsChange = null,
   mentionCandidates = null,
   markerRanges = null,
+  boldRanges = null,
 }) {
   const internalRef = useRef(null);
   const wrapRef = useRef(null);
@@ -157,8 +166,18 @@ export function SlashAwareTextarea({
     [markerRanges, markersEnabled, value],
   );
   const hasMarkers = normalizedMarkers.length > 0;
-  // Mirror overlay is needed for chips (mentions) and/or ink (markers).
-  const hasOverlay = hasMentions || hasMarkers;
+
+  // null/undefined boldRanges => bold feature off for this field.
+  const boldEnabled = Array.isArray(boldRanges);
+  const normalizedBolds = useMemo(
+    () => (boldEnabled ? normalizeBoldRanges(value, boldRanges) : []),
+    [boldEnabled, boldRanges, value],
+  );
+  const hasBold = normalizedBolds.length > 0;
+  // Mirror overlay for chips, ink, and/or faux-bold glyphs.
+  const hasOverlay = hasMentions || hasMarkers || hasBold;
+  // Glyph overlays require transparent textarea text (same as mentions).
+  const hideTextareaGlyphs = hasMentions || hasBold;
 
   const { slash } = splitBodyForSlash(value);
   const showGhost = Boolean(slash) && /^\/\s*$/.test(slash) && !activeQuery;
@@ -432,7 +451,7 @@ export function SlashAwareTextarea({
     syncHeight(true);
     syncGhostPosition();
     if (hasOverlay) syncMirrorTypography();
-  }, [value, hasOverlay, syncHeight, syncGhostPosition, syncMirrorTypography, normalizedMentions, normalizedMarkers]);
+  }, [value, hasOverlay, syncHeight, syncGhostPosition, syncMirrorTypography, normalizedMentions, normalizedMarkers, normalizedBolds]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -455,16 +474,20 @@ export function SlashAwareTextarea({
     syncMentionQuery();
   }, [showMentionMenu, value, syncMentionQuery]);
 
-  const emitChange = useCallback((nextValue, nextMentions, nextMarkers) => {
+  const emitChange = useCallback((nextValue, nextMentions, nextMarkers, nextBolds) => {
     const collapsed = collapseDuplicateSlashTail(nextValue);
     let mentionsOut = nextMentions;
     let markersOut = nextMarkers;
+    let boldsOut = nextBolds;
     if (collapsed !== nextValue) {
       if (mentionsEnabled) {
         mentionsOut = applyTextEditToMentions(nextValue, collapsed, nextMentions);
       }
       if (markersEnabled) {
         markersOut = applyTextEditToMarkerRanges(nextValue, collapsed, nextMarkers);
+      }
+      if (boldEnabled) {
+        boldsOut = applyTextEditToBoldRanges(nextValue, collapsed, nextBolds);
       }
     }
     const normalized = mentionsEnabled
@@ -473,10 +496,13 @@ export function SlashAwareTextarea({
     const normalizedMarkersOut = markersEnabled
       ? normalizeMarkerRanges(collapsed, markersOut)
       : [];
-    // Second arg lets parents patch text + ranges in one updateAt (avoids races).
+    const normalizedBoldsOut = boldEnabled
+      ? normalizeBoldRanges(collapsed, boldsOut)
+      : [];
     const meta = {
       ...(mentionsEnabled ? { mentions: normalized } : {}),
       ...(markersEnabled ? { markerRanges: normalizedMarkersOut } : {}),
+      ...(boldEnabled ? { boldRanges: normalizedBoldsOut } : {}),
     };
     onChange(
       collapsed,
@@ -486,7 +512,7 @@ export function SlashAwareTextarea({
       onMentionsChange?.(normalized);
     }
     onAfterInput?.();
-  }, [markersEnabled, mentionsEnabled, onAfterInput, onChange, onMentionsChange]);
+  }, [boldEnabled, markersEnabled, mentionsEnabled, onAfterInput, onChange, onMentionsChange]);
 
   const insertCandidate = useCallback((candidate) => {
     if (!candidate || !activeQuery) return;
@@ -494,7 +520,10 @@ export function SlashAwareTextarea({
     const nextMarkers = markersEnabled
       ? applyTextEditToMarkerRanges(value, result.text, normalizedMarkers)
       : [];
-    emitChange(result.text, result.mentions, nextMarkers);
+    const nextBolds = boldEnabled
+      ? applyTextEditToBoldRanges(value, result.text, normalizedBolds)
+      : [];
+    emitChange(result.text, result.mentions, nextMarkers, nextBolds);
     setActiveQuery(null);
     setMenuAnchor(null);
     requestAnimationFrame(() => {
@@ -504,7 +533,7 @@ export function SlashAwareTextarea({
       el.setSelectionRange(result.caret, result.caret);
       syncMentionQuery();
     });
-  }, [activeQuery, emitChange, markersEnabled, normalizedMarkers, normalizedMentions, syncMentionQuery, textareaRef, value]);
+  }, [activeQuery, boldEnabled, emitChange, markersEnabled, normalizedBolds, normalizedMarkers, normalizedMentions, syncMentionQuery, textareaRef, value]);
 
   const handleMentionKeyDown = useCallback((event) => {
     if (!showMentionMenu) return false;
@@ -536,8 +565,8 @@ export function SlashAwareTextarea({
   const fieldClass = [
     "doc-slash-field__input",
     className,
-    hasMentions ? "doc-slash-field__input--mentions" : "",
-    hasMentions && !focused ? "doc-slash-field__input--mentions-idle" : "",
+    hideTextareaGlyphs ? "doc-slash-field__input--mentions" : "",
+    hideTextareaGlyphs && !focused ? "doc-slash-field__input--mentions-idle" : "",
   ].filter(Boolean).join(" ");
 
   const hoveredMentionId = hoverCard?.mention?.id || null;
@@ -559,6 +588,7 @@ export function SlashAwareTextarea({
         "doc-slash-field",
         hasMentions ? "doc-slash-field--mentions" : "",
         hasMarkers ? "doc-slash-field--markers" : "",
+        hasBold ? "doc-slash-field--bolds" : "",
         hoveredMentionId ? "doc-slash-field--chip-hover" : "",
         wrapClassName,
       ].filter(Boolean).join(" ")}
@@ -572,7 +602,7 @@ export function SlashAwareTextarea({
           className={
             "doc-slash-field__mirror"
             + (!focused ? " doc-slash-field__mirror--interactive" : "")
-            + (!hasMentions ? " doc-slash-field__mirror--ink-only" : "")
+            + (!hideTextareaGlyphs ? " doc-slash-field__mirror--ink-only" : "")
           }
           aria-hidden
         >
@@ -580,6 +610,7 @@ export function SlashAwareTextarea({
             text={value}
             mentions={normalizedMentions}
             markerRanges={normalizedMarkers}
+            boldRanges={normalizedBolds}
             hoveredId={hoveredMentionId}
           />
         </div>
@@ -599,7 +630,10 @@ export function SlashAwareTextarea({
           const nextMarkers = markersEnabled
             ? applyTextEditToMarkerRanges(value, nextValue, normalizedMarkers)
             : [];
-          emitChange(nextValue, nextMentions, nextMarkers);
+          const nextBolds = boldEnabled
+            ? applyTextEditToBoldRanges(value, nextValue, normalizedBolds)
+            : [];
+          emitChange(nextValue, nextMentions, nextMarkers, nextBolds);
           requestAnimationFrame(() => syncMentionQuery());
         }}
         onKeyDown={(e) => {

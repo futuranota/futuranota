@@ -172,7 +172,11 @@ export function useNodeTextSelectionToolbar({
       const nextRanges = toggleBoldRange(text, block.boldRanges, start, end);
       nextBlocks = blocksRef.current.map((entry, entryIndex) => (
         entryIndex === index
-          ? { ...entry, text, boldRanges: nextRanges }
+          ? {
+            ...entry,
+            text,
+            boldRanges: nextRanges.length ? nextRanges : undefined,
+          }
           : entry
       ));
     } else if (formatId.startsWith("marker:")) {

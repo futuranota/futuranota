@@ -1,26 +1,28 @@
 import { normalizeMentions } from "./docMentions.js";
 import { normalizeMarkerRanges } from "./docTextMarkerRanges.js";
+import { normalizeBoldRanges } from "./docTextBoldRanges.js";
 
 /**
  * @typedef {Object} MirrorSegment
  * @property {string} text
  * @property {import('./docMentions.js').DocMention} [mention]
  * @property {import('./docTextMarkerRanges.js').MarkerRange} [marker] full range (seed source)
+ * @property {boolean} [bold]
  */
 
 /**
- * Flattens @mention chips and marker strokes into one render pass for the
- * textarea mirror. Segments break at every mention/marker boundary; a segment
- * can carry both (mention inside a marker stroke).
+ * Flattens @mention chips, marker strokes, and bold into one mirror render pass.
+ * Segments break at every boundary; a segment can carry any combination.
  *
  * @returns {MirrorSegment[]}
  */
-export function buildMirrorSegments(text, mentions, markerRanges) {
+export function buildMirrorSegments(text, mentions, markerRanges, boldRanges) {
   const value = String(text ?? "");
   if (!value) return [];
 
   const mentionList = normalizeMentions(value, mentions);
   const markerList = normalizeMarkerRanges(value, markerRanges);
+  const boldList = normalizeBoldRanges(value, boldRanges);
 
   const boundaries = new Set([0, value.length]);
   for (const mention of mentionList) {
@@ -30,6 +32,10 @@ export function buildMirrorSegments(text, mentions, markerRanges) {
   for (const marker of markerList) {
     boundaries.add(marker.start);
     boundaries.add(marker.end);
+  }
+  for (const range of boldList) {
+    boundaries.add(range.start);
+    boundaries.add(range.end);
   }
 
   const points = [...boundaries].sort((a, b) => a - b);
@@ -46,11 +52,15 @@ export function buildMirrorSegments(text, mentions, markerRanges) {
     const marker = markerList.find(
       (item) => item.start <= start && item.end >= end,
     );
+    const bold = boldList.some(
+      (item) => item.start <= start && item.end >= end,
+    );
 
     segments.push({
       text: value.slice(start, end),
       ...(mention ? { mention } : {}),
       ...(marker ? { marker } : {}),
+      ...(bold ? { bold: true } : {}),
     });
   }
 

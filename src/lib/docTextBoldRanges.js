@@ -119,6 +119,16 @@ export function shiftBoldRanges(ranges, editStart, removedLength, insertedLength
   return normalizeBoldRanges(" ".repeat(Math.max(0, textLength)), out);
 }
 
+/** Keep bold ranges attached after an edit. Newly inserted chars stay unmarked. */
+export function applyTextEditToBoldRanges(previousText, nextText, ranges) {
+  const next = String(nextText ?? "");
+  if (String(previousText ?? "") === next) {
+    return normalizeBoldRanges(next, ranges);
+  }
+  const { editStart, removedLength, insertedLength } = computeTextEditDelta(previousText, nextText);
+  return shiftBoldRanges(ranges, editStart, removedLength, insertedLength, next.length);
+}
+
 export function splitBoldRangesAt(ranges, splitStart, splitEnd = splitStart) {
   /** @type {BoldRange[]} */
   const headRanges = [];
@@ -147,11 +157,12 @@ export function splitBoldRangesAt(ranges, splitStart, splitEnd = splitStart) {
   };
 }
 
-export function mergeBlockBoldRanges(prevBlock, nextBlock) {
+export function mergeBlockBoldRanges(prevBlock, nextBlock, separator = "\n") {
   const prevText = String(prevBlock?.text ?? "");
   const nextText = String(nextBlock?.text ?? "");
-  const offset = prevText.length + 1;
-  const mergedText = `${prevText}\n${nextText}`;
+  const sep = String(separator ?? "");
+  const offset = prevText.length + sep.length;
+  const mergedText = `${prevText}${sep}${nextText}`;
   const prevRanges = normalizeBoldRanges(prevText, prevBlock?.boldRanges ?? []);
   const nextRanges = (nextBlock?.boldRanges ?? []).map((range) => ({
     start: range.start + offset,

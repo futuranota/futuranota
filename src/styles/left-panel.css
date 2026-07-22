@@ -6153,7 +6153,8 @@ body.doc-content-resizing * {
 }
 
 .doc-slash-field--mentions .doc-slash-field__mirror,
-.doc-slash-field--markers .doc-slash-field__mirror {
+.doc-slash-field--markers .doc-slash-field__mirror,
+.doc-slash-field--bolds .doc-slash-field__mirror {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -6172,6 +6173,16 @@ body.doc-content-resizing * {
 /* Marker-only mirror: paint the ink, keep the real textarea text visible. */
 .doc-slash-field__mirror--ink-only {
   color: transparent;
+}
+
+/* Faux-bold: thicken glyphs via shadow only — never font-weight (caret-safe). */
+.doc-text-bold {
+  font-weight: inherit;
+  text-shadow:
+    0.35px 0 0 currentColor,
+    -0.35px 0 0 currentColor,
+    0 0.35px 0 currentColor,
+    0 -0.35px 0 currentColor;
 }
 
 /* ── Marker (plumón) strokes ─────────────────────────────────────────

@@ -39,6 +39,7 @@ export function TextBlockView({
   continuationMentions = null,
   onContinuationMentionsChange = null,
   continuationMarkerRanges = null,
+  continuationBoldRanges = null,
   analystReportStyle = false,
   reportAnimate = false,
   onReportAnimationComplete = null,
@@ -49,6 +50,7 @@ export function TextBlockView({
   onMentionsChange = null,
   mentionCandidates = null,
   markerRanges = null,
+  boldRanges = null,
 }) {
   const { t } = useI18n();
   const continuationRef = useRef(null);
@@ -220,6 +222,7 @@ export function TextBlockView({
         onMentionsChange={onMentionsChange}
         mentionCandidates={mentionCandidates}
         markerRanges={markerRanges}
+        boldRanges={boldRanges}
       />
       {onDetachFromNode ? (
         <LinkedNodeDocActions
@@ -246,6 +249,7 @@ export function TextBlockView({
           onMentionsChange={onContinuationMentionsChange}
           mentionCandidates={mentionCandidates}
           markerRanges={continuationMarkerRanges}
+          boldRanges={continuationBoldRanges}
         />
       ) : null}
     </div>

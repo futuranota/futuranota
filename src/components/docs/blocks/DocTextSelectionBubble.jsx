@@ -70,8 +70,10 @@ export function DocTextSelectionBubble({
 
   const handleItemClick = (formatId) => {
     if (formatId === "bold") {
-      onBold?.();
-      return;
+      if (onBold) {
+        onBold();
+        return;
+      }
     }
     onSelectFormat?.(formatId);
   };

@@ -4,6 +4,7 @@ import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkCo
 import { splitBodyForSlash } from "./docSlashTail.js";
 import { mergeMentionBlocks, normalizeMentions } from "./docMentions.js";
 import { mergeBlockMarkerRanges, normalizeMarkerRanges } from "./docTextMarkerRanges.js";
+import { mergeBlockBoldRanges, normalizeBoldRanges } from "./docTextBoldRanges.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
 import { parseVideoEmbedInput } from "./videoEmbed.js";
 import { normalizeLinkEntries, normalizePasswordEntries } from "./vaultBlocks.js";
@@ -925,11 +926,13 @@ export function normalizeDocBlock(block) {
   const text = block.text || "";
   const mentions = normalizeMentions(text, block.mentions);
   const markerRanges = normalizeMarkerRanges(text, block.markerRanges);
+  const boldRanges = normalizeBoldRanges(text, block.boldRanges);
   return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
     ...(block.id ? { id: block.id } : {}),
     text,
     ...(mentions.length ? { mentions } : {}),
     ...(markerRanges.length ? { markerRanges } : {}),
+    ...(boldRanges.length ? { boldRanges } : {}),
     ...(block.embedded && typeof block.embedded === "object"
       ? { embedded: block.embedded }
       : {}),
@@ -961,11 +964,13 @@ function mergeAdjacentTextBlocks(blocks) {
         { text: block.text || "", markerRanges: block.markerRanges || [] },
         "\n",
       );
+      const combinedBolds = mergeBlockBoldRanges(prev, block);
       merged[merged.length - 1] = {
         ...prev,
         text: combined.text,
         ...(combined.mentions.length ? { mentions: combined.mentions } : { mentions: undefined }),
         ...(combinedMarkers.length ? { markerRanges: combinedMarkers } : { markerRanges: undefined }),
+        ...(combinedBolds.length ? { boldRanges: combinedBolds } : { boldRanges: undefined }),
       };
       continue;
     }
@@ -1336,10 +1341,12 @@ function parseTextMentionsSection(section) {
     const text = String(parsed?.text ?? "");
     const mentions = normalizeMentions(text, parsed?.mentions);
     const markerRanges = normalizeMarkerRanges(text, parsed?.markerRanges);
+    const boldRanges = normalizeBoldRanges(text, parsed?.boldRanges);
     return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
       text,
       ...(mentions.length ? { mentions } : {}),
       ...(markerRanges.length ? { markerRanges } : {}),
+      ...(boldRanges.length ? { boldRanges } : {}),
       ...(parsed?.embedded && typeof parsed.embedded === "object"
         ? { embedded: parsed.embedded }
         : {}),
@@ -1622,6 +1629,7 @@ export function docBlocksToBody(blocks) {
         && (
           (Array.isArray(block.mentions) && block.mentions.length > 0)
           || (Array.isArray(block.markerRanges) && block.markerRanges.length > 0)
+          || (Array.isArray(block.boldRanges) && block.boldRanges.length > 0)
         )
       ) {
         return `::textmeta\n${JSON.stringify({
@@ -1631,6 +1639,9 @@ export function docBlocksToBody(blocks) {
             : {}),
           ...(Array.isArray(block.markerRanges) && block.markerRanges.length > 0
             ? { markerRanges: block.markerRanges }
+            : {}),
+          ...(Array.isArray(block.boldRanges) && block.boldRanges.length > 0
+            ? { boldRanges: block.boldRanges }
             : {}),
           ...(block.embedded && typeof block.embedded === "object"
             ? { embedded: block.embedded }

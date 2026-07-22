@@ -53,6 +53,10 @@ import {
   applyTextEditToMarkerRanges,
   mergeBlockMarkerRanges,
 } from "../../../lib/docTextMarkerRanges.js";
+import {
+  applyTextEditToBoldRanges,
+  mergeBlockBoldRanges,
+} from "../../../lib/docTextBoldRanges.js";
 import { collectTagCandidatesForObject } from "../../../lib/urlTableTags.js";
 import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
@@ -974,11 +978,13 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
     const patch = { [field]: nextText };
     if (field === "text") {
-      // Shift @mention + marker ranges past the inserted newline so they survive Enter.
+      // Shift @mention + marker + bold ranges past the inserted newline so they survive Enter.
       const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
       patch.mentions = mentions.length ? mentions : undefined;
       const markerRanges = applyTextEditToMarkerRanges(block.text || "", nextText, block.markerRanges || []);
       patch.markerRanges = markerRanges.length ? markerRanges : undefined;
+      const boldRanges = applyTextEditToBoldRanges(block.text || "", nextText, block.boldRanges || []);
+      patch.boldRanges = boldRanges.length ? boldRanges : undefined;
     }
     const next = updateBlockAt(blocksRef.current, blockIndex, patch);
     setBlocks(next);
@@ -1219,10 +1225,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           { text, markerRanges: block.markerRanges || [] },
           "",
         );
+        const mergedBolds = mergeBlockBoldRanges(
+          { text: prev.text || "", boldRanges: prev.boldRanges || [] },
+          { text, boldRanges: block.boldRanges || [] },
+          "",
+        );
         let next = updateBlockAt(currentBlocks, blockIndex - 1, {
           text: merged,
           mentions: mergedResult.mentions.length ? mergedResult.mentions : undefined,
           markerRanges: mergedMarkers.length ? mergedMarkers : undefined,
+          boldRanges: mergedBolds.length ? mergedBolds : undefined,
         });
         next = removeBlockAt(next, blockIndex);
         const h1Index = getH1IndexForTextBlock(currentBlocks, blockIndex);
@@ -2251,6 +2263,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     mentions={block.mentions || []}
                     mentionCandidates={mentionCandidates}
                     markerRanges={block.markerRanges || []}
+                    boldRanges={block.boldRanges || []}
                     placeholder={bodyPlaceholder}
                     showPlaceholder={false}
                     autoFocus={focusBlockId === block.id && !itemHidden}
@@ -2262,6 +2275,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                         : {}),
                       ...(meta && "markerRanges" in meta
                         ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
+                        : {}),
+                      ...(meta && "boldRanges" in meta
+                        ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
                         : {}),
                     })}
                     onKeyDown={(e) => handleTextKeyDown(index, e)}
@@ -2275,6 +2291,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               mentions={block.mentions || []}
               mentionCandidates={mentionCandidates}
               markerRanges={block.markerRanges || []}
+              boldRanges={block.boldRanges || []}
               ghostHints={slashGhostHints}
               analystReportStyle={isAnalystReport && isPrimaryReportBlock}
               reportAnimate={shouldAnimateReport && isPrimaryReportBlock}
@@ -2299,6 +2316,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }
               continuationMentions={continuationBlock?.mentions || []}
               continuationMarkerRanges={continuationBlock?.markerRanges || []}
+              continuationBoldRanges={continuationBlock?.boldRanges || []}
               onContinuationChange={
                 continuationIndex >= 0
                   ? (text, meta) => updateAt(continuationIndex, {
@@ -2308,6 +2326,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                       : {}),
                     ...(meta && "markerRanges" in meta
                       ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
+                      : {}),
+                    ...(meta && "boldRanges" in meta
+                      ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
                       : {}),
                   })
                   : null
@@ -2339,6 +2360,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     : {}),
                   ...(meta && "markerRanges" in meta
                     ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
+                    : {}),
+                  ...(meta && "boldRanges" in meta
+                    ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
                     : {}),
                 });
                 if (isPrimaryAnswerTextForLinkedOwner(blocks, index)) {
@@ -2375,6 +2399,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 mentions={collapsedWriteBlock?.mentions || []}
                 mentionCandidates={mentionCandidates}
                 markerRanges={collapsedWriteBlock?.markerRanges || []}
+                boldRanges={collapsedWriteBlock?.boldRanges || []}
                 ghostHints={slashGhostHints}
                 onChange={(text, meta) => {
                   const writeIndex = blocksRef.current.findIndex(
@@ -2388,6 +2413,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                         : {}),
                       ...(meta && "markerRanges" in meta
                         ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
+                        : {}),
+                      ...(meta && "boldRanges" in meta
+                        ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
                         : {}),
                     });
                   }
