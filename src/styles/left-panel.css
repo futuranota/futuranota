@@ -7931,7 +7931,7 @@ body.doc-content-resizing * {
 .doc-image-split__body-below {
   position: relative;
   width: 100%;
-  margin-top: 8px;
+  margin-top: 0;
   min-width: 0;
   box-sizing: border-box;
 }
@@ -8107,6 +8107,7 @@ body.doc-content-resizing * {
 
 .doc-image-split__body-field--side {
   overflow-y: hidden;
+  padding: 0;
 }
 
 .doc-image-split__body-field--below {
@@ -8115,6 +8116,7 @@ body.doc-content-resizing * {
   max-height: none;
   overflow-y: hidden;
   field-sizing: content;
+  padding: 0;
 }
 
 .doc-image-split__body-field--at-limit {
@@ -8162,12 +8164,14 @@ body.doc-content-resizing * {
 
 .doc-image-split__body-static--side {
   overflow-y: hidden;
+  padding: 0;
 }
 
 .doc-image-split__body-static--below {
   height: auto;
   max-height: none;
   overflow-y: visible;
+  padding: 0;
 }
 
 .doc-image-split__float-actions {

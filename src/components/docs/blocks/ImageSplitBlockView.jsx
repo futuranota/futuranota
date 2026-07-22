@@ -41,13 +41,13 @@ function resolveLineHeightPx(style, fallback = 20.3) {
  */
 function measureBodyLineMetrics(el) {
   if (!el) {
-    return { lineHeight: 20.3, padY: 4 };
+    return { lineHeight: 20.3, padY: 0 };
   }
   const style = window.getComputedStyle(el);
   const lineHeight = resolveLineHeightPx(style, 20.3);
   const padY = (Number.parseFloat(style.paddingTop) || 0)
     + (Number.parseFloat(style.paddingBottom) || 0);
-  return { lineHeight, padY: padY || 4 };
+  return { lineHeight, padY };
 }
 
 /**
@@ -387,18 +387,22 @@ export function ImageSplitBlockView({
         : IMAGE_SPLIT_EMPTY_ASPECT;
       const naturalCardH = Math.round(innerW * ratio + padTotal);
       const cardHeight = Math.max(
-        Math.round(lineHeight + padY + padTotal),
+        Math.round(lineHeight + padTotal),
         Math.min(naturalCardH, portraitCap),
       );
 
-      // Side text column matches card height (no independent 17-line scroll box).
-      row.style.setProperty("--image-split-body-max", `${cardHeight}px`);
+      // Side hugs whole text lines (may be slightly shorter than the card) so
+      // there is no empty band above/below the last visible line.
+      const sideH = resolveLineFitHeight(cardHeight, lineHeight, 0);
+
+      row.style.setProperty("--image-split-body-max", `${sideH}px`);
       card.style.height = `${cardHeight}px`;
       card.style.minHeight = `${cardHeight}px`;
       card.style.maxHeight = `${cardHeight}px`;
 
-      sideHeightRef.current = cardHeight;
-      setSideHeight((prev) => (prev === cardHeight ? prev : cardHeight));
+      sideHeightRef.current = sideH;
+      sideFitHeightRef.current = sideH;
+      setSideHeight((prev) => (prev === sideH ? prev : sideH));
     };
 
     sync();
