@@ -13,6 +13,7 @@ import { useI18n } from "../../../i18n/useI18n.js";
 import {
   resolveSlashGhostOverlayPosition,
 } from "../../../lib/textareaSelectionRect.js";
+import { findMaxFittingPrefixLength } from "../../../lib/imageSplitBodyFit.js";
 
 /** Card padding (matches CSS `.doc-image-split__card { padding: 6px }`). */
 const IMAGE_SPLIT_CARD_PAD_PX = 6;
@@ -46,15 +47,9 @@ function measureBodyLineMetrics(el) {
 }
 
 /**
- * Whether `text` fits in a fixed-height body box matching `source` styles.
- * Used only as a soft "at limit" cue — content is never truncated.
- * @param {HTMLTextAreaElement} source
- * @param {string} text
- * @param {number} maxHeight
+ * @param {HTMLElement} source
  */
-function bodyTextFitsHeight(source, text, maxHeight) {
-  if (!(maxHeight > 0)) return false;
-  if (!source) return false;
+function createBodyHeightProbe(source) {
   const probe = document.createElement("textarea");
   const style = window.getComputedStyle(source);
   probe.style.cssText = [
@@ -72,21 +67,76 @@ function bodyTextFitsHeight(source, text, maxHeight) {
     `font:${style.font}`,
     `letter-spacing:${style.letterSpacing}`,
     `line-height:${style.lineHeight}`,
-    `white-space:${style.whiteSpace}`,
+    `white-space:pre-wrap`,
     `word-break:${style.wordBreak}`,
     `overflow-wrap:${style.overflowWrap}`,
   ].join(";");
-  probe.value = text ?? "";
   document.body.appendChild(probe);
-  const fits = probe.scrollHeight <= maxHeight + 1;
-  document.body.removeChild(probe);
-  return fits;
+  return {
+    /**
+     * @param {string} text
+     * @param {number} maxHeight
+     */
+    fits(text, maxHeight) {
+      if (!(maxHeight > 0)) return false;
+      probe.value = text ?? "";
+      return probe.scrollHeight <= maxHeight + 1;
+    },
+    dispose() {
+      probe.remove();
+    },
+  };
+}
+
+/**
+ * Whether `text` fits in a fixed-height body box matching `source` styles.
+ * @param {HTMLElement} source
+ * @param {string} text
+ * @param {number} maxHeight
+ */
+function bodyTextFitsHeight(source, text, maxHeight) {
+  if (!(maxHeight > 0) || !source) return false;
+  const probe = createBodyHeightProbe(source);
+  try {
+    return probe.fits(text, maxHeight);
+  } finally {
+    probe.dispose();
+  }
+}
+
+/**
+ * Largest prefix of `text` that fits in the side box; remainder continues below.
+ * @param {HTMLElement} source
+ * @param {string} text
+ * @param {number} maxHeight
+ * @returns {{ side: string, below: string, split: number }}
+ */
+export function splitBodyToFitHeight(source, text, maxHeight) {
+  const full = String(text ?? "");
+  if (!full) {
+    return { side: "", below: "", split: 0 };
+  }
+  if (!source || !(maxHeight > 0)) {
+    return { side: full, below: "", split: full.length };
+  }
+
+  const probe = createBodyHeightProbe(source);
+  try {
+    const split = findMaxFittingPrefixLength(full, (prefix) => probe.fits(prefix, maxHeight));
+    return {
+      side: full.slice(0, split),
+      below: full.slice(split),
+      split,
+    };
+  } finally {
+    probe.dispose();
+  }
 }
 
 /**
  * Unified image-split: image card + body (text or embedded todo).
- * Body height is capped visually at IMAGE_SPLIT_BODY_MAX_LINES; overflow scrolls
- * so paste/typing never truncates stored content.
+ * Text fills the side up to card height (no scroll); overflow continues
+ * full-width below the row. Single `body` string in the model.
  */
 export function ImageSplitBlockView({
   block,
@@ -105,15 +155,24 @@ export function ImageSplitBlockView({
   const cardRef = useRef(null);
   const rowRef = useRef(null);
   const bodyTextareaRef = useRef(null);
+  const bodyBelowRef = useRef(null);
   const bodyWrapRef = useRef(null);
+  const bodyBelowWrapRef = useRef(null);
   const todoInputRefs = useRef({});
   const bodyLimitTimerRef = useRef(null);
+  const sideHeightRef = useRef(null);
+  const splitIndexRef = useRef(0);
+  const pendingCaretRef = useRef(null);
+  const bodyFocusZoneRef = useRef("side");
+
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [bodyAtLimit, setBodyAtLimit] = useState(false);
-  const [bodyMaxHeight, setBodyMaxHeight] = useState(null);
-  const bodyMaxHeightRef = useRef(null);
+  const [sideHeight, setSideHeight] = useState(null);
+  const [sideText, setSideText] = useState(() => String(block?.body || ""));
+  const [belowText, setBelowText] = useState("");
+  const [belowFocused, setBelowFocused] = useState(false);
   const [hintIndex, setHintIndex] = useState(0);
   const [ghostPos, setGhostPos] = useState(null);
 
@@ -129,7 +188,10 @@ export function ImageSplitBlockView({
     : [createTodoItem()];
 
   const bodyValue = block?.body || "";
+  const showBelow = !isTodoBody && (belowText.length > 0 || belowFocused);
+
   const { slash: bodySlash } = splitBodyForSlash(bodyValue);
+  const slashGhostZone = bodySlash && belowText.endsWith(bodySlash) ? "below" : "side";
   const showSlashGhost = Boolean(
     isEdit && !isTodoBody && bodySlash && /^\/\s*$/.test(bodySlash),
   );
@@ -156,6 +218,87 @@ export function ImageSplitBlockView({
     return () => window.clearTimeout(timer);
   }, [block?.openFilePicker, block?.id, imageSaved, uploading, onChange, isEdit]);
 
+  const applySplitResult = useCallback((result) => {
+    splitIndexRef.current = result.split;
+    setSideText(result.side);
+    setBelowText(result.below);
+    return result;
+  }, []);
+
+  const reflowFromBody = useCallback((fullText) => {
+    const maxH = sideHeightRef.current;
+    const el = bodyTextareaRef.current
+      || bodyWrapRef.current?.querySelector(
+        ".doc-image-split__body-field--side, .doc-image-split__body-static--side",
+      );
+    if (!el || !(maxH > 0) || isTodoBody) {
+      const full = String(fullText ?? "");
+      return applySplitResult({ side: full, below: "", split: full.length });
+    }
+    return applySplitResult(splitBodyToFitHeight(el, fullText, maxH));
+  }, [applySplitResult, isTodoBody]);
+
+  const restorePendingCaret = useCallback((result) => {
+    let pending = pendingCaretRef.current;
+    if (!pending || !isEdit || isTodoBody) {
+      pendingCaretRef.current = null;
+      return;
+    }
+
+    if (pending.zone === "below" && typeof pending.prevSplit === "number") {
+      const moved = result.split - pending.prevSplit;
+      pending = {
+        zone: "below",
+        offset: Math.max(0, pending.offset - moved),
+      };
+    }
+
+    pendingCaretRef.current = null;
+
+    const sideEl = bodyTextareaRef.current;
+    const belowEl = bodyBelowRef.current;
+
+    if (pending.zone === "side") {
+      if (pending.offset <= result.split) {
+        sideEl?.focus();
+        sideEl?.setSelectionRange(pending.offset, pending.offset);
+        bodyFocusZoneRef.current = "side";
+      } else {
+        const belowOffset = pending.offset - result.split;
+        if (belowEl) {
+          belowEl.focus();
+          belowEl.setSelectionRange(belowOffset, belowOffset);
+          bodyFocusZoneRef.current = "below";
+          setBelowFocused(true);
+        } else {
+          pendingCaretRef.current = { zone: "below", offset: belowOffset };
+          setBelowFocused(true);
+        }
+        pulseBodyLimit();
+      }
+      return;
+    }
+
+    if (pending.zone === "below") {
+      if (result.below.length === 0) {
+        sideEl?.focus();
+        sideEl?.setSelectionRange(result.split, result.split);
+        bodyFocusZoneRef.current = "side";
+        setBelowFocused(false);
+        return;
+      }
+      const belowOffset = Math.max(0, Math.min(pending.offset, result.below.length));
+      if (belowEl) {
+        belowEl.focus();
+        belowEl.setSelectionRange(belowOffset, belowOffset);
+        bodyFocusZoneRef.current = "below";
+      } else {
+        pendingCaretRef.current = { zone: "below", offset: belowOffset };
+        setBelowFocused(true);
+      }
+    }
+  }, [isEdit, isTodoBody, pulseBodyLimit]);
+
   useLayoutEffect(() => {
     const card = cardRef.current;
     const row = rowRef.current;
@@ -167,13 +310,12 @@ export function ImageSplitBlockView({
           ".doc-image-split__body-field, .doc-image-split__body-static, .doc-image-split__embedded-todo",
         );
       const { lineHeight, padY } = measureBodyLineMetrics(bodyEl);
-      // Text column: fixed visible cap (scrolls when longer). Independent of card.
-      const writeHeight = Math.max(
+      // Soft max so extreme portrait cards do not dominate the doc.
+      const portraitCap = Math.max(
         Math.round(lineHeight + padY),
         Math.round(IMAGE_SPLIT_BODY_MAX_LINES * lineHeight + padY),
       );
 
-      // Card: height follows image aspect so media fills with only 6px padding.
       const padTotal = IMAGE_SPLIT_CARD_PAD_PX * 2;
       const innerW = Math.max(1, card.clientWidth - padTotal);
       const imgEl = card.querySelector("img.doc-image-split__img");
@@ -183,19 +325,19 @@ export function ImageSplitBlockView({
         ? (ih / iw)
         : IMAGE_SPLIT_EMPTY_ASPECT;
       const naturalCardH = Math.round(innerW * ratio + padTotal);
-      // Cap extreme portrait so the row stays readable next to the text column.
       const cardHeight = Math.max(
         Math.round(lineHeight + padY + padTotal),
-        Math.min(naturalCardH, writeHeight),
+        Math.min(naturalCardH, portraitCap),
       );
 
-      row.style.setProperty("--image-split-body-max", `${writeHeight}px`);
+      // Side text column matches card height (no independent 17-line scroll box).
+      row.style.setProperty("--image-split-body-max", `${cardHeight}px`);
       card.style.height = `${cardHeight}px`;
       card.style.minHeight = `${cardHeight}px`;
       card.style.maxHeight = `${cardHeight}px`;
 
-      bodyMaxHeightRef.current = writeHeight;
-      setBodyMaxHeight((prev) => (prev === writeHeight ? prev : writeHeight));
+      sideHeightRef.current = cardHeight;
+      setSideHeight((prev) => (prev === cardHeight ? prev : cardHeight));
     };
 
     sync();
@@ -220,6 +362,42 @@ export function ImageSplitBlockView({
     };
   }, [imageSaved, splitSaved, isTodoBody, block?.src, block?.width, block?.height]);
 
+  // Reflow side/below whenever body or side height changes.
+  useLayoutEffect(() => {
+    if (isTodoBody) {
+      applySplitResult({ side: bodyValue, below: "", split: bodyValue.length });
+      return;
+    }
+    const result = reflowFromBody(bodyValue);
+    restorePendingCaret(result);
+  }, [
+    bodyValue,
+    sideHeight,
+    isTodoBody,
+    reflowFromBody,
+    applySplitResult,
+    restorePendingCaret,
+  ]);
+
+  // Second pass when below mounts after overflow caret move.
+  useLayoutEffect(() => {
+    if (!pendingCaretRef.current || pendingCaretRef.current.zone !== "below") return;
+    if (!bodyBelowRef.current) return;
+    restorePendingCaret({
+      side: sideText,
+      below: belowText,
+      split: splitIndexRef.current,
+    });
+  }, [belowText, showBelow, restorePendingCaret, sideText]);
+
+  // Auto-grow continuation textarea.
+  useLayoutEffect(() => {
+    const el = bodyBelowRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(el.scrollHeight, 24)}px`;
+  }, [belowText, showBelow, isEdit]);
+
   useEffect(() => {
     if (!showSlashGhost) {
       setHintIndex(0);
@@ -236,15 +414,15 @@ export function ImageSplitBlockView({
       setGhostPos(null);
       return;
     }
-    const el = bodyTextareaRef.current;
-    const wrap = bodyWrapRef.current;
+    const el = slashGhostZone === "below" ? bodyBelowRef.current : bodyTextareaRef.current;
+    const wrap = slashGhostZone === "below" ? bodyBelowWrapRef.current : bodyWrapRef.current;
     if (!el || !wrap) return;
     setGhostPos(resolveSlashGhostOverlayPosition(el, wrap));
-  }, [showSlashGhost]);
+  }, [showSlashGhost, slashGhostZone]);
 
   useLayoutEffect(() => {
     syncGhostPosition();
-  }, [bodyValue, showSlashGhost, hintIndex, syncGhostPosition]);
+  }, [sideText, belowText, showSlashGhost, hintIndex, slashGhostZone, syncGhostPosition]);
 
   useEffect(() => {
     if (!focusTodoItemId || !isTodoBody) return;
@@ -382,54 +560,117 @@ export function ImageSplitBlockView({
     }
   };
 
-  const resolveBodyMaxHeight = () => bodyMaxHeightRef.current || bodyMaxHeight;
+  const emitBodyKeyDown = (event) => {
+    onBodyKeyDown?.(event);
+  };
 
-  const maybePulseOverflow = (text) => {
+  const handleSideChange = (event) => {
+    if (!isEdit) return;
+    const nextSide = String(event.target.value ?? "");
+    const split = splitIndexRef.current;
+    const nextBody = nextSide + bodyValue.slice(split);
+    if (nextBody === bodyValue) return;
+    const caret = event.target.selectionStart ?? nextSide.length;
+    pendingCaretRef.current = { zone: "side", offset: caret };
+    handleFieldChange({ body: nextBody });
+  };
+
+  const handleBelowChange = (event) => {
+    if (!isEdit) return;
+    const nextBelow = String(event.target.value ?? "");
+    const split = splitIndexRef.current;
+    const nextBody = bodyValue.slice(0, split) + nextBelow;
+    if (nextBody === bodyValue) return;
+    const caret = event.target.selectionStart ?? nextBelow.length;
+    // After reflow, chars may move into side — adjust below caret by how much split grew.
+    pendingCaretRef.current = {
+      zone: "below",
+      offset: caret,
+      prevSplit: split,
+    };
+    handleFieldChange({ body: nextBody });
+  };
+
+  const handleSideKeyDown = (event) => {
+    if (!isEdit) return;
+
+    emitBodyKeyDown(event);
+    if (event.defaultPrevented) return;
+
     const el = bodyTextareaRef.current;
-    const maxH = resolveBodyMaxHeight();
-    if (el && maxH && !bodyTextFitsHeight(el, text, maxH)) {
+    if (!el) return;
+
+    const atEnd = el.selectionStart === sideText.length && el.selectionEnd === sideText.length;
+    if (event.key === "ArrowRight" && atEnd && belowText.length > 0) {
+      event.preventDefault();
+      setBelowFocused(true);
+      requestAnimationFrame(() => {
+        const belowEl = bodyBelowRef.current;
+        belowEl?.focus();
+        belowEl?.setSelectionRange(0, 0);
+        bodyFocusZoneRef.current = "below";
+      });
+      return;
+    }
+
+    const maxH = sideHeightRef.current;
+    if (!(maxH > 0)) return;
+
+    const isPrintable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
+    if (!isPrintable && event.key !== "Enter") return;
+    if (event.key === "Enter" && event.shiftKey) return;
+
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? start;
+    const insert = event.key === "Enter" ? "\n" : event.key;
+    const nextSide = `${sideText.slice(0, start)}${insert}${sideText.slice(end)}`;
+    if (
+      atEnd
+      && !bodyTextFitsHeight(el, nextSide, maxH)
+    ) {
       pulseBodyLimit();
     }
   };
 
-  const handleBodyChange = (event) => {
-    if (!isEdit) return;
-    const next = String(event.target.value ?? "");
-    const prev = block?.body || "";
-    if (next === prev) return;
-    if (next.length >= prev.length) maybePulseOverflow(next);
-    handleFieldChange({ body: next });
-  };
-
-  const handleBodyKeyDown = (event) => {
+  const handleBelowKeyDown = (event) => {
     if (!isEdit) return;
 
-    const el = bodyTextareaRef.current;
-    const cur = block?.body || "";
+    const el = bodyBelowRef.current;
+    const atStart = el
+      && el.selectionStart === 0
+      && el.selectionEnd === 0;
 
-    if (event.key === "Enter" && !event.shiftKey) {
-      onBodyKeyDown?.(event);
-      if (event.defaultPrevented) return;
-      const start = el?.selectionStart ?? cur.length;
-      const end = el?.selectionEnd ?? start;
-      const next = `${cur.slice(0, start)}\n${cur.slice(end)}`;
-      maybePulseOverflow(next);
+    if (event.key === "Backspace" && atStart) {
+      event.preventDefault();
+      const split = splitIndexRef.current;
+      if (split <= 0) return;
+      const nextBody = `${bodyValue.slice(0, split - 1)}${bodyValue.slice(split)}`;
+      pendingCaretRef.current = {
+        zone: belowText.length > 0 || split > 1 ? "below" : "side",
+        offset: belowText.length > 0 || split > 1 ? 0 : Math.max(0, split - 1),
+        prevSplit: split,
+      };
+      if (belowText.length === 0 && split <= 1) {
+        pendingCaretRef.current = { zone: "side", offset: Math.max(0, split - 1) };
+        setBelowFocused(false);
+      }
+      handleFieldChange({ body: nextBody });
       return;
     }
 
-    onBodyKeyDown?.(event);
-    if (event.defaultPrevented) return;
+    if (event.key === "ArrowLeft" && atStart && sideText.length > 0) {
+      event.preventDefault();
+      const sideEl = bodyTextareaRef.current;
+      sideEl?.focus();
+      sideEl?.setSelectionRange(sideText.length, sideText.length);
+      bodyFocusZoneRef.current = "side";
+      return;
+    }
 
-    const isPrintable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
-    if (!isPrintable || !el) return;
-
-    const start = el.selectionStart ?? 0;
-    const end = el.selectionEnd ?? start;
-    const next = `${cur.slice(0, start)}${event.key}${cur.slice(end)}`;
-    if (next.length > cur.length) maybePulseOverflow(next);
+    emitBodyKeyDown(event);
   };
 
-  const handleBodyPaste = (event) => {
+  const handleSidePaste = (event) => {
     if (!isEdit) return;
     const el = bodyTextareaRef.current;
     if (!el) return;
@@ -440,13 +681,40 @@ export function ImageSplitBlockView({
     event.preventDefault();
     const start = el.selectionStart ?? 0;
     const end = el.selectionEnd ?? start;
-    const cur = block?.body || "";
-    const next = `${cur.slice(0, start)}${paste}${cur.slice(end)}`;
-    maybePulseOverflow(next);
-    if (next !== cur) handleFieldChange({ body: next });
+    const split = splitIndexRef.current;
+    const nextSide = `${sideText.slice(0, start)}${paste}${sideText.slice(end)}`;
+    const nextBody = nextSide + bodyValue.slice(split);
+    pendingCaretRef.current = { zone: "side", offset: start + paste.length };
+    if (nextBody !== bodyValue) handleFieldChange({ body: nextBody });
+  };
+
+  const handleBelowPaste = (event) => {
+    if (!isEdit) return;
+    const el = bodyBelowRef.current;
+    if (!el) return;
+
+    const paste = event.clipboardData?.getData("text") ?? "";
+    if (!paste) return;
+
+    event.preventDefault();
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? start;
+    const split = splitIndexRef.current;
+    const nextBelow = `${belowText.slice(0, start)}${paste}${belowText.slice(end)}`;
+    const nextBody = bodyValue.slice(0, split) + nextBelow;
+    pendingCaretRef.current = {
+      zone: "below",
+      offset: start + paste.length,
+      prevSplit: split,
+    };
+    if (nextBody !== bodyValue) handleFieldChange({ body: nextBody });
   };
 
   const canSave = imageSaved && !uploading;
+  const sideStyle = sideHeight ? {
+    height: `${sideHeight}px`,
+    maxHeight: `${sideHeight}px`,
+  } : undefined;
 
   return (
     <div className={"doc-image-split" + (splitSaved ? " doc-image-split--saved" : "")}>
@@ -585,10 +853,7 @@ export function ImageSplitBlockView({
           <div
             className="doc-image-split__body"
             ref={bodyWrapRef}
-            style={bodyMaxHeight ? {
-              height: `${bodyMaxHeight}px`,
-              maxHeight: `${bodyMaxHeight}px`,
-            } : undefined}
+            style={sideStyle}
           >
             {isTodoBody ? (
               <div
@@ -661,26 +926,26 @@ export function ImageSplitBlockView({
                 <textarea
                   ref={bodyTextareaRef}
                   className={
-                    "doc-image-split__body-field"
+                    "doc-image-split__body-field doc-image-split__body-field--side"
                     + (bodyAtLimit ? " doc-image-split__body-field--at-limit" : "")
                   }
-                  value={bodyValue}
+                  value={sideText}
                   placeholder={t("doc.imageSplit.bodyPlaceholder")}
                   aria-label={t("doc.imageSplit.bodyPlaceholder")}
                   spellCheck={false}
                   autoFocus={autoFocusBody}
-                  onChange={handleBodyChange}
-                  onKeyDown={handleBodyKeyDown}
-                  onPaste={handleBodyPaste}
+                  onChange={handleSideChange}
+                  onKeyDown={handleSideKeyDown}
+                  onPaste={handleSidePaste}
+                  onFocus={() => {
+                    bodyFocusZoneRef.current = "side";
+                  }}
                   onSelect={syncGhostPosition}
                   onClick={syncGhostPosition}
                   onKeyUp={syncGhostPosition}
-                  style={bodyMaxHeight ? {
-                    height: `${bodyMaxHeight}px`,
-                    maxHeight: `${bodyMaxHeight}px`,
-                  } : undefined}
+                  style={sideStyle}
                 />
-                {showSlashGhost && ghostPos ? (
+                {showSlashGhost && slashGhostZone === "side" && ghostPos ? (
                   <span
                     className="doc-image-split__slash-ghost"
                     aria-hidden
@@ -696,15 +961,64 @@ export function ImageSplitBlockView({
               </>
             ) : (
               <div
-                className="doc-image-split__body-static"
-                style={bodyMaxHeight ? { height: bodyMaxHeight, maxHeight: bodyMaxHeight } : undefined}
+                className="doc-image-split__body-static doc-image-split__body-static--side"
+                style={sideStyle}
               >
-                {bodyValue}
+                {sideText}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {!isTodoBody && showBelow ? (
+        <div
+          className="doc-image-split__body-below"
+          ref={bodyBelowWrapRef}
+        >
+          {isEdit ? (
+            <>
+              <textarea
+                ref={bodyBelowRef}
+                className="doc-image-split__body-field doc-image-split__body-field--below"
+                value={belowText}
+                aria-label={t("doc.imageSplit.bodyPlaceholder")}
+                spellCheck={false}
+                onChange={handleBelowChange}
+                onKeyDown={handleBelowKeyDown}
+                onPaste={handleBelowPaste}
+                onFocus={() => {
+                  bodyFocusZoneRef.current = "below";
+                  setBelowFocused(true);
+                }}
+                onBlur={() => {
+                  setBelowFocused(false);
+                }}
+                onSelect={syncGhostPosition}
+                onClick={syncGhostPosition}
+                onKeyUp={syncGhostPosition}
+              />
+              {showSlashGhost && slashGhostZone === "below" && ghostPos ? (
+                <span
+                  className="doc-image-split__slash-ghost"
+                  aria-hidden
+                  style={{
+                    left: `${ghostPos.left}px`,
+                    top: `${ghostPos.top}px`,
+                    lineHeight: `${ghostPos.lineHeight}px`,
+                  }}
+                >
+                  {ghostHints[hintIndex] ?? ghostHints[0]}
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <div className="doc-image-split__body-static doc-image-split__body-static--below">
+              {belowText}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {error ? <p className="doc-image-split__error" role="alert">{error}</p> : null}
     </div>

@@ -1870,7 +1870,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onBodyKeyDown={(e) => {
                 if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
-                const bodyValue = e.currentTarget?.value ?? block.body ?? "";
+                const bodyValue = block.body ?? "";
                 const { slash } = splitBodyForSlash(bodyValue);
 
                 if (e.key === "Enter" && !e.shiftKey && slash) {

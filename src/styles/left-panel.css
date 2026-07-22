@@ -7928,6 +7928,14 @@ body.doc-content-resizing * {
   overflow: hidden;
 }
 
+.doc-image-split__body-below {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .doc-image-split__slash-ghost {
   position: absolute;
   pointer-events: none;
@@ -8097,6 +8105,18 @@ body.doc-content-resizing * {
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
+.doc-image-split__body-field--side {
+  overflow-y: hidden;
+}
+
+.doc-image-split__body-field--below {
+  height: auto;
+  min-height: 1.45em;
+  max-height: none;
+  overflow-y: hidden;
+  field-sizing: content;
+}
+
 .doc-image-split__body-field--at-limit {
   caret-color: #f3a6a6;
   animation: doc-image-split-caret-stop 700ms ease;
@@ -8138,6 +8158,16 @@ body.doc-content-resizing * {
   white-space: pre-wrap;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.doc-image-split__body-static--side {
+  overflow-y: hidden;
+}
+
+.doc-image-split__body-static--below {
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
 }
 
 .doc-image-split__float-actions {
