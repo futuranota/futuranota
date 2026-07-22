@@ -4,8 +4,6 @@ import {
   createTodoItem,
   IMAGE_SPLIT_BODY_MAX_LINES,
   IMAGE_SPLIT_BODY_MODE,
-  IMAGE_SPLIT_DESC_MAX,
-  IMAGE_SPLIT_TITLE_MAX,
 } from "../../../lib/docBlocks.js";
 import {
   IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
@@ -15,6 +13,9 @@ import { useI18n } from "../../../i18n/useI18n.js";
 import {
   resolveSlashGhostOverlayPosition,
 } from "../../../lib/textareaSelectionRect.js";
+
+/** Card sits 1.5px shorter top+bottom than the text column for visual align. */
+const IMAGE_SPLIT_CARD_HEIGHT_INSET_PX = 3;
 
 /**
  * @param {CSSStyleDeclaration} style
@@ -43,33 +44,8 @@ function measureBodyLineMetrics(el) {
 }
 
 /**
- * Whether `text` fits in one line of a full-width title input.
- * @param {HTMLInputElement} input
- * @param {string} text
- */
-function titleFitsOneLine(input, text) {
-  if (!input) return true;
-  const probe = document.createElement("span");
-  const style = window.getComputedStyle(input);
-  probe.style.cssText = [
-    "position:absolute",
-    "visibility:hidden",
-    "white-space:pre",
-    "top:0",
-    "left:0",
-    `font:${style.font}`,
-    `letter-spacing:${style.letterSpacing}`,
-    `padding:${style.padding}`,
-  ].join(";");
-  probe.textContent = text || "";
-  document.body.appendChild(probe);
-  const fits = probe.offsetWidth <= Math.max(1, input.clientWidth) + 1;
-  document.body.removeChild(probe);
-  return fits;
-}
-
-/**
  * Whether `text` fits in a fixed-height body box matching `source` styles.
+ * Used only as a soft "at limit" cue — content is never truncated.
  * @param {HTMLTextAreaElement} source
  * @param {string} text
  * @param {number} maxHeight
@@ -106,9 +82,9 @@ function bodyTextFitsHeight(source, text, maxHeight) {
 }
 
 /**
- * Unified image-split: title/desc caps, body hard-capped at
- * IMAGE_SPLIT_BODY_MAX_LINES, red caret at stop.
- * Right column can be text or an embedded compact todo (`/todo`).
+ * Unified image-split: image card + body (text or embedded todo).
+ * Body height is capped visually at IMAGE_SPLIT_BODY_MAX_LINES; overflow scrolls
+ * so paste/typing never truncates stored content.
  */
 export function ImageSplitBlockView({
   block,
@@ -126,16 +102,13 @@ export function ImageSplitBlockView({
   const inputRef = useRef(null);
   const cardRef = useRef(null);
   const rowRef = useRef(null);
-  const titleRef = useRef(null);
   const bodyTextareaRef = useRef(null);
   const bodyWrapRef = useRef(null);
   const todoInputRefs = useRef({});
-  const titleLimitTimerRef = useRef(null);
   const bodyLimitTimerRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
-  const [titleAtLimit, setTitleAtLimit] = useState(false);
   const [bodyAtLimit, setBodyAtLimit] = useState(false);
   const [bodyMaxHeight, setBodyMaxHeight] = useState(null);
   const bodyMaxHeightRef = useRef(null);
@@ -162,12 +135,6 @@ export function ImageSplitBlockView({
     ? bodySlashGhostHints
     : IMAGE_CARD_BODY_SLASH_GHOST_HINTS;
 
-  const pulseTitleLimit = useCallback(() => {
-    setTitleAtLimit(true);
-    if (titleLimitTimerRef.current) window.clearTimeout(titleLimitTimerRef.current);
-    titleLimitTimerRef.current = window.setTimeout(() => setTitleAtLimit(false), 700);
-  }, []);
-
   const pulseBodyLimit = useCallback(() => {
     setBodyAtLimit(true);
     if (bodyLimitTimerRef.current) window.clearTimeout(bodyLimitTimerRef.current);
@@ -175,7 +142,6 @@ export function ImageSplitBlockView({
   }, []);
 
   useEffect(() => () => {
-    if (titleLimitTimerRef.current) window.clearTimeout(titleLimitTimerRef.current);
     if (bodyLimitTimerRef.current) window.clearTimeout(bodyLimitTimerRef.current);
   }, []);
 
@@ -199,16 +165,19 @@ export function ImageSplitBlockView({
           ".doc-image-split__body-field, .doc-image-split__body-static, .doc-image-split__embedded-todo",
         );
       const { lineHeight, padY } = measureBodyLineMetrics(bodyEl);
-      // Cap body + card at 17 lines so macronodes (wider) don't grow past folders.
       const writeHeight = Math.max(
         Math.round(lineHeight + padY),
         Math.round(IMAGE_SPLIT_BODY_MAX_LINES * lineHeight + padY),
       );
+      const cardHeight = Math.max(
+        Math.round(lineHeight + padY),
+        writeHeight - IMAGE_SPLIT_CARD_HEIGHT_INSET_PX,
+      );
 
       row.style.setProperty("--image-split-body-max", `${writeHeight}px`);
-      card.style.height = `${writeHeight}px`;
-      card.style.minHeight = `${writeHeight}px`;
-      card.style.maxHeight = `${writeHeight}px`;
+      card.style.height = `${cardHeight}px`;
+      card.style.minHeight = `${cardHeight}px`;
+      card.style.maxHeight = `${cardHeight}px`;
 
       bodyMaxHeightRef.current = writeHeight;
       setBodyMaxHeight((prev) => (prev === writeHeight ? prev : writeHeight));
@@ -226,7 +195,7 @@ export function ImageSplitBlockView({
       card.style.minHeight = "";
       card.style.maxHeight = "";
     };
-  }, [imageSaved, block?.overlayTitle, block?.overlayDescription, splitSaved, isTodoBody]);
+  }, [imageSaved, splitSaved, isTodoBody]);
 
   useEffect(() => {
     if (!showSlashGhost) {
@@ -390,71 +359,22 @@ export function ImageSplitBlockView({
     }
   };
 
-  const handleTitleChange = (event) => {
-    if (!isEdit) return;
-    const next = event.target.value.slice(0, IMAGE_SPLIT_TITLE_MAX);
-    const prev = block?.overlayTitle || "";
-    if (next === prev) return;
-
-    // Allow shortening always; block growth past one-line width.
-    if (next.length >= prev.length && !titleFitsOneLine(titleRef.current, next)) {
-      pulseTitleLimit();
-      return;
-    }
-
-    handleFieldChange({ overlayTitle: next });
-    if (next.length >= IMAGE_SPLIT_TITLE_MAX || !titleFitsOneLine(titleRef.current, next + "M")) {
-      // At soft edge after accepting this char
-      requestAnimationFrame(() => {
-        if (titleRef.current && !titleFitsOneLine(titleRef.current, (next || "") + "i")) {
-          pulseTitleLimit();
-        }
-      });
-    }
-  };
-
-  const handleTitleKeyDown = (event) => {
-    if (!isEdit) return;
-    if (event.key === "Enter") {
-      event.preventDefault();
-      pulseTitleLimit();
-      return;
-    }
-    const isPrintable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
-    if (!isPrintable) return;
-    const el = titleRef.current;
-    if (!el) return;
-    const start = el.selectionStart ?? 0;
-    const end = el.selectionEnd ?? start;
-    const cur = block?.overlayTitle || "";
-    const next = `${cur.slice(0, start)}${event.key}${cur.slice(end)}`.slice(0, IMAGE_SPLIT_TITLE_MAX);
-    if (next.length > cur.length && !titleFitsOneLine(el, next)) {
-      event.preventDefault();
-      pulseTitleLimit();
-    }
-  };
-
   const resolveBodyMaxHeight = () => bodyMaxHeightRef.current || bodyMaxHeight;
+
+  const maybePulseOverflow = (text) => {
+    const el = bodyTextareaRef.current;
+    const maxH = resolveBodyMaxHeight();
+    if (el && maxH && !bodyTextFitsHeight(el, text, maxH)) {
+      pulseBodyLimit();
+    }
+  };
 
   const handleBodyChange = (event) => {
     if (!isEdit) return;
     const next = String(event.target.value ?? "");
     const prev = block?.body || "";
     if (next === prev) return;
-
-    const el = bodyTextareaRef.current;
-    const maxH = resolveBodyMaxHeight();
-
-    // Hard stop: no growth past the fixed body box (aligned to the card).
-    if (next.length >= prev.length) {
-      if (!maxH || !el || !bodyTextFitsHeight(el, next, maxH)) {
-        pulseBodyLimit();
-        // Revert controlled value by not updating; force DOM value back.
-        event.target.value = prev;
-        return;
-      }
-    }
-
+    if (next.length >= prev.length) maybePulseOverflow(next);
     handleFieldChange({ body: next });
   };
 
@@ -462,20 +382,15 @@ export function ImageSplitBlockView({
     if (!isEdit) return;
 
     const el = bodyTextareaRef.current;
-    const maxH = resolveBodyMaxHeight();
     const cur = block?.body || "";
 
     if (event.key === "Enter" && !event.shiftKey) {
       onBodyKeyDown?.(event);
       if (event.defaultPrevented) return;
-
       const start = el?.selectionStart ?? cur.length;
       const end = el?.selectionEnd ?? start;
       const next = `${cur.slice(0, start)}\n${cur.slice(end)}`;
-      if (!maxH || !el || !bodyTextFitsHeight(el, next, maxH)) {
-        event.preventDefault();
-        pulseBodyLimit();
-      }
+      maybePulseOverflow(next);
       return;
     }
 
@@ -488,16 +403,12 @@ export function ImageSplitBlockView({
     const start = el.selectionStart ?? 0;
     const end = el.selectionEnd ?? start;
     const next = `${cur.slice(0, start)}${event.key}${cur.slice(end)}`;
-    if (next.length > cur.length && (!maxH || !bodyTextFitsHeight(el, next, maxH))) {
-      event.preventDefault();
-      pulseBodyLimit();
-    }
+    if (next.length > cur.length) maybePulseOverflow(next);
   };
 
   const handleBodyPaste = (event) => {
     if (!isEdit) return;
     const el = bodyTextareaRef.current;
-    const maxH = resolveBodyMaxHeight();
     if (!el) return;
 
     const paste = event.clipboardData?.getData("text") ?? "";
@@ -507,32 +418,8 @@ export function ImageSplitBlockView({
     const start = el.selectionStart ?? 0;
     const end = el.selectionEnd ?? start;
     const cur = block?.body || "";
-
-    if (!maxH) {
-      pulseBodyLimit();
-      return;
-    }
-
-    let next = `${cur.slice(0, start)}${paste}${cur.slice(end)}`;
-
-    if (!bodyTextFitsHeight(el, next, maxH)) {
-      let lo = 0;
-      let hi = paste.length;
-      let best = 0;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        const candidate = `${cur.slice(0, start)}${paste.slice(0, mid)}${cur.slice(end)}`;
-        if (bodyTextFitsHeight(el, candidate, maxH)) {
-          best = mid;
-          lo = mid + 1;
-        } else {
-          hi = mid - 1;
-        }
-      }
-      next = `${cur.slice(0, start)}${paste.slice(0, best)}${cur.slice(end)}`;
-      pulseBodyLimit();
-    }
-
+    const next = `${cur.slice(0, start)}${paste}${cur.slice(end)}`;
+    maybePulseOverflow(next);
     if (next !== cur) handleFieldChange({ body: next });
   };
 
@@ -550,32 +437,6 @@ export function ImageSplitBlockView({
 
       <div className="doc-image-split__row" ref={rowRef}>
         <div className="doc-image-split__card" ref={cardRef}>
-          <input
-            ref={titleRef}
-            type="text"
-            className={
-              "doc-image-split__title"
-              + (titleAtLimit ? " doc-image-split__title--at-limit" : "")
-            }
-            value={block?.overlayTitle || ""}
-            maxLength={IMAGE_SPLIT_TITLE_MAX}
-            placeholder={t("doc.imageSplit.titlePlaceholder")}
-            aria-label={t("doc.imageSplit.titleLabel")}
-            readOnly={!isEdit}
-            onChange={handleTitleChange}
-            onKeyDown={handleTitleKeyDown}
-          />
-          <textarea
-            className="doc-image-split__desc"
-            value={block?.overlayDescription || ""}
-            maxLength={IMAGE_SPLIT_DESC_MAX}
-            rows={3}
-            placeholder={t("doc.imageSplit.descPlaceholder")}
-            aria-label={t("doc.imageSplit.descLabel")}
-            readOnly={!isEdit}
-            onChange={(event) => handleFieldChange({ overlayDescription: event.target.value })}
-          />
-
           {imageSaved ? (
             <div className="doc-image-split__media">
               <img
