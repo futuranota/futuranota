@@ -14,8 +14,10 @@ import {
   resolveSlashGhostOverlayPosition,
 } from "../../../lib/textareaSelectionRect.js";
 
-/** Card sits 1.5px shorter top+bottom than the text column for visual align. */
-const IMAGE_SPLIT_CARD_HEIGHT_INSET_PX = 3;
+/** Card padding (matches CSS `.doc-image-split__card { padding: 6px }`). */
+const IMAGE_SPLIT_CARD_PAD_PX = 6;
+/** Empty-dropzone / loading placeholder aspect (height / width). */
+const IMAGE_SPLIT_EMPTY_ASPECT = 0.72;
 
 /**
  * @param {CSSStyleDeclaration} style
@@ -165,13 +167,26 @@ export function ImageSplitBlockView({
           ".doc-image-split__body-field, .doc-image-split__body-static, .doc-image-split__embedded-todo",
         );
       const { lineHeight, padY } = measureBodyLineMetrics(bodyEl);
+      // Text column: fixed visible cap (scrolls when longer). Independent of card.
       const writeHeight = Math.max(
         Math.round(lineHeight + padY),
         Math.round(IMAGE_SPLIT_BODY_MAX_LINES * lineHeight + padY),
       );
+
+      // Card: height follows image aspect so media fills with only 6px padding.
+      const padTotal = IMAGE_SPLIT_CARD_PAD_PX * 2;
+      const innerW = Math.max(1, card.clientWidth - padTotal);
+      const imgEl = card.querySelector("img.doc-image-split__img");
+      const iw = Number(block?.width) || imgEl?.naturalWidth || 0;
+      const ih = Number(block?.height) || imgEl?.naturalHeight || 0;
+      const ratio = (imageSaved && iw > 0 && ih > 0)
+        ? (ih / iw)
+        : IMAGE_SPLIT_EMPTY_ASPECT;
+      const naturalCardH = Math.round(innerW * ratio + padTotal);
+      // Cap extreme portrait so the row stays readable next to the text column.
       const cardHeight = Math.max(
-        Math.round(lineHeight + padY),
-        writeHeight - IMAGE_SPLIT_CARD_HEIGHT_INSET_PX,
+        Math.round(lineHeight + padY + padTotal),
+        Math.min(naturalCardH, writeHeight),
       );
 
       row.style.setProperty("--image-split-body-max", `${writeHeight}px`);
@@ -189,13 +204,21 @@ export function ImageSplitBlockView({
     });
     ro.observe(card);
     ro.observe(row);
+
+    const imgEl = card.querySelector("img.doc-image-split__img");
+    const onImgLoad = () => sync();
+    if (imgEl) {
+      imgEl.addEventListener("load", onImgLoad);
+    }
+
     return () => {
       ro.disconnect();
+      imgEl?.removeEventListener("load", onImgLoad);
       card.style.height = "";
       card.style.minHeight = "";
       card.style.maxHeight = "";
     };
-  }, [imageSaved, splitSaved, isTodoBody]);
+  }, [imageSaved, splitSaved, isTodoBody, block?.src, block?.width, block?.height]);
 
   useEffect(() => {
     if (!showSlashGhost) {
