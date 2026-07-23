@@ -6170,9 +6170,12 @@ body.doc-content-resizing * {
   pointer-events: auto;
 }
 
-/* Marker-only mirror: paint the ink, keep the real textarea text visible. */
-.doc-slash-field__mirror--ink-only {
+/* Marker-only mirror: paint the ink, keep the real textarea text visible.
+   Must beat `.doc-slash-field--markers .doc-slash-field__mirror { color: #fff }`
+   or both layers draw glyphs (ghost/double text, worse at Aa 16px). */
+.doc-slash-field--markers .doc-slash-field__mirror--ink-only {
   color: transparent;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Faux-bold: thicken glyphs via shadow only — never font-weight (caret-safe). */
