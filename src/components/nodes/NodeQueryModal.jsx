@@ -123,6 +123,7 @@ export function NodeQueryModal({
   const [contentFocusMode, setContentFocusMode] = useState(initialContentFocus);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
+  const writingCaretRef = useRef(null);
   const [tagPickerSession, setTagPickerSession] = useState(null);
   const typographyStorageKey = entityNodeId ? `node:${entityNodeId}` : null;
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
@@ -469,9 +470,17 @@ export function NodeQueryModal({
     }
 
     const normalized = normalizeWritingBlocks(writingBlocks);
+    const snap = writingCaretRef.current;
+    const focusForInsert = {
+      ...(writingFocusTarget || {}),
+      ...(snap && typeof snap.caret === "number"
+        && (writingFocusTarget?.blockIndex == null || snap.blockIndex === writingFocusTarget.blockIndex)
+        ? { caret: snap.caret }
+        : {}),
+    };
     const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = insertNodeWritingSlashAtFocus(
       normalized,
-      writingFocusTarget,
+      focusForInsert,
       parsed,
       textPrefix,
     );
@@ -1095,6 +1104,7 @@ export function NodeQueryModal({
                 onBlocksChange={updateWritingBlocks}
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
+                writingCaretRef={writingCaretRef}
                 slashEnabled={slashCommandsEnabled}
                 contentFocusMode={contentFocusMode}
                 parseSlashQuery={resolveSlashQuery}

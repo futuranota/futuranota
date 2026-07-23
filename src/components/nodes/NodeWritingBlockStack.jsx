@@ -240,6 +240,7 @@ export function NodeWritingBlockStack({
   onBlocksChange,
   focusTarget = null,
   onFocusTargetChange,
+  writingCaretRef = null,
   slashEnabled = false,
   contentFocusMode = false,
   className = "",
@@ -256,6 +257,13 @@ export function NodeWritingBlockStack({
   blocksRef.current = blocks;
   const [focusedBlockId, setFocusedBlockId] = useState(null);
   const [tagPickerSession, setTagPickerSession] = useState(null);
+
+  const snapshotWritingCaret = useCallback((blockIndex, el) => {
+    if (!writingCaretRef) return;
+    const caret = el?.selectionStart;
+    if (typeof caret !== "number") return;
+    writingCaretRef.current = { blockIndex, caret };
+  }, [writingCaretRef]);
   const urlTableEntries = useUrlTableStore((s) => s.entries);
   const urlTables = useUrlTablesStore((s) => s.tables);
   const mentionCandidates = useMemo(() => {
@@ -283,6 +291,24 @@ export function NodeWritingBlockStack({
 
   useEffect(() => {
     if (focusTarget?.blockIndex == null) return undefined;
+    // Skip scroll/focus chase unless this is an intentional insert/focus request.
+    // (Caret is tracked in writingCaretRef — never via focusTarget — so blur
+    // into image-split text must not re-run scrollIntoView.)
+    const wantsFocus = Boolean(
+      focusTarget.focusKey
+      || focusTarget.focusHeading
+      || focusTarget.focusH1
+      || focusTarget.focusH2
+      || focusTarget.focusH3
+      || focusTarget.focusText
+      || focusTarget.focusAgent
+      || focusTarget.focusCode
+      || focusTarget.focusVault
+      || focusTarget.focusSteps
+      || focusTarget.itemId,
+    );
+    if (!wantsFocus) return undefined;
+
     const block = normalizeWritingBlocks(blocksRef.current)[focusTarget.blockIndex];
     if (!block?.id) return undefined;
 
@@ -297,7 +323,8 @@ export function NodeWritingBlockStack({
         if (tries < 12) requestAnimationFrame(() => focusInput(tries + 1));
         return;
       }
-      if (scrollParent) {
+      // Only scroll when the parent explicitly asked via focusKey (post-insert).
+      if (focusTarget.focusKey && scrollParent) {
         const blockRect = blockEl.getBoundingClientRect();
         const rootRect = scrollParent.getBoundingClientRect();
         if (blockRect.top < rootRect.top || blockRect.bottom > rootRect.bottom) {
@@ -1324,11 +1351,15 @@ export function NodeWritingBlockStack({
                     : {}),
                 })}
                 onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
-                onFocus={() => {
+                onFocus={(e) => {
                   setFocusedBlockId(block.id);
+                  snapshotWritingCaret(blockIndex, e?.target);
                   onFocusTargetChange?.({ blockIndex, focusText: true });
                 }}
-                onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
+                onBlur={(e) => {
+                  setFocusedBlockId((cur) => (cur === block.id ? null : cur));
+                  snapshotWritingCaret(blockIndex, e?.target);
+                }}
                 placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
                 showPlaceholder={block.id === placeholderTextBlockId}
                 autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}
@@ -1366,11 +1397,15 @@ export function NodeWritingBlockStack({
                       : {}),
                   })}
                   onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
-                  onFocus={() => {
+                  onFocus={(e) => {
                     setFocusedBlockId(block.id);
+                    snapshotWritingCaret(blockIndex, e?.target);
                     onFocusTargetChange?.({ blockIndex, focusText: true });
                   }}
-                  onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
+                  onBlur={(e) => {
+                    setFocusedBlockId((cur) => (cur === block.id ? null : cur));
+                    snapshotWritingCaret(blockIndex, e?.target);
+                  }}
                   placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
                   showPlaceholder={block.id === placeholderTextBlockId}
                   autoFocus={focusTarget?.blockIndex === blockIndex && focusTarget?.focusText}

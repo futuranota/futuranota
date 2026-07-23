@@ -2,8 +2,8 @@ import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES } from "./docBlocks.js"
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { normalizeMentions } from "./docMentions.js";
-import { normalizeMarkerRanges } from "./docTextMarkerRanges.js";
-import { normalizeBoldRanges } from "./docTextBoldRanges.js";
+import { normalizeMarkerRanges, splitMarkerRangesAt } from "./docTextMarkerRanges.js";
+import { normalizeBoldRanges, splitBoldRangesAt } from "./docTextBoldRanges.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
 import {
   createDefaultNodeTodoContent,
@@ -56,6 +56,70 @@ export function createEmptyTextBlock(text = "", patch = {}) {
     ...(patch.embedded && typeof patch.embedded === "object"
       ? { embedded: patch.embedded }
       : {}),
+  };
+}
+
+/**
+ * Split a writing TEXT value at the caret so a heading/widget can land on that line.
+ * Empty (free) lines are replaced; otherwise splits exactly at the caret.
+ */
+export function splitWritingTextAtCaret(text, caret) {
+  const str = String(text ?? "");
+  const raw = Number(caret);
+  const pos = Math.max(0, Math.min(str.length, Number.isFinite(raw) ? raw : str.length));
+
+  const lineStart = str.lastIndexOf("\n", Math.max(0, pos - 1)) + 1;
+  const nextBreak = str.indexOf("\n", pos);
+  const lineEnd = nextBreak === -1 ? str.length : nextBreak;
+  const lineContent = str.slice(lineStart, lineEnd);
+
+  if (!lineContent.trim()) {
+    // Free line → drop it and insert between surrounding lines.
+    let before = str.slice(0, lineStart);
+    if (before.endsWith("\n")) before = before.slice(0, -1);
+    const after = nextBreak === -1 ? "" : str.slice(nextBreak + 1);
+    return {
+      before,
+      after,
+      headEnd: before.length,
+      // Original index where `after` began in `str` (for range splitting).
+      tailStart: nextBreak === -1 ? str.length : nextBreak + 1,
+    };
+  }
+
+  return {
+    before: str.slice(0, pos),
+    after: str.slice(pos),
+    headEnd: pos,
+    tailStart: pos,
+  };
+}
+
+function splitTextBlockAnnotations(block, headEnd, tailStart, beforeText, afterText) {
+  const { headRanges: headMarkers, tailRanges: tailMarkers } = splitMarkerRangesAt(
+    block?.markerRanges,
+    headEnd,
+    tailStart,
+  );
+  const { headRanges: headBolds, tailRanges: tailBolds } = splitBoldRangesAt(
+    block?.boldRanges,
+    headEnd,
+    tailStart,
+  );
+  return {
+    beforePatch: {
+      mentions: normalizeMentions(beforeText, block?.mentions),
+      markerRanges: normalizeMarkerRanges(beforeText, headMarkers),
+      boldRanges: normalizeBoldRanges(beforeText, headBolds),
+      ...(block?.embedded && typeof block.embedded === "object"
+        ? { embedded: block.embedded }
+        : {}),
+    },
+    afterPatch: {
+      mentions: normalizeMentions(afterText, block?.mentions),
+      markerRanges: normalizeMarkerRanges(afterText, tailMarkers),
+      boldRanges: normalizeBoldRanges(afterText, tailBolds),
+    },
   };
 }
 
@@ -534,16 +598,28 @@ export function insertNodeWritingSlashAtFocus(blocks, focusTarget, parsed, textP
   const textIndex = resolveWritingPickerTextIndex(normalized, focusTarget);
 
   if (normalized[textIndex]?.type === NODE_BLOCK_TYPES.TEXT) {
-    const before = normalized[textIndex];
-    const { prefix } = splitBodyForSlash(before.text || "");
-    const nextBlocks = applySlashInTextBlock(normalized, textIndex, parsed);
+    const caret = focusTarget?.caret;
+    const prevIds = new Set(normalized.map((b) => b.id));
+    const nextBlocks = applySlashInTextBlock(normalized, textIndex, parsed, caret);
 
-    let insertedIndex = textIndex;
-    if (prefix.trim()) {
-      insertedIndex = textIndex + 1;
-    } else if (nextBlocks[textIndex]?.type === NODE_BLOCK_TYPES.TEXT) {
+    const insertedIndex = nextBlocks.findIndex((b, i) => (
+      i >= textIndex
+      && !prevIds.has(b.id)
+      && b.type !== NODE_BLOCK_TYPES.TEXT
+    ));
+
+    if (insertedIndex < 0) {
       // Vault/agent reuse left TEXT in place — focus/append via shared helper.
-      return appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix);
+      if (nextBlocks[textIndex]?.type === NODE_BLOCK_TYPES.TEXT) {
+        return appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix);
+      }
+      return {
+        blocks: nextBlocks,
+        insertedIndex: textIndex,
+        reusedVault: false,
+        reusedAgent: false,
+        focusText: false,
+      };
     }
 
     return {
@@ -660,16 +736,18 @@ export function createNodeWritingBlockFromSlash(parsed, textPrefix = "") {
   return null;
 }
 
-export function applySlashInTextBlock(blocks, blockIndex, parsed) {
+export function applySlashInTextBlock(blocks, blockIndex, parsed, caret = null) {
   const normalized = normalizeWritingBlocks(blocks);
   const block = normalized[blockIndex];
   if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) return normalized;
 
-  const { prefix } = splitBodyForSlash(block.text);
+  const text = block.text || "";
+  const slashSplit = splitBodyForSlash(text);
   const vaultNodeType = vaultNodeTypeForParsed(parsed);
   if (vaultNodeType) {
     const existingIndex = findLastVaultBlockIndex(normalized, vaultNodeType);
     if (existingIndex >= 0) {
+      const prefix = slashSplit.slash ? slashSplit.prefix : text;
       const updated = normalized.map((entry, index) => (
         index === blockIndex ? { ...entry, text: prefix } : entry
       ));
@@ -680,6 +758,7 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed) {
   if (parsed?.type === DOC_BLOCK_TYPES.AGENT) {
     const existingIndex = findLastAgentBlockIndex(normalized);
     if (existingIndex >= 0) {
+      const prefix = slashSplit.slash ? slashSplit.prefix : text;
       const updated = normalized.map((entry, index) => (
         index === blockIndex ? { ...entry, text: prefix } : entry
       ));
@@ -690,13 +769,54 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed) {
   const newBlock = createNodeWritingBlockFromSlash(parsed, "");
   if (!newBlock) return normalized;
 
-  const next = [...normalized];
-  if (!prefix.trim()) {
-    next[blockIndex] = newBlock;
-  } else {
-    next[blockIndex] = { ...block, text: prefix };
-    next.splice(blockIndex + 1, 0, newBlock);
+  let before = text;
+  let after = "";
+  let headEnd = text.length;
+  let tailStart = text.length;
+
+  if (slashSplit.slash) {
+    before = slashSplit.prefix;
+    after = "";
+    headEnd = before.length;
+    tailStart = text.length;
+  } else if (caret != null && Number.isFinite(Number(caret))) {
+    const parts = splitWritingTextAtCaret(text, caret);
+    before = parts.before;
+    after = parts.after;
+    headEnd = parts.headEnd;
+    tailStart = parts.tailStart;
   }
+
+  const next = [...normalized];
+  const beforeHasContent = Boolean(before.trim());
+  const afterHasContent = Boolean(after.trim());
+  const { beforePatch, afterPatch } = splitTextBlockAnnotations(
+    block,
+    headEnd,
+    tailStart,
+    before,
+    after,
+  );
+
+  if (!beforeHasContent && !afterHasContent) {
+    next[blockIndex] = newBlock;
+  } else if (!beforeHasContent) {
+    next[blockIndex] = newBlock;
+    next.splice(blockIndex + 1, 0, createEmptyTextBlock(after, afterPatch));
+  } else {
+    next[blockIndex] = {
+      ...block,
+      text: before,
+      mentions: beforePatch.mentions.length ? beforePatch.mentions : undefined,
+      markerRanges: beforePatch.markerRanges.length ? beforePatch.markerRanges : undefined,
+      boldRanges: beforePatch.boldRanges.length ? beforePatch.boldRanges : undefined,
+    };
+    next.splice(blockIndex + 1, 0, newBlock);
+    if (afterHasContent) {
+      next.splice(blockIndex + 2, 0, createEmptyTextBlock(after, afterPatch));
+    }
+  }
+
   return ensureNodeWritingTail(next);
 }
 

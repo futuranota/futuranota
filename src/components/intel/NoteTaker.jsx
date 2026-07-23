@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useUIStateStore } from "../../stores/uiStateStore.js";
@@ -86,6 +86,7 @@ export function NoteTaker({
   const initialDraft = readPanelDraft(node, inlineTodosEnabled);
   const [writingBody, setWritingBody] = useState(() => initialDraft);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
+  const writingCaretRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const typographyStorageKey = resolvedNodeId ? `node:${resolvedNodeId}` : "note-taker";
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
@@ -194,9 +195,17 @@ export function NoteTaker({
     const parsed = parseNodeSlashQuery(alias);
     if (!parsed) return;
     const normalized = normalizeWritingBlocks(writingBody.blocks);
+    const snap = writingCaretRef.current;
+    const focusForInsert = {
+      ...(writingFocusTarget || {}),
+      ...(snap && typeof snap.caret === "number"
+        && (writingFocusTarget?.blockIndex == null || snap.blockIndex === writingFocusTarget.blockIndex)
+        ? { caret: snap.caret }
+        : {}),
+    };
     const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = insertNodeWritingSlashAtFocus(
       normalized,
-      writingFocusTarget,
+      focusForInsert,
       parsed,
     );
     setWritingBody({ blocks: nextBlocks });
@@ -498,6 +507,7 @@ export function NoteTaker({
                 onBlocksChange={handleWritingBlocksChange}
                 focusTarget={writingFocusTarget}
                 onFocusTargetChange={setWritingFocusTarget}
+                writingCaretRef={writingCaretRef}
                 contentFocusMode
                 slashEnabled
                 textPlaceholder="Escribe aquí o /macronodo"

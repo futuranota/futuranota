@@ -8,6 +8,7 @@ import {
   ensureEmptyTextBlockAfterNode,
   insertNodeWritingSlashAtFocus,
   NODE_BLOCK_TYPES,
+  splitWritingTextAtCaret,
 } from "./nodeInlineContent.js";
 
 describe("applySlashInTextBlock /title", () => {
@@ -79,6 +80,42 @@ describe("insertNodeWritingSlashAtFocus", () => {
     expect(next[0].text).toBe("hello");
     expect(next[1].type).toBe(NODE_BLOCK_TYPES.H1);
     expect(next[2]?.type).toBe(NODE_BLOCK_TYPES.TEXT);
+  });
+
+  it("splits a TEXT block at the caret free line instead of dumping before image-split", () => {
+    const split = {
+      id: "split1",
+      type: NODE_BLOCK_TYPES.IMAGE_SPLIT,
+      src: "x",
+      imageSaved: true,
+    };
+    const text = createEmptyTextBlock("linea uno\n\nlinea tres");
+    // caret on the free middle line (after "linea uno\n")
+    const caret = "linea uno\n".length;
+    const { blocks: next, insertedIndex } = insertNodeWritingSlashAtFocus(
+      [text, split],
+      { blockIndex: 0, focusText: true, caret },
+      { type: DOC_BLOCK_TYPES.H1 },
+    );
+
+    expect(next.map((b) => b.type)).toEqual([
+      NODE_BLOCK_TYPES.TEXT,
+      NODE_BLOCK_TYPES.H1,
+      NODE_BLOCK_TYPES.TEXT,
+      NODE_BLOCK_TYPES.IMAGE_SPLIT,
+      NODE_BLOCK_TYPES.TEXT,
+    ]);
+    expect(next[0].text).toBe("linea uno");
+    expect(next[2].text).toBe("linea tres");
+    expect(insertedIndex).toBe(1);
+  });
+});
+
+describe("splitWritingTextAtCaret", () => {
+  it("replaces an empty line between paragraphs", () => {
+    const { before, after } = splitWritingTextAtCaret("a\n\nb", 2);
+    expect(before).toBe("a");
+    expect(after).toBe("b");
   });
 });
 
