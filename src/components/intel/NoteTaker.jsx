@@ -5,8 +5,8 @@ import { useUIStateStore } from "../../stores/uiStateStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { getBlockQueryText, blockDataType } from "../../lib/docNodeSync.js";
 import {
-  appendNodeWritingBlockFromSlash,
   createEmptyTextBlock,
+  insertNodeWritingSlashAtFocus,
   NODE_BLOCK_TYPES,
   normalizeWritingBlocks,
   nodeWritingBlocksHaveContent,
@@ -194,18 +194,20 @@ export function NoteTaker({
     const parsed = parseNodeSlashQuery(alias);
     if (!parsed) return;
     const normalized = normalizeWritingBlocks(writingBody.blocks);
-    const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = appendNodeWritingBlockFromSlash(
+    const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = insertNodeWritingSlashAtFocus(
       normalized,
+      writingFocusTarget,
       parsed,
     );
     setWritingBody({ blocks: nextBlocks });
     if (insertedIndex < 0) return;
+    const focusKey = `${nextBlocks[insertedIndex]?.id || insertedIndex}:${Date.now()}`;
     if (focusText) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusText: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusText: true, focusKey });
       return;
     }
     if (reusedAgent) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true, focusKey });
       return;
     }
     if (parsed.type === DOC_BLOCK_TYPES.TODO) {
@@ -213,24 +215,25 @@ export function NoteTaker({
       setWritingFocusTarget({
         blockIndex: insertedIndex,
         itemId: todoBlock?.items?.[0]?.id ?? null,
+        focusKey,
       });
     } else if (parsed.type === DOC_BLOCK_TYPES.CODE) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusCode: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusCode: true, focusKey });
     } else if (
       parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
     ) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true, focusKey });
     } else if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true, focusKey });
     } else if (
       parsed.type === DOC_BLOCK_TYPES.H1
       || parsed.type === DOC_BLOCK_TYPES.H2
       || parsed.type === DOC_BLOCK_TYPES.H3
     ) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true, focusKey });
     }
-  }, [writingBody.blocks]);
+  }, [writingBody.blocks, writingFocusTarget]);
 
   const createIntelNode = useCallback(
     (draftBody) => {

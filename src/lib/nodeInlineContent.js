@@ -474,22 +474,104 @@ export function ensureEmptyTextBlockAfterNode(blocks, blockIndex) {
   return insertBlockAfterIndex(normalized, blockIndex, createEmptyTextBlock());
 }
 
-export function appendNodeWritingBlock(blocks, newBlock) {
+/** Drop trailing empty TEXT cells so inserts land next to real content. */
+export function trimTrailingEmptyTextBlocks(blocks) {
   const normalized = normalizeWritingBlocks(blocks);
-  const last = normalized[normalized.length - 1];
+  let end = normalized.length;
+  while (end > 0 && isEmptyTextBlock(normalized[end - 1])) {
+    end -= 1;
+  }
+  if (end === normalized.length) return normalized;
+  if (end === 0) return [createEmptyTextBlock()];
+  return normalized.slice(0, end);
+}
 
-  if (isEmptyTextBlock(last)) {
-    if (normalized.length === 1) {
-      return ensureNodeWritingTail([newBlock]);
-    }
-    return ensureNodeWritingTail([
-      ...normalized.slice(0, -1),
-      newBlock,
-      last,
-    ]);
+export function appendNodeWritingBlock(blocks, newBlock) {
+  // Insert after last real content — never after a stack of empty TEXT cells.
+  const head = trimTrailingEmptyTextBlocks(blocks);
+  return ensureNodeWritingTail([...head, newBlock]);
+}
+
+/**
+ * Resolve which TEXT cell the [+]/slash picker should mutate.
+ * Prefers the focused TEXT; if focus is on a heading/widget, uses the TEXT below.
+ * Falls back to the first trailing empty / last TEXT.
+ */
+export function resolveWritingPickerTextIndex(blocks, focusTarget = null) {
+  const normalized = normalizeWritingBlocks(blocks);
+  let blockIndex = focusTarget?.blockIndex;
+
+  if (blockIndex != null && blockIndex >= 0 && blockIndex < normalized.length) {
+    const focused = normalized[blockIndex];
+    if (focused?.type === NODE_BLOCK_TYPES.TEXT) return blockIndex;
+    const after = normalized[blockIndex + 1];
+    if (after?.type === NODE_BLOCK_TYPES.TEXT) return blockIndex + 1;
   }
 
-  return ensureNodeWritingTail([...normalized, newBlock]);
+  // First trailing empty TEXT (right under content), else last TEXT.
+  let lastContent = -1;
+  for (let i = 0; i < normalized.length; i += 1) {
+    if (!isEmptyTextBlock(normalized[i])) lastContent = i;
+  }
+  for (let i = lastContent + 1; i < normalized.length; i += 1) {
+    if (normalized[i]?.type === NODE_BLOCK_TYPES.TEXT) return i;
+  }
+  for (let i = normalized.length - 1; i >= 0; i -= 1) {
+    if (normalized[i]?.type === NODE_BLOCK_TYPES.TEXT) return i;
+  }
+  return Math.max(0, normalized.length - 1);
+}
+
+/**
+ * Insert a slash block at the focused writing cell (not appended past empty cells).
+ */
+export function insertNodeWritingSlashAtFocus(blocks, focusTarget, parsed, textPrefix = "") {
+  if (parsed?.focusTextBlock) {
+    return appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix);
+  }
+
+  const normalized = normalizeWritingBlocks(blocks);
+  const textIndex = resolveWritingPickerTextIndex(normalized, focusTarget);
+
+  if (normalized[textIndex]?.type === NODE_BLOCK_TYPES.TEXT) {
+    const before = normalized[textIndex];
+    const { prefix } = splitBodyForSlash(before.text || "");
+    const nextBlocks = applySlashInTextBlock(normalized, textIndex, parsed);
+
+    let insertedIndex = textIndex;
+    if (prefix.trim()) {
+      insertedIndex = textIndex + 1;
+    } else if (nextBlocks[textIndex]?.type === NODE_BLOCK_TYPES.TEXT) {
+      // Vault/agent reuse left TEXT in place — focus/append via shared helper.
+      return appendNodeWritingBlockFromSlash(blocks, parsed, textPrefix);
+    }
+
+    return {
+      blocks: ensureNodeWritingTail(trimTrailingEmptyTextBlocks(nextBlocks)),
+      insertedIndex,
+      reusedVault: false,
+      reusedAgent: false,
+      focusText: false,
+    };
+  }
+
+  // Focused on a non-text block with no TEXT below — insert after it.
+  const newBlock = createNodeWritingBlockFromSlash(parsed, textPrefix);
+  if (!newBlock) {
+    return { blocks: normalized, insertedIndex: -1, reusedVault: false, reusedAgent: false };
+  }
+  const nextBlocks = ensureNodeWritingTail([
+    ...normalized.slice(0, textIndex + 1),
+    newBlock,
+    ...normalized.slice(textIndex + 1),
+  ]);
+  return {
+    blocks: nextBlocks,
+    insertedIndex: nextBlocks.findIndex((b) => b.id === newBlock.id),
+    reusedVault: false,
+    reusedAgent: false,
+    focusText: false,
+  };
 }
 
 export function insertBlockAfterIndex(blocks, blockIndex, newBlock) {

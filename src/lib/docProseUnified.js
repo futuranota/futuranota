@@ -119,7 +119,8 @@ export function findProseUnitForBlockIndex(blocks, blockIndex) {
  * @returns {string}
  */
 /**
- * H1 + visible TEXT for copy / 2× Cmd+A — includes linked H1 titles, excludes TODOs and hidden macro text.
+ * H1/H2/H3 + visible TEXT for copy / 2× Cmd+A — includes linked H1 titles,
+ * excludes TODOs and hidden macro text.
  * @param {import("./docBlocks.js").DocBlock[]} blocks
  * @param {number} index
  */
@@ -128,8 +129,14 @@ export function isCopyableDocTextBlock(blocks, index) {
   const block = normalized[index];
   if (!block) return false;
 
-  if (block.type === DOC_BLOCK_TYPES.H1) {
-    if (h1HasVideoEmbedSibling(normalized, index)) return false;
+  if (
+    block.type === DOC_BLOCK_TYPES.H1
+    || block.type === DOC_BLOCK_TYPES.H2
+    || block.type === DOC_BLOCK_TYPES.H3
+  ) {
+    if (block.type === DOC_BLOCK_TYPES.H1 && h1HasVideoEmbedSibling(normalized, index)) {
+      return false;
+    }
     return true;
   }
 
@@ -155,7 +162,11 @@ export function collectCopyableDocPlainText(blocks) {
   for (let index = 0; index < normalized.length; index += 1) {
     if (!isCopyableDocTextBlock(normalized, index)) continue;
     const block = normalized[index];
-    if (block.type === DOC_BLOCK_TYPES.H1) {
+    if (
+      block.type === DOC_BLOCK_TYPES.H1
+      || block.type === DOC_BLOCK_TYPES.H2
+      || block.type === DOC_BLOCK_TYPES.H3
+    ) {
       const title = String(block.title ?? "").trim();
       if (title) parts.push(title);
     } else if (block.type === DOC_BLOCK_TYPES.TEXT) {

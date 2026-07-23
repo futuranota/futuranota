@@ -398,6 +398,17 @@
   min-height: 72px;
 }
 
+.note-taker__writing-stack .node-writing-block-stack__h1 + .node-writing-block-stack__text:last-child .node-writing-text-field,
+.note-taker__writing-stack .node-writing-block-stack__h1 + .node-writing-block-stack__text:last-child .doc-text-block__field,
+.note-taker__writing-stack .node-writing-block-stack__h2 + .node-writing-block-stack__text:last-child .node-writing-text-field,
+.note-taker__writing-stack .node-writing-block-stack__h2 + .node-writing-block-stack__text:last-child .doc-text-block__field,
+.note-taker__writing-stack .node-writing-block-stack__h3 + .node-writing-block-stack__text:last-child .node-writing-text-field,
+.note-taker__writing-stack .node-writing-block-stack__h3 + .node-writing-block-stack__text:last-child .doc-text-block__field {
+  min-height: 6px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .note-taker__writing-stack .doc-h1-block__input,
 .note-taker__writing-stack .node-writing-block-stack__h2 .doc-h1-block__input,
 .note-taker__writing-stack .node-writing-block-stack__h3 .doc-h1-block__input {

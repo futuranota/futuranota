@@ -11,7 +11,11 @@ export function collectDocPlainText(blocks) {
   const parts = [];
 
   for (const block of normalizeDocBlocks(blocks || [])) {
-    if (block.type === DOC_BLOCK_TYPES.H1) {
+    if (
+      block.type === DOC_BLOCK_TYPES.H1
+      || block.type === DOC_BLOCK_TYPES.H2
+      || block.type === DOC_BLOCK_TYPES.H3
+    ) {
       const title = String(block.title ?? "").trim();
       if (title) parts.push(title);
       continue;
@@ -44,7 +48,12 @@ export function countDocContentBlocks(blocks) {
   let count = 0;
 
   for (const block of normalizeDocBlocks(blocks || [])) {
-    if (block.type === DOC_BLOCK_TYPES.H1 && String(block.title ?? "").trim()) {
+    if (
+      (block.type === DOC_BLOCK_TYPES.H1
+        || block.type === DOC_BLOCK_TYPES.H2
+        || block.type === DOC_BLOCK_TYPES.H3)
+      && String(block.title ?? "").trim()
+    ) {
       count += 1;
       continue;
     }
@@ -116,7 +125,12 @@ export function isTextFieldFullySelected(field) {
  * @returns {boolean}
  */
 export function isDocSelectAllProseField(block) {
-  return block?.type === DOC_BLOCK_TYPES.H1 || block?.type === DOC_BLOCK_TYPES.TEXT;
+  return (
+    block?.type === DOC_BLOCK_TYPES.H1
+    || block?.type === DOC_BLOCK_TYPES.H2
+    || block?.type === DOC_BLOCK_TYPES.H3
+    || block?.type === DOC_BLOCK_TYPES.TEXT
+  );
 }
 
 /**

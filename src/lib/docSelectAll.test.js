@@ -20,6 +20,20 @@ describe("docSelectAll", () => {
     expect(collectCopyableDocPlainText(blocks)).toBe("Section title\n\nBody paragraph");
   });
 
+  it("collectCopyableDocPlainText includes H2 and H3 titles with body", () => {
+    const blocks = [
+      createDocBlock(DOC_BLOCK_TYPES.H1, { id: "H1", title: "Headline 01" }),
+      createDocBlock(DOC_BLOCK_TYPES.TEXT, { id: "T1", text: "Under one" }),
+      createDocBlock(DOC_BLOCK_TYPES.H2, { id: "H2", title: "Headline 02" }),
+      createDocBlock(DOC_BLOCK_TYPES.TEXT, { id: "T2", text: "Under two" }),
+      createDocBlock(DOC_BLOCK_TYPES.H3, { id: "H3", title: "Headline 03" }),
+    ];
+
+    expect(collectCopyableDocPlainText(blocks)).toBe(
+      "Headline 01\n\nUnder one\n\nHeadline 02\n\nUnder two\n\nHeadline 03",
+    );
+  });
+
   it("collectCopyableDocPlainText includes linked H1 title and skips hidden macro answer", () => {
     const blocks = [
       createDocBlock(DOC_BLOCK_TYPES.H1, {

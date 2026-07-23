@@ -71,6 +71,7 @@ import { tryDocSelectAllKeyDown, requestDocSelectAll } from "../../../lib/docSel
 import {
   replaceProseSegmentInBlocks,
 } from "../../../lib/docProseUnified.js";
+import { isHeadingBlockType } from "../../../lib/textSelectionHeading.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { useConfirmStore } from "../../../stores/confirmStore.js";
 import { useNodesStore } from "../../../stores/nodesStore.js";
@@ -1008,18 +1009,18 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     return isCaretOnEmptyH1Line(title, caretStart);
   };
 
-  const exitH1ToBodyBelow = (h1Index, rawTitle) => {
+  const exitHeadingToBodyBelow = (headingIndex, rawTitle) => {
     const cleanedTitle = rawTitle.replace(/\n+$/, "").trimEnd();
-    const current = updateBlockAt(blocksRef.current, h1Index, { title: cleanedTitle });
-    insertTextAfter(h1Index, "", current);
+    const current = updateBlockAt(blocksRef.current, headingIndex, { title: cleanedTitle });
+    insertTextAfter(headingIndex, "", current);
   };
 
-  const handleH1EnterKey = (index, block, e) => {
+  const handleHeadingEnterKey = (index, block, e) => {
     const fieldValue = e.currentTarget?.value ?? "";
     const rawTitle = fieldValue || block.title || "";
 
     if (!rawTitle.trim()) {
-      removeEmptyH1AndFocusBody(index);
+      removeEmptyHeadingAndFocusBody(index);
       return;
     }
 
@@ -1027,7 +1028,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const caretEnd = e.currentTarget.selectionEnd ?? caretStart;
 
     if (shouldExitH1ToBodyOnEnter(rawTitle, caretStart, caretEnd)) {
-      exitH1ToBodyBelow(index, rawTitle);
+      exitHeadingToBodyBelow(index, rawTitle);
       return;
     }
 
@@ -1244,6 +1245,22 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         return true;
       }
 
+      // Backspace at start of TEXT after heading → demote heading into this TEXT.
+      if (isHeadingBlockType(prev?.type) && !prev.nodeId) {
+        e.preventDefault();
+        const title = String(prev.title || "");
+        const joiner = title && text ? "\n" : "";
+        const merged = `${title}${joiner}${text}`;
+        const joinAt = title.length + joiner.length;
+        let next = updateBlockAt(currentBlocks, blockIndex, {
+          text: merged,
+        });
+        next = removeBlockAt(next, blockIndex - 1);
+        setBlocks(next);
+        focusBlockCaret(block.id, joinAt);
+        return true;
+      }
+
       e.preventDefault();
       focusBlockCaret(currentBlocks[blockIndex - 1].id);
       return true;
@@ -1307,33 +1324,33 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     onBodyKeyDown?.(e);
   };
 
-  const removeEmptyH1AndFocusBody = (h1Index) => {
+  const removeEmptyHeadingAndFocusBody = (headingIndex) => {
     const current = blocksRef.current;
-    const h1 = current[h1Index];
-    if (!h1 || h1.type !== DOC_BLOCK_TYPES.H1) return;
+    const heading = current[headingIndex];
+    if (!heading || !isHeadingBlockType(heading.type)) return;
 
-    if (h1.nodeId || h1HasVideoEmbedSibling(current, h1Index)) {
-      insertTextAfter(h1Index, "", current);
+    if (heading.type === DOC_BLOCK_TYPES.H1 && (heading.nodeId || h1HasVideoEmbedSibling(current, headingIndex))) {
+      insertTextAfter(headingIndex, "", current);
       return;
     }
 
-    const nextBlock = current[h1Index + 1];
-    let next = removeBlockAt(current, h1Index);
+    const nextBlock = current[headingIndex + 1];
+    let next = removeBlockAt(current, headingIndex);
     if (!next.length) {
       next = [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
     } else if (!isEmptyTextBlock(nextBlock) && nextBlock?.type !== DOC_BLOCK_TYPES.TEXT) {
-      next = ensureEmptyTextBlockAfter(next, Math.max(0, h1Index - 1));
+      next = ensureEmptyTextBlockAfter(next, Math.max(0, headingIndex - 1));
     }
 
     setBlocks(next);
-    const focusIndex = Math.min(h1Index, next.length - 1);
+    const focusIndex = Math.min(headingIndex, next.length - 1);
     const focusId = next[focusIndex]?.id;
     if (focusId) focusBlockCaret(focusId, 0);
     requestContentGrow();
   };
 
   const handleLinkableBlockKeyDown = (index, block, e) => {
-    if (block.type === DOC_BLOCK_TYPES.H1 && tryDocSelectAllKeyDown(e, blocksRef.current)) return;
+    if (isHeadingBlockType(block.type) && tryDocSelectAllKeyDown(e, blocksRef.current)) return;
 
     const fieldValue = e.currentTarget?.value ?? "";
 
@@ -1373,19 +1390,19 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
           const title = fieldValue || block.title || "";
           if (!title.trim()) {
-            removeEmptyH1AndFocusBody(index);
+            removeEmptyHeadingAndFocusBody(index);
             return;
           }
-          handleH1EnterKey(index, block, e);
+          handleHeadingEnterKey(index, block, e);
           return;
         }
 
-        handleH1EnterKey(index, block, e);
+        handleHeadingEnterKey(index, block, e);
         return;
       }
 
       if (block.type === DOC_BLOCK_TYPES.H2 || block.type === DOC_BLOCK_TYPES.H3) {
-        handleH1EnterKey(index, block, e);
+        handleHeadingEnterKey(index, block, e);
         return;
       }
 
@@ -1416,7 +1433,36 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     const titleEmpty =
       block.type === DOC_BLOCK_TYPES.TODO
         ? !block.listTitle
-        : !block.title;
+        : !String(block.title || fieldValue || "").trim();
+
+    // Backspace at start of heading with title → merge into previous TEXT.
+    if (
+      e.key === "Backspace"
+      && atStart
+      && !titleEmpty
+      && index > 0
+      && isHeadingBlockType(block.type)
+      && !block.nodeId
+    ) {
+      const current = blocksRef.current;
+      const prev = current[index - 1];
+      const title = String(fieldValue || block.title || "");
+      if (prev?.type === DOC_BLOCK_TYPES.TEXT) {
+        e.preventDefault();
+        const prevText = prev.text || "";
+        const joiner = prevText && title ? "\n" : "";
+        const merged = `${prevText}${joiner}${title}`;
+        const joinAt = prevText.length + joiner.length;
+        let next = updateBlockAt(current, index - 1, { text: merged });
+        next = removeBlockAt(next, index);
+        setBlocks(next);
+        focusBlockCaret(prev.id, joinAt);
+        return;
+      }
+      e.preventDefault();
+      focusBlockCaret(prev?.id);
+      return;
+    }
 
     if (e.key === "Backspace" && atStart && !titleEmpty && index > 0) {
       e.preventDefault();

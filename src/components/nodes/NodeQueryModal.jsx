@@ -26,8 +26,8 @@ import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 import {
-  appendNodeWritingBlockFromSlash,
   createEmptyTextBlock,
+  insertNodeWritingSlashAtFocus,
   NODE_BLOCK_TYPES,
   normalizeWritingBlocks,
   parseNodeWritingBody,
@@ -469,20 +469,23 @@ export function NodeQueryModal({
     }
 
     const normalized = normalizeWritingBlocks(writingBlocks);
-    const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = appendNodeWritingBlockFromSlash(
+    const { blocks: nextBlocks, insertedIndex, reusedAgent, focusText } = insertNodeWritingSlashAtFocus(
       normalized,
+      writingFocusTarget,
       parsed,
       textPrefix,
     );
     setWritingBlocks(nextBlocks);
     onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
     if (insertedIndex < 0) return;
+    // focusKey forces the stack to re-run focus even if blockIndex matches a prior target.
+    const focusKey = `${nextBlocks[insertedIndex]?.id || insertedIndex}:${Date.now()}`;
     if (focusText) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusText: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusText: true, focusKey });
       return;
     }
     if (reusedAgent) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true, focusKey });
       return;
     }
     if (parsed.type === DOC_BLOCK_TYPES.TODO) {
@@ -490,16 +493,17 @@ export function NodeQueryModal({
       setWritingFocusTarget({
         blockIndex: insertedIndex,
         itemId: todoBlock?.items?.[0]?.id ?? null,
+        focusKey,
       });
     } else if (parsed.type === DOC_BLOCK_TYPES.CODE) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusCode: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusCode: true, focusKey });
     } else if (
       parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
       || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
     ) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusVault: true, focusKey });
     } else if (parsed.type === DOC_BLOCK_TYPES.AGENT) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusAgent: true, focusKey });
     } else if (
       parsed.type === DOC_BLOCK_TYPES.IMAGE
       || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
@@ -507,13 +511,13 @@ export function NodeQueryModal({
       || parsed.type === DOC_BLOCK_TYPES.BANNER
       || parsed.type === DOC_BLOCK_TYPES.PRODUCT_CARD
     ) {
-      setWritingFocusTarget({ blockIndex: insertedIndex });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusKey });
     } else if (
       parsed.type === DOC_BLOCK_TYPES.H1
       || parsed.type === DOC_BLOCK_TYPES.H2
       || parsed.type === DOC_BLOCK_TYPES.H3
     ) {
-      setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true });
+      setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true, focusKey });
     }
   }, [writingBlocks, writingFocusTarget, onContentChange, resolveSlashQuery]);
 

@@ -6827,7 +6827,10 @@ body.doc-content-resizing * {
 
 .doc-block-stack__item:has(.doc-h1-block),
 .doc-block-stack__item:has(.doc-h2-block),
-.doc-block-stack__item:has(.doc-h3-block),
+.doc-block-stack__item:has(.doc-h3-block) {
+  margin-top: 4px;
+}
+
 .doc-block-stack__item:has(.doc-todo-block),
 .doc-block-stack__item:has(.doc-date-block),
 .doc-block-stack__item:has(.doc-metric-block),
@@ -6854,6 +6857,30 @@ body.doc-content-resizing * {
 .doc-block-stack__item:has(.doc-h2-block) + .doc-block-stack__item:has(.doc-text-block),
 .doc-block-stack__item:has(.doc-h3-block) + .doc-block-stack__item:has(.doc-text-block) {
   margin-top: 0;
+}
+
+/* Empty TEXT shell right after a heading — collapse the ghost line under the title */
+.doc-block-stack__item:has(.doc-h1-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block,
+.doc-block-stack__item:has(.doc-h2-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block,
+.doc-block-stack__item:has(.doc-h3-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block {
+  gap: 0;
+}
+
+.doc-block-stack__item:has(.doc-h1-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block__wrap,
+.doc-block-stack__item:has(.doc-h2-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block__wrap,
+.doc-block-stack__item:has(.doc-h3-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block__wrap {
+  min-height: 0;
+}
+
+.doc-block-stack__item:has(.doc-h1-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block__field,
+.doc-block-stack__item:has(.doc-h1-block) + .doc-block-stack__item:has(.doc-text-block) .doc-slash-field__input,
+.doc-block-stack__item:has(.doc-h2-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block__field,
+.doc-block-stack__item:has(.doc-h2-block) + .doc-block-stack__item:has(.doc-text-block) .doc-slash-field__input,
+.doc-block-stack__item:has(.doc-h3-block) + .doc-block-stack__item:has(.doc-text-block) .doc-text-block__field,
+.doc-block-stack__item:has(.doc-h3-block) + .doc-block-stack__item:has(.doc-text-block) .doc-slash-field__input {
+  min-height: 6px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* Text lines in the same flow — no extra stack gap between consecutive text cells */
@@ -12223,11 +12250,6 @@ body.doc-content-resizing * {
 .node-writing-block-stack__text + .node-writing-block-stack__h1,
 .node-writing-block-stack__text + .node-writing-block-stack__h2,
 .node-writing-block-stack__text + .node-writing-block-stack__h3,
-.node-writing-block-stack__text + .node-writing-block-stack__todo,
-.node-writing-block-stack__text + .node-writing-block-stack__code,
-.node-writing-block-stack__text + .node-writing-block-stack__vault,
-.node-writing-block-stack__text + .node-writing-block-stack__agent,
-.node-writing-block-stack__h1 + .node-writing-block-stack__todo,
 .node-writing-block-stack__h1 + .node-writing-block-stack__text,
 .node-writing-block-stack__h1 + .node-writing-block-stack__h2,
 .node-writing-block-stack__h1 + .node-writing-block-stack__h3,
@@ -12236,7 +12258,15 @@ body.doc-content-resizing * {
 .node-writing-block-stack__h2 + .node-writing-block-stack__h3,
 .node-writing-block-stack__h3 + .node-writing-block-stack__text,
 .node-writing-block-stack__h3 + .node-writing-block-stack__h1,
-.node-writing-block-stack__h3 + .node-writing-block-stack__h2,
+.node-writing-block-stack__h3 + .node-writing-block-stack__h2 {
+  margin-top: 4px;
+}
+
+.node-writing-block-stack__text + .node-writing-block-stack__todo,
+.node-writing-block-stack__text + .node-writing-block-stack__code,
+.node-writing-block-stack__text + .node-writing-block-stack__vault,
+.node-writing-block-stack__text + .node-writing-block-stack__agent,
+.node-writing-block-stack__h1 + .node-writing-block-stack__todo,
 .node-writing-block-stack__h1 + .node-writing-block-stack__code,
 .node-writing-block-stack__h1 + .node-writing-block-stack__vault,
 .node-writing-block-stack__h1 + .node-writing-block-stack__agent,
@@ -12262,6 +12292,30 @@ body.doc-content-resizing * {
 .node-writing-block-stack__vault + .node-writing-block-stack__vault,
 .node-writing-block-stack__vault + .node-writing-block-stack__agent {
   margin-top: 10px;
+}
+
+/* Empty TEXT right after a heading — collapse ghost line (must beat :last-child 72px) */
+.node-writing-block-stack__h1 + .node-writing-block-stack__text .doc-text-block__wrap,
+.node-writing-block-stack__h2 + .node-writing-block-stack__text .doc-text-block__wrap,
+.node-writing-block-stack__h3 + .node-writing-block-stack__text .doc-text-block__wrap {
+  min-height: 0;
+}
+
+.node-writing-block-stack__h1 + .node-writing-block-stack__text .doc-text-block__field,
+.node-writing-block-stack__h1 + .node-writing-block-stack__text .doc-slash-field__input,
+.node-writing-block-stack__h1 + .node-writing-block-stack__text .node-writing-text-field,
+.node-writing-block-stack__h1 + .node-writing-block-stack__text:last-child .node-writing-text-field,
+.node-writing-block-stack__h2 + .node-writing-block-stack__text .doc-text-block__field,
+.node-writing-block-stack__h2 + .node-writing-block-stack__text .doc-slash-field__input,
+.node-writing-block-stack__h2 + .node-writing-block-stack__text .node-writing-text-field,
+.node-writing-block-stack__h2 + .node-writing-block-stack__text:last-child .node-writing-text-field,
+.node-writing-block-stack__h3 + .node-writing-block-stack__text .doc-text-block__field,
+.node-writing-block-stack__h3 + .node-writing-block-stack__text .doc-slash-field__input,
+.node-writing-block-stack__h3 + .node-writing-block-stack__text .node-writing-text-field,
+.node-writing-block-stack__h3 + .node-writing-block-stack__text:last-child .node-writing-text-field {
+  min-height: 6px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .node-writing-block-stack__todo .doc-todo-plan,
@@ -12323,6 +12377,15 @@ body.doc-content-resizing * {
 
 .node-writing-block-stack__text:last-child .node-writing-text-field {
   min-height: 72px;
+}
+
+/* After H1/H2/H3 the trailing empty body must not keep the 72px shell */
+.node-writing-block-stack__h1 + .node-writing-block-stack__text:last-child .node-writing-text-field,
+.node-writing-block-stack__h2 + .node-writing-block-stack__text:last-child .node-writing-text-field,
+.node-writing-block-stack__h3 + .node-writing-block-stack__text:last-child .node-writing-text-field {
+  min-height: 6px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .node-writing-text-field,

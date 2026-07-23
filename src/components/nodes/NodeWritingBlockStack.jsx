@@ -287,34 +287,48 @@ export function NodeWritingBlockStack({
     if (!block?.id) return undefined;
 
     let cancelled = false;
-    const frame = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (cancelled) return;
-        const root = stackRef.current;
-        const scrollParent = root?.closest(".note-taker__content-scroll")
-          || root?.closest(".node-query-modal__content-scroll");
-        const blockEl = root?.querySelector(`[data-writing-block-id="${block.id}"]`);
-        if (blockEl && scrollParent) {
-          const blockRect = blockEl.getBoundingClientRect();
-          const rootRect = scrollParent.getBoundingClientRect();
-          if (blockRect.top < rootRect.top || blockRect.bottom > rootRect.bottom) {
-            blockEl.scrollIntoView({ block: "nearest", behavior: "auto" });
-          }
+    const focusInput = (tries = 0) => {
+      if (cancelled) return;
+      const root = stackRef.current;
+      const scrollParent = root?.closest(".note-taker__content-scroll")
+        || root?.closest(".node-query-modal__content-scroll");
+      const blockEl = root?.querySelector(`[data-writing-block-id="${block.id}"]`);
+      if (!blockEl) {
+        if (tries < 12) requestAnimationFrame(() => focusInput(tries + 1));
+        return;
+      }
+      if (scrollParent) {
+        const blockRect = blockEl.getBoundingClientRect();
+        const rootRect = scrollParent.getBoundingClientRect();
+        if (blockRect.top < rootRect.top || blockRect.bottom > rootRect.bottom) {
+          blockEl.scrollIntoView({ block: "nearest", behavior: "auto" });
         }
+      }
 
-        if (focusTarget.focusH1 || focusTarget.focusH2 || focusTarget.focusH3 || focusTarget.focusHeading) {
-          const input = blockEl?.querySelector("textarea, input");
-          input?.focus({ preventScroll: true });
+      if (focusTarget.focusH1 || focusTarget.focusH2 || focusTarget.focusH3 || focusTarget.focusHeading) {
+        const input = blockEl.querySelector("textarea, input");
+        if (input) {
+          input.focus({ preventScroll: true });
+          return;
         }
-        if (focusTarget.focusText) {
-          const textarea = blockEl?.querySelector("textarea.node-writing-text-field");
-          textarea?.focus({ preventScroll: true });
+      }
+      if (focusTarget.focusText) {
+        const textarea = blockEl.querySelector("textarea.node-writing-text-field, textarea.doc-text-block__field");
+        if (textarea) {
+          textarea.focus({ preventScroll: true });
+          return;
         }
-        if (focusTarget.focusAgent) {
-          const input = blockEl?.querySelector(".doc-agent-cell__input");
-          input?.focus({ preventScroll: true });
-        }
-      });
+      }
+      if (focusTarget.focusAgent) {
+        const input = blockEl.querySelector(".doc-agent-cell__input");
+        input?.focus({ preventScroll: true });
+        return;
+      }
+      if (tries < 12) requestAnimationFrame(() => focusInput(tries + 1));
+    };
+
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => focusInput());
     });
 
     return () => {
@@ -359,6 +373,31 @@ export function NodeWritingBlockStack({
     });
   }, [onFocusTargetChange, updateBlocks]);
 
+  const focusBlockById = useCallback((blockId, caret = null) => {
+    if (!blockId) return;
+    const attempt = (tries = 0) => {
+      requestAnimationFrame(() => {
+        let el = inputRefs.current[blockId];
+        if (!el) {
+          const root = stackRef.current;
+          el = root?.querySelector(
+            `[data-writing-block-id="${blockId}"] textarea, [data-writing-block-id="${blockId}"] input`,
+          );
+        }
+        if (!el || !("focus" in el)) {
+          if (tries < 12) attempt(tries + 1);
+          return;
+        }
+        el.focus({ preventScroll: true });
+        if (caret != null && "setSelectionRange" in el) {
+          const pos = caret === "end" ? el.value.length : caret;
+          el.setSelectionRange(pos, pos);
+        }
+      });
+    };
+    attempt();
+  }, []);
+
   const handleHeadingKeyDown = useCallback((blockIndex, e) => {
     const block = blocksRef.current[blockIndex];
     if (!block || !isHeadingBlockType(block.type)) return;
@@ -387,36 +426,20 @@ export function NodeWritingBlockStack({
       return;
     }
 
+    // Backspace/Delete at start with title → move to previous cell (keep heading).
+    if ((e.key === "Backspace" || e.key === "Delete") && atStart && !titleEmpty && blockIndex > 0) {
+      e.preventDefault();
+      const current = normalizeWritingBlocks(blocksRef.current);
+      const prev = current[blockIndex - 1];
+      focusBlockById(prev?.id, "end");
+      return;
+    }
+
     if ((e.key === "Backspace" || e.key === "Delete") && titleEmpty && atStart) {
       e.preventDefault();
       removeEmptyHeadingAndFocus(blockIndex);
     }
-  }, [onFocusTargetChange, removeEmptyHeadingAndFocus, updateBlocks]);
-
-  const focusBlockById = useCallback((blockId, caret = null) => {
-    if (!blockId) return;
-    const attempt = (tries = 0) => {
-      requestAnimationFrame(() => {
-        let el = inputRefs.current[blockId];
-        if (!el) {
-          const root = stackRef.current;
-          el = root?.querySelector(
-            `[data-writing-block-id="${blockId}"] textarea, [data-writing-block-id="${blockId}"] input`,
-          );
-        }
-        if (!el || !("focus" in el)) {
-          if (tries < 12) attempt(tries + 1);
-          return;
-        }
-        el.focus({ preventScroll: true });
-        if (caret != null && "setSelectionRange" in el) {
-          const pos = caret === "end" ? el.value.length : caret;
-          el.setSelectionRange(pos, pos);
-        }
-      });
-    };
-    attempt();
-  }, []);
+  }, [focusBlockById, onFocusTargetChange, removeEmptyHeadingAndFocus, updateBlocks]);
 
   const openGuidedTagPicker = useCallback((blockIndex, textValue) => {
     const block = blocksRef.current[blockIndex];
@@ -530,6 +553,22 @@ export function NodeWritingBlockStack({
           updateBlocks(next);
           onFocusTargetChange?.(null);
           focusBlockById(prev.id, joinAt);
+          return;
+        }
+
+        // Demote heading above into this TEXT.
+        if (value && isHeadingBlockType(prev?.type)) {
+          e.preventDefault();
+          const title = String(prev.title || "");
+          const joiner = title && value ? "\n" : "";
+          const merged = `${title}${joiner}${value}`;
+          const joinAt = title.length + joiner.length;
+          const next = current
+            .map((b, i) => (i === blockIndex ? { ...b, text: merged } : b))
+            .filter((_, i) => i !== blockIndex - 1);
+          updateBlocks(next);
+          onFocusTargetChange?.(null);
+          focusBlockById(block.id, joinAt);
           return;
         }
 
@@ -669,6 +708,22 @@ export function NodeWritingBlockStack({
         return;
       }
 
+      // Demote heading above into this TEXT.
+      if (value && isHeadingBlockType(prev?.type)) {
+        e.preventDefault();
+        const title = String(prev.title || "");
+        const joiner = title && value ? "\n" : "";
+        const merged = `${title}${joiner}${value}`;
+        const joinAt = title.length + joiner.length;
+        const next = current
+          .map((b, i) => (i === blockIndex ? { ...b, text: merged } : b))
+          .filter((_, i) => i !== blockIndex - 1);
+        updateBlocks(next);
+        onFocusTargetChange?.(null);
+        focusBlockById(block.id, joinAt);
+        return;
+      }
+
       if (!value && current.length > 1) {
         e.preventDefault();
         const next = current.filter((_, i) => i !== blockIndex);
@@ -754,6 +809,10 @@ export function NodeWritingBlockStack({
         value={block.title}
         onChange={(title) => updateBlockAt(blockIndex, { title })}
         onKeyDown={(e) => handleHeadingKeyDown(blockIndex, e)}
+        onFocus={() => {
+          setFocusedBlockId(block.id);
+          onFocusTargetChange?.({ blockIndex, focusHeading: true });
+        }}
         linksEnabled={linksEnabled}
         placeholder={placeholder}
         autoFocus={isHeadingFocusTarget(focusTarget, blockIndex)}
@@ -1265,7 +1324,10 @@ export function NodeWritingBlockStack({
                     : {}),
                 })}
                 onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
-                onFocus={() => setFocusedBlockId(block.id)}
+                onFocus={() => {
+                  setFocusedBlockId(block.id);
+                  onFocusTargetChange?.({ blockIndex, focusText: true });
+                }}
                 onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
                 placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
                 showPlaceholder={block.id === placeholderTextBlockId}
@@ -1304,7 +1366,10 @@ export function NodeWritingBlockStack({
                       : {}),
                   })}
                   onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
-                  onFocus={() => setFocusedBlockId(block.id)}
+                  onFocus={() => {
+                    setFocusedBlockId(block.id);
+                    onFocusTargetChange?.({ blockIndex, focusText: true });
+                  }}
                   onBlur={() => setFocusedBlockId((cur) => (cur === block.id ? null : cur))}
                   placeholder={block.id === placeholderTextBlockId ? textPlaceholder : ""}
                   showPlaceholder={block.id === placeholderTextBlockId}
