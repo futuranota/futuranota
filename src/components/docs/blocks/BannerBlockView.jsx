@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
 import {
   BANNER_HEADLINE_MAX,
   BANNER_HEADLINE_MAX_LINES,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+
+/** Empty / loading media aspect (height / width), aligned with image-card. */
+const BANNER_EMPTY_ASPECT = 0.72;
 
 /**
  * @param {CSSStyleDeclaration} style
@@ -93,6 +96,9 @@ export function BannerBlockView({
 }) {
   const { t } = useI18n();
   const inputRef = useRef(null);
+  const cardRef = useRef(null);
+  const innerRef = useRef(null);
+  const mediaRef = useRef(null);
   const headlineRef = useRef(null);
   const headlineLimitTimerRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
@@ -113,6 +119,55 @@ export function BannerBlockView({
   useEffect(() => () => {
     if (headlineLimitTimerRef.current) window.clearTimeout(headlineLimitTimerRef.current);
   }, []);
+
+  // Media height tracks image aspect (same geometry as image-card media box).
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    const inner = innerRef.current;
+    const media = mediaRef.current;
+    if (!card || !inner || !media || typeof ResizeObserver === "undefined") return undefined;
+
+    const sync = () => {
+      const mediaW = Math.max(1, media.clientWidth);
+      const imgEl = media.querySelector("img.doc-banner__img");
+      const iw = Number(block?.width) || imgEl?.naturalWidth || 0;
+      const ih = Number(block?.height) || imgEl?.naturalHeight || 0;
+      const ratio = (imageSaved && iw > 0 && ih > 0)
+        ? (ih / iw)
+        : BANNER_EMPTY_ASPECT;
+      const mediaH = Math.max(1, Math.round(mediaW * ratio));
+
+      media.style.height = `${mediaH}px`;
+      media.style.minHeight = `${mediaH}px`;
+      media.style.maxHeight = `${mediaH}px`;
+
+      // Keep headline column the same height as media.
+      inner.style.minHeight = `${mediaH}px`;
+    };
+
+    sync();
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(sync);
+    });
+    ro.observe(card);
+    ro.observe(inner);
+    ro.observe(media);
+
+    const imgEl = media.querySelector("img.doc-banner__img");
+    const onImgLoad = () => sync();
+    if (imgEl) {
+      imgEl.addEventListener("load", onImgLoad);
+    }
+
+    return () => {
+      ro.disconnect();
+      imgEl?.removeEventListener("load", onImgLoad);
+      media.style.height = "";
+      media.style.minHeight = "";
+      media.style.maxHeight = "";
+      inner.style.minHeight = "";
+    };
+  }, [imageSaved, bannerSaved, block?.src, block?.width, block?.height]);
 
   const handleFieldChange = (patch) => {
     if (!isEdit) return;
@@ -276,9 +331,12 @@ export function BannerBlockView({
         onChange={(event) => handleFiles(event.target.files)}
       />
 
-      <div className="doc-banner__card">
-        <div className="doc-banner__inner">
-          <div className={"doc-banner__media" + (imageSaved ? "" : " doc-banner__media--empty")}>
+      <div className="doc-banner__card" ref={cardRef}>
+        <div className="doc-banner__inner" ref={innerRef}>
+          <div
+            ref={mediaRef}
+            className={"doc-banner__media" + (imageSaved ? "" : " doc-banner__media--empty")}
+          >
             {imageSaved ? (
               <>
                 <img

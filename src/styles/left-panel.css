@@ -8652,22 +8652,35 @@ body.doc-content-resizing * {
   flex: 0 0 calc(50% - 8px);
   width: calc(50% - 8px);
   min-width: 0;
-  height: auto;
+  min-height: 0;
   align-self: flex-start;
   border-radius: 2px;
   overflow: hidden;
   background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 
 .doc-banner__media--empty {
-  aspect-ratio: 421 / 296;
   background: rgba(0, 0, 0, 0.06);
+}
+
+.doc-banner__media--empty .doc-banner__dropzone {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 .doc-banner__img {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center;
 }
