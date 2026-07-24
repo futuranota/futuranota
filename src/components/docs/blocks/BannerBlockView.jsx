@@ -3,11 +3,14 @@ import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
 import {
   BANNER_HEADLINE_MAX,
   BANNER_HEADLINE_MAX_LINES,
+  IMAGE_SPLIT_BODY_MAX_LINES,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 
 /** Empty / loading media aspect (height / width), aligned with image-card. */
 const BANNER_EMPTY_ASPECT = 0.72;
+/** Body line metrics used for portraitCap — match ImageSplit body (~14px × 1.45). */
+const BANNER_CAP_LINE_HEIGHT_PX = 20.3;
 
 /**
  * @param {CSSStyleDeclaration} style
@@ -120,7 +123,8 @@ export function BannerBlockView({
     if (headlineLimitTimerRef.current) window.clearTimeout(headlineLimitTimerRef.current);
   }, []);
 
-  // Media height tracks image aspect (same geometry as image-card media box).
+  // Media height follows image aspect with the same portraitCap as Image card
+  // (IMAGE_SPLIT_BODY_MAX_LINES × body line-height) so tall images stay fit.
   useLayoutEffect(() => {
     const card = cardRef.current;
     const inner = innerRef.current;
@@ -135,14 +139,28 @@ export function BannerBlockView({
       const ratio = (imageSaved && iw > 0 && ih > 0)
         ? (ih / iw)
         : BANNER_EMPTY_ASPECT;
-      const mediaH = Math.max(1, Math.round(mediaW * ratio));
+      const naturalH = Math.round(mediaW * ratio);
+
+      // Same cap basis as ImageSplit (body metrics), not headline 24px.
+      const lineHeight = BANNER_CAP_LINE_HEIGHT_PX;
+      const padY = 0;
+      const portraitCap = Math.max(
+        Math.round(lineHeight + padY),
+        Math.round(IMAGE_SPLIT_BODY_MAX_LINES * lineHeight + padY),
+      );
+      const mediaH = Math.max(
+        Math.round(lineHeight + padY),
+        Math.min(naturalH, portraitCap),
+      );
 
       media.style.height = `${mediaH}px`;
       media.style.minHeight = `${mediaH}px`;
       media.style.maxHeight = `${mediaH}px`;
 
-      // Keep headline column the same height as media.
+      // Lock row to media height so headline min-size cannot open a gap under the image.
+      inner.style.height = `${mediaH}px`;
       inner.style.minHeight = `${mediaH}px`;
+      inner.style.maxHeight = `${mediaH}px`;
     };
 
     sync();
@@ -165,7 +183,9 @@ export function BannerBlockView({
       media.style.height = "";
       media.style.minHeight = "";
       media.style.maxHeight = "";
+      inner.style.height = "";
       inner.style.minHeight = "";
+      inner.style.maxHeight = "";
     };
   }, [imageSaved, bannerSaved, block?.src, block?.width, block?.height]);
 
@@ -432,6 +452,38 @@ export function BannerBlockView({
                 ) : null}
               </>
             )}
+            <div className="doc-banner__float-actions">
+              {isEdit ? (
+                <button
+                  type="button"
+                  className="doc-banner__save"
+                  disabled={!canSave}
+                  onClick={() => {
+                    if (!canSave) return;
+                    onSave?.();
+                  }}
+                >
+                  {t("doc.banner.save")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="doc-banner__edit"
+                  onClick={() => onEdit?.()}
+                >
+                  {t("doc.banner.edit")}
+                </button>
+              )}
+              {onConvertLayout ? (
+                <button
+                  type="button"
+                  className="doc-banner__switch"
+                  onClick={() => onConvertLayout("moodboard")}
+                >
+                  {t("doc.layoutSwitch.moodboard")}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="doc-banner__copy">
@@ -453,39 +505,6 @@ export function BannerBlockView({
               onPaste={handleHeadlinePaste}
             />
           </div>
-        </div>
-
-        <div className="doc-banner__float-actions">
-          {isEdit ? (
-            <button
-              type="button"
-              className="doc-banner__save"
-              disabled={!canSave}
-              onClick={() => {
-                if (!canSave) return;
-                onSave?.();
-              }}
-            >
-              {t("doc.banner.save")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="doc-banner__edit"
-              onClick={() => onEdit?.()}
-            >
-              {t("doc.banner.edit")}
-            </button>
-          )}
-          {onConvertLayout ? (
-            <button
-              type="button"
-              className="doc-banner__switch"
-              onClick={() => onConvertLayout("moodboard")}
-            >
-              {t("doc.layoutSwitch.moodboard")}
-            </button>
-          ) : null}
         </div>
       </div>
 

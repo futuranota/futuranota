@@ -8764,17 +8764,19 @@ body.doc-content-resizing * {
 .doc-banner__copy {
   flex: 1 1 0;
   min-width: 0;
+  min-height: 0;
   display: flex;
   align-items: stretch;
-  padding-top: 4px;
+  padding-top: 0;
   align-self: stretch;
+  box-sizing: border-box;
 }
 
 .doc-banner__headline {
   display: block;
   width: 100%;
   height: 100%;
-  min-height: calc(1.2em * 9 + 4px);
+  min-height: 0;
   max-height: 100%;
   margin: 0;
   padding: 2px 0;
@@ -8824,8 +8826,9 @@ body.doc-content-resizing * {
   transition: opacity 120ms ease;
 }
 
-.doc-banner__card:hover .doc-banner__float-actions,
-.doc-banner__card:focus-within .doc-banner__float-actions {
+/* Same as Image card: reveal on media hover only (not headline focus). */
+.doc-banner__media:hover .doc-banner__float-actions,
+.doc-banner__media:focus-within .doc-banner__float-actions {
   opacity: 1;
   pointer-events: auto;
 }
