@@ -366,12 +366,14 @@ export const MOODBOARD_TAG_MAX = 28;
 /** Default board/thumb icon for link-only (non-image) moodboard slots. */
 export const MOODBOARD_FILE_ICON_SRC = "/uploads/Folders/MediaFolder.png";
 
-/** Freeform arrow overlays on the moodboard board (Edit palette). */
+/** Freeform overlays on the moodboard board (Edit palette). */
 export const MOODBOARD_OVERLAY_KINDS = {
   TWISTED: "twisted",
   STRAIGHT: "straight",
   UP: "up",
   DOWN: "down",
+  CIRCLE: "circle",
+  ELLIPSE: "ellipse",
 };
 
 /** Absolute /uploads paths — use as <img src>, never CSS url(). */
@@ -380,6 +382,19 @@ export const MOODBOARD_OVERLAY_SRC = {
   [MOODBOARD_OVERLAY_KINDS.STRAIGHT]: "/uploads/arrow-straight.svg",
   [MOODBOARD_OVERLAY_KINDS.UP]: "/uploads/arrow-up.svg",
   [MOODBOARD_OVERLAY_KINDS.DOWN]: "/uploads/arrow-down.svg",
+  // Prefer PNG: circle.svg in uploads is ~2.4MB export; PNG is lightweight.
+  [MOODBOARD_OVERLAY_KINDS.CIRCLE]: "/uploads/circle.png",
+  [MOODBOARD_OVERLAY_KINDS.ELLIPSE]: "/uploads/ellipse.svg",
+};
+
+/** Board box width (px) per kind — shapes need more room than arrows. */
+export const MOODBOARD_OVERLAY_SIZE_PX = {
+  [MOODBOARD_OVERLAY_KINDS.TWISTED]: 44,
+  [MOODBOARD_OVERLAY_KINDS.STRAIGHT]: 44,
+  [MOODBOARD_OVERLAY_KINDS.UP]: 44,
+  [MOODBOARD_OVERLAY_KINDS.DOWN]: 44,
+  [MOODBOARD_OVERLAY_KINDS.CIRCLE]: 110,
+  [MOODBOARD_OVERLAY_KINDS.ELLIPSE]: 140,
 };
 
 const MOODBOARD_OVERLAY_KIND_SET = new Set(Object.values(MOODBOARD_OVERLAY_KINDS));

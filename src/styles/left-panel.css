@@ -8528,6 +8528,14 @@ body.doc-content-resizing * {
   touch-action: none;
 }
 
+.doc-moodboard__overlay--circle {
+  width: 110px;
+}
+
+.doc-moodboard__overlay--ellipse {
+  width: 140px;
+}
+
 .doc-moodboard__overlay--draggable {
   cursor: grab;
 }

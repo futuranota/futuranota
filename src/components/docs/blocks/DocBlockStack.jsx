@@ -45,6 +45,10 @@ import {
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
 import {
+  applyH1MarkdownShortcutToDocBlocks,
+  resolveH1MarkdownShortcutFromKey,
+} from "../../../lib/docMarkdownHeadingShortcut.js";
+import {
   applyTextEditToMentions,
   insertMentionAtQuery,
   mergeMentionBlocks,
@@ -1332,6 +1336,21 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     return false;
   };
 
+  const tryApplyH1FromTypedText = (blockIndex, text) => {
+    const value = String(text ?? "");
+    // Safety net when keydown missed (IME / AltGr): whole block or trailing line is exactly `##`.
+    if (value !== "##" && !/(?:^|\n)##$/.test(value)) return false;
+    const applied = applyH1MarkdownShortcutToDocBlocks(
+      blocksRef.current,
+      blockIndex,
+      value,
+      value.length,
+    );
+    if (!applied) return false;
+    finalizeSlashInsert(applied.blocks, applied.h1Id);
+    return true;
+  };
+
   const handleTextKeyDown = (blockIndex, e) => {
     if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
 
@@ -1339,6 +1358,32 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     if (handleTextBackspace(blockIndex, e, textValue)) return;
 
     const { slash } = splitBodyForSlash(textValue);
+
+    if (!e.metaKey && !e.nativeEvent?.isComposing) {
+      const caret = e.currentTarget?.selectionStart ?? textValue.length;
+      const caretEnd = e.currentTarget?.selectionEnd ?? caret;
+      if (caret === caretEnd) {
+        const resolved = resolveH1MarkdownShortcutFromKey(
+          textValue,
+          caret,
+          e.key,
+          e.code,
+        );
+        if (resolved) {
+          const applied = applyH1MarkdownShortcutToDocBlocks(
+            blocksRef.current,
+            blockIndex,
+            resolved.text,
+            resolved.caret,
+          );
+          if (applied) {
+            e.preventDefault();
+            finalizeSlashInsert(applied.blocks, applied.h1Id);
+            return;
+          }
+        }
+      }
+    }
 
     if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
@@ -2440,6 +2485,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   : null
               }
               onChange={(text, meta) => {
+                if (tryApplyH1FromTypedText(index, text)) return;
                 updateAt(index, {
                   text,
                   ...(meta && "mentions" in meta

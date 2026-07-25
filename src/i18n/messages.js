@@ -151,7 +151,9 @@ export const messages = {
         overlayStraight: "Straight arrow",
         overlayUp: "Up arrow",
         overlayDown: "Down arrow",
-        overlayDelete: "Delete arrow",
+        overlayCircle: "Circle",
+        overlayEllipse: "Ellipse",
+        overlayDelete: "Delete overlay",
       },
       banner: {
         headlinePlaceholder: "Write a bold headline",
@@ -1081,7 +1083,9 @@ export const messages = {
         overlayStraight: "Flecha recta",
         overlayUp: "Flecha arriba",
         overlayDown: "Flecha abajo",
-        overlayDelete: "Eliminar flecha",
+        overlayCircle: "Círculo",
+        overlayEllipse: "Elipse",
+        overlayDelete: "Eliminar overlay",
       },
       banner: {
         headlinePlaceholder: "Write a bold headline",

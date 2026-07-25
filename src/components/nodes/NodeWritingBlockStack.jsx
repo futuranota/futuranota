@@ -28,6 +28,10 @@ import {
   normalizeWritingBlocks,
   removeWritingBlockAt,
 } from "../../lib/nodeInlineContent.js";
+import {
+  applyH1MarkdownShortcutToNodeBlocks,
+  resolveH1MarkdownShortcutFromKey,
+} from "../../lib/docMarkdownHeadingShortcut.js";
 import { isHeadingBlockType } from "../../lib/textSelectionHeading.js";
 import { scrollTextareaCaretIntoCameraView } from "../../lib/textareaSelectionRect.js";
 import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
@@ -537,6 +541,35 @@ export function NodeWritingBlockStack({
     const current = normalizeWritingBlocks(blocksRef.current);
     const block = current[blockIndex];
     if (!block || block.type !== NODE_BLOCK_TYPES.TEXT) return;
+
+    const textValue = e.currentTarget?.value ?? block.text ?? "";
+    if (!e.metaKey && !e.nativeEvent?.isComposing) {
+      const caret = e.currentTarget?.selectionStart ?? textValue.length;
+      const caretEnd = e.currentTarget?.selectionEnd ?? caret;
+      if (caret === caretEnd) {
+        const resolved = resolveH1MarkdownShortcutFromKey(
+          textValue,
+          caret,
+          e.key,
+          e.code,
+        );
+        if (resolved) {
+          const applied = applyH1MarkdownShortcutToNodeBlocks(
+            current,
+            blockIndex,
+            resolved.text,
+            resolved.caret,
+          );
+          if (applied) {
+            e.preventDefault();
+            updateBlocks(applied.blocks);
+            onFocusTargetChange?.(null);
+            focusBlockById(applied.h1Id, 0);
+            return;
+          }
+        }
+      }
+    }
 
     const { slash } = splitBodyForSlash(block.text);
 
@@ -1326,7 +1359,22 @@ export function NodeWritingBlockStack({
                 tagRefCandidates={tagRefCandidates}
                 markerRanges={block.markerRanges || []}
                 boldRanges={block.boldRanges || []}
-                onChange={(text, meta) => updateBlockAt(blockIndex, {
+                onChange={(text, meta) => {
+                  if (text === "##" || /(?:^|\n)##$/.test(String(text ?? ""))) {
+                    const applied = applyH1MarkdownShortcutToNodeBlocks(
+                      normalizeWritingBlocks(blocksRef.current),
+                      blockIndex,
+                      text,
+                      String(text ?? "").length,
+                    );
+                    if (applied) {
+                      updateBlocks(applied.blocks);
+                      onFocusTargetChange?.(null);
+                      focusBlockById(applied.h1Id, 0);
+                      return;
+                    }
+                  }
+                  updateBlockAt(blockIndex, {
                   text,
                   ...(meta && "mentions" in meta
                     ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
@@ -1340,7 +1388,8 @@ export function NodeWritingBlockStack({
                   ...(meta && "boldRanges" in meta
                     ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
                     : {}),
-                })}
+                });
+                }}
                 onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
                 onFocus={(e) => {
                   setFocusedBlockId(block.id);
@@ -1377,7 +1426,22 @@ export function NodeWritingBlockStack({
                   tagRefCandidates={tagRefCandidates}
                   markerRanges={block.markerRanges || []}
                   boldRanges={block.boldRanges || []}
-                  onChange={(text, meta) => updateBlockAt(blockIndex, {
+                  onChange={(text, meta) => {
+                    if (text === "##" || /(?:^|\n)##$/.test(String(text ?? ""))) {
+                      const applied = applyH1MarkdownShortcutToNodeBlocks(
+                        normalizeWritingBlocks(blocksRef.current),
+                        blockIndex,
+                        text,
+                        String(text ?? "").length,
+                      );
+                      if (applied) {
+                        updateBlocks(applied.blocks);
+                        onFocusTargetChange?.(null);
+                        focusBlockById(applied.h1Id, 0);
+                        return;
+                      }
+                    }
+                    updateBlockAt(blockIndex, {
                     text,
                     ...(meta && "mentions" in meta
                       ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
@@ -1391,7 +1455,8 @@ export function NodeWritingBlockStack({
                     ...(meta && "boldRanges" in meta
                       ? { boldRanges: meta.boldRanges?.length ? meta.boldRanges : undefined }
                       : {}),
-                  })}
+                  });
+                  }}
                   onKeyDown={(e) => handleTextKeyDown(blockIndex, e)}
                   onFocus={(e) => {
                     setFocusedBlockId(block.id);

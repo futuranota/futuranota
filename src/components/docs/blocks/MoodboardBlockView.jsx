@@ -7,6 +7,7 @@ import {
   MOODBOARD_COLUMN_COUNT,
   MOODBOARD_FILE_ICON_SRC,
   MOODBOARD_OVERLAY_KINDS,
+  MOODBOARD_OVERLAY_SIZE_PX,
   MOODBOARD_OVERLAY_SRC,
   MOODBOARD_RECIPES,
   MOODBOARD_STICKY_MAX,
@@ -34,6 +35,8 @@ const OVERLAY_PALETTE = [
   { kind: MOODBOARD_OVERLAY_KINDS.STRAIGHT, labelKey: "doc.moodboard.overlayStraight" },
   { kind: MOODBOARD_OVERLAY_KINDS.UP, labelKey: "doc.moodboard.overlayUp" },
   { kind: MOODBOARD_OVERLAY_KINDS.DOWN, labelKey: "doc.moodboard.overlayDown" },
+  { kind: MOODBOARD_OVERLAY_KINDS.CIRCLE, labelKey: "doc.moodboard.overlayCircle" },
+  { kind: MOODBOARD_OVERLAY_KINDS.ELLIPSE, labelKey: "doc.moodboard.overlayEllipse" },
 ];
 
 const RECIPE_OPTIONS = [
@@ -260,19 +263,20 @@ export function MoodboardBlockView({
     const board = boardRef.current;
     let xPct = 45;
     let yPct = 40;
-    // Place near the pointer (half of the 44px overlay box) so the arrow
+    // Place near the pointer (half of the overlay box) so the mark
     // lands on the highlight/tag the user aimed at — not a fixed board %.
-    const half = 22;
+    const size = MOODBOARD_OVERLAY_SIZE_PX[kind] || 44;
+    const half = size / 2;
     if (board && Number.isFinite(clientX) && Number.isFinite(clientY)) {
       const rect = board.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         const left = Math.max(
           0,
-          Math.min(rect.width - half * 2, clientX - rect.left - half),
+          Math.min(rect.width - size, clientX - rect.left - half),
         );
         const top = Math.max(
           0,
-          Math.min(rect.height - half * 2, clientY - rect.top - half),
+          Math.min(rect.height - size, clientY - rect.top - half),
         );
         xPct = (left / rect.width) * 100;
         yPct = (top / rect.height) * 100;
@@ -957,6 +961,9 @@ export function MoodboardBlockView({
                 const selected = isEdit && selectedOverlayId === overlay.id;
                 const src = MOODBOARD_OVERLAY_SRC[overlay.kind];
                 if (!src) return null;
+                const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 44;
+                const isShape = overlay.kind === MOODBOARD_OVERLAY_KINDS.CIRCLE
+                  || overlay.kind === MOODBOARD_OVERLAY_KINDS.ELLIPSE;
                 return (
                   <div
                     key={overlay.id}
@@ -964,8 +971,13 @@ export function MoodboardBlockView({
                       "doc-moodboard__overlay"
                       + (selected ? " doc-moodboard__overlay--selected" : "")
                       + (isEdit ? " doc-moodboard__overlay--draggable" : "")
+                      + (isShape ? ` doc-moodboard__overlay--${overlay.kind}` : "")
                     }
-                    style={{ left: `${overlay.xPct}%`, top: `${overlay.yPct}%` }}
+                    style={{
+                      left: `${overlay.xPct}%`,
+                      top: `${overlay.yPct}%`,
+                      width: `${sizePx}px`,
+                    }}
                     onPointerDown={(event) => startOverlayDrag(event, overlay)}
                   >
                     <img
