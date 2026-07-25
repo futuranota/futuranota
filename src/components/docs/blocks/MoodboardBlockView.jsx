@@ -5,7 +5,6 @@ import {
   MOODBOARD_CAPTION_MAX,
   MOODBOARD_CAPTION_MAX_LINES,
   MOODBOARD_COLUMN_COUNT,
-  MOODBOARD_INFO_MAX,
   MOODBOARD_RECIPES,
   MOODBOARD_STICKY_MAX,
   MOODBOARD_TAG_MAX,
@@ -24,7 +23,6 @@ const BOARD_PAD_TOP = 16;
 const BOARD_CAPTION_STRIP = 28;
 const BOARD_GAP = 10;
 
-const ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%2015%201.svg";
 const STICKY_SRC = "/uploads/horizontal-note.svg";
 const TAG_ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%2015%201.svg";
 
@@ -582,9 +580,6 @@ export function MoodboardBlockView({
   const attachmentImage = attachmentSlot
     ? (columns[attachmentSlot.colIndex]?.images?.[attachmentSlot.imageIndex] || emptySlot())
     : null;
-  const showImageTag = (recipe) => (
-    recipe === MOODBOARD_RECIPES.LARGE || recipe === MOODBOARD_RECIPES.SEMI_STICKY
-  );
 
   const renderImageCell = (colIndex, imageIndex, sizeClass) => {
     const column = columns[colIndex] || createMoodboardColumn(null);
@@ -594,103 +589,122 @@ export function MoodboardBlockView({
     const uploading = uploadingKey === key;
     const dragOver = dragOverKey === key;
     const tagLabel = String(image.tagLabel || "").trim();
-    const showTag = Boolean(tagLabel && showImageTag(column.recipe));
+    const showTag = Boolean(tagLabel && saved);
+    // Medium stack has vertical room above each frame — keep the tag outside.
+    const tagOutside = showTag && sizeClass === "medium";
+    const tagOverlay = showTag && !tagOutside;
+
+    const tagRow = showTag ? (
+      <div
+        className={
+          "doc-moodboard__tag-row"
+          + (tagOutside ? " doc-moodboard__tag-row--outside" : "")
+        }
+        aria-hidden={!tagLabel}
+      >
+        <img
+          className="doc-moodboard__tag-arrow"
+          src={TAG_ARROW_SRC}
+          alt=""
+          draggable={false}
+        />
+        <span className="doc-moodboard__tag-label">{tagLabel}</span>
+      </div>
+    ) : null;
 
     return (
       <div
         className={
-          "doc-moodboard__cell"
-          + ` doc-moodboard__cell--${sizeClass}`
-          + (saved ? "" : " doc-moodboard__cell--empty")
+          "doc-moodboard__cell-wrap"
+          + (tagOutside ? " doc-moodboard__cell-wrap--tagged" : "")
         }
-        data-mb-slot={image.slotId || undefined}
       >
-        {saved ? (
-          <>
-            <button
-              type="button"
-              className="doc-moodboard__cell-hit"
-              disabled={!isEdit}
-              aria-label={t("doc.moodboard.attachTitle")}
-              onClick={() => openAttachmentModal(colIndex, imageIndex)}
-            >
-              <img
-                className="doc-moodboard__img"
-                src={image.src}
-                alt={image.alt || image.name || t("doc.imageBlock.previewAlt")}
-                width={image.width || undefined}
-                height={image.height || undefined}
-                draggable={false}
-              />
-            </button>
-            {showTag ? (
-              <div className="doc-moodboard__tag-row" aria-hidden={!tagLabel}>
+        {tagOutside ? tagRow : null}
+        <div
+          className={
+            "doc-moodboard__cell"
+            + ` doc-moodboard__cell--${sizeClass}`
+            + (saved ? "" : " doc-moodboard__cell--empty")
+          }
+          data-mb-slot={image.slotId || undefined}
+        >
+          {saved ? (
+            <>
+              <button
+                type="button"
+                className="doc-moodboard__cell-hit"
+                disabled={!isEdit}
+                aria-label={t("doc.moodboard.attachTitle")}
+                onClick={() => openAttachmentModal(colIndex, imageIndex)}
+              >
                 <img
-                  className="doc-moodboard__tag-arrow"
-                  src={TAG_ARROW_SRC}
-                  alt=""
+                  className="doc-moodboard__img"
+                  src={image.src}
+                  alt={image.alt || image.name || t("doc.imageBlock.previewAlt")}
+                  width={image.width || undefined}
+                  height={image.height || undefined}
                   draggable={false}
                 />
-                <span className="doc-moodboard__tag-label">{tagLabel}</span>
-              </div>
-            ) : null}
-            {isEdit ? (
-              <div className="doc-moodboard__media-actions">
-                <button
-                  type="button"
-                  className="doc-moodboard__media-btn"
-                  onClick={() => openAttachmentModal(colIndex, imageIndex)}
-                  disabled={Boolean(uploadingKey)}
-                >
-                  {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
-                </button>
-                <button
-                  type="button"
-                  className="doc-moodboard__media-btn"
-                  onClick={() => clearImage(colIndex, imageIndex)}
-                  disabled={Boolean(uploadingKey)}
-                >
-                  {t("doc.imageBlock.remove")}
-                </button>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <button
-            type="button"
-            className={
-              "doc-moodboard__dropzone"
-              + (dragOver ? " doc-moodboard__dropzone--active" : "")
-              + (uploading ? " doc-moodboard__dropzone--busy" : "")
-            }
-            disabled={Boolean(uploadingKey) || !isEdit}
-            onClick={() => isEdit && openAttachmentModal(colIndex, imageIndex)}
-            onDragEnter={(event) => {
-              if (!isEdit) return;
-              event.preventDefault();
-              setDragOverKey(key);
-            }}
-            onDragOver={(event) => {
-              if (!isEdit) return;
-              event.preventDefault();
-              setDragOverKey(key);
-            }}
-            onDragLeave={(event) => {
-              event.preventDefault();
-              setDragOverKey((prev) => (prev === key ? null : prev));
-            }}
-            onDrop={(event) => {
-              if (!isEdit) return;
-              event.preventDefault();
-              setDragOverKey(null);
-              handleFilesForSlot(colIndex, imageIndex, event.dataTransfer?.files);
-            }}
-          >
-            <span className="doc-moodboard__dropzone-title">
-              {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.uploadLabel")}
-            </span>
-          </button>
-        )}
+              </button>
+              {tagOverlay ? tagRow : null}
+              {isEdit ? (
+                <div className="doc-moodboard__media-actions">
+                  <button
+                    type="button"
+                    className="doc-moodboard__media-btn"
+                    onClick={() => openAttachmentModal(colIndex, imageIndex)}
+                    disabled={Boolean(uploadingKey)}
+                  >
+                    {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
+                  </button>
+                  <button
+                    type="button"
+                    className="doc-moodboard__media-btn"
+                    onClick={() => clearImage(colIndex, imageIndex)}
+                    disabled={Boolean(uploadingKey)}
+                  >
+                    {t("doc.imageBlock.remove")}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <button
+              type="button"
+              className={
+                "doc-moodboard__dropzone"
+                + (dragOver ? " doc-moodboard__dropzone--active" : "")
+                + (uploading ? " doc-moodboard__dropzone--busy" : "")
+              }
+              disabled={Boolean(uploadingKey) || !isEdit}
+              onClick={() => isEdit && openAttachmentModal(colIndex, imageIndex)}
+              onDragEnter={(event) => {
+                if (!isEdit) return;
+                event.preventDefault();
+                setDragOverKey(key);
+              }}
+              onDragOver={(event) => {
+                if (!isEdit) return;
+                event.preventDefault();
+                setDragOverKey(key);
+              }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                setDragOverKey((prev) => (prev === key ? null : prev));
+              }}
+              onDrop={(event) => {
+                if (!isEdit) return;
+                event.preventDefault();
+                setDragOverKey(null);
+                handleFilesForSlot(colIndex, imageIndex, event.dataTransfer?.files);
+              }}
+            >
+              <span className="doc-moodboard__dropzone-title">
+                {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.uploadLabel")}
+              </span>
+            </button>
+          )}
+        </div>
       </div>
     );
   };
@@ -739,40 +753,6 @@ export function MoodboardBlockView({
 
         {recipe === MOODBOARD_RECIPES.MEDIUM_STACK ? (
           <div className="doc-moodboard__recipe doc-moodboard__recipe--medium">
-            <div className="doc-moodboard__info-row">
-              <img
-                className="doc-moodboard__arrow doc-moodboard__tag-arrow"
-                src={ARROW_SRC}
-                alt=""
-                draggable={false}
-              />
-              {isEdit ? (
-                <input
-                  className="doc-moodboard__info doc-moodboard__tag-label"
-                  type="text"
-                  maxLength={MOODBOARD_INFO_MAX}
-                  value={column.infoLabel || ""}
-                  placeholder={t("doc.moodboard.infoPlaceholder")}
-                  aria-label={t("doc.moodboard.infoLabel")}
-                  onChange={(event) => {
-                    const next = String(event.target.value ?? "").slice(0, MOODBOARD_INFO_MAX);
-                    patchColumns((col, index) => (
-                      index === colIndex
-                        ? createMoodboardColumn(col.recipe, {
-                          images: col.images,
-                          stickyText: col.stickyText,
-                          infoLabel: next,
-                        })
-                        : col
-                    ));
-                  }}
-                />
-              ) : (
-                <span className="doc-moodboard__info doc-moodboard__info--static doc-moodboard__tag-label">
-                  {column.infoLabel || ""}
-                </span>
-              )}
-            </div>
             {renderImageCell(colIndex, 0, "medium")}
             {renderImageCell(colIndex, 1, "medium")}
           </div>

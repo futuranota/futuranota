@@ -8482,15 +8482,30 @@ body.doc-content-resizing * {
 }
 
 /* Recipe geometry: large = full column; medium = two stacked; semi = image + sticky. */
-.doc-moodboard__recipe--large .doc-moodboard__cell {
+.doc-moodboard__cell-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.doc-moodboard__cell-wrap--tagged {
+  gap: 4px;
+}
+
+.doc-moodboard__recipe--large .doc-moodboard__cell-wrap,
+.doc-moodboard__recipe--semi .doc-moodboard__cell-wrap {
   flex: 1 1 auto;
 }
 
-.doc-moodboard__recipe--medium .doc-moodboard__cell {
+.doc-moodboard__recipe--medium .doc-moodboard__cell-wrap {
   flex: 1 1 0;
 }
 
-.doc-moodboard__recipe--semi .doc-moodboard__cell {
+.doc-moodboard__recipe--large .doc-moodboard__cell,
+.doc-moodboard__recipe--semi .doc-moodboard__cell,
+.doc-moodboard__recipe--medium .doc-moodboard__cell {
   flex: 1 1 auto;
 }
 
@@ -8688,6 +8703,15 @@ body.doc-content-resizing * {
   gap: 4px;
   max-width: calc(100% - 12px);
   pointer-events: none;
+}
+
+.doc-moodboard__tag-row--outside {
+  position: relative;
+  top: auto;
+  left: auto;
+  z-index: 1;
+  max-width: 100%;
+  flex: 0 0 auto;
 }
 
 .doc-moodboard__tag-arrow,
