@@ -425,11 +425,17 @@ export function nodeWritingBlocksHaveContent(blocks) {
       return Boolean((block.src || "").trim()) || Boolean(block.imageSaved);
     }
     if (block.type === NODE_BLOCK_TYPES.MOODBOARD) {
-      return Boolean(block.a?.imageSaved)
-        || Boolean(block.b?.imageSaved)
-        || Boolean(block.moodboardSaved)
+      return Boolean(block.moodboardSaved)
         || Boolean((block.caption || "").trim())
-        || Boolean((block.body || "").trim());
+        || Boolean((block.body || "").trim())
+        || (Array.isArray(block.columns) && block.columns.some((col) =>
+          Boolean(col?.recipe)
+          || (Array.isArray(col?.images) && col.images.some((img) => Boolean(img?.imageSaved && img?.src)))
+          || Boolean((col?.stickyText || "").trim())
+          || Boolean((col?.infoLabel || "").trim())
+        ))
+        || Boolean(block.a?.imageSaved)
+        || Boolean(block.b?.imageSaved);
     }
     if (block.type === NODE_BLOCK_TYPES.BANNER) {
       return Boolean((block.src || "").trim())

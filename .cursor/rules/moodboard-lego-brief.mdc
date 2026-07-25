@@ -1,0 +1,20 @@
+---
+description: Moodboard LEGO product brief — read when working on moodboard board, attachments tags, or Drive files for moodboard
+globs:
+  - src/components/docs/blocks/Moodboard*
+  - src/lib/docBlocks.js
+  - src/lib/nodeInlineContent.js
+  - "**/*moodboard*"
+alwaysApply: false
+---
+
+# Moodboard LEGO (active product brief)
+
+Before implementing Moodboard / attachments / Drive-file pieces:
+
+1. Read [`.cursor/saved/moodboard-lego/CURSOR_BRIEF.md`](../saved/moodboard-lego/CURSOR_BRIEF.md).
+2. **Studio is out of scope** until Moodboard LEGO is done.
+3. Keep the **legacy 2-image moodboard** until an explicit migrate/replace is requested.
+4. Stack is **Vite + React + Zustand + Supabase** — do not scaffold Next.js App Router from external briefs.
+5. Images = local/WebP (or existing upload path). **Google Drive is for files only** (store `file_id` + open `/view`).
+6. Board = banner-width **LEGO grid** (frames L/M/S, note, file) + toolbar; click frame → attachments table → Accept → linkable tag in prose.

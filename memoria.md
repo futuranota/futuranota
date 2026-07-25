@@ -79,6 +79,15 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Moodboard LEGO — brief acumulando (2026-07-24)** — Visión board (frames L/M/S, nota, files Drive, tags linkables) antes de Studio. No implementar a ciegas desde el CURSOR_BRIEF de Claude (asume Next.js).
+
+- Brief canónico: [`.cursor/saved/moodboard-lego/CURSOR_BRIEF.md`](.cursor/saved/moodboard-lego/CURSOR_BRIEF.md)
+- Regla Cursor: `.cursor/rules/moodboard-lego-brief.mdc`
+- Producto: Futura = predicción / planificación de lo siguiente; Moodboard = tablero de visión (no note-taker genérico).
+- Mantener moodboard legacy 2-imgs; Studio **después** de Moodboard.
+- Imágenes = upload local; documents/files = Google Drive `file_id` + abrir `/view` (MVP).
+- Pendiente usuario: SVGs/tokens del tag @INFO, copy tabla, confirmar slash `/moodboard` vs legacy.
+
 **Menciones @tag en text area: índice no abría + caret/gap roto (2026-07-20)** — Al escribir `@blogs` en el área de escritura de un documento, el menú de tags (índice) no aparecía; con una mención insertada el texto no seguía alineado en la misma línea y el text area se veía con un gap enorme.
 
 - Causas:
@@ -458,6 +467,12 @@ Definido en `src/router.jsx`; llama `planStore.resetWeatherActions()`.
 ---
 
 ## Referencia
+
+### Moodboard LEGO
+
+- Brief vivo: [`.cursor/saved/moodboard-lego/CURSOR_BRIEF.md`](.cursor/saved/moodboard-lego/CURSOR_BRIEF.md)
+- Insumo parcial Claude (Drive Picker, schema images vs docs): ya fusionado ahí; **stack real = Vite**, no Next App Router.
+- Studio fuera de scope hasta cerrar Moodboard v1.
 
 ### Planes, costos y propuesta comercial
 

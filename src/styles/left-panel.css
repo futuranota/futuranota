@@ -8272,7 +8272,7 @@ body.doc-content-resizing * {
   font-size: 11px;
 }
 
-/* ─── /moodboard — two slots + Pangolin caption + body ─── */
+/* ─── /moodboard — full-width 3-column recipe board ─── */
 .doc-moodboard {
   padding: 2px 21px 8px 15px;
   box-sizing: border-box;
@@ -8288,78 +8288,315 @@ body.doc-content-resizing * {
   pointer-events: none;
 }
 
-.doc-moodboard__row {
+.doc-moodboard__toolbar {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   width: 100%;
+  margin: 0 0 6px;
   box-sizing: border-box;
 }
 
-.doc-moodboard__card {
-  flex: 0 0 calc(50% - 6px);
-  width: calc(50% - 6px);
-  min-width: 0;
+.doc-moodboard__toolbar-hint {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.34);
+}
+
+.doc-moodboard__toolbar-actions {
   display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 4px 6px 6px;
+  gap: 6px;
+}
+
+.doc-moodboard__toolbar-btn {
+  margin: 0;
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.doc-moodboard__toolbar-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.doc-moodboard__toolbar-btn--active {
+  color: #fff;
+  border-color: rgba(58, 111, 122, 0.9);
+  background: rgba(58, 111, 122, 0.22);
+}
+
+/* Exact thirds: 3 equal columns, fixed gap + padding — pieces never overlap.
+   Bottom padding is the caption strip (see BOARD_CAPTION_STRIP in the view). */
+.doc-moodboard__board {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-content: start;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 16px 60px;
   box-sizing: border-box;
   border-radius: 5px;
   background: #F1F1F1;
-  align-self: flex-start;
   overflow: hidden;
-  position: relative;
 }
 
-.doc-moodboard__board {
+.doc-moodboard__col {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 3px;
+}
+
+.doc-moodboard__col--empty {
+  border: 1px dashed rgba(22, 26, 29, 0.16);
+  background: rgba(0, 0, 0, 0.025);
+}
+
+.doc-moodboard--saved .doc-moodboard__col--empty {
+  border-color: transparent;
+  background: transparent;
+}
+
+.doc-moodboard__col-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.doc-moodboard--saved .doc-moodboard__col-picker {
+  visibility: hidden;
+}
+
+.doc-moodboard__col-picker-label {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(22, 26, 29, 0.38);
+  text-align: center;
+}
+
+.doc-moodboard__col-picker-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 132px;
+}
+
+.doc-moodboard__recipe-btn {
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid rgba(22, 26, 29, 0.14);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.6);
+  color: #666363;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.doc-moodboard__recipe-btn:hover:not(:disabled) {
+  border-color: rgba(58, 111, 122, 0.55);
+  color: #3A6F7A;
+  background: rgba(58, 111, 122, 0.06);
+}
+
+.doc-moodboard__recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   flex: 1 1 auto;
   min-height: 0;
-  width: 100%;
-  margin-bottom: 0;
 }
 
-.doc-moodboard__slot {
-  position: absolute;
+/* Recipe geometry: large = full column; medium = two stacked; semi = image + sticky. */
+.doc-moodboard__recipe--large .doc-moodboard__cell {
+  flex: 1 1 auto;
+}
+
+.doc-moodboard__recipe--medium .doc-moodboard__cell {
+  flex: 1 1 0;
+}
+
+.doc-moodboard__recipe--semi .doc-moodboard__cell {
+  flex: 1 1 auto;
+}
+
+.doc-moodboard__cell {
+  position: relative;
+  min-height: 0;
   overflow: hidden;
   border-radius: 2px;
   background: transparent;
-  height: auto;
 }
 
-.doc-moodboard__slot--a {
-  left: 2%;
-  top: 4%;
-  width: 68%;
-  z-index: 1;
-}
-
-.doc-moodboard__slot--b {
-  right: 4%;
-  bottom: 14%;
-  width: 42%;
-  z-index: 2;
-  transform: rotate(3.8deg);
-  box-shadow: 0 2px 8px rgba(22, 26, 29, 0.12);
+.doc-moodboard__cell--empty {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .doc-moodboard__img {
   display: block;
   width: 100%;
-  height: auto;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;
   object-position: center;
 }
 
-.doc-moodboard__slot--empty {
-  height: 42%;
-  min-height: 72px;
-  background: rgba(0, 0, 0, 0.06);
+.doc-moodboard__info-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 26px;
 }
 
-.doc-moodboard__slot--a.doc-moodboard__slot--empty {
-  height: 62%;
+.doc-moodboard__arrow {
+  display: block;
+  width: 34px;
+  height: auto;
+  flex: 0 0 auto;
+  opacity: 0.85;
+  transform: scaleY(-1) rotate(-8deg);
+}
+
+.doc-moodboard__info {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0 2px 1px;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: "Pangolin", cursive;
+  font-size: 12px;
+  line-height: 1.2;
+  color: #3A6F7A;
+  caret-color: #3A6F7A;
+}
+
+.doc-moodboard__info::placeholder {
+  color: rgba(58, 111, 122, 0.4);
+}
+
+.doc-moodboard__info--static {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-moodboard__sticky {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 223 / 82;
+  overflow: hidden;
+}
+
+.doc-moodboard__sticky-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+}
+
+/* Hide the baked handwriting once the user writes their own note. */
+.doc-moodboard__sticky:focus-within .doc-moodboard__sticky-bg,
+.doc-moodboard__sticky--filled .doc-moodboard__sticky-bg {
+  opacity: 0;
+}
+
+.doc-moodboard__sticky:focus-within,
+.doc-moodboard__sticky--filled {
+  background: #DAA86D;
+  border-radius: 2px;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 15px,
+    rgba(142, 101, 57, 0.53) 15px,
+    rgba(142, 101, 57, 0.53) 16px
+  );
+  background-position: 0 6px;
+}
+
+.doc-moodboard__sticky-field,
+.doc-moodboard__sticky-static {
+  position: absolute;
+  inset: 8px 10px 6px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  outline: none;
+  font-family: "Pangolin", cursive;
+  font-size: 12px;
+  line-height: 16px;
+  color: #3F382F;
+  caret-color: #3F382F;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+}
+
+.doc-moodboard__sticky-field::placeholder {
+  color: transparent;
+}
+
+.doc-moodboard__sticky:focus-within .doc-moodboard__sticky-field::placeholder {
+  color: rgba(63, 56, 47, 0.4);
+}
+
+.doc-moodboard__col-clear {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 4;
+  margin: 0;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(22, 26, 29, 0.62);
+  color: #fff;
+  font-size: 9px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.doc-moodboard__col:hover .doc-moodboard__col-clear,
+.doc-moodboard__col:focus-within .doc-moodboard__col-clear {
+  opacity: 1;
 }
 
 .doc-moodboard__media-actions {
@@ -8372,8 +8609,8 @@ body.doc-content-resizing * {
   z-index: 3;
 }
 
-.doc-moodboard__slot:hover .doc-moodboard__media-actions,
-.doc-moodboard__slot:focus-within .doc-moodboard__media-actions {
+.doc-moodboard__cell:hover .doc-moodboard__media-actions,
+.doc-moodboard__cell:focus-within .doc-moodboard__media-actions {
   opacity: 1;
 }
 
@@ -8433,10 +8670,10 @@ body.doc-content-resizing * {
 
 .doc-moodboard__caption {
   position: absolute;
-  left: 6%;
-  bottom: 6%;
+  left: 18px;
+  bottom: 8px;
   z-index: 4;
-  width: min(72%, 200px);
+  width: min(26%, 160px);
   height: calc(1.2em * 2 + 4px);
   max-height: calc(1.2em * 2 + 4px);
   margin: 0;
@@ -8452,7 +8689,7 @@ body.doc-content-resizing * {
   font-size: 15px;
   line-height: 1.2;
   color: #3A6F7A;
-  transform: rotate(-8deg);
+  transform: rotate(-4deg);
   transform-origin: left bottom;
   caret-color: #3A6F7A;
   transition: caret-color 160ms ease;
@@ -8477,11 +8714,11 @@ body.doc-content-resizing * {
 
 .doc-moodboard__float-actions {
   position: absolute;
-  left: 6px;
-  bottom: 6px;
+  right: 10px;
+  bottom: 5px;
   z-index: 6;
   display: flex;
-  justify-content: flex-start;
+  justify-content: flex-end;
   align-items: center;
   gap: 10px;
   opacity: 0;
@@ -8489,8 +8726,8 @@ body.doc-content-resizing * {
   transition: opacity 120ms ease;
 }
 
-.doc-moodboard__card:hover .doc-moodboard__float-actions,
-.doc-moodboard__card:focus-within .doc-moodboard__float-actions {
+.doc-moodboard__board:hover .doc-moodboard__float-actions,
+.doc-moodboard__board:focus-within .doc-moodboard__float-actions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -8532,21 +8769,12 @@ body.doc-content-resizing * {
   color: #3A6F7A;
 }
 
-.doc-moodboard__side {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
+/* Body writes below the full-width board (banner-like layout). */
 .doc-moodboard__body {
-  flex: 0 0 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: var(--moodboard-body-max, 120px);
-  max-height: var(--moodboard-body-max, 120px);
+  margin-top: 8px;
   overflow: hidden;
 }
 

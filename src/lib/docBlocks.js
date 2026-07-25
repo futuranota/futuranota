@@ -340,6 +340,27 @@ export const MOODBOARD_CAPTION_MAX = 64;
 /** Hard ceiling for Pangolin caption lines in the card. */
 export const MOODBOARD_CAPTION_MAX_LINES = 2;
 
+/** Board is split in exact thirds; each third picks one recipe. */
+export const MOODBOARD_COLUMN_COUNT = 3;
+
+export const MOODBOARD_RECIPES = {
+  LARGE: "large",
+  MEDIUM_STACK: "medium_stack",
+  SEMI_STICKY: "semi_sticky",
+};
+
+/** Image frames each recipe owns (medium stack = two frames, one under the other). */
+export const MOODBOARD_RECIPE_SLOTS = {
+  [MOODBOARD_RECIPES.LARGE]: 1,
+  [MOODBOARD_RECIPES.MEDIUM_STACK]: 2,
+  [MOODBOARD_RECIPES.SEMI_STICKY]: 1,
+};
+
+/** Sticky note copy (semi_sticky recipe). */
+export const MOODBOARD_STICKY_MAX = 120;
+/** Arrow label above the medium stack. */
+export const MOODBOARD_INFO_MAX = 28;
+
 /** Banner headline (bold copy beside image). */
 export const BANNER_HEADLINE_MAX = 280;
 /** Hard ceiling for banner headline lines (~doc cell line count). */
@@ -357,17 +378,24 @@ export function convertImageLayoutBlock(block, targetType) {
   if (targetType === DOC_BLOCK_TYPES.MOODBOARD) {
     if (block.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
       const imageSaved = Boolean(block.imageSaved && block.src);
+      const image = {
+        src: block.src || "",
+        name: block.name || "",
+        alt: block.alt || "",
+        width: block.width || 0,
+        height: block.height || 0,
+        imageSaved,
+      };
       return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, {
         id,
         caption: String(block.overlayTitle || "").slice(0, MOODBOARD_CAPTION_MAX),
-        a: {
-          src: block.src || "",
-          name: block.name || "",
-          alt: block.alt || "",
-          width: block.width || 0,
-          height: block.height || 0,
-          imageSaved,
-        },
+        columns: [
+          createMoodboardColumn(MOODBOARD_RECIPES.LARGE, {
+            images: imageSaved ? [image] : [],
+          }),
+          createMoodboardColumn(null),
+          createMoodboardColumn(null),
+        ],
         body: String(block.body || ""),
         bodyMode: block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
           ? IMAGE_SPLIT_BODY_MODE.TODO
@@ -380,17 +408,24 @@ export function convertImageLayoutBlock(block, targetType) {
     }
     if (block.type === DOC_BLOCK_TYPES.BANNER) {
       const imageSaved = Boolean(block.imageSaved && block.src);
+      const image = {
+        src: block.src || "",
+        name: block.name || "",
+        alt: block.alt || "",
+        width: block.width || 0,
+        height: block.height || 0,
+        imageSaved,
+      };
       return createDocBlock(DOC_BLOCK_TYPES.MOODBOARD, {
         id,
         caption: String(block.headline || "").slice(0, MOODBOARD_CAPTION_MAX),
-        a: {
-          src: block.src || "",
-          name: block.name || "",
-          alt: block.alt || "",
-          width: block.width || 0,
-          height: block.height || 0,
-          imageSaved,
-        },
+        columns: [
+          createMoodboardColumn(MOODBOARD_RECIPES.LARGE, {
+            images: imageSaved ? [image] : [],
+          }),
+          createMoodboardColumn(null),
+          createMoodboardColumn(null),
+        ],
         moodboardSaved: Boolean(block.bannerSaved && imageSaved),
         openFilePicker: false,
       });
@@ -398,42 +433,44 @@ export function convertImageLayoutBlock(block, targetType) {
   }
 
   if (targetType === DOC_BLOCK_TYPES.IMAGE_SPLIT && block.type === DOC_BLOCK_TYPES.MOODBOARD) {
-    const a = block.a || {};
-    const imageSaved = Boolean(a.imageSaved && a.src);
+    const normalized = normalizeMoodboardBlock(block);
+    const first = firstMoodboardImage(normalized);
+    const imageSaved = Boolean(first?.imageSaved && first?.src);
     return createDocBlock(DOC_BLOCK_TYPES.IMAGE_SPLIT, {
       id,
-      overlayTitle: String(block.caption || "").slice(0, IMAGE_SPLIT_TITLE_MAX),
+      overlayTitle: String(normalized.caption || "").slice(0, IMAGE_SPLIT_TITLE_MAX),
       overlayDescription: "",
-      src: a.src || "",
-      name: a.name || "",
-      alt: a.alt || "",
-      width: a.width || 0,
-      height: a.height || 0,
+      src: first?.src || "",
+      name: first?.name || "",
+      alt: first?.alt || "",
+      width: first?.width || 0,
+      height: first?.height || 0,
       imageSaved,
-      body: String(block.body || ""),
-      bodyMode: block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
+      body: String(normalized.body || ""),
+      bodyMode: normalized.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
         ? IMAGE_SPLIT_BODY_MODE.TODO
         : IMAGE_SPLIT_BODY_MODE.TEXT,
-      todoListTitle: block.todoListTitle,
-      todoItems: block.todoItems,
-      splitSaved: Boolean(block.moodboardSaved && imageSaved),
+      todoListTitle: normalized.todoListTitle,
+      todoItems: normalized.todoItems,
+      splitSaved: Boolean(normalized.moodboardSaved && imageSaved),
       openFilePicker: false,
     });
   }
 
   if (targetType === DOC_BLOCK_TYPES.BANNER && block.type === DOC_BLOCK_TYPES.MOODBOARD) {
-    const a = block.a || {};
-    const imageSaved = Boolean(a.imageSaved && a.src);
+    const normalized = normalizeMoodboardBlock(block);
+    const first = firstMoodboardImage(normalized);
+    const imageSaved = Boolean(first?.imageSaved && first?.src);
     return createDocBlock(DOC_BLOCK_TYPES.BANNER, {
       id,
-      headline: String(block.caption || "").slice(0, BANNER_HEADLINE_MAX),
-      src: a.src || "",
-      name: a.name || "",
-      alt: a.alt || "",
-      width: a.width || 0,
-      height: a.height || 0,
+      headline: String(normalized.caption || "").slice(0, BANNER_HEADLINE_MAX),
+      src: first?.src || "",
+      name: first?.name || "",
+      alt: first?.alt || "",
+      width: first?.width || 0,
+      height: first?.height || 0,
       imageSaved,
-      bannerSaved: Boolean(block.moodboardSaved && imageSaved),
+      bannerSaved: Boolean(normalized.moodboardSaved && imageSaved),
       openFilePicker: false,
     });
   }
@@ -500,15 +537,111 @@ function normalizeMoodboardSlot(slot) {
   };
 }
 
-function normalizeMoodboardBlock(block) {
+function emptyMoodboardSlot() {
+  return normalizeMoodboardSlot(null);
+}
+
+function isMoodboardRecipe(value) {
+  return value === MOODBOARD_RECIPES.LARGE
+    || value === MOODBOARD_RECIPES.MEDIUM_STACK
+    || value === MOODBOARD_RECIPES.SEMI_STICKY;
+}
+
+/**
+ * @param {string|null} recipe
+ * @param {{ images?: object[], stickyText?: string, infoLabel?: string }} [patch]
+ */
+export function createMoodboardColumn(recipe = null, patch = {}) {
+  const resolved = isMoodboardRecipe(recipe) ? recipe : null;
+  const slotCount = resolved ? MOODBOARD_RECIPE_SLOTS[resolved] : 0;
+  const incoming = Array.isArray(patch.images) ? patch.images : [];
+  const images = Array.from({ length: slotCount }, (_, index) => (
+    normalizeMoodboardSlot(incoming[index] || null)
+  ));
+  return {
+    recipe: resolved,
+    images,
+    stickyText: String(patch.stickyText ?? "").slice(0, MOODBOARD_STICKY_MAX),
+    infoLabel: String(patch.infoLabel ?? "").slice(0, MOODBOARD_INFO_MAX),
+  };
+}
+
+function normalizeMoodboardColumn(column) {
+  return createMoodboardColumn(column?.recipe ?? null, {
+    images: column?.images,
+    stickyText: column?.stickyText,
+    infoLabel: column?.infoLabel,
+  });
+}
+
+/**
+ * Migrate legacy a/b collage → 3-column recipes (col0/col1 large when filled).
+ * @param {object} block
+ */
+function migrateLegacyMoodboardColumns(block) {
+  if (Array.isArray(block?.columns) && block.columns.length > 0) {
+    const cols = block.columns.slice(0, MOODBOARD_COLUMN_COUNT).map(normalizeMoodboardColumn);
+    while (cols.length < MOODBOARD_COLUMN_COUNT) cols.push(createMoodboardColumn(null));
+    return cols;
+  }
+
   const a = normalizeMoodboardSlot(block?.a);
   const b = normalizeMoodboardSlot(block?.b);
-  const bothSaved = Boolean(a.imageSaved && b.imageSaved);
+  return [
+    createMoodboardColumn(
+      a.imageSaved || a.src ? MOODBOARD_RECIPES.LARGE : null,
+      { images: a.imageSaved || a.src ? [a] : [] },
+    ),
+    createMoodboardColumn(
+      b.imageSaved || b.src ? MOODBOARD_RECIPES.LARGE : null,
+      { images: b.imageSaved || b.src ? [b] : [] },
+    ),
+    createMoodboardColumn(null),
+  ];
+}
+
+/**
+ * @param {object} block — already normalized or raw moodboard
+ */
+export function countMoodboardSavedImages(block) {
+  const columns = Array.isArray(block?.columns) ? block.columns : migrateLegacyMoodboardColumns(block);
+  let count = 0;
+  for (const column of columns) {
+    const images = Array.isArray(column?.images) ? column.images : [];
+    for (const image of images) {
+      if (image?.imageSaved && image?.src) count += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * First filled image across columns (for Image card / Banner convert).
+ * @param {object} block
+ */
+export function firstMoodboardImage(block) {
+  const columns = Array.isArray(block?.columns) ? block.columns : migrateLegacyMoodboardColumns(block);
+  for (const column of columns) {
+    const images = Array.isArray(column?.images) ? column.images : [];
+    for (const image of images) {
+      if (image?.src) return normalizeMoodboardSlot(image);
+    }
+  }
+  return emptyMoodboardSlot();
+}
+
+function normalizeMoodboardBlock(block) {
+  const columns = migrateLegacyMoodboardColumns(block);
+  const savedCount = countMoodboardSavedImages({ columns });
   const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
     ? IMAGE_SPLIT_BODY_MODE.TODO
     : IMAGE_SPLIT_BODY_MODE.TEXT;
+  // Keep a/b mirrors so older readers still see something until fully cut over.
+  const a = columns[0]?.images?.[0] ? normalizeMoodboardSlot(columns[0].images[0]) : emptyMoodboardSlot();
+  const b = columns[1]?.images?.[0] ? normalizeMoodboardSlot(columns[1].images[0]) : emptyMoodboardSlot();
   return {
     caption: String(block?.caption ?? "").slice(0, MOODBOARD_CAPTION_MAX),
+    columns,
     a,
     b,
     body: String(block?.body ?? ""),
@@ -520,7 +653,7 @@ function normalizeMoodboardBlock(block) {
         ? normalizeEmbeddedTodoItems(block.todoItems)
         : [],
     openFilePicker: Boolean(block?.openFilePicker),
-    moodboardSaved: Boolean(block?.moodboardSaved) && bothSaved,
+    moodboardSaved: Boolean(block?.moodboardSaved) && savedCount > 0,
   };
 }
 
@@ -1045,11 +1178,13 @@ export function docBlockHasContent(block) {
   }
   if (type === DOC_BLOCK_TYPES.MOODBOARD) {
     const normalized = normalizeMoodboardBlock(block);
-    return Boolean(normalized.a.imageSaved)
-      || Boolean(normalized.b.imageSaved)
+    return countMoodboardSavedImages(normalized) > 0
       || Boolean(normalized.moodboardSaved)
       || Boolean((normalized.caption || "").trim())
-      || Boolean((normalized.body || "").trim());
+      || Boolean((normalized.body || "").trim())
+      || normalized.columns.some((col) => Boolean(col.recipe)
+        || Boolean((col.stickyText || "").trim())
+        || Boolean((col.infoLabel || "").trim()));
   }
   if (type === DOC_BLOCK_TYPES.BANNER) {
     return Boolean((block.src || "").trim())
@@ -1577,8 +1712,7 @@ export function docBlocksToBody(blocks) {
         const normalized = normalizeMoodboardBlock(block);
         return `::moodboard\n${JSON.stringify({
           caption: normalized.caption,
-          a: normalized.a,
-          b: normalized.b,
+          columns: normalized.columns,
           body: normalized.body,
           bodyMode: normalized.bodyMode,
           todoListTitle: normalized.todoListTitle,

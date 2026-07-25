@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createTodoItem, convertImageLayoutBlock, applyTodoSlashToImageSplit, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
+import { createTodoItem, convertImageLayoutBlock, countMoodboardSavedImages, applyTodoSlashToImageSplit, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
 import {
   DOCUMENT_SLASH_GHOST_HINTS,
   IMAGE_CARD_BODY_SLASH_COMMANDS,
@@ -1187,19 +1187,21 @@ export function NodeWritingBlockStack({
               <MoodboardBlockView
                 block={block}
                 onChange={(patch) => {
+                  const patchHasSavedImage = Array.isArray(patch.columns)
+                    && countMoodboardSavedImages(patch) > 0;
                   let next = normalizeWritingBlocks(blocksRef.current);
                   next = next.map((entry, index) => (
                     index === blockIndex
                       ? { ...entry, ...patch, type: NODE_BLOCK_TYPES.MOODBOARD }
                       : entry
                   ));
-                  if (patch.a?.imageSaved || patch.b?.imageSaved) {
+                  if (patchHasSavedImage) {
                     next = ensureEmptyTextBlockAfterNode(next, blockIndex);
                   }
                   updateBlocks(next);
                 }}
                 onSave={() => {
-                  if (!(block.a?.imageSaved && block.b?.imageSaved)) return;
+                  if (countMoodboardSavedImages(block) < 1) return;
                   let next = normalizeWritingBlocks(blocksRef.current);
                   next = next.map((entry, index) => (
                     index === blockIndex
