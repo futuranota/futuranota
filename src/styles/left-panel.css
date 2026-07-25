@@ -8532,7 +8532,7 @@ body.doc-content-resizing * {
 .doc-moodboard__img--file {
   object-fit: contain;
   object-position: center;
-  padding: 18%;
+  padding: 6%;
   box-sizing: border-box;
   background: rgba(0, 0, 0, 0.04);
 }
@@ -9029,13 +9029,13 @@ body.doc-content-resizing * {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 110px;
+  min-height: 220px;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .doc-moodboard-attach__preview--file img {
-  width: 64px;
-  height: 64px;
+  width: 192px;
+  height: 192px;
   object-fit: contain;
 }
 

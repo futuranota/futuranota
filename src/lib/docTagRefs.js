@@ -2,7 +2,7 @@ import { generateId } from "./ids.js";
 import { computeTextEditDelta } from "./docTextBoldRanges.js";
 
 /** Mirror of MOODBOARD_FILE_ICON_SRC — keep in sync (avoid circular import with docBlocks). */
-const MOODBOARD_FILE_THUMB = "/uploads/folders/Search%20Folder.png";
+const MOODBOARD_FILE_THUMB = "/uploads/Folders/MediaFolder.png";
 
 /**
  * @typedef {Object} DocTagRef

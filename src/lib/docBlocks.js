@@ -364,7 +364,7 @@ export const MOODBOARD_INFO_MAX = 28;
 /** Per-image tag label (large / semi_sticky Permanent Marker). */
 export const MOODBOARD_TAG_MAX = 28;
 /** Default board/thumb icon for link-only (non-image) moodboard slots. */
-export const MOODBOARD_FILE_ICON_SRC = "/uploads/folders/Search%20Folder.png";
+export const MOODBOARD_FILE_ICON_SRC = "/uploads/Folders/MediaFolder.png";
 
 /**
  * Normalize a pasted Drive/Dropbox/any http(s) URL. Returns "" if invalid.
