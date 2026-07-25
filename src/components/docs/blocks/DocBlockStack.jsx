@@ -46,6 +46,7 @@ import {
 } from "../../../lib/docBlockSlash.js";
 import {
   applyH1MarkdownShortcutToDocBlocks,
+  findH1MarkdownShortcutCaret,
   resolveH1MarkdownShortcutFromKey,
 } from "../../../lib/docMarkdownHeadingShortcut.js";
 import {
@@ -823,6 +824,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     return newBlockId;
   };
 
+  /** H1 from `##`: blocks already include a writable tail — do not insert empty TEXT under the heading. */
+  const finalizeH1MarkdownInsert = (nextBlocks, h1Id) => {
+    setBlocks(nextBlocks);
+    onFocusBlock?.(h1Id);
+    focusBlockCaret(h1Id, 0);
+    requestContentGrow();
+    return h1Id;
+  };
+
   const finalizeEmbedVideoSlashInsert = (nextBlocks) => {
     const videoIndex = nextBlocks.findIndex(
       (b, i) => b.type === DOC_BLOCK_TYPES.VIDEO_EMBED
@@ -1338,16 +1348,16 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   const tryApplyH1FromTypedText = (blockIndex, text) => {
     const value = String(text ?? "");
-    // Safety net when keydown missed (IME / AltGr): whole block or trailing line is exactly `##`.
-    if (value !== "##" && !/(?:^|\n)##$/.test(value)) return false;
+    const caret = findH1MarkdownShortcutCaret(value);
+    if (caret < 0) return false;
     const applied = applyH1MarkdownShortcutToDocBlocks(
       blocksRef.current,
       blockIndex,
       value,
-      value.length,
+      caret,
     );
     if (!applied) return false;
-    finalizeSlashInsert(applied.blocks, applied.h1Id);
+    finalizeH1MarkdownInsert(applied.blocks, applied.h1Id);
     return true;
   };
 
@@ -1378,7 +1388,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           );
           if (applied) {
             e.preventDefault();
-            finalizeSlashInsert(applied.blocks, applied.h1Id);
+            finalizeH1MarkdownInsert(applied.blocks, applied.h1Id);
             return;
           }
         }

@@ -30,6 +30,7 @@ import {
 } from "../../lib/nodeInlineContent.js";
 import {
   applyH1MarkdownShortcutToNodeBlocks,
+  findH1MarkdownShortcutCaret,
   resolveH1MarkdownShortcutFromKey,
 } from "../../lib/docMarkdownHeadingShortcut.js";
 import { isHeadingBlockType } from "../../lib/textSelectionHeading.js";
@@ -1360,12 +1361,13 @@ export function NodeWritingBlockStack({
                 markerRanges={block.markerRanges || []}
                 boldRanges={block.boldRanges || []}
                 onChange={(text, meta) => {
-                  if (text === "##" || /(?:^|\n)##$/.test(String(text ?? ""))) {
+                  const caret = findH1MarkdownShortcutCaret(text);
+                  if (caret >= 0) {
                     const applied = applyH1MarkdownShortcutToNodeBlocks(
                       normalizeWritingBlocks(blocksRef.current),
                       blockIndex,
                       text,
-                      String(text ?? "").length,
+                      caret,
                     );
                     if (applied) {
                       updateBlocks(applied.blocks);
@@ -1427,12 +1429,13 @@ export function NodeWritingBlockStack({
                   markerRanges={block.markerRanges || []}
                   boldRanges={block.boldRanges || []}
                   onChange={(text, meta) => {
-                    if (text === "##" || /(?:^|\n)##$/.test(String(text ?? ""))) {
+                    const caret = findH1MarkdownShortcutCaret(text);
+                    if (caret >= 0) {
                       const applied = applyH1MarkdownShortcutToNodeBlocks(
                         normalizeWritingBlocks(blocksRef.current),
                         blockIndex,
                         text,
-                        String(text ?? "").length,
+                        caret,
                       );
                       if (applied) {
                         updateBlocks(applied.blocks);
