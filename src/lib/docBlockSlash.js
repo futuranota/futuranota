@@ -65,6 +65,9 @@ export const DOC_SLASH_COMMANDS = [
   },
   {
     label: "Image card",
+    menuLabel: "Card",
+    menuGroup: "imageCard",
+    menuGroupLabel: "Image Card",
     ghostHint: "image card",
     aliases: [
       "imagecard",
@@ -76,6 +79,26 @@ export const DOC_SLASH_COMMANDS = [
       "split",
     ],
     blockType: DOC_BLOCK_TYPES.IMAGE_SPLIT,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
+    label: "Banner",
+    menuLabel: "Banner",
+    menuGroup: "imageCard",
+    menuGroupLabel: "Image Card",
+    ghostHint: "banner",
+    aliases: ["banner", "imagebanner", "image-banner", "image banner"],
+    blockType: DOC_BLOCK_TYPES.BANNER,
+    nodeDataType: NODE_DATA_TYPES.TEXT,
+  },
+  {
+    label: "Moodboard",
+    menuLabel: "Board",
+    menuGroup: "moodboard",
+    menuGroupLabel: "Moodboard",
+    ghostHint: "moodboard",
+    aliases: ["moodboard", "mood board", "mood-board", "board"],
+    blockType: DOC_BLOCK_TYPES.MOODBOARD,
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
@@ -138,6 +161,41 @@ export const DOC_SLASH_COMMANDS = [
 export const DOC_SLASH_GHOST_HINTS = DOC_SLASH_COMMANDS.map(
   (c) => c.ghostHint ?? c.label,
 );
+
+/**
+ * Collapse flat slash commands into menu rows for the [+] picker.
+ * Commands with the same `menuGroup` render under one header (Image Card, Moodboard…).
+ * @param {typeof DOC_SLASH_COMMANDS} commands
+ * @returns {Array<
+ *   | { kind: "command"; command: (typeof DOC_SLASH_COMMANDS)[number] }
+ *   | { kind: "group"; id: string; label: string; commands: typeof DOC_SLASH_COMMANDS }
+ * >}
+ */
+export function buildSlashMenuSections(commands = DOC_SLASH_COMMANDS) {
+  const sections = [];
+  let openGroup = null;
+
+  for (const cmd of commands) {
+    const groupId = cmd.menuGroup || null;
+    if (groupId) {
+      if (!openGroup || openGroup.id !== groupId) {
+        openGroup = {
+          kind: "group",
+          id: groupId,
+          label: cmd.menuGroupLabel || cmd.label,
+          commands: [],
+        };
+        sections.push(openGroup);
+      }
+      openGroup.commands.push(cmd);
+      continue;
+    }
+    openGroup = null;
+    sections.push({ kind: "command", command: cmd });
+  }
+
+  return sections;
+}
 
 /** Content folders: only create / link nodes (macronodes). */
 export const FOLDER_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(

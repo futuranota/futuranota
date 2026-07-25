@@ -797,23 +797,24 @@ export function MoodboardBlockView({
       >
         {columns.map((_, index) => renderColumn(index))}
 
-        <textarea
-          ref={captionRef}
-          className={
-            "doc-moodboard__caption"
-            + (captionAtLimit ? " doc-moodboard__caption--at-limit" : "")
-          }
-          value={block?.caption || ""}
-          maxLength={MOODBOARD_CAPTION_MAX}
-          rows={MOODBOARD_CAPTION_MAX_LINES}
-          placeholder={t("doc.moodboard.captionPlaceholder")}
-          aria-label={t("doc.moodboard.captionLabel")}
-          readOnly={!isEdit}
-          spellCheck={false}
-          onChange={handleCaptionChange}
-          onKeyDown={handleCaptionKeyDown}
-          onPaste={handleCaptionPaste}
-        />
+        {(block?.caption || "").trim() ? (
+          <textarea
+            ref={captionRef}
+            className={
+              "doc-moodboard__caption"
+              + (captionAtLimit ? " doc-moodboard__caption--at-limit" : "")
+            }
+            value={block?.caption || ""}
+            maxLength={MOODBOARD_CAPTION_MAX}
+            rows={MOODBOARD_CAPTION_MAX_LINES}
+            aria-label={t("doc.moodboard.captionLabel")}
+            readOnly={!isEdit}
+            spellCheck={false}
+            onChange={handleCaptionChange}
+            onKeyDown={handleCaptionKeyDown}
+            onPaste={handleCaptionPaste}
+          />
+        ) : null}
 
         <div className="doc-moodboard__float-actions">
           {isEdit ? (
