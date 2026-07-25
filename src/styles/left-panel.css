@@ -8339,7 +8339,7 @@ body.doc-content-resizing * {
 }
 
 /* Exact thirds: 3 equal columns, fixed gap + padding — pieces never overlap.
-   Bottom padding is the caption strip (see BOARD_CAPTION_STRIP in the view). */
+   Bottom padding is a slim strip for float actions (see BOARD_CAPTION_STRIP). */
 .doc-moodboard__board {
   position: relative;
   display: grid;
@@ -8347,7 +8347,7 @@ body.doc-content-resizing * {
   align-content: start;
   gap: 10px;
   width: 100%;
-  padding: 16px 16px 60px;
+  padding: 16px 16px 28px;
   box-sizing: border-box;
   border-radius: 5px;
   background: #F1F1F1;
@@ -8544,13 +8544,15 @@ body.doc-content-resizing * {
     rgba(142, 101, 57, 0.53) 15px,
     rgba(142, 101, 57, 0.53) 16px
   );
-  background-position: 0 6px;
+  /* Align ruled lines with the text baseline band. */
+  background-position: 0 1px;
 }
 
 .doc-moodboard__sticky-field,
 .doc-moodboard__sticky-static {
   position: absolute;
-  inset: 8px 10px 6px;
+  /* Sit on the first writing line (higher than before). */
+  inset: 1px 10px 4px;
   margin: 0;
   padding: 0;
   border: none;
@@ -8558,8 +8560,9 @@ body.doc-content-resizing * {
   overflow: hidden;
   background: transparent;
   outline: none;
-  font-family: "Pangolin", cursive;
-  font-size: 12px;
+  font-family: "Alex Brush", cursive;
+  font-size: 18px;
+  /* Match the 16px ruled-paper grid so each line lands on a rule. */
   line-height: 16px;
   color: #3F382F;
   caret-color: #3F382F;

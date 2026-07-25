@@ -112,7 +112,7 @@ export const messages = {
         edit: "Edit",
       },
       moodboard: {
-        captionPlaceholder: "Working on it",
+        captionPlaceholder: "",
         captionLabel: "Moodboard caption",
         bodyPlaceholder: "Create a brief description",
         save: "Save",
@@ -1018,7 +1018,7 @@ export const messages = {
         edit: "Editar",
       },
       moodboard: {
-        captionPlaceholder: "Working on it",
+        captionPlaceholder: "",
         captionLabel: "Texto del moodboard",
         bodyPlaceholder: "Create a brief description",
         save: "Guardar",

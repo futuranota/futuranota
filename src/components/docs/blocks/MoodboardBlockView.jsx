@@ -16,8 +16,8 @@ import { useI18n } from "../../../i18n/useI18n.js";
 /** Board geometry — must mirror .doc-moodboard__board padding/gap in left-panel.css. */
 const BOARD_PAD_X = 16;
 const BOARD_PAD_TOP = 16;
-/** Bottom strip reserved for the rotated Pangolin caption + float actions. */
-const BOARD_CAPTION_STRIP = 60;
+/** Bottom strip for float actions (caption no longer needs a tall strip). */
+const BOARD_CAPTION_STRIP = 28;
 const BOARD_GAP = 10;
 
 const ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%206.svg";
@@ -90,6 +90,26 @@ function textFitsFixedHeight(source, text, maxHeight) {
   const fits = probe.scrollHeight <= maxHeight + 1;
   document.body.removeChild(probe);
   return fits;
+}
+
+/** Clamp sticky text to the char limit AND the orange note box (no overflow). */
+function clampStickyText(el, raw) {
+  const capped = String(raw ?? "").slice(0, MOODBOARD_STICKY_MAX);
+  const maxH = el?.clientHeight ?? 0;
+  if (!el || !(maxH > 0) || textFitsFixedHeight(el, capped, maxH)) return capped;
+  let lo = 0;
+  let hi = capped.length;
+  let best = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (textFitsFixedHeight(el, capped.slice(0, mid), maxH)) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return capped.slice(0, best);
 }
 
 /**
@@ -697,7 +717,7 @@ export function MoodboardBlockView({
                   aria-label={t("doc.moodboard.stickyLabel")}
                   spellCheck={false}
                   onChange={(event) => {
-                    const next = String(event.target.value ?? "").slice(0, MOODBOARD_STICKY_MAX);
+                    const next = clampStickyText(event.target, event.target.value);
                     patchColumns((col, index) => (
                       index === colIndex
                         ? createMoodboardColumn(col.recipe, {

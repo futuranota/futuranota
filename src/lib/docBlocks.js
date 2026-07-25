@@ -356,8 +356,8 @@ export const MOODBOARD_RECIPE_SLOTS = {
   [MOODBOARD_RECIPES.SEMI_STICKY]: 1,
 };
 
-/** Sticky note copy (semi_sticky recipe). */
-export const MOODBOARD_STICKY_MAX = 120;
+/** Sticky note copy (semi_sticky recipe). Soft cap; UI also clamps to the note box. */
+export const MOODBOARD_STICKY_MAX = 160;
 /** Arrow label above the medium stack. */
 export const MOODBOARD_INFO_MAX = 28;
 
