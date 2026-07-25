@@ -6277,7 +6277,7 @@ body.doc-content-resizing * {
 }
 
 .doc-slash-field__tagref {
-  color: #1a1a1a;
+  color: inherit;
   background: rgba(217, 255, 0, 0.46);
   border-radius: 4px;
   box-decoration-break: clone;
@@ -6293,7 +6293,7 @@ body.doc-content-resizing * {
 
 .doc-slash-field__tagref--hovered {
   text-decoration: underline;
-  text-decoration-color: #1a1a1a;
+  text-decoration-color: currentColor;
   text-underline-offset: 2px;
 }
 
@@ -8954,7 +8954,9 @@ body.doc-content-resizing * {
   height: 14px;
   flex: 0 0 auto;
   margin-top: 1px;
-  opacity: 0.75;
+  /* Match help-text color: rgba(255,255,255,0.55) — SVG source is dark. */
+  opacity: 0.55;
+  filter: brightness(0) invert(1);
 }
 
 .doc-moodboard-attach__help-text {
@@ -9032,6 +9034,9 @@ body.doc-content-resizing * {
 
 .doc-tagref-menu__label {
   font-size: inherit;
+  /* Command picker: base text only — yellow highlight is for inserted chips / board. */
+  color: inherit;
+  background: none;
 }
 
 .doc-moodboard__media-btn {

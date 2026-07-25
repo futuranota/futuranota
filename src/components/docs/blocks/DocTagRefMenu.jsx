@@ -84,10 +84,8 @@ export function DocTagRefMenu({
               ) : (
                 <span className="doc-tagref-menu__thumb doc-tagref-menu__thumb--empty" />
               )}
-              <span className="doc-mention-menu__name">
-                <span className="doc-slash-field__tagref doc-tagref-menu__label">
-                  {item.label}
-                </span>
+              <span className="doc-mention-menu__name doc-tagref-menu__label">
+                {item.label}
               </span>
             </span>
           </button>

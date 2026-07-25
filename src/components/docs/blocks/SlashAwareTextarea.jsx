@@ -8,6 +8,7 @@ import {
 } from "../../../lib/docMentions.js";
 import {
   applyTextEditToTagRefs,
+  deleteTagRefAtomically,
   filterTagRefCandidates,
   getTagRefQueryAtCaret,
   insertTagRefAtQuery,
@@ -827,6 +828,56 @@ export function SlashAwareTextarea({
     tagRefMenuIndex,
   ]);
 
+  const handleTagRefChipKeyDown = useCallback((event) => {
+    if (!tagRefsEnabled || !hasTagRefs) return false;
+    if (event.key !== "Backspace" && event.key !== "Delete") return false;
+    const el = textareaRef.current;
+    if (!el || !("selectionStart" in el)) return false;
+
+    const result = deleteTagRefAtomically(
+      value,
+      normalizedTagRefs,
+      el.selectionStart,
+      el.selectionEnd,
+      event.key,
+    );
+    if (!result) return false;
+
+    event.preventDefault();
+    const nextMentions = mentionsEnabled
+      ? applyTextEditToMentions(value, result.text, normalizedMentions)
+      : [];
+    const nextMarkers = markersEnabled
+      ? applyTextEditToMarkerRanges(value, result.text, normalizedMarkers)
+      : [];
+    const nextBolds = boldEnabled
+      ? applyTextEditToBoldRanges(value, result.text, normalizedBolds)
+      : [];
+    emitChange(result.text, nextMentions, nextMarkers, nextBolds, result.tagRefs);
+    requestAnimationFrame(() => {
+      const field = textareaRef.current;
+      if (!field || !("setSelectionRange" in field)) return;
+      field.focus({ preventScroll: true });
+      field.setSelectionRange(result.caret, result.caret);
+      syncMentionQuery();
+    });
+    return true;
+  }, [
+    boldEnabled,
+    emitChange,
+    hasTagRefs,
+    markersEnabled,
+    mentionsEnabled,
+    normalizedBolds,
+    normalizedMarkers,
+    normalizedMentions,
+    normalizedTagRefs,
+    syncMentionQuery,
+    tagRefsEnabled,
+    textareaRef,
+    value,
+  ]);
+
   const fieldClass = [
     "doc-slash-field__input",
     className,
@@ -910,6 +961,7 @@ export function SlashAwareTextarea({
         }}
         onKeyDown={(e) => {
           if (handleMentionKeyDown(e)) return;
+          if (handleTagRefChipKeyDown(e)) return;
           onKeyDown?.(e);
           if (!e.defaultPrevented && CARET_CAMERA_KEYS.has(e.key)) {
             scheduleCaretCameraScroll();

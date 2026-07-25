@@ -11,10 +11,8 @@ import {
   countMoodboardSavedImages,
   createMoodboardColumn,
 } from "../../../lib/docBlocks.js";
-import { applyTextEditToTagRefs, normalizeTagRefs, scrollToMoodboardSlot, tagRefsToSegments } from "../../../lib/docTagRefs.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
-import { SlashAwareTextarea } from "./SlashAwareTextarea.jsx";
 
 /** Board geometry — must mirror .doc-moodboard__board padding/gap in left-panel.css. */
 const BOARD_PAD_X = 16;
@@ -146,28 +144,24 @@ export function MoodboardBlockView({
   onEdit,
   onDelete,
   onConvertLayout,
-  onBodyKeyDown,
-  autoFocusBody = false,
-  tagRefCandidates = null,
-  slashGhostHints,
+  // Accepted but unused: the moodboard no longer renders a body textarea.
+  onBodyKeyDown: _onBodyKeyDown,
+  autoFocusBody: _autoFocusBody = false,
+  tagRefCandidates: _tagRefCandidates = null,
+  slashGhostHints: _slashGhostHints,
 }) {
   const { t } = useI18n();
   const fileInputRef = useRef(null);
   const pendingUploadRef = useRef(null);
   const boardRef = useRef(null);
   const captionRef = useRef(null);
-  const bodyTextareaRef = useRef(null);
   const captionLimitTimerRef = useRef(null);
-  const bodyLimitTimerRef = useRef(null);
   const [dragOverKey, setDragOverKey] = useState(null);
   const [uploadingKey, setUploadingKey] = useState(null);
   const [error, setError] = useState(null);
   const [activeCol, setActiveCol] = useState(0);
   const [boardHeight, setBoardHeight] = useState(null);
-  const [bodyMaxHeight, setBodyMaxHeight] = useState(null);
-  const bodyMaxHeightRef = useRef(null);
   const [captionAtLimit, setCaptionAtLimit] = useState(false);
-  const [bodyAtLimit, setBodyAtLimit] = useState(false);
   const [attachmentSlot, setAttachmentSlot] = useState(null);
 
   const columns = Array.isArray(block?.columns) && block.columns.length === MOODBOARD_COLUMN_COUNT
@@ -188,15 +182,8 @@ export function MoodboardBlockView({
     captionLimitTimerRef.current = window.setTimeout(() => setCaptionAtLimit(false), 700);
   }, []);
 
-  const pulseBodyLimit = useCallback(() => {
-    setBodyAtLimit(true);
-    if (bodyLimitTimerRef.current) window.clearTimeout(bodyLimitTimerRef.current);
-    bodyLimitTimerRef.current = window.setTimeout(() => setBodyAtLimit(false), 700);
-  }, []);
-
   useEffect(() => () => {
     if (captionLimitTimerRef.current) window.clearTimeout(captionLimitTimerRef.current);
-    if (bodyLimitTimerRef.current) window.clearTimeout(bodyLimitTimerRef.current);
   }, []);
 
   useLayoutEffect(() => {
@@ -212,16 +199,6 @@ export function MoodboardBlockView({
       const contentH = Math.round(Math.max(200, Math.min(colInner * 1.25, capped)));
       const nextH = contentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
       setBoardHeight((prev) => (prev === nextH ? prev : nextH));
-
-      const bodyEl = bodyTextareaRef.current
-        || board.parentElement?.querySelector(".doc-moodboard__body-field, .doc-moodboard__body-static");
-      const { lineHeight, padY } = measureBodyLineMetrics(bodyEl);
-      const writeHeight = Math.max(
-        Math.round(lineHeight + padY),
-        Math.round(9 * lineHeight + padY),
-      );
-      bodyMaxHeightRef.current = writeHeight;
-      setBodyMaxHeight((prev) => (prev === writeHeight ? prev : writeHeight));
     };
 
     sync();
@@ -464,116 +441,6 @@ export function MoodboardBlockView({
     }
 
     if (next !== cur) handleFieldChange({ caption: next });
-  };
-
-  const resolveBodyMaxHeight = () => bodyMaxHeightRef.current || bodyMaxHeight;
-
-  const handleBodyChange = (nextText, meta) => {
-    if (!isEdit) return;
-    const next = String(nextText ?? "");
-    const prev = block?.body || "";
-    const el = bodyTextareaRef.current;
-    const maxH = resolveBodyMaxHeight();
-
-    if (next.length >= prev.length && maxH && el && !textFitsFixedHeight(el, next, maxH)) {
-      pulseBodyLimit();
-      return;
-    }
-
-    const nextTagRefs = meta && "tagRefs" in meta
-      ? (meta.tagRefs?.length ? meta.tagRefs : undefined)
-      : applyTextEditToTagRefs(prev, next, block?.tagRefs || []);
-
-    handleFieldChange({
-      body: next,
-      tagRefs: Array.isArray(nextTagRefs) && nextTagRefs.length
-        ? normalizeTagRefs(next, nextTagRefs)
-        : undefined,
-    });
-  };
-
-  const handleBodyKeyDown = (event) => {
-    if (!isEdit) return;
-
-    const el = bodyTextareaRef.current;
-    const maxH = resolveBodyMaxHeight();
-    const cur = block?.body || "";
-
-    if (event.key === "Enter" && !event.shiftKey) {
-      onBodyKeyDown?.(event);
-      if (event.defaultPrevented) return;
-
-      const start = el?.selectionStart ?? cur.length;
-      const end = el?.selectionEnd ?? start;
-      const next = `${cur.slice(0, start)}\n${cur.slice(end)}`;
-      if (!maxH || !el || !textFitsFixedHeight(el, next, maxH)) {
-        event.preventDefault();
-        pulseBodyLimit();
-      }
-      return;
-    }
-
-    onBodyKeyDown?.(event);
-    if (event.defaultPrevented) return;
-
-    const isPrintable = event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey;
-    if (!isPrintable || !el) return;
-
-    const start = el.selectionStart ?? 0;
-    const end = el.selectionEnd ?? start;
-    const next = `${cur.slice(0, start)}${event.key}${cur.slice(end)}`;
-    if (next.length > cur.length && (!maxH || !textFitsFixedHeight(el, next, maxH))) {
-      event.preventDefault();
-      pulseBodyLimit();
-    }
-  };
-
-  const handleBodyPaste = (event) => {
-    if (!isEdit) return;
-    const el = bodyTextareaRef.current;
-    const maxH = resolveBodyMaxHeight();
-    if (!el) return;
-
-    const paste = event.clipboardData?.getData("text") ?? "";
-    if (!paste) return;
-
-    event.preventDefault();
-    const start = el.selectionStart ?? 0;
-    const end = el.selectionEnd ?? start;
-    const cur = block?.body || "";
-
-    if (!maxH) {
-      pulseBodyLimit();
-      return;
-    }
-
-    let next = `${cur.slice(0, start)}${paste}${cur.slice(end)}`;
-
-    if (!textFitsFixedHeight(el, next, maxH)) {
-      let lo = 0;
-      let hi = paste.length;
-      let best = 0;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        const candidate = `${cur.slice(0, start)}${paste.slice(0, mid)}${cur.slice(end)}`;
-        if (textFitsFixedHeight(el, candidate, maxH)) {
-          best = mid;
-          lo = mid + 1;
-        } else {
-          hi = mid - 1;
-        }
-      }
-      next = `${cur.slice(0, start)}${paste.slice(0, best)}${cur.slice(end)}`;
-      pulseBodyLimit();
-    }
-
-    if (next !== cur) {
-      const nextTagRefs = applyTextEditToTagRefs(cur, next, block?.tagRefs || []);
-      handleFieldChange({
-        body: next,
-        tagRefs: nextTagRefs.length ? nextTagRefs : undefined,
-      });
-    }
   };
 
   const canSave = savedImageCount > 0 && !uploadingKey;
@@ -833,9 +700,6 @@ export function MoodboardBlockView({
 
       {isEdit ? (
         <div className="doc-moodboard__toolbar" role="toolbar" aria-label={t("doc.moodboard.toolbarLabel")}>
-          <span className="doc-moodboard__toolbar-hint">
-            {t("doc.moodboard.toolbarHint", { n: activeCol + 1 })}
-          </span>
           <div className="doc-moodboard__toolbar-actions">
             {RECIPE_OPTIONS.map((option) => (
               <button
@@ -932,72 +796,6 @@ export function MoodboardBlockView({
             </button>
           ) : null}
         </div>
-      </div>
-
-      <div className="doc-moodboard__body">
-        {isEdit ? (
-          <SlashAwareTextarea
-            inputRef={bodyTextareaRef}
-            className={
-              "doc-moodboard__body-field"
-              + (bodyAtLimit ? " doc-moodboard__body-field--at-limit" : "")
-            }
-            wrapClassName="doc-moodboard__body-wrap"
-            value={block?.body || ""}
-            placeholder={t("doc.moodboard.bodyPlaceholder")}
-            ariaLabel={t("doc.moodboard.bodyPlaceholder")}
-            autoFocus={autoFocusBody}
-            minHeightPx={Math.max(20, Math.round((bodyMaxHeight || 40) / 9))}
-            maxHeightPx={bodyMaxHeight || 180}
-            ghostHints={slashGhostHints}
-            tagRefs={Array.isArray(tagRefCandidates) ? (block?.tagRefs || []) : null}
-            tagRefCandidates={tagRefCandidates}
-            onChange={handleBodyChange}
-            onKeyDown={handleBodyKeyDown}
-            onPaste={handleBodyPaste}
-          />
-        ) : (
-          <div
-            className="doc-moodboard__body-static"
-            style={bodyMaxHeight ? { maxHeight: bodyMaxHeight } : undefined}
-          >
-            {tagRefsToSegments(block?.body || "", block?.tagRefs || []).map((segment, index) => (
-              segment.type === "tagRef" ? (
-                <span
-                  key={segment.tagRef?.id || index}
-                  className="doc-slash-field__tagref"
-                  data-tagref-id={segment.tagRef?.id}
-                  role="link"
-                  tabIndex={0}
-                  onClick={() => {
-                    const ref = segment.tagRef;
-                    if (!ref) return;
-                    scrollToMoodboardSlot({
-                      blockId: ref.blockId,
-                      slotId: ref.slotId,
-                      label: ref.label,
-                    });
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    const ref = segment.tagRef;
-                    if (!ref) return;
-                    scrollToMoodboardSlot({
-                      blockId: ref.blockId,
-                      slotId: ref.slotId,
-                      label: ref.label,
-                    });
-                  }}
-                >
-                  {segment.text}
-                </span>
-              ) : (
-                <span key={index}>{segment.text}</span>
-              )
-            ))}
-          </div>
-        )}
       </div>
 
       <MoodboardAttachmentModal

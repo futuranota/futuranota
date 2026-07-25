@@ -269,6 +269,58 @@ export function findTagRefAtOffset(tagRefs, offset) {
 }
 
 /**
+ * Delete a whole tag-ref chip in one keystroke.
+ * Backspace: caret right after the chip (or inside it).
+ * Delete: caret at the start of / inside the chip.
+ * Also handles a selection that exactly covers one chip.
+ *
+ * @param {string} text
+ * @param {DocTagRef[]} tagRefs
+ * @param {number} selectionStart
+ * @param {number} selectionEnd
+ * @param {'Backspace'|'Delete'} key
+ * @returns {{ text: string, tagRefs: DocTagRef[], caret: number } | null}
+ */
+export function deleteTagRefAtomically(text, tagRefs, selectionStart, selectionEnd, key) {
+  const str = asText(text);
+  const list = normalizeTagRefs(str, tagRefs);
+  if (!list.length) return null;
+
+  const start = Math.max(0, Math.min(str.length, Number(selectionStart) || 0));
+  const end = Math.max(0, Math.min(str.length, Number(selectionEnd) || 0));
+  const lo = Math.min(start, end);
+  const hi = Math.max(start, end);
+
+  /** @type {DocTagRef|null} */
+  let target = null;
+  if (lo !== hi) {
+    target = list.find((tagRef) => tagRef.start === lo && tagRef.end === hi) || null;
+  } else if (key === "Backspace") {
+    if (lo <= 0) return null;
+    target = list.find((tagRef) => tagRef.end === lo) || findTagRefAtOffset(list, lo - 1);
+  } else if (key === "Delete") {
+    if (lo >= str.length) return null;
+    target = findTagRefAtOffset(list, lo);
+  }
+
+  if (!target) return null;
+
+  const nextText = str.slice(0, target.start) + str.slice(target.end);
+  const nextTagRefs = shiftTagRefs(
+    list,
+    target.start,
+    target.end - target.start,
+    0,
+    nextText,
+  );
+  return {
+    text: nextText,
+    tagRefs: nextTagRefs,
+    caret: target.start,
+  };
+}
+
+/**
  * Filter moodboard tag candidates by query.
  * @param {Array<{ label: string, slotId?: string, blockId?: string, thumbSrc?: string }>} candidates
  * @param {string} query
