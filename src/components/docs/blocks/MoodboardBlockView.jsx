@@ -8,10 +8,14 @@ import {
   MOODBOARD_INFO_MAX,
   MOODBOARD_RECIPES,
   MOODBOARD_STICKY_MAX,
+  MOODBOARD_TAG_MAX,
   countMoodboardSavedImages,
   createMoodboardColumn,
 } from "../../../lib/docBlocks.js";
+import { applyTextEditToTagRefs, normalizeTagRefs, scrollToMoodboardSlot, tagRefsToSegments } from "../../../lib/docTagRefs.js";
 import { useI18n } from "../../../i18n/useI18n.js";
+import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
+import { SlashAwareTextarea } from "./SlashAwareTextarea.jsx";
 
 /** Board geometry — must mirror .doc-moodboard__board padding/gap in left-panel.css. */
 const BOARD_PAD_X = 16;
@@ -23,12 +27,25 @@ const BOARD_GAP = 10;
 const ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%206.svg";
 const ARROW_ALT_SRC = "/uploads/Hand%20Drawn%20Arrows%2054.svg";
 const STICKY_SRC = "/uploads/horizontal-note.svg";
+const UP_ARROW_SRC = "/uploads/up-arrow.svg";
 
 const RECIPE_OPTIONS = [
   { id: MOODBOARD_RECIPES.LARGE, labelKey: "doc.moodboard.recipeLarge" },
   { id: MOODBOARD_RECIPES.MEDIUM_STACK, labelKey: "doc.moodboard.recipeMedium" },
   { id: MOODBOARD_RECIPES.SEMI_STICKY, labelKey: "doc.moodboard.recipeSemi" },
 ];
+
+function emptySlot() {
+  return {
+    src: "",
+    name: "",
+    alt: "",
+    width: 0,
+    height: 0,
+    imageSaved: false,
+    tagLabel: "",
+  };
+}
 
 /**
  * @param {CSSStyleDeclaration} style
@@ -122,17 +139,6 @@ function captionMaxHeightPx(el, lines = MOODBOARD_CAPTION_MAX_LINES) {
   return Math.round(lines * lineHeight + padY);
 }
 
-function emptySlot() {
-  return {
-    src: "",
-    name: "",
-    alt: "",
-    width: 0,
-    height: 0,
-    imageSaved: false,
-  };
-}
-
 /**
  * Moodboard: full-width 3-column board. Each column picks large / medium×2 / semi+sticky.
  */
@@ -145,6 +151,8 @@ export function MoodboardBlockView({
   onConvertLayout,
   onBodyKeyDown,
   autoFocusBody = false,
+  tagRefCandidates = null,
+  slashGhostHints,
 }) {
   const { t } = useI18n();
   const fileInputRef = useRef(null);
@@ -163,6 +171,7 @@ export function MoodboardBlockView({
   const bodyMaxHeightRef = useRef(null);
   const [captionAtLimit, setCaptionAtLimit] = useState(false);
   const [bodyAtLimit, setBodyAtLimit] = useState(false);
+  const [attachmentSlot, setAttachmentSlot] = useState(null);
 
   const columns = Array.isArray(block?.columns) && block.columns.length === MOODBOARD_COLUMN_COUNT
     ? block.columns
@@ -284,12 +293,14 @@ export function MoodboardBlockView({
       }
 
       const nextImage = {
+        slotId: columns[colIndex]?.images?.[imageIndex]?.slotId,
         src: converted.src,
         name: converted.name,
         alt: (file.name || "image").replace(/\.[^/.]+$/, ""),
         width: converted.width,
         height: converted.height,
         imageSaved: true,
+        tagLabel: columns[colIndex]?.images?.[imageIndex]?.tagLabel || "",
       };
 
       patchColumns((col, index) => {
@@ -319,13 +330,51 @@ export function MoodboardBlockView({
     fileInputRef.current?.click();
   };
 
+  const openAttachmentModal = (colIndex, imageIndex) => {
+    if (!isEdit) return;
+    setActiveCol(colIndex);
+    setAttachmentSlot({ colIndex, imageIndex });
+  };
+
+  const acceptAttachment = (draft) => {
+    if (!attachmentSlot || !isEdit) return;
+    const { colIndex, imageIndex } = attachmentSlot;
+    const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
+    patchColumns((col, index) => {
+      if (index !== colIndex) return col;
+      const images = Array.isArray(col.images) ? [...col.images] : [];
+      while (images.length <= imageIndex) images.push(emptySlot());
+      images[imageIndex] = {
+        slotId: prev.slotId || draft.slotId,
+        src: draft.src || "",
+        name: draft.name || "",
+        alt: draft.alt || "",
+        width: draft.width || 0,
+        height: draft.height || 0,
+        imageSaved: Boolean(draft.imageSaved && draft.src),
+        tagLabel: String(draft.tagLabel || "").trim().slice(0, MOODBOARD_TAG_MAX),
+      };
+      return createMoodboardColumn(col.recipe, {
+        images,
+        stickyText: col.stickyText,
+        infoLabel: col.infoLabel,
+      });
+    });
+    setAttachmentSlot(null);
+    setError(null);
+  };
+
   const clearImage = (colIndex, imageIndex) => {
     if (!isEdit) return;
     patchColumns((col, index) => {
       if (index !== colIndex) return col;
       const images = Array.isArray(col.images) ? [...col.images] : [];
       if (!images[imageIndex]) return col;
-      images[imageIndex] = emptySlot();
+      const prev = images[imageIndex];
+      images[imageIndex] = {
+        ...emptySlot(),
+        slotId: prev.slotId,
+      };
       return createMoodboardColumn(col.recipe, {
         images,
         stickyText: col.stickyText,
@@ -422,24 +471,28 @@ export function MoodboardBlockView({
 
   const resolveBodyMaxHeight = () => bodyMaxHeightRef.current || bodyMaxHeight;
 
-  const handleBodyChange = (event) => {
+  const handleBodyChange = (nextText, meta) => {
     if (!isEdit) return;
-    const next = String(event.target.value ?? "");
+    const next = String(nextText ?? "");
     const prev = block?.body || "";
-    if (next === prev) return;
-
     const el = bodyTextareaRef.current;
     const maxH = resolveBodyMaxHeight();
 
-    if (next.length >= prev.length) {
-      if (!maxH || !el || !textFitsFixedHeight(el, next, maxH)) {
-        pulseBodyLimit();
-        event.target.value = prev;
-        return;
-      }
+    if (next.length >= prev.length && maxH && el && !textFitsFixedHeight(el, next, maxH)) {
+      pulseBodyLimit();
+      return;
     }
 
-    handleFieldChange({ body: next });
+    const nextTagRefs = meta && "tagRefs" in meta
+      ? (meta.tagRefs?.length ? meta.tagRefs : undefined)
+      : applyTextEditToTagRefs(prev, next, block?.tagRefs || []);
+
+    handleFieldChange({
+      body: next,
+      tagRefs: Array.isArray(nextTagRefs) && nextTagRefs.length
+        ? normalizeTagRefs(next, nextTagRefs)
+        : undefined,
+    });
   };
 
   const handleBodyKeyDown = (event) => {
@@ -517,10 +570,22 @@ export function MoodboardBlockView({
       pulseBodyLimit();
     }
 
-    if (next !== cur) handleFieldChange({ body: next });
+    if (next !== cur) {
+      const nextTagRefs = applyTextEditToTagRefs(cur, next, block?.tagRefs || []);
+      handleFieldChange({
+        body: next,
+        tagRefs: nextTagRefs.length ? nextTagRefs : undefined,
+      });
+    }
   };
 
   const canSave = savedImageCount > 0 && !uploadingKey;
+  const attachmentImage = attachmentSlot
+    ? (columns[attachmentSlot.colIndex]?.images?.[attachmentSlot.imageIndex] || emptySlot())
+    : null;
+  const showImageTag = (recipe) => (
+    recipe === MOODBOARD_RECIPES.LARGE || recipe === MOODBOARD_RECIPES.SEMI_STICKY
+  );
 
   const renderImageCell = (colIndex, imageIndex, sizeClass) => {
     const column = columns[colIndex] || createMoodboardColumn(null);
@@ -529,6 +594,8 @@ export function MoodboardBlockView({
     const key = slotKey(colIndex, imageIndex);
     const uploading = uploadingKey === key;
     const dragOver = dragOverKey === key;
+    const tagLabel = String(image.tagLabel || "").trim();
+    const showTag = Boolean(tagLabel && showImageTag(column.recipe));
 
     return (
       <div
@@ -537,23 +604,43 @@ export function MoodboardBlockView({
           + ` doc-moodboard__cell--${sizeClass}`
           + (saved ? "" : " doc-moodboard__cell--empty")
         }
+        data-mb-slot={image.slotId || undefined}
       >
         {saved ? (
           <>
-            <img
-              className="doc-moodboard__img"
-              src={image.src}
-              alt={image.alt || image.name || t("doc.imageBlock.previewAlt")}
-              width={image.width || undefined}
-              height={image.height || undefined}
-              draggable={false}
-            />
+            <button
+              type="button"
+              className="doc-moodboard__cell-hit"
+              disabled={!isEdit}
+              aria-label={t("doc.moodboard.attachTitle")}
+              onClick={() => openAttachmentModal(colIndex, imageIndex)}
+            >
+              <img
+                className="doc-moodboard__img"
+                src={image.src}
+                alt={image.alt || image.name || t("doc.imageBlock.previewAlt")}
+                width={image.width || undefined}
+                height={image.height || undefined}
+                draggable={false}
+              />
+            </button>
+            {showTag ? (
+              <div className="doc-moodboard__tag-row" aria-hidden={!tagLabel}>
+                <img
+                  className="doc-moodboard__tag-arrow"
+                  src={UP_ARROW_SRC}
+                  alt=""
+                  draggable={false}
+                />
+                <span className="doc-moodboard__tag-label">{tagLabel}</span>
+              </div>
+            ) : null}
             {isEdit ? (
               <div className="doc-moodboard__media-actions">
                 <button
                   type="button"
                   className="doc-moodboard__media-btn"
-                  onClick={() => openFilePicker(colIndex, imageIndex)}
+                  onClick={() => openAttachmentModal(colIndex, imageIndex)}
                   disabled={Boolean(uploadingKey)}
                 >
                   {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
@@ -578,7 +665,7 @@ export function MoodboardBlockView({
               + (uploading ? " doc-moodboard__dropzone--busy" : "")
             }
             disabled={Boolean(uploadingKey) || !isEdit}
-            onClick={() => isEdit && openFilePicker(colIndex, imageIndex)}
+            onClick={() => isEdit && openAttachmentModal(colIndex, imageIndex)}
             onDragEnter={(event) => {
               if (!isEdit) return;
               event.preventDefault();
@@ -870,34 +957,68 @@ export function MoodboardBlockView({
 
       <div className="doc-moodboard__body">
         {isEdit ? (
-          <textarea
-            ref={bodyTextareaRef}
+          <SlashAwareTextarea
+            inputRef={bodyTextareaRef}
             className={
               "doc-moodboard__body-field"
               + (bodyAtLimit ? " doc-moodboard__body-field--at-limit" : "")
             }
+            wrapClassName="doc-moodboard__body-wrap"
             value={block?.body || ""}
             placeholder={t("doc.moodboard.bodyPlaceholder")}
-            aria-label={t("doc.moodboard.bodyPlaceholder")}
-            spellCheck={false}
+            ariaLabel={t("doc.moodboard.bodyPlaceholder")}
             autoFocus={autoFocusBody}
+            minHeightPx={Math.max(20, Math.round((bodyMaxHeight || 40) / 9))}
+            maxHeightPx={bodyMaxHeight || 180}
+            ghostHints={slashGhostHints}
+            tagRefs={Array.isArray(tagRefCandidates) ? (block?.tagRefs || []) : null}
+            tagRefCandidates={tagRefCandidates}
             onChange={handleBodyChange}
             onKeyDown={handleBodyKeyDown}
             onPaste={handleBodyPaste}
-            style={bodyMaxHeight ? {
-              height: `${bodyMaxHeight}px`,
-              maxHeight: `${bodyMaxHeight}px`,
-            } : undefined}
           />
         ) : (
           <div
             className="doc-moodboard__body-static"
             style={bodyMaxHeight ? { maxHeight: bodyMaxHeight } : undefined}
           >
-            {block?.body || ""}
+            {tagRefsToSegments(block?.body || "", block?.tagRefs || []).map((segment, index) => (
+              segment.type === "tagRef" ? (
+                <span
+                  key={segment.tagRef?.id || index}
+                  className="doc-slash-field__tagref"
+                  data-tagref-id={segment.tagRef?.id}
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => {
+                    const ref = segment.tagRef;
+                    if (!ref) return;
+                    scrollToMoodboardSlot({ blockId: ref.blockId, slotId: ref.slotId });
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    const ref = segment.tagRef;
+                    if (!ref) return;
+                    scrollToMoodboardSlot({ blockId: ref.blockId, slotId: ref.slotId });
+                  }}
+                >
+                  {segment.text}
+                </span>
+              ) : (
+                <span key={index}>{segment.text}</span>
+              )
+            ))}
           </div>
         )}
       </div>
+
+      <MoodboardAttachmentModal
+        open={Boolean(attachmentSlot)}
+        image={attachmentImage}
+        onClose={() => setAttachmentSlot(null)}
+        onAccept={acceptAttachment}
+      />
 
       {error ? <p className="doc-moodboard__error" role="alert">{error}</p> : null}
     </div>

@@ -3,6 +3,7 @@ import { generateId } from "./ids.js";
 import { NO_NODE_LINK_COLOR_ID, normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
 import { mergeMentionBlocks, normalizeMentions } from "./docMentions.js";
+import { mergeTagRefBlocks, normalizeTagRefs } from "./docTagRefs.js";
 import { mergeBlockMarkerRanges, normalizeMarkerRanges } from "./docTextMarkerRanges.js";
 import { mergeBlockBoldRanges, normalizeBoldRanges } from "./docTextBoldRanges.js";
 import { normalizeAnchorFields } from "./nodeAnchor.js";
@@ -360,6 +361,8 @@ export const MOODBOARD_RECIPE_SLOTS = {
 export const MOODBOARD_STICKY_MAX = 220;
 /** Arrow label above the medium stack. */
 export const MOODBOARD_INFO_MAX = 28;
+/** Per-image tag label (large / semi_sticky Permanent Marker). */
+export const MOODBOARD_TAG_MAX = 28;
 
 /** Banner headline (bold copy beside image). */
 export const BANNER_HEADLINE_MAX = 280;
@@ -528,12 +531,14 @@ export function applyTodoSlashToImageSplit(block, _bodyValue) {
 function normalizeMoodboardSlot(slot) {
   const src = slot?.src || "";
   return {
+    slotId: String(slot?.slotId || generateId("MBS")),
     src,
     name: slot?.name || "",
     alt: slot?.alt || "",
     width: Number.isFinite(slot?.width) ? slot.width : 0,
     height: Number.isFinite(slot?.height) ? slot.height : 0,
     imageSaved: Boolean(slot?.imageSaved && src),
+    tagLabel: String(slot?.tagLabel ?? "").trim().slice(0, MOODBOARD_TAG_MAX),
   };
 }
 
@@ -639,12 +644,15 @@ function normalizeMoodboardBlock(block) {
   // Keep a/b mirrors so older readers still see something until fully cut over.
   const a = columns[0]?.images?.[0] ? normalizeMoodboardSlot(columns[0].images[0]) : emptyMoodboardSlot();
   const b = columns[1]?.images?.[0] ? normalizeMoodboardSlot(columns[1].images[0]) : emptyMoodboardSlot();
+  const body = String(block?.body ?? "");
+  const tagRefs = normalizeTagRefs(body, block?.tagRefs);
   return {
     caption: String(block?.caption ?? "").slice(0, MOODBOARD_CAPTION_MAX),
     columns,
     a,
     b,
-    body: String(block?.body ?? ""),
+    body,
+    ...(tagRefs.length ? { tagRefs } : {}),
     bodyMode,
     todoListTitle: String(block?.todoListTitle ?? DEFAULT_CHECKBOX_LIST_TITLE),
     todoItems: bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
@@ -1058,12 +1066,14 @@ export function normalizeDocBlock(block) {
 
   const text = block.text || "";
   const mentions = normalizeMentions(text, block.mentions);
+  const tagRefs = normalizeTagRefs(text, block.tagRefs);
   const markerRanges = normalizeMarkerRanges(text, block.markerRanges);
   const boldRanges = normalizeBoldRanges(text, block.boldRanges);
   return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
     ...(block.id ? { id: block.id } : {}),
     text,
     ...(mentions.length ? { mentions } : {}),
+    ...(tagRefs.length ? { tagRefs } : {}),
     ...(markerRanges.length ? { markerRanges } : {}),
     ...(boldRanges.length ? { boldRanges } : {}),
     ...(block.embedded && typeof block.embedded === "object"
@@ -1092,6 +1102,13 @@ function mergeAdjacentTextBlocks(blocks) {
         block.mentions || [],
         "\n",
       );
+      const combinedTagRefs = mergeTagRefBlocks(
+        prev.text || "",
+        prev.tagRefs || [],
+        block.text || "",
+        block.tagRefs || [],
+        "\n",
+      );
       const combinedMarkers = mergeBlockMarkerRanges(
         { text: prev.text || "", markerRanges: prev.markerRanges || [] },
         { text: block.text || "", markerRanges: block.markerRanges || [] },
@@ -1102,6 +1119,9 @@ function mergeAdjacentTextBlocks(blocks) {
         ...prev,
         text: combined.text,
         ...(combined.mentions.length ? { mentions: combined.mentions } : { mentions: undefined }),
+        ...(combinedTagRefs.tagRefs.length
+          ? { tagRefs: combinedTagRefs.tagRefs }
+          : { tagRefs: undefined }),
         ...(combinedMarkers.length ? { markerRanges: combinedMarkers } : { markerRanges: undefined }),
         ...(combinedBolds.length ? { boldRanges: combinedBolds } : { boldRanges: undefined }),
       };
@@ -1475,11 +1495,13 @@ function parseTextMentionsSection(section) {
     const parsed = JSON.parse(payload);
     const text = String(parsed?.text ?? "");
     const mentions = normalizeMentions(text, parsed?.mentions);
+    const tagRefs = normalizeTagRefs(text, parsed?.tagRefs);
     const markerRanges = normalizeMarkerRanges(text, parsed?.markerRanges);
     const boldRanges = normalizeBoldRanges(text, parsed?.boldRanges);
     return createDocBlock(DOC_BLOCK_TYPES.TEXT, {
       text,
       ...(mentions.length ? { mentions } : {}),
+      ...(tagRefs.length ? { tagRefs } : {}),
       ...(markerRanges.length ? { markerRanges } : {}),
       ...(boldRanges.length ? { boldRanges } : {}),
       ...(parsed?.embedded && typeof parsed.embedded === "object"
@@ -1714,6 +1736,9 @@ export function docBlocksToBody(blocks) {
           caption: normalized.caption,
           columns: normalized.columns,
           body: normalized.body,
+          ...(Array.isArray(normalized.tagRefs) && normalized.tagRefs.length > 0
+            ? { tagRefs: normalized.tagRefs }
+            : {}),
           bodyMode: normalized.bodyMode,
           todoListTitle: normalized.todoListTitle,
           todoItems: normalized.todoItems,
@@ -1762,6 +1787,7 @@ export function docBlocksToBody(blocks) {
         block.type === DOC_BLOCK_TYPES.TEXT
         && (
           (Array.isArray(block.mentions) && block.mentions.length > 0)
+          || (Array.isArray(block.tagRefs) && block.tagRefs.length > 0)
           || (Array.isArray(block.markerRanges) && block.markerRanges.length > 0)
           || (Array.isArray(block.boldRanges) && block.boldRanges.length > 0)
         )
@@ -1770,6 +1796,9 @@ export function docBlocksToBody(blocks) {
           text: block.text || "",
           ...(Array.isArray(block.mentions) && block.mentions.length > 0
             ? { mentions: block.mentions }
+            : {}),
+          ...(Array.isArray(block.tagRefs) && block.tagRefs.length > 0
+            ? { tagRefs: block.tagRefs }
             : {}),
           ...(Array.isArray(block.markerRanges) && block.markerRanges.length > 0
             ? { markerRanges: block.markerRanges }

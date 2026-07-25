@@ -49,6 +49,9 @@ export function TextBlockView({
   mentions = null,
   onMentionsChange = null,
   mentionCandidates = null,
+  tagRefs = null,
+  onTagRefsChange = null,
+  tagRefCandidates = null,
   markerRanges = null,
   boldRanges = null,
 }) {
@@ -221,6 +224,9 @@ export function TextBlockView({
         mentions={mentions}
         onMentionsChange={onMentionsChange}
         mentionCandidates={mentionCandidates}
+        tagRefs={tagRefs}
+        onTagRefsChange={onTagRefsChange}
+        tagRefCandidates={tagRefCandidates}
         markerRanges={markerRanges}
         boldRanges={boldRanges}
       />
@@ -248,6 +254,8 @@ export function TextBlockView({
           mentions={continuationMentions}
           onMentionsChange={onContinuationMentionsChange}
           mentionCandidates={mentionCandidates}
+          tagRefs={null}
+          tagRefCandidates={tagRefCandidates}
           markerRanges={continuationMarkerRanges}
           boldRanges={continuationBoldRanges}
         />

@@ -7,6 +7,14 @@ import {
   normalizeMentions,
 } from "../../../lib/docMentions.js";
 import {
+  applyTextEditToTagRefs,
+  filterTagRefCandidates,
+  getTagRefQueryAtCaret,
+  insertTagRefAtQuery,
+  normalizeTagRefs,
+  scrollToMoodboardSlot,
+} from "../../../lib/docTagRefs.js";
+import {
   applyTextEditToMarkerRanges,
   normalizeMarkerRanges,
 } from "../../../lib/docTextMarkerRanges.js";
@@ -26,6 +34,7 @@ import {
 } from "../../../lib/textareaSelectionRect.js";
 import { DocMentionHoverCard } from "./DocMentionHoverCard.jsx";
 import { DocMentionMenu } from "./DocMentionMenu.jsx";
+import { DocTagRefMenu } from "./DocTagRefMenu.jsx";
 
 const CARET_CAMERA_KEYS = new Set([
   "ArrowUp",
@@ -46,26 +55,52 @@ function collapseDuplicateSlashTail(value) {
   return prefix + fixedTail;
 }
 
-function MirrorContent({ text, mentions, markerRanges, boldRanges, hoveredId = null }) {
-  const segments = buildMirrorSegments(text, mentions, markerRanges, boldRanges);
+function MirrorContent({
+  text,
+  mentions,
+  tagRefs,
+  markerRanges,
+  boldRanges,
+  hoveredMentionId = null,
+  hoveredTagRefId = null,
+}) {
+  const segments = buildMirrorSegments(text, mentions, markerRanges, boldRanges, tagRefs);
   return segments.map((segment, index) => {
     if (!segment.text) return null;
 
     // Clicks are resolved by rect hit-testing on the wrap (works focused
     // and blurred); the span itself carries no handlers.
-    let inner = segment.mention ? (
-      <span
-        className={
-          "doc-slash-field__mention"
-          + (hoveredId && segment.mention.id === hoveredId
-            ? " doc-slash-field__mention--hovered"
-            : "")
-        }
-        data-mention-id={segment.mention.id}
-      >
-        {segment.text}
-      </span>
-    ) : segment.text;
+    let inner = segment.text;
+
+    if (segment.tagRef) {
+      inner = (
+        <span
+          className={
+            "doc-slash-field__tagref"
+            + (hoveredTagRefId && segment.tagRef.id === hoveredTagRefId
+              ? " doc-slash-field__tagref--hovered"
+              : "")
+          }
+          data-tagref-id={segment.tagRef.id}
+        >
+          {segment.text}
+        </span>
+      );
+    } else if (segment.mention) {
+      inner = (
+        <span
+          className={
+            "doc-slash-field__mention"
+            + (hoveredMentionId && segment.mention.id === hoveredMentionId
+              ? " doc-slash-field__mention--hovered"
+              : "")
+          }
+          data-mention-id={segment.mention.id}
+        >
+          {segment.text}
+        </span>
+      );
+    }
 
     // Faux-bold: paint weight via shadow only — never font-weight (metrics).
     if (segment.bold) {
@@ -88,8 +123,8 @@ function MirrorContent({ text, mentions, markerRanges, boldRanges, hoveredId = n
       );
     }
 
-    if (segment.mention || segment.bold) {
-      return <span key={segment.mention?.id || index}>{inner}</span>;
+    if (segment.tagRef || segment.mention || segment.bold) {
+      return <span key={segment.tagRef?.id || segment.mention?.id || index}>{inner}</span>;
     }
     return <span key={index}>{inner}</span>;
   });
@@ -122,6 +157,9 @@ export function SlashAwareTextarea({
   mentions = null,
   onMentionsChange = null,
   mentionCandidates = null,
+  tagRefs = null,
+  onTagRefsChange = null,
+  tagRefCandidates = null,
   markerRanges = null,
   boldRanges = null,
 }) {
@@ -148,7 +186,11 @@ export function SlashAwareTextarea({
   const [menuIndex, setMenuIndex] = useState(0);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [activeQuery, setActiveQuery] = useState(null);
+  const [tagRefMenuIndex, setTagRefMenuIndex] = useState(0);
+  const [tagRefMenuAnchor, setTagRefMenuAnchor] = useState(null);
+  const [activeTagRefQuery, setActiveTagRefQuery] = useState(null);
   const [hoverCard, setHoverCard] = useState(null);
+  const [hoveredTagRefId, setHoveredTagRefId] = useState(null);
 
   // null/undefined candidates => company missing; @ stays plain text.
   const mentionsEnabled = Array.isArray(mentionCandidates);
@@ -158,6 +200,15 @@ export function SlashAwareTextarea({
     [mentions, mentionsEnabled, value],
   );
   const hasMentions = normalizedMentions.length > 0;
+
+  // null/undefined candidates => # stays plain text.
+  const tagRefsEnabled = Array.isArray(tagRefCandidates);
+  const hasTagRefSource = tagRefsEnabled;
+  const normalizedTagRefs = useMemo(
+    () => (tagRefsEnabled ? normalizeTagRefs(value, tagRefs) : []),
+    [tagRefs, tagRefsEnabled, value],
+  );
+  const hasTagRefs = normalizedTagRefs.length > 0;
 
   // null/undefined markerRanges => marker feature off for this field.
   const markersEnabled = Array.isArray(markerRanges);
@@ -175,20 +226,28 @@ export function SlashAwareTextarea({
   );
   const hasBold = normalizedBolds.length > 0;
   // Mirror overlay for chips, ink, and/or faux-bold glyphs.
-  const hasOverlay = hasMentions || hasMarkers || hasBold;
+  const hasOverlay = hasMentions || hasTagRefs || hasMarkers || hasBold;
   // Glyph overlays require transparent textarea text (same as mentions).
-  const hideTextareaGlyphs = hasMentions || hasBold;
+  const hideTextareaGlyphs = hasMentions || hasTagRefs || hasBold;
 
   const { slash } = splitBodyForSlash(value);
-  const showGhost = Boolean(slash) && /^\/\s*$/.test(slash) && !activeQuery;
+  const showGhost = Boolean(slash) && /^\/\s*$/.test(slash) && !activeQuery && !activeTagRefQuery;
 
   const filteredCandidates = useMemo(() => {
     if (!hasCandidateSource || !activeQuery) return [];
     return filterTagCandidates(mentionCandidates, activeQuery.query).slice(0, 8);
   }, [activeQuery, hasCandidateSource, mentionCandidates]);
 
+  const filteredTagRefCandidates = useMemo(() => {
+    if (!hasTagRefSource || !activeTagRefQuery) return [];
+    return filterTagRefCandidates(tagRefCandidates, activeTagRefQuery.query, 8);
+  }, [activeTagRefQuery, hasTagRefSource, tagRefCandidates]);
+
   const showMentionMenu = Boolean(
-    focused && hasCandidateSource && activeQuery && !showGhost,
+    focused && hasCandidateSource && activeQuery && !showGhost && !activeTagRefQuery,
+  );
+  const showTagRefMenu = Boolean(
+    focused && hasTagRefSource && activeTagRefQuery && !showGhost && !activeQuery,
   );
 
   const scheduleCaretCameraScroll = useCallback(() => {
@@ -222,31 +281,69 @@ export function SlashAwareTextarea({
       el && typeof document !== "undefined" && document.activeElement === el,
     );
     if (domFocused !== focused) setFocused(domFocused);
-    if (!hasCandidateSource || !domFocused || !el) {
+    if (!domFocused || !el) {
       setActiveQuery(null);
       setMenuAnchor(null);
+      setActiveTagRefQuery(null);
+      setTagRefMenuAnchor(null);
       return;
     }
     const caret = el.selectionStart ?? 0;
     if ((el.selectionEnd ?? caret) !== caret) {
       setActiveQuery(null);
       setMenuAnchor(null);
+      setActiveTagRefQuery(null);
+      setTagRefMenuAnchor(null);
       return;
     }
-    const query = getMentionQueryAtCaret(el.value, caret);
-    setActiveQuery(query);
-    if (!query) {
-      setMenuAnchor(null);
+
+    const mentionQuery = hasCandidateSource
+      ? getMentionQueryAtCaret(el.value, caret)
+      : null;
+    const tagRefQuery = hasTagRefSource
+      ? getTagRefQueryAtCaret(el.value, caret)
+      : null;
+
+    // Prefer the query whose trigger is closest to the caret.
+    let useMention = Boolean(mentionQuery);
+    let useTagRef = Boolean(tagRefQuery);
+    if (mentionQuery && tagRefQuery) {
+      useMention = mentionQuery.start >= tagRefQuery.start;
+      useTagRef = !useMention;
+    }
+
+    if (useMention && mentionQuery) {
+      setActiveQuery(mentionQuery);
+      setActiveTagRefQuery(null);
+      setTagRefMenuAnchor(null);
+      const rect = getCaretClientRect(el, mentionQuery.start);
+      const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
+      setMenuAnchor({
+        top: Math.min(window.innerHeight - 12, rect.bottom + 6),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
+        lineHeight,
+      });
       return;
     }
-    const rect = getCaretClientRect(el, query.start);
-    const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
-    setMenuAnchor({
-      top: Math.min(window.innerHeight - 12, rect.bottom + 6),
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
-      lineHeight,
-    });
-  }, [focused, hasCandidateSource, textareaRef]);
+
+    setActiveQuery(null);
+    setMenuAnchor(null);
+
+    if (useTagRef && tagRefQuery) {
+      setActiveTagRefQuery(tagRefQuery);
+      const rect = getCaretClientRect(el, tagRefQuery.start);
+      const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight) || 18;
+      setTagRefMenuAnchor({
+        top: Math.min(window.innerHeight - 12, rect.bottom + 6),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
+        lineHeight,
+      });
+      return;
+    }
+
+    setActiveTagRefQuery(null);
+    setTagRefMenuAnchor(null);
+  }, [focused, hasCandidateSource, hasTagRefSource, textareaRef]);
 
   const syncMirrorTypography = useCallback(() => {
     const el = textareaRef.current;
@@ -291,6 +388,10 @@ export function SlashAwareTextarea({
   useEffect(() => {
     setMenuIndex(0);
   }, [activeQuery?.start, activeQuery?.query, showMentionMenu]);
+
+  useEffect(() => {
+    setTagRefMenuIndex(0);
+  }, [activeTagRefQuery?.start, activeTagRefQuery?.query, showTagRefMenu]);
 
   useLayoutEffect(() => {
     syncGhostPosition();
@@ -340,10 +441,10 @@ export function SlashAwareTextarea({
   // Chips live in the mirror, which is pointer-events:none while the field is
   // focused — so both hover and click are resolved by hit-testing the mention
   // span rects against the pointer position (works focused and blurred).
-  const findMentionSpanAtPoint = useCallback((x, y) => {
+  const findChipSpanAtPoint = useCallback((x, y, attrName) => {
     const mirror = mirrorRef.current;
     if (!mirror) return null;
-    for (const span of mirror.querySelectorAll("[data-mention-id]")) {
+    for (const span of mirror.querySelectorAll(`[${attrName}]`)) {
       for (const rect of span.getClientRects()) {
         if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
           return span;
@@ -355,10 +456,28 @@ export function SlashAwareTextarea({
 
   const handleWrapPointerDown = useCallback(
     (event) => {
+      if (event.button !== 0) return;
+
+      if (hasTagRefs) {
+        const span = findChipSpanAtPoint(event.clientX, event.clientY, "data-tagref-id");
+        const tagRefId = span?.getAttribute("data-tagref-id");
+        const tagRef = tagRefId
+          ? normalizedTagRefs.find((item) => item.id === tagRefId)
+          : null;
+        if (tagRef) {
+          event.preventDefault();
+          event.stopPropagation();
+          setHoverCard(null);
+          setHoveredTagRefId(null);
+          scrollToMoodboardSlot({ blockId: tagRef.blockId, slotId: tagRef.slotId });
+          return;
+        }
+      }
+
       // Chip click = link: open the entry's URL table with the tag prefilled
       // in the search filter. Beats caret placement even while focused.
-      if (hasMentions && event.button === 0) {
-        const span = findMentionSpanAtPoint(event.clientX, event.clientY);
+      if (hasMentions) {
+        const span = findChipSpanAtPoint(event.clientX, event.clientY, "data-mention-id");
         const mentionId = span?.getAttribute("data-mention-id");
         const mention = mentionId
           ? normalizedMentions.find((item) => item.id === mentionId)
@@ -376,7 +495,15 @@ export function SlashAwareTextarea({
       event.preventDefault();
       focusField(true);
     },
-    [findMentionSpanAtPoint, focusField, hasMentions, normalizedMentions, textareaRef],
+    [
+      findChipSpanAtPoint,
+      focusField,
+      hasMentions,
+      hasTagRefs,
+      normalizedMentions,
+      normalizedTagRefs,
+      textareaRef,
+    ],
   );
 
   // Delay-close lets the pointer travel from the chip into the hover card
@@ -402,8 +529,22 @@ export function SlashAwareTextarea({
   // resolved by hit-testing mention span rects on wrap mousemove. Works both
   // focused (events come from the textarea) and blurred (from the mirror).
   const handleWrapMouseMove = useCallback((event) => {
+    if (hasTagRefs) {
+      const tagSpan = findChipSpanAtPoint(event.clientX, event.clientY, "data-tagref-id");
+      if (tagSpan) {
+        const tagRefId = tagSpan.getAttribute("data-tagref-id");
+        if (tagRefId) {
+          cancelHoverClose();
+          setHoverCard(null);
+          setHoveredTagRefId(tagRefId);
+          return;
+        }
+      }
+    }
+    setHoveredTagRefId(null);
+
     if (!hasMentions) return;
-    const hitSpan = findMentionSpanAtPoint(event.clientX, event.clientY);
+    const hitSpan = findChipSpanAtPoint(event.clientX, event.clientY, "data-mention-id");
     if (!hitSpan) {
       scheduleHoverClose();
       return;
@@ -418,9 +559,17 @@ export function SlashAwareTextarea({
       top: rect.bottom + 8,
       left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
     }));
-  }, [cancelHoverClose, findMentionSpanAtPoint, hasMentions, normalizedMentions, scheduleHoverClose]);
+  }, [
+    cancelHoverClose,
+    findChipSpanAtPoint,
+    hasMentions,
+    hasTagRefs,
+    normalizedMentions,
+    scheduleHoverClose,
+  ]);
 
   const handleWrapMouseLeave = useCallback(() => {
+    setHoveredTagRefId(null);
     scheduleHoverClose();
   }, [scheduleHoverClose]);
 
@@ -451,7 +600,7 @@ export function SlashAwareTextarea({
     syncHeight(true);
     syncGhostPosition();
     if (hasOverlay) syncMirrorTypography();
-  }, [value, hasOverlay, syncHeight, syncGhostPosition, syncMirrorTypography, normalizedMentions, normalizedMarkers, normalizedBolds]);
+  }, [value, hasOverlay, syncHeight, syncGhostPosition, syncMirrorTypography, normalizedMentions, normalizedTagRefs, normalizedMarkers, normalizedBolds]);
 
   useLayoutEffect(() => {
     const el = textareaRef.current;
@@ -470,18 +619,22 @@ export function SlashAwareTextarea({
   }, [autoFocus, textareaRef]);
 
   useLayoutEffect(() => {
-    if (!showMentionMenu) return;
+    if (!showMentionMenu && !showTagRefMenu) return;
     syncMentionQuery();
-  }, [showMentionMenu, value, syncMentionQuery]);
+  }, [showMentionMenu, showTagRefMenu, value, syncMentionQuery]);
 
-  const emitChange = useCallback((nextValue, nextMentions, nextMarkers, nextBolds) => {
+  const emitChange = useCallback((nextValue, nextMentions, nextMarkers, nextBolds, nextTagRefs) => {
     const collapsed = collapseDuplicateSlashTail(nextValue);
     let mentionsOut = nextMentions;
     let markersOut = nextMarkers;
     let boldsOut = nextBolds;
+    let tagRefsOut = nextTagRefs;
     if (collapsed !== nextValue) {
       if (mentionsEnabled) {
         mentionsOut = applyTextEditToMentions(nextValue, collapsed, nextMentions);
+      }
+      if (tagRefsEnabled) {
+        tagRefsOut = applyTextEditToTagRefs(nextValue, collapsed, nextTagRefs);
       }
       if (markersEnabled) {
         markersOut = applyTextEditToMarkerRanges(nextValue, collapsed, nextMarkers);
@@ -493,6 +646,9 @@ export function SlashAwareTextarea({
     const normalized = mentionsEnabled
       ? normalizeMentions(collapsed, mentionsOut)
       : [];
+    const normalizedTagRefsOut = tagRefsEnabled
+      ? normalizeTagRefs(collapsed, tagRefsOut)
+      : [];
     const normalizedMarkersOut = markersEnabled
       ? normalizeMarkerRanges(collapsed, markersOut)
       : [];
@@ -501,6 +657,7 @@ export function SlashAwareTextarea({
       : [];
     const meta = {
       ...(mentionsEnabled ? { mentions: normalized } : {}),
+      ...(tagRefsEnabled ? { tagRefs: normalizedTagRefsOut } : {}),
       ...(markersEnabled ? { markerRanges: normalizedMarkersOut } : {}),
       ...(boldEnabled ? { boldRanges: normalizedBoldsOut } : {}),
     };
@@ -511,8 +668,20 @@ export function SlashAwareTextarea({
     if (mentionsEnabled) {
       onMentionsChange?.(normalized);
     }
+    if (tagRefsEnabled) {
+      onTagRefsChange?.(normalizedTagRefsOut);
+    }
     onAfterInput?.();
-  }, [boldEnabled, markersEnabled, mentionsEnabled, onAfterInput, onChange, onMentionsChange]);
+  }, [
+    boldEnabled,
+    markersEnabled,
+    mentionsEnabled,
+    onAfterInput,
+    onChange,
+    onMentionsChange,
+    onTagRefsChange,
+    tagRefsEnabled,
+  ]);
 
   const insertCandidate = useCallback((candidate) => {
     if (!candidate || !activeQuery) return;
@@ -523,7 +692,10 @@ export function SlashAwareTextarea({
     const nextBolds = boldEnabled
       ? applyTextEditToBoldRanges(value, result.text, normalizedBolds)
       : [];
-    emitChange(result.text, result.mentions, nextMarkers, nextBolds);
+    const nextTagRefs = tagRefsEnabled
+      ? applyTextEditToTagRefs(value, result.text, normalizedTagRefs)
+      : [];
+    emitChange(result.text, result.mentions, nextMarkers, nextBolds, nextTagRefs);
     setActiveQuery(null);
     setMenuAnchor(null);
     requestAnimationFrame(() => {
@@ -533,9 +705,89 @@ export function SlashAwareTextarea({
       el.setSelectionRange(result.caret, result.caret);
       syncMentionQuery();
     });
-  }, [activeQuery, boldEnabled, emitChange, markersEnabled, normalizedBolds, normalizedMarkers, normalizedMentions, syncMentionQuery, textareaRef, value]);
+  }, [
+    activeQuery,
+    boldEnabled,
+    emitChange,
+    markersEnabled,
+    normalizedBolds,
+    normalizedMarkers,
+    normalizedMentions,
+    normalizedTagRefs,
+    syncMentionQuery,
+    tagRefsEnabled,
+    textareaRef,
+    value,
+  ]);
+
+  const insertTagRefCandidate = useCallback((candidate) => {
+    if (!candidate || !activeTagRefQuery) return;
+    const result = insertTagRefAtQuery(value, normalizedTagRefs, activeTagRefQuery, candidate);
+    const nextMentions = mentionsEnabled
+      ? applyTextEditToMentions(value, result.text, normalizedMentions)
+      : [];
+    const nextMarkers = markersEnabled
+      ? applyTextEditToMarkerRanges(value, result.text, normalizedMarkers)
+      : [];
+    const nextBolds = boldEnabled
+      ? applyTextEditToBoldRanges(value, result.text, normalizedBolds)
+      : [];
+    emitChange(result.text, nextMentions, nextMarkers, nextBolds, result.tagRefs);
+    setActiveTagRefQuery(null);
+    setTagRefMenuAnchor(null);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el || !("setSelectionRange" in el)) return;
+      el.focus({ preventScroll: true });
+      el.setSelectionRange(result.caret, result.caret);
+      syncMentionQuery();
+    });
+  }, [
+    activeTagRefQuery,
+    boldEnabled,
+    emitChange,
+    markersEnabled,
+    mentionsEnabled,
+    normalizedBolds,
+    normalizedMarkers,
+    normalizedMentions,
+    normalizedTagRefs,
+    syncMentionQuery,
+    textareaRef,
+    value,
+  ]);
 
   const handleMentionKeyDown = useCallback((event) => {
+    if (showTagRefMenu) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setActiveTagRefQuery(null);
+        setTagRefMenuAnchor(null);
+        return true;
+      }
+      if (!filteredTagRefCandidates.length) return false;
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setTagRefMenuIndex((i) => (i + 1) % filteredTagRefCandidates.length);
+        return true;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setTagRefMenuIndex((i) => (
+          (i - 1 + filteredTagRefCandidates.length) % filteredTagRefCandidates.length
+        ));
+        return true;
+      }
+      if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault();
+        insertTagRefCandidate(
+          filteredTagRefCandidates[tagRefMenuIndex] || filteredTagRefCandidates[0],
+        );
+        return true;
+      }
+      return false;
+    }
+
     if (!showMentionMenu) return false;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -560,7 +812,16 @@ export function SlashAwareTextarea({
       return true;
     }
     return false;
-  }, [filteredCandidates, insertCandidate, menuIndex, showMentionMenu]);
+  }, [
+    filteredCandidates,
+    filteredTagRefCandidates,
+    insertCandidate,
+    insertTagRefCandidate,
+    menuIndex,
+    showMentionMenu,
+    showTagRefMenu,
+    tagRefMenuIndex,
+  ]);
 
   const fieldClass = [
     "doc-slash-field__input",
@@ -587,9 +848,10 @@ export function SlashAwareTextarea({
       className={[
         "doc-slash-field",
         hasMentions ? "doc-slash-field--mentions" : "",
+        hasTagRefs ? "doc-slash-field--tagrefs" : "",
         hasMarkers ? "doc-slash-field--markers" : "",
         hasBold ? "doc-slash-field--bolds" : "",
-        hoveredMentionId ? "doc-slash-field--chip-hover" : "",
+        hoveredMentionId || hoveredTagRefId ? "doc-slash-field--chip-hover" : "",
         wrapClassName,
       ].filter(Boolean).join(" ")}
       onMouseDown={handleWrapPointerDown}
@@ -609,9 +871,11 @@ export function SlashAwareTextarea({
           <MirrorContent
             text={value}
             mentions={normalizedMentions}
+            tagRefs={normalizedTagRefs}
             markerRanges={normalizedMarkers}
             boldRanges={normalizedBolds}
-            hoveredId={hoveredMentionId}
+            hoveredMentionId={hoveredMentionId}
+            hoveredTagRefId={hoveredTagRefId}
           />
         </div>
       ) : null}
@@ -623,9 +887,13 @@ export function SlashAwareTextarea({
         rows={1}
         onChange={(e) => {
           setHoverCard(null);
+          setHoveredTagRefId(null);
           const nextValue = e.target.value;
           const nextMentions = mentionsEnabled
             ? applyTextEditToMentions(value, nextValue, normalizedMentions)
+            : [];
+          const nextTagRefs = tagRefsEnabled
+            ? applyTextEditToTagRefs(value, nextValue, normalizedTagRefs)
             : [];
           const nextMarkers = markersEnabled
             ? applyTextEditToMarkerRanges(value, nextValue, normalizedMarkers)
@@ -633,7 +901,7 @@ export function SlashAwareTextarea({
           const nextBolds = boldEnabled
             ? applyTextEditToBoldRanges(value, nextValue, normalizedBolds)
             : [];
-          emitChange(nextValue, nextMentions, nextMarkers, nextBolds);
+          emitChange(nextValue, nextMentions, nextMarkers, nextBolds, nextTagRefs);
           requestAnimationFrame(() => syncMentionQuery());
         }}
         onKeyDown={(e) => {
@@ -663,19 +931,22 @@ export function SlashAwareTextarea({
           setFocused(false);
           setActiveQuery(null);
           setMenuAnchor(null);
+          setActiveTagRefQuery(null);
+          setTagRefMenuAnchor(null);
           onBlur?.(e);
         }}
         onFocus={(e) => {
           setFocused(true);
           setHoverCard(null);
+          setHoveredTagRefId(null);
           onFocus?.(e);
           syncGhostPosition();
           syncMentionQuery();
         }}
         spellCheck={false}
         aria-label={ariaLabel}
-        aria-expanded={showMentionMenu || undefined}
-        aria-autocomplete={mentionsEnabled ? "list" : undefined}
+        aria-expanded={showMentionMenu || showTagRefMenu || undefined}
+        aria-autocomplete={mentionsEnabled || tagRefsEnabled ? "list" : undefined}
       />
       {showGhost && ghostPos ? (
         <span
@@ -700,6 +971,18 @@ export function SlashAwareTextarea({
         onClose={() => {
           setActiveQuery(null);
           setMenuAnchor(null);
+        }}
+      />
+      <DocTagRefMenu
+        open={showTagRefMenu}
+        items={filteredTagRefCandidates}
+        activeIndex={tagRefMenuIndex}
+        anchor={tagRefMenuAnchor}
+        onHoverIndex={setTagRefMenuIndex}
+        onSelect={insertTagRefCandidate}
+        onClose={() => {
+          setActiveTagRefQuery(null);
+          setTagRefMenuAnchor(null);
         }}
       />
       <DocMentionHoverCard

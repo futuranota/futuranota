@@ -51,6 +51,10 @@ import {
   mergeMentionBlocks,
 } from "../../../lib/docMentions.js";
 import {
+  applyTextEditToTagRefs,
+  collectMoodboardTagCandidates,
+} from "../../../lib/docTagRefs.js";
+import {
   applyTextEditToMarkerRanges,
   mergeBlockMarkerRanges,
 } from "../../../lib/docTextMarkerRanges.js";
@@ -215,6 +219,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       tableTitle: titleById.get(item.tableId) || "",
     }));
   }, [companyObjectId, tagMentionInSurface, urlTableEntries, urlTables]);
+  const tagRefCandidates = useMemo(
+    () => collectMoodboardTagCandidates(blocks),
+    [blocks],
+  );
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
   const addNodeToDoc = useDocsStore((s) => s.addNodeToDoc);
@@ -983,6 +991,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       // Shift @mention + marker + bold ranges past the inserted newline so they survive Enter.
       const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
       patch.mentions = mentions.length ? mentions : undefined;
+      const tagRefs = applyTextEditToTagRefs(block.text || "", nextText, block.tagRefs || []);
+      patch.tagRefs = tagRefs.length ? tagRefs : undefined;
       const markerRanges = applyTextEditToMarkerRanges(block.text || "", nextText, block.markerRanges || []);
       patch.markerRanges = markerRanges.length ? markerRanges : undefined;
       const boldRanges = applyTextEditToBoldRanges(block.text || "", nextText, block.boldRanges || []);
@@ -1944,6 +1954,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           {block.type === DOC_BLOCK_TYPES.MOODBOARD ? (
             <MoodboardBlockView
               block={block}
+              tagRefCandidates={tagRefCandidates}
+              slashGhostHints={slashGhostHints}
               autoFocusBody={
                 focusBlockId === block.id
                 && countMoodboardSavedImages(block) > 0
@@ -2310,7 +2322,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     ghostHints={slashGhostHints}
                     value={block.text || ""}
                     mentions={block.mentions || []}
+                    tagRefs={block.tagRefs || []}
                     mentionCandidates={mentionCandidates}
+                    tagRefCandidates={tagRefCandidates}
                     markerRanges={block.markerRanges || []}
                     boldRanges={block.boldRanges || []}
                     placeholder={bodyPlaceholder}
@@ -2321,6 +2335,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                       text,
                       ...(meta && "mentions" in meta
                         ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                        : {}),
+                      ...(meta && "tagRefs" in meta
+                        ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
                         : {}),
                       ...(meta && "markerRanges" in meta
                         ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
@@ -2338,7 +2355,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
             <TextBlockView
               value={block.text || ""}
               mentions={block.mentions || []}
+              tagRefs={block.tagRefs || []}
               mentionCandidates={mentionCandidates}
+              tagRefCandidates={tagRefCandidates}
               markerRanges={block.markerRanges || []}
               boldRanges={block.boldRanges || []}
               ghostHints={slashGhostHints}
@@ -2373,6 +2392,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     ...(meta && "mentions" in meta
                       ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
                       : {}),
+                    ...(meta && "tagRefs" in meta
+                      ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
+                      : {}),
                     ...(meta && "markerRanges" in meta
                       ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
                       : {}),
@@ -2406,6 +2428,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   text,
                   ...(meta && "mentions" in meta
                     ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                    : {}),
+                  ...(meta && "tagRefs" in meta
+                    ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
                     : {}),
                   ...(meta && "markerRanges" in meta
                     ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
@@ -2446,7 +2471,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               <TextBlockView
                 value={collapsedWriteBlock?.text || ""}
                 mentions={collapsedWriteBlock?.mentions || []}
+                tagRefs={collapsedWriteBlock?.tagRefs || []}
                 mentionCandidates={mentionCandidates}
+                tagRefCandidates={tagRefCandidates}
                 markerRanges={collapsedWriteBlock?.markerRanges || []}
                 boldRanges={collapsedWriteBlock?.boldRanges || []}
                 ghostHints={slashGhostHints}
@@ -2459,6 +2486,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                       text,
                       ...(meta && "mentions" in meta
                         ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                        : {}),
+                      ...(meta && "tagRefs" in meta
+                        ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
                         : {}),
                       ...(meta && "markerRanges" in meta
                         ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }

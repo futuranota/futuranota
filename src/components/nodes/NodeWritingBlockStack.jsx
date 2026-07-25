@@ -58,6 +58,7 @@ import { removeEmbeddedFromWritingBlock } from "../../lib/nodeIntelWidget.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { queuePasswordTableEntry } from "../../lib/passwordTableSession.js";
 import { collectTagCandidatesForObject } from "../../lib/urlTableTags.js";
+import { collectMoodboardTagCandidates } from "../../lib/docTagRefs.js";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useUrlTablesStore } from "../../stores/urlTablesStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -278,6 +279,10 @@ export function NodeWritingBlockStack({
       tableTitle: titleById.get(item.tableId) || "",
     }));
   }, [companyObjectId, urlTableEntries, urlTables]);
+  const tagRefCandidates = useMemo(
+    () => collectMoodboardTagCandidates(blocks),
+    [blocks],
+  );
 
   const updateBlocks = useCallback((nextBlocks) => {
     onBlocksChange?.(normalizeWritingBlocks(nextBlocks));
@@ -1186,6 +1191,8 @@ export function NodeWritingBlockStack({
             >
               <MoodboardBlockView
                 block={block}
+                tagRefCandidates={tagRefCandidates}
+                slashGhostHints={slashGhostHints}
                 onChange={(patch) => {
                   const patchHasSavedImage = Array.isArray(patch.columns)
                     && countMoodboardSavedImages(patch) > 0;
@@ -1337,13 +1344,18 @@ export function NodeWritingBlockStack({
                 }}
                 value={block.text}
                 mentions={block.mentions || []}
+                tagRefs={block.tagRefs || []}
                 mentionCandidates={mentionCandidates}
+                tagRefCandidates={tagRefCandidates}
                 markerRanges={block.markerRanges || []}
                 boldRanges={block.boldRanges || []}
                 onChange={(text, meta) => updateBlockAt(blockIndex, {
                   text,
                   ...(meta && "mentions" in meta
                     ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                    : {}),
+                  ...(meta && "tagRefs" in meta
+                    ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
                     : {}),
                   ...(meta && "markerRanges" in meta
                     ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
@@ -1383,13 +1395,18 @@ export function NodeWritingBlockStack({
                   }}
                   value={block.text}
                   mentions={block.mentions || []}
+                  tagRefs={block.tagRefs || []}
                   mentionCandidates={mentionCandidates}
+                  tagRefCandidates={tagRefCandidates}
                   markerRanges={block.markerRanges || []}
                   boldRanges={block.boldRanges || []}
                   onChange={(text, meta) => updateBlockAt(blockIndex, {
                     text,
                     ...(meta && "mentions" in meta
                       ? { mentions: meta.mentions?.length ? meta.mentions : undefined }
+                      : {}),
+                    ...(meta && "tagRefs" in meta
+                      ? { tagRefs: meta.tagRefs?.length ? meta.tagRefs : undefined }
                       : {}),
                     ...(meta && "markerRanges" in meta
                       ? { markerRanges: meta.markerRanges?.length ? meta.markerRanges : undefined }
