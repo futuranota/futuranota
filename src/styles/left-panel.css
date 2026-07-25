@@ -6283,9 +6283,7 @@ body.doc-content-resizing * {
   background: transparent;
   border-radius: 0;
   padding: 0;
-  text-decoration: underline;
-  text-decoration-color: rgba(125, 211, 252, 0.7);
-  text-underline-offset: 2px;
+  text-decoration: none;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -6299,9 +6297,7 @@ body.doc-content-resizing * {
 
 .doc-slash-field__tagref--hovered {
   color: #BAE6FD;
-  text-decoration: underline;
-  text-decoration-color: #BAE6FD;
-  text-underline-offset: 2px;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -8000,6 +7996,37 @@ body.doc-content-resizing * {
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  overflow: hidden;
+}
+
+.doc-image-split__side-headline {
+  display: block;
+  width: 100%;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 0 6px;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: "Hanken Grotesk", sans-serif;
+  font-optical-sizing: auto;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  color: #fff;
+  caret-color: #fff;
+  box-sizing: border-box;
+}
+
+.doc-image-split__side-headline::placeholder {
+  color: rgba(255, 255, 255, 0.16);
+}
+
+.doc-image-split__side-headline--static {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .doc-image-split__body {

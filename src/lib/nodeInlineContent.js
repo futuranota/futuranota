@@ -1,7 +1,8 @@
-import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES } from "./docBlocks.js";
+import { createTodoItem, createDocBlock, DOC_BLOCK_TYPES, applyTodoSlashToImageSplit } from "./docBlocks.js";
 import { DEFAULT_CODE_LANGUAGE, normalizeCodeLanguage } from "./codeBlockLanguages.js";
 import { generateId } from "./ids.js";
 import { normalizeMentions } from "./docMentions.js";
+import { normalizeTagRefs, splitTagRefsAt } from "./docTagRefs.js";
 import { normalizeMarkerRanges, splitMarkerRangesAt } from "./docTextMarkerRanges.js";
 import { normalizeBoldRanges, splitBoldRangesAt } from "./docTextBoldRanges.js";
 import { splitBodyForSlash } from "./docSlashTail.js";
@@ -44,6 +45,7 @@ export function isNodeWritingBody(content) {
 export function createEmptyTextBlock(text = "", patch = {}) {
   const value = text || "";
   const mentions = normalizeMentions(value, patch.mentions);
+  const tagRefs = normalizeTagRefs(value, patch.tagRefs);
   const markerRanges = normalizeMarkerRanges(value, patch.markerRanges);
   const boldRanges = normalizeBoldRanges(value, patch.boldRanges);
   return {
@@ -51,6 +53,7 @@ export function createEmptyTextBlock(text = "", patch = {}) {
     type: NODE_BLOCK_TYPES.TEXT,
     text: value,
     ...(mentions.length ? { mentions } : {}),
+    ...(tagRefs.length ? { tagRefs } : {}),
     ...(markerRanges.length ? { markerRanges } : {}),
     ...(boldRanges.length ? { boldRanges } : {}),
     ...(patch.embedded && typeof patch.embedded === "object"
@@ -106,9 +109,15 @@ function splitTextBlockAnnotations(block, headEnd, tailStart, beforeText, afterT
     headEnd,
     tailStart,
   );
+  const { headRanges: headTagRefs, tailRanges: tailTagRefs } = splitTagRefsAt(
+    block?.tagRefs,
+    headEnd,
+    tailStart,
+  );
   return {
     beforePatch: {
       mentions: normalizeMentions(beforeText, block?.mentions),
+      tagRefs: normalizeTagRefs(beforeText, headTagRefs),
       markerRanges: normalizeMarkerRanges(beforeText, headMarkers),
       boldRanges: normalizeBoldRanges(beforeText, headBolds),
       ...(block?.embedded && typeof block.embedded === "object"
@@ -117,6 +126,7 @@ function splitTextBlockAnnotations(block, headEnd, tailStart, beforeText, afterT
     },
     afterPatch: {
       mentions: normalizeMentions(afterText, block?.mentions),
+      tagRefs: normalizeTagRefs(afterText, tailTagRefs),
       markerRanges: normalizeMarkerRanges(afterText, tailMarkers),
       boldRanges: normalizeBoldRanges(afterText, tailBolds),
     },
@@ -347,6 +357,7 @@ export function normalizeWritingBlocks(blocks) {
     }
     const text = block?.text || "";
     const mentions = normalizeMentions(text, block?.mentions);
+    const tagRefs = normalizeTagRefs(text, block?.tagRefs);
     const markerRanges = normalizeMarkerRanges(text, block?.markerRanges);
     const boldRanges = normalizeBoldRanges(text, block?.boldRanges);
     return {
@@ -354,6 +365,7 @@ export function normalizeWritingBlocks(blocks) {
       type: NODE_BLOCK_TYPES.TEXT,
       text,
       ...(mentions.length ? { mentions } : {}),
+      ...(tagRefs.length ? { tagRefs } : {}),
       ...(markerRanges.length ? { markerRanges } : {}),
       ...(boldRanges.length ? { boldRanges } : {}),
       // Keep inline Intel widgets (calendar/forecast) attached to the text cell.
@@ -458,6 +470,7 @@ export function nodeWritingBlocksHaveStructure(blocks) {
     if (block.type !== NODE_BLOCK_TYPES.TEXT) return true;
     if (block.embedded) return true;
     if (Array.isArray(block.mentions) && block.mentions.length > 0) return true;
+    if (Array.isArray(block.tagRefs) && block.tagRefs.length > 0) return true;
     if (Array.isArray(block.markerRanges) && block.markerRanges.length > 0) return true;
     if (Array.isArray(block.boldRanges) && block.boldRanges.length > 0) return true;
     return block.text.trim();
@@ -497,6 +510,7 @@ export function nodeDraftContentForStorage(content, dataType = "text") {
       block.type !== NODE_BLOCK_TYPES.TEXT
       || block.embedded
       || (Array.isArray(block.mentions) && block.mentions.length > 0)
+      || (Array.isArray(block.tagRefs) && block.tagRefs.length > 0)
       || (Array.isArray(block.markerRanges) && block.markerRanges.length > 0)
       || (Array.isArray(block.boldRanges) && block.boldRanges.length > 0)
     ),
@@ -601,6 +615,43 @@ export function insertNodeWritingSlashAtFocus(blocks, focusTarget, parsed, textP
   }
 
   const normalized = normalizeWritingBlocks(blocks);
+  const focusIndex = focusTarget?.blockIndex;
+
+  // Image-split body: apply slash against the card (todo embeds; else sibling after).
+  if (
+    focusIndex != null
+    && focusIndex >= 0
+    && normalized[focusIndex]?.type === NODE_BLOCK_TYPES.IMAGE_SPLIT
+  ) {
+    const bodyValue = normalized[focusIndex].body || "";
+    const prevIds = new Set(normalized.map((b) => b.id));
+    const nextBlocks = applySlashInImageSplitBody(
+      normalized,
+      focusIndex,
+      parsed,
+      bodyValue,
+    );
+    if (parsed?.type === DOC_BLOCK_TYPES.TODO) {
+      return {
+        blocks: nextBlocks,
+        insertedIndex: focusIndex,
+        reusedVault: false,
+        reusedAgent: false,
+        focusText: false,
+      };
+    }
+    const insertedIndex = nextBlocks.findIndex((b, i) => (
+      i > focusIndex && !prevIds.has(b.id)
+    ));
+    return {
+      blocks: nextBlocks,
+      insertedIndex: insertedIndex >= 0 ? insertedIndex : focusIndex + 1,
+      reusedVault: false,
+      reusedAgent: false,
+      focusText: false,
+    };
+  }
+
   const textIndex = resolveWritingPickerTextIndex(normalized, focusTarget);
 
   if (normalized[textIndex]?.type === NODE_BLOCK_TYPES.TEXT) {
@@ -814,6 +865,7 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed, caret = null) 
       ...block,
       text: before,
       mentions: beforePatch.mentions.length ? beforePatch.mentions : undefined,
+      tagRefs: beforePatch.tagRefs.length ? beforePatch.tagRefs : undefined,
       markerRanges: beforePatch.markerRanges.length ? beforePatch.markerRanges : undefined,
       boldRanges: beforePatch.boldRanges.length ? beforePatch.boldRanges : undefined,
     };
@@ -823,6 +875,43 @@ export function applySlashInTextBlock(blocks, blockIndex, parsed, caret = null) 
     }
   }
 
+  return ensureNodeWritingTail(next);
+}
+
+/**
+ * Confirm slash inside an image-split body: /todo embeds in-column;
+ * other commands insert a sibling writing block after the card.
+ * @param {object[]} blocks
+ * @param {number} blockIndex
+ * @param {object} parsed
+ * @param {string} bodyValue
+ */
+export function applySlashInImageSplitBody(blocks, blockIndex, parsed, bodyValue) {
+  const normalized = normalizeWritingBlocks(blocks);
+  const block = normalized[blockIndex];
+  if (!block || block.type !== NODE_BLOCK_TYPES.IMAGE_SPLIT) return normalized;
+
+  if (parsed?.type === DOC_BLOCK_TYPES.TODO) {
+    const patch = applyTodoSlashToImageSplit(block, bodyValue);
+    if (!patch) return normalized;
+    return normalized.map((entry, index) => (
+      index === blockIndex
+        ? { ...entry, ...patch, type: NODE_BLOCK_TYPES.IMAGE_SPLIT }
+        : entry
+    ));
+  }
+
+  const newBlock = createNodeWritingBlockFromSlash(parsed, "");
+  if (!newBlock) return normalized;
+
+  const { prefix } = splitBodyForSlash(bodyValue);
+  const next = [...normalized];
+  next[blockIndex] = {
+    ...block,
+    body: prefix,
+    type: NODE_BLOCK_TYPES.IMAGE_SPLIT,
+  };
+  next.splice(blockIndex + 1, 0, newBlock);
   return ensureNodeWritingTail(next);
 }
 

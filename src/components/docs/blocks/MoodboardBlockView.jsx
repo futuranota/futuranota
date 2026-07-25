@@ -28,7 +28,6 @@ const BOARD_CAPTION_STRIP = 28;
 const BOARD_GAP = 10;
 
 const STICKY_SRC = "/uploads/horizontal-note.svg";
-const TAG_ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%2015%201.svg";
 
 const OVERLAY_PALETTE = [
   { kind: MOODBOARD_OVERLAY_KINDS.TWISTED, labelKey: "doc.moodboard.overlayTwisted" },
@@ -574,12 +573,6 @@ export function MoodboardBlockView({
         }
         aria-hidden={!tagLabel}
       >
-        <img
-          className="doc-moodboard__tag-arrow"
-          src={TAG_ARROW_SRC}
-          alt=""
-          draggable={false}
-        />
         <span className="doc-moodboard__tag-label">{tagLabel}</span>
       </div>
     ) : null;

@@ -3,6 +3,7 @@ import {
   findMaxFittingPrefixLength,
   resolveLineFitHeight,
   snapSplitToWordBoundary,
+  composeBodyAfterSideEdit,
 } from "./imageSplitBodyFit.js";
 
 describe("findMaxFittingPrefixLength", () => {
@@ -39,6 +40,21 @@ describe("resolveLineFitHeight", () => {
 
   it("returns 0 for non-positive height", () => {
     expect(resolveLineFitHeight(0, 20, 4)).toBe(0);
+  });
+});
+
+describe("composeBodyAfterSideEdit", () => {
+  it("does not duplicate below text when DOM is stale after reflow", () => {
+    // prev side "AB", below already has "CDN", DOM still shows "ABCDNX"
+    expect(composeBodyAfterSideEdit("AB", "ABCDNX", "CDN")).toBe("ABCDNX");
+  });
+
+  it("appends typed chars when DOM still has full stale base", () => {
+    expect(composeBodyAfterSideEdit("Hello", "HelloWorldX", "World")).toBe("HelloWorldX");
+  });
+
+  it("keeps normal side edit + below", () => {
+    expect(composeBodyAfterSideEdit("Hello", "Hello!", " world")).toBe("Hello! world");
   });
 });
 

@@ -30,6 +30,7 @@ import {
   removeEmbedVideoPairFromVideoIndex,
   replaceBlockFromSlashInLinkable,
   replaceBlocksFromSlashInText,
+  replaceBlocksFromSlashInImageSplitBody,
   replaceBlocksFromSlashInMoodboardBody,
   replaceBlocksFromSlashWithEmbedVideo,
   stepEntryHasContent,
@@ -39,8 +40,6 @@ import {
   createDocBlockFromSlash,
   DOCUMENT_SLASH_COMMANDS,
   DOCUMENT_SLASH_GHOST_HINTS,
-  IMAGE_CARD_BODY_SLASH_COMMANDS,
-  IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
   isGuidedTagSlashAction,
   parseSlashQueryFromCommands,
   splitBodyForSlash,
@@ -231,6 +230,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const blocksRef = useRef(blocks);
   const stackRef = useRef(null);
   const slashCommandsRef = useRef(slashCommands);
+  const focusBlockIdRef = useRef(focusBlockId);
 
   useLayoutEffect(() => {
     blocksRef.current = blocks;
@@ -239,6 +239,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   useLayoutEffect(() => {
     slashCommandsRef.current = slashCommands;
   }, [slashCommands]);
+
+  useLayoutEffect(() => {
+    focusBlockIdRef.current = focusBlockId;
+  }, [focusBlockId]);
 
   const parseScopedSlash = useCallback((query) => (
     parseSlashQueryFromCommands(query, slashCommandsRef.current)
@@ -423,9 +427,19 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     }
 
     const current = blocksRef.current;
-    let blockIndex = focusBlockId
-      ? current.findIndex((b) => b.id === focusBlockId)
+    const focusedId = focusBlockIdRef.current || focusBlockId;
+    let blockIndex = focusedId
+      ? current.findIndex((b) => b.id === focusedId)
       : -1;
+
+    // Fallback: active textarea inside an image-split / moodboard host.
+    if (blockIndex < 0 && typeof document !== "undefined") {
+      const host = document.activeElement?.closest?.("[data-block-id]");
+      const hostId = host?.getAttribute?.("data-block-id");
+      if (hostId) {
+        blockIndex = current.findIndex((b) => b.id === hostId);
+      }
+    }
 
     if (blockIndex >= 0) {
       const focused = current[blockIndex];
@@ -474,6 +488,48 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           blocksRef.current[targetIndex]?.text || "",
           parsed,
         );
+        return;
+      }
+
+      if (focused.type === DOC_BLOCK_TYPES.IMAGE_SPLIT) {
+        const bodyValue = focused.body || "";
+        // [+] always uses the picker alias (not a typed /command confirm).
+        // replaceBlocksFromSlash* / applyTodoSlash strip any trailing /… from body.
+        if (parsed.type === DOC_BLOCK_TYPES.TODO) {
+          const patch = applyTodoSlashToImageSplit(focused, bodyValue);
+          if (!patch) return;
+          setBlocks(updateBlockAt(blocksRef.current, blockIndex, patch));
+          setTodoFocusItemId(patch.todoItems?.[0]?.id ?? null);
+          onFocusBlock?.(focused.id);
+          requestContentGrow();
+          return;
+        }
+        const newBlock = createDocBlockFromSlash(parsed);
+        if (!newBlock) return;
+        let next = replaceBlocksFromSlashInImageSplitBody(
+          blocksRef.current,
+          blockIndex,
+          bodyValue,
+          newBlock,
+        );
+        if (
+          parsed.type === DOC_BLOCK_TYPES.IMAGE
+          || parsed.type === DOC_BLOCK_TYPES.IMAGE_SPLIT
+          || parsed.type === DOC_BLOCK_TYPES.MOODBOARD
+          || parsed.type === DOC_BLOCK_TYPES.BANNER
+          || parsed.type === DOC_BLOCK_TYPES.CODE
+          || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
+          || parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
+          || parsed.type === DOC_BLOCK_TYPES.AGENT
+        ) {
+          const newIndex = next.findIndex((b) => b.id === newBlock.id);
+          if (newIndex >= 0) next = ensureEmptyTextBlockAfter(next, newIndex);
+          setBlocks(next);
+          onFocusBlock?.(newBlock.id);
+          requestContentGrow();
+          return;
+        }
+        finalizeSlashInsert(next, newBlock.id);
         return;
       }
     }
@@ -1151,28 +1207,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     }
     finalizeSlashInsert(next, newBlock.id);
     return newBlock.id;
-  };
-
-  const tryConfirmSlashInImageSplitBody = (blockIndex, bodyValue) => {
-    const { slash } = splitBodyForSlash(bodyValue);
-    if (!slash) return false;
-    const parsed = parseSlashQueryFromCommands(
-      slash.slice(1),
-      IMAGE_CARD_BODY_SLASH_COMMANDS,
-    );
-    if (!parsed || parsed.type !== DOC_BLOCK_TYPES.TODO) return false;
-
-    const block = blocksRef.current[blockIndex];
-    const patch = applyTodoSlashToImageSplit(block, bodyValue);
-    if (!patch) return false;
-
-    const next = updateBlockAt(blocksRef.current, blockIndex, patch);
-    setBlocks(next);
-    const focusId = patch.todoItems?.[0]?.id ?? null;
-    setTodoFocusItemId(focusId);
-    onFocusBlock?.(block?.id);
-    requestContentGrow();
-    return block?.id || true;
   };
 
   const tryConfirmSlashInMoodboardBody = (blockIndex, bodyValue) => {
@@ -1883,7 +1917,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   ? todoFocusItemId
                   : null
               }
-              bodySlashGhostHints={IMAGE_CARD_BODY_SLASH_GHOST_HINTS}
+              onBodyFocus={() => onFocusBlock?.(block.id)}
               onChange={(patch) => {
                 let next = updateBlockAt(blocksRef.current, index, patch);
                 if (patch.imageSaved && patch.src) {
@@ -1927,25 +1961,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }}
               onBodyKeyDown={(e) => {
                 if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
-                const bodyValue = block.body ?? "";
-                const { slash } = splitBodyForSlash(bodyValue);
-
-                if (e.key === "Enter" && !e.shiftKey && slash) {
-                  const newId = tryConfirmSlashInImageSplitBody(index, bodyValue);
-                  if (newId) {
-                    e.preventDefault();
-                    requestContentGrow();
-                  }
-                  return;
-                }
-
-                if (e.key === "Escape" && slash) {
-                  const { prefix } = splitBodyForSlash(bodyValue);
-                  e.preventDefault();
-                  updateAt(index, { body: prefix });
-                  return;
-                }
-
                 onBodyKeyDown?.(e);
               }}
             />

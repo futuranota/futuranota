@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createTodoItem, convertImageLayoutBlock, countMoodboardSavedImages, applyTodoSlashToImageSplit, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
+import { createTodoItem, convertImageLayoutBlock, countMoodboardSavedImages, DOC_BLOCK_TYPES, IMAGE_SPLIT_BODY_MODE } from "../../lib/docBlocks.js";
 import {
   DOCUMENT_SLASH_GHOST_HINTS,
-  IMAGE_CARD_BODY_SLASH_COMMANDS,
-  IMAGE_CARD_BODY_SLASH_GHOST_HINTS,
   isGuidedTagSlashAction,
   parseNodeSlashQuery,
-  parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
 import {
@@ -1133,6 +1130,7 @@ export function NodeWritingBlockStack({
                 }}
                 onEdit={() => {
                   updateBlockAt(blockIndex, { splitSaved: false });
+                  onFocusTargetChange?.({ blockIndex, focusImageSplit: true });
                 }}
                 onConvertLayout={(targetType) => {
                   const converted = convertImageLayoutBlock(block, targetType);
@@ -1144,39 +1142,18 @@ export function NodeWritingBlockStack({
                   updateBlocks(normalizeWritingBlocks(next));
                 }}
                 onDelete={() => confirmRemoveCommandBlock(blockIndex, "doc.blockDelete.imageSplit")}
-                bodySlashGhostHints={IMAGE_CARD_BODY_SLASH_GHOST_HINTS}
+                onBodyFocus={() => {
+                  onFocusTargetChange?.({ blockIndex, focusImageSplit: true });
+                }}
                 focusTodoItemId={
                   block.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
                     ? focusTarget?.itemId ?? null
                     : null
                 }
-                onBodyKeyDown={(e) => {
-                  const bodyValue = block.body ?? "";
-                  const { slash } = splitBodyForSlash(bodyValue);
-
-                  if (e.key === "Enter" && !e.shiftKey && slash) {
-                    const parsed = parseSlashQueryFromCommands(
-                      slash.slice(1),
-                      IMAGE_CARD_BODY_SLASH_COMMANDS,
-                    );
-                    if (!parsed || parsed.type !== DOC_BLOCK_TYPES.TODO) return;
-                    const patch = applyTodoSlashToImageSplit(block, bodyValue);
-                    if (!patch) return;
-                    e.preventDefault();
-                    updateBlockAt(blockIndex, patch);
-                    onFocusTargetChange?.({
-                      blockIndex,
-                      itemId: patch.todoItems?.[0]?.id ?? null,
-                    });
-                    return;
-                  }
-
-                  if (e.key === "Escape" && slash) {
-                    const { prefix } = splitBodyForSlash(bodyValue);
-                    e.preventDefault();
-                    updateBlockAt(blockIndex, { body: prefix });
-                  }
-                }}
+                autoFocusBody={
+                  focusTarget?.blockIndex === blockIndex
+                  && Boolean(focusTarget?.focusImageSplit || focusTarget?.focusHeading)
+                }
               />
             </div>
           );

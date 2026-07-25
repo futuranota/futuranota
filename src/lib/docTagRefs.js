@@ -364,6 +364,43 @@ export function mergeTagRefBlocks(leftText, leftTagRefs, rightText, rightTagRefs
 }
 
 /**
+ * Split tag-refs across a caret cut. Chips that straddle the cut are dropped
+ * (atomic chips — partial labels would fail normalize anyway).
+ * @param {DocTagRef[]} tagRefs
+ * @param {number} splitStart
+ * @param {number} [splitEnd]
+ * @returns {{ headRanges: DocTagRef[], tailRanges: DocTagRef[] }}
+ */
+export function splitTagRefsAt(tagRefs, splitStart, splitEnd = splitStart) {
+  /** @type {DocTagRef[]} */
+  const headRanges = [];
+  /** @type {DocTagRef[]} */
+  const tailRanges = [];
+  const lo = Number(splitStart);
+  const hi = Number(splitEnd);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) {
+    return { headRanges, tailRanges };
+  }
+
+  for (const tagRef of tagRefs || []) {
+    if (!tagRef) continue;
+    if (tagRef.end <= lo) {
+      headRanges.push({ ...tagRef });
+      continue;
+    }
+    if (tagRef.start >= hi) {
+      tailRanges.push({
+        ...tagRef,
+        start: tagRef.start - hi,
+        end: tagRef.end - hi,
+      });
+    }
+  }
+
+  return { headRanges, tailRanges };
+}
+
+/**
  * Scroll to a moodboard image slot in the open document and pulse it.
  * Same-document only. Cascades: slotId → label in block → block container.
  * @param {{ blockId?: string, slotId?: string, label?: string }} target

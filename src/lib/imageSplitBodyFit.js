@@ -72,3 +72,56 @@ export function snapSplitToWordBoundary(full, split) {
   }
   return i;
 }
+
+/**
+ * Rebuild full body after editing the side half.
+ * Guards against a stale DOM value that still contains text already moved to below
+ * (React has not committed the shrunk controlled value yet).
+ * @param {string} prevSide
+ * @param {string} nextSideDom
+ * @param {string} below
+ * @returns {string}
+ */
+export function composeBodyAfterSideEdit(prevSide, nextSideDom, below) {
+  const prev = String(prevSide ?? "");
+  const dom = String(nextSideDom ?? "");
+  const tail = String(below ?? "");
+
+  if (!tail) return dom;
+
+  // DOM still shows prev+tail (+ newly typed chars) after reflow moved tail below.
+  const staleBase = prev + tail;
+  if (dom.startsWith(staleBase)) {
+    return staleBase + dom.slice(staleBase.length);
+  }
+  if (staleBase.startsWith(dom)) {
+    return dom;
+  }
+
+  // DOM is prev + a prefix of tail (partial stale), without the rest of below.
+  if (dom.startsWith(prev)) {
+    const afterPrev = dom.slice(prev.length);
+    if (tail.startsWith(afterPrev)) {
+      return prev + tail;
+    }
+    // Insert/delete inside the side half (or typed chars that are not a below prefix).
+    return dom + tail;
+  }
+
+  if (prev.startsWith(dom)) {
+    return dom + tail;
+  }
+
+  return dom + tail;
+}
+
+/**
+ * Rebuild full body after editing the below half.
+ * @param {string} side
+ * @param {string} _prevBelow
+ * @param {string} nextBelowDom
+ * @returns {string}
+ */
+export function composeBodyAfterBelowEdit(side, _prevBelow, nextBelowDom) {
+  return String(side ?? "") + String(nextBelowDom ?? "");
+}

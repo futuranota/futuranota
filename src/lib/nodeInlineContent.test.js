@@ -109,6 +109,28 @@ describe("insertNodeWritingSlashAtFocus", () => {
     expect(next[2].text).toBe("linea tres");
     expect(insertedIndex).toBe(1);
   });
+
+  it("inserts H1 after image-split when that card body is focused", () => {
+    const split = {
+      id: "split1",
+      type: NODE_BLOCK_TYPES.IMAGE_SPLIT,
+      src: "x",
+      imageSaved: true,
+      body: "half text",
+      splitSaved: false,
+    };
+    const trailing = createEmptyTextBlock();
+    const { blocks: next, insertedIndex } = insertNodeWritingSlashAtFocus(
+      [split, trailing],
+      { blockIndex: 0, focusImageSplit: true },
+      { type: DOC_BLOCK_TYPES.H1 },
+    );
+
+    expect(next[0].type).toBe(NODE_BLOCK_TYPES.IMAGE_SPLIT);
+    expect(next[0].body).toBe("half text");
+    expect(next[1].type).toBe(NODE_BLOCK_TYPES.H1);
+    expect(insertedIndex).toBe(1);
+  });
 });
 
 describe("splitWritingTextAtCaret", () => {
