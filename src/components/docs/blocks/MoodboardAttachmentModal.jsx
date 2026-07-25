@@ -10,9 +10,17 @@ import { useI18n } from "../../../i18n/useI18n.js";
 
 const INFO_SRC = "/uploads/Info.svg";
 
+/** @param {{ src?: string, externalUrl?: string }|null} image */
+function resolveAttachMode(image) {
+  const hasSrc = Boolean(image?.src);
+  const hasLink = Boolean(normalizeMoodboardExternalUrl(image?.externalUrl));
+  if (hasLink && !hasSrc) return "url";
+  return "image";
+}
+
 /**
  * Attachments table for one moodboard slot:
- * 01 — image upload, 02 — external link (Drive/Dropbox/…), 03 — tag.
+ * Mode A — Image upload + Tag. Mode B — Document URL + file icon + Tag.
  */
 export function MoodboardAttachmentModal({
   open,
@@ -23,6 +31,7 @@ export function MoodboardAttachmentModal({
 }) {
   const { t } = useI18n();
   const fileInputRef = useRef(null);
+  const [mode, setMode] = useState(() => resolveAttachMode(image));
   const [draft, setDraft] = useState(() => ({
     src: image?.src || "",
     name: image?.name || "",
@@ -39,6 +48,7 @@ export function MoodboardAttachmentModal({
 
   useEffect(() => {
     if (!open) return;
+    setMode(resolveAttachMode(image));
     setDraft({
       src: image?.src || "",
       name: image?.name || "",
@@ -71,7 +81,9 @@ export function MoodboardAttachmentModal({
   const normalizedLink = normalizeMoodboardExternalUrl(draft.externalUrl);
   const hasImage = Boolean(draft.imageSaved && draft.src);
   const hasLink = Boolean(normalizedLink);
-  const canAccept = (hasImage || hasLink) && !uploading && !readOnly;
+  const canAccept = !uploading && !readOnly && (
+    mode === "image" ? hasImage : hasLink
+  );
 
   const handleFiles = async (fileList) => {
     if (readOnly) return;
@@ -110,6 +122,32 @@ export function MoodboardAttachmentModal({
     window.open(normalizedLink, "_blank", "noopener,noreferrer");
   };
 
+  const handleAccept = () => {
+    if (!canAccept) return;
+    const tagLabel = String(draft.tagLabel || "").trim().slice(0, MOODBOARD_TAG_MAX);
+    if (mode === "image") {
+      onAccept?.({
+        ...draft,
+        externalUrl: "",
+        imageSaved: true,
+        tagLabel,
+      });
+      return;
+    }
+    const link = normalizeMoodboardExternalUrl(draft.externalUrl);
+    onAccept?.({
+      ...draft,
+      src: "",
+      name: "",
+      alt: "",
+      width: 0,
+      height: 0,
+      imageSaved: Boolean(link),
+      externalUrl: link,
+      tagLabel,
+    });
+  };
+
   return createPortal(
     <div
       className="doc-moodboard-attach-overlay"
@@ -124,7 +162,12 @@ export function MoodboardAttachmentModal({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="doc-moodboard-attach__head">
-          <h3 className="doc-moodboard-attach__title">{t("doc.moodboard.attachTitle")}</h3>
+          <div className="doc-moodboard-attach__head-copy">
+            <h3 className="doc-moodboard-attach__title">{t("doc.moodboard.attachTitle")}</h3>
+            <p className="doc-moodboard-attach__desc">
+              {t("doc.moodboard.attachDescription")}
+            </p>
+          </div>
           <button
             type="button"
             className="doc-moodboard-attach__close"
@@ -135,54 +178,111 @@ export function MoodboardAttachmentModal({
           </button>
         </div>
 
-        <div className="doc-moodboard-attach__field">
-          <label className="doc-moodboard-attach__label">
-            {t("doc.moodboard.attachImageLabel")}
-          </label>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="doc-moodboard__input"
-            disabled={readOnly}
-            onChange={(event) => {
-              handleFiles(event.target.files);
-              event.target.value = "";
-            }}
-          />
-          {hasImage ? (
-            <div className="doc-moodboard-attach__preview">
-              <img src={draft.src} alt={draft.alt || ""} draggable={false} />
-              {!readOnly ? (
-                <div className="doc-moodboard-attach__preview-actions">
-                  <button
-                    type="button"
-                    disabled={uploading}
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    {t("doc.imageBlock.replace")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={uploading}
-                    onClick={() => {
-                      setDraft((prev) => ({
-                        ...prev,
-                        src: "",
-                        name: "",
-                        alt: "",
-                        width: 0,
-                        height: 0,
-                        imageSaved: false,
-                      }));
-                    }}
-                  >
-                    {t("doc.imageBlock.remove")}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ) : hasLink ? (
+        {!readOnly ? (
+          <div className="doc-moodboard-attach__modes" role="tablist" aria-label={t("doc.moodboard.attachTitle")}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "image"}
+              className={
+                "doc-moodboard-attach__mode-btn"
+                + (mode === "image" ? " doc-moodboard-attach__mode-btn--active" : "")
+              }
+              onClick={() => setMode("image")}
+            >
+              {t("doc.moodboard.attachModeImage")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "url"}
+              className={
+                "doc-moodboard-attach__mode-btn"
+                + (mode === "url" ? " doc-moodboard-attach__mode-btn--active" : "")
+              }
+              onClick={() => setMode("url")}
+            >
+              {t("doc.moodboard.attachModeUrl")}
+            </button>
+          </div>
+        ) : null}
+
+        {mode === "image" ? (
+          <div className="doc-moodboard-attach__field">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="doc-moodboard__input"
+              disabled={readOnly}
+              onChange={(event) => {
+                handleFiles(event.target.files);
+                event.target.value = "";
+              }}
+            />
+            {hasImage ? (
+              <div className="doc-moodboard-attach__preview">
+                <img src={draft.src} alt={draft.alt || ""} draggable={false} />
+                {!readOnly ? (
+                  <div className="doc-moodboard-attach__preview-actions">
+                    <button
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {t("doc.imageBlock.replace")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => {
+                        setDraft((prev) => ({
+                          ...prev,
+                          src: "",
+                          name: "",
+                          alt: "",
+                          width: 0,
+                          height: 0,
+                          imageSaved: false,
+                        }));
+                      }}
+                    >
+                      {t("doc.imageBlock.remove")}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="doc-moodboard-attach__dropzone"
+                disabled={uploading || readOnly}
+                onClick={() => !readOnly && fileInputRef.current?.click()}
+                onDragOver={(event) => {
+                  if (readOnly) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onDrop={(event) => {
+                  if (readOnly) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleFiles(event.dataTransfer?.files);
+                }}
+              >
+                <span className="doc-moodboard-attach__dropzone-title">
+                  {uploading
+                    ? t("doc.imageBlock.uploading")
+                    : t("doc.moodboard.attachImageHint")}
+                </span>
+                <span className="doc-moodboard-attach__dropzone-formats">
+                  {t("doc.imageBlock.formats")}
+                </span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="doc-moodboard-attach__field">
             <div className="doc-moodboard-attach__preview doc-moodboard-attach__preview--file">
               <img
                 src={MOODBOARD_FILE_ICON_SRC}
@@ -190,69 +290,36 @@ export function MoodboardAttachmentModal({
                 draggable={false}
               />
             </div>
-          ) : (
-            <button
-              type="button"
-              className="doc-moodboard-attach__dropzone"
-              disabled={uploading || readOnly}
-              onClick={() => !readOnly && fileInputRef.current?.click()}
-              onDragOver={(event) => {
-                if (readOnly) return;
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-              onDrop={(event) => {
-                if (readOnly) return;
-                event.preventDefault();
-                event.stopPropagation();
-                handleFiles(event.dataTransfer?.files);
-              }}
-            >
-              <span className="doc-moodboard-attach__dropzone-title">
-                {uploading
-                  ? t("doc.imageBlock.uploading")
-                  : t("doc.moodboard.attachImageHint")}
-              </span>
-              <span className="doc-moodboard-attach__dropzone-formats">
-                {t("doc.imageBlock.formats")}
-              </span>
-            </button>
-          )}
-        </div>
-
-        <div className="doc-moodboard-attach__field">
-          <label className="doc-moodboard-attach__label" htmlFor="mb-attach-link">
-            {t("doc.moodboard.attachLinkLabel")}
-          </label>
-          <div className="doc-moodboard-attach__link-row">
-            <input
-              id="mb-attach-link"
-              type="url"
-              className="doc-moodboard-attach__tag-input"
-              value={draft.externalUrl}
-              placeholder={t("doc.moodboard.attachLinkPlaceholder")}
-              spellCheck={false}
-              readOnly={readOnly}
-              onChange={(event) => {
-                setDraft((prev) => ({
-                  ...prev,
-                  externalUrl: String(event.target.value ?? ""),
-                }));
-              }}
-            />
-            <button
-              type="button"
-              className="doc-moodboard-attach__open-link"
-              disabled={!hasLink}
-              onClick={openExternal}
-            >
-              {t("doc.moodboard.attachOpenLink")}
-            </button>
+            <label className="doc-moodboard-attach__label" htmlFor="mb-attach-link">
+              {t("doc.moodboard.attachLinkLabel")}
+            </label>
+            <div className="doc-moodboard-attach__link-row">
+              <input
+                id="mb-attach-link"
+                type="url"
+                className="doc-moodboard-attach__tag-input"
+                value={draft.externalUrl}
+                placeholder={t("doc.moodboard.attachLinkPlaceholder")}
+                spellCheck={false}
+                readOnly={readOnly}
+                onChange={(event) => {
+                  setDraft((prev) => ({
+                    ...prev,
+                    externalUrl: String(event.target.value ?? ""),
+                  }));
+                }}
+              />
+              <button
+                type="button"
+                className="doc-moodboard-attach__open-link"
+                disabled={!hasLink}
+                onClick={openExternal}
+              >
+                {t("doc.moodboard.attachOpenLink")}
+              </button>
+            </div>
           </div>
-          <p className="doc-moodboard-attach__link-hint">
-            {t("doc.moodboard.attachLinkHint")}
-          </p>
-        </div>
+        )}
 
         <div className="doc-moodboard-attach__field">
           <label className="doc-moodboard-attach__label" htmlFor="mb-attach-tag">
@@ -305,16 +372,7 @@ export function MoodboardAttachmentModal({
               type="button"
               className="doc-moodboard-attach__accept"
               disabled={!canAccept}
-              onClick={() => {
-                if (!canAccept) return;
-                const link = normalizeMoodboardExternalUrl(draft.externalUrl);
-                onAccept?.({
-                  ...draft,
-                  externalUrl: link,
-                  imageSaved: Boolean((draft.imageSaved && draft.src) || link),
-                  tagLabel: String(draft.tagLabel || "").trim().slice(0, MOODBOARD_TAG_MAX),
-                });
-              }}
+              onClick={handleAccept}
             >
               {t("doc.moodboard.attachAccept")}
             </button>

@@ -8813,10 +8813,15 @@ body.doc-content-resizing * {
 
 .doc-moodboard-attach__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.doc-moodboard-attach__head-copy {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .doc-moodboard-attach__title {
@@ -8824,6 +8829,44 @@ body.doc-content-resizing * {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.doc-moodboard-attach__desc {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.doc-moodboard-attach__modes {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.doc-moodboard-attach__mode-btn {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.doc-moodboard-attach__mode-btn:hover {
+  border-color: rgba(58, 111, 122, 0.55);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.doc-moodboard-attach__mode-btn--active {
+  border-color: rgba(58, 111, 122, 0.85);
+  background: rgba(58, 111, 122, 0.18);
   color: #fff;
 }
 
