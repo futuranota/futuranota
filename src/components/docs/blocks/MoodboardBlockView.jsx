@@ -5,11 +5,13 @@ import {
   MOODBOARD_CAPTION_MAX,
   MOODBOARD_CAPTION_MAX_LINES,
   MOODBOARD_COLUMN_COUNT,
+  MOODBOARD_FILE_ICON_SRC,
   MOODBOARD_RECIPES,
   MOODBOARD_STICKY_MAX,
   MOODBOARD_TAG_MAX,
   countMoodboardSavedImages,
   createMoodboardColumn,
+  normalizeMoodboardExternalUrl,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
@@ -38,6 +40,8 @@ function emptySlot() {
     width: 0,
     height: 0,
     imageSaved: false,
+    kind: "image",
+    externalUrl: "",
     tagLabel: "",
   };
 }
@@ -274,6 +278,8 @@ export function MoodboardBlockView({
         width: converted.width,
         height: converted.height,
         imageSaved: true,
+        kind: "image",
+        externalUrl: columns[colIndex]?.images?.[imageIndex]?.externalUrl || "",
         tagLabel: columns[colIndex]?.images?.[imageIndex]?.tagLabel || "",
       };
 
@@ -305,7 +311,6 @@ export function MoodboardBlockView({
   };
 
   const openAttachmentModal = (colIndex, imageIndex) => {
-    if (!isEdit) return;
     setActiveCol(colIndex);
     setAttachmentSlot({ colIndex, imageIndex });
   };
@@ -314,6 +319,8 @@ export function MoodboardBlockView({
     if (!attachmentSlot || !isEdit) return;
     const { colIndex, imageIndex } = attachmentSlot;
     const prev = columns[colIndex]?.images?.[imageIndex] || emptySlot();
+    const link = normalizeMoodboardExternalUrl(draft.externalUrl);
+    const hasImage = Boolean(draft.imageSaved && draft.src);
     patchColumns((col, index) => {
       if (index !== colIndex) return col;
       const images = Array.isArray(col.images) ? [...col.images] : [];
@@ -325,7 +332,9 @@ export function MoodboardBlockView({
         alt: draft.alt || "",
         width: draft.width || 0,
         height: draft.height || 0,
-        imageSaved: Boolean(draft.imageSaved && draft.src),
+        imageSaved: Boolean(hasImage || link),
+        kind: hasImage ? "image" : (link ? "file" : "image"),
+        externalUrl: link,
         tagLabel: String(draft.tagLabel || "").trim().slice(0, MOODBOARD_TAG_MAX),
       };
       return createMoodboardColumn(col.recipe, {
@@ -451,7 +460,11 @@ export function MoodboardBlockView({
   const renderImageCell = (colIndex, imageIndex, sizeClass) => {
     const column = columns[colIndex] || createMoodboardColumn(null);
     const image = column.images?.[imageIndex] || emptySlot();
-    const saved = Boolean(image.imageSaved && image.src);
+    const externalUrl = normalizeMoodboardExternalUrl(image.externalUrl);
+    const hasImage = Boolean(image.src);
+    const saved = Boolean(image.imageSaved && (hasImage || externalUrl));
+    const displaySrc = hasImage ? image.src : (externalUrl ? MOODBOARD_FILE_ICON_SRC : "");
+    const isFileIcon = saved && !hasImage && Boolean(externalUrl);
     const key = slotKey(colIndex, imageIndex);
     const uploading = uploadingKey === key;
     const dragOver = dragOverKey === key;
@@ -492,6 +505,7 @@ export function MoodboardBlockView({
             "doc-moodboard__cell"
             + ` doc-moodboard__cell--${sizeClass}`
             + (saved ? "" : " doc-moodboard__cell--empty")
+            + (isFileIcon ? " doc-moodboard__cell--file" : "")
           }
           data-mb-slot={image.slotId || undefined}
         >
@@ -500,16 +514,22 @@ export function MoodboardBlockView({
               <button
                 type="button"
                 className="doc-moodboard__cell-hit"
-                disabled={!isEdit}
                 aria-label={t("doc.moodboard.attachTitle")}
                 onClick={() => openAttachmentModal(colIndex, imageIndex)}
               >
                 <img
-                  className="doc-moodboard__img"
-                  src={image.src}
-                  alt={image.alt || image.name || t("doc.imageBlock.previewAlt")}
-                  width={image.width || undefined}
-                  height={image.height || undefined}
+                  className={
+                    "doc-moodboard__img"
+                    + (isFileIcon ? " doc-moodboard__img--file" : "")
+                  }
+                  src={displaySrc}
+                  alt={
+                    isFileIcon
+                      ? (image.name || t("doc.moodboard.attachFilePreviewAlt"))
+                      : (image.alt || image.name || t("doc.imageBlock.previewAlt"))
+                  }
+                  width={hasImage ? (image.width || undefined) : undefined}
+                  height={hasImage ? (image.height || undefined) : undefined}
                   draggable={false}
                 />
               </button>
@@ -524,6 +544,17 @@ export function MoodboardBlockView({
                   >
                     {uploading ? t("doc.imageBlock.uploading") : t("doc.imageBlock.replace")}
                   </button>
+                  {externalUrl ? (
+                    <button
+                      type="button"
+                      className="doc-moodboard__media-btn"
+                      onClick={() => {
+                        window.open(externalUrl, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      {t("doc.moodboard.attachOpenLink")}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="doc-moodboard__media-btn"
@@ -531,6 +562,18 @@ export function MoodboardBlockView({
                     disabled={Boolean(uploadingKey)}
                   >
                     {t("doc.imageBlock.remove")}
+                  </button>
+                </div>
+              ) : externalUrl ? (
+                <div className="doc-moodboard__media-actions">
+                  <button
+                    type="button"
+                    className="doc-moodboard__media-btn"
+                    onClick={() => {
+                      window.open(externalUrl, "_blank", "noopener,noreferrer");
+                    }}
+                  >
+                    {t("doc.moodboard.attachOpenLink")}
                   </button>
                 </div>
               ) : null}
@@ -801,6 +844,7 @@ export function MoodboardBlockView({
       <MoodboardAttachmentModal
         open={Boolean(attachmentSlot)}
         image={attachmentImage}
+        readOnly={!isEdit}
         onClose={() => setAttachmentSlot(null)}
         onAccept={acceptAttachment}
       />

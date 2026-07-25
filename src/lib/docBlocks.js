@@ -363,6 +363,26 @@ export const MOODBOARD_STICKY_MAX = 220;
 export const MOODBOARD_INFO_MAX = 28;
 /** Per-image tag label (large / semi_sticky Permanent Marker). */
 export const MOODBOARD_TAG_MAX = 28;
+/** Default board/thumb icon for link-only (non-image) moodboard slots. */
+export const MOODBOARD_FILE_ICON_SRC = "/uploads/folders/Search%20Folder.png";
+
+/**
+ * Normalize a pasted Drive/Dropbox/any http(s) URL. Returns "" if invalid.
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizeMoodboardExternalUrl(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  try {
+    const withProto = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    const url = new URL(withProto);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return url.href;
+  } catch {
+    return "";
+  }
+}
 
 /** Banner headline (bold copy beside image). */
 export const BANNER_HEADLINE_MAX = 280;
@@ -530,6 +550,9 @@ export function applyTodoSlashToImageSplit(block, _bodyValue) {
 
 function normalizeMoodboardSlot(slot) {
   const src = slot?.src || "";
+  const externalUrl = normalizeMoodboardExternalUrl(slot?.externalUrl);
+  const hasImage = Boolean(src);
+  const hasLink = Boolean(externalUrl);
   return {
     slotId: String(slot?.slotId || generateId("MBS")),
     src,
@@ -537,7 +560,11 @@ function normalizeMoodboardSlot(slot) {
     alt: slot?.alt || "",
     width: Number.isFinite(slot?.width) ? slot.width : 0,
     height: Number.isFinite(slot?.height) ? slot.height : 0,
-    imageSaved: Boolean(slot?.imageSaved && src),
+    /** Filled slot: local image and/or external link (Drive / Dropbox / …). */
+    imageSaved: Boolean((slot?.imageSaved && hasImage) || hasLink),
+    /** "image" when src exists; "file" when link-only (board shows file icon). */
+    kind: hasImage ? "image" : (hasLink ? "file" : "image"),
+    externalUrl,
     tagLabel: String(slot?.tagLabel ?? "").trim().slice(0, MOODBOARD_TAG_MAX),
   };
 }
@@ -614,7 +641,7 @@ export function countMoodboardSavedImages(block) {
   for (const column of columns) {
     const images = Array.isArray(column?.images) ? column.images : [];
     for (const image of images) {
-      if (image?.imageSaved && image?.src) count += 1;
+      if (image?.imageSaved && (image?.src || image?.externalUrl)) count += 1;
     }
   }
   return count;

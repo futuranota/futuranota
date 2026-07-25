@@ -1,6 +1,9 @@
 import { generateId } from "./ids.js";
 import { computeTextEditDelta } from "./docTextBoldRanges.js";
 
+/** Mirror of MOODBOARD_FILE_ICON_SRC — keep in sync (avoid circular import with docBlocks). */
+const MOODBOARD_FILE_THUMB = "/uploads/folders/Search%20Folder.png";
+
 /**
  * @typedef {Object} DocTagRef
  * @property {string} id
@@ -459,7 +462,8 @@ export function collectMoodboardTagCandidates(blocks) {
     for (const column of columns) {
       const images = Array.isArray(column?.images) ? column.images : [];
       for (const image of images) {
-        if (!image?.imageSaved || !image?.src) continue;
+        if (!image?.imageSaved) continue;
+        if (!image?.src && !image?.externalUrl) continue;
         const label = normalizeTagRefLabel(image.tagLabel);
         const slotId = String(image.slotId || "").trim();
         if (!label || !slotId) continue;
@@ -467,7 +471,7 @@ export function collectMoodboardTagCandidates(blocks) {
           slotId,
           blockId,
           label,
-          thumbSrc: String(image.src || ""),
+          thumbSrc: String(image.src || MOODBOARD_FILE_THUMB),
         });
       }
     }
