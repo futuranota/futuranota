@@ -8395,6 +8395,63 @@ body.doc-content-resizing * {
 
 /* Exact thirds: 3 equal columns, fixed gap + padding — pieces never overlap.
    Bottom padding is a slim strip for float actions (see BOARD_CAPTION_STRIP). */
+.doc-moodboard__board-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.doc-moodboard__overlay-rail {
+  position: absolute;
+  top: 20px;
+  left: 8px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(21, 21, 21, 0.88);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.doc-moodboard__board-wrap:hover .doc-moodboard__overlay-rail,
+.doc-moodboard__board-wrap:focus-within .doc-moodboard__overlay-rail {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.doc-moodboard__overlay-rail-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.doc-moodboard__overlay-rail-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.doc-moodboard__overlay-rail-btn img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  filter: invert(1);
+}
+
 .doc-moodboard__board {
   position: relative;
   display: grid;
@@ -8407,6 +8464,68 @@ body.doc-content-resizing * {
   border-radius: 5px;
   background: #F1F1F1;
   overflow: hidden;
+}
+
+.doc-moodboard__overlays {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.doc-moodboard__overlays--edit .doc-moodboard__overlay {
+  pointer-events: auto;
+}
+
+.doc-moodboard__overlay {
+  position: absolute;
+  width: 44px;
+  height: auto;
+  user-select: none;
+  touch-action: none;
+}
+
+.doc-moodboard__overlay--draggable {
+  cursor: grab;
+}
+
+.doc-moodboard__overlay--draggable:active {
+  cursor: grabbing;
+}
+
+.doc-moodboard__overlay--selected {
+  outline: 1px solid rgba(22, 26, 29, 0.45);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.doc-moodboard__overlay-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+.doc-moodboard__overlay-delete {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 1;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(22, 26, 29, 0.85);
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.doc-moodboard__overlay-delete:hover {
+  background: #000;
 }
 
 .doc-moodboard__col {

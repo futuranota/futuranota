@@ -6,12 +6,16 @@ import {
   MOODBOARD_CAPTION_MAX_LINES,
   MOODBOARD_COLUMN_COUNT,
   MOODBOARD_FILE_ICON_SRC,
+  MOODBOARD_OVERLAY_KINDS,
+  MOODBOARD_OVERLAY_SRC,
   MOODBOARD_RECIPES,
   MOODBOARD_STICKY_MAX,
   MOODBOARD_TAG_MAX,
   countMoodboardSavedImages,
   createMoodboardColumn,
+  createMoodboardOverlay,
   normalizeMoodboardExternalUrl,
+  normalizeMoodboardOverlays,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
@@ -25,6 +29,13 @@ const BOARD_GAP = 10;
 
 const STICKY_SRC = "/uploads/horizontal-note.svg";
 const TAG_ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%2015%201.svg";
+
+const OVERLAY_PALETTE = [
+  { kind: MOODBOARD_OVERLAY_KINDS.TWISTED, labelKey: "doc.moodboard.overlayTwisted" },
+  { kind: MOODBOARD_OVERLAY_KINDS.STRAIGHT, labelKey: "doc.moodboard.overlayStraight" },
+  { kind: MOODBOARD_OVERLAY_KINDS.UP, labelKey: "doc.moodboard.overlayUp" },
+  { kind: MOODBOARD_OVERLAY_KINDS.DOWN, labelKey: "doc.moodboard.overlayDown" },
+];
 
 const RECIPE_OPTIONS = [
   { id: MOODBOARD_RECIPES.LARGE, labelKey: "doc.moodboard.recipeLarge" },
@@ -167,6 +178,9 @@ export function MoodboardBlockView({
   const [boardHeight, setBoardHeight] = useState(null);
   const [captionAtLimit, setCaptionAtLimit] = useState(false);
   const [attachmentSlot, setAttachmentSlot] = useState(null);
+  const [selectedOverlayId, setSelectedOverlayId] = useState(null);
+  const overlayDragRef = useRef(null);
+  const overlaysRef = useRef([]);
 
   const columns = Array.isArray(block?.columns) && block.columns.length === MOODBOARD_COLUMN_COUNT
     ? block.columns
@@ -176,9 +190,22 @@ export function MoodboardBlockView({
       createMoodboardColumn(null),
     ];
 
+  const overlays = normalizeMoodboardOverlays(block?.overlays);
+  overlaysRef.current = overlays;
   const savedImageCount = countMoodboardSavedImages({ columns });
   const moodboardSaved = Boolean(block?.moodboardSaved && savedImageCount > 0);
   const isEdit = !moodboardSaved;
+
+  useEffect(() => {
+    if (!isEdit) setSelectedOverlayId(null);
+  }, [isEdit]);
+
+  useEffect(() => {
+    if (!selectedOverlayId) return;
+    if (!overlays.some((item) => item.id === selectedOverlayId)) {
+      setSelectedOverlayId(null);
+    }
+  }, [overlays, selectedOverlayId]);
 
   const pulseCaptionLimit = useCallback(() => {
     setCaptionAtLimit(true);
@@ -223,6 +250,71 @@ export function MoodboardBlockView({
   const patchColumns = (updater) => {
     const next = columns.map((col, index) => updater(col, index));
     handleFieldChange({ columns: next });
+  };
+
+  const addOverlay = (kind) => {
+    if (!isEdit) return;
+    const created = createMoodboardOverlay(kind, { xPct: 45, yPct: 40 });
+    if (!created) return;
+    handleFieldChange({ overlays: [...overlaysRef.current, created] });
+    setSelectedOverlayId(created.id);
+  };
+
+  const removeOverlay = (overlayId) => {
+    if (!isEdit || !overlayId) return;
+    handleFieldChange({
+      overlays: overlaysRef.current.filter((item) => item.id !== overlayId),
+    });
+    setSelectedOverlayId((prev) => (prev === overlayId ? null : prev));
+  };
+
+  const startOverlayDrag = (event, overlay) => {
+    if (!isEdit || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedOverlayId(overlay.id);
+    const board = boardRef.current;
+    if (!board) return;
+    const boardRect = board.getBoundingClientRect();
+    if (!(boardRect.width > 0) || !(boardRect.height > 0)) return;
+
+    const overlayEl = event.currentTarget;
+    const itemRect = overlayEl.getBoundingClientRect();
+    overlayDragRef.current = {
+      id: overlay.id,
+      offsetX: event.clientX - itemRect.left,
+      offsetY: event.clientY - itemRect.top,
+      itemW: itemRect.width,
+      itemH: itemRect.height,
+    };
+
+    const onMove = (moveEvent) => {
+      const drag = overlayDragRef.current;
+      const el = boardRef.current;
+      if (!drag || !el) return;
+      const rect = el.getBoundingClientRect();
+      if (!(rect.width > 0) || !(rect.height > 0)) return;
+      const maxX = Math.max(0, rect.width - drag.itemW);
+      const maxY = Math.max(0, rect.height - drag.itemH);
+      const left = Math.max(0, Math.min(maxX, moveEvent.clientX - rect.left - drag.offsetX));
+      const top = Math.max(0, Math.min(maxY, moveEvent.clientY - rect.top - drag.offsetY));
+      const xPct = (left / rect.width) * 100;
+      const yPct = (top / rect.height) * 100;
+      handleFieldChange({
+        overlays: overlaysRef.current.map((item) => (
+          item.id === drag.id ? { ...item, xPct, yPct } : item
+        )),
+      });
+    };
+
+    const onUp = () => {
+      overlayDragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
   };
 
   const setColumnRecipe = (colIndex, recipe) => {
@@ -763,81 +855,167 @@ export function MoodboardBlockView({
         </div>
       ) : null}
 
-      <div
-        className="doc-moodboard__board"
-        ref={boardRef}
-        style={boardHeight ? { height: boardHeight, minHeight: boardHeight } : undefined}
-      >
-        {columns.map((_, index) => renderColumn(index))}
-
-        {(block?.caption || "").trim() ? (
-          <textarea
-            ref={captionRef}
-            className={
-              "doc-moodboard__caption"
-              + (captionAtLimit ? " doc-moodboard__caption--at-limit" : "")
-            }
-            value={block?.caption || ""}
-            maxLength={MOODBOARD_CAPTION_MAX}
-            rows={MOODBOARD_CAPTION_MAX_LINES}
-            aria-label={t("doc.moodboard.captionLabel")}
-            readOnly={!isEdit}
-            spellCheck={false}
-            onChange={handleCaptionChange}
-            onKeyDown={handleCaptionKeyDown}
-            onPaste={handleCaptionPaste}
-          />
+      <div className="doc-moodboard__board-wrap">
+        {isEdit ? (
+          <div
+            className="doc-moodboard__overlay-rail"
+            role="toolbar"
+            aria-label={t("doc.moodboard.overlaysLabel")}
+          >
+            {OVERLAY_PALETTE.map((item) => (
+              <button
+                key={item.kind}
+                type="button"
+                className="doc-moodboard__overlay-rail-btn"
+                title={t(item.labelKey)}
+                aria-label={t(item.labelKey)}
+                onClick={() => addOverlay(item.kind)}
+              >
+                <img
+                  src={MOODBOARD_OVERLAY_SRC[item.kind]}
+                  alt=""
+                  draggable={false}
+                />
+              </button>
+            ))}
+          </div>
         ) : null}
 
-        <div className="doc-moodboard__float-actions">
-          {isEdit ? (
-            <button
-              type="button"
-              className="doc-moodboard__save"
-              disabled={!canSave}
-              onClick={() => {
-                if (!canSave) return;
-                onSave?.();
-              }}
+        <div
+          className="doc-moodboard__board"
+          ref={boardRef}
+          style={boardHeight ? { height: boardHeight, minHeight: boardHeight } : undefined}
+          onMouseDown={(event) => {
+            if (!isEdit) return;
+            if (event.target === event.currentTarget) {
+              setSelectedOverlayId(null);
+            }
+          }}
+        >
+          {columns.map((_, index) => renderColumn(index))}
+
+          {overlays.length > 0 ? (
+            <div
+              className={
+                "doc-moodboard__overlays"
+                + (isEdit ? " doc-moodboard__overlays--edit" : "")
+              }
+              aria-hidden={!isEdit}
             >
-              {t("doc.moodboard.save")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="doc-moodboard__edit"
-              onClick={() => onEdit?.()}
-            >
-              {t("doc.moodboard.edit")}
-            </button>
-          )}
-          {onConvertLayout ? (
-            <>
+              {overlays.map((overlay) => {
+                const selected = isEdit && selectedOverlayId === overlay.id;
+                const src = MOODBOARD_OVERLAY_SRC[overlay.kind];
+                if (!src) return null;
+                return (
+                  <div
+                    key={overlay.id}
+                    className={
+                      "doc-moodboard__overlay"
+                      + (selected ? " doc-moodboard__overlay--selected" : "")
+                      + (isEdit ? " doc-moodboard__overlay--draggable" : "")
+                    }
+                    style={{ left: `${overlay.xPct}%`, top: `${overlay.yPct}%` }}
+                    onPointerDown={(event) => startOverlayDrag(event, overlay)}
+                  >
+                    <img
+                      className="doc-moodboard__overlay-img"
+                      src={src}
+                      alt=""
+                      draggable={false}
+                    />
+                    {selected ? (
+                      <button
+                        type="button"
+                        className="doc-moodboard__overlay-delete"
+                        aria-label={t("doc.moodboard.overlayDelete")}
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                        }}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          removeOverlay(overlay.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {(block?.caption || "").trim() ? (
+            <textarea
+              ref={captionRef}
+              className={
+                "doc-moodboard__caption"
+                + (captionAtLimit ? " doc-moodboard__caption--at-limit" : "")
+              }
+              value={block?.caption || ""}
+              maxLength={MOODBOARD_CAPTION_MAX}
+              rows={MOODBOARD_CAPTION_MAX_LINES}
+              aria-label={t("doc.moodboard.captionLabel")}
+              readOnly={!isEdit}
+              spellCheck={false}
+              onChange={handleCaptionChange}
+              onKeyDown={handleCaptionKeyDown}
+              onPaste={handleCaptionPaste}
+            />
+          ) : null}
+
+          <div className="doc-moodboard__float-actions">
+            {isEdit ? (
+              <button
+                type="button"
+                className="doc-moodboard__save"
+                disabled={!canSave}
+                onClick={() => {
+                  if (!canSave) return;
+                  onSave?.();
+                }}
+              >
+                {t("doc.moodboard.save")}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="doc-moodboard__edit"
+                onClick={() => onEdit?.()}
+              >
+                {t("doc.moodboard.edit")}
+              </button>
+            )}
+            {onConvertLayout ? (
+              <>
+                <button
+                  type="button"
+                  className="doc-moodboard__switch"
+                  onClick={() => onConvertLayout("image_split")}
+                >
+                  {t("doc.layoutSwitch.imageSplit")}
+                </button>
+                <button
+                  type="button"
+                  className="doc-moodboard__switch"
+                  onClick={() => onConvertLayout("banner")}
+                >
+                  {t("doc.layoutSwitch.banner")}
+                </button>
+              </>
+            ) : null}
+            {onDelete ? (
               <button
                 type="button"
                 className="doc-moodboard__switch"
-                onClick={() => onConvertLayout("image_split")}
+                onClick={() => onDelete()}
               >
-                {t("doc.layoutSwitch.imageSplit")}
+                {t("doc.imageBlock.remove")}
               </button>
-              <button
-                type="button"
-                className="doc-moodboard__switch"
-                onClick={() => onConvertLayout("banner")}
-              >
-                {t("doc.layoutSwitch.banner")}
-              </button>
-            </>
-          ) : null}
-          {onDelete ? (
-            <button
-              type="button"
-              className="doc-moodboard__switch"
-              onClick={() => onDelete()}
-            >
-              {t("doc.imageBlock.remove")}
-            </button>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
 

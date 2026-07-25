@@ -366,6 +366,24 @@ export const MOODBOARD_TAG_MAX = 28;
 /** Default board/thumb icon for link-only (non-image) moodboard slots. */
 export const MOODBOARD_FILE_ICON_SRC = "/uploads/Folders/MediaFolder.png";
 
+/** Freeform arrow overlays on the moodboard board (Edit palette). */
+export const MOODBOARD_OVERLAY_KINDS = {
+  TWISTED: "twisted",
+  STRAIGHT: "straight",
+  UP: "up",
+  DOWN: "down",
+};
+
+/** Absolute /uploads paths — use as <img src>, never CSS url(). */
+export const MOODBOARD_OVERLAY_SRC = {
+  [MOODBOARD_OVERLAY_KINDS.TWISTED]: "/uploads/arrow-twisted.svg",
+  [MOODBOARD_OVERLAY_KINDS.STRAIGHT]: "/uploads/arrow-straight.svg",
+  [MOODBOARD_OVERLAY_KINDS.UP]: "/uploads/arrow-up.svg",
+  [MOODBOARD_OVERLAY_KINDS.DOWN]: "/uploads/arrow-down.svg",
+};
+
+const MOODBOARD_OVERLAY_KIND_SET = new Set(Object.values(MOODBOARD_OVERLAY_KINDS));
+
 /**
  * Normalize a pasted Drive/Dropbox/any http(s) URL. Returns "" if invalid.
  * @param {unknown} value
@@ -662,6 +680,65 @@ export function firstMoodboardImage(block) {
   return emptyMoodboardSlot();
 }
 
+/**
+ * Clamp a moodboard overlay position percentage.
+ * @param {unknown} value
+ * @param {number} [fallback=50]
+ * @returns {number}
+ */
+function clampMoodboardOverlayPct(value, fallback = 50) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, n));
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {{ id: string, kind: string, xPct: number, yPct: number } | null}
+ */
+function normalizeMoodboardOverlay(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const kind = String(raw.kind || "");
+  if (!MOODBOARD_OVERLAY_KIND_SET.has(kind)) return null;
+  return {
+    id: String(raw.id || generateId("MBO")),
+    kind,
+    xPct: clampMoodboardOverlayPct(raw.xPct, 45),
+    yPct: clampMoodboardOverlayPct(raw.yPct, 40),
+  };
+}
+
+/**
+ * @param {unknown} list
+ * @returns {{ id: string, kind: string, xPct: number, yPct: number }[]}
+ */
+export function normalizeMoodboardOverlays(list) {
+  if (!Array.isArray(list) || list.length === 0) return [];
+  /** @type {{ id: string, kind: string, xPct: number, yPct: number }[]} */
+  const out = [];
+  const seen = new Set();
+  for (const raw of list) {
+    const item = normalizeMoodboardOverlay(raw);
+    if (!item || seen.has(item.id)) continue;
+    seen.add(item.id);
+    out.push(item);
+  }
+  return out;
+}
+
+/**
+ * @param {string} kind
+ * @param {{ xPct?: number, yPct?: number, id?: string }} [patch]
+ */
+export function createMoodboardOverlay(kind, patch = {}) {
+  return normalizeMoodboardOverlay({
+    id: patch.id || generateId("MBO"),
+    kind,
+    xPct: patch.xPct ?? 45,
+    yPct: patch.yPct ?? 40,
+  });
+}
+
 function normalizeMoodboardBlock(block) {
   const columns = migrateLegacyMoodboardColumns(block);
   const savedCount = countMoodboardSavedImages({ columns });
@@ -673,6 +750,7 @@ function normalizeMoodboardBlock(block) {
   const b = columns[1]?.images?.[0] ? normalizeMoodboardSlot(columns[1].images[0]) : emptyMoodboardSlot();
   const body = String(block?.body ?? "");
   const tagRefs = normalizeTagRefs(body, block?.tagRefs);
+  const overlays = normalizeMoodboardOverlays(block?.overlays);
   return {
     caption: String(block?.caption ?? "").slice(0, MOODBOARD_CAPTION_MAX),
     columns,
@@ -680,6 +758,7 @@ function normalizeMoodboardBlock(block) {
     b,
     body,
     ...(tagRefs.length ? { tagRefs } : {}),
+    overlays,
     bodyMode,
     todoListTitle: String(block?.todoListTitle ?? DEFAULT_CHECKBOX_LIST_TITLE),
     todoItems: bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
@@ -1766,6 +1845,7 @@ export function docBlocksToBody(blocks) {
           ...(Array.isArray(normalized.tagRefs) && normalized.tagRefs.length > 0
             ? { tagRefs: normalized.tagRefs }
             : {}),
+          ...(normalized.overlays.length > 0 ? { overlays: normalized.overlays } : {}),
           bodyMode: normalized.bodyMode,
           todoListTitle: normalized.todoListTitle,
           todoItems: normalized.todoItems,
