@@ -2383,6 +2383,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 continuationBlock ? continuationBlock.text || "" : null
               }
               continuationMentions={continuationBlock?.mentions || []}
+              continuationTagRefs={continuationBlock?.tagRefs || []}
               continuationMarkerRanges={continuationBlock?.markerRanges || []}
               continuationBoldRanges={continuationBlock?.boldRanges || []}
               onContinuationChange={

@@ -190,6 +190,8 @@ export function SlashAwareTextarea({
   const [tagRefMenuIndex, setTagRefMenuIndex] = useState(0);
   const [tagRefMenuAnchor, setTagRefMenuAnchor] = useState(null);
   const [activeTagRefQuery, setActiveTagRefQuery] = useState(null);
+  /** Keeps chips visible if parent persists text but drops tagRefs meta. */
+  const [optimisticTagRefs, setOptimisticTagRefs] = useState(null);
   const [hoverCard, setHoverCard] = useState(null);
   const [hoveredTagRefId, setHoveredTagRefId] = useState(null);
 
@@ -205,11 +207,25 @@ export function SlashAwareTextarea({
   // null/undefined candidates => # stays plain text.
   const tagRefsEnabled = Array.isArray(tagRefCandidates);
   const hasTagRefSource = tagRefsEnabled;
-  const normalizedTagRefs = useMemo(
-    () => (tagRefsEnabled ? normalizeTagRefs(value, tagRefs) : []),
-    [tagRefs, tagRefsEnabled, value],
-  );
+  const normalizedTagRefs = useMemo(() => {
+    if (!tagRefsEnabled) return [];
+    const fromProp = normalizeTagRefs(value, tagRefs);
+    if (fromProp.length > 0) return fromProp;
+    if (optimisticTagRefs) return normalizeTagRefs(value, optimisticTagRefs);
+    return [];
+  }, [optimisticTagRefs, tagRefs, tagRefsEnabled, value]);
   const hasTagRefs = normalizedTagRefs.length > 0;
+
+  useEffect(() => {
+    if (!tagRefsEnabled) {
+      setOptimisticTagRefs(null);
+      return;
+    }
+    const fromProp = normalizeTagRefs(value, tagRefs);
+    if (fromProp.length > 0) {
+      setOptimisticTagRefs(null);
+    }
+  }, [tagRefs, tagRefsEnabled, value]);
 
   // null/undefined markerRanges => marker feature off for this field.
   const markersEnabled = Array.isArray(markerRanges);
@@ -660,6 +676,9 @@ export function SlashAwareTextarea({
     const normalizedBoldsOut = boldEnabled
       ? normalizeBoldRanges(collapsed, boldsOut)
       : [];
+    if (tagRefsEnabled) {
+      setOptimisticTagRefs(normalizedTagRefsOut.length ? normalizedTagRefsOut : null);
+    }
     const meta = {
       ...(mentionsEnabled ? { mentions: normalized } : {}),
       ...(tagRefsEnabled ? { tagRefs: normalizedTagRefsOut } : {}),
@@ -727,24 +746,33 @@ export function SlashAwareTextarea({
 
   const insertTagRefCandidate = useCallback((candidate) => {
     if (!candidate || !activeTagRefQuery) return;
-    const result = insertTagRefAtQuery(value, normalizedTagRefs, activeTagRefQuery, candidate);
+    const el = textareaRef.current;
+    const liveValue = el && typeof el.value === "string" ? el.value : value;
+    const liveTagRefs = tagRefsEnabled
+      ? normalizeTagRefs(liveValue, optimisticTagRefs ?? tagRefs)
+      : [];
+    const liveQuery = getTagRefQueryAtCaret(liveValue, el?.selectionStart ?? activeTagRefQuery.end)
+      || activeTagRefQuery;
+    const result = insertTagRefAtQuery(liveValue, liveTagRefs, liveQuery, candidate);
+    if (!result.tagRefs?.length) return;
+    setOptimisticTagRefs(result.tagRefs);
     const nextMentions = mentionsEnabled
-      ? applyTextEditToMentions(value, result.text, normalizedMentions)
+      ? applyTextEditToMentions(liveValue, result.text, normalizedMentions)
       : [];
     const nextMarkers = markersEnabled
-      ? applyTextEditToMarkerRanges(value, result.text, normalizedMarkers)
+      ? applyTextEditToMarkerRanges(liveValue, result.text, normalizedMarkers)
       : [];
     const nextBolds = boldEnabled
-      ? applyTextEditToBoldRanges(value, result.text, normalizedBolds)
+      ? applyTextEditToBoldRanges(liveValue, result.text, normalizedBolds)
       : [];
     emitChange(result.text, nextMentions, nextMarkers, nextBolds, result.tagRefs);
     setActiveTagRefQuery(null);
     setTagRefMenuAnchor(null);
     requestAnimationFrame(() => {
-      const el = textareaRef.current;
-      if (!el || !("setSelectionRange" in el)) return;
-      el.focus({ preventScroll: true });
-      el.setSelectionRange(result.caret, result.caret);
+      const field = textareaRef.current;
+      if (!field || !("setSelectionRange" in field)) return;
+      field.focus({ preventScroll: true });
+      field.setSelectionRange(result.caret, result.caret);
       syncMentionQuery();
     });
   }, [
@@ -756,8 +784,10 @@ export function SlashAwareTextarea({
     normalizedBolds,
     normalizedMarkers,
     normalizedMentions,
-    normalizedTagRefs,
+    optimisticTagRefs,
     syncMentionQuery,
+    tagRefs,
+    tagRefsEnabled,
     textareaRef,
     value,
   ]);

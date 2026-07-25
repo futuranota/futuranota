@@ -6167,7 +6167,8 @@ body.doc-content-resizing * {
   word-break: break-word;
 }
 
-.doc-slash-field--mentions .doc-slash-field__mirror--interactive {
+.doc-slash-field--mentions .doc-slash-field__mirror--interactive,
+.doc-slash-field--tagrefs .doc-slash-field__mirror--interactive {
   pointer-events: auto;
 }
 
@@ -6277,9 +6278,14 @@ body.doc-content-resizing * {
 }
 
 .doc-slash-field__tagref {
-  color: inherit;
-  background: rgba(217, 255, 0, 0.46);
-  border-radius: 4px;
+  color: #7DD3FC;
+  font-weight: 600;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-color: rgba(125, 211, 252, 0.7);
+  text-underline-offset: 2px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -6292,9 +6298,11 @@ body.doc-content-resizing * {
 }
 
 .doc-slash-field__tagref--hovered {
+  color: #BAE6FD;
   text-decoration: underline;
-  text-decoration-color: currentColor;
+  text-decoration-color: #BAE6FD;
   text-underline-offset: 2px;
+  cursor: pointer;
 }
 
 .doc-slash-field--chip-hover .doc-slash-field__input {

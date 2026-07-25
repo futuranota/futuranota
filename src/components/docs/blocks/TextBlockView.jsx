@@ -38,6 +38,8 @@ export function TextBlockView({
   continuationAutoFocus = false,
   continuationMentions = null,
   onContinuationMentionsChange = null,
+  continuationTagRefs = null,
+  onContinuationTagRefsChange = null,
   continuationMarkerRanges = null,
   continuationBoldRanges = null,
   analystReportStyle = false,
@@ -224,7 +226,7 @@ export function TextBlockView({
         mentions={mentions}
         onMentionsChange={onMentionsChange}
         mentionCandidates={mentionCandidates}
-        tagRefs={tagRefs}
+        tagRefs={Array.isArray(tagRefCandidates) ? (tagRefs || []) : null}
         onTagRefsChange={onTagRefsChange}
         tagRefCandidates={tagRefCandidates}
         markerRanges={markerRanges}
@@ -254,7 +256,8 @@ export function TextBlockView({
           mentions={continuationMentions}
           onMentionsChange={onContinuationMentionsChange}
           mentionCandidates={mentionCandidates}
-          tagRefs={null}
+          tagRefs={Array.isArray(tagRefCandidates) ? (continuationTagRefs || []) : null}
+          onTagRefsChange={onContinuationTagRefsChange}
           tagRefCandidates={tagRefCandidates}
           markerRanges={continuationMarkerRanges}
           boldRanges={continuationBoldRanges}
