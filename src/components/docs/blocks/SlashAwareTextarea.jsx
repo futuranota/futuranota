@@ -469,7 +469,11 @@ export function SlashAwareTextarea({
           event.stopPropagation();
           setHoverCard(null);
           setHoveredTagRefId(null);
-          scrollToMoodboardSlot({ blockId: tagRef.blockId, slotId: tagRef.slotId });
+          scrollToMoodboardSlot({
+            blockId: tagRef.blockId,
+            slotId: tagRef.slotId,
+            label: tagRef.label,
+          });
           return;
         }
       }

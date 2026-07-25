@@ -173,6 +173,7 @@ export function applyTextEditToTagRefs(prevText, nextText, tagRefs) {
 
 /**
  * Replace the active `#query` with the bare label (no "#") and attach a tag ref.
+ * Requires slotId + blockId — never store a broken local link.
  * @param {string} text
  * @param {DocTagRef[]} tagRefs
  * @param {TagRefQuery} activeQuery
@@ -182,7 +183,9 @@ export function applyTextEditToTagRefs(prevText, nextText, tagRefs) {
 export function insertTagRefAtQuery(text, tagRefs, activeQuery, candidate) {
   const str = asText(text);
   const label = normalizeTagRefLabel(candidate?.label);
-  if (!label || !activeQuery) {
+  const slotId = String(candidate?.slotId || "").trim();
+  const blockId = String(candidate?.blockId || "").trim();
+  if (!label || !activeQuery || !slotId || !blockId) {
     return { text: str, tagRefs: normalizeTagRefs(str, tagRefs), caret: str.length };
   }
 
@@ -196,8 +199,8 @@ export function insertTagRefAtQuery(text, tagRefs, activeQuery, candidate) {
 
   const nextTagRef = {
     id: generateId("TGR"),
-    slotId: String(candidate.slotId || ""),
-    blockId: String(candidate.blockId || ""),
+    slotId,
+    blockId,
     label,
     start,
     end,
@@ -307,38 +310,90 @@ export function mergeTagRefBlocks(leftText, leftTagRefs, rightText, rightTagRefs
 
 /**
  * Scroll to a moodboard image slot in the open document and pulse it.
- * Same-document only.
- * @param {{ blockId?: string, slotId?: string }} target
+ * Same-document only. Cascades: slotId → label in block → block container.
+ * @param {{ blockId?: string, slotId?: string, label?: string }} target
  * @returns {boolean}
  */
 export function scrollToMoodboardSlot(target) {
   if (typeof document === "undefined") return false;
-  const blockId = String(target?.blockId || "");
-  const slotId = String(target?.slotId || "");
-  if (!blockId || !slotId) return false;
+  const blockId = String(target?.blockId || "").trim();
+  const slotId = String(target?.slotId || "").trim();
+  const label = normalizeTagRefLabel(target?.label);
+  if (!blockId && !slotId && !label) return false;
 
-  const root = document.querySelector(".doc-new-content-scroll")
-    || document.querySelector(".doc-overlay-global")
-    || document;
-  const cell = root.querySelector(
-    `[data-block-id="${CSS.escape(blockId)}"] [data-mb-slot="${CSS.escape(slotId)}"]`,
-  );
-  if (!cell) {
-    const blockEl = root.querySelector(`[data-block-id="${CSS.escape(blockId)}"]`);
-    blockEl?.scrollIntoView?.({ block: "center", behavior: "smooth" });
-    return Boolean(blockEl);
+  const escape = (value) => {
+    const str = String(value ?? "");
+    if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+      return CSS.escape(str);
+    }
+    return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  };
+
+  const pulse = (el) => {
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.classList.add("doc-moodboard__cell--pulse");
+    window.setTimeout(() => {
+      el.classList.remove("doc-moodboard__cell--pulse");
+    }, 1200);
+  };
+
+  const findBlockRoot = (id) => {
+    if (!id) return null;
+    const esc = escape(id);
+    return document.querySelector(`[data-block-id="${esc}"]`)
+      || document.querySelector(`[data-writing-block-id="${esc}"]`);
+  };
+
+  // 1) Prefer exact slot id (document-wide).
+  if (slotId) {
+    const cell = document.querySelector(`[data-mb-slot="${escape(slotId)}"]`);
+    if (cell) {
+      pulse(cell);
+      return true;
+    }
   }
 
-  cell.scrollIntoView({ block: "center", behavior: "smooth" });
-  cell.classList.add("doc-moodboard__cell--pulse");
-  window.setTimeout(() => {
-    cell.classList.remove("doc-moodboard__cell--pulse");
-  }, 1200);
-  return true;
+  // 2) Within the moodboard block, match by visible tag label.
+  const blockRoot = findBlockRoot(blockId);
+  if (blockRoot && label) {
+    const labels = blockRoot.querySelectorAll(".doc-moodboard__tag-label, .doc-moodboard__info");
+    for (const node of labels) {
+      if (normalizeTagRefKey(node.textContent) !== normalizeTagRefKey(label)) continue;
+      const cell = node.closest(".doc-moodboard__cell") || node.closest(".doc-moodboard__info-row") || node;
+      pulse(cell);
+      return true;
+    }
+  }
+
+  // 3) First image cell inside the block.
+  if (blockRoot) {
+    const cell = blockRoot.querySelector(".doc-moodboard__cell");
+    if (cell) {
+      pulse(cell);
+      return true;
+    }
+    pulse(blockRoot);
+    return true;
+  }
+
+  // 4) Last resort: any moodboard cell whose tag matches the label.
+  if (label) {
+    const labels = document.querySelectorAll(".doc-moodboard__tag-label");
+    for (const node of labels) {
+      if (normalizeTagRefKey(node.textContent) !== normalizeTagRefKey(label)) continue;
+      const cell = node.closest(".doc-moodboard__cell") || node;
+      pulse(cell);
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
  * Collect tagged moodboard image slots from doc blocks.
+ * Skips slots missing a stable slotId or blockId (cannot link locally).
  * @param {Array<{ id?: string, type?: string, columns?: object[] }>} blocks
  * @returns {Array<{ slotId: string, blockId: string, label: string, thumbSrc: string }>}
  */
@@ -346,16 +401,18 @@ export function collectMoodboardTagCandidates(blocks) {
   const out = [];
   for (const block of blocks || []) {
     if (block?.type !== "moodboard") continue;
-    const blockId = String(block.id || "");
+    const blockId = String(block.id || "").trim();
+    if (!blockId) continue;
     const columns = Array.isArray(block.columns) ? block.columns : [];
     for (const column of columns) {
       const images = Array.isArray(column?.images) ? column.images : [];
       for (const image of images) {
         if (!image?.imageSaved || !image?.src) continue;
         const label = normalizeTagRefLabel(image.tagLabel);
-        if (!label) continue;
+        const slotId = String(image.slotId || "").trim();
+        if (!label || !slotId) continue;
         out.push({
-          slotId: String(image.slotId || ""),
+          slotId,
           blockId,
           label,
           thumbSrc: String(image.src || ""),

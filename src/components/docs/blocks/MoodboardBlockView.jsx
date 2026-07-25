@@ -24,10 +24,9 @@ const BOARD_PAD_TOP = 16;
 const BOARD_CAPTION_STRIP = 28;
 const BOARD_GAP = 10;
 
-const ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%206.svg";
-const ARROW_ALT_SRC = "/uploads/Hand%20Drawn%20Arrows%2054.svg";
+const ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%2015%201.svg";
 const STICKY_SRC = "/uploads/horizontal-note.svg";
-const UP_ARROW_SRC = "/uploads/up-arrow.svg";
+const TAG_ARROW_SRC = "/uploads/Hand%20Drawn%20Arrows%2015%201.svg";
 
 const RECIPE_OPTIONS = [
   { id: MOODBOARD_RECIPES.LARGE, labelKey: "doc.moodboard.recipeLarge" },
@@ -628,7 +627,7 @@ export function MoodboardBlockView({
               <div className="doc-moodboard__tag-row" aria-hidden={!tagLabel}>
                 <img
                   className="doc-moodboard__tag-arrow"
-                  src={UP_ARROW_SRC}
+                  src={TAG_ARROW_SRC}
                   alt=""
                   draggable={false}
                 />
@@ -742,14 +741,14 @@ export function MoodboardBlockView({
           <div className="doc-moodboard__recipe doc-moodboard__recipe--medium">
             <div className="doc-moodboard__info-row">
               <img
-                className="doc-moodboard__arrow"
-                src={colIndex % 2 === 0 ? ARROW_SRC : ARROW_ALT_SRC}
+                className="doc-moodboard__arrow doc-moodboard__tag-arrow"
+                src={ARROW_SRC}
                 alt=""
                 draggable={false}
               />
               {isEdit ? (
                 <input
-                  className="doc-moodboard__info"
+                  className="doc-moodboard__info doc-moodboard__tag-label"
                   type="text"
                   maxLength={MOODBOARD_INFO_MAX}
                   value={column.infoLabel || ""}
@@ -769,7 +768,7 @@ export function MoodboardBlockView({
                   }}
                 />
               ) : (
-                <span className="doc-moodboard__info doc-moodboard__info--static">
+                <span className="doc-moodboard__info doc-moodboard__info--static doc-moodboard__tag-label">
                   {column.infoLabel || ""}
                 </span>
               )}
@@ -993,14 +992,22 @@ export function MoodboardBlockView({
                   onClick={() => {
                     const ref = segment.tagRef;
                     if (!ref) return;
-                    scrollToMoodboardSlot({ blockId: ref.blockId, slotId: ref.slotId });
+                    scrollToMoodboardSlot({
+                      blockId: ref.blockId,
+                      slotId: ref.slotId,
+                      label: ref.label,
+                    });
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     event.preventDefault();
                     const ref = segment.tagRef;
                     if (!ref) return;
-                    scrollToMoodboardSlot({ blockId: ref.blockId, slotId: ref.slotId });
+                    scrollToMoodboardSlot({
+                      blockId: ref.blockId,
+                      slotId: ref.slotId,
+                      label: ref.label,
+                    });
                   }}
                 >
                   {segment.text}
