@@ -381,6 +381,7 @@ export function SlashAwareTextarea({
     mirror.style.overflowWrap = style.overflowWrap;
     mirror.style.zIndex = "0";
     mirror.scrollTop = el.scrollTop;
+    mirror.scrollLeft = el.scrollLeft;
   }, [textareaRef]);
 
   useEffect(() => () => {

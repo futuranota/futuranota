@@ -6207,9 +6207,10 @@ body.doc-content-resizing * {
   border-radius: 0.45em 0.25em 0.55em 0.3em / 0.75em 0.4em 0.65em 0.5em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  /* Keep ink flush with glyphs — wide ±X shadows looked like a horizontal jump. */
   box-shadow:
-    -0.22em 0 0.04em var(--marker-ink-soft),
-    0.22em 0 0.04em var(--marker-ink-soft);
+    -0.06em 0 0.02em var(--marker-ink-soft),
+    0.06em 0 0.02em var(--marker-ink-soft);
 }
 
 .doc-text-marker--yellow {
@@ -8470,6 +8471,12 @@ body.doc-content-resizing * {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.doc-moodboard__overlay-rail-btn--active {
+  background: rgba(255, 255, 255, 0.18);
+  outline: 1px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 0;
+}
+
 .doc-moodboard__overlay-rail-btn img {
   display: block;
   width: 100%;
@@ -8491,6 +8498,15 @@ body.doc-content-resizing * {
   border-radius: 5px;
   background: #F1F1F1;
   overflow: hidden;
+}
+
+.doc-moodboard__board--place-overlay {
+  cursor: crosshair;
+}
+
+.doc-moodboard__board--place-overlay .doc-moodboard__cell-hit,
+.doc-moodboard__board--place-overlay .doc-moodboard__media-btn {
+  pointer-events: none;
 }
 
 .doc-moodboard__overlays {

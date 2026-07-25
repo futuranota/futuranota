@@ -70,7 +70,7 @@ export function useNodeTextSelectionToolbar({
     const position = resolveTextSelectionToolbarPosition(
       el,
       selection.start,
-      selection.start,
+      selection.end,
     );
     if (!position) return false;
 

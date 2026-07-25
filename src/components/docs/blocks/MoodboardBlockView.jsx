@@ -178,6 +178,7 @@ export function MoodboardBlockView({
   const [captionAtLimit, setCaptionAtLimit] = useState(false);
   const [attachmentSlot, setAttachmentSlot] = useState(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState(null);
+  const [pendingOverlayKind, setPendingOverlayKind] = useState(null);
   const overlayDragRef = useRef(null);
   const overlaysRef = useRef([]);
 
@@ -196,7 +197,10 @@ export function MoodboardBlockView({
   const isEdit = !moodboardSaved;
 
   useEffect(() => {
-    if (!isEdit) setSelectedOverlayId(null);
+    if (!isEdit) {
+      setSelectedOverlayId(null);
+      setPendingOverlayKind(null);
+    }
   }, [isEdit]);
 
   useEffect(() => {
@@ -251,12 +255,34 @@ export function MoodboardBlockView({
     handleFieldChange({ columns: next });
   };
 
-  const addOverlay = (kind) => {
+  const addOverlayAt = (kind, clientX, clientY) => {
     if (!isEdit) return;
-    const created = createMoodboardOverlay(kind, { xPct: 45, yPct: 40 });
+    const board = boardRef.current;
+    let xPct = 45;
+    let yPct = 40;
+    // Place near the pointer (half of the 44px overlay box) so the arrow
+    // lands on the highlight/tag the user aimed at — not a fixed board %.
+    const half = 22;
+    if (board && Number.isFinite(clientX) && Number.isFinite(clientY)) {
+      const rect = board.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const left = Math.max(
+          0,
+          Math.min(rect.width - half * 2, clientX - rect.left - half),
+        );
+        const top = Math.max(
+          0,
+          Math.min(rect.height - half * 2, clientY - rect.top - half),
+        );
+        xPct = (left / rect.width) * 100;
+        yPct = (top / rect.height) * 100;
+      }
+    }
+    const created = createMoodboardOverlay(kind, { xPct, yPct });
     if (!created) return;
     handleFieldChange({ overlays: [...overlaysRef.current, created] });
     setSelectedOverlayId(created.id);
+    setPendingOverlayKind(null);
   };
 
   const removeOverlay = (overlayId) => {
@@ -272,6 +298,7 @@ export function MoodboardBlockView({
     event.preventDefault();
     event.stopPropagation();
     setSelectedOverlayId(overlay.id);
+    setPendingOverlayKind(null);
     const board = boardRef.current;
     if (!board) return;
     const boardRect = board.getBoundingClientRect();
@@ -285,12 +312,20 @@ export function MoodboardBlockView({
       offsetY: event.clientY - itemRect.top,
       itemW: itemRect.width,
       itemH: itemRect.height,
+      originX: event.clientX,
+      originY: event.clientY,
+      moved: false,
     };
 
     const onMove = (moveEvent) => {
       const drag = overlayDragRef.current;
       const el = boardRef.current;
       if (!drag || !el) return;
+      const dx = moveEvent.clientX - drag.originX;
+      const dy = moveEvent.clientY - drag.originY;
+      // Ignore tiny pointer jitter on click-to-select so X/Y do not drift.
+      if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+      drag.moved = true;
       const rect = el.getBoundingClientRect();
       if (!(rect.width > 0) || !(rect.height > 0)) return;
       const maxX = Math.max(0, rect.width - drag.itemW);
@@ -859,10 +894,20 @@ export function MoodboardBlockView({
               <button
                 key={item.kind}
                 type="button"
-                className="doc-moodboard__overlay-rail-btn"
+                className={
+                  "doc-moodboard__overlay-rail-btn"
+                  + (pendingOverlayKind === item.kind
+                    ? " doc-moodboard__overlay-rail-btn--active"
+                    : "")
+                }
                 title={t(item.labelKey)}
                 aria-label={t(item.labelKey)}
-                onClick={() => addOverlay(item.kind)}
+                aria-pressed={pendingOverlayKind === item.kind}
+                onClick={() => {
+                  setPendingOverlayKind((prev) => (
+                    prev === item.kind ? null : item.kind
+                  ));
+                }}
               >
                 <img
                   src={MOODBOARD_OVERLAY_SRC[item.kind]}
@@ -875,11 +920,24 @@ export function MoodboardBlockView({
         ) : null}
 
         <div
-          className="doc-moodboard__board"
+          className={
+            "doc-moodboard__board"
+            + (pendingOverlayKind ? " doc-moodboard__board--place-overlay" : "")
+          }
           ref={boardRef}
           style={boardHeight ? { height: boardHeight, minHeight: boardHeight } : undefined}
+          onPointerDownCapture={(event) => {
+            if (!isEdit || !pendingOverlayKind || event.button !== 0) return;
+            // Capture so placement wins over cell hit-targets / tag rows.
+            if (event.target?.closest?.(".doc-moodboard__overlay")) return;
+            if (event.target?.closest?.(".doc-moodboard__overlay-rail")) return;
+            event.preventDefault();
+            event.stopPropagation();
+            addOverlayAt(pendingOverlayKind, event.clientX, event.clientY);
+          }}
           onMouseDown={(event) => {
             if (!isEdit) return;
+            if (pendingOverlayKind) return;
             if (event.target === event.currentTarget) {
               setSelectedOverlayId(null);
             }
