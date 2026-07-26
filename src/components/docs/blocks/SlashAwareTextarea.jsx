@@ -12,8 +12,14 @@ import {
   filterTagRefCandidates,
   getTagRefQueryAtCaret,
   insertTagRefAtQuery,
+  isTagRefAloneOnLine,
   normalizeTagRefs,
+  removeTagRefById,
+  resolveTagRefThumbSrc,
   scrollToMoodboardSlot,
+  snapCaretOutOfTagRefBoxFootprint,
+  TAGREF_BOX_HEIGHT_PX,
+  TAGREF_BOX_WIDTH_PX,
 } from "../../../lib/docTagRefs.js";
 import {
   applyTextEditToMarkerRanges,
@@ -63,8 +69,10 @@ function MirrorContent({
   tagRefs,
   markerRanges,
   boldRanges,
+  tagRefCandidates = null,
   hoveredMentionId = null,
   hoveredTagRefId = null,
+  onDeleteTagRef = null,
 }) {
   const segments = buildMirrorSegments(text, mentions, markerRanges, boldRanges, tagRefs);
   return segments.map((segment, index) => {
@@ -75,17 +83,75 @@ function MirrorContent({
     let inner = segment.text;
 
     if (segment.tagRef) {
+      const alone = isTagRefAloneOnLine(text, segment.tagRef.start, segment.tagRef.end);
+      const thumbSrc = alone
+        ? resolveTagRefThumbSrc(segment.tagRef, tagRefCandidates)
+        : "";
+      const showBox = alone && Boolean(thumbSrc);
+      const boxHovered = Boolean(
+        showBox && hoveredTagRefId && segment.tagRef.id === hoveredTagRefId,
+      );
       inner = (
         <span
           className={
             "doc-slash-field__tagref"
+            + (showBox ? " doc-slash-field__tagref--box" : "")
             + (hoveredTagRefId && segment.tagRef.id === hoveredTagRefId
               ? " doc-slash-field__tagref--hovered"
               : "")
           }
           data-tagref-id={segment.tagRef.id}
+          data-tagref-box={showBox ? "1" : undefined}
         >
-          {segment.text}
+          {showBox ? (
+            <>
+              <span
+                className="doc-slash-field__tagref-box-frame"
+                data-tagref-box-frame="1"
+                style={{
+                  width: TAGREF_BOX_WIDTH_PX,
+                  height: TAGREF_BOX_HEIGHT_PX,
+                }}
+              >
+                <img
+                  className="doc-slash-field__tagref-box-img"
+                  src={thumbSrc}
+                  alt=""
+                  draggable={false}
+                  width={TAGREF_BOX_WIDTH_PX}
+                  height={TAGREF_BOX_HEIGHT_PX}
+                />
+                <button
+                  type="button"
+                  className={
+                    "doc-slash-field__tagref-box-close"
+                    + (boxHovered ? " is-visible" : "")
+                  }
+                  aria-label="Remove moodboard tag"
+                  tabIndex={-1}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDeleteTagRef?.(segment.tagRef.id);
+                  }}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDeleteTagRef?.(segment.tagRef.id);
+                  }}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+              <span className="doc-slash-field__tagref-box-label">{segment.text}</span>
+            </>
+          ) : (
+            segment.text
+          )}
         </span>
       );
     } else if (segment.mention) {
@@ -479,6 +545,29 @@ export function SlashAwareTextarea({
     [textareaRef],
   );
 
+  // Close button / top-right corner of the moodboard frame (beats open-slot).
+  const TAGREF_BOX_CLOSE_HIT_PX = 32;
+
+  const findTagRefBoxCloseIdAtPoint = useCallback((x, y) => {
+    const mirror = mirrorRef.current;
+    if (!mirror) return null;
+    for (const span of mirror.querySelectorAll("[data-tagref-id][data-tagref-box='1']")) {
+      const frame =
+        span.querySelector?.(".doc-slash-field__tagref-box-frame")
+        || span.querySelector?.(".doc-slash-field__tagref-box-img");
+      const base = frame?.getBoundingClientRect?.();
+      if (!base || base.width < 1 || base.height < 1) continue;
+      const left = base.right - TAGREF_BOX_CLOSE_HIT_PX;
+      const right = base.right + 6;
+      const top = base.top - 6;
+      const bottom = base.top + TAGREF_BOX_CLOSE_HIT_PX;
+      if (x >= left && x <= right && y >= top && y <= bottom) {
+        return span.getAttribute("data-tagref-id");
+      }
+    }
+    return null;
+  }, []);
+
   // Chips live in the mirror, which is pointer-events:none while the field is
   // focused — so both hover and click are resolved by hit-testing the mention
   // span rects against the pointer position (works focused and blurred).
@@ -491,15 +580,62 @@ export function SlashAwareTextarea({
           return span;
         }
       }
+      // Moodboard box: fixed frame under the label (may extend into spacer lines).
+      if (attrName === "data-tagref-id" && span.getAttribute("data-tagref-box") === "1") {
+        const frame =
+          span.querySelector?.(".doc-slash-field__tagref-box-frame")
+          || span.querySelector?.(".doc-slash-field__tagref-box-img");
+        const base = frame?.getBoundingClientRect?.() || span.getClientRects()?.[0];
+        if (base) {
+          const left = base.left;
+          const top = base.top;
+          const right = left + Math.max(base.width, TAGREF_BOX_WIDTH_PX);
+          const bottom = top + Math.max(base.height, TAGREF_BOX_HEIGHT_PX);
+          if (x >= left && x <= right && y >= top && y <= bottom) {
+            return span;
+          }
+        }
+      }
     }
     return null;
   }, []);
 
+  const snapCaretPastBoxFootprints = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el || !("selectionStart" in el)) return;
+    if (el.selectionStart !== el.selectionEnd) return;
+    const next = snapCaretOutOfTagRefBoxFootprint(
+      value,
+      normalizedTagRefs,
+      el.selectionStart,
+      tagRefCandidates,
+    );
+    if (next !== el.selectionStart) {
+      el.setSelectionRange(next, next);
+    }
+  }, [normalizedTagRefs, tagRefCandidates, textareaRef, value]);
+
+  const deleteTagRefRef = useRef(null);
+
   const handleWrapPointerDown = useCallback(
     (event) => {
       if (event.button !== 0) return;
+      // Capture + bubble both bound — skip the second pass.
+      if (event.defaultPrevented) return;
 
       if (hasTagRefs) {
+        // Prefer close (×) over opening the moodboard — mirror is often
+        // pointer-events:none while focused, so the wrap owns the hit.
+        const closeId = findTagRefBoxCloseIdAtPoint(event.clientX, event.clientY);
+        if (closeId) {
+          event.preventDefault();
+          event.stopPropagation();
+          setHoverCard(null);
+          setHoveredTagRefId(null);
+          deleteTagRefRef.current?.(closeId);
+          return;
+        }
+
         const span = findChipSpanAtPoint(event.clientX, event.clientY, "data-tagref-id");
         const tagRefId = span?.getAttribute("data-tagref-id");
         const tagRef = tagRefId
@@ -509,7 +645,19 @@ export function SlashAwareTextarea({
           event.preventDefault();
           event.stopPropagation();
           setHoverCard(null);
-          setHoveredTagRefId(null);
+          // Keep caret on the free line under the frame (never on spacer lines).
+          const el = textareaRef.current;
+          if (el && "setSelectionRange" in el) {
+            const writeAt = snapCaretOutOfTagRefBoxFootprint(
+              value,
+              normalizedTagRefs,
+              tagRef.start,
+              tagRefCandidates,
+            );
+            el.focus({ preventScroll: true });
+            el.setSelectionRange(writeAt, writeAt);
+          }
+          setHoveredTagRefId(tagRef.id);
           scrollToMoodboardSlot({
             blockId: tagRef.blockId,
             slotId: tagRef.slotId,
@@ -542,12 +690,15 @@ export function SlashAwareTextarea({
     },
     [
       findChipSpanAtPoint,
+      findTagRefBoxCloseIdAtPoint,
       focusField,
       hasMentions,
       hasTagRefs,
       normalizedMentions,
       normalizedTagRefs,
+      tagRefCandidates,
       textareaRef,
+      value,
     ],
   );
 
@@ -730,6 +881,44 @@ export function SlashAwareTextarea({
     onTagRefsChange,
     tagRefsEnabled,
   ]);
+
+  const deleteTagRef = useCallback((tagRefId) => {
+    if (!tagRefId) return;
+    const result = removeTagRefById(value, normalizedTagRefs, tagRefId, tagRefCandidates);
+    if (!result) return;
+    setHoveredTagRefId(null);
+    const nextMentions = mentionsEnabled
+      ? applyTextEditToMentions(value, result.text, normalizedMentions)
+      : [];
+    const nextMarkers = markersEnabled
+      ? applyTextEditToMarkerRanges(value, result.text, normalizedMarkers)
+      : [];
+    const nextBolds = boldEnabled
+      ? applyTextEditToBoldRanges(value, result.text, normalizedBolds)
+      : [];
+    emitChange(result.text, nextMentions, nextMarkers, nextBolds, result.tagRefs);
+    requestAnimationFrame(() => {
+      const field = textareaRef.current;
+      if (!field || !("setSelectionRange" in field)) return;
+      field.focus({ preventScroll: true });
+      field.setSelectionRange(result.caret, result.caret);
+      syncMentionQuery();
+    });
+  }, [
+    boldEnabled,
+    emitChange,
+    markersEnabled,
+    mentionsEnabled,
+    normalizedBolds,
+    normalizedMarkers,
+    normalizedMentions,
+    normalizedTagRefs,
+    syncMentionQuery,
+    tagRefCandidates,
+    textareaRef,
+    value,
+  ]);
+  deleteTagRefRef.current = deleteTagRef;
 
   const insertCandidate = useCallback((candidate) => {
     const query = activeQueryRef.current || activeQuery;
@@ -969,6 +1158,7 @@ export function SlashAwareTextarea({
         hoveredMentionId || hoveredTagRefId ? "doc-slash-field--chip-hover" : "",
         wrapClassName,
       ].filter(Boolean).join(" ")}
+      onMouseDownCapture={handleWrapPointerDown}
       onMouseDown={handleWrapPointerDown}
       onMouseMove={handleWrapMouseMove}
       onMouseLeave={handleWrapMouseLeave}
@@ -989,8 +1179,10 @@ export function SlashAwareTextarea({
             tagRefs={normalizedTagRefs}
             markerRanges={normalizedMarkers}
             boldRanges={normalizedBolds}
+            tagRefCandidates={tagRefCandidates}
             hoveredMentionId={hoveredMentionId}
             hoveredTagRefId={hoveredTagRefId}
+            onDeleteTagRef={deleteTagRef}
           />
         </div>
       ) : null}
@@ -1025,17 +1217,21 @@ export function SlashAwareTextarea({
           onKeyDown?.(e);
           if (!e.defaultPrevented && CARET_CAMERA_KEYS.has(e.key)) {
             scheduleCaretCameraScroll();
+            requestAnimationFrame(() => snapCaretPastBoxFootprints());
           }
         }}
         onSelect={() => {
+          snapCaretPastBoxFootprints();
           syncGhostPosition();
           syncMentionQuery();
         }}
         onKeyUp={() => {
+          snapCaretPastBoxFootprints();
           syncGhostPosition();
           syncMentionQuery();
         }}
         onClick={() => {
+          snapCaretPastBoxFootprints();
           syncGhostPosition();
           syncMentionQuery();
         }}

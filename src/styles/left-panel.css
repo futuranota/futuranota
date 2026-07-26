@@ -6289,6 +6289,113 @@ body.doc-content-resizing * {
   -webkit-box-decoration-break: clone;
 }
 
+/* Alone on its line: moodboard frame overlays the label; spacer newlines
+   below (inserted with the tag) reserve real textarea height so the next
+   writing line stays aligned under the frame. */
+.doc-slash-field__tagref--box {
+  position: relative;
+  color: transparent;
+  font-weight: 600;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  text-decoration: none;
+}
+
+/* Fixed frame — must not shrink to the short #label width (Tailwind
+   preflight sets img { max-width: 100% }, which crushed tall thumbs). */
+.doc-slash-field__tagref-box-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: block;
+  width: 72px;
+  height: 56px;
+  min-width: 72px;
+  min-height: 56px;
+  max-width: none;
+  box-sizing: border-box;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.doc-slash-field__tagref-box-img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  display: block;
+  width: 72px !important;
+  height: 56px !important;
+  min-width: 72px;
+  min-height: 56px;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.doc-slash-field__tagref-box-label {
+  /* Keep label glyphs for caret metrics; paint is transparent via parent. */
+  color: inherit;
+}
+
+.doc-slash-field__tagref-box-close {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  left: auto;
+  z-index: 4;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 28px;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.doc-slash-field__tagref--box:hover .doc-slash-field__tagref-box-close,
+.doc-slash-field__tagref--box.doc-slash-field__tagref--hovered .doc-slash-field__tagref-box-close,
+.doc-slash-field__tagref-box-close.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.doc-slash-field__tagref-box-close:hover,
+.doc-slash-field__tagref-box-close.is-visible:hover {
+  background: rgba(0, 0, 0, 0.92);
+}
+
+.doc-slash-field--tagrefs .doc-slash-field__mirror .doc-slash-field__tagref-box-close {
+  pointer-events: auto;
+}
+
+.doc-slash-field__tagref--box.doc-slash-field__tagref--hovered .doc-slash-field__tagref-box-img {
+  border-color: rgba(125, 211, 252, 0.55);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.25);
+}
+
+.doc-slash-field__tagref--box.doc-slash-field__tagref--hovered {
+  color: transparent;
+  text-decoration: none;
+  cursor: pointer;
+}
+
 /* Link affordance on hover only: underline + pointer, click opens the table. */
 .doc-slash-field__mention--hovered {
   text-decoration: underline;

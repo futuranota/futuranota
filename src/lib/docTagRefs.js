@@ -13,6 +13,7 @@ const MOODBOARD_FILE_THUMB = "/uploads/Folders/MediaFolder.png";
  * @property {number} start
  * @property {number} end
  * @property {string} insertedAt
+ * @property {string} [thumbSrc] moodboard preview when shown as a box
  */
 
 /**
@@ -81,6 +82,9 @@ export function normalizeTagRefs(text, tagRefs) {
       start,
       end,
       insertedAt: String(raw.insertedAt || new Date().toISOString()),
+      ...(String(raw.thumbSrc || "").trim()
+        ? { thumbSrc: String(raw.thumbSrc).trim() }
+        : {}),
     });
   }
 
@@ -94,6 +98,55 @@ export function normalizeTagRefs(text, tagRefs) {
     nonOverlapping.push(tagRef);
   }
   return nonOverlapping;
+}
+
+/**
+ * True when the tag-ref is the only non-whitespace content on its line.
+ * Used to render a moodboard thumb box instead of a text chip.
+ * @param {string} text
+ * @param {number} start
+ * @param {number} end
+ * @returns {boolean}
+ */
+export function isTagRefAloneOnLine(text, start, end) {
+  const str = asText(text);
+  if (!str) return false;
+  let s = Number(start);
+  let e = Number(end);
+  if (!Number.isFinite(s) || !Number.isFinite(e)) return false;
+  s = Math.max(0, Math.min(str.length, Math.floor(s)));
+  e = Math.max(s, Math.min(str.length, Math.floor(e)));
+  if (e <= s) return false;
+
+  let lineStart = s;
+  while (lineStart > 0 && str[lineStart - 1] !== "\n") lineStart -= 1;
+  let lineEnd = e;
+  while (lineEnd < str.length && str[lineEnd] !== "\n") lineEnd += 1;
+
+  const before = str.slice(lineStart, s);
+  const after = str.slice(e, lineEnd);
+  return !/\S/.test(before) && !/\S/.test(after);
+}
+
+/**
+ * Resolve a preview URL for a tag ref (stored thumb, else candidates).
+ * @param {DocTagRef} tagRef
+ * @param {Array<{ slotId?: string, blockId?: string, label?: string, thumbSrc?: string }>|null|undefined} candidates
+ * @returns {string}
+ */
+export function resolveTagRefThumbSrc(tagRef, candidates = null) {
+  const stored = String(tagRef?.thumbSrc || "").trim();
+  if (stored) return stored;
+  if (!Array.isArray(candidates) || !candidates.length) return "";
+  const slotId = String(tagRef?.slotId || "");
+  const blockId = String(tagRef?.blockId || "");
+  const key = normalizeTagRefKey(tagRef?.label);
+  const bySlot = candidates.find(
+    (item) => String(item.slotId || "") === slotId && String(item.blockId || "") === blockId,
+  );
+  if (bySlot?.thumbSrc) return String(bySlot.thumbSrc).trim();
+  const byLabel = candidates.find((item) => normalizeTagRefKey(item.label) === key);
+  return String(byLabel?.thumbSrc || "").trim();
 }
 
 /**
@@ -174,13 +227,124 @@ export function applyTextEditToTagRefs(prevText, nextText, tagRefs) {
   return shiftTagRefs(tagRefs, editStart, removedLength, insertedLength, nextText);
 }
 
+/** Blank lines under an alone-line moodboard box so textarea height matches the frame. */
+export const TAGREF_BOX_SPACER_NEWLINES = 2;
+
+/** Frame size (CSS + hit target). */
+export const TAGREF_BOX_WIDTH_PX = 72;
+export const TAGREF_BOX_HEIGHT_PX = 56;
+
+/**
+ * End index of the protected box footprint (label + spacer newlines), exclusive.
+ * Caret should not sit in [tagRef.start, footprintEnd).
+ * @param {string} text
+ * @param {DocTagRef} tagRef
+ * @param {Array<{ slotId?: string, blockId?: string, label?: string, thumbSrc?: string }>|null|undefined} candidates
+ * @returns {number}
+ */
+export function getTagRefBoxFootprintEnd(text, tagRef, candidates = null) {
+  if (!tagRef) return 0;
+  const str = asText(text);
+  if (!isTagRefAloneOnLine(str, tagRef.start, tagRef.end)) return tagRef.end;
+  if (!resolveTagRefThumbSrc(tagRef, candidates)) return tagRef.end;
+
+  let pos = tagRef.end;
+  let counted = 0;
+  while (pos < str.length && counted < TAGREF_BOX_SPACER_NEWLINES) {
+    if (str[pos] !== "\n") break;
+    pos += 1;
+    counted += 1;
+  }
+  return pos;
+}
+
+/**
+ * Index just below the box (start of the free writing line after footprint).
+ * @param {string} text
+ * @param {DocTagRef} tagRef
+ * @param {Array<{ slotId?: string, blockId?: string, label?: string, thumbSrc?: string }>|null|undefined} candidates
+ * @returns {number}
+ */
+export function getTagRefBoxWriteCaret(text, tagRef, candidates = null) {
+  const str = asText(text);
+  const footEnd = getTagRefBoxFootprintEnd(str, tagRef, candidates);
+  if (footEnd <= tagRef.end) return tagRef.end;
+  // Prefer after the structural writable newline from insert (`label\n\n\n`).
+  if (footEnd < str.length && str[footEnd] === "\n") return footEnd + 1;
+  return footEnd;
+}
+
+/**
+ * If caret sits on a box label/spacer band, snap it to the free line below.
+ * @param {string} text
+ * @param {DocTagRef[]} tagRefs
+ * @param {number} caret
+ * @param {Array<{ slotId?: string, blockId?: string, label?: string, thumbSrc?: string }>|null|undefined} candidates
+ * @returns {number}
+ */
+export function snapCaretOutOfTagRefBoxFootprint(text, tagRefs, caret, candidates = null) {
+  const str = asText(text);
+  let pos = Math.max(0, Math.min(str.length, Number(caret) || 0));
+  const list = normalizeTagRefs(str, tagRefs);
+  for (const tagRef of list) {
+    const footEnd = getTagRefBoxFootprintEnd(str, tagRef, candidates);
+    if (footEnd <= tagRef.end) continue;
+    if (pos >= tagRef.start && pos < getTagRefBoxWriteCaret(str, tagRef, candidates)) {
+      pos = getTagRefBoxWriteCaret(str, tagRef, candidates);
+    }
+  }
+  return pos;
+}
+
+/**
+ * Remove a tag ref and any alone-line box spacer footprint after it.
+ * @param {string} text
+ * @param {DocTagRef[]} tagRefs
+ * @param {string} tagRefId
+ * @param {Array<{ slotId?: string, blockId?: string, label?: string, thumbSrc?: string }>|null|undefined} candidates
+ * @returns {{ text: string, tagRefs: DocTagRef[], caret: number } | null}
+ */
+export function removeTagRefById(text, tagRefs, tagRefId, candidates = null) {
+  const str = asText(text);
+  const list = normalizeTagRefs(str, tagRefs);
+  const target = list.find((item) => item.id === tagRefId) || null;
+  if (!target) return null;
+
+  let removeEnd = target.end;
+  if (
+    isTagRefAloneOnLine(str, target.start, target.end)
+    && resolveTagRefThumbSrc(target, candidates)
+  ) {
+    removeEnd = getTagRefBoxFootprintEnd(str, target, candidates);
+    // Consume the writable-line newline from box insert when still present.
+    if (removeEnd < str.length && str[removeEnd] === "\n") {
+      removeEnd += 1;
+    }
+  }
+
+  const nextText = str.slice(0, target.start) + str.slice(removeEnd);
+  const nextTagRefs = shiftTagRefs(
+    list,
+    target.start,
+    removeEnd - target.start,
+    0,
+    nextText,
+  );
+  return {
+    text: nextText,
+    tagRefs: nextTagRefs,
+    caret: target.start,
+  };
+}
+
 /**
  * Replace the active `#query` with the bare label (no "#") and attach a tag ref.
  * Requires slotId + blockId — never store a broken local link.
+ * Alone on an empty line + thumb → reserves vertical space and leaves a free line below to type.
  * @param {string} text
  * @param {DocTagRef[]} tagRefs
  * @param {TagRefQuery} activeQuery
- * @param {{ slotId: string, blockId: string, label: string }} candidate
+ * @param {{ slotId: string, blockId: string, label: string, thumbSrc?: string }} candidate
  * @returns {{ text: string, tagRefs: DocTagRef[], caret: number }}
  */
 export function insertTagRefAtQuery(text, tagRefs, activeQuery, candidate) {
@@ -192,13 +356,41 @@ export function insertTagRefAtQuery(text, tagRefs, activeQuery, candidate) {
     return { text: str, tagRefs: normalizeTagRefs(str, tagRefs), caret: str.length };
   }
 
-  const before = str.slice(0, activeQuery.start);
-  const after = str.slice(activeQuery.end);
-  const needsSpace = after.length > 0 && !/^\s/.test(after);
-  const insertion = needsSpace ? `${label} ` : label;
-  const nextText = before + insertion + after;
-  const start = before.length;
-  const end = start + label.length;
+  const thumbSrc = String(candidate?.thumbSrc || "").trim();
+  let lineStart = activeQuery.start;
+  while (lineStart > 0 && str[lineStart - 1] !== "\n") lineStart -= 1;
+  let lineEnd = activeQuery.end;
+  while (lineEnd < str.length && str[lineEnd] !== "\n") lineEnd += 1;
+  const lineBefore = str.slice(lineStart, activeQuery.start);
+  const lineAfter = str.slice(activeQuery.end, lineEnd);
+  const aloneOnLine = !/\S/.test(lineBefore) && !/\S/.test(lineAfter);
+  const useBoxFootprint = aloneOnLine && Boolean(thumbSrc);
+
+  let insertion;
+  let nextText;
+  let start;
+  let end;
+  let caret;
+
+  if (useBoxFootprint) {
+    // label line + spacer blanks + one empty writable line (caret lands there).
+    insertion = `${label}${"\n".repeat(TAGREF_BOX_SPACER_NEWLINES + 1)}`;
+    let rest = str.slice(lineEnd);
+    if (rest.startsWith("\n")) rest = rest.slice(1);
+    nextText = str.slice(0, activeQuery.start) + insertion + rest;
+    start = activeQuery.start;
+    end = start + label.length;
+    caret = start + insertion.length;
+  } else {
+    const before = str.slice(0, activeQuery.start);
+    const after = str.slice(activeQuery.end);
+    const needsSpace = after.length > 0 && !/^\s/.test(after);
+    insertion = needsSpace ? `${label} ` : label;
+    nextText = before + insertion + after;
+    start = before.length;
+    end = start + label.length;
+    caret = start + insertion.length;
+  }
 
   const nextTagRef = {
     id: generateId("TGR"),
@@ -208,6 +400,7 @@ export function insertTagRefAtQuery(text, tagRefs, activeQuery, candidate) {
     start,
     end,
     insertedAt: new Date().toISOString(),
+    ...(thumbSrc ? { thumbSrc } : {}),
   };
 
   const cleared = shiftTagRefs(
@@ -221,7 +414,7 @@ export function insertTagRefAtQuery(text, tagRefs, activeQuery, candidate) {
   return {
     text: nextText,
     tagRefs: normalizeTagRefs(nextText, [...cleared, nextTagRef]),
-    caret: start + insertion.length,
+    caret,
   };
 }
 
@@ -306,21 +499,22 @@ export function deleteTagRefAtomically(text, tagRefs, selectionStart, selectionE
     target = findTagRefAtOffset(list, lo);
   }
 
-  if (!target) return null;
+  if (!target) {
+    // Backspace on the free line under a moodboard box → remove the whole frame.
+    if (key === "Backspace" && lo === hi) {
+      for (const tagRef of list) {
+        const writeAt = getTagRefBoxWriteCaret(str, tagRef);
+        if (writeAt > tagRef.end && lo === writeAt) {
+          return removeTagRefById(str, list, tagRef.id);
+        }
+      }
+    }
+    return null;
+  }
 
-  const nextText = str.slice(0, target.start) + str.slice(target.end);
-  const nextTagRefs = shiftTagRefs(
-    list,
-    target.start,
-    target.end - target.start,
-    0,
-    nextText,
-  );
-  return {
-    text: nextText,
-    tagRefs: nextTagRefs,
-    caret: target.start,
-  };
+  const removed = removeTagRefById(str, list, target.id);
+  if (!removed) return null;
+  return removed;
 }
 
 /**
