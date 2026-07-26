@@ -41,7 +41,9 @@ const OVERLAY_PALETTE = [
 ];
 
 const POINTER_STROKE = "rgba(22, 26, 29, 0.85)";
-const POINTER_CIRCLE_R_PX = (MOODBOARD_OVERLAY_SIZE_PX[MOODBOARD_OVERLAY_KINDS.POINTER] || 110) / 2;
+/** Match ellipse / small-arrow dashed marks (`stroke-dasharray="2 2"`). */
+const POINTER_DASH = "2 2";
+const POINTER_CIRCLE_R_PX = (MOODBOARD_OVERLAY_SIZE_PX[MOODBOARD_OVERLAY_KINDS.POINTER] || 78) / 2;
 
 /**
  * @param {{ xPct: number, yPct: number, endXPct?: number, endYPct?: number }} overlay
@@ -61,8 +63,8 @@ function pointerArrowGeometry(overlay, boardW, boardH) {
   const ux = dx / dist;
   const uy = dy / dist;
   const edge = Math.min(POINTER_CIRCLE_R_PX, dist * 0.45);
-  const head = 10;
-  const tipPull = Math.min(head * 0.35, Math.max(0, dist - edge - 2));
+  const tipR = 3;
+  const tipPull = Math.min(tipR, Math.max(0, dist - edge - 1));
   return {
     x1: cx + ux * edge,
     y1: cy + uy * edge,
@@ -70,6 +72,7 @@ function pointerArrowGeometry(overlay, boardW, boardH) {
     y2: ty - uy * tipPull,
     tipX: tx,
     tipY: ty,
+    tipR,
     angleDeg: (Math.atan2(dy, dx) * 180) / Math.PI,
   };
 }
@@ -87,22 +90,26 @@ function OverlayPointerRailIcon() {
       <circle
         cx="12"
         cy="18"
-        r="7"
+        r="6"
         fill="none"
         stroke="rgba(255,255,255,0.92)"
         strokeWidth="1.5"
-        strokeDasharray="2.5 2"
+        strokeDasharray="2 2"
       />
       <path
-        d="M19 18 H28"
+        d="M18.5 18 H27.5"
         fill="none"
         stroke="rgba(255,255,255,0.92)"
         strokeWidth="1.5"
+        strokeDasharray="2 2"
         strokeLinecap="round"
       />
-      <path
-        d="M26 14.5 L31 18 L26 21.5 Z"
+      <circle
+        cx="29.5"
+        cy="18"
+        r="2.25"
         fill="rgba(255,255,255,0.92)"
+        stroke="none"
       />
     </svg>
   );
@@ -1161,13 +1168,12 @@ export function MoodboardBlockView({
                 const isPointer = overlay.kind === MOODBOARD_OVERLAY_KINDS.POINTER;
 
                 if (isPointer) {
-                  const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 110;
+                  const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 78;
                   const arrow = pointerArrowGeometry(
                     overlay,
                     boardSize.w,
                     boardSize.h || boardHeight || 0,
                   );
-                  const markerId = `moodboard-pointer-head-${overlay.id}`;
                   return (
                     <div
                       key={overlay.id}
@@ -1185,30 +1191,26 @@ export function MoodboardBlockView({
                           aria-hidden="true"
                           focusable="false"
                         >
-                          <defs>
-                            <marker
-                              id={markerId}
-                              markerWidth="8"
-                              markerHeight="8"
-                              refX="6"
-                              refY="4"
-                              orient="auto"
-                              markerUnits="strokeWidth"
-                            >
-                              <path d="M0 0 L8 4 L0 8 Z" fill={POINTER_STROKE} />
-                            </marker>
-                          </defs>
                           {arrow ? (
-                            <line
-                              x1={arrow.x1}
-                              y1={arrow.y1}
-                              x2={arrow.x2}
-                              y2={arrow.y2}
-                              stroke={POINTER_STROKE}
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              markerEnd={`url(#${markerId})`}
-                            />
+                            <>
+                              <line
+                                x1={arrow.x1}
+                                y1={arrow.y1}
+                                x2={arrow.x2}
+                                y2={arrow.y2}
+                                stroke={POINTER_STROKE}
+                                strokeWidth="1.5"
+                                strokeDasharray={POINTER_DASH}
+                                strokeLinecap="round"
+                              />
+                              <circle
+                                cx={arrow.tipX}
+                                cy={arrow.tipY}
+                                r={arrow.tipR}
+                                fill={POINTER_STROKE}
+                                stroke="none"
+                              />
+                            </>
                           ) : null}
                         </svg>
                       ) : null}
