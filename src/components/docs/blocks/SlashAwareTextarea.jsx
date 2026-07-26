@@ -35,6 +35,7 @@ import {
 } from "../../../lib/textareaSelectionRect.js";
 import { DocMentionHoverCard } from "./DocMentionHoverCard.jsx";
 import { DocMentionMenu } from "./DocMentionMenu.jsx";
+import { DocTagCommandPicker } from "./DocTagCommandPicker.jsx";
 import { DocTagRefMenu } from "./DocTagRefMenu.jsx";
 
 const CARET_CAMERA_KEYS = new Set([
@@ -158,6 +159,8 @@ export function SlashAwareTextarea({
   mentions = null,
   onMentionsChange = null,
   mentionCandidates = null,
+  /** Same company id /Tag uses — opens DocTagCommandPicker on @. */
+  companyObjectId = null,
   tagRefs = null,
   onTagRefsChange = null,
   tagRefCandidates = null,
@@ -181,6 +184,7 @@ export function SlashAwareTextarea({
     }
   }, [externalRef]);
   const caretCameraRafRef = useRef(null);
+  const activeQueryRef = useRef(null);
   const [hintIndex, setHintIndex] = useState(0);
   const [ghostPos, setGhostPos] = useState(null);
   const [focused, setFocused] = useState(false);
@@ -215,6 +219,10 @@ export function SlashAwareTextarea({
     return [];
   }, [optimisticTagRefs, tagRefs, tagRefsEnabled, value]);
   const hasTagRefs = normalizedTagRefs.length > 0;
+
+  useEffect(() => {
+    activeQueryRef.current = activeQuery;
+  }, [activeQuery]);
 
   useEffect(() => {
     if (!tagRefsEnabled) {
@@ -260,9 +268,16 @@ export function SlashAwareTextarea({
     return filterTagRefCandidates(tagRefCandidates, activeTagRefQuery.query, 8);
   }, [activeTagRefQuery, hasTagRefSource, tagRefCandidates]);
 
+  // Same picker as /Tag when we have a company; flat menu only as fallback.
   const showMentionMenu = Boolean(
-    focused && hasCandidateSource && activeQuery && !showGhost && !activeTagRefQuery,
+    (focused || Boolean(activeQuery && companyObjectId))
+    && hasCandidateSource
+    && activeQuery
+    && !showGhost
+    && !activeTagRefQuery,
   );
+  const useTagCommandPicker = Boolean(showMentionMenu && companyObjectId);
+  const useFlatMentionMenu = Boolean(showMentionMenu && !companyObjectId);
   const showTagRefMenu = Boolean(
     focused && hasTagRefSource && activeTagRefQuery && !showGhost && !activeQuery,
   );
@@ -299,7 +314,15 @@ export function SlashAwareTextarea({
     );
     if (domFocused !== focused) setFocused(domFocused);
     if (!domFocused || !el) {
+      const active = typeof document !== "undefined" ? document.activeElement : null;
+      if (
+        active instanceof Element
+        && active.closest(".doc-tag-command-picker")
+      ) {
+        return;
+      }
       setActiveQuery(null);
+      activeQueryRef.current = null;
       setMenuAnchor(null);
       setActiveTagRefQuery(null);
       setTagRefMenuAnchor(null);
@@ -709,8 +732,9 @@ export function SlashAwareTextarea({
   ]);
 
   const insertCandidate = useCallback((candidate) => {
-    if (!candidate || !activeQuery) return;
-    const result = insertMentionAtQuery(value, normalizedMentions, activeQuery, candidate);
+    const query = activeQueryRef.current || activeQuery;
+    if (!candidate || !query) return;
+    const result = insertMentionAtQuery(value, normalizedMentions, query, candidate);
     const nextMarkers = markersEnabled
       ? applyTextEditToMarkerRanges(value, result.text, normalizedMarkers)
       : [];
@@ -722,6 +746,7 @@ export function SlashAwareTextarea({
       : [];
     emitChange(result.text, result.mentions, nextMarkers, nextBolds, nextTagRefs);
     setActiveQuery(null);
+    activeQueryRef.current = null;
     setMenuAnchor(null);
     requestAnimationFrame(() => {
       const el = textareaRef.current;
@@ -828,9 +853,12 @@ export function SlashAwareTextarea({
     if (event.key === "Escape") {
       event.preventDefault();
       setActiveQuery(null);
+      activeQueryRef.current = null;
       setMenuAnchor(null);
       return true;
     }
+    // /Tag picker owns arrows + Enter while open.
+    if (useTagCommandPicker) return false;
     if (!filteredCandidates.length) return false;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -857,6 +885,7 @@ export function SlashAwareTextarea({
     showMentionMenu,
     showTagRefMenu,
     tagRefMenuIndex,
+    useTagCommandPicker,
   ]);
 
   const handleTagRefChipKeyDown = useCallback((event) => {
@@ -1015,8 +1044,21 @@ export function SlashAwareTextarea({
         }}
         onPaste={onPaste}
         onBlur={(e) => {
+          const next = e.relatedTarget;
+          if (
+            next instanceof Element
+            && (
+              next.closest(".doc-tag-command-picker")
+              || next.closest(".doc-mention-menu")
+              || next.closest(".doc-tagref-menu")
+            )
+          ) {
+            onBlur?.(e);
+            return;
+          }
           setFocused(false);
           setActiveQuery(null);
+          activeQueryRef.current = null;
           setMenuAnchor(null);
           setActiveTagRefQuery(null);
           setTagRefMenuAnchor(null);
@@ -1048,8 +1090,22 @@ export function SlashAwareTextarea({
           {ghostHint}
         </span>
       ) : null}
+      <DocTagCommandPicker
+        open={useTagCommandPicker}
+        companyObjectId={companyObjectId}
+        anchor={menuAnchor}
+        onClose={() => {
+          setActiveQuery(null);
+          activeQueryRef.current = null;
+          setMenuAnchor(null);
+          requestAnimationFrame(() => {
+            textareaRef.current?.focus?.({ preventScroll: true });
+          });
+        }}
+        onSelect={insertCandidate}
+      />
       <DocMentionMenu
-        open={showMentionMenu}
+        open={useFlatMentionMenu}
         items={filteredCandidates}
         activeIndex={menuIndex}
         anchor={menuAnchor}
@@ -1057,6 +1113,7 @@ export function SlashAwareTextarea({
         onSelect={insertCandidate}
         onClose={() => {
           setActiveQuery(null);
+          activeQueryRef.current = null;
           setMenuAnchor(null);
         }}
       />

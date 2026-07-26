@@ -51,6 +51,7 @@ export function TextBlockView({
   mentions = null,
   onMentionsChange = null,
   mentionCandidates = null,
+  companyObjectId = null,
   tagRefs = null,
   onTagRefsChange = null,
   tagRefCandidates = null,
@@ -226,6 +227,7 @@ export function TextBlockView({
         mentions={mentions}
         onMentionsChange={onMentionsChange}
         mentionCandidates={mentionCandidates}
+        companyObjectId={companyObjectId}
         tagRefs={Array.isArray(tagRefCandidates) ? (tagRefs || []) : null}
         onTagRefsChange={onTagRefsChange}
         tagRefCandidates={tagRefCandidates}
@@ -256,6 +258,7 @@ export function TextBlockView({
           mentions={continuationMentions}
           onMentionsChange={onContinuationMentionsChange}
           mentionCandidates={mentionCandidates}
+          companyObjectId={companyObjectId}
           tagRefs={Array.isArray(tagRefCandidates) ? (continuationTagRefs || []) : null}
           onTagRefsChange={onContinuationTagRefsChange}
           tagRefCandidates={tagRefCandidates}

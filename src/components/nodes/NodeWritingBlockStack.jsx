@@ -1418,6 +1418,7 @@ export function NodeWritingBlockStack({
                 mentions={block.mentions || []}
                 tagRefs={block.tagRefs || []}
                 mentionCandidates={mentionCandidates}
+                companyObjectId={companyObjectId}
                 tagRefCandidates={tagRefCandidates}
                 markerRanges={block.markerRanges || []}
                 boldRanges={block.boldRanges || []}
@@ -1506,6 +1507,7 @@ export function NodeWritingBlockStack({
                   mentions={block.mentions || []}
                   tagRefs={block.tagRefs || []}
                   mentionCandidates={mentionCandidates}
+                  companyObjectId={companyObjectId}
                   tagRefCandidates={tagRefCandidates}
                   markerRanges={block.markerRanges || []}
                   boldRanges={block.boldRanges || []}
