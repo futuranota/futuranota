@@ -13,15 +13,12 @@ import {
   initialNodeShapeFromSlash,
   isNodeSlashCommandEnabled,
   isDocLinkedNodeSlashCommandEnabled,
-  isGuidedTagSlashAction,
   NODE_SLASH_COMMANDS,
   DOC_LINKED_NODE_SLASH_COMMANDS,
   DOCUMENT_SLASH_GHOST_HINTS,
   parseNodeSlashQuery,
   parseDocLinkedNodeSlashQuery,
-  splitBodyForSlash,
 } from "../../lib/docBlockSlash.js";
-import { insertMentionAtQuery } from "../../lib/docMentions.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
 import { ContentTextSizeControls } from "../docs/ContentTextSizeControls.jsx";
 import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
@@ -33,7 +30,6 @@ import {
   parseNodeWritingBody,
   serializeNodeWritingBody,
 } from "../../lib/nodeInlineContent.js";
-import { DocTagCommandPicker } from "../docs/blocks/DocTagCommandPicker.jsx";
 import {
   normalizeNodeTodoContent,
 } from "../../lib/nodeTodoContent.js";
@@ -124,7 +120,6 @@ export function NodeQueryModal({
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const writingCaretRef = useRef(null);
-  const [tagPickerSession, setTagPickerSession] = useState(null);
   const typographyStorageKey = entityNodeId ? `node:${entityNodeId}` : null;
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
   const displayQuery = (query || "").trim() || "Untitled";
@@ -422,53 +417,6 @@ export function NodeQueryModal({
     const parsed = resolveSlashQuery(alias);
     if (!parsed) return;
 
-    if (isGuidedTagSlashAction(parsed)) {
-      const normalized = normalizeWritingBlocks(writingBlocks);
-      let blockIndex = writingFocusTarget?.blockIndex;
-      if (
-        blockIndex == null
-        || blockIndex < 0
-        || normalized[blockIndex]?.type !== NODE_BLOCK_TYPES.TEXT
-      ) {
-        blockIndex = normalized.findIndex((block) => block.type === NODE_BLOCK_TYPES.TEXT);
-      }
-      if (blockIndex < 0) {
-        const empty = createEmptyTextBlock();
-        const nextBlocks = [empty];
-        setWritingBlocks(nextBlocks);
-        onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
-        blockIndex = 0;
-      }
-
-      const liveBlocks = normalizeWritingBlocks(writingBlocks.length ? writingBlocks : [createEmptyTextBlock()]);
-      const block = liveBlocks[blockIndex] || liveBlocks[0];
-      const sourceText = String(textPrefix || block?.text || "");
-      const hasSlashTail = Boolean(splitBodyForSlash(sourceText).slash);
-      const { prefix } = splitBodyForSlash(hasSlashTail ? sourceText : `${sourceText}/tag`);
-      const nextBlocks = liveBlocks.map((entry, index) => (
-        index === blockIndex ? { ...entry, text: prefix } : entry
-      ));
-      setWritingBlocks(nextBlocks);
-      onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
-      setWritingFocusTarget({ blockIndex, focusText: true });
-
-      let anchor = { top: 160, left: 40 };
-      const shell = contentScrollRef.current?.getBoundingClientRect?.();
-      if (shell) {
-        anchor = {
-          top: Math.min(window.innerHeight - 12, shell.top + 80),
-          left: Math.max(8, Math.min(shell.left + 24, window.innerWidth - 320)),
-        };
-      }
-      setTagPickerSession({
-        blockId: nextBlocks[blockIndex]?.id,
-        blockIndex,
-        caret: prefix.length,
-        anchor,
-      });
-      return;
-    }
-
     const normalized = normalizeWritingBlocks(writingBlocks);
     const snap = writingCaretRef.current;
     const focusForInsert = {
@@ -529,39 +477,6 @@ export function NodeQueryModal({
       setWritingFocusTarget({ blockIndex: insertedIndex, focusHeading: true, focusKey });
     }
   }, [writingBlocks, writingFocusTarget, onContentChange, resolveSlashQuery]);
-
-  const handleTagPickerSelect = useCallback((candidate) => {
-    if (!tagPickerSession || !candidate) {
-      setTagPickerSession(null);
-      return;
-    }
-    const { blockIndex, caret, blockId } = tagPickerSession;
-    const normalized = normalizeWritingBlocks(writingBlocks);
-    const block = normalized[blockIndex];
-    if (!block || block.type !== NODE_BLOCK_TYPES.TEXT || block.id !== blockId) {
-      setTagPickerSession(null);
-      return;
-    }
-    const result = insertMentionAtQuery(
-      block.text || "",
-      block.mentions || [],
-      { start: caret, end: caret, query: "" },
-      candidate,
-    );
-    const nextBlocks = normalized.map((entry, index) => (
-      index === blockIndex
-        ? {
-          ...entry,
-          text: result.text,
-          mentions: result.mentions.length ? result.mentions : undefined,
-        }
-        : entry
-    ));
-    setWritingBlocks(nextBlocks);
-    onContentChange(serializeNodeWritingBody({ blocks: nextBlocks }));
-    setTagPickerSession(null);
-    setWritingFocusTarget({ blockIndex, focusText: true });
-  }, [onContentChange, tagPickerSession, writingBlocks]);
 
   const applySlashFromAlias = useCallback((alias, textPrefix = "") => {
     if (dataType === NODE_DATA_TYPES.TEXT && !calendarPayload) {
@@ -1148,13 +1063,6 @@ export function NodeQueryModal({
               isCommandEnabled={isSlashCommandEnabled}
             />
           ) : null}
-          <DocTagCommandPicker
-            open={Boolean(tagPickerSession)}
-            companyObjectId={companyObjectId}
-            anchor={tagPickerSession?.anchor || null}
-            onClose={() => setTagPickerSession(null)}
-            onSelect={handleTagPickerSelect}
-          />
         </div>
 
         <footer className="node-query-modal__footer-row">

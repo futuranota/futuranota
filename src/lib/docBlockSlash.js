@@ -132,14 +132,6 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Tag",
-    ghostHint: "tag",
-    aliases: ["tag", "tags", "mentiontag", "icontable", "searchtable", "search table"],
-    blockType: null,
-    guidedAction: "insertTagMention",
-    nodeDataType: NODE_DATA_TYPES.TEXT,
-  },
-  {
     label: "Create node",
     ghostHint: "create node",
     aliases: ["node", "createnode", "macronodo", "createtitle", "title"],
@@ -267,17 +259,11 @@ export function parseSlashQueryFromCommands(query, commands = DOC_SLASH_COMMANDS
     macronodeHeading: Boolean(match.macronodeHeading),
     allowsNodeLink: Boolean(match.allowsNodeLink),
     focusTextBlock: Boolean(match.focusTextBlock),
-    guidedAction: match.guidedAction || null,
   };
-}
-
-export function isGuidedTagSlashAction(parsed) {
-  return parsed?.guidedAction === "insertTagMention";
 }
 
 /** Build a new doc block from a parsed slash command. */
 export function createDocBlockFromSlash(parsed) {
-  if (isGuidedTagSlashAction(parsed)) return null;
   if (!parsed?.type) return createDocBlock();
 
   if (parsed.type === DOC_BLOCK_TYPES.H1) {
@@ -365,9 +351,6 @@ export function createBlocksFromSlash(parsed, prefix = "") {
   const blocks = [];
   if (String(prefix).trim()) {
     blocks.push(createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: prefix }));
-  }
-  if (isGuidedTagSlashAction(parsed)) {
-    return blocks.length ? blocks : [createDocBlock(DOC_BLOCK_TYPES.TEXT, { text: "" })];
   }
   if (parsed?.compound && parsed.type === DOC_BLOCK_TYPES.VIDEO_EMBED) {
     blocks.push(...createEmbedVideoBlocks());

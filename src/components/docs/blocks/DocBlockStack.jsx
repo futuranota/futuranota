@@ -40,7 +40,6 @@ import {
   createDocBlockFromSlash,
   DOCUMENT_SLASH_COMMANDS,
   DOCUMENT_SLASH_GHOST_HINTS,
-  isGuidedTagSlashAction,
   parseSlashQueryFromCommands,
   splitBodyForSlash,
 } from "../../../lib/docBlockSlash.js";
@@ -59,7 +58,6 @@ import {
 } from "../../../lib/docMarkdownBoldShortcut.js";
 import {
   applyTextEditToMentions,
-  insertMentionAtQuery,
   mergeMentionBlocks,
 } from "../../../lib/docMentions.js";
 import {
@@ -101,7 +99,6 @@ import { H1BlockView } from "./H1BlockView.jsx";
 import { H2BlockView } from "./H2BlockView.jsx";
 import { H3BlockView } from "./H3BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
-import { DocTagCommandPicker } from "./DocTagCommandPicker.jsx";
 import { LinkedMacronodeDescription } from "../LinkedMacronodeDescription.jsx";
 
 function findLastDocVaultBlockIndex(blocks, blockType) {
@@ -209,14 +206,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [collapsedContentByBlockId, setCollapsedContentByBlockId] = useState({});
   const [collapsedPadWriteByOwnerId, setCollapsedPadWriteByOwnerId] = useState({});
-  const [tagPickerSession, setTagPickerSession] = useState(null);
   const urlTableEntries = useUrlTableStore((s) => s.entries);
   const urlTables = useUrlTablesStore((s) => s.tables);
-  // @tag mentions follow the slash surface: folders only create/link
-  // macronodes (no /tag command), so @ stays plain text there. Documents get
-  // the full command set including /tag, and only they expose @ candidates.
+  // @ URL-table mentions: document writing surfaces (not folder-only slash set).
   const tagMentionInSurface = useMemo(
-    () => (slashCommands || []).some((cmd) => cmd.guidedAction === "insertTagMention"),
+    () => (slashCommands || []).some((cmd) => !cmd.macronodeHeading),
     [slashCommands],
   );
   const mentionCandidates = useMemo(() => {
@@ -877,37 +871,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       }
     }
 
-    if (isGuidedTagSlashAction(parsed)) {
-      const { prefix } = splitBodyForSlash(textValue);
-      const currentBlock = blocksRef.current[blockIndex];
-      if (!currentBlock || currentBlock.type !== DOC_BLOCK_TYPES.TEXT) return false;
-      const next = updateBlockAt(blocksRef.current, blockIndex, { text: prefix });
-      setBlocks(next);
-      onFocusBlock?.(currentBlock.id);
-      focusBlockCaret(currentBlock.id, prefix.length);
-
-      let anchor = { top: 120, left: 24 };
-      const field = stackRef.current?.querySelector(
-        `[data-block-id="${currentBlock.id}"] textarea, [data-collapsed-write-field="${currentBlock.id}"] textarea`,
-      );
-      if (field) {
-        const rect = field.getBoundingClientRect();
-        anchor = {
-          top: Math.min(window.innerHeight - 12, rect.bottom + 6),
-          left: Math.max(8, Math.min(rect.left, window.innerWidth - 320)),
-        };
-      }
-
-      setTagPickerSession({
-        blockId: currentBlock.id,
-        blockIndex,
-        caret: prefix.length,
-        anchor,
-      });
-      requestContentGrow();
-      return currentBlock.id;
-    }
-
     if (
       parsed.type === DOC_BLOCK_TYPES.LINK_VAULT
       || parsed.type === DOC_BLOCK_TYPES.PASSWORD_VAULT
@@ -1148,37 +1111,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
 
-  const handleTagPickerSelect = useCallback((candidate) => {
-    if (!tagPickerSession || !candidate) {
-      setTagPickerSession(null);
-      return;
-    }
-    const { blockIndex, caret, blockId } = tagPickerSession;
-    const block = blocksRef.current[blockIndex];
-    if (!block || block.type !== DOC_BLOCK_TYPES.TEXT || block.id !== blockId) {
-      setTagPickerSession(null);
-      return;
-    }
-    const result = insertMentionAtQuery(
-      block.text || "",
-      block.mentions || [],
-      { start: caret, end: caret, query: "" },
-      candidate,
-    );
-    setBlocks(updateBlockAt(blocksRef.current, blockIndex, {
-      text: result.text,
-      mentions: result.mentions.length ? result.mentions : undefined,
-    }));
-    setTagPickerSession(null);
-    onFocusBlock?.(blockId);
-    requestAnimationFrame(() => {
-      focusBlockCaret(blockId, result.caret);
-    });
-    requestContentGrow();
-  }, [focusBlockCaret, onFocusBlock, requestContentGrow, setBlocks, tagPickerSession]);
-
   const canInsertSlashBlock = (parsed) => {
-    if (isGuidedTagSlashAction(parsed)) return true;
     if (
       parsed?.type === DOC_BLOCK_TYPES.PRODUCT_CARD
       && hasProductCardBlock(blocksRef.current)
@@ -1811,36 +1744,8 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     requestContentGrow();
   };
 
-  const openTagMentionPicker = useCallback((blockId, caret = 0) => {
-    const blockIndex = blocksRef.current.findIndex((block) => block.id === blockId);
-    const block = blockIndex >= 0 ? blocksRef.current[blockIndex] : null;
-    if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return;
-
-    let anchor = { top: 120, left: 24 };
-    const field = stackRef.current?.querySelector(
-      `[data-block-id="${blockId}"] textarea, [data-collapsed-write-field="${blockId}"] textarea`,
-    );
-    if (field) {
-      const rect = field.getBoundingClientRect();
-      anchor = {
-        top: Math.min(window.innerHeight - 12, rect.bottom + 6),
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 320)),
-      };
-    }
-
-    setTagPickerSession({
-      blockId,
-      blockIndex,
-      caret: Math.max(0, Math.min(caret, String(block.text || "").length)),
-      anchor,
-    });
-    onFocusBlock?.(blockId);
-    focusBlockCaret(blockId, caret);
-  }, [focusBlockCaret, onFocusBlock]);
-
   useImperativeHandle(ref, () => ({
     insertSlashCommand: insertSlashCommandAtFocus,
-    openTagMentionPicker,
     resyncTextHeights: resyncAllTextHeights,
   }));
 
@@ -2688,13 +2593,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         </Fragment>
         );
       })}
-      <DocTagCommandPicker
-        open={Boolean(tagPickerSession)}
-        companyObjectId={companyObjectId}
-        anchor={tagPickerSession?.anchor || null}
-        onClose={() => setTagPickerSession(null)}
-        onSelect={handleTagPickerSelect}
-      />
     </div>
   );
 });

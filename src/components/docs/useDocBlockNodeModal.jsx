@@ -59,7 +59,7 @@ export function useDocBlockNodeModal({
   onInsertToCanvas,
   /** Parent folder schedule bounds ({ scheduleStartAt, scheduleFinishAt } or full doc). */
   parentFolderDoc = null,
-  /** Company object id — required for /tag mentions inside the node modal. */
+  /** Company object id — required for @ URL-table mentions inside the node modal. */
   parentObjectId = null,
 }) {
   const { t } = useI18n();

@@ -159,7 +159,7 @@ export function SlashAwareTextarea({
   mentions = null,
   onMentionsChange = null,
   mentionCandidates = null,
-  /** Same company id /Tag uses — opens DocTagCommandPicker on @. */
+  /** Company id for @ URL-table mentions (DocTagCommandPicker). */
   companyObjectId = null,
   tagRefs = null,
   onTagRefsChange = null,
@@ -268,7 +268,7 @@ export function SlashAwareTextarea({
     return filterTagRefCandidates(tagRefCandidates, activeTagRefQuery.query, 8);
   }, [activeTagRefQuery, hasTagRefSource, tagRefCandidates]);
 
-  // Same picker as /Tag when we have a company; flat menu only as fallback.
+  // Table→tag picker when company is set; flat menu only as fallback.
   const showMentionMenu = Boolean(
     (focused || Boolean(activeQuery && companyObjectId))
     && hasCandidateSource
@@ -857,7 +857,7 @@ export function SlashAwareTextarea({
       setMenuAnchor(null);
       return true;
     }
-    // /Tag picker owns arrows + Enter while open.
+    // DocTagCommandPicker owns arrows + Enter while open.
     if (useTagCommandPicker) return false;
     if (!filteredCandidates.length) return false;
     if (event.key === "ArrowDown") {

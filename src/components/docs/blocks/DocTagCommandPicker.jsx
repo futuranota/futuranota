@@ -12,7 +12,7 @@ import { useUrlTablesStore } from "../../../stores/urlTablesStore.js";
 const URL_TABLE_ICON = "/uploads/url-table.svg";
 
 /**
- * Guided /tag picker: choose a URL table title, then Name · @tag.
+ * @ mention picker: choose a URL table title, then Name · @tag.
  */
 export function DocTagCommandPicker({
   open,
