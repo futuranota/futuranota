@@ -65,14 +65,19 @@ export function DocTagCommandPicker({
   );
 
   const items = step === "tables" ? filteredTables : filteredCandidates;
+  const wasOpenRef = useRef(false);
 
+  // Reset wizard only when the picker freshly opens — never while navigating
+  // tables → tags (a mid-click focus blip used to flip `open` and wipe the step).
   useEffect(() => {
-    if (!open) return;
-    setStep("tables");
-    setSelectedTableId(null);
-    setQuery("");
-    setActiveIndex(0);
-    requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
+    if (open && !wasOpenRef.current) {
+      setStep("tables");
+      setSelectedTableId(null);
+      setQuery("");
+      setActiveIndex(0);
+      requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
+    }
+    wasOpenRef.current = open;
   }, [open]);
 
   useEffect(() => {
@@ -85,6 +90,7 @@ export function DocTagCommandPicker({
       const target = event.target;
       if (!(target instanceof Node)) return;
       if (menuRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest(".doc-tag-command-picker")) return;
       onClose?.();
     };
     const onKeyDown = (event) => {
@@ -116,6 +122,7 @@ export function DocTagCommandPicker({
   if (!open || !anchor || typeof document === "undefined") return null;
 
   const selectTable = (table) => {
+    if (!table?.id) return;
     setSelectedTableId(table.id);
     setStep("tags");
     setQuery("");
@@ -169,13 +176,19 @@ export function DocTagCommandPicker({
       role="dialog"
       aria-label="Insert tag from URL table"
       style={style}
+      onMouseDown={(event) => {
+        // Keep focus inside the picker while choosing a table/tag.
+        event.stopPropagation();
+      }}
     >
       <div className="doc-tag-command-picker__header">
         {step === "tags" ? (
           <button
             type="button"
             className="doc-tag-command-picker__back"
-            onClick={() => {
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
               setStep("tables");
               setSelectedTableId(null);
               setQuery("");
@@ -189,6 +202,29 @@ export function DocTagCommandPicker({
             ? "Choose a URL table"
             : `Tags in ${selectedTable?.title?.trim() || "URL table"}`}
         </p>
+        <button
+          type="button"
+          className="doc-tag-command-picker__close"
+          aria-label="Close tag picker"
+          title="Keep typing with @"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose?.();
+          }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose?.();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose?.();
+          }}
+        >
+          ×
+        </button>
       </div>
 
       {!companyObjectId ? (
@@ -225,8 +261,10 @@ export function DocTagCommandPicker({
                       + (index === activeIndex ? " is-active" : "")
                     }
                     onMouseEnter={() => setActiveIndex(index)}
-                    onMouseDown={(event) => {
+                    onPointerDown={(event) => {
+                      if (event.button !== 0) return;
                       event.preventDefault();
+                      event.stopPropagation();
                       selectTable(table);
                     }}
                   >
@@ -264,8 +302,10 @@ export function DocTagCommandPicker({
                       + (index === activeIndex ? " is-active" : "")
                     }
                     onMouseEnter={() => setActiveIndex(index)}
-                    onMouseDown={(event) => {
+                    onPointerDown={(event) => {
+                      if (event.button !== 0) return;
                       event.preventDefault();
+                      event.stopPropagation();
                       selectCandidate(item);
                     }}
                   >

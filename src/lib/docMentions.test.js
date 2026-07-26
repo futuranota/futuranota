@@ -57,6 +57,21 @@ describe("docMentions", () => {
     });
   });
 
+  it("ignores a dismissed @ so the user can keep typing plain text", () => {
+    expect(getMentionQueryAtCaret("hi @mail", 8, null, 3)).toBeNull();
+    expect(getMentionQueryAtCaret("hi @mail", 8, null, null)).toEqual({
+      start: 3,
+      end: 8,
+      query: "mail",
+    });
+    // A different `@` still opens.
+    expect(getMentionQueryAtCaret("hi @mail @x", 11, null, 3)).toEqual({
+      start: 9,
+      end: 11,
+      query: "x",
+    });
+  });
+
   it("inserts @tag and snapshot metadata", () => {
     const result = insertMentionAtQuery(
       "note @bl",

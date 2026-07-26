@@ -27,6 +27,7 @@ import {
 } from "../../../lib/docTextMarkerRanges.js";
 import {
   applyTextEditToBoldRanges,
+  computeTextEditDelta,
   normalizeBoldRanges,
 } from "../../../lib/docTextBoldRanges.js";
 import { markerStrokeSeed } from "../../../lib/docTextMarkerColors.js";
@@ -264,6 +265,13 @@ export function SlashAwareTextarea({
   const [optimisticTagRefs, setOptimisticTagRefs] = useState(null);
   const [hoverCard, setHoverCard] = useState(null);
   const [hoveredTagRefId, setHoveredTagRefId] = useState(null);
+  /**
+   * After × / Escape on the @ picker: keep that `@` as plain text and do not
+   * reopen until it is deleted (or a new `@` is typed elsewhere).
+   */
+  const [mentionPickerDismissed, setMentionPickerDismissed] = useState(false);
+  const mentionPickerDismissedAtRef = useRef(/** @type {number|null} */ (null));
+  const mentionPickerDismissedRef = useRef(false);
 
   // null/undefined candidates => company missing; @ stays plain text.
   const mentionsEnabled = Array.isArray(mentionCandidates);
@@ -339,6 +347,7 @@ export function SlashAwareTextarea({
     (focused || Boolean(activeQuery && companyObjectId))
     && hasCandidateSource
     && activeQuery
+    && !mentionPickerDismissed
     && !showGhost
     && !activeTagRefQuery,
   );
@@ -371,6 +380,46 @@ export function SlashAwareTextarea({
     setGhostPos(resolveSlashGhostOverlayPosition(el, wrap));
   }, [showGhost, textareaRef]);
 
+  const clearMentionPickerDismiss = useCallback(() => {
+    mentionPickerDismissedAtRef.current = null;
+    mentionPickerDismissedRef.current = false;
+    setMentionPickerDismissed(false);
+  }, []);
+
+  const armMentionPickerDismiss = useCallback((dismissAt) => {
+    mentionPickerDismissedAtRef.current = Number.isFinite(dismissAt) ? dismissAt : null;
+    mentionPickerDismissedRef.current = true;
+    setMentionPickerDismissed(true);
+  }, []);
+
+  const shiftMentionPickerDismissAt = useCallback((prevText, nextText) => {
+    const dismissedAt = mentionPickerDismissedAtRef.current;
+    if (dismissedAt == null || dismissedAt < 0) return;
+    if (String(prevText ?? "") === String(nextText ?? "")) return;
+    const { editStart, removedLength, insertedLength } = computeTextEditDelta(prevText, nextText);
+    const editEnd = editStart + removedLength;
+    const delta = insertedLength - removedLength;
+    if (dismissedAt >= editEnd) {
+      mentionPickerDismissedAtRef.current = dismissedAt + delta;
+      return;
+    }
+    if (dismissedAt >= editStart) {
+      // The `@` sat inside the edited span. Keep dismiss only if an `@`
+      // trigger is still sitting at the edit point.
+      const next = String(nextText ?? "");
+      const nextAt = editStart;
+      if (
+        nextAt < next.length
+        && next[nextAt] === "@"
+        && (nextAt === 0 || /\s/.test(next[nextAt - 1]))
+      ) {
+        mentionPickerDismissedAtRef.current = nextAt;
+      } else {
+        clearMentionPickerDismiss();
+      }
+    }
+  }, [clearMentionPickerDismiss]);
+
   const syncMentionQuery = useCallback(() => {
     const el = textareaRef.current;
     // React's `focused` state can go stale when the field is focused
@@ -383,7 +432,18 @@ export function SlashAwareTextarea({
       const active = typeof document !== "undefined" ? document.activeElement : null;
       if (
         active instanceof Element
-        && active.closest(".doc-tag-command-picker")
+        && (
+          active.closest(".doc-tag-command-picker")
+          || active.closest(".doc-mention-menu")
+        )
+      ) {
+        return;
+      }
+      // Mid-click focus can land on <body> while the @ picker is still open.
+      // Do not clear the query or the tables→tags step gets torn down.
+      if (
+        typeof document !== "undefined"
+        && document.querySelector(".doc-tag-command-picker")
       ) {
         return;
       }
@@ -403,8 +463,24 @@ export function SlashAwareTextarea({
       return;
     }
 
+    // Drop dismiss only when that exact `@` is gone from the text.
+    let dismissedAt = mentionPickerDismissedAtRef.current;
+    if (
+      dismissedAt != null
+      && dismissedAt >= 0
+      && (dismissedAt >= el.value.length || el.value[dismissedAt] !== "@")
+    ) {
+      clearMentionPickerDismiss();
+      dismissedAt = null;
+    }
+
     const mentionQuery = hasCandidateSource
-      ? getMentionQueryAtCaret(el.value, caret, normalizedMentions)
+      ? getMentionQueryAtCaret(
+        el.value,
+        caret,
+        normalizedMentions,
+        mentionPickerDismissedRef.current ? dismissedAt : null,
+      )
       : null;
     const tagRefQuery = hasTagRefSource
       ? getTagRefQueryAtCaret(el.value, caret)
@@ -419,6 +495,23 @@ export function SlashAwareTextarea({
     }
 
     if (useMention && mentionQuery) {
+      // While dismissed with no pinned index, keep the table shut for any `@`.
+      if (mentionPickerDismissedRef.current && dismissedAt == null) {
+        setActiveQuery(null);
+        activeQueryRef.current = null;
+        setMenuAnchor(null);
+        setActiveTagRefQuery(null);
+        setTagRefMenuAnchor(null);
+        return;
+      }
+      // A brand-new `@` elsewhere — allow the table again.
+      if (
+        mentionPickerDismissedRef.current
+        && dismissedAt != null
+        && dismissedAt !== mentionQuery.start
+      ) {
+        clearMentionPickerDismiss();
+      }
       setActiveQuery(mentionQuery);
       setActiveTagRefQuery(null);
       setTagRefMenuAnchor(null);
@@ -449,7 +542,80 @@ export function SlashAwareTextarea({
 
     setActiveTagRefQuery(null);
     setTagRefMenuAnchor(null);
-  }, [focused, hasCandidateSource, hasTagRefSource, normalizedMentions, textareaRef]);
+  }, [
+    clearMentionPickerDismiss,
+    focused,
+    hasCandidateSource,
+    hasTagRefSource,
+    normalizedMentions,
+    textareaRef,
+  ]);
+
+  const dismissMentionPicker = useCallback(() => {
+    const el = textareaRef.current;
+    const liveQuery = activeQueryRef.current;
+    let dismissAt = liveQuery && Number.isFinite(liveQuery.start) ? liveQuery.start : null;
+    let queryEnd = liveQuery && Number.isFinite(liveQuery.end) ? liveQuery.end : null;
+
+    if (el && (dismissAt == null || queryEnd == null)) {
+      const caret = el.selectionEnd ?? el.selectionStart ?? el.value.length;
+      // Pass null dismissedAt so we can still locate the live `@` being closed.
+      const q = getMentionQueryAtCaret(el.value, caret, normalizedMentions, null);
+      if (q) {
+        dismissAt = q.start;
+        queryEnd = q.end;
+      } else {
+        for (let i = el.value.length - 1; i >= 0; i -= 1) {
+          if (el.value[i] !== "@") continue;
+          if (i > 0 && !/\s/.test(el.value[i - 1])) continue;
+          dismissAt = i;
+          queryEnd = i + 1;
+          while (
+            queryEnd < el.value.length
+            && /[A-Za-z0-9_.-]/.test(el.value[queryEnd])
+          ) {
+            queryEnd += 1;
+          }
+          break;
+        }
+      }
+    }
+
+    armMentionPickerDismiss(dismissAt);
+    setActiveQuery(null);
+    activeQueryRef.current = null;
+    setMenuAnchor(null);
+
+    requestAnimationFrame(() => {
+      const field = textareaRef.current;
+      if (!field || !("setSelectionRange" in field)) {
+        textareaRef.current?.focus?.({ preventScroll: true });
+        syncMentionQuery();
+        return;
+      }
+      // Keep `@` in the line; park caret at the end of that run so typing continues.
+      let caret = field.selectionEnd ?? field.selectionStart ?? field.value.length;
+      if (queryEnd != null) {
+        caret = queryEnd;
+      } else if (dismissAt != null && dismissAt < field.value.length && field.value[dismissAt] === "@") {
+        let end = dismissAt + 1;
+        while (end < field.value.length && /[A-Za-z0-9_.-]/.test(field.value[end])) end += 1;
+        caret = end;
+      }
+      field.focus({ preventScroll: true });
+      field.setSelectionRange(caret, caret);
+      syncMentionQuery();
+    });
+  }, [armMentionPickerDismiss, normalizedMentions, syncMentionQuery, textareaRef]);
+
+  const prevValueForDismissRef = useRef(value);
+  useLayoutEffect(() => {
+    const prev = prevValueForDismissRef.current;
+    if (prev !== value) {
+      shiftMentionPickerDismissAt(prev, value);
+      prevValueForDismissRef.current = value;
+    }
+  }, [shiftMentionPickerDismissAt, value]);
 
   const syncMirrorTypography = useCallback(() => {
     const el = textareaRef.current;
@@ -934,6 +1100,7 @@ export function SlashAwareTextarea({
       ? applyTextEditToTagRefs(value, result.text, normalizedTagRefs)
       : [];
     emitChange(result.text, result.mentions, nextMarkers, nextBolds, nextTagRefs);
+    clearMentionPickerDismiss();
     setActiveQuery(null);
     activeQueryRef.current = null;
     setMenuAnchor(null);
@@ -947,6 +1114,7 @@ export function SlashAwareTextarea({
   }, [
     activeQuery,
     boldEnabled,
+    clearMentionPickerDismiss,
     emitChange,
     markersEnabled,
     normalizedBolds,
@@ -1041,9 +1209,7 @@ export function SlashAwareTextarea({
     if (!showMentionMenu) return false;
     if (event.key === "Escape") {
       event.preventDefault();
-      setActiveQuery(null);
-      activeQueryRef.current = null;
-      setMenuAnchor(null);
+      dismissMentionPicker();
       return true;
     }
     // DocTagCommandPicker owns arrows + Enter while open.
@@ -1066,6 +1232,7 @@ export function SlashAwareTextarea({
     }
     return false;
   }, [
+    dismissMentionPicker,
     filteredCandidates,
     filteredTagRefCandidates,
     insertCandidate,
@@ -1252,6 +1419,18 @@ export function SlashAwareTextarea({
             onBlur?.(e);
             return;
           }
+          // Choosing a table/tag uses preventDefault; relatedTarget can be null
+          // while the picker is still mounted — keep the @ session alive.
+          if (
+            typeof document !== "undefined"
+            && (
+              document.querySelector(".doc-tag-command-picker")
+              || document.querySelector(".doc-mention-menu")
+            )
+          ) {
+            onBlur?.(e);
+            return;
+          }
           setFocused(false);
           setActiveQuery(null);
           activeQueryRef.current = null;
@@ -1290,14 +1469,7 @@ export function SlashAwareTextarea({
         open={useTagCommandPicker}
         companyObjectId={companyObjectId}
         anchor={menuAnchor}
-        onClose={() => {
-          setActiveQuery(null);
-          activeQueryRef.current = null;
-          setMenuAnchor(null);
-          requestAnimationFrame(() => {
-            textareaRef.current?.focus?.({ preventScroll: true });
-          });
-        }}
+        onClose={dismissMentionPicker}
         onSelect={insertCandidate}
       />
       <DocMentionMenu
@@ -1307,11 +1479,7 @@ export function SlashAwareTextarea({
         anchor={menuAnchor}
         onHoverIndex={setMenuIndex}
         onSelect={insertCandidate}
-        onClose={() => {
-          setActiveQuery(null);
-          activeQueryRef.current = null;
-          setMenuAnchor(null);
-        }}
+        onClose={dismissMentionPicker}
       />
       <DocTagRefMenu
         open={showTagRefMenu}

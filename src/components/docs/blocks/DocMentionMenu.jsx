@@ -52,6 +52,22 @@ export function DocMentionMenu({
       aria-label="Tag mentions"
       style={style}
     >
+      <div className="doc-mention-menu__header">
+        <span className="doc-mention-menu__title">Tags</span>
+        <button
+          type="button"
+          className="doc-mention-menu__close"
+          aria-label="Close tag picker"
+          title="Keep typing with @"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose?.();
+          }}
+        >
+          ×
+        </button>
+      </div>
       {items.length === 0 ? (
         <p className="doc-mention-menu__empty">No matching tags</p>
       ) : (

@@ -94,9 +94,10 @@ export function normalizeMentions(text, mentions) {
  * @param {string} text
  * @param {number} caret
  * @param {DocMention[]|null|undefined} [mentions]
+ * @param {number|null|undefined} [dismissedAt] @ index the user closed — stay plain text
  * @returns {MentionQuery|null}
  */
-export function getMentionQueryAtCaret(text, caret, mentions = null) {
+export function getMentionQueryAtCaret(text, caret, mentions = null, dismissedAt = null) {
   const str = asText(text);
   const pos = Math.max(0, Math.min(str.length, Number(caret) || 0));
   if (pos === 0) return null;
@@ -113,6 +114,9 @@ export function getMentionQueryAtCaret(text, caret, mentions = null) {
   }
   if (at < 0) return null;
   if (at > 0 && !/\s/.test(str[at - 1])) return null;
+
+  // User closed the picker for this `@` — keep writing as plain text.
+  if (Number.isFinite(dismissedAt) && at === dismissedAt) return null;
 
   // Caret still inside / at the end of an inserted @mention → not a live query.
   if (Array.isArray(mentions) && mentions.length) {
