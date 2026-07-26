@@ -51,8 +51,8 @@ import {
 } from "../../../lib/docMarkdownHeadingShortcut.js";
 import {
   applyBoldMarkerIfPending,
-  endBoldStickyWithSpace,
   extendBoldSticky,
+  isBoldStickyContinueKey,
   isBoldStickyTriggerKey,
   matchBoldMarkerAtCaret,
   startBoldStickyFromMarker,
@@ -1424,22 +1424,15 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
       : null;
 
     if (sticky) {
-      if (e.key === " " || e.code === "Space") {
-        const applied = endBoldStickyWithSpace(textValue, meta, caret, sticky.boldStart);
-        if (!applied) {
-          boldStickyRef.current = null;
-          return false;
-        }
-        e.preventDefault();
-        commitBoldShortcutResult(blockIndex, block.id, applied);
-        return true;
-      }
+      // Enter / Escape end sticky bold; newline proceeds normally.
       if (e.key === "Enter" || e.key === "Escape") {
         boldStickyRef.current = null;
         return false;
       }
-      if (isBoldStickyTriggerKey(e.key)) {
-        const applied = extendBoldSticky(textValue, meta, caret, e.key, sticky.boldStart);
+      if (e.key === " " || e.code === "Space" || isBoldStickyContinueKey(e.key)) {
+        const char = (e.key === " " || e.code === "Space") ? " " : e.key;
+        if (!isBoldStickyContinueKey(char)) return false;
+        const applied = extendBoldSticky(textValue, meta, caret, char, sticky.boldStart);
         if (!applied) return false;
         e.preventDefault();
         commitBoldShortcutResult(blockIndex, block.id, applied);

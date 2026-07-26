@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   applyBoldMarkerIfPending,
-  endBoldStickyWithSpace,
   extendBoldSticky,
+  isBoldStickyContinueKey,
   isBoldStickyTriggerKey,
   matchBoldMarkerAtCaret,
   startBoldStickyFromMarker,
@@ -14,9 +14,16 @@ describe("isBoldStickyTriggerKey", () => {
     expect(isBoldStickyTriggerKey("1")).toBe(true);
   });
 
-  it("rejects dash and space", () => {
+  it("rejects dash and space for start", () => {
     expect(isBoldStickyTriggerKey("-")).toBe(false);
     expect(isBoldStickyTriggerKey(" ")).toBe(false);
+  });
+});
+
+describe("isBoldStickyContinueKey", () => {
+  it("accepts space so multi-word bold stays on", () => {
+    expect(isBoldStickyContinueKey(" ")).toBe(true);
+    expect(isBoldStickyContinueKey("a")).toBe(true);
   });
 });
 
@@ -39,12 +46,6 @@ describe("startBoldStickyFromMarker", () => {
     expect(result.focusCaret).toBe(1);
   });
 
-  it("works with text after caret", () => {
-    const result = startBoldStickyFromMarker("--world", {}, 2, "H");
-    expect(result.text).toBe("Hworld");
-    expect(result.boldRanges).toEqual([{ start: 0, end: 1 }]);
-  });
-
   it("does not start on dash (keeps ------- free)", () => {
     expect(startBoldStickyFromMarker("--", {}, 2, "-")).toBeNull();
   });
@@ -54,7 +55,7 @@ describe("startBoldStickyFromMarker", () => {
   });
 });
 
-describe("extendBoldSticky / endBoldStickyWithSpace", () => {
+describe("extendBoldSticky", () => {
   it("extends bold for more characters", () => {
     const start = startBoldStickyFromMarker("--", {}, 2, "H");
     const next = extendBoldSticky(start.text, start, start.focusCaret, "i", start.stickyBoldStart);
@@ -63,13 +64,21 @@ describe("extendBoldSticky / endBoldStickyWithSpace", () => {
     expect(next.stickyBoldStart).toBe(0);
   });
 
-  it("ends sticky on space without bolding the space", () => {
+  it("keeps bold through space (multi-word)", () => {
     const start = startBoldStickyFromMarker("--", {}, 2, "H");
-    const ended = endBoldStickyWithSpace(start.text, start, start.focusCaret, start.stickyBoldStart);
-    expect(ended.text).toBe("H ");
-    expect(ended.boldRanges).toEqual([{ start: 0, end: 1 }]);
-    expect(ended.stickyBoldStart).toBeNull();
-    expect(ended.focusCaret).toBe(2);
+    const withSpace = extendBoldSticky(start.text, start, start.focusCaret, " ", start.stickyBoldStart);
+    expect(withSpace.text).toBe("H ");
+    expect(withSpace.boldRanges).toEqual([{ start: 0, end: 2 }]);
+    expect(withSpace.stickyBoldStart).toBe(0);
+    const nextWord = extendBoldSticky(
+      withSpace.text,
+      withSpace,
+      withSpace.focusCaret,
+      "w",
+      withSpace.stickyBoldStart,
+    );
+    expect(nextWord.text).toBe("H w");
+    expect(nextWord.boldRanges).toEqual([{ start: 0, end: 3 }]);
   });
 });
 
@@ -80,10 +89,10 @@ describe("applyBoldMarkerIfPending", () => {
     expect(result.boldRanges).toEqual([{ start: 0, end: 5 }]);
   });
 
-  it("bolds only until first space", () => {
+  it("bolds full line including spaces", () => {
     const result = applyBoldMarkerIfPending("--hello world");
     expect(result.text).toBe("hello world");
-    expect(result.boldRanges).toEqual([{ start: 0, end: 5 }]);
+    expect(result.boldRanges).toEqual([{ start: 0, end: 11 }]);
   });
 
   it("leaves ------- alone", () => {
@@ -92,9 +101,5 @@ describe("applyBoldMarkerIfPending", () => {
 
   it("leaves bare -- alone", () => {
     expect(applyBoldMarkerIfPending("--")).toBeNull();
-  });
-
-  it("leaves -- followed by space alone", () => {
-    expect(applyBoldMarkerIfPending("-- ")).toBeNull();
   });
 });

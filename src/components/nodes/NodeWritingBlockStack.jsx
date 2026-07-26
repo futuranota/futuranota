@@ -35,8 +35,8 @@ import {
 } from "../../lib/docMarkdownHeadingShortcut.js";
 import {
   applyBoldMarkerIfPending,
-  endBoldStickyWithSpace,
   extendBoldSticky,
+  isBoldStickyContinueKey,
   isBoldStickyTriggerKey,
   matchBoldMarkerAtCaret,
   startBoldStickyFromMarker,
@@ -609,22 +609,17 @@ export function NodeWritingBlockStack({
         };
 
         if (sticky) {
-          if (e.key === " " || e.code === "Space") {
-            const applied = endBoldStickyWithSpace(textValue, meta, caret, sticky.boldStart);
-            if (applied) {
-              e.preventDefault();
-              commitBold(applied);
-              return;
-            }
+          if (e.key === "Enter" || e.key === "Escape") {
             boldStickyRef.current = null;
-          } else if (e.key === "Enter" || e.key === "Escape") {
-            boldStickyRef.current = null;
-          } else if (isBoldStickyTriggerKey(e.key)) {
-            const applied = extendBoldSticky(textValue, meta, caret, e.key, sticky.boldStart);
-            if (applied) {
-              e.preventDefault();
-              commitBold(applied);
-              return;
+          } else if (e.key === " " || e.code === "Space" || isBoldStickyContinueKey(e.key)) {
+            const char = (e.key === " " || e.code === "Space") ? " " : e.key;
+            if (isBoldStickyContinueKey(char)) {
+              const applied = extendBoldSticky(textValue, meta, caret, char, sticky.boldStart);
+              if (applied) {
+                e.preventDefault();
+                commitBold(applied);
+                return;
+              }
             }
           }
         } else if (isBoldStickyTriggerKey(e.key) && matchBoldMarkerAtCaret(textValue, caret)) {

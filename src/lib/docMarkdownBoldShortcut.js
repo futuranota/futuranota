@@ -26,11 +26,17 @@ function lineStartAt(text, caret) {
   return str.lastIndexOf("\n", Math.max(0, pos - 1)) + 1;
 }
 
-/** Printable key that starts/continues sticky bold (not `-` or Space). */
+/** Printable key that starts sticky bold (not `-` or Space — those keep dashes free). */
 export function isBoldStickyTriggerKey(key) {
   if (typeof key !== "string" || key.length !== 1) return false;
   if (key === "-" || key === " ") return false;
-  // Ignore ASCII controls.
+  if (key.charCodeAt(0) < 32) return false;
+  return true;
+}
+
+/** Keys that continue sticky bold (letters, Space, punctuation — until Enter). */
+export function isBoldStickyContinueKey(key) {
+  if (typeof key !== "string" || key.length !== 1) return false;
   if (key.charCodeAt(0) < 32) return false;
   return true;
 }
@@ -81,7 +87,7 @@ function finalizeResult(nextText, ranges, mentions, tagRefs, markerRanges, focus
 }
 
 /**
- * Start sticky bold: strip line-start `--`, insert `char`, bold it until Space.
+ * Start sticky bold: strip line-start `--`, insert `char`, bold until Enter.
  * Does nothing for `-` / Space / multi-dash (so `-------` stays free).
  *
  * @param {string} text
@@ -119,11 +125,11 @@ export function startBoldStickyFromMarker(text, meta, caret, char) {
 }
 
 /**
- * Extend sticky bold by inserting `char` at caret (still bold).
+ * Extend sticky bold by inserting `char` at caret (still bold, including Space).
  * @returns {BoldShortcutResult|null}
  */
 export function extendBoldSticky(text, meta, caret, char, stickyBoldStart) {
-  if (!isBoldStickyTriggerKey(char)) return null;
+  if (!isBoldStickyContinueKey(char)) return null;
   const str = String(text ?? "");
   const pos = clampCaret(str, caret);
   const start = Math.max(0, Number(stickyBoldStart) || 0);
@@ -132,13 +138,8 @@ export function extendBoldSticky(text, meta, caret, char, stickyBoldStart) {
   const nextText = `${str.slice(0, pos)}${char}${str.slice(pos)}`;
   const shifted = patchMeta(str, nextText, meta);
   const boldEnd = pos + char.length;
-  const boldRanges = normalizeBoldRanges(nextText, [
-    ...shifted.boldRanges.filter((r) => !(r.start === start && r.end === pos)),
-    { start, end: boldEnd },
-  ]);
-  // Also merge any overlapping ranges covering [start, pos).
   const merged = normalizeBoldRanges(nextText, [
-    ...boldRanges.filter((r) => r.end <= start || r.start >= boldEnd),
+    ...shifted.boldRanges.filter((r) => r.end <= start || r.start >= boldEnd),
     { start, end: boldEnd },
   ]);
 
@@ -154,37 +155,8 @@ export function extendBoldSticky(text, meta, caret, char, stickyBoldStart) {
 }
 
 /**
- * Space ends sticky bold: insert a normal (non-bold) space and clear sticky.
- * @returns {BoldShortcutResult|null}
- */
-export function endBoldStickyWithSpace(text, meta, caret, stickyBoldStart) {
-  const str = String(text ?? "");
-  const pos = clampCaret(str, caret);
-  const start = Math.max(0, Number(stickyBoldStart) || 0);
-  if (pos < start) return null;
-
-  const nextText = `${str.slice(0, pos)} ${str.slice(pos)}`;
-  const shifted = patchMeta(str, nextText, meta);
-  // Keep existing bold through [start, pos); space at `pos` stays unmarked.
-  const boldRanges = normalizeBoldRanges(nextText, [
-    ...shifted.boldRanges.filter((r) => !(r.start >= start && r.end <= pos)),
-    ...(pos > start ? [{ start, end: pos }] : []),
-  ]);
-
-  return finalizeResult(
-    nextText,
-    boldRanges,
-    shifted.mentions,
-    shifted.tagRefs,
-    shifted.markerRanges,
-    pos + 1,
-    null,
-  );
-}
-
-/**
  * Paste / IME fallback: line-start `--` followed by non-dash text →
- * strip marker, bold until first space (or EOL), no sticky after.
+ * strip marker, bold the rest of that line (spaces included), no sticky after.
  *
  * Skips `---`, `-------`, `-- `, bare `--`.
  *
@@ -203,16 +175,12 @@ export function applyBoldMarkerIfPending(text, meta = {}) {
         const lineEndIdx = str.indexOf("\n", idx + BOLD_MARKER.length);
         const lineEnd = lineEndIdx === -1 ? str.length : lineEndIdx;
         const body = str.slice(idx + BOLD_MARKER.length, lineEnd);
-        const spaceAt = body.indexOf(" ");
-        const boldLen = spaceAt === -1 ? body.length : spaceAt;
-        const boldPart = body.slice(0, boldLen);
-        const restPart = body.slice(boldLen);
         const afterLines = lineEndIdx === -1 ? "" : str.slice(lineEndIdx);
         const before = str.slice(0, idx);
-        const nextText = before + boldPart + restPart + afterLines;
+        const nextText = before + body + afterLines;
         const shifted = patchMeta(str, nextText, meta);
         const boldStart = before.length;
-        const boldEnd = before.length + boldPart.length;
+        const boldEnd = before.length + body.length;
         const boldRanges = boldEnd > boldStart
           ? normalizeBoldRanges(nextText, [
             ...shifted.boldRanges,
