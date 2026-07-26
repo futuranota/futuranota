@@ -89,11 +89,14 @@ export function normalizeMentions(text, mentions) {
 /**
  * Detect an active `@query` immediately before the caret.
  * Only opens when `@` is at start or preceded by whitespace.
+ * Skips spans that are already committed mention chips (so Enter after insert
+ * does not reopen the URL-table picker).
  * @param {string} text
  * @param {number} caret
+ * @param {DocMention[]|null|undefined} [mentions]
  * @returns {MentionQuery|null}
  */
-export function getMentionQueryAtCaret(text, caret) {
+export function getMentionQueryAtCaret(text, caret, mentions = null) {
   const str = asText(text);
   const pos = Math.max(0, Math.min(str.length, Number(caret) || 0));
   if (pos === 0) return null;
@@ -110,6 +113,14 @@ export function getMentionQueryAtCaret(text, caret) {
   }
   if (at < 0) return null;
   if (at > 0 && !/\s/.test(str[at - 1])) return null;
+
+  // Caret still inside / at the end of an inserted @mention → not a live query.
+  if (Array.isArray(mentions) && mentions.length) {
+    const committed = normalizeMentions(str, mentions);
+    if (committed.some((item) => item.start === at && pos <= item.end)) {
+      return null;
+    }
+  }
 
   return {
     start: at,
@@ -183,7 +194,10 @@ export function insertMentionAtQuery(text, mentions, activeQuery, candidate) {
   const token = formatMentionToken(tag);
   const before = str.slice(0, activeQuery.start);
   const after = str.slice(activeQuery.end);
-  const needsSpace = after.length > 0 && !/^\s/.test(after);
+  // Always leave a trailing space after the chip when the next char isn't
+  // already whitespace — keeps the caret out of the @token so the picker
+  // does not reopen on the next Enter / focus sync.
+  const needsSpace = !/^\s/.test(after);
   const insertion = needsSpace ? `${token} ` : token;
   const nextText = before + insertion + after;
   const start = before.length;

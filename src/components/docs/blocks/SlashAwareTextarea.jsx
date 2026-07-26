@@ -404,7 +404,7 @@ export function SlashAwareTextarea({
     }
 
     const mentionQuery = hasCandidateSource
-      ? getMentionQueryAtCaret(el.value, caret)
+      ? getMentionQueryAtCaret(el.value, caret, normalizedMentions)
       : null;
     const tagRefQuery = hasTagRefSource
       ? getTagRefQueryAtCaret(el.value, caret)
@@ -449,7 +449,7 @@ export function SlashAwareTextarea({
 
     setActiveTagRefQuery(null);
     setTagRefMenuAnchor(null);
-  }, [focused, hasCandidateSource, hasTagRefSource, textareaRef]);
+  }, [focused, hasCandidateSource, hasTagRefSource, normalizedMentions, textareaRef]);
 
   const syncMirrorTypography = useCallback(() => {
     const el = textareaRef.current;

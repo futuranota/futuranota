@@ -44,6 +44,19 @@ describe("docMentions", () => {
     expect(getMentionQueryAtCaret("@", 1)).toEqual({ start: 0, end: 1, query: "" });
   });
 
+  it("does not treat a committed @mention chip as an active query", () => {
+    const text = "see @blog";
+    const mentions = [sampleMention({ start: 4, end: 9 })];
+    expect(getMentionQueryAtCaret(text, 9, mentions)).toBeNull();
+    expect(getMentionQueryAtCaret(text, 7, mentions)).toBeNull();
+    // Still opens when typing a new query after a space.
+    expect(getMentionQueryAtCaret("see @blog @ne", 13, mentions)).toEqual({
+      start: 10,
+      end: 13,
+      query: "ne",
+    });
+  });
+
   it("inserts @tag and snapshot metadata", () => {
     const result = insertMentionAtQuery(
       "note @bl",
@@ -51,7 +64,7 @@ describe("docMentions", () => {
       { start: 5, end: 8, query: "bl" },
       { entryId: "E9", tag: "blog", name: "Weekly digest", description: "Desc snapshot" },
     );
-    expect(result.text).toBe("note @blog");
+    expect(result.text).toBe("note @blog ");
     expect(result.mentions).toHaveLength(1);
     expect(result.mentions[0]).toMatchObject({
       sourceEntryId: "E9",
@@ -61,7 +74,7 @@ describe("docMentions", () => {
       start: 5,
       end: 10,
     });
-    expect(result.caret).toBe(10);
+    expect(result.caret).toBe(11);
   });
 
   it("adds a trailing space when inserting before non-space text", () => {
@@ -73,6 +86,18 @@ describe("docMentions", () => {
     );
     expect(result.text).toBe("@blog more");
     expect(result.caret).toBe(6);
+  });
+
+  it("adds a trailing space when inserting at end of text", () => {
+    const result = insertMentionAtQuery(
+      "@bl",
+      [],
+      { start: 0, end: 3, query: "bl" },
+      { tag: "blog", description: "" },
+    );
+    expect(result.text).toBe("@blog ");
+    expect(result.caret).toBe(6);
+    expect(getMentionQueryAtCaret(result.text, result.caret, result.mentions)).toBeNull();
   });
 
   it("shifts mentions after an edit before them", () => {
