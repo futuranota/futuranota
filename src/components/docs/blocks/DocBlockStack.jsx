@@ -63,6 +63,7 @@ import {
 import {
   applyTextEditToTagRefs,
   collectMoodboardTagCandidates,
+  snapCaretOutOfTagRefBoxInterior,
 } from "../../../lib/docTagRefs.js";
 import {
   applyTextEditToMarkerRanges,
@@ -1021,17 +1022,25 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const insertNewlineAtCaret = (blockIndex, e, field = "text") => {
     e.preventDefault();
     const el = e.currentTarget;
-    const caretStart = el.selectionStart ?? 0;
-    const caretEnd = el.selectionEnd ?? caretStart;
     const text = el.value ?? "";
-    const nextText = `${text.slice(0, caretStart)}\n${text.slice(caretEnd)}`;
     const block = blocksRef.current[blockIndex];
     const blockId = block?.id;
     if (!blockId) return;
 
+    let caretStart = el.selectionStart ?? 0;
+    let caretEnd = el.selectionEnd ?? caretStart;
+    // Don't let Enter split the moodboard label/spacers (that drops the tag link).
+    // Keep caret at the label's leading edge so Enter can still open a line above.
+    if (field === "text" && caretStart === caretEnd && Array.isArray(block.tagRefs) && block.tagRefs.length) {
+      const snapped = snapCaretOutOfTagRefBoxInterior(text, block.tagRefs, caretStart);
+      caretStart = snapped;
+      caretEnd = snapped;
+    }
+    const nextText = `${text.slice(0, caretStart)}\n${text.slice(caretEnd)}`;
+
     const patch = { [field]: nextText };
     if (field === "text") {
-      // Shift @mention + marker + bold ranges past the inserted newline so they survive Enter.
+      // Shift @mention + #tagRef + marker + bold ranges past the inserted newline.
       const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
       patch.mentions = mentions.length ? mentions : undefined;
       const tagRefs = applyTextEditToTagRefs(block.text || "", nextText, block.tagRefs || []);

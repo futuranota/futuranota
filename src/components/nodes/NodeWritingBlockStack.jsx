@@ -10,6 +10,10 @@ import {
   mergeMentionBlocks,
 } from "../../lib/docMentions.js";
 import {
+  applyTextEditToTagRefs,
+  snapCaretOutOfTagRefBoxInterior,
+} from "../../lib/docTagRefs.js";
+import {
   applyTextEditToMarkerRanges,
   mergeBlockMarkerRanges,
 } from "../../lib/docTextMarkerRanges.js";
@@ -208,24 +212,35 @@ function scrollCaretAfterNewline(blockId) {
 function insertNewlineAtCaret(blockIndex, e, blocksRef, updateBlocks) {
   e.preventDefault();
   const el = e.currentTarget;
-  const caretStart = el.selectionStart ?? 0;
-  const caretEnd = el.selectionEnd ?? caretStart;
   const text = el.value ?? "";
+  const block = normalizeWritingBlocks(blocksRef.current)[blockIndex];
+  const tagRefs = Array.isArray(block?.tagRefs) ? block.tagRefs : [];
+  let caretStart = el.selectionStart ?? 0;
+  let caretEnd = el.selectionEnd ?? caretStart;
+  // Don't let Enter split the moodboard label/spacers (that drops the tag link).
+  // Keep caret at the label's leading edge so Enter can still open a line above.
+  if (caretStart === caretEnd && tagRefs.length) {
+    const snapped = snapCaretOutOfTagRefBoxInterior(text, tagRefs, caretStart);
+    caretStart = snapped;
+    caretEnd = snapped;
+  }
   const nextText = `${text.slice(0, caretStart)}\n${text.slice(caretEnd)}`;
-  const blockId = blocksRef.current[blockIndex]?.id;
+  const blockId = block?.id;
   if (!blockId) return;
 
   const current = normalizeWritingBlocks(blocksRef.current);
-  updateBlocks(current.map((block, index) => {
-    if (index !== blockIndex) return block;
-    // Shift @mention + marker + bold ranges past the inserted newline so they survive Enter.
-    const mentions = applyTextEditToMentions(block.text || "", nextText, block.mentions || []);
-    const markerRanges = applyTextEditToMarkerRanges(block.text || "", nextText, block.markerRanges || []);
-    const boldRanges = applyTextEditToBoldRanges(block.text || "", nextText, block.boldRanges || []);
+  updateBlocks(current.map((item, index) => {
+    if (index !== blockIndex) return item;
+    // Shift @mention + #tagRef + marker + bold ranges past the newline.
+    const mentions = applyTextEditToMentions(item.text || "", nextText, item.mentions || []);
+    const nextTagRefs = applyTextEditToTagRefs(item.text || "", nextText, item.tagRefs || []);
+    const markerRanges = applyTextEditToMarkerRanges(item.text || "", nextText, item.markerRanges || []);
+    const boldRanges = applyTextEditToBoldRanges(item.text || "", nextText, item.boldRanges || []);
     return {
-      ...block,
+      ...item,
       text: nextText,
       mentions: mentions.length ? mentions : undefined,
+      tagRefs: nextTagRefs.length ? nextTagRefs : undefined,
       markerRanges: markerRanges.length ? markerRanges : undefined,
       boldRanges: boldRanges.length ? boldRanges : undefined,
     };

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyTextEditToTagRefs,
   insertTagRefAtQuery,
   isTagRefAloneOnLine,
   normalizeTagRefs,
   removeTagRefById,
   resolveTagRefThumbSrc,
   snapCaretOutOfTagRefBoxFootprint,
+  snapCaretOutOfTagRefBoxInterior,
 } from "./docTagRefs.js";
 
 describe("isTagRefAloneOnLine", () => {
@@ -91,6 +93,32 @@ describe("tagRef thumb persistence", () => {
       inserted.tagRefs,
       inserted.text.length,
     )).toBe(inserted.text.length);
+  });
+
+  it("keeps leading-edge caret for Enter above the box, but escapes interior", () => {
+    const inserted = insertTagRefAtQuery(
+      "Hello\n#h",
+      [],
+      { start: 6, end: 8, query: "h" },
+      {
+        label: "hero",
+        slotId: "s1",
+        blockId: "b1",
+        thumbSrc: "https://example.com/hero.jpg",
+      },
+    );
+    const tag = inserted.tagRefs[0];
+    expect(snapCaretOutOfTagRefBoxInterior(inserted.text, inserted.tagRefs, tag.start))
+      .toBe(tag.start);
+    expect(snapCaretOutOfTagRefBoxInterior(inserted.text, inserted.tagRefs, tag.start + 1))
+      .toBe(inserted.text.length);
+
+    const atEndOfHello = "Hello".length;
+    const afterEnter = `${inserted.text.slice(0, atEndOfHello)}\n${inserted.text.slice(atEndOfHello)}`;
+    const shifted = applyTextEditToTagRefs(inserted.text, afterEnter, inserted.tagRefs);
+    expect(shifted).toHaveLength(1);
+    expect(afterEnter.slice(shifted[0].start, shifted[0].end)).toBe("hero");
+    expect(isTagRefAloneOnLine(afterEnter, shifted[0].start, shifted[0].end)).toBe(true);
   });
 
   it("removes box footprint when deleting by id", () => {

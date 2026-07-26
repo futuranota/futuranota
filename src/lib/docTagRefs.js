@@ -297,6 +297,31 @@ export function snapCaretOutOfTagRefBoxFootprint(text, tagRefs, caret, candidate
 }
 
 /**
+ * Like snapCaretOutOfTagRefBoxFootprint, but keeps caret at the leading edge of
+ * the label so Enter can insert a blank line *above* the moodboard frame.
+ * Only escapes the label body + spacer band (where Enter would split/drop the link).
+ * @param {string} text
+ * @param {DocTagRef[]} tagRefs
+ * @param {number} caret
+ * @param {Array<{ slotId?: string, blockId?: string, label?: string, thumbSrc?: string }>|null|undefined} candidates
+ * @returns {number}
+ */
+export function snapCaretOutOfTagRefBoxInterior(text, tagRefs, caret, candidates = null) {
+  const str = asText(text);
+  let pos = Math.max(0, Math.min(str.length, Number(caret) || 0));
+  const list = normalizeTagRefs(str, tagRefs);
+  for (const tagRef of list) {
+    const writeAt = getTagRefBoxWriteCaret(str, tagRef, candidates);
+    if (writeAt <= tagRef.end) continue;
+    // Allow pos === tagRef.start (newline above). Escape interior only.
+    if (pos > tagRef.start && pos < writeAt) {
+      pos = writeAt;
+    }
+  }
+  return pos;
+}
+
+/**
  * Remove a tag ref and any alone-line box spacer footprint after it.
  * @param {string} text
  * @param {DocTagRef[]} tagRefs
