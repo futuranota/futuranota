@@ -37,7 +37,76 @@ const OVERLAY_PALETTE = [
   { kind: MOODBOARD_OVERLAY_KINDS.DOWN, labelKey: "doc.moodboard.overlayDown" },
   { kind: MOODBOARD_OVERLAY_KINDS.CIRCLE, labelKey: "doc.moodboard.overlayCircle" },
   { kind: MOODBOARD_OVERLAY_KINDS.ELLIPSE, labelKey: "doc.moodboard.overlayEllipse" },
+  { kind: MOODBOARD_OVERLAY_KINDS.POINTER, labelKey: "doc.moodboard.overlayPointer" },
 ];
+
+const POINTER_STROKE = "rgba(22, 26, 29, 0.85)";
+const POINTER_CIRCLE_R_PX = (MOODBOARD_OVERLAY_SIZE_PX[MOODBOARD_OVERLAY_KINDS.POINTER] || 110) / 2;
+
+/**
+ * @param {{ xPct: number, yPct: number, endXPct?: number, endYPct?: number }} overlay
+ * @param {number} boardW
+ * @param {number} boardH
+ */
+function pointerArrowGeometry(overlay, boardW, boardH) {
+  if (!(boardW > 0) || !(boardH > 0)) return null;
+  const cx = (overlay.xPct / 100) * boardW;
+  const cy = (overlay.yPct / 100) * boardH;
+  const tx = ((overlay.endXPct ?? overlay.xPct) / 100) * boardW;
+  const ty = ((overlay.endYPct ?? overlay.yPct) / 100) * boardH;
+  const dx = tx - cx;
+  const dy = ty - cy;
+  const dist = Math.hypot(dx, dy);
+  if (!(dist > 1)) return null;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const edge = Math.min(POINTER_CIRCLE_R_PX, dist * 0.45);
+  const head = 10;
+  const tipPull = Math.min(head * 0.35, Math.max(0, dist - edge - 2));
+  return {
+    x1: cx + ux * edge,
+    y1: cy + uy * edge,
+    x2: tx - ux * tipPull,
+    y2: ty - uy * tipPull,
+    tipX: tx,
+    tipY: ty,
+    angleDeg: (Math.atan2(dy, dx) * 180) / Math.PI,
+  };
+}
+
+function OverlayPointerRailIcon() {
+  return (
+    <svg
+      className="doc-moodboard__overlay-rail-icon"
+      viewBox="0 0 36 36"
+      width="28"
+      height="28"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle
+        cx="12"
+        cy="18"
+        r="7"
+        fill="none"
+        stroke="rgba(255,255,255,0.92)"
+        strokeWidth="1.5"
+        strokeDasharray="2.5 2"
+      />
+      <path
+        d="M19 18 H28"
+        fill="none"
+        stroke="rgba(255,255,255,0.92)"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M26 14.5 L31 18 L26 21.5 Z"
+        fill="rgba(255,255,255,0.92)"
+      />
+    </svg>
+  );
+}
 
 const RECIPE_OPTIONS = [
   { id: MOODBOARD_RECIPES.LARGE, labelKey: "doc.moodboard.recipeLarge" },
@@ -178,6 +247,7 @@ export function MoodboardBlockView({
   const [error, setError] = useState(null);
   const [activeCol, setActiveCol] = useState(0);
   const [boardHeight, setBoardHeight] = useState(null);
+  const [boardSize, setBoardSize] = useState({ w: 0, h: 0 });
   const [captionAtLimit, setCaptionAtLimit] = useState(false);
   const [attachmentSlot, setAttachmentSlot] = useState(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState(null);
@@ -236,6 +306,9 @@ export function MoodboardBlockView({
       const contentH = Math.round(Math.max(200, Math.min(colInner * 1.25, capped)));
       const nextH = contentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
       setBoardHeight((prev) => (prev === nextH ? prev : nextH));
+      setBoardSize((prev) => (
+        prev.w === width && prev.h === nextH ? prev : { w: width, h: nextH }
+      ));
     };
 
     sync();
@@ -263,23 +336,32 @@ export function MoodboardBlockView({
     const board = boardRef.current;
     let xPct = 45;
     let yPct = 40;
+    const isPointer = kind === MOODBOARD_OVERLAY_KINDS.POINTER;
     // Place near the pointer (half of the overlay box) so the mark
     // lands on the highlight/tag the user aimed at — not a fixed board %.
+    // Pointer stores circle *center* at the click; other kinds use top-left.
     const size = MOODBOARD_OVERLAY_SIZE_PX[kind] || 44;
     const half = size / 2;
     if (board && Number.isFinite(clientX) && Number.isFinite(clientY)) {
       const rect = board.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
-        const left = Math.max(
-          0,
-          Math.min(rect.width - size, clientX - rect.left - half),
-        );
-        const top = Math.max(
-          0,
-          Math.min(rect.height - size, clientY - rect.top - half),
-        );
-        xPct = (left / rect.width) * 100;
-        yPct = (top / rect.height) * 100;
+        if (isPointer) {
+          const cx = Math.max(0, Math.min(rect.width, clientX - rect.left));
+          const cy = Math.max(0, Math.min(rect.height, clientY - rect.top));
+          xPct = (cx / rect.width) * 100;
+          yPct = (cy / rect.height) * 100;
+        } else {
+          const left = Math.max(
+            0,
+            Math.min(rect.width - size, clientX - rect.left - half),
+          );
+          const top = Math.max(
+            0,
+            Math.min(rect.height - size, clientY - rect.top - half),
+          );
+          xPct = (left / rect.width) * 100;
+          yPct = (top / rect.height) * 100;
+        }
       }
     }
     const created = createMoodboardOverlay(kind, { xPct, yPct });
@@ -299,6 +381,7 @@ export function MoodboardBlockView({
 
   const startOverlayDrag = (event, overlay) => {
     if (!isEdit || event.button !== 0) return;
+    if (overlay.kind === MOODBOARD_OVERLAY_KINDS.POINTER) return;
     event.preventDefault();
     event.stopPropagation();
     setSelectedOverlayId(overlay.id);
@@ -312,6 +395,7 @@ export function MoodboardBlockView({
     const itemRect = overlayEl.getBoundingClientRect();
     overlayDragRef.current = {
       id: overlay.id,
+      mode: "box",
       offsetX: event.clientX - itemRect.left,
       offsetY: event.clientY - itemRect.top,
       itemW: itemRect.width,
@@ -341,6 +425,117 @@ export function MoodboardBlockView({
       handleFieldChange({
         overlays: overlaysRef.current.map((item) => (
           item.id === drag.id ? { ...item, xPct, yPct } : item
+        )),
+      });
+    };
+
+    const onUp = () => {
+      overlayDragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const startPointerBodyDrag = (event, overlay) => {
+    if (!isEdit || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedOverlayId(overlay.id);
+    setPendingOverlayKind(null);
+    const board = boardRef.current;
+    if (!board) return;
+    const boardRect = board.getBoundingClientRect();
+    if (!(boardRect.width > 0) || !(boardRect.height > 0)) return;
+
+    overlayDragRef.current = {
+      id: overlay.id,
+      mode: "pointer-body",
+      originX: event.clientX,
+      originY: event.clientY,
+      startXPct: overlay.xPct,
+      startYPct: overlay.yPct,
+      startEndXPct: overlay.endXPct ?? overlay.xPct,
+      startEndYPct: overlay.endYPct ?? overlay.yPct,
+      boardW: boardRect.width,
+      boardH: boardRect.height,
+      moved: false,
+    };
+
+    const onMove = (moveEvent) => {
+      const drag = overlayDragRef.current;
+      if (!drag || drag.mode !== "pointer-body") return;
+      const dxPx = moveEvent.clientX - drag.originX;
+      const dyPx = moveEvent.clientY - drag.originY;
+      if (!drag.moved && Math.hypot(dxPx, dyPx) < 4) return;
+      drag.moved = true;
+      const dXPct = (dxPx / drag.boardW) * 100;
+      const dYPct = (dyPx / drag.boardH) * 100;
+      const clamp = (v) => Math.max(0, Math.min(100, v));
+      handleFieldChange({
+        overlays: overlaysRef.current.map((item) => (
+          item.id === drag.id
+            ? {
+              ...item,
+              xPct: clamp(drag.startXPct + dXPct),
+              yPct: clamp(drag.startYPct + dYPct),
+              endXPct: clamp(drag.startEndXPct + dXPct),
+              endYPct: clamp(drag.startEndYPct + dYPct),
+            }
+            : item
+        )),
+      });
+    };
+
+    const onUp = () => {
+      overlayDragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  const startPointerTipDrag = (event, overlay) => {
+    if (!isEdit || event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedOverlayId(overlay.id);
+    setPendingOverlayKind(null);
+    const board = boardRef.current;
+    if (!board) return;
+    const boardRect = board.getBoundingClientRect();
+    if (!(boardRect.width > 0) || !(boardRect.height > 0)) return;
+
+    overlayDragRef.current = {
+      id: overlay.id,
+      mode: "pointer-tip",
+      boardW: boardRect.width,
+      boardH: boardRect.height,
+      boardLeft: boardRect.left,
+      boardTop: boardRect.top,
+      moved: false,
+      originX: event.clientX,
+      originY: event.clientY,
+    };
+
+    const onMove = (moveEvent) => {
+      const drag = overlayDragRef.current;
+      if (!drag || drag.mode !== "pointer-tip") return;
+      const dx = moveEvent.clientX - drag.originX;
+      const dy = moveEvent.clientY - drag.originY;
+      if (!drag.moved && Math.hypot(dx, dy) < 2) return;
+      drag.moved = true;
+      const x = Math.max(0, Math.min(drag.boardW, moveEvent.clientX - drag.boardLeft));
+      const y = Math.max(0, Math.min(drag.boardH, moveEvent.clientY - drag.boardTop));
+      const endXPct = (x / drag.boardW) * 100;
+      const endYPct = (y / drag.boardH) * 100;
+      handleFieldChange({
+        overlays: overlaysRef.current.map((item) => (
+          item.id === drag.id ? { ...item, endXPct, endYPct } : item
         )),
       });
     };
@@ -913,11 +1108,15 @@ export function MoodboardBlockView({
                   ));
                 }}
               >
-                <img
-                  src={MOODBOARD_OVERLAY_SRC[item.kind]}
-                  alt=""
-                  draggable={false}
-                />
+                {item.kind === MOODBOARD_OVERLAY_KINDS.POINTER ? (
+                  <OverlayPointerRailIcon />
+                ) : (
+                  <img
+                    src={MOODBOARD_OVERLAY_SRC[item.kind]}
+                    alt=""
+                    draggable={false}
+                  />
+                )}
               </button>
             ))}
           </div>
@@ -959,6 +1158,108 @@ export function MoodboardBlockView({
             >
               {overlays.map((overlay) => {
                 const selected = isEdit && selectedOverlayId === overlay.id;
+                const isPointer = overlay.kind === MOODBOARD_OVERLAY_KINDS.POINTER;
+
+                if (isPointer) {
+                  const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 110;
+                  const arrow = pointerArrowGeometry(
+                    overlay,
+                    boardSize.w,
+                    boardSize.h || boardHeight || 0,
+                  );
+                  const markerId = `moodboard-pointer-head-${overlay.id}`;
+                  return (
+                    <div
+                      key={overlay.id}
+                      className={
+                        "doc-moodboard__overlay doc-moodboard__overlay--pointer"
+                        + (selected ? " doc-moodboard__overlay--selected" : "")
+                        + (isEdit ? " doc-moodboard__overlay--draggable" : "")
+                      }
+                    >
+                      {(boardSize.w > 0 && (boardSize.h > 0 || boardHeight > 0)) ? (
+                        <svg
+                          className="doc-moodboard__overlay-pointer-svg"
+                          width={boardSize.w}
+                          height={boardSize.h || boardHeight || 0}
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <defs>
+                            <marker
+                              id={markerId}
+                              markerWidth="8"
+                              markerHeight="8"
+                              refX="6"
+                              refY="4"
+                              orient="auto"
+                              markerUnits="strokeWidth"
+                            >
+                              <path d="M0 0 L8 4 L0 8 Z" fill={POINTER_STROKE} />
+                            </marker>
+                          </defs>
+                          {arrow ? (
+                            <line
+                              x1={arrow.x1}
+                              y1={arrow.y1}
+                              x2={arrow.x2}
+                              y2={arrow.y2}
+                              stroke={POINTER_STROKE}
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              markerEnd={`url(#${markerId})`}
+                            />
+                          ) : null}
+                        </svg>
+                      ) : null}
+                      <div
+                        className="doc-moodboard__overlay-pointer-circle"
+                        style={{
+                          left: `${overlay.xPct}%`,
+                          top: `${overlay.yPct}%`,
+                          width: `${sizePx}px`,
+                          height: `${sizePx}px`,
+                        }}
+                        onPointerDown={(event) => startPointerBodyDrag(event, overlay)}
+                      />
+                      {isEdit ? (
+                        <button
+                          type="button"
+                          className="doc-moodboard__overlay-pointer-tip"
+                          aria-label={t("doc.moodboard.overlayPointer")}
+                          style={{
+                            left: `${overlay.endXPct ?? overlay.xPct}%`,
+                            top: `${overlay.endYPct ?? overlay.yPct}%`,
+                          }}
+                          onPointerDown={(event) => startPointerTipDrag(event, overlay)}
+                        />
+                      ) : null}
+                      {selected ? (
+                        <button
+                          type="button"
+                          className="doc-moodboard__overlay-delete doc-moodboard__overlay-delete--pointer"
+                          style={{
+                            left: `calc(${overlay.xPct}% + ${sizePx / 2 - 6}px)`,
+                            top: `calc(${overlay.yPct}% - ${sizePx / 2 + 2}px)`,
+                          }}
+                          aria-label={t("doc.moodboard.overlayDelete")}
+                          onPointerDown={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                          }}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            removeOverlay(overlay.id);
+                          }}
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                }
+
                 const src = MOODBOARD_OVERLAY_SRC[overlay.kind];
                 if (!src) return null;
                 const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 44;

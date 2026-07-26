@@ -153,6 +153,7 @@ export const messages = {
         overlayDown: "Down arrow",
         overlayCircle: "Circle",
         overlayEllipse: "Ellipse",
+        overlayPointer: "Pointer",
         overlayDelete: "Delete overlay",
       },
       banner: {
@@ -1085,6 +1086,7 @@ export const messages = {
         overlayDown: "Flecha abajo",
         overlayCircle: "Círculo",
         overlayEllipse: "Elipse",
+        overlayPointer: "Señalador",
         overlayDelete: "Eliminar overlay",
       },
       banner: {

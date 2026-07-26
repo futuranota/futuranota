@@ -8654,6 +8654,13 @@ body.doc-content-resizing * {
   filter: invert(1);
 }
 
+.doc-moodboard__overlay-rail-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+
 .doc-moodboard__board {
   position: relative;
   display: grid;
@@ -8688,6 +8695,16 @@ body.doc-content-resizing * {
   pointer-events: auto;
 }
 
+.doc-moodboard__overlays--edit .doc-moodboard__overlay--pointer {
+  pointer-events: none;
+}
+
+.doc-moodboard__overlays--edit .doc-moodboard__overlay--pointer .doc-moodboard__overlay-pointer-circle,
+.doc-moodboard__overlays--edit .doc-moodboard__overlay--pointer .doc-moodboard__overlay-pointer-tip,
+.doc-moodboard__overlays--edit .doc-moodboard__overlay--pointer .doc-moodboard__overlay-delete {
+  pointer-events: auto;
+}
+
 .doc-moodboard__overlay {
   position: absolute;
   width: 44px;
@@ -8704,6 +8721,12 @@ body.doc-content-resizing * {
   width: 140px;
 }
 
+.doc-moodboard__overlay--pointer {
+  inset: 0;
+  width: auto;
+  height: auto;
+}
+
 .doc-moodboard__overlay--draggable {
   cursor: grab;
 }
@@ -8718,11 +8741,63 @@ body.doc-content-resizing * {
   border-radius: 2px;
 }
 
+.doc-moodboard__overlay--pointer.doc-moodboard__overlay--selected {
+  outline: none;
+}
+
+.doc-moodboard__overlay--pointer.doc-moodboard__overlay--selected .doc-moodboard__overlay-pointer-circle {
+  outline: 1px solid rgba(22, 26, 29, 0.45);
+  outline-offset: 2px;
+}
+
 .doc-moodboard__overlay-img {
   display: block;
   width: 100%;
   height: auto;
   pointer-events: none;
+}
+
+.doc-moodboard__overlay-pointer-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.doc-moodboard__overlay-pointer-circle {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px dashed rgba(22, 26, 29, 0.85);
+  border-radius: 50%;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.doc-moodboard__overlay-pointer-circle:active {
+  cursor: grabbing;
+}
+
+.doc-moodboard__overlay-pointer-tip {
+  position: absolute;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid rgba(22, 26, 29, 0.9);
+  border-radius: 50%;
+  background: rgba(22, 26, 29, 0.85);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.doc-moodboard__overlay-pointer-tip:active {
+  cursor: grabbing;
 }
 
 .doc-moodboard__overlay-delete {
@@ -8741,6 +8816,12 @@ body.doc-content-resizing * {
   font-size: 12px;
   line-height: 18px;
   cursor: pointer;
+}
+
+.doc-moodboard__overlay-delete--pointer {
+  top: auto;
+  right: auto;
+  transform: translate(-50%, -50%);
 }
 
 .doc-moodboard__overlay-delete:hover {

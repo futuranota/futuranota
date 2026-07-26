@@ -374,6 +374,8 @@ export const MOODBOARD_OVERLAY_KINDS = {
   DOWN: "down",
   CIRCLE: "circle",
   ELLIPSE: "ellipse",
+  /** Dashed circle + stretchable arrow tip (circle product → point elsewhere). */
+  POINTER: "pointer",
 };
 
 /** Absolute /uploads paths — use as <img src>, never CSS url(). */
@@ -385,6 +387,8 @@ export const MOODBOARD_OVERLAY_SRC = {
   // Prefer PNG: circle.svg in uploads is ~2.4MB export; PNG is lightweight.
   [MOODBOARD_OVERLAY_KINDS.CIRCLE]: "/uploads/circle.png",
   [MOODBOARD_OVERLAY_KINDS.ELLIPSE]: "/uploads/ellipse.svg",
+  // Pointer is SVG-drawn in the board (no static asset).
+  [MOODBOARD_OVERLAY_KINDS.POINTER]: "",
 };
 
 /** Board box width (px) per kind — shapes need more room than arrows. */
@@ -395,7 +399,12 @@ export const MOODBOARD_OVERLAY_SIZE_PX = {
   [MOODBOARD_OVERLAY_KINDS.DOWN]: 44,
   [MOODBOARD_OVERLAY_KINDS.CIRCLE]: 110,
   [MOODBOARD_OVERLAY_KINDS.ELLIPSE]: 140,
+  [MOODBOARD_OVERLAY_KINDS.POINTER]: 110,
 };
+
+/** Default tip offset from circle center when placing a pointer overlay. */
+export const MOODBOARD_POINTER_DEFAULT_END_DX_PCT = 12;
+export const MOODBOARD_POINTER_DEFAULT_END_DY_PCT = 0;
 
 const MOODBOARD_OVERLAY_KIND_SET = new Set(Object.values(MOODBOARD_OVERLAY_KINDS));
 
@@ -709,27 +718,55 @@ function clampMoodboardOverlayPct(value, fallback = 50) {
 
 /**
  * @param {unknown} raw
- * @returns {{ id: string, kind: string, xPct: number, yPct: number } | null}
+ * @returns {{
+ *   id: string,
+ *   kind: string,
+ *   xPct: number,
+ *   yPct: number,
+ *   endXPct?: number,
+ *   endYPct?: number,
+ * } | null}
  */
 function normalizeMoodboardOverlay(raw) {
   if (!raw || typeof raw !== "object") return null;
   const kind = String(raw.kind || "");
   if (!MOODBOARD_OVERLAY_KIND_SET.has(kind)) return null;
-  return {
+  const xPct = clampMoodboardOverlayPct(raw.xPct, 45);
+  const yPct = clampMoodboardOverlayPct(raw.yPct, 40);
+  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number }} */
+  const item = {
     id: String(raw.id || generateId("MBO")),
     kind,
-    xPct: clampMoodboardOverlayPct(raw.xPct, 45),
-    yPct: clampMoodboardOverlayPct(raw.yPct, 40),
+    xPct,
+    yPct,
   };
+  if (kind === MOODBOARD_OVERLAY_KINDS.POINTER) {
+    item.endXPct = clampMoodboardOverlayPct(
+      raw.endXPct,
+      Math.min(100, xPct + MOODBOARD_POINTER_DEFAULT_END_DX_PCT),
+    );
+    item.endYPct = clampMoodboardOverlayPct(
+      raw.endYPct,
+      Math.max(0, Math.min(100, yPct + MOODBOARD_POINTER_DEFAULT_END_DY_PCT)),
+    );
+  }
+  return item;
 }
 
 /**
  * @param {unknown} list
- * @returns {{ id: string, kind: string, xPct: number, yPct: number }[]}
+ * @returns {{
+ *   id: string,
+ *   kind: string,
+ *   xPct: number,
+ *   yPct: number,
+ *   endXPct?: number,
+ *   endYPct?: number,
+ * }[]}
  */
 export function normalizeMoodboardOverlays(list) {
   if (!Array.isArray(list) || list.length === 0) return [];
-  /** @type {{ id: string, kind: string, xPct: number, yPct: number }[]} */
+  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number }[]} */
   const out = [];
   const seen = new Set();
   for (const raw of list) {
@@ -743,14 +780,22 @@ export function normalizeMoodboardOverlays(list) {
 
 /**
  * @param {string} kind
- * @param {{ xPct?: number, yPct?: number, id?: string }} [patch]
+ * @param {{ xPct?: number, yPct?: number, endXPct?: number, endYPct?: number, id?: string }} [patch]
  */
 export function createMoodboardOverlay(kind, patch = {}) {
+  const xPct = patch.xPct ?? 45;
+  const yPct = patch.yPct ?? 40;
   return normalizeMoodboardOverlay({
     id: patch.id || generateId("MBO"),
     kind,
-    xPct: patch.xPct ?? 45,
-    yPct: patch.yPct ?? 40,
+    xPct,
+    yPct,
+    ...(kind === MOODBOARD_OVERLAY_KINDS.POINTER
+      ? {
+        endXPct: patch.endXPct ?? Math.min(100, xPct + MOODBOARD_POINTER_DEFAULT_END_DX_PCT),
+        endYPct: patch.endYPct ?? Math.max(0, Math.min(100, yPct + MOODBOARD_POINTER_DEFAULT_END_DY_PCT)),
+      }
+      : {}),
   });
 }
 
