@@ -39,6 +39,8 @@ const BOARD_GAP = 10;
 /** Height / col-width ratios — halves needs a taller board so 50% frames feel full. */
 const BOARD_ASPECT_DEFAULT = 1.25;
 const BOARD_ASPECT_HALVES = 1.55;
+/** Full-width column: landscape-friendly but tall enough for short screenshots. */
+const BOARD_ASPECT_FULL = 0.82;
 
 const STICKY_SRC = "/uploads/horizontal-note.svg";
 
@@ -144,6 +146,7 @@ const LAYOUT_OPTIONS = [
   { id: MOODBOARD_BOARD_LAYOUTS.THIRDS, labelKey: "doc.moodboard.layoutThirds" },
   { id: MOODBOARD_BOARD_LAYOUTS.HALVES, labelKey: "doc.moodboard.layoutHalves" },
   { id: MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW, labelKey: "doc.moodboard.layoutWideNarrow" },
+  { id: MOODBOARD_BOARD_LAYOUTS.FULL, labelKey: "doc.moodboard.layoutFull" },
 ];
 
 /**
@@ -151,11 +154,15 @@ const LAYOUT_OPTIONS = [
  * - thirds: all recipes
  * - halves: large image only (both cols)
  * - wide_narrow: col0 large only; col1 large or sticky notes
+ * - full: large image only
  * @param {string} boardLayout
  * @param {number} colIndex
  */
 function recipeOptionsForColumn(boardLayout, colIndex) {
-  if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) {
+  if (
+    boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES
+    || boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
+  ) {
     return RECIPE_OPTIONS.filter((option) => option.id === MOODBOARD_RECIPES.LARGE);
   }
   if (boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW) {
@@ -390,14 +397,22 @@ export function MoodboardBlockView({
       if (!(width > 0)) return;
       const gaps = Math.max(0, columnCount - 1);
       const contentW = Math.max(1, width - BOARD_PAD_X * 2 - BOARD_GAP * gaps);
-      // Height from the widest column so halves / wide+narrow stay readable.
-      const colInner = boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW
-        ? contentW * (2 / 3)
-        : contentW / columnCount;
-      const aspect = boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES
-        ? BOARD_ASPECT_HALVES
-        : BOARD_ASPECT_DEFAULT;
-      const capped = Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3);
+      // Height from the widest column so halves / wide+narrow / full stay readable.
+      let colInner;
+      if (boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW) {
+        colInner = contentW * (2 / 3);
+      } else if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) {
+        colInner = contentW;
+      } else {
+        colInner = contentW / columnCount;
+      }
+      let aspect = BOARD_ASPECT_DEFAULT;
+      if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) aspect = BOARD_ASPECT_HALVES;
+      if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) aspect = BOARD_ASPECT_FULL;
+      // Full layout may exceed the shared text-block ceiling so short screenshots scale up.
+      const capped = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
+        ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.9)
+        : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3);
       const contentH = Math.round(Math.max(200, Math.min(colInner * aspect, capped)));
       const nextH = contentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
       setBoardHeight((prev) => (prev === nextH ? prev : nextH));

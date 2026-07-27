@@ -352,12 +352,15 @@ export const MOODBOARD_BOARD_LAYOUTS = {
   HALVES: "halves",
   /** ⅔ · ⅓ — wide hero + narrow/tall companion. */
   WIDE_NARROW: "wide_narrow",
+  /** Full-width single column (one large image). */
+  FULL: "full",
 };
 
 export const MOODBOARD_LAYOUT_COLUMN_COUNT = {
   [MOODBOARD_BOARD_LAYOUTS.THIRDS]: 3,
   [MOODBOARD_BOARD_LAYOUTS.HALVES]: 2,
   [MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW]: 2,
+  [MOODBOARD_BOARD_LAYOUTS.FULL]: 1,
 };
 
 const MOODBOARD_BOARD_LAYOUT_SET = new Set(Object.values(MOODBOARD_BOARD_LAYOUTS));
@@ -410,7 +413,7 @@ export const MOODBOARD_RECIPE_SLOTS = {
 };
 
 /** Sticky note copy (semi_sticky / medium_sticky). Soft cap; UI clamps to the note box height. */
-export const MOODBOARD_STICKY_MAX = 220;
+export const MOODBOARD_STICKY_MAX = 360;
 /** Notes card title (medium_sticky — Playwrite). */
 export const MOODBOARD_STICKY_TITLE_MAX = 40;
 /** Arrow label above the medium stack. */
