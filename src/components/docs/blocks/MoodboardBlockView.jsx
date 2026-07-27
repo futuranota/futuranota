@@ -2,16 +2,16 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
 import {
   IMAGE_SPLIT_BODY_MAX_LINES,
+  MOODBOARD_BOARD_LAYOUTS,
   MOODBOARD_CAPTION_MAX,
   MOODBOARD_CAPTION_MAX_LINES,
-  MOODBOARD_COLUMN_COUNT,
   MOODBOARD_FILE_ICON_SRC,
-  MOODBOARD_OVERLAY_KINDS,
-  MOODBOARD_OVERLAY_SIZE_PX,
-  MOODBOARD_OVERLAY_SRC,
   MOODBOARD_NOTES_BG_SRC,
   MOODBOARD_NOTES_CIRC_SRC,
   MOODBOARD_NOTES_TITLE_DEFAULT,
+  MOODBOARD_OVERLAY_KINDS,
+  MOODBOARD_OVERLAY_SIZE_PX,
+  MOODBOARD_OVERLAY_SRC,
   MOODBOARD_RECIPES,
   MOODBOARD_STICKY_MAX,
   MOODBOARD_STICKY_TITLE_MAX,
@@ -19,8 +19,11 @@ import {
   countMoodboardSavedImages,
   createMoodboardColumn,
   createMoodboardOverlay,
+  moodboardColumnCountForLayout,
+  normalizeMoodboardBoardLayout,
   normalizeMoodboardExternalUrl,
   normalizeMoodboardOverlays,
+  resizeMoodboardColumns,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 import { MoodboardAttachmentModal } from "./MoodboardAttachmentModal.jsx";
@@ -123,6 +126,27 @@ const RECIPE_OPTIONS = [
   { id: MOODBOARD_RECIPES.SEMI_STICKY, labelKey: "doc.moodboard.recipeSemi" },
   { id: MOODBOARD_RECIPES.MEDIUM_STICKY, labelKey: "doc.moodboard.recipeMediumSticky" },
 ];
+
+const LAYOUT_OPTIONS = [
+  { id: MOODBOARD_BOARD_LAYOUTS.THIRDS, labelKey: "doc.moodboard.layoutThirds" },
+  { id: MOODBOARD_BOARD_LAYOUTS.HALVES, labelKey: "doc.moodboard.layoutHalves" },
+  { id: MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW, labelKey: "doc.moodboard.layoutWideNarrow" },
+];
+
+/**
+ * Narrow companion column (wide_narrow col 1) skips stacked medium — too tight.
+ * @param {string} boardLayout
+ * @param {number} colIndex
+ */
+function recipeOptionsForColumn(boardLayout, colIndex) {
+  if (
+    boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW
+    && colIndex === 1
+  ) {
+    return RECIPE_OPTIONS.filter((option) => option.id !== MOODBOARD_RECIPES.MEDIUM_STACK);
+  }
+  return RECIPE_OPTIONS;
+}
 
 /** Preserve column text fields when rebuilding a recipe column. */
 function columnTextPatch(col) {
@@ -274,19 +298,21 @@ export function MoodboardBlockView({
   const overlayDragRef = useRef(null);
   const overlaysRef = useRef([]);
 
-  const columns = Array.isArray(block?.columns) && block.columns.length === MOODBOARD_COLUMN_COUNT
+  const boardLayout = normalizeMoodboardBoardLayout(block?.boardLayout);
+  const columnCount = moodboardColumnCountForLayout(boardLayout);
+  const columns = Array.isArray(block?.columns) && block.columns.length === columnCount
     ? block.columns
-    : [
-      createMoodboardColumn(null),
-      createMoodboardColumn(null),
-      createMoodboardColumn(null),
-    ];
+    : resizeMoodboardColumns(block?.columns, columnCount);
 
   const overlays = normalizeMoodboardOverlays(block?.overlays);
   overlaysRef.current = overlays;
   const savedImageCount = countMoodboardSavedImages({ columns });
   const moodboardSaved = Boolean(block?.moodboardSaved && savedImageCount > 0);
   const isEdit = !moodboardSaved;
+
+  useEffect(() => {
+    setActiveCol((prev) => Math.min(prev, Math.max(0, columnCount - 1)));
+  }, [columnCount]);
 
   useEffect(() => {
     if (!isEdit) {
@@ -319,8 +345,12 @@ export function MoodboardBlockView({
     const sync = () => {
       const width = board.clientWidth;
       if (!(width > 0)) return;
-      // Exact thirds: strip board padding + the two gaps before dividing.
-      const colInner = Math.max(1, (width - BOARD_PAD_X * 2 - BOARD_GAP * 2) / 3);
+      const gaps = Math.max(0, columnCount - 1);
+      const contentW = Math.max(1, width - BOARD_PAD_X * 2 - BOARD_GAP * gaps);
+      // Height from the widest column so halves / wide+narrow stay readable.
+      const colInner = boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW
+        ? contentW * (2 / 3)
+        : contentW / columnCount;
       const capped = Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3);
       const contentH = Math.round(Math.max(200, Math.min(colInner * 1.25, capped)));
       const nextH = contentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
@@ -338,7 +368,7 @@ export function MoodboardBlockView({
     return () => {
       ro.disconnect();
     };
-  }, [savedImageCount, moodboardSaved, block?.caption]);
+  }, [boardLayout, columnCount, savedImageCount, moodboardSaved, block?.caption]);
 
   const handleFieldChange = (patch) => {
     if (!isEdit) return;
@@ -591,6 +621,29 @@ export function MoodboardBlockView({
   const clearColumn = (colIndex) => {
     if (!isEdit) return;
     patchColumns((col, index) => (index === colIndex ? createMoodboardColumn(null) : col));
+  };
+
+  const setBoardLayout = (nextLayout) => {
+    if (!isEdit) return;
+    const layout = normalizeMoodboardBoardLayout(nextLayout);
+    if (layout === boardLayout) return;
+    const nextCount = moodboardColumnCountForLayout(layout);
+    const resized = resizeMoodboardColumns(columns, nextCount).map((col, index) => {
+      // Narrow column in wide+narrow cannot host the 2-slot stack.
+      if (
+        layout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW
+        && index === 1
+        && col.recipe === MOODBOARD_RECIPES.MEDIUM_STACK
+      ) {
+        return createMoodboardColumn(MOODBOARD_RECIPES.LARGE, {
+          images: col.images,
+          ...columnTextPatch(col),
+        });
+      }
+      return col;
+    });
+    setActiveCol((prev) => Math.min(prev, nextCount - 1));
+    handleFieldChange({ boardLayout: layout, columns: resized });
   };
 
   const slotKey = (colIndex, imageIndex) => `${colIndex}:${imageIndex}`;
@@ -963,6 +1016,7 @@ export function MoodboardBlockView({
     const column = columns[colIndex] || createMoodboardColumn(null);
     const recipe = column.recipe;
     const isActive = activeCol === colIndex;
+    const colRecipes = recipeOptionsForColumn(boardLayout, colIndex);
 
     return (
       <div
@@ -980,7 +1034,7 @@ export function MoodboardBlockView({
               {t("doc.moodboard.pickRecipe")}
             </p>
             <div className="doc-moodboard__col-picker-actions">
-              {RECIPE_OPTIONS.map((option) => (
+              {colRecipes.map((option) => (
                 <button
                   key={option.id}
                   type="button"
@@ -1163,22 +1217,45 @@ export function MoodboardBlockView({
 
       {isEdit ? (
         <div className="doc-moodboard__toolbar" role="toolbar" aria-label={t("doc.moodboard.toolbarLabel")}>
-          <div className="doc-moodboard__toolbar-actions">
-            {RECIPE_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={
-                  "doc-moodboard__toolbar-btn"
-                  + (columns[activeCol]?.recipe === option.id
-                    ? " doc-moodboard__toolbar-btn--active"
-                    : "")
-                }
-                onClick={() => setColumnRecipe(activeCol, option.id)}
-              >
-                {t(option.labelKey)}
-              </button>
-            ))}
+          <div className="doc-moodboard__toolbar-group">
+            <span className="doc-moodboard__toolbar-hint">{t("doc.moodboard.layoutLabel")}</span>
+            <div className="doc-moodboard__toolbar-actions" role="group" aria-label={t("doc.moodboard.layoutLabel")}>
+              {LAYOUT_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={
+                    "doc-moodboard__toolbar-btn"
+                    + (boardLayout === option.id ? " doc-moodboard__toolbar-btn--active" : "")
+                  }
+                  onClick={() => setBoardLayout(option.id)}
+                >
+                  {t(option.labelKey)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="doc-moodboard__toolbar-group">
+            <span className="doc-moodboard__toolbar-hint">
+              {t("doc.moodboard.toolbarHint", { n: activeCol + 1 })}
+            </span>
+            <div className="doc-moodboard__toolbar-actions">
+              {recipeOptionsForColumn(boardLayout, activeCol).map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={
+                    "doc-moodboard__toolbar-btn"
+                    + (columns[activeCol]?.recipe === option.id
+                      ? " doc-moodboard__toolbar-btn--active"
+                      : "")
+                  }
+                  onClick={() => setColumnRecipe(activeCol, option.id)}
+                >
+                  {t(option.labelKey)}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       ) : null}
@@ -1226,6 +1303,7 @@ export function MoodboardBlockView({
         <div
           className={
             "doc-moodboard__board"
+            + ` doc-moodboard__board--${boardLayout}`
             + (pendingOverlayKind ? " doc-moodboard__board--place-overlay" : "")
           }
           ref={boardRef}

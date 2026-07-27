@@ -341,8 +341,57 @@ export const MOODBOARD_CAPTION_MAX = 64;
 /** Hard ceiling for Pangolin caption lines in the card. */
 export const MOODBOARD_CAPTION_MAX_LINES = 2;
 
-/** Board is split in exact thirds; each third picks one recipe. */
+/** Default / legacy board is three equal columns. */
 export const MOODBOARD_COLUMN_COUNT = 3;
+
+/** Top-level board grid (how many columns + proportions). */
+export const MOODBOARD_BOARD_LAYOUTS = {
+  /** ⅓ · ⅓ · ⅓ — current default. */
+  THIRDS: "thirds",
+  /** ½ · ½ */
+  HALVES: "halves",
+  /** ⅔ · ⅓ — wide hero + narrow/tall companion. */
+  WIDE_NARROW: "wide_narrow",
+};
+
+export const MOODBOARD_LAYOUT_COLUMN_COUNT = {
+  [MOODBOARD_BOARD_LAYOUTS.THIRDS]: 3,
+  [MOODBOARD_BOARD_LAYOUTS.HALVES]: 2,
+  [MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW]: 2,
+};
+
+const MOODBOARD_BOARD_LAYOUT_SET = new Set(Object.values(MOODBOARD_BOARD_LAYOUTS));
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizeMoodboardBoardLayout(value) {
+  const raw = String(value ?? "");
+  return MOODBOARD_BOARD_LAYOUT_SET.has(raw) ? raw : MOODBOARD_BOARD_LAYOUTS.THIRDS;
+}
+
+/**
+ * @param {string} layout
+ * @returns {number}
+ */
+export function moodboardColumnCountForLayout(layout) {
+  const resolved = normalizeMoodboardBoardLayout(layout);
+  return MOODBOARD_LAYOUT_COLUMN_COUNT[resolved] || MOODBOARD_COLUMN_COUNT;
+}
+
+/**
+ * Resize a columns array to `targetCount` (pad empty / truncate extras).
+ * @param {unknown} list
+ * @param {number} targetCount
+ */
+export function resizeMoodboardColumns(list, targetCount) {
+  const n = Math.max(1, Math.min(MOODBOARD_COLUMN_COUNT, Math.floor(Number(targetCount)) || MOODBOARD_COLUMN_COUNT));
+  const incoming = Array.isArray(list) ? list.map(normalizeMoodboardColumn) : [];
+  const out = incoming.slice(0, n);
+  while (out.length < n) out.push(createMoodboardColumn(null));
+  return out;
+}
 
 export const MOODBOARD_RECIPES = {
   LARGE: "large",
@@ -669,19 +718,20 @@ function normalizeMoodboardColumn(column) {
 }
 
 /**
- * Migrate legacy a/b collage → 3-column recipes (col0/col1 large when filled).
+ * Migrate legacy a/b collage → column recipes; pad/trim to board layout.
  * @param {object} block
  */
 function migrateLegacyMoodboardColumns(block) {
+  const layout = normalizeMoodboardBoardLayout(block?.boardLayout);
+  const targetCount = moodboardColumnCountForLayout(layout);
+
   if (Array.isArray(block?.columns) && block.columns.length > 0) {
-    const cols = block.columns.slice(0, MOODBOARD_COLUMN_COUNT).map(normalizeMoodboardColumn);
-    while (cols.length < MOODBOARD_COLUMN_COUNT) cols.push(createMoodboardColumn(null));
-    return cols;
+    return resizeMoodboardColumns(block.columns, targetCount);
   }
 
   const a = normalizeMoodboardSlot(block?.a);
   const b = normalizeMoodboardSlot(block?.b);
-  return [
+  const seeded = [
     createMoodboardColumn(
       a.imageSaved || a.src ? MOODBOARD_RECIPES.LARGE : null,
       { images: a.imageSaved || a.src ? [a] : [] },
@@ -692,6 +742,7 @@ function migrateLegacyMoodboardColumns(block) {
     ),
     createMoodboardColumn(null),
   ];
+  return resizeMoodboardColumns(seeded, targetCount);
 }
 
 /**
@@ -820,7 +871,8 @@ export function createMoodboardOverlay(kind, patch = {}) {
 }
 
 function normalizeMoodboardBlock(block) {
-  const columns = migrateLegacyMoodboardColumns(block);
+  const boardLayout = normalizeMoodboardBoardLayout(block?.boardLayout);
+  const columns = migrateLegacyMoodboardColumns({ ...block, boardLayout });
   const savedCount = countMoodboardSavedImages({ columns });
   const bodyMode = block?.bodyMode === IMAGE_SPLIT_BODY_MODE.TODO
     ? IMAGE_SPLIT_BODY_MODE.TODO
@@ -833,6 +885,7 @@ function normalizeMoodboardBlock(block) {
   const overlays = normalizeMoodboardOverlays(block?.overlays);
   return {
     caption: String(block?.caption ?? "").slice(0, MOODBOARD_CAPTION_MAX),
+    boardLayout,
     columns,
     a,
     b,

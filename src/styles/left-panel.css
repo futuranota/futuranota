@@ -8541,12 +8541,21 @@ body.doc-content-resizing * {
 
 .doc-moodboard__toolbar {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 10px;
+  gap: 10px 14px;
   width: 100%;
   margin: 0 0 6px;
   box-sizing: border-box;
+}
+
+.doc-moodboard__toolbar-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
 }
 
 .doc-moodboard__toolbar-hint {
@@ -8558,6 +8567,7 @@ body.doc-content-resizing * {
 
 .doc-moodboard__toolbar-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -8589,7 +8599,7 @@ body.doc-content-resizing * {
   background: rgba(58, 111, 122, 0.22);
 }
 
-/* Exact thirds: 3 equal columns, fixed gap + padding — pieces never overlap.
+/* Board grid: default thirds; --halves / --wide_narrow override columns.
    Bottom padding is a slim strip for float actions (see BOARD_CAPTION_STRIP). */
 .doc-moodboard__board-wrap {
   position: relative;
@@ -8673,6 +8683,14 @@ body.doc-content-resizing * {
   border-radius: 5px;
   background: #F1F1F1;
   overflow: hidden;
+}
+
+.doc-moodboard__board--halves {
+  grid-template-columns: 1fr 1fr;
+}
+
+.doc-moodboard__board--wide_narrow {
+  grid-template-columns: 2fr 1fr;
 }
 
 .doc-moodboard__board--place-overlay {
