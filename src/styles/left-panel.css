@@ -8719,6 +8719,7 @@ body.doc-content-resizing * {
 
 .doc-moodboard__overlays--edit .doc-moodboard__overlay--pointer .doc-moodboard__overlay-pointer-circle,
 .doc-moodboard__overlays--edit .doc-moodboard__overlay--pointer .doc-moodboard__overlay-pointer-tip,
+.doc-moodboard__overlays--edit .doc-moodboard__overlay--pointer .doc-moodboard__overlay-contrast,
 .doc-moodboard__overlays--edit .doc-moodboard__overlay--pointer .doc-moodboard__overlay-delete {
   pointer-events: auto;
 }
@@ -8768,6 +8769,10 @@ body.doc-content-resizing * {
   outline-offset: 2px;
 }
 
+.doc-moodboard__overlay--pointer-light.doc-moodboard__overlay--selected .doc-moodboard__overlay-pointer-circle {
+  outline-color: rgba(220, 224, 228, 0.55);
+}
+
 .doc-moodboard__overlay-img {
   display: block;
   width: 100%;
@@ -8795,6 +8800,10 @@ body.doc-content-resizing * {
   touch-action: none;
 }
 
+.doc-moodboard__overlay--pointer-light .doc-moodboard__overlay-pointer-circle {
+  border-color: rgba(220, 224, 228, 0.92);
+}
+
 .doc-moodboard__overlay-pointer-circle:active {
   cursor: grabbing;
 }
@@ -8814,8 +8823,48 @@ body.doc-content-resizing * {
   touch-action: none;
 }
 
+.doc-moodboard__overlay--pointer-light .doc-moodboard__overlay-pointer-tip {
+  background: rgba(220, 224, 228, 0.92);
+}
+
 .doc-moodboard__overlay-pointer-tip:active {
   cursor: grabbing;
+}
+
+.doc-moodboard__overlay-contrast {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 4px;
+  background: rgba(21, 21, 21, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.doc-moodboard__overlay-contrast-btn {
+  margin: 0;
+  padding: 2px 7px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.doc-moodboard__overlay-contrast-btn:hover {
+  color: #fff;
+}
+
+.doc-moodboard__overlay-contrast-btn--active {
+  color: #fff;
+  background: rgba(58, 111, 122, 0.35);
 }
 
 .doc-moodboard__overlay-delete {
@@ -8959,8 +9008,14 @@ body.doc-content-resizing * {
 .doc-moodboard__recipe--medium-sticky {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   flex: 1 1 auto;
+  min-height: 0;
+}
+
+.doc-moodboard__recipe--medium-sticky .doc-moodboard__notes {
+  flex: 1 1 auto;
+  aspect-ratio: auto;
+  height: 100%;
   min-height: 0;
 }
 

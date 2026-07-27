@@ -397,7 +397,7 @@ export const MOODBOARD_RECIPES = {
   LARGE: "large",
   MEDIUM_STACK: "medium_stack",
   SEMI_STICKY: "semi_sticky",
-  /** Notes card (top) + one medium image (bottom). */
+  /** Notes card only (no image below). Also allowed on wide_narrow col 1. */
   MEDIUM_STICKY: "medium_sticky",
 };
 
@@ -406,7 +406,7 @@ export const MOODBOARD_RECIPE_SLOTS = {
   [MOODBOARD_RECIPES.LARGE]: 1,
   [MOODBOARD_RECIPES.MEDIUM_STACK]: 2,
   [MOODBOARD_RECIPES.SEMI_STICKY]: 1,
-  [MOODBOARD_RECIPES.MEDIUM_STICKY]: 1,
+  [MOODBOARD_RECIPES.MEDIUM_STICKY]: 0,
 };
 
 /** Sticky note copy (semi_sticky / medium_sticky). Soft cap; UI clamps to the note box height. */
@@ -465,6 +465,25 @@ export const MOODBOARD_OVERLAY_SIZE_PX = {
 /** Default tip offset from circle center when placing a pointer overlay. */
 export const MOODBOARD_POINTER_DEFAULT_END_DX_PCT = 12;
 export const MOODBOARD_POINTER_DEFAULT_END_DY_PCT = 0;
+
+/** Pointer stroke on light photos (default) vs dark photos. */
+export const MOODBOARD_POINTER_CONTRAST = {
+  INK: "ink",
+  LIGHT: "light",
+};
+
+const MOODBOARD_POINTER_CONTRAST_SET = new Set(Object.values(MOODBOARD_POINTER_CONTRAST));
+
+/**
+ * @param {unknown} value
+ * @returns {"ink"|"light"}
+ */
+export function normalizeMoodboardPointerContrast(value) {
+  const raw = String(value ?? "");
+  return MOODBOARD_POINTER_CONTRAST_SET.has(raw)
+    ? raw
+    : MOODBOARD_POINTER_CONTRAST.INK;
+}
 
 const MOODBOARD_OVERLAY_KIND_SET = new Set(Object.values(MOODBOARD_OVERLAY_KINDS));
 
@@ -804,7 +823,7 @@ function normalizeMoodboardOverlay(raw) {
   if (!MOODBOARD_OVERLAY_KIND_SET.has(kind)) return null;
   const xPct = clampMoodboardOverlayPct(raw.xPct, 45);
   const yPct = clampMoodboardOverlayPct(raw.yPct, 40);
-  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number }} */
+  /** @type {{ id: string, kind: string, xPct: number, yPct: number, endXPct?: number, endYPct?: number, contrast?: string }} */
   const item = {
     id: String(raw.id || generateId("MBO")),
     kind,
@@ -820,6 +839,7 @@ function normalizeMoodboardOverlay(raw) {
       raw.endYPct,
       Math.max(0, Math.min(100, yPct + MOODBOARD_POINTER_DEFAULT_END_DY_PCT)),
     );
+    item.contrast = normalizeMoodboardPointerContrast(raw.contrast);
   }
   return item;
 }
@@ -851,7 +871,7 @@ export function normalizeMoodboardOverlays(list) {
 
 /**
  * @param {string} kind
- * @param {{ xPct?: number, yPct?: number, endXPct?: number, endYPct?: number, id?: string }} [patch]
+ * @param {{ xPct?: number, yPct?: number, endXPct?: number, endYPct?: number, contrast?: string, id?: string }} [patch]
  */
 export function createMoodboardOverlay(kind, patch = {}) {
   const xPct = patch.xPct ?? 45;
@@ -865,6 +885,7 @@ export function createMoodboardOverlay(kind, patch = {}) {
       ? {
         endXPct: patch.endXPct ?? Math.min(100, xPct + MOODBOARD_POINTER_DEFAULT_END_DX_PCT),
         endYPct: patch.endYPct ?? Math.max(0, Math.min(100, yPct + MOODBOARD_POINTER_DEFAULT_END_DY_PCT)),
+        contrast: patch.contrast,
       }
       : {}),
   });

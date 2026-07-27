@@ -167,20 +167,35 @@ async function syncLazyTodosToSupabase(items, options = {}) {
   const safeItems = filterLazyTodosAgainstDeletedIds(items, deletedIds);
   const rows = safeItems.map((item) => itemToRow(item, userId, now));
 
+  // #region agent log
+  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-A',location:'lazyTodosSync.js:syncLazyTodosToSupabase',message:'sync start',data:{itemCount:items.length,safeCount:safeItems.length,deletedIds,allowOrphanDelete,hasCompletedHydrate,optAllow:Boolean(options.allowOrphanDelete)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+
   if (rows.length > 0) {
     const { error } = await supabase
       .from("lazy_todos")
       .upsert(rows, { onConflict: "id" });
     if (error) {
       console.warn(formatSupabaseError(error, "Upsert lazy_todos"));
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-B',location:'lazyTodosSync.js:upsert',message:'upsert failed — abort before purge',data:{deletedIds},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       return;
     }
   }
 
-  if (!allowOrphanDelete) return;
+  if (!allowOrphanDelete) {
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-A',location:'lazyTodosSync.js:skipPurge',message:'orphan delete SKIPPED — remote row may survive',data:{deletedIds,hasCompletedHydrate,optAllow:Boolean(options.allowOrphanDelete)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return;
+  }
 
   // Explicit purge by tombstone — does not depend on "missing from local list".
   const purgeOk = await purgeTombstonedLazyTodos(userId, deletedIds);
+  // #region agent log
+  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-B',location:'lazyTodosSync.js:purge',message:'tombstone purge result',data:{deletedIds,purgeOk},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   if (!purgeOk) return;
 
   const { data: remoteRows, error: selectErr } = await supabase
@@ -353,6 +368,18 @@ export function initLazyTodosSync(useLazyTodosStore) {
     try {
       const { items: localItems, deletedIds } = useLazyTodosStore.getState();
       const merged = mergeLazyTodoLists(localItems, remoteItems, deletedIds);
+      const remoteIds = remoteItems.map((i) => i.id);
+      const localIds = localItems.map((i) => i.id);
+      const mergedIds = merged.map((i) => i.id);
+      const resurrected = remoteIds.filter(
+        (id) => deletedIds.includes(id) === false
+          && !localIds.includes(id)
+          && mergedIds.includes(id),
+      );
+      const blockedByTombstone = remoteIds.filter((id) => deletedIds.includes(id));
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-C',location:'lazyTodosSync.js:hydrateFromRemote',message:'hydrate merge',data:{remoteCount:remoteItems.length,localCount:localItems.length,mergedCount:merged.length,deletedIds,blockedByTombstone,resurrected,remoteStillHasDeleted:remoteIds.filter((id)=>deletedIds.includes(id))},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       useLazyTodosStore.getState().replaceItems(merged);
       useLazyTodosStore.getState().requeueOrphanedActives?.();
       hasCompletedHydrate = true;

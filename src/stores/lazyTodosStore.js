@@ -134,6 +134,9 @@ export const useLazyTodosStore = create(
         if (!ids?.length) return;
         const remove = new Set(ids);
         const list = get().deletedIds.filter((id) => !remove.has(id));
+        // #region agent log
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-D',location:'lazyTodosStore.js:clearDeletedIds',message:'tombstones cleared',data:{cleared:ids,remaining:list},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         persistDeletedIds(list);
         set({ deletedIds: list });
       },
@@ -203,6 +206,9 @@ export const useLazyTodosStore = create(
           const deletedIds = state.deletedIds.includes(id)
             ? state.deletedIds
             : [...state.deletedIds, id];
+          // #region agent log
+          fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-A',location:'lazyTodosStore.js:removeItem',message:'tombstone + remove local',data:{id,itemsLeft:items.length,deletedIds},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           persistItems(items);
           persistDeletedIds(deletedIds);
           return { items, deletedIds };
@@ -214,7 +220,7 @@ export const useLazyTodosStore = create(
         set((state) => {
           const items = state.items.map((item) => {
             if (item.id !== id) return item;
-            return normalizeItem({
+            const next = normalizeItem({
               ...item,
               ...patch,
               id: item.id,
@@ -224,6 +230,12 @@ export const useLazyTodosStore = create(
                 ? normalizeTodoItems(patch.items)
                 : item.items,
             });
+            // #region agent log
+            if (patch.items != null) {
+              fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-E',location:'lazyTodosStore.js:updateItem',message:'checklist patch',data:{id,checkedBefore:(item.items||[]).filter((i)=>i.checked).length,checkedAfter:(next.items||[]).filter((i)=>i.checked).length,updatedAt:next.updatedAt},timestamp:Date.now()})}).catch(()=>{});
+            }
+            // #endregion
+            return next;
           });
           persistItems(items);
           return { items };

@@ -1433,6 +1433,9 @@ useEffect(() => {
 
   const handleLazyTodoCompleted = useCallback(() => {
     setActiveLazyTodo((current) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-A',location:'App.jsx:handleLazyTodoCompleted',message:'Completed clicked — deleting lazy todo',data:{id:current?.id||null,itemCount:(current?.items||[]).length,checkedCount:(current?.items||[]).filter((i)=>i.checked).length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       if (current?.id) removeLazyTodo(current.id);
       return null;
     });

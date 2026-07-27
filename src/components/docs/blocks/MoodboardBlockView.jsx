@@ -12,6 +12,7 @@ import {
   MOODBOARD_OVERLAY_KINDS,
   MOODBOARD_OVERLAY_SIZE_PX,
   MOODBOARD_OVERLAY_SRC,
+  MOODBOARD_POINTER_CONTRAST,
   MOODBOARD_RECIPES,
   MOODBOARD_STICKY_MAX,
   MOODBOARD_STICKY_TITLE_MAX,
@@ -23,6 +24,7 @@ import {
   normalizeMoodboardBoardLayout,
   normalizeMoodboardExternalUrl,
   normalizeMoodboardOverlays,
+  normalizeMoodboardPointerContrast,
   resizeMoodboardColumns,
 } from "../../../lib/docBlocks.js";
 import { useI18n } from "../../../i18n/useI18n.js";
@@ -34,6 +36,9 @@ const BOARD_PAD_TOP = 16;
 /** Bottom strip for float actions (caption no longer needs a tall strip). */
 const BOARD_CAPTION_STRIP = 28;
 const BOARD_GAP = 10;
+/** Height / col-width ratios — halves needs a taller board so 50% frames feel full. */
+const BOARD_ASPECT_DEFAULT = 1.25;
+const BOARD_ASPECT_HALVES = 1.55;
 
 const STICKY_SRC = "/uploads/horizontal-note.svg";
 
@@ -45,10 +50,18 @@ const OVERLAY_PALETTE = [
   { kind: MOODBOARD_OVERLAY_KINDS.POINTER, labelKey: "doc.moodboard.overlayPointer" },
 ];
 
-const POINTER_STROKE = "rgba(22, 26, 29, 0.85)";
+const POINTER_STROKE_BY_CONTRAST = {
+  [MOODBOARD_POINTER_CONTRAST.INK]: "rgba(22, 26, 29, 0.85)",
+  [MOODBOARD_POINTER_CONTRAST.LIGHT]: "rgba(220, 224, 228, 0.92)",
+};
 /** Match ellipse / small-arrow dashed marks (`stroke-dasharray="2 2"`). */
 const POINTER_DASH = "2 2";
 const POINTER_CIRCLE_R_PX = (MOODBOARD_OVERLAY_SIZE_PX[MOODBOARD_OVERLAY_KINDS.POINTER] || 78) / 2;
+
+const POINTER_CONTRAST_OPTIONS = [
+  { id: MOODBOARD_POINTER_CONTRAST.INK, labelKey: "doc.moodboard.overlayContrastInk" },
+  { id: MOODBOARD_POINTER_CONTRAST.LIGHT, labelKey: "doc.moodboard.overlayContrastLight" },
+];
 
 /**
  * @param {{ xPct: number, yPct: number, endXPct?: number, endYPct?: number }} overlay
@@ -134,15 +147,48 @@ const LAYOUT_OPTIONS = [
 ];
 
 /**
- * Halves / wide+narrow only allow large image. Full recipe set is thirds-only.
+ * Per-layout recipe availability:
+ * - thirds: all recipes
+ * - halves: large image only (both cols)
+ * - wide_narrow: col0 large only; col1 large or sticky notes
  * @param {string} boardLayout
- * @param {number} _colIndex
+ * @param {number} colIndex
  */
-function recipeOptionsForColumn(boardLayout, _colIndex) {
-  if (boardLayout !== MOODBOARD_BOARD_LAYOUTS.THIRDS) {
+function recipeOptionsForColumn(boardLayout, colIndex) {
+  if (boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES) {
+    return RECIPE_OPTIONS.filter((option) => option.id === MOODBOARD_RECIPES.LARGE);
+  }
+  if (boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW) {
+    if (colIndex === 1) {
+      return RECIPE_OPTIONS.filter((option) => (
+        option.id === MOODBOARD_RECIPES.LARGE
+        || option.id === MOODBOARD_RECIPES.MEDIUM_STICKY
+      ));
+    }
     return RECIPE_OPTIONS.filter((option) => option.id === MOODBOARD_RECIPES.LARGE);
   }
   return RECIPE_OPTIONS;
+}
+
+/**
+ * Keep column if its recipe is allowed; otherwise demote to large when possible.
+ * @param {object} col
+ * @param {string} layout
+ * @param {number} colIndex
+ */
+function coerceColumnRecipeForLayout(col, layout, colIndex) {
+  if (!col?.recipe) return col;
+  const allowed = new Set(
+    recipeOptionsForColumn(layout, colIndex).map((option) => option.id),
+  );
+  if (allowed.has(col.recipe)) return col;
+  if (allowed.has(MOODBOARD_RECIPES.LARGE)) {
+    return createMoodboardColumn(MOODBOARD_RECIPES.LARGE, {
+      images: col.images,
+      ...columnTextPatch(col),
+    });
+  }
+  return createMoodboardColumn(null);
 }
 
 /** Preserve column text fields when rebuilding a recipe column. */
@@ -348,8 +394,11 @@ export function MoodboardBlockView({
       const colInner = boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW
         ? contentW * (2 / 3)
         : contentW / columnCount;
+      const aspect = boardLayout === MOODBOARD_BOARD_LAYOUTS.HALVES
+        ? BOARD_ASPECT_HALVES
+        : BOARD_ASPECT_DEFAULT;
       const capped = Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3);
-      const contentH = Math.round(Math.max(200, Math.min(colInner * 1.25, capped)));
+      const contentH = Math.round(Math.max(200, Math.min(colInner * aspect, capped)));
       const nextH = contentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
       setBoardHeight((prev) => (prev === nextH ? prev : nextH));
       setBoardSize((prev) => (
@@ -423,6 +472,18 @@ export function MoodboardBlockView({
       overlays: overlaysRef.current.filter((item) => item.id !== overlayId),
     });
     setSelectedOverlayId((prev) => (prev === overlayId ? null : prev));
+  };
+
+  const setPointerContrast = (overlayId, contrast) => {
+    if (!isEdit || !overlayId) return;
+    const next = normalizeMoodboardPointerContrast(contrast);
+    handleFieldChange({
+      overlays: overlaysRef.current.map((item) => (
+        item.id === overlayId && item.kind === MOODBOARD_OVERLAY_KINDS.POINTER
+          ? { ...item, contrast: next }
+          : item
+      )),
+    });
   };
 
   const startOverlayDrag = (event, overlay) => {
@@ -598,6 +659,9 @@ export function MoodboardBlockView({
 
   const setColumnRecipe = (colIndex, recipe) => {
     if (!isEdit) return;
+    const allowed = recipeOptionsForColumn(boardLayout, colIndex)
+      .some((option) => option.id === recipe);
+    if (!allowed) return;
     setActiveCol(colIndex);
     patchColumns((col, index) => {
       if (index !== colIndex) return col;
@@ -625,17 +689,9 @@ export function MoodboardBlockView({
     const layout = normalizeMoodboardBoardLayout(nextLayout);
     if (layout === boardLayout) return;
     const nextCount = moodboardColumnCountForLayout(layout);
-    const largeOnly = layout !== MOODBOARD_BOARD_LAYOUTS.THIRDS;
-    const resized = resizeMoodboardColumns(columns, nextCount).map((col) => {
-      // 2-col layouts only host large image — keep first frame when demoting.
-      if (largeOnly && col.recipe && col.recipe !== MOODBOARD_RECIPES.LARGE) {
-        return createMoodboardColumn(MOODBOARD_RECIPES.LARGE, {
-          images: col.images,
-          ...columnTextPatch(col),
-        });
-      }
-      return col;
-    });
+    const resized = resizeMoodboardColumns(columns, nextCount).map((col, index) => (
+      coerceColumnRecipeForLayout(col, layout, index)
+    ));
     setActiveCol((prev) => Math.min(prev, nextCount - 1));
     handleFieldChange({ boardLayout: layout, columns: resized });
   };
@@ -1178,7 +1234,6 @@ export function MoodboardBlockView({
                 </div>
               )}
             </div>
-            {renderImageCell(colIndex, 0, "medium")}
           </div>
         ) : null}
 
@@ -1335,6 +1390,9 @@ export function MoodboardBlockView({
 
                 if (isPointer) {
                   const sizePx = MOODBOARD_OVERLAY_SIZE_PX[overlay.kind] || 78;
+                  const contrast = normalizeMoodboardPointerContrast(overlay.contrast);
+                  const stroke = POINTER_STROKE_BY_CONTRAST[contrast]
+                    || POINTER_STROKE_BY_CONTRAST[MOODBOARD_POINTER_CONTRAST.INK];
                   const arrow = pointerArrowGeometry(
                     overlay,
                     boardSize.w,
@@ -1345,6 +1403,9 @@ export function MoodboardBlockView({
                       key={overlay.id}
                       className={
                         "doc-moodboard__overlay doc-moodboard__overlay--pointer"
+                        + (contrast === MOODBOARD_POINTER_CONTRAST.LIGHT
+                          ? " doc-moodboard__overlay--pointer-light"
+                          : "")
                         + (selected ? " doc-moodboard__overlay--selected" : "")
                         + (isEdit ? " doc-moodboard__overlay--draggable" : "")
                       }
@@ -1364,7 +1425,7 @@ export function MoodboardBlockView({
                                 y1={arrow.y1}
                                 x2={arrow.x2}
                                 y2={arrow.y2}
-                                stroke={POINTER_STROKE}
+                                stroke={stroke}
                                 strokeWidth="1.5"
                                 strokeDasharray={POINTER_DASH}
                                 strokeLinecap="round"
@@ -1373,7 +1434,7 @@ export function MoodboardBlockView({
                                 cx={arrow.tipX}
                                 cy={arrow.tipY}
                                 r={arrow.tipR}
-                                fill={POINTER_STROKE}
+                                fill={stroke}
                                 stroke="none"
                               />
                             </>
@@ -1403,26 +1464,61 @@ export function MoodboardBlockView({
                         />
                       ) : null}
                       {selected ? (
-                        <button
-                          type="button"
-                          className="doc-moodboard__overlay-delete doc-moodboard__overlay-delete--pointer"
-                          style={{
-                            left: `calc(${overlay.xPct}% + ${sizePx / 2 - 6}px)`,
-                            top: `calc(${overlay.yPct}% - ${sizePx / 2 + 2}px)`,
-                          }}
-                          aria-label={t("doc.moodboard.overlayDelete")}
-                          onPointerDown={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                          }}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            removeOverlay(overlay.id);
-                          }}
-                        >
-                          ×
-                        </button>
+                        <>
+                          <div
+                            className="doc-moodboard__overlay-contrast"
+                            role="group"
+                            aria-label={t("doc.moodboard.overlayContrastLabel")}
+                            style={{
+                              left: `${overlay.xPct}%`,
+                              top: `calc(${overlay.yPct}% + ${sizePx / 2 + 10}px)`,
+                            }}
+                            onPointerDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                            }}
+                          >
+                            {POINTER_CONTRAST_OPTIONS.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                className={
+                                  "doc-moodboard__overlay-contrast-btn"
+                                  + (contrast === option.id
+                                    ? " doc-moodboard__overlay-contrast-btn--active"
+                                    : "")
+                                }
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setPointerContrast(overlay.id, option.id);
+                                }}
+                              >
+                                {t(option.labelKey)}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            className="doc-moodboard__overlay-delete doc-moodboard__overlay-delete--pointer"
+                            style={{
+                              left: `calc(${overlay.xPct}% + ${sizePx / 2 - 6}px)`,
+                              top: `calc(${overlay.yPct}% - ${sizePx / 2 + 2}px)`,
+                            }}
+                            aria-label={t("doc.moodboard.overlayDelete")}
+                            onPointerDown={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                            }}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              removeOverlay(overlay.id);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </>
                       ) : null}
                     </div>
                   );
