@@ -134,16 +134,13 @@ const LAYOUT_OPTIONS = [
 ];
 
 /**
- * Narrow companion column (wide_narrow col 1) skips stacked medium — too tight.
+ * Halves / wide+narrow only allow large image. Full recipe set is thirds-only.
  * @param {string} boardLayout
- * @param {number} colIndex
+ * @param {number} _colIndex
  */
-function recipeOptionsForColumn(boardLayout, colIndex) {
-  if (
-    boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW
-    && colIndex === 1
-  ) {
-    return RECIPE_OPTIONS.filter((option) => option.id !== MOODBOARD_RECIPES.MEDIUM_STACK);
+function recipeOptionsForColumn(boardLayout, _colIndex) {
+  if (boardLayout !== MOODBOARD_BOARD_LAYOUTS.THIRDS) {
+    return RECIPE_OPTIONS.filter((option) => option.id === MOODBOARD_RECIPES.LARGE);
   }
   return RECIPE_OPTIONS;
 }
@@ -628,13 +625,10 @@ export function MoodboardBlockView({
     const layout = normalizeMoodboardBoardLayout(nextLayout);
     if (layout === boardLayout) return;
     const nextCount = moodboardColumnCountForLayout(layout);
-    const resized = resizeMoodboardColumns(columns, nextCount).map((col, index) => {
-      // Narrow column in wide+narrow cannot host the 2-slot stack.
-      if (
-        layout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW
-        && index === 1
-        && col.recipe === MOODBOARD_RECIPES.MEDIUM_STACK
-      ) {
+    const largeOnly = layout !== MOODBOARD_BOARD_LAYOUTS.THIRDS;
+    const resized = resizeMoodboardColumns(columns, nextCount).map((col) => {
+      // 2-col layouts only host large image — keep first frame when demoting.
+      if (largeOnly && col.recipe && col.recipe !== MOODBOARD_RECIPES.LARGE) {
         return createMoodboardColumn(MOODBOARD_RECIPES.LARGE, {
           images: col.images,
           ...columnTextPatch(col),
