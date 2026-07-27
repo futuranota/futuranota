@@ -8926,14 +8926,125 @@ body.doc-content-resizing * {
   flex: 1 1 auto;
 }
 
-.doc-moodboard__recipe--medium .doc-moodboard__cell-wrap {
+.doc-moodboard__recipe--medium .doc-moodboard__cell-wrap,
+.doc-moodboard__recipe--medium-sticky .doc-moodboard__cell-wrap {
   flex: 1 1 0;
 }
 
 .doc-moodboard__recipe--large .doc-moodboard__cell,
 .doc-moodboard__recipe--semi .doc-moodboard__cell,
-.doc-moodboard__recipe--medium .doc-moodboard__cell {
+.doc-moodboard__recipe--medium .doc-moodboard__cell,
+.doc-moodboard__recipe--medium-sticky .doc-moodboard__cell {
   flex: 1 1 auto;
+}
+
+.doc-moodboard__recipe--medium-sticky {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.doc-moodboard__notes {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 219 / 110;
+  overflow: hidden;
+}
+
+.doc-moodboard__notes-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+}
+
+.doc-moodboard__notes-title-wrap {
+  position: absolute;
+  top: 8%;
+  left: 4%;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  min-height: 28px;
+  max-width: 55%;
+  padding: 2px 10px 4px;
+  box-sizing: border-box;
+}
+
+.doc-moodboard__notes-circ {
+  position: absolute;
+  inset: -22% -14%;
+  width: auto;
+  height: 140%;
+  min-width: 110%;
+  object-fit: contain;
+  pointer-events: none;
+  /* circ.png is dark stroke on black — invert + multiply drops the black plate. */
+  filter: invert(1);
+  mix-blend-mode: multiply;
+  opacity: 0.9;
+}
+
+.doc-moodboard__notes-title,
+.doc-moodboard__notes-title--static {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: "Playwrite US Modern", cursive;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.2;
+  color: rgba(45, 43, 43, 0.84);
+  text-align: center;
+}
+
+.doc-moodboard__notes-title::placeholder {
+  color: rgba(45, 43, 43, 0.45);
+}
+
+.doc-moodboard__notes-body,
+.doc-moodboard__notes-body--static {
+  position: absolute;
+  top: 38%;
+  left: 5%;
+  right: 8%;
+  bottom: 10%;
+  z-index: 1;
+  margin: 0;
+  padding: 0;
+  border: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  outline: none;
+  font-family: "Permanent Marker", cursive;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: rgba(45, 43, 43, 0.84);
+  text-transform: uppercase;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+}
+
+.doc-moodboard__notes-body::placeholder {
+  color: rgba(45, 43, 43, 0.35);
+  text-transform: none;
 }
 
 .doc-moodboard__cell {
@@ -9023,7 +9134,7 @@ body.doc-content-resizing * {
   pointer-events: none;
 }
 
-/* Hide the baked handwriting once the user writes their own note. */
+/* Swap SVG paper for CSS ruled surface while typing / when filled. */
 .doc-moodboard__sticky:focus-within .doc-moodboard__sticky-bg,
 .doc-moodboard__sticky--filled .doc-moodboard__sticky-bg {
   opacity: 0;

@@ -348,6 +348,8 @@ export const MOODBOARD_RECIPES = {
   LARGE: "large",
   MEDIUM_STACK: "medium_stack",
   SEMI_STICKY: "semi_sticky",
+  /** Notes card (top) + one medium image (bottom). */
+  MEDIUM_STICKY: "medium_sticky",
 };
 
 /** Image frames each recipe owns (medium stack = two frames, one under the other). */
@@ -355,16 +357,25 @@ export const MOODBOARD_RECIPE_SLOTS = {
   [MOODBOARD_RECIPES.LARGE]: 1,
   [MOODBOARD_RECIPES.MEDIUM_STACK]: 2,
   [MOODBOARD_RECIPES.SEMI_STICKY]: 1,
+  [MOODBOARD_RECIPES.MEDIUM_STICKY]: 1,
 };
 
-/** Sticky note copy (semi_sticky recipe). Soft cap; UI clamps to the note box height. */
+/** Sticky note copy (semi_sticky / medium_sticky). Soft cap; UI clamps to the note box height. */
 export const MOODBOARD_STICKY_MAX = 220;
+/** Notes card title (medium_sticky — Playwrite). */
+export const MOODBOARD_STICKY_TITLE_MAX = 40;
 /** Arrow label above the medium stack. */
 export const MOODBOARD_INFO_MAX = 28;
 /** Per-image tag label (large / semi_sticky Permanent Marker). */
 export const MOODBOARD_TAG_MAX = 28;
 /** Default board/thumb icon for link-only (non-image) moodboard slots. */
 export const MOODBOARD_FILE_ICON_SRC = "/uploads/Folders/MediaFolder.png";
+/** Medium-sticky notes card paper (runtime bg). */
+export const MOODBOARD_NOTES_BG_SRC = "/uploads/background.svg";
+/** Hand-drawn oval around the notes title. */
+export const MOODBOARD_NOTES_CIRC_SRC = "/uploads/circ.png";
+/** Default title shown on a new medium_sticky notes card. */
+export const MOODBOARD_NOTES_TITLE_DEFAULT = "Notes:";
 
 /** Freeform overlays on the moodboard board (Edit palette). */
 export const MOODBOARD_OVERLAY_KINDS = {
@@ -618,12 +629,13 @@ function emptyMoodboardSlot() {
 function isMoodboardRecipe(value) {
   return value === MOODBOARD_RECIPES.LARGE
     || value === MOODBOARD_RECIPES.MEDIUM_STACK
-    || value === MOODBOARD_RECIPES.SEMI_STICKY;
+    || value === MOODBOARD_RECIPES.SEMI_STICKY
+    || value === MOODBOARD_RECIPES.MEDIUM_STICKY;
 }
 
 /**
  * @param {string|null} recipe
- * @param {{ images?: object[], stickyText?: string, infoLabel?: string }} [patch]
+ * @param {{ images?: object[], stickyText?: string, stickyTitle?: string, infoLabel?: string }} [patch]
  */
 export function createMoodboardColumn(recipe = null, patch = {}) {
   const resolved = isMoodboardRecipe(recipe) ? recipe : null;
@@ -632,10 +644,17 @@ export function createMoodboardColumn(recipe = null, patch = {}) {
   const images = Array.from({ length: slotCount }, (_, index) => (
     normalizeMoodboardSlot(incoming[index] || null)
   ));
+  const titleDefault = resolved === MOODBOARD_RECIPES.MEDIUM_STICKY
+    ? MOODBOARD_NOTES_TITLE_DEFAULT
+    : "";
+  const stickyTitle = Object.prototype.hasOwnProperty.call(patch, "stickyTitle")
+    ? String(patch.stickyTitle ?? "").slice(0, MOODBOARD_STICKY_TITLE_MAX)
+    : titleDefault;
   return {
     recipe: resolved,
     images,
     stickyText: String(patch.stickyText ?? "").slice(0, MOODBOARD_STICKY_MAX),
+    stickyTitle,
     infoLabel: String(patch.infoLabel ?? "").slice(0, MOODBOARD_INFO_MAX),
   };
 }
@@ -644,6 +663,7 @@ function normalizeMoodboardColumn(column) {
   return createMoodboardColumn(column?.recipe ?? null, {
     images: column?.images,
     stickyText: column?.stickyText,
+    stickyTitle: column?.stickyTitle,
     infoLabel: column?.infoLabel,
   });
 }
@@ -1370,6 +1390,7 @@ export function docBlockHasContent(block) {
       || Boolean((normalized.body || "").trim())
       || normalized.columns.some((col) => Boolean(col.recipe)
         || Boolean((col.stickyText || "").trim())
+        || Boolean((col.stickyTitle || "").trim())
         || Boolean((col.infoLabel || "").trim()));
   }
   if (type === DOC_BLOCK_TYPES.BANNER) {

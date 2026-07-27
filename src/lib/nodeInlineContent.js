@@ -444,6 +444,7 @@ export function nodeWritingBlocksHaveContent(blocks) {
           Boolean(col?.recipe)
           || (Array.isArray(col?.images) && col.images.some((img) => Boolean(img?.imageSaved && img?.src)))
           || Boolean((col?.stickyText || "").trim())
+          || Boolean((col?.stickyTitle || "").trim())
           || Boolean((col?.infoLabel || "").trim())
         ))
         || Boolean(block.a?.imageSaved)

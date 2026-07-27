@@ -9,8 +9,12 @@ import {
   MOODBOARD_OVERLAY_KINDS,
   MOODBOARD_OVERLAY_SIZE_PX,
   MOODBOARD_OVERLAY_SRC,
+  MOODBOARD_NOTES_BG_SRC,
+  MOODBOARD_NOTES_CIRC_SRC,
+  MOODBOARD_NOTES_TITLE_DEFAULT,
   MOODBOARD_RECIPES,
   MOODBOARD_STICKY_MAX,
+  MOODBOARD_STICKY_TITLE_MAX,
   MOODBOARD_TAG_MAX,
   countMoodboardSavedImages,
   createMoodboardColumn,
@@ -35,8 +39,6 @@ const OVERLAY_PALETTE = [
   { kind: MOODBOARD_OVERLAY_KINDS.STRAIGHT, labelKey: "doc.moodboard.overlayStraight" },
   { kind: MOODBOARD_OVERLAY_KINDS.UP, labelKey: "doc.moodboard.overlayUp" },
   { kind: MOODBOARD_OVERLAY_KINDS.DOWN, labelKey: "doc.moodboard.overlayDown" },
-  { kind: MOODBOARD_OVERLAY_KINDS.CIRCLE, labelKey: "doc.moodboard.overlayCircle" },
-  { kind: MOODBOARD_OVERLAY_KINDS.ELLIPSE, labelKey: "doc.moodboard.overlayEllipse" },
   { kind: MOODBOARD_OVERLAY_KINDS.POINTER, labelKey: "doc.moodboard.overlayPointer" },
 ];
 
@@ -119,7 +121,17 @@ const RECIPE_OPTIONS = [
   { id: MOODBOARD_RECIPES.LARGE, labelKey: "doc.moodboard.recipeLarge" },
   { id: MOODBOARD_RECIPES.MEDIUM_STACK, labelKey: "doc.moodboard.recipeMedium" },
   { id: MOODBOARD_RECIPES.SEMI_STICKY, labelKey: "doc.moodboard.recipeSemi" },
+  { id: MOODBOARD_RECIPES.MEDIUM_STICKY, labelKey: "doc.moodboard.recipeMediumSticky" },
 ];
+
+/** Preserve column text fields when rebuilding a recipe column. */
+function columnTextPatch(col) {
+  return {
+    stickyText: col.stickyText,
+    stickyTitle: col.stickyTitle,
+    infoLabel: col.infoLabel,
+  };
+}
 
 function emptySlot() {
   return {
@@ -560,15 +572,20 @@ export function MoodboardBlockView({
   const setColumnRecipe = (colIndex, recipe) => {
     if (!isEdit) return;
     setActiveCol(colIndex);
-    patchColumns((col, index) => (
-      index === colIndex
-        ? createMoodboardColumn(recipe, {
-          images: col.images,
-          stickyText: col.stickyText,
-          infoLabel: col.infoLabel,
-        })
-        : col
-    ));
+    patchColumns((col, index) => {
+      if (index !== colIndex) return col;
+      const text = columnTextPatch(col);
+      if (
+        recipe === MOODBOARD_RECIPES.MEDIUM_STICKY
+        && !(text.stickyTitle || "").trim()
+      ) {
+        text.stickyTitle = MOODBOARD_NOTES_TITLE_DEFAULT;
+      }
+      return createMoodboardColumn(recipe, {
+        images: col.images,
+        ...text,
+      });
+    });
   };
 
   const clearColumn = (colIndex) => {
@@ -622,8 +639,7 @@ export function MoodboardBlockView({
         images[imageIndex] = nextImage;
         return createMoodboardColumn(col.recipe, {
           images,
-          stickyText: col.stickyText,
-          infoLabel: col.infoLabel,
+          ...columnTextPatch(col),
         });
       });
     } catch {
@@ -671,8 +687,7 @@ export function MoodboardBlockView({
       };
       return createMoodboardColumn(col.recipe, {
         images,
-        stickyText: col.stickyText,
-        infoLabel: col.infoLabel,
+        ...columnTextPatch(col),
       });
     });
     setAttachmentSlot(null);
@@ -692,8 +707,7 @@ export function MoodboardBlockView({
       };
       return createMoodboardColumn(col.recipe, {
         images,
-        stickyText: col.stickyText,
-        infoLabel: col.infoLabel,
+        ...columnTextPatch(col),
       });
     });
     setError(null);
@@ -1025,6 +1039,7 @@ export function MoodboardBlockView({
                         ? createMoodboardColumn(col.recipe, {
                           images: col.images,
                           stickyText: next,
+                          stickyTitle: col.stickyTitle,
                           infoLabel: col.infoLabel,
                         })
                         : col
@@ -1037,6 +1052,85 @@ export function MoodboardBlockView({
                 </div>
               )}
             </div>
+          </div>
+        ) : null}
+
+        {recipe === MOODBOARD_RECIPES.MEDIUM_STICKY ? (
+          <div className="doc-moodboard__recipe doc-moodboard__recipe--medium-sticky">
+            <div className="doc-moodboard__notes">
+              <img
+                className="doc-moodboard__notes-bg"
+                src={MOODBOARD_NOTES_BG_SRC}
+                alt=""
+                draggable={false}
+              />
+              <div className="doc-moodboard__notes-title-wrap">
+                <img
+                  className="doc-moodboard__notes-circ"
+                  src={MOODBOARD_NOTES_CIRC_SRC}
+                  alt=""
+                  draggable={false}
+                />
+                {isEdit ? (
+                  <input
+                    className="doc-moodboard__notes-title"
+                    type="text"
+                    maxLength={MOODBOARD_STICKY_TITLE_MAX}
+                    value={column.stickyTitle || ""}
+                    placeholder={MOODBOARD_NOTES_TITLE_DEFAULT}
+                    aria-label={t("doc.moodboard.notesTitleLabel")}
+                    spellCheck={false}
+                    onChange={(event) => {
+                      const next = String(event.target.value ?? "")
+                        .slice(0, MOODBOARD_STICKY_TITLE_MAX);
+                      patchColumns((col, index) => (
+                        index === colIndex
+                          ? createMoodboardColumn(col.recipe, {
+                            images: col.images,
+                            stickyText: col.stickyText,
+                            stickyTitle: next,
+                            infoLabel: col.infoLabel,
+                          })
+                          : col
+                      ));
+                    }}
+                  />
+                ) : (
+                  <div className="doc-moodboard__notes-title doc-moodboard__notes-title--static">
+                    {(column.stickyTitle || "").trim() || MOODBOARD_NOTES_TITLE_DEFAULT}
+                  </div>
+                )}
+              </div>
+              {isEdit ? (
+                <textarea
+                  className="doc-moodboard__notes-body"
+                  maxLength={MOODBOARD_STICKY_MAX}
+                  rows={3}
+                  value={column.stickyText || ""}
+                  placeholder={t("doc.moodboard.stickyPlaceholder")}
+                  aria-label={t("doc.moodboard.stickyLabel")}
+                  spellCheck={false}
+                  onChange={(event) => {
+                    const next = clampStickyText(event.target, event.target.value);
+                    patchColumns((col, index) => (
+                      index === colIndex
+                        ? createMoodboardColumn(col.recipe, {
+                          images: col.images,
+                          stickyText: next,
+                          stickyTitle: col.stickyTitle,
+                          infoLabel: col.infoLabel,
+                        })
+                        : col
+                    ));
+                  }}
+                />
+              ) : (
+                <div className="doc-moodboard__notes-body doc-moodboard__notes-body--static">
+                  {column.stickyText || ""}
+                </div>
+              )}
+            </div>
+            {renderImageCell(colIndex, 0, "medium")}
           </div>
         ) : null}
 
