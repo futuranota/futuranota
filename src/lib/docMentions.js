@@ -1,5 +1,9 @@
 import { generateId } from "./ids.js";
-import { formatMentionToken, normalizeTagKey } from "./urlTableTags.js";
+import {
+  formatMentionDisplayToken,
+  formatMentionToken,
+  normalizeTagKey,
+} from "./urlTableTags.js";
 import { computeTextEditDelta } from "./docTextBoldRanges.js";
 
 /**
@@ -47,9 +51,10 @@ export function normalizeMentions(text, mentions) {
   const cleaned = [];
   for (const raw of mentions) {
     if (!raw || typeof raw !== "object") continue;
-    const tag = String(raw.tag ?? "").trim().replace(/^@+/, "");
+    const tag = formatMentionDisplayToken(raw.tag);
     if (!tag) continue;
-    const token = formatMentionToken(tag);
+    const displayToken = formatMentionDisplayToken(tag);
+    const atToken = formatMentionToken(tag);
     let start = Number(raw.start);
     let end = Number(raw.end);
     if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
@@ -58,8 +63,14 @@ export function normalizeMentions(text, mentions) {
     if (end <= start) continue;
 
     const slice = str.slice(start, end);
-    // Keep only mentions whose visible range still matches @tag (case-insensitive).
-    if (normalizeTagKey(slice) !== normalizeTagKey(token)) continue;
+    const sliceKey = normalizeTagKey(slice);
+    // Accept bare tag (current) or legacy @tag so old docs keep chips.
+    if (
+      sliceKey !== normalizeTagKey(displayToken)
+      && sliceKey !== normalizeTagKey(atToken)
+    ) {
+      continue;
+    }
 
     cleaned.push({
       id: String(raw.id || generateId("MNT")),
@@ -181,7 +192,8 @@ export function applyTextEditToMentions(prevText, nextText, mentions) {
 }
 
 /**
- * Replace the active `@query` with `@tag` and attach a snapshot mention.
+ * Replace the active `@query` with the bare tag chip and attach a snapshot mention.
+ * Trigger stays `@`; the inserted body text has no leading `@`.
  * @param {string} text
  * @param {DocMention[]} mentions
  * @param {MentionQuery} activeQuery
@@ -190,16 +202,16 @@ export function applyTextEditToMentions(prevText, nextText, mentions) {
  */
 export function insertMentionAtQuery(text, mentions, activeQuery, candidate) {
   const str = asText(text);
-  const tag = String(candidate?.tag ?? "").trim().replace(/^@+/, "");
+  const tag = formatMentionDisplayToken(candidate?.tag);
   if (!tag || !activeQuery) {
     return { text: str, mentions: normalizeMentions(str, mentions), caret: str.length };
   }
 
-  const token = formatMentionToken(tag);
+  const token = formatMentionDisplayToken(tag);
   const before = str.slice(0, activeQuery.start);
   const after = str.slice(activeQuery.end);
   // Always leave a trailing space after the chip when the next char isn't
-  // already whitespace — keeps the caret out of the @token so the picker
+  // already whitespace — keeps the caret out of the token so the picker
   // does not reopen on the next Enter / focus sync.
   const needsSpace = !/^\s/.test(after);
   const insertion = needsSpace ? `${token} ` : token;

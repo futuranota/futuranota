@@ -22,11 +22,16 @@ export function normalizeTagKey(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-/** @param {unknown} value */
+/** Visible chip token in the document body (no leading `@`). */
+export function formatMentionDisplayToken(value) {
+  return String(value ?? "").trim().replace(/^@+/, "");
+}
+
+/** @param {unknown} value — picker / legacy `@tag` form */
 export function formatMentionToken(value) {
-  const tag = String(value ?? "").trim();
+  const tag = formatMentionDisplayToken(value);
   if (!tag) return "";
-  return tag.startsWith("@") ? tag : `@${tag}`;
+  return `@${tag}`;
 }
 
 /**

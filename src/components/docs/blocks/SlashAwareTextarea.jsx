@@ -1496,7 +1496,6 @@ export function SlashAwareTextarea({
       <DocMentionHoverCard
         open={Boolean(hoverCard && hasMentions)}
         anchor={hoverCard}
-        tag={hoverCard?.mention?.tag}
         name={hoveredName}
         description={hoverCard?.mention?.description}
         onMouseEnter={cancelHoverClose}

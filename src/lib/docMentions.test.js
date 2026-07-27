@@ -21,7 +21,7 @@ const sampleMention = (overrides = {}) => ({
 });
 
 describe("docMentions", () => {
-  it("normalizes mentions that still match @tag in text", () => {
+  it("normalizes mentions that still match @tag in text (legacy)", () => {
     const text = "see @blog today";
     const mentions = normalizeMentions(text, [
       sampleMention({ start: 4, end: 9 }),
@@ -34,6 +34,18 @@ describe("docMentions", () => {
     expect(mentions[0].end).toBe(9);
   });
 
+  it("normalizes mentions that match bare tag in text", () => {
+    const text = "see blog today";
+    const mentions = normalizeMentions(text, [
+      sampleMention({ start: 4, end: 8 }),
+      sampleMention({ id: "bad", start: 0, end: 3, tag: "nope" }),
+    ]);
+    expect(mentions).toHaveLength(1);
+    expect(mentions[0].tag).toBe("blog");
+    expect(mentions[0].start).toBe(4);
+    expect(mentions[0].end).toBe(8);
+  });
+
   it("detects @query at caret with whitespace boundary", () => {
     expect(getMentionQueryAtCaret("hello @bl", 9)).toEqual({
       start: 6,
@@ -44,15 +56,15 @@ describe("docMentions", () => {
     expect(getMentionQueryAtCaret("@", 1)).toEqual({ start: 0, end: 1, query: "" });
   });
 
-  it("does not treat a committed @mention chip as an active query", () => {
-    const text = "see @blog";
-    const mentions = [sampleMention({ start: 4, end: 9 })];
-    expect(getMentionQueryAtCaret(text, 9, mentions)).toBeNull();
-    expect(getMentionQueryAtCaret(text, 7, mentions)).toBeNull();
+  it("does not treat a committed mention chip as an active query", () => {
+    const text = "see blog";
+    const mentions = [sampleMention({ start: 4, end: 8 })];
+    expect(getMentionQueryAtCaret(text, 8, mentions)).toBeNull();
+    expect(getMentionQueryAtCaret(text, 6, mentions)).toBeNull();
     // Still opens when typing a new query after a space.
-    expect(getMentionQueryAtCaret("see @blog @ne", 13, mentions)).toEqual({
-      start: 10,
-      end: 13,
+    expect(getMentionQueryAtCaret("see blog @ne", 12, mentions)).toEqual({
+      start: 9,
+      end: 12,
       query: "ne",
     });
   });
@@ -72,14 +84,14 @@ describe("docMentions", () => {
     });
   });
 
-  it("inserts @tag and snapshot metadata", () => {
+  it("inserts bare tag and snapshot metadata", () => {
     const result = insertMentionAtQuery(
       "note @bl",
       [],
       { start: 5, end: 8, query: "bl" },
       { entryId: "E9", tag: "blog", name: "Weekly digest", description: "Desc snapshot" },
     );
-    expect(result.text).toBe("note @blog ");
+    expect(result.text).toBe("note blog ");
     expect(result.mentions).toHaveLength(1);
     expect(result.mentions[0]).toMatchObject({
       sourceEntryId: "E9",
@@ -87,9 +99,9 @@ describe("docMentions", () => {
       name: "Weekly digest",
       description: "Desc snapshot",
       start: 5,
-      end: 10,
+      end: 9,
     });
-    expect(result.caret).toBe(11);
+    expect(result.caret).toBe(10);
   });
 
   it("adds a trailing space when inserting before non-space text", () => {
@@ -99,8 +111,8 @@ describe("docMentions", () => {
       { start: 0, end: 3, query: "bl" },
       { tag: "blog", description: "" },
     );
-    expect(result.text).toBe("@blog more");
-    expect(result.caret).toBe(6);
+    expect(result.text).toBe("blog more");
+    expect(result.caret).toBe(5);
   });
 
   it("adds a trailing space when inserting at end of text", () => {
@@ -110,8 +122,8 @@ describe("docMentions", () => {
       { start: 0, end: 3, query: "bl" },
       { tag: "blog", description: "" },
     );
-    expect(result.text).toBe("@blog ");
-    expect(result.caret).toBe(6);
+    expect(result.text).toBe("blog ");
+    expect(result.caret).toBe(5);
     expect(getMentionQueryAtCaret(result.text, result.caret, result.mentions)).toBeNull();
   });
 
