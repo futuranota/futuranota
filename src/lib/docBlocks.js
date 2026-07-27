@@ -414,6 +414,8 @@ export const MOODBOARD_RECIPE_SLOTS = {
 
 /** Sticky note copy (semi_sticky / medium_sticky). Soft cap; UI clamps to the note box height. */
 export const MOODBOARD_STICKY_MAX = 360;
+/** Absolute max lines for medium_sticky Notes body (adaptive clamp may be lower). */
+export const MOODBOARD_NOTES_MAX_LINES = 16;
 /** Notes card title (medium_sticky — Playwrite). */
 export const MOODBOARD_STICKY_TITLE_MAX = 40;
 /** Arrow label above the medium stack. */

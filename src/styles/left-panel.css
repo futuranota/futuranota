@@ -8675,7 +8675,8 @@ body.doc-content-resizing * {
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  align-content: start;
+  grid-template-rows: minmax(0, 1fr);
+  align-content: stretch;
   gap: 10px;
   width: 100%;
   padding: 16px 16px 28px;

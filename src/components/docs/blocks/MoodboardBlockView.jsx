@@ -8,6 +8,7 @@ import {
   MOODBOARD_FILE_ICON_SRC,
   MOODBOARD_NOTES_BG_SRC,
   MOODBOARD_NOTES_CIRC_SRC,
+  MOODBOARD_NOTES_MAX_LINES,
   MOODBOARD_NOTES_TITLE_DEFAULT,
   MOODBOARD_OVERLAY_KINDS,
   MOODBOARD_OVERLAY_SIZE_PX,
@@ -36,11 +37,15 @@ const BOARD_PAD_TOP = 16;
 /** Bottom strip for float actions (caption no longer needs a tall strip). */
 const BOARD_CAPTION_STRIP = 28;
 const BOARD_GAP = 10;
+/** Gap between stacked recipe cells (mirrors .doc-moodboard__recipe gap). */
+const RECIPE_GAP = 8;
 /** Height / col-width ratios — halves needs a taller board so 50% frames feel full. */
 const BOARD_ASPECT_DEFAULT = 1.25;
 const BOARD_ASPECT_HALVES = 1.55;
 /** Full-width column: landscape-friendly but tall enough for short screenshots. */
 const BOARD_ASPECT_FULL = 0.82;
+/** Orange sticky aspect (mirrors .doc-moodboard__sticky 223/82). */
+const STICKY_ASPECT = 82 / 223;
 
 const STICKY_SRC = "/uploads/horizontal-note.svg";
 
@@ -304,6 +309,36 @@ function clampStickyText(el, raw) {
 }
 
 /**
+ * Clamp Notes body to char limit, available box height, and adaptive line cap (≤16).
+ * @param {HTMLTextAreaElement|null} el
+ * @param {string} raw
+ */
+function clampNotesText(el, raw) {
+  const capped = String(raw ?? "").slice(0, MOODBOARD_STICKY_MAX);
+  const maxH = el?.clientHeight ?? 0;
+  if (!el || !(maxH > 0)) return capped;
+  const { lineHeight } = measureBodyLineMetrics(el);
+  const linesFromHeight = Math.max(1, Math.floor(maxH / Math.max(1, lineHeight)));
+  const maxLines = Math.min(MOODBOARD_NOTES_MAX_LINES, linesFromHeight);
+  const lineCapH = Math.round(maxLines * lineHeight);
+  const fitH = Math.min(maxH, lineCapH);
+  if (textFitsFixedHeight(el, capped, fitH)) return capped;
+  let lo = 0;
+  let hi = capped.length;
+  let best = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (textFitsFixedHeight(el, capped.slice(0, mid), fitH)) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return capped.slice(0, best);
+}
+
+/**
  * Max pixel height for N caption lines.
  * @param {HTMLTextAreaElement|null} el
  * @param {number} lines
@@ -311,6 +346,80 @@ function clampStickyText(el, raw) {
 function captionMaxHeightPx(el, lines = MOODBOARD_CAPTION_MAX_LINES) {
   const { lineHeight, padY } = measureBodyLineMetrics(el);
   return Math.round(lines * lineHeight + padY);
+}
+
+/**
+ * Per-column inner widths for the active board layout.
+ * @param {string} boardLayout
+ * @param {number} contentW — board width minus horizontal padding and gaps
+ * @param {number} columnCount
+ * @returns {number[]}
+ */
+function moodboardColumnWidths(boardLayout, contentW, columnCount) {
+  if (boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW) {
+    return [contentW * (2 / 3), contentW * (1 / 3)];
+  }
+  if (boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL) {
+    return [contentW];
+  }
+  const w = contentW / Math.max(1, columnCount);
+  return Array.from({ length: columnCount }, () => w);
+}
+
+/**
+ * Natural height of one image slot at the given column width, or null if dims missing.
+ * @param {{ width?: number, height?: number, src?: string, imageSaved?: boolean }|null} image
+ * @param {number} colW
+ * @returns {number|null}
+ */
+function imageNaturalHeightAtWidth(image, colW) {
+  if (!image?.src && !image?.imageSaved) return null;
+  const w = Number(image?.width) || 0;
+  const h = Number(image?.height) || 0;
+  if (!(w > 0) || !(h > 0) || !(colW > 0)) return null;
+  return colW * (h / w);
+}
+
+/**
+ * Estimate content-area height from saved image dims. Returns null when no column
+ * contributes intrinsic height (empty / notes-only / missing dims) → caller uses maxH.
+ * @param {object[]} columns
+ * @param {number[]} colWidths
+ * @returns {number|null}
+ */
+function estimateMoodboardContentHeight(columns, colWidths) {
+  let maxH = 0;
+  let any = false;
+  for (let i = 0; i < columns.length; i += 1) {
+    const col = columns[i];
+    const colW = colWidths[i] || 0;
+    if (!(colW > 0) || !col?.recipe) continue;
+    const images = Array.isArray(col.images) ? col.images : [];
+    let colH = null;
+
+    if (col.recipe === MOODBOARD_RECIPES.LARGE) {
+      colH = imageNaturalHeightAtWidth(images[0], colW);
+    } else if (col.recipe === MOODBOARD_RECIPES.MEDIUM_STACK) {
+      const h0 = imageNaturalHeightAtWidth(images[0], colW);
+      const h1 = imageNaturalHeightAtWidth(images[1], colW);
+      if (h0 != null || h1 != null) {
+        const known = h0 ?? h1;
+        colH = (h0 ?? known) + (h1 ?? known) + RECIPE_GAP;
+      }
+    } else if (col.recipe === MOODBOARD_RECIPES.SEMI_STICKY) {
+      const imgH = imageNaturalHeightAtWidth(images[0], colW);
+      if (imgH != null) {
+        colH = imgH + colW * STICKY_ASPECT + RECIPE_GAP;
+      }
+    }
+    // medium_sticky: no intrinsic height — inherits max from siblings.
+
+    if (colH != null && colH > 0) {
+      any = true;
+      if (colH > maxH) maxH = colH;
+    }
+  }
+  return any ? Math.round(maxH) : null;
 }
 
 /**
@@ -388,6 +497,14 @@ export function MoodboardBlockView({
     if (captionLimitTimerRef.current) window.clearTimeout(captionLimitTimerRef.current);
   }, []);
 
+  const columnsGeomKey = columns.map((col) => {
+    const imgs = Array.isArray(col?.images) ? col.images : [];
+    const dims = imgs.map((img) => `${img?.width || 0}x${img?.height || 0}`).join(",");
+    return `${col?.recipe || ""}:${dims}`;
+  }).join("|");
+  const columnsRef = useRef(columns);
+  columnsRef.current = columns;
+
   useLayoutEffect(() => {
     const board = boardRef.current;
     if (!board || typeof ResizeObserver === "undefined") return undefined;
@@ -397,7 +514,7 @@ export function MoodboardBlockView({
       if (!(width > 0)) return;
       const gaps = Math.max(0, columnCount - 1);
       const contentW = Math.max(1, width - BOARD_PAD_X * 2 - BOARD_GAP * gaps);
-      // Height from the widest column so halves / wide+narrow / full stay readable.
+      // Max height from the widest column so halves / wide+narrow / full stay readable.
       let colInner;
       if (boardLayout === MOODBOARD_BOARD_LAYOUTS.WIDE_NARROW) {
         colInner = contentW * (2 / 3);
@@ -413,8 +530,15 @@ export function MoodboardBlockView({
       const capped = boardLayout === MOODBOARD_BOARD_LAYOUTS.FULL
         ? Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3 * 1.9)
         : Math.round(IMAGE_SPLIT_BODY_MAX_LINES * 20.3);
-      const contentH = Math.round(Math.max(200, Math.min(colInner * aspect, capped)));
-      const nextH = contentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
+      const maxContentH = Math.round(Math.max(200, Math.min(colInner * aspect, capped)));
+      const maxH = maxContentH + BOARD_PAD_TOP + BOARD_CAPTION_STRIP;
+
+      const colWidths = moodboardColumnWidths(boardLayout, contentW, columnCount);
+      const estimated = estimateMoodboardContentHeight(columnsRef.current, colWidths);
+      const nextH = estimated != null
+        ? Math.min(maxH, estimated + BOARD_PAD_TOP + BOARD_CAPTION_STRIP)
+        : maxH;
+
       setBoardHeight((prev) => (prev === nextH ? prev : nextH));
       setBoardSize((prev) => (
         prev.w === width && prev.h === nextH ? prev : { w: width, h: nextH }
@@ -429,7 +553,7 @@ export function MoodboardBlockView({
     return () => {
       ro.disconnect();
     };
-  }, [boardLayout, columnCount, savedImageCount, moodboardSaved, block?.caption]);
+  }, [boardLayout, columnCount, savedImageCount, moodboardSaved, block?.caption, columnsGeomKey]);
 
   const handleFieldChange = (patch) => {
     if (!isEdit) return;
@@ -1230,7 +1354,7 @@ export function MoodboardBlockView({
                   aria-label={t("doc.moodboard.stickyLabel")}
                   spellCheck={false}
                   onChange={(event) => {
-                    const next = clampStickyText(event.target, event.target.value);
+                    const next = clampNotesText(event.target, event.target.value);
                     patchColumns((col, index) => (
                       index === colIndex
                         ? createMoodboardColumn(col.recipe, {
