@@ -25,6 +25,24 @@ import { resolveFolderStatus } from "../../lib/folderStatus.js";
 
 const SCHEDULE_INFO_ICON = "/uploads/Info.svg";
 
+const FOLDER_STATUS_ICON = {
+  not_started: "/uploads/not-started.svg",
+  pending: "/uploads/pending.svg",
+  completed: "/uploads/completed.svg",
+};
+
+function FolderStatusBadge({ status, label }) {
+  const src = FOLDER_STATUS_ICON[status] || FOLDER_STATUS_ICON.not_started;
+  return (
+    <img
+      src={src}
+      alt={label}
+      title={label}
+      className={`doc-meta-status-badge doc-meta-status-badge--${status}`}
+    />
+  );
+}
+
 function openDatePicker(e) {
   e.stopPropagation();
   const input = e.currentTarget;
@@ -103,9 +121,7 @@ function MetaChip({
       {asTag && !empty ? (
         <span className="doc-product-category-tag doc-product-category-tag--summary">{display}</span>
       ) : statusTone && !empty ? (
-        <span className={`doc-meta-status-pill doc-meta-status-pill--${statusTone}`}>
-          {display}
-        </span>
+        <FolderStatusBadge status={statusTone} label={display} />
       ) : (
         <span
           className={
@@ -306,7 +322,7 @@ export function DocMetaStrip({
           ) : null}
           {isContentMode ? (
             <>
-              <MetaChip label={t("meta.category")} value={category.trim() || null} asTag />
+              <MetaChip label={t("meta.category")} value={category.trim() || null} />
               {showFolderSchedule ? (
                 <>
                   <MetaChip
@@ -472,6 +488,7 @@ export function DocMetaStrip({
                     finishValue={scheduleFinishDate}
                     onStartChange={onScheduleStartDateChange}
                     onFinishChange={onScheduleFinishDateChange}
+                    onClear={onScheduleDatesClear}
                     minDate={scheduleStartMin || undefined}
                     allDocs={allDocs}
                     parentId={parentId}
@@ -480,9 +497,7 @@ export function DocMetaStrip({
                   {scheduleStartDate && scheduleFinishDate ? (
                     <div className="doc-meta-field doc-meta-field--readonly">
                       <span className="doc-meta-field-k">{t("meta.status")}</span>
-                      <span className={`doc-meta-status-pill doc-meta-status-pill--${folderStatus.status}`}>
-                        {folderStatusLabel}
-                      </span>
+                      <FolderStatusBadge status={folderStatus.status} label={folderStatusLabel} />
                     </div>
                   ) : null}
                   <div className="doc-meta-field doc-meta-field--readonly">
@@ -491,20 +506,6 @@ export function DocMetaStrip({
                       {scheduleDuration || "—"}
                     </span>
                   </div>
-                  {(scheduleStartDate || scheduleFinishDate) && onScheduleDatesClear ? (
-                    <div className="doc-meta-field doc-meta-field--schedule-clear">
-                      <button
-                        type="button"
-                        className="doc-meta-schedule-clear"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onScheduleDatesClear();
-                        }}
-                      >
-                        {t("meta.scheduleClear")}
-                      </button>
-                    </div>
-                  ) : null}
                 </>
               ) : (
                 <>

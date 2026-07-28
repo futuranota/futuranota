@@ -86,6 +86,7 @@ export function ProductCategoryField({
         className={
           "doc-product-category-wrap"
           + (canPick ? " doc-product-category-wrap--pickable" : "")
+          + (showPicker ? " is-open" : "")
         }
         onMouseEnter={openPicker}
         onMouseLeave={scheduleClosePicker}

@@ -1866,7 +1866,8 @@
   margin-left: 8px;
   color: rgba(255, 255, 255, 0.55);
   font-family: var(--sans);
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 700;
   letter-spacing: 0.01em;
 }
 
@@ -1874,7 +1875,7 @@
   position: relative;
   flex: 1;
   min-width: 0;
-  margin-left: 8px;
+  margin-left: 4px;
 }
 
 .doc-department-head-picker__trigger {
@@ -1882,7 +1883,7 @@
   align-items: center;
   max-width: 100%;
   margin: 0;
-  padding: 2px 6px;
+  padding: 2px 4px 2px 2px;
   border: none;
   border-radius: 4px;
   background: transparent;
@@ -3927,34 +3928,20 @@
   pointer-events: auto;
 }
 
+.doc-meta-status-badge {
+  display: block;
+  width: 52px;
+  height: 17px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.doc-meta-field--readonly .doc-meta-status-badge {
+  margin-top: 2px;
+}
+
 .doc-meta-status-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  max-width: 100%;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-family: var(--sans);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-}
-
-.doc-meta-status-pill--not_started {
-  background: rgba(180, 40, 55, 0.28);
-  color: #9b2030;
-}
-
-.doc-meta-status-pill--pending {
-  background: rgba(122, 129, 139, 0.28);
-  color: #9aa1aa;
-}
-
-.doc-meta-status-pill--completed {
-  background: rgba(87, 214, 138, 0.18);
-  color: #57d68a;
+  display: none;
 }
 
 .doc-meta-chip:only-child .doc-meta-chip-k {
@@ -4149,16 +4136,18 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  z-index: 30;
+  z-index: 40;
   margin: 0;
-  padding: 4px 0;
+  padding: 4px;
   list-style: none;
   max-height: 160px;
   overflow-y: auto;
   border-radius: 6px;
-  border: 1px solid var(--glass-border-2);
-  background: var(--panel-2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #151515;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  isolation: isolate;
+  pointer-events: auto;
 }
 
 .doc-product-category-picker__item {
@@ -4166,6 +4155,7 @@
   width: 100%;
   padding: 6px 10px;
   border: none;
+  border-radius: 5px;
   background: transparent;
   color: var(--text);
   font: inherit;
@@ -4174,18 +4164,27 @@
   cursor: pointer;
 }
 
-.doc-product-category-picker__item:hover,
 .doc-product-category-picker__item.is-active {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.doc-product-category-picker__item:hover {
   background: color-mix(in oklab, var(--warm) 14%, transparent);
   color: var(--text);
 }
 
+.doc-product-category-picker__item.is-active:hover {
+  background: color-mix(in oklab, var(--warm) 18%, transparent);
+}
+
 .doc-product-category-wrap--pickable {
   position: relative;
-  cursor: text;
+  cursor: pointer;
   z-index: 2;
 }
 
+.doc-product-category-wrap--pickable.is-open,
 .doc-product-category-wrap--pickable:focus-within {
   z-index: 25;
 }
@@ -4195,9 +4194,14 @@
   z-index: 1;
 }
 
-.doc-meta-field:has(.doc-product-category-wrap--pickable:focus-within),
-.doc-meta-field:has(.doc-product-category-wrap--pickable:hover) {
+/* Raise only while the menu is open — not on mere field hover */
+.doc-meta-field:has(.doc-product-category-wrap--pickable.is-open),
+.doc-meta-field:has(.doc-product-category-wrap--pickable:focus-within) {
   z-index: 25;
+}
+
+.doc-meta-field--link-colors {
+  grid-column: 1 / -1;
 }
 
 .doc-product-category-tag {
@@ -4815,38 +4819,46 @@
 }
 
 .doc-meta-schedule-date-trigger {
-  width: 100%;
+  width: auto;
+  max-width: 168px;
+  min-width: 0;
   margin: 0;
-  padding: 4px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
-  background: #151515;
+  padding: 2px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: #d8d8d8;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.27px;
+  line-height: 1.2;
+  color: #9aa1aa;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .doc-meta-schedule-date-trigger.is-empty {
   color: #7e7a76;
+  font-weight: 500;
 }
 
 .doc-meta-schedule-date-trigger.is-open,
 .doc-meta-schedule-date-trigger:hover {
-  border-color: rgba(255, 255, 255, 0.22);
+  color: #b4bac2;
 }
 
 .doc-meta-schedule-cal {
   position: absolute;
   z-index: 40;
   top: calc(100% + 4px);
-  right: 0;
   left: 0;
-  min-width: 220px;
-  padding: 10px;
+  right: auto;
+  width: 196px;
+  min-width: 0;
+  padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background: #151515;
@@ -4968,11 +4980,38 @@
 }
 
 .doc-meta-schedule-cal__hint {
-  margin: 8px 0 0;
+  margin: 0;
+  padding: 0;
   font-family: var(--sans);
   font-size: 9px;
   line-height: 1.35;
   color: #7e7a76;
+}
+
+.doc-meta-schedule-cal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  min-height: 18px;
+}
+
+.doc-meta-schedule-cal__clear {
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.doc-meta-schedule-cal__clear:hover {
+  color: #fff;
 }
 
 .doc-meta-field-k {

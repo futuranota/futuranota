@@ -59,6 +59,7 @@ export function FolderScheduleRangeField({
   finishValue = "",
   onStartChange,
   onFinishChange,
+  onClear,
   minDate = "",
   allDocs = null,
   parentId = "",
@@ -304,15 +305,30 @@ export function FolderScheduleRangeField({
               );
             })}
           </div>
-          {pickingEnd ? (
-            <p className="doc-meta-schedule-cal__hint">{t("meta.scheduleRangePickEnd")}</p>
-          ) : null}
-          {blockedHint ? (
-            <p className="doc-meta-schedule-cal__hint is-error">{t("meta.scheduleRangeBlocked")}</p>
-          ) : null}
-          {!pickingEnd && !blockedHint && reservedLookup.size > 0 ? (
-            <p className="doc-meta-schedule-cal__hint">{t("meta.scheduleReservedHint")}</p>
-          ) : null}
+          <div className="doc-meta-schedule-cal__footer">
+            {blockedHint ? (
+              <p className="doc-meta-schedule-cal__hint is-error">{t("meta.scheduleRangeBlocked")}</p>
+            ) : (
+              <span />
+            )}
+            {(startValue || finishValue || pickingEnd) && onClear ? (
+              <button
+                type="button"
+                className="doc-meta-schedule-cal__clear"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClear();
+                  setPickingEnd(false);
+                  setDraftStart("");
+                  setHoverDay("");
+                  setBlockedHint(false);
+                  setOpen(false);
+                }}
+              >
+                {t("meta.scheduleClear")}
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>
