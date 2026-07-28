@@ -28,6 +28,7 @@ import {
 } from "../../lib/docNodeLinkColors.js";
 import { DocMetaStrip } from "./DocMetaStrip.jsx";
 import { DocParentHeadPicker } from "./DocParentHeadPicker.jsx";
+import { DocDepartmentHeadPicker } from "./DocDepartmentHeadPicker.jsx";
 import { FolderIconPicker } from "./FolderIconPicker.jsx";
 import { TemplateMetaStrip } from "../templates/TemplateMetaStrip.jsx";
 import { isTemplateDoc } from "../../lib/templateDoc.js";
@@ -728,14 +729,22 @@ export function DocDocumentBox({
                 icon={icon}
                 onIconChange={onIconChange}
               />
-              {departmentOfLabel ? (
-                <span className="doc-department-of-label">{departmentOfLabel}</span>
-              ) : null}
+              <DocDepartmentHeadPicker
+                departmentId={departmentId}
+                onDepartmentIdChange={onDepartmentIdChange}
+                onCategoryChange={onCategoryChange}
+                departments={departments}
+                objectId={parentId}
+              />
             </>
           ) : isContentMode ? (
-            departmentOfLabel ? (
-              <span className="doc-department-of-label">{departmentOfLabel}</span>
-            ) : null
+            <DocDepartmentHeadPicker
+              departmentId={departmentId}
+              onDepartmentIdChange={onDepartmentIdChange}
+              onCategoryChange={onCategoryChange}
+              departments={departments}
+              objectId={parentId}
+            />
           ) : (
             <>
               <img className="doc-new-head-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />

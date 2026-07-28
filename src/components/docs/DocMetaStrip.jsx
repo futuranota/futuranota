@@ -18,7 +18,7 @@ import { NodeLinkColorPicker } from "./blocks/NodeLinkColorPicker.jsx";
 import { SubcategoryField } from "./SubcategoryField.jsx";
 import { ProductCategoryField } from "./ProductCategoryField.jsx";
 import { ProductVersionField } from "./ProductVersionField.jsx";
-import { DepartmentCategoryField, DepartmentParentField } from "./DepartmentCategoryField.jsx";
+import { DepartmentCategoryField } from "./DepartmentCategoryField.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { resolveFolderStatus } from "../../lib/folderStatus.js";
@@ -306,10 +306,6 @@ export function DocMetaStrip({
           ) : null}
           {isContentMode ? (
             <>
-              <MetaChip
-                label={t("meta.department")}
-                value={departmentLabel || null}
-              />
               <MetaChip label={t("meta.category")} value={category.trim() || null} asTag />
               {showFolderSchedule ? (
                 <>
@@ -320,11 +316,13 @@ export function DocMetaStrip({
                     infoAria={t("meta.scheduleInfoAria")}
                   />
                   <MetaChip label={t("meta.scheduleDuration")} value={scheduleDuration} />
-                  <MetaChip
-                    label={t("meta.status")}
-                    value={folderStatusLabel}
-                    statusTone={folderStatus.status}
-                  />
+                  {scheduleRangeSummary ? (
+                    <MetaChip
+                      label={t("meta.status")}
+                      value={folderStatusLabel}
+                      statusTone={folderStatus.status}
+                    />
+                  ) : null}
                 </>
               ) : showFolderCampaignStatus ? (
                 <>
@@ -332,13 +330,7 @@ export function DocMetaStrip({
                   <MetaChip label={t("meta.launch")} value={launchFormatted || null} />
                   <MetaChip label={t("meta.window")} value={windowSummary} />
                 </>
-              ) : (
-                <MetaChip
-                  label={t("meta.status")}
-                  value={folderStatusLabel}
-                  statusTone={folderStatus.status}
-                />
-              )}
+              ) : null}
             </>
           ) : null}
           {isLegacyCampaign ? (
@@ -465,14 +457,6 @@ export function DocMetaStrip({
                   </div>
                 </div>
               ) : null}
-              <DepartmentParentField
-                departmentId={departmentId}
-                onDepartmentIdChange={onDepartmentIdChange}
-                onCategoryChange={onCategoryChange}
-                departments={departments}
-                objectId={parentId}
-                placeholder={t("sidebar.departmentParentPlaceholder")}
-              />
               <DepartmentCategoryField
                 value={category}
                 departmentId={departmentId}
@@ -493,12 +477,14 @@ export function DocMetaStrip({
                     parentId={parentId}
                     excludeDocId={docId}
                   />
-                  <div className="doc-meta-field doc-meta-field--readonly">
-                    <span className="doc-meta-field-k">{t("meta.status")}</span>
-                    <span className={`doc-meta-status-pill doc-meta-status-pill--${folderStatus.status}`}>
-                      {folderStatusLabel}
-                    </span>
-                  </div>
+                  {scheduleStartDate && scheduleFinishDate ? (
+                    <div className="doc-meta-field doc-meta-field--readonly">
+                      <span className="doc-meta-field-k">{t("meta.status")}</span>
+                      <span className={`doc-meta-status-pill doc-meta-status-pill--${folderStatus.status}`}>
+                        {folderStatusLabel}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="doc-meta-field doc-meta-field--readonly">
                     <span className="doc-meta-field-k">{t("meta.scheduleDuration")}</span>
                     <span className="doc-new-meta-readonly">
@@ -533,12 +519,6 @@ export function DocMetaStrip({
                       onFocus={openDatePicker}
                     />
                   </label>
-                  <div className="doc-meta-field doc-meta-field--readonly">
-                    <span className="doc-meta-field-k">{t("meta.status")}</span>
-                    <span className={`doc-meta-status-pill doc-meta-status-pill--${folderStatus.status}`}>
-                      {folderStatusLabel}
-                    </span>
-                  </div>
                   <div className="doc-meta-field doc-meta-field--readonly">
                     <span className="doc-meta-field-k">{t("meta.window")}</span>
                     <span className="doc-new-meta-readonly">{windowSummary}</span>
