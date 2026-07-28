@@ -36,6 +36,11 @@ import {
   validateFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
+import { useDepartmentsStore } from "../../stores/departmentsStore.js";
+import {
+  findDepartmentById,
+  formatDepartmentOfLabel,
+} from "../../lib/departments.js";
 import {
   isTemplateDoc,
   isProductDoc,
@@ -148,7 +153,7 @@ function resolvePersistTitle({
       || draftTitle.trim()
       || "";
   }
-  // Content docs are file-boxes grouped by category — title and category stay in sync.
+  // Content folders: free title; category is department subcategory (optional fallback).
   if (kind === DOC_KIND_CONTENT) {
     return draftTitle.trim() || draftCategory.trim() || "";
   }
@@ -163,6 +168,7 @@ function buildDocEditorDraft({
   version,
   category,
   icon,
+  departmentId,
   launchDate,
   scheduleStartDate,
   scheduleFinishDate,
@@ -182,6 +188,7 @@ function buildDocEditorDraft({
     version: version ?? "",
     category: category ?? "",
     icon: icon ?? "",
+    departmentId: departmentId ?? null,
     launchDate: launchDate ?? "",
     scheduleStartDate: scheduleStartDate ?? "",
     scheduleFinishDate: scheduleFinishDate ?? "",
@@ -203,6 +210,7 @@ function buildDocPersistSnapshot({
   version = "",
   category = "",
   icon = "",
+  departmentId = null,
   launchAt = null,
   scheduleStartAt = null,
   scheduleFinishAt = null,
@@ -229,6 +237,9 @@ function buildDocPersistSnapshot({
     version: String(version ?? "").trim(),
     category: String(category ?? "").trim(),
     icon: String(icon ?? "").trim(),
+    departmentId: typeof departmentId === "string" && departmentId.trim()
+      ? departmentId.trim()
+      : null,
     launchAt: resolvedLaunchAt,
     scheduleStartAt: resolvedScheduleStart,
     scheduleFinishAt: resolvedScheduleFinish,
@@ -281,6 +292,7 @@ export function DocExpandedView({
   const [draftCreatedDate, setDraftCreatedDate] = useState("");
   const [draftVersion, setDraftVersion] = useState("");
   const [draftCategory, setDraftCategory] = useState("");
+  const [draftDepartmentId, setDraftDepartmentId] = useState(null);
   const [draftIcon, setDraftIcon] = useState("");
   const [draftLaunchDate, setDraftLaunchDate] = useState("");
   const [draftScheduleStartDate, setDraftScheduleStartDate] = useState("");
@@ -316,6 +328,7 @@ export function DocExpandedView({
   const hideDocForNodeModal = Boolean(activeNodeContext && !showNodeUnsavedConfirm);
   const objects = useObjectsStore((s) => s.objects);
   const allDocs = useDocsStore((s) => s.docs);
+  const departments = useDepartmentsStore((s) => s.departments);
   const planProfile = usePlanStore((s) => s.profile);
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
 
@@ -372,6 +385,9 @@ export function DocExpandedView({
     const loadedCategory = useCachedDraft
       ? (cached.category ?? normalized.category ?? "")
       : (normalized.category ?? "");
+    const loadedDepartmentId = useCachedDraft
+      ? (cached.departmentId ?? normalized.departmentId ?? null)
+      : (normalized.departmentId ?? null);
     const loadedIcon = useCachedDraft
       ? (cached.icon ?? normalized.icon ?? "")
       : (normalized.icon ?? "");
@@ -417,6 +433,7 @@ export function DocExpandedView({
       setDraftCreatedDate(loadedCreatedDate);
       setDraftVersion(loadedVersion);
       setDraftCategory(loadedCategory);
+      setDraftDepartmentId(loadedDepartmentId);
       setDraftIcon(loadedIcon);
       setDraftLaunchDate(loadedLaunchDate);
       setDraftScheduleStartDate(loadedScheduleStartDate);
@@ -435,6 +452,7 @@ export function DocExpandedView({
       setDraftCreatedDate(loadedCreatedDate);
       setDraftVersion(loadedVersion);
       setDraftCategory(loadedCategory);
+      setDraftDepartmentId(loadedDepartmentId);
       setDraftIcon(loadedIcon);
       setDraftLaunchDate(loadedLaunchDate);
       setDraftScheduleStartDate(loadedScheduleStartDate);
@@ -462,6 +480,7 @@ export function DocExpandedView({
       version: loadedVersion,
       category: loadedCategory,
       icon: loadedIcon,
+      departmentId: loadedDepartmentId,
       launchAt: loadedLaunchDate ? isoFromDateInput(loadedLaunchDate) : null,
       scheduleStartAt: loadedScheduleStartDate
         ? isoFromDateInput(loadedScheduleStartDate)
@@ -647,6 +666,7 @@ export function DocExpandedView({
           version: draftVersion,
           category: draftCategory,
           icon: draftIcon,
+          departmentId: draftDepartmentId,
           launchDate: draftLaunchDate,
           scheduleStartDate: draftScheduleStartDate,
           scheduleFinishDate: draftScheduleFinishDate,
@@ -671,6 +691,7 @@ export function DocExpandedView({
     draftCreatedDate,
     draftVersion,
     draftCategory,
+    draftDepartmentId,
     draftIcon,
     draftLaunchDate,
     draftScheduleStartDate,
@@ -863,6 +884,7 @@ export function DocExpandedView({
     version: draftVersion,
     category: draftCategory,
     icon: draftIcon,
+    departmentId: draftDepartmentId,
     launchAt: draftLaunchAt,
     scheduleStartAt: draftScheduleStartAt,
     scheduleFinishAt: draftScheduleFinishAt,
@@ -903,8 +925,8 @@ export function DocExpandedView({
       campaignActive: false,
     })
     : null;
-  /** Products + Content: title and category mirror each other (file-box grouping). */
-  const syncTitleWithCategory = isProductMode || isContentMode;
+  /** Products: title and category mirror each other. Content folders: title is free; category is department subcategory. */
+  const syncTitleWithCategory = isProductMode;
 
   const alertFolderScheduleError = async (check) => {
     if (!check || check.ok) return;
@@ -965,15 +987,30 @@ export function DocExpandedView({
     }
   };
 
-  /** Content folders: mirror title↔category into docsStore so the left panel updates live. */
+  /** Content folders: persist title into docsStore so the left panel updates live (category stays independent). */
   const persistFolderTitleToStore = (nextTitle) => {
     if (!isContentMode || !doc?.id) return;
     const title = String(nextTitle ?? "").trim();
     if (!title) return;
-    updateDoc(doc.id, { title, category: title });
+    updateDoc(doc.id, { title });
     setInitialSnapshot((prev) => {
       if (!prev) return prev;
-      const next = { ...prev, title, category: title };
+      const next = { ...prev, title };
+      docSnapshotRef.current = JSON.stringify(next);
+      return next;
+    });
+  };
+
+  const persistFolderCategoryToStore = (nextCategory, nextDepartmentId) => {
+    if (!isContentMode || !doc?.id) return;
+    const category = String(nextCategory ?? "").trim();
+    const departmentId = typeof nextDepartmentId === "string" && nextDepartmentId.trim()
+      ? nextDepartmentId.trim()
+      : null;
+    updateDoc(doc.id, { category, departmentId });
+    setInitialSnapshot((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, category, departmentId };
       docSnapshotRef.current = JSON.stringify(next);
       return next;
     });
@@ -1131,7 +1168,7 @@ export function DocExpandedView({
     }
 
     const categoryToSave = isContentMode
-      ? (draftCategory.trim() || title)
+      ? draftCategory.trim()
       : draftCategory;
 
     if (useFolderSchedule) {
@@ -1156,6 +1193,7 @@ export function DocExpandedView({
       version: draftVersion,
       category: categoryToSave,
       icon: isContentMode ? (draftIcon || "") : "",
+      departmentId: isContentMode ? draftDepartmentId : null,
       launchAt: draftLaunchAt,
       // Campaign Launch is research metadata, not a Schedule reservation.
       scheduleStartAt: useFolderSchedule ? draftScheduleStartAt : null,
@@ -1178,6 +1216,7 @@ export function DocExpandedView({
       version: savedSnapshot.version,
       category: savedSnapshot.category,
       icon: savedSnapshot.icon,
+      departmentId: savedSnapshot.departmentId,
       launchAt: savedSnapshot.launchAt,
       scheduleStartAt: savedSnapshot.scheduleStartAt,
       scheduleFinishAt: savedSnapshot.scheduleFinishAt,
@@ -2056,8 +2095,25 @@ export function DocExpandedView({
           onCategoryChange={isTemplate ? undefined : (v) => {
             setDraftCategory(v);
             if (syncTitleWithCategory) setDraftTitle(v);
-            if (isContentMode) persistFolderTitleToStore(v);
+            if (isContentMode) persistFolderCategoryToStore(v, draftDepartmentId);
           }}
+          departmentId={isContentMode ? draftDepartmentId : null}
+          onDepartmentIdChange={isContentMode ? (id) => {
+            setDraftDepartmentId(id);
+            setDraftCategory("");
+            persistFolderCategoryToStore("", id);
+          } : undefined}
+          departments={isContentMode ? departments : []}
+          departmentOfLabel={
+            isContentMode
+              ? formatDepartmentOfLabel(findDepartmentById(departments, draftDepartmentId))
+              : ""
+          }
+          departmentName={
+            isContentMode
+              ? (findDepartmentById(departments, draftDepartmentId)?.category || "")
+              : ""
+          }
           launchDate={isTemplate || draftCampaignActive ? "" : draftLaunchDate}
           onLaunchDateChange={
             isTemplate || useFolderSchedule || draftCampaignActive

@@ -16,6 +16,8 @@ import { migrateLocalUrlEntriesToTables } from "../lib/urlTableLibrary.js";
 import { usePasswordTableStore } from "./passwordTableStore.js";
 import { initPasswordTableSync } from "../lib/passwordTableSync.js";
 import { migrateVaultTablesFromCampaignDocs } from "../lib/migrateVaultTablesFromCampaigns.js";
+import { useDepartmentsStore } from "./departmentsStore.js";
+import { initDepartmentsSync } from "../lib/departmentsSync.js";
 
 let seeded = false;
 
@@ -37,6 +39,7 @@ export function initStores() {
   initUrlTableSync(useUrlTableStore);
   migrateLocalUrlEntriesToTables();
   initPasswordTableSync(usePasswordTableStore);
+  initDepartmentsSync(useDepartmentsStore);
   initSyncMiddleware();
 
   // After campaigns hydrate from localStorage/Supabase, migrate dedicated vault docs once.

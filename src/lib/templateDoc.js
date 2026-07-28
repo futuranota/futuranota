@@ -88,7 +88,7 @@ export function formatProductSubcategoryLine(doc) {
 export function resolveProductDocDisplayTitle(doc) {
   if (!doc) return "Untitled";
   if (!isProductDoc(doc)) {
-    // Content folders: title and category mirror; prefer title, fall back to category.
+    // Content folders: prefer title; category is department subcategory tag.
     return doc.title?.trim() || doc.category?.trim() || "Untitled";
   }
   return formatProductDocTitle(doc.category, doc.version)

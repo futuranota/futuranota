@@ -18,6 +18,7 @@ export function emptyDocCampaignFields() {
     version: "",
     category: "",
     icon: "",
+    departmentId: null,
     launchAt: null,
     scheduleStartAt: null,
     scheduleFinishAt: null,
@@ -74,6 +75,9 @@ export function normalizeDoc(doc) {
     version: typeof doc.version === "string" ? doc.version : base.version,
     category: typeof doc.category === "string" ? doc.category : base.category,
     icon: typeof doc.icon === "string" ? doc.icon : base.icon,
+    departmentId: typeof doc.departmentId === "string" && doc.departmentId.trim()
+      ? doc.departmentId.trim()
+      : null,
     ...resolveNormalizedScheduleFields(doc, base),
     campaignActive: Boolean(doc.campaignActive),
     timelineSourceNodeId: typeof doc.timelineSourceNodeId === "string" && doc.timelineSourceNodeId

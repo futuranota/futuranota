@@ -73,6 +73,9 @@ export const useDocsStore = create(
               version: campaign.version ?? "",
               category: campaign.category ?? "",
               icon: typeof campaign.icon === "string" ? campaign.icon : "",
+              departmentId: typeof campaign.departmentId === "string" && campaign.departmentId.trim()
+                ? campaign.departmentId.trim()
+                : null,
               launchAt: campaign.launchAt
                 ?? campaign.scheduleStartAt
                 ?? null,

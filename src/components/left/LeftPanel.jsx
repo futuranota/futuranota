@@ -26,7 +26,15 @@ import {
   validateFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
 import { DocDocumentBox } from "../docs/DocDocumentBox.jsx";
+import { DepartmentsPanel } from "../departments/DepartmentsPanel.jsx";
 import { DocListTitle } from "../docs/DocListTitle.jsx";
+import { useDepartmentsStore } from "../../stores/departmentsStore.js";
+import {
+  findDepartmentById,
+  folderMatchesDepartmentFilter,
+  formatDepartmentOfLabel,
+  listDepartmentsForObject,
+} from "../../lib/departments.js";
 import { docBlocksToBody, normalizeDocBlocks } from "../../lib/docBlocks.js";
 import { UnsavedChangesConfirm } from "../shared/UnsavedChangesConfirm.jsx";
 import { useDocBlockNodeModal, linkBlockNodesToDoc } from "../docs/useDocBlockNodeModal.jsx";
@@ -40,7 +48,6 @@ import {
   listProductDocs,
   listContentDocs,
   listUncategorizedDocs,
-  listKnowledgeDocs,
   resolveProductDocDisplayTitle,
   resolveKnowledgeDocDisplayTitle,
 } from "../../lib/templateDoc.js";
@@ -258,10 +265,10 @@ function ClickFolderBack({ onBack, label, lowercase = false, iconOnly = false, i
 const CLICK_FOLDER_ICON_PATH = "M121.5 85.25H100.5C100.036 85.25 99.5908 85.4344 99.2626 85.7626C98.9344 86.0908 98.75 86.5359 98.75 87V89.625C98.75 90.0891 98.9344 90.5342 99.2626 90.8624C99.5908 91.1906 100.036 91.375 100.5 91.375V101C100.5 101.464 100.684 101.909 101.013 102.237C101.341 102.566 101.786 102.75 102.25 102.75H119.75C120.214 102.75 120.659 102.566 120.987 102.237C121.316 101.909 121.5 101.464 121.5 101V91.375C121.964 91.375 122.409 91.1906 122.737 90.8624C123.066 90.5342 123.25 90.0891 123.25 89.625V87C123.25 86.5359 123.066 86.0908 122.737 85.7626C122.409 85.4344 121.964 85.25 121.5 85.25ZM119.75 101H102.25V91.375H119.75V101ZM121.5 89.625H100.5V87H121.5V89.625ZM107.5 94.875C107.5 94.6429 107.592 94.4204 107.756 94.2563C107.92 94.0922 108.143 94 108.375 94H113.625C113.857 94 114.08 94.0922 114.244 94.2563C114.408 94.4204 114.5 94.6429 114.5 94.875C114.5 95.1071 114.408 95.3296 114.244 95.4937C114.08 95.6578 113.857 95.75 113.625 95.75H108.375C108.143 95.75 107.92 95.6578 107.756 95.4937C107.592 95.3296 107.5 95.1071 107.5 94.875Z";
 
 function ClickFolderIcon({ variant, className = "lp-click-folder-box-icon" }) {
-  if (variant === "knowledge") {
+  if (variant === "knowledge" || variant === "departments") {
     return (
       <img
-        src="/uploads/botones/FloppyDisk.svg"
+        src={variant === "departments" ? "/uploads/Departments.svg" : "/uploads/botones/FloppyDisk.svg"}
         alt=""
         aria-hidden
         className={`${className} lp-click-folder-box-icon-img`}
@@ -764,7 +771,12 @@ function DocNodesBlockCard({
               {orphan ? (
                 <b className="lp-doc-title-text">{displayTitle}</b>
               ) : (
-                <DocListTitle doc={doc} />
+                <>
+                  <DocListTitle doc={doc} />
+                  {(doc?.category || "").trim() ? (
+                    <span className="lp-folder-category-chip">{(doc.category || "").trim()}</span>
+                  ) : null}
+                </>
               )}
               {!orphan && !selectMode ? (
                 <span
@@ -1030,7 +1042,9 @@ function DocCreateModal({
   const [createdDate, setCreatedDate] = useState(todayDateInputValue);
   const [version, setVersion] = useState("");
   const [category, setCategory] = useState(defaultCategory);
+  const [departmentId, setDepartmentId] = useState(null);
   const [icon, setIcon] = useState("");
+  const departments = useDepartmentsStore((s) => s.departments);
   const [launchDate, setLaunchDate] = useState("");
   const [scheduleStartDate, setScheduleStartDate] = useState("");
   const [scheduleFinishDate, setScheduleFinishDate] = useState("");
@@ -1048,8 +1062,8 @@ function DocCreateModal({
   const useFolderSchedule = createMode === "content";
   const metaMode = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
   const docKind = isProductMode ? "product" : isKnowledgeMode ? "knowledge" : "content";
-  /** Products + Content: title and category mirror each other (file-box grouping). */
-  const syncTitleWithCategory = isProductMode || isContentMode;
+  /** Products: title and category mirror. Content folders: free title; category from Departments. */
+  const syncTitleWithCategory = isProductMode;
 
   const scheduleStartMin = useMemo(() => {
     if (!useFolderSchedule) return todayDateInputValue();
@@ -1261,7 +1275,7 @@ function DocCreateModal({
   const submitDoc = async () => {
     const trimmedCategory = category.trim();
     const productName = title.trim() || trimmedCategory;
-    const finalCategory = (isProductMode || isContentMode)
+    const finalCategory = isProductMode
       ? (trimmedCategory || productName)
       : trimmedCategory;
     const finalTitle = isProductMode
@@ -1309,6 +1323,7 @@ function DocCreateModal({
       version: version.trim(),
       category: finalCategory,
       icon: createMode === "content" ? (icon || "") : "",
+      departmentId: isContentMode && !isCampaignMode ? departmentId : null,
       launchAt,
       scheduleStartAt,
       scheduleFinishAt,
@@ -1348,6 +1363,22 @@ function DocCreateModal({
           onVersionCommit={handleVersionCommit}
           category={category}
           onCategoryChange={handleCategoryChange}
+          departmentId={isContentMode && !isCampaignMode ? departmentId : null}
+          onDepartmentIdChange={isContentMode && !isCampaignMode ? (id) => {
+            setDepartmentId(id);
+            setCategory("");
+          } : undefined}
+          departments={isContentMode && !isCampaignMode ? departments : []}
+          departmentOfLabel={
+            isContentMode && !isCampaignMode
+              ? formatDepartmentOfLabel(findDepartmentById(departments, departmentId))
+              : ""
+          }
+          departmentName={
+            isContentMode && !isCampaignMode
+              ? (findDepartmentById(departments, departmentId)?.category || "")
+              : ""
+          }
           launchDate={isCampaignMode ? "" : launchDate}
           onLaunchDateChange={isCampaignMode ? undefined : setLaunchDate}
           scheduleStartDate={scheduleStartDate}
@@ -1597,6 +1628,9 @@ export function LeftPanel({
   const [createDocumentParentDocId, setCreateDocumentParentDocId] = useState(null);
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
+  const [departmentFilterId, setDepartmentFilterId] = useState("");
+  const [departmentCreateRequested, setDepartmentCreateRequested] = useState(false);
+  const departments = useDepartmentsStore((s) => s.departments);
   const [packImportActive, setPackImportActive] = useState(false);
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
   const [lazyTodosActive, setLazyTodosActive] = useState(false);
@@ -1735,7 +1769,6 @@ export function LeftPanel({
     () => (filterObjectId ? listUncategorizedDocs(docs, filterObjectId) : []),
     [docs, filterObjectId],
   );
-  const knowledgeDocs = useMemo(() => listKnowledgeDocs(docs), [docs]);
 
   const categoryFilterOptions = useMemo(
     () => buildCategoryFilterOptions(productDocs),
@@ -1766,8 +1799,14 @@ export function LeftPanel({
     () => contentDocs.filter((doc) => (
       !doc.campaignActive
       && contentDocMatchesProductFilter(doc, docs, contentProductFilter)
+      && folderMatchesDepartmentFilter(doc, departmentFilterId || null)
     )),
-    [contentDocs, docs, contentProductFilter],
+    [contentDocs, docs, contentProductFilter, departmentFilterId],
+  );
+
+  const departmentFilterOptions = useMemo(
+    () => listDepartmentsForObject(departments, filterObjectId),
+    [departments, filterObjectId],
   );
 
   const filteredUncategorizedDocs = useMemo(
@@ -1780,7 +1819,8 @@ export function LeftPanel({
   const matchesFolderSearch = useCallback((doc) => {
     if (!folderSearchNeedle) return true;
     const title = String(doc?.title || "").toLowerCase();
-    return title.includes(folderSearchNeedle);
+    const category = String(doc?.category || "").toLowerCase();
+    return title.includes(folderSearchNeedle) || category.includes(folderSearchNeedle);
   }, [folderSearchNeedle]);
 
   const visibleCampaignDocs = useMemo(
@@ -1863,9 +1903,13 @@ export function LeftPanel({
   };
 
   useEffect(() => {
-    setKnowledgeFolderActive(clickFolderView === "knowledge");
+    setKnowledgeFolderActive(false);
     return () => setKnowledgeFolderActive(false);
-  }, [clickFolderView, setKnowledgeFolderActive]);
+  }, [setKnowledgeFolderActive]);
+
+  useEffect(() => {
+    setDepartmentFilterId("");
+  }, [filterObjectId, clickFolderView]);
 
   /** Sidebar highlight only — does not add to the canvas-driven timeline queue. */
   const handleSelectFolderDoc = (docId) => {
@@ -2405,6 +2449,9 @@ export function LeftPanel({
           version: data.version ?? "",
           category: data.category ?? "",
           icon: typeof data.icon === "string" ? data.icon : "",
+          departmentId: typeof data.departmentId === "string" && data.departmentId.trim()
+            ? data.departmentId.trim()
+            : null,
           // Campaign folders: Launch lives on child docs only.
           // Content: Schedule is explicit only — never invent from launchAt.
           // When user reserved Schedule, submitDoc already mirrors launchAt ← start.
@@ -2469,6 +2516,11 @@ export function LeftPanel({
       openCreateDocument(null);
       return;
     }
+    if (panelType === "Documents" && clickFolderView === "departments") {
+      setDepartmentCreateRequested(true);
+      setFolderOpen(false);
+      return;
+    }
     setShowCreate(true);
     setFolderOpen(false);
   };
@@ -2476,14 +2528,13 @@ export function LeftPanel({
   const newDisabled =
     (!objectWorkspaceActive && panelType !== "Objects")
     || (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId)
-    || (panelType === "Documents" && !clickFolderView);
+    || (panelType === "Documents" && !clickFolderView)
+    || clickFolderView === "agents";
   const docCreateMode = clickFolderView === "groups"
     ? "product"
-    : clickFolderView === "knowledge"
-      ? "knowledge"
-      : clickFolderView === "campaign"
-        ? "campaign"
-        : "content";
+    : clickFolderView === "campaign"
+      ? "campaign"
+      : "content";
 
   return (
     <div className="left-panel">
@@ -2693,9 +2744,9 @@ export function LeftPanel({
                     onClick={() => setClickFolderView("subgroups")}
                   />
                   <ClickFolderBox
-                    variant="knowledge"
-                    label={t("sidebar.knowledge")}
-                    onClick={() => setClickFolderView("knowledge")}
+                    variant="departments"
+                    label={t("sidebar.departments")}
+                    onClick={() => setClickFolderView("departments")}
                   />
                   <ClickFolderBox
                     variant="agents"
@@ -2943,37 +2994,13 @@ export function LeftPanel({
               </div>
             ) : null}
 
-            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "knowledge" ? (
-              <div className="lp-click-folder-detail">
-                <ClickFolderBack
-                  iconOnly
-                  onBack={() => setClickFolderView(null)}
-                  label={t("sidebar.knowledgeTitle")}
-                />
-                <div className="lp-click-folder-detail-list lp-doc-groups-stack">
-                  {knowledgeDocs.length ? (
-                    <article className="lp-doc-nodes-block lp-doc-nodes-block--docs">
-                      <div className="lp-doc-nodes-block__body lp-doc-nodes-block__body--docs lp-doc-nodes-block__body--docs-flat">
-                        {knowledgeDocs.map((doc) => (
-                          <DocCompactRow
-                            key={doc.id}
-                            doc={doc}
-                            active={activeId === doc.id}
-                            onSelect={() => handleSelectFolderDoc(doc.id)}
-                            onOpen={() => handleOpenFolderDoc(doc.id)}
-                            onDelete={() => handleDeleteDoc(doc)}
-                          />
-                        ))}
-                      </div>
-                    </article>
-                  ) : (
-                    <div className="lp-empty">
-                      <p className="dim">{t("sidebar.noKnowledgeYet")}</p>
-                      <p className="dim">{t("sidebar.useNewKnowledge")}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "departments" ? (
+              <DepartmentsPanel
+                objectId={filterObjectId}
+                onBack={() => setClickFolderView(null)}
+                createRequested={departmentCreateRequested}
+                onCreateRequestHandled={() => setDepartmentCreateRequested(false)}
+              />
             ) : null}
 
             {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "agents" ? (
@@ -3069,6 +3096,37 @@ export function LeftPanel({
                     />
                   </div>
                 </div>
+                {departmentFilterOptions.length ? (
+                  <div className="lp-department-filter">
+                    <label className="sr-only" htmlFor="lp-department-filter">
+                      {t("sidebar.departmentFilterLabel")}
+                    </label>
+                    <select
+                      id="lp-department-filter"
+                      className="lp-department-filter__select"
+                      value={departmentFilterId}
+                      onChange={(e) => setDepartmentFilterId(e.target.value)}
+                    >
+                      <option value="">{t("sidebar.departmentFilterAll")}</option>
+                      {departmentFilterOptions.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.category || t("sidebar.departmentsTitle")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="lp-department-filter">
+                    <select
+                      className="lp-department-filter__select"
+                      disabled
+                      value=""
+                      aria-label={t("sidebar.departmentFilterLabel")}
+                    >
+                      <option value="">{t("sidebar.departmentParentEmptyHint")}</option>
+                    </select>
+                  </div>
+                )}
                 {folderBulkDeleteMode ? (
                   <div className="lp-folder-bulk-bar" role="status">
                     <span className="lp-folder-bulk-bar__count">

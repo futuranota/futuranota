@@ -92,6 +92,11 @@ export function DocDocumentBox({
   onVersionCommit,
   category = "",
   onCategoryChange,
+  departmentId = null,
+  onDepartmentIdChange,
+  departments = [],
+  departmentOfLabel = "",
+  departmentName = "",
   launchDate = "",
   onLaunchDateChange,
   scheduleStartDate = "",
@@ -641,7 +646,7 @@ export function DocDocumentBox({
               onChange={(e) => {
                 const next = e.target.value;
                 onTitleChange?.(next);
-                if (isContentMode || isProductMode) onCategoryChange?.(next);
+                if (isProductMode) onCategoryChange?.(next);
                 requestAnimationFrame(syncFocusCategoryHeight);
               }}
             />
@@ -718,11 +723,20 @@ export function DocDocumentBox({
               objects={objects}
             />
           ) : isContentMode && onIconChange ? (
-            <FolderIconPicker
-              icon={icon}
-              onIconChange={onIconChange}
-            />
-          ) : isContentMode ? null : (
+            <>
+              <FolderIconPicker
+                icon={icon}
+                onIconChange={onIconChange}
+              />
+              {departmentOfLabel ? (
+                <span className="doc-department-of-label">{departmentOfLabel}</span>
+              ) : null}
+            </>
+          ) : isContentMode ? (
+            departmentOfLabel ? (
+              <span className="doc-department-of-label">{departmentOfLabel}</span>
+            ) : null
+          ) : (
             <>
               <img className="doc-new-head-icon" src={DOC_FILE_TXT_ICON} alt="" aria-hidden />
               {docHeaderLabel ? (
@@ -784,6 +798,10 @@ export function DocDocumentBox({
           onVersionCommit={onVersionCommit}
           category={category}
           onCategoryChange={onCategoryChange}
+          departmentId={departmentId}
+          onDepartmentIdChange={onDepartmentIdChange}
+          departments={departments}
+          departmentLabel={departmentName || ""}
           launchDate={launchDate}
           onLaunchDateChange={onLaunchDateChange}
           scheduleStartDate={scheduleStartDate}

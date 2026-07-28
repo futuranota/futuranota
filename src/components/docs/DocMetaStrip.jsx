@@ -16,6 +16,7 @@ import { SubcategoryField } from "./SubcategoryField.jsx";
 import { ProductCategorySubcategoryField } from "./ProductCategorySubcategoryField.jsx";
 import { ProductCategoryField } from "./ProductCategoryField.jsx";
 import { ProductVersionField } from "./ProductVersionField.jsx";
+import { DepartmentCategoryField, DepartmentParentField } from "./DepartmentCategoryField.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 
 function openDatePicker(e) {
@@ -147,6 +148,10 @@ export function DocMetaStrip({
   onVersionCommit,
   category = "",
   onCategoryChange,
+  departmentId = null,
+  onDepartmentIdChange,
+  departments = [],
+  departmentLabel = "",
   launchDate = "",
   onLaunchDateChange,
   scheduleStartDate = "",
@@ -237,6 +242,9 @@ export function DocMetaStrip({
           {isContentMode ? (
             <>
               <MetaChip label={t("meta.brand")} value={brandSummary} />
+              {departmentLabel ? (
+                <MetaChip label={t("sidebar.departmentFilterLabel")} value={departmentLabel} />
+              ) : null}
               <MetaChip label={t("meta.category")} value={category.trim() || null} asTag />
               {showFolderSchedule ? (
                 <>
@@ -384,13 +392,20 @@ export function DocMetaStrip({
                   </div>
                 </div>
               ) : null}
-              <ProductCategoryField
+              <DepartmentParentField
+                departmentId={departmentId}
+                onDepartmentIdChange={onDepartmentIdChange}
+                onCategoryChange={onCategoryChange}
+                departments={departments}
+                objectId={parentId}
+                placeholder={t("sidebar.departmentParentPlaceholder")}
+              />
+              <DepartmentCategoryField
                 value={category}
+                departmentId={departmentId}
                 onChange={onCategoryChange}
-                placeholder="e.g. blogs"
-                parentId={parentId}
-                allDocs={allDocs}
-                docId={docId}
+                departments={departments}
+                placeholder={t("sidebar.departmentSubPlaceholder")}
               />
               {showFolderSchedule ? (
                 <>
