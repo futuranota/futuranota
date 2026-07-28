@@ -3,7 +3,10 @@ import { getToday } from "../../data.jsx";
 import { formatCampaignLabel, formatWindowDays } from "../../lib/docMetaBar.js";
 import { formatMmDdYy, isoFromDateInput } from "../../lib/docDates.js";
 import { formatFolderScheduleDuration } from "../../lib/folderScheduleReservation.js";
-import { FolderScheduleDateField } from "./FolderScheduleDateField.jsx";
+import {
+  FolderScheduleRangeField,
+  formatScheduleRangeDisplay,
+} from "./FolderScheduleRangeField.jsx";
 import {
   importKnowledgeFile,
   KNOWLEDGE_FILE_ACCEPT,
@@ -13,11 +16,14 @@ import {
 import { resolveSubcategoryLines, resolveLinkedProductCategories } from "../../lib/templateDoc.js";
 import { NodeLinkColorPicker } from "./blocks/NodeLinkColorPicker.jsx";
 import { SubcategoryField } from "./SubcategoryField.jsx";
-import { ProductCategorySubcategoryField } from "./ProductCategorySubcategoryField.jsx";
 import { ProductCategoryField } from "./ProductCategoryField.jsx";
 import { ProductVersionField } from "./ProductVersionField.jsx";
 import { DepartmentCategoryField, DepartmentParentField } from "./DepartmentCategoryField.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
+import { useNodesStore } from "../../stores/nodesStore.js";
+import { resolveFolderStatus } from "../../lib/folderStatus.js";
+
+const SCHEDULE_INFO_ICON = "/uploads/Info.svg";
 
 function openDatePicker(e) {
   e.stopPropagation();
@@ -40,16 +46,66 @@ function MetaChip({
   emptyDisplay = "",
   valueLowercase = false,
   asTag = false,
+  infoText = "",
+  infoAria = "",
+  statusTone = null,
 }) {
   const empty = value == null || value === "" || value === "—";
   const display = empty ? (placeholder ?? emptyDisplay) : value;
   const isPlaceholder = empty && Boolean(placeholder);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const infoRef = useRef(null);
+
+  useEffect(() => {
+    if (!infoOpen) return undefined;
+    const onPointerDown = (e) => {
+      if (infoRef.current && !infoRef.current.contains(e.target)) {
+        setInfoOpen(false);
+      }
+    };
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setInfoOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [infoOpen]);
 
   return (
-    <div className="doc-meta-chip" title={!empty ? String(value) : undefined}>
-      <span className="doc-meta-chip-k">{label}</span>
+    <div className="doc-meta-chip" title={!empty && !infoText ? String(value) : undefined}>
+      <span className="doc-meta-chip-k">
+        {label}
+        {infoText ? (
+          <span className="doc-meta-chip-info" ref={infoRef}>
+            <button
+              type="button"
+              className="doc-meta-chip-info__btn"
+              aria-label={infoAria || label}
+              aria-expanded={infoOpen}
+              onClick={(e) => {
+                e.stopPropagation();
+                setInfoOpen((v) => !v);
+              }}
+            >
+              <img src={SCHEDULE_INFO_ICON} alt="" aria-hidden className="doc-meta-chip-info__icon" />
+            </button>
+            {infoOpen ? (
+              <div className="doc-meta-chip-info__pop" role="dialog" aria-label={infoAria || label}>
+                {infoText}
+              </div>
+            ) : null}
+          </span>
+        ) : null}
+      </span>
       {asTag && !empty ? (
         <span className="doc-product-category-tag doc-product-category-tag--summary">{display}</span>
+      ) : statusTone && !empty ? (
+        <span className={`doc-meta-status-pill doc-meta-status-pill--${statusTone}`}>
+          {display}
+        </span>
       ) : (
         <span
           className={
@@ -202,7 +258,6 @@ export function DocMetaStrip({
   const parentObject = resolveParentObject(objects, parentId);
   const brandSummary = parentObject?.brand?.trim() || brandLabel?.trim() || null;
   const showLegacySubcategories = isLegacyCampaign && Boolean(onSubcategoryDocIdsChange && allDocs);
-  const showProductSubcategories = isContentMode && Boolean(onSubcategoryDocIdsChange && allDocs);
   const subcategoryLines = showLegacySubcategories
     ? resolveSubcategoryLines(allDocs, subcategoryDocIds)
     : [];
@@ -217,13 +272,23 @@ export function DocMetaStrip({
         ? `${subcategoryDocIds.length} product${subcategoryDocIds.length === 1 ? "" : "s"}`
         : null;
 
+  const nodes = useNodesStore((s) => s.nodes);
+  const folderStatus = resolveFolderStatus(nodes, docId);
+  const folderStatusLabel =
+    folderStatus.status === "completed"
+      ? t("meta.statusCompleted")
+      : folderStatus.status === "pending"
+        ? t("meta.statusPending")
+        : t("meta.statusNotStarted");
+
   const campaignSummary = showFolderCampaignStatus
     ? formatCampaignLabel(campaignActive)
     : null;
 
   const launchFormatted = formatMmDdYy(launchDate);
-  const scheduleStartFormatted = formatMmDdYy(scheduleStartDate);
-  const scheduleFinishFormatted = formatMmDdYy(scheduleFinishDate);
+  const scheduleRangeSummary = showFolderSchedule
+    ? formatScheduleRangeDisplay(scheduleStartDate, scheduleFinishDate)
+    : "";
   const scheduleDuration = showFolderSchedule
     ? formatFolderScheduleDuration(scheduleStartDate, scheduleFinishDate, t)
     : null;
@@ -241,22 +306,25 @@ export function DocMetaStrip({
           ) : null}
           {isContentMode ? (
             <>
-              <MetaChip label={t("meta.brand")} value={brandSummary} />
-              {departmentLabel ? (
-                <MetaChip label={t("sidebar.departmentFilterLabel")} value={departmentLabel} />
-              ) : null}
+              <MetaChip
+                label={t("meta.department")}
+                value={departmentLabel || null}
+              />
               <MetaChip label={t("meta.category")} value={category.trim() || null} asTag />
               {showFolderSchedule ? (
                 <>
                   <MetaChip
-                    label={t("meta.scheduleStart")}
-                    value={scheduleStartFormatted || null}
-                  />
-                  <MetaChip
-                    label={t("meta.scheduleFinish")}
-                    value={scheduleFinishFormatted || null}
+                    label={t("meta.scheduleRange")}
+                    value={scheduleRangeSummary || null}
+                    infoText={t("meta.scheduleInfoBody")}
+                    infoAria={t("meta.scheduleInfoAria")}
                   />
                   <MetaChip label={t("meta.scheduleDuration")} value={scheduleDuration} />
+                  <MetaChip
+                    label={t("meta.status")}
+                    value={folderStatusLabel}
+                    statusTone={folderStatus.status}
+                  />
                 </>
               ) : showFolderCampaignStatus ? (
                 <>
@@ -264,8 +332,13 @@ export function DocMetaStrip({
                   <MetaChip label={t("meta.launch")} value={launchFormatted || null} />
                   <MetaChip label={t("meta.window")} value={windowSummary} />
                 </>
-              ) : null}
-              <MetaChip label={t("meta.subcategories")} value={subcategorySummary} />
+              ) : (
+                <MetaChip
+                  label={t("meta.status")}
+                  value={folderStatusLabel}
+                  statusTone={folderStatus.status}
+                />
+              )}
             </>
           ) : null}
           {isLegacyCampaign ? (
@@ -321,7 +394,7 @@ export function DocMetaStrip({
       <div className="doc-meta-strip__drawer" aria-hidden={!expanded}>
         <div className="doc-meta-strip__fields">
           <label className="doc-meta-field">
-            <span className="doc-meta-field-k">Created</span>
+            <span className="doc-meta-field-k">{t("meta.created")}</span>
             {onCreatedDateChange ? (
               <input
                 type="date"
@@ -409,31 +482,29 @@ export function DocMetaStrip({
               />
               {showFolderSchedule ? (
                 <>
-                  <FolderScheduleDateField
-                    label={t("meta.scheduleStart")}
-                    value={scheduleStartDate}
-                    onChange={onScheduleStartDateChange}
+                  <FolderScheduleRangeField
+                    label={t("meta.scheduleRange")}
+                    startValue={scheduleStartDate}
+                    finishValue={scheduleFinishDate}
+                    onStartChange={onScheduleStartDateChange}
+                    onFinishChange={onScheduleFinishDateChange}
                     minDate={scheduleStartMin || undefined}
                     allDocs={allDocs}
                     parentId={parentId}
                     excludeDocId={docId}
                   />
-                  <FolderScheduleDateField
-                    label={t("meta.scheduleFinish")}
-                    value={scheduleFinishDate}
-                    onChange={onScheduleFinishDateChange}
-                    minDate={scheduleStartDate || scheduleStartMin || undefined}
-                    allDocs={allDocs}
-                    parentId={parentId}
-                    excludeDocId={docId}
-                  />
-                  <p className="doc-meta-schedule-hint">{t("meta.scheduleHint")}</p>
-                  {scheduleDuration ? (
-                    <div className="doc-meta-field doc-meta-field--readonly">
-                      <span className="doc-meta-field-k">{t("meta.scheduleDuration")}</span>
-                      <span className="doc-new-meta-readonly">{scheduleDuration}</span>
-                    </div>
-                  ) : null}
+                  <div className="doc-meta-field doc-meta-field--readonly">
+                    <span className="doc-meta-field-k">{t("meta.status")}</span>
+                    <span className={`doc-meta-status-pill doc-meta-status-pill--${folderStatus.status}`}>
+                      {folderStatusLabel}
+                    </span>
+                  </div>
+                  <div className="doc-meta-field doc-meta-field--readonly">
+                    <span className="doc-meta-field-k">{t("meta.scheduleDuration")}</span>
+                    <span className="doc-new-meta-readonly">
+                      {scheduleDuration || "—"}
+                    </span>
+                  </div>
                   {(scheduleStartDate || scheduleFinishDate) && onScheduleDatesClear ? (
                     <div className="doc-meta-field doc-meta-field--schedule-clear">
                       <button
@@ -463,20 +534,17 @@ export function DocMetaStrip({
                     />
                   </label>
                   <div className="doc-meta-field doc-meta-field--readonly">
+                    <span className="doc-meta-field-k">{t("meta.status")}</span>
+                    <span className={`doc-meta-status-pill doc-meta-status-pill--${folderStatus.status}`}>
+                      {folderStatusLabel}
+                    </span>
+                  </div>
+                  <div className="doc-meta-field doc-meta-field--readonly">
                     <span className="doc-meta-field-k">{t("meta.window")}</span>
                     <span className="doc-new-meta-readonly">{windowSummary}</span>
                   </div>
                 </>
               )}
-              {showProductSubcategories ? (
-                <ProductCategorySubcategoryField
-                  parentId={parentId}
-                  allDocs={allDocs}
-                  selectedDocIds={subcategoryDocIds}
-                  onChange={onSubcategoryDocIdsChange}
-                  excludeDocId={docId}
-                />
-              ) : null}
             </>
           ) : null}
 

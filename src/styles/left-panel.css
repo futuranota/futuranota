@@ -3701,6 +3701,9 @@
 .doc-meta-strip {
   margin-bottom: 10px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 20;
+  overflow: visible;
 }
 
 .doc-meta-strip__summary {
@@ -3710,14 +3713,16 @@
   border: none;
   border-radius: 0;
   background: transparent;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 5;
 }
 
 .doc-meta-strip__chips {
   display: flex;
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
+  overflow: visible;
   scrollbar-width: none;
 }
 
@@ -3755,7 +3760,10 @@
 }
 
 .doc-meta-chip-k {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   width: 100%;
   font-family: var(--sans);
   font-size: 9px;
@@ -3766,6 +3774,99 @@
   line-height: 1;
   margin: 0;
   text-align: center;
+}
+
+.doc-meta-chip-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 6;
+}
+
+.doc-meta-chip-info__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  color: #7A818B;
+}
+
+.doc-meta-chip-info__btn:hover {
+  color: #e8dcc8;
+}
+
+.doc-meta-chip-info__icon {
+  width: 11px;
+  height: 11px;
+  object-fit: contain;
+  opacity: 0.72;
+  filter: invert(1) grayscale(1) brightness(0.75);
+}
+
+.doc-meta-chip-info__btn:hover .doc-meta-chip-info__icon {
+  opacity: 1;
+  filter: invert(1) grayscale(1) brightness(1.05);
+}
+
+.doc-meta-chip-info__pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  width: min(280px, 70vw);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #151515;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.78);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.45;
+  text-align: left;
+  pointer-events: auto;
+}
+
+.doc-meta-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.doc-meta-status-pill--not_started {
+  background: rgba(180, 40, 55, 0.28);
+  color: #9b2030;
+}
+
+.doc-meta-status-pill--pending {
+  background: rgba(122, 129, 139, 0.28);
+  color: #9aa1aa;
+}
+
+.doc-meta-status-pill--completed {
+  background: rgba(87, 214, 138, 0.18);
+  color: #57d68a;
 }
 
 .doc-meta-chip:only-child .doc-meta-chip-k {
@@ -4746,6 +4847,20 @@
 .doc-meta-schedule-cal__day.is-selected {
   background: color-mix(in oklab, #57d68a 22%, transparent);
   color: #57d68a;
+}
+
+.doc-meta-schedule-cal__day.is-in-range {
+  background: color-mix(in oklab, #57d68a 12%, transparent);
+  color: #9be7b8;
+}
+
+.doc-meta-schedule-cal__day.is-in-range.is-selected {
+  background: color-mix(in oklab, #57d68a 22%, transparent);
+  color: #57d68a;
+}
+
+.doc-meta-schedule-cal__hint.is-error {
+  color: #f0a0a0;
 }
 
 .doc-meta-schedule-cal__day.is-reserved,
