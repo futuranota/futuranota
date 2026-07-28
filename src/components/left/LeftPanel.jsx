@@ -264,11 +264,28 @@ function ClickFolderBack({ onBack, label, lowercase = false, iconOnly = false, i
 
 const CLICK_FOLDER_ICON_PATH = "M121.5 85.25H100.5C100.036 85.25 99.5908 85.4344 99.2626 85.7626C98.9344 86.0908 98.75 86.5359 98.75 87V89.625C98.75 90.0891 98.9344 90.5342 99.2626 90.8624C99.5908 91.1906 100.036 91.375 100.5 91.375V101C100.5 101.464 100.684 101.909 101.013 102.237C101.341 102.566 101.786 102.75 102.25 102.75H119.75C120.214 102.75 120.659 102.566 120.987 102.237C121.316 101.909 121.5 101.464 121.5 101V91.375C121.964 91.375 122.409 91.1906 122.737 90.8624C123.066 90.5342 123.25 90.0891 123.25 89.625V87C123.25 86.5359 123.066 86.0908 122.737 85.7626C122.409 85.4344 121.964 85.25 121.5 85.25ZM119.75 101H102.25V91.375H119.75V101ZM121.5 89.625H100.5V87H121.5V89.625ZM107.5 94.875C107.5 94.6429 107.592 94.4204 107.756 94.2563C107.92 94.0922 108.143 94 108.375 94H113.625C113.857 94 114.08 94.0922 114.244 94.2563C114.408 94.4204 114.5 94.6429 114.5 94.875C114.5 95.1071 114.408 95.3296 114.244 95.4937C114.08 95.6578 113.857 95.75 113.625 95.75H108.375C108.143 95.75 107.92 95.6578 107.756 95.4937C107.592 95.3296 107.5 95.1071 107.5 94.875Z";
 
+function DepartmentsGlyph({ className = "lp-click-folder-box-icon" }) {
+  return (
+    <svg className={className} viewBox="0 0 51 49" fill="none" aria-hidden>
+      <path d="M4.5 42.5L12.5004 37.5" stroke="currentColor" strokeOpacity="0.35" strokeWidth="2" strokeLinecap="round" />
+      <path d="M35.5 11H11.5C10.9477 11 10.5 11.4477 10.5 12V15C10.5 15.5523 10.9477 16 11.5 16H35.5C36.0523 16 36.5 15.5523 36.5 15V12C36.5 11.4477 36.0523 11 35.5 11Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M34.5 16V28M34.5 28C34.5 28.2652 34.3946 28.5196 34.2071 28.7071C34.0196 28.8946 33.7652 29 33.5 29H13.5C13.2348 29 12.9804 28.8946 12.7929 28.7071C12.6054 28.5196 12.5 28.2652 12.5 28M34.5 28V42M12.5 28V16M34.5 38V42H12.5V28" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M20.5 21H26.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M20.5 34H26.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M35 37L47 42" stroke="currentColor" strokeOpacity="0.35" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ClickFolderIcon({ variant, className = "lp-click-folder-box-icon" }) {
-  if (variant === "knowledge" || variant === "departments") {
+  if (variant === "departments") {
+    return <DepartmentsGlyph className={className} />;
+  }
+
+  if (variant === "knowledge") {
     return (
       <img
-        src={variant === "departments" ? "/uploads/Departments.svg" : "/uploads/botones/FloppyDisk.svg"}
+        src="/uploads/botones/FloppyDisk.svg"
         alt=""
         aria-hidden
         className={`${className} lp-click-folder-box-icon-img`}
@@ -773,7 +790,7 @@ function DocNodesBlockCard({
               ) : (
                 <>
                   <DocListTitle doc={doc} />
-                  {(doc?.category || "").trim() ? (
+                  {(doc?.departmentId || "").trim() && (doc?.category || "").trim() ? (
                     <span className="lp-folder-category-chip">{(doc.category || "").trim()}</span>
                   ) : null}
                 </>
@@ -3102,12 +3119,7 @@ export function LeftPanel({
                       {t("sidebar.departmentFilterLabel")}
                     </label>
                     <div className="lp-department-filter__control">
-                      <img
-                        src="/uploads/Departments.svg"
-                        alt=""
-                        aria-hidden
-                        className="lp-department-filter__icon"
-                      />
+                      <DepartmentsGlyph className="lp-department-filter__icon" />
                       <select
                         id="lp-department-filter"
                         className="lp-department-filter__select"
@@ -3126,12 +3138,7 @@ export function LeftPanel({
                 ) : (
                   <div className="lp-department-filter">
                     <div className="lp-department-filter__control">
-                      <img
-                        src="/uploads/Departments.svg"
-                        alt=""
-                        aria-hidden
-                        className="lp-department-filter__icon"
-                      />
+                      <DepartmentsGlyph className="lp-department-filter__icon" />
                       <select
                         className="lp-department-filter__select"
                         disabled
