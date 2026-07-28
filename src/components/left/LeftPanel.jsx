@@ -3101,30 +3101,46 @@ export function LeftPanel({
                     <label className="sr-only" htmlFor="lp-department-filter">
                       {t("sidebar.departmentFilterLabel")}
                     </label>
-                    <select
-                      id="lp-department-filter"
-                      className="lp-department-filter__select"
-                      value={departmentFilterId}
-                      onChange={(e) => setDepartmentFilterId(e.target.value)}
-                    >
-                      <option value="">{t("sidebar.departmentFilterAll")}</option>
-                      {departmentFilterOptions.map((dept) => (
-                        <option key={dept.id} value={dept.id}>
-                          {dept.category || t("sidebar.departmentsTitle")}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="lp-department-filter__control">
+                      <img
+                        src="/uploads/Departments.svg"
+                        alt=""
+                        aria-hidden
+                        className="lp-department-filter__icon"
+                      />
+                      <select
+                        id="lp-department-filter"
+                        className="lp-department-filter__select"
+                        value={departmentFilterId}
+                        onChange={(e) => setDepartmentFilterId(e.target.value)}
+                      >
+                        <option value="">{t("sidebar.departmentFilterAll")}</option>
+                        {departmentFilterOptions.map((dept) => (
+                          <option key={dept.id} value={dept.id}>
+                            {dept.category || t("sidebar.departmentsTitle")}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 ) : (
                   <div className="lp-department-filter">
-                    <select
-                      className="lp-department-filter__select"
-                      disabled
-                      value=""
-                      aria-label={t("sidebar.departmentFilterLabel")}
-                    >
-                      <option value="">{t("sidebar.departmentParentEmptyHint")}</option>
-                    </select>
+                    <div className="lp-department-filter__control">
+                      <img
+                        src="/uploads/Departments.svg"
+                        alt=""
+                        aria-hidden
+                        className="lp-department-filter__icon"
+                      />
+                      <select
+                        className="lp-department-filter__select"
+                        disabled
+                        value=""
+                        aria-label={t("sidebar.departmentFilterLabel")}
+                      >
+                        <option value="">{t("sidebar.departmentParentEmptyHint")}</option>
+                      </select>
+                    </div>
                   </div>
                 )}
                 {folderBulkDeleteMode ? (

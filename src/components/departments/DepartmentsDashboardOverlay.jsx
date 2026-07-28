@@ -8,19 +8,13 @@ const DEPT_BG_SRC = "/uploads/department-img.png";
 
 /**
  * Floating department table.
- * Create: name first → Save records the room → then categories unlock.
- * Edit: rename, add/remove tags, delete department.
- *
- * @param {Object} props
- * @param {{ mode: 'create'|'edit', departmentId?: string|null, objectId?: string|null }|null} props.session
- * @param {(next: { mode: 'edit', departmentId: string, objectId?: string|null }) => void} [props.onSessionChange]
- * @param {() => void} props.onClose
+ * Create: Department name + Save → then categories unlock.
+ * Edit: name locked (gray); tags emphasized; delete department.
  */
 export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose }) {
   const { t } = useI18n();
   const departments = useDepartmentsStore((s) => s.departments);
   const createDepartment = useDepartmentsStore((s) => s.createDepartment);
-  const updateDepartment = useDepartmentsStore((s) => s.updateDepartment);
   const addSubcategory = useDepartmentsStore((s) => s.addSubcategory);
   const removeSubcategory = useDepartmentsStore((s) => s.removeSubcategory);
   const deleteDepartment = useDepartmentsStore((s) => s.deleteDepartment);
@@ -33,12 +27,14 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
 
   const [name, setName] = useState("");
   const [tagDraft, setTagDraft] = useState("");
+  const [draftTags, setDraftTags] = useState([]);
 
   useEffect(() => {
     if (!session) return;
     if (session.mode === "create") {
       setName("");
       setTagDraft("");
+      setDraftTags([]);
       return;
     }
     const dept = findDepartmentById(
@@ -47,6 +43,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     );
     setName(dept?.category || "");
     setTagDraft("");
+    setDraftTags(Array.isArray(dept?.subcategories) ? [...dept.subcategories] : []);
   }, [session]);
 
   useEffect(() => {
@@ -62,41 +59,34 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
   if (!session) return null;
   if (!isCreate && !existing) return null;
 
-  const tags = existing?.subcategories || [];
+  const tags = isCreate ? [] : draftTags;
   const tagsEnabled = Boolean(existing);
+  const recordedName = existing?.category || name;
 
   const addTag = () => {
-    if (!existing) return;
     const label = tagDraft.trim().slice(0, 50);
     if (!label) return;
-    addSubcategory(existing.id, label);
+    setDraftTags((prev) => (prev.includes(label) ? prev : [...prev, label]));
     setTagDraft("");
   };
 
   const removeTag = (label) => {
-    if (!existing) return;
-    removeSubcategory(existing.id, label);
+    setDraftTags((prev) => prev.filter((item) => item !== label));
   };
 
-  const handleSave = () => {
+  const handleSaveCreate = () => {
     const category = name.trim();
     if (!category) return;
-    if (isCreate) {
-      const created = createDepartment({
-        objectId: session.objectId ?? null,
-        category,
-        subcategories: [],
-      });
-      // Stay open — unlock categories after the room is recorded.
-      onSessionChange?.({
-        mode: "edit",
-        departmentId: created.id,
-        objectId: session.objectId ?? null,
-      });
-      return;
-    }
-    updateDepartment(existing.id, { category });
-    onClose?.();
+    const created = createDepartment({
+      objectId: session.objectId ?? null,
+      category,
+      subcategories: [],
+    });
+    onSessionChange?.({
+      mode: "edit",
+      departmentId: created.id,
+      objectId: session.objectId ?? null,
+    });
   };
 
   const handleDelete = () => {
@@ -105,13 +95,27 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     onClose?.();
   };
 
+  const handleSaveEdit = () => {
+    if (!existing) return;
+    const currentTags = Array.isArray(existing.subcategories) ? existing.subcategories : [];
+    const toRemove = currentTags.filter((tag) => !draftTags.includes(tag));
+    const toAdd = draftTags.filter((tag) => !currentTags.includes(tag));
+
+    toRemove.forEach((tag) => removeSubcategory(existing.id, tag));
+    toAdd.forEach((tag) => addSubcategory(existing.id, tag));
+    onClose?.();
+  };
+
   const title = isCreate
     ? t("sidebar.departmentCreateTitle")
-    : (existing?.category || t("sidebar.departmentsTitle"));
+    : t("sidebar.departmentOf", { name: recordedName || t("sidebar.departmentsTitle") });
 
   return createPortal(
     <div
-      className="departments-dashboard-overlay"
+      className={
+        "departments-dashboard-overlay" +
+        (isCreate ? "" : " departments-dashboard-overlay--edit")
+      }
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -136,9 +140,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
               aria-hidden
               className="departments-dashboard-overlay__icon"
             />
-            <h2 className="departments-dashboard-overlay__title">
-              {isCreate ? t("sidebar.departmentCreateTitle") : title}
-            </h2>
+            <h2 className="departments-dashboard-overlay__title">{title}</h2>
           </div>
           <button
             type="button"
@@ -163,19 +165,32 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
 
           <div className="departments-dashboard-table">
             <div className="departments-dashboard-table__row">
-              <span className="departments-dashboard-table__k">{t("meta.category")}</span>
-              <input
-                type="text"
-                className="departments-dashboard-table__input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("sidebar.departmentCreatePlaceholder")}
-                autoFocus
-                aria-label={t("meta.category")}
-              />
+              <span className="departments-dashboard-table__k">
+                {t("sidebar.departmentFieldLabel")}:
+              </span>
+              {isCreate ? (
+                <input
+                  type="text"
+                  className="departments-dashboard-table__input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t("sidebar.departmentCreatePlaceholder")}
+                  autoFocus
+                  aria-label={t("sidebar.departmentFieldLabel")}
+                />
+              ) : (
+                <span
+                  className="departments-dashboard-table__recorded"
+                  title={t("sidebar.departmentNameLocked")}
+                >
+                  {recordedName}
+                </span>
+              )}
             </div>
             <div className="departments-dashboard-table__row departments-dashboard-table__row--tags">
-              <span className="departments-dashboard-table__k">{t("meta.subcategories")}</span>
+              <span className="departments-dashboard-table__k">
+                {t("sidebar.departmentCategoriesLabel")}:
+              </span>
               <div className="departments-dashboard-table__tags">
                 {tagsEnabled ? (
                   <>
@@ -206,6 +221,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                         }}
                         placeholder={t("sidebar.departmentTagPlaceholder")}
                         aria-label={t("sidebar.departmentTagPlaceholder")}
+                        autoFocus
                       />
                       <button
                         type="button"
@@ -218,7 +234,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                     </div>
                   </>
                 ) : (
-                  <p className="departments-dashboard-table__locked dim">
+                  <p className="departments-dashboard-table__locked">
                     {t("sidebar.departmentTagsLocked")}
                   </p>
                 )}
@@ -240,14 +256,11 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
             <span />
           )}
           <div className="departments-dashboard-overlay__footer-actions">
-            <button type="button" className="btn xs ghost" onClick={onClose}>
-              {existing ? t("common.back") : t("common.cancel")}
-            </button>
             <button
               type="button"
               className="departments-dashboard-overlay__save"
-              disabled={!name.trim()}
-              onClick={handleSave}
+              disabled={isCreate ? !name.trim() : false}
+              onClick={isCreate ? handleSaveCreate : handleSaveEdit}
             >
               {t("common.save")}
             </button>
