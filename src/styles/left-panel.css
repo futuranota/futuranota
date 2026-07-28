@@ -1838,21 +1838,23 @@
   background: #fff;
 }
 
-/* Category tags — sky blue, no stroke; bg hugs text height */
+/* Category tags — smaller than title (11px); left pad for text room, right fit kept */
 .lp-folder-category-chip {
   display: inline-flex;
   align-items: center;
   margin-left: 5px;
-  padding: 0 4px;
-  border-radius: 999px;
+  height: 10px;
+  padding: 0 4px 0 4px;
+  border-radius: 5px;
   border: none;
-  background: rgba(125, 211, 252, 0.14);
-  color: #bae6fd;
+  background: #253642;
+  color: #B9E5FE;
   font-family: var(--sans);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 500;
-  line-height: 1.15;
-  height: 1.15em;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   vertical-align: middle;
   box-sizing: border-box;
 }
