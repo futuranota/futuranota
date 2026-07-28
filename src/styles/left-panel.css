@@ -1838,13 +1838,15 @@
   background: #fff;
 }
 
-/* Category tags — smaller than title (11px); left pad for text room, right fit kept */
+/* Category tags — same max height; sits lower so top meets mid line of title */
 .lp-folder-category-chip {
   display: inline-flex;
   align-items: center;
+  align-self: flex-start;
   margin-left: 5px;
+  margin-top: 5px; /* ~half of title 11px → top of chip at title mid-line */
   height: 10px;
-  padding: 0 4px 0 4px;
+  padding: 0 4px;
   border-radius: 5px;
   border: none;
   background: #253642;
@@ -1855,7 +1857,6 @@
   line-height: 1;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  vertical-align: middle;
   box-sizing: border-box;
 }
 
