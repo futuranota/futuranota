@@ -4001,6 +4001,17 @@
   margin-top: 2px;
 }
 
+.doc-meta-chip--status-only {
+  justify-content: center;
+  align-items: center;
+}
+
+.doc-meta-chip--status-only .doc-meta-status-badge {
+  margin-top: 0;
+  width: 58px;
+  height: 19px;
+}
+
 .doc-meta-status-pill {
   display: none;
 }

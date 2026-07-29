@@ -26,7 +26,7 @@ import { resolveFolderStatus } from "../../lib/folderStatus.js";
 const SCHEDULE_INFO_ICON = "/uploads/Info.svg";
 
 const FOLDER_STATUS_ICON = {
-  not_started: "/uploads/not-started.svg",
+  not_started: "/uploads/not-started.svg?v=dash-blue",
   pending: "/uploads/pending.svg",
   completed: "/uploads/completed.svg",
 };
@@ -93,31 +93,39 @@ function MetaChip({
   }, [infoOpen]);
 
   return (
-    <div className="doc-meta-chip" title={!empty && !infoText ? String(value) : undefined}>
-      <span className="doc-meta-chip-k">
-        {label}
-        {infoText ? (
-          <span className="doc-meta-chip-info" ref={infoRef}>
-            <button
-              type="button"
-              className="doc-meta-chip-info__btn"
-              aria-label={infoAria || label}
-              aria-expanded={infoOpen}
-              onClick={(e) => {
-                e.stopPropagation();
-                setInfoOpen((v) => !v);
-              }}
-            >
-              <img src={SCHEDULE_INFO_ICON} alt="" aria-hidden className="doc-meta-chip-info__icon" />
-            </button>
-            {infoOpen ? (
-              <div className="doc-meta-chip-info__pop" role="dialog" aria-label={infoAria || label}>
-                {infoText}
-              </div>
-            ) : null}
-          </span>
-        ) : null}
-      </span>
+    <div
+      className={
+        "doc-meta-chip"
+        + (statusTone && !empty ? " doc-meta-chip--status-only" : "")
+      }
+      title={!empty && !infoText ? String(value) : undefined}
+    >
+      {!(statusTone && !empty) ? (
+        <span className="doc-meta-chip-k">
+          {label}
+          {infoText ? (
+            <span className="doc-meta-chip-info" ref={infoRef}>
+              <button
+                type="button"
+                className="doc-meta-chip-info__btn"
+                aria-label={infoAria || label}
+                aria-expanded={infoOpen}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInfoOpen((v) => !v);
+                }}
+              >
+                <img src={SCHEDULE_INFO_ICON} alt="" aria-hidden className="doc-meta-chip-info__icon" />
+              </button>
+              {infoOpen ? (
+                <div className="doc-meta-chip-info__pop" role="dialog" aria-label={infoAria || label}>
+                  {infoText}
+                </div>
+              ) : null}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
       {asTag && !empty ? (
         <span className="doc-product-category-tag doc-product-category-tag--summary">{display}</span>
       ) : statusTone && !empty ? (
