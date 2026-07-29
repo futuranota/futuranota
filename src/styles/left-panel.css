@@ -5595,6 +5595,47 @@
   scrollbar-color: rgb(22, 26, 29) rgb(22, 26, 29);
 }
 
+/* Click-to-write empty-folder layer: covers placeholder until first interaction. */
+.doc-folder-empty-room {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--doc-body-track, #151515);
+  cursor: text;
+  appearance: none;
+}
+
+.doc-folder-empty-room:focus-visible {
+  outline: 1px solid color-mix(in oklab, var(--text) 28%, transparent);
+  outline-offset: -1px;
+}
+
+.doc-folder-empty-room__image {
+  display: block;
+  width: min(209px, 58%);
+  height: auto;
+  max-width: 209px;
+  max-height: min(209px, 72%);
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.92;
+}
+
+.doc-new-content-scroll > .doc-body-field-wrap,
+.doc-new-content-scroll > .doc-block-stack,
+.doc-new-content-scroll > .doc-knowledge-import-hint {
+  position: relative;
+  z-index: 1;
+}
+
 .doc-inplace-select-wrap {
   position: relative;
 }

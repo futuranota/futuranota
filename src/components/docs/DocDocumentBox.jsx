@@ -3,6 +3,7 @@ import { DOC_FILE_TXT_ICON } from "../../lib/docMediumAssets.js";
 import {
   createDocBlock,
   DOC_BLOCK_TYPES,
+  docBlocksHaveContent,
   docBlocksToBody,
   hasProductCardBlock,
   normalizeDocBlocks,
@@ -44,6 +45,7 @@ import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
 /** Long enough for the Mark write cycle to read while saving. */
 const SAVE_LOADING_MIN_MS = 700;
+const FOLDER_EMPTY_ROOM_SRC = "/uploads/room.svg";
 
 const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;
@@ -205,6 +207,7 @@ export function DocDocumentBox({
   const [focusBlockId, setFocusBlockId] = useState(null);
   const [knowledgeHintDismissed, setKnowledgeHintDismissed] = useState(false);
   const [contentFocusMode, setContentFocusMode] = useState(false);
+  const [folderEmptyRoomDismissed, setFolderEmptyRoomDismissed] = useState(false);
   const [hasManualBoxHeight, setHasManualBoxHeight] = useState(false);
   const [contentBoxResizing, setContentBoxResizing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -229,6 +232,7 @@ export function DocDocumentBox({
 
   useEffect(() => {
     setContentFocusMode(false);
+    setFolderEmptyRoomDismissed(false);
     setIsSaving(false);
     setHasManualBoxHeight(false);
     contentBoxManualHeightRef.current = null;
@@ -273,6 +277,29 @@ export function DocDocumentBox({
     () => normalizedBlocks.map((b) => `${b.id}:${b.type}`).join("|"),
     [normalizedBlocks],
   );
+  /** Empty folder canvas: no typed body, no authored blocks, no created docs. */
+  const showFolderEmptyRoom = useMemo(() => {
+    if (!isFolderSlashSurface) return false;
+    if (folderEmptyRoomDismissed) return false;
+    if (folderTaskTotal > 0 || linkedNodeCount > 0) return false;
+    if (String(body || "").trim()) return false;
+    if (docBlocksHaveContent(normalizedBlocks)) return false;
+    const hasStructure = normalizedBlocks.some(
+      (block) => block.type !== DOC_BLOCK_TYPES.TEXT || Boolean(block?.embedded?.kind),
+    );
+    if (hasStructure) return false;
+    if (normalizedBlocks.some((block) => Boolean(block?.nodeId) || Boolean(block?.macronodeHeading))) {
+      return false;
+    }
+    return true;
+  }, [
+    isFolderSlashSurface,
+    folderEmptyRoomDismissed,
+    folderTaskTotal,
+    linkedNodeCount,
+    body,
+    normalizedBlocks,
+  ]);
   const knowledgeNotesFilled = knowledgeNotesHasContent(
     body,
     normalizedBlocks,
@@ -357,6 +384,11 @@ export function DocDocumentBox({
     }
     scroll.focus({ preventScroll: true });
   }, []);
+
+  const revealEmptyFolderEditor = useCallback(() => {
+    setFolderEmptyRoomDismissed(true);
+    requestAnimationFrame(focusContentArea);
+  }, [focusContentArea]);
 
   const syncBodyHeightUncapped = useCallback(() => {
     const el = bodyRef.current;
@@ -880,6 +912,22 @@ export function DocDocumentBox({
                 {t("sidebar.knowledgeImportHintDismiss")}
               </button>
             </div>
+          ) : null}
+          {showFolderEmptyRoom ? (
+            <button
+              type="button"
+              className="doc-folder-empty-room"
+              onClick={revealEmptyFolderEditor}
+              aria-label="Start writing in this folder"
+            >
+              <img
+                className="doc-folder-empty-room__image"
+                src={FOLDER_EMPTY_ROOM_SRC}
+                alt=""
+                aria-hidden
+                draggable={false}
+              />
+            </button>
           ) : null}
           {hasBlocks ? (
             <DocBlockStack
