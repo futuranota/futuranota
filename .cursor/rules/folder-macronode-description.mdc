@@ -15,11 +15,12 @@ Futura Nota serves novelists, storytellers, and teams using storytelling for a b
 | **Descriptive** | Left panel → **Create a new Document** | Title + `Description: {excerpt}` + `continue reading`; no color handle | `continue reading` |
 | **Color link** | Inside open folder → **Create a document** | Title + color-link handle only; no Description or `continue reading` | Color handle |
 
-Do not expose two open actions on the color-link model. A future chooser may switch between these models, so preserve `hideColorLink` as the presentation discriminator.
+Do not expose two open actions on the color-link model. Folder `viewMode` (`story` | `quick`) now drives open-folder presentation for all linked docs; keep `hideColorLink` as the fallback discriminator when `folderViewMode` is not passed.
 
 ## Source of truth
 - Descriptive creation sets `parentDocId`; `syncNodeToParentDoc` inserts/updates a linked H1/TODO with `hideColorLink: true`.
 - Inside-folder creation keeps `hideColorLink: false` and the visible color handle.
+- Open-folder rendering prefers folder `viewMode` over per-block `hideColorLink` (presentation only; do not rewrite blocks on switch).
 - This must work for every folder document, not a one-off title.
 
 ## Where Description appears

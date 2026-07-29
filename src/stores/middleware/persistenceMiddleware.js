@@ -1360,6 +1360,7 @@ export function initPersistenceMiddleware(stores) {
           campaignActive: Boolean(camp.campaign_active),
           timelineSourceNodeId: timelineSourceNodeIdFromPersistedDoc(camp),
           nodeLinkColor: camp.node_link_color || "mint",
+          viewMode: camp.view_mode === "quick" ? "quick" : "story",
           knowledgeImport: stripTimelineSourceFromKnowledgeImport(camp.knowledge_import),
         };
         if (camp.company_id && objects[camp.company_id]) {
@@ -1723,6 +1724,7 @@ export function initPersistenceMiddleware(stores) {
           || null,
         campaign_active: Boolean(doc.campaignActive),
         node_link_color: doc.nodeLinkColor || "mint",
+        view_mode: doc.viewMode === "quick" ? "quick" : "story",
         knowledge_import: knowledgeImportWithTimelineSource(doc),
         created_at: doc.createdAt || now,
         updated_at: doc.updatedAt || now,

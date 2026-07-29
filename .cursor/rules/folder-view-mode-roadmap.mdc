@@ -1,0 +1,44 @@
+---
+description: Roadmap for per-folder Story and Quick document presentation modes
+globs: src/components/{docs,left,folders}/**/*.{js,jsx},src/stores/**/*.{js,jsx},src/lib/**/*.{js,jsx},supabase_*.sql
+alwaysApply: false
+---
+
+# Folder View Mode roadmap
+
+## Product decision
+Add a per-folder `viewMode`: `"story"` (default) or `"quick"`.
+
+- **Story View (Descriptive)**: title + Description excerpt + `continue reading`; no color handle.
+- **Quick View**: title + direct color-link handle only; no Description or duplicate open action.
+- Audience: novelists, storytellers, and business storytelling teams.
+- Each folder keeps an independent persisted preference.
+- **No first-folder onboarding.** Story is the default for new and existing folders until Settings changes it.
+
+## Current architecture mapping
+The external brief's names are conceptual, not literal:
+
+- UI **folders** are entities in `useDocsStore`; Supabase persists them in `public.campaigns`, not a `folders` table.
+- SQL column `campaigns.view_mode TEXT NOT NULL DEFAULT 'story'` with a `story|quick` check (`supabase_folder_view_mode.sql`).
+- Map DB `view_mode` to JS `viewMode` in `persistenceMiddleware.js`, normalization, hydrate, and upsert.
+- Do not introduce `useFolderStore` unless architecture is deliberately refactored; use `docsStore.updateDoc`.
+- This repo uses JSX/CSS; surfaces use `#151515`.
+
+## UX flows
+1. **Creation** stays toggle → “Create a new Document”. No view chooser at create time.
+2. **Open folder**: meta strip toggle reveals a **Settings** field (with `/uploads/settings.svg` in gray) that opens a table-style chooser card with close (`×`), Escape, and outside-click dismiss.
+3. Different folders may use different modes.
+4. Assets: `/uploads/storybook.svg` (Descriptive), `/uploads/links-type.svg` (Quick).
+
+## Rendering contract
+- Folder `viewMode` drives presentation in `DocBlockStack` (passed from `DocExpandedView` → `DocDocumentBox`).
+- Story: hide color handle; show `LinkedMacronodeDescription` + continue reading.
+- Quick: show color handle; hide Description / continue reading.
+- Keep `hideColorLink` as fallback for surfaces that do not pass `folderViewMode`.
+- Switching modes is presentation-only: do not rewrite blocks, delete content, or touch node links, status, schedule, or parent relationships.
+
+## Implementation scope
+- Supabase migration + persistence/normalization support.
+- Settings selector in `src/components/docs/FolderViewModeSettings.jsx`, mounted from open-folder `DocMetaStrip` drawer (not the sidebar card expand).
+- Derive linked H1/TODO presentation from folder `viewMode`.
+- Verify Story default, immediate switch, reload persistence, independent folders, a11y (keyboard / outside close / ×), and Vite build.

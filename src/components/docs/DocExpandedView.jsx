@@ -2214,6 +2214,10 @@ export function DocExpandedView({
           reportPresentation={doc?.reportPresentation ?? null}
           onReportAnimationComplete={handleReportAnimationComplete}
           onSavedStepSequenceRemoved={persistBlocksAfterPlaybookRemoval}
+          folderViewMode={doc?.viewMode}
+          onFolderViewModeChange={isContentMode ? (nextMode) => {
+            updateDoc(doc.id, { viewMode: nextMode });
+          } : undefined}
         />
         ) : null}
       </div>

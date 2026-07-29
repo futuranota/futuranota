@@ -245,6 +245,20 @@ export const messages = {
       childScheduleRequiredBody:
         "This folder has an active schedule. Assign a date and time to this document before closing the panel.",
       childScheduleCloseWithoutSave: "close & not save",
+      settings: "Settings",
+      folderViewSettingsAria: "Folder document view",
+      folderViewClose: "Close settings",
+      folderViewStoryShort: "Descriptive",
+      folderViewQuickShort: "Quick",
+      folderViewStoryTitle: "Descriptive View",
+      folderViewStoryTagline: "Tell me what it's about",
+      folderViewStoryStructure: "Título + Descripción + Link",
+      folderViewStoryBody:
+        "Obtén contexto completo. Ve de qué trata cada documento antes de abrirlo.",
+      folderViewQuickTitle: "Quick View",
+      folderViewQuickTagline: "Just get me there",
+      folderViewQuickStructure: "Título + Link Directo",
+      folderViewQuickBody: "Acceso rápido. Navega directo a lo que necesitas.",
     },
     timeline: {
       title: "Timeline",
@@ -1300,6 +1314,20 @@ export const messages = {
       childScheduleRequiredBody:
         "This folder has an active schedule. Assign a date and time to this document before closing the panel.",
       childScheduleCloseWithoutSave: "close & not save",
+      settings: "Settings",
+      folderViewSettingsAria: "Folder document view",
+      folderViewClose: "Close settings",
+      folderViewStoryShort: "Descriptive",
+      folderViewQuickShort: "Quick",
+      folderViewStoryTitle: "Descriptive View",
+      folderViewStoryTagline: "Tell me what it's about",
+      folderViewStoryStructure: "Título + Descripción + Link",
+      folderViewStoryBody:
+        "Obtén contexto completo. Ve de qué trata cada documento antes de abrirlo.",
+      folderViewQuickTitle: "Quick View",
+      folderViewQuickTagline: "Just get me there",
+      folderViewQuickStructure: "Título + Link Directo",
+      folderViewQuickBody: "Acceso rápido. Navega directo a lo que necesitas.",
     },
     timeline: {
       title: "Timeline",

@@ -101,6 +101,15 @@ import { H2BlockView } from "./H2BlockView.jsx";
 import { H3BlockView } from "./H3BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
 import { LinkedMacronodeDescription } from "../LinkedMacronodeDescription.jsx";
+import { isFolderStoryView } from "../../../lib/folderViewMode.js";
+
+/** Folder viewMode drives presentation; hideColorLink remains the fallback. */
+function linkedBlockUsesStoryPresentation(block, folderViewMode) {
+  if (folderViewMode != null && folderViewMode !== "") {
+    return isFolderStoryView(folderViewMode);
+  }
+  return Boolean(block?.hideColorLink);
+}
 
 function findLastDocVaultBlockIndex(blocks, blockType) {
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
@@ -201,6 +210,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   companyObjectId = null,
   slashCommands = DOCUMENT_SLASH_COMMANDS,
   slashGhostHints = DOCUMENT_SLASH_GHOST_HINTS,
+  folderViewMode = null,
 }, ref) {
   const { t } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -1826,7 +1836,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 linksEnabled={
                   Boolean(block.macronodeHeading)
                   && blockLinksEnabled(block)
-                  && !block.hideColorLink
+                  && !linkedBlockUsesStoryPresentation(block, folderViewMode)
                 }
                 ghostHints={slashGhostHints}
                 onFocus={() => {
@@ -1836,7 +1846,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 onQueryHandleClick={() => handleQueryHandleClick(index)}
                 onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
               />
-              {isDocBlockLinkedToNode(block) && block.hideColorLink ? (
+              {isDocBlockLinkedToNode(block) && linkedBlockUsesStoryPresentation(block, folderViewMode) ? (
                 <LinkedMacronodeDescription
                   nodeId={block.nodeId}
                   onContinue={() => handleQueryHandleClick(index)}
@@ -2350,7 +2360,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 }}
                 queryEnabled={Boolean(block.queryEnabled)}
                 nodeLinkColor={blockLinkColor(block)}
-                linksEnabled={blockLinksEnabled(block) && !block.hideColorLink}
+                linksEnabled={
+                  blockLinksEnabled(block)
+                  && !linkedBlockUsesStoryPresentation(block, folderViewMode)
+                }
                 onFocus={() => {
                   if (collapsedPadWriteByOwnerId[block.id]) return;
                   onFocusBlock?.(block.id);
@@ -2373,7 +2386,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     : null
                 }
               />
-              {isDocBlockLinkedToNode(block) && block.hideColorLink ? (
+              {isDocBlockLinkedToNode(block) && linkedBlockUsesStoryPresentation(block, folderViewMode) ? (
                 <LinkedMacronodeDescription
                   nodeId={block.nodeId}
                   onContinue={() => handleQueryHandleClick(index)}

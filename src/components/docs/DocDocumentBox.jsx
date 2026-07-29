@@ -129,6 +129,8 @@ export function DocDocumentBox({
   knowledgeImport = null,
   reportPresentation = null,
   onReportAnimationComplete = null,
+  folderViewMode = null,
+  onFolderViewModeChange = null,
 }) {
   const { t } = useI18n();
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
@@ -866,6 +868,8 @@ export function DocDocumentBox({
           onKnowledgeFileImport={onKnowledgeFileImport}
           knowledgeImport={knowledgeImport}
           hasKnowledgeImport={knowledgeImportActive}
+          folderViewMode={isContentMode ? folderViewMode : null}
+          onFolderViewModeChange={isContentMode ? onFolderViewModeChange : null}
         />
       )}
 
@@ -955,6 +959,7 @@ export function DocDocumentBox({
               onReportAnimationComplete={onReportAnimationComplete}
               slashCommands={slashCommands}
               slashGhostHints={slashGhostHints}
+              folderViewMode={folderViewMode}
             />
           ) : (
             <div

@@ -89,6 +89,7 @@ export const useDocsStore = create(
               campaignActive: Boolean(campaign.campaignActive),
               timelineSourceNodeId: campaign.timelineSourceNodeId ?? null,
               nodeLinkColor: campaign.nodeLinkColor,
+              viewMode: campaign.viewMode,
               knowledgeImport: campaign.knowledgeImport ?? null,
               reportPresentation: campaign.reportPresentation ?? null,
             }),

@@ -27,6 +27,7 @@ import {
   findDepartmentById,
   getCategoryDescription,
 } from "../../lib/departments.js";
+import { FolderViewModeSettings } from "./FolderViewModeSettings.jsx";
 
 const SCHEDULE_INFO_ICON = "/uploads/Info.svg";
 
@@ -333,6 +334,8 @@ export function DocMetaStrip({
   onKnowledgeFileImport,
   knowledgeImport = null,
   hasKnowledgeImport = false,
+  folderViewMode = null,
+  onFolderViewModeChange = null,
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -618,6 +621,14 @@ export function DocMetaStrip({
                   </div>
                 </>
               )}
+              {onFolderViewModeChange ? (
+                <div className="doc-meta-field doc-meta-field--folder-view">
+                  <FolderViewModeSettings
+                    viewMode={folderViewMode}
+                    onViewModeChange={onFolderViewModeChange}
+                  />
+                </div>
+              ) : null}
             </>
           ) : null}
 
