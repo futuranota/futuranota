@@ -476,6 +476,7 @@ export const messages = {
       documentTitle: "Document title",
       writeDescription: "Write your description",
       categoryFileBox: "Describe Folder",
+      folderTitlePlaceholder: "Folder title (e.g. Marketing)",
       newProduct: "New product",
       newKnowledge: "New knowledge",
       newDocument: "New document",

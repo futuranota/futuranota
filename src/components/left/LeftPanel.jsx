@@ -1314,7 +1314,7 @@ function DocCreateModal({
       ? (formatProductDocTitle(finalCategory || productName, version.trim()) || productName || t("sidebar.newProduct"))
       : isKnowledgeMode
         ? (finalCategory || title.trim() || t("sidebar.newKnowledge"))
-        : (title.trim() || finalCategory || t("sidebar.newDocument"));
+        : (title.trim() || t("sidebar.newDocument"));
     const autoTags = isKnowledgeMode ? [] : (parentObject?.name ? [parentObject.name] : []);
     const serializedBody = docBlocksToBody(blocks) || body;
 
@@ -1382,7 +1382,7 @@ function DocCreateModal({
               : isKnowledgeMode
                 ? t("sidebar.documentTitle")
                 : isContentMode
-                  ? t("sidebar.categoryFileBox")
+                  ? t("sidebar.folderTitlePlaceholder")
                   : t("sidebar.writeDescription")
           }
           body={body}
@@ -1435,6 +1435,7 @@ function DocCreateModal({
           objects={objects}
           docKind={docKind}
           metaMode={metaMode}
+          saveDisabled={isContentMode && !title.trim()}
           onDelete={requestClose}
           onSave={submitDoc}
           onCloseExpand={requestClose}

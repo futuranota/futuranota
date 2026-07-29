@@ -34,6 +34,7 @@ import {
 } from "../../lib/folderScheduleReservation.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
+import { nodeDraftContentForStorage } from "../../lib/nodeInlineContent.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
@@ -151,7 +152,7 @@ export function useDocBlockNodeModal({
 
   const persistNodeContentDebounced = (content, context, anchorDate, anchorTime, options = {}) => {
     const { commitSchedule = false } = options;
-    if (isNoNodeLinkMode(blockLinkColor(context.blockIndex))) return;
+    // Body always persists — isNoNodeLinkMode only affects the color-link handle UI.
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
     const block = blocks[blockIndex];
     if (!block || block.type !== blockType) return;
@@ -166,12 +167,16 @@ export function useDocBlockNodeModal({
         : null)
       : undefined;
 
+    const contentForStorage = dataType === NODE_DATA_TYPES.TEXT
+      ? nodeDraftContentForStorage(content, dataType)
+      : content;
+
     const savedNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
       docId,
       blockId,
       query: queryText,
-      content,
+      content: contentForStorage,
       dataType,
       docCreatedAt: isoFromDateInput(createdDate),
       ...(anchorAt !== undefined && !campaignDocMode ? { anchorAt } : {}),
@@ -231,12 +236,12 @@ export function useDocBlockNodeModal({
 
     let nextBlocks = updateBlockAt(blocks, blockIndex, patch);
     if (shouldMirrorNodeContentInDoc(block)) {
-      nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, content, dataType);
+      nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, contentForStorage, dataType);
       if (dataType === NODE_DATA_TYPES.TEXT) {
         nextBlocks = setAnswerBelowH1(
           nextBlocks,
           blockIndex,
-          typeof content === "string" ? content : "",
+          typeof contentForStorage === "string" ? contentForStorage : "",
         );
       }
     }
@@ -250,7 +255,7 @@ export function useDocBlockNodeModal({
         body,
         content: body,
       });
-      syncNodeToParentDoc(savedNodeId, docId);
+      if (savedNodeId) syncNodeToParentDoc(savedNodeId, docId);
     }
   };
 
@@ -342,7 +347,8 @@ export function useDocBlockNodeModal({
     const existing = (ensuredNodeId || block.nodeId) ? getNode(ensuredNodeId || block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block, blocks, blockIndex);
 
-    if (isDocBlockLinkedToNode(block) && existing) {
+    // Linked / Create-a-document bodies live on node.content (not mirrored in the folder).
+    if (existing && (isDocBlockLinkedToNode(block) || block.macronodeHeading)) {
       blockContent = existing.content;
     } else if (block.type === DOC_BLOCK_TYPES.H1 && dataType === NODE_DATA_TYPES.TEXT) {
       const answer = getAnswerBelowH1(blocks, blockIndex);

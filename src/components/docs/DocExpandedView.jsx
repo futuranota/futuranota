@@ -95,6 +95,7 @@ import {
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
+import { nodeDraftContentForStorage } from "../../lib/nodeInlineContent.js";
 
 /** @param {object[]|null|undefined} blocks */
 function docBlocksHaveText(blocks) {
@@ -154,9 +155,9 @@ function resolvePersistTitle({
       || draftTitle.trim()
       || "";
   }
-  // Content folders: free title; category is department subcategory (optional fallback).
+  // Content folders: title and category are independent; never display the tag as title.
   if (kind === DOC_KIND_CONTENT) {
-    return draftTitle.trim() || draftCategory.trim() || "";
+    return draftTitle.trim();
   }
   return draftTitle ?? "";
 }
@@ -1687,7 +1688,8 @@ export function DocExpandedView({
 
   const persistNodeContentDebounced = (content, context, anchorDate, anchorTime, options = {}) => {
     const { commitSchedule = false } = options;
-    if (isNoNodeLinkMode(resolveBlockNodeLinkColor(draftBlocks[context.blockIndex]))) return;
+    // Body always persists — isNoNodeLinkMode only affects the color-link handle UI,
+    // not whether node.content may be written (inside-folder Create a document).
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
     const block = draftBlocks[blockIndex];
     if (!block || block.type !== blockType) return;
@@ -1701,12 +1703,16 @@ export function DocExpandedView({
         : null)
       : undefined;
 
+    const contentForStorage = dataType === NODE_DATA_TYPES.TEXT
+      ? nodeDraftContentForStorage(content, dataType)
+      : content;
+
     const savedNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
       docId: doc.id,
       blockId,
       query: queryText,
-      content,
+      content: contentForStorage,
       dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
       ...(anchorAt !== undefined && !draftCampaignActive ? { anchorAt } : {}),
@@ -1766,12 +1772,12 @@ export function DocExpandedView({
 
     let nextBlocks = updateBlockAt(draftBlocks, blockIndex, patch);
     if (shouldMirrorNodeContentInDoc(block)) {
-      nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, content, dataType);
+      nextBlocks = setContentForNodeBlock(nextBlocks, blockIndex, contentForStorage, dataType);
       if (dataType === NODE_DATA_TYPES.TEXT) {
         nextBlocks = setAnswerBelowH1(
           nextBlocks,
           blockIndex,
-          typeof content === "string" ? content : "",
+          typeof contentForStorage === "string" ? contentForStorage : "",
         );
       }
     }
@@ -1785,13 +1791,14 @@ export function DocExpandedView({
       body,
       content: body,
     });
-    syncNodeToParentDoc(savedNodeId, doc.id);
+    // Refresh Description / excerpt under the H1 in the open folder.
+    if (savedNodeId) syncNodeToParentDoc(savedNodeId, doc.id);
 
     // Only intentional Save/flush advances the discard baseline.
     // Autosave must leave the open snapshot alone so "close & not save" can revert.
     if (commitSchedule) {
       const snap = {
-        content: normalizeNodeContent(content),
+        content: normalizeNodeContent(contentForStorage),
         anchorDate: anchorDate || "",
         anchorTime: anchorTime || "",
         completed: Boolean(nodeDraftCompleted),
@@ -1913,7 +1920,8 @@ export function DocExpandedView({
     const existing = (ensuredNodeId || block.nodeId) ? getNode(ensuredNodeId || block.nodeId) : null;
     let blockContent = getContentForNodeBlock(block, draftBlocks, blockIndex);
 
-    if (isDocBlockLinkedToNode(block) && existing) {
+    // Linked / Create-a-document bodies live on node.content (not mirrored in the folder).
+    if (existing && (isDocBlockLinkedToNode(block) || block.macronodeHeading)) {
       blockContent = existing.content;
     } else if (block.type === DOC_BLOCK_TYPES.H1 && dataType === NODE_DATA_TYPES.TEXT) {
       const answer = getAnswerBelowH1(draftBlocks, blockIndex);

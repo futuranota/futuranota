@@ -88,8 +88,8 @@ export function formatProductSubcategoryLine(doc) {
 export function resolveProductDocDisplayTitle(doc) {
   if (!doc) return "Untitled";
   if (!isProductDoc(doc)) {
-    // Content folders: prefer title; category is department subcategory tag.
-    return doc.title?.trim() || doc.category?.trim() || "Untitled";
+    // Content folders: category is metadata, never a substitute for the folder title.
+    return doc.title?.trim() || "Untitled folder";
   }
   return formatProductDocTitle(doc.category, doc.version)
     || doc.title?.trim()

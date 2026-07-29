@@ -132,9 +132,18 @@ export const DOC_SLASH_COMMANDS = [
     nodeDataType: NODE_DATA_TYPES.TEXT,
   },
   {
-    label: "Create node",
-    ghostHint: "create node",
-    aliases: ["node", "createnode", "macronodo", "createtitle", "title"],
+    label: "Create a document",
+    ghostHint: "create a document",
+    aliases: [
+      "node",
+      "createnode",
+      "createdocument",
+      "createadocument",
+      "document",
+      "macronodo",
+      "createtitle",
+      "title",
+    ],
     blockType: DOC_BLOCK_TYPES.H1,
     nodeDataType: NODE_DATA_TYPES.TEXT,
     allowsNodeLink: true,
@@ -194,7 +203,7 @@ export const FOLDER_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
   (cmd) => Boolean(cmd.macronodeHeading),
 );
 
-/** Documents (and node writing surfaces): all tools except Create node. */
+/** Documents (and node writing surfaces): all tools except Create a document. */
 export const DOCUMENT_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
   (cmd) => !cmd.macronodeHeading,
 );
@@ -267,9 +276,18 @@ export function createDocBlockFromSlash(parsed) {
   if (!parsed?.type) return createDocBlock();
 
   if (parsed.type === DOC_BLOCK_TYPES.H1) {
+    const isMacronodeHeading = Boolean(parsed.macronodeHeading);
     return createDocBlock(DOC_BLOCK_TYPES.H1, {
       title: "",
-      macronodeHeading: Boolean(parsed.macronodeHeading),
+      macronodeHeading: isMacronodeHeading,
+      // Inside-folder Create a document: show color link + allow node create/open.
+      // (dark / no-link would block ensure/open and skip body persistence.)
+      ...(isMacronodeHeading
+        ? {
+            nodeLinkColor: "mint",
+            queryEnabled: true,
+          }
+        : {}),
     });
   }
 

@@ -1910,11 +1910,6 @@
   outline: none;
 }
 
-.lp-department-filter__select--dept:focus,
-.lp-department-filter__select--category:focus:not(:disabled) {
-  color: rgba(185, 229, 254, 0.92);
-}
-
 .lp-department-filter__select option {
   color: #1a1d22;
   background: #fff;

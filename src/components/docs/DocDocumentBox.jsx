@@ -134,7 +134,7 @@ export function DocDocumentBox({
   const isContentMode = metaMode === "content";
   const isKnowledgeMode = metaMode === "knowledge";
   /**
-   * Folders: Create node only. Writing toolkit (image-split, …) lives in documents/macronodes.
+   * Folders: Create a document only. Writing toolkit (image-split, …) lives in documents/macronodes.
    */
   const isFolderSlashSurface = metaMode === "content" || docKind === "content";
   const slashCommands = isFolderSlashSurface ? FOLDER_SLASH_COMMANDS : DOCUMENT_SLASH_COMMANDS;
@@ -159,11 +159,9 @@ export function DocDocumentBox({
   const titleDuplicatesStepLabel =
     isStepPlaybookDoc && (title || "").trim() === "Step by step";
   const displayedTitle = titleDuplicatesStepLabel ? "" : title;
-  const focusCategoryLabel = (
-    (category || "").trim()
-    || (displayedTitle || "").trim()
-    || ""
-  );
+  const focusCategoryLabel = isProductMode
+    ? ((category || "").trim() || (displayedTitle || "").trim())
+    : (displayedTitle || "").trim();
   const linkedNodeCount = useMemo(() => {
     const seen = new Set();
     for (const block of normalizeDocBlocks(blocks)) {
@@ -643,7 +641,7 @@ export function DocDocumentBox({
               value={focusCategoryLabel}
               placeholder={titlePlaceholder || "Describe Folder"}
               rows={1}
-              aria-label="Category"
+              aria-label={isProductMode ? "Category" : "Folder title"}
               onChange={(e) => {
                 const next = e.target.value;
                 onTitleChange?.(next);

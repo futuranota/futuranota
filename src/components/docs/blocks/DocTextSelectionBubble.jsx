@@ -4,7 +4,7 @@ import { DOC_TEXT_MARKER_COLORS } from "../../../lib/docTextMarkerColors.js";
 
 const TEXT_FORMAT_ITEMS = [
   { id: "bold", label: "Bold" },
-  { id: "macronodo", label: "Create node" },
+  { id: "macronodo", label: "Create a document" },
   { id: "h1", label: "Heading 1" },
   { id: "h2", label: "Heading 2" },
   { id: "h3", label: "Heading 3" },
