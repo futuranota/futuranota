@@ -9,10 +9,15 @@ CREATE TABLE IF NOT EXISTS public.departments (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   object_id VARCHAR(50),
   category TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  -- JSONB array of { "label": string, "description": string } (legacy plain strings still accepted by the client)
   subcategories JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE public.departments
+  ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS departments_user_id_idx ON public.departments (user_id);
 CREATE INDEX IF NOT EXISTS departments_object_id_idx ON public.departments (object_id);

@@ -33,6 +33,7 @@ import {
   findDepartmentById,
   folderMatchesDepartmentFilter,
   formatDepartmentOfLabel,
+  getCategoryDescription,
   listDepartmentsForObject,
 } from "../../lib/departments.js";
 import { docBlocksToBody, normalizeDocBlocks } from "../../lib/docBlocks.js";
@@ -604,6 +605,56 @@ function NodeCompactRow({
   );
 }
 
+function FolderCategoryChip({ departmentId, category }) {
+  const { t } = useI18n();
+  const departments = useDepartmentsStore((s) => s.departments);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const label = String(category || "").trim();
+  if (!label || !(departmentId || "").trim()) return null;
+
+  const department = findDepartmentById(departments, departmentId);
+  const description = getCategoryDescription(department, label);
+  const hasInfo = Boolean(description);
+
+  return (
+    <span
+      className={
+        "lp-folder-category-chip" + (hasInfo ? " lp-folder-category-chip--info" : "")
+      }
+      tabIndex={hasInfo ? 0 : undefined}
+      onMouseEnter={() => {
+        if (hasInfo) setInfoOpen(true);
+      }}
+      onMouseLeave={() => setInfoOpen(false)}
+      onFocus={() => {
+        if (hasInfo) setInfoOpen(true);
+      }}
+      onBlur={() => setInfoOpen(false)}
+    >
+      <span className="lp-folder-category-chip__label">{label}</span>
+      {hasInfo ? (
+        <span className="lp-folder-category-chip__info">
+          <img
+            src="/uploads/Info.svg"
+            alt=""
+            aria-hidden
+            className="lp-folder-category-chip__info-icon"
+          />
+          {infoOpen ? (
+            <span
+              className="lp-folder-category-chip__pop"
+              role="tooltip"
+              aria-label={t("sidebar.departmentCategoryDescriptionLabel")}
+            >
+              {description}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function DocNodesBlockCard({
   doc,
   nodes,
@@ -790,9 +841,10 @@ function DocNodesBlockCard({
               ) : (
                 <>
                   <DocListTitle doc={doc} />
-                  {(doc?.departmentId || "").trim() && (doc?.category || "").trim() ? (
-                    <span className="lp-folder-category-chip">{(doc.category || "").trim()}</span>
-                  ) : null}
+                  <FolderCategoryChip
+                    departmentId={doc?.departmentId}
+                    category={doc?.category}
+                  />
                 </>
               )}
               {!orphan && !selectMode ? (

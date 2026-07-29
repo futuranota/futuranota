@@ -5,29 +5,84 @@
  */
 
 /**
+ * @typedef {Object} DepartmentCategoryTag
+ * @property {string} label
+ * @property {string} description
+ */
+
+/**
  * @typedef {Object} DepartmentEntity
  * @property {string} id
  * @property {string|null} objectId
  * @property {string} category
- * @property {string[]} subcategories
+ * @property {string} description
+ * @property {DepartmentCategoryTag[]} subcategories
  * @property {string} createdAt
  * @property {string} updatedAt
  */
 
-/** @param {unknown} value @returns {string[]} */
+const DESCRIPTION_MAX = 500;
+const LABEL_MAX = 50;
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizeDescription(value) {
+  return String(value ?? "").trim().slice(0, DESCRIPTION_MAX);
+}
+
+/**
+ * Normalize legacy string[] or object[] into { label, description }[].
+ * @param {unknown} value
+ * @returns {DepartmentCategoryTag[]}
+ */
 export function normalizeSubcategories(value) {
   if (!Array.isArray(value)) return [];
   const seen = new Set();
   const out = [];
   for (const raw of value) {
-    const label = String(raw ?? "").trim();
+    let label = "";
+    let description = "";
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      label = String(raw.label ?? raw.name ?? "").trim();
+      description = normalizeDescription(raw.description);
+    } else {
+      label = String(raw ?? "").trim();
+    }
     if (!label) continue;
     const key = label.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(label.slice(0, 50));
+    out.push({
+      label: label.slice(0, LABEL_MAX),
+      description,
+    });
   }
   return out;
+}
+
+/**
+ * Labels only (for pickers / folder.category match).
+ * @param {DepartmentEntity|null|undefined} department
+ * @returns {string[]}
+ */
+export function listCategoriesForDepartment(department) {
+  return normalizeSubcategories(department?.subcategories).map((s) => s.label);
+}
+
+/**
+ * @param {DepartmentEntity|null|undefined} department
+ * @param {string|null|undefined} label
+ * @returns {string}
+ */
+export function getCategoryDescription(department, label) {
+  const key = String(label ?? "").trim().toLowerCase();
+  if (!key) return "";
+  const tag = normalizeSubcategories(department?.subcategories).find(
+    (s) => s.label.toLowerCase() === key,
+  );
+  return tag?.description || "";
 }
 
 /**
@@ -46,15 +101,6 @@ export function listDepartmentsForObject(departments, objectId) {
       if (an !== bn) return an.localeCompare(bn);
       return String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
     });
-}
-
-/**
- * Categories (tags) available inside one department room.
- * @param {DepartmentEntity|null|undefined} department
- * @returns {string[]}
- */
-export function listCategoriesForDepartment(department) {
-  return normalizeSubcategories(department?.subcategories);
 }
 
 /**

@@ -2,7 +2,7 @@ import { supabase, formatSupabaseError } from "./supabaseClient.js";
 import { useDepartmentsStore, normalizeDepartment } from "../stores/departmentsStore.js";
 import { generateId } from "./ids.js";
 import { resolveSyncUserId } from "./resolveSyncUserId.js";
-import { normalizeSubcategories } from "./departments.js";
+import { normalizeDescription, normalizeSubcategories } from "./departments.js";
 
 const SYNC_DEBOUNCE_MS = 1500;
 
@@ -29,6 +29,7 @@ function rowToDepartment(row) {
     id: String(row.id || generateId("DEPT")),
     objectId: row.object_id ?? null,
     category: String(row.category ?? ""),
+    description: normalizeDescription(row.description),
     subcategories: normalizeSubcategories(row.subcategories),
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
@@ -46,6 +47,7 @@ function departmentToRow(dept, userId, now) {
     user_id: userId,
     object_id: dept.objectId || null,
     category: dept.category ?? "",
+    description: normalizeDescription(dept.description),
     subcategories: normalizeSubcategories(dept.subcategories),
     created_at: dept.createdAt || now,
     updated_at: now,
