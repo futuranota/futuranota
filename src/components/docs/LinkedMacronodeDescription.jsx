@@ -1,7 +1,8 @@
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { getNodeWritingExcerpt } from "../../lib/nodeWritingExcerpt.js";
 import { useI18n } from "../../i18n/useI18n.js";
-import { CompletedChip } from "./FolderDocumentRow.jsx";
+import { DocStatusChip } from "./FolderDocumentRow.jsx";
+import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
 
 /**
  * Description layer under every macronode title synced into a parent folder.
@@ -13,16 +14,16 @@ import { CompletedChip } from "./FolderDocumentRow.jsx";
  * Rules:
  * - Description: only when node.content has readable text (excerpt ≤120)
  * - continue reading → opens that macronode
- * - Completed chip only when node.completed
+ * - Status chip when in progress / in review / completed
  */
 export function LinkedMacronodeDescription({ nodeId, onContinue }) {
   const { t } = useI18n();
   const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] ?? null : null));
-  const completed = Boolean(node?.completed);
+  const workStatus = resolveDocWorkStatus(node);
   const { excerpt } = getNodeWritingExcerpt(node?.content);
   const hasExcerpt = Boolean(excerpt);
 
-  if (!nodeId || (!hasExcerpt && !completed)) return null;
+  if (!nodeId || (!hasExcerpt && !workStatus)) return null;
 
   const open = (e) => {
     e?.preventDefault?.();
@@ -30,12 +31,12 @@ export function LinkedMacronodeDescription({ nodeId, onContinue }) {
     onContinue?.();
   };
 
-  const completedChip = completed ? <CompletedChip /> : null;
+  const statusChip = workStatus ? <DocStatusChip status={workStatus} /> : null;
 
   if (!hasExcerpt) {
     return (
       <div className="doc-linked-macro-desc">
-        {completedChip}
+        {statusChip}
       </div>
     );
   }
@@ -55,10 +56,10 @@ export function LinkedMacronodeDescription({ nodeId, onContinue }) {
       >
         {t("sidebar.continueReading")}
       </button>
-      {completedChip ? (
+      {statusChip ? (
         <>
           {" "}
-          {completedChip}
+          {statusChip}
         </>
       ) : null}
     </div>

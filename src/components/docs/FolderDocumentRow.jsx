@@ -1,26 +1,44 @@
 import { getNodeWritingExcerpt } from "../../lib/nodeWritingExcerpt.js";
 import { resolveDocSource } from "../../lib/docSources.js";
 import { useI18n } from "../../i18n/useI18n.js";
+import {
+  DOC_WORK_STATUS,
+  docWorkStatusLabel,
+  resolveDocWorkStatus,
+} from "../../lib/docWorkStatus.js";
 
 function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "Untitled query").trim() || "Untitled query";
 }
 
-/** "Completed" chip: check + label in the surrounding text color, sized like continue reading. */
-export function CompletedChip() {
+/** Status chip for folder document rows (in progress / in review / completed). */
+export function DocStatusChip({ status }) {
   const { t } = useI18n();
-  const label = t("sidebar.docCompleted");
+  const resolved = resolveDocWorkStatus(
+    typeof status === "string" || status == null
+      ? { status }
+      : status,
+  );
+  if (!resolved) return null;
+  const label = docWorkStatusLabel(resolved, t);
   return (
-    <span className="completed-chip">
-      <span className="completed-chip__check" aria-hidden>✓</span>
+    <span className={`doc-status-chip doc-status-chip--${resolved}`}>
+      {resolved === DOC_WORK_STATUS.COMPLETED ? (
+        <span className="doc-status-chip__check" aria-hidden>✓</span>
+      ) : null}
       {label}
     </span>
   );
 }
 
+/** @deprecated Prefer DocStatusChip — kept for campaign rows that still pass completed-only. */
+export function CompletedChip() {
+  return <DocStatusChip status={DOC_WORK_STATUS.COMPLETED} />;
+}
+
 /**
  * Folder child row: Title always; Description + continue reading when body has text;
- * Completed chip only when active (beside title if no excerpt, else on Description line).
+ * Status chip when in progress / in review / completed.
  */
 export function FolderDocumentRow({
   node,
@@ -31,7 +49,7 @@ export function FolderDocumentRow({
 }) {
   const { t } = useI18n();
   const title = getNodeDisplayTitle(node);
-  const completed = Boolean(node?.completed);
+  const workStatus = resolveDocWorkStatus(node);
   const { excerpt } = getNodeWritingExcerpt(node?.content);
   const hasExcerpt = Boolean(excerpt);
   const source = resolveDocSource(node?.sourceId);
@@ -43,14 +61,14 @@ export function FolderDocumentRow({
     onOpen?.(node);
   };
 
-  const completedChip = completed ? <CompletedChip /> : null;
+  const statusChip = workStatus ? <DocStatusChip status={workStatus} /> : null;
 
   return (
     <div
       className={
         "folder-doc-row"
         + (compact ? " folder-doc-row--compact" : "")
-        + (completed ? " folder-doc-row--completed" : "")
+        + (workStatus === DOC_WORK_STATUS.COMPLETED ? " folder-doc-row--completed" : "")
         + (className ? ` ${className}` : "")
       }
     >
@@ -73,10 +91,10 @@ export function FolderDocumentRow({
         <span className="folder-doc-row__text">
           <span className="folder-doc-row__title-row">
             <span className="folder-doc-row__title">{title}</span>
-            {!hasExcerpt && completedChip ? (
+            {!hasExcerpt && statusChip ? (
               <>
                 {" "}
-                {completedChip}
+                {statusChip}
               </>
             ) : null}
           </span>
@@ -96,10 +114,10 @@ export function FolderDocumentRow({
               >
                 {t("sidebar.continueReading")}
               </span>
-              {completedChip ? (
+              {statusChip ? (
                 <>
                   {" "}
-                  {completedChip}
+                  {statusChip}
                 </>
               ) : null}
             </span>

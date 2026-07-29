@@ -44,6 +44,11 @@ import {
   normalizeCampaignDocStatus,
 } from "../../lib/campaignDocSource.js";
 import { flushPersistenceSync } from "../../stores/middleware/persistenceMiddleware.js";
+import {
+  DOC_WORK_STATUS,
+  hasMeaningfulNodeContent,
+  resolveDocWorkStatus,
+} from "../../lib/docWorkStatus.js";
 
 function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "").trim();
@@ -242,6 +247,7 @@ export function StandaloneNodeModal({
   const [anchorDate, setAnchorDate] = useState(initialAnchor.anchorDate);
   const [anchorTime, setAnchorTime] = useState(initialAnchor.anchorTime);
   const [completed, setCompleted] = useState(() => Boolean(node?.completed));
+  const [status, setStatus] = useState(() => resolveDocWorkStatus(node));
   const [campaignStatus, setCampaignStatus] = useState(() =>
     normalizeCampaignDocStatus(node?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
   );
@@ -253,6 +259,7 @@ export function StandaloneNodeModal({
     createdAt: node?.createdAt ?? null,
     anchorAt: node?.anchorAt ?? null,
     completed: Boolean(node?.completed),
+    status: resolveDocWorkStatus(node),
     sourceId: node?.sourceId ?? null,
     dataType: node?.dataType || NODE_DATA_TYPES.TEXT,
     parentDocId: node?.parentDocId || initialParentDocId || null,
@@ -267,6 +274,7 @@ export function StandaloneNodeModal({
         content: snap.content,
         createdAt: snap.createdAt,
         anchorAt: snap.anchorAt,
+        status: snap.status ?? null,
         completed: snap.completed,
         sourceId: snap.sourceId,
         dataType: snap.dataType,
@@ -389,10 +397,16 @@ export function StandaloneNodeModal({
           windowStartAt,
           windowEndAt,
           completed: false,
+          status: null,
         }
-        : {
-          completed,
-        };
+        : (() => {
+          const resolved = status
+            ?? (hasMeaningfulNodeContent(payload) ? DOC_WORK_STATUS.IN_PROGRESS : null);
+          return {
+            status: resolved,
+            completed: resolved === DOC_WORK_STATUS.COMPLETED,
+          };
+        })();
 
       if (isNew) {
         const newId = addNode(title, dataType, payload, parentId, {
@@ -457,9 +471,10 @@ export function StandaloneNodeModal({
     }
   };
 
-  const handleCompletedChange = (value) => {
-    setCompleted(value);
-    if (node?.id) updateNode(node.id, { completed: Boolean(value) });
+  const handleStatusChange = (value) => {
+    setStatus(value);
+    setCompleted(value === "completed");
+    if (node?.id) updateNode(node.id, { status: value });
   };
 
   const handleCampaignStatusChange = (value) => {
@@ -494,6 +509,12 @@ export function StandaloneNodeModal({
     if (parseCalendarEventNodeContent(node.content)) return;
     const payload = parseContentForSave(nextContent, dataType);
     updateNode(node.id, { content: payload });
+    const live = useNodesStore.getState().nodes[node.id];
+    const liveStatus = resolveDocWorkStatus(live);
+    if (liveStatus && liveStatus !== status) {
+      setStatus(liveStatus);
+      setCompleted(liveStatus === "completed");
+    }
   };
 
   return (
@@ -514,7 +535,9 @@ export function StandaloneNodeModal({
         createdDate={createdDate || todayDateInputValue()}
         onCreatedDateChange={setCreatedDate}
         completed={completed}
-        onCompletedChange={campaignDocMode ? undefined : handleCompletedChange}
+        status={status}
+        onStatusChange={campaignDocMode ? undefined : handleStatusChange}
+        onCompletedChange={undefined}
         campaignMode={campaignDocMode}
         campaignStatus={campaignStatus}
         onCampaignStatusChange={campaignDocMode ? handleCampaignStatusChange : undefined}

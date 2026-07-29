@@ -12,7 +12,8 @@
  * @property {string} createdAt
  * @property {string} [updatedAt]
  * @property {string|null} [anchorAt] — optional schedule ISO for text/checkbox (wires + canvas)
- * @property {boolean} [completed] — user-marked schedule completion (overrides past-due on timeline)
+ * @property {'in_progress'|'in_review'|'completed'|null} [status] — folder-doc work status
+ * @property {boolean} [completed] — derived: true iff status === 'completed' (timeline / folder pie)
  * @property {string|null} [sourceId] — Source catalog id (uploads/source icons)
  */
 

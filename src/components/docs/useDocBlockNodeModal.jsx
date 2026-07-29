@@ -40,6 +40,7 @@ import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
   normalizeCampaignDocStatus,
 } from "../../lib/campaignDocSource.js";
+import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 
 function supportsScheduleAnchor(dataType) {
@@ -79,6 +80,7 @@ export function useDocBlockNodeModal({
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
   const [nodeDraftCompleted, setNodeDraftCompleted] = useState(false);
+  const [nodeDraftStatus, setNodeDraftStatus] = useState(null);
   const [nodeDraftCampaignStatus, setNodeDraftCampaignStatus] = useState(
     CAMPAIGN_DOC_STATUS_INACTIVE,
   );
@@ -173,9 +175,22 @@ export function useDocBlockNodeModal({
       dataType,
       docCreatedAt: isoFromDateInput(createdDate),
       ...(anchorAt !== undefined && !campaignDocMode ? { anchorAt } : {}),
-      completed: campaignDocMode ? false : nodeDraftCompleted,
+      ...(campaignDocMode
+        ? { status: null, completed: false }
+        : commitSchedule && (nodeDraftStatus != null || nodeDraftCompleted)
+          ? { status: nodeDraftStatus, completed: nodeDraftCompleted }
+          : {}),
       sourceId: nodeDraftSourceId,
     });
+
+    if (!campaignDocMode && savedNodeId) {
+      const live = useNodesStore.getState().nodes[savedNodeId];
+      const liveStatus = resolveDocWorkStatus(live);
+      if (liveStatus !== nodeDraftStatus) {
+        setNodeDraftStatus(liveStatus);
+        setNodeDraftCompleted(liveStatus === "completed");
+      }
+    }
 
     if (campaignDocMode && savedNodeId) {
       const launchAt = commitSchedule && supportsScheduleAnchor(dataType)
@@ -184,6 +199,7 @@ export function useDocBlockNodeModal({
       updateNode(savedNodeId, {
         campaignStatus: normalizeCampaignDocStatus(nodeDraftCampaignStatus),
         completed: false,
+        status: null,
         ...(launchAt !== undefined ? { launchAt, windowEndAt: launchAt } : {}),
       });
     }
@@ -344,6 +360,7 @@ export function useDocBlockNodeModal({
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
     setNodeDraftCompleted(Boolean(existing?.completed));
+    setNodeDraftStatus(resolveDocWorkStatus(existing));
     setNodeDraftCampaignStatus(
       normalizeCampaignDocStatus(existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
     );
@@ -380,6 +397,7 @@ export function useDocBlockNodeModal({
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
     setNodeDraftCompleted(false);
+    setNodeDraftStatus(null);
     setNodeDraftCampaignStatus(CAMPAIGN_DOC_STATUS_INACTIVE);
     setNodeDraftSourceId(null);
   };
@@ -476,13 +494,16 @@ export function useDocBlockNodeModal({
       onContentChange={handleNodeContentChange}
       createdDate={createdDate}
       completed={nodeDraftCompleted}
-      onCompletedChange={campaignDocMode
+      status={nodeDraftStatus}
+      onStatusChange={campaignDocMode
         ? undefined
         : (v) => {
-          setNodeDraftCompleted(v);
+          setNodeDraftStatus(v);
+          setNodeDraftCompleted(v === "completed");
           const id = activeNodeContext?.nodeId;
-          if (id) updateNode(id, { completed: Boolean(v) });
+          if (id) updateNode(id, { status: v });
         }}
+      onCompletedChange={undefined}
       campaignMode={campaignDocMode}
       campaignStatus={nodeDraftCampaignStatus}
       onCampaignStatusChange={campaignDocMode
@@ -490,7 +511,7 @@ export function useDocBlockNodeModal({
           const next = normalizeCampaignDocStatus(v);
           setNodeDraftCampaignStatus(next);
           const id = activeNodeContext?.nodeId;
-          if (id) updateNode(id, { campaignStatus: next, completed: false });
+          if (id) updateNode(id, { campaignStatus: next, completed: false, status: null });
         }
         : undefined}
       sourceId={nodeDraftSourceId}

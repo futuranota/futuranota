@@ -1,0 +1,52 @@
+---
+description: Asistente único + roadmap de status en documents (referencia + subset live)
+alwaysApply: true
+---
+
+# Asistente + document status (roadmap)
+
+## Por qué construimos esto
+
+Futura Nota converge a **un solo Asistente** (la “estrella”): texto primero, voz después en tasks chicos. Los multi-agentes actuales se eliminarán. Los ajustes de producto (status ricos, schedule, etc.) preparan **señales semánticas** para que el asistente tome mejores notas — no son features aisladas.
+
+## Schedule / reserva (ya existe)
+
+Folder schedule opcional = reserva `scheduleStartAt` → `scheduleFinishAt`. Documents (links / ex-macronodos) pueden llevar day + hour dentro de esa reserva. Ver `timeline-product-model.mdc`.
+
+## Document status — live subset (folders)
+
+Campo `node.status`: `in_progress` | `in_review` | `completed` | `null`.
+`completed: boolean` se deriva (`true` iff `status === "completed"`) para timeline / pie.
+
+| Status | Quién lo setea |
+|---|---|
+| *(null)* | Default al crear |
+| `in_progress` | Auto al escribir body con texto; también manual |
+| `in_review` | Manual ahora; el asistente lo seteará después al terminar un task |
+| `completed` | Manual (usuario cierra el trabajo) |
+
+Flujo: empty → (write) in_progress → (user) completed ·· o ·· in_progress → (agent later) in_review → (user) completed.
+
+Helper: `src/lib/docWorkStatus.js`. UI: toggle 3-way en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
+
+## Paleta visual de referencia (no obligatoria toda)
+
+Referencia Magic/badge (adaptar a dark `#151515`; Lucide o SVGs `/uploads`):
+
+| Status | Color ref | Icono Lucide | Estado |
+|---|---|---|---|
+| Pending | `#EAA65D` | TriangleAlert | pendiente |
+| Failed | `#D57463` | CircleX | pendiente |
+| Success / Completed | `#57BC6C` | CircleCheck | **live** |
+| In progress | `#008AF5` | CircleDashed | **live** |
+| In review | `#F0B13D` | ScanSearch | **live** |
+| Expired | `#777777` | Clock5 | pendiente |
+| Submitted | `#6C3CF0` | Clock5 | pendiente |
+
+Usar solo los que se necesiten. Label “Submitted” (no “Submited”).
+
+## Reglas
+
+- No activar statuses “por si acaso”. Esperar brief explícito por status.
+- Todo-plan ya tiene statuses propios (`TodoStatusIcon`) — no confundir con document status.
+- Campaign docs siguen con active/inactive; no mezclar con work status.

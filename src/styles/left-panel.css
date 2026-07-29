@@ -1371,7 +1371,8 @@
 }
 
 /* "Completed" chip — check + label in surrounding text color, sized like continue reading. */
-.completed-chip {
+.completed-chip,
+.doc-status-chip {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -1383,16 +1384,31 @@
   vertical-align: baseline;
 }
 
-.completed-chip__check {
+.doc-status-chip--in_progress {
+  color: #008AF5;
+}
+
+.doc-status-chip--in_review {
+  color: #F0B13D;
+}
+
+.doc-status-chip--completed {
+  color: #57BC6C;
+}
+
+.completed-chip__check,
+.doc-status-chip__check {
   font-size: 1em;
   line-height: 1;
 }
 
-.folder-doc-row--compact .completed-chip {
+.folder-doc-row--compact .completed-chip,
+.folder-doc-row--compact .doc-status-chip {
   font-size: 8px;
 }
 
-.doc-linked-macro-desc .completed-chip {
+.doc-linked-macro-desc .completed-chip,
+.doc-linked-macro-desc .doc-status-chip {
   font-size: 9px;
 }
 
@@ -14302,10 +14318,37 @@ body.doc-content-resizing * {
   justify-content: center;
 }
 
-.node-query-modal__doc-meta .doc-meta-chip-v.is-completed {
+.node-query-modal__doc-meta .doc-meta-chip-v.is-completed,
+.node-query-modal__doc-meta .doc-meta-chip-v.is-status-completed {
   color: #57d68a;
   font-weight: 800;
   letter-spacing: 0.01em;
+}
+
+.node-query-modal__doc-meta .doc-meta-chip-v.is-status-in_progress {
+  color: #008AF5;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.node-query-modal__doc-meta .doc-meta-chip-v.is-status-in_review {
+  color: #F0B13D;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.doc-work-status-toggle {
+  flex-wrap: wrap;
+}
+
+.doc-work-status-opt--in-progress.is-on,
+.doc-meta-strip__fields .doc-work-status-opt--in-progress.is-on {
+  color: #008AF5;
+}
+
+.doc-work-status-opt--in-review.is-on,
+.doc-meta-strip__fields .doc-work-status-opt--in-review.is-on {
+  color: #F0B13D;
 }
 
 /* Match Status toggle table gray (#7e7a76) + bold */

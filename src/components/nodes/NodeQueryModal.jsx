@@ -48,6 +48,11 @@ import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
+import {
+  DOC_WORK_STATUS,
+  docWorkStatusLabel,
+  resolveDocWorkStatus,
+} from "../../lib/docWorkStatus.js";
 
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
@@ -81,6 +86,9 @@ export function NodeQueryModal({
   onCreatedDateChange,
   completed = false,
   onCompletedChange,
+  /** Folder-doc work status: in_progress | in_review | completed | null */
+  status = null,
+  onStatusChange,
   /** Campaign documents: active|inactive (+ launch) instead of completed. */
   campaignMode = false,
   campaignStatus = "inactive",
@@ -140,7 +148,10 @@ export function NodeQueryModal({
   const userEmail = useAuthStore((s) => s.user?.email);
   const showCampaignStatus = Boolean(campaignMode) && typeof onCampaignStatusChange === "function";
   const showStatusMeta = showCampaignStatus
-    || (canUseDocStatusMeta(userEmail) && typeof onCompletedChange === "function");
+    || (canUseDocStatusMeta(userEmail)
+      && (typeof onStatusChange === "function" || typeof onCompletedChange === "function"));
+  const workStatus = resolveDocWorkStatus({ status, completed });
+  const workStatusLabel = docWorkStatusLabel(workStatus, t);
   const sourceOption = showStatusMeta ? resolveDocSource(sourceId) : null;
   const isCampaignActive = campaignStatus === "active";
   const [statusMetaExpanded, setStatusMetaExpanded] = useState(false);
@@ -311,6 +322,7 @@ export function NodeQueryModal({
       anchorDate: anchorDate ?? "",
       anchorTime: anchorTime ?? "",
       completed: Boolean(completed),
+      status: workStatus,
       sourceId: sourceId ?? null,
     };
     setShowUnsavedConfirm(false);
@@ -325,29 +337,35 @@ export function NodeQueryModal({
       || snap.query !== (query ?? "")
       || (snap.anchorDate ?? "") !== (anchorDate ?? "")
       || (snap.anchorTime ?? "") !== (anchorTime ?? "")
-      || Boolean(snap.completed) !== Boolean(completed)
+      || (snap.status || null) !== (workStatus || null)
       || (snap.sourceId || null) !== (sourceId || null);
-  }, [content, query, anchorDate, anchorTime, completed, sourceId]);
+  }, [content, query, anchorDate, anchorTime, workStatus, sourceId]);
 
   /** Status/Source persist live to the store — keep dismiss snapshot in sync. */
-  const syncMetaSnapshot = useCallback((nextCompleted, nextSourceId) => {
+  const syncMetaSnapshot = useCallback((nextStatus, nextSourceId) => {
     if (!nodeSnapshotRef.current) return;
     nodeSnapshotRef.current = {
       ...nodeSnapshotRef.current,
-      completed: Boolean(nextCompleted),
+      status: nextStatus || null,
+      completed: nextStatus === DOC_WORK_STATUS.COMPLETED,
       sourceId: nextSourceId ?? null,
     };
   }, []);
 
-  const handleCompletedChange = useCallback((value) => {
-    onCompletedChange?.(value);
-    syncMetaSnapshot(value, sourceId);
-  }, [onCompletedChange, syncMetaSnapshot, sourceId]);
+  const handleStatusChange = useCallback((next) => {
+    const resolved = next === workStatus ? null : next;
+    if (typeof onStatusChange === "function") {
+      onStatusChange(resolved);
+    } else {
+      onCompletedChange?.(resolved === DOC_WORK_STATUS.COMPLETED);
+    }
+    syncMetaSnapshot(resolved, sourceId);
+  }, [onStatusChange, onCompletedChange, syncMetaSnapshot, sourceId, workStatus]);
 
   const handleSourceIdChange = useCallback((value) => {
     onSourceIdChange?.(value);
-    syncMetaSnapshot(completed, value);
-  }, [onSourceIdChange, syncMetaSnapshot, completed]);
+    syncMetaSnapshot(workStatus, value);
+  }, [onSourceIdChange, syncMetaSnapshot, workStatus]);
 
   /**
    * Child date/time is optional. Folder reservation only limits the picker range
@@ -742,21 +760,31 @@ export function NodeQueryModal({
                         {isCampaignActive ? t("sidebar.campaignDocActive") : t("sidebar.campaignDocInactive")}
                       </span>
                     </div>
-                  ) : completed ? (
+                  ) : workStatus ? (
                     <div
-                      className="doc-meta-chip doc-meta-chip--completed"
-                      title="Completed"
+                      className={
+                        "doc-meta-chip doc-meta-chip--work-status"
+                        + (workStatus === DOC_WORK_STATUS.COMPLETED ? " doc-meta-chip--completed" : "")
+                      }
+                      title={workStatusLabel}
                     >
-                      <span className="doc-meta-chip-k">Status</span>
-                      <span className="doc-meta-chip-v is-lowercase is-completed">
-                        Completed
-                        <img
-                          src="/uploads/Checks.svg"
-                          alt=""
-                          className="doc-meta-chip-completed-icon"
-                          aria-hidden
-                          draggable={false}
-                        />
+                      <span className="doc-meta-chip-k">{t("meta.status")}</span>
+                      <span
+                        className={
+                          "doc-meta-chip-v is-lowercase doc-meta-chip-v--status"
+                          + ` is-status-${workStatus}`
+                        }
+                      >
+                        {workStatusLabel}
+                        {workStatus === DOC_WORK_STATUS.COMPLETED ? (
+                          <img
+                            src="/uploads/Checks.svg"
+                            alt=""
+                            className="doc-meta-chip-completed-icon"
+                            aria-hidden
+                            draggable={false}
+                          />
+                        ) : null}
                       </span>
                     </div>
                   ) : null}
@@ -846,17 +874,39 @@ export function NodeQueryModal({
                         </button>
                       </div>
                     ) : (
-                      <div className="doc-new-campaign-toggle" role="group" aria-label="Macronode status">
+                      <div className="doc-new-campaign-toggle doc-work-status-toggle" role="group" aria-label={t("meta.status")}>
                         <button
                           type="button"
                           className={
-                            "doc-new-campaign-opt doc-new-campaign-opt--completed"
-                            + (completed ? " is-on" : "")
+                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--in-progress"
+                            + (workStatus === DOC_WORK_STATUS.IN_PROGRESS ? " is-on" : "")
                           }
-                          onClick={() => handleCompletedChange(!completed)}
-                          aria-pressed={completed}
+                          onClick={() => handleStatusChange(DOC_WORK_STATUS.IN_PROGRESS)}
+                          aria-pressed={workStatus === DOC_WORK_STATUS.IN_PROGRESS}
                         >
-                          Completed
+                          {t("sidebar.docStatusInProgress")}
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--in-review"
+                            + (workStatus === DOC_WORK_STATUS.IN_REVIEW ? " is-on" : "")
+                          }
+                          onClick={() => handleStatusChange(DOC_WORK_STATUS.IN_REVIEW)}
+                          aria-pressed={workStatus === DOC_WORK_STATUS.IN_REVIEW}
+                        >
+                          {t("sidebar.docStatusInReview")}
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            "doc-new-campaign-opt doc-new-campaign-opt--completed doc-work-status-opt"
+                            + (workStatus === DOC_WORK_STATUS.COMPLETED ? " is-on" : "")
+                          }
+                          onClick={() => handleStatusChange(DOC_WORK_STATUS.COMPLETED)}
+                          aria-pressed={workStatus === DOC_WORK_STATUS.COMPLETED}
+                        >
+                          {t("sidebar.docCompleted")}
                           <img
                             src="/uploads/Checks.svg"
                             alt=""

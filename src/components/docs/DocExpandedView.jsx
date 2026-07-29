@@ -19,6 +19,7 @@ import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
   normalizeCampaignDocStatus,
 } from "../../lib/campaignDocSource.js";
+import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
 
 const NODE_SAVE_LOADING_MIN_MS = 700;
 import {
@@ -309,6 +310,7 @@ export function DocExpandedView({
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
   const [nodeDraftCompleted, setNodeDraftCompleted] = useState(false);
+  const [nodeDraftStatus, setNodeDraftStatus] = useState(null);
   const [nodeDraftCampaignStatus, setNodeDraftCampaignStatus] = useState(
     CAMPAIGN_DOC_STATUS_INACTIVE,
   );
@@ -1289,6 +1291,7 @@ export function DocExpandedView({
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
     setNodeDraftCompleted(false);
+    setNodeDraftStatus(null);
     setNodeDraftCampaignStatus(CAMPAIGN_DOC_STATUS_INACTIVE);
     setNodeDraftSourceId(null);
     setNodeInitialSnapshot(null);
@@ -1308,7 +1311,7 @@ export function DocExpandedView({
       normalizeNodeContent(nodeDraftContent) !== nodeInitialSnapshot.content
       || nodeDraftAnchorDate !== nodeInitialSnapshot.anchorDate
       || nodeDraftAnchorTime !== nodeInitialSnapshot.anchorTime
-      || Boolean(nodeDraftCompleted) !== Boolean(nodeInitialSnapshot.completed)
+      || (nodeDraftStatus || null) !== (nodeInitialSnapshot.status || null)
       || normalizeCampaignDocStatus(nodeDraftCampaignStatus)
         !== normalizeCampaignDocStatus(nodeInitialSnapshot.campaignStatus)
       || (nodeDraftSourceId || null) !== (nodeInitialSnapshot.sourceId || null)
@@ -1350,6 +1353,7 @@ export function DocExpandedView({
       const { blockIndex, nodeId, dataType, blockType } = context;
       const restoredContent = restoreNodeContentFromSnapshot(snap.content, dataType);
       const restoredCompleted = Boolean(snap.completed);
+      const restoredStatus = snap.status ?? (restoredCompleted ? "completed" : null);
       const restoredSourceId = snap.sourceId || null;
       const restoredAnchorDate = snap.anchorDate || "";
       const restoredAnchorTime = snap.anchorTime || "";
@@ -1362,6 +1366,7 @@ export function DocExpandedView({
       if (nodeId) {
         updateNode(nodeId, {
           content: restoredContent,
+          status: restoredStatus,
           completed: restoredCompleted,
           sourceId: restoredSourceId,
           ...(restoredAnchorAt !== undefined ? { anchorAt: restoredAnchorAt } : {}),
@@ -1705,9 +1710,22 @@ export function DocExpandedView({
       dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
       ...(anchorAt !== undefined && !draftCampaignActive ? { anchorAt } : {}),
-      completed: draftCampaignActive ? false : nodeDraftCompleted,
+      ...(draftCampaignActive
+        ? { status: null, completed: false }
+        : commitSchedule && (nodeDraftStatus != null || nodeDraftCompleted)
+          ? { status: nodeDraftStatus, completed: nodeDraftCompleted }
+          : {}),
       sourceId: nodeDraftSourceId,
     });
+
+    if (!draftCampaignActive && savedNodeId) {
+      const live = useNodesStore.getState().nodes[savedNodeId];
+      const liveStatus = resolveDocWorkStatus(live);
+      if (liveStatus !== nodeDraftStatus) {
+        setNodeDraftStatus(liveStatus);
+        setNodeDraftCompleted(liveStatus === "completed");
+      }
+    }
 
     if (draftCampaignActive && savedNodeId) {
       const launchAt = commitSchedule && supportsScheduleAnchor(dataType)
@@ -1718,6 +1736,7 @@ export function DocExpandedView({
       updateNode(savedNodeId, {
         campaignStatus: normalizeCampaignDocStatus(nodeDraftCampaignStatus),
         completed: false,
+        status: null,
         ...(launchAt !== undefined
           ? { launchAt, windowEndAt: launchAt }
           : {}),
@@ -1776,6 +1795,7 @@ export function DocExpandedView({
         anchorDate: anchorDate || "",
         anchorTime: anchorTime || "",
         completed: Boolean(nodeDraftCompleted),
+        status: nodeDraftStatus || null,
         sourceId: nodeDraftSourceId || null,
       };
       setNodeInitialSnapshot(snap);
@@ -1918,6 +1938,7 @@ export function DocExpandedView({
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
     setNodeDraftCompleted(Boolean(existing?.completed));
+    setNodeDraftStatus(resolveDocWorkStatus(existing));
     setNodeDraftCampaignStatus(
       normalizeCampaignDocStatus(existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
     );
@@ -1936,6 +1957,7 @@ export function DocExpandedView({
         anchorDate: fromNode.anchorDate,
         anchorTime: fromNode.anchorTime,
         completed: Boolean(existing?.completed),
+        status: resolveDocWorkStatus(existing),
         campaignStatus: normalizeCampaignDocStatus(
           existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
         ),
@@ -1954,6 +1976,7 @@ export function DocExpandedView({
         anchorDate: anchorFromBlock.anchorDate,
         anchorTime: anchorFromBlock.anchorTime,
         completed: Boolean(existing?.completed),
+        status: resolveDocWorkStatus(existing),
         campaignStatus: CAMPAIGN_DOC_STATUS_INACTIVE,
         sourceId: existing?.sourceId ?? null,
       };
@@ -1967,6 +1990,7 @@ export function DocExpandedView({
         anchorDate: "",
         anchorTime: "",
         completed: false,
+        status: resolveDocWorkStatus(existing),
         campaignStatus: normalizeCampaignDocStatus(
           existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
         ),
@@ -2203,13 +2227,16 @@ export function DocExpandedView({
           onContentChange={handleNodeContentChange}
           createdDate={draftCreatedDate}
           completed={nodeDraftCompleted}
-          onCompletedChange={draftCampaignActive
+          status={nodeDraftStatus}
+          onStatusChange={draftCampaignActive
             ? undefined
             : (v) => {
-              setNodeDraftCompleted(v);
+              setNodeDraftStatus(v);
+              setNodeDraftCompleted(v === "completed");
               const id = activeNodeContext?.nodeId;
-              if (id) updateNode(id, { completed: Boolean(v) });
+              if (id) updateNode(id, { status: v });
             }}
+          onCompletedChange={undefined}
           campaignMode={Boolean(draftCampaignActive)}
           campaignStatus={nodeDraftCampaignStatus}
           onCampaignStatusChange={draftCampaignActive
@@ -2217,7 +2244,7 @@ export function DocExpandedView({
               const next = normalizeCampaignDocStatus(v);
               setNodeDraftCampaignStatus(next);
               const id = activeNodeContext?.nodeId;
-              if (id) updateNode(id, { campaignStatus: next, completed: false });
+              if (id) updateNode(id, { campaignStatus: next, completed: false, status: null });
             }
             : undefined}
           sourceId={nodeDraftSourceId}

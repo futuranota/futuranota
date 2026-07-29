@@ -23,6 +23,12 @@ import {
 } from "../lib/forecastNodeDisplay.js";
 import { parseWeatherForecastNodeContent } from "../lib/forecastSearch.js";
 import {
+  resolveDocWorkStatus,
+  syncDocWorkStatusFields,
+  hasMeaningfulNodeContent,
+  nextStatusOnMeaningfulWrite,
+} from "../lib/docWorkStatus.js";
+import {
   ensureContinuationAfterLinkedOwner,
   findMacroContinuationIndex,
   isMacroContinuationTextBlock,
@@ -182,6 +188,15 @@ export const useNodesStore = create(
         const id = generateId("NODE");
         const now = new Date().toISOString();
         const createdAt = extra.createdAt ?? now;
+        const work = syncDocWorkStatusFields({
+          status: extra.status,
+          completed: extra.completed,
+        });
+        // Prefer explicit status; else migrate completed boolean.
+        const status = Object.prototype.hasOwnProperty.call(extra, "status")
+          ? work.status
+          : resolveDocWorkStatus({ status: extra.status, completed: extra.completed });
+        const completed = status === "completed";
         set((state) => ({
           nodes: {
             ...state.nodes,
@@ -197,7 +212,8 @@ export const useNodesStore = create(
               sourceBlockId: extra.sourceBlockId ?? null,
               sourceQuery: extra.sourceQuery ?? null,
               anchorAt: extra.anchorAt ?? null,
-              completed: Boolean(extra.completed),
+              status,
+              completed,
               // Campaign documents (under campaign folders): active|inactive + launch + window.
               campaignStatus: normalizeCampaignDocStatus(
                 extra.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
@@ -231,6 +247,7 @@ export const useNodesStore = create(
         docCreatedAt = null,
         anchorAt = undefined,
         completed = undefined,
+        status = undefined,
         sourceId = undefined,
       }) => {
         const title = (query || "").trim() || "Untitled query";
@@ -265,8 +282,19 @@ export const useNodesStore = create(
         if (anchorAt !== undefined) {
           payload.anchorAt = anchorAt;
         }
-        if (completed !== undefined) {
-          payload.completed = Boolean(completed);
+        if (status !== undefined) {
+          Object.assign(payload, syncDocWorkStatusFields({ status }));
+        } else if (completed !== undefined) {
+          Object.assign(payload, syncDocWorkStatusFields({ completed }));
+        } else if (nodeId) {
+          const existing = get().nodes[nodeId];
+          const auto = nextStatusOnMeaningfulWrite(
+            resolveDocWorkStatus(existing),
+            hasMeaningfulNodeContent(resolvedContent),
+          );
+          if (auto) Object.assign(payload, syncDocWorkStatusFields({ status: auto }));
+        } else if (hasMeaningfulNodeContent(resolvedContent)) {
+          Object.assign(payload, syncDocWorkStatusFields({ status: "in_progress" }));
         }
         if (sourceId !== undefined) {
           payload.sourceId = sourceId;
@@ -286,6 +314,7 @@ export const useNodesStore = create(
           sourceQuery: payload.sourceQuery,
           createdAt: inheritedCreatedAt,
           anchorAt: payload.anchorAt ?? null,
+          status: payload.status ?? null,
           completed: payload.completed ?? false,
           sourceId: payload.sourceId ?? null,
           objectId: parentDoc?.parentObjectId ?? null,
@@ -773,6 +802,18 @@ export const useNodesStore = create(
           const nextUpdates = { ...updates };
           if (Object.prototype.hasOwnProperty.call(nextUpdates, "campaignStatus")) {
             nextUpdates.campaignStatus = normalizeCampaignDocStatus(nextUpdates.campaignStatus);
+          }
+          if (
+            Object.prototype.hasOwnProperty.call(nextUpdates, "status")
+            || Object.prototype.hasOwnProperty.call(nextUpdates, "completed")
+          ) {
+            Object.assign(nextUpdates, syncDocWorkStatusFields(nextUpdates));
+          } else if (Object.prototype.hasOwnProperty.call(nextUpdates, "content")) {
+            const auto = nextStatusOnMeaningfulWrite(
+              resolveDocWorkStatus(existing),
+              hasMeaningfulNodeContent(nextUpdates.content),
+            );
+            if (auto) Object.assign(nextUpdates, syncDocWorkStatusFields({ status: auto }));
           }
           return {
             nodes: {

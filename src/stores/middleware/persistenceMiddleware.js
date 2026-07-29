@@ -32,6 +32,24 @@ function referenceWithNodeMeta(node) {
   if (node?.completed) base.completed = true;
   else delete base.completed;
 
+  let workStatus = typeof node?.status === "string" ? node.status.trim() : "";
+  if (
+    workStatus !== "in_progress"
+    && workStatus !== "in_review"
+    && workStatus !== "completed"
+  ) {
+    workStatus = node?.completed ? "completed" : "";
+  }
+  if (
+    workStatus === "in_progress"
+    || workStatus === "in_review"
+    || workStatus === "completed"
+  ) {
+    base.status = workStatus;
+  } else {
+    delete base.status;
+  }
+
   const sourceId = node?.sourceId || null;
   if (sourceId) base.sourceId = sourceId;
   else delete base.sourceId;
@@ -142,6 +160,16 @@ function completedFromPersistedNode(node) {
   const ref = node.reference;
   if (ref && typeof ref === "object") return Boolean(ref.completed);
   return false;
+}
+
+/** Prefer reference.status; migrate completed:true → completed when status missing. */
+function statusFromPersistedNode(node) {
+  if (!node) return null;
+  const raw = node.status
+    ?? (node.reference && typeof node.reference === "object" ? node.reference.status : null);
+  if (raw === "in_progress" || raw === "in_review" || raw === "completed") return raw;
+  if (completedFromPersistedNode(node)) return "completed";
+  return null;
 }
 
 function sourceIdFromPersistedNode(node) {
@@ -1345,6 +1373,7 @@ export function initPersistenceMiddleware(stores) {
         const reference = node.reference && typeof node.reference === "object" ? node.reference : {};
         const anchorAt = anchorAtFromPersistedNode({ reference, anchorAt: node.anchor_at });
         const persisted = { reference, completed: node.completed, sourceId: node.source_id, objectId: node.object_id };
+        const workStatus = statusFromPersistedNode(persisted);
         nodes[node.id] = {
           id: node.id,
           parentDocId: node.parent_doc_id,
@@ -1354,7 +1383,8 @@ export function initPersistenceMiddleware(stores) {
           sourceQuery: node.source_query || "",
           reference,
           anchorAt,
-          completed: completedFromPersistedNode(persisted),
+          status: workStatus,
+          completed: workStatus === "completed",
           campaignStatus: campaignStatusFromPersistedNode({ reference, campaignStatus: node.campaign_status }),
           launchAt: launchAtFromPersistedNode({ reference, launchAt: node.launch_at }),
           windowStartAt: windowStartAtFromPersistedNode({ reference }),
