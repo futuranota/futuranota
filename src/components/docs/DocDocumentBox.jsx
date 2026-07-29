@@ -45,7 +45,7 @@ import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
 /** Long enough for the Mark write cycle to read while saving. */
 const SAVE_LOADING_MIN_MS = 700;
-const FOLDER_EMPTY_ROOM_SRC = "/uploads/room.svg";
+const FOLDER_EMPTY_ROOM_SRC = "/uploads/files-room.svg";
 
 const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;

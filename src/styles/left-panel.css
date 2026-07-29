@@ -5619,10 +5619,10 @@
 
 .doc-folder-empty-room__image {
   display: block;
-  width: min(209px, 58%);
-  height: auto;
-  max-width: 209px;
-  max-height: min(209px, 72%);
+  width: min(620px, 88%);
+  height: min(360px, 88%);
+  max-width: none;
+  max-height: none;
   object-fit: contain;
   pointer-events: none;
   user-select: none;
