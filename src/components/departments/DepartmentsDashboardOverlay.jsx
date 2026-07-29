@@ -21,8 +21,6 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
   const departments = useDepartmentsStore((s) => s.departments);
   const createDepartment = useDepartmentsStore((s) => s.createDepartment);
   const updateDepartment = useDepartmentsStore((s) => s.updateDepartment);
-  const addSubcategory = useDepartmentsStore((s) => s.addSubcategory);
-  const removeSubcategory = useDepartmentsStore((s) => s.removeSubcategory);
   const updateSubcategory = useDepartmentsStore((s) => s.updateSubcategory);
   const deleteDepartment = useDepartmentsStore((s) => s.deleteDepartment);
 
@@ -217,34 +215,41 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
   const handleSaveTags = () => {
     if (!existing) return;
 
-    const currentTags = Array.isArray(existing.subcategories)
-      ? existing.subcategories
-      : [];
-    const keptOrigins = new Set(
-      draftTags
-        .map((tag) => tag.originLabel)
-        .filter(Boolean)
-        .map((label) => label.toLowerCase()),
-    );
-
-    currentTags.forEach((tag) => {
-      if (!keptOrigins.has(tag.label.toLowerCase())) {
-        removeSubcategory(existing.id, tag.label);
+    // Commit any tag still sitting in the input (user typed + Save without Add).
+    let tagsToSave = draftTags;
+    const pendingLabel = tagDraft.trim().slice(0, 50);
+    if (pendingLabel) {
+      const pendingDesc = normalizeDescription(tagDescriptionDraft);
+      const exists = tagsToSave.some(
+        (item) => item.label.toLowerCase() === pendingLabel.toLowerCase(),
+      );
+      if (!exists) {
+        tagsToSave = [
+          ...tagsToSave,
+          { label: pendingLabel, description: pendingDesc, originLabel: null },
+        ];
       }
-    });
+    }
 
-    draftTags.forEach((tag) => {
-      if (tag.originLabel) {
+    // Cascade renames before replacing the full list.
+    tagsToSave.forEach((tag) => {
+      if (
+        tag.originLabel &&
+        tag.originLabel.toLowerCase() !== tag.label.toLowerCase()
+      ) {
         updateSubcategory(existing.id, tag.originLabel, {
           label: tag.label,
           description: tag.description,
         });
-      } else {
-        addSubcategory(existing.id, {
-          label: tag.label,
-          description: tag.description,
-        });
       }
+    });
+
+    // Atomic write — avoids multi-step remove/add races wiping tags.
+    updateDepartment(existing.id, {
+      subcategories: tagsToSave.map((tag) => ({
+        label: tag.label,
+        description: tag.description || "",
+      })),
     });
 
     onClose?.();

@@ -71,7 +71,10 @@ export function DepartmentsPanel({
                 </span>
                 <span className="lp-departments-room-card__meta">
                   {dept.subcategories.length
-                    ? dept.subcategories.map((s) => s.label).join(" · ")
+                    ? dept.subcategories
+                        .map((s) => (typeof s === "string" ? s : s?.label || ""))
+                        .filter(Boolean)
+                        .join(" · ")
                     : t("sidebar.departmentNoTagsYet")}
                 </span>
               </span>

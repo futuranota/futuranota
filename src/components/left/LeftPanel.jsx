@@ -33,7 +33,6 @@ import {
   findDepartmentById,
   folderMatchesDepartmentFilter,
   formatDepartmentOfLabel,
-  getCategoryDescription,
   listDepartmentsForObject,
 } from "../../lib/departments.js";
 import { docBlocksToBody, normalizeDocBlocks } from "../../lib/docBlocks.js";
@@ -606,53 +605,9 @@ function NodeCompactRow({
 }
 
 function FolderCategoryChip({ departmentId, category }) {
-  const { t } = useI18n();
-  const departments = useDepartmentsStore((s) => s.departments);
-  const [infoOpen, setInfoOpen] = useState(false);
   const label = String(category || "").trim();
   if (!label || !(departmentId || "").trim()) return null;
-
-  const department = findDepartmentById(departments, departmentId);
-  const description = getCategoryDescription(department, label);
-  const hasInfo = Boolean(description);
-
-  return (
-    <span
-      className={
-        "lp-folder-category-chip" + (hasInfo ? " lp-folder-category-chip--info" : "")
-      }
-      tabIndex={hasInfo ? 0 : undefined}
-      onMouseEnter={() => {
-        if (hasInfo) setInfoOpen(true);
-      }}
-      onMouseLeave={() => setInfoOpen(false)}
-      onFocus={() => {
-        if (hasInfo) setInfoOpen(true);
-      }}
-      onBlur={() => setInfoOpen(false)}
-    >
-      <span className="lp-folder-category-chip__label">{label}</span>
-      {hasInfo ? (
-        <span className="lp-folder-category-chip__info">
-          <img
-            src="/uploads/Info.svg"
-            alt=""
-            aria-hidden
-            className="lp-folder-category-chip__info-icon"
-          />
-          {infoOpen ? (
-            <span
-              className="lp-folder-category-chip__pop"
-              role="tooltip"
-              aria-label={t("sidebar.departmentCategoryDescriptionLabel")}
-            >
-              {description}
-            </span>
-          ) : null}
-        </span>
-      ) : null}
-    </span>
-  );
+  return <span className="lp-folder-category-chip">{label}</span>;
 }
 
 function DocNodesBlockCard({
@@ -1096,6 +1051,7 @@ function DocCreateModal({
   defaultParentId,
   createMode = "content",
   defaultCategory = "",
+  defaultDepartmentId = null,
   onSubmit,
   onCancel,
   onOpenDocument,
@@ -1111,7 +1067,9 @@ function DocCreateModal({
   const [createdDate, setCreatedDate] = useState(todayDateInputValue);
   const [version, setVersion] = useState("");
   const [category, setCategory] = useState(defaultCategory);
-  const [departmentId, setDepartmentId] = useState(null);
+  const [departmentId, setDepartmentId] = useState(
+    () => (defaultDepartmentId ? String(defaultDepartmentId) : null),
+  );
   const [icon, setIcon] = useState("");
   const departments = useDepartmentsStore((s) => s.departments);
   const [launchDate, setLaunchDate] = useState("");
@@ -1147,6 +1105,10 @@ function DocCreateModal({
   useEffect(() => {
     setCategory(defaultCategory);
   }, [defaultCategory]);
+
+  useEffect(() => {
+    setDepartmentId(defaultDepartmentId ? String(defaultDepartmentId) : null);
+  }, [defaultDepartmentId]);
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -3374,6 +3336,11 @@ export function LeftPanel({
           allDocs={docs}
           defaultParentId={filterObjectId || ""}
           createMode={docCreateMode}
+          defaultDepartmentId={
+            docCreateMode === "content" && departmentFilterId
+              ? departmentFilterId
+              : null
+          }
           onSubmit={handleCreate}
           onCancel={() => setShowCreate(false)}
           onOpenDocument={onOpenDocument}

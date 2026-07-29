@@ -73,6 +73,13 @@ export function DepartmentCategoryField({
             + (!displayValue ? " is-empty" : "")
           }
           disabled={disabled}
+          title={
+            disabled
+              ? t("sidebar.departmentCategoryNeedParent")
+              : !options.length
+                ? t("sidebar.departmentCategoryEmptyHint")
+                : undefined
+          }
           onClick={(e) => {
             e.stopPropagation();
             if (disabled || !options.length) return;
@@ -84,7 +91,9 @@ export function DepartmentCategoryField({
           {displayValue
             || (disabled
               ? t("sidebar.departmentCategoryNeedParent")
-              : placeholder)}
+              : !options.length
+                ? t("sidebar.departmentCategoryEmptyHint")
+                : placeholder)}
         </button>
         {showPicker ? (
           <ul className="doc-product-category-picker" role="listbox">

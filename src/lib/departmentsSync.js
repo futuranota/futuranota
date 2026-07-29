@@ -69,9 +69,18 @@ async function syncDepartmentsToSupabase(departments) {
   const rows = departments.map((dept) => departmentToRow(dept, userId, now));
 
   if (rows.length > 0) {
-    const { error } = await supabase
+    let { error } = await supabase
       .from("departments")
       .upsert(rows, { onConflict: "id" });
+
+    // Older DBs may lack `description` — retry without it so tags still sync.
+    if (error && /description/i.test(String(error.message || error.code || ""))) {
+      const rowsWithoutDescription = rows.map(({ description: _d, ...rest }) => rest);
+      ({ error } = await supabase
+        .from("departments")
+        .upsert(rowsWithoutDescription, { onConflict: "id" }));
+    }
+
     if (error) {
       console.warn(formatSupabaseError(error, "Upsert departments"));
       return false;
@@ -88,7 +97,7 @@ async function syncDepartmentsToSupabase(departments) {
     return false;
   }
 
-  const localIds = new Set(departments.map((d) => d.id));
+  const localIds = new Set(departments.map((dept) => dept.id));
   const orphanIds = (remoteRows || [])
     .map((row) => row.id)
     .filter((id) => !localIds.has(id));
@@ -150,7 +159,40 @@ export function initDepartmentsSync(useDepartmentsStoreArg) {
     isHydrating = true;
     try {
       if (remote.length > 0) {
-        useDepartmentsStoreArg.getState().replaceDepartments(remote);
+        const local = useDepartmentsStoreArg.getState().departments;
+        const remoteById = new Map(remote.map((dept) => [dept.id, dept]));
+        const localById = new Map(local.map((dept) => [dept.id, dept]));
+
+        // Prefer whichever side has the newer updatedAt so a failed upsert
+        // cannot wipe locally-saved tags on the next hydrate.
+        const merged = [];
+        const seen = new Set();
+
+        for (const remoteDept of remote) {
+          seen.add(remoteDept.id);
+          const localDept = localById.get(remoteDept.id);
+          if (!localDept) {
+            merged.push(remoteDept);
+            continue;
+          }
+          const remoteTs = Date.parse(remoteDept.updatedAt || "") || 0;
+          const localTs = Date.parse(localDept.updatedAt || "") || 0;
+          merged.push(localTs > remoteTs ? localDept : remoteDept);
+        }
+
+        for (const localDept of local) {
+          if (seen.has(localDept.id)) continue;
+          // Local-only row (upsert may have failed) — keep and push on sync.
+          merged.push(localDept);
+        }
+
+        useDepartmentsStoreArg.getState().replaceDepartments(merged);
+        // Push any local-newer / local-only rows after hydrate unlocks.
+        queueMicrotask(() => {
+          syncDepartmentsToSupabase(
+            useDepartmentsStoreArg.getState().departments,
+          );
+        });
       } else {
         const local = useDepartmentsStoreArg.getState().departments;
         if (local.length > 0) {

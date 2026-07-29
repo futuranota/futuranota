@@ -1879,8 +1879,6 @@
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
-  position: relative;
-  gap: 3px;
   margin-left: 5px;
   margin-top: 5px; /* ~half of title 11px → top of chip at title mid-line */
   height: 10px;
@@ -1896,55 +1894,6 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   box-sizing: border-box;
-}
-
-.lp-folder-category-chip--info {
-  height: auto;
-  min-height: 10px;
-  padding: 1px 4px;
-}
-
-.lp-folder-category-chip__label {
-  line-height: 1;
-}
-
-.lp-folder-category-chip__info {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.lp-folder-category-chip__info-icon {
-  width: 8px;
-  height: 8px;
-  opacity: 0.75;
-  filter: brightness(0) invert(1);
-}
-
-.lp-folder-category-chip__pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 80;
-  width: min(240px, 70vw);
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #151515;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  color: rgba(255, 255, 255, 0.78);
-  font-family: var(--sans);
-  font-size: 11px;
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-  line-height: 1.45;
-  text-align: left;
-  pointer-events: none;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .doc-department-of-label {
@@ -4035,7 +3984,7 @@
   margin-bottom: 10px;
   flex-shrink: 0;
   position: relative;
-  z-index: 20;
+  z-index: 60;
   overflow: visible;
 }
 
@@ -4068,6 +4017,9 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 1;
+  overflow: visible;
   align-items: center;
   justify-content: center;
   gap: 1px;
@@ -4486,6 +4438,7 @@
 
 .doc-product-category-tag--summary {
   display: inline-flex;
+  position: relative;
   width: auto;
   max-width: 100%;
   margin: 0 auto;
@@ -4494,6 +4447,61 @@
   text-overflow: ellipsis;
   word-break: normal;
   overflow-wrap: normal;
+}
+
+.doc-product-category-tag--summary.is-hoverable {
+  overflow: visible;
+}
+
+.doc-product-category-tag--sky,
+.doc-product-category-tag--dept {
+  color: #f7d3e3;
+  background: rgba(244, 164, 190, 0.14);
+  border: 1px solid rgba(244, 164, 190, 0.5);
+  box-shadow: none;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 5px;
+  height: 10px;
+  padding: 0 4px;
+  font-size: 8px;
+  line-height: 1;
+  box-sizing: border-box;
+  cursor: default;
+}
+
+.doc-product-category-tag--sky.is-hoverable,
+.doc-product-category-tag--dept.is-hoverable {
+  cursor: help;
+  z-index: 5;
+}
+
+.doc-product-category-tag--sky:hover,
+.doc-product-category-tag--dept:hover {
+  filter: none;
+  background: rgba(244, 164, 190, 0.22);
+}
+
+.doc-meta-chip-info__pop--tag {
+  top: calc(100% + 6px);
+  left: auto;
+  right: 0;
+  transform: translateX(28%);
+  z-index: 5000;
+  width: min(240px, 70vw);
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+.doc-meta-chip-info__pop--portal {
+  position: fixed;
+  right: auto;
+  transform: none;
+  z-index: 10050;
+  pointer-events: none;
 }
 
 .doc-product-category-tag--fixed {

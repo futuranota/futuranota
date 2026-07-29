@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getToday } from "../../data.jsx";
 import { formatCampaignLabel, formatWindowDays } from "../../lib/docMetaBar.js";
 import { formatMmDdYy, isoFromDateInput } from "../../lib/docDates.js";
@@ -22,6 +23,10 @@ import { DepartmentCategoryField } from "./DepartmentCategoryField.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { resolveFolderStatus } from "../../lib/folderStatus.js";
+import {
+  findDepartmentById,
+  getCategoryDescription,
+} from "../../lib/departments.js";
 
 const SCHEDULE_INFO_ICON = "/uploads/Info.svg";
 
@@ -64,6 +69,8 @@ function MetaChip({
   emptyDisplay = "",
   valueLowercase = false,
   asTag = false,
+  tagVariant = null,
+  hoverText = "",
   infoText = "",
   infoAria = "",
   statusTone = null,
@@ -72,7 +79,36 @@ function MetaChip({
   const display = empty ? (placeholder ?? emptyDisplay) : value;
   const isPlaceholder = empty && Boolean(placeholder);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [hoverOpen, setHoverOpen] = useState(false);
+  const [hoverPos, setHoverPos] = useState(null);
   const infoRef = useRef(null);
+  const tagRef = useRef(null);
+  const tagHover = Boolean(hoverText) && !empty;
+
+  useLayoutEffect(() => {
+    if (!hoverOpen || !tagRef.current) {
+      setHoverPos(null);
+      return undefined;
+    }
+    const update = () => {
+      const rect = tagRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setHoverPos({
+        top: rect.bottom + 6,
+        left: Math.min(
+          Math.max(8, rect.left + 12),
+          window.innerWidth - 248,
+        ),
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [hoverOpen]);
 
   useEffect(() => {
     if (!infoOpen) return undefined;
@@ -98,7 +134,7 @@ function MetaChip({
         "doc-meta-chip"
         + (statusTone && !empty ? " doc-meta-chip--status-only" : "")
       }
-      title={!empty && !infoText ? String(value) : undefined}
+      title={!empty && !infoText && !hoverText ? String(value) : undefined}
     >
       {!(statusTone && !empty) ? (
         <span className="doc-meta-chip-k">
@@ -127,7 +163,27 @@ function MetaChip({
         </span>
       ) : null}
       {asTag && !empty ? (
-        <span className="doc-product-category-tag doc-product-category-tag--summary">{display}</span>
+        <span
+          ref={tagRef}
+          className={
+            "doc-product-category-tag doc-product-category-tag--summary"
+            + (tagVariant === "dept" || tagVariant === "sky"
+              ? " doc-product-category-tag--dept"
+              : "")
+            + (tagHover ? " is-hoverable" : "")
+          }
+          onMouseEnter={() => {
+            if (tagHover) setHoverOpen(true);
+          }}
+          onMouseLeave={() => setHoverOpen(false)}
+          onFocus={() => {
+            if (tagHover) setHoverOpen(true);
+          }}
+          onBlur={() => setHoverOpen(false)}
+          tabIndex={tagHover ? 0 : undefined}
+        >
+          {display}
+        </span>
       ) : statusTone && !empty ? (
         <FolderStatusBadge status={statusTone} label={display} />
       ) : (
@@ -143,6 +199,21 @@ function MetaChip({
           {display}
         </span>
       )}
+      {hoverOpen && hoverText && hoverPos && typeof document !== "undefined"
+        ? createPortal(
+          <span
+            className="doc-meta-chip-info__pop doc-meta-chip-info__pop--tag doc-meta-chip-info__pop--portal"
+            role="tooltip"
+            style={{
+              top: hoverPos.top,
+              left: hoverPos.left,
+            }}
+          >
+            {hoverText}
+          </span>,
+          document.body,
+        )
+        : null}
     </div>
   );
 }
@@ -317,6 +388,13 @@ export function DocMetaStrip({
     ? formatFolderScheduleDuration(scheduleStartDate, scheduleFinishDate, t)
     : null;
   const importedFile = normalizeKnowledgeImport(knowledgeImport);
+  const categoryLabel = (category || "").trim();
+  const categoryHoverText = isContentMode && categoryLabel
+    ? getCategoryDescription(
+      findDepartmentById(departments, departmentId),
+      categoryLabel,
+    )
+    : "";
 
   return (
     <div className={"doc-meta-strip" + (expanded ? " doc-meta-strip--open" : "")}>
@@ -330,7 +408,13 @@ export function DocMetaStrip({
           ) : null}
           {isContentMode ? (
             <>
-              <MetaChip label={t("meta.category")} value={category.trim() || null} />
+              <MetaChip
+                label={t("meta.category")}
+                value={categoryLabel || null}
+                asTag
+                tagVariant="dept"
+                hoverText={categoryHoverText}
+              />
               {showFolderSchedule ? (
                 <>
                   <MetaChip
