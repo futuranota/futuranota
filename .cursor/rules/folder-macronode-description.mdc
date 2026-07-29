@@ -1,47 +1,44 @@
 ---
-description: Macronode Description layers under titles synced into a parent folder
+description: Two folder document models for writers and their distinct navigation
 globs: src/components/docs/**/*.{jsx,js},src/components/left/LeftPanel.jsx,src/components/nodes/StandaloneNodeModal.jsx,src/stores/nodesStore.js,src/lib/nodeWritingExcerpt.js,src/lib/docNodeSync.js
 alwaysApply: false
 ---
 
-# Folder macronode Description sync
+# Folder document models for writers
 
-## Creation path (source of truth)
+## Product audience
+Futura Nota serves novelists, storytellers, and teams using storytelling for a business. Folder document presentation should support both narrative browsing and compact contextual links.
 
-1. Left panel → expand a **folder** box
-2. Click **Create a new Document** (sets `parentDocId`)
-3. User writes title + body in the macronode → Save
-4. `syncNodeToParentDoc` inserts/updates a linked H1 title inside the parent folder with `hideColorLink: true`
+## Two presentation models
+| Model | Creation path | Folder body presentation | Open action |
+|---|---|---|---|
+| **Descriptive** | Left panel → **Create a new Document** | Title + `Description: {excerpt}` + `continue reading`; no color handle | `continue reading` |
+| **Color link** | Inside open folder → **Create a document** | Title + color-link handle only; no Description or `continue reading` | Color handle |
 
-This must work for **every** new document with a parent folder — not a one-off title.
+Do not expose two open actions on the color-link model. A future chooser may switch between these models, so preserve `hideColorLink` as the presentation discriminator.
+
+## Source of truth
+- Descriptive creation sets `parentDocId`; `syncNodeToParentDoc` inserts/updates a linked H1/TODO with `hideColorLink: true`.
+- Inside-folder creation keeps `hideColorLink: false` and the visible color handle.
+- This must work for every folder document, not a one-off title.
 
 ## Where Description appears
-
 | Surface | Behavior |
 |---|---|
 | Left panel folder expand | **Title only** (File icon + title) |
-| Open folder body | Under each **linked** macronode title (H1/TODO): `Description: {excerpt} continue reading` (+ Completed if on) |
-
-## Color node link (query handle)
-
-| Origin | Color handle |
-|---|---|
-| **Create a new Document** (left panel) | **Hidden** (`hideColorLink`) — `continue reading` opens the doc |
-| Link created **inside the open folder** (Create node + color) | **Shown** as today |
+| Open folder body, descriptive model only | Under linked H1/TODO: `Description: {excerpt} continue reading` (+ status if set) |
+| Open folder body, color-link model | Never show Description, `continue reading`, or its duplicate open route |
 
 ## Delete rules
-
 1. **Delete from left panel expand** → purge node entity **and** title/Description/blocks from the parent folder (`deleteNode` → `deleteNodeAndDocBlocks`).
 2. **Remove layers inside the open folder** (detach / empty-title delete) → strip the linked owner bundle from folder blocks, but **keep** the document under the folder in the left panel (`parentDocId` retained).
 
 ## Data
-
 - Excerpt from `node.content` **body** via `getNodeWritingExcerpt` / `getNodeWritingBodyPlainText` (max 120)
-- `continue reading` opens that macronode
+- `continue reading` opens descriptive documents only
 - `mergeMissingLinkedOwnerBundles` + draft purge when node deleted from panel
 
 ## Key files
-
 - `LinkedMacronodeDescription.jsx` — Description line under linked titles
 - `DocBlockStack.jsx` — mounts Description; respects `hideColorLink`
 - `nodesStore.syncNodeToParentDoc` + `panelSyncedBlockFields`

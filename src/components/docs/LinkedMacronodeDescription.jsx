@@ -5,11 +5,11 @@ import { DocStatusChip } from "./FolderDocumentRow.jsx";
 import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
 
 /**
- * Description layer under every macronode title synced into a parent folder.
+ * Description layer for the descriptive document model synced into a parent folder.
  *
  * Trigger path: left panel → expand folder → "Create a new Document"
  * (parentDocId set) → write title + body → save → title appears in open folder;
- * this row shows under that title for ANY doc, not a single title.
+ * this row shows under that title when the color-link handle is hidden.
  *
  * Rules:
  * - Description: only when node.content has readable text (excerpt ≤120)

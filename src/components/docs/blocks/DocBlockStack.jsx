@@ -1836,7 +1836,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                 onQueryHandleClick={() => handleQueryHandleClick(index)}
                 onKeyDown={(e) => handleLinkableBlockKeyDown(index, block, e)}
               />
-              {isDocBlockLinkedToNode(block) ? (
+              {isDocBlockLinkedToNode(block) && block.hideColorLink ? (
                 <LinkedMacronodeDescription
                   nodeId={block.nodeId}
                   onContinue={() => handleQueryHandleClick(index)}
@@ -2373,7 +2373,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                     : null
                 }
               />
-              {isDocBlockLinkedToNode(block) ? (
+              {isDocBlockLinkedToNode(block) && block.hideColorLink ? (
                 <LinkedMacronodeDescription
                   nodeId={block.nodeId}
                   onContinue={() => handleQueryHandleClick(index)}
