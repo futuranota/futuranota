@@ -1814,8 +1814,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 68%;
-  max-width: 68%;
+  width: 92%;
+  max-width: 92%;
   margin: 0 0 8px;
 }
 
@@ -1833,6 +1833,11 @@
   box-sizing: border-box;
 }
 
+.lp-department-filter__control--merged {
+  gap: 0;
+  padding: 3px 6px 3px 8px;
+}
+
 .lp-department-filter__icon {
   width: 20px;
   height: 19px;
@@ -1840,6 +1845,29 @@
   display: block;
   color: #7A818B;
   align-self: center;
+  margin-right: 4px;
+}
+
+.lp-department-filter__divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  width: 1px;
+  margin: 2px 4px;
+  background: rgba(122, 129, 139, 0.35);
+}
+
+.lp-department-filter__category-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  margin: 0 5px 0 2px;
+  object-fit: contain;
+  opacity: 0.72;
+  filter: invert(55%) sepia(9%) saturate(375%) hue-rotate(177deg) brightness(91%);
+}
+
+.lp-department-filter__category-icon.is-disabled {
+  opacity: 0.3;
 }
 
 .lp-department-filter__select {
@@ -1865,8 +1893,26 @@
   cursor: pointer;
 }
 
+.lp-department-filter__select--dept,
+.lp-department-filter__select--category {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-right: 12px;
+}
+
+.lp-department-filter__select:disabled {
+  opacity: 0.45;
+  cursor: default;
+  color: rgba(122, 129, 139, 0.72);
+}
+
 .lp-department-filter__select:focus {
   outline: none;
+}
+
+.lp-department-filter__select--dept:focus,
+.lp-department-filter__select--category:focus:not(:disabled) {
+  color: rgba(185, 229, 254, 0.92);
 }
 
 .lp-department-filter__select option {
@@ -4455,9 +4501,9 @@
 
 .doc-product-category-tag--sky,
 .doc-product-category-tag--dept {
-  color: #f7d3e3;
-  background: rgba(244, 164, 190, 0.14);
-  border: 1px solid rgba(244, 164, 190, 0.5);
+  color: #B9E5FE;
+  background: #253642;
+  border: none;
   box-shadow: none;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -4480,7 +4526,7 @@
 .doc-product-category-tag--sky:hover,
 .doc-product-category-tag--dept:hover {
   filter: none;
-  background: rgba(244, 164, 190, 0.22);
+  background: #2c4252;
 }
 
 .doc-meta-chip-info__pop--tag {

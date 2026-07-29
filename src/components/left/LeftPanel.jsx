@@ -33,6 +33,7 @@ import {
   findDepartmentById,
   folderMatchesDepartmentFilter,
   formatDepartmentOfLabel,
+  listCategoriesForDepartment,
   listDepartmentsForObject,
 } from "../../lib/departments.js";
 import { docBlocksToBody, normalizeDocBlocks } from "../../lib/docBlocks.js";
@@ -1660,6 +1661,7 @@ export function LeftPanel({
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
   const [departmentFilterId, setDepartmentFilterId] = useState("");
+  const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
   const [departmentCreateRequested, setDepartmentCreateRequested] = useState(false);
   const departments = useDepartmentsStore((s) => s.departments);
   const [packImportActive, setPackImportActive] = useState(false);
@@ -1826,18 +1828,66 @@ export function LeftPanel({
     [campaignDocs, productCategoryFilter],
   );
 
-  const filteredContentDocs = useMemo(
-    () => contentDocs.filter((doc) => (
-      !doc.campaignActive
-      && contentDocMatchesProductFilter(doc, docs, contentProductFilter)
-      && folderMatchesDepartmentFilter(doc, departmentFilterId || null)
-    )),
-    [contentDocs, docs, contentProductFilter, departmentFilterId],
-  );
-
   const departmentFilterOptions = useMemo(
     () => listDepartmentsForObject(departments, filterObjectId),
     [departments, filterObjectId],
+  );
+
+  const selectedDepartmentFilter = useMemo(
+    () => findDepartmentById(departmentFilterOptions, departmentFilterId),
+    [departmentFilterOptions, departmentFilterId],
+  );
+
+  const departmentCategoryFilterOptions = useMemo(
+    () => listCategoriesForDepartment(selectedDepartmentFilter),
+    [selectedDepartmentFilter],
+  );
+
+  // Drop stale department / category filters when options change.
+  useEffect(() => {
+    if (!departmentFilterId) {
+      if (departmentCategoryFilter) setDepartmentCategoryFilter("");
+      return;
+    }
+    const stillExists = departmentFilterOptions.some(
+      (dept) => dept.id === departmentFilterId,
+    );
+    if (!stillExists) {
+      setDepartmentFilterId("");
+      setDepartmentCategoryFilter("");
+      return;
+    }
+    if (
+      departmentCategoryFilter
+      && !departmentCategoryFilterOptions.some(
+        (label) => label.toLowerCase() === departmentCategoryFilter.toLowerCase(),
+      )
+    ) {
+      setDepartmentCategoryFilter("");
+    }
+  }, [
+    departmentFilterId,
+    departmentCategoryFilter,
+    departmentFilterOptions,
+    departmentCategoryFilterOptions,
+  ]);
+
+  const filteredContentDocs = useMemo(
+    () => contentDocs.filter((doc) => {
+      if (doc.campaignActive) return false;
+      if (!contentDocMatchesProductFilter(doc, docs, contentProductFilter)) return false;
+      if (!folderMatchesDepartmentFilter(doc, departmentFilterId || null)) return false;
+      if (!departmentCategoryFilter) return true;
+      return String(doc?.category || "").trim().toLowerCase()
+        === departmentCategoryFilter.trim().toLowerCase();
+    }),
+    [
+      contentDocs,
+      docs,
+      contentProductFilter,
+      departmentFilterId,
+      departmentCategoryFilter,
+    ],
   );
 
   const filteredUncategorizedDocs = useMemo(
@@ -3132,13 +3182,20 @@ export function LeftPanel({
                     <label className="sr-only" htmlFor="lp-department-filter">
                       {t("sidebar.departmentFilterLabel")}
                     </label>
-                    <div className="lp-department-filter__control">
+                    <label className="sr-only" htmlFor="lp-department-category-filter">
+                      {t("sidebar.departmentCategoryFilterLabel")}
+                    </label>
+                    <div className="lp-department-filter__control lp-department-filter__control--merged">
                       <DepartmentsGlyph className="lp-department-filter__icon" />
                       <select
                         id="lp-department-filter"
-                        className="lp-department-filter__select"
+                        className="lp-department-filter__select lp-department-filter__select--dept"
                         value={departmentFilterId}
-                        onChange={(e) => setDepartmentFilterId(e.target.value)}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          setDepartmentFilterId(nextId);
+                          setDepartmentCategoryFilter("");
+                        }}
                       >
                         <option value="">{t("sidebar.departmentFilterAll")}</option>
                         {departmentFilterOptions.map((dept) => (
@@ -3147,19 +3204,70 @@ export function LeftPanel({
                           </option>
                         ))}
                       </select>
+                      <span className="lp-department-filter__divider" aria-hidden />
+                      <img
+                        src="/uploads/file-open.svg"
+                        alt=""
+                        aria-hidden
+                        className={
+                          "lp-department-filter__category-icon"
+                          + (!departmentFilterId ? " is-disabled" : "")
+                        }
+                      />
+                      <select
+                        id="lp-department-category-filter"
+                        className="lp-department-filter__select lp-department-filter__select--category"
+                        value={departmentCategoryFilter}
+                        disabled={!departmentFilterId}
+                        onChange={(e) => setDepartmentCategoryFilter(e.target.value)}
+                      >
+                        {!departmentFilterId ? (
+                          <option value="">
+                            {t("sidebar.departmentCategoryFilterNeedParent")}
+                          </option>
+                        ) : (
+                          <>
+                            <option value="">
+                              {t("sidebar.departmentCategoryFilterAll")}
+                            </option>
+                            {departmentCategoryFilterOptions.map((label) => (
+                              <option key={label} value={label}>
+                                {label}
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </select>
                     </div>
                   </div>
                 ) : (
                   <div className="lp-department-filter">
-                    <div className="lp-department-filter__control">
+                    <div className="lp-department-filter__control lp-department-filter__control--merged">
                       <DepartmentsGlyph className="lp-department-filter__icon" />
                       <select
-                        className="lp-department-filter__select"
+                        className="lp-department-filter__select lp-department-filter__select--dept"
                         disabled
                         value=""
                         aria-label={t("sidebar.departmentFilterLabel")}
                       >
                         <option value="">{t("sidebar.departmentParentEmptyHint")}</option>
+                      </select>
+                      <span className="lp-department-filter__divider" aria-hidden />
+                      <img
+                        src="/uploads/file-open.svg"
+                        alt=""
+                        aria-hidden
+                        className="lp-department-filter__category-icon is-disabled"
+                      />
+                      <select
+                        className="lp-department-filter__select lp-department-filter__select--category"
+                        disabled
+                        value=""
+                        aria-label={t("sidebar.departmentCategoryFilterLabel")}
+                      >
+                        <option value="">
+                          {t("sidebar.departmentCategoryFilterNeedParent")}
+                        </option>
                       </select>
                     </div>
                   </div>
@@ -3340,6 +3448,11 @@ export function LeftPanel({
             docCreateMode === "content" && departmentFilterId
               ? departmentFilterId
               : null
+          }
+          defaultCategory={
+            docCreateMode === "content" && departmentFilterId && departmentCategoryFilter
+              ? departmentCategoryFilter
+              : ""
           }
           onSubmit={handleCreate}
           onCancel={() => setShowCreate(false)}
