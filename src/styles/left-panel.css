@@ -5624,6 +5624,7 @@
   max-width: none;
   max-height: none;
   object-fit: contain;
+  transform: translateY(-12px);
   pointer-events: none;
   user-select: none;
   opacity: 0.92;
