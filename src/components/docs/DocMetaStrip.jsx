@@ -595,11 +595,21 @@ export function DocMetaStrip({
                       <FolderStatusBadge status={folderStatus.status} label={folderStatusLabel} />
                     </div>
                   ) : null}
-                  <div className="doc-meta-field doc-meta-field--readonly">
-                    <span className="doc-meta-field-k">{t("meta.scheduleDuration")}</span>
-                    <span className="doc-new-meta-readonly">
-                      {scheduleDuration || "—"}
-                    </span>
+                  <div className="doc-meta-folder-view-row">
+                    <div className="doc-meta-field doc-meta-field--readonly">
+                      <span className="doc-meta-field-k">{t("meta.scheduleDuration")}</span>
+                      <span className="doc-new-meta-readonly">
+                        {scheduleDuration || "—"}
+                      </span>
+                    </div>
+                    {onFolderViewModeChange ? (
+                      <div className="doc-meta-field doc-meta-field--folder-view">
+                        <FolderViewModeSettings
+                          viewMode={folderViewMode}
+                          onViewModeChange={onFolderViewModeChange}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </>
               ) : (
@@ -619,16 +629,16 @@ export function DocMetaStrip({
                     <span className="doc-meta-field-k">{t("meta.window")}</span>
                     <span className="doc-new-meta-readonly">{windowSummary}</span>
                   </div>
+                  {onFolderViewModeChange ? (
+                    <div className="doc-meta-field doc-meta-field--folder-view">
+                      <FolderViewModeSettings
+                        viewMode={folderViewMode}
+                        onViewModeChange={onFolderViewModeChange}
+                      />
+                    </div>
+                  ) : null}
                 </>
               )}
-              {onFolderViewModeChange ? (
-                <div className="doc-meta-field doc-meta-field--folder-view">
-                  <FolderViewModeSettings
-                    viewMode={folderViewMode}
-                    onViewModeChange={onFolderViewModeChange}
-                  />
-                </div>
-              ) : null}
             </>
           ) : null}
 

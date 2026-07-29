@@ -14,7 +14,6 @@ const VIEW_OPTIONS = [
     id: FOLDER_VIEW_MODE_STORY,
     icon: "/uploads/storybook.svg",
     titleKey: "meta.folderViewStoryTitle",
-    taglineKey: "meta.folderViewStoryTagline",
     structureKey: "meta.folderViewStoryStructure",
     bodyKey: "meta.folderViewStoryBody",
   },
@@ -22,7 +21,6 @@ const VIEW_OPTIONS = [
     id: FOLDER_VIEW_MODE_QUICK,
     icon: "/uploads/links-type.svg",
     titleKey: "meta.folderViewQuickTitle",
-    taglineKey: "meta.folderViewQuickTagline",
     structureKey: "meta.folderViewQuickStructure",
     bodyKey: "meta.folderViewQuickBody",
   },
@@ -101,9 +99,6 @@ function FolderViewModeOverlay({ current, onSelect, onClose }) {
                 <span className="folder-view-overlay__row-copy">
                   <span className="folder-view-overlay__row-title">
                     {t(option.titleKey)}
-                  </span>
-                  <span className="folder-view-overlay__row-tagline">
-                    {t(option.taglineKey)}
                   </span>
                   <span className="folder-view-overlay__row-structure">
                     {t(option.structureKey)}

@@ -142,6 +142,9 @@ export function DocDocumentBox({
    */
   const isFolderSlashSurface = metaMode === "content" || docKind === "content";
   const slashCommands = isFolderSlashSurface ? FOLDER_SLASH_COMMANDS : DOCUMENT_SLASH_COMMANDS;
+  // Folder [+] keeps its visual controls, but document creation belongs to the
+  // explicit folder action. Typed slash behavior remains available.
+  const pickerCommands = isFolderSlashSurface ? [] : slashCommands;
   const slashGhostHints = isFolderSlashSurface ? FOLDER_SLASH_GHOST_HINTS : DOCUMENT_SLASH_GHOST_HINTS;
   const parseScopedSlashQuery = isFolderSlashSurface ? parseFolderSlashQuery : parseDocumentSlashQuery;
   const showCampaignMeta = Boolean(onVersionChange) && !isTemplate && !isProductMode && !isKnowledgeMode;
@@ -1002,7 +1005,7 @@ export function DocDocumentBox({
           />
         ) : null}
         <DocSlashCommandPicker
-          commands={slashCommands}
+          commands={pickerCommands}
           onSelectCommand={insertSlashCommandFromPicker}
           isCommandEnabled={isSlashCommandEnabled}
           variant="floating"

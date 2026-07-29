@@ -41,6 +41,9 @@ export function DocSlashCommandPicker({
   const rootRef = useRef(null);
   const showNodeLinkColors = Boolean(onNodeLinkColorChange);
   const sections = buildSlashMenuSections(commands);
+  const hasCommands = sections.length > 0;
+  const menuLabel = hasCommands ? "Document tools" : nodeLinkColorLabel;
+  const buttonLabel = hasCommands ? "Block commands and node colors" : nodeLinkColorLabel;
   const rootClass = [
     "doc-slash-command-picker",
     variant === "pad" ? "doc-slash-command-picker--pad" : "doc-slash-command-picker--floating",
@@ -64,40 +67,42 @@ export function DocSlashCommandPicker({
   return (
     <div className={rootClass} ref={rootRef}>
       {open ? (
-        <div className="doc-slash-command-picker__menu" role="dialog" aria-label="Document tools">
-          <div className="doc-slash-command-picker__commands" role="listbox" aria-label="Block commands">
-            {sections.map((section) => {
-              if (section.kind === "group") {
+        <div className="doc-slash-command-picker__menu" role="dialog" aria-label={menuLabel}>
+          {hasCommands ? (
+            <div className="doc-slash-command-picker__commands" role="listbox" aria-label="Block commands">
+              {sections.map((section) => {
+                if (section.kind === "group") {
+                  return (
+                    <div
+                      key={`group:${section.id}`}
+                      className="doc-slash-command-picker__group"
+                      role="group"
+                      aria-label={section.label}
+                    >
+                      <div className="doc-slash-command-picker__group-label">{section.label}</div>
+                      {section.commands.map((cmd) => (
+                        <CommandOption
+                          key={cmd.label}
+                          cmd={cmd}
+                          enabled={isCommandEnabled?.(cmd) !== false}
+                          onPick={pick}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+                const cmd = section.command;
                 return (
-                  <div
-                    key={`group:${section.id}`}
-                    className="doc-slash-command-picker__group"
-                    role="group"
-                    aria-label={section.label}
-                  >
-                    <div className="doc-slash-command-picker__group-label">{section.label}</div>
-                    {section.commands.map((cmd) => (
-                      <CommandOption
-                        key={cmd.label}
-                        cmd={cmd}
-                        enabled={isCommandEnabled?.(cmd) !== false}
-                        onPick={pick}
-                      />
-                    ))}
-                  </div>
+                  <CommandOption
+                    key={cmd.label}
+                    cmd={cmd}
+                    enabled={isCommandEnabled?.(cmd) !== false}
+                    onPick={pick}
+                  />
                 );
-              }
-              const cmd = section.command;
-              return (
-                <CommandOption
-                  key={cmd.label}
-                  cmd={cmd}
-                  enabled={isCommandEnabled?.(cmd) !== false}
-                  onPick={pick}
-                />
-              );
-            })}
-          </div>
+              })}
+            </div>
+          ) : null}
           {showNodeLinkColors ? (
             <div
               className="doc-slash-command-picker__colors"
@@ -117,7 +122,7 @@ export function DocSlashCommandPicker({
       <button
         type="button"
         className="doc-slash-command-picker__btn"
-        aria-label="Block commands and node colors"
+        aria-label={buttonLabel}
         aria-expanded={open}
         aria-haspopup="dialog"
         onPointerDown={(event) => event.stopPropagation()}
