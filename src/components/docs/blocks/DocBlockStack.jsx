@@ -100,7 +100,10 @@ import { H1BlockView } from "./H1BlockView.jsx";
 import { H2BlockView } from "./H2BlockView.jsx";
 import { H3BlockView } from "./H3BlockView.jsx";
 import { TextBlockView } from "./TextBlockView.jsx";
-import { LinkedMacronodeDescription } from "../LinkedMacronodeDescription.jsx";
+import {
+  LinkedMacronodeDescription,
+  LinkedMacronodeStatusBadge,
+} from "../LinkedMacronodeDescription.jsx";
 import { isFolderStoryView } from "../../../lib/folderViewMode.js";
 
 /** Folder viewMode drives presentation; hideColorLink remains the fallback. */
@@ -1792,13 +1795,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         const collapsedWriteBlock = collapsedActiveWriteId
           ? resolveBlockById(collapsedActiveWriteId)
           : null;
-        const linkedStatusIconSize =
-          blocks
-            .slice(0, index)
-            .filter((candidate) => isDocBlockLinkedToNode(candidate))
-            .length % 2 === 0
-            ? "default"
-            : "small";
 
         if (block.type === DOC_BLOCK_TYPES.TEXT && isLinkedOwnerContinuationSlot(blocks, index)) {
           if (getLinkedOwnerForContinuationSlot(blocks, index) < 0) {
@@ -1846,6 +1842,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   && !linkedBlockUsesStoryPresentation(block, folderViewMode)
                 }
                 ghostHints={slashGhostHints}
+                titleAddon={
+                  isDocBlockLinkedToNode(block)
+                  && linkedBlockUsesStoryPresentation(block, folderViewMode) ? (
+                    <LinkedMacronodeStatusBadge nodeId={block.nodeId} />
+                  ) : null
+                }
                 onFocus={() => {
                   if (collapsedPadWriteByOwnerId[block.id]) return;
                   onFocusBlock?.(block.id);
@@ -1858,7 +1860,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   nodeId={block.nodeId}
                   onContinue={() => handleQueryHandleClick(index)}
                   showDescription={linkedBlockUsesStoryPresentation(block, folderViewMode)}
-                  statusIconSize={linkedStatusIconSize}
+                  showStatus={!linkedBlockUsesStoryPresentation(block, folderViewMode)}
                 />
               ) : null}
             </>
@@ -2373,6 +2375,12 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   blockLinksEnabled(block)
                   && !linkedBlockUsesStoryPresentation(block, folderViewMode)
                 }
+                titleAddon={
+                  isDocBlockLinkedToNode(block)
+                  && linkedBlockUsesStoryPresentation(block, folderViewMode) ? (
+                    <LinkedMacronodeStatusBadge nodeId={block.nodeId} />
+                  ) : null
+                }
                 onFocus={() => {
                   if (collapsedPadWriteByOwnerId[block.id]) return;
                   onFocusBlock?.(block.id);
@@ -2400,7 +2408,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   nodeId={block.nodeId}
                   onContinue={() => handleQueryHandleClick(index)}
                   showDescription={linkedBlockUsesStoryPresentation(block, folderViewMode)}
-                  statusIconSize={linkedStatusIconSize}
+                  showStatus={!linkedBlockUsesStoryPresentation(block, folderViewMode)}
                 />
               ) : null}
             </>

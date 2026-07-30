@@ -14,17 +14,29 @@ import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
  * Rules:
  * - Description: only when enabled and node.content has readable text (excerpt ≤120)
  * - continue reading → opens that macronode
- * - Status chip when in progress / in review / completed
+ * - Descriptive: status chip rides next to the title (see LinkedMacronodeStatusBadge)
+ * - Quick / color-link: status chip sits on its own line under the title
  */
+export function LinkedMacronodeStatusBadge({ nodeId }) {
+  const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] ?? null : null));
+  const workStatus = resolveDocWorkStatus(node);
+  if (!nodeId || !workStatus) return null;
+  return (
+    <span className="doc-linked-macro-status-title">
+      <DocStatusChip status={workStatus} />
+    </span>
+  );
+}
+
 export function LinkedMacronodeDescription({
   nodeId,
   onContinue,
   showDescription = true,
-  statusIconSize = "default",
+  showStatus = true,
 }) {
   const { t } = useI18n();
   const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] ?? null : null));
-  const workStatus = resolveDocWorkStatus(node);
+  const workStatus = showStatus ? resolveDocWorkStatus(node) : null;
   const { excerpt } = getNodeWritingExcerpt(node?.content);
   const hasExcerpt = showDescription && Boolean(excerpt);
 
@@ -36,9 +48,7 @@ export function LinkedMacronodeDescription({
     onContinue?.();
   };
 
-  const statusChip = workStatus ? (
-    <DocStatusChip status={workStatus} iconSize={statusIconSize} />
-  ) : null;
+  const statusChip = workStatus ? <DocStatusChip status={workStatus} /> : null;
 
   if (!hasExcerpt) {
     return (
@@ -63,11 +73,6 @@ export function LinkedMacronodeDescription({
       >
         {t("sidebar.continueReading")}
       </button>
-      {statusChip ? (
-        <span className="doc-linked-macro-status-row">
-          {statusChip}
-        </span>
-      ) : null}
     </div>
   );
 }

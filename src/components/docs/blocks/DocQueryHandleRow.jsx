@@ -57,6 +57,7 @@ export function DocQueryHandleRow({
   minHeightPx = 22,
   maxHeightPx = 200,
   ghostHints,
+  titleAddon = null,
 }) {
   const inputRef = useRef(null);
 
@@ -99,7 +100,32 @@ export function DocQueryHandleRow({
           }}
         />
       ) : null}
-      {multiline ? (
+      {multiline && titleAddon ? (
+        <div className="doc-h1-block__title-flow">
+          {/* Hidden twin sizes the field to its text so the badge follows it in flow. */}
+          <div className="doc-h1-block__title-sizer">
+            <span className="doc-h1-block__title-mirror" aria-hidden>
+              {value || placeholder}
+            </span>
+            <SlashAwareTextarea
+              inputRef={inputRef}
+              value={value}
+              onChange={onChange}
+              onKeyDown={onKeyDown}
+              onFocus={onFocus}
+              placeholder={placeholder}
+              showPlaceholder
+              ariaLabel={ariaLabel}
+              wrapClassName="doc-h1-block__slash-wrap"
+              className="doc-h1-block__input doc-h1-block__input--multiline"
+              minHeightPx={minHeightPx}
+              maxHeightPx={maxHeightPx}
+              ghostHints={ghostHints}
+            />
+          </div>
+          {titleAddon}
+        </div>
+      ) : multiline ? (
         <SlashAwareTextarea
           inputRef={inputRef}
           value={value}
@@ -116,18 +142,21 @@ export function DocQueryHandleRow({
           ghostHints={ghostHints}
         />
       ) : (
-        <input
-          ref={inputRef}
-          type="text"
-          className="doc-h1-block__input"
-          value={value}
-          placeholder={placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={onFocus}
-          onKeyDown={onKeyDown}
-          spellCheck={false}
-          aria-label={ariaLabel}
-        />
+        <>
+          <input
+            ref={inputRef}
+            type="text"
+            className="doc-h1-block__input"
+            value={value}
+            placeholder={placeholder}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={onFocus}
+            onKeyDown={onKeyDown}
+            spellCheck={false}
+            aria-label={ariaLabel}
+          />
+          {titleAddon}
+        </>
       )}
     </div>
   );

@@ -46,6 +46,7 @@ export function DocTodoPlanBlockView({
   detachFromNodeLabel = "Eliminar del nodo",
   showDragHandle = true,
   listTitleEditable = true,
+  titleAddon = null,
 }) {
   const inputRefs = useRef({});
   const [expanded, setExpanded] = useState(true);
@@ -134,6 +135,7 @@ export function DocTodoPlanBlockView({
             {listTitle}
           </span>
         )}
+        {titleAddon}
         <button type="button" className="doc-todo-plan__new-btn" onClick={onAddItem}>
           + item
         </button>

@@ -12,6 +12,7 @@ export function H1BlockView({
   onFocus,
   placeholder = "Create a title",
   ghostHints,
+  titleAddon = null,
 }) {
   return (
     <div className="doc-h1-block">
@@ -29,6 +30,7 @@ export function H1BlockView({
         ariaLabel="Title block query or title"
         multiline
         ghostHints={ghostHints}
+        titleAddon={titleAddon}
       />
     </div>
   );

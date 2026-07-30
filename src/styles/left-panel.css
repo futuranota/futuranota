@@ -1415,11 +1415,6 @@
   mask-size: contain;
 }
 
-.doc-status-chip--small-icon .doc-status-chip__icon {
-  width: 8px;
-  height: 8px;
-}
-
 .doc-status-chip__icon--in-progress {
   background: linear-gradient(135deg, #8FC4FF 0%, #599FFF 45%, #185EBE 100%);
   -webkit-mask-image: url("/uploads/CircleDashed.svg");
@@ -1450,8 +1445,16 @@
 }
 
 .doc-linked-macro-desc .completed-chip,
-.doc-linked-macro-desc .doc-status-chip {
-  font-size: 9px;
+.doc-linked-macro-desc .doc-status-chip,
+.doc-linked-macro-status-title .doc-status-chip {
+  font-size: 10px;
+  padding-inline: 4px;
+}
+
+.doc-linked-macro-desc .doc-status-chip__icon,
+.doc-linked-macro-status-title .doc-status-chip__icon {
+  width: 9px;
+  height: 9px;
 }
 
 .lp-node-card-foot {
@@ -8443,12 +8446,6 @@ body.doc-content-resizing * {
   word-break: break-word;
 }
 
-.doc-linked-macro-status-row {
-  display: block;
-  margin-top: 3px;
-  line-height: 1;
-}
-
 .doc-linked-macro-desc .folder-doc-row__desc-label {
   font-family: var(--font-doc);
   font-size: var(--font-doc-size);
@@ -8525,6 +8522,49 @@ body.doc-content-resizing * {
 .doc-h1-block__slash-wrap {
   flex: 1;
   min-width: 0;
+}
+
+.doc-h1-block__title-flow {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-h1-block__title-sizer {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.doc-h1-block__title-sizer .doc-h1-block__slash-wrap {
+  width: 100%;
+}
+
+/* Mirrors the field's type so the sizer collapses to the real text width. */
+.doc-h1-block__title-mirror {
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  padding: 0 1px 0 0;
+  font-family: "Hanken Grotesk", sans-serif;
+  font-optical-sizing: auto;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.doc-linked-macro-status-title {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 3px;
+  line-height: 1;
 }
 
 .doc-h1-block__input::placeholder {
