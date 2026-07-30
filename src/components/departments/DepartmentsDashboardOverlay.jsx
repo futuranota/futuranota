@@ -414,7 +414,11 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                 <div className="departments-dashboard-table__tags">
                   {tagsEnabled && !addingCategory ? (
                     <div className="departments-dashboard-table__category-list">
-                      <div className="lp-departments-subs">
+                      <div
+                        className="lp-departments-subs departments-dashboard-table__tag-board"
+                        role="list"
+                        aria-label={t("sidebar.departmentCategoriesLabel")}
+                      >
                         {draftTags.map((sub) => {
                           const key = draftKeyOf(sub);
                           const isEditing =
@@ -469,7 +473,11 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                             );
                           }
                           return (
-                            <span key={key} className="lp-departments-sub-chip">
+                            <span
+                              key={key}
+                              className="lp-departments-sub-chip"
+                              role="listitem"
+                            >
                               <button
                                 type="button"
                                 className="lp-departments-sub-chip__label"
