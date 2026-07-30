@@ -1641,9 +1641,9 @@
   gap: 10px;
   width: 100%;
   padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #151515;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: var(--panel-2);
   color: rgba(255, 255, 255, 0.9);
   text-align: left;
   cursor: pointer;
@@ -1651,8 +1651,7 @@
 }
 
 .lp-departments-room-card:hover {
-  border-color: rgba(255, 255, 255, 0.22);
-  background: #1a1a1a;
+  border-color: var(--glass-border-2);
 }
 
 .lp-departments-room-card__icon {
