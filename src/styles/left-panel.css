@@ -2299,6 +2299,11 @@
   color: rgba(255, 255, 255, 0.88);
 }
 
+.departments-dashboard-overlay--adding-category
+  .departments-dashboard-table__meta-text--name {
+  color: #7A818B;
+}
+
 .departments-dashboard-table__recorded-block {
   display: flex;
   flex-direction: column;

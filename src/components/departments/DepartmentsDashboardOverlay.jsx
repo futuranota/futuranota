@@ -294,7 +294,8 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
       className={
         "departments-dashboard-overlay" +
         (isCreate ? "" : " departments-dashboard-overlay--edit") +
-        (editingDeptMeta ? " departments-dashboard-overlay--meta-edit" : "")
+        (editingDeptMeta ? " departments-dashboard-overlay--meta-edit" : "") +
+        (addingCategory ? " departments-dashboard-overlay--adding-category" : "")
       }
       role="dialog"
       aria-modal="true"
@@ -384,13 +385,15 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                     <p className="departments-dashboard-table__meta-text departments-dashboard-table__meta-text--name">
                       {displayName}
                     </p>
-                    <button
-                      type="button"
-                      className="departments-dashboard-table__meta-edit"
-                      onClick={beginEditDeptMeta}
-                    >
-                      {t("sidebar.departmentEditMeta")}
-                    </button>
+                    {!addingCategory ? (
+                      <button
+                        type="button"
+                        className="departments-dashboard-table__meta-edit"
+                        onClick={beginEditDeptMeta}
+                      >
+                        {t("sidebar.departmentEditMeta")}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 {displayDescription ? (
