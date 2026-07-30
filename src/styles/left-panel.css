@@ -1375,8 +1375,10 @@
 .doc-status-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  color: inherit;
+  gap: 1px;
+  padding-block: 2px;
+  padding-inline: 5px;
+  border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
   line-height: 1.2;
@@ -1385,15 +1387,50 @@
 }
 
 .doc-status-chip--in_progress {
-  color: #008AF5;
+  color: #599FFF;
+  background: #192A3F;
 }
 
 .doc-status-chip--in_review {
-  color: #F0B13D;
+  color: #E5B453;
+  background: #403928;
 }
 
 .doc-status-chip--completed {
-  color: #57BC6C;
+  color: #73F09A;
+  background: #1F3427;
+}
+
+.doc-status-chip__icon {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  background: currentColor;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.doc-status-chip__icon--in-progress {
+  background: linear-gradient(135deg, #8FC4FF 0%, #599FFF 45%, #185EBE 100%);
+  -webkit-mask-image: url("/uploads/CircleDashed.svg");
+  mask-image: url("/uploads/CircleDashed.svg");
+}
+
+.doc-status-chip__icon--in-review {
+  background: linear-gradient(135deg, #E7BD6C, #AE832C);
+  -webkit-mask-image: url("/uploads/in-review-icon.svg");
+  mask-image: url("/uploads/in-review-icon.svg");
+}
+
+.doc-status-chip__icon--completed {
+  background: linear-gradient(135deg, #8AF7A8, #39B968);
+  -webkit-mask-image: url("/uploads/Checks.svg");
+  mask-image: url("/uploads/Checks.svg");
 }
 
 .completed-chip__check,

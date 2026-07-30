@@ -12,16 +12,20 @@ import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
  * this row shows under that title when the color-link handle is hidden.
  *
  * Rules:
- * - Description: only when node.content has readable text (excerpt ≤120)
+ * - Description: only when enabled and node.content has readable text (excerpt ≤120)
  * - continue reading → opens that macronode
  * - Status chip when in progress / in review / completed
  */
-export function LinkedMacronodeDescription({ nodeId, onContinue }) {
+export function LinkedMacronodeDescription({
+  nodeId,
+  onContinue,
+  showDescription = true,
+}) {
   const { t } = useI18n();
   const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] ?? null : null));
   const workStatus = resolveDocWorkStatus(node);
   const { excerpt } = getNodeWritingExcerpt(node?.content);
-  const hasExcerpt = Boolean(excerpt);
+  const hasExcerpt = showDescription && Boolean(excerpt);
 
   if (!nodeId || (!hasExcerpt && !workStatus)) return null;
 

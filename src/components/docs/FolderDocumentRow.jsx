@@ -21,11 +21,18 @@ export function DocStatusChip({ status }) {
   );
   if (!resolved) return null;
   const label = docWorkStatusLabel(resolved, t);
+  const iconKind =
+    resolved === DOC_WORK_STATUS.IN_PROGRESS
+      ? "in-progress"
+      : resolved === DOC_WORK_STATUS.IN_REVIEW
+        ? "in-review"
+        : "completed";
   return (
     <span className={`doc-status-chip doc-status-chip--${resolved}`}>
-      {resolved === DOC_WORK_STATUS.COMPLETED ? (
-        <span className="doc-status-chip__check" aria-hidden>✓</span>
-      ) : null}
+      <span
+        className={`doc-status-chip__icon doc-status-chip__icon--${iconKind}`}
+        aria-hidden
+      />
       {label}
     </span>
   );
