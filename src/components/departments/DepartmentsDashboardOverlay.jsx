@@ -576,7 +576,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
           ) : existing ? (
             <button
               type="button"
-              className="btn xs ghost"
+              className="departments-dashboard-overlay__delete"
               onClick={handleDelete}
             >
               {t("sidebar.departmentDelete")}
