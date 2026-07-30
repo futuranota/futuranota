@@ -2385,6 +2385,61 @@
   min-width: 0;
 }
 
+.departments-dashboard-table__category-list,
+.departments-dashboard-table__category-create {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+}
+
+.departments-dashboard-table__add-category-trigger,
+.departments-dashboard-table__category-add {
+  appearance: none;
+  width: fit-content;
+  margin: 0;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.56);
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+  transition: color 150ms ease, opacity 150ms ease;
+}
+
+.departments-dashboard-table__add-category-trigger:hover,
+.departments-dashboard-table__category-add:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.departments-dashboard-table__add-category-trigger:focus-visible,
+.departments-dashboard-table__category-add:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.departments-dashboard-table__category-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.departments-dashboard-table__category-add {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.departments-dashboard-table__category-add:disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+
 .departments-dashboard-table__tag-add {
   display: flex;
   gap: 8px;

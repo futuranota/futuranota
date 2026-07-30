@@ -36,6 +36,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
   const [editingDeptMeta, setEditingDeptMeta] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
   const [tagDescriptionDraft, setTagDescriptionDraft] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
   /** @type {[DraftTag[], Function]} */
   const [draftTags, setDraftTags] = useState([]);
   /** @type {[string|null, Function]} draft key (= originLabel || label) being edited */
@@ -51,6 +52,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
       setEditingDeptMeta(false);
       setTagDraft("");
       setTagDescriptionDraft("");
+      setAddingCategory(false);
       setDraftTags([]);
       setEditingKey(null);
       return;
@@ -64,6 +66,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     setEditingDeptMeta(false);
     setTagDraft("");
     setTagDescriptionDraft("");
+    setAddingCategory(false);
     setDraftTags(
       Array.isArray(dept?.subcategories)
         ? dept.subcategories.map((s) => ({
@@ -80,6 +83,12 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      if (addingCategory) {
+        setTagDraft("");
+        setTagDescriptionDraft("");
+        setAddingCategory(false);
+        return;
+      }
       if (editingDeptMeta) {
         const dept = findDepartmentById(
           useDepartmentsStore.getState().departments,
@@ -94,7 +103,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, editingDeptMeta, session?.departmentId]);
+  }, [onClose, addingCategory, editingDeptMeta, session?.departmentId]);
 
   if (!session) return null;
   if (!isCreate && !existing) return null;
@@ -107,6 +116,7 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
 
   const beginEditDeptMeta = () => {
     if (!existing) return;
+    setAddingCategory(false);
     setName(existing.category || "");
     setDescription(existing.description || "");
     setEditingKey(null);
@@ -136,16 +146,30 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
 
   const addTag = () => {
     const label = tagDraft.trim().slice(0, 50);
-    if (!label) return;
+    if (!label) return false;
+    if (draftTags.some((item) => item.label.toLowerCase() === label.toLowerCase())) {
+      return false;
+    }
     const desc = normalizeDescription(tagDescriptionDraft);
-    setDraftTags((prev) => {
-      if (prev.some((item) => item.label.toLowerCase() === label.toLowerCase())) {
-        return prev;
-      }
-      return [...prev, { label, description: desc, originLabel: null }];
-    });
+    setDraftTags((prev) => [
+      ...prev,
+      { label, description: desc, originLabel: null },
+    ]);
     setTagDraft("");
     setTagDescriptionDraft("");
+    return true;
+  };
+
+  const beginAddCategory = () => {
+    setEditingKey(null);
+    setTagDraft("");
+    setTagDescriptionDraft("");
+    setAddingCategory(true);
+  };
+
+  const commitAddCategory = () => {
+    if (!addTag()) return;
+    setAddingCategory(false);
   };
 
   const removeTag = (tag) => {
@@ -388,8 +412,8 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                   {t("sidebar.departmentCategoriesLabel")}:
                 </span>
                 <div className="departments-dashboard-table__tags">
-                  {tagsEnabled ? (
-                    <>
+                  {tagsEnabled && !addingCategory ? (
+                    <div className="departments-dashboard-table__category-list">
                       <div className="lp-departments-subs">
                         {draftTags.map((sub) => {
                           const key = draftKeyOf(sub);
@@ -467,32 +491,31 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                           );
                         })}
                       </div>
-                      <div className="departments-dashboard-table__tag-add departments-dashboard-table__tag-add--stack">
-                        <div className="departments-dashboard-table__tag-add-row">
-                          <input
-                            type="text"
-                            className="departments-dashboard-table__input"
-                            value={tagDraft}
-                            onChange={(e) => setTagDraft(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key !== "Enter") return;
-                              e.preventDefault();
-                              addTag();
-                            }}
-                            placeholder={t("sidebar.departmentTagPlaceholder")}
-                            aria-label={t("sidebar.departmentTagPlaceholder")}
-                            autoFocus={!isCreate}
-                          />
-                          <button
-                            type="button"
-                            className="btn xs"
-                            disabled={!tagDraft.trim()}
-                            onClick={addTag}
-                          >
-                            {t("sidebar.departmentAdd")}
-                          </button>
-                        </div>
-                        <textarea
+                      <button
+                        type="button"
+                        className="departments-dashboard-table__add-category-trigger"
+                        onClick={beginAddCategory}
+                      >
+                        {t("sidebar.departmentAddNewCategory")}
+                      </button>
+                    </div>
+                  ) : tagsEnabled && addingCategory ? (
+                    <div className="departments-dashboard-table__category-create">
+                      <input
+                        type="text"
+                        className="departments-dashboard-table__input"
+                        value={tagDraft}
+                        onChange={(e) => setTagDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          e.preventDefault();
+                          commitAddCategory();
+                        }}
+                        placeholder={t("sidebar.departmentTagPlaceholder")}
+                        aria-label={t("sidebar.departmentTagPlaceholder")}
+                        autoFocus
+                      />
+                      <textarea
                           className="departments-dashboard-table__textarea"
                           value={tagDescriptionDraft}
                           onChange={(e) => setTagDescriptionDraft(e.target.value)}
@@ -503,9 +526,18 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
                           aria-label={t(
                             "sidebar.departmentCategoryDescriptionLabel",
                           )}
-                        />
+                      />
+                      <div className="departments-dashboard-table__category-create-actions">
+                        <button
+                          type="button"
+                          className="departments-dashboard-table__category-add"
+                          disabled={!tagDraft.trim()}
+                          onClick={commitAddCategory}
+                        >
+                          {t("sidebar.departmentAddCategory")}
+                        </button>
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <p className="departments-dashboard-table__locked">
                       {t("sidebar.departmentTagsLocked")}
