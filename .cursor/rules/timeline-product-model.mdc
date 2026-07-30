@@ -13,7 +13,7 @@ Schedule exists so users who want to **track projects on the timeline** feel org
 
 - **No folder schedule** → free writing: learn, note, no rush. Do not invent or force dates.
 - **Folder schedule** = explicit reservation `scheduleStartAt` → `scheduleFinishAt` (x–y). Never invent from `launchAt`.
-- **Documents** may set day + hour **only inside that range** when they choose; date/time is optional even under a reservation.
+- **Documents** may keep only status or set optional `date + start + finish` inside that range; do not force schedule.
 - **Later:** after inserting on the timeline, user can activate reminders/alarms.
 
 ## Folder vs document
@@ -21,7 +21,7 @@ Schedule exists so users who want to **track projects on the timeline** feel org
 **UI labels:** sidebar **Documents** = folders (boxes); what used to be called **macronodes** = documents. See `docs-folders-terminology.mdc`.
 
 - **Folder = category / class** (e.g. Math, Marketing, Sales). Everything inside belongs to that class.
-- **Document = content unit** inside its folder — on the timeline only when it has day + hour (`anchorDate` / `anchorTime` / `anchorAt`) within the folder reservation (if any).
+- **Document = content unit** inside its folder — on the timeline when it has `anchorAt` (and optionally `anchorFinishAt`) within the folder reservation (if any).
 - Folders relate to **other folders** on the timeline (sequence / focus over days) when reserved.
 - Docs stay **scoped to their folder** — reintegrated on the rail, but independent across classes.
 
@@ -44,5 +44,5 @@ Marketing  ——(+1 day)——  Sales
 
 ## Current step vs later
 
-- Now: optional day + hour + minute on documents when folder reserved; chronological Content list; same-day docs as separate rail nodes with time-gap labels.
+- Now: folder range is non-exclusive, documents can stay unscheduled, and scheduled docs use optional timeframe (`anchorAt` → `anchorFinishAt`) with informational overlap cues only.
 - Later: alarms/notifications after timeline insert. Keep data model ready; don’t regress chronology.

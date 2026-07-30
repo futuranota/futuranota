@@ -96,6 +96,7 @@ import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js"
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { nodeDraftContentForStorage } from "../../lib/nodeInlineContent.js";
+import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
 
 /** @param {object[]|null|undefined} blocks */
 function docBlocksHaveText(blocks) {
@@ -310,6 +311,7 @@ export function DocExpandedView({
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
+  const [nodeDraftAnchorFinishTime, setNodeDraftAnchorFinishTime] = useState("");
   const [nodeDraftCompleted, setNodeDraftCompleted] = useState(false);
   const [nodeDraftStatus, setNodeDraftStatus] = useState(null);
   const [nodeDraftCampaignStatus, setNodeDraftCampaignStatus] = useState(
@@ -978,13 +980,16 @@ export function DocExpandedView({
       setNodeDraftAnchorDate("");
       setNodeDraftAnchorTime("");
       setNodeInitialSnapshot((prev) => (
-        prev ? { ...prev, anchorDate: "", anchorTime: "" } : prev
+        prev ? {
+          ...prev, anchorDate: "", anchorTime: "", anchorFinishTime: "",
+        } : prev
       ));
       if (nodeInitialSnapshotRef.current) {
         nodeInitialSnapshotRef.current = {
           ...nodeInitialSnapshotRef.current,
           anchorDate: "",
           anchorTime: "",
+          anchorFinishTime: "",
         };
       }
     }
@@ -1291,6 +1296,7 @@ export function DocExpandedView({
     setNodeDraftContent("");
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
+    setNodeDraftAnchorFinishTime("");
     setNodeDraftCompleted(false);
     setNodeDraftStatus(null);
     setNodeDraftCampaignStatus(CAMPAIGN_DOC_STATUS_INACTIVE);
@@ -1312,6 +1318,7 @@ export function DocExpandedView({
       normalizeNodeContent(nodeDraftContent) !== nodeInitialSnapshot.content
       || nodeDraftAnchorDate !== nodeInitialSnapshot.anchorDate
       || nodeDraftAnchorTime !== nodeInitialSnapshot.anchorTime
+      || (nodeDraftAnchorFinishTime || "") !== (nodeInitialSnapshot.anchorFinishTime || "")
       || (nodeDraftStatus || null) !== (nodeInitialSnapshot.status || null)
       || normalizeCampaignDocStatus(nodeDraftCampaignStatus)
         !== normalizeCampaignDocStatus(nodeInitialSnapshot.campaignStatus)
@@ -1358,10 +1365,14 @@ export function DocExpandedView({
       const restoredSourceId = snap.sourceId || null;
       const restoredAnchorDate = snap.anchorDate || "";
       const restoredAnchorTime = snap.anchorTime || "";
+      const restoredAnchorFinishTime = snap.anchorFinishTime || "";
       const canSchedule = dataType === NODE_DATA_TYPES.TEXT
         || dataType === NODE_DATA_TYPES.CHECKBOX;
       const restoredAnchorAt = canSchedule
         ? isoFromAnchorFields(restoredAnchorDate, restoredAnchorTime)
+        : undefined;
+      const restoredAnchorFinishAt = canSchedule
+        ? isoFromAnchorFields(restoredAnchorDate, restoredAnchorFinishTime)
         : undefined;
 
       if (nodeId) {
@@ -1371,6 +1382,7 @@ export function DocExpandedView({
           completed: restoredCompleted,
           sourceId: restoredSourceId,
           ...(restoredAnchorAt !== undefined ? { anchorAt: restoredAnchorAt } : {}),
+          ...(restoredAnchorFinishAt !== undefined ? { anchorFinishAt: restoredAnchorFinishAt } : {}),
         });
         syncNodeToParentDoc(nodeId, doc.id);
       }
@@ -1397,6 +1409,7 @@ export function DocExpandedView({
           nextBlocks = updateBlockAt(nextBlocks, blockIndex, {
             anchorDate: restoredAnchorDate,
             anchorTime: restoredAnchorTime,
+            anchorFinishTime: restoredAnchorFinishTime,
             anchorFromNode: Boolean(String(restoredAnchorDate || "").trim()),
           });
         }
@@ -1465,6 +1478,7 @@ export function DocExpandedView({
           context,
           nodeDraftAnchorDate,
           nodeDraftAnchorTime,
+        nodeDraftAnchorFinishTime,
           { commitSchedule: Boolean(String(nodeDraftAnchorDate || "").trim()) },
         );
         const savedBlocks = useDocsStore.getState().docs[doc.id]?.blocks;
@@ -1596,17 +1610,19 @@ export function DocExpandedView({
     updateNode(block.nodeId, updates);
   };
 
-  const handleBlockAnchorChange = (blockIndex, anchorDate, anchorTime) => {
+  const handleBlockAnchorChange = (blockIndex, anchorDate, anchorTime, anchorFinishTime = "") => {
     setDraftBlocks((prev) => {
       const next = updateBlockAt(prev, blockIndex, {
         anchorDate,
         anchorTime,
+        anchorFinishTime,
         anchorFromNode: Boolean(String(anchorDate || "").trim()),
       });
       const block = next[blockIndex];
       if (block?.nodeId) {
         updateNode(block.nodeId, {
           anchorAt: isoFromAnchorFields(anchorDate, anchorTime),
+          anchorFinishAt: isoFromAnchorFields(anchorDate, anchorFinishTime),
         });
       }
       if (
@@ -1616,6 +1632,7 @@ export function DocExpandedView({
       ) {
         setNodeDraftAnchorDate(anchorDate);
         setNodeDraftAnchorTime(anchorTime);
+        setNodeDraftAnchorFinishTime(anchorFinishTime);
       }
       // Persist Schedule into docsStore immediately so remount/tab switch keeps it.
       if (doc?.id) {
@@ -1682,11 +1699,19 @@ export function DocExpandedView({
       setNodeDraftContent("");
       setNodeDraftAnchorDate("");
       setNodeDraftAnchorTime("");
+      setNodeDraftAnchorFinishTime("");
       setNodeInitialSnapshot(null);
     }
   };
 
-  const persistNodeContentDebounced = (content, context, anchorDate, anchorTime, options = {}) => {
+  const persistNodeContentDebounced = (
+    content,
+    context,
+    anchorDate,
+    anchorTime,
+    anchorFinishTime,
+    options = {},
+  ) => {
     const { commitSchedule = false } = options;
     // Body always persists — isNoNodeLinkMode only affects the color-link handle UI,
     // not whether node.content may be written (inside-folder Create a document).
@@ -1700,6 +1725,11 @@ export function DocExpandedView({
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
       ? (childScheduleBounds
         ? isoFromAnchorFields(anchorDate, anchorTime)
+        : null)
+      : undefined;
+    const anchorFinishAt = commitSchedule && supportsScheduleAnchor(dataType)
+      ? (childScheduleBounds
+        ? isoFromAnchorFields(anchorDate, anchorFinishTime)
         : null)
       : undefined;
 
@@ -1716,6 +1746,7 @@ export function DocExpandedView({
       dataType,
       docCreatedAt: isoFromDateInput(draftCreatedDate),
       ...(anchorAt !== undefined && !draftCampaignActive ? { anchorAt } : {}),
+      ...(anchorFinishAt !== undefined && !draftCampaignActive ? { anchorFinishAt } : {}),
       ...(draftCampaignActive
         ? { status: null, completed: false }
         : commitSchedule && (nodeDraftStatus != null || nodeDraftCompleted)
@@ -1766,6 +1797,7 @@ export function DocExpandedView({
     if (commitSchedule && supportsScheduleAnchor(dataType)) {
       patch.anchorDate = anchorDate;
       patch.anchorTime = anchorTime;
+      patch.anchorFinishTime = anchorFinishTime;
       patch.anchorFromNode = Boolean(anchorDate);
       patch.queryEnabled = true;
     }
@@ -1801,6 +1833,7 @@ export function DocExpandedView({
         content: normalizeNodeContent(contentForStorage),
         anchorDate: anchorDate || "",
         anchorTime: anchorTime || "",
+        anchorFinishTime: anchorFinishTime || "",
         completed: Boolean(nodeDraftCompleted),
         status: nodeDraftStatus || null,
         sourceId: nodeDraftSourceId || null,
@@ -1827,7 +1860,7 @@ export function DocExpandedView({
     const context = { ...activeNodeContext };
     // Autosave content only — never commit schedule here (avoids wiping anchorAt).
     nodeAutosaveTimerRef.current = setTimeout(() => {
-      persistNodeContentDebounced(content, context, "", "", { commitSchedule: false });
+      persistNodeContentDebounced(content, context, "", "", "", { commitSchedule: false });
       nodeAutosaveTimerRef.current = null;
     }, 250);
   };
@@ -1960,10 +1993,13 @@ export function DocExpandedView({
       const fromNode = anchorFieldsFromIso(launchOrAnchorIso);
       setNodeDraftAnchorDate(fromNode.anchorDate);
       setNodeDraftAnchorTime(fromNode.anchorTime);
+      const fromFinish = anchorFieldsFromIso(existing?.anchorFinishAt || null);
+      setNodeDraftAnchorFinishTime(fromFinish.anchorTime || "");
       const snap = {
         content: normalizeNodeContent(resolvedNodeDraft),
         anchorDate: fromNode.anchorDate,
         anchorTime: fromNode.anchorTime,
+        anchorFinishTime: fromFinish.anchorTime || "",
         completed: Boolean(existing?.completed),
         status: resolveDocWorkStatus(existing),
         campaignStatus: normalizeCampaignDocStatus(
@@ -1979,10 +2015,12 @@ export function DocExpandedView({
       });
       setNodeDraftAnchorDate(anchorFromBlock.anchorDate);
       setNodeDraftAnchorTime(anchorFromBlock.anchorTime);
+      setNodeDraftAnchorFinishTime(anchorFromBlock.anchorFinishTime || "");
       const snap = {
         content: normalizeNodeContent(resolvedNodeDraft),
         anchorDate: anchorFromBlock.anchorDate,
         anchorTime: anchorFromBlock.anchorTime,
+        anchorFinishTime: anchorFromBlock.anchorFinishTime || "",
         completed: Boolean(existing?.completed),
         status: resolveDocWorkStatus(existing),
         campaignStatus: CAMPAIGN_DOC_STATUS_INACTIVE,
@@ -1993,10 +2031,12 @@ export function DocExpandedView({
     } else {
       setNodeDraftAnchorDate("");
       setNodeDraftAnchorTime("");
+      setNodeDraftAnchorFinishTime("");
       const snap = {
         content: normalizeNodeContent(resolvedNodeDraft),
         anchorDate: "",
         anchorTime: "",
+        anchorFinishTime: "",
         completed: false,
         status: resolveDocWorkStatus(existing),
         campaignStatus: normalizeCampaignDocStatus(
@@ -2043,14 +2083,35 @@ export function DocExpandedView({
     // Persist Schedule immediately — must survive tab switch; never wait for Yes.
     setNodeDraftAnchorDate(nextDate);
     if (!activeNodeContext) return;
-    handleBlockAnchorChange(activeNodeContext.blockIndex, nextDate, nodeDraftAnchorTime);
+    handleBlockAnchorChange(
+      activeNodeContext.blockIndex,
+      nextDate,
+      nodeDraftAnchorTime,
+      nodeDraftAnchorFinishTime,
+    );
   };
 
   const handleNodeAnchorTimeChange = (anchorTime) => {
     // Persist Schedule immediately — must survive tab switch; never wait for Yes.
     setNodeDraftAnchorTime(anchorTime);
     if (!activeNodeContext) return;
-    handleBlockAnchorChange(activeNodeContext.blockIndex, nodeDraftAnchorDate, anchorTime);
+    handleBlockAnchorChange(
+      activeNodeContext.blockIndex,
+      nodeDraftAnchorDate,
+      anchorTime,
+      nodeDraftAnchorFinishTime,
+    );
+  };
+
+  const handleNodeAnchorFinishTimeChange = (anchorFinishTime) => {
+    setNodeDraftAnchorFinishTime(anchorFinishTime);
+    if (!activeNodeContext) return;
+    handleBlockAnchorChange(
+      activeNodeContext.blockIndex,
+      nodeDraftAnchorDate,
+      nodeDraftAnchorTime,
+      anchorFinishTime,
+    );
   };
 
   const handleOpenNodeForH1 = (h1Index, h1Block) => handleOpenNodeForBlock(h1Index, h1Block);
@@ -2089,6 +2150,21 @@ export function DocExpandedView({
       },
     });
   };
+
+  const occupiedIntervals = listOccupiedIntervalsByDate(
+    useNodesStore.getState().nodes,
+    useDocsStore.getState().docs,
+    nodeDraftAnchorDate,
+    {
+      excludeNodeId: activeNodeContext?.nodeId || null,
+      objectId: draftParentId || null,
+    },
+  );
+  const nodeScheduleOverlapHint = hasTimeframeOverlap(
+    isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorTime),
+    isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorFinishTime),
+    occupiedIntervals,
+  ) ? t("meta.scheduleOverlapHint") : "";
 
   return (
     <>
@@ -2272,8 +2348,12 @@ export function DocExpandedView({
           onCloseWithoutSave={discardNodeModalWithoutSave}
           anchorDate={nodeDraftAnchorDate}
           anchorTime={nodeDraftAnchorTime}
+          anchorFinishTime={nodeDraftAnchorFinishTime}
           onAnchorDateChange={handleNodeAnchorDateChange}
           onAnchorTimeChange={handleNodeAnchorTimeChange}
+          onAnchorFinishTimeChange={handleNodeAnchorFinishTimeChange}
+          scheduleOccupied={occupiedIntervals}
+          scheduleOverlapHint={nodeScheduleOverlapHint}
           scheduleMinDate={childScheduleBounds?.minDate || ""}
           scheduleMaxDate={childScheduleBounds?.maxDate || ""}
           onClose={handleRequestCloseNodeModal}

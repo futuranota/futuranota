@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
-  buildReservedDateLookup,
   folderSchedulePickerMinDateInput,
 } from "../../lib/folderScheduleReservation.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -21,24 +20,6 @@ function toInputValue(d) {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-/**
- * @param {string} startKey
- * @param {string} endKey
- * @param {Map<string, unknown>} reservedLookup
- */
-function rangeIncludesReserved(startKey, endKey, reservedLookup) {
-  const start = parseLocalDay(startKey);
-  const end = parseLocalDay(endKey);
-  if (!start || !end) return false;
-  const cursor = new Date(start);
-  while (cursor.getTime() <= end.getTime()) {
-    const key = toInputValue(cursor);
-    if (reservedLookup.has(key)) return true;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return false;
 }
 
 /** @param {string} start @param {string} finish */
@@ -61,9 +42,9 @@ export function FolderScheduleRangeField({
   onFinishChange,
   onClear,
   minDate = "",
-  allDocs = null,
-  parentId = "",
-  excludeDocId = null,
+  allDocs: _allDocs = null,
+  parentId: _parentId = "",
+  excludeDocId: _excludeDocId = null,
 }) {
   const { t } = useI18n();
   const rootRef = useRef(null);
@@ -79,10 +60,7 @@ export function FolderScheduleRangeField({
   const [viewYear, setViewYear] = useState(focusDate.getFullYear());
   const [viewMonth, setViewMonth] = useState(focusDate.getMonth());
 
-  const reservedLookup = useMemo(
-    () => buildReservedDateLookup(allDocs || [], parentId, { excludeDocId }),
-    [allDocs, parentId, excludeDocId],
-  );
+  const reservedLookup = useMemo(() => new Map(), []);
 
   const activeStart = pickingEnd ? draftStart : startValue;
   const previewEnd = pickingEnd
@@ -144,7 +122,6 @@ export function FolderScheduleRangeField({
     for (let i = 0; i < startPad; i += 1) out.push(null);
     for (let day = 1; day <= daysInMonth; day += 1) {
       const key = toInputValue(new Date(viewYear, viewMonth, day));
-      const reserved = reservedLookup.get(key) || null;
       const beforeMin = Boolean(floor && key < floor);
       const rangeEnd = previewEnd || (pickingEnd ? draftStart : "");
       const inRange =
@@ -158,9 +135,7 @@ export function FolderScheduleRangeField({
       out.push({
         key,
         day,
-        reserved: Boolean(reserved),
-        reservedTitle: reserved?.title || "",
-        disabled: beforeMin || Boolean(reserved),
+        disabled: beforeMin,
         inRange,
         isStart: isStart || isDraftStart,
         isFinish,
@@ -202,11 +177,6 @@ export function FolderScheduleRangeField({
     if (key < draftStart) {
       setDraftStart(key);
       onStartChange?.(key);
-      return;
-    }
-
-    if (rangeIncludesReserved(draftStart, key, reservedLookup)) {
-      setBlockedHint(true);
       return;
     }
 
@@ -273,9 +243,7 @@ export function FolderScheduleRangeField({
               if (!cell) {
                 return <span key={`pad-${idx}`} className="doc-meta-schedule-cal__pad" />;
               }
-              const title = cell.reserved
-                ? t("meta.scheduleDayReserved", { title: cell.reservedTitle })
-                : undefined;
+              const title = undefined;
               return (
                 <button
                   key={cell.key}
@@ -284,7 +252,6 @@ export function FolderScheduleRangeField({
                     "doc-meta-schedule-cal__day"
                     + (cell.isStart || cell.isFinish ? " is-selected" : "")
                     + (cell.inRange ? " is-in-range" : "")
-                    + (cell.reserved ? " is-reserved" : "")
                     + (cell.disabled ? " is-disabled" : "")
                   }
                   disabled={cell.disabled}

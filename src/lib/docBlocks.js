@@ -1165,6 +1165,7 @@ export function normalizeDocBlock(block) {
       sourceQuery: block.sourceQuery || undefined,
       anchorDate: anchor.anchorDate,
       anchorTime: anchor.anchorTime,
+      anchorFinishTime: anchor.anchorFinishTime,
       anchorFromNode: Boolean(block.anchorFromNode),
       queryEnabled,
       nodeLinkColor: block.nodeLinkColor != null
@@ -1206,6 +1207,7 @@ export function normalizeDocBlock(block) {
       sourceQuery: block.sourceQuery || undefined,
       anchorDate: anchor.anchorDate,
       anchorTime: anchor.anchorTime,
+      anchorFinishTime: anchor.anchorFinishTime,
       anchorFromNode: Boolean(block.anchorFromNode),
       showIntroAnim: false,
       queryEnabled,

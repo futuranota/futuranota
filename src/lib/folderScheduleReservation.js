@@ -78,8 +78,10 @@ export function clearChildScheduleAnchorsForFolder(folderDocId, stores) {
   const nodes = typeof getNodesByDoc === "function" ? getNodesByDoc(folderDocId) : [];
   for (const node of nodes || []) {
     if (!node?.id) continue;
-    if (node.anchorAt == null || node.anchorAt === "") continue;
-    updateNode(node.id, { anchorAt: null });
+    const hasStart = !(node.anchorAt == null || node.anchorAt === "");
+    const hasFinish = !(node.anchorFinishAt == null || node.anchorFinishAt === "");
+    if (!hasStart && !hasFinish) continue;
+    updateNode(node.id, { anchorAt: null, anchorFinishAt: null });
     cleared += 1;
   }
 
@@ -92,6 +94,7 @@ export function clearChildScheduleAnchorsForFolder(folderDocId, stores) {
       const hasSchedule = Boolean(
         String(block.anchorDate || "").trim()
         || String(block.anchorTime || "").trim()
+        || String(block.anchorFinishTime || "").trim()
         || block.anchorFromNode,
       );
       if (!hasSchedule) return block;
@@ -100,6 +103,7 @@ export function clearChildScheduleAnchorsForFolder(folderDocId, stores) {
         ...block,
         anchorDate: "",
         anchorTime: "",
+        anchorFinishTime: "",
         anchorFromNode: false,
       };
     });
@@ -272,22 +276,9 @@ export function validateFolderSchedule(
   if (finish.getTime() < start.getTime()) {
     return { ok: false, code: "finishBeforeStart" };
   }
-  if (!parentObjectId) {
-    return { ok: true };
-  }
-  const proposed = { start, finish };
-  const reservations = listObjectFolderReservations(docs, parentObjectId, options);
-  for (const other of reservations) {
-    if (folderRangesOverlap(proposed, other)) {
-      return {
-        ok: false,
-        code: "overlap",
-        conflict: other,
-        // Suggest day after the conflicting reservation (not global max).
-        minStart: dayAfterDateInput(other.finish),
-      };
-    }
-  }
+  void docs;
+  void parentObjectId;
+  void options;
   return { ok: true };
 }
 

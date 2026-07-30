@@ -21,6 +21,7 @@ import {
   folderScheduleDateInputBounds,
   isDateInputWithinFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
+import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { NodeQueryModal } from "./NodeQueryModal.jsx";
@@ -246,6 +247,9 @@ export function StandaloneNodeModal({
     : anchorFieldsFromIso(node?.anchorAt);
   const [anchorDate, setAnchorDate] = useState(initialAnchor.anchorDate);
   const [anchorTime, setAnchorTime] = useState(initialAnchor.anchorTime);
+  const [anchorFinishTime, setAnchorFinishTime] = useState(
+    anchorFieldsFromIso(node?.anchorFinishAt || null).anchorTime,
+  );
   const [completed, setCompleted] = useState(() => Boolean(node?.completed));
   const [status, setStatus] = useState(() => resolveDocWorkStatus(node));
   const [campaignStatus, setCampaignStatus] = useState(() =>
@@ -258,6 +262,7 @@ export function StandaloneNodeModal({
     content: node?.content ?? null,
     createdAt: node?.createdAt ?? null,
     anchorAt: node?.anchorAt ?? null,
+    anchorFinishAt: node?.anchorFinishAt ?? null,
     completed: Boolean(node?.completed),
     status: resolveDocWorkStatus(node),
     sourceId: node?.sourceId ?? null,
@@ -274,6 +279,7 @@ export function StandaloneNodeModal({
         content: snap.content,
         createdAt: snap.createdAt,
         anchorAt: snap.anchorAt,
+        anchorFinishAt: snap.anchorFinishAt ?? null,
         status: snap.status ?? null,
         completed: snap.completed,
         sourceId: snap.sourceId,
@@ -369,6 +375,9 @@ export function StandaloneNodeModal({
     const anchorAt = (!campaignDocMode && supportsSchedule && childScheduleBounds)
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
       : null;
+    const anchorFinishAt = (!campaignDocMode && supportsSchedule && childScheduleBounds)
+      ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorFinishTime) : null)
+      : null;
     const launchAt = (campaignDocMode && supportsSchedule)
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
       : (node?.launchAt ?? null);
@@ -413,6 +422,7 @@ export function StandaloneNodeModal({
           sourceQuery: title,
           createdAt,
           anchorAt,
+          anchorFinishAt,
           sourceId,
           objectId: corpusObjectId,
           ...campaignFields,
@@ -458,6 +468,7 @@ export function StandaloneNodeModal({
         objectId: corpusObjectId || node.objectId || null,
         createdAt,
         anchorAt,
+        anchorFinishAt,
         sourceId,
         ...campaignFields,
       });
@@ -519,6 +530,7 @@ export function StandaloneNodeModal({
 
   return (
     <>
+      {/** Occupied intervals are visual only; never block save. */}
       <NodeQueryModal
         query={query}
         onQueryChange={handleQueryChange}
@@ -550,8 +562,29 @@ export function StandaloneNodeModal({
         parentObjectId={parentObjectId}
         anchorDate={anchorDate}
         anchorTime={anchorTime}
+        anchorFinishTime={anchorFinishTime}
         onAnchorDateChange={handleAnchorDateChange}
         onAnchorTimeChange={setAnchorTime}
+        onAnchorFinishTimeChange={setAnchorFinishTime}
+        scheduleOccupied={listOccupiedIntervalsByDate(
+          useNodesStore.getState().nodes,
+          useDocsStore.getState().docs,
+          anchorDate,
+          {
+            excludeNodeId: node?.id || null,
+            objectId: parentObjectId || null,
+          },
+        )}
+        scheduleOverlapHint={hasTimeframeOverlap(
+          isoFromAnchorFields(anchorDate, anchorTime),
+          isoFromAnchorFields(anchorDate, anchorFinishTime),
+          listOccupiedIntervalsByDate(
+            useNodesStore.getState().nodes,
+            useDocsStore.getState().docs,
+            anchorDate,
+            { excludeNodeId: node?.id || null, objectId: parentObjectId || null },
+          ),
+        ) ? t("meta.scheduleOverlapHint") : ""}
         scheduleMinDate={childScheduleBounds?.minDate || ""}
         scheduleMaxDate={childScheduleBounds?.maxDate || ""}
         onSave={handleSave}

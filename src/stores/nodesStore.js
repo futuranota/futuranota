@@ -153,7 +153,12 @@ function scheduleFieldsFromNode(node) {
   if (!node?.anchorAt) return {};
   const fields = anchorFieldsFromIso(node.anchorAt);
   if (!fields.anchorDate) return {};
-  return { ...fields, anchorFromNode: true };
+  const finishFields = anchorFieldsFromIso(node.anchorFinishAt || null);
+  return {
+    ...fields,
+    anchorFinishTime: finishFields.anchorTime || "",
+    anchorFromNode: true,
+  };
 }
 
 function finalizeSyncedDocBlocks(blocks, doc, ownerBlockId = null) {
@@ -212,6 +217,7 @@ export const useNodesStore = create(
               sourceBlockId: extra.sourceBlockId ?? null,
               sourceQuery: extra.sourceQuery ?? null,
               anchorAt: extra.anchorAt ?? null,
+              anchorFinishAt: extra.anchorFinishAt ?? null,
               status,
               completed,
               // Campaign documents (under campaign folders): active|inactive + launch + window.
@@ -246,6 +252,7 @@ export const useNodesStore = create(
         dataType = "text",
         docCreatedAt = null,
         anchorAt = undefined,
+        anchorFinishAt = undefined,
         completed = undefined,
         status = undefined,
         sourceId = undefined,
@@ -282,6 +289,9 @@ export const useNodesStore = create(
         if (anchorAt !== undefined) {
           payload.anchorAt = anchorAt;
         }
+        if (anchorFinishAt !== undefined) {
+          payload.anchorFinishAt = anchorFinishAt;
+        }
         if (status !== undefined) {
           Object.assign(payload, syncDocWorkStatusFields({ status }));
         } else if (completed !== undefined) {
@@ -314,6 +324,7 @@ export const useNodesStore = create(
           sourceQuery: payload.sourceQuery,
           createdAt: inheritedCreatedAt,
           anchorAt: payload.anchorAt ?? null,
+          anchorFinishAt: payload.anchorFinishAt ?? null,
           status: payload.status ?? null,
           completed: payload.completed ?? false,
           sourceId: payload.sourceId ?? null,

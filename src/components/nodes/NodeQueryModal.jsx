@@ -113,8 +113,12 @@ export function NodeQueryModal({
   intelSearchMeta = null,
   anchorDate = "",
   anchorTime = "",
+  anchorFinishTime = "",
   onAnchorDateChange,
   onAnchorTimeChange,
+  onAnchorFinishTimeChange,
+  scheduleOccupied = [],
+  scheduleOverlapHint = "",
   /** Inclusive YYYY-MM-DD from parent folder reservation (optional). */
   scheduleMinDate = "",
   scheduleMaxDate = "",
@@ -277,16 +281,11 @@ export function NodeQueryModal({
     }
   }, [checkboxTodoContent, updateTodoContent]);
 
-  /** Parent folder reservation (min+max). Without it, Date/Time stay hidden. */
-  const folderScheduleActive =
-    Boolean(String(scheduleMinDate || "").trim())
-    && Boolean(String(scheduleMaxDate || "").trim());
-
   const canScheduleChild =
     Boolean(onAnchorDateChange)
     && (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX);
 
-  const showScheduleAnchor = canScheduleChild && folderScheduleActive;
+  const showScheduleAnchor = canScheduleChild && !campaignMode;
   /** Campaign docs: Launch lives in the meta toggle (not the footer Schedule row). */
   const showLaunchInMeta = Boolean(campaignMode)
     && canScheduleChild
@@ -295,6 +294,16 @@ export function NodeQueryModal({
   const calendarPayload =
     dataType === NODE_DATA_TYPES.TEXT ? parseCalendarEventNodeContent(content) : null;
   const showTextSizeControls = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload;
+  const scheduleStartIso = anchorDate && anchorTime ? `${anchorDate}T${anchorTime}:00` : "";
+  const scheduleFinishIso = anchorDate && anchorFinishTime ? `${anchorDate}T${anchorFinishTime}:00` : "";
+  const scheduleHasAny = Boolean(anchorDate || anchorTime || anchorFinishTime);
+  const scheduleValidationError = !showScheduleAnchor || !scheduleHasAny
+    ? ""
+    : (!anchorDate || !anchorTime || !anchorFinishTime)
+      ? t("meta.scheduleTimeframeIncomplete")
+      : (Date.parse(scheduleFinishIso) <= Date.parse(scheduleStartIso)
+        ? t("meta.scheduleFinishInvalid")
+        : "");
 
   const isTextWritingMode = dataType === NODE_DATA_TYPES.TEXT && !calendarPayload;
 
@@ -322,6 +331,7 @@ export function NodeQueryModal({
       query: query ?? "",
       anchorDate: anchorDate ?? "",
       anchorTime: anchorTime ?? "",
+      anchorFinishTime: anchorFinishTime ?? "",
       completed: Boolean(completed),
       status: workStatus,
       sourceId: sourceId ?? null,
@@ -338,9 +348,10 @@ export function NodeQueryModal({
       || snap.query !== (query ?? "")
       || (snap.anchorDate ?? "") !== (anchorDate ?? "")
       || (snap.anchorTime ?? "") !== (anchorTime ?? "")
+      || (snap.anchorFinishTime ?? "") !== (anchorFinishTime ?? "")
       || (snap.status || null) !== (workStatus || null)
       || (snap.sourceId || null) !== (sourceId || null);
-  }, [content, query, anchorDate, anchorTime, workStatus, sourceId]);
+  }, [content, query, anchorDate, anchorTime, anchorFinishTime, workStatus, sourceId]);
 
   /** Status/Source persist live to the store — keep dismiss snapshot in sync. */
   const syncMetaSnapshot = useCallback((nextStatus, nextSourceId) => {
@@ -386,6 +397,7 @@ export function NodeQueryModal({
 
   const handleFooterSave = useCallback(async () => {
     if (!onSave) return;
+    if (scheduleValidationError) return;
     const gate = await ensureChildScheduleOrRemind();
     if (gate === "stay") return;
     if (gate === "discard") {
@@ -393,7 +405,7 @@ export function NodeQueryModal({
       return;
     }
     onSave();
-  }, [onSave, ensureChildScheduleOrRemind, discardWithoutSave]);
+  }, [onSave, ensureChildScheduleOrRemind, discardWithoutSave, scheduleValidationError]);
 
   const requestDismiss = useCallback(async () => {
     const gate = await ensureChildScheduleOrRemind();
@@ -1110,10 +1122,16 @@ export function NodeQueryModal({
                 hideLabel
                 anchorDate={anchorDate}
                 anchorTime={anchorTime}
+                anchorFinishTime={anchorFinishTime}
                 onAnchorDateChange={onAnchorDateChange}
                 onAnchorTimeChange={onAnchorTimeChange}
+                onAnchorFinishTimeChange={onAnchorFinishTimeChange}
                 minDate={scheduleMinDate}
                 maxDate={scheduleMaxDate}
+                enableTimeRange
+                occupied={scheduleOccupied}
+                overlapHint={scheduleOverlapHint}
+                validationError={scheduleValidationError}
               />
             ) : null}
             {onSave ? (

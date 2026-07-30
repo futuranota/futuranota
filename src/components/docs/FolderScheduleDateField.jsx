@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
-  buildReservedDateLookup,
   folderSchedulePickerMinDateInput,
 } from "../../lib/folderScheduleReservation.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -24,16 +23,16 @@ function toInputValue(d) {
 }
 
 /**
- * Month grid date field with reserved days shown struck-through / disabled.
+ * Month grid date field with selectable days (except minDate floor).
  */
 export function FolderScheduleDateField({
   label,
   value = "",
   onChange,
   minDate = "",
-  allDocs = null,
-  parentId = "",
-  excludeDocId = null,
+  allDocs: _allDocs = null,
+  parentId: _parentId = "",
+  excludeDocId: _excludeDocId = null,
 }) {
   const { t } = useI18n();
   const rootRef = useRef(null);
@@ -43,10 +42,7 @@ export function FolderScheduleDateField({
   const [viewYear, setViewYear] = useState(initialMonth.getFullYear());
   const [viewMonth, setViewMonth] = useState(initialMonth.getMonth());
 
-  const reservedLookup = useMemo(
-    () => buildReservedDateLookup(allDocs || [], parentId, { excludeDocId }),
-    [allDocs, parentId, excludeDocId],
-  );
+  const reservedLookup = useMemo(() => new Map(), []);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -87,14 +83,13 @@ export function FolderScheduleDateField({
     for (let i = 0; i < startPad; i += 1) out.push(null);
     for (let day = 1; day <= daysInMonth; day += 1) {
       const key = toInputValue(new Date(viewYear, viewMonth, day));
-      const reserved = reservedLookup.get(key) || null;
       const beforeMin = Boolean(floor && key < floor);
       out.push({
         key,
         day,
-        reserved: Boolean(reserved),
-        reservedTitle: reserved?.title || "",
-        disabled: beforeMin || Boolean(reserved),
+        reserved: false,
+        reservedTitle: "",
+        disabled: beforeMin,
         selected: key === value,
       });
     }
@@ -164,9 +159,7 @@ export function FolderScheduleDateField({
               if (!cell) {
                 return <span key={`pad-${idx}`} className="doc-meta-schedule-cal__pad" />;
               }
-              const title = cell.reserved
-                ? t("meta.scheduleDayReserved", { title: cell.reservedTitle })
-                : undefined;
+              const title = undefined;
               return (
                 <button
                   key={cell.key}
@@ -174,7 +167,6 @@ export function FolderScheduleDateField({
                   className={
                     "doc-meta-schedule-cal__day"
                     + (cell.selected ? " is-selected" : "")
-                    + (cell.reserved ? " is-reserved" : "")
                     + (cell.disabled ? " is-disabled" : "")
                   }
                   disabled={cell.disabled}
@@ -190,9 +182,7 @@ export function FolderScheduleDateField({
               );
             })}
           </div>
-          {reservedLookup.size > 0 ? (
-            <p className="doc-meta-schedule-cal__hint">{t("meta.scheduleReservedHint")}</p>
-          ) : null}
+          {null}
         </div>
       ) : null}
     </div>

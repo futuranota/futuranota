@@ -33,7 +33,8 @@ export function resolveExplicitScheduleIso(entity, canvasNode = null, docsById =
 export function normalizeAnchorFields(blockOrNode) {
   const anchorDate = blockOrNode?.anchorDate || "";
   const anchorTime = blockOrNode?.anchorTime || "";
-  return { anchorDate, anchorTime };
+  const anchorFinishTime = blockOrNode?.anchorFinishTime || "";
+  return { anchorDate, anchorTime, anchorFinishTime };
 }
 
 export function isoFromAnchorFields(anchorDate, anchorTime = "") {
@@ -66,6 +67,11 @@ export function anchorAtFromBlock(block) {
   return isoFromAnchorFields(anchorDate, anchorTime);
 }
 
+export function anchorFinishAtFromBlock(block) {
+  const { anchorDate, anchorFinishTime } = normalizeAnchorFields(block);
+  return isoFromAnchorFields(anchorDate, anchorFinishTime);
+}
+
 /**
  * Explicit Schedule fields on the block only.
  * Never invent date/time from Created — without a real schedule the document
@@ -80,13 +86,18 @@ export function resolveBlockAnchor(block, docCreatedDate = "") {
   return isoFromAnchorFields(anchorDate, anchorTime);
 }
 
+export function resolveBlockAnchorFinish(block, docCreatedDate = "") {
+  const { anchorDate, anchorFinishTime } = resolveBlockAnchorFields(block, docCreatedDate);
+  return isoFromAnchorFields(anchorDate, anchorFinishTime);
+}
+
 export function hasAnchorFields(blockOrNode) {
   const { anchorDate } = normalizeAnchorFields(blockOrNode);
   return Boolean(anchorDate);
 }
 
 /** Display: schedule: mm/dd/yyyy | h:mm AM/PM */
-export function formatScheduleLabel(anchorDate, anchorTime = "") {
+export function formatScheduleLabel(anchorDate, anchorTime = "", anchorFinishTime = "") {
   const date = String(anchorDate ?? "").trim();
   if (!date) return "";
 
@@ -104,8 +115,14 @@ export function formatScheduleLabel(anchorDate, anchorTime = "") {
   const period = hh >= 12 ? "PM" : "AM";
   const h12 = hh % 12 || 12;
   const timePart = `${h12}:${String(mm).padStart(2, "0")} ${period}`;
-
-  return `schedule: ${datePart} | ${timePart}`;
+  const finishStr = String(anchorFinishTime ?? "").trim();
+  if (!finishStr) return `schedule: ${datePart} | ${timePart}`;
+  const [fh, fm] = finishStr.split(":").map(Number);
+  if (Number.isNaN(fh) || Number.isNaN(fm)) return `schedule: ${datePart} | ${timePart}`;
+  const finishPeriod = fh >= 12 ? "PM" : "AM";
+  const finish12 = fh % 12 || 12;
+  const finishPart = `${finish12}:${String(fm).padStart(2, "0")} ${finishPeriod}`;
+  return `schedule: ${datePart} | ${timePart}-${finishPart}`;
 }
 
 export function formatScheduleLabelFromIso(iso) {

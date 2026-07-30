@@ -1,0 +1,35 @@
+---
+description: Modelo premium para disponibilidad, conflictos y planificación del Asistente
+alwaysApply: true
+---
+
+# Asistente premium + scheduling
+
+## Norte de producto
+
+El Asistente es el protagonista de la planificación inteligente. La detección global de disponibilidad, conflictos y horarios ocupados es **valor premium del Asistente**, no una función general del calendario o timeline.
+
+## Modelo objetivo
+
+- **Folder schedule** = ventana opcional de días para trabajar en ese proyecto; los rangos de distintos folders pueden coincidir.
+- **Document schedule** = intervalo horario opcional dentro de la ventana del folder (`anchorAt` → `anchorFinishAt`). No obligar a programar todos los documents: pueden tener solo status.
+- La ocupación real se determina por el horario del document, no por bloquear días completos del folder.
+- Los horarios pueden solaparse entre documents/folders; el sistema base no tiene que impedirlo.
+
+## Visibilidad por producto
+
+- **Admin/testing:** puede visualizar intervalos ocupados tachados en el editor del document para validar la lógica (sin bloquear selección/guardado).
+- **Asistente premium:** siempre puede consultar la disponibilidad global, detectar solapamientos y proponer/reorganizar schedules según hábitos y preferencias.
+- **Usuario sin Asistente premium:** elige fechas y horarios manualmente; no recibe la vista global de horarios tachados ni detección inteligente de conflictos.
+
+## Alarmas y timeline
+
+- El timeline rastrea tiempo y schedules, pero no será dueño de alarmas/recordatorios.
+- Las alarmas del timeline se retirarán.
+- Alarmas, recordatorios y arquitectura inteligente del schedule pertenecerán al Asistente.
+
+## Implementación
+
+- Mantener una única fuente de datos de schedule; aplicar visibilidad/capacidades según admin y entitlement premium.
+- No exponer accidentalmente la vista global de ocupación en la experiencia base.
+- No implementar todavía el Asistente; conservar el modelo listo para que pueda leer y administrar disponibilidad después.

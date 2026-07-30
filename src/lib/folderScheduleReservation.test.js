@@ -3,6 +3,7 @@ import {
   clearChildScheduleAnchorsForFolder,
   folderScheduleDateInputBounds,
   isFolderScheduleReserved,
+  validateFolderSchedule,
 } from "./folderScheduleReservation.js";
 
 describe("folder schedule reservation gate", () => {
@@ -45,18 +46,24 @@ describe("folder schedule reservation gate", () => {
 });
 
 describe("clearChildScheduleAnchorsForFolder", () => {
-  it("clears node anchorAt and mirrored block schedule fields", () => {
+  it("clears node anchorAt/anchorFinishAt and mirrored block schedule fields", () => {
     const updateNode = vi.fn();
     const updateDoc = vi.fn();
     const getNodesByDoc = vi.fn(() => [
-      { id: "n1", anchorAt: "2026-07-16T10:00:00.000Z" },
+      { id: "n1", anchorAt: "2026-07-16T10:00:00.000Z", anchorFinishAt: "2026-07-16T12:00:00.000Z" },
       { id: "n2", anchorAt: null },
       { id: "n3", anchorAt: "" },
     ]);
     const getDoc = vi.fn(() => ({
       id: "folder-1",
       blocks: [
-        { id: "b1", anchorDate: "2026-07-16", anchorTime: "10:00", anchorFromNode: true },
+        {
+          id: "b1",
+          anchorDate: "2026-07-16",
+          anchorTime: "10:00",
+          anchorFinishTime: "12:00",
+          anchorFromNode: true,
+        },
         { id: "b2", anchorDate: "", anchorTime: "", anchorFromNode: false },
       ],
     }));
@@ -69,13 +76,27 @@ describe("clearChildScheduleAnchorsForFolder", () => {
     });
 
     expect(cleared).toBe(1);
-    expect(updateNode).toHaveBeenCalledWith("n1", { anchorAt: null });
+    expect(updateNode).toHaveBeenCalledWith("n1", { anchorAt: null, anchorFinishAt: null });
     expect(updateNode).toHaveBeenCalledTimes(1);
     expect(updateDoc).toHaveBeenCalledWith("folder-1", {
       blocks: [
-        { id: "b1", anchorDate: "", anchorTime: "", anchorFromNode: false },
+        { id: "b1", anchorDate: "", anchorTime: "", anchorFinishTime: "", anchorFromNode: false },
         { id: "b2", anchorDate: "", anchorTime: "", anchorFromNode: false },
       ],
     });
+  });
+});
+
+describe("validateFolderSchedule", () => {
+  it("allows overlapping folder date ranges", () => {
+    const docs = [
+      {
+        id: "a",
+        parentObjectId: "obj-1",
+        scheduleStartAt: "2026-07-10T12:00:00.000Z",
+        scheduleFinishAt: "2026-07-12T12:00:00.000Z",
+      },
+    ];
+    expect(validateFolderSchedule("2026-07-11", "2026-07-13", docs, "obj-1")).toEqual({ ok: true });
   });
 });

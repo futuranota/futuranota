@@ -28,6 +28,9 @@ function referenceWithNodeMeta(node) {
   const anchorAt = node?.anchorAt || base.anchorAt || null;
   if (anchorAt) base.anchorAt = anchorAt;
   else delete base.anchorAt;
+  const anchorFinishAt = node?.anchorFinishAt || base.anchorFinishAt || null;
+  if (anchorFinishAt) base.anchorFinishAt = anchorFinishAt;
+  else delete base.anchorFinishAt;
 
   if (node?.completed) base.completed = true;
   else delete base.completed;
@@ -154,6 +157,14 @@ function anchorAtFromPersistedNode(node) {
   return null;
 }
 
+function anchorFinishAtFromPersistedNode(node) {
+  if (!node) return null;
+  if (node.anchorFinishAt) return node.anchorFinishAt;
+  const ref = node.reference;
+  if (ref && typeof ref === "object" && ref.anchorFinishAt) return ref.anchorFinishAt;
+  return null;
+}
+
 function completedFromPersistedNode(node) {
   if (!node) return false;
   if (node.completed != null) return Boolean(node.completed);
@@ -167,7 +178,11 @@ function statusFromPersistedNode(node) {
   if (!node) return null;
   const raw = node.status
     ?? (node.reference && typeof node.reference === "object" ? node.reference.status : null);
-  if (raw === "in_progress" || raw === "in_review" || raw === "completed") return raw;
+  if (
+    raw === "in_progress"
+    || raw === "in_review"
+    || raw === "completed"
+  ) return raw;
   if (completedFromPersistedNode(node)) return "completed";
   return null;
 }
@@ -204,7 +219,12 @@ function backfillNodeAnchorsFromDocs(nodes, docs) {
       if (block.anchorFromNode === false) continue;
       const iso = isoFromAnchorFields(date, block.anchorTime || "");
       if (!iso) continue;
-      next[nodeId] = { ...next[nodeId], anchorAt: iso };
+      const finishIso = isoFromAnchorFields(date, block.anchorFinishTime || "");
+      next[nodeId] = {
+        ...next[nodeId],
+        anchorAt: iso,
+        ...(finishIso ? { anchorFinishAt: finishIso } : {}),
+      };
     }
   }
   return next;
@@ -998,6 +1018,10 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
     if (!node.anchorAt && localAnchor) {
       node.anchorAt = localAnchor;
     }
+    const localFinishAnchor = anchorFinishAtFromPersistedNode(localNode);
+    if (!node.anchorFinishAt && localFinishAnchor) {
+      node.anchorFinishAt = localFinishAnchor;
+    }
   }
 
   // Re-link nodeIds on docs after merge
@@ -1373,6 +1397,7 @@ export function initPersistenceMiddleware(stores) {
       dbNodes.forEach((node) => {
         const reference = node.reference && typeof node.reference === "object" ? node.reference : {};
         const anchorAt = anchorAtFromPersistedNode({ reference, anchorAt: node.anchor_at });
+        const anchorFinishAt = anchorFinishAtFromPersistedNode({ reference });
         const persisted = { reference, completed: node.completed, sourceId: node.source_id, objectId: node.object_id };
         const workStatus = statusFromPersistedNode(persisted);
         nodes[node.id] = {
@@ -1384,6 +1409,7 @@ export function initPersistenceMiddleware(stores) {
           sourceQuery: node.source_query || "",
           reference,
           anchorAt,
+          anchorFinishAt,
           status: workStatus,
           completed: workStatus === "completed",
           campaignStatus: campaignStatusFromPersistedNode({ reference, campaignStatus: node.campaign_status }),

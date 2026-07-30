@@ -11,7 +11,8 @@
  * @property {string|null} [canvasNodeId]
  * @property {string} createdAt
  * @property {string} [updatedAt]
- * @property {string|null} [anchorAt] — optional schedule ISO for text/checkbox (wires + canvas)
+ * @property {string|null} [anchorAt] — optional schedule start ISO for text/checkbox (wires + canvas)
+ * @property {string|null} [anchorFinishAt] — optional schedule finish ISO for text/checkbox timeframe
  * @property {'in_progress'|'in_review'|'completed'|null} [status] — folder-doc work status
  * @property {boolean} [completed] — derived: true iff status === 'completed' (timeline / folder pie)
  * @property {string|null} [sourceId] — Source catalog id (uploads/source icons)

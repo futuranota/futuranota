@@ -28,6 +28,7 @@ import {
 } from "../../lib/docNodeSync.js";
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
+import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
 import {
   folderScheduleDateInputBounds,
   isDateInputWithinFolderSchedule,
@@ -80,6 +81,7 @@ export function useDocBlockNodeModal({
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
+  const [nodeDraftAnchorFinishTime, setNodeDraftAnchorFinishTime] = useState("");
   const [nodeDraftCompleted, setNodeDraftCompleted] = useState(false);
   const [nodeDraftStatus, setNodeDraftStatus] = useState(null);
   const [nodeDraftCampaignStatus, setNodeDraftCampaignStatus] = useState(
@@ -91,17 +93,19 @@ export function useDocBlockNodeModal({
   const blockLinkColor = (blockIndex) =>
     resolveBlockNodeLinkColor(blocks[blockIndex]);
 
-  const handleBlockAnchorChange = (blockIndex, anchorDate, anchorTime) => {
+  const handleBlockAnchorChange = (blockIndex, anchorDate, anchorTime, anchorFinishTime = "") => {
     setBlocks((prev) => {
       const next = updateBlockAt(prev, blockIndex, {
         anchorDate,
         anchorTime,
+        anchorFinishTime,
         anchorFromNode: Boolean(String(anchorDate || "").trim()),
       });
       const block = next[blockIndex];
       if (block?.nodeId) {
         updateNode(block.nodeId, {
           anchorAt: isoFromAnchorFields(anchorDate, anchorTime),
+          anchorFinishAt: isoFromAnchorFields(anchorDate, anchorFinishTime),
         });
       }
       if (
@@ -111,6 +115,7 @@ export function useDocBlockNodeModal({
       ) {
         setNodeDraftAnchorDate(anchorDate);
         setNodeDraftAnchorTime(anchorTime);
+        setNodeDraftAnchorFinishTime(anchorFinishTime);
       }
       if (docId) {
         const body = docBlocksToBody(next);
@@ -150,7 +155,14 @@ export function useDocBlockNodeModal({
     }
   };
 
-  const persistNodeContentDebounced = (content, context, anchorDate, anchorTime, options = {}) => {
+  const persistNodeContentDebounced = (
+    content,
+    context,
+    anchorDate,
+    anchorTime,
+    anchorFinishTime,
+    options = {},
+  ) => {
     const { commitSchedule = false } = options;
     // Body always persists — isNoNodeLinkMode only affects the color-link handle UI.
     const { blockId, blockIndex, nodeId, query, dataType, blockType } = context;
@@ -164,6 +176,11 @@ export function useDocBlockNodeModal({
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
       ? (childScheduleBounds && scheduleDate
         ? isoFromAnchorFields(scheduleDate, anchorTime)
+        : null)
+      : undefined;
+    const anchorFinishAt = commitSchedule && supportsScheduleAnchor(dataType)
+      ? (childScheduleBounds && scheduleDate
+        ? isoFromAnchorFields(scheduleDate, anchorFinishTime)
         : null)
       : undefined;
 
@@ -180,6 +197,7 @@ export function useDocBlockNodeModal({
       dataType,
       docCreatedAt: isoFromDateInput(createdDate),
       ...(anchorAt !== undefined && !campaignDocMode ? { anchorAt } : {}),
+      ...(anchorFinishAt !== undefined && !campaignDocMode ? { anchorFinishAt } : {}),
       ...(campaignDocMode
         ? { status: null, completed: false }
         : commitSchedule && (nodeDraftStatus != null || nodeDraftCompleted)
@@ -230,6 +248,7 @@ export function useDocBlockNodeModal({
     if (commitSchedule && supportsScheduleAnchor(dataType)) {
       patch.anchorDate = scheduleDate;
       patch.anchorTime = anchorTime;
+      patch.anchorFinishTime = anchorFinishTime;
       patch.anchorFromNode = Boolean(scheduleDate);
       patch.queryEnabled = true;
     }
@@ -268,7 +287,7 @@ export function useDocBlockNodeModal({
     }
     const context = { ...activeNodeContext };
     nodeAutosaveTimerRef.current = setTimeout(() => {
-      persistNodeContentDebounced(content, context, "", "", { commitSchedule: false });
+      persistNodeContentDebounced(content, context, "", "", "", { commitSchedule: false });
       nodeAutosaveTimerRef.current = null;
     }, 250);
   };
@@ -381,15 +400,19 @@ export function useDocBlockNodeModal({
       const fromNode = anchorFieldsFromIso(launchOrAnchorIso);
       setNodeDraftAnchorDate(fromNode.anchorDate);
       setNodeDraftAnchorTime(fromNode.anchorTime);
+      const fromFinish = anchorFieldsFromIso(existing?.anchorFinishAt || null);
+      setNodeDraftAnchorFinishTime(fromFinish.anchorTime || "");
     } else if (!campaignDocMode && folderHasSchedule) {
       const anchorFromBlock = resolveBlockAnchorFields(block, createdDate, {
         noNodeLink: isNoNodeLinkMode(blockLinkColor(blockIndex)),
       });
       setNodeDraftAnchorDate(anchorFromBlock.anchorDate);
       setNodeDraftAnchorTime(anchorFromBlock.anchorTime);
+      setNodeDraftAnchorFinishTime(anchorFromBlock.anchorFinishTime || "");
     } else {
       setNodeDraftAnchorDate("");
       setNodeDraftAnchorTime("");
+      setNodeDraftAnchorFinishTime("");
     }
   };
 
@@ -402,6 +425,7 @@ export function useDocBlockNodeModal({
     setNodeDraftContent("");
     setNodeDraftAnchorDate("");
     setNodeDraftAnchorTime("");
+    setNodeDraftAnchorFinishTime("");
     setNodeDraftCompleted(false);
     setNodeDraftStatus(null);
     setNodeDraftCampaignStatus(CAMPAIGN_DOC_STATUS_INACTIVE);
@@ -436,6 +460,7 @@ export function useDocBlockNodeModal({
         context,
         nodeDraftAnchorDate,
         nodeDraftAnchorTime,
+        nodeDraftAnchorFinishTime,
         { commitSchedule: true },
       );
     }
@@ -466,14 +491,35 @@ export function useDocBlockNodeModal({
     // Persist Schedule immediately — must survive tab switch.
     setNodeDraftAnchorDate(nextDate);
     if (!activeNodeContext) return;
-    handleBlockAnchorChange(activeNodeContext.blockIndex, nextDate, nodeDraftAnchorTime);
+    handleBlockAnchorChange(
+      activeNodeContext.blockIndex,
+      nextDate,
+      nodeDraftAnchorTime,
+      nodeDraftAnchorFinishTime,
+    );
   };
 
   const handleNodeAnchorTimeChange = (anchorTime) => {
     // Persist Schedule immediately — must survive tab switch.
     setNodeDraftAnchorTime(anchorTime);
     if (!activeNodeContext) return;
-    handleBlockAnchorChange(activeNodeContext.blockIndex, nodeDraftAnchorDate, anchorTime);
+    handleBlockAnchorChange(
+      activeNodeContext.blockIndex,
+      nodeDraftAnchorDate,
+      anchorTime,
+      nodeDraftAnchorFinishTime,
+    );
+  };
+
+  const handleNodeAnchorFinishTimeChange = (anchorFinishTime) => {
+    setNodeDraftAnchorFinishTime(anchorFinishTime);
+    if (!activeNodeContext) return;
+    handleBlockAnchorChange(
+      activeNodeContext.blockIndex,
+      nodeDraftAnchorDate,
+      nodeDraftAnchorTime,
+      anchorFinishTime,
+    );
   };
 
   const handleVideoEmbedSync = (videoIndex, videoPatch = {}, blocksSnapshot) => {
@@ -491,6 +537,21 @@ export function useDocBlockNodeModal({
       return prev;
     });
   };
+
+  const occupied = listOccupiedIntervalsByDate(
+    useNodesStore.getState().nodes,
+    useDocsStore.getState().docs,
+    nodeDraftAnchorDate,
+    {
+      excludeNodeId: activeNodeContext?.nodeId || null,
+      objectId: parentObjectId || null,
+    },
+  );
+  const overlapHint = hasTimeframeOverlap(
+    isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorTime),
+    isoFromAnchorFields(nodeDraftAnchorDate, nodeDraftAnchorFinishTime),
+    occupied,
+  ) ? t("meta.scheduleOverlapHint") : "";
 
   const nodeModal = activeNodeContext ? (
     <NodeQueryModal
@@ -532,8 +593,12 @@ export function useDocBlockNodeModal({
       onBackToDocument={flushAndCloseNodeModal}
       anchorDate={nodeDraftAnchorDate}
       anchorTime={nodeDraftAnchorTime}
+      anchorFinishTime={nodeDraftAnchorFinishTime}
       onAnchorDateChange={handleNodeAnchorDateChange}
       onAnchorTimeChange={handleNodeAnchorTimeChange}
+      onAnchorFinishTimeChange={handleNodeAnchorFinishTimeChange}
+      scheduleOccupied={occupied}
+      scheduleOverlapHint={overlapHint}
       scheduleMinDate={childScheduleBounds?.minDate || ""}
       scheduleMaxDate={childScheduleBounds?.maxDate || ""}
       onClose={flushAndCloseNodeModal}
