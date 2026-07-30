@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const TIME_STEP_MINUTES = 15;
 
@@ -59,6 +60,7 @@ export function BlockAnchorFields({
   enableTimeRange = false,
 }) {
   const rootRef = useRef(null);
+  const popoverRef = useRef(null);
   const gridRef = useRef(null);
   const [timeOpen, setTimeOpen] = useState(false);
   const [selectingFinish, setSelectingFinish] = useState(false);
@@ -90,7 +92,9 @@ export function BlockAnchorFields({
   useEffect(() => {
     if (!timeOpen) return undefined;
     const close = (event) => {
-      if (rootRef.current && !rootRef.current.contains(event.target)) {
+      const clickedTrigger = rootRef.current?.contains(event.target);
+      const clickedPopover = popoverRef.current?.contains(event.target);
+      if (!clickedTrigger && !clickedPopover) {
         setTimeOpen(false);
         setSelectingFinish(false);
       }
@@ -173,8 +177,13 @@ export function BlockAnchorFields({
           {rangeLabel}
           <span className="doc-time-range__clock" aria-hidden>◷</span>
         </button>
-        {timeOpen ? (
-          <div className="doc-time-range__popover" role="dialog" aria-label="Select time range">
+        {timeOpen && typeof document !== "undefined" ? createPortal(
+          <div
+            ref={popoverRef}
+            className="doc-time-range__popover"
+            role="dialog"
+            aria-label="Select time range"
+          >
             <div className="doc-time-range__fields">
               <label>
                 <span>Start</span>
@@ -255,7 +264,8 @@ export function BlockAnchorFields({
             {overlapHint || validationError ? (
               <p className="doc-time-range__hint">{validationError || overlapHint}</p>
             ) : null}
-          </div>
+          </div>,
+          document.body,
         ) : null}
       </div>
       ) : (
