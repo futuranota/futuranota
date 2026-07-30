@@ -20,6 +20,7 @@ export function LinkedMacronodeDescription({
   nodeId,
   onContinue,
   showDescription = true,
+  statusIconSize = "default",
 }) {
   const { t } = useI18n();
   const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] ?? null : null));
@@ -35,7 +36,9 @@ export function LinkedMacronodeDescription({
     onContinue?.();
   };
 
-  const statusChip = workStatus ? <DocStatusChip status={workStatus} /> : null;
+  const statusChip = workStatus ? (
+    <DocStatusChip status={workStatus} iconSize={statusIconSize} />
+  ) : null;
 
   if (!hasExcerpt) {
     return (
@@ -61,10 +64,9 @@ export function LinkedMacronodeDescription({
         {t("sidebar.continueReading")}
       </button>
       {statusChip ? (
-        <>
-          {" "}
+        <span className="doc-linked-macro-status-row">
           {statusChip}
-        </>
+        </span>
       ) : null}
     </div>
   );

@@ -1415,6 +1415,11 @@
   mask-size: contain;
 }
 
+.doc-status-chip--small-icon .doc-status-chip__icon {
+  width: 8px;
+  height: 8px;
+}
+
 .doc-status-chip__icon--in-progress {
   background: linear-gradient(135deg, #8FC4FF 0%, #599FFF 45%, #185EBE 100%);
   -webkit-mask-image: url("/uploads/CircleDashed.svg");
@@ -8436,6 +8441,12 @@ body.doc-content-resizing * {
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.78);
   word-break: break-word;
+}
+
+.doc-linked-macro-status-row {
+  display: block;
+  margin-top: 3px;
+  line-height: 1;
 }
 
 .doc-linked-macro-desc .folder-doc-row__desc-label {

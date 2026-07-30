@@ -53,6 +53,7 @@ import {
   docWorkStatusLabel,
   resolveDocWorkStatus,
 } from "../../lib/docWorkStatus.js";
+import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
 
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
@@ -769,22 +770,8 @@ export function NodeQueryModal({
                       title={workStatusLabel}
                     >
                       <span className="doc-meta-chip-k">{t("meta.status")}</span>
-                      <span
-                        className={
-                          "doc-meta-chip-v is-lowercase doc-meta-chip-v--status"
-                          + ` is-status-${workStatus}`
-                        }
-                      >
-                        {workStatusLabel}
-                        {workStatus === DOC_WORK_STATUS.COMPLETED ? (
-                          <img
-                            src="/uploads/Checks.svg"
-                            alt=""
-                            className="doc-meta-chip-completed-icon"
-                            aria-hidden
-                            draggable={false}
-                          />
-                        ) : null}
+                      <span className="doc-meta-chip-v doc-meta-chip-v--status">
+                        <DocStatusChip status={workStatus} />
                       </span>
                     </div>
                   ) : null}

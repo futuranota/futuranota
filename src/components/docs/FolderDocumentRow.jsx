@@ -12,7 +12,7 @@ function getNodeDisplayTitle(node) {
 }
 
 /** Status chip for folder document rows (in progress / in review / completed). */
-export function DocStatusChip({ status }) {
+export function DocStatusChip({ status, iconSize = "default" }) {
   const { t } = useI18n();
   const resolved = resolveDocWorkStatus(
     typeof status === "string" || status == null
@@ -28,7 +28,12 @@ export function DocStatusChip({ status }) {
         ? "in-review"
         : "completed";
   return (
-    <span className={`doc-status-chip doc-status-chip--${resolved}`}>
+    <span
+      className={
+        `doc-status-chip doc-status-chip--${resolved}`
+        + (iconSize === "small" ? " doc-status-chip--small-icon" : "")
+      }
+    >
       <span
         className={`doc-status-chip__icon doc-status-chip__icon--${iconKind}`}
         aria-hidden

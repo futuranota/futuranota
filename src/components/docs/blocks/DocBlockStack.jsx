@@ -1792,6 +1792,13 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
         const collapsedWriteBlock = collapsedActiveWriteId
           ? resolveBlockById(collapsedActiveWriteId)
           : null;
+        const linkedStatusIconSize =
+          blocks
+            .slice(0, index)
+            .filter((candidate) => isDocBlockLinkedToNode(candidate))
+            .length % 2 === 0
+            ? "default"
+            : "small";
 
         if (block.type === DOC_BLOCK_TYPES.TEXT && isLinkedOwnerContinuationSlot(blocks, index)) {
           if (getLinkedOwnerForContinuationSlot(blocks, index) < 0) {
@@ -1851,6 +1858,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   nodeId={block.nodeId}
                   onContinue={() => handleQueryHandleClick(index)}
                   showDescription={linkedBlockUsesStoryPresentation(block, folderViewMode)}
+                  statusIconSize={linkedStatusIconSize}
                 />
               ) : null}
             </>
@@ -2392,6 +2400,7 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
                   nodeId={block.nodeId}
                   onContinue={() => handleQueryHandleClick(index)}
                   showDescription={linkedBlockUsesStoryPresentation(block, folderViewMode)}
+                  statusIconSize={linkedStatusIconSize}
                 />
               ) : null}
             </>
