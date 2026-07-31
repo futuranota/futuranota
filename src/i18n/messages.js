@@ -826,6 +826,7 @@ export const messages = {
       deleteTitle: "Delete step by step",
     },
     urlTableLibrary: {
+      edit: "Edit",
       searchPlaceholder: "Search name, tag, category, description or URL…",
       searchTablesPlaceholder: "Search URL tables…",
       addRow: "Add link",
@@ -853,7 +854,9 @@ export const messages = {
       back: "Back to table",
       untitled: "Untitled link",
       view: "View",
-      businessName: "Business / product name",
+      businessName: "Business",
+      businessNamePlaceholder: "name",
+      deleteRow: "Delete",
       tag: "Tag",
       category: "Category",
       commissionRate: "Commission %",
@@ -871,6 +874,7 @@ export const messages = {
       cookiePending: "Starts on Active · {days}d",
       daysLeft: "{days}d left",
       daysLeftShort: "{days}d left",
+      daysLeftUnit: "days left",
       status: {
         pending: "Pending",
         active: "Active",

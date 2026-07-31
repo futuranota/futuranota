@@ -12915,16 +12915,56 @@ body.doc-content-resizing * {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 4px;
+}
+
+.doc-vault-block__row-actions-inner--always {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doc-vault-block__row-actions-inner--edit {
   gap: 6px;
 }
 
-.doc-vault-block__action--view {
-  opacity: 0.72;
+.doc-vault-block__action--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  opacity: 1;
 }
 
-.doc-vault-block__row:hover .doc-vault-block__action--view,
-.doc-vault-block__row:focus-within .doc-vault-block__action--view {
-  opacity: 1;
+.doc-vault-block__action-icon-img {
+  display: block;
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  /* SVG source is near-black (#343330); force readable gray on dark UI */
+  filter: brightness(0) invert(0.68);
+}
+
+.doc-vault-block__action--icon:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.doc-vault-block__action--icon:hover .doc-vault-block__action-icon-img {
+  filter: brightness(0) invert(0.82);
+}
+
+.doc-vault-block__action--icon.doc-vault-block__action--delete {
+  font-size: 16px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.doc-vault-block__action--icon.doc-vault-block__action--delete:hover {
+  color: rgba(255, 150, 150, 0.95);
 }
 
 .doc-vault-block__affiliate-cell {
@@ -12934,38 +12974,41 @@ body.doc-content-resizing * {
 
 .doc-vault-block__affiliate-status {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
+  align-items: center;
+  gap: 0;
   font-family: var(--sans);
   font-size: 11px;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .doc-vault-block__affiliate-status-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .doc-vault-block__affiliate-status-meta,
 .doc-vault-block__affiliate-status-days {
-  color: #777777;
-  font-size: 10px;
-  font-weight: 500;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  display: none;
 }
 
 .doc-vault-block__affiliate-status.is-pending .doc-vault-block__affiliate-status-label {
   color: #EAA65D;
+  background: color-mix(in oklab, #EAA65D 16%, transparent);
 }
 
 .doc-vault-block__affiliate-status.is-active .doc-vault-block__affiliate-status-label {
   color: #57BC6C;
+  background: color-mix(in oklab, #57BC6C 16%, transparent);
 }
 
 .doc-vault-block__affiliate-status.is-expired .doc-vault-block__affiliate-status-label {
   color: #777777;
+  background: rgba(119, 119, 119, 0.18);
 }
 
 .doc-vault-block__hover-actions {

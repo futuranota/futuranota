@@ -46,7 +46,9 @@ export function UrlTableEntryDetailView({
 
   const perSale = computeAffiliatePerSale(draft);
   const earnings = computeAffiliateEarnings(draft);
-  const title = String(draft.name ?? "").trim() || t("urlTableAffiliate.untitled");
+  const cookieNumeral = lifecycle.affiliateStatus === "pending"
+    ? (draft.cookieDays ?? null)
+    : lifecycle.daysRemaining;
 
   const patchNumber = (field, raw) => {
     const trimmed = String(raw ?? "").trim();
@@ -136,7 +138,6 @@ export function UrlTableEntryDetailView({
         >
           <span className="url-table-entry-detail__back-icon" aria-hidden />
         </button>
-        <h2 className="url-table-entry-detail__title">{title}</h2>
       </div>
 
       <div className="url-table-entry-detail__stats">
@@ -160,19 +161,30 @@ export function UrlTableEntryDetailView({
           <span className="url-table-entry-detail__stat-label">
             {t("urlTableAffiliate.cookieLeft")}
           </span>
-          <strong className="url-table-entry-detail__stat-value">
-            {lifecycle.affiliateStatus === "pending"
-              ? (draft.cookieDays != null
-                ? t("urlTableAffiliate.cookiePending", { days: draft.cookieDays })
-                : "—")
-              : lifecycle.daysRemaining != null
-                ? t("urlTableAffiliate.daysLeft", { days: lifecycle.daysRemaining })
-                : "—"}
-          </strong>
+          <div className="url-table-entry-detail__stat-cookie">
+            <strong className="url-table-entry-detail__stat-value">
+              {cookieNumeral != null ? cookieNumeral : "—"}
+            </strong>
+            {lifecycle.affiliateStatus === "active" && cookieNumeral != null ? (
+              <span className="url-table-entry-detail__stat-unit">
+                {t("urlTableAffiliate.daysLeftUnit")}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
 
       <div className="url-table-entry-detail__grid">
+        <label className="url-table-entry-detail__field">
+          <span>{t("urlTableAffiliate.businessName")}</span>
+          <input
+            type="text"
+            value={draft.name}
+            placeholder={t("urlTableAffiliate.businessNamePlaceholder")}
+            onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+          />
+        </label>
+
         <label className="url-table-entry-detail__field">
           <span>{t("urlTableAffiliate.commissionRate")}</span>
           <input

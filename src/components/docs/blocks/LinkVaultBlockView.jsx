@@ -12,6 +12,7 @@ const URL_FIELD_ICON = "/uploads/url-table.svg";
 
 const DEFAULT_LABELS = {
   name: "Title",
+  namePlaceholder: "",
   tag: "Tag",
   category: "Category",
   description: "Description",
@@ -19,6 +20,8 @@ const DEFAULT_LABELS = {
   save: "Save",
   status: "Status",
   view: "View",
+  edit: "Edit",
+  delete: "Delete",
   daysLeft: "{days}d left",
   statusPending: "Pending",
   statusActive: "Active",
@@ -53,6 +56,8 @@ export function LinkVaultBlockView({
   const draft = isDraftControlled ? controlledDraft : uncontrolledDraft;
   const setDraft = isDraftControlled ? onDraftChange : setUncontrolledDraft;
   const [isAdding, setIsAdding] = useState(entries.length === 0);
+  const [editingId, setEditingId] = useState(/** @type {string|null} */ (null));
+  const [editDraft, setEditDraft] = useState(EMPTY_DRAFT);
   const [openPicker, setOpenPicker] = useState(/** @type {null|'tag'|'category'} */ (null));
   const nameRef = useRef(null);
   const descRef = useRef(null);
@@ -113,6 +118,8 @@ export function LinkVaultBlockView({
   useEffect(() => {
     if (!addFormRequest) return;
     setIsAdding(true);
+    setEditingId(null);
+    setEditDraft(EMPTY_DRAFT);
     setDraft(EMPTY_DRAFT);
     const timer = window.setTimeout(() => focusDraftField(nameRef.current), 0);
     return () => window.clearTimeout(timer);
@@ -185,9 +192,55 @@ export function LinkVaultBlockView({
     // #endregion
     // Delete from the SQL-backed store immediately (same immediacy as row Save),
     // so a later row Save cannot resurrect the row from the store.
+    if (editingId === entryId) {
+      setEditingId(null);
+      setEditDraft(EMPTY_DRAFT);
+    }
     onDeleteEntry?.(entryId);
     onEntriesChange?.(entries.filter((entry) => entry.id !== entryId));
-  }, [entries, onDeleteEntry, onEntriesChange, tableId]);
+  }, [editingId, entries, onDeleteEntry, onEntriesChange, tableId]);
+
+  const handleStartEdit = useCallback((entry) => {
+    if (!entry?.id) return;
+    setIsAdding(false);
+    setEditingId(entry.id);
+    setEditDraft({
+      name: entry.name || "",
+      tag: entry.tag || "",
+      category: entry.category || "",
+      description: entry.description || "",
+      url: entry.url || "",
+    });
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditDraft(EMPTY_DRAFT);
+  }, []);
+
+  const handleSaveEdit = useCallback(() => {
+    if (!editingId) return;
+    if (!editDraft.name.trim() || !editDraft.url.trim()) return;
+    const prev = entries.find((entry) => entry.id === editingId);
+    const nextEntry = createLinkEntry({
+      ...(prev || {}),
+      ...editDraft,
+      id: editingId,
+      url: normalizeUrlInput(editDraft.url),
+    });
+    if (onSaveEntry) {
+      const result = onSaveEntry(nextEntry);
+      if (result === false || result === null) return;
+      setEditingId(null);
+      setEditDraft(EMPTY_DRAFT);
+      return;
+    }
+    onEntriesChange?.(
+      entries.map((entry) => (entry.id === editingId ? { ...entry, ...nextEntry } : entry)),
+    );
+    setEditingId(null);
+    setEditDraft(EMPTY_DRAFT);
+  }, [editDraft, editingId, entries, onEntriesChange, onSaveEntry]);
 
   const applyChipValue = useCallback((field, value) => {
     const next = String(value ?? "").trim();
@@ -388,7 +441,7 @@ export function LinkVaultBlockView({
           className="doc-vault-block__input"
           type="text"
           value={draft.name}
-          placeholder={L.name}
+          placeholder={L.namePlaceholder || L.name}
           onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
           onKeyDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
@@ -483,6 +536,9 @@ export function LinkVaultBlockView({
         : meta.affiliateStatus === "expired"
           ? L.statusExpired
           : null;
+    if (!statusLabel) {
+      return <span className="doc-vault-block__empty">—</span>;
+    }
     return (
       <span
         className={
@@ -490,14 +546,7 @@ export function LinkVaultBlockView({
           + (meta.affiliateStatus ? ` is-${meta.affiliateStatus}` : "")
         }
       >
-        {statusLabel ? (
-          <span className="doc-vault-block__affiliate-status-label">{statusLabel}</span>
-        ) : null}
-        {meta.parts.length ? (
-          <span className="doc-vault-block__affiliate-status-meta">
-            {meta.parts.join(" · ")}
-          </span>
-        ) : null}
+        <span className="doc-vault-block__affiliate-status-label">{statusLabel}</span>
       </span>
     );
   };
@@ -668,6 +717,7 @@ export function LinkVaultBlockView({
         "doc-vault-block doc-vault-block--link"
         + (compact ? " doc-vault-block--compact" : "")
         + (entries.length === 0 ? " doc-vault-block--empty" : "")
+        + (showRowView ? " doc-vault-block--affiliate" : "")
       }
     >
       {entries.length === 0 && onDeleteVault ? (
@@ -703,8 +753,111 @@ export function LinkVaultBlockView({
             </tr>
           </thead>
           <tbody>
-            {visibleEntries.map((entry) => (
+            {visibleEntries.map((entry) => {
+              const isEditing = editingId === entry.id;
+              const canSaveEdit = Boolean(editDraft.name.trim() && editDraft.url.trim());
+              return (
               <tr key={entry.id} className="doc-vault-block__row">
+                {isEditing ? (
+                  <>
+                    <td>
+                      <input
+                        className="doc-vault-block__input"
+                        type="text"
+                        value={editDraft.name}
+                        placeholder={L.namePlaceholder || L.name}
+                        onChange={(e) => setEditDraft((prev) => ({ ...prev, name: e.target.value }))}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="doc-vault-block__input"
+                        type="text"
+                        value={editDraft.tag ?? ""}
+                        placeholder={L.tag}
+                        onChange={(e) => setEditDraft((prev) => ({ ...prev, tag: e.target.value }))}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="doc-vault-block__input"
+                        type="text"
+                        value={editDraft.category ?? ""}
+                        placeholder={L.category}
+                        onChange={(e) => setEditDraft((prev) => ({ ...prev, category: e.target.value }))}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </td>
+                    <td>
+                      {useMultilineDescription ? (
+                        <textarea
+                          rows={1}
+                          className="doc-vault-block__input doc-vault-block__input--description-multiline"
+                          value={editDraft.description}
+                          placeholder={L.description}
+                          maxLength={LINK_DESCRIPTION_MAX_LENGTH}
+                          onChange={(e) => setEditDraft((prev) => ({ ...prev, description: e.target.value }))}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <input
+                          className="doc-vault-block__input"
+                          type="text"
+                          value={editDraft.description}
+                          placeholder={L.description}
+                          maxLength={LINK_DESCRIPTION_MAX_LENGTH}
+                          onChange={(e) => setEditDraft((prev) => ({ ...prev, description: e.target.value }))}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                        />
+                      )}
+                    </td>
+                    <td>
+                      <input
+                        className="doc-vault-block__input doc-vault-block__input--url"
+                        type="url"
+                        value={editDraft.url}
+                        placeholder={L.url}
+                        onChange={(e) => setEditDraft((prev) => ({ ...prev, url: e.target.value }))}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </td>
+                    {showRowView ? (
+                      <td className="doc-vault-block__affiliate-cell">
+                        {renderAffiliateStatusCell(entry)}
+                      </td>
+                    ) : null}
+                    <td className="doc-vault-block__row-actions">
+                      <div className="doc-vault-block__row-actions-inner doc-vault-block__row-actions-inner--edit">
+                        <button
+                          type="button"
+                          className="doc-vault-block__save"
+                          disabled={!canSaveEdit}
+                          onClick={handleSaveEdit}
+                        >
+                          {L.save}
+                        </button>
+                        <button
+                          type="button"
+                          className="doc-vault-block__action doc-vault-block__action--close"
+                          onClick={handleCancelEdit}
+                          aria-label="Cancel"
+                          title="Cancel"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
                 <td>
                   {entry.name ? (
                     <span className="doc-vault-block__name-chip">
@@ -784,33 +937,53 @@ export function LinkVaultBlockView({
                   </td>
                 ) : null}
                 <td className="doc-vault-block__row-actions">
-                  <div className="doc-vault-block__row-actions-inner">
+                  <div className="doc-vault-block__row-actions-inner doc-vault-block__row-actions-inner--always">
                     {showRowView ? (
                       <button
                         type="button"
-                        className="doc-vault-block__action doc-vault-block__action--view"
+                        className="doc-vault-block__action doc-vault-block__action--icon"
                         onClick={() => onViewEntry?.(entry)}
                         aria-label={`${L.view} ${entry.name || ""}`}
                         title={L.view}
                       >
-                        {L.view}
+                        <img
+                          src="/uploads/ChartPieSlice.svg"
+                          alt=""
+                          aria-hidden
+                          className="doc-vault-block__action-icon-img"
+                        />
                       </button>
                     ) : null}
-                    <div className="doc-vault-block__hover-actions">
-                      <button
-                        type="button"
-                        className="doc-vault-block__action doc-vault-block__action--close"
-                        onClick={() => handleRemoveEntry(entry.id)}
-                        aria-label={`Eliminar ${entry.name}`}
-                        title="Eliminar"
-                      >
-                        ×
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="doc-vault-block__action doc-vault-block__action--icon"
+                      onClick={() => handleStartEdit(entry)}
+                      aria-label={`${L.edit} ${entry.name || ""}`}
+                      title={L.edit}
+                    >
+                      <img
+                        src="/uploads/Pencil.svg"
+                        alt=""
+                        aria-hidden
+                        className="doc-vault-block__action-icon-img"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      className="doc-vault-block__action doc-vault-block__action--icon doc-vault-block__action--delete"
+                      onClick={() => handleRemoveEntry(entry.id)}
+                      aria-label={`${L.delete} ${entry.name || ""}`}
+                      title={L.delete}
+                    >
+                      ×
+                    </button>
                   </div>
                 </td>
+                  </>
+                )}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
           {showAddForm ? (
             <tfoot>
@@ -822,20 +995,22 @@ export function LinkVaultBlockView({
         </table>
       </div>
 
-      {showAddButton ? (
-        <button
-          type="button"
-          className="doc-vault-block__add"
-          onClick={() => {
-            setIsAdding(true);
-            setDraft(EMPTY_DRAFT);
-            window.requestAnimationFrame(() => nameRef.current?.focus());
-          }}
-          aria-label="Añadir link"
-        >
-          +
-        </button>
-      ) : null}
+          {showAddButton ? (
+            <button
+              type="button"
+              className="doc-vault-block__add"
+              onClick={() => {
+                setEditingId(null);
+                setEditDraft(EMPTY_DRAFT);
+                setIsAdding(true);
+                setDraft(EMPTY_DRAFT);
+                window.requestAnimationFrame(() => nameRef.current?.focus());
+              }}
+              aria-label="Añadir link"
+            >
+              +
+            </button>
+          ) : null}
     </div>
   );
 }

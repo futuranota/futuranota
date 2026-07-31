@@ -154,9 +154,28 @@ export function UrlTableDashboardOverlay({
     if (viewEntryId === entryId) setViewEntryId(null);
     markUrlTableEntryDeleted(entryId);
     useUrlTableStore.getState().removeEntry(entryId);
+    onChange?.({
+      entries: (session.entries || []).filter((entry) => entry.id !== entryId),
+      saved: false,
+    });
     Promise.all([flushUrlTableSync(), flushUrlTablesSync()]).catch((err) => {
       console.warn("[url-table] flush after row delete failed", err);
     });
+  };
+
+  const handleDeleteEntryFromDetail = async (entryId) => {
+    if (!entryId || deleting || detailSaving) return;
+    const name = String(
+      (session.entries || []).find((entry) => entry.id === entryId)?.name ?? "",
+    ).trim() || t("urlTableAffiliate.untitled");
+    const confirmed = await askConfirm({
+      title: t("urlTableAffiliate.deleteRow"),
+      message: t("urlTableLibrary.deleteConfirm", { title: name }),
+      confirmLabel: t("urlTableAffiliate.deleteRow"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+    handleDeleteEntry(entryId);
   };
 
   const handleViewEntry = (entry) => {
@@ -316,6 +335,9 @@ export function UrlTableDashboardOverlay({
                 name: isAffiliateTable
                   ? t("urlTableAffiliate.businessName")
                   : "Title",
+                namePlaceholder: isAffiliateTable
+                  ? t("urlTableAffiliate.businessNamePlaceholder")
+                  : "Title",
                 tag: "Tag",
                 category: "Category",
                 description: "Description",
@@ -323,6 +345,8 @@ export function UrlTableDashboardOverlay({
                 save: "Save",
                 status: t("urlTableAffiliate.statusLabel"),
                 view: t("urlTableAffiliate.view"),
+                edit: t("urlTableLibrary.edit"),
+                delete: t("urlTableAffiliate.deleteRow"),
                 daysLeft: t("urlTableAffiliate.daysLeftShort"),
                 statusPending: t("urlTableAffiliate.status.pending"),
                 statusActive: t("urlTableAffiliate.status.active"),
@@ -334,14 +358,24 @@ export function UrlTableDashboardOverlay({
 
         <footer className="url-table-page-overlay__footer">
           {viewingEntry ? (
-            <button
-              type="button"
-              className="doc-new-action doc-new-action--save url-table-dashboard__save"
-              onClick={() => detailSaveRef.current?.()}
-              disabled={saving || deleting || detailSaving}
-            >
-              {detailSaving ? t("urlTableAffiliate.saving") : t("common.save")}
-            </button>
+            <>
+              <button
+                type="button"
+                className="doc-new-action doc-new-action--save url-table-dashboard__save"
+                onClick={() => detailSaveRef.current?.()}
+                disabled={saving || deleting || detailSaving}
+              >
+                {detailSaving ? t("urlTableAffiliate.saving") : t("common.save")}
+              </button>
+              <button
+                type="button"
+                className="btn xs url-table-page-overlay__delete-btn"
+                onClick={() => handleDeleteEntryFromDetail(viewingEntry.id)}
+                disabled={saving || deleting || detailSaving}
+              >
+                {t("urlTableAffiliate.deleteRow")}
+              </button>
+            </>
           ) : (
             <>
               <button
