@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -29,6 +29,8 @@ export function StepsLibraryPanel({
   const deleteDoc = useDocsStore((s) => s.deleteDoc);
   const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const playbooks = useMemo(
     () => collectSavedStepPlaybooks(docs, { objectId }),
@@ -39,6 +41,31 @@ export function StepsLibraryPanel({
     () => filterStepPlaybooks(playbooks, query),
     [playbooks, query],
   );
+
+  const exitBulkSelectMode = useCallback(() => {
+    setBulkSelectMode(false);
+    setSelectedIds([]);
+  }, []);
+
+  const toggleBulkSelectMode = useCallback(() => {
+    setBulkSelectMode((active) => {
+      if (active) {
+        setSelectedIds([]);
+        return false;
+      }
+      setSelectedIds([]);
+      return true;
+    });
+  }, []);
+
+  const toggleSelect = useCallback((id) => {
+    if (!id) return;
+    setSelectedIds((prev) => (
+      prev.includes(id)
+        ? prev.filter((entry) => entry !== id)
+        : [...prev, id]
+    ));
+  }, []);
 
   const handleDeletePlaybook = async (playbook) => {
     const doc = docs[playbook.docId];
@@ -60,6 +87,35 @@ export function StepsLibraryPanel({
     });
   };
 
+  const handleDeleteSelected = async () => {
+    const ids = selectedIds.filter(Boolean);
+    if (!ids.length) return;
+    const confirmed = await askConfirm({
+      title: t("stepsLibrary.deleteSelectedTitle"),
+      message: t("stepsLibrary.deleteSelectedConfirm", { count: ids.length }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+
+    const selected = filtered.filter((playbook) => ids.includes(playbook.id));
+    for (const playbook of selected) {
+      const doc = useDocsStore.getState().docs[playbook.docId];
+      if (!doc) continue;
+      const { docRemoved } = removeStepPlaybookFromDoc(playbook, doc, updateDoc, deleteDoc);
+      onPlaybookDeleted?.({
+        docId: playbook.docId,
+        blockId: playbook.blockId,
+        docRemoved,
+      });
+    }
+    exitBulkSelectMode();
+  };
+
+  const stopBubble = (event) => {
+    event.stopPropagation();
+  };
+
   return (
     <div className="lp-pack-import-detail steps-library-panel">
       <div className="pack-wizard pack-wizard--panel">
@@ -76,6 +132,25 @@ export function StepsLibraryPanel({
               {t("pack.stepsLibraryTitle")}
             </span>
           </button>
+          {objectId ? (
+            <button
+              type="button"
+              className={
+                "lp-folder-density__btn lp-folder-select-btn"
+                + (bulkSelectMode ? " is-active" : "")
+              }
+              onClick={toggleBulkSelectMode}
+              title={
+                bulkSelectMode
+                  ? t("stepsLibrary.selectActive")
+                  : t("stepsLibrary.selectTitle")
+              }
+              aria-label={t("stepsLibrary.selectTitle")}
+              aria-pressed={bulkSelectMode}
+            >
+              {t("stepsLibrary.select")}
+            </button>
+          ) : null}
         </div>
 
         <div className="pack-wizard__body steps-library-panel__body">
@@ -93,52 +168,129 @@ export function StepsLibraryPanel({
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder={t("stepsLibrary.searchPlaceholder")}
                     aria-label={t("stepsLibrary.searchPlaceholder")}
+                    onKeyDown={stopBubble}
+                    onKeyUp={stopBubble}
+                    onMouseDown={stopBubble}
                   />
                 </div>
                 <button
                   type="button"
                   className="lp-library-new-btn"
                   onClick={onNew}
+                  disabled={bulkSelectMode}
                 >
                   {t("stepsLibrary.new")}
                 </button>
               </div>
 
+              {bulkSelectMode ? (
+                <div className="lp-folder-bulk-bar" role="status">
+                  <span className="lp-folder-bulk-bar__count">
+                    {t("stepsLibrary.selectCount", { count: selectedIds.length })}
+                  </span>
+                  <div className="lp-folder-bulk-bar__actions">
+                    <button
+                      type="button"
+                      className="btn xs ghost"
+                      onClick={exitBulkSelectMode}
+                    >
+                      {t("stepsLibrary.selectDone")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn xs lp-folder-bulk-bar__delete"
+                      disabled={selectedIds.length === 0}
+                      onClick={handleDeleteSelected}
+                    >
+                      {t("stepsLibrary.deleteSelected")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {filtered.length ? (
-                <ul className="steps-library-panel__list">
-                  {filtered.map((playbook) => (
-                    <li key={playbook.id} className="steps-library-panel__row">
-                      <button
-                        type="button"
-                        className="steps-library-panel__card"
-                        onClick={() => onRunPlaybook?.(playbook)}
+                <ul
+                  className={
+                    "steps-library-panel__list"
+                    + (bulkSelectMode ? " steps-library-panel__list--selecting" : "")
+                  }
+                >
+                  {filtered.map((playbook) => {
+                    const selected = selectedIds.includes(playbook.id);
+                    return (
+                      <li
+                        key={playbook.id}
+                        className={
+                          "steps-library-panel__row"
+                          + (bulkSelectMode ? " steps-library-panel__row--select-mode" : "")
+                          + (selected ? " is-selected" : "")
+                        }
                       >
-                        <img
-                          src="/uploads/step-by-step.svg"
-                          alt=""
-                          aria-hidden
-                          className="steps-library-panel__card-icon"
-                        />
-                        <span className="steps-library-panel__card-body">
-                          <span className="steps-library-panel__card-title">
-                            {playbook.title}
-                          </span>
-                        </span>
-                        <span className="steps-library-panel__card-chevron" aria-hidden>
-                          ›
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="steps-library-panel__delete-btn"
-                        onClick={() => handleDeletePlaybook(playbook)}
-                        aria-label={t("stepsLibrary.delete")}
-                        title={t("stepsLibrary.delete")}
-                      >
-                        {t("stepsLibrary.delete")}
-                      </button>
-                    </li>
-                  ))}
+                        {bulkSelectMode ? (
+                          <button
+                            type="button"
+                            className={
+                              "steps-library-panel__card steps-library-panel__card--select"
+                              + (selected ? " is-selected" : "")
+                            }
+                            onClick={() => toggleSelect(playbook.id)}
+                            aria-pressed={selected}
+                          >
+                            <span
+                              className={
+                                "lp-doc-nodes-block__check"
+                                + (selected ? " is-checked" : "")
+                              }
+                              aria-hidden
+                            />
+                            <img
+                              src="/uploads/step-by-step.svg"
+                              alt=""
+                              aria-hidden
+                              className="steps-library-panel__card-icon"
+                            />
+                            <span className="steps-library-panel__card-body">
+                              <span className="steps-library-panel__card-title">
+                                {playbook.title}
+                              </span>
+                            </span>
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              className="steps-library-panel__card"
+                              onClick={() => onRunPlaybook?.(playbook)}
+                            >
+                              <img
+                                src="/uploads/step-by-step.svg"
+                                alt=""
+                                aria-hidden
+                                className="steps-library-panel__card-icon"
+                              />
+                              <span className="steps-library-panel__card-body">
+                                <span className="steps-library-panel__card-title">
+                                  {playbook.title}
+                                </span>
+                              </span>
+                              <span className="steps-library-panel__card-chevron" aria-hidden>
+                                ›
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              className="steps-library-panel__delete-btn"
+                              onClick={() => handleDeletePlaybook(playbook)}
+                              aria-label={t("stepsLibrary.delete")}
+                              title={t("stepsLibrary.delete")}
+                            >
+                              {t("stepsLibrary.delete")}
+                            </button>
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <div className="lp-empty steps-library-panel__empty">

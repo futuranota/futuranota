@@ -1643,6 +1643,7 @@ export function LeftPanel({
   onOpenNewLazyTodo,
   onOpenLazyTodoItem,
   onStepPlaybookRemoved,
+  onUrlTablesDeleted,
   timelineCanvasSelection = [],
   canvasNodesForQueue = [],
   onNotify = null,
@@ -2762,6 +2763,7 @@ export function LeftPanel({
             onClose={closeUrlTableLibraryView}
             onOpenTable={handleOpenUrlTableFromLibrary}
             onNew={handleNewUrlTableFromLibrary}
+            onTablesDeleted={onUrlTablesDeleted}
           />
         ) : null}
 
@@ -2801,6 +2803,7 @@ export function LeftPanel({
                 onClose={closeUrlTableLibraryView}
                 onOpenTable={handleOpenUrlTableFromLibrary}
                 onNew={handleNewUrlTableFromLibrary}
+                onTablesDeleted={onUrlTablesDeleted}
               />
             ) : null}
 

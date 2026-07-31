@@ -1,13 +1,17 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useUrlTablesStore } from "../../stores/urlTablesStore.js";
 import { usePlanStore } from "../../stores/planStore.js";
 import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
+import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
   collectSavedUrlTables,
   filterUrlTables,
+  removeUrlTableFromDoc,
 } from "../../lib/urlTableLibrary.js";
+import { flushUrlTableSync } from "../../lib/urlTableSync.js";
+import { flushUrlTablesSync } from "../../lib/urlTablesSync.js";
 
 /**
  * @param {Object} props
@@ -15,20 +19,25 @@ import {
  * @param {() => void} props.onClose
  * @param {(table: import("../../lib/urlTableLibrary.js").UrlTableRef) => void} props.onOpenTable
  * @param {(kind?: 'links'|'affiliates') => void} props.onNew
+ * @param {(ids: string[]) => void} [props.onTablesDeleted]
  */
 export function UrlTableLibraryPanel({
   objectId = null,
   onClose,
   onOpenTable,
   onNew,
+  onTablesDeleted,
 }) {
   const { t } = useI18n();
   const storeEntries = useUrlTableStore((s) => s.entries);
   const storeTables = useUrlTablesStore((s) => s.tables);
   const isPro = usePlanStore((s) => s.isPro());
   const showUpgradeModal = useUpgradeModalStore((s) => s.show);
+  const askConfirm = useConfirmStore((s) => s.ask);
   const [query, setQuery] = useState("");
   const [choosingKind, setChoosingKind] = useState(false);
+  const [bulkSelectMode, setBulkSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const tables = useMemo(
     () => collectSavedUrlTables(null, { objectId }),
@@ -40,6 +49,31 @@ export function UrlTableLibraryPanel({
     [tables, query],
   );
 
+  const exitBulkSelectMode = useCallback(() => {
+    setBulkSelectMode(false);
+    setSelectedIds([]);
+  }, []);
+
+  const toggleBulkSelectMode = useCallback(() => {
+    setBulkSelectMode((active) => {
+      if (active) {
+        setSelectedIds([]);
+        return false;
+      }
+      setSelectedIds([]);
+      return true;
+    });
+  }, []);
+
+  const toggleSelect = useCallback((id) => {
+    if (!id) return;
+    setSelectedIds((prev) => (
+      prev.includes(id)
+        ? prev.filter((entry) => entry !== id)
+        : [...prev, id]
+    ));
+  }, []);
+
   const handlePickKind = (kind) => {
     if (kind === "affiliates" && !isPro) {
       showUpgradeModal("url_table_affiliate");
@@ -47,6 +81,32 @@ export function UrlTableLibraryPanel({
     }
     setChoosingKind(false);
     onNew?.(kind);
+  };
+
+  const handleDeleteSelected = async () => {
+    const ids = selectedIds.filter(Boolean);
+    if (!ids.length) return;
+    const confirmed = await askConfirm({
+      title: t("urlTableLibrary.deleteSelectedTitle"),
+      message: t("urlTableLibrary.deleteSelectedConfirm", { count: ids.length }),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!confirmed) return;
+
+    const selected = filtered.filter((table) => ids.includes(table.id));
+    for (const table of selected) {
+      removeUrlTableFromDoc(table);
+    }
+    Promise.all([flushUrlTableSync(), flushUrlTablesSync()]).catch((err) => {
+      console.warn("[url-table] flush after bulk library delete failed", err);
+    });
+    onTablesDeleted?.(selected.map((table) => table.tableId || table.id).filter(Boolean));
+    exitBulkSelectMode();
+  };
+
+  const stopBubble = (event) => {
+    event.stopPropagation();
   };
 
   return (
@@ -61,6 +121,10 @@ export function UrlTableLibraryPanel({
                 setChoosingKind(false);
                 return;
               }
+              if (bulkSelectMode) {
+                exitBulkSelectMode();
+                return;
+              }
               onClose?.();
             }}
             aria-label={`Back — ${t("pack.urlTableTitle")}`}
@@ -73,6 +137,25 @@ export function UrlTableLibraryPanel({
                 : t("pack.urlTableTitle")}
             </span>
           </button>
+          {objectId && !choosingKind ? (
+            <button
+              type="button"
+              className={
+                "lp-folder-density__btn lp-folder-select-btn"
+                + (bulkSelectMode ? " is-active" : "")
+              }
+              onClick={toggleBulkSelectMode}
+              title={
+                bulkSelectMode
+                  ? t("urlTableLibrary.selectActive")
+                  : t("urlTableLibrary.selectTitle")
+              }
+              aria-label={t("urlTableLibrary.selectTitle")}
+              aria-pressed={bulkSelectMode}
+            >
+              {t("urlTableLibrary.select")}
+            </button>
+          ) : null}
         </div>
 
         <div className="pack-wizard__body steps-library-panel__body">
@@ -123,48 +206,128 @@ export function UrlTableLibraryPanel({
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder={t("urlTableLibrary.searchTablesPlaceholder")}
                     aria-label={t("urlTableLibrary.searchTablesPlaceholder")}
+                    onKeyDown={stopBubble}
+                    onKeyUp={stopBubble}
+                    onMouseDown={stopBubble}
                   />
                 </div>
                 <button
                   type="button"
                   className="lp-library-new-btn"
                   onClick={() => setChoosingKind(true)}
+                  disabled={bulkSelectMode}
                 >
                   {t("urlTableLibrary.new")}
                 </button>
               </div>
 
+              {bulkSelectMode ? (
+                <div className="lp-folder-bulk-bar" role="status">
+                  <span className="lp-folder-bulk-bar__count">
+                    {t("urlTableLibrary.selectCount", { count: selectedIds.length })}
+                  </span>
+                  <div className="lp-folder-bulk-bar__actions">
+                    <button
+                      type="button"
+                      className="btn xs ghost"
+                      onClick={exitBulkSelectMode}
+                    >
+                      {t("urlTableLibrary.selectDone")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn xs lp-folder-bulk-bar__delete"
+                      disabled={selectedIds.length === 0}
+                      onClick={handleDeleteSelected}
+                    >
+                      {t("urlTableLibrary.deleteSelected")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {filtered.length ? (
-                <ul className="steps-library-panel__list">
-                  {filtered.map((table) => (
-                    <li key={table.id} className="steps-library-panel__row">
-                      <button
-                        type="button"
-                        className="steps-library-panel__card"
-                        onClick={() => onOpenTable?.(table)}
+                <ul
+                  className={
+                    "steps-library-panel__list"
+                    + (bulkSelectMode ? " steps-library-panel__list--selecting" : "")
+                  }
+                >
+                  {filtered.map((table) => {
+                    const selected = selectedIds.includes(table.id);
+                    return (
+                      <li
+                        key={table.id}
+                        className={
+                          "steps-library-panel__row"
+                          + (bulkSelectMode ? " steps-library-panel__row--select-mode" : "")
+                          + (selected ? " is-selected" : "")
+                        }
                       >
-                        <img
-                          src="/uploads/url-table.svg"
-                          alt=""
-                          aria-hidden
-                          className="steps-library-panel__card-icon"
-                        />
-                        <span className="steps-library-panel__card-body">
-                          <span className="steps-library-panel__card-title">
-                            {table.title}
-                          </span>
-                          {table.kind === "affiliates" ? (
-                            <span className="url-table-library-kind-badge">
-                              {t("urlTableLibrary.kindAffiliates")}
+                        {bulkSelectMode ? (
+                          <button
+                            type="button"
+                            className={
+                              "steps-library-panel__card steps-library-panel__card--select"
+                              + (selected ? " is-selected" : "")
+                            }
+                            onClick={() => toggleSelect(table.id)}
+                            aria-pressed={selected}
+                          >
+                            <span
+                              className={
+                                "lp-doc-nodes-block__check"
+                                + (selected ? " is-checked" : "")
+                              }
+                              aria-hidden
+                            />
+                            <img
+                              src="/uploads/url-table.svg"
+                              alt=""
+                              aria-hidden
+                              className="steps-library-panel__card-icon"
+                            />
+                            <span className="steps-library-panel__card-body">
+                              <span className="steps-library-panel__card-title">
+                                {table.title}
+                              </span>
+                              {table.kind === "affiliates" ? (
+                                <span className="url-table-library-kind-badge">
+                                  {t("urlTableLibrary.kindAffiliates")}
+                                </span>
+                              ) : null}
                             </span>
-                          ) : null}
-                        </span>
-                        <span className="steps-library-panel__card-chevron" aria-hidden>
-                          ›
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="steps-library-panel__card"
+                            onClick={() => onOpenTable?.(table)}
+                          >
+                            <img
+                              src="/uploads/url-table.svg"
+                              alt=""
+                              aria-hidden
+                              className="steps-library-panel__card-icon"
+                            />
+                            <span className="steps-library-panel__card-body">
+                              <span className="steps-library-panel__card-title">
+                                {table.title}
+                              </span>
+                              {table.kind === "affiliates" ? (
+                                <span className="url-table-library-kind-badge">
+                                  {t("urlTableLibrary.kindAffiliates")}
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="steps-library-panel__card-chevron" aria-hidden>
+                              ›
+                            </span>
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : (
                 <div className="lp-empty steps-library-panel__empty">

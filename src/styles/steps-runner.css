@@ -1,6 +1,24 @@
 .steps-library-panel__head {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 4px;
+}
+
+.steps-library-panel__list--selecting .steps-library-panel__card {
+  cursor: pointer;
+}
+
+.steps-library-panel__card--select.is-selected,
+.steps-library-panel__row.is-selected .steps-library-panel__card {
+  border-color: rgba(255, 255, 255, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  background: color-mix(in oklab, #151515 82%, #fff 8%);
+}
+
+.steps-library-panel__card .lp-doc-nodes-block__check {
+  flex-shrink: 0;
 }
 
 .steps-library-panel__body {

@@ -1245,6 +1245,17 @@ useEffect(() => {
     });
   }, []);
 
+  const handleUrlTablesDeleted = useCallback((ids) => {
+    const deleted = new Set((ids || []).filter(Boolean));
+    if (!deleted.size) return;
+    setActiveUrlTableSession((current) => {
+      if (!current) return null;
+      const currentId = current.tableId || current.id;
+      if (currentId && deleted.has(currentId)) return null;
+      return current;
+    });
+  }, []);
+
   const handleOpenUrlTableForCompany = useCallback((objectId) => {
     if (!objectId) return;
     migrateLocalUrlEntriesToTables();
@@ -1617,6 +1628,7 @@ useEffect(() => {
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
             onStepPlaybookRemoved={handleStepPlaybookRemoved}
+            onUrlTablesDeleted={handleUrlTablesDeleted}
             timelineCanvasSelection={selection}
             canvasNodesForQueue={canvasNodes}
             onNotify={(message, kind = "warm") => setToast({ message, kind })}
