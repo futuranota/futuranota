@@ -71,7 +71,24 @@ async function syncUrlTablesToSupabase(tables) {
       .upsert(rows, { onConflict: "id" });
     if (error) {
       console.warn(formatSupabaseError(error, "Upsert url_tables"));
-      return false;
+      // Missing kind column (migration not applied): retry without kind so
+      // tables still sync; local affiliates kind is preserved via hydrate merge.
+      const missingKind = /kind/i.test(String(error?.message || error?.details || ""));
+      if (missingKind) {
+        const rowsWithoutKind = rows.map(({ kind: _kind, ...rest }) => rest);
+        const { error: retryError } = await supabase
+          .from("url_tables")
+          .upsert(rowsWithoutKind, { onConflict: "id" });
+        if (retryError) {
+          console.warn(formatSupabaseError(retryError, "Upsert url_tables (without kind)"));
+          return false;
+        }
+        console.warn(
+          "[url-tables] kind column missing — run supabase_url_tables_kind.sql so Affiliates persists remotely",
+        );
+      } else {
+        return false;
+      }
     }
   }
 
@@ -124,6 +141,36 @@ export async function loadUrlTablesFromSupabase() {
   return (data || []).map(rowToTable);
 }
 
+/**
+ * Merge remote tables into local without dropping local-only rows or wiping
+ * `kind: affiliates` when the remote row still lacks / defaults the column.
+ * @param {import("../stores/urlTablesStore.js").UrlTableMeta[]} localTables
+ * @param {import("../stores/urlTablesStore.js").UrlTableMeta[]} remoteTables
+ */
+export function mergeUrlTablesFromRemote(localTables, remoteTables) {
+  const localList = Array.isArray(localTables) ? localTables : [];
+  const remoteList = Array.isArray(remoteTables) ? remoteTables : [];
+  const localById = new Map(localList.map((table) => [table.id, table]));
+  const remoteIds = new Set(remoteList.map((table) => table.id));
+
+  const merged = remoteList.map((remote) => {
+    const local = localById.get(remote.id);
+    if (!local) return remote;
+    if (local.kind === "affiliates" && remote.kind !== "affiliates") {
+      return normalizeUrlTableMeta({ ...remote, kind: "affiliates" });
+    }
+    return remote;
+  });
+
+  for (const local of localList) {
+    if (!remoteIds.has(local.id)) {
+      merged.push(local);
+    }
+  }
+
+  return merged;
+}
+
 export async function flushUrlTablesSync() {
   debouncedRemoteSync?.cancel();
   await syncUrlTablesToSupabase(useUrlTablesStore.getState().tables);
@@ -146,13 +193,13 @@ export function initUrlTablesSync(useUrlTablesStore) {
 
     isHydrating = true;
     try {
+      const localTables = useUrlTablesStore.getState().tables;
       if (remoteTables.length > 0) {
-        useUrlTablesStore.getState().replaceTables(remoteTables);
-      } else {
-        const localTables = useUrlTablesStore.getState().tables;
-        if (localTables.length > 0) {
-          await syncUrlTablesToSupabase(localTables);
-        }
+        useUrlTablesStore.getState().replaceTables(
+          mergeUrlTablesFromRemote(localTables, remoteTables),
+        );
+      } else if (localTables.length > 0) {
+        await syncUrlTablesToSupabase(localTables);
       }
     } finally {
       isHydrating = false;

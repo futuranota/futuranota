@@ -293,7 +293,7 @@ export function UrlTableLibraryPanel({
                               </span>
                               {table.kind === "affiliates" ? (
                                 <span className="url-table-library-kind-badge">
-                                  {t("urlTableLibrary.kindAffiliates")}
+                                  {t("urlTableLibrary.libraryAffiliatesBadge")}
                                 </span>
                               ) : null}
                             </span>
@@ -316,7 +316,7 @@ export function UrlTableLibraryPanel({
                               </span>
                               {table.kind === "affiliates" ? (
                                 <span className="url-table-library-kind-badge">
-                                  {t("urlTableLibrary.kindAffiliates")}
+                                  {t("urlTableLibrary.libraryAffiliatesBadge")}
                                 </span>
                               ) : null}
                             </span>

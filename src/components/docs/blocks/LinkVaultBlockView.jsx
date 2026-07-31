@@ -61,6 +61,7 @@ export function LinkVaultBlockView({
   const [openPicker, setOpenPicker] = useState(/** @type {null|'tag'|'category'} */ (null));
   const nameRef = useRef(null);
   const descRef = useRef(null);
+  const editDescRef = useRef(null);
   const pickerRef = useRef(null);
   const draftRef = useRef(draft);
   const entriesRef = useRef(entries);
@@ -74,6 +75,14 @@ export function LinkVaultBlockView({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [draft.description, multilineDescription, slashStack, isAdding]);
+
+  useLayoutEffect(() => {
+    if (!editingId || (!multilineDescription && !slashStack)) return;
+    const el = editDescRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.max(el.scrollHeight, 30)}px`;
+  }, [editDraft.description, editingId, multilineDescription, slashStack]);
 
   useEffect(() => {
     if (entries.length === 0) {
@@ -796,6 +805,7 @@ export function LinkVaultBlockView({
                     <td>
                       {useMultilineDescription ? (
                         <textarea
+                          ref={editDescRef}
                           rows={1}
                           className="doc-vault-block__input doc-vault-block__input--description-multiline"
                           value={editDraft.description}
@@ -941,7 +951,7 @@ export function LinkVaultBlockView({
                     {showRowView ? (
                       <button
                         type="button"
-                        className="doc-vault-block__action doc-vault-block__action--icon"
+                        className="doc-vault-block__action doc-vault-block__action--view-label"
                         onClick={() => onViewEntry?.(entry)}
                         aria-label={`${L.view} ${entry.name || ""}`}
                         title={L.view}
@@ -950,8 +960,9 @@ export function LinkVaultBlockView({
                           src="/uploads/ChartPieSlice.svg"
                           alt=""
                           aria-hidden
-                          className="doc-vault-block__action-icon-img"
+                          className="doc-vault-block__action-icon-img doc-vault-block__action-icon-img--view"
                         />
+                        <span className="doc-vault-block__action-view-text">{L.view}</span>
                       </button>
                     ) : null}
                     <button

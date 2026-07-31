@@ -12907,6 +12907,154 @@ body.doc-content-resizing * {
   text-align: right;
 }
 
+.doc-vault-block__row-actions-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  vertical-align: middle;
+}
+
+.doc-vault-block__row-actions-inner--always {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doc-vault-block__row-actions-inner--edit {
+  gap: 6px;
+}
+
+.doc-vault-block__action--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  opacity: 1;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.doc-vault-block__action-icon-img {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  /* SVG source is near-black (#343330); brighter gray for readability */
+  filter: brightness(0) invert(0.78);
+}
+
+.doc-vault-block__action--icon:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.doc-vault-block__action--icon:hover .doc-vault-block__action-icon-img {
+  filter: brightness(0) invert(0.92);
+}
+
+.doc-vault-block__action--icon.doc-vault-block__action--delete {
+  font-size: 15px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.doc-vault-block__action--icon.doc-vault-block__action--delete:hover {
+  color: rgba(255, 150, 150, 0.95);
+}
+
+.doc-vault-block__action--view-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  box-sizing: border-box;
+  height: 24px;
+  min-height: 24px;
+  min-width: 0;
+  padding: 0 8px 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.78);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.doc-vault-block__action--view-label:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.doc-vault-block__action-icon-img--view {
+  width: 15px;
+  height: 15px;
+  filter: brightness(0) invert(0.82);
+}
+
+.doc-vault-block__action--view-label:hover .doc-vault-block__action-icon-img--view {
+  filter: brightness(0) invert(0.95);
+}
+
+.doc-vault-block__action-view-text {
+  white-space: nowrap;
+}
+
+.doc-vault-block__affiliate-cell {
+  min-width: 0;
+  max-width: none;
+  text-align: left;
+}
+
+.doc-vault-block__affiliate-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.doc-vault-block__affiliate-status-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.doc-vault-block__affiliate-status-meta,
+.doc-vault-block__affiliate-status-days {
+  display: none;
+}
+
+.doc-vault-block__affiliate-status.is-pending .doc-vault-block__affiliate-status-label {
+  color: #EAA65D;
+  background: color-mix(in oklab, #EAA65D 16%, transparent);
+}
+
+.doc-vault-block__affiliate-status.is-active .doc-vault-block__affiliate-status-label {
+  color: #57BC6C;
+  background: color-mix(in oklab, #57BC6C 16%, transparent);
+}
+
+.doc-vault-block__affiliate-status.is-expired .doc-vault-block__affiliate-status-label {
+  color: #777777;
+  background: rgba(119, 119, 119, 0.18);
+}
+
 .doc-vault-block__hover-actions {
   display: inline-flex;
   align-items: center;

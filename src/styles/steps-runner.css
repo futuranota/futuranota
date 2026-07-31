@@ -216,15 +216,19 @@
 
 .url-table-library-kind-badge {
   display: inline-flex;
+  align-items: center;
   margin-top: 4px;
-  padding: 1px 7px;
+  max-width: 100%;
+  padding: 2px 7px;
   border-radius: 999px;
-  background: color-mix(in oklab, #BD747D 18%, transparent);
-  color: #BD747D;
+  border: 1px solid color-mix(in oklab, #8b5cf6 45%, transparent);
+  background: color-mix(in oklab, #c4b5fd 16%, transparent);
+  color: #c4b5fd;
   font-family: var(--sans);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.01em;
+  line-height: 1.2;
 }
 
 .steps-library-panel__list {
@@ -1501,74 +1505,122 @@
   color: rgba(255, 255, 255, 0.28);
 }
 
-/* Column widths: Description gets the space freed from a narrower URL */
+/* Column widths — links tables (6 cols: … URL | actions) */
 .url-table-dashboard .doc-vault-block__table th:nth-child(1),
 .url-table-dashboard .doc-vault-block__table td:nth-child(1) {
-  width: 15%;
+  width: 14%;
 }
 
 .url-table-dashboard .doc-vault-block__table th:nth-child(2),
 .url-table-dashboard .doc-vault-block__table td:nth-child(2) {
-  width: 12%;
+  width: 11%;
 }
 
 .url-table-dashboard .doc-vault-block__table th:nth-child(3),
 .url-table-dashboard .doc-vault-block__table td:nth-child(3) {
-  width: 13%;
+  width: 12%;
 }
 
 .url-table-dashboard .doc-vault-block__table th:nth-child(4),
 .url-table-dashboard .doc-vault-block__table td:nth-child(4) {
-  width: 30%;
+  width: 28%;
 }
 
 .url-table-dashboard .doc-vault-block__table th:nth-child(5),
 .url-table-dashboard .doc-vault-block__table td:nth-child(5) {
-  width: 18%;
+  width: 26%;
 }
 
-.url-table-dashboard .doc-vault-block__table th:nth-child(6),
-.url-table-dashboard .doc-vault-block__table td:nth-child(6) {
-  width: 88px;
-  min-width: 88px;
-  padding-right: 6px;
+/* Actions (links): last column only — never Status */
+.url-table-dashboard .doc-vault-block:not(.doc-vault-block--affiliate) .doc-vault-block__table th:last-child,
+.url-table-dashboard .doc-vault-block:not(.doc-vault-block--affiliate) .doc-vault-block__table td:last-child,
+.url-table-dashboard .doc-vault-block__table td.doc-vault-block__row-actions {
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
+  padding-left: 8px;
+  padding-right: 4px;
+  text-align: right;
+  overflow: visible;
 }
 
-/* Affiliate tables: keep Description roomy so View / Edit / Delete fit in the row */
+/* Affiliate tables (7 cols: … URL | Status | actions) */
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table th:nth-child(1),
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table td:nth-child(1) {
-  width: 13%;
+  width: 12%;
 }
 
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table th:nth-child(2),
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table td:nth-child(2),
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table th:nth-child(3),
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table td:nth-child(3) {
-  width: 10%;
+  width: 9%;
 }
 
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table th:nth-child(4),
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table td:nth-child(4) {
-  width: 24%;
+  width: 23%;
   max-width: none;
 }
 
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table th:nth-child(5),
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table td:nth-child(5) {
-  width: 16%;
+  width: 24%;
 }
 
+/* Status: own column, left-aligned badge — not mixed with actions */
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table th:nth-child(6),
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table td:nth-child(6) {
-  width: 10%;
-  min-width: 96px;
+  width: 104px;
+  min-width: 104px;
+  max-width: 120px;
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: left;
 }
 
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table th:nth-child(7),
 .url-table-dashboard .doc-vault-block--affiliate .doc-vault-block__table td:nth-child(7) {
-  width: 108px;
-  min-width: 108px;
-  padding-right: 6px;
+  width: 148px;
+  min-width: 148px;
+  max-width: 160px;
+  padding-left: 8px;
+  padding-right: 4px;
+  text-align: right;
+  overflow: visible;
+}
+
+.url-table-dashboard .doc-vault-block__row-actions-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: auto;
+  margin-left: auto;
+}
+
+.url-table-dashboard .doc-vault-block__action--view-label {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 9px 0 7px;
+  font-size: 11px;
+}
+
+.url-table-dashboard .doc-vault-block__action-icon-img--view {
+  width: 16px;
+  height: 16px;
+}
+
+/* Editing row: description textarea must fully expand, not clip mid-line */
+.url-table-dashboard .doc-vault-block__row td:nth-child(4) {
+  overflow: visible;
+  vertical-align: middle;
+}
+
+.url-table-dashboard .doc-vault-block__row .doc-vault-block__input--description-multiline {
+  overflow: hidden;
+  min-height: 30px;
+  max-height: none;
 }
 
 .url-table-dashboard .doc-vault-block__th-with-icon {
@@ -1989,10 +2041,13 @@
   border: 1px solid var(--url-table-stroke, #313338);
   background: transparent;
   font-weight: 600;
-  font-size: 12px;
-  padding: 6px 4px 6px 8px;
-  border-radius: 6px;
+  font-size: 11px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
   cursor: pointer;
+  line-height: 1;
 }
 
 .url-table-dashboard .doc-vault-block__save:hover:not(:disabled) {
