@@ -1298,7 +1298,6 @@ export function DocExpandedView({
       || nodeDraftAnchorDate !== nodeInitialSnapshot.anchorDate
       || nodeDraftAnchorTime !== nodeInitialSnapshot.anchorTime
       || (nodeDraftAnchorFinishTime || "") !== (nodeInitialSnapshot.anchorFinishTime || "")
-      || (nodeDraftStatus || null) !== (nodeInitialSnapshot.status || null)
       || normalizeCampaignDocStatus(nodeDraftCampaignStatus)
         !== normalizeCampaignDocStatus(nodeInitialSnapshot.campaignStatus)
       || (nodeDraftSourceId || null) !== (nodeInitialSnapshot.sourceId || null)
@@ -2272,6 +2271,17 @@ export function DocExpandedView({
               setNodeDraftCompleted(v === "completed");
               const id = activeNodeContext?.nodeId;
               if (id) updateNode(id, { status: v });
+              // Status is live-committed — advance snapshot so close/discard won't prompt or revert.
+              setNodeInitialSnapshot((prev) => {
+                if (!prev) return prev;
+                const next = {
+                  ...prev,
+                  status: v ?? null,
+                  completed: v === "completed",
+                };
+                nodeInitialSnapshotRef.current = next;
+                return next;
+              });
             }}
           onCompletedChange={undefined}
           campaignMode={Boolean(draftCampaignActive)}

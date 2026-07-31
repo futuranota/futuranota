@@ -437,6 +437,12 @@ export function StandaloneNodeModal({
     setStatus(value);
     setCompleted(value === "completed");
     if (node?.id) updateNode(node.id, { status: value });
+    // Live-committed — do not treat as discardable unsaved edit.
+    openSnapshotRef.current = {
+      ...openSnapshotRef.current,
+      status: value ?? null,
+      completed: value === "completed",
+    };
   };
 
   const handleCampaignStatusChange = (value) => {

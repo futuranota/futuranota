@@ -349,9 +349,8 @@ export function NodeQueryModal({
       || (snap.anchorDate ?? "") !== (anchorDate ?? "")
       || (snap.anchorTime ?? "") !== (anchorTime ?? "")
       || (snap.anchorFinishTime ?? "") !== (anchorFinishTime ?? "")
-      || (snap.status || null) !== (workStatus || null)
       || (snap.sourceId || null) !== (sourceId || null);
-  }, [content, query, anchorDate, anchorTime, anchorFinishTime, workStatus, sourceId]);
+  }, [content, query, anchorDate, anchorTime, anchorFinishTime, sourceId]);
 
   /** Status/Source persist live to the store — keep dismiss snapshot in sync. */
   const syncMetaSnapshot = useCallback((nextStatus, nextSourceId) => {
