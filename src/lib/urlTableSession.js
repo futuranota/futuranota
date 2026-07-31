@@ -2,7 +2,7 @@ import { useUrlTableStore } from "../stores/urlTableStore.js";
 import { useUrlTablesStore } from "../stores/urlTablesStore.js";
 import { flushUrlTableSync } from "./urlTableSync.js";
 import { flushUrlTablesSync } from "./urlTablesSync.js";
-import { normalizeLinkEntries } from "./vaultBlocks.js";
+import { createLinkEntry, normalizeLinkEntries } from "./vaultBlocks.js";
 import { generateId } from "./ids.js";
 import { ensureDefaultUrlTable } from "./urlTableLibrary.js";
 
@@ -49,22 +49,26 @@ export function requestUrlTableOpen(request) {
  * @property {string|null} docId
  * @property {string} blockId
  * @property {string} title
+ * @property {'links'|'affiliates'} [kind]
  * @property {import("./vaultBlocks.js").LinkEntry[]} entries
  * @property {boolean} saved
+ * @property {string} [initialSearch]
  */
 
 /**
  * @param {string|null} objectId
  * @param {string|null} [tableId]
+ * @param {{ kind?: 'links'|'affiliates' }} [options]
  * @returns {UrlTableSession}
  */
-export function createBlankUrlTableSession(objectId = null, tableId = null) {
+export function createBlankUrlTableSession(objectId = null, tableId = null, options = {}) {
   return {
     objectId,
     tableId,
     docId: null,
     blockId: generateId("BLK"),
     title: "",
+    kind: options.kind === "affiliates" ? "affiliates" : "links",
     entries: [],
     saved: false,
   };
@@ -81,7 +85,8 @@ export function urlTableSessionFromRef(ref) {
     docId: null,
     blockId: generateId("BLK"),
     title: ref.title === "URL table" ? "" : (ref.title || ""),
-    entries: (ref.entries || []).map((entry) => ({ ...entry })),
+    kind: ref.kind === "affiliates" ? "affiliates" : "links",
+    entries: (ref.entries || []).map((entry) => createLinkEntry(entry)),
     saved: true,
   };
 }
@@ -104,16 +109,20 @@ export function persistUrlTableSession(session) {
     return { objectId: null, tableId: null, entryCount: 0 };
   }
 
+  const kind = session.kind === "affiliates" ? "affiliates" : "links";
+
   if (!tableId) {
     const created = useUrlTablesStore.getState().createTable({
       objectId,
       title: session.title || "",
+      kind,
     });
     tableId = created.id;
   } else {
     useUrlTablesStore.getState().updateTable(tableId, {
       title: session.title || "",
       objectId,
+      kind,
     });
   }
 

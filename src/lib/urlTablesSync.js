@@ -28,6 +28,7 @@ function rowToTable(row) {
     id: String(row.id || generateId("URLT")),
     objectId: row.object_id ?? null,
     title: String(row.title ?? ""),
+    kind: row.kind,
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
   });
@@ -44,6 +45,7 @@ function tableToRow(table, userId, now) {
     user_id: userId,
     object_id: table.objectId || null,
     title: table.title ?? "",
+    kind: table.kind === "affiliates" ? "affiliates" : "links",
     created_at: table.createdAt || now,
     updated_at: now,
   };

@@ -2247,8 +2247,8 @@ export function LeftPanel({
     onOpenUrlTableRef?.(table);
   };
 
-  const handleNewUrlTableFromLibrary = () => {
-    onOpenNewUrlTable?.(filterObjectId || selectedObjectId);
+  const handleNewUrlTableFromLibrary = (kind = "links") => {
+    onOpenNewUrlTable?.(filterObjectId || selectedObjectId, kind);
   };
 
   const handleNewStepPlaybookFromLibrary = () => {

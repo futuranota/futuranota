@@ -22,6 +22,13 @@ function debounce(fn, ms) {
   return debounced;
 }
 
+/** @param {unknown} value */
+function toNullableNumber(value) {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** @param {Record<string, unknown>} row */
 function rowToEntry(row) {
   return {
@@ -33,6 +40,12 @@ function rowToEntry(row) {
     category: String(row.category ?? ""),
     description: String(row.description ?? ""),
     url: String(row.url ?? ""),
+    commissionRate: toNullableNumber(row.commission_rate),
+    productPrice: toNullableNumber(row.product_price),
+    cookieDays: toNullableNumber(row.cookie_days),
+    affiliateStatus: String(row.affiliate_status ?? ""),
+    activatedAt: row.activated_at ? String(row.activated_at) : null,
+    clientsWon: Math.max(0, Math.floor(toNullableNumber(row.clients_won) ?? 0)),
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
   };
@@ -54,6 +67,12 @@ function entryToRow(entry, userId, now) {
     category: entry.category ?? "",
     description: entry.description ?? "",
     url: entry.url ?? "",
+    commission_rate: entry.commissionRate ?? null,
+    product_price: entry.productPrice ?? null,
+    cookie_days: entry.cookieDays ?? null,
+    affiliate_status: entry.affiliateStatus ?? "",
+    activated_at: entry.activatedAt || null,
+    clients_won: entry.clientsWon ?? 0,
     created_at: entry.createdAt || now,
     updated_at: now,
   };

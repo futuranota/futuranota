@@ -19,6 +19,7 @@ const PREVIEW_MAX = 120;
  * @property {string} preview
  * @property {number} entryCount
  * @property {string|null} objectId
+ * @property {'links'|'affiliates'} [kind]
  * @property {import("./vaultBlocks.js").LinkEntry[]} entries
  */
 
@@ -150,6 +151,7 @@ export function collectSavedUrlTables(_docs, { objectId = null } = {}) {
         preview: truncate(entryPreview(entries), PREVIEW_MAX),
         entryCount: entries.length,
         objectId: table.objectId ?? null,
+        kind: table.kind === "affiliates" ? "affiliates" : "links",
         entries,
       };
     })
@@ -212,6 +214,7 @@ export function loadUrlTableSessionById(tableId) {
       docId: null,
       blockId: "",
       title: "",
+      kind: "links",
       entries: [],
       saved: false,
     };
@@ -226,14 +229,8 @@ export function loadUrlTableSessionById(tableId) {
     docId: null,
     blockId: generateId("BLK"),
     title: table.title || "",
-    entries: entries.map((entry) => ({
-      id: entry.id,
-      name: entry.name,
-      tag: entry.tag,
-      category: entry.category,
-      description: entry.description,
-      url: entry.url,
-    })),
+    kind: table.kind === "affiliates" ? "affiliates" : "links",
+    entries: entries.map((entry) => createLinkEntry(entry)),
     saved: true,
   };
 }
@@ -242,11 +239,18 @@ export function loadUrlTableSessionById(tableId) {
  * @param {string|null} objectId
  * @param {string} [defaultTitle]
  */
-export function createBlankUrlTableForObject(objectId, defaultTitle = "") {
+/**
+ * @param {string} objectId
+ * @param {string} [defaultTitle]
+ * @param {{ kind?: 'links'|'affiliates' }} [options]
+ */
+export function createBlankUrlTableForObject(objectId, defaultTitle = "", options = {}) {
   if (!objectId) return null;
+  const kind = options.kind === "affiliates" ? "affiliates" : "links";
   const table = useUrlTablesStore.getState().createTable({
     objectId,
     title: defaultTitle,
+    kind,
   });
   return loadUrlTableSessionById(table.id);
 }
@@ -265,6 +269,7 @@ export function duplicateUrlTable(tableOrId) {
   const copy = useUrlTablesStore.getState().createTable({
     objectId: source.objectId,
     title: `Copy of ${titleBase}`,
+    kind: source.kind === "affiliates" ? "affiliates" : "links",
   });
 
   const cloned = normalizeLinkEntries(sourceEntries).map((entry) => createLinkEntry({

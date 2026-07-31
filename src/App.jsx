@@ -62,6 +62,7 @@ import {
   setUrlTableQueueCallback,
   urlTableSessionFromRef,
 } from './lib/urlTableSession.js';
+import { createLinkEntry } from './lib/vaultBlocks.js';
 import {
   persistPasswordTableSessionAndFlush,
   setPasswordTableQueueCallback,
@@ -1258,9 +1259,11 @@ useEffect(() => {
     setActiveUrlTableSession(session);
   }, []);
 
-  const handleOpenNewUrlTable = useCallback((objectId) => {
+  const handleOpenNewUrlTable = useCallback((objectId, kind = "links") => {
     if (!objectId) return;
-    const session = createBlankUrlTableForObject(objectId, "");
+    const session = createBlankUrlTableForObject(objectId, "", {
+      kind: kind === "affiliates" ? "affiliates" : "links",
+    });
     if (session) setActiveUrlTableSession(session);
   }, []);
 
@@ -1313,14 +1316,7 @@ useEffect(() => {
         return {
           ...current,
           tableId: current.tableId || entry.tableId || null,
-          entries: [...current.entries, {
-            id: entry.id,
-            name: entry.name,
-            tag: entry.tag,
-            category: entry.category,
-            description: entry.description,
-            url: entry.url,
-          }],
+          entries: [...current.entries, createLinkEntry(entry)],
           saved: false,
         };
       });

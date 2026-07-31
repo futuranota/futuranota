@@ -5,6 +5,7 @@ import {
   LINK_DESCRIPTION_MAX_LENGTH,
   normalizeUrlInput,
 } from "../../../lib/vaultBlocks.js";
+import { formatAffiliateRowMeta, hasAffiliateData } from "../../../lib/urlTableAffiliate.js";
 
 const EMPTY_DRAFT = { name: "", tag: "", category: "", description: "", url: "" };
 const URL_FIELD_ICON = "/uploads/url-table.svg";
@@ -16,6 +17,12 @@ const DEFAULT_LABELS = {
   description: "Description",
   url: "URL",
   save: "Save",
+  status: "Status",
+  view: "View",
+  daysLeft: "{days}d left",
+  statusPending: "Pending",
+  statusActive: "Active",
+  statusExpired: "Expired",
 };
 
 export function LinkVaultBlockView({
@@ -37,6 +44,8 @@ export function LinkVaultBlockView({
   onDraftChange = null,
   objectId = null,
   tableId = null,
+  showRowView = false,
+  onViewEntry = null,
 }) {
   const L = { ...DEFAULT_LABELS, ...(labels || {}) };
   const isDraftControlled = controlledDraft != null && typeof onDraftChange === "function";
@@ -448,6 +457,7 @@ export function LinkVaultBlockView({
           onMouseDown={(e) => e.stopPropagation()}
         />
       </td>
+      {showRowView ? <td aria-hidden /> : null}
       <td className="doc-vault-block__row-actions">
         <button
           type="button"
@@ -460,6 +470,37 @@ export function LinkVaultBlockView({
       </td>
     </>
   );
+
+  const renderAffiliateStatusCell = (entry) => {
+    if (!hasAffiliateData(entry)) {
+      return <span className="doc-vault-block__empty">—</span>;
+    }
+    const meta = formatAffiliateRowMeta(entry);
+    const statusLabel = meta.affiliateStatus === "pending"
+      ? L.statusPending
+      : meta.affiliateStatus === "active"
+        ? L.statusActive
+        : meta.affiliateStatus === "expired"
+          ? L.statusExpired
+          : null;
+    return (
+      <span
+        className={
+          "doc-vault-block__affiliate-status"
+          + (meta.affiliateStatus ? ` is-${meta.affiliateStatus}` : "")
+        }
+      >
+        {statusLabel ? (
+          <span className="doc-vault-block__affiliate-status-label">{statusLabel}</span>
+        ) : null}
+        {meta.parts.length ? (
+          <span className="doc-vault-block__affiliate-status-meta">
+            {meta.parts.join(" · ")}
+          </span>
+        ) : null}
+      </span>
+    );
+  };
 
   if (slashStack) {
     return (
@@ -657,6 +698,7 @@ export function LinkVaultBlockView({
                 </span>
               </th>
               <th>{L.url}</th>
+              {showRowView ? <th>{L.status}</th> : null}
               <th aria-hidden />
             </tr>
           </thead>
@@ -713,17 +755,35 @@ export function LinkVaultBlockView({
                     {entry.url}
                   </a>
                 </td>
+                {showRowView ? (
+                  <td className="doc-vault-block__affiliate-cell">
+                    {renderAffiliateStatusCell(entry)}
+                  </td>
+                ) : null}
                 <td className="doc-vault-block__row-actions">
-                  <div className="doc-vault-block__hover-actions">
-                    <button
-                      type="button"
-                      className="doc-vault-block__action doc-vault-block__action--close"
-                      onClick={() => handleRemoveEntry(entry.id)}
-                      aria-label={`Eliminar ${entry.name}`}
-                      title="Eliminar"
-                    >
-                      ×
-                    </button>
+                  <div className="doc-vault-block__row-actions-inner">
+                    {showRowView ? (
+                      <button
+                        type="button"
+                        className="doc-vault-block__action doc-vault-block__action--view"
+                        onClick={() => onViewEntry?.(entry)}
+                        aria-label={`${L.view} ${entry.name || ""}`}
+                        title={L.view}
+                      >
+                        {L.view}
+                      </button>
+                    ) : null}
+                    <div className="doc-vault-block__hover-actions">
+                      <button
+                        type="button"
+                        className="doc-vault-block__action doc-vault-block__action--close"
+                        onClick={() => handleRemoveEntry(entry.id)}
+                        aria-label={`Eliminar ${entry.name}`}
+                        title="Eliminar"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>

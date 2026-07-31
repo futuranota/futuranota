@@ -1,4 +1,5 @@
 import { generateId } from "./ids.js";
+import { createAffiliateFields } from "./urlTableAffiliate.js";
 
 /** Max length for URL-table / link-vault description fields. */
 export const LINK_DESCRIPTION_MAX_LENGTH = 500;
@@ -20,7 +21,24 @@ export function createPasswordEntry(patch = {}) {
   };
 }
 
+/**
+ * @typedef {Object} LinkEntry
+ * @property {string} id
+ * @property {string} name
+ * @property {string} tag
+ * @property {string} category
+ * @property {string} description
+ * @property {string} url
+ * @property {number|null} [commissionRate]
+ * @property {number|null} [productPrice]
+ * @property {number|null} [cookieDays]
+ * @property {string} [affiliateStatus]
+ * @property {string|null} [activatedAt]
+ * @property {number} [clientsWon]
+ */
+
 export function createLinkEntry(patch = {}) {
+  const affiliate = createAffiliateFields(patch);
   return {
     id: patch.id || generateId("LNK"),
     name: patch.name || "",
@@ -28,6 +46,12 @@ export function createLinkEntry(patch = {}) {
     category: patch.category || "",
     description: clampLinkDescription(patch.description || ""),
     url: patch.url || "",
+    commissionRate: affiliate.commissionRate,
+    productPrice: affiliate.productPrice,
+    cookieDays: affiliate.cookieDays,
+    affiliateStatus: affiliate.affiliateStatus,
+    activatedAt: affiliate.activatedAt,
+    clientsWon: affiliate.clientsWon,
   };
 }
 

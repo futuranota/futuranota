@@ -13,6 +13,7 @@ const REASON_MESSAGE_KEYS = {
   campaign_frozen: "upgrade.reasonCampaignFrozen",
   export: "upgrade.reasonExport",
   steps_library: "upgrade.reasonStepsLibrary",
+  url_table_affiliate: "upgrade.reasonUrlTableAffiliate",
   generic: "upgrade.reasonGeneric",
 };
 

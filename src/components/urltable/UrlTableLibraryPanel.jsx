@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useUrlTablesStore } from "../../stores/urlTablesStore.js";
+import { usePlanStore } from "../../stores/planStore.js";
+import { useUpgradeModalStore } from "../../stores/upgradeModalStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
   collectSavedUrlTables,
@@ -12,7 +14,7 @@ import {
  * @param {string|null} props.objectId
  * @param {() => void} props.onClose
  * @param {(table: import("../../lib/urlTableLibrary.js").UrlTableRef) => void} props.onOpenTable
- * @param {() => void} props.onNew
+ * @param {(kind?: 'links'|'affiliates') => void} props.onNew
  */
 export function UrlTableLibraryPanel({
   objectId = null,
@@ -23,7 +25,10 @@ export function UrlTableLibraryPanel({
   const { t } = useI18n();
   const storeEntries = useUrlTableStore((s) => s.entries);
   const storeTables = useUrlTablesStore((s) => s.tables);
+  const isPro = usePlanStore((s) => s.isPro());
+  const showUpgradeModal = useUpgradeModalStore((s) => s.show);
   const [query, setQuery] = useState("");
+  const [choosingKind, setChoosingKind] = useState(false);
 
   const tables = useMemo(
     () => collectSavedUrlTables(null, { objectId }),
@@ -35,6 +40,15 @@ export function UrlTableLibraryPanel({
     [tables, query],
   );
 
+  const handlePickKind = (kind) => {
+    if (kind === "affiliates" && !isPro) {
+      showUpgradeModal("url_table_affiliate");
+      return;
+    }
+    setChoosingKind(false);
+    onNew?.(kind);
+  };
+
   return (
     <div className="lp-pack-import-detail steps-library-panel">
       <div className="pack-wizard pack-wizard--panel">
@@ -42,13 +56,21 @@ export function UrlTableLibraryPanel({
           <button
             type="button"
             className="lp-click-folder-back lp-click-folder-back--inline"
-            onClick={onClose}
+            onClick={() => {
+              if (choosingKind) {
+                setChoosingKind(false);
+                return;
+              }
+              onClose?.();
+            }}
             aria-label={`Back — ${t("pack.urlTableTitle")}`}
             title={`Back — ${t("pack.urlTableTitle")}`}
           >
             <span className="lp-click-folder-back-icon" aria-hidden />
             <span className="lp-click-folder-back-label is-lowercase">
-              {t("pack.urlTableTitle")}
+              {choosingKind
+                ? t("urlTableLibrary.chooseTypeBack")
+                : t("pack.urlTableTitle")}
             </span>
           </button>
         </div>
@@ -56,6 +78,39 @@ export function UrlTableLibraryPanel({
         <div className="pack-wizard__body steps-library-panel__body">
           {!objectId ? (
             <p className="pack-wizard__lead">{t("urlTableLibrary.enterCompanyFirst")}</p>
+          ) : choosingKind ? (
+            <div className="url-table-kind-chooser">
+              <p className="url-table-kind-chooser__lead">
+                {t("urlTableLibrary.chooseTypeLead")}
+              </p>
+              <div className="url-table-kind-chooser__options">
+                <button
+                  type="button"
+                  className="url-table-kind-chooser__card"
+                  onClick={() => handlePickKind("links")}
+                >
+                  <span className="url-table-kind-chooser__card-title">
+                    {t("urlTableLibrary.kindLinks")}
+                  </span>
+                  <span className="url-table-kind-chooser__card-body">
+                    {t("urlTableLibrary.kindLinksHint")}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="url-table-kind-chooser__card url-table-kind-chooser__card--affiliates"
+                  onClick={() => handlePickKind("affiliates")}
+                >
+                  <span className="url-table-kind-chooser__card-title">
+                    {t("urlTableLibrary.kindAffiliates")}
+                    <span className="url-table-kind-chooser__pro">Pro</span>
+                  </span>
+                  <span className="url-table-kind-chooser__card-body">
+                    {t("urlTableLibrary.kindAffiliatesHint")}
+                  </span>
+                </button>
+              </div>
+            </div>
           ) : (
             <>
               <div className="lp-library-toolbar">
@@ -73,7 +128,7 @@ export function UrlTableLibraryPanel({
                 <button
                   type="button"
                   className="lp-library-new-btn"
-                  onClick={onNew}
+                  onClick={() => setChoosingKind(true)}
                 >
                   {t("urlTableLibrary.new")}
                 </button>
@@ -98,6 +153,11 @@ export function UrlTableLibraryPanel({
                           <span className="steps-library-panel__card-title">
                             {table.title}
                           </span>
+                          {table.kind === "affiliates" ? (
+                            <span className="url-table-library-kind-badge">
+                              {t("urlTableLibrary.kindAffiliates")}
+                            </span>
+                          ) : null}
                         </span>
                         <span className="steps-library-panel__card-chevron" aria-hidden>
                           ›

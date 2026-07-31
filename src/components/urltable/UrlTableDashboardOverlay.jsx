@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
+import { UrlTableEntryDetailView } from "./UrlTableEntryDetailView.jsx";
 import { createLinkEntry, normalizeUrlInput } from "../../lib/vaultBlocks.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { removeUrlTableFromDoc } from "../../lib/urlTableLibrary.js";
 import { flushUrlTableSync, markUrlTableEntryDeleted } from "../../lib/urlTableSync.js";
 import { flushUrlTablesSync } from "../../lib/urlTablesSync.js";
+import { withResolvedAffiliateLifecycle } from "../../lib/urlTableAffiliate.js";
 import { useUrlTableStore } from "../../stores/urlTableStore.js";
 import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -36,6 +38,7 @@ export function UrlTableDashboardOverlay({
   const [draft, setDraft] = useState({ name: "", tag: "", category: "", description: "", url: "" });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [viewEntryId, setViewEntryId] = useState(null);
   const draftRef = useRef(draft);
   const confirmOpenRef = useRef(false);
   draftRef.current = draft;
@@ -48,24 +51,51 @@ export function UrlTableDashboardOverlay({
 
   useEffect(() => {
     setDraft({ name: "", tag: "", category: "", description: "", url: "" });
-    // Opened from a @mention: land with the tag already in the search filter.
     setQuery(initialSearch);
+    setViewEntryId(null);
   }, [sessionKey, initialSearch]);
+
+  // Auto-expire active cookies whose window has elapsed.
+  useEffect(() => {
+    if (!session?.entries?.length) return;
+    let changed = false;
+    const nextEntries = session.entries.map((entry) => {
+      const resolved = withResolvedAffiliateLifecycle(entry);
+      if (resolved !== entry && resolved.affiliateStatus !== entry.affiliateStatus) {
+        changed = true;
+      }
+      return resolved;
+    });
+    if (!changed) return;
+    onChange?.({ entries: nextEntries, saved: false });
+    if (!session.objectId || !session.tableId) return;
+    for (const entry of nextEntries) {
+      const prev = session.entries.find((item) => item.id === entry.id);
+      if (prev && prev.affiliateStatus !== entry.affiliateStatus) {
+        queueUrlTableEntry(session.objectId, entry, session.tableId);
+      }
+    }
+  }, [sessionKey]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      if (viewEntryId) {
+        setViewEntryId(null);
+        return;
+      }
       onCloseTab?.();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onCloseTab]);
+  }, [onCloseTab, viewEntryId]);
 
   if (!session) return null;
 
   const objectId = session.objectId;
   const tableId = session.tableId;
+  const isAffiliateTable = session.kind === "affiliates";
   const titleLabel = String(session.title ?? "").trim() || t("pack.urlTableTitle");
   const titleValue = session.title ?? "";
   const titlePlaceholder = t("urlTableLibrary.titlePlaceholder");
@@ -73,6 +103,10 @@ export function UrlTableDashboardOverlay({
     Math.max(titleValue.length || titlePlaceholder.length, TITLE_MIN_CH),
     TITLE_MAX_CH,
   );
+
+  const viewingEntry = viewEntryId
+    ? (session.entries || []).find((entry) => entry.id === viewEntryId) || null
+    : null;
 
   const commitDraftIfReady = (currentEntries) => {
     const currentDraft = draftRef.current;
@@ -95,31 +129,13 @@ export function UrlTableDashboardOverlay({
       console.warn("[url-table] Row Save skipped: missing company objectId");
       return null;
     }
-    // #region agent log
-    const __sessIdsBefore = (session?.entries || []).map((e) => e.id);
-    // #endregion
     const stored = queueUrlTableEntry(objectId, entry, tableId);
     if (!stored) return null;
-    // Append only the newly stored entry. Never replace the visible list with
-    // the store: rows deleted in this session must stay deleted even if the
-    // store/remote still holds them (footer Save purges them for good).
     const sessionEntries = session?.entries || [];
+    const link = createLinkEntry(stored);
     const nextEntries = sessionEntries.some((item) => item.id === stored.id)
-      ? sessionEntries
-      : [
-        ...sessionEntries,
-        {
-          id: stored.id,
-          name: stored.name,
-          tag: stored.tag,
-          category: stored.category,
-          description: stored.description,
-          url: stored.url,
-        },
-      ];
-    // #region agent log
-    fetch('http://127.0.0.1:7764/ingest/1d5b49ee-76e8-4907-8f7a-6cd7282ea736',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'post-fix2',hypothesisId:'H-A',location:'UrlTableDashboardOverlay.jsx:handleSaveEntry',message:'row save: append-only session update',data:{tableId,sessionIdsBefore:__sessIdsBefore,sessionIdsAfter:nextEntries.map((e)=>e.id),storedId:stored.id},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+      ? sessionEntries.map((item) => (item.id === stored.id ? link : item))
+      : [...sessionEntries, link];
     onChange?.({
       tableId: stored.tableId || tableId,
       entries: nextEntries,
@@ -132,11 +148,34 @@ export function UrlTableDashboardOverlay({
   /** Row delete: remove from SQL store immediately so it cannot resurrect. */
   const handleDeleteEntry = (entryId) => {
     if (!entryId) return;
+    if (viewEntryId === entryId) setViewEntryId(null);
     markUrlTableEntryDeleted(entryId);
     useUrlTableStore.getState().removeEntry(entryId);
     Promise.all([flushUrlTableSync(), flushUrlTablesSync()]).catch((err) => {
       console.warn("[url-table] flush after row delete failed", err);
     });
+  };
+
+  const handleViewEntry = (entry) => {
+    if (!entry?.id) return;
+    setViewEntryId(entry.id);
+  };
+
+  const handleSaveEntryDetail = async (nextEntry) => {
+    if (!nextEntry?.id) return;
+    const link = createLinkEntry(nextEntry);
+    const nextEntries = (session.entries || []).map((item) => (
+      item.id === link.id ? link : item
+    ));
+    onChange?.({ entries: nextEntries, saved: false });
+    if (objectId) {
+      const stored = queueUrlTableEntry(objectId, link, tableId);
+      if (!stored) {
+        throw new Error("Failed to persist affiliate row");
+      }
+      await Promise.all([flushUrlTableSync(), flushUrlTablesSync()]);
+    }
+    setViewEntryId(null);
   };
 
   /** Footer Save: persist full table + close overlay. */
@@ -184,6 +223,7 @@ export function UrlTableDashboardOverlay({
   };
 
   const handleAddRow = () => {
+    setViewEntryId(null);
     setAddFormRequest((value) => value + 1);
   };
 
@@ -207,27 +247,31 @@ export function UrlTableDashboardOverlay({
             style={{ width: `${titleWidthCh}ch` }}
             maxLength={TITLE_MAX_CH}
           />
-          <div className="url-table-page-overlay__search-wrap">
-            <span className="url-table-page-overlay__search-icon" aria-hidden />
-            <input
-              type="search"
-              className="url-table-page-overlay__search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("urlTableLibrary.searchPlaceholder")}
-              aria-label={t("urlTableLibrary.searchPlaceholder")}
-            />
-          </div>
+          {!viewingEntry ? (
+            <div className="url-table-page-overlay__search-wrap">
+              <span className="url-table-page-overlay__search-icon" aria-hidden />
+              <input
+                type="search"
+                className="url-table-page-overlay__search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("urlTableLibrary.searchPlaceholder")}
+                aria-label={t("urlTableLibrary.searchPlaceholder")}
+              />
+            </div>
+          ) : null}
           <div className="url-table-page-overlay__header-actions">
-            <button
-              type="button"
-              className="url-table-page-overlay__add-btn"
-              onClick={handleAddRow}
-              aria-label={t("urlTableLibrary.addRow")}
-              title={t("urlTableLibrary.addRow")}
-            >
-              +
-            </button>
+            {!viewingEntry ? (
+              <button
+                type="button"
+                className="url-table-page-overlay__add-btn"
+                onClick={handleAddRow}
+                aria-label={t("urlTableLibrary.addRow")}
+                title={t("urlTableLibrary.addRow")}
+              >
+                +
+              </button>
+            ) : null}
             <button
               type="button"
               className="url-table-page-overlay__close"
@@ -241,50 +285,68 @@ export function UrlTableDashboardOverlay({
         </header>
 
         <div className="url-table-page-overlay__body scroll-match-bg url-table-dashboard">
-          <LinkVaultBlockView
-            entries={session.entries}
-            onEntriesChange={(entries) => onChange({ entries, saved: false })}
-            onSaveEntry={objectId ? handleSaveEntry : null}
-            onDeleteEntry={objectId ? handleDeleteEntry : null}
-            objectId={objectId}
-            tableId={tableId}
-            multilineDescription
-            hideAddButton
-            addFormRequest={addFormRequest}
-            filterQuery={query}
-            draft={draft}
-            onDraftChange={setDraft}
-            labels={{
-              name: "Title",
-              tag: "Tag",
-              category: "Category",
-              description: "Description",
-              url: "URL",
-              save: "Save",
-            }}
-          />
+          {viewingEntry ? (
+            <UrlTableEntryDetailView
+              entry={viewingEntry}
+              onSave={handleSaveEntryDetail}
+              onBack={() => setViewEntryId(null)}
+            />
+          ) : (
+            <LinkVaultBlockView
+              entries={session.entries}
+              onEntriesChange={(entries) => onChange({ entries, saved: false })}
+              onSaveEntry={objectId ? handleSaveEntry : null}
+              onDeleteEntry={objectId ? handleDeleteEntry : null}
+              objectId={objectId}
+              tableId={tableId}
+              multilineDescription
+              hideAddButton
+              addFormRequest={addFormRequest}
+              filterQuery={query}
+              draft={draft}
+              onDraftChange={setDraft}
+              showRowView={isAffiliateTable}
+              onViewEntry={isAffiliateTable ? handleViewEntry : null}
+              labels={{
+                name: "Title",
+                tag: "Tag",
+                category: "Category",
+                description: "Description",
+                url: "URL",
+                save: "Save",
+                status: t("urlTableAffiliate.statusLabel"),
+                view: t("urlTableAffiliate.view"),
+                daysLeft: t("urlTableAffiliate.daysLeftShort"),
+                statusPending: t("urlTableAffiliate.status.pending"),
+                statusActive: t("urlTableAffiliate.status.active"),
+                statusExpired: t("urlTableAffiliate.status.expired"),
+              }}
+            />
+          )}
         </div>
 
-        <footer className="url-table-page-overlay__footer">
-          <button
-            type="button"
-            className="doc-new-action doc-new-action--save url-table-dashboard__save"
-            onClick={handleSave}
-            disabled={saving || deleting}
-          >
-            {t("common.save")}
-          </button>
-          {tableId ? (
+        {!viewingEntry ? (
+          <footer className="url-table-page-overlay__footer">
             <button
               type="button"
-              className="btn xs url-table-page-overlay__delete-btn"
-              onClick={handleDelete}
+              className="doc-new-action doc-new-action--save url-table-dashboard__save"
+              onClick={handleSave}
               disabled={saving || deleting}
             >
-              {t("urlTableLibrary.delete")}
+              {t("common.save")}
             </button>
-          ) : null}
-        </footer>
+            {tableId ? (
+              <button
+                type="button"
+                className="btn xs url-table-page-overlay__delete-btn"
+                onClick={handleDelete}
+                disabled={saving || deleting}
+              >
+                {t("urlTableLibrary.delete")}
+              </button>
+            ) : null}
+          </footer>
+        ) : null}
       </div>
     </div>,
     document.body,

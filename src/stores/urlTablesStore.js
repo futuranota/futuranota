@@ -4,17 +4,28 @@ import { generateId } from "../lib/ids.js";
 
 const STORAGE_KEY = "futuranota.urlTables.v1";
 
+/** @typedef {'links' | 'affiliates'} UrlTableKind */
+
 /**
  * @typedef {Object} UrlTableMeta
  * @property {string} id
  * @property {string|null} objectId
  * @property {string} title
+ * @property {UrlTableKind} kind
  * @property {string} createdAt
  * @property {string} updatedAt
  */
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+/**
+ * @param {unknown} value
+ * @returns {UrlTableKind}
+ */
+export function normalizeUrlTableKind(value) {
+  return value === "affiliates" ? "affiliates" : "links";
 }
 
 /**
@@ -27,6 +38,7 @@ export function normalizeUrlTableMeta(table) {
     id: String(table?.id || generateId("URLT")),
     objectId: table?.objectId ?? null,
     title: String(table?.title ?? "").trim(),
+    kind: normalizeUrlTableKind(table?.kind),
     createdAt,
     updatedAt: table?.updatedAt || createdAt,
   };
@@ -69,15 +81,16 @@ export const useUrlTablesStore = create(
       },
 
       /**
-       * @param {{ objectId: string|null, title?: string, id?: string }} patch
+       * @param {{ objectId: string|null, title?: string, id?: string, kind?: import("./urlTablesStore.js").UrlTableKind }} patch
        * @returns {UrlTableMeta}
        */
-      createTable: ({ objectId = null, title = "", id } = {}) => {
+      createTable: ({ objectId = null, title = "", id, kind = "links" } = {}) => {
         const now = nowIso();
         const next = normalizeUrlTableMeta({
           id,
           objectId,
           title,
+          kind,
           createdAt: now,
           updatedAt: now,
         });
