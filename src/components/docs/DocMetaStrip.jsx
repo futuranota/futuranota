@@ -23,6 +23,7 @@ import { DepartmentCategoryField } from "./DepartmentCategoryField.jsx";
 import { useI18n } from "../../i18n/useI18n.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { resolveFolderStatus } from "../../lib/folderStatus.js";
+import { DocStatusChip } from "./FolderDocumentRow.jsx";
 import {
   findDepartmentById,
   getCategoryDescription,
@@ -33,11 +34,13 @@ const SCHEDULE_INFO_ICON = "/uploads/Info.svg";
 
 const FOLDER_STATUS_ICON = {
   not_started: "/uploads/not-started.svg?v=dash-blue",
-  pending: "/uploads/pending.svg",
   completed: "/uploads/completed.svg",
 };
 
 function FolderStatusBadge({ status, label }) {
+  if (status === "in_progress" || status === "submitted") {
+    return <DocStatusChip status={status} />;
+  }
   const src = FOLDER_STATUS_ICON[status] || FOLDER_STATUS_ICON.not_started;
   return (
     <img
@@ -375,9 +378,11 @@ export function DocMetaStrip({
   const folderStatusLabel =
     folderStatus.status === "completed"
       ? t("meta.statusCompleted")
-      : folderStatus.status === "pending"
-        ? t("meta.statusPending")
-        : t("meta.statusNotStarted");
+      : folderStatus.status === "submitted"
+        ? t("sidebar.docStatusSubmitted")
+        : folderStatus.status === "in_progress"
+          ? t("sidebar.docStatusInProgress")
+          : t("meta.statusNotStarted");
 
   const campaignSummary = showFolderCampaignStatus
     ? formatCampaignLabel(campaignActive)

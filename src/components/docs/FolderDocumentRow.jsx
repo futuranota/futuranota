@@ -11,7 +11,7 @@ function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "Untitled query").trim() || "Untitled query";
 }
 
-/** Status chip for folder document rows (in progress / in review / completed). */
+/** Status chip for folder document rows (in progress / submitted / completed). */
 export function DocStatusChip({ status }) {
   const { t } = useI18n();
   const resolved = resolveDocWorkStatus(
@@ -24,8 +24,8 @@ export function DocStatusChip({ status }) {
   const iconKind =
     resolved === DOC_WORK_STATUS.IN_PROGRESS
       ? "in-progress"
-      : resolved === DOC_WORK_STATUS.IN_REVIEW
-        ? "in-review"
+      : resolved === DOC_WORK_STATUS.SUBMITTED
+        ? "submitted"
         : "completed";
   return (
     <span className={`doc-status-chip doc-status-chip--${resolved}`}>
@@ -45,7 +45,7 @@ export function CompletedChip() {
 
 /**
  * Folder child row: Title always; Description + continue reading when body has text;
- * Status chip when in progress / in review / completed.
+ * Status chip when in progress / submitted / completed.
  */
 export function FolderDocumentRow({
   node,

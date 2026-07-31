@@ -87,7 +87,7 @@ export function NodeQueryModal({
   onCreatedDateChange,
   completed = false,
   onCompletedChange,
-  /** Folder-doc work status: in_progress | in_review | completed | null */
+  /** Folder-doc work status: in_progress | submitted | completed | null */
   status = null,
   onStatusChange,
   /** Campaign documents: active|inactive (+ launch) instead of completed. */
@@ -888,13 +888,20 @@ export function NodeQueryModal({
                         <button
                           type="button"
                           className={
-                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--in-review"
-                            + (workStatus === DOC_WORK_STATUS.IN_REVIEW ? " is-on" : "")
+                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--submitted"
+                            + (workStatus === DOC_WORK_STATUS.SUBMITTED ? " is-on" : "")
                           }
-                          onClick={() => handleStatusChange(DOC_WORK_STATUS.IN_REVIEW)}
-                          aria-pressed={workStatus === DOC_WORK_STATUS.IN_REVIEW}
+                          onClick={() => handleStatusChange(DOC_WORK_STATUS.SUBMITTED)}
+                          aria-pressed={workStatus === DOC_WORK_STATUS.SUBMITTED}
                         >
-                          {t("sidebar.docStatusInReview")}
+                          {t("sidebar.docStatusSubmitted")}
+                          <img
+                            src="/uploads/submitted-icon.svg"
+                            alt=""
+                            className="doc-meta-chip-submitted-icon"
+                            aria-hidden
+                            draggable={false}
+                          />
                         </button>
                         <button
                           type="button"

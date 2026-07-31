@@ -1391,9 +1391,9 @@
   background: #192A3F;
 }
 
-.doc-status-chip--in_review {
-  color: #E5B453;
-  background: #403928;
+.doc-status-chip--submitted {
+  color: #9675FF;
+  background: #2A2240;
 }
 
 .doc-status-chip--completed {
@@ -1408,6 +1408,10 @@
   object-fit: contain;
   vertical-align: middle;
   flex-shrink: 0;
+}
+
+.doc-status-chip-asset--submitted {
+  height: 12px;
 }
 
 .doc-status-chip__icon {
@@ -1430,10 +1434,10 @@
   mask-image: url("/uploads/CircleDashed.svg");
 }
 
-.doc-status-chip__icon--in-review {
-  background: linear-gradient(135deg, #E7BD6C, #AE832C);
-  -webkit-mask-image: url("/uploads/in-review-icon.svg");
-  mask-image: url("/uploads/in-review-icon.svg");
+.doc-status-chip__icon--submitted {
+  background: linear-gradient(135deg, #B9A0FF, #9675FF);
+  -webkit-mask-image: url("/uploads/submitted-icon.svg");
+  mask-image: url("/uploads/submitted-icon.svg");
 }
 
 .doc-status-chip__icon--completed {
@@ -15276,8 +15280,8 @@ body.doc-content-resizing * {
   letter-spacing: 0.01em;
 }
 
-.node-query-modal__doc-meta .doc-meta-chip-v.is-status-in_review {
-  color: #F0B13D;
+.node-query-modal__doc-meta .doc-meta-chip-v.is-status-submitted {
+  color: #9675FF;
   font-weight: 800;
   letter-spacing: 0.01em;
 }
@@ -15286,19 +15290,17 @@ body.doc-content-resizing * {
   flex-wrap: wrap;
 }
 
+/* Work-status picker stays neutral — color lives on chips in the folder table. */
 .doc-work-status-opt--in-progress.is-on,
-.doc-meta-strip__fields .doc-work-status-opt--in-progress.is-on {
-  color: #008AF5;
-}
-
-.doc-work-status-opt--in-review.is-on,
-.doc-meta-strip__fields .doc-work-status-opt--in-review.is-on {
-  color: #F0B13D;
-}
-
+.doc-meta-strip__fields .doc-work-status-opt--in-progress.is-on,
 .doc-work-status-opt--submitted.is-on,
-.doc-meta-strip__fields .doc-work-status-opt--submitted.is-on {
-  color: #9675FF;
+.doc-meta-strip__fields .doc-work-status-opt--submitted.is-on,
+.doc-work-status-opt.doc-new-campaign-opt--completed.is-on,
+.doc-meta-strip__fields .doc-work-status-opt.doc-new-campaign-opt--completed.is-on {
+  color: #7e7a76;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 800;
 }
 
 /* Match Status toggle table gray (#7e7a76) + bold */
@@ -15329,26 +15331,40 @@ body.doc-content-resizing * {
   flex-shrink: 0;
   object-fit: contain;
   pointer-events: none;
-  filter: brightness(0) saturate(100%) invert(78%) sepia(42%) saturate(520%) hue-rotate(93deg) brightness(102%) contrast(92%);
+  filter: brightness(0) invert(0.45);
+  opacity: 0.75;
 }
 
-.doc-new-campaign-opt--completed {
+.doc-meta-chip-submitted-icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  object-fit: contain;
+  pointer-events: none;
+  filter: brightness(0) invert(0.45);
+  opacity: 0.75;
+}
+
+.doc-work-status-opt.is-on .doc-meta-chip-completed-icon,
+.doc-work-status-opt.is-on .doc-meta-chip-submitted-icon {
+  filter: brightness(0) invert(0.55);
+  opacity: 0.9;
+}
+
+.doc-new-campaign-opt--completed,
+.doc-work-status-opt--submitted {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
 }
 
-.doc-new-campaign-opt--completed.is-on,
-.doc-meta-strip__fields .doc-new-campaign-opt--completed.is-on {
+.doc-new-campaign-opt--completed.is-on:not(.doc-work-status-opt),
+.doc-meta-strip__fields .doc-new-campaign-opt--completed.is-on:not(.doc-work-status-opt) {
   color: #57d68a;
   border-color: color-mix(in oklab, #4ade80 55%, transparent);
   background: color-mix(in oklab, #4ade80 10%, transparent);
-}
-
-.doc-new-campaign-opt--completed:not(.is-on) .doc-meta-chip-completed-icon {
-  filter: brightness(0) invert(0.45);
-  opacity: 0.75;
 }
 
 .node-query-modal__doc-meta .doc-meta-chip--source-only {

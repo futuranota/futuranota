@@ -15,33 +15,43 @@ Folder schedule opcional = reserva `scheduleStartAt` → `scheduleFinishAt`. Doc
 
 ## Document status — live subset (folders)
 
-Campo `node.status`: `in_progress` | `in_review` | `completed` | `null`.
-`completed: boolean` se deriva (`true` iff `status === "completed"`) para timeline / pie.
+Campo `node.status`: `in_progress` | `submitted` | `completed` | `null`.
+`completed: boolean` se deriva (`true` iff `status === "completed"`) para timeline / folder pie.
+Legacy `in_review` se migra a `submitted` al hidratar.
 
 | Status | Quién lo setea |
 |---|---|
 | *(null)* | Default al crear |
 | `in_progress` | Auto al escribir body con texto; también manual |
-| `in_review` | Manual ahora; el asistente lo seteará después al terminar un task |
+| `submitted` | Manual ahora; el asistente lo seteará al terminar un task (entrega para revisar) |
 | `completed` | Manual (usuario cierra el trabajo) |
 
-Flujo: empty → (write) in_progress → (user) completed ·· o ·· in_progress → (agent later) in_review → (user) completed.
+Flujo: empty → (write) in_progress → (agent) submitted → (user) completed ·· o ·· in_progress → (user) completed.
 
 Helper: `src/lib/docWorkStatus.js`. UI: toggle 3-way en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
+
+## Folder status — inherited by priority
+
+`src/lib/folderStatus.js` → `resolveFolderStatus`:
+
+1. Cualquier child `submitted` → folder **Submitted**
+2. Si no, cualquier `in_progress` → folder **In progress**
+3. Si todos `completed` → folder **Completed**
+4. Else → **Not started**
 
 ## Paleta visual de referencia (no obligatoria toda)
 
 Referencia Magic/badge (adaptar a dark `#151515`; Lucide o SVGs `/uploads`):
 
-| Status | Color ref | Icono Lucide | Estado |
+| Status | Color ref | Icono | Estado |
 |---|---|---|---|
 | Pending | `#EAA65D` | TriangleAlert | pendiente |
 | Failed | `#D57463` | CircleX | pendiente |
-| Success / Completed | `#57BC6C` | CircleCheck | **live** |
+| Success / Completed | `#57BC6C` | Checks / completed.svg | **live** |
 | In progress | `#008AF5` | CircleDashed | **live** |
-| In review | `#F0B13D` | ScanSearch | **live** |
+| Submitted | `#9675FF` / `#6C3CF0` | submitted.svg (+ submitted-icon) | **live** |
 | Expired | `#777777` | Clock5 | pendiente |
-| Submitted | `#6C3CF0` | Clock5 | pendiente |
+| In review | `#F0B13D` | ScanSearch | retirado (migrado a submitted) |
 
 Usar solo los que se necesiten. Label “Submitted” (no “Submited”).
 

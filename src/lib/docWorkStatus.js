@@ -1,5 +1,5 @@
 /**
- * Folder-document work status (links / ex-macronodes).
+ * Folder-document work status (links / ex-macronodos).
  * Keep `completed` boolean derived for timeline / folder pie.
  */
 
@@ -7,7 +7,7 @@ import { getNodeWritingBodyPlainText } from "./nodeWritingExcerpt.js";
 
 export const DOC_WORK_STATUS = {
   IN_PROGRESS: "in_progress",
-  IN_REVIEW: "in_review",
+  SUBMITTED: "submitted",
   COMPLETED: "completed",
 };
 
@@ -15,19 +15,21 @@ const VALID = new Set(Object.values(DOC_WORK_STATUS));
 
 /**
  * @param {unknown} value
- * @returns {"in_progress" | "in_review" | "completed" | null}
+ * @returns {"in_progress" | "submitted" | "completed" | null}
  */
 export function normalizeDocWorkStatus(value) {
   if (value == null || value === "") return null;
   const s = String(value).trim().toLowerCase();
-  if (VALID.has(s)) return /** @type {"in_progress" | "in_review" | "completed"} */ (s);
+  // Legacy: in_review was replaced by submitted (assistant delivery signal).
+  if (s === "in_review") return DOC_WORK_STATUS.SUBMITTED;
+  if (VALID.has(s)) return /** @type {"in_progress" | "submitted" | "completed"} */ (s);
   return null;
 }
 
 /**
  * Hydrate / migrate: prefer explicit status; else completed:true → completed.
  * @param {{ status?: unknown, completed?: unknown } | null | undefined} node
- * @returns {"in_progress" | "in_review" | "completed" | null}
+ * @returns {"in_progress" | "submitted" | "completed" | null}
  */
 export function resolveDocWorkStatus(node) {
   const fromStatus = normalizeDocWorkStatus(node?.status);
@@ -37,7 +39,7 @@ export function resolveDocWorkStatus(node) {
 }
 
 /**
- * @param {"in_progress" | "in_review" | "completed" | null | undefined} status
+ * @param {"in_progress" | "submitted" | "completed" | null | undefined} status
  */
 export function isDocWorkCompleted(status) {
   return normalizeDocWorkStatus(status) === DOC_WORK_STATUS.COMPLETED;
@@ -46,7 +48,7 @@ export function isDocWorkCompleted(status) {
 /**
  * Patch fields to keep status and completed in sync.
  * @param {{ status?: unknown, completed?: unknown }} updates
- * @returns {{ status: "in_progress" | "in_review" | "completed" | null, completed: boolean }}
+ * @returns {{ status: "in_progress" | "submitted" | "completed" | null, completed: boolean }}
  */
 export function syncDocWorkStatusFields(updates = {}) {
   const hasStatus = Object.prototype.hasOwnProperty.call(updates, "status");
@@ -79,8 +81,8 @@ export function hasMeaningfulNodeContent(content) {
 }
 
 /**
- * Auto in_progress only when status is empty (do not override completed / in_review).
- * @param {"in_progress" | "in_review" | "completed" | null | undefined} currentStatus
+ * Auto in_progress only when status is empty (do not override completed / submitted).
+ * @param {"in_progress" | "submitted" | "completed" | null | undefined} currentStatus
  * @param {boolean} hasMeaningfulContent
  * @returns {"in_progress" | null} next status to apply, or null if no change
  */
@@ -92,13 +94,13 @@ export function nextStatusOnMeaningfulWrite(currentStatus, hasMeaningfulContent)
 }
 
 /**
- * @param {"in_progress" | "in_review" | "completed" | null | undefined} status
+ * @param {"in_progress" | "submitted" | "completed" | null | undefined} status
  * @param {(key: string) => string} t
  */
 export function docWorkStatusLabel(status, t) {
   const s = normalizeDocWorkStatus(status);
   if (s === DOC_WORK_STATUS.IN_PROGRESS) return t("sidebar.docStatusInProgress");
-  if (s === DOC_WORK_STATUS.IN_REVIEW) return t("sidebar.docStatusInReview");
+  if (s === DOC_WORK_STATUS.SUBMITTED) return t("sidebar.docStatusSubmitted");
   if (s === DOC_WORK_STATUS.COMPLETED) return t("sidebar.docCompleted");
   return "";
 }

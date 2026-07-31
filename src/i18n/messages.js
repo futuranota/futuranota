@@ -458,7 +458,6 @@ export const messages = {
       continueReading: "continue reading",
       docCompleted: "Completed",
       docStatusInProgress: "In progress",
-      docStatusInReview: "In review",
       docStatusSubmitted: "Submitted",
       edit: "edit",
       docTemplatePrefix: "template · ",
@@ -1048,7 +1047,6 @@ export const messages = {
       campaignDocLaunchDate: "Launch date",
       docCompleted: "Completed",
       docStatusInProgress: "In progress",
-      docStatusInReview: "In review",
       docStatusSubmitted: "Submitted",
       /* Department UI copy stays English (product labels); keep EN for overlay + cards. */
       clickFolderDocuments: "Documents",
