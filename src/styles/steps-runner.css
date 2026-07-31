@@ -934,9 +934,9 @@
   border-bottom: 1px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: #c8c9cb;
+  color: #B1B1B1;
   font-family: var(--sans);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;
@@ -958,7 +958,7 @@
 .url-table-page-overlay__title-input:focus {
   outline: none;
   border-bottom-color: transparent;
-  color: #d4d5d7;
+  color: #B1B1B1;
 }
 
 .url-table-page-overlay__search-wrap {

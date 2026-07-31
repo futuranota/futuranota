@@ -19,23 +19,7 @@ function IconUser({ className = "" }) {
   );
 }
 
-function IconSettings({ className = "" }) {
-  return (
-    <svg className={className} width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z"
-        stroke="currentColor"
-        strokeWidth="1.75"
-      />
-      <path
-        d="M19.4 13.1a1.5 1.5 0 0 0 .3 1.65l.06.06a1.8 1.8 0 1 1-2.55 2.55l-.06-.06a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.9 1.37V18.6a1.8 1.8 0 1 1-3.6 0v-.09a1.5 1.5 0 0 0-.98-1.37 1.5 1.5 0 0 0-1.65.3l-.06.06a1.8 1.8 0 1 1-2.55-2.55l.06-.06a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.37-.9H5.4a1.8 1.8 0 1 1 0-3.6h.09a1.5 1.5 0 0 0 1.37-.98 1.5 1.5 0 0 0-.3-1.65l-.06-.06a1.8 1.8 0 1 1 2.55-2.55l.06.06a1.5 1.5 0 0 0 1.65.3h.1A1.5 1.5 0 0 0 11.1 5.4V5.4a1.8 1.8 0 1 1 3.6 0v.09a1.5 1.5 0 0 0 .9 1.37 1.5 1.5 0 0 0 1.65-.3l.06-.06a1.8 1.8 0 1 1 2.55 2.55l-.06.06a1.5 1.5 0 0 0-.3 1.65v.1a1.5 1.5 0 0 0 1.37.9h.09a1.8 1.8 0 1 1 0 3.6h-.09a1.5 1.5 0 0 0-1.37.9Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+const SETTINGS_ICON = "/uploads/settings.svg";
 
 /** Shows the signed-in user popover (settings: mute + plan) for the dashboard topbar. */
 export function UserMenu() {
@@ -135,7 +119,13 @@ export function UserMenu() {
               aria-expanded={settingsOpen}
               onClick={() => setSettingsOpen((v) => !v)}
             >
-              <IconSettings className="user-menu__nav-icon" />
+              <img
+                src={SETTINGS_ICON}
+                alt=""
+                aria-hidden
+                className="user-menu__nav-icon user-menu__nav-icon--settings"
+                draggable={false}
+              />
               <span>Settings</span>
             </button>
 

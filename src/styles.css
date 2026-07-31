@@ -397,21 +397,23 @@ input, textarea {
   text-transform: capitalize;
 }
 .user-menu__card {
-  --um-fg: #111827;
-  --um-muted: #6b7280;
-  --um-line: #e5e7eb;
-  --um-hover: #f3f4f6;
+  --um-fg: #e8e9eb;
+  --um-muted: #9a9b9e;
+  --um-line: rgba(255, 255, 255, 0.1);
+  --um-hover: rgba(255, 255, 255, 0.06);
+  --um-surface: #22262e;
+  --um-surface-2: #2a2f38;
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   width: 288px;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--um-surface);
   color: var(--um-fg);
   border: 1px solid var(--um-line);
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.25);
   z-index: 40;
   overflow: hidden;
 }
@@ -477,11 +479,22 @@ input, textarea {
 }
 .user-menu__nav-item.is-active {
   border-color: var(--um-line);
-  background: #fff;
+  background: var(--um-surface-2);
 }
 .user-menu__nav-icon {
   flex-shrink: 0;
   color: var(--um-fg);
+}
+.user-menu__nav-icon--settings {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  /* SVG fill is near-black (#343330); light gray on dark card */
+  filter: brightness(0) invert(0.72);
+}
+.user-menu__nav-item:hover .user-menu__nav-icon--settings,
+.user-menu__nav-item.is-active .user-menu__nav-icon--settings {
+  filter: brightness(0) invert(0.88);
 }
 .user-menu__settings-panel {
   display: flex;
@@ -497,7 +510,7 @@ input, textarea {
   padding: 8px 10px;
   border: 1px solid var(--um-line);
   border-radius: 8px;
-  background: #fafafa;
+  background: var(--um-surface-2);
 }
 .user-menu__setting-copy,
 .user-menu__plan-copy {
@@ -524,7 +537,7 @@ input, textarea {
   flex-shrink: 0;
   border: 0;
   border-radius: 999px;
-  background: #d1d5db;
+  background: #4b5563;
   cursor: pointer;
   padding: 0;
   transition: background 0.12s ease;
@@ -539,9 +552,9 @@ input, textarea {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: #f3f4f6;
   transition: transform 0.12s ease;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 .user-menu__switch.is-on .user-menu__switch-thumb {
   transform: translateX(16px);
@@ -555,7 +568,7 @@ input, textarea {
   padding: 8px 10px;
   border: 1px solid var(--um-line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--um-surface-2);
   color: inherit;
   text-align: left;
   cursor: pointer;
@@ -588,7 +601,7 @@ input, textarea {
   padding: 0 12px;
   border: 1px solid var(--um-line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--um-surface-2);
   color: var(--um-fg);
   font-family: var(--sans);
   font-size: 13px;
