@@ -107,40 +107,36 @@ export function StepsLibraryPanel({
               {filtered.length ? (
                 <ul className="steps-library-panel__list">
                   {filtered.map((playbook) => (
-                    <li key={playbook.id} className="steps-library-panel__item">
-                      <div className="steps-library-panel__item-main">
-                        <div className="steps-library-panel__item-head">
-                          <span className="steps-library-panel__item-title">{playbook.title}</span>
-                          <span className="steps-library-panel__item-meta mono-sm">
-                            {t("stepsLibrary.stepCount", { count: playbook.stepCount })}
+                    <li key={playbook.id} className="steps-library-panel__row">
+                      <button
+                        type="button"
+                        className="steps-library-panel__card"
+                        onClick={() => onRunPlaybook?.(playbook)}
+                      >
+                        <img
+                          src="/uploads/step-by-step.svg"
+                          alt=""
+                          aria-hidden
+                          className="steps-library-panel__card-icon"
+                        />
+                        <span className="steps-library-panel__card-body">
+                          <span className="steps-library-panel__card-title">
+                            {playbook.title}
                           </span>
-                        </div>
-                        {playbook.preview ? (
-                          <p className="steps-library-panel__item-preview">{playbook.preview}</p>
-                        ) : null}
-                        <div className="steps-library-panel__item-chips">
-                          <span className="steps-library-panel__chip">{playbook.docKind}</span>
-                          {playbook.category ? (
-                            <span className="steps-library-panel__chip">{playbook.category}</span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="steps-library-panel__item-actions">
-                        <button
-                          type="button"
-                          className="btn xs pack-actions__btn pack-actions__btn--toolbar panel-list-open-btn"
-                          onClick={() => onRunPlaybook?.(playbook)}
-                        >
-                          {t("common.open")}
-                        </button>
-                        <button
-                          type="button"
-                          className="steps-library-panel__delete-btn"
-                          onClick={() => handleDeletePlaybook(playbook)}
-                        >
-                          {t("stepsLibrary.delete")}
-                        </button>
-                      </div>
+                        </span>
+                        <span className="steps-library-panel__card-chevron" aria-hidden>
+                          ›
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="steps-library-panel__delete-btn"
+                        onClick={() => handleDeletePlaybook(playbook)}
+                        aria-label={t("stepsLibrary.delete")}
+                        title={t("stepsLibrary.delete")}
+                      >
+                        {t("stepsLibrary.delete")}
+                      </button>
                     </li>
                   ))}
                 </ul>

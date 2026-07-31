@@ -58,7 +58,6 @@ export function StepPlaybookDashboardOverlay({
             onTitleChange={(title) => onChange({ title })}
             onStepsChange={(steps) => onChange({ steps, saved: false })}
             onSavedChange={(finalizedSteps) => {
-              onChange({ steps: finalizedSteps, saved: true });
               onSaved?.(finalizedSteps);
             }}
             onEditRequest={() => onChange({ saved: false })}

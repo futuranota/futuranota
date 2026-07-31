@@ -93,7 +93,11 @@ export function collectSavedStepPlaybooks(docs, { objectId = null } = {}) {
       if (!block.saved) return;
 
       const steps = normalizeStepEntries(Array.isArray(block.steps) ? block.steps : []);
-      if (!stepPlaybookHasContent(steps)) return;
+      const title = playbookTitleFrom(block, doc, steps);
+      const hasSteps = stepPlaybookHasContent(steps);
+      const hasTitle = Boolean(String(block?.title ?? "").trim() || String(doc.title ?? "").trim());
+      // Saved guides with a title should appear even before step body is filled.
+      if (!hasSteps && !hasTitle) return;
 
       const firstPreview = steps.map(getStepPlaybookPreview).find(Boolean) ?? "";
 
@@ -101,7 +105,7 @@ export function collectSavedStepPlaybooks(docs, { objectId = null } = {}) {
         id: `${doc.id}:${block.id}`,
         docId: doc.id,
         blockId: block.id,
-        title: playbookTitleFrom(block, doc, steps),
+        title,
         preview: truncate(firstPreview, PREVIEW_MAX),
         stepCount: steps.length,
         objectId: parentObjectId,

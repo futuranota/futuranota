@@ -140,6 +140,8 @@ export function persistStepPlaybookSession(session, {
   updateDoc(session.docId, {
     title: docTitle,
     blocks: nextBlocks,
+    body: docBlocksToBody(nextBlocks),
+    content: docBlocksToBody(nextBlocks),
   });
 
   return { docId: session.docId, blockId: block.id };

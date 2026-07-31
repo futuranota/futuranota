@@ -1634,6 +1634,7 @@ export function LeftPanel({
   onExpandNode,
   onDocumentDeleted,
   onRunStepPlaybook,
+  onOpenStepPlaybook,
   onOpenNewStepPlaybook,
   onOpenUrlTableForCompany,
   onOpenUrlTableRef,
@@ -2255,6 +2256,11 @@ export function LeftPanel({
   };
 
   const handleRunPlaybookFromLibrary = (playbook) => {
+    // Open the editable dashboard (same as URL table / To Do), not only the runner.
+    if (onOpenStepPlaybook) {
+      onOpenStepPlaybook(playbook);
+      return;
+    }
     onRunStepPlaybook?.(playbook);
   };
 

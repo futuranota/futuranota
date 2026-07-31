@@ -46,8 +46,10 @@ import { LazyTodoDashboardOverlay } from './components/lazyTodos/LazyTodoDashboa
 import {
   createBlankStepPlaybookSession,
   persistStepPlaybookSession,
+  stepPlaybookSessionFromRef,
   stepPlaybookSessionHasContent,
 } from './lib/stepPlaybookSession.js';
+import { flushPersistenceSync } from './stores/middleware/persistenceMiddleware.js';
 import {
   loadCompanyUrlTableSession,
   loadUrlTableSessionById,
@@ -1159,6 +1161,11 @@ useEffect(() => {
     });
   };
 
+  const handleOpenStepPlaybook = useCallback((playbook) => {
+    if (!playbook) return;
+    setActiveStepPlaybookSession(stepPlaybookSessionFromRef(playbook));
+  }, []);
+
   const addDoc = useDocsStore((s) => s.addDoc);
   const updateDoc = useDocsStore((s) => s.updateDoc);
 
@@ -1191,17 +1198,39 @@ useEffect(() => {
     const current = activeStepPlaybookSessionRef.current;
     if (!current) return;
 
+    const merged = { ...current, steps: finalizedSteps, saved: true };
+    if (!stepPlaybookSessionHasContent(merged)) {
+      console.warn('[steps] Save skipped: empty playbook');
+      return;
+    }
+    if (!merged.objectId) {
+      console.warn('[steps] Save skipped: missing company objectId');
+      return;
+    }
+
     stepPlaybookSaveLockRef.current = true;
     try {
-      const merged = { ...current, steps: finalizedSteps, saved: true };
-      persistStepPlaybookSession(merged, {
+      const result = persistStepPlaybookSession(merged, {
         addDoc,
         updateDoc,
         docs: useDocsStore.getState().docs,
         objects: useObjectsStore.getState().objects,
         defaultTitle: t('stepsLibrary.newDocTitle'),
       });
-      setActiveStepPlaybookSession(null);
+      if (!result?.docId) {
+        console.warn('[steps] Save did not write a document', result);
+        return;
+      }
+      flushPersistenceSync().catch((err) => {
+        console.warn('[steps] flush after save failed', err);
+      });
+      // Keep the dashboard open in saved mode so the user can verify content.
+      setActiveStepPlaybookSession({
+        ...merged,
+        docId: result.docId,
+        blockId: result.blockId || merged.blockId,
+        saved: true,
+      });
     } finally {
       stepPlaybookSaveLockRef.current = false;
     }
@@ -1583,6 +1612,7 @@ useEffect(() => {
             onExpandNode={openNodeOverlay}
             onDocumentDeleted={handleDocumentDeleted}
             onRunStepPlaybook={handleRunStepPlaybook}
+            onOpenStepPlaybook={handleOpenStepPlaybook}
             onOpenNewStepPlaybook={handleOpenNewStepPlaybook}
             onOpenUrlTableForCompany={handleOpenUrlTableForCompany}
             onOpenUrlTableRef={handleOpenUrlTableRef}

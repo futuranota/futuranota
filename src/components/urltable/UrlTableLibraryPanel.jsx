@@ -82,27 +82,27 @@ export function UrlTableLibraryPanel({
               {filtered.length ? (
                 <ul className="steps-library-panel__list">
                   {filtered.map((table) => (
-                    <li key={table.id} className="steps-library-panel__item">
-                      <div className="steps-library-panel__item-main">
-                        <div className="steps-library-panel__item-head">
-                          <span className="steps-library-panel__item-title">{table.title}</span>
-                          <span className="steps-library-panel__item-meta mono-sm">
-                            {t("urlTableLibrary.entryCount", { count: table.entryCount })}
+                    <li key={table.id} className="steps-library-panel__row">
+                      <button
+                        type="button"
+                        className="steps-library-panel__card"
+                        onClick={() => onOpenTable?.(table)}
+                      >
+                        <img
+                          src="/uploads/url-table.svg"
+                          alt=""
+                          aria-hidden
+                          className="steps-library-panel__card-icon"
+                        />
+                        <span className="steps-library-panel__card-body">
+                          <span className="steps-library-panel__card-title">
+                            {table.title}
                           </span>
-                        </div>
-                        {table.preview ? (
-                          <p className="steps-library-panel__item-preview">{table.preview}</p>
-                        ) : null}
-                      </div>
-                      <div className="steps-library-panel__item-actions">
-                        <button
-                          type="button"
-                          className="btn xs pack-actions__btn pack-actions__btn--toolbar panel-list-open-btn"
-                          onClick={() => onOpenTable?.(table)}
-                        >
-                          {t("common.open")}
-                        </button>
-                      </div>
+                        </span>
+                        <span className="steps-library-panel__card-chevron" aria-hidden>
+                          ›
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>

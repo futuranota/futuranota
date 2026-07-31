@@ -4,8 +4,6 @@ import { useConfirmStore } from "../../stores/confirmStore.js";
 import {
   filterLazyTodos,
   lazyTodoDisplayTitle,
-  lazyTodoPreview,
-  lazyTodoProgress,
   sortLazyTodosNewestFirst,
 } from "../../lib/lazyTodos.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -189,66 +187,67 @@ export function LazyTodoQueuePanel({
                   }
                 >
                   {queuedItems.map((item) => {
-                    const { done, total } = lazyTodoProgress(item);
                     const selected = selectedIds.includes(item.id);
                     return (
                       <li
                         key={item.id}
                         className={
-                          "lazy-todo-queue-panel__item"
-                          + (bulkSelectMode ? " lazy-todo-queue-panel__item--select-mode" : "")
+                          "lazy-todo-queue-panel__row"
+                          + (bulkSelectMode ? " lazy-todo-queue-panel__row--select-mode" : "")
                           + (selected ? " is-selected" : "")
                         }
-                        onClick={bulkSelectMode ? () => toggleSelect(item.id) : undefined}
-                        onKeyDown={
-                          bulkSelectMode
-                            ? (event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                toggleSelect(item.id);
-                              }
-                            }
-                            : undefined
-                        }
-                        role={bulkSelectMode ? "button" : undefined}
-                        tabIndex={bulkSelectMode ? 0 : undefined}
-                        aria-pressed={bulkSelectMode ? selected : undefined}
                       >
                         {bulkSelectMode ? (
-                          <span
+                          <button
+                            type="button"
                             className={
-                              "lp-doc-nodes-block__check"
-                              + (selected ? " is-checked" : "")
+                              "lazy-todo-queue-panel__card lazy-todo-queue-panel__card--select"
+                              + (selected ? " is-selected" : "")
                             }
-                            aria-hidden
-                          />
-                        ) : null}
-                        <div className="lazy-todo-queue-panel__item-main">
-                          <div className="lazy-todo-queue-panel__item-head">
-                            <span className="lazy-todo-queue-panel__item-title">
-                              {lazyTodoDisplayTitle(item)}
+                            onClick={() => toggleSelect(item.id)}
+                            aria-pressed={selected}
+                          >
+                            <span
+                              className={
+                                "lp-doc-nodes-block__check"
+                                + (selected ? " is-checked" : "")
+                              }
+                              aria-hidden
+                            />
+                            <img
+                              src="/uploads/to-do.svg"
+                              alt=""
+                              aria-hidden
+                              className="lazy-todo-queue-panel__card-icon"
+                            />
+                            <span className="lazy-todo-queue-panel__card-body">
+                              <span className="lazy-todo-queue-panel__card-title">
+                                {lazyTodoDisplayTitle(item)}
+                              </span>
                             </span>
-                            <span className="lazy-todo-queue-panel__item-meta mono-sm">
-                              {t("lazyTodos.progress", { done, total })}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="lazy-todo-queue-panel__card"
+                            onClick={() => onOpenItem?.(item)}
+                          >
+                            <img
+                              src="/uploads/to-do.svg"
+                              alt=""
+                              aria-hidden
+                              className="lazy-todo-queue-panel__card-icon"
+                            />
+                            <span className="lazy-todo-queue-panel__card-body">
+                              <span className="lazy-todo-queue-panel__card-title">
+                                {lazyTodoDisplayTitle(item)}
+                              </span>
                             </span>
-                          </div>
-                          {lazyTodoPreview(item) ? (
-                            <p className="lazy-todo-queue-panel__item-preview">
-                              {lazyTodoPreview(item)}
-                            </p>
-                          ) : null}
-                        </div>
-                        {!bulkSelectMode ? (
-                          <div className="lazy-todo-queue-panel__item-actions">
-                            <button
-                              type="button"
-                              className="btn xs pack-actions__btn pack-actions__btn--toolbar panel-list-open-btn"
-                              onClick={() => onOpenItem?.(item)}
-                            >
-                              {t("common.open")}
-                            </button>
-                          </div>
-                        ) : null}
+                            <span className="lazy-todo-queue-panel__card-chevron" aria-hidden>
+                              ›
+                            </span>
+                          </button>
+                        )}
                       </li>
                     );
                   })}
