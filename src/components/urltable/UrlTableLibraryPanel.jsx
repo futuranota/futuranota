@@ -288,14 +288,16 @@ export function UrlTableLibraryPanel({
                               className="steps-library-panel__card-icon"
                             />
                             <span className="steps-library-panel__card-body">
-                              <span className="steps-library-panel__card-title">
-                                {table.title}
-                              </span>
-                              {table.kind === "affiliates" ? (
-                                <span className="url-table-library-kind-badge">
-                                  {t("urlTableLibrary.libraryAffiliatesBadge")}
+                              <span className="steps-library-panel__card-title-row">
+                                <span className="steps-library-panel__card-title">
+                                  {table.title}
                                 </span>
-                              ) : null}
+                                {table.kind === "affiliates" ? (
+                                  <span className="lp-folder-category-chip url-table-library-kind-badge">
+                                    {t("urlTableLibrary.libraryAffiliatesBadge")}
+                                  </span>
+                                ) : null}
+                              </span>
                             </span>
                           </button>
                         ) : (
@@ -311,14 +313,16 @@ export function UrlTableLibraryPanel({
                               className="steps-library-panel__card-icon"
                             />
                             <span className="steps-library-panel__card-body">
-                              <span className="steps-library-panel__card-title">
-                                {table.title}
-                              </span>
-                              {table.kind === "affiliates" ? (
-                                <span className="url-table-library-kind-badge">
-                                  {t("urlTableLibrary.libraryAffiliatesBadge")}
+                              <span className="steps-library-panel__card-title-row">
+                                <span className="steps-library-panel__card-title">
+                                  {table.title}
                                 </span>
-                              ) : null}
+                                {table.kind === "affiliates" ? (
+                                  <span className="lp-folder-category-chip url-table-library-kind-badge">
+                                    {t("urlTableLibrary.libraryAffiliatesBadge")}
+                                  </span>
+                                ) : null}
+                              </span>
                             </span>
                             <span className="steps-library-panel__card-chevron" aria-hidden>
                               ›

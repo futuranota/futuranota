@@ -215,20 +215,24 @@
 }
 
 .url-table-library-kind-badge {
+  /* Reuses .lp-folder-category-chip; keep affiliate tint minimal */
+  margin-left: 0;
+  margin-top: 1px;
+  flex-shrink: 0;
+  background: #253642;
+  color: #B9E5FE;
+}
+
+.steps-library-panel__card-title-row {
   display: inline-flex;
   align-items: center;
-  margin-top: 4px;
+  gap: 6px;
+  min-width: 0;
   max-width: 100%;
-  padding: 2px 7px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, #8b5cf6 45%, transparent);
-  background: color-mix(in oklab, #c4b5fd 16%, transparent);
-  color: #c4b5fd;
-  font-family: var(--sans);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1.2;
+}
+
+.steps-library-panel__card-title-row .steps-library-panel__card-title {
+  min-width: 0;
 }
 
 .steps-library-panel__list {
@@ -924,35 +928,37 @@
   width: auto;
   min-width: 12ch;
   max-width: none;
-  margin: 0;
-  padding: 0;
+  margin: 2px 0 0;
+  padding: 5px 5px 4px;
   border: none;
   border-bottom: 1px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: #BD747D;
+  color: #c8c9cb;
   font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 700;
   letter-spacing: -0.01em;
-  line-height: 14px;
-  height: 14px;
+  line-height: 1.2;
+  height: auto;
+  min-height: 22px;
   overflow: hidden;
+  transform: translateY(2px);
 }
 
 .url-table-page-overlay__title-input::placeholder {
-  color: rgba(255, 255, 255, 0.48);
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.42);
+  font-weight: 700;
 }
 
 .url-table-page-overlay__title-input:placeholder-shown {
-  color: rgba(255, 255, 255, 0.48);
+  color: rgba(255, 255, 255, 0.42);
 }
 
 .url-table-page-overlay__title-input:focus {
   outline: none;
   border-bottom-color: transparent;
-  color: #BD747D;
+  color: #d4d5d7;
 }
 
 .url-table-page-overlay__search-wrap {
@@ -1604,11 +1610,24 @@
   min-height: 26px;
   padding: 0 9px 0 7px;
   font-size: 11px;
+  color: #7d7e81;
+  border-color: rgba(125, 126, 129, 0.35);
+  background: transparent;
 }
 
 .url-table-dashboard .doc-vault-block__action-icon-img--view {
   width: 16px;
   height: 16px;
+  filter: brightness(0) invert(0.52);
+}
+
+.url-table-page-overlay__footer .doc-new-action--save.doc-new-action--save-loading {
+  gap: 8px;
+}
+
+.url-table-page-overlay__footer .doc-new-action--save .search-spinner {
+  border-color: rgba(0, 0, 0, 0.18);
+  border-top-color: rgba(0, 0, 0, 0.78);
 }
 
 /* Editing row: description textarea must fully expand, not clip mid-line */

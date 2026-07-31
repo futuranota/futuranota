@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LinkVaultBlockView } from "../docs/blocks/LinkVaultBlockView.jsx";
 import { UrlTableEntryDetailView } from "./UrlTableEntryDetailView.jsx";
+import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
+import { SearchSpinner } from "../shared/SearchSpinner.jsx";
 import { createLinkEntry, normalizeUrlInput } from "../../lib/vaultBlocks.js";
 import { queueUrlTableEntry } from "../../lib/urlTableSession.js";
 import { removeUrlTableFromDoc } from "../../lib/urlTableLibrary.js";
@@ -361,10 +363,15 @@ export function UrlTableDashboardOverlay({
             <>
               <button
                 type="button"
-                className="doc-new-action doc-new-action--save url-table-dashboard__save"
+                className={
+                  "doc-new-action doc-new-action--save url-table-dashboard__save"
+                  + (detailSaving ? " doc-new-action--save-loading" : "")
+                }
                 onClick={() => detailSaveRef.current?.()}
                 disabled={saving || deleting || detailSaving}
+                aria-busy={detailSaving}
               >
+                {detailSaving ? <SearchSpinner size={14} /> : null}
                 {detailSaving ? t("urlTableAffiliate.saving") : t("common.save")}
               </button>
               <button
@@ -380,11 +387,16 @@ export function UrlTableDashboardOverlay({
             <>
               <button
                 type="button"
-                className="doc-new-action doc-new-action--save url-table-dashboard__save"
+                className={
+                  "doc-new-action doc-new-action--save url-table-dashboard__save"
+                  + (saving ? " doc-new-action--save-loading" : "")
+                }
                 onClick={handleSave}
                 disabled={saving || deleting}
+                aria-busy={saving}
               >
-                {t("common.save")}
+                {saving ? <SearchSpinner size={14} /> : null}
+                {saving ? t("urlTableAffiliate.saving") : t("common.save")}
               </button>
               {tableId ? (
                 <button
@@ -400,6 +412,10 @@ export function UrlTableDashboardOverlay({
           )}
         </footer>
       </div>
+      <MarkLoadingOverlay
+        open={saving || detailSaving}
+        label={t("urlTableAffiliate.saving")}
+      />
     </div>,
     document.body,
   );

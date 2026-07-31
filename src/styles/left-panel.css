@@ -12979,10 +12979,10 @@ body.doc-content-resizing * {
   min-height: 24px;
   min-width: 0;
   padding: 0 8px 0 6px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(125, 126, 129, 0.35);
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.78);
+  background: transparent;
+  color: #7d7e81;
   font-family: var(--sans);
   font-size: 11px;
   font-weight: 600;
@@ -12992,22 +12992,25 @@ body.doc-content-resizing * {
 }
 
 .doc-vault-block__action--view-label:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(125, 126, 129, 0.55);
+  color: #9a9b9e;
 }
 
 .doc-vault-block__action-icon-img--view {
   width: 15px;
   height: 15px;
-  filter: brightness(0) invert(0.82);
+  /* Match muted gray label (#7d7e81) */
+  filter: brightness(0) invert(0.52);
 }
 
 .doc-vault-block__action--view-label:hover .doc-vault-block__action-icon-img--view {
-  filter: brightness(0) invert(0.95);
+  filter: brightness(0) invert(0.62);
 }
 
 .doc-vault-block__action-view-text {
   white-space: nowrap;
+  color: inherit;
 }
 
 .doc-vault-block__affiliate-cell {
