@@ -8771,7 +8771,7 @@ body.doc-content-resizing * {
 /* Pack linked Title + Description stacks: less air between consecutive macronodes */
 .doc-block-stack__item:has(.doc-linked-macro-desc) + .doc-block-stack__item:has(.doc-h1-block),
 .doc-block-stack__item:has(.doc-linked-macro-desc) + .doc-block-stack__item:has(.doc-todo-block) {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 /* Empty TEXT shell right after a linked Description — collapse vertical space */
@@ -8797,7 +8797,7 @@ body.doc-content-resizing * {
 .doc-block-stack__item:has(.doc-linked-macro-desc)
   + .doc-block-stack__item:has(.doc-text-block)
   + .doc-block-stack__item:has(.doc-todo-block) {
-  margin-top: 4px;
+  margin-top: 0;
 }
 
 .doc-block-stack__item--unified-prose {

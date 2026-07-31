@@ -30,10 +30,7 @@ import {
   todayDateInputValue,
 } from "../../lib/docDates.js";
 import {
-  clearChildScheduleAnchorsForFolder,
-  folderScheduleDateInputBounds,
   folderSchedulePickerMinDateInput,
-  isDateInputWithinFolderSchedule,
   validateFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
@@ -184,6 +181,7 @@ function buildDocEditorDraft({
   knowledgeImport,
 }) {
   return {
+    schemaVersion: 2,
     title: title ?? "",
     body: body ?? "",
     blocks: normalizeDocBlocks(blocks),
@@ -329,6 +327,8 @@ export function DocExpandedView({
   const nodeInitialSnapshotRef = useRef(null);
   const docShellRef = useRef(null);
   const docSnapshotRef = useRef(null);
+  const docIsDirtyRef = useRef(false);
+  const skipDraftPersistRef = useRef(false);
   const pendingCloseActionRef = useRef(null);
   const hideDocForNodeModal = Boolean(activeNodeContext && !showNodeUnsavedConfirm);
   const objects = useObjectsStore((s) => s.objects);
@@ -346,6 +346,8 @@ export function DocExpandedView({
 
   useEffect(() => {
     setIsDraftReady(false);
+    skipDraftPersistRef.current = false;
+    docIsDirtyRef.current = false;
     const d = useDocsStore.getState().docs[docId];
     if (!d) return;
     const cached = useUIStateStore.getState().docEditorDrafts[docId];
@@ -370,7 +372,7 @@ export function DocExpandedView({
       normalized.reportPresentation?.animateOnOpen
       || (normalized.reportPresentation?.kind === "analyst-strategic-v2" && loadedHasText),
     );
-    const useCachedDraft = cached && !preferStoreContent && cachedHasText;
+    const useCachedDraft = cached?.schemaVersion === 2 && !preferStoreContent && cachedHasText;
 
     const blocksForSnapshotRaw = useCachedDraft ? cachedBlocks : loadedBlocks;
     const blocksForSnapshot = mergeMissingLinkedOwnerBundles(
@@ -433,7 +435,7 @@ export function DocExpandedView({
 
     if (useCachedDraft) {
       setDraftTitle(loadedTitle);
-      setDraftBlocks(cachedBlocks);
+      setDraftBlocks(blocksForSnapshot);
       setDraftBody(loadedBody);
       setDraftCreatedDate(loadedCreatedDate);
       setDraftVersion(loadedVersion);
@@ -645,6 +647,11 @@ export function DocExpandedView({
   useEffect(() => {
     if (!docId || !isDraftReady) return undefined;
     const persistDraft = () => {
+      if (skipDraftPersistRef.current) return;
+      if (!docIsDirtyRef.current) {
+        useUIStateStore.getState().clearDocEditorDraft(docId);
+        return;
+      }
       const storeDoc = useDocsStore.getState().docs[docId];
       const storeBlocks = normalizeDocBlocks(
         storeDoc?.blocks?.length
@@ -778,6 +785,7 @@ export function DocExpandedView({
       version: draftVersion,
       category: draftCategory,
       icon: draftIcon,
+      departmentId: draftDepartmentId,
       launchAt: draftLaunchAt,
       scheduleStartAt: draftScheduleStartAt,
       scheduleFinishAt: draftScheduleFinishAt,
@@ -789,7 +797,8 @@ export function DocExpandedView({
       subcategoryDocIds: draftSubcategoryDocIds,
       knowledgeImport: draftKnowledgeImport,
     });
-    return snap !== JSON.stringify(nextSnapshot);
+    const nextSerialized = JSON.stringify(nextSnapshot);
+    return snap !== nextSerialized;
   }, [
     draftTitle,
     draftBlocks,
@@ -798,6 +807,7 @@ export function DocExpandedView({
     draftVersion,
     draftCategory,
     draftIcon,
+    draftDepartmentId,
     draftLaunchAt,
     draftScheduleStartAt,
     draftScheduleFinishAt,
@@ -811,6 +821,7 @@ export function DocExpandedView({
   ]);
 
   const hasUnsavedChanges = hasUnsavedDocChanges();
+  docIsDirtyRef.current = hasUnsavedChanges;
 
   const shouldDiscardEmptyDoc = () => {
     if (!initialSnapshot) return false;
@@ -921,15 +932,6 @@ export function DocExpandedView({
   const scheduleStartMin = useFolderSchedule
     ? folderSchedulePickerMinDateInput()
     : todayDateInputValue();
-  /** Only task-oriented Content folders impose Schedule on child documents. */
-  const childScheduleBounds = useFolderSchedule
-    ? folderScheduleDateInputBounds({
-      scheduleStartAt: draftScheduleStartAt || doc?.scheduleStartAt || null,
-      scheduleFinishAt: draftScheduleFinishAt || doc?.scheduleFinishAt || null,
-      launchAt: null,
-      campaignActive: false,
-    })
-    : null;
   /** Products: title and category mirror each other. Content folders: title is free; category is department subcategory. */
   const syncTitleWithCategory = isProductMode;
 
@@ -969,30 +971,6 @@ export function DocExpandedView({
       scheduleFinishAt: finishAt,
       launchAt: startAt,
     });
-    // Reservation off → strip child anchors so the timeline has no ghosts.
-    if (!startAt && !finishAt) {
-      clearChildScheduleAnchorsForFolder(doc.id, {
-        getDoc: (id) => useDocsStore.getState().getDoc(id),
-        updateDoc,
-        getNodesByDoc: (id) => useNodesStore.getState().getNodesByDoc(id),
-        updateNode,
-      });
-      setNodeDraftAnchorDate("");
-      setNodeDraftAnchorTime("");
-      setNodeInitialSnapshot((prev) => (
-        prev ? {
-          ...prev, anchorDate: "", anchorTime: "", anchorFinishTime: "",
-        } : prev
-      ));
-      if (nodeInitialSnapshotRef.current) {
-        nodeInitialSnapshotRef.current = {
-          ...nodeInitialSnapshotRef.current,
-          anchorDate: "",
-          anchorTime: "",
-          anchorFinishTime: "",
-        };
-      }
-    }
   };
 
   /** Content folders: persist title into docsStore so the left panel updates live (category stays independent). */
@@ -1243,6 +1221,7 @@ export function DocExpandedView({
     }
     setInitialSnapshot(savedSnapshot);
     docSnapshotRef.current = JSON.stringify(savedSnapshot);
+    docIsDirtyRef.current = false;
     useUIStateStore.getState().clearDocEditorDraft(doc.id);
     onAfterDocSave?.(doc.id, savedSnapshot.blocks);
   };
@@ -1721,16 +1700,12 @@ export function DocExpandedView({
 
     const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
     // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
-    // No folder reservation → never persist date/time (Created ≠ Schedule).
+    // The explicit document date is saved after its folder window is ensured.
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (childScheduleBounds
-        ? isoFromAnchorFields(anchorDate, anchorTime)
-        : null)
+      ? (anchorDate ? isoFromAnchorFields(anchorDate, anchorTime) : null)
       : undefined;
     const anchorFinishAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (childScheduleBounds
-        ? isoFromAnchorFields(anchorDate, anchorFinishTime)
-        : null)
+      ? (anchorDate ? isoFromAnchorFields(anchorDate, anchorFinishTime) : null)
       : undefined;
 
     const contentForStorage = dataType === NODE_DATA_TYPES.TEXT
@@ -1989,7 +1964,7 @@ export function DocExpandedView({
     const launchOrAnchorIso = campaignChild
       ? (existing?.launchAt || null)
       : (existing?.anchorAt || null);
-    if (launchOrAnchorIso && (campaignChild || childScheduleBounds)) {
+    if (launchOrAnchorIso) {
       const fromNode = anchorFieldsFromIso(launchOrAnchorIso);
       setNodeDraftAnchorDate(fromNode.anchorDate);
       setNodeDraftAnchorTime(fromNode.anchorTime);
@@ -2009,7 +1984,7 @@ export function DocExpandedView({
       };
       setNodeInitialSnapshot(snap);
       nodeInitialSnapshotRef.current = snap;
-    } else if (!campaignChild && childScheduleBounds) {
+    } else if (!campaignChild) {
       const anchorFromBlock = resolveBlockAnchorFields(block, draftCreatedDate, {
         noNodeLink: isNoNodeLinkMode(resolveBlockNodeLinkColor(block)),
       });
@@ -2052,34 +2027,8 @@ export function DocExpandedView({
   const supportsScheduleAnchor = (dataType) =>
     dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
 
-  const folderDocForChildSchedule = isContentMode
-    ? {
-      scheduleStartAt: draftScheduleStartAt || doc?.scheduleStartAt || null,
-      scheduleFinishAt: draftScheduleFinishAt || doc?.scheduleFinishAt || null,
-      launchAt: draftLaunchAt || doc?.launchAt || null,
-    }
-    : null;
-
-  const alertChildScheduleOutOfRange = async () => {
-    if (!childScheduleBounds) return;
-    await askConfirm({
-      title: t("meta.scheduleTitle"),
-      message: t("meta.childScheduleOutOfRange", {
-        min: formatMmDdYy(childScheduleBounds.minDate) || childScheduleBounds.minDate,
-        max: formatMmDdYy(childScheduleBounds.maxDate) || childScheduleBounds.maxDate,
-      }),
-      confirmLabel: t("common.ok"),
-      tone: "default",
-      hideCancel: true,
-    });
-  };
-
-  const handleNodeAnchorDateChange = async (anchorDate) => {
+  const handleNodeAnchorDateChange = (anchorDate) => {
     const nextDate = String(anchorDate || "").trim();
-    if (nextDate && !isDateInputWithinFolderSchedule(nextDate, folderDocForChildSchedule)) {
-      await alertChildScheduleOutOfRange();
-      return;
-    }
     // Persist Schedule immediately — must survive tab switch; never wait for Yes.
     setNodeDraftAnchorDate(nextDate);
     if (!activeNodeContext) return;
@@ -2354,8 +2303,8 @@ export function DocExpandedView({
           onAnchorFinishTimeChange={handleNodeAnchorFinishTimeChange}
           scheduleOccupied={occupiedIntervals}
           scheduleOverlapHint={nodeScheduleOverlapHint}
-          scheduleMinDate={childScheduleBounds?.minDate || ""}
-          scheduleMaxDate={childScheduleBounds?.maxDate || ""}
+          scheduleMinDate=""
+          scheduleMaxDate=""
           onClose={handleRequestCloseNodeModal}
           onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
           entityNodeId={activeNodeContext.nodeId || null}
@@ -2389,6 +2338,8 @@ export function DocExpandedView({
         }}
         onNo={() => {
           setShowUnsavedConfirm(false);
+          skipDraftPersistRef.current = true;
+          docIsDirtyRef.current = false;
           useUIStateStore.getState().clearDocEditorDraft(docId);
           const proceed = pendingCloseActionRef.current;
           pendingCloseActionRef.current = null;

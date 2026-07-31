@@ -29,14 +29,8 @@ import {
 import { parseCalendarEventNodeContent } from "../../lib/eventCalendarSearch.js";
 import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
-import {
-  folderScheduleDateInputBounds,
-  isDateInputWithinFolderSchedule,
-} from "../../lib/folderScheduleReservation.js";
-import { formatMmDdYy } from "../../lib/docDates.js";
 import { isNoNodeLinkMode, resolveBlockNodeLinkColor } from "../../lib/docNodeLinkColors.js";
 import { nodeDraftContentForStorage } from "../../lib/nodeInlineContent.js";
-import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
@@ -60,22 +54,18 @@ export function useDocBlockNodeModal({
   docTitle = "New document",
   nodeLinkColor = "dark",
   onInsertToCanvas,
-  /** Parent folder schedule bounds ({ scheduleStartAt, scheduleFinishAt } or full doc). */
+  /** Parent folder metadata; its optional schedule does not constrain documents. */
   parentFolderDoc = null,
   /** Company object id — required for @ URL-table mentions inside the node modal. */
   parentObjectId = null,
 }) {
   const { t } = useI18n();
-  const askConfirm = useConfirmStore((s) => s.ask);
   const getNode = useNodesStore((s) => s.getNode);
   const updateNode = useNodesStore((s) => s.updateNode);
   const createOrUpdateNodeFromDocBlock = useNodesStore((s) => s.createOrUpdateNodeFromDocBlock);
   const syncNodeToParentDoc = useNodesStore((s) => s.syncNodeToParentDoc);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const campaignDocMode = Boolean(parentFolderDoc?.campaignActive);
-  const childScheduleBounds = campaignDocMode
-    ? null
-    : folderScheduleDateInputBounds(parentFolderDoc);
 
   const [activeNodeContext, setActiveNodeContext] = useState(null);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
@@ -174,12 +164,12 @@ export function useDocBlockNodeModal({
     // No folder reservation → never persist date/time (Created ≠ Schedule).
     const scheduleDate = String(anchorDate || "").trim();
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (childScheduleBounds && scheduleDate
+      ? (scheduleDate
         ? isoFromAnchorFields(scheduleDate, anchorTime)
         : null)
       : undefined;
     const anchorFinishAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (childScheduleBounds && scheduleDate
+      ? (scheduleDate
         ? isoFromAnchorFields(scheduleDate, anchorFinishTime)
         : null)
       : undefined;
@@ -395,14 +385,13 @@ export function useDocBlockNodeModal({
     const launchOrAnchorIso = campaignDocMode
       ? (existing?.launchAt || null)
       : (existing?.anchorAt || null);
-    const folderHasSchedule = Boolean(childScheduleBounds);
-    if (launchOrAnchorIso && (campaignDocMode || folderHasSchedule)) {
+    if (launchOrAnchorIso) {
       const fromNode = anchorFieldsFromIso(launchOrAnchorIso);
       setNodeDraftAnchorDate(fromNode.anchorDate);
       setNodeDraftAnchorTime(fromNode.anchorTime);
       const fromFinish = anchorFieldsFromIso(existing?.anchorFinishAt || null);
       setNodeDraftAnchorFinishTime(fromFinish.anchorTime || "");
-    } else if (!campaignDocMode && folderHasSchedule) {
+    } else if (!campaignDocMode) {
       const anchorFromBlock = resolveBlockAnchorFields(block, createdDate, {
         noNodeLink: isNoNodeLinkMode(blockLinkColor(blockIndex)),
       });
@@ -432,7 +421,7 @@ export function useDocBlockNodeModal({
     setNodeDraftSourceId(null);
   };
 
-  const flushAndCloseNodeModal = () => {
+  const flushAndCloseNodeModal = async () => {
     if (!activeNodeContext) {
       resetNodeModal();
       return;
@@ -471,23 +460,8 @@ export function useDocBlockNodeModal({
     flushAndCloseNodeModal();
   };
 
-  const handleNodeAnchorDateChange = async (anchorDate) => {
+  const handleNodeAnchorDateChange = (anchorDate) => {
     const nextDate = String(anchorDate || "").trim();
-    if (nextDate && !isDateInputWithinFolderSchedule(nextDate, parentFolderDoc)) {
-      if (childScheduleBounds) {
-        await askConfirm({
-          title: t("meta.scheduleTitle"),
-          message: t("meta.childScheduleOutOfRange", {
-            min: formatMmDdYy(childScheduleBounds.minDate) || childScheduleBounds.minDate,
-            max: formatMmDdYy(childScheduleBounds.maxDate) || childScheduleBounds.maxDate,
-          }),
-          confirmLabel: t("common.ok"),
-          tone: "default",
-          hideCancel: true,
-        });
-      }
-      return;
-    }
     // Persist Schedule immediately — must survive tab switch.
     setNodeDraftAnchorDate(nextDate);
     if (!activeNodeContext) return;
@@ -599,8 +573,8 @@ export function useDocBlockNodeModal({
       onAnchorFinishTimeChange={handleNodeAnchorFinishTimeChange}
       scheduleOccupied={occupied}
       scheduleOverlapHint={overlapHint}
-      scheduleMinDate={childScheduleBounds?.minDate || ""}
-      scheduleMaxDate={childScheduleBounds?.maxDate || ""}
+      scheduleMinDate=""
+      scheduleMaxDate=""
       onClose={flushAndCloseNodeModal}
       onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
       entityNodeId={activeNodeContext.nodeId || null}

@@ -1,0 +1,36 @@
+---
+description: Single Assistant card roadmap and chat UI reference
+alwaysApply: true
+---
+
+# Single Assistant card
+
+Futura Nota is moving toward one protagonist: **Asistente**.
+
+## Transition
+
+- Keep the existing **Agents** folder/card untouched while testing continues.
+- Do not delete or migrate Agents until the user explicitly approves it.
+- Add a separate card directly below Agents titled **Asistente**.
+- The new card should follow the current Agent card's insert/open interaction so it can be inserted into the workspace.
+- Long term, Agents will be removed and only Asistente will remain.
+
+## Chat reference
+
+The shared `ChatMessages` code is a visual/interaction reference, not production code to copy literally.
+
+- Dark chat card using the product surface base `#151515`.
+- Header with assistant identity and sparkle/star treatment.
+- Distinct user and assistant message bubbles.
+- Animated typing indicator and smooth message entrance/scroll.
+- Bottom text input with Enter/send interaction.
+- Replay/reset is optional and mainly useful for demos/testing.
+- Replace “Nexus AI” and demo copy with Futura Nota’s **Asistente** voice.
+- Adapt to this repo’s JSX, CSS, i18n, state, and existing dependencies; do not assume shadcn aliases or `cn`.
+
+## Product direction
+
+- Start text-first.
+- Voice comes later for small tasks.
+- Schedule/status signals will eventually help Asistente take better notes and manage dates.
+- Do not connect real AI behavior until its functional brief is explicit.

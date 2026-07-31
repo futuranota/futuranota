@@ -7,15 +7,6 @@ import {
   isTemplateDoc,
 } from "./templateDoc.js";
 
-/** YYYY-MM-DD from a local Date (no UTC round-trip). */
-function calendarDateInputValue(d) {
-  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 /**
  * Inclusive calendar range for a folder reservation.
  * Only explicit Schedule fields count — never launchAt (campaign/meta) or other aliases.
@@ -37,109 +28,11 @@ export function resolveFolderScheduleRange(doc) {
 }
 
 /**
- * Inclusive YYYY-MM-DD bounds for child document Schedule date pickers.
- * Time remains unconstrained. Null when the folder has no reservation.
- * @param {object | null | undefined} doc
- * @returns {{ minDate: string, maxDate: string } | null}
- */
-export function folderScheduleDateInputBounds(doc) {
-  const range = resolveFolderScheduleRange(doc);
-  if (!range) return null;
-  return {
-    minDate: calendarDateInputValue(range.start),
-    maxDate: calendarDateInputValue(range.finish),
-  };
-}
-
-/**
  * True when the folder has an active reservation (Start resolved).
  * @param {object | null | undefined} doc
  */
 export function isFolderScheduleReserved(doc) {
   return Boolean(resolveFolderScheduleRange(doc));
-}
-
-/**
- * Drop date/time schedule from every child node + mirrored block fields when
- * the parent folder loses its reservation (avoids timeline ghosts).
- * @param {string} folderDocId
- * @param {{
- *   getDoc: (id: string) => object | null | undefined,
- *   updateDoc: (id: string, patch: object) => void,
- *   getNodesByDoc: (id: string) => object[],
- *   updateNode: (id: string, patch: object) => void,
- * }} stores
- */
-export function clearChildScheduleAnchorsForFolder(folderDocId, stores) {
-  if (!folderDocId || !stores) return 0;
-  const { getDoc, updateDoc, getNodesByDoc, updateNode } = stores;
-  let cleared = 0;
-
-  const nodes = typeof getNodesByDoc === "function" ? getNodesByDoc(folderDocId) : [];
-  for (const node of nodes || []) {
-    if (!node?.id) continue;
-    const hasStart = !(node.anchorAt == null || node.anchorAt === "");
-    const hasFinish = !(node.anchorFinishAt == null || node.anchorFinishAt === "");
-    if (!hasStart && !hasFinish) continue;
-    updateNode(node.id, { anchorAt: null, anchorFinishAt: null });
-    cleared += 1;
-  }
-
-  const doc = typeof getDoc === "function" ? getDoc(folderDocId) : null;
-  const blocks = Array.isArray(doc?.blocks) ? doc.blocks : null;
-  if (blocks && typeof updateDoc === "function") {
-    let blocksChanged = false;
-    const nextBlocks = blocks.map((block) => {
-      if (!block || typeof block !== "object") return block;
-      const hasSchedule = Boolean(
-        String(block.anchorDate || "").trim()
-        || String(block.anchorTime || "").trim()
-        || String(block.anchorFinishTime || "").trim()
-        || block.anchorFromNode,
-      );
-      if (!hasSchedule) return block;
-      blocksChanged = true;
-      return {
-        ...block,
-        anchorDate: "",
-        anchorTime: "",
-        anchorFinishTime: "",
-        anchorFromNode: false,
-      };
-    });
-    if (blocksChanged) {
-      updateDoc(folderDocId, { blocks: nextBlocks });
-    }
-  }
-
-  return cleared;
-}
-
-/**
- * True when dateInput is empty, or folder has no range, or date is inside the range.
- * @param {string} dateInput YYYY-MM-DD
- * @param {object | null | undefined} doc
- */
-export function isDateInputWithinFolderSchedule(dateInput, doc) {
-  const bounds = folderScheduleDateInputBounds(doc);
-  if (!bounds) return true;
-  const d = String(dateInput || "").trim();
-  if (!d) return true;
-  return d >= bounds.minDate && d <= bounds.maxDate;
-}
-
-/**
- * Clamp YYYY-MM-DD into folder range (or leave empty / pass through when no range).
- * @param {string} dateInput
- * @param {object | null | undefined} doc
- */
-export function clampDateInputToFolderSchedule(dateInput, doc) {
-  const bounds = folderScheduleDateInputBounds(doc);
-  const d = String(dateInput || "").trim();
-  if (!bounds || !d) return d;
-  if (d < bounds.minDate) return bounds.minDate;
-  if (d > bounds.maxDate) return bounds.maxDate;
-  return d;
 }
 
 /** Content/campaign folders in an Object — not products, knowledge, or templates. */

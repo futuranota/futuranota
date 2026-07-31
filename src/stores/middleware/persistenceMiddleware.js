@@ -22,6 +22,28 @@ const TOMBSTONE_LEDGER_KEY = "futura-nota-deleted-v1";
 /** Keep tombstones after remote SELECT says gone so a sibling tab cannot race-reupsert. */
 const TOMBSTONE_CLEAR_GRACE_MS = 15_000;
 
+// #region agent log
+const DEBUG_TAB_ID = (() => {
+  try {
+    const existing = sessionStorage.getItem("fn-debug-tab-8974ed");
+    if (existing) return existing;
+    const created = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    sessionStorage.setItem("fn-debug-tab-8974ed", created);
+    return created;
+  } catch {
+    return "tab-unknown";
+  }
+})();
+const debugNodeSummaries = (nodes) => Object.values(nodes || {}).map((node) => ({
+  nodeId: node?.id ?? null,
+  numericTitle: /^\d+$/.test(String(node?.title || "").trim()) ? String(node.title).trim() : null,
+  titleLength: String(node?.title || "").length,
+  status: node?.status ?? null,
+  completed: Boolean(node?.completed),
+  updatedAt: node?.updatedAt ?? null,
+})).filter((node) => node.numericTitle !== null || node.status !== null).slice(0, 100);
+// #endregion
+
 /** Pack schedule + status + corpus meta into nodes.reference JSONB (no dedicated DB columns). */
 function referenceWithNodeMeta(node) {
   const base = node?.reference && typeof node.reference === "object" ? { ...node.reference } : {};
@@ -1553,6 +1575,9 @@ export function initPersistenceMiddleware(stores) {
       const objectsForApply = deletesHappened
         ? rebuildObjectChildren(liveNow?.objects || hydratedState.objects || {}, safeDocs)
         : rebuildObjectChildren(hydratedState.objects || {}, safeDocs);
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H4',location:'src/stores/middleware/persistenceMiddleware.js:beforeHydrateApply',message:'Comparing hydrate snapshots before store replacement',data:{tabId:DEBUG_TAB_ID,deletesHappened,memory:debugNodeSummaries(memorySnapshot?.nodes),live:debugNodeSummaries(liveNow?.nodes),hydrated:debugNodeSummaries(hydratedNodes),chosen:debugNodeSummaries(safeNodes)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       applyStateToStores({
         ...hydratedState,
         objects: objectsForApply,
@@ -1808,10 +1833,16 @@ export function initPersistenceMiddleware(stores) {
       const nodeLocalIds = nodesRows.map((r) => r.id);
       let nodesUpsertOk = true;
       if (nodesRows.length > 0) {
+        // #region agent log
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H2-H3',location:'src/stores/middleware/persistenceMiddleware.js:beforeNodesUpsert',message:'Cloud node upsert starting',data:{tabId:DEBUG_TAB_ID,nodes:debugNodeSummaries(state.nodes),count:nodesRows.length,visibility:document.visibilityState},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         nodesUpsertOk = await runUpsert(
           "Upsert nodes",
           supabase.from("nodes").upsert(nodesRows, upsertOpts),
         );
+        // #region agent log
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H3',location:'src/stores/middleware/persistenceMiddleware.js:afterNodesUpsert',message:'Cloud node upsert finished',data:{tabId:DEBUG_TAB_ID,ok:Boolean(nodesUpsertOk),count:nodesRows.length,visibility:document.visibilityState},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if (!nodesUpsertOk) criticalOk = false;
       }
       const nodesOrphansOk = nodesUpsertOk
@@ -2010,6 +2041,9 @@ export function initPersistenceMiddleware(stores) {
   const flushPersistenceSyncBestEffort = () => {
     debouncedRemoteSync.cancel();
     const currentState = getLocalState();
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H2-H3',location:'src/stores/middleware/persistenceMiddleware.js:flushBestEffort',message:'Lifecycle flush requested',data:{tabId:DEBUG_TAB_ID,visibility:document.visibilityState,isSyncedWithRemote,nodes:debugNodeSummaries(currentState.nodes)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
     } catch {

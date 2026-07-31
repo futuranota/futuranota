@@ -216,6 +216,11 @@ export function DocDocumentBox({
   const [hasManualBoxHeight, setHasManualBoxHeight] = useState(false);
   const [contentBoxResizing, setContentBoxResizing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H5',location:'src/components/docs/DocDocumentBox.jsx:saveState',message:'Folder save button state',data:{docId:docId??null,isSaving:Boolean(isSaving),saveDisabled:Boolean(saveDisabled),hasOnSave:Boolean(onSave),hasCloseAfterSave:Boolean(onCloseAfterSave)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }, [docId, isSaving, saveDisabled, onSave, onCloseAfterSave]);
   const typographyStorageKey = docId ? `doc:${docId}` : null;
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
 

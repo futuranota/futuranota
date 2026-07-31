@@ -13,16 +13,10 @@ import {
 import { anchorFieldsFromIso, isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import {
   dateInputFromIso,
-  formatMmDdYy,
   isoFromDateInput,
   todayDateInputValue,
 } from "../../lib/docDates.js";
-import {
-  folderScheduleDateInputBounds,
-  isDateInputWithinFolderSchedule,
-} from "../../lib/folderScheduleReservation.js";
 import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
-import { useConfirmStore } from "../../stores/confirmStore.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { NodeQueryModal } from "./NodeQueryModal.jsx";
 import {
@@ -183,7 +177,6 @@ export function StandaloneNodeModal({
   onDeleted,
 }) {
   const { t } = useI18n();
-  const askConfirm = useConfirmStore((s) => s.ask);
   const addNode = useNodesStore((s) => s.addNode);
   const updateNode = useNodesStore((s) => s.updateNode);
   const getNode = useNodesStore((s) => s.getNode);
@@ -273,6 +266,10 @@ export function StandaloneNodeModal({
   const discardWithoutSave = () => {
     if (!isNew && node?.id) {
       const snap = openSnapshotRef.current;
+      const liveBeforeDiscard = useNodesStore.getState().nodes[node.id] || null;
+      // #region agent log
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H1',location:'src/components/nodes/StandaloneNodeModal.jsx:discardWithoutSave',message:'Discard path restoring opening snapshot',data:{nodeId:node.id,live:{numericTitle:/^\d+$/.test(String(liveBeforeDiscard?.title||'').trim())?String(liveBeforeDiscard.title).trim():null,titleLength:String(liveBeforeDiscard?.title||'').length,status:liveBeforeDiscard?.status??null,updatedAt:liveBeforeDiscard?.updatedAt??null},snapshot:{numericTitle:/^\d+$/.test(String(snap.query||'').trim())?String(snap.query).trim():null,titleLength:String(snap.query||'').length,status:snap.status??null,updatedAt:snap.updatedAt??null}},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       updateNode(node.id, {
         title: snap.query,
         sourceQuery: snap.query,
@@ -302,32 +299,8 @@ export function StandaloneNodeModal({
     ? (docsByStoreId?.[resolvedParentDocId] || docsById[resolvedParentDocId] || null)
     : null;
   const campaignDocMode = Boolean(parentFolderDoc?.campaignActive);
-  const childScheduleBounds = useMemo(
-    () => (campaignDocMode ? null : folderScheduleDateInputBounds(parentFolderDoc)),
-    [parentFolderDoc, campaignDocMode],
-  );
-
-  const handleAnchorDateChange = async (next) => {
+  const handleAnchorDateChange = (next) => {
     const nextDate = String(next || "").trim();
-    if (
-      !campaignDocMode
-      && nextDate
-      && !isDateInputWithinFolderSchedule(nextDate, parentFolderDoc)
-    ) {
-      if (childScheduleBounds) {
-        await askConfirm({
-          title: t("meta.scheduleTitle"),
-          message: t("meta.childScheduleOutOfRange", {
-            min: formatMmDdYy(childScheduleBounds.minDate) || childScheduleBounds.minDate,
-            max: formatMmDdYy(childScheduleBounds.maxDate) || childScheduleBounds.maxDate,
-          }),
-          confirmLabel: t("common.ok"),
-          tone: "default",
-          hideCancel: true,
-        });
-      }
-      return;
-    }
     setAnchorDate(nextDate);
   };
 
@@ -350,32 +323,11 @@ export function StandaloneNodeModal({
     const scheduleDate = String(anchorDate || "").trim();
     const supportsSchedule =
       dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
-    if (
-      !campaignDocMode
-      && supportsSchedule
-      && scheduleDate
-      && !isDateInputWithinFolderSchedule(scheduleDate, parentFolderDoc)
-    ) {
-      if (childScheduleBounds) {
-        await askConfirm({
-          title: t("meta.scheduleTitle"),
-          message: t("meta.childScheduleOutOfRange", {
-            min: formatMmDdYy(childScheduleBounds.minDate) || childScheduleBounds.minDate,
-            max: formatMmDdYy(childScheduleBounds.maxDate) || childScheduleBounds.maxDate,
-          }),
-          confirmLabel: t("common.ok"),
-          tone: "default",
-          hideCancel: true,
-        });
-      }
-      return;
-    }
-    // Schedule only when the parent folder has a reservation AND the user set a date.
-    // No folder schedule → never invent date/time from Created.
-    const anchorAt = (!campaignDocMode && supportsSchedule && childScheduleBounds)
+    // Explicit document date/time is independent from the optional folder window.
+    const anchorAt = (!campaignDocMode && supportsSchedule)
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
       : null;
-    const anchorFinishAt = (!campaignDocMode && supportsSchedule && childScheduleBounds)
+    const anchorFinishAt = (!campaignDocMode && supportsSchedule)
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorFinishTime) : null)
       : null;
     const launchAt = (campaignDocMode && supportsSchedule)
@@ -390,8 +342,7 @@ export function StandaloneNodeModal({
       ? (docsByStoreId?.[parentId]?.parentObjectId || parentObjectId || null)
       : (parentObjectId || node?.objectId || null);
 
-    // Schedule on child docs is optional. Folder reservation only constrains
-    // the date picker range when the user chooses to set date/time.
+    // Schedule on child docs is optional and never mutates the folder window.
 
     setIsSaving(true);
     try {
@@ -585,8 +536,8 @@ export function StandaloneNodeModal({
             { excludeNodeId: node?.id || null, objectId: parentObjectId || null },
           ),
         ) ? t("meta.scheduleOverlapHint") : ""}
-        scheduleMinDate={childScheduleBounds?.minDate || ""}
-        scheduleMaxDate={childScheduleBounds?.maxDate || ""}
+        scheduleMinDate=""
+        scheduleMaxDate=""
         onSave={handleSave}
         onClose={onClose}
         onCloseWithoutSave={discardWithoutSave}

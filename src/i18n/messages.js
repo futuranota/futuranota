@@ -234,7 +234,7 @@ export const messages = {
       scheduleRangePickEnd: "Now pick the end date",
       scheduleInfoAria: "About schedule",
       scheduleInfoBody:
-        "Choosing a schedule reserves a time range for this folder on the timeline. Documents inside can only be scheduled within that range (including a specific time). The same calendar days can’t be reserved by another folder. This keeps folders ordered, consistent, and easier for you—and your AI assistant—to find by date. You can always place it on the timeline for a clear visual reference.",
+        "Choosing a schedule reserves an optional time range for this folder on the timeline. Documents keep their own independent schedules and may fall inside or outside this range. Folder ranges may overlap.",
       scheduleRangeBlocked: "That range includes days reserved by another folder.",
       created: "Created",
       department: "Department",
@@ -1312,7 +1312,7 @@ export const messages = {
       scheduleRangeBlocked: "That range includes days reserved by another folder.",
       scheduleInfoAria: "About schedule",
       scheduleInfoBody:
-        "Choosing a schedule reserves a time range for this folder on the timeline. Documents inside can only be scheduled within that range (including a specific time). The same calendar days can’t be reserved by another folder. This keeps folders ordered, consistent, and easier for you—and your AI assistant—to find by date. You can always place it on the timeline for a clear visual reference.",
+        "Elegir un schedule reserva un rango opcional para este folder en el timeline. Los documentos mantienen schedules independientes y pueden quedar dentro o fuera de ese rango. Los rangos de folders pueden coincidir.",
       created: "Created",
       department: "Department",
       subcategory: "Subcategory",
