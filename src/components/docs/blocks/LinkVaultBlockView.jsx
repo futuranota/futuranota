@@ -716,44 +716,67 @@ export function LinkVaultBlockView({
                 </td>
                 <td>
                   {entry.tag ? (
-                    <button
-                      type="button"
-                      className="doc-vault-block__chip doc-vault-block__chip--tag"
-                      onClick={() => applyChipValue("tag", entry.tag)}
-                      title={`Use tag “${entry.tag}”`}
-                    >
-                      <span className="doc-vault-block__chip-at" aria-hidden>@</span>
-                      <span className="doc-vault-block__chip-label">{entry.tag}</span>
-                    </button>
+                    showRowView ? (
+                      <span className="doc-vault-block__chip doc-vault-block__chip--tag doc-vault-block__chip--static">
+                        <span className="doc-vault-block__chip-at" aria-hidden>@</span>
+                        <span className="doc-vault-block__chip-label">{entry.tag}</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="doc-vault-block__chip doc-vault-block__chip--tag"
+                        onClick={() => applyChipValue("tag", entry.tag)}
+                        title={`Use tag “${entry.tag}”`}
+                      >
+                        <span className="doc-vault-block__chip-at" aria-hidden>@</span>
+                        <span className="doc-vault-block__chip-label">{entry.tag}</span>
+                      </button>
+                    )
                   ) : (
                     <span className="doc-vault-block__empty">—</span>
                   )}
                 </td>
                 <td>
                   {entry.category ? (
-                    <button
-                      type="button"
-                      className="doc-vault-block__chip doc-vault-block__chip--category"
-                      onClick={() => applyChipValue("category", entry.category)}
-                      title={`Use category “${entry.category}”`}
-                    >
-                      <span className="doc-vault-block__chip-label">{entry.category}</span>
-                    </button>
+                    showRowView ? (
+                      <span className="doc-vault-block__chip doc-vault-block__chip--category doc-vault-block__chip--static">
+                        <span className="doc-vault-block__chip-label">{entry.category}</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="doc-vault-block__chip doc-vault-block__chip--category"
+                        onClick={() => applyChipValue("category", entry.category)}
+                        title={`Use category “${entry.category}”`}
+                      >
+                        <span className="doc-vault-block__chip-label">{entry.category}</span>
+                      </button>
+                    )
                   ) : (
                     <span className="doc-vault-block__empty">—</span>
                   )}
                 </td>
                 <td>{entry.description || <span className="doc-vault-block__empty">—</span>}</td>
                 <td>
-                  <a
-                    className="doc-vault-block__link"
-                    href={entry.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {entry.url}
-                  </a>
+                  {entry.url ? (
+                    showRowView ? (
+                      <span className="doc-vault-block__link doc-vault-block__link--static">
+                        {entry.url}
+                      </span>
+                    ) : (
+                      <a
+                        className="doc-vault-block__link"
+                        href={entry.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {entry.url}
+                      </a>
+                    )
+                  ) : (
+                    <span className="doc-vault-block__empty">—</span>
+                  )}
                 </td>
                 {showRowView ? (
                   <td className="doc-vault-block__affiliate-cell">

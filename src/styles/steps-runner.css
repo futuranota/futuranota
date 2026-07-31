@@ -1103,47 +1103,106 @@
 }
 
 .url-table-entry-detail {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  min-height: 100%;
-  padding: 4px 2px 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px 4px 12px 2px;
   box-sizing: border-box;
   background: #151515;
   border-radius: 8px;
+  --scroll-bg: #151515;
+  --scroll-thumb: rgba(255, 255, 255, 0.12);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.22);
+}
+
+.url-table-entry-detail::-webkit-scrollbar {
+  width: 8px;
+}
+
+.url-table-entry-detail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.url-table-entry-detail::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+}
+
+.url-table-entry-detail::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
 }
 
 .url-table-entry-detail__toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+  min-height: 28px;
 }
 
 .url-table-entry-detail__back {
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+  border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.62);
-  font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 500;
-  padding: 6px 10px;
+  color: #e8dcc8;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .url-table-entry-detail__back:hover {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.url-table-entry-detail__back:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.url-table-entry-detail__back-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background-color: currentColor;
+  opacity: 0.35;
+  -webkit-mask-image: url("/uploads/botones/left.svg");
+  mask-image: url("/uploads/botones/left.svg");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  transition: opacity 0.15s ease;
+}
+
+.url-table-entry-detail__back:hover .url-table-entry-detail__back-icon {
+  opacity: 1;
 }
 
 .url-table-entry-detail__title {
   margin: 0;
+  min-width: 0;
   font-family: var(--sans);
   font-size: 15px;
   font-weight: 600;
   color: #e8e4dc;
   letter-spacing: -0.01em;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .url-table-entry-detail__grid {
@@ -1180,9 +1239,15 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   background: #151515;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.48);
   font-family: var(--sans);
   font-size: 13px;
+}
+
+.url-table-entry-detail__field input::placeholder,
+.url-table-entry-detail__field textarea::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+  opacity: 1;
 }
 
 .url-table-entry-detail__field textarea {
@@ -1196,6 +1261,7 @@
 .url-table-entry-detail__field textarea:focus {
   outline: none;
   border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
 }
 
 .url-table-entry-detail__error {
@@ -1660,8 +1726,8 @@
 }
 
 .url-table-dashboard .doc-vault-block__table td:nth-child(1) {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   color: #999999;
   white-space: normal;
   word-break: break-word;
@@ -1675,8 +1741,8 @@
   border: none;
   background: transparent;
   color: #999999;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   line-height: 1.35;
   white-space: normal;
   word-break: break-word;
@@ -1684,6 +1750,8 @@
 
 .url-table-dashboard .doc-vault-block__name-chip-label {
   min-width: 0;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 /* Tag + Category columns */
@@ -1701,6 +1769,21 @@
   color: #7d7e81;
   white-space: normal;
   word-break: break-word;
+}
+
+.url-table-dashboard .doc-vault-block__chip--static {
+  cursor: default;
+}
+
+.url-table-dashboard .doc-vault-block__chip--static:hover {
+  filter: none;
+}
+
+.url-table-dashboard .doc-vault-block__link--static {
+  color: rgba(255, 255, 255, 0.48);
+  text-decoration: none;
+  cursor: default;
+  pointer-events: none;
 }
 
 .url-table-dashboard .doc-vault-block__chip {

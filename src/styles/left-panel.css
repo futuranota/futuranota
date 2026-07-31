@@ -13061,6 +13061,17 @@ body.doc-content-resizing * {
   text-decoration: underline;
 }
 
+.doc-vault-block__link--static {
+  color: rgba(255, 255, 255, 0.55);
+  cursor: default;
+  pointer-events: none;
+}
+
+.doc-vault-block__chip--static {
+  cursor: default;
+  pointer-events: none;
+}
+
 .doc-vault-block__form {
   display: grid;
   gap: 6px;

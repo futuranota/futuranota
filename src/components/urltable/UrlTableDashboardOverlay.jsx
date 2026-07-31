@@ -39,7 +39,9 @@ export function UrlTableDashboardOverlay({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [viewEntryId, setViewEntryId] = useState(null);
+  const [detailSaving, setDetailSaving] = useState(false);
   const draftRef = useRef(draft);
+  const detailSaveRef = useRef(null);
   const confirmOpenRef = useRef(false);
   draftRef.current = draft;
 
@@ -53,6 +55,7 @@ export function UrlTableDashboardOverlay({
     setDraft({ name: "", tag: "", category: "", description: "", url: "" });
     setQuery(initialSearch);
     setViewEntryId(null);
+    setDetailSaving(false);
   }, [sessionKey, initialSearch]);
 
   // Auto-expire active cookies whose window has elapsed.
@@ -290,6 +293,8 @@ export function UrlTableDashboardOverlay({
               entry={viewingEntry}
               onSave={handleSaveEntryDetail}
               onBack={() => setViewEntryId(null)}
+              flushSaveRef={detailSaveRef}
+              onSavingChange={setDetailSaving}
             />
           ) : (
             <LinkVaultBlockView
@@ -308,7 +313,9 @@ export function UrlTableDashboardOverlay({
               showRowView={isAffiliateTable}
               onViewEntry={isAffiliateTable ? handleViewEntry : null}
               labels={{
-                name: "Title",
+                name: isAffiliateTable
+                  ? t("urlTableAffiliate.businessName")
+                  : "Title",
                 tag: "Tag",
                 category: "Category",
                 description: "Description",
@@ -325,28 +332,39 @@ export function UrlTableDashboardOverlay({
           )}
         </div>
 
-        {!viewingEntry ? (
-          <footer className="url-table-page-overlay__footer">
+        <footer className="url-table-page-overlay__footer">
+          {viewingEntry ? (
             <button
               type="button"
               className="doc-new-action doc-new-action--save url-table-dashboard__save"
-              onClick={handleSave}
-              disabled={saving || deleting}
+              onClick={() => detailSaveRef.current?.()}
+              disabled={saving || deleting || detailSaving}
             >
-              {t("common.save")}
+              {detailSaving ? t("urlTableAffiliate.saving") : t("common.save")}
             </button>
-            {tableId ? (
+          ) : (
+            <>
               <button
                 type="button"
-                className="btn xs url-table-page-overlay__delete-btn"
-                onClick={handleDelete}
+                className="doc-new-action doc-new-action--save url-table-dashboard__save"
+                onClick={handleSave}
                 disabled={saving || deleting}
               >
-                {t("urlTableLibrary.delete")}
+                {t("common.save")}
               </button>
-            ) : null}
-          </footer>
-        ) : null}
+              {tableId ? (
+                <button
+                  type="button"
+                  className="btn xs url-table-page-overlay__delete-btn"
+                  onClick={handleDelete}
+                  disabled={saving || deleting}
+                >
+                  {t("urlTableLibrary.delete")}
+                </button>
+              ) : null}
+            </>
+          )}
+        </footer>
       </div>
     </div>,
     document.body,

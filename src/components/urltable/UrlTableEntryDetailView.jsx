@@ -19,8 +19,16 @@ import { useI18n } from "../../i18n/useI18n.js";
  * @param {import("../../lib/vaultBlocks.js").LinkEntry} props.entry
  * @param {(next: import("../../lib/vaultBlocks.js").LinkEntry) => void | Promise<void>} props.onSave
  * @param {() => void} props.onBack
+ * @param {React.MutableRefObject<(() => void)|null>} [props.flushSaveRef]
+ * @param {(saving: boolean) => void} [props.onSavingChange]
  */
-export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
+export function UrlTableEntryDetailView({
+  entry,
+  onSave,
+  onBack,
+  flushSaveRef = null,
+  onSavingChange = null,
+}) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(() => seedDraft(entry));
   const [saving, setSaving] = useState(false);
@@ -38,6 +46,7 @@ export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
 
   const perSale = computeAffiliatePerSale(draft);
   const earnings = computeAffiliateEarnings(draft);
+  const title = String(draft.name ?? "").trim() || t("urlTableAffiliate.untitled");
 
   const patchNumber = (field, raw) => {
     const trimmed = String(raw ?? "").trim();
@@ -71,6 +80,7 @@ export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
+    onSavingChange?.(true);
     setSaveError("");
     try {
       const affiliate = createAffiliateFields(draft);
@@ -99,8 +109,19 @@ export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
       setSaveError(t("urlTableAffiliate.saveFailed"));
     } finally {
       setSaving(false);
+      onSavingChange?.(false);
     }
   };
+
+  useEffect(() => {
+    if (!flushSaveRef) return undefined;
+    flushSaveRef.current = () => {
+      void handleSave();
+    };
+    return () => {
+      flushSaveRef.current = null;
+    };
+  });
 
   return (
     <div className="url-table-entry-detail">
@@ -110,12 +131,12 @@ export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
           className="url-table-entry-detail__back"
           onClick={onBack}
           disabled={saving}
+          aria-label={t("urlTableAffiliate.back")}
+          title={t("urlTableAffiliate.back")}
         >
-          ← {t("urlTableAffiliate.back")}
+          <span className="url-table-entry-detail__back-icon" aria-hidden />
         </button>
-        <h2 className="url-table-entry-detail__title">
-          {draft.name.trim() || t("urlTableAffiliate.untitled")}
-        </h2>
+        <h2 className="url-table-entry-detail__title">{title}</h2>
       </div>
 
       <div className="url-table-entry-detail__stats">
@@ -153,40 +174,13 @@ export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
 
       <div className="url-table-entry-detail__grid">
         <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.businessName")}</span>
-          <input
-            type="text"
-            value={draft.name}
-            onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
-          />
-        </label>
-
-        <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.tag")}</span>
-          <input
-            type="text"
-            value={draft.tag ?? ""}
-            onChange={(e) => setDraft((prev) => ({ ...prev, tag: e.target.value }))}
-          />
-        </label>
-
-        <label className="url-table-entry-detail__field">
-          <span>{t("urlTableAffiliate.category")}</span>
-          <input
-            type="text"
-            value={draft.category || AFFILIATE_CATEGORY}
-            onChange={(e) => setDraft((prev) => ({ ...prev, category: e.target.value }))}
-          />
-        </label>
-
-        <label className="url-table-entry-detail__field">
           <span>{t("urlTableAffiliate.commissionRate")}</span>
           <input
             type="number"
             min="0"
             step="0.01"
             value={draft.commissionRate ?? ""}
-            placeholder="10"
+            placeholder=""
             onChange={(e) => patchNumber("commissionRate", e.target.value)}
           />
         </label>
@@ -198,7 +192,7 @@ export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
             min="0"
             step="0.01"
             value={draft.productPrice ?? ""}
-            placeholder="99"
+            placeholder=""
             onChange={(e) => patchNumber("productPrice", e.target.value)}
           />
         </label>
@@ -210,7 +204,7 @@ export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
             min="0"
             step="1"
             value={draft.cookieDays ?? ""}
-            placeholder="30"
+            placeholder=""
             onChange={(e) => patchNumber("cookieDays", e.target.value)}
           />
         </label>
@@ -236,40 +230,15 @@ export function UrlTableEntryDetailView({ entry, onSave, onBack }) {
             min="0"
             step="1"
             value={draft.clientsWon ?? 0}
+            placeholder=""
             onChange={(e) => patchNumber("clientsWon", e.target.value)}
           />
         </label>
       </div>
 
-      {draft.url ? (
-        <a
-          className="url-table-entry-detail__url"
-          href={normalizeUrlInput(draft.url) || draft.url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {draft.url}
-        </a>
-      ) : null}
-
-      {draft.description ? (
-        <p className="url-table-entry-detail__description">{draft.description}</p>
-      ) : null}
-
       {saveError ? (
         <p className="url-table-entry-detail__error">{saveError}</p>
       ) : null}
-
-      <div className="url-table-entry-detail__actions">
-        <button
-          type="button"
-          className="doc-new-action doc-new-action--save"
-          onClick={handleSave}
-          disabled={saving || !draft.name.trim() || !draft.url.trim()}
-        >
-          {saving ? t("urlTableAffiliate.saving") : t("common.save")}
-        </button>
-      </div>
     </div>
   );
 }
