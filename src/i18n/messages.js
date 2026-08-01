@@ -444,6 +444,8 @@ export const messages = {
       folderDocCount: "{count} docs",
       clearContentFilter: "Choose Content again to clear",
       useNewContent: "Use + new to create content",
+      useNewContentInDepartment:
+        "Click [+ new] to add or classify workspaces in this department.",
       insertNode: "Insert document",
       dragDocToCanvas: "Drag document to canvas",
       clickFolderDocs: "Click for documents · hold for edit or delete · drag to canvas",
@@ -1152,6 +1154,8 @@ export const messages = {
       departmentCategoryFilterNeedParent: "Select department first",
       noDepartmentsYet: "No departments yet",
       useNewDepartment: "Press + new to create one",
+      useNewContentInDepartment:
+        "Haz clic en [+ new] para añadir o clasificar espacios de trabajo en este departamento.",
       agents: "Agents",
       agentsTitle: "Agents",
     },

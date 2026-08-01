@@ -3369,6 +3369,26 @@ export function LeftPanel({
                         />
                       ))}
                     </>
+                  ) : departmentFilterId || departmentCategoryFilter ? (
+                    <div className="lp-empty lp-empty--department">
+                      <p className="lp-empty-department-title">
+                        <DepartmentsGlyph className="lp-empty-department-icon" />
+                        <span className="doc-department-of-label">
+                          {t("sidebar.departmentOf", {
+                            name: selectedDepartmentFilter?.category
+                              || t("sidebar.departmentsTitle"),
+                          })}
+                        </span>
+                      </p>
+                      {departmentCategoryFilter ? (
+                        <p className="lp-empty-department-category">
+                          {departmentCategoryFilter}
+                        </p>
+                      ) : null}
+                      <p className="dim">
+                        {t("sidebar.useNewContentInDepartment")}
+                      </p>
+                    </div>
                   ) : (
                     <div className="lp-empty">
                       <p className="dim">
