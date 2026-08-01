@@ -1,6 +1,6 @@
 /**
  * Gina chat card — Call Asistente shell inside an open document.
- * Sustained mic dictation: continuous listen + waves + Send to commit.
+ * Dictation: listen → insert into composer (edit STT) → Send.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
@@ -13,6 +13,15 @@ function SendIcon() {
     <svg className="gina-chat-card__send-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** First dictation step: park transcript in composer for edits. */
+function InsertIcon() {
+  return (
+    <svg className="gina-chat-card__insert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -44,11 +53,15 @@ function SpeakerIcon({ on }) {
   );
 }
 
-function DictationWaves() {
+/** @param {{ active?: boolean }} props */
+function DictationWaves({ active = false }) {
   return (
-    <div className="gina-chat-card__waves" aria-hidden="true">
+    <div
+      className={`gina-chat-card__waves${active ? " is-active" : " is-idle"}`}
+      aria-hidden="true"
+    >
       {Array.from({ length: 7 }, (_, i) => (
-        <span key={i} style={{ animationDelay: `${i * 0.08}s` }} />
+        <span key={i} style={active ? { animationDelay: `${i * 0.08}s` } : undefined} />
       ))}
     </div>
   );
@@ -121,6 +134,8 @@ export function GinaChatCard({
   const [micError, setMicError] = useState(/** @type {string | null} */ (null));
   const [dictationFinals, setDictationFinals] = useState(/** @type {string[]} */ ([]));
   const [dictationInterim, setDictationInterim] = useState("");
+  /** True while STT is actively producing speech (interim / recent result). */
+  const [isHearing, setIsHearing] = useState(false);
 
   const {
     recognitionSupported,
@@ -140,8 +155,27 @@ export function GinaChatCard({
   const dictationRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const dictationFinalsRef = useRef(/** @type {string[]} */ ([]));
   const dictationInterimRef = useRef("");
+  const hearingTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  const focusComposerAfterInsertRef = useRef(false);
 
   const liveDictation = joinTranscript(dictationFinals, dictationInterim);
+
+  const markHearing = (active) => {
+    if (hearingTimerRef.current) {
+      clearTimeout(hearingTimerRef.current);
+      hearingTimerRef.current = null;
+    }
+    if (active) {
+      setIsHearing(true);
+      // Linger briefly after last chunk so bars don't flicker between words.
+      hearingTimerRef.current = setTimeout(() => {
+        hearingTimerRef.current = null;
+        setIsHearing(false);
+      }, 520);
+      return;
+    }
+    setIsHearing(false);
+  };
 
   useEffect(() => {
     const el = inputRef.current;
@@ -151,10 +185,28 @@ export function GinaChatCard({
   }, [input]);
 
   useEffect(() => {
+    if (isListening || !focusComposerAfterInsertRef.current) return;
+    focusComposerAfterInsertRef.current = false;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    const len = el.value.length;
+    try {
+      el.setSelectionRange(len, len);
+    } catch {
+      /* ignore */
+    }
+  }, [isListening, input]);
+
+  useEffect(() => {
     const el = dictationRef.current;
     if (!el || !isListening) return;
     el.scrollTop = el.scrollHeight;
   }, [liveDictation, isListening]);
+
+  useEffect(() => () => {
+    if (hearingTimerRef.current) clearTimeout(hearingTimerRef.current);
+  }, []);
 
   const particles = useMemo(
     () => Array.from({ length: 12 }, (_, i) => ({
@@ -199,6 +251,7 @@ export function GinaChatCard({
     dictationInterimRef.current = "";
     setDictationFinals([]);
     setDictationInterim("");
+    markHearing(false);
   };
 
   const startDictation = () => {
@@ -219,13 +272,15 @@ export function GinaChatCard({
         }
         dictationInterimRef.current = interimText || "";
         setDictationInterim(interimText || "");
+        // Animate waves only while STT is actively identifying speech.
+        markHearing(Boolean(finalText || interimText));
       },
       onError: (code) => {
         setMicError(speechErrorMessage(String(code), labels));
         resetDictationBuffers();
       },
       onEnd: () => {
-        // Sustained session ended (user stop or fatal). Keep buffers for commit UI.
+        markHearing(false);
       },
     });
   };
@@ -259,8 +314,11 @@ export function GinaChatCard({
     }, 1200);
   };
 
-  /** Commit sustained dictation → send to chat. */
-  const commitDictation = async () => {
+  /**
+   * Step 1: stop mic and park transcript in the composer so the user can fix
+   * STT mistakes before sending.
+   */
+  const insertDictation = () => {
     const text = joinTranscript(dictationFinalsRef.current, dictationInterimRef.current);
     stopListening({ mode: "stop" });
     resetDictationBuffers();
@@ -269,12 +327,18 @@ export function GinaChatCard({
       setMicError(labels.micNoSpeech || "No speech detected. Tap the mic and try again.");
       return;
     }
-    await deliverUserMessage(text);
+    focusComposerAfterInsertRef.current = true;
+    setInput((prev) => {
+      const existing = prev.trim();
+      if (!existing) return text.trim();
+      return `${existing} ${text.trim()}`;
+    });
   };
 
+  /** Step 2: send whatever is in the composer (typed or voice + edits). */
   const handleSend = async () => {
     if (isListening) {
-      await commitDictation();
+      insertDictation();
       return;
     }
     const text = input.trim();
@@ -293,7 +357,7 @@ export function GinaChatCard({
     ? (labels.ttsOn || "Speaking replies on")
     : (labels.ttsOff || "Speaking replies off");
 
-  const dictationSendTitle = labels.dictationSend || "Send dictation";
+  const dictationInsertTitle = labels.dictationInsert || "Insert to edit";
 
   return (
     <div
@@ -423,20 +487,20 @@ export function GinaChatCard({
               <MicIcon />
             </button>
             <div className="gina-chat-card__dictation-main">
-              <DictationWaves />
+              <DictationWaves active={isHearing} />
               <p className="gina-chat-card__dictation-text">
-                {liveDictation || (labels.listeningHold || "Listening… speak freely, then Send")}
+                {liveDictation || (labels.listeningHold || "Listening… speak freely, then insert to edit")}
               </p>
             </div>
             <button
               type="button"
-              className="gina-chat-card__send gina-chat-card__send--dictation"
-              onClick={commitDictation}
+              className="gina-chat-card__insert gina-chat-card__insert--dictation"
+              onClick={insertDictation}
               disabled={!liveDictation.trim()}
-              aria-label={dictationSendTitle}
-              title={dictationSendTitle}
+              aria-label={dictationInsertTitle}
+              title={dictationInsertTitle}
             >
-              <SendIcon />
+              <InsertIcon />
             </button>
           </div>
         ) : (

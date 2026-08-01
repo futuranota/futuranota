@@ -234,18 +234,29 @@
 .gina-chat-card__waves span {
   display: block;
   width: 3px;
-  height: 8px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.75);
-  animation: gina-wave 0.9s ease-in-out infinite;
   transform-origin: center bottom;
 }
 
-.gina-chat-card__waves span:nth-child(odd) {
+/* State 0 — no speech identified: flat bars, no animation */
+.gina-chat-card__waves.is-idle span {
+  height: 6px;
+  opacity: 0.35;
+  transform: scaleY(1);
+  animation: none;
+}
+
+.gina-chat-card__waves.is-active span {
+  height: 8px;
+  animation: gina-wave 0.9s ease-in-out infinite;
+}
+
+.gina-chat-card__waves.is-active span:nth-child(odd) {
   height: 14px;
 }
 
-.gina-chat-card__waves span:nth-child(3n) {
+.gina-chat-card__waves.is-active span:nth-child(3n) {
   height: 18px;
 }
 
@@ -271,7 +282,8 @@
   overflow-wrap: anywhere;
 }
 
-.gina-chat-card__send--dictation:disabled {
+.gina-chat-card__send--dictation:disabled,
+.gina-chat-card__insert--dictation:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -315,7 +327,8 @@
 }
 
 .gina-chat-card__send,
-.gina-chat-card__mic {
+.gina-chat-card__mic,
+.gina-chat-card__insert {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -331,8 +344,18 @@
 }
 
 .gina-chat-card__send:hover,
-.gina-chat-card__mic:hover:not(:disabled) {
+.gina-chat-card__mic:hover:not(:disabled),
+.gina-chat-card__insert:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.gina-chat-card__insert--dictation:not(:disabled) {
+  background: rgba(87, 188, 108, 0.28);
+  box-shadow: 0 0 0 1px rgba(87, 188, 108, 0.35);
+}
+
+.gina-chat-card__insert--dictation:hover:not(:disabled) {
+  background: rgba(87, 188, 108, 0.4);
 }
 
 .gina-chat-card__mic:disabled {

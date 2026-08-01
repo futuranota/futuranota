@@ -1259,6 +1259,7 @@ export function NodeQueryModal({
         listening: t("gina.listening"),
         listeningHold: t("gina.listeningHold"),
         listeningCancel: t("gina.listeningCancel"),
+        dictationInsert: t("gina.dictationInsert"),
         dictationSend: t("gina.dictationSend"),
         micPermission: t("gina.micPermission"),
         micNoSpeech: t("gina.micNoSpeech"),
