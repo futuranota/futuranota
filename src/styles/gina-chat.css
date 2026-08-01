@@ -121,6 +121,7 @@
   position: relative;
   z-index: 1;
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -191,21 +192,26 @@
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 8px;
   padding: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .gina-chat-card__dictation {
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   padding: 10px 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+  /* Stretch with transcript; scroll only after this ceiling */
+  max-height: min(55%, 220px);
+  overflow-y: auto;
 }
 
 .gina-chat-card__dictation-main {
@@ -222,6 +228,7 @@
   justify-content: flex-start;
   gap: 3px;
   height: 22px;
+  flex-shrink: 0;
 }
 
 .gina-chat-card__waves span {
@@ -257,11 +264,11 @@
 .gina-chat-card__dictation-text {
   margin: 0;
   font-size: 0.8125rem;
-  line-height: 1.35;
+  line-height: 1.4;
   color: rgba(255, 255, 255, 0.88);
-  max-height: 3.2em;
-  overflow-y: auto;
+  white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .gina-chat-card__send--dictation:disabled {
@@ -293,6 +300,13 @@
   background: rgba(0, 0, 0, 0.45);
   color: #fff;
   outline: none;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  overflow-y: auto;
+  min-height: 36px;
+  max-height: 140px;
+  box-sizing: border-box;
 }
 
 .gina-chat-card__input:focus {

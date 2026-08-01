@@ -136,10 +136,25 @@ export function GinaChatCard({
   const spokenCountRef = useRef(0);
   const skipOpeningSpeakRef = useRef(true);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(/** @type {HTMLTextAreaElement | null} */ (null));
+  const dictationRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const dictationFinalsRef = useRef(/** @type {string[]} */ ([]));
   const dictationInterimRef = useRef("");
 
   const liveDictation = joinTranscript(dictationFinals, dictationInterim);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [input]);
+
+  useEffect(() => {
+    const el = dictationRef.current;
+    if (!el || !isListening) return;
+    el.scrollTop = el.scrollHeight;
+  }, [liveDictation, isListening]);
 
   const particles = useMemo(
     () => Array.from({ length: 12 }, (_, i) => ({
@@ -392,7 +407,12 @@ export function GinaChatCard({
         ) : null}
 
         {isListening ? (
-          <div className="gina-chat-card__dictation" role="status" aria-live="polite">
+          <div
+            ref={dictationRef}
+            className="gina-chat-card__dictation"
+            role="status"
+            aria-live="polite"
+          >
             <button
               type="button"
               className="gina-chat-card__mic is-listening"
@@ -421,16 +441,21 @@ export function GinaChatCard({
           </div>
         ) : (
           <div className="gina-chat-card__composer">
-            <input
+            <textarea
+              ref={inputRef}
               className="gina-chat-card__input"
               placeholder={placeholder}
               value={input}
+              rows={1}
               onChange={(e) => {
                 setInput(e.target.value);
                 if (micError) setMicError(null);
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleSend();
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
               }}
               aria-label={labels.messageAria || "Message Gina"}
             />
