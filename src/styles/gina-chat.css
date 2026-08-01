@@ -197,6 +197,92 @@
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.gina-chat-card__dictation {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.gina-chat-card__dictation-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gina-chat-card__waves {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3px;
+  height: 22px;
+}
+
+.gina-chat-card__waves span {
+  display: block;
+  width: 3px;
+  height: 8px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.75);
+  animation: gina-wave 0.9s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.gina-chat-card__waves span:nth-child(odd) {
+  height: 14px;
+}
+
+.gina-chat-card__waves span:nth-child(3n) {
+  height: 18px;
+}
+
+@keyframes gina-wave {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.gina-chat-card__dictation-text {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.88);
+  max-height: 3.2em;
+  overflow-y: auto;
+  word-break: break-word;
+}
+
+.gina-chat-card__send--dictation:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.gina-chat-card__mic-banner {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  padding: 6px 16px 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.gina-chat-card__mic-banner.is-error {
+  color: #f0a8a8;
+}
+
 .gina-chat-card__input {
   flex: 1;
   min-width: 0;

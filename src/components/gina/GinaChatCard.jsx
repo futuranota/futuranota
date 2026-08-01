@@ -1,6 +1,6 @@
 /**
  * Gina chat card — Call Asistente shell inside an open document.
- * Demo replies until tools/Claude are wired.
+ * Sustained mic dictation: continuous listen + waves + Send to commit.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
@@ -44,6 +44,48 @@ function SpeakerIcon({ on }) {
   );
 }
 
+function DictationWaves() {
+  return (
+    <div className="gina-chat-card__waves" aria-hidden="true">
+      {Array.from({ length: 7 }, (_, i) => (
+        <span key={i} style={{ animationDelay: `${i * 0.08}s` }} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * @param {string} code
+ * @param {Record<string, string>} labels
+ */
+function speechErrorMessage(code, labels) {
+  switch (code) {
+    case "not-allowed":
+    case "service-not-allowed":
+      return labels.micPermission || "Microphone permission denied. Allow mic access in the browser.";
+    case "no-speech":
+      return labels.micNoSpeech || "No speech detected. Tap the mic and try again.";
+    case "audio-capture":
+      return labels.micNoDevice || "No microphone found.";
+    case "network":
+      return labels.micNetwork || "Speech recognition needs a network connection.";
+    case "unsupported":
+      return labels.micUnsupported || "Voice input is not supported in this browser";
+    case "start-failed":
+      return labels.micStartFailed || "Could not start the microphone. Try again.";
+    default:
+      return labels.micError || "Voice input failed. Try again.";
+  }
+}
+
+function joinTranscript(finalParts, interim) {
+  const base = finalParts.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const live = String(interim || "").trim();
+  if (!base) return live;
+  if (!live) return base;
+  return `${base} ${live}`.replace(/\s+/g, " ").trim();
+}
+
 /**
  * @param {{
  *   className?: string,
@@ -53,17 +95,7 @@ function SpeakerIcon({ on }) {
  *   demoReply?: string,
  *   placeholder?: string,
  *   speechLang?: string,
- *   labels?: {
- *     messageAria?: string,
- *     sendAria?: string,
- *     micAria?: string,
- *     micUnsupported?: string,
- *     listening?: string,
- *     ttsOn?: string,
- *     ttsOff?: string,
- *     closeAria?: string,
- *     typingAria?: string,
- *   },
+ *   labels?: Record<string, string>,
  *   onClose?: () => void,
  *   onSendMessage?: (text: string) => void | Promise<void>,
  * }} props
@@ -86,6 +118,10 @@ export function GinaChatCard({
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [micError, setMicError] = useState(/** @type {string | null} */ (null));
+  const [dictationFinals, setDictationFinals] = useState(/** @type {string[]} */ ([]));
+  const [dictationInterim, setDictationInterim] = useState("");
+
   const {
     recognitionSupported,
     synthesisSupported,
@@ -98,7 +134,12 @@ export function GinaChatCard({
 
   const [ttsEnabled, setTtsEnabled] = useState(() => synthesisSupported);
   const spokenCountRef = useRef(0);
+  const skipOpeningSpeakRef = useRef(true);
   const messagesEndRef = useRef(null);
+  const dictationFinalsRef = useRef(/** @type {string[]} */ ([]));
+  const dictationInterimRef = useRef("");
+
+  const liveDictation = joinTranscript(dictationFinals, dictationInterim);
 
   const particles = useMemo(
     () => Array.from({ length: 12 }, (_, i) => ({
@@ -113,54 +154,84 @@ export function GinaChatCard({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, isListening, liveDictation, micError]);
 
-  // Speak new AI messages when TTS is on (including opening once).
   useEffect(() => {
     if (!ttsEnabled || !synthesisSupported) return;
+    if (isListening) return;
     const aiMessages = messages.filter((m) => m.sender === "ai");
     if (aiMessages.length <= spokenCountRef.current) return;
+
+    if (skipOpeningSpeakRef.current && aiMessages.length === 1) {
+      spokenCountRef.current = 1;
+      skipOpeningSpeakRef.current = false;
+      return;
+    }
+    skipOpeningSpeakRef.current = false;
+
     const newest = aiMessages[aiMessages.length - 1];
     spokenCountRef.current = aiMessages.length;
     if (newest?.text) speak(newest.text, { lang: speechLang });
-  }, [messages, ttsEnabled, synthesisSupported, speak, speechLang]);
+  }, [messages, ttsEnabled, synthesisSupported, speak, speechLang, isListening]);
 
   useEffect(() => () => {
     cancelSpeak();
-    stopListening();
+    stopListening({ mode: "abort" });
   }, [cancelSpeak, stopListening]);
 
-  const appendTranscript = (transcript) => {
-    setInput((prev) => {
-      const base = prev.trim();
-      return base ? `${base} ${transcript}` : transcript;
-    });
+  const resetDictationBuffers = () => {
+    dictationFinalsRef.current = [];
+    dictationInterimRef.current = "";
+    setDictationFinals([]);
+    setDictationInterim("");
   };
 
-  const toggleMic = () => {
-    if (!recognitionSupported) return;
-    if (isListening) {
-      stopListening();
+  const startDictation = () => {
+    if (!recognitionSupported) {
+      setMicError(speechErrorMessage("unsupported", labels));
       return;
     }
+    setMicError(null);
+    resetDictationBuffers();
+    cancelSpeak();
+
     startListening({
-      onResult: appendTranscript,
+      onResult: ({ finalText, interimText }) => {
+        setMicError(null);
+        if (finalText) {
+          dictationFinalsRef.current = [...dictationFinalsRef.current, finalText];
+          setDictationFinals([...dictationFinalsRef.current]);
+        }
+        dictationInterimRef.current = interimText || "";
+        setDictationInterim(interimText || "");
+      },
+      onError: (code) => {
+        setMicError(speechErrorMessage(String(code), labels));
+        resetDictationBuffers();
+      },
+      onEnd: () => {
+        // Sustained session ended (user stop or fatal). Keep buffers for commit UI.
+      },
     });
   };
 
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text) return;
+  const cancelDictation = () => {
+    stopListening({ mode: "abort" });
+    resetDictationBuffers();
+    setMicError(null);
+  };
 
-    if (isListening) stopListening();
+  const deliverUserMessage = async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
 
-    setMessages((prev) => [...prev, { sender: "user", text }]);
+    setMessages((prev) => [...prev, { sender: "user", text: trimmed }]);
     setInput("");
     setIsTyping(true);
 
     if (typeof onSendMessage === "function") {
       try {
-        await onSendMessage(text);
+        await onSendMessage(trimmed);
       } finally {
         setIsTyping(false);
       }
@@ -173,15 +244,41 @@ export function GinaChatCard({
     }, 1200);
   };
 
+  /** Commit sustained dictation → send to chat. */
+  const commitDictation = async () => {
+    const text = joinTranscript(dictationFinalsRef.current, dictationInterimRef.current);
+    stopListening({ mode: "stop" });
+    resetDictationBuffers();
+    setMicError(null);
+    if (!text.trim()) {
+      setMicError(labels.micNoSpeech || "No speech detected. Tap the mic and try again.");
+      return;
+    }
+    await deliverUserMessage(text);
+  };
+
+  const handleSend = async () => {
+    if (isListening) {
+      await commitDictation();
+      return;
+    }
+    const text = input.trim();
+    if (!text) return;
+    setMicError(null);
+    await deliverUserMessage(text);
+  };
+
   const micTitle = !recognitionSupported
     ? (labels.micUnsupported || "Voice input not supported in this browser")
     : isListening
-      ? (labels.listening || "Listening… tap to stop")
+      ? (labels.listeningCancel || "Cancel dictation")
       : (labels.micAria || "Dictate with microphone");
 
   const ttsTitle = ttsEnabled
     ? (labels.ttsOn || "Speaking replies on")
     : (labels.ttsOff || "Speaking replies off");
+
+  const dictationSendTitle = labels.dictationSend || "Send dictation";
 
   return (
     <div
@@ -243,7 +340,7 @@ export function GinaChatCard({
                 className="gina-chat-card__icon-btn"
                 onClick={() => {
                   cancelSpeak();
-                  stopListening();
+                  cancelDictation();
                   onClose();
                 }}
                 aria-label={labels.closeAria || "Close"}
@@ -288,37 +385,75 @@ export function GinaChatCard({
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="gina-chat-card__composer">
-          <input
-            className="gina-chat-card__input"
-            placeholder={placeholder}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSend();
-            }}
-            aria-label={labels.messageAria || "Message Gina"}
-          />
-          <button
-            type="button"
-            className={`gina-chat-card__mic${isListening ? " is-listening" : ""}`}
-            onClick={toggleMic}
-            disabled={!recognitionSupported}
-            aria-pressed={isListening}
-            aria-label={micTitle}
-            title={micTitle}
-          >
-            <MicIcon />
-          </button>
-          <button
-            type="button"
-            className="gina-chat-card__send"
-            onClick={handleSend}
-            aria-label={labels.sendAria || "Send"}
-          >
-            <SendIcon />
-          </button>
-        </div>
+        {micError ? (
+          <p className="gina-chat-card__mic-banner is-error" role="status" aria-live="polite">
+            {micError}
+          </p>
+        ) : null}
+
+        {isListening ? (
+          <div className="gina-chat-card__dictation" role="status" aria-live="polite">
+            <button
+              type="button"
+              className="gina-chat-card__mic is-listening"
+              onClick={cancelDictation}
+              aria-label={micTitle}
+              title={micTitle}
+            >
+              <MicIcon />
+            </button>
+            <div className="gina-chat-card__dictation-main">
+              <DictationWaves />
+              <p className="gina-chat-card__dictation-text">
+                {liveDictation || (labels.listeningHold || "Listening… speak freely, then Send")}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="gina-chat-card__send gina-chat-card__send--dictation"
+              onClick={commitDictation}
+              disabled={!liveDictation.trim()}
+              aria-label={dictationSendTitle}
+              title={dictationSendTitle}
+            >
+              <SendIcon />
+            </button>
+          </div>
+        ) : (
+          <div className="gina-chat-card__composer">
+            <input
+              className="gina-chat-card__input"
+              placeholder={placeholder}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                if (micError) setMicError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSend();
+              }}
+              aria-label={labels.messageAria || "Message Gina"}
+            />
+            <button
+              type="button"
+              className="gina-chat-card__mic"
+              onClick={startDictation}
+              disabled={!recognitionSupported}
+              aria-label={micTitle}
+              title={micTitle}
+            >
+              <MicIcon />
+            </button>
+            <button
+              type="button"
+              className="gina-chat-card__send"
+              onClick={handleSend}
+              aria-label={labels.sendAria || "Send"}
+            >
+              <SendIcon />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

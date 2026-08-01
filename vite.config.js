@@ -21,6 +21,7 @@ import { createPlanAgentMiddleware } from './server/planAgentHandler.js';
 import { createSocialHypeAnalystMiddleware, createSocialHypeAnalyticsMiddleware } from './server/socialHypeAnalystHandler.js';
 import { createUsageLogMiddleware } from './server/usageLogHandler.js';
 import { createBillingMiddleware } from './server/billingHandler.js';
+import { createDebugAgentLogMiddleware } from './server/debugAgentLogHandler.js';
 
 function brandCadenceApiPlugin(env) {
   return {
@@ -32,6 +33,8 @@ function brandCadenceApiPlugin(env) {
           process.env[key] = String(value);
         }
       }
+      // Debug agent logs first so the path is always available during sessions.
+      server.middlewares.use(createDebugAgentLogMiddleware());
       server.middlewares.use(createBrandCadenceMiddleware());
       server.middlewares.use(createTranslateMiddleware());
       server.middlewares.use(createCampaignDetectorMiddleware());
