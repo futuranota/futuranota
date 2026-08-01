@@ -22,6 +22,7 @@ import {
 import {
   DOC_WORK_STATUS,
   resolveDocWorkStatus,
+  sanitizeDocStatusForFolderSchedule,
 } from "../../lib/docWorkStatus.js";
 
 const NODE_SAVE_LOADING_MIN_MS = 700;
@@ -35,7 +36,9 @@ import {
 import {
   folderScheduleDateInputBounds,
   folderSchedulePickerMinDateInput,
+  folderScheduleRangeChanged,
   isFolderScheduleReserved,
+  resetNonReservedChildrenForFolderScheduleChange,
   validateFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
@@ -968,7 +971,49 @@ export function DocExpandedView({
     });
   };
 
+  const runChildScheduleResetIfRangeChanged = (prevStart, prevFinish, nextStart, nextFinish) => {
+    if (!doc?.id) return;
+    if (!folderScheduleRangeChanged(
+      { start: prevStart, finish: prevFinish },
+      { start: nextStart, finish: nextFinish },
+    )) {
+      return;
+    }
+    const nodesStore = useNodesStore.getState();
+    const docsStore = useDocsStore.getState();
+    const cleared = resetNonReservedChildrenForFolderScheduleChange(doc.id, {
+      getDoc: (id) => docsStore.getDoc?.(id) ?? docsStore.docs?.[id] ?? null,
+      updateDoc: (id, patch) => docsStore.updateDoc(id, patch),
+      getNodesByDoc: (id) => nodesStore.getNodesByDoc?.(id)
+        ?? Object.values(nodesStore.nodes || {}).filter((n) => n.parentDocId === id),
+      updateNode: (id, patch) => nodesStore.updateNode(id, patch),
+    });
+    if (cleared <= 0) return;
+    const fresh = useDocsStore.getState().getDoc?.(doc.id)
+      ?? useDocsStore.getState().docs?.[doc.id];
+    if (Array.isArray(fresh?.blocks)) {
+      setDraftBlocks(normalizeDocBlocks(fresh.blocks));
+    }
+    // If the open child modal was reset, drop its draft schedule/status.
+    const openId = activeNodeContext?.nodeId;
+    if (openId) {
+      const live = useNodesStore.getState().nodes?.[openId];
+      if (live && live.status == null && !live.anchorAt) {
+        setNodeDraftAnchorDate("");
+        setNodeDraftAnchorTime("");
+        setNodeDraftAnchorFinishTime("");
+        setNodeDraftStatus(null);
+        setNodeDraftCompleted(false);
+      }
+    }
+  };
+
   const persistFolderScheduleToStore = (startInput, finishInput) => {
+    const liveDoc = useDocsStore.getState().getDoc?.(doc.id)
+      ?? useDocsStore.getState().docs?.[doc.id]
+      ?? doc;
+    const prevStart = launchDateInputFromIso(liveDoc?.scheduleStartAt);
+    const prevFinish = launchDateInputFromIso(liveDoc?.scheduleFinishAt);
     const startAt = startInput ? isoFromDateInput(startInput) : null;
     const finishAt = finishInput ? isoFromDateInput(finishInput) : null;
     updateDoc(doc.id, {
@@ -976,6 +1021,12 @@ export function DocExpandedView({
       scheduleFinishAt: finishAt,
       launchAt: startAt,
     });
+    runChildScheduleResetIfRangeChanged(
+      prevStart,
+      prevFinish,
+      startInput || "",
+      finishInput || "",
+    );
   };
 
   /** Content folders: persist title into docsStore so the left panel updates live (category stays independent). */
@@ -1148,6 +1199,8 @@ export function DocExpandedView({
 
     let blocksToSave = draftBlocks;
     const storeDoc = useDocsStore.getState().getDoc(doc.id);
+    const prevFolderScheduleStart = launchDateInputFromIso(storeDoc?.scheduleStartAt);
+    const prevFolderScheduleFinish = launchDateInputFromIso(storeDoc?.scheduleFinishAt);
     const storeBlocks = normalizeDocBlocks(
       storeDoc?.blocks?.length
         ? storeDoc.blocks
@@ -1219,16 +1272,36 @@ export function DocExpandedView({
       templateSubcategoryDocIds: savedSnapshot.templateSubcategoryDocIds,
       knowledgeImport: savedSnapshot.knowledgeImport,
     });
+    let finalSnapshot = savedSnapshot;
+    if (useFolderSchedule) {
+      runChildScheduleResetIfRangeChanged(
+        prevFolderScheduleStart,
+        prevFolderScheduleFinish,
+        draftScheduleStartDate,
+        draftScheduleFinishDate,
+      );
+      // Prefer store blocks after child schedule reset (cleared anchors).
+      const afterReset = useDocsStore.getState().getDoc(doc.id);
+      if (Array.isArray(afterReset?.blocks)) {
+        const clearedBlocks = normalizeDocBlocks(afterReset.blocks);
+        setDraftBlocks(clearedBlocks);
+        finalSnapshot = {
+          ...savedSnapshot,
+          blocks: clearedBlocks,
+          body: draftBody || docBlocksToBody(clearedBlocks) || savedSnapshot.body,
+        };
+      }
+    }
     if (isKnowledgeMode) {
       if (doc.parentObjectId) linkDocToObject(doc.id, null);
     } else if ((doc.parentObjectId ?? "") !== (draftParentId || "")) {
       linkDocToObject(doc.id, draftParentId || null);
     }
-    setInitialSnapshot(savedSnapshot);
-    docSnapshotRef.current = JSON.stringify(savedSnapshot);
+    setInitialSnapshot(finalSnapshot);
+    docSnapshotRef.current = JSON.stringify(finalSnapshot);
     docIsDirtyRef.current = false;
     useUIStateStore.getState().clearDocEditorDraft(doc.id);
-    onAfterDocSave?.(doc.id, savedSnapshot.blocks);
+    onAfterDocSave?.(doc.id, finalSnapshot.blocks);
   };
 
   const persistBlocksAfterPlaybookRemoval = ({ blockId, nextBlocks }) => {
@@ -1972,8 +2045,24 @@ export function DocExpandedView({
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
-    setNodeDraftCompleted(Boolean(existing?.completed));
-    setNodeDraftStatus(resolveDocWorkStatus(existing));
+    const folderProbe = {
+      campaignActive: draftCampaignActive,
+      scheduleStartAt: draftScheduleStartAt,
+      scheduleFinishAt: draftScheduleFinishAt,
+    };
+    const folderReservedForStatus = isContentMode
+      && !draftCampaignActive
+      && isFolderScheduleReserved(folderProbe);
+    const statusSanitize = !draftCampaignActive
+      ? sanitizeDocStatusForFolderSchedule(existing, folderReservedForStatus)
+      : null;
+    if (statusSanitize && (ensuredNodeId || block.nodeId)) {
+      updateNode(ensuredNodeId || block.nodeId, statusSanitize);
+    }
+    const openedStatus = statusSanitize ? null : resolveDocWorkStatus(existing);
+    const openedCompleted = statusSanitize ? false : Boolean(existing?.completed);
+    setNodeDraftCompleted(openedCompleted);
+    setNodeDraftStatus(openedStatus);
     setNodeDraftCampaignStatus(
       normalizeCampaignDocStatus(existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
     );
@@ -1994,8 +2083,8 @@ export function DocExpandedView({
         anchorDate: fromNode.anchorDate,
         anchorTime: fromNode.anchorTime,
         anchorFinishTime: fromFinish.anchorTime || "",
-        completed: Boolean(existing?.completed),
-        status: resolveDocWorkStatus(existing),
+        completed: openedCompleted,
+        status: openedStatus,
         campaignStatus: normalizeCampaignDocStatus(
           existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
         ),
@@ -2015,8 +2104,8 @@ export function DocExpandedView({
         anchorDate: anchorFromBlock.anchorDate,
         anchorTime: anchorFromBlock.anchorTime,
         anchorFinishTime: anchorFromBlock.anchorFinishTime || "",
-        completed: Boolean(existing?.completed),
-        status: resolveDocWorkStatus(existing),
+        completed: openedCompleted,
+        status: openedStatus,
         campaignStatus: CAMPAIGN_DOC_STATUS_INACTIVE,
         sourceId: existing?.sourceId ?? null,
       };
@@ -2032,7 +2121,7 @@ export function DocExpandedView({
         anchorTime: "",
         anchorFinishTime: "",
         completed: false,
-        status: resolveDocWorkStatus(existing),
+        status: openedStatus,
         campaignStatus: normalizeCampaignDocStatus(
           existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE,
         ),
@@ -2125,9 +2214,12 @@ export function DocExpandedView({
     scheduleFinishAt: draftScheduleFinishAt,
   };
   const folderScheduleReserved = useFolderSchedule && isFolderScheduleReserved(folderScheduleProbe);
+  const folderFrameBounds = folderScheduleReserved
+    ? folderScheduleDateInputBounds(folderScheduleProbe)
+    : null;
   const docStatusReserved = nodeDraftStatus === DOC_WORK_STATUS.RESERVED;
   const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
-    ? folderScheduleDateInputBounds(folderScheduleProbe)
+    ? folderFrameBounds
     : null;
 
   const occupiedIntervals = listOccupiedIntervalsByDate(
@@ -2345,6 +2437,8 @@ export function DocExpandedView({
           scheduleOccupied={occupiedIntervals}
           scheduleOverlapHint={nodeScheduleOverlapHint}
           folderScheduleReserved={folderScheduleReserved}
+          folderFrameMinDate={folderFrameBounds?.minDate || ""}
+          folderFrameMaxDate={folderFrameBounds?.maxDate || ""}
           scheduleMinDate={childScheduleBounds?.minDate || ""}
           scheduleMaxDate={childScheduleBounds?.maxDate || ""}
           onClose={handleRequestCloseNodeModal}

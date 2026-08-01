@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDocsStore } from "../../stores/docsStore.js";
 import { useNodesStore } from "../../stores/nodesStore.js";
 import { NODE_DATA_TYPES } from "../../lib/nodeDataTypes.js";
@@ -47,6 +47,7 @@ import {
   DOC_WORK_STATUS,
   hasMeaningfulNodeContent,
   resolveDocWorkStatus,
+  sanitizeDocStatusForFolderSchedule,
 } from "../../lib/docWorkStatus.js";
 
 function getNodeDisplayTitle(node) {
@@ -247,8 +248,20 @@ export function StandaloneNodeModal({
   const [anchorFinishTime, setAnchorFinishTime] = useState(
     anchorFieldsFromIso(node?.anchorFinishAt || null).anchorTime,
   );
-  const [completed, setCompleted] = useState(() => Boolean(node?.completed));
-  const [status, setStatus] = useState(() => resolveDocWorkStatus(node));
+  const [completed, setCompleted] = useState(() => {
+    const parent = parentFolderDocEarly;
+    const folderReserved = !parent?.campaignActive && isFolderScheduleReserved(parent);
+    const patch = sanitizeDocStatusForFolderSchedule(node, folderReserved);
+    if (patch) return false;
+    return Boolean(node?.completed);
+  });
+  const [status, setStatus] = useState(() => {
+    const parent = parentFolderDocEarly;
+    const folderReserved = !parent?.campaignActive && isFolderScheduleReserved(parent);
+    const patch = sanitizeDocStatusForFolderSchedule(node, folderReserved);
+    if (patch) return null;
+    return resolveDocWorkStatus(node);
+  });
   const [campaignStatus, setCampaignStatus] = useState(() =>
     normalizeCampaignDocStatus(node?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
   );
@@ -260,8 +273,20 @@ export function StandaloneNodeModal({
     createdAt: node?.createdAt ?? null,
     anchorAt: node?.anchorAt ?? null,
     anchorFinishAt: node?.anchorFinishAt ?? null,
-    completed: Boolean(node?.completed),
-    status: resolveDocWorkStatus(node),
+    completed: (() => {
+      const parent = parentFolderDocEarly;
+      const folderReserved = !parent?.campaignActive && isFolderScheduleReserved(parent);
+      const patch = sanitizeDocStatusForFolderSchedule(node, folderReserved);
+      if (patch) return false;
+      return Boolean(node?.completed);
+    })(),
+    status: (() => {
+      const parent = parentFolderDocEarly;
+      const folderReserved = !parent?.campaignActive && isFolderScheduleReserved(parent);
+      const patch = sanitizeDocStatusForFolderSchedule(node, folderReserved);
+      if (patch) return null;
+      return resolveDocWorkStatus(node);
+    })(),
     sourceId: node?.sourceId ?? null,
     dataType: node?.dataType || NODE_DATA_TYPES.TEXT,
     parentDocId: node?.parentDocId || initialParentDocId || null,
@@ -304,11 +329,32 @@ export function StandaloneNodeModal({
     : null;
   const campaignDocMode = Boolean(parentFolderDoc?.campaignActive);
   const folderScheduleReserved = !campaignDocMode && isFolderScheduleReserved(parentFolderDoc);
-  const docStatusReserved = status === DOC_WORK_STATUS.RESERVED;
-  const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
+  const folderFrameBounds = folderScheduleReserved
     ? folderScheduleDateInputBounds(parentFolderDoc)
     : null;
+  const docStatusReserved = status === DOC_WORK_STATUS.RESERVED;
+  // Picker clamp only when not in Reserved free-scope; frame bounds still passed for status UI.
+  const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
+    ? folderFrameBounds
+    : null;
   const canPersistDocSchedule = folderScheduleReserved || docStatusReserved;
+
+  // Persist sanitize: work statuses are invalid without a folder reservation.
+  useEffect(() => {
+    if (!node?.id || campaignDocMode) return;
+    const live = useNodesStore.getState().nodes[node.id] || node;
+    const patch = sanitizeDocStatusForFolderSchedule(live, folderScheduleReserved);
+    if (!patch) return;
+    setStatus(null);
+    setCompleted(false);
+    updateNode(node.id, patch);
+    openSnapshotRef.current = {
+      ...openSnapshotRef.current,
+      status: null,
+      completed: false,
+    };
+  }, [node?.id, node?.status, campaignDocMode, folderScheduleReserved, updateNode]);
+
   const handleAnchorDateChange = (next) => {
     const nextDate = String(next || "").trim();
     setAnchorDate(nextDate);
@@ -371,8 +417,18 @@ export function StandaloneNodeModal({
           status: null,
         }
         : (() => {
-          const resolved = status
-            ?? (hasMeaningfulNodeContent(payload) ? DOC_WORK_STATUS.IN_PROGRESS : null);
+          const stale = sanitizeDocStatusForFolderSchedule(
+            { status, completed },
+            folderScheduleReserved,
+          );
+          let resolved = stale ? null : status;
+          if (
+            !resolved
+            && folderScheduleReserved
+            && hasMeaningfulNodeContent(payload)
+          ) {
+            resolved = DOC_WORK_STATUS.IN_PROGRESS;
+          }
           return {
             status: resolved,
             completed: resolved === DOC_WORK_STATUS.COMPLETED,
@@ -554,6 +610,8 @@ export function StandaloneNodeModal({
           ),
         ) ? t("meta.scheduleOverlapHint") : ""}
         folderScheduleReserved={folderScheduleReserved}
+        folderFrameMinDate={folderFrameBounds?.minDate || ""}
+        folderFrameMaxDate={folderFrameBounds?.maxDate || ""}
         scheduleMinDate={childScheduleBounds?.minDate || ""}
         scheduleMaxDate={childScheduleBounds?.maxDate || ""}
         onSave={handleSave}

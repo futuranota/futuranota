@@ -87,16 +87,51 @@ export function hasMeaningfulNodeContent(content) {
 }
 
 /**
- * Auto in_progress only when status is empty (do not override reserved / past_due / etc.).
+ * Auto in_progress only when status is empty and the parent folder has a reservation.
+ * Do not override reserved / past_due / etc.
  * @param {DocWorkStatus | null | undefined} currentStatus
  * @param {boolean} hasMeaningfulContent
+ * @param {{ folderScheduleReserved?: boolean }} [options]
  * @returns {"in_progress" | null} next status to apply, or null if no change
  */
-export function nextStatusOnMeaningfulWrite(currentStatus, hasMeaningfulContent) {
+export function nextStatusOnMeaningfulWrite(
+  currentStatus,
+  hasMeaningfulContent,
+  options = {},
+) {
   if (!hasMeaningfulContent) return null;
+  if (options.folderScheduleReserved === false) return null;
   const status = normalizeDocWorkStatus(currentStatus);
   if (status) return null;
   return DOC_WORK_STATUS.IN_PROGRESS;
+}
+
+/**
+ * Without a folder schedule reservation, only `reserved` (or null) is allowed.
+ * Clears stale work statuses; keeps reserved + schedule.
+ * @param {{ status?: unknown, completed?: unknown } | null | undefined} node
+ * @param {boolean} folderScheduleReserved
+ * @returns {{ status: DocWorkStatus | null, completed: boolean } | null}
+ *   Patch to apply, or null when no change needed.
+ */
+export function sanitizeDocStatusForFolderSchedule(node, folderScheduleReserved) {
+  if (folderScheduleReserved) return null;
+  const status = resolveDocWorkStatus(node);
+  if (!status || status === DOC_WORK_STATUS.RESERVED) return null;
+  return { status: null, completed: false };
+}
+
+/**
+ * Whether a status chip should render for a document under a folder.
+ * Reserved always shows; other work statuses when the doc date is inside the folder frame.
+ * @param {DocWorkStatus | null | undefined} status
+ * @param {boolean} docDateInFolderFrame
+ */
+export function shouldShowDocStatusChip(status, docDateInFolderFrame) {
+  const s = normalizeDocWorkStatus(status);
+  if (!s) return false;
+  if (s === DOC_WORK_STATUS.RESERVED) return true;
+  return Boolean(docDateInFolderFrame);
 }
 
 /**

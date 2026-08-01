@@ -1,25 +1,39 @@
 import { useNodesStore } from "../../stores/nodesStore.js";
+import { useDocsStore } from "../../stores/docsStore.js";
 import { getNodeWritingExcerpt } from "../../lib/nodeWritingExcerpt.js";
+import { launchDateInputFromIso } from "../../lib/docDates.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { DocStatusChip } from "./FolderDocumentRow.jsx";
-import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
+import {
+  resolveDocWorkStatus,
+  shouldShowDocStatusChip,
+} from "../../lib/docWorkStatus.js";
+import {
+  isDateInputWithinFolderSchedule,
+  isFolderScheduleReserved,
+} from "../../lib/folderScheduleReservation.js";
 
 /**
  * Description layer for the descriptive document model synced into a parent folder.
  *
- * Trigger path: left panel → expand folder → "Create a new Document"
- * (parentDocId set) → write title + body → save → title appears in open folder;
- * this row shows under that title when the color-link handle is hidden.
- *
- * Rules:
- * - Description: only when enabled and node.content has readable text (excerpt ≤120)
- * - continue reading → opens that macronode
- * - Descriptive: status chip rides next to the title (see LinkedMacronodeStatusBadge)
- * - Quick / color-link: status chip sits on its own line under the title
+ * Work-status chips show when the document schedule date falls inside the
+ * parent folder Start→Finish frame. Reserved always shows.
  */
+function useDocStatusChipVisibility(node) {
+  const parentDoc = useDocsStore((s) => (
+    node?.parentDocId ? s.docs[node.parentDocId] ?? null : null
+  ));
+  const workStatus = resolveDocWorkStatus(node);
+  const docDate = launchDateInputFromIso(node?.anchorAt);
+  const inFolderFrame = isFolderScheduleReserved(parentDoc)
+    && Boolean(docDate)
+    && isDateInputWithinFolderSchedule(docDate, parentDoc);
+  return shouldShowDocStatusChip(workStatus, inFolderFrame) ? workStatus : null;
+}
+
 export function LinkedMacronodeStatusBadge({ nodeId }) {
   const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] ?? null : null));
-  const workStatus = resolveDocWorkStatus(node);
+  const workStatus = useDocStatusChipVisibility(node);
   if (!nodeId || !workStatus) return null;
   return (
     <span className="doc-linked-macro-status-title">
@@ -36,7 +50,8 @@ export function LinkedMacronodeDescription({
 }) {
   const { t } = useI18n();
   const node = useNodesStore((s) => (nodeId ? s.nodes[nodeId] ?? null : null));
-  const workStatus = showStatus ? resolveDocWorkStatus(node) : null;
+  const visibleStatus = useDocStatusChipVisibility(node);
+  const workStatus = showStatus ? visibleStatus : null;
   const { excerpt } = getNodeWritingExcerpt(node?.content);
   const hasExcerpt = showDescription && Boolean(excerpt);
 

@@ -93,6 +93,12 @@ export function NodeQueryModal({
   onStatusChange,
   /** Parent folder has scheduleStartAt→scheduleFinishAt reservation. */
   folderScheduleReserved = false,
+  /**
+   * Inclusive folder frame YYYY-MM-DD (always when folder is reserved).
+   * When the document schedule date falls inside this frame, all work statuses show.
+   */
+  folderFrameMinDate = "",
+  folderFrameMaxDate = "",
   /** Campaign documents: active|inactive (+ launch) instead of completed. */
   campaignMode = false,
   campaignStatus = "inactive",
@@ -292,6 +298,14 @@ export function NodeQueryModal({
   const showScheduleAnchor = canScheduleChild
     && !campaignMode
     && (Boolean(folderScheduleReserved) || workStatus === DOC_WORK_STATUS.RESERVED);
+  /** All work statuses when this file's schedule date is inside the folder Start→Finish frame. */
+  const docDate = String(anchorDate || "").trim();
+  const frameMin = String(folderFrameMinDate || "").trim();
+  const frameMax = String(folderFrameMaxDate || "").trim();
+  const docDateInFolderFrame = Boolean(docDate && frameMin && frameMax)
+    && docDate >= frameMin
+    && docDate <= frameMax;
+  const showWorkStatuses = docDateInFolderFrame;
   /** Campaign docs: Launch lives in the meta toggle (not the footer Schedule row). */
   const showLaunchInMeta = Boolean(campaignMode)
     && canScheduleChild
@@ -796,7 +810,9 @@ export function NodeQueryModal({
                         {isCampaignActive ? t("sidebar.campaignDocActive") : t("sidebar.campaignDocInactive")}
                       </span>
                     </div>
-                  ) : workStatus ? (
+                  ) : workStatus && (
+                    workStatus === DOC_WORK_STATUS.RESERVED || docDateInFolderFrame
+                  ) ? (
                     <div
                       className={
                         "doc-meta-chip doc-meta-chip--work-status"
@@ -908,64 +924,68 @@ export function NodeQueryModal({
                         >
                           {t("sidebar.docStatusReserved")}
                         </button>
-                        <button
-                          type="button"
-                          className={
-                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--in-progress"
-                            + (workStatus === DOC_WORK_STATUS.IN_PROGRESS ? " is-on" : "")
-                          }
-                          onClick={() => handleStatusChange(DOC_WORK_STATUS.IN_PROGRESS)}
-                          aria-pressed={workStatus === DOC_WORK_STATUS.IN_PROGRESS}
-                        >
-                          {t("sidebar.docStatusInProgress")}
-                        </button>
-                        <button
-                          type="button"
-                          className={
-                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--submitted"
-                            + (workStatus === DOC_WORK_STATUS.SUBMITTED ? " is-on" : "")
-                          }
-                          onClick={() => handleStatusChange(DOC_WORK_STATUS.SUBMITTED)}
-                          aria-pressed={workStatus === DOC_WORK_STATUS.SUBMITTED}
-                        >
-                          {t("sidebar.docStatusSubmitted")}
-                          <img
-                            src="/uploads/submitted-icon.svg"
-                            alt=""
-                            className="doc-meta-chip-submitted-icon"
-                            aria-hidden
-                            draggable={false}
-                          />
-                        </button>
-                        <button
-                          type="button"
-                          className={
-                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--past-due"
-                            + (workStatus === DOC_WORK_STATUS.PAST_DUE ? " is-on" : "")
-                          }
-                          onClick={() => handleStatusChange(DOC_WORK_STATUS.PAST_DUE)}
-                          aria-pressed={workStatus === DOC_WORK_STATUS.PAST_DUE}
-                        >
-                          {t("sidebar.docStatusPastDue")}
-                        </button>
-                        <button
-                          type="button"
-                          className={
-                            "doc-new-campaign-opt doc-new-campaign-opt--completed doc-work-status-opt"
-                            + (workStatus === DOC_WORK_STATUS.COMPLETED ? " is-on" : "")
-                          }
-                          onClick={() => handleStatusChange(DOC_WORK_STATUS.COMPLETED)}
-                          aria-pressed={workStatus === DOC_WORK_STATUS.COMPLETED}
-                        >
-                          {t("sidebar.docCompleted")}
-                          <img
-                            src="/uploads/Checks.svg"
-                            alt=""
-                            className="doc-meta-chip-completed-icon"
-                            aria-hidden
-                            draggable={false}
-                          />
-                        </button>
+                        {showWorkStatuses ? (
+                          <>
+                            <button
+                              type="button"
+                              className={
+                                "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--in-progress"
+                                + (workStatus === DOC_WORK_STATUS.IN_PROGRESS ? " is-on" : "")
+                              }
+                              onClick={() => handleStatusChange(DOC_WORK_STATUS.IN_PROGRESS)}
+                              aria-pressed={workStatus === DOC_WORK_STATUS.IN_PROGRESS}
+                            >
+                              {t("sidebar.docStatusInProgress")}
+                            </button>
+                            <button
+                              type="button"
+                              className={
+                                "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--submitted"
+                                + (workStatus === DOC_WORK_STATUS.SUBMITTED ? " is-on" : "")
+                              }
+                              onClick={() => handleStatusChange(DOC_WORK_STATUS.SUBMITTED)}
+                              aria-pressed={workStatus === DOC_WORK_STATUS.SUBMITTED}
+                            >
+                              {t("sidebar.docStatusSubmitted")}
+                              <img
+                                src="/uploads/submitted-icon.svg"
+                                alt=""
+                                className="doc-meta-chip-submitted-icon"
+                                aria-hidden
+                                draggable={false}
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              className={
+                                "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--past-due"
+                                + (workStatus === DOC_WORK_STATUS.PAST_DUE ? " is-on" : "")
+                              }
+                              onClick={() => handleStatusChange(DOC_WORK_STATUS.PAST_DUE)}
+                              aria-pressed={workStatus === DOC_WORK_STATUS.PAST_DUE}
+                            >
+                              {t("sidebar.docStatusPastDue")}
+                            </button>
+                            <button
+                              type="button"
+                              className={
+                                "doc-new-campaign-opt doc-new-campaign-opt--completed doc-work-status-opt"
+                                + (workStatus === DOC_WORK_STATUS.COMPLETED ? " is-on" : "")
+                              }
+                              onClick={() => handleStatusChange(DOC_WORK_STATUS.COMPLETED)}
+                              aria-pressed={workStatus === DOC_WORK_STATUS.COMPLETED}
+                            >
+                              {t("sidebar.docCompleted")}
+                              <img
+                                src="/uploads/Checks.svg"
+                                alt=""
+                                className="doc-meta-chip-completed-icon"
+                                aria-hidden
+                                draggable={false}
+                              />
+                            </button>
+                          </>
+                        ) : null}
                       </div>
                     )}
                   </div>

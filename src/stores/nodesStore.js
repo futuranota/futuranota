@@ -28,6 +28,7 @@ import {
   hasMeaningfulNodeContent,
   nextStatusOnMeaningfulWrite,
 } from "../lib/docWorkStatus.js";
+import { isFolderScheduleReserved } from "../lib/folderScheduleReservation.js";
 import {
   ensureContinuationAfterLinkedOwner,
   findMacroContinuationIndex,
@@ -298,13 +299,22 @@ export const useNodesStore = create(
           Object.assign(payload, syncDocWorkStatusFields({ completed }));
         } else if (nodeId) {
           const existing = get().nodes[nodeId];
+          const parentForAuto = docId
+            ? useDocsStore.getState().getDoc(docId)
+            : (existing?.parentDocId
+              ? useDocsStore.getState().getDoc(existing.parentDocId)
+              : null);
           const auto = nextStatusOnMeaningfulWrite(
             resolveDocWorkStatus(existing),
             hasMeaningfulNodeContent(resolvedContent),
+            { folderScheduleReserved: isFolderScheduleReserved(parentForAuto) },
           );
           if (auto) Object.assign(payload, syncDocWorkStatusFields({ status: auto }));
         } else if (hasMeaningfulNodeContent(resolvedContent)) {
-          Object.assign(payload, syncDocWorkStatusFields({ status: "in_progress" }));
+          const parentForAuto = docId ? useDocsStore.getState().getDoc(docId) : null;
+          if (isFolderScheduleReserved(parentForAuto)) {
+            Object.assign(payload, syncDocWorkStatusFields({ status: "in_progress" }));
+          }
         }
         if (sourceId !== undefined) {
           payload.sourceId = sourceId;
@@ -820,9 +830,13 @@ export const useNodesStore = create(
           ) {
             Object.assign(nextUpdates, syncDocWorkStatusFields(nextUpdates));
           } else if (Object.prototype.hasOwnProperty.call(nextUpdates, "content")) {
+            const parentForAuto = existing.parentDocId
+              ? useDocsStore.getState().getDoc(existing.parentDocId)
+              : null;
             const auto = nextStatusOnMeaningfulWrite(
               resolveDocWorkStatus(existing),
               hasMeaningfulNodeContent(nextUpdates.content),
+              { folderScheduleReserved: isFolderScheduleReserved(parentForAuto) },
             );
             if (auto) Object.assign(nextUpdates, syncDocWorkStatusFields({ status: auto }));
           }

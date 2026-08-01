@@ -28,33 +28,44 @@ Campo `node.status`: `reserved` | `in_progress` | `submitted` | `past_due` | `co
 `completed: boolean` se deriva (`true` iff `status === "completed"`) para timeline / folder pie.
 Legacy `in_review` se migra a `submitted` al hidratar.
 
+**Visibility gate**
+
+| Condition | Status UI on the document |
+|---|---|
+| Doc schedule date **outside** folder Start→Finish (or no folder/doc date) | Only **Reserved** (long-term file date aha) |
+| Doc schedule date **inside** folder frame (`anchorDate ∈ [scheduleStartAt, scheduleFinishAt]`) | **All** work statuses (Reserved, In progress, Submitted, Past due, Completed) |
+
+When a Reserved file is moved into the folder frame, every status option appears so the user can leave Reserved and start work. `reserved` remains the long-term escape hatch when the file date is outside the folder window.
+
 | Status | Quién lo setea |
 |---|---|
 | *(null)* | Default al crear |
 | `reserved` | Manual — plan lejos / sin urgencia; desbloquea schedule libre |
-| `in_progress` | Auto al escribir body con texto; también manual |
+| `in_progress` | Auto al escribir body **solo si el folder tiene reserva**; también manual |
 | `submitted` | Manual ahora; el asistente lo seteará al terminar un task (entrega para revisar) |
 | `past_due` | Auto cuando `in_progress` + schedule del doc (dentro del frame del folder) ya pasó; también manual |
 | `completed` | Manual (usuario cierra el trabajo) |
 
-Flujo típico: empty → (write) in_progress → (agent) submitted → (user) completed ·· o ·· reserved → in_progress → completed.
+Flujo típico (folder reserved): empty → (write) in_progress → (agent) submitted → (user) completed ·· o ·· reserved → in_progress → completed.
 
 Auto past_due: `src/lib/docPastDueTransition.js` (tick en `useScheduledAgentRunner`). No convierte `reserved` / `submitted` / `completed`.
 
-Helper: `src/lib/docWorkStatus.js`. UI: toggle en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
+Helper: `src/lib/docWorkStatus.js` (`sanitizeDocStatusForFolderSchedule`, `shouldShowDocStatusChip`). UI: toggle en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
 
 ## Folder status — inherited by priority
 
 `src/lib/folderStatus.js` → `resolveFolderStatus`:
 
 1. Cualquier child `submitted` → folder **Submitted**
-2. Cualquier child `reserved` → folder **Reserved** (también: nunca mostrar Past due en el folder mientras haya reserved)
+2. Cualquier child `reserved` → folder **Reserved** (también: nunca mostrar Past due en el folder mientras haya reserved; persiste tras Clear del schedule del folder)
 3. Cualquier child `past_due` → folder **Past due**
 4. Cualquier child `in_progress` → folder **In progress**
 5. Si todos `completed` → folder **Completed**
 6. Else → **Not started**
 
 Reserved bloquea Completed: 4 completed + 1 reserved → folder Reserved.
+
+Clear / change folder schedule → reset date/time + status of non-reserved children; reserved children keep schedule + status.
 
 ## Paleta visual de referencia
 

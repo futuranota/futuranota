@@ -39,6 +39,7 @@ import {
 import {
   DOC_WORK_STATUS,
   resolveDocWorkStatus,
+  sanitizeDocStatusForFolderSchedule,
 } from "../../lib/docWorkStatus.js";
 import {
   folderScheduleDateInputBounds,
@@ -88,9 +89,12 @@ export function useDocBlockNodeModal({
   const nodeAutosaveTimerRef = useRef(null);
 
   const folderScheduleReserved = !campaignDocMode && isFolderScheduleReserved(parentFolderDoc);
+  const folderFrameBounds = folderScheduleReserved
+    ? folderScheduleDateInputBounds(parentFolderDoc)
+    : null;
   const docStatusReserved = nodeDraftStatus === DOC_WORK_STATUS.RESERVED;
   const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
-    ? folderScheduleDateInputBounds(parentFolderDoc)
+    ? folderFrameBounds
     : null;
   const canPersistDocSchedule = folderScheduleReserved || docStatusReserved;
 
@@ -389,8 +393,17 @@ export function useDocBlockNodeModal({
     });
     const resolvedNodeDraft = resolveNodeDraftFromDoc(blockContent, existing, dataType);
     setNodeDraftContent(resolvedNodeDraft);
-    setNodeDraftCompleted(Boolean(existing?.completed));
-    setNodeDraftStatus(resolveDocWorkStatus(existing));
+    const statusSanitize = !campaignDocMode
+      ? sanitizeDocStatusForFolderSchedule(existing, folderScheduleReserved)
+      : null;
+    if (statusSanitize && (ensuredNodeId || block.nodeId)) {
+      updateNode(ensuredNodeId || block.nodeId, statusSanitize);
+    }
+    const openedStatus = statusSanitize
+      ? null
+      : resolveDocWorkStatus(existing);
+    setNodeDraftCompleted(statusSanitize ? false : Boolean(existing?.completed));
+    setNodeDraftStatus(openedStatus);
     setNodeDraftCampaignStatus(
       normalizeCampaignDocStatus(existing?.campaignStatus ?? CAMPAIGN_DOC_STATUS_INACTIVE),
     );
@@ -589,6 +602,8 @@ export function useDocBlockNodeModal({
       scheduleOccupied={occupied}
       scheduleOverlapHint={overlapHint}
       folderScheduleReserved={folderScheduleReserved}
+      folderFrameMinDate={folderFrameBounds?.minDate || ""}
+      folderFrameMaxDate={folderFrameBounds?.maxDate || ""}
       scheduleMinDate={childScheduleBounds?.minDate || ""}
       scheduleMaxDate={childScheduleBounds?.maxDate || ""}
       onClose={flushAndCloseNodeModal}

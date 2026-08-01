@@ -50,6 +50,22 @@ export function isFolderScheduleReserved(doc) {
 }
 
 /**
+ * True when today falls inside the folder schedule frame (inclusive Start→Finish).
+ * Work-status UI (in progress / submitted / past due / completed) uses this —
+ * not merely “folder has a reservation sometime”.
+ * @param {object | null | undefined} doc
+ * @param {Date} [now]
+ */
+export function isTodayWithinFolderSchedule(doc, now = new Date()) {
+  const range = resolveFolderScheduleRange(doc);
+  if (!range) return false;
+  const today = startOfCalendarDay(now);
+  if (!today) return false;
+  const t = today.getTime();
+  return t >= range.start.getTime() && t <= range.finish.getTime();
+}
+
+/**
  * @param {string} dateInput
  * @param {object | null | undefined} doc
  */
@@ -73,6 +89,128 @@ export function clampDateInputToFolderSchedule(dateInput, doc) {
   if (d < bounds.minDate) return bounds.minDate;
   if (d > bounds.maxDate) return bounds.maxDate;
   return d;
+}
+
+/**
+ * Normalize schedule Start/Finish to YYYY-MM-DD (or "") for equality checks.
+ * Accepts ISO, YYYY-MM-DD, or empty.
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizeFolderScheduleDateKey(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const d = parseDate(raw);
+  if (!d) return "";
+  return calendarDateInputValue(startOfCalendarDay(d));
+}
+
+/**
+ * True when folder Start/Finish cleared or changed vs previous.
+ * @param {{ start?: unknown, finish?: unknown } | null | undefined} prev
+ * @param {{ start?: unknown, finish?: unknown } | null | undefined} next
+ */
+export function folderScheduleRangeChanged(prev, next) {
+  const prevStart = normalizeFolderScheduleDateKey(prev?.start);
+  const prevFinish = normalizeFolderScheduleDateKey(prev?.finish);
+  const nextStart = normalizeFolderScheduleDateKey(next?.start);
+  const nextFinish = normalizeFolderScheduleDateKey(next?.finish);
+  return prevStart !== nextStart || prevFinish !== nextFinish;
+}
+
+/**
+ * When a folder schedule is cleared or replaced, reset child doc schedules + status
+ * except children with status `reserved` (keep free-scope plan).
+ *
+ * @param {string} folderDocId
+ * @param {{
+ *   getDoc: (id: string) => object | null | undefined,
+ *   updateDoc: (id: string, patch: object) => void,
+ *   getNodesByDoc: (id: string) => object[],
+ *   updateNode: (id: string, patch: object) => void,
+ * }} stores
+ * @returns {number} count of nodes reset
+ */
+export function resetNonReservedChildrenForFolderScheduleChange(folderDocId, stores) {
+  if (!folderDocId || !stores) return 0;
+  const { getDoc, updateDoc, getNodesByDoc, updateNode } = stores;
+  const nodes = typeof getNodesByDoc === "function" ? getNodesByDoc(folderDocId) : [];
+  /** @type {Set<string>} */
+  const clearedNodeIds = new Set();
+  let cleared = 0;
+
+  for (const node of nodes || []) {
+    if (!node?.id) continue;
+    const status = String(node.status || "").trim().toLowerCase();
+    if (status === "reserved") continue;
+
+    const hasStart = !(node.anchorAt == null || node.anchorAt === "");
+    const hasFinish = !(node.anchorFinishAt == null || node.anchorFinishAt === "");
+    const hasStatus = Boolean(status) || Boolean(node.completed);
+    if (!hasStart && !hasFinish && !hasStatus) continue;
+
+    updateNode(node.id, {
+      anchorAt: null,
+      anchorFinishAt: null,
+      status: null,
+      completed: false,
+    });
+    clearedNodeIds.add(node.id);
+    cleared += 1;
+  }
+
+  const doc = typeof getDoc === "function" ? getDoc(folderDocId) : null;
+  const blocks = Array.isArray(doc?.blocks) ? doc.blocks : null;
+  if (blocks && typeof updateDoc === "function") {
+    let blocksChanged = false;
+    const nextBlocks = blocks.map((block) => {
+      if (!block || typeof block !== "object") return block;
+      const nodeId = block.nodeId || null;
+      if (nodeId && !clearedNodeIds.has(nodeId)) {
+        // Linked to a reserved (or untouched) child — leave schedule fields alone.
+        return block;
+      }
+      if (nodeId && clearedNodeIds.has(nodeId)) {
+        const hasSchedule = Boolean(
+          String(block.anchorDate || "").trim()
+          || String(block.anchorTime || "").trim()
+          || String(block.anchorFinishTime || "").trim()
+          || block.anchorFromNode,
+        );
+        if (!hasSchedule) return block;
+        blocksChanged = true;
+        return {
+          ...block,
+          anchorDate: "",
+          anchorTime: "",
+          anchorFinishTime: "",
+          anchorFromNode: false,
+        };
+      }
+      // Unlinked block with schedule fields: clear (no reserved node protecting it).
+      const hasSchedule = Boolean(
+        String(block.anchorDate || "").trim()
+        || String(block.anchorTime || "").trim()
+        || String(block.anchorFinishTime || "").trim()
+        || block.anchorFromNode,
+      );
+      if (!hasSchedule) return block;
+      blocksChanged = true;
+      return {
+        ...block,
+        anchorDate: "",
+        anchorTime: "",
+        anchorFinishTime: "",
+        anchorFromNode: false,
+      };
+    });
+    if (blocksChanged) {
+      updateDoc(folderDocId, { blocks: nextBlocks });
+    }
+  }
+
+  return cleared;
 }
 
 /** Content/campaign folders in an Object — not products, knowledge, or templates. */

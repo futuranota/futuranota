@@ -5,6 +5,7 @@ import {
   DOC_WORK_STATUS,
   docWorkStatusLabel,
   resolveDocWorkStatus,
+  shouldShowDocStatusChip,
 } from "../../lib/docWorkStatus.js";
 
 function getNodeDisplayTitle(node) {
@@ -57,10 +58,13 @@ export function FolderDocumentRow({
   compact = false,
   showFileIcon = false,
   className = "",
+  /** True when this doc's schedule date falls inside the parent folder frame. */
+  docDateInFolderFrame = false,
 }) {
   const { t } = useI18n();
   const title = getNodeDisplayTitle(node);
   const workStatus = resolveDocWorkStatus(node);
+  const showChip = shouldShowDocStatusChip(workStatus, docDateInFolderFrame);
   const { excerpt } = getNodeWritingExcerpt(node?.content);
   const hasExcerpt = Boolean(excerpt);
   const source = resolveDocSource(node?.sourceId);
@@ -72,7 +76,7 @@ export function FolderDocumentRow({
     onOpen?.(node);
   };
 
-  const statusChip = workStatus ? <DocStatusChip status={workStatus} /> : null;
+  const statusChip = showChip ? <DocStatusChip status={workStatus} /> : null;
 
   return (
     <div
