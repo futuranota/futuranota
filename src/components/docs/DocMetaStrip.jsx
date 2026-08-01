@@ -38,7 +38,12 @@ const FOLDER_STATUS_ICON = {
 };
 
 function FolderStatusBadge({ status, label }) {
-  if (status === "in_progress" || status === "submitted") {
+  if (
+    status === "in_progress"
+    || status === "submitted"
+    || status === "reserved"
+    || status === "past_due"
+  ) {
     return <DocStatusChip status={status} />;
   }
   const src = FOLDER_STATUS_ICON[status] || FOLDER_STATUS_ICON.not_started;
@@ -380,9 +385,13 @@ export function DocMetaStrip({
       ? t("meta.statusCompleted")
       : folderStatus.status === "submitted"
         ? t("sidebar.docStatusSubmitted")
-        : folderStatus.status === "in_progress"
-          ? t("sidebar.docStatusInProgress")
-          : t("meta.statusNotStarted");
+        : folderStatus.status === "reserved"
+          ? t("sidebar.docStatusReserved")
+          : folderStatus.status === "past_due"
+            ? t("sidebar.docStatusPastDue")
+            : folderStatus.status === "in_progress"
+              ? t("sidebar.docStatusInProgress")
+              : t("meta.statusNotStarted");
 
   const campaignSummary = showFolderCampaignStatus
     ? formatCampaignLabel(campaignActive)

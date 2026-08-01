@@ -88,9 +88,11 @@ export function NodeQueryModal({
   onCreatedDateChange,
   completed = false,
   onCompletedChange,
-  /** Folder-doc work status: in_progress | submitted | completed | null */
+  /** Folder-doc work status: reserved | in_progress | submitted | past_due | completed | null */
   status = null,
   onStatusChange,
+  /** Parent folder has scheduleStartAt→scheduleFinishAt reservation. */
+  folderScheduleReserved = false,
   /** Campaign documents: active|inactive (+ launch) instead of completed. */
   campaignMode = false,
   campaignStatus = "inactive",
@@ -287,7 +289,9 @@ export function NodeQueryModal({
     Boolean(onAnchorDateChange)
     && (dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX);
 
-  const showScheduleAnchor = canScheduleChild && !campaignMode;
+  const showScheduleAnchor = canScheduleChild
+    && !campaignMode
+    && (Boolean(folderScheduleReserved) || workStatus === DOC_WORK_STATUS.RESERVED);
   /** Campaign docs: Launch lives in the meta toggle (not the footer Schedule row). */
   const showLaunchInMeta = Boolean(campaignMode)
     && canScheduleChild
@@ -896,6 +900,17 @@ export function NodeQueryModal({
                         <button
                           type="button"
                           className={
+                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--reserved"
+                            + (workStatus === DOC_WORK_STATUS.RESERVED ? " is-on" : "")
+                          }
+                          onClick={() => handleStatusChange(DOC_WORK_STATUS.RESERVED)}
+                          aria-pressed={workStatus === DOC_WORK_STATUS.RESERVED}
+                        >
+                          {t("sidebar.docStatusReserved")}
+                        </button>
+                        <button
+                          type="button"
+                          className={
                             "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--in-progress"
                             + (workStatus === DOC_WORK_STATUS.IN_PROGRESS ? " is-on" : "")
                           }
@@ -921,6 +936,17 @@ export function NodeQueryModal({
                             aria-hidden
                             draggable={false}
                           />
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--past-due"
+                            + (workStatus === DOC_WORK_STATUS.PAST_DUE ? " is-on" : "")
+                          }
+                          onClick={() => handleStatusChange(DOC_WORK_STATUS.PAST_DUE)}
+                          aria-pressed={workStatus === DOC_WORK_STATUS.PAST_DUE}
+                        >
+                          {t("sidebar.docStatusPastDue")}
                         </button>
                         <button
                           type="button"
@@ -1259,6 +1285,8 @@ export function NodeQueryModal({
         listening: t("gina.listening"),
         listeningHold: t("gina.listeningHold"),
         listeningCancel: t("gina.listeningCancel"),
+        deletePhraseArmed: t("gina.deletePhraseArmed"),
+        deletePhraseMiss: t("gina.deletePhraseMiss"),
         dictationInsert: t("gina.dictationInsert"),
         dictationSend: t("gina.dictationSend"),
         micPermission: t("gina.micPermission"),

@@ -36,7 +36,14 @@ import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
   normalizeCampaignDocStatus,
 } from "../../lib/campaignDocSource.js";
-import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
+import {
+  DOC_WORK_STATUS,
+  resolveDocWorkStatus,
+} from "../../lib/docWorkStatus.js";
+import {
+  folderScheduleDateInputBounds,
+  isFolderScheduleReserved,
+} from "../../lib/folderScheduleReservation.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
 
 function supportsScheduleAnchor(dataType) {
@@ -54,7 +61,7 @@ export function useDocBlockNodeModal({
   docTitle = "New document",
   nodeLinkColor = "dark",
   onInsertToCanvas,
-  /** Parent folder metadata; its optional schedule does not constrain documents. */
+  /** Parent folder metadata; reservation gates/clamps the document schedule picker. */
   parentFolderDoc = null,
   /** Company object id — required for @ URL-table mentions inside the node modal. */
   parentObjectId = null,
@@ -79,6 +86,13 @@ export function useDocBlockNodeModal({
   );
   const [nodeDraftSourceId, setNodeDraftSourceId] = useState(null);
   const nodeAutosaveTimerRef = useRef(null);
+
+  const folderScheduleReserved = !campaignDocMode && isFolderScheduleReserved(parentFolderDoc);
+  const docStatusReserved = nodeDraftStatus === DOC_WORK_STATUS.RESERVED;
+  const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
+    ? folderScheduleDateInputBounds(parentFolderDoc)
+    : null;
+  const canPersistDocSchedule = folderScheduleReserved || docStatusReserved;
 
   const blockLinkColor = (blockIndex) =>
     resolveBlockNodeLinkColor(blocks[blockIndex]);
@@ -161,15 +175,16 @@ export function useDocBlockNodeModal({
 
     const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
     // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
-    // No folder reservation → never persist date/time (Created ≠ Schedule).
+    // Persist when folder is reserved or doc status is reserved; otherwise clear.
     const scheduleDate = String(anchorDate || "").trim();
+    const canWriteSchedule = supportsScheduleAnchor(dataType) && canPersistDocSchedule;
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (scheduleDate
+      ? (canWriteSchedule && scheduleDate
         ? isoFromAnchorFields(scheduleDate, anchorTime)
         : null)
       : undefined;
     const anchorFinishAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (scheduleDate
+      ? (canWriteSchedule && scheduleDate
         ? isoFromAnchorFields(scheduleDate, anchorFinishTime)
         : null)
       : undefined;
@@ -573,8 +588,9 @@ export function useDocBlockNodeModal({
       onAnchorFinishTimeChange={handleNodeAnchorFinishTimeChange}
       scheduleOccupied={occupied}
       scheduleOverlapHint={overlapHint}
-      scheduleMinDate=""
-      scheduleMaxDate=""
+      folderScheduleReserved={folderScheduleReserved}
+      scheduleMinDate={childScheduleBounds?.minDate || ""}
+      scheduleMaxDate={childScheduleBounds?.maxDate || ""}
       onClose={flushAndCloseNodeModal}
       onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
       entityNodeId={activeNodeContext.nodeId || null}

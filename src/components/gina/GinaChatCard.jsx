@@ -138,6 +138,9 @@ export function GinaChatCard({
   const [dictationInterim, setDictationInterim] = useState("");
   /** True while STT is actively producing speech (interim / recent result). */
   const [isHearing, setIsHearing] = useState(false);
+  /** Mode B: “borrar” armed — next utterance is the phrase to remove. */
+  const [deletePhraseArmed, setDeletePhraseArmed] = useState(false);
+  const [deletePhraseHint, setDeletePhraseHint] = useState(/** @type {string | null} */ (null));
 
   const {
     recognitionSupported,
@@ -157,6 +160,7 @@ export function GinaChatCard({
   const dictationRef = useRef(/** @type {HTMLDivElement | null} */ (null));
   const dictationFinalsRef = useRef(/** @type {string[]} */ ([]));
   const dictationInterimRef = useRef("");
+  const deletePhraseArmedRef = useRef(false);
   const hearingTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const focusComposerAfterInsertRef = useRef(false);
 
@@ -251,8 +255,11 @@ export function GinaChatCard({
   const resetDictationBuffers = () => {
     dictationFinalsRef.current = [];
     dictationInterimRef.current = "";
+    deletePhraseArmedRef.current = false;
     setDictationFinals([]);
     setDictationInterim("");
+    setDeletePhraseArmed(false);
+    setDeletePhraseHint(null);
     markHearing(false);
   };
 
@@ -270,12 +277,33 @@ export function GinaChatCard({
         setMicError(null);
         if (finalText) {
           const existing = dictationFinalsRef.current.filter(Boolean).join(" ");
-          const absorbed = absorbDictationFinal(existing, finalText);
-          // Fix soft-R STT in the live buffer (borar→borrar, bores→borres, …)
+          const absorbed = absorbDictationFinal(existing, finalText, {
+            deletePhraseArmed: deletePhraseArmedRef.current,
+          });
           const normalized = normalizeDictationTranscript(absorbed.text);
           dictationFinalsRef.current = normalized ? [normalized] : [];
           setDictationFinals([...dictationFinalsRef.current]);
-          if (absorbed.didEdit) {
+
+          deletePhraseArmedRef.current = Boolean(absorbed.deletePhraseArmed);
+          setDeletePhraseArmed(deletePhraseArmedRef.current);
+
+          if (absorbed.phraseMiss) {
+            setDeletePhraseHint(
+              labels.deletePhraseMiss
+              || "No encontré ese texto. Di el fragmento otra vez o di cancelar.",
+            );
+          } else if (absorbed.phraseDeleted) {
+            setDeletePhraseHint(null);
+          } else if (absorbed.deletePhraseArmed) {
+            setDeletePhraseHint(
+              labels.deletePhraseArmed
+              || "Borrar: di el texto que quieres quitar (o cancelar).",
+            );
+          } else {
+            setDeletePhraseHint(null);
+          }
+
+          if (absorbed.didEdit || absorbed.deletePhraseArmed || absorbed.phraseMiss) {
             dictationInterimRef.current = "";
             setDictationInterim("");
             markHearing(true);
@@ -284,7 +312,6 @@ export function GinaChatCard({
         }
         dictationInterimRef.current = interimText || "";
         setDictationInterim(interimText || "");
-        // Animate waves only while STT is actively identifying speech.
         markHearing(Boolean(finalText || interimText));
       },
       onError: (code) => {
@@ -486,7 +513,7 @@ export function GinaChatCard({
         {isListening ? (
           <div
             ref={dictationRef}
-            className="gina-chat-card__dictation"
+            className={`gina-chat-card__dictation${deletePhraseArmed ? " is-delete-armed" : ""}`}
             role="status"
             aria-live="polite"
           >
@@ -501,8 +528,14 @@ export function GinaChatCard({
             </button>
             <div className="gina-chat-card__dictation-main">
               <DictationWaves active={isHearing} />
+              {deletePhraseHint ? (
+                <p className="gina-chat-card__dictation-hint">{deletePhraseHint}</p>
+              ) : null}
               <p className="gina-chat-card__dictation-text">
-                {liveDictation || (labels.listeningHold || "Listening… speak freely, then insert to edit")}
+                {liveDictation
+                  || (deletePhraseArmed
+                    ? (labels.deletePhraseArmed || "Borrar: di el texto que quieres quitar (o cancelar).")
+                    : (labels.listeningHold || "Listening… speak freely. Say “borrar”, then the text to remove."))}
               </p>
             </div>
             <button

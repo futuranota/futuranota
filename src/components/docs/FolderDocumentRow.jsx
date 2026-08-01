@@ -11,7 +11,7 @@ function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "Untitled query").trim() || "Untitled query";
 }
 
-/** Status chip for folder document rows (in progress / submitted / completed). */
+/** Status chip for folder document rows (work statuses). */
 export function DocStatusChip({ status }) {
   const { t } = useI18n();
   const resolved = resolveDocWorkStatus(
@@ -22,11 +22,15 @@ export function DocStatusChip({ status }) {
   if (!resolved) return null;
   const label = docWorkStatusLabel(resolved, t);
   const iconKind =
-    resolved === DOC_WORK_STATUS.IN_PROGRESS
-      ? "in-progress"
-      : resolved === DOC_WORK_STATUS.SUBMITTED
-        ? "submitted"
-        : "completed";
+    resolved === DOC_WORK_STATUS.RESERVED
+      ? "reserved"
+      : resolved === DOC_WORK_STATUS.IN_PROGRESS
+        ? "in-progress"
+        : resolved === DOC_WORK_STATUS.SUBMITTED
+          ? "submitted"
+          : resolved === DOC_WORK_STATUS.PAST_DUE
+            ? "past-due"
+            : "completed";
   return (
     <span className={`doc-status-chip doc-status-chip--${resolved}`}>
       <span

@@ -19,7 +19,10 @@ import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
   normalizeCampaignDocStatus,
 } from "../../lib/campaignDocSource.js";
-import { resolveDocWorkStatus } from "../../lib/docWorkStatus.js";
+import {
+  DOC_WORK_STATUS,
+  resolveDocWorkStatus,
+} from "../../lib/docWorkStatus.js";
 
 const NODE_SAVE_LOADING_MIN_MS = 700;
 import {
@@ -30,7 +33,9 @@ import {
   todayDateInputValue,
 } from "../../lib/docDates.js";
 import {
+  folderScheduleDateInputBounds,
   folderSchedulePickerMinDateInput,
+  isFolderScheduleReserved,
   validateFolderSchedule,
 } from "../../lib/folderScheduleReservation.js";
 import { normalizeDoc } from "../../lib/normalizeDoc.js";
@@ -1699,12 +1704,27 @@ export function DocExpandedView({
 
     const queryText = getBlockQueryText(block) || (query || "").trim() || "Untitled query";
     // Only Yes/flush may write schedule. Autosave must not pass null and wipe anchorAt.
-    // The explicit document date is saved after its folder window is ensured.
+    // Persist when folder is reserved or doc status is reserved; otherwise clear.
+    const scheduleDate = String(anchorDate || "").trim();
+    const folderProbe = {
+      campaignActive: draftCampaignActive,
+      scheduleStartAt: draftScheduleStartAt,
+      scheduleFinishAt: draftScheduleFinishAt,
+    };
+    const folderReserved = isContentMode
+      && !draftCampaignActive
+      && isFolderScheduleReserved(folderProbe);
+    const canWriteSchedule = supportsScheduleAnchor(dataType)
+      && (folderReserved || nodeDraftStatus === DOC_WORK_STATUS.RESERVED);
     const anchorAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (anchorDate ? isoFromAnchorFields(anchorDate, anchorTime) : null)
+      ? (canWriteSchedule && scheduleDate
+        ? isoFromAnchorFields(scheduleDate, anchorTime)
+        : null)
       : undefined;
     const anchorFinishAt = commitSchedule && supportsScheduleAnchor(dataType)
-      ? (anchorDate ? isoFromAnchorFields(anchorDate, anchorFinishTime) : null)
+      ? (canWriteSchedule && scheduleDate
+        ? isoFromAnchorFields(scheduleDate, anchorFinishTime)
+        : null)
       : undefined;
 
     const contentForStorage = dataType === NODE_DATA_TYPES.TEXT
@@ -2099,6 +2119,17 @@ export function DocExpandedView({
     });
   };
 
+  const folderScheduleProbe = {
+    campaignActive: draftCampaignActive,
+    scheduleStartAt: draftScheduleStartAt,
+    scheduleFinishAt: draftScheduleFinishAt,
+  };
+  const folderScheduleReserved = useFolderSchedule && isFolderScheduleReserved(folderScheduleProbe);
+  const docStatusReserved = nodeDraftStatus === DOC_WORK_STATUS.RESERVED;
+  const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
+    ? folderScheduleDateInputBounds(folderScheduleProbe)
+    : null;
+
   const occupiedIntervals = listOccupiedIntervalsByDate(
     useNodesStore.getState().nodes,
     useDocsStore.getState().docs,
@@ -2313,8 +2344,9 @@ export function DocExpandedView({
           onAnchorFinishTimeChange={handleNodeAnchorFinishTimeChange}
           scheduleOccupied={occupiedIntervals}
           scheduleOverlapHint={nodeScheduleOverlapHint}
-          scheduleMinDate=""
-          scheduleMaxDate=""
+          folderScheduleReserved={folderScheduleReserved}
+          scheduleMinDate={childScheduleBounds?.minDate || ""}
+          scheduleMaxDate={childScheduleBounds?.maxDate || ""}
           onClose={handleRequestCloseNodeModal}
           onInsertToCanvas={onInsertToCanvas ? handleInsertNodeToCanvas : undefined}
           entityNodeId={activeNodeContext.nodeId || null}

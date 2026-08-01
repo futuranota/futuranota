@@ -17,6 +17,10 @@ import {
   todayDateInputValue,
 } from "../../lib/docDates.js";
 import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
+import {
+  folderScheduleDateInputBounds,
+  isFolderScheduleReserved,
+} from "../../lib/folderScheduleReservation.js";
 import { useI18n } from "../../i18n/useI18n.js";
 import { NodeQueryModal } from "./NodeQueryModal.jsx";
 import {
@@ -299,6 +303,12 @@ export function StandaloneNodeModal({
     ? (docsByStoreId?.[resolvedParentDocId] || docsById[resolvedParentDocId] || null)
     : null;
   const campaignDocMode = Boolean(parentFolderDoc?.campaignActive);
+  const folderScheduleReserved = !campaignDocMode && isFolderScheduleReserved(parentFolderDoc);
+  const docStatusReserved = status === DOC_WORK_STATUS.RESERVED;
+  const childScheduleBounds = (folderScheduleReserved && !docStatusReserved)
+    ? folderScheduleDateInputBounds(parentFolderDoc)
+    : null;
+  const canPersistDocSchedule = folderScheduleReserved || docStatusReserved;
   const handleAnchorDateChange = (next) => {
     const nextDate = String(next || "").trim();
     setAnchorDate(nextDate);
@@ -323,11 +333,12 @@ export function StandaloneNodeModal({
     const scheduleDate = String(anchorDate || "").trim();
     const supportsSchedule =
       dataType === NODE_DATA_TYPES.TEXT || dataType === NODE_DATA_TYPES.CHECKBOX;
-    // Explicit document date/time is independent from the optional folder window.
-    const anchorAt = (!campaignDocMode && supportsSchedule)
+    // Schedule UI: folder frame, or free calendar when status is reserved.
+    const persistSchedule = !campaignDocMode && supportsSchedule && canPersistDocSchedule;
+    const anchorAt = persistSchedule
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorTime) : null)
       : null;
-    const anchorFinishAt = (!campaignDocMode && supportsSchedule)
+    const anchorFinishAt = persistSchedule
       ? (scheduleDate ? isoFromAnchorFields(scheduleDate, anchorFinishTime) : null)
       : null;
     const launchAt = (campaignDocMode && supportsSchedule)
@@ -542,8 +553,9 @@ export function StandaloneNodeModal({
             { excludeNodeId: node?.id || null, objectId: parentObjectId || null },
           ),
         ) ? t("meta.scheduleOverlapHint") : ""}
-        scheduleMinDate=""
-        scheduleMaxDate=""
+        folderScheduleReserved={folderScheduleReserved}
+        scheduleMinDate={childScheduleBounds?.minDate || ""}
+        scheduleMaxDate={childScheduleBounds?.maxDate || ""}
         onSave={handleSave}
         onClose={onClose}
         onCloseWithoutSave={discardWithoutSave}

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  folderScheduleDateInputBounds,
+  isDateInputWithinFolderSchedule,
   isFolderScheduleReserved,
   validateFolderSchedule,
 } from "./folderScheduleReservation.js";
@@ -12,6 +14,23 @@ describe("folder schedule reservation gate", () => {
       scheduleStartAt: "2026-07-15T12:00:00.000Z",
       scheduleFinishAt: "2026-07-20T12:00:00.000Z",
     })).toBe(true);
+  });
+
+  it("exposes date input bounds only when reserved", () => {
+    expect(folderScheduleDateInputBounds({})).toBe(null);
+    const bounds = folderScheduleDateInputBounds({
+      scheduleStartAt: "2026-07-15T12:00:00.000Z",
+      scheduleFinishAt: "2026-07-20T12:00:00.000Z",
+    });
+    expect(bounds).toEqual({ minDate: "2026-07-15", maxDate: "2026-07-20" });
+    expect(isDateInputWithinFolderSchedule("2026-07-18", {
+      scheduleStartAt: "2026-07-15T12:00:00.000Z",
+      scheduleFinishAt: "2026-07-20T12:00:00.000Z",
+    })).toBe(true);
+    expect(isDateInputWithinFolderSchedule("2026-07-21", {
+      scheduleStartAt: "2026-07-15T12:00:00.000Z",
+      scheduleFinishAt: "2026-07-20T12:00:00.000Z",
+    })).toBe(false);
   });
 
   it("never invents Schedule from launchAt alone", () => {

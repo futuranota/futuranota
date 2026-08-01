@@ -1436,6 +1436,11 @@
   vertical-align: baseline;
 }
 
+.doc-status-chip--reserved {
+  color: #EAA65D;
+  background: #3A2E1F;
+}
+
 .doc-status-chip--in_progress {
   color: #599FFF;
   background: #192A3F;
@@ -1444,6 +1449,16 @@
 .doc-status-chip--in_review {
   color: #E5B453;
   background: #403928;
+}
+
+.doc-status-chip--submitted {
+  color: #B39BFF;
+  background: #2A2240;
+}
+
+.doc-status-chip--past_due {
+  color: #D57463;
+  background: #3A2220;
 }
 
 .doc-status-chip--completed {
@@ -1474,6 +1489,12 @@
   mask-size: contain;
 }
 
+.doc-status-chip__icon--reserved {
+  background: linear-gradient(135deg, #F0C48A, #EAA65D);
+  -webkit-mask-image: url("/uploads/pending.svg");
+  mask-image: url("/uploads/pending.svg");
+}
+
 .doc-status-chip__icon--in-progress {
   background: linear-gradient(135deg, #8FC4FF 0%, #599FFF 45%, #185EBE 100%);
   -webkit-mask-image: url("/uploads/CircleDashed.svg");
@@ -1484,6 +1505,18 @@
   background: linear-gradient(135deg, #E7BD6C, #AE832C);
   -webkit-mask-image: url("/uploads/in-review-icon.svg");
   mask-image: url("/uploads/in-review-icon.svg");
+}
+
+.doc-status-chip__icon--submitted {
+  background: linear-gradient(135deg, #C4B0FF, #9675FF);
+  -webkit-mask-image: url("/uploads/submitted-icon.svg");
+  mask-image: url("/uploads/submitted-icon.svg");
+}
+
+.doc-status-chip__icon--past-due {
+  background: linear-gradient(135deg, #E89A8C, #D57463);
+  -webkit-mask-image: url("/uploads/pas-due.svg");
+  mask-image: url("/uploads/pas-due.svg");
 }
 
 .doc-status-chip__icon--completed {
@@ -15487,6 +15520,11 @@ body.doc-content-resizing * {
   flex-wrap: wrap;
 }
 
+.doc-work-status-opt--reserved.is-on,
+.doc-meta-strip__fields .doc-work-status-opt--reserved.is-on {
+  color: #EAA65D;
+}
+
 .doc-work-status-opt--in-progress.is-on,
 .doc-meta-strip__fields .doc-work-status-opt--in-progress.is-on {
   color: #008AF5;
@@ -15500,6 +15538,11 @@ body.doc-content-resizing * {
 .doc-work-status-opt--submitted.is-on,
 .doc-meta-strip__fields .doc-work-status-opt--submitted.is-on {
   color: #9675FF;
+}
+
+.doc-work-status-opt--past-due.is-on,
+.doc-meta-strip__fields .doc-work-status-opt--past-due.is-on {
+  color: #D57463;
 }
 
 /* Match Status toggle table gray (#7e7a76) + bold */

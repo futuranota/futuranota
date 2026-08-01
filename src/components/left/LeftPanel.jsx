@@ -893,7 +893,10 @@ function DocNodesBlockCard({
             <NodeCompactRow
               key={node.id}
               node={node}
-              showScheduleTime={hasFolderSchedule}
+              showScheduleTime={
+                hasFolderSchedule
+                || String(node?.status || "").trim().toLowerCase() === "reserved"
+              }
               campaignMode={Boolean(doc?.campaignActive)}
               onClick={() => onNodeClick?.(node)}
               onInsert={() => onNodeInsert?.(node)}

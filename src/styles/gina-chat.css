@@ -272,6 +272,18 @@
   }
 }
 
+.gina-chat-card__dictation.is-delete-armed {
+  background: rgba(220, 120, 60, 0.18);
+  border-top-color: rgba(220, 140, 80, 0.35);
+}
+
+.gina-chat-card__dictation-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: rgba(255, 200, 140, 0.92);
+}
+
 .gina-chat-card__dictation-text {
   margin: 0;
   font-size: 0.8125rem;

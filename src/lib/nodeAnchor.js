@@ -12,8 +12,9 @@ function folderHasScheduleReservation(doc) {
 
 /**
  * Canvas / chip schedule label source.
- * Only an explicit node.anchorAt counts, and only when the parent folder has a
- * real Schedule reservation (or the node is folderless). Never Created.
+ * Explicit node.anchorAt counts when the parent folder is reserved, the doc
+ * status is reserved (free-scope escape hatch), or the node is folderless.
+ * Never Created.
  * @param {object | null | undefined} entity
  * @param {object | null | undefined} canvasNode
  * @param {Record<string, object>} [docsById]
@@ -26,6 +27,8 @@ export function resolveExplicitScheduleIso(entity, canvasNode = null, docsById =
   if (!parentDocId) return iso;
   const parent = docsById?.[parentDocId] || null;
   if (!parent) return iso;
+  const status = String(entity?.status || canvasNode?.status || "").trim().toLowerCase();
+  if (status === "reserved") return iso;
   // Campaign Launch is separate; content docs need a folder reservation.
   return folderHasScheduleReservation(parent) ? iso : null;
 }

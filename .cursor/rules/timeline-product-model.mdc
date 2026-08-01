@@ -11,9 +11,9 @@ The timeline’s job is to **track time and schedules** so users organize work b
 
 Schedule exists so users who want to **track projects on the timeline** feel organization, a work limit, and order by folders (classes) + hours. It is **not** mandatory.
 
-- **No folder schedule** → free writing. Documents may still be scheduled independently; never create a folder window from a document date.
+- **No folder schedule** → free writing. Document date/time picker is **hidden** unless the doc status is `reserved` (free-scope calendar for non-urgent future work).
 - **Folder schedule** = explicit reservation `scheduleStartAt` → `scheduleFinishAt` (x–y). Never invent from `launchAt`.
-- **Documents** may keep only status or set optional `date + start + finish`, whether inside or outside the folder range.
+- **With folder schedule** → docs show date/time picker clamped to that frame (occupied hours may be struck through, still selectable). Status `reserved` on a doc unlocks a free calendar outside the frame.
 - Document scheduling never creates, expands, clears, or otherwise mutates its folder schedule. Folder windows may overlap other folders.
 - **Later:** after inserting on the timeline, user can activate reminders/alarms.
 
@@ -22,7 +22,7 @@ Schedule exists so users who want to **track projects on the timeline** feel org
 **UI labels:** sidebar **Documents** = folders (boxes); what used to be called **macronodes** = documents. See `docs-folders-terminology.mdc`.
 
 - **Folder = category / class** (e.g. Math, Marketing, Sales). Everything inside belongs to that class.
-- **Document = content unit** inside its folder — on the timeline when it has `anchorAt` (and optionally `anchorFinishAt`), independent of the folder reservation.
+- **Document = content unit** inside its folder — on the timeline when it has `anchorAt` (and optionally `anchorFinishAt`), when the folder is reserved **or** the doc status is `reserved`.
 - Folders relate to **other folders** on the timeline (sequence / focus over days) when reserved.
 - Docs stay **scoped to their folder** — reintegrated on the rail, but independent across classes.
 
@@ -45,5 +45,5 @@ Marketing  ——(+1 day)——  Sales
 
 ## Current step vs later
 
-- Now: folder range is non-exclusive, documents can stay unscheduled, and scheduled docs use optional timeframe (`anchorAt` → `anchorFinishAt`) with informational overlap cues only.
+- Now: folder range is non-exclusive; docs without folder reservation stay unscheduled unless status is `reserved`; in-frame `in_progress` docs auto-flip to `past_due` after their schedule day; folder status inheritance includes reserved / past_due (see `assistant-status-roadmap.mdc`).
 - Later: alarms/notifications after timeline insert. Keep data model ready; don’t regress chronology.

@@ -1,6 +1,6 @@
 import { daysBetween } from "../data.jsx";
 import { parseDate, startOfCalendarDay } from "../temporal.js";
-import { todayDateInputValue } from "./docDates.js";
+import { calendarDateInputValue, todayDateInputValue } from "./docDates.js";
 import {
   isKnowledgeDoc,
   isProductDoc,
@@ -28,11 +28,51 @@ export function resolveFolderScheduleRange(doc) {
 }
 
 /**
+ * Inclusive YYYY-MM-DD bounds for a document date picker under a folder reservation.
+ * @param {object | null | undefined} doc
+ * @returns {{ minDate: string, maxDate: string } | null}
+ */
+export function folderScheduleDateInputBounds(doc) {
+  const range = resolveFolderScheduleRange(doc);
+  if (!range) return null;
+  return {
+    minDate: calendarDateInputValue(range.start),
+    maxDate: calendarDateInputValue(range.finish),
+  };
+}
+
+/**
  * True when the folder has an active reservation (Start resolved).
  * @param {object | null | undefined} doc
  */
 export function isFolderScheduleReserved(doc) {
   return Boolean(resolveFolderScheduleRange(doc));
+}
+
+/**
+ * @param {string} dateInput
+ * @param {object | null | undefined} doc
+ */
+export function isDateInputWithinFolderSchedule(dateInput, doc) {
+  const bounds = folderScheduleDateInputBounds(doc);
+  if (!bounds) return true;
+  const d = String(dateInput || "").trim();
+  if (!d) return true;
+  return d >= bounds.minDate && d <= bounds.maxDate;
+}
+
+/**
+ * Clamp YYYY-MM-DD into folder range (or leave empty / pass through when no range).
+ * @param {string} dateInput
+ * @param {object | null | undefined} doc
+ */
+export function clampDateInputToFolderSchedule(dateInput, doc) {
+  const bounds = folderScheduleDateInputBounds(doc);
+  const d = String(dateInput || "").trim();
+  if (!bounds || !d) return d;
+  if (d < bounds.minDate) return bounds.minDate;
+  if (d > bounds.maxDate) return bounds.maxDate;
+  return d;
 }
 
 /** Content/campaign folders in an Object — not products, knowledge, or templates. */

@@ -1,7 +1,10 @@
 import { useEffect, useRef } from "react";
 import { discoverScheduledAgentTasks } from "../lib/agents/discoverScheduledAgentTasks.js";
 import { isScheduleNotDue, formatScheduleAtLabel } from "../lib/agents/agentScheduleGate.js";
+import { applyPastDueTransitions } from "../lib/docPastDueTransition.js";
 import { translate } from "../i18n/useI18n.js";
+import { useDocsStore } from "../stores/docsStore.js";
+import { useNodesStore } from "../stores/nodesStore.js";
 import { useScheduledTasksStore } from "../stores/scheduledTasksStore.js";
 import { useTimelineStore } from "../stores/timelineStore.js";
 
@@ -43,6 +46,17 @@ export function useScheduledAgentRunner({
       if (runningRef.current) return;
       const scheduledStore = useScheduledTasksStore.getState();
       if (scheduledStore.runningTaskKey) return;
+
+      // Soft companion: promote missed in_progress schedules to past_due.
+      try {
+        applyPastDueTransitions({
+          nodes: useNodesStore.getState().nodes,
+          docs: useDocsStore.getState().docs,
+          updateNode: (id, patch) => useNodesStore.getState().updateNode(id, patch),
+        });
+      } catch {
+        /* never block agent scheduling */
+      }
 
       const timelineStore = useTimelineStore.getState();
       const timelineSets = timelineStore.timelineAgentSets || [];

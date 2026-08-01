@@ -1,16 +1,19 @@
 /**
  * Voice edit commands during Gina dictation (Web Speech).
- * Natural Spanish/English: "borrame dos palabras", "borrame esta oración",
- * "borrame la/esta última oración" — plus common STT mashups.
  *
- * Important: Chrome often finalizes the verb and noun in separate results
- * ("Borame" then "estoración"). Always peel commands from the full buffer.
+ * Mode B — targeted delete:
+ *   1) Say “borrar” alone → arms delete-phrase mode
+ *   2) Say the fragment to remove → fuzzy-match in buffer → delete
+ *   Cancel with “cancelar”
+ *
+ * Also keeps shortcuts: borrame dos palabras / esta oración / todo.
+ * Soft-R aliases: borame/vorame → borrame, borar → borrar.
  */
 
 /**
- * @typedef {'delete_words' | 'delete_sentence' | 'delete_all'} SpeechEditAction
+ * @typedef {'delete_words' | 'delete_sentence' | 'delete_all' | 'arm_delete_phrase'} SpeechEditAction
  * @typedef {{ action: SpeechEditAction, count?: number }} SpeechEditCommand
- * @typedef {{ command: SpeechEditCommand, consume: number }} SpeechEditMatch
+ * @typedef {{ command: SpeechEditCommand, consume: number, remainder: string }} SpeechEditMatch
  */
 
 const DELETE_VERBS = new Set([
@@ -33,9 +36,18 @@ const DELETE_VERBS = new Set([
   "clear",
 ]);
 
+/** Verbs that alone arm Mode B (say what to delete next). */
+const ARM_DELETE_VERBS = new Set([
+  "borra",
+  "borrar",
+  "borrame",
+  "borreme",
+  "delete",
+  "remove",
+]);
+
 /**
- * Soft R / B↔V from STT → canonical borr* (as if the user rolled “rr”).
- * “borame” / “vorame” are treated like “borrame”.
+ * Soft R / B↔V from STT → canonical borr*.
  */
 const DELETE_VERB_ALIASES = {
   borame: "borrame",
@@ -55,14 +67,6 @@ const DELETE_VERB_ALIASES = {
   forrame: "borrame",
   forar: "borrar",
 };
-
-/**
- * @param {string} token
- * @returns {string}
- */
-function canonicalizeDeleteVerb(token) {
-  return DELETE_VERB_ALIASES[token] || token;
-}
 
 const NUMBER_WORDS = {
   una: 1,
@@ -99,7 +103,6 @@ const NUMBER_WORDS = {
   "10": 10,
 };
 
-/** STT often glues “última oración” / “esa oración” into one token. */
 const FUSED_TOKEN_EXPANSIONS = {
   ultimoracion: ["ultima", "oracion"],
   ultimahoracion: ["ultima", "oracion"],
@@ -113,6 +116,18 @@ const FUSED_TOKEN_EXPANSIONS = {
   laultimoracion: ["la", "ultima", "oracion"],
 };
 
+const CANCEL_PHRASES = new Set([
+  "cancelar",
+  "cancela",
+  "cancelalo",
+  "cancel",
+  "cancelled",
+  "canceled",
+  "olvidalo",
+  "nah",
+  "stop",
+]);
+
 function stripDiacritics(value) {
   return String(value || "")
     .normalize("NFD")
@@ -122,13 +137,14 @@ function stripDiacritics(value) {
 function foldToken(value) {
   return stripDiacritics(value)
     .toLowerCase()
-    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+    .replace(/^[^\p{L}\p{N}"“”'«»]+|[^\p{L}\p{N}"“”'«»]+$/gu, "")
+    .replace(/["“”'«»]/g, "");
 }
 
-/**
- * @param {string} token
- * @returns {string[]}
- */
+function canonicalizeDeleteVerb(token) {
+  return DELETE_VERB_ALIASES[token] || token;
+}
+
 function expandToken(token) {
   if (FUSED_TOKEN_EXPANSIONS[token]) return FUSED_TOKEN_EXPANSIONS[token];
   if (token === "horacion" || token === "oration" || token === "orasion") {
@@ -137,10 +153,6 @@ function expandToken(token) {
   return [token];
 }
 
-/**
- * @param {string[]} parts
- * @returns {string[]}
- */
 function expandParts(parts) {
   return parts.flatMap(expandToken);
 }
@@ -149,8 +161,16 @@ function isWordNoun(token) {
   return token === "palabra" || token === "palabras" || token === "word" || token === "words";
 }
 
+function joinChunks(a, b) {
+  const left = String(a || "").replace(/\s+/g, " ").trim();
+  const right = String(b || "").replace(/\s+/g, " ").trim();
+  if (!left) return right;
+  if (!right) return left;
+  return `${left} ${right}`;
+}
+
 /**
- * @param {string[]} parts folded tokens that may be a command suffix
+ * @param {string[]} parts
  * @returns {SpeechEditCommand | null}
  */
 function matchCommandParts(parts) {
@@ -169,14 +189,22 @@ function matchCommandParts(parts) {
     return { action: "delete_all" };
   }
 
-  // Normalize soft-R STT (“borame” / “vorame”) → borrame / borra
   const verb = canonicalizeDeleteVerb(expanded[0]);
   if (!DELETE_VERBS.has(verb)) return null;
+
   let rest = expanded.slice(1);
   if (rest[0] === "me" || rest[0] === "le") {
     rest = rest.slice(1);
   }
-  if (!rest.length) return null;
+
+  // Bare verb → Mode B arm (“borrar” / “borra” / “borrame”)
+  if (!rest.length) {
+    if (ARM_DELETE_VERBS.has(verb)) {
+      return { action: "arm_delete_phrase" };
+    }
+    return null;
+  }
+
   const restJoin = rest.join(" ");
 
   if (
@@ -189,7 +217,6 @@ function matchCommandParts(parts) {
     return { action: "delete_all" };
   }
 
-  // borrame esta/esa/la (ultima) oración|horacion
   if (
     /^(?:(?:esa|esta|la|the)\s+)?(?:(?:ultima|ultimo|last)\s+)?(?:oracion|oraciones|frase|frases|sentence|sentences)$/.test(restJoin)
     || restJoin === "last sentence"
@@ -237,9 +264,8 @@ function matchCommandParts(parts) {
 }
 
 /**
- * Find a trailing voice-edit command in `text`.
  * @param {string} text
- * @returns {(SpeechEditMatch & { remainder: string }) | null}
+ * @returns {SpeechEditMatch | null}
  */
 export function extractTrailingSpeechEdit(text) {
   const raw = String(text || "").trim();
@@ -248,7 +274,7 @@ export function extractTrailingSpeechEdit(text) {
   const folded = words.map(foldToken);
 
   const max = Math.min(10, folded.length);
-  for (let n = max; n >= 2; n -= 1) {
+  for (let n = max; n >= 1; n -= 1) {
     const slice = folded.slice(-n);
     const command = matchCommandParts(slice);
     if (!command) continue;
@@ -259,7 +285,6 @@ export function extractTrailingSpeechEdit(text) {
 }
 
 /**
- * Peel every trailing voice command from the buffer (handles repeats + split finals).
  * @param {string} text
  * @returns {{ content: string, command: SpeechEditCommand | null, peeled: boolean }}
  */
@@ -274,6 +299,13 @@ export function peelTrailingSpeechEdits(text) {
     guard += 1;
     const hit = extractTrailingSpeechEdit(content);
     if (!hit) break;
+    // Mode B arm should not keep peeling further shortcut commands underneath.
+    if (hit.command.action === "arm_delete_phrase") {
+      command = hit.command;
+      content = hit.remainder;
+      peeled = true;
+      break;
+    }
     command = hit.command;
     content = hit.remainder;
     peeled = true;
@@ -283,7 +315,6 @@ export function peelTrailingSpeechEdits(text) {
 }
 
 /**
- * Apply a parsed edit to the current transcript buffer.
  * @param {string} text
  * @param {SpeechEditCommand} command
  * @returns {string}
@@ -292,6 +323,8 @@ export function applySpeechEdit(text, command) {
   const source = String(text || "").replace(/\s+/g, " ").trim();
   if (!command) return source;
   if (!source) return "";
+
+  if (command.action === "arm_delete_phrase") return source;
 
   if (command.action === "delete_all") return "";
 
@@ -307,8 +340,6 @@ export function applySpeechEdit(text, command) {
       return parts.slice(0, -1).join(" ").trim();
     }
     const words = source.split(/\s+/);
-    // Short leftover (e.g. only a greeting after peeling failed command echoes):
-    // don't wipe it — the peel already removed the command words.
     if (words.length <= 6) return source;
     return words.slice(0, -8).join(" ").trim();
   }
@@ -316,34 +347,223 @@ export function applySpeechEdit(text, command) {
   return source;
 }
 
-function joinChunks(a, b) {
-  const left = String(a || "").replace(/\s+/g, " ").trim();
-  const right = String(b || "").replace(/\s+/g, " ").trim();
-  if (!left) return right;
-  if (!right) return left;
-  return `${left} ${right}`;
+function levenshtein(a, b) {
+  const s = String(a);
+  const t = String(b);
+  if (s === t) return 0;
+  if (!s.length) return t.length;
+  if (!t.length) return s.length;
+  const prev = new Array(t.length + 1);
+  const cur = new Array(t.length + 1);
+  for (let j = 0; j <= t.length; j += 1) prev[j] = j;
+  for (let i = 1; i <= s.length; i += 1) {
+    cur[0] = i;
+    for (let j = 1; j <= t.length; j += 1) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    for (let j = 0; j <= t.length; j += 1) prev[j] = cur[j];
+  }
+  return prev[t.length];
+}
+
+function tokenSimilarity(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) return 0.88;
+  const dist = levenshtein(a, b);
+  const maxLen = Math.max(a.length, b.length);
+  return Math.max(0, 1 - dist / maxLen);
 }
 
 /**
- * Absorb a new final STT chunk.
- * Peels commands from the **full** buffer so split finals still match
- * ("Borame" + "estoración").
+ * Strip leading delete verb + optional quotes from a Mode B query.
+ * @param {string} raw
+ */
+export function normalizeDeletePhraseQuery(raw) {
+  let text = String(raw || "").replace(/\s+/g, " ").trim();
+  text = text.replace(/^["“”'«»]+|["“”'«»]+$/g, "").trim();
+  const words = text.split(/\s+/).filter(Boolean);
+  if (!words.length) return "";
+  const first = canonicalizeDeleteVerb(foldToken(words[0]));
+  if (DELETE_VERBS.has(first) || ARM_DELETE_VERBS.has(first)) {
+    words.shift();
+  }
+  return words.join(" ").replace(/^["“”'«»]+|["“”'«»]+$/g, "").trim();
+}
+
+/**
+ * Fuzzy-find `query` inside `haystack` and remove the best matching span.
+ * Prefers the last strong match (most recent dictation).
  *
+ * @param {string} haystack
+ * @param {string} query
+ * @param {{ minScore?: number }} [options]
+ * @returns {{ ok: boolean, text: string, matched?: string, score?: number }}
+ */
+export function removeFuzzyPhrase(haystack, query, options = {}) {
+  const source = String(haystack || "").replace(/\s+/g, " ").trim();
+  const needleRaw = normalizeDeletePhraseQuery(query);
+  if (!source) return { ok: false, text: "" };
+  if (!needleRaw) return { ok: false, text: source };
+
+  const hayWords = source.split(/\s+/);
+  const needle = needleRaw.split(/\s+/).map(foldToken).filter(Boolean);
+  if (!needle.length) return { ok: false, text: source };
+
+  // Avoid deleting tiny fragments (“el”, “de”).
+  const minScore = options.minScore ?? 0.62;
+  if (needle.length === 1 && needle[0].length < 5) {
+    return { ok: false, text: source };
+  }
+
+  const windowSizes = new Set([
+    needle.length,
+    Math.max(1, needle.length - 1),
+    needle.length + 1,
+    needle.length + 2,
+  ]);
+
+  /** @type {{ start: number, end: number, score: number } | null} */
+  let best = null;
+
+  for (const win of windowSizes) {
+    if (win < 1 || win > hayWords.length) continue;
+    for (let start = 0; start + win <= hayWords.length; start += 1) {
+      const slice = hayWords.slice(start, start + win).map(foldToken);
+      // Align needle tokens against window (average best pairwise order-preserving).
+      let scoreSum = 0;
+      let used = 0;
+      let j = 0;
+      for (let i = 0; i < needle.length; i += 1) {
+        let localBest = 0;
+        let localIdx = -1;
+        for (let k = j; k < slice.length; k += 1) {
+          const sim = tokenSimilarity(needle[i], slice[k]);
+          if (sim > localBest) {
+            localBest = sim;
+            localIdx = k;
+          }
+        }
+        if (localBest >= 0.55 && localIdx >= 0) {
+          scoreSum += localBest;
+          used += 1;
+          j = localIdx + 1;
+        }
+      }
+      if (used === 0) continue;
+      // Penalize unused needle tokens and window size mismatch.
+      const coverage = used / needle.length;
+      const avg = scoreSum / used;
+      const sizePenalty = Math.abs(win - needle.length) * 0.04;
+      const score = avg * coverage - sizePenalty;
+      if (!best || score > best.score || (Math.abs(score - best.score) < 0.02 && start >= best.start)) {
+        best = { start, end: start + win, score };
+      }
+    }
+  }
+
+  if (!best || best.score < minScore) {
+    return { ok: false, text: source };
+  }
+
+  const matched = hayWords.slice(best.start, best.end).join(" ");
+  const next = [...hayWords.slice(0, best.start), ...hayWords.slice(best.end)].join(" ").trim();
+  return { ok: true, text: next, matched, score: best.score };
+}
+
+export function isCancelDeletePhrase(text) {
+  const folded = foldToken(String(text || "").trim());
+  if (!folded) return false;
+  if (CANCEL_PHRASES.has(folded)) return true;
+  const words = String(text || "").trim().split(/\s+/).map(foldToken);
+  const joined = words.join(" ");
+  return (
+    joined === "no borrar"
+    || joined === "cancelar borrar"
+    || joined === "never mind"
+    || joined === "forget it"
+  );
+}
+
+export function isArmDeletePhraseOnly(text) {
+  const words = String(text || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length !== 1) return false;
+  const verb = canonicalizeDeleteVerb(foldToken(words[0]));
+  return ARM_DELETE_VERBS.has(verb);
+}
+
+/**
  * @param {string} existingText
  * @param {string} finalChunk
- * @returns {{ text: string, didEdit: boolean }}
+ * @param {{ deletePhraseArmed?: boolean }} [options]
+ * @returns {{
+ *   text: string,
+ *   didEdit: boolean,
+ *   deletePhraseArmed: boolean,
+ *   phraseMiss?: boolean,
+ *   phraseDeleted?: boolean,
+ *   phraseQuery?: string,
+ * }}
  */
-export function absorbDictationFinal(existingText, finalChunk) {
-  const joined = joinChunks(existingText, finalChunk);
-  if (!joined) return { text: "", didEdit: false };
+export function absorbDictationFinal(existingText, finalChunk, options = {}) {
+  const armed = Boolean(options.deletePhraseArmed);
+  const chunk = String(finalChunk || "").trim();
+  const existing = String(existingText || "").replace(/\s+/g, " ").trim();
 
+  if (armed) {
+    if (!chunk) {
+      return { text: existing, didEdit: false, deletePhraseArmed: true };
+    }
+    if (isCancelDeletePhrase(chunk)) {
+      return { text: existing, didEdit: false, deletePhraseArmed: false };
+    }
+    if (isArmDeletePhraseOnly(chunk)) {
+      return { text: existing, didEdit: false, deletePhraseArmed: true };
+    }
+
+    const query = normalizeDeletePhraseQuery(chunk);
+    const removed = removeFuzzyPhrase(existing, query);
+    if (!removed.ok) {
+      return {
+        text: existing,
+        didEdit: false,
+        deletePhraseArmed: true,
+        phraseMiss: true,
+        phraseQuery: query,
+      };
+    }
+    return {
+      text: removed.text,
+      didEdit: true,
+      deletePhraseArmed: false,
+      phraseDeleted: true,
+      phraseQuery: query,
+    };
+  }
+
+  if (!chunk) {
+    return { text: existing, didEdit: false, deletePhraseArmed: false };
+  }
+
+  const joined = joinChunks(existing, chunk);
   const { content, command, peeled } = peelTrailingSpeechEdits(joined);
+
   if (!peeled || !command) {
-    return { text: joined, didEdit: false };
+    return { text: joined, didEdit: false, deletePhraseArmed: false };
+  }
+
+  if (command.action === "arm_delete_phrase") {
+    return {
+      text: content,
+      didEdit: false,
+      deletePhraseArmed: true,
+    };
   }
 
   return {
     text: applySpeechEdit(content, command),
     didEdit: true,
+    deletePhraseArmed: false,
   };
 }

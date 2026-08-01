@@ -9,51 +9,67 @@ alwaysApply: true
 
 Futura Nota converge a **un solo Asistente** (la “estrella”): texto primero, voz después en tasks chicos. Los multi-agentes actuales se eliminarán. Los ajustes de producto (status ricos, schedule, etc.) preparan **señales semánticas** para que el asistente tome mejores notas — no son features aisladas.
 
-## Schedule / reserva (ya existe)
+## Schedule / reserva
 
-Folder schedule opcional = reserva `scheduleStartAt` → `scheduleFinishAt`. Documents (links / ex-macronodos) pueden llevar day + hour dentro de esa reserva. Ver `timeline-product-model.mdc`.
+Folder schedule opcional = reserva `scheduleStartAt` → `scheduleFinishAt`. Document date/time picker:
+
+| Folder reservation | Doc status | Picker |
+|---|---|---|
+| No | not `reserved` | Hidden (no date / no timer) |
+| No | `reserved` | Free calendar (months OK) |
+| Yes | not `reserved` | Clamped to folder frame + occupied hours strikethrough |
+| Yes | `reserved` | Free calendar (escape hatch outside the frame) |
+
+Ver `timeline-product-model.mdc`.
 
 ## Document status — live subset (folders)
 
-Campo `node.status`: `in_progress` | `submitted` | `completed` | `null`.
+Campo `node.status`: `reserved` | `in_progress` | `submitted` | `past_due` | `completed` | `null`.
 `completed: boolean` se deriva (`true` iff `status === "completed"`) para timeline / folder pie.
 Legacy `in_review` se migra a `submitted` al hidratar.
 
 | Status | Quién lo setea |
 |---|---|
 | *(null)* | Default al crear |
+| `reserved` | Manual — plan lejos / sin urgencia; desbloquea schedule libre |
 | `in_progress` | Auto al escribir body con texto; también manual |
 | `submitted` | Manual ahora; el asistente lo seteará al terminar un task (entrega para revisar) |
+| `past_due` | Auto cuando `in_progress` + schedule del doc (dentro del frame del folder) ya pasó; también manual |
 | `completed` | Manual (usuario cierra el trabajo) |
 
-Flujo: empty → (write) in_progress → (agent) submitted → (user) completed ·· o ·· in_progress → (user) completed.
+Flujo típico: empty → (write) in_progress → (agent) submitted → (user) completed ·· o ·· reserved → in_progress → completed.
 
-Helper: `src/lib/docWorkStatus.js`. UI: toggle 3-way en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
+Auto past_due: `src/lib/docPastDueTransition.js` (tick en `useScheduledAgentRunner`). No convierte `reserved` / `submitted` / `completed`.
+
+Helper: `src/lib/docWorkStatus.js`. UI: toggle en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
 
 ## Folder status — inherited by priority
 
 `src/lib/folderStatus.js` → `resolveFolderStatus`:
 
 1. Cualquier child `submitted` → folder **Submitted**
-2. Si no, cualquier `in_progress` → folder **In progress**
-3. Si todos `completed` → folder **Completed**
-4. Else → **Not started**
+2. Cualquier child `reserved` → folder **Reserved** (también: nunca mostrar Past due en el folder mientras haya reserved)
+3. Cualquier child `past_due` → folder **Past due**
+4. Cualquier child `in_progress` → folder **In progress**
+5. Si todos `completed` → folder **Completed**
+6. Else → **Not started**
 
-## Paleta visual de referencia (no obligatoria toda)
+Reserved bloquea Completed: 4 completed + 1 reserved → folder Reserved.
 
-Referencia Magic/badge (adaptar a dark `#151515`; Lucide o SVGs `/uploads`):
+## Paleta visual de referencia
+
+Referencia Magic/badge (adaptar a dark `#151515`; SVGs `/uploads`):
 
 | Status | Color ref | Icono | Estado |
 |---|---|---|---|
-| Pending | `#EAA65D` | TriangleAlert | pendiente |
-| Failed | `#D57463` | CircleX | pendiente |
+| Reserved | `#EAA65D` | pending.svg | **live** |
+| Past due | `#D57463` | pas-due.svg | **live** |
 | Success / Completed | `#57BC6C` | Checks / completed.svg | **live** |
 | In progress | `#008AF5` | CircleDashed | **live** |
 | Submitted | `#9675FF` / `#6C3CF0` | submitted.svg (+ submitted-icon) | **live** |
-| Expired | `#777777` | Clock5 | pendiente |
 | In review | `#F0B13D` | ScanSearch | retirado (migrado a submitted) |
 
-Usar solo los que se necesiten. Label “Submitted” (no “Submited”).
+Label “Submitted” (no “Submited”). Label “Past due” (no “Failed” en UI).
 
 ## Reglas
 

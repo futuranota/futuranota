@@ -13,7 +13,25 @@ describe("resolveFolderStatus priority", () => {
     expect(resolveFolderStatus(nodes, folderId).status).toBe("submitted");
   });
 
-  it("returns in_progress when any child is in progress and none submitted", () => {
+  it("returns reserved over past_due and completed", () => {
+    const nodes = [
+      { parentDocId: folderId, status: "completed", completed: true },
+      { parentDocId: folderId, status: "completed", completed: true },
+      { parentDocId: folderId, status: "past_due", completed: false },
+      { parentDocId: folderId, status: "reserved", completed: false },
+    ];
+    expect(resolveFolderStatus(nodes, folderId).status).toBe("reserved");
+  });
+
+  it("returns past_due when any child is past_due and none reserved/submitted", () => {
+    const nodes = [
+      { parentDocId: folderId, status: "past_due", completed: false },
+      { parentDocId: folderId, status: "completed", completed: true },
+    ];
+    expect(resolveFolderStatus(nodes, folderId).status).toBe("past_due");
+  });
+
+  it("returns in_progress when any child is in progress and none higher", () => {
     const nodes = [
       { parentDocId: folderId, status: "in_progress", completed: false },
       { parentDocId: folderId, status: "completed", completed: true },

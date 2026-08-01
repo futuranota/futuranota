@@ -703,15 +703,21 @@ useEffect(() => {
       : null;
 
     // No folder Schedule reservation → strip phantom date/time (never invent from Created).
+    // Exception: status reserved keeps a free-scope schedule without a folder window.
     let entityForCanvas = zustandNode;
+    const statusReserved = String(zustandNode.status || "").trim().toLowerCase() === "reserved";
     if (
       zustandNode.anchorAt
       && parentDoc
       && !parentDoc.campaignActive
       && !isFolderScheduleReserved(parentDoc)
+      && !statusReserved
     ) {
-      useNodesStore.getState().updateNode(zustandNode.id, { anchorAt: null });
-      entityForCanvas = { ...zustandNode, anchorAt: null };
+      useNodesStore.getState().updateNode(zustandNode.id, {
+        anchorAt: null,
+        anchorFinishAt: null,
+      });
+      entityForCanvas = { ...zustandNode, anchorAt: null, anchorFinishAt: null };
     }
 
     const newNode = buildCanvasNodeFromEntity(entityForCanvas, x, y);

@@ -59,15 +59,19 @@ function referenceWithNodeMeta(node) {
 
   let workStatus = typeof node?.status === "string" ? node.status.trim() : "";
   if (
-    workStatus !== "in_progress"
+    workStatus !== "reserved"
+    && workStatus !== "in_progress"
     && workStatus !== "submitted"
+    && workStatus !== "past_due"
     && workStatus !== "completed"
   ) {
     workStatus = node?.completed ? "completed" : "";
   }
   if (
-    workStatus === "in_progress"
+    workStatus === "reserved"
+    || workStatus === "in_progress"
     || workStatus === "submitted"
+    || workStatus === "past_due"
     || workStatus === "completed"
   ) {
     base.status = workStatus;
@@ -202,8 +206,10 @@ function statusFromPersistedNode(node) {
     ?? (node.reference && typeof node.reference === "object" ? node.reference.status : null);
   if (raw === "in_review") return "submitted";
   if (
-    raw === "in_progress"
+    raw === "reserved"
+    || raw === "in_progress"
     || raw === "submitted"
+    || raw === "past_due"
     || raw === "completed"
   ) return raw;
   if (completedFromPersistedNode(node)) return "completed";
