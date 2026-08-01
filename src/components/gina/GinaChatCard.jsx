@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useWebSpeech } from "../../hooks/useWebSpeech.js";
+import { absorbDictationFinal } from "../../lib/ginaSpeechCommands.js";
+import { normalizeDictationTranscript } from "../../lib/ginaSpeechVocab.js";
 
 /** @typedef {{ sender: "ai" | "user", text: string }} GinaChatMessage */
 
@@ -267,8 +269,18 @@ export function GinaChatCard({
       onResult: ({ finalText, interimText }) => {
         setMicError(null);
         if (finalText) {
-          dictationFinalsRef.current = [...dictationFinalsRef.current, finalText];
+          const existing = dictationFinalsRef.current.filter(Boolean).join(" ");
+          const absorbed = absorbDictationFinal(existing, finalText);
+          // Fix soft-R STT in the live buffer (borar→borrar, bores→borres, …)
+          const normalized = normalizeDictationTranscript(absorbed.text);
+          dictationFinalsRef.current = normalized ? [normalized] : [];
           setDictationFinals([...dictationFinalsRef.current]);
+          if (absorbed.didEdit) {
+            dictationInterimRef.current = "";
+            setDictationInterim("");
+            markHearing(true);
+            return;
+          }
         }
         dictationInterimRef.current = interimText || "";
         setDictationInterim(interimText || "");
@@ -319,19 +331,20 @@ export function GinaChatCard({
    * STT mistakes before sending.
    */
   const insertDictation = () => {
-    const text = joinTranscript(dictationFinalsRef.current, dictationInterimRef.current);
+    const raw = joinTranscript(dictationFinalsRef.current, dictationInterimRef.current);
     stopListening({ mode: "stop" });
     resetDictationBuffers();
     setMicError(null);
-    if (!text.trim()) {
+    if (!raw.trim()) {
       setMicError(labels.micNoSpeech || "No speech detected. Tap the mic and try again.");
       return;
     }
+    const text = normalizeDictationTranscript(raw);
     focusComposerAfterInsertRef.current = true;
     setInput((prev) => {
       const existing = prev.trim();
-      if (!existing) return text.trim();
-      return `${existing} ${text.trim()}`;
+      if (!existing) return text;
+      return `${existing} ${text}`;
     });
   };
 
