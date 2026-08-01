@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterLazyTodosAgainstDeletedIds,
   mergeLazyTodoLists,
+  mergeLazyTodoListsWithMeta,
   preferNewerLazyTodo,
 } from "./lazyTodosMerge.js";
 
@@ -48,8 +49,6 @@ describe("mergeLazyTodoLists", () => {
   });
 
   it("keeps tombstone effective after a stale remote row would otherwise win", () => {
-    // Simulates: user deleted X, then a late upsert rewrote X on remote,
-    // then hydrate runs — deletedIds must still block resurrection.
     const local = [];
     const remote = [
       todo({
@@ -63,7 +62,6 @@ describe("mergeLazyTodoLists", () => {
     const merged = mergeLazyTodoLists(local, remote, deletedIds);
     expect(merged.map((item) => item.id)).toEqual([]);
 
-    // Without tombstone, remote would reappear (documents the bug class).
     const resurrected = mergeLazyTodoLists(local, remote, []);
     expect(resurrected.map((item) => item.id)).toEqual(["X"]);
   });
@@ -85,6 +83,48 @@ describe("mergeLazyTodoLists", () => {
 
     expect(preferNewerLazyTodo(local, remote)).toBe(local);
     expect(mergeLazyTodoLists([local], [remote])[0].items).toHaveLength(2);
+  });
+
+  it("drops local zombies when remote wipe is trusted (empty SELECT)", () => {
+    const local = [
+      todo({ id: "zombie-1", reminder: "Should die" }),
+      todo({ id: "zombie-2", reminder: "Also die" }),
+    ];
+    const { items, droppedIds } = mergeLazyTodoListsWithMeta(
+      local,
+      [],
+      [],
+      { trustEmptyRemote: true },
+    );
+    expect(items).toEqual([]);
+    expect(droppedIds.sort()).toEqual(["zombie-1", "zombie-2"]);
+  });
+
+  it("keeps pendingSync drafts across trusted empty remote", () => {
+    const local = [
+      todo({ id: "zombie", reminder: "Old" }),
+      todo({ id: "draft", reminder: "New", pendingSync: true }),
+    ];
+    const { items, droppedIds } = mergeLazyTodoListsWithMeta(
+      local,
+      [],
+      [],
+      { trustEmptyRemote: true },
+    );
+    expect(items.map((i) => i.id)).toEqual(["draft"]);
+    expect(droppedIds).toEqual(["zombie"]);
+  });
+
+  it("drops local-only ids that were previously known on remote", () => {
+    const local = [todo({ id: "was-remote", reminder: "Gone from DB" })];
+    const { items, droppedIds } = mergeLazyTodoListsWithMeta(
+      local,
+      [],
+      [],
+      { knownRemoteIds: ["was-remote"], trustEmptyRemote: false },
+    );
+    expect(items).toEqual([]);
+    expect(droppedIds).toEqual(["was-remote"]);
   });
 });
 

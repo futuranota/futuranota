@@ -17,20 +17,18 @@ Futura Nota is moving toward one protagonist: **Asistente**.
 
 ## Chat reference
 
-The shared `ChatMessages` code is a visual/interaction reference, not production code to copy literally.
+Primary in-doc shell (Call Asistente / Gina):
 
-- Dark chat card using the product surface base `#151515`.
-- Header with assistant identity and sparkle/star treatment.
-- Distinct user and assistant message bubbles.
-- Animated typing indicator and smooth message entrance/scroll.
-- Bottom text input with Enter/send interaction.
-- Replay/reset is optional and mainly useful for demos/testing.
-- Replace “Nexus AI” and demo copy with Futura Nota’s **Asistente** voice.
-- Adapt to this repo’s JSX, CSS, i18n, state, and existing dependencies; do not assume shadcn aliases or `cn`.
+- Saved: `.cursor/saved/gina-chat-card/` (`AIChatCard.original.tsx` + adapted `GinaChatCard.jsx` + CSS)
+- Open from a **button inside the open document**; motion chat card with bubbles, typing, Enter/send.
+- Dark surface base `#151515`. Header = Gina / Asistente identity (not “AI Assistant” / Nexus).
+- Adapt to this repo’s JSX, CSS, i18n, state; do **not** assume shadcn `cn` or `lucide-react` (not in package.json — framer-motion is OK).
+- Demo/stub replies only until Gina tools are wired.
 
 ## Product direction
 
 - Start text-first.
 - Voice comes later for small tasks.
-- Schedule/status signals will eventually help Asistente take better notes and manage dates.
-- Do not connect real AI behavior until its functional brief is explicit.
+- Schedule/status signals help Asistente take smarter notes and manage reminders.
+- **Functional brief is now explicit:** Gina system v2 — see `gina-assistant-system.mdc` and `.cursor/saved/gina-system/BRIEF.md`.
+- Still phase AI/Claude connection; ship reminder capture + To Do/UI before live model calls.

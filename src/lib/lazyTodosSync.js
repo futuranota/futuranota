@@ -3,13 +3,14 @@ import { createTodoItem } from "./docBlocks.js";
 import { generateId } from "./ids.js";
 import {
   filterLazyTodosAgainstDeletedIds,
-  mergeLazyTodoLists,
+  mergeLazyTodoListsWithMeta,
 } from "./lazyTodosMerge.js";
 import { resolveSyncUserId } from "./resolveSyncUserId.js";
 import { LAZY_TODOS_DELETED_STORAGE_KEY } from "../stores/lazyTodosStore.js";
 
 const SYNC_DEBOUNCE_MS = 1500;
 const DELETE_SYNC_DEBOUNCE_MS = 250;
+const KNOWN_REMOTE_STORAGE_KEY = "futuranota.lazyTodos.knownRemote.v1";
 
 /** @param {(...args: unknown[]) => void} fn @param {number} ms */
 function debounce(fn, ms) {
@@ -26,6 +27,40 @@ function debounce(fn, ms) {
     timer = null;
   };
   return debounced;
+}
+
+/** @returns {string[]} */
+function readKnownRemoteIds() {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const raw = localStorage.getItem(KNOWN_REMOTE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((id) => typeof id === "string" && id);
+  } catch {
+    return [];
+  }
+}
+
+/** @param {Iterable<string>} ids */
+function persistKnownRemoteIds(ids) {
+  try {
+    if (typeof localStorage === "undefined") return;
+    const list = [...new Set([...ids].filter((id) => typeof id === "string" && id))];
+    localStorage.setItem(KNOWN_REMOTE_STORAGE_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+/** @param {Iterable<string>} ids */
+function unionKnownRemoteIds(ids) {
+  const next = new Set(readKnownRemoteIds());
+  for (const id of ids || []) {
+    if (id) next.add(String(id));
+  }
+  persistKnownRemoteIds(next);
 }
 
 /** @param {Record<string, unknown>} row */
@@ -153,7 +188,13 @@ async function clearLazyTodoTombstonesConfirmedAbsent(
 
 /**
  * @param {import("../stores/lazyTodosStore.js").LazyTodoItem[]} items
- * @param {{ allowOrphanDelete?: boolean, deletedIds?: string[], onOrphansDeleted?: (ids: string[]) => void }} [options]
+ * @param {{
+ *   allowOrphanDelete?: boolean,
+ *   deletedIds?: string[],
+ *   onOrphansDeleted?: (ids: string[]) => void,
+ *   onUpserted?: (ids: string[]) => void,
+ *   skipUpsert?: boolean,
+ * }} [options]
  */
 async function syncLazyTodosToSupabase(items, options = {}) {
   const userId = await resolveSyncUserId();
@@ -162,14 +203,13 @@ async function syncLazyTodosToSupabase(items, options = {}) {
   const allowOrphanDelete = Boolean(options.allowOrphanDelete) && hasCompletedHydrate;
   const deletedIds = [...new Set(options.deletedIds || [])].filter(Boolean);
   const now = new Date().toISOString();
+  const skipUpsert = Boolean(options.skipUpsert);
 
   // Never upsert rows that are currently tombstoned (stale snapshots / races).
-  const safeItems = filterLazyTodosAgainstDeletedIds(items, deletedIds);
+  const safeItems = skipUpsert
+    ? []
+    : filterLazyTodosAgainstDeletedIds(items, deletedIds);
   const rows = safeItems.map((item) => itemToRow(item, userId, now));
-
-  // #region agent log
-  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-A',location:'lazyTodosSync.js:syncLazyTodosToSupabase',message:'sync start',data:{itemCount:items.length,safeCount:safeItems.length,deletedIds,allowOrphanDelete,hasCompletedHydrate,optAllow:Boolean(options.allowOrphanDelete)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 
   if (rows.length > 0) {
     const { error } = await supabase
@@ -177,25 +217,19 @@ async function syncLazyTodosToSupabase(items, options = {}) {
       .upsert(rows, { onConflict: "id" });
     if (error) {
       console.warn(formatSupabaseError(error, "Upsert lazy_todos"));
-      // #region agent log
-      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-B',location:'lazyTodosSync.js:upsert',message:'upsert failed — abort before purge',data:{deletedIds},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       return;
+    }
+    if (typeof options.onUpserted === "function") {
+      options.onUpserted(safeItems.map((item) => item.id));
     }
   }
 
   if (!allowOrphanDelete) {
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-A',location:'lazyTodosSync.js:skipPurge',message:'orphan delete SKIPPED — remote row may survive',data:{deletedIds,hasCompletedHydrate,optAllow:Boolean(options.allowOrphanDelete)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return;
   }
 
   // Explicit purge by tombstone — does not depend on "missing from local list".
   const purgeOk = await purgeTombstonedLazyTodos(userId, deletedIds);
-  // #region agent log
-  fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-B',location:'lazyTodosSync.js:purge',message:'tombstone purge result',data:{deletedIds,purgeOk},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!purgeOk) return;
 
   const { data: remoteRows, error: selectErr } = await supabase
@@ -212,6 +246,8 @@ async function syncLazyTodosToSupabase(items, options = {}) {
   // Also treat tombstones as "present locally" for orphan math — already purged above.
   for (const id of deletedIds) localIds.add(id);
 
+  // After a trusted empty-remote hydrate, anything still on remote is an orphan
+  // (including rows a race re-upserted) — delete them.
   const orphanIds = (remoteRows || [])
     .map((row) => row.id)
     .filter((id) => id && !localIds.has(id));
@@ -228,22 +264,22 @@ async function syncLazyTodosToSupabase(items, options = {}) {
     }
   }
 
-  // Only drop tombstones after remote SELECT proves the rows are gone —
-  // never immediately after DELETE (a stale upsert could still be mid-flight elsewhere).
   await clearLazyTodoTombstonesConfirmedAbsent(
     userId,
     deletedIds,
     options.onOrphansDeleted,
   );
+
+  persistKnownRemoteIds(safeItems.map((item) => item.id));
 }
 
 /**
  * Queue a sync that always reads live store state when it actually runs.
  * Overlapping calls coalesce into one follow-up with fresh items/deletedIds.
  * @param {typeof import("../stores/lazyTodosStore.js").useLazyTodosStore} useLazyTodosStore
- * @param {{ orphanDelete?: boolean }} [opts]
+ * @param {{ orphanDelete?: boolean, skipUpsert?: boolean }} [opts]
  */
-function enqueueLazyTodosSync(useLazyTodosStore, { orphanDelete = true } = {}) {
+function enqueueLazyTodosSync(useLazyTodosStore, { orphanDelete = true, skipUpsert = false } = {}) {
   const runOnce = async () => {
     do {
       syncNeedsRerun = false;
@@ -258,8 +294,13 @@ function enqueueLazyTodosSync(useLazyTodosStore, { orphanDelete = true } = {}) {
       await syncLazyTodosToSupabase(items, {
         allowOrphanDelete: orphanDelete,
         deletedIds: deletedIds || [],
+        skipUpsert,
         onOrphansDeleted: (cleared) => {
           useLazyTodosStore.getState().clearDeletedIds?.(cleared);
+        },
+        onUpserted: (ids) => {
+          useLazyTodosStore.getState().markSynced?.(ids);
+          unionKnownRemoteIds(ids);
         },
       });
     } while (syncNeedsRerun);
@@ -352,50 +393,71 @@ export function initLazyTodosSync(useLazyTodosStore) {
     debouncedRemoteSync?.cancel();
     debouncedDeleteSync?.cancel();
 
-    // Wait out any in-flight upsert so it cannot race the post-hydrate purge.
-    if (syncInFlight) {
-      try {
-        await syncInFlight;
-      } catch {
-        // prior sync logged its own error
-      }
-    }
-
-    const remoteItems = await loadLazyTodosFromSupabase();
-    if (remoteItems === null) return;
-
+    // Lock BEFORE any await — otherwise requeue/subscribe can upsert zombies
+    // while loadLazyTodosFromSupabase is in flight and reseed remote.
     isHydrating = true;
+    let trustedEmptyRemote = false;
+
     try {
+      // Wait out any in-flight upsert so it cannot race the post-hydrate purge.
+      if (syncInFlight) {
+        try {
+          await syncInFlight;
+        } catch {
+          // prior sync logged its own error
+        }
+      }
+
+      const remoteItems = await loadLazyTodosFromSupabase();
+      if (remoteItems === null) {
+        // Keep local paint; do not flush (would risk upsert before we know remote).
+        return;
+      }
+
       const { items: localItems, deletedIds } = useLazyTodosStore.getState();
-      const merged = mergeLazyTodoLists(localItems, remoteItems, deletedIds);
-      const remoteIds = new Set(remoteItems.map((i) => i.id));
-      const localIds = localItems.map((i) => i.id);
-      const mergedIds = merged.map((i) => i.id);
-      const localOnlyIds = localIds.filter((id) => !remoteIds.has(id) && !deletedIds.includes(id));
-      const willReseedRemote = remoteItems.length === 0 && localOnlyIds.length > 0;
-      const blockedByTombstone = [...remoteIds].filter((id) => deletedIds.includes(id));
-      // #region agent log
-      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-F',location:'lazyTodosSync.js:hydrateFromRemote',message:'hydrate merge after remote wipe?',data:{remoteCount:remoteItems.length,localCount:localItems.length,mergedCount:merged.length,localOnlyCount:localOnlyIds.length,localOnlyIds:localOnlyIds.slice(0,20),willReseedRemote,deletedIdsCount:deletedIds.length,blockedByTombstone},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      useLazyTodosStore.getState().replaceItems(merged);
-      useLazyTodosStore.getState().requeueOrphanedActives?.();
+      const knownRemoteIds = readKnownRemoteIds();
+      trustedEmptyRemote = remoteItems.length === 0;
+
+      if (trustedEmptyRemote) {
+        // Remote wipe wins completely — do not keep local-only drafts that would
+        // reseed Supabase on the trailing flush.
+        const dropAll = localItems.map((item) => item.id).filter(Boolean);
+        if (dropAll.length > 0) {
+          useLazyTodosStore.getState().markDeleted?.(dropAll);
+        }
+        useLazyTodosStore.getState().replaceItems([]);
+        persistKnownRemoteIds([]);
+      } else {
+        const { items: merged, droppedIds } = mergeLazyTodoListsWithMeta(
+          localItems,
+          remoteItems,
+          deletedIds,
+          { knownRemoteIds, trustEmptyRemote: false },
+        );
+
+        if (droppedIds.length > 0) {
+          useLazyTodosStore.getState().markDeleted?.(droppedIds);
+        }
+
+        useLazyTodosStore.getState().replaceItems(merged);
+        useLazyTodosStore.getState().requeueOrphanedActives?.();
+        persistKnownRemoteIds(remoteItems.map((item) => item.id));
+      }
+
       hasCompletedHydrate = true;
     } finally {
       isHydrating = false;
     }
 
-    // Always flush once after hydrate with live store state (serialized).
-    // #region agent log
-    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-F',location:'lazyTodosSync.js:postHydrateFlush',message:'about to flush local after hydrate (may re-upsert wiped rows)',data:{flushItemCount:useLazyTodosStore.getState().items.length,flushIds:useLazyTodosStore.getState().items.map((i)=>i.id).slice(0,20)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+    // After empty remote: purge only (no upsert). Otherwise normal flush.
     syncNeedsRerun = false;
-    await enqueueLazyTodosSync(useLazyTodosStore, { orphanDelete: true });
+    await enqueueLazyTodosSync(useLazyTodosStore, {
+      orphanDelete: true,
+      skipUpsert: trustedEmptyRemote,
+    });
   };
 
   hydrateFromRemote();
-
-  // Recover lists orphaned as `active` after reload before remote hydrate returns.
-  useLazyTodosStore.getState().requeueOrphanedActives?.();
 
   supabase.auth.onAuthStateChange((event) => {
     if (event === "SIGNED_IN") {

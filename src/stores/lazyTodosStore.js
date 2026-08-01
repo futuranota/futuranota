@@ -21,6 +21,7 @@ const DELETED_STORAGE_KEY = LAZY_TODOS_DELETED_STORAGE_KEY;
  * @property {string} createdAt
  * @property {string} updatedAt
  * @property {LazyTodoStatus} status
+ * @property {boolean} [pendingSync] True until first successful remote upsert (survives empty-remote hydrate).
  */
 
 function readStoredItems() {
@@ -89,7 +90,7 @@ function normalizeTodoItems(rawItems, legacyTodo = "") {
 function normalizeItem(item) {
   const items = normalizeTodoItems(item?.items, item?.todo);
   const createdAt = item?.createdAt || new Date().toISOString();
-  return {
+  const next = {
     id: String(item?.id || generateId("LAZY")),
     objectId: item?.objectId ?? null,
     reminder: String(item?.reminder ?? ""),
@@ -99,6 +100,8 @@ function normalizeItem(item) {
     updatedAt: item?.updatedAt || createdAt,
     status: item?.status === "active" ? "active" : "queued",
   };
+  if (item?.pendingSync === true) next.pendingSync = true;
+  return next;
 }
 
 function nowIso() {
@@ -134,11 +137,31 @@ export const useLazyTodosStore = create(
         if (!ids?.length) return;
         const remove = new Set(ids);
         const list = get().deletedIds.filter((id) => !remove.has(id));
-        // #region agent log
-        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-D',location:'lazyTodosStore.js:clearDeletedIds',message:'tombstones cleared',data:{cleared:ids,remaining:list},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         persistDeletedIds(list);
         set({ deletedIds: list });
+      },
+
+      /**
+       * After a successful remote upsert, clear pendingSync so empty-remote
+       * hydrates can drop the id if it later disappears from Supabase.
+       * @param {string[]} ids
+       */
+      markSynced: (ids) => {
+        const syncSet = new Set((ids || []).filter(Boolean));
+        if (!syncSet.size) return;
+        set((state) => {
+          let changed = false;
+          const items = state.items.map((item) => {
+            if (!syncSet.has(item.id) || !item.pendingSync) return item;
+            changed = true;
+            const next = normalizeItem({ ...item, pendingSync: false });
+            delete next.pendingSync;
+            return next;
+          });
+          if (!changed) return state;
+          persistItems(items);
+          return { items };
+        });
       },
 
       createDraftItem: (objectId = null) => {
@@ -152,6 +175,7 @@ export const useLazyTodosStore = create(
           createdAt: stamp,
           updatedAt: stamp,
           status: "active",
+          pendingSync: true,
         });
 
         set((state) => {
@@ -186,6 +210,7 @@ export const useLazyTodosStore = create(
           createdAt: stamp,
           updatedAt: stamp,
           status,
+          pendingSync: true,
         });
 
         set((state) => {
@@ -206,9 +231,6 @@ export const useLazyTodosStore = create(
           const deletedIds = state.deletedIds.includes(id)
             ? state.deletedIds
             : [...state.deletedIds, id];
-          // #region agent log
-          fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-A',location:'lazyTodosStore.js:removeItem',message:'tombstone + remove local',data:{id,itemsLeft:items.length,deletedIds},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
           persistItems(items);
           persistDeletedIds(deletedIds);
           return { items, deletedIds };
@@ -226,15 +248,14 @@ export const useLazyTodosStore = create(
               id: item.id,
               createdAt: item.createdAt,
               updatedAt: nowIso(),
+              pendingSync: patch.pendingSync !== undefined
+                ? patch.pendingSync
+                : item.pendingSync,
               items: patch.items != null
                 ? normalizeTodoItems(patch.items)
                 : item.items,
             });
-            // #region agent log
-            if (patch.items != null) {
-              fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b5c112'},body:JSON.stringify({sessionId:'b5c112',runId:'run1',hypothesisId:'H-E',location:'lazyTodosStore.js:updateItem',message:'checklist patch',data:{id,checkedBefore:(item.items||[]).filter((i)=>i.checked).length,checkedAfter:(next.items||[]).filter((i)=>i.checked).length,updatedAt:next.updatedAt},timestamp:Date.now()})}).catch(()=>{});
-            }
-            // #endregion
+            if (patch.pendingSync === false) delete next.pendingSync;
             return next;
           });
           persistItems(items);

@@ -1,5 +1,6 @@
 /**
- * Merge helpers for lazy todos — keep local and remote without destructive overwrite.
+ * Merge helpers for lazy todos — keep local and remote without destructive overwrite,
+ * but never reseed ids that remote has already dropped.
  */
 
 /**
@@ -70,34 +71,109 @@ export function preferNewerLazyTodo(a, b) {
 }
 
 /**
- * Union local + remote by id. Intentionally deleted ids are never resurrected.
+ * @param {import("../stores/lazyTodosStore.js").LazyTodoItem | null | undefined} item
+ */
+export function isPendingSyncLazyTodo(item) {
+  return Boolean(item && item.pendingSync === true);
+}
+
+/**
+ * Union local + remote by id.
+ * - Tombstoned ids never resurrect.
+ * - Local-only ids previously seen on remote (knownRemoteIds) are dropped when remote no longer has them.
+ * - When trustEmptyRemote (successful SELECT returned []), drop local-only except pendingSync drafts.
+ *
  * @param {import("../stores/lazyTodosStore.js").LazyTodoItem[]} localItems
  * @param {import("../stores/lazyTodosStore.js").LazyTodoItem[]} remoteItems
  * @param {Iterable<string>} [deletedIds]
- * @returns {import("../stores/lazyTodosStore.js").LazyTodoItem[]}
+ * @param {{
+ *   knownRemoteIds?: Iterable<string>,
+ *   trustEmptyRemote?: boolean,
+ * }} [options]
+ * @returns {{
+ *   items: import("../stores/lazyTodosStore.js").LazyTodoItem[],
+ *   droppedIds: string[],
+ * }}
  */
-export function mergeLazyTodoLists(localItems, remoteItems, deletedIds = []) {
+export function mergeLazyTodoListsWithMeta(
+  localItems,
+  remoteItems,
+  deletedIds = [],
+  options = {},
+) {
   const deleted = new Set(
     [...deletedIds].filter((id) => typeof id === "string" && id),
   );
+  const knownRemote = new Set(
+    [...(options.knownRemoteIds || [])].filter((id) => typeof id === "string" && id),
+  );
+  const trustEmptyRemote = Boolean(options.trustEmptyRemote);
   const byId = new Map();
+  /** @type {string[]} */
+  const droppedIds = [];
 
   for (const item of remoteItems || []) {
     if (!item?.id || deleted.has(item.id)) continue;
-    byId.set(item.id, item);
+    byId.set(item.id, { ...item, pendingSync: false });
   }
 
   for (const item of localItems || []) {
     if (!item?.id || deleted.has(item.id)) continue;
     const existing = byId.get(item.id);
-    if (!existing) {
+    if (existing) {
+      const preferred = preferNewerLazyTodo(item, existing);
+      byId.set(item.id, { ...preferred, pendingSync: false });
+      continue;
+    }
+
+    // Local-only
+    if (isPendingSyncLazyTodo(item)) {
       byId.set(item.id, item);
       continue;
     }
-    byId.set(item.id, preferNewerLazyTodo(item, existing));
+
+    if (trustEmptyRemote) {
+      droppedIds.push(item.id);
+      continue;
+    }
+
+    if (knownRemote.has(item.id)) {
+      // Previously synced; remote no longer has it → honor remote delete.
+      droppedIds.push(item.id);
+      continue;
+    }
+
+    // Never-synced legacy / local draft without pendingSync flag — keep.
+    byId.set(item.id, item);
   }
 
-  return [...byId.values()].sort((a, b) => (
+  const items = [...byId.values()].sort((a, b) => (
     lazyTodoTimestampMs(b) - lazyTodoTimestampMs(a)
   ));
+
+  return { items, droppedIds };
+}
+
+/**
+ * @param {import("../stores/lazyTodosStore.js").LazyTodoItem[]} localItems
+ * @param {import("../stores/lazyTodosStore.js").LazyTodoItem[]} remoteItems
+ * @param {Iterable<string>} [deletedIds]
+ * @param {{
+ *   knownRemoteIds?: Iterable<string>,
+ *   trustEmptyRemote?: boolean,
+ * }} [options]
+ * @returns {import("../stores/lazyTodosStore.js").LazyTodoItem[]}
+ */
+export function mergeLazyTodoLists(
+  localItems,
+  remoteItems,
+  deletedIds = [],
+  options = {},
+) {
+  return mergeLazyTodoListsWithMeta(
+    localItems,
+    remoteItems,
+    deletedIds,
+    options,
+  ).items;
 }

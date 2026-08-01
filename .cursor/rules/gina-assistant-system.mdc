@@ -1,0 +1,72 @@
+---
+description: Gina (Asistente) — notificadora; To Do compartido; tools; scope hoy + conflictos soft
+alwaysApply: true
+---
+
+# Gina — sistema de asistente (brief v2.2)
+
+**Gina** = identidad del **Asistente**. Notificadora inteligente + chat con **tools** (Opción B). Apunta to dos, educa sobre el tiempo, notifica a la hora, registra confirmaciones. No escribe docs ni decide por el user.
+
+Full brief: `.cursor/saved/gina-system/BRIEF.md`  
+In-doc chat UI shell: `.cursor/saved/gina-chat-card/` (`GinaChatCard.jsx` — open from button inside doc)
+
+## Tres capas de tiempo
+
+1. **Folder schedule** — ventana de días (`scheduleStartAt` → `scheduleFinishAt`)
+2. **Document schedule** — bloque del file (`anchorAt` → `anchorFinishAt`) → alarma **start-file**
+3. **To dos dentro del rango** — plan fino (misma lista user + Gina)
+
+Timeline **solo visualiza**. Alarmas/popups = **solo Gina**.
+
+## To Do compartido
+
+- User y Gina escriben/tachan en la misma lista del doc
+- Popup **OK** → Gina marca `checked`
+- Todos tachados → Gina recomienda **Completed** (user decide)
+
+## Scope de hoy + abrir doc (chat)
+
+User: “¿qué tenemos en el scope de hoy?”  
+→ `get_today_tasks()` / match `today()` → docs con schedule hoy  
+→ si ese doc ya tiene to dos/reminders, Gina los narra **en texto en el chat** (no verbal)
+
+User: “ok, ábreme ese documento”  
+→ **primero abrir el doc** (no bloquear el impulso de trabajar)  
+→ **después**, solo si hay conflicto de horario y no hay otra pregunta significativa, soft comment en chat:
+
+> “No quiero molestarte, pero insertaste el mismo schedule hour entre File A y File B. ¿Quieres mover las horas?”
+
+- **Sí** → ayuda a ajustar horarios  
+- **No / déjame en paz / después** → respeta; no insistir (dismiss: no reabrir ese solape en la sesión / hasta que cambie el schedule)  
+Ambas opciones son válidas. Conflicto = pregunta opcional, nunca bloqueo.
+
+Si el user **nunca** movió las horas → a la hora pueden disparar **dos popovers** (uno por file). Copy debe nombrar cada doc. Si ya está dentro de uno → skip start-file de ese; el otro sí puede sonar. Preferir apilados / secuenciales, no taparse.
+
+## Alarmas
+
+| Tipo | Omitir si ya está en ese doc? |
+|---|---|
+| Start-file | **Sí** |
+| To do interno | **No** por defecto |
+
+## Chat + tools (Opción B)
+
+Gina decide qué tool invocar; backend ejecuta; responde. Tools: `get_today_tasks`, `get_schedule`, `get_conflicts`, `search_documents`, `get_document_info`, `create_todo` (+ open-doc como acción de UI, no rewrite de body). Mapear a stores reales.
+
+## Scope / no hacer
+
+✅ Leer · narrar scope · abrir doc · soft conflict · apuntar/tachar · popup · sugerir Completed  
+❌ Escribir body · forzar status · forzar resolver solapes · alarmas en timeline · sermonear tras dismiss
+
+## Fases
+
+1. To Do + sync estable  
+2. Start-file + in-doc alarms  
+3. Chat scope hoy + open doc + soft conflict  
+4. Claude + tools reales  
+5. Cron/email
+
+## No-regresión
+
+- Tombstones `lazy_todos` · no mutar folder schedule desde Gina  
+- `get_conflicts` = premium Asistente, no UI base de calendar
