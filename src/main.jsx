@@ -10,6 +10,7 @@ import './styles/intel-reference.css';
 import './styles/pack-wizard.css';
 import './styles/steps-runner.css';
 import './styles/lazy-todos.css';
+import './styles/gina-chat.css';
 import './styles/confirm-action.css';
 import './styles/agents.css';
 import './styles/plans.css';

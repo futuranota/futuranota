@@ -54,6 +54,7 @@ import {
   resolveDocWorkStatus,
 } from "../../lib/docWorkStatus.js";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
+import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
 
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
@@ -124,7 +125,7 @@ export function NodeQueryModal({
   scheduleMaxDate = "",
   embedded = false,
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const bodyRef = useRef(null);
   const queryInputRef = useRef(null);
   const focusCategoryRef = useRef(null);
@@ -132,6 +133,7 @@ export function NodeQueryModal({
   const [contentFocusMode, setContentFocusMode] = useState(initialContentFocus);
   const [todoFocusItemId, setTodoFocusItemId] = useState(null);
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
+  const [ginaChatOpen, setGinaChatOpen] = useState(false);
   const writingCaretRef = useRef(null);
   const typographyStorageKey = entityNodeId ? `node:${entityNodeId}` : null;
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
@@ -644,6 +646,15 @@ export function NodeQueryModal({
                 </p>
               )}
               <div className="doc-focus-top__meta">
+                <button
+                  type="button"
+                  className="node-query-modal__call-asistente"
+                  onClick={() => setGinaChatOpen(true)}
+                  title={t("gina.callAsistenteTitle")}
+                  aria-label={t("gina.callAsistenteTitle")}
+                >
+                  {t("gina.callAsistente")}
+                </button>
                 {showCloseButton ? (
                   <button
                     type="button"
@@ -689,6 +700,15 @@ export function NodeQueryModal({
               <span className="node-query-modal__parent-doc">{parentDocLabel}</span>
             ) : null}
             <div className="node-query-modal__head-actions">
+              <button
+                type="button"
+                className="node-query-modal__call-asistente"
+                onClick={() => setGinaChatOpen(true)}
+                title={t("gina.callAsistenteTitle")}
+                aria-label={t("gina.callAsistenteTitle")}
+              >
+                {t("gina.callAsistente")}
+              </button>
               {showCloseButton ? (
                 <button
                   type="button"
@@ -1223,11 +1243,36 @@ export function NodeQueryModal({
       )
     : null;
 
+  const ginaChat = ginaChatOpen ? (
+    <GinaChatOverlay
+      documentId={entityNodeId}
+      assistantName={t("gina.name")}
+      openingMessage={t("gina.openingMessage")}
+      demoReply={t("gina.demoReply")}
+      placeholder={t("gina.placeholder")}
+      speechLang={locale === "es" ? "es-ES" : "en-US"}
+      labels={{
+        messageAria: t("gina.messageAria"),
+        sendAria: t("gina.sendAria"),
+        micAria: t("gina.micAria"),
+        micUnsupported: t("gina.micUnsupported"),
+        listening: t("gina.listening"),
+        ttsOn: t("gina.ttsOn"),
+        ttsOff: t("gina.ttsOff"),
+        closeAria: t("gina.closeAria"),
+        typingAria: t("gina.typingAria"),
+        dialogAria: t("gina.dialogAria"),
+      }}
+      onClose={() => setGinaChatOpen(false)}
+    />
+  ) : null;
+
   if (embedded) {
     return (
       <>
         {modalCard}
         {unsavedConfirm}
+        {ginaChat}
       </>
     );
   }
@@ -1248,6 +1293,7 @@ export function NodeQueryModal({
         document.body,
       )}
       {unsavedConfirm}
+      {ginaChat}
     </>
   );
 }

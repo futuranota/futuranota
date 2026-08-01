@@ -2,7 +2,14 @@
 
 **Role:** UI shell opened when the user presses **Call Asistente / Gina** inside a document.
 
-**Source:** Magic/demo `AIChatCard` (framer-motion chat card). Saved for adaptation — not dropped into production as-is.
+**Production (live):**
+- `src/components/gina/GinaChatCard.jsx`
+- `src/components/gina/GinaChatOverlay.jsx`
+- `src/hooks/useWebSpeech.js`
+- `src/styles/gina-chat.css`
+- Wired from `NodeQueryModal` head-actions (`entityNodeId`)
+
+**Source archive (this folder):** original Magic paste + early draft.
 
 ## Files
 
