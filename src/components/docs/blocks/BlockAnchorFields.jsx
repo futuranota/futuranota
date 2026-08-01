@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { todayDateInputValue } from "../../../lib/docDates.js";
 
 const TIME_STEP_MINUTES = 15;
 
@@ -34,6 +35,14 @@ function overlapsOccupied(time, occupied) {
   });
 }
 
+/** Earliest selectable slot at/after now, snapped up to the 15-minute grid. */
+function earliestSelectableMinutes(now = new Date()) {
+  const raw = now.getHours() * 60 + now.getMinutes();
+  const rem = raw % TIME_STEP_MINUTES;
+  if (rem === 0) return raw;
+  return Math.min(24 * 60 - TIME_STEP_MINUTES, raw + (TIME_STEP_MINUTES - rem));
+}
+
 /** Optional date/time range for Title and Checkbox blocks (node + wires). */
 export function BlockAnchorFields({
   anchorDate = "",
@@ -64,6 +73,8 @@ export function BlockAnchorFields({
   const gridRef = useRef(null);
   const [timeOpen, setTimeOpen] = useState(false);
   const [selectingFinish, setSelectingFinish] = useState(false);
+  /** Refresh past-slot cutoff while the popover is open. */
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const rootClass = [
     "doc-block-anchor",
     readOnly ? "doc-block-anchor--readonly" : "",
@@ -78,6 +89,12 @@ export function BlockAnchorFields({
   const max = String(maxDate || "").trim() || undefined;
   const startMinutes = minutesFromTime(anchorTime);
   const finishMinutes = minutesFromTime(anchorFinishTime);
+  const isToday = String(anchorDate || "").trim() === todayDateInputValue();
+  const earliestMinutes = useMemo(
+    () => (isToday ? earliestSelectableMinutes(new Date(nowTick)) : 0),
+    [isToday, nowTick],
+  );
+  const earliestTimeValue = isToday ? timeFromMinutes(earliestMinutes) : undefined;
   const slots = useMemo(
     () => Array.from(
       { length: (24 * 60) / TIME_STEP_MINUTES },
@@ -114,22 +131,34 @@ export function BlockAnchorFields({
   }, [timeOpen]);
 
   useEffect(() => {
+    if (!timeOpen) return undefined;
+    setNowTick(Date.now());
+    const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [timeOpen]);
+
+  useEffect(() => {
     if (!timeOpen || !gridRef.current) return;
-    const targetTime = anchorTime || "08:00";
+    const targetTime = (anchorTime && minutesFromTime(anchorTime) >= earliestMinutes)
+      ? anchorTime
+      : (isToday ? timeFromMinutes(earliestMinutes) : "08:00");
     const target = gridRef.current.querySelector(`[data-time="${targetTime}"]`);
     target?.scrollIntoView?.({ block: "center" });
-  }, [timeOpen, anchorTime]);
+  }, [timeOpen, anchorTime, earliestMinutes, isToday]);
 
   const selectSlot = (time) => {
+    const timeMinutes = minutesFromTime(time);
+    if (timeMinutes == null) return;
+    if (isToday && timeMinutes < earliestMinutes) return;
     if (!anchorTime || !selectingFinish) {
       onAnchorTimeChange?.(time);
-      if (anchorFinishTime && minutesFromTime(anchorFinishTime) <= minutesFromTime(time)) {
+      if (anchorFinishTime && minutesFromTime(anchorFinishTime) <= timeMinutes) {
         onAnchorFinishTimeChange?.("");
       }
       setSelectingFinish(true);
       return;
     }
-    if (minutesFromTime(time) <= minutesFromTime(anchorTime)) return;
+    if (timeMinutes <= minutesFromTime(anchorTime)) return;
     onAnchorFinishTimeChange?.(time);
     setSelectingFinish(false);
   };
@@ -190,9 +219,13 @@ export function BlockAnchorFields({
                 <input
                   type="time"
                   value={anchorTime}
+                  min={earliestTimeValue}
                   step={TIME_STEP_MINUTES * 60}
                   onChange={(event) => {
-                    onAnchorTimeChange?.(event.target.value);
+                    const next = event.target.value;
+                    const mins = minutesFromTime(next);
+                    if (isToday && mins != null && mins < earliestMinutes) return;
+                    onAnchorTimeChange?.(next);
                     setSelectingFinish(true);
                   }}
                   aria-label="Start time"
@@ -204,9 +237,24 @@ export function BlockAnchorFields({
                 <input
                   type="time"
                   value={anchorFinishTime}
-                  min={anchorTime || undefined}
+                  min={
+                    (() => {
+                      const startMin = minutesFromTime(anchorTime);
+                      if (startMin != null && (!isToday || startMin >= earliestMinutes)) {
+                        return anchorTime;
+                      }
+                      return earliestTimeValue;
+                    })()
+                  }
                   step={TIME_STEP_MINUTES * 60}
-                  onChange={(event) => onAnchorFinishTimeChange?.(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    const mins = minutesFromTime(next);
+                    if (mins == null) return;
+                    if (isToday && mins < earliestMinutes) return;
+                    if (startMinutes != null && mins <= startMinutes) return;
+                    onAnchorFinishTimeChange?.(next);
+                  }}
                   aria-label="Finish time"
                 />
               </label>
@@ -214,14 +262,18 @@ export function BlockAnchorFields({
             <div className="doc-time-range__phase">
               {selectingFinish && anchorTime
                 ? `Choose a finish after ${formatTime(anchorTime)}`
-                : "Choose a start time"}
+                : (isToday
+                  ? "Choose a start time (past hours unavailable)"
+                  : "Choose a start time")}
             </div>
             <div className="doc-time-range__grid" ref={gridRef}>
               {slots.map((time) => {
                 const timeMinutes = minutesFromTime(time);
+                const isPast = isToday && timeMinutes < earliestMinutes;
                 const unavailableFinish = selectingFinish
                   && startMinutes != null
                   && timeMinutes <= startMinutes;
+                const unavailable = isPast || unavailableFinish;
                 const inRange = startMinutes != null
                   && finishMinutes != null
                   && timeMinutes >= startMinutes
@@ -239,10 +291,20 @@ export function BlockAnchorFields({
                       + (inRange ? " is-in-range" : "")
                       + (occupiedSlot ? " is-occupied" : "")
                       + (unavailableFinish ? " is-before-start" : "")
+                      + (isPast ? " is-past" : "")
                     }
-                    onClick={() => selectSlot(time)}
+                    onClick={() => {
+                      if (unavailable) return;
+                      selectSlot(time);
+                    }}
+                    disabled={unavailable}
+                    aria-disabled={unavailable}
                     aria-pressed={time === anchorTime || time === anchorFinishTime}
-                    title={occupiedSlot ? "Occupied, but selectable" : undefined}
+                    title={
+                      isPast
+                        ? "Past time unavailable"
+                        : (occupiedSlot ? "Occupied, but selectable" : undefined)
+                    }
                   >
                     {formatTime(time)}
                   </button>

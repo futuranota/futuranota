@@ -9244,6 +9244,14 @@ body.doc-content-resizing * {
   cursor: default;
 }
 
+.doc-time-range__slot.is-past {
+  opacity: 0.22;
+  cursor: not-allowed;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  pointer-events: none;
+}
+
 .doc-time-range__slot.is-occupied {
   color: rgba(255, 255, 255, 0.42);
   text-decoration: line-through;
