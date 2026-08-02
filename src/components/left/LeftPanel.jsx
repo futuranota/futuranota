@@ -4,6 +4,7 @@ import {
   useObjectsStore,
   useDocsStore,
   useNodesStore,
+  useCanvasStore,
   useUIStateStore,
   useTimelineStore,
   usePlanStore,
@@ -16,16 +17,20 @@ import {
   clearLeftPanelNavSnapshot,
 } from "../../stores/uiStateStore.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
-import { getAgentsForUser, AGENT_MARKETING_GUIDE } from "../../lib/agents/registry.js";
+import { getAgentsForUser, AGENT_CONTENT_CREATOR, AGENT_MARKETING_GUIDE, AGENT_SOCIAL_HYPE_ANALYST } from "../../lib/agents/registry.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { AssistanceListCard } from "../gina/AssistanceListCard.jsx";
 import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
+import { GinaKnowledgeOverlay } from "../gina/GinaKnowledgeOverlay.jsx";
 import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
 import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
 import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
+import { buildGinaKnowledgePromptBlock, isGinaLearnSaveConfirm, addLocalGinaKnowledge, parseGinaLearnReply } from "../../lib/gina/ginaKnowledgeStore.js";
+import { resolveGinaLearnBrief, resolveGinaLearnBriefByTitle } from "../../lib/gina/resolveGinaLearnBrief.js";
+import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { formatMmDdYy, isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import {
@@ -56,6 +61,7 @@ import {
   listProductDocs,
   listContentDocs,
   listUncategorizedDocs,
+  listKnowledgeDocs,
   resolveProductDocDisplayTitle,
   resolveKnowledgeDocDisplayTitle,
 } from "../../lib/templateDoc.js";
@@ -288,17 +294,6 @@ function DepartmentsGlyph({ className = "lp-click-folder-box-icon" }) {
 function ClickFolderIcon({ variant, className = "lp-click-folder-box-icon" }) {
   if (variant === "departments") {
     return <DepartmentsGlyph className={className} />;
-  }
-
-  if (variant === "knowledge") {
-    return (
-      <img
-        src="/uploads/botones/FloppyDisk.svg"
-        alt=""
-        aria-hidden
-        className={`${className} lp-click-folder-box-icon-img`}
-      />
-    );
   }
 
   if (variant === "agents") {
@@ -1269,9 +1264,14 @@ function DocCreateModal({
 
   const parentObject = isKnowledgeMode ? null : objects.find((o) => o.id === parentId);
 
-  const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport }) => {
+  const handleKnowledgeFileImport = ({ title: importTitle, knowledgeImport: nextImport, textContent }) => {
     if (importTitle && !title.trim()) setTitle(importTitle);
     if (nextImport) setKnowledgeImport(nextImport);
+    const text = String(textContent || "").trim();
+    if (text) {
+      setBody(text);
+      setBlocks([]);
+    }
   };
 
   const handleTitleChange = (value) => {
@@ -1690,6 +1690,10 @@ export function LeftPanel({
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
   const [ginaDashboardOpen, setGinaDashboardOpen] = useState(false);
+  const [ginaKnowledgeOpen, setGinaKnowledgeOpen] = useState(false);
+  const [ginaMeetingSession, setGinaMeetingSession] = useState(false);
+  const [ginaLearnBrief, setGinaLearnBrief] = useState(null);
+  const [ginaPendingLearn, setGinaPendingLearn] = useState(null);
   const [ginaOpeningMessage, setGinaOpeningMessage] = useState("");
   const [departmentFilterId, setDepartmentFilterId] = useState("");
   const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
@@ -1708,6 +1712,7 @@ export function LeftPanel({
 
   const filterObjectId = useUIStateStore((s) => s.filterObjectId);
   const selectedObjectId = useUIStateStore((s) => s.selectedObjectId);
+  const selectedCanvasNodeIds = useUIStateStore((s) => s.selectedCanvasNodeIds);
   const objectWorkspaceActive = useUIStateStore((s) => s.objectWorkspaceActive);
   const setFilterObjectId = useUIStateStore((s) => s.setFilterObjectId);
   const setSelectedObjectId = useUIStateStore((s) => s.setSelectedObjectId);
@@ -1733,6 +1738,7 @@ export function LeftPanel({
   const planProfile = usePlanStore(s => s.profile);
   const showUpgradeModal = useUpgradeModalStore(s => s.show);
   const docs       = useDocsStore(s => s.docs);
+  const canvasNodes = useCanvasStore((s) => s.canvasNodes);
   const addDoc     = useDocsStore(s => s.addDoc);
   const deleteDoc  = useDocsStore(s => s.deleteDoc);
   const getDocsByObject = useDocsStore(s => s.getDocsByObject);
@@ -1746,7 +1752,12 @@ export function LeftPanel({
   const userEmail = useAuthStore((s) => s.user?.email);
   const authUser = useAuthStore((s) => s.user);
 
+  const isGinaAdmin = isAdminSessionEmail(userEmail);
+
   const openGinaDashboard = useCallback(() => {
+    setGinaMeetingSession(false);
+    setGinaLearnBrief(null);
+    setGinaPendingLearn(null);
     setGinaOpeningMessage(pickGinaOpening({
       locale: locale === "es" ? "es" : "en",
       userName: resolveGinaUserDisplayName(authUser),
@@ -1755,12 +1766,42 @@ export function LeftPanel({
     setGinaDashboardOpen(true);
   }, [authUser, locale]);
 
+  const openGinaMeeting = useCallback(() => {
+    if (!isAdminSessionEmail(userEmail)) return;
+    const brief = resolveGinaLearnBrief({
+      selectedCanvasNodeIds,
+      canvasNodes,
+      nodes: nodesMap,
+      docs: docsMap,
+    });
+    setGinaLearnBrief(brief);
+    setGinaPendingLearn(null);
+    setGinaMeetingSession(true);
+    const briefHint = brief?.title
+      ? (locale === "es"
+        ? ` Tengo el skill/doc «${brief.title}» listo — dime “aprende esto” o hazme el test.`
+        : ` I have skill/doc “${brief.title}” ready — say “learn this” or quiz me.`)
+      : (locale === "es"
+        ? " Selecciona un documento/skill en el canvas o pega el material y di “aprende esto”."
+        : " Select a document/skill on the canvas or paste material and say “learn this”.");
+    setGinaOpeningMessage(
+      locale === "es"
+        ? `Meeting activo.${briefHint}`
+        : `Meeting on.${briefHint}`,
+    );
+    setGinaDashboardOpen(true);
+  }, [userEmail, locale, selectedCanvasNodeIds, canvasNodes, nodesMap, docsMap]);
+
   const handleInsertGuide = useCallback(() => {
     onInsertAgent?.(AGENT_MARKETING_GUIDE);
   }, [onInsertAgent]);
 
+  /** Temporary sidebar Agents list — only Social Hype + Content Creator while wiring flows. */
   const canvasAgents = useMemo(
-    () => getAgentsForUser(userEmail).filter((agent) => agent.id !== AGENT_MARKETING_GUIDE),
+    () => getAgentsForUser(userEmail).filter((agent) => (
+      agent.id === AGENT_SOCIAL_HYPE_ANALYST
+      || agent.id === AGENT_CONTENT_CREATOR
+    )),
     [userEmail],
   );
 
@@ -1967,6 +2008,10 @@ export function LeftPanel({
     [filteredProductDocs, t],
   );
 
+  const knowledgeDocs = useMemo(
+    () => listKnowledgeDocs(docs),
+    [docs],
+  );
 
   useEffect(() => {
     setClickFolderView(null);
@@ -2666,7 +2711,34 @@ export function LeftPanel({
       ? "campaign"
       : "content";
 
-  const handleGinaDashboardSend = useCallback(async (text) => {
+  const handleGinaDashboardSend = useCallback(async (text, meta = {}) => {
+    const meetingOn = Boolean(ginaMeetingSession)
+      || (Boolean(meta?.meetingMode) && isAdminSessionEmail(userEmail));
+
+    if (meetingOn && ginaPendingLearn && isGinaLearnSaveConfirm(text)) {
+      addLocalGinaKnowledge({ ...ginaPendingLearn, source: "taught" });
+      setGinaPendingLearn(null);
+      return {
+        message: locale === "es"
+          ? `Listo — guardé «${ginaPendingLearn.title}» en Knowledge. Hazme el test cuando quieras.`
+          : `Saved “${ginaPendingLearn.title}” to Knowledge. Quiz me whenever you want.`,
+        visualization: null,
+        learnProposal: null,
+      };
+    }
+
+    if (meetingOn && meta?.saveLearnProposal && meta.learnProposal?.body) {
+      addLocalGinaKnowledge({ ...meta.learnProposal, source: "taught" });
+      setGinaPendingLearn(null);
+      return {
+        message: locale === "es"
+          ? `Listo — guardé «${meta.learnProposal.title}» en Knowledge.`
+          : `Saved “${meta.learnProposal.title}” to Knowledge.`,
+        visualization: null,
+        learnProposal: null,
+      };
+    }
+
     const ctx = {
       docs: docsMap,
       nodes: nodesMap,
@@ -2676,7 +2748,7 @@ export function LeftPanel({
     };
     const routed = runGinaQueryFamily(text, ctx);
 
-    if (routed.family === "focus_open") {
+    if (!meetingOn && routed.family === "focus_open") {
       if (routed.openDocumentId) {
         setGinaDashboardOpen(false);
         onOpenDocument?.(routed.openDocumentId);
@@ -2695,37 +2767,74 @@ export function LeftPanel({
     try {
       const workspaceInventory = routed.workspaceInventory
         || get_workspace_inventory(ctx);
-      const visualization = (routed.family === "name_ambiguity" || routed.family === "confirm_date")
+      const visualization = (meetingOn || routed.family === "name_ambiguity" || routed.family === "confirm_date")
         ? null
         : buildGinaVisualization(routed.family, routed.toolContext, {
           locale: locale === "es" ? "es" : "en",
           userText: text,
         });
+
+      let meetingBrief = meetingOn ? ginaLearnBrief : null;
+      if (meetingOn) {
+        const byTitle = resolveGinaLearnBriefByTitle(text, docsMap);
+        if (byTitle) {
+          meetingBrief = byTitle;
+          setGinaLearnBrief(byTitle);
+        } else if (!meetingBrief) {
+          const fromSelection = resolveGinaLearnBrief({
+            selectedCanvasNodeIds,
+            canvasNodes,
+            nodes: nodesMap,
+            docs: docsMap,
+          });
+          if (fromSelection) {
+            meetingBrief = fromSelection;
+            setGinaLearnBrief(fromSelection);
+          }
+        }
+      }
+
+      const knowledgeContext = buildGinaKnowledgePromptBlock(docsMap);
       const result = await fetchGinaChat({
         messages: [{ role: "user", content: text }],
         toolContext: routed.toolContext,
         toolsCalled: routed.toolsCalled,
-        family: routed.family,
+        family: meetingOn ? "meeting_brief" : routed.family,
         locale: locale === "es" ? "es" : "en",
         visualizationType: visualization?.type || null,
         workspaceInventory,
+        meetingMode: meetingOn,
+        meetingBrief: meetingBrief || undefined,
+        knowledgeContext: knowledgeContext || undefined,
       });
-      const message = typeof result?.reply === "string" && result.reply.trim()
+      const rawReply = typeof result?.reply === "string" && result.reply.trim()
         ? result.reply.trim()
         : (locale === "es"
           ? "No pude narrar el scope. Intenta de nuevo."
           : "Couldn't narrate scope. Try again.");
-      return { message, visualization };
+
+      const { displayText, learnProposal } = meetingOn
+        ? parseGinaLearnReply(rawReply)
+        : { displayText: rawReply, learnProposal: null };
+      if (learnProposal) setGinaPendingLearn(learnProposal);
+
+      return {
+        message: displayText,
+        visualization,
+        learnProposal,
+      };
     } catch (err) {
       console.warn("[gina] chat failed", err);
       return {
         message: locale === "es"
           ? "Hubo un problema al hablar con Gina. ¿GROQ_API_KEY está configurada? Puedes preguntar por hoy, vencidos o un departamento."
           : "Something went wrong talking to Gina. Is GROQ_API_KEY set? You can ask about today, past due, or a department.",
-        visualization: buildGinaVisualization(routed.family, routed.toolContext, {
-          locale: locale === "es" ? "es" : "en",
-          userText: text,
-        }),
+        visualization: meetingOn
+          ? null
+          : buildGinaVisualization(routed.family, routed.toolContext, {
+            locale: locale === "es" ? "es" : "en",
+            userText: text,
+          }),
       };
     }
   }, [
@@ -2736,6 +2845,12 @@ export function LeftPanel({
     filterObjectId,
     locale,
     onOpenDocument,
+    ginaMeetingSession,
+    ginaLearnBrief,
+    ginaPendingLearn,
+    userEmail,
+    selectedCanvasNodeIds,
+    canvasNodes,
   ]);
 
   return (
@@ -3239,7 +3354,13 @@ export function LeftPanel({
                   label={t("sidebar.assistanceTitle")}
                 />
                 <div className="lp-click-folder-detail-list">
-                  <AssistanceListCard onTalk={openGinaDashboard} />
+                  <AssistanceListCard
+                    onTalk={openGinaDashboard}
+                    onOpenMeeting={openGinaMeeting}
+                    onOpenKnowledge={() => setGinaKnowledgeOpen(true)}
+                    isAdmin={isGinaAdmin}
+                    knowledgeDocCount={knowledgeDocs.length}
+                  />
                 </div>
               </div>
             ) : null}
@@ -3674,6 +3795,10 @@ export function LeftPanel({
           openingMessage={ginaOpeningMessage || t("gina.dashboardOpening")}
           placeholder={t("gina.placeholder")}
           speechLang={locale === "es" ? "es-ES" : "en-US"}
+          allowMeetingMode={ginaMeetingSession}
+          lockMeetingMode={ginaMeetingSession}
+          initialMeetingMode={ginaMeetingSession}
+          meetingDocumentTitle={ginaMeetingSession ? t("gina.meetingsSessionTitle") : ""}
           labels={{
             messageAria: t("gina.messageAria"),
             sendAria: t("gina.sendAria"),
@@ -3689,9 +3814,53 @@ export function LeftPanel({
             dialogAria: t("gina.dialogAria"),
             ttsOn: t("gina.ttsOn"),
             ttsOff: t("gina.ttsOff"),
+            meetingToggle: t("gina.meetingToggle"),
+            meetingActiveHint: t("gina.meetingsActiveHint"),
+            meetingThisDocument: t("gina.meetingsSessionTitle"),
+            meetingOffHint: t("gina.meetingOffHint"),
+            learnSave: t("gina.learnSave"),
           }}
           onSendMessage={handleGinaDashboardSend}
-          onClose={() => setGinaDashboardOpen(false)}
+          onClose={() => {
+            setGinaDashboardOpen(false);
+            setGinaMeetingSession(false);
+            setGinaLearnBrief(null);
+            setGinaPendingLearn(null);
+          }}
+        />
+      ) : null}
+      {ginaKnowledgeOpen ? (
+        <GinaKnowledgeOverlay
+          knowledgeDocs={knowledgeDocs}
+          isAdmin={isGinaAdmin}
+          onOpenDocument={(docId) => handleOpenFolderDoc(docId)}
+          onCreateKnowledge={async ({ title, body, knowledgeImport }) => {
+            const newDocId = addDoc(
+              title,
+              null,
+              [],
+              [],
+              body ?? "",
+              null,
+              null,
+              {
+                docKind: "knowledge",
+                knowledgeImport: knowledgeImport ?? null,
+              },
+            );
+            if (newDocId) {
+              try {
+                await flushPersistenceSync();
+              } catch {
+                /* local ok */
+              }
+            }
+          }}
+          onDeleteKnowledge={(docId) => {
+            const doc = docs[docId];
+            if (doc) handleDeleteDoc(doc);
+          }}
+          onClose={() => setGinaKnowledgeOpen(false)}
         />
       ) : null}
     </div>

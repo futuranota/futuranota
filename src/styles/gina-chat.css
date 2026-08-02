@@ -672,3 +672,282 @@
   margin: 0;
   color: #8a8a8a;
 }
+
+/* Assistance → Meetings (admin teaching mode) */
+.gina-chat-card__meeting-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 16px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.gina-chat-card__meeting-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  cursor: pointer;
+  user-select: none;
+}
+
+.gina-chat-card__meeting-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: #c9b896;
+  cursor: pointer;
+}
+
+.gina-chat-card__meeting-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b8b8b8;
+}
+
+.gina-chat-card__meeting-label.is-on,
+.gina-chat-card__meeting-toggle.is-on .gina-chat-card__meeting-label {
+  color: #c9b896;
+}
+
+.gina-chat-card__meeting-hint {
+  font-size: 10px;
+  line-height: 1.35;
+  color: #c9b896;
+}
+
+.gina-chat-card__meeting-hint--dim {
+  color: #6a6a6a;
+}
+
+.gina-chat-card__learn-save {
+  align-self: flex-start;
+  margin-top: 6px;
+  border: 1px solid color-mix(in oklab, #c9b896 45%, transparent);
+  background: color-mix(in oklab, #c9b896 12%, #151515);
+  color: #c9b896;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.gina-chat-card__learn-save:hover {
+  background: color-mix(in oklab, #c9b896 20%, #151515);
+}
+
+/* Gina Knowledge dashboard overlay */
+.gina-knowledge-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.gina-knowledge-overlay__panel {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.gina-knowledge-overlay__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gina-knowledge-overlay__eyebrow {
+  margin: 0 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #c9b896;
+}
+
+.gina-knowledge-overlay__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  color: #f2f2f2;
+}
+
+.gina-knowledge-overlay__desc {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #8a8a8a;
+}
+
+.gina-knowledge-overlay__close {
+  border: 0;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.gina-knowledge-overlay__close:hover {
+  color: #fff;
+}
+
+.gina-knowledge-overlay__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 18px 18px;
+  overflow: auto;
+}
+
+.gina-knowledge-overlay__section-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b8b8b8;
+}
+
+.gina-knowledge-overlay__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.gina-knowledge-overlay__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in oklab, #fff 4%, #151515);
+}
+
+.gina-knowledge-overlay__item-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.gina-knowledge-overlay__item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #eee;
+}
+
+.gina-knowledge-overlay__item-meta {
+  font-size: 10px;
+  color: #c9b896;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gina-knowledge-overlay__item-remove {
+  border: 0;
+  background: transparent;
+  color: #777;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.gina-knowledge-overlay__item-remove:hover {
+  color: #ddd;
+}
+
+.gina-knowledge-overlay__empty {
+  padding: 10px;
+  font-size: 11px;
+  color: #777;
+}
+
+.gina-knowledge-overlay__compose {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gina-knowledge-overlay__input,
+.gina-knowledge-overlay__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #121212;
+  color: #eee;
+  font: inherit;
+  font-size: 12px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.gina-knowledge-overlay__input:focus,
+.gina-knowledge-overlay__textarea:focus {
+  outline: 1px solid color-mix(in oklab, #c9b896 45%, transparent);
+  outline-offset: 0;
+}
+
+.gina-knowledge-overlay__file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in oklab, #c9b896 12%, #151515);
+  font-size: 11px;
+  color: #c9b896;
+}
+
+.gina-knowledge-overlay__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gina-knowledge-overlay__hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #9a9a9a;
+}

@@ -53,6 +53,9 @@ async function groqChat(apiKey, model, payload) {
  *   family?: string,
  *   locale?: string,
  *   workspaceInventory?: unknown,
+ *   meetingBrief?: { title?: string, body?: string, documentId?: string | null } | null,
+ *   meetingMode?: boolean,
+ *   knowledgeContext?: string,
  * }} body
  */
 export async function processGinaChatRequest(body = {}) {
@@ -92,19 +95,49 @@ export async function processGinaChatRequest(body = {}) {
     }
   })();
 
+  const meeting = body.meetingBrief && typeof body.meetingBrief === "object"
+    ? body.meetingBrief
+    : null;
+  const meetingTitle = meeting?.title ? String(meeting.title).trim() : "";
+  const meetingBody = meeting?.body ? String(meeting.body).trim() : "";
+  const meetingModeOn = Boolean(body.meetingMode) || Boolean(meetingBody) || body.family === "meeting_brief";
+  const meetingBlock = meetingBody
+    ? [
+        "",
+        "MEETING BRIEF (skill/doc inserted — LEARN source when admin says aprende esto):",
+        `Title: ${meetingTitle || "(untitled)"}`,
+        meeting?.documentId ? `Document id: ${meeting.documentId}` : "",
+        "---",
+        meetingBody.slice(0, 12000),
+        "---",
+        "If LEARN: summarize + emit <<<GINA_LEARN ... >>> and ask to save to memory.",
+        "If ANSWER/test: use GINA TAUGHT MEMORY; do not invent beyond memory + this brief.",
+      ].filter(Boolean).join("\n")
+    : (meetingModeOn
+      ? "\n\nMeeting mode: ON (no skill/doc brief attached — learn from user text, or ask them to select/insert a skill document and say “aprende esto”)."
+      : "\n\nMeeting mode: OFF — TOOLS/scope; taught memory only for product meanings already taught.");
+
+  // Taught memory: Meeting always; Talk also gets it for product Q&A
+  const knowledgeBlock = typeof body.knowledgeContext === "string" && body.knowledgeContext.trim()
+    ? `\n\n${body.knowledgeContext.trim().slice(0, 14000)}`
+    : "";
+
   const system = [
     getGinaSystemPrompt(),
     "",
     `Locale: ${locale}`,
     `Query family: ${body.family || "unknown"}`,
     `Tools called: ${(body.toolsCalled || []).join(", ") || "none"}`,
+    meetingModeOn ? "Meeting mode: ON" : "Meeting mode: OFF",
     "",
     "WORKSPACE INVENTORY (live corpus — ONLY name entities listed here):",
     inventoryJson.slice(0, 8000),
     "",
     "TOOL CONTEXT (JSON — ground truth for this answer, do not invent beyond this):",
     toolJson.slice(0, 12000),
-  ].join("\n");
+    meetingBlock,
+    knowledgeBlock,
+  ].filter((line) => line !== undefined).join("\n");
 
   const chatMessages = history
     .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")

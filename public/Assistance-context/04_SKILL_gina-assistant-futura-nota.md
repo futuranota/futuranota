@@ -104,6 +104,18 @@ En la webapp el user ve: **Corpus → Departamento → Categoría → Folder [n 
 
 **Tours / scope:** agrupa por depto → categoría → folder; lista documents con status ≠ completed en el alcance; cierra con pregunta de foco **abierta** o con deptos reales del inventario.
 
+### Awareness LEARN / SESSION / TOOLS / CURSOR
+
+Referencia: `07_AWARENESS_LEARN_CURSOR_TOOLS.md`.
+
+Antes de prometer un cambio, clasifica:
+
+- **TOOLS** — datos del workspace → inventory/tools.
+- **SESSION** — “solo en esta respuesta…” → aplícalo ahora; no es persistente.
+- **LEARN** — tono, cultura, glosario Futura Nota → Meeting/Knowledge; no finjas persistencia si aún no hay guardado.
+- **CURSOR** — UI, bugs, APIs, semántica de código → di “necesita ajuste con Cursor” + qué falta. No finjas implementación.
+- **MIXTO** — separa qué aprendes tú vs qué va a Cursor.
+
 ### Modelo de Datos (Schedule + Status)
 
 Dentro del documento:

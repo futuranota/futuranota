@@ -55,6 +55,12 @@ import {
 } from "../../lib/docWorkStatus.js";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
 import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
+import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
+import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
+import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js";
+import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
+import { useDocsStore, useNodesStore } from "../../stores/index.js";
+import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
 
@@ -161,6 +167,9 @@ export function NodeQueryModal({
     || null;
   const dateEditable = Boolean(onCreatedDateChange);
   const userEmail = useAuthStore((s) => s.user?.email);
+  const docsMap = useDocsStore((s) => s.docs);
+  const nodesMap = useNodesStore((s) => s.nodes);
+  const departments = useDepartmentsStore((s) => s.departments);
   const showCampaignStatus = Boolean(campaignMode) && typeof onCampaignStatusChange === "function";
   const showStatusMeta = showCampaignStatus
     || (canUseDocStatusMeta(userEmail)
@@ -339,6 +348,61 @@ export function NodeQueryModal({
     writingSeedRef.current = seedKey;
     setWritingBlocks(parseNodeWritingBody(content).blocks);
   }, [entityNodeId, dataType, content]);
+
+  const handleGinaInDocSend = useCallback(async (text) => {
+    const ctx = {
+      docs: docsMap,
+      nodes: nodesMap,
+      departments,
+      objectId: companyObjectId || null,
+      now: new Date(),
+    };
+    const routed = runGinaQueryFamily(text, ctx);
+    const workspaceInventory = routed.workspaceInventory || get_workspace_inventory(ctx);
+    const visualization = (routed.family === "name_ambiguity" || routed.family === "confirm_date")
+      ? null
+      : buildGinaVisualization(routed.family, routed.toolContext, {
+        locale: locale === "es" ? "es" : "en",
+        userText: text,
+      });
+
+    try {
+      const result = await fetchGinaChat({
+        messages: [{ role: "user", content: text }],
+        toolContext: {
+          ...(routed.toolContext || {}),
+          openDocument: {
+            id: entityNodeId,
+            title: displayQuery,
+          },
+        },
+        toolsCalled: routed.toolsCalled,
+        family: routed.family || "document_chat",
+        locale: locale === "es" ? "es" : "en",
+        workspaceInventory,
+        meetingMode: false,
+      });
+      const message = typeof result?.reply === "string" && result.reply.trim()
+        ? result.reply.trim()
+        : (locale === "es"
+          ? "No pude responder. Intenta de nuevo."
+          : "Couldn't reply. Try again.");
+      return { message, visualization };
+    } catch (err) {
+      console.warn("[gina] in-doc chat failed", err);
+      return locale === "es"
+        ? "Hubo un problema al hablar con Gina. ¿GROQ_API_KEY está configurada?"
+        : "Something went wrong talking to Gina. Is GROQ_API_KEY set?";
+    }
+  }, [
+    docsMap,
+    nodesMap,
+    departments,
+    companyObjectId,
+    locale,
+    displayQuery,
+    entityNodeId,
+  ]);
 
   // Unsaved-changes guard: snapshot the node's content/title when it opens, and
   // prompt to save if the user closes with pending edits (doc-style card).
@@ -1319,7 +1383,12 @@ export function NodeQueryModal({
         closeAria: t("gina.closeAria"),
         typingAria: t("gina.typingAria"),
         dialogAria: t("gina.dialogAria"),
+        meetingToggle: t("gina.meetingToggle"),
+        meetingActiveHint: t("gina.meetingActiveHint"),
+        meetingThisDocument: t("gina.meetingThisDocument"),
+        meetingOffHint: t("gina.meetingOffHint"),
       }}
+      onSendMessage={handleGinaInDocSend}
       onClose={() => setGinaChatOpen(false)}
     />
   ) : null;

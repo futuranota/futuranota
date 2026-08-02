@@ -81,7 +81,7 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 **Próximo Gina:** Phase 1.5 viz + polish scope (live corpus / tiempo) — **hecho en código**. Canon: [`06_TIME_SCOPE_AND_LIVE_CORPUS.md`](public/Assistance-context/06_TIME_SCOPE_AND_LIVE_CORPUS.md). Google Calendar = después.
 
-**Gina narración visual:** path UI `/` gris; mensaje verbal; solo departamentos del inventario.
+**Gina awareness:** LEARN / SESSION / TOOLS / CURSOR — [`07_AWARENESS_LEARN_CURSOR_TOOLS.md`](public/Assistance-context/07_AWARENESS_LEARN_CURSOR_TOOLS.md). Gina declara si puede aprenderlo o si necesita Cursor.
 
 **Moodboard LEGO — brief acumulando (2026-07-24)** — Visión board (frames L/M/S, nota, files Drive, tags linkables) antes de Studio. No implementar a ciegas desde el CURSOR_BRIEF de Claude (asume Next.js).
 

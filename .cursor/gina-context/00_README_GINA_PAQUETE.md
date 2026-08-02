@@ -142,6 +142,9 @@ START
 06_TIME_SCOPE_AND_LIVE_CORPUS.md
   (tiempo hoy/mañana + solo corpus vivo)
   ↓
+07_AWARENESS_LEARN_CURSOR_TOOLS.md
+  (LEARN vs CURSOR vs TOOLS)
+  ↓
 LISTO → Implementar plan en Cursor
 ```
 

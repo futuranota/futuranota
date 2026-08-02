@@ -10,7 +10,7 @@ import { normalizeDictationTranscript } from "../../lib/ginaSpeechVocab.js";
 import { GinaAnimatedText } from "./GinaAnimatedText.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 
-/** @typedef {{ sender: "ai" | "user", text: string, visualization?: { type: string, data: object } | null }} GinaChatMessage */
+/** @typedef {{ sender: "ai" | "user", text: string, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null }} GinaChatMessage */
 
 function SendIcon() {
   return (
@@ -114,7 +114,11 @@ function joinTranscript(finalParts, interim) {
  *   speechLang?: string,
  *   labels?: Record<string, string>,
  *   onClose?: () => void,
- *   onSendMessage?: (text: string) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null }>,
+ *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null }>,
+ *   allowMeetingMode?: boolean,
+ *   meetingDocumentTitle?: string,
+ *   initialMeetingMode?: boolean,
+ *   lockMeetingMode?: boolean,
  * }} props
  */
 export function GinaChatCard({
@@ -128,6 +132,10 @@ export function GinaChatCard({
   labels = {},
   onClose,
   onSendMessage,
+  allowMeetingMode = false,
+  meetingDocumentTitle = "",
+  initialMeetingMode = false,
+  lockMeetingMode = false,
 }) {
   /** @type {[GinaChatMessage[], Function]} */
   const [messages, setMessages] = useState([
@@ -143,6 +151,11 @@ export function GinaChatCard({
   /** Mode B: “borrar” armed — next utterance is the phrase to remove. */
   const [deletePhraseArmed, setDeletePhraseArmed] = useState(false);
   const [deletePhraseHint, setDeletePhraseHint] = useState(/** @type {string | null} */ (null));
+  const [meetingMode, setMeetingMode] = useState(Boolean(initialMeetingMode));
+
+  useEffect(() => {
+    setMeetingMode(Boolean(initialMeetingMode));
+  }, [initialMeetingMode]);
 
   const {
     recognitionSupported,
@@ -342,19 +355,23 @@ export function GinaChatCard({
 
     if (typeof onSendMessage === "function") {
       try {
-        const reply = await onSendMessage(trimmed);
+        const reply = await onSendMessage(trimmed, {
+          meetingMode: Boolean(allowMeetingMode && (lockMeetingMode || meetingMode)),
+        });
         let aiText = "";
         let visualization = null;
+        let learnProposal = null;
         if (typeof reply === "string") {
           aiText = reply.trim();
         } else if (reply && typeof reply === "object") {
           aiText = String(reply.message || reply.reply || "").trim();
           visualization = reply.visualization || null;
+          learnProposal = reply.learnProposal || null;
         }
-        if (aiText || visualization) {
+        if (aiText || visualization || learnProposal) {
           setMessages((prev) => [
             ...prev,
-            { sender: "ai", text: aiText || " ", visualization },
+            { sender: "ai", text: aiText || " ", visualization, learnProposal },
           ]);
         }
       } finally {
@@ -487,6 +504,39 @@ export function GinaChatCard({
           </div>
         </header>
 
+        {allowMeetingMode ? (
+          <div className="gina-chat-card__meeting-bar">
+            {lockMeetingMode ? (
+              <span className="gina-chat-card__meeting-label is-on">
+                {labels.meetingToggle || "Meeting"}
+              </span>
+            ) : (
+              <label className={`gina-chat-card__meeting-toggle${meetingMode ? " is-on" : ""}`}>
+                <input
+                  type="checkbox"
+                  checked={meetingMode}
+                  onChange={(e) => setMeetingMode(e.target.checked)}
+                />
+                <span className="gina-chat-card__meeting-label">
+                  {labels.meetingToggle || "Meeting"}
+                </span>
+              </label>
+            )}
+            {(lockMeetingMode || meetingMode) ? (
+              <span className="gina-chat-card__meeting-hint">
+                {(labels.meetingActiveHint || "Reading: {title}").replace(
+                  "{title}",
+                  meetingDocumentTitle || labels.meetingThisDocument || "this document",
+                )}
+              </span>
+            ) : (
+              <span className="gina-chat-card__meeting-hint gina-chat-card__meeting-hint--dim">
+                {labels.meetingOffHint || "Off — Gina won’t use this document as a brief"}
+              </span>
+            )}
+          </div>
+        ) : null}
+
         <div className="gina-chat-card__messages" role="log" aria-live="polite">
           {messages.map((msg, i) => (
             <motion.div
@@ -514,6 +564,40 @@ export function GinaChatCard({
                   type={msg.visualization.type}
                   data={msg.visualization.data}
                 />
+              ) : null}
+              {msg.sender === "ai" && msg.learnProposal && allowMeetingMode ? (
+                <button
+                  type="button"
+                  className="gina-chat-card__learn-save"
+                  onClick={async () => {
+                    if (typeof onSendMessage !== "function") return;
+                    setIsTyping(true);
+                    try {
+                      const saved = await onSendMessage("guarda", {
+                        meetingMode: true,
+                        saveLearnProposal: true,
+                        learnProposal: msg.learnProposal,
+                      });
+                      let confirmText = "";
+                      if (typeof saved === "string") confirmText = saved.trim();
+                      else if (saved && typeof saved === "object") {
+                        confirmText = String(saved.message || saved.reply || "").trim();
+                      }
+                      setMessages((prev) => [
+                        ...prev.map((m, idx) => (
+                          idx === i ? { ...m, learnProposal: null } : m
+                        )),
+                        ...(confirmText
+                          ? [{ sender: "ai", text: confirmText, learnProposal: null }]
+                          : []),
+                      ]);
+                    } finally {
+                      setIsTyping(false);
+                    }
+                  }}
+                >
+                  {labels.learnSave || "Save to Gina’s memory"}
+                </button>
               ) : null}
             </motion.div>
           ))}

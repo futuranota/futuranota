@@ -12,7 +12,11 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
  *   placeholder?: string,
  *   speechLang?: string,
  *   labels?: Record<string, string>,
- *   onSendMessage?: (text: string) => void | Promise<void>,
+ *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | object>,
+ *   allowMeetingMode?: boolean,
+ *   meetingDocumentTitle?: string,
+ *   initialMeetingMode?: boolean,
+ *   lockMeetingMode?: boolean,
  *   onClose: () => void,
  * }} props
  */
@@ -25,6 +29,10 @@ export function GinaChatOverlay({
   speechLang = "es-ES",
   labels = {},
   onSendMessage,
+  allowMeetingMode = false,
+  meetingDocumentTitle = "",
+  initialMeetingMode = false,
+  lockMeetingMode = false,
   onClose,
 }) {
   useEffect(() => {
@@ -65,6 +73,10 @@ export function GinaChatOverlay({
           speechLang={speechLang}
           labels={labels}
           onSendMessage={onSendMessage}
+          allowMeetingMode={allowMeetingMode}
+          meetingDocumentTitle={meetingDocumentTitle}
+          initialMeetingMode={initialMeetingMode}
+          lockMeetingMode={lockMeetingMode}
           onClose={onClose}
         />
       </div>

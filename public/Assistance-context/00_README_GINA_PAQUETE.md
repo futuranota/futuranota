@@ -104,18 +104,18 @@ IMPORTANTE:
 
 ---
 
-### **06. TIME_SCOPE_AND_LIVE_CORPUS.md** (Canon tiempo + corpus vivo)
+### **07. AWARENESS_LEARN_CURSOR_TOOLS.md** (LEARN vs CURSOR)
 ```
-QUÉ: Semántica hoy/mañana/hasta/dentro de N + LIVE CORPUS ONLY
-POR QUÉ: Evitar departamentos fantasma y "calendario" inventado
+QUÉ: Cuándo Gina aprende vs cuándo dice "necesita Cursor"
+POR QUÉ: No fingir features; no rechazar tono/cultura
 
 IMPORTANTE:
-- Solo nombres del inventario real
-- Qué hay para hoy = status ≠ completed + scope de hoy
-- para mañana ≠ hasta mañana ≠ dentro de N días
+- TOOLS = datos del workspace
+- LEARN/SESSION = voz, glosario, estilo
+- CURSOR = UI, código, APIs
 ```
 
-**Tiempo:** 8 minutos
+**Tiempo:** 5 minutos
 
 ---
 
@@ -141,6 +141,9 @@ START
   ↓
 06_TIME_SCOPE_AND_LIVE_CORPUS.md
   (tiempo hoy/mañana + solo corpus vivo)
+  ↓
+07_AWARENESS_LEARN_CURSOR_TOOLS.md
+  (LEARN vs CURSOR vs TOOLS)
   ↓
 LISTO → Implementar plan en Cursor
 ```

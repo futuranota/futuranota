@@ -10,6 +10,9 @@ import { apiClient } from "../api/client.js";
  *   locale?: string,
  *   visualizationType?: string | null,
  *   workspaceInventory?: unknown,
+ *   meetingBrief?: { title?: string, body?: string, documentId?: string | null } | null,
+ *   meetingMode?: boolean,
+ *   knowledgeContext?: string,
  * }} payload
  */
 export async function fetchGinaChat(payload) {

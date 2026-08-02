@@ -9,6 +9,15 @@ const TEXT_EXTENSIONS = [
   ".xml",
   ".log",
   ".rtf",
+  ".sql",
+  ".yml",
+  ".yaml",
+  ".tsv",
+  ".css",
+  ".js",
+  ".ts",
+  ".jsx",
+  ".tsx",
 ];
 
 export const KNOWLEDGE_FILE_ACCEPT = [
@@ -16,6 +25,7 @@ export const KNOWLEDGE_FILE_ACCEPT = [
   ...TEXT_EXTENSIONS,
   "text/*",
   "application/pdf",
+  "application/sql",
 ].join(",");
 
 export const FLOPPY_DISK_ICON = "/uploads/botones/FloppyDisk.svg";
@@ -85,25 +95,42 @@ export function formatKnowledgeFileSize(bytes) {
 }
 
 /**
- * Register an uploaded file on a knowledge doc (metadata only — does not fill the text area).
- * @returns {Promise<{ title: string, knowledgeImport: KnowledgeImportMeta }>}
+ * Import a file onto a knowledge doc.
+ * Text-based files (.md, .sql, …) return readable `textContent` for the doc body.
+ * PDF stores metadata only (no client-side extract yet).
+ *
+ * @returns {Promise<{ title: string, knowledgeImport: KnowledgeImportMeta, textContent?: string }>}
  */
 export async function importKnowledgeFile(file) {
   if (!file) throw new Error("No file selected");
   const kind = resolveImportKind(file);
   if (!kind) {
-    throw new Error("Unsupported file type. Use PDF or a text-based file (.txt, .md, .csv, …)");
+    throw new Error(
+      "Unsupported file type. Use PDF or a text-based file (.txt, .md, .sql, .csv, …)",
+    );
   }
 
   const fileName = file.name || "document";
+  const knowledgeImport = {
+    fileName,
+    mimeType: file.type || "",
+    extension: fileExtension(fileName) || (kind === "pdf" ? ".pdf" : ".txt"),
+    importedAt: new Date().toISOString(),
+    sizeBytes: file.size ?? 0,
+  };
+
+  let textContent = "";
+  if (kind === "text") {
+    try {
+      textContent = String(await file.text() || "").trim();
+    } catch {
+      textContent = "";
+    }
+  }
+
   return {
     title: stripExtension(fileName) || "Untitled",
-    knowledgeImport: {
-      fileName,
-      mimeType: file.type || "",
-      extension: fileExtension(fileName) || (kind === "pdf" ? ".pdf" : ".txt"),
-      importedAt: new Date().toISOString(),
-      sizeBytes: file.size ?? 0,
-    },
+    knowledgeImport,
+    ...(textContent ? { textContent } : {}),
   };
 }

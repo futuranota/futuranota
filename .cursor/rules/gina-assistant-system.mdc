@@ -24,6 +24,8 @@ Focus / “ábreme X” → openDocumentOverlay
 - **LIVE CORPUS ONLY** — nunca inventar departamentos; no decir “calendario”.
 - Tiempo: hoy / para mañana / hasta mañana / dentro de N (confirm) / semana.
 - Openings variables (`pickGinaOpening`).
+- **Meeting mode (admin only):** Call Asistente → checkbox Meeting → inyecta body del document como MEETING BRIEF.
+- **Awareness:** LEARN / SESSION / TOOLS / CURSOR — Gina declara si puede aprenderlo o si “necesita ajuste con Cursor” (`07_AWARENESS_LEARN_CURSOR_TOOLS.md`).
 - System prompt: `server/gina/ginaSystemPrompt.js`.
 
 ## Jerarquía (no confundir)
