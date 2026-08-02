@@ -1,0 +1,32 @@
+---
+description: Gina Phase 1.5 — data visualization in Assistance chat (message + cards)
+alwaysApply: true
+---
+
+# Gina Phase 1.5 — Data Visualization
+
+**Status:** implementing / live path. Full brief: `.cursor/saved/gina-system/PHASE_1_5_DATA_VISUALIZATION.md`.
+
+## Goal
+
+Gina replies with short conversational **message** (verbal hierarchy) + structured **visualization** under the bubble.
+
+## Contract
+
+```js
+{ message: string, visualization: { type, data } | null }
+```
+
+- `visualization` is built **client-side** from tools (`buildGinaVisualization.js`) — deterministic counts.
+- Groq only narrates `message` (short, verbal Depto/Cat/Folder).
+- UI path label: gray small `Marketing / Blogs / Trends` via `GinaHierarchyPath` — not a substitute for verbal prose.
+
+Types: `today_scope` | `incomplete` | `folder_summary` | `conflicts` | `table` | `timeline` | null.
+
+## UI
+
+`GinaChatCard` turn = bubble + `<GinaDataVisualization />`. Reuse `DocStatusChip` / `#151515`.
+
+## Out of scope
+
+Google Calendar / Tasks · mutations · alarms

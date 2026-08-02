@@ -8,8 +8,9 @@ import { useWebSpeech } from "../../hooks/useWebSpeech.js";
 import { absorbDictationFinal } from "../../lib/ginaSpeechCommands.js";
 import { normalizeDictationTranscript } from "../../lib/ginaSpeechVocab.js";
 import { GinaAnimatedText } from "./GinaAnimatedText.jsx";
+import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 
-/** @typedef {{ sender: "ai" | "user", text: string }} GinaChatMessage */
+/** @typedef {{ sender: "ai" | "user", text: string, visualization?: { type: string, data: object } | null }} GinaChatMessage */
 
 function SendIcon() {
   return (
@@ -113,7 +114,7 @@ function joinTranscript(finalParts, interim) {
  *   speechLang?: string,
  *   labels?: Record<string, string>,
  *   onClose?: () => void,
- *   onSendMessage?: (text: string) => void | Promise<void>,
+ *   onSendMessage?: (text: string) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null }>,
  * }} props
  */
 export function GinaChatCard({
@@ -342,9 +343,19 @@ export function GinaChatCard({
     if (typeof onSendMessage === "function") {
       try {
         const reply = await onSendMessage(trimmed);
-        const aiText = typeof reply === "string" ? reply.trim() : "";
-        if (aiText) {
-          setMessages((prev) => [...prev, { sender: "ai", text: aiText }]);
+        let aiText = "";
+        let visualization = null;
+        if (typeof reply === "string") {
+          aiText = reply.trim();
+        } else if (reply && typeof reply === "object") {
+          aiText = String(reply.message || reply.reply || "").trim();
+          visualization = reply.visualization || null;
+        }
+        if (aiText || visualization) {
+          setMessages((prev) => [
+            ...prev,
+            { sender: "ai", text: aiText || " ", visualization },
+          ]);
         }
       } finally {
         setIsTyping(false);
@@ -485,11 +496,25 @@ export function GinaChatCard({
               transition={{ duration: 0.4 }}
               className={
                 msg.sender === "ai"
-                  ? "gina-chat-card__bubble gina-chat-card__bubble--ai"
-                  : "gina-chat-card__bubble gina-chat-card__bubble--user"
+                  ? "gina-chat-card__turn gina-chat-card__turn--ai"
+                  : "gina-chat-card__turn gina-chat-card__turn--user"
               }
             >
-              {msg.sender === "ai" ? <GinaAnimatedText text={msg.text} /> : msg.text}
+              <div
+                className={
+                  msg.sender === "ai"
+                    ? "gina-chat-card__bubble gina-chat-card__bubble--ai"
+                    : "gina-chat-card__bubble gina-chat-card__bubble--user"
+                }
+              >
+                {msg.sender === "ai" ? <GinaAnimatedText text={msg.text} /> : msg.text}
+              </div>
+              {msg.sender === "ai" && msg.visualization ? (
+                <GinaDataVisualization
+                  type={msg.visualization.type}
+                  data={msg.visualization.data}
+                />
+              ) : null}
             </motion.div>
           ))}
 

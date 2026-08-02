@@ -23,6 +23,7 @@ import { AssistanceListCard } from "../gina/AssistanceListCard.jsx";
 import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
 import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
 import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
+import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { formatMmDdYy, isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import {
@@ -2679,23 +2680,35 @@ export function LeftPanel({
     }
 
     try {
+      const visualization = buildGinaVisualization(routed.family, routed.toolContext, {
+        locale: locale === "es" ? "es" : "en",
+        userText: text,
+      });
       const result = await fetchGinaChat({
         messages: [{ role: "user", content: text }],
         toolContext: routed.toolContext,
         toolsCalled: routed.toolsCalled,
         family: routed.family,
         locale: locale === "es" ? "es" : "en",
+        visualizationType: visualization?.type || null,
       });
-      return typeof result?.reply === "string" && result.reply.trim()
+      const message = typeof result?.reply === "string" && result.reply.trim()
         ? result.reply.trim()
         : (locale === "es"
           ? "No pude narrar el scope. Intenta de nuevo."
           : "Couldn't narrate scope. Try again.");
+      return { message, visualization };
     } catch (err) {
       console.warn("[gina] chat failed", err);
-      return locale === "es"
-        ? "Hubo un problema al hablar con Gina. ¿GROQ_API_KEY está configurada? Puedes preguntar por hoy, vencidos o un departamento."
-        : "Something went wrong talking to Gina. Is GROQ_API_KEY set? You can ask about today, past due, or a department.";
+      return {
+        message: locale === "es"
+          ? "Hubo un problema al hablar con Gina. ¿GROQ_API_KEY está configurada? Puedes preguntar por hoy, vencidos o un departamento."
+          : "Something went wrong talking to Gina. Is GROQ_API_KEY set? You can ask about today, past due, or a department.",
+        visualization: buildGinaVisualization(routed.family, routed.toolContext, {
+          locale: locale === "es" ? "es" : "en",
+          userText: text,
+        }),
+      };
     }
   }, [
     docsMap,

@@ -73,6 +73,22 @@ IMPORTANTE:
 
 ---
 
+### **05. VISUAL_HIERARCHY_NAVIGATION.md** (Lee con el skill / referencia visual)
+```
+QUÉ: Cómo se ve Corpus → Depto → Categoría → Folder en el sidebar
+POR QUÉ: Gina debe narrar la ruta completa, no solo el folder
+
+IMPORTANTE:
+- Regla de oro: Departamento / Categoría / Folder
+- NUNCA "solo Trends" si hay jerarquía
+- Mismo nombre de folder en dos rutas → preguntar cuál
+- Tools deben devolver category + department + folder + document
+```
+
+**Tiempo:** 8 minutos
+
+---
+
 ## 🎯 ORDEN CORRECTO
 
 ```
@@ -89,6 +105,9 @@ START
   ↓
 04_SKILL_gina-assistant-futura-nota.md
   (Gina sabe cómo actuar)
+  ↓
+05_VISUAL_HIERARCHY_NAVIGATION.md
+  (Gina narra como se ve el sidebar)
   ↓
 LISTO → Implementar plan en Cursor
 ```
@@ -111,6 +130,8 @@ Cuando Cursor termine de leer, debe poder responder esto:
 - [ ] ¿Qué NUNCA debe hacer Gina?
 - [ ] ¿Cómo suena Gina (voz/tono)?
 - [ ] ¿Edge cases principales?
+- [ ] ¿Cómo narrar Depto / Categoría / Folder (nunca solo el folder)?
+- [ ] ¿Qué hace Gina si hay dos folders llamados "Trends"?
 
 Si Cursor puede responder todo, está listo.
 

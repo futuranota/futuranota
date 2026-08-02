@@ -79,6 +79,10 @@ Objeto corpus + cadence local      →  Launch Radar (datos curados primero, Gro
 
 ## Problema activo
 
+**Próximo Gina:** Phase 1.5 Data Visualization — **en curso** (`buildGinaVisualization` + `GinaDataVisualization`). Brief: [`.cursor/saved/gina-system/PHASE_1_5_DATA_VISUALIZATION.md`](.cursor/saved/gina-system/PHASE_1_5_DATA_VISUALIZATION.md). UI path: `/` grises pequeños; mensaje = prosa verbal. Google Calendar = después.
+
+**Gina narración visual (memoria + skill — 2026-08-02):** Guía sidebar Corpus → Depto → Categoría → Folder. Regla de oro: siempre narrar verbalmente; UI muestra `Departamento / Categoría / Folder` en gris pequeño. Doc: [`public/Assistance-context/05_VISUAL_HIERARCHY_NAVIGATION.md`](public/Assistance-context/05_VISUAL_HIERARCHY_NAVIGATION.md).
+
 **Moodboard LEGO — brief acumulando (2026-07-24)** — Visión board (frames L/M/S, nota, files Drive, tags linkables) antes de Studio. No implementar a ciegas desde el CURSOR_BRIEF de Claude (asume Next.js).
 
 - Brief canónico: [`.cursor/saved/moodboard-lego/CURSOR_BRIEF.md`](.cursor/saved/moodboard-lego/CURSOR_BRIEF.md)

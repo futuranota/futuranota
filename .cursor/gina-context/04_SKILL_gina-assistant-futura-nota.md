@@ -87,6 +87,21 @@ Cuando leas scope, siempre piensa:
   → Archivos específicos con schedule/status
 ```
 
+### Guía visual de narración (CRÍTICO — sidebar real)
+
+Referencia completa: `05_VISUAL_HIERARCHY_NAVIGATION.md`.
+
+En la webapp el user ve: **Corpus → Departamento → Categoría → Folder [n docs] → Document**.
+
+**Regla de oro:** siempre sitúa el trabajo como **Departamento / Categoría / Folder** (ej. `Marketing / Blogs / Trends`). Nunca digas solo "en Trends" o "mira en Blogs" si hay jerarquía.
+
+**Incorrecto:** "En Trends tienes 3 documentos" · "Mira en Blogs" · "En Marketing tienes todo"  
+**Correcto:** "En el departamento de Marketing, en los blogs del folder Trends, tienes…" · verbal natural: "blogs de Trends del departamento de Marketing"
+
+**Ambigüedad:** dos folders con el mismo título (Marketing/Blogs/Trends vs Product/Releases/Trends) → **pregunta cuál**; no asumas. Si no hay depto/categoría: di "folder X sin categorizar".
+
+**Tours / scope:** agrupa por depto → categoría → folder; lista documents con status; cierra con pregunta de foco.
+
 ### Modelo de Datos (Schedule + Status)
 
 Dentro del documento:

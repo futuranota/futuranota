@@ -250,6 +250,8 @@ export function get_incomplete_documents(ctx = {}) {
         id: d.id,
         title: d.title,
         folder: d.parentFolderName,
+        department: d.departmentName,
+        category: d.category,
         dueDate: dayKey(d.anchorAt),
         daysOverdue,
         status: d.status,
@@ -264,6 +266,8 @@ export function get_incomplete_documents(ctx = {}) {
       id: d.id,
       title: d.title,
       folder: d.parentFolderName,
+      department: d.departmentName,
+      category: d.category,
       dueDate: dayKey(d.anchorAt),
       daysUntilDue,
       status: d.status,
@@ -273,6 +277,8 @@ export function get_incomplete_documents(ctx = {}) {
     id: d.id,
     title: d.title,
     folder: d.parentFolderName,
+    department: d.departmentName,
+    category: d.category,
     dueDate: dayKey(d.anchorAt),
     status: d.status,
   })) };
@@ -323,6 +329,12 @@ export function get_folder_children_summary(ctx = {}, folderId) {
     folderId: folder.id,
     folderName: folderTitle(folder),
     departmentId: folder.departmentId || null,
+    departmentName: (() => {
+      const dept = folder.departmentId
+        ? findDepartmentById(asList(ctx.departments), folder.departmentId)
+        : null;
+      return dept?.category || null;
+    })(),
     category: folder.category || null,
     hasSchedule: Boolean(folder.scheduleStartAt && folder.scheduleFinishAt),
     schedule: {

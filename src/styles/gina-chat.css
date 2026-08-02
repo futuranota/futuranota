@@ -27,6 +27,11 @@
   box-sizing: border-box;
 }
 
+.gina-chat-card--dashboard {
+  width: min(440px, calc(100vw - 32px));
+  height: min(620px, calc(100vh - 48px));
+}
+
 .gina-chat-card__orbit {
   position: absolute;
   inset: 0;
@@ -424,4 +429,246 @@
 
 .doc-focus-top__meta .node-query-modal__call-asistente {
   margin-right: 4px;
+}
+
+/* --- Phase 1.5 data visualization --- */
+
+.gina-chat-card__turn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.gina-chat-card__turn--ai {
+  align-items: stretch;
+  width: 100%;
+}
+
+.gina-chat-card__turn--ai .gina-chat-card__bubble {
+  max-width: 90%;
+  align-self: flex-start;
+}
+
+.gina-chat-card__turn--user {
+  align-items: flex-end;
+  width: 100%;
+}
+
+.gina-hierarchy-path {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.35;
+  color: #8a8a8a;
+}
+
+.gina-hierarchy-path__sep {
+  color: #6a6a6a;
+  font-weight: 400;
+}
+
+.gina-hierarchy-path__seg {
+  color: #8a8a8a;
+}
+
+.gina-viz {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #151515;
+  color: #e8e8e8;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.gina-viz__head {
+  margin-bottom: 6px;
+}
+
+.gina-viz__eyebrow {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a8a8a;
+}
+
+.gina-viz__title {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: #fff;
+}
+
+.gina-viz__total {
+  margin: 0 0 8px;
+  color: #c8c8c8;
+}
+
+.gina-viz__stats {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.gina-viz__stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.gina-viz__stat-label {
+  font-size: 11px;
+  color: #b0b0b0;
+}
+
+.gina-viz__stat-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.gina-viz__stat--not-started .gina-viz__stat-value { color: #F07167; }
+.gina-viz__stat--in-progress .gina-viz__stat-value { color: #599FFF; }
+.gina-viz__stat--past-due .gina-viz__stat-value { color: #D57463; }
+.gina-viz__stat--completed .gina-viz__stat-value { color: #57BC6C; }
+
+.gina-viz__next {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: #b8b8b8;
+}
+
+.gina-viz__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gina-viz__doc,
+.gina-viz__conflict {
+  padding: 6px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gina-viz__doc-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.gina-viz__doc-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f2f2f2;
+}
+
+.gina-viz__doc-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: #8a8a8a;
+}
+
+.gina-viz__doc-meta--warn {
+  color: #D57463;
+}
+
+.gina-viz__section {
+  margin-top: 8px;
+}
+
+.gina-viz__section:first-child {
+  margin-top: 0;
+}
+
+.gina-viz__section-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #ddd;
+}
+
+.gina-viz__progress {
+  height: 6px;
+  margin: 6px 0 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.gina-viz__progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: #57BC6C;
+}
+
+.gina-viz__table-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+
+.gina-viz__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.gina-viz__table th,
+.gina-viz__table td {
+  padding: 6px 4px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  vertical-align: top;
+}
+
+.gina-viz__table th {
+  color: #8a8a8a;
+  font-weight: 600;
+}
+
+.gina-viz__timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gina-viz__timeline-item {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.gina-viz__timeline-time {
+  font-size: 10px;
+  color: #8a8a8a;
+  font-variant-numeric: tabular-nums;
+}
+
+.gina-viz__timeline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gina-viz__empty {
+  margin: 0;
+  color: #8a8a8a;
 }

@@ -56,6 +56,7 @@ export function GinaChatOverlay({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <GinaChatCard
+          className={documentId ? "" : "gina-chat-card--dashboard"}
           documentId={documentId}
           assistantName={assistantName}
           openingMessage={openingMessage}

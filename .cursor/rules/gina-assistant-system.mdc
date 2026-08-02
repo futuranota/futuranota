@@ -7,7 +7,7 @@ alwaysApply: true
 
 **Gina** = identidad del **Asistente** de dashboard (compañía / corpus). Fase actual = **escuchar / scope** (panorama → foco), no mutaciones.
 
-Canonical context: `public/Assistance-context/` (`00` → `01` Estructura → `02` Schedule/Status → `03` Tools → `04` Skill). Mirror: `.cursor/gina-context/`. Saved notes: `.cursor/saved/gina-system/`.
+Canonical context: `public/Assistance-context/` (`00` → `01` Estructura → `02` Schedule/Status → `03` Tools → `04` Skill → `05` Visual hierarchy). Mirror: `.cursor/gina-context/`. Saved notes: `.cursor/saved/gina-system/`.
 
 ## Fase 1 (live) — Assistance listen
 
@@ -22,12 +22,15 @@ Focus / “ábreme X” → openDocumentOverlay
 - LLM runtime = **Groq** (`GROQ_API_KEY`), no Claude.
 - Tools = lectura (`src/lib/gina/ginaTools.js` + `ginaQueryFamily.js`); API solo narra.
 - UI: `AssistanceListCard` bajo Agents; Agents card se mantiene.
-- System prompt: `server/gina/ginaSystemPrompt.js` (skill 04 + taxonomía 01 + schedule 02).
+- System prompt: `server/gina/ginaSystemPrompt.js` (skill 04 + taxonomía 01 + schedule 02 + narración visual 05).
 
 ## Jerarquía (no confundir)
 
 Empresa → Departamento → Categoría → Folder → Document  
 “Marketing / blogs” = depto + categoría — no “categoría Marketing”.
+
+**Narración (05):** siempre **Departamento / Categoría / Folder** en prosa verbal (ej. “blogs de Trends del departamento de Marketing”).  
+**UI path:** encima del bloque visual, mostrar la ruta con `/` en **gris** y tipografía **pequeña** (`Marketing / Blogs / Trends`); el mensaje hablado sigue siendo verbal, no solo la ruta. Guía: `05_VISUAL_HIERARCHY_NAVIGATION.md`.
 
 ## Tres capas de tiempo (modelo)
 
@@ -39,6 +42,16 @@ Timeline **solo visualiza**. Alarmas/popups = **solo Gina** (aún no en esta fas
 
 ## Más adelante
 
+### Siguiente (Phase 1.5 — backlog)
+
+**Data visualization** en el chat: `{ message, visualization }` + cards/tablas.  
+Brief completo: `.cursor/saved/gina-system/PHASE_1_5_DATA_VISUALIZATION.md`  
+Regla: `.cursor/rules/gina-phase-1-5-data-viz.mdc`  
+**No implementar** hasta que el user lo pida.
+
+### Después
+
+- Google Calendar (FN = source of truth; GCal = espejo/reminders) — **después de 1.5**
 - To Do compartido + OK popup → `checked`
 - Start-file alarms + soft conflict al abrir
 - Call Asistente in-doc (scope al file abierto)
