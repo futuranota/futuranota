@@ -1434,6 +1434,11 @@
   line-height: 1.2;
   white-space: nowrap;
   vertical-align: baseline;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  align-self: flex-start;
 }
 
 .doc-status-chip--reserved {
@@ -1456,23 +1461,19 @@
   background: #2A2240;
 }
 
+.doc-status-chip--not_started {
+  color: #D6B4A7;
+  background: #3A2E2A;
+}
+
 .doc-status-chip--past_due {
-  color: #D57463;
-  background: #3A2220;
+  color: #CCCCCC;
+  background: #2E2E2E;
 }
 
 .doc-status-chip--completed {
   color: #73F09A;
   background: #1F3427;
-}
-
-.doc-status-chip-asset {
-  display: inline-block;
-  width: auto;
-  height: 12px;
-  object-fit: contain;
-  vertical-align: middle;
-  flex-shrink: 0;
 }
 
 .doc-status-chip__icon {
@@ -1514,9 +1515,15 @@
 }
 
 .doc-status-chip__icon--past-due {
-  background: linear-gradient(135deg, #E89A8C, #D57463);
-  -webkit-mask-image: url("/uploads/pas-due.svg");
-  mask-image: url("/uploads/pas-due.svg");
+  background: #CCCCCC;
+  -webkit-mask-image: url("/uploads/ClockCountdown.svg");
+  mask-image: url("/uploads/ClockCountdown.svg");
+}
+
+.doc-status-chip__icon--not-started {
+  background: #D6B4A7;
+  -webkit-mask-image: url("/uploads/CircleDashed.svg");
+  mask-image: url("/uploads/CircleDashed.svg");
 }
 
 .doc-status-chip__icon--completed {
@@ -4402,6 +4409,13 @@
 
 .doc-meta-field--readonly .doc-meta-status-badge {
   margin-top: 2px;
+}
+
+.doc-meta-field .doc-status-chip,
+.doc-meta-field--readonly .doc-status-chip {
+  margin-top: 2px;
+  align-self: flex-start;
+  width: fit-content;
 }
 
 .doc-meta-chip--status-only {
@@ -15548,9 +15562,14 @@ body.doc-content-resizing * {
   color: #9675FF;
 }
 
+.doc-work-status-opt--not-started.is-on,
+.doc-meta-strip__fields .doc-work-status-opt--not-started.is-on {
+  color: #D6B4A7;
+}
+
 .doc-work-status-opt--past-due.is-on,
 .doc-meta-strip__fields .doc-work-status-opt--past-due.is-on {
-  color: #D57463;
+  color: #CCCCCC;
 }
 
 /* Match Status toggle table gray (#7e7a76) + bold */

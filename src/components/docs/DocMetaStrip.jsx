@@ -32,29 +32,19 @@ import { FolderViewModeSettings } from "./FolderViewModeSettings.jsx";
 
 const SCHEDULE_INFO_ICON = "/uploads/Info.svg";
 
-const FOLDER_STATUS_ICON = {
-  not_started: "/uploads/not-started.svg?v=dash-blue",
-  completed: "/uploads/completed.svg",
-};
-
 function FolderStatusBadge({ status, label }) {
-  if (
-    status === "in_progress"
-    || status === "submitted"
-    || status === "reserved"
-    || status === "past_due"
-  ) {
-    return <DocStatusChip status={status} />;
+  if (status === "completed") {
+    return (
+      <img
+        src="/uploads/completed.svg"
+        alt={label}
+        title={label}
+        className="doc-meta-status-badge doc-meta-status-badge--completed"
+      />
+    );
   }
-  const src = FOLDER_STATUS_ICON[status] || FOLDER_STATUS_ICON.not_started;
-  return (
-    <img
-      src={src}
-      alt={label}
-      title={label}
-      className={`doc-meta-status-badge doc-meta-status-badge--${status}`}
-    />
-  );
+  // not_started uses the same pink chip as file rows
+  return <DocStatusChip status={status || "not_started"} />;
 }
 
 function openDatePicker(e) {

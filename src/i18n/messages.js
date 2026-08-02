@@ -462,6 +462,7 @@ export const messages = {
       docStatusInProgress: "In progress",
       docStatusInReview: "In review",
       docStatusSubmitted: "Submitted",
+      docStatusNotStarted: "Not started",
       docStatusReserved: "Reserved",
       docStatusPastDue: "Past due",
       edit: "edit",
@@ -1139,6 +1140,7 @@ export const messages = {
       docStatusInProgress: "In progress",
       docStatusInReview: "In review",
       docStatusSubmitted: "Submitted",
+      docStatusNotStarted: "Sin empezar",
       docStatusReserved: "Reservado",
       docStatusPastDue: "Vencido",
       /* Department UI copy stays English (product labels); keep EN for overlay + cards. */

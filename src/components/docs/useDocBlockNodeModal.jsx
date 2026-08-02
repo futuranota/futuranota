@@ -38,11 +38,13 @@ import {
 } from "../../lib/campaignDocSource.js";
 import {
   DOC_WORK_STATUS,
+  defaultStatusAfterScheduleSave,
   resolveDocWorkStatus,
   sanitizeDocStatusForFolderSchedule,
 } from "../../lib/docWorkStatus.js";
 import {
   folderScheduleDateInputBounds,
+  isDateInputWithinFolderSchedule,
   isFolderScheduleReserved,
 } from "../../lib/folderScheduleReservation.js";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
@@ -197,6 +199,26 @@ export function useDocBlockNodeModal({
       ? nodeDraftContentForStorage(content, dataType)
       : content;
 
+    let scheduleStatus = nodeDraftStatus;
+    if (!campaignDocMode && commitSchedule) {
+      const hasCompleteSchedule = Boolean(
+        canWriteSchedule
+        && scheduleDate
+        && String(anchorTime || "").trim()
+        && String(anchorFinishTime || "").trim()
+        && anchorAt
+        && anchorFinishAt,
+      );
+      const docDateInFolderFrame = folderScheduleReserved
+        && isDateInputWithinFolderSchedule(scheduleDate, parentFolderDoc);
+      const autoNotStarted = defaultStatusAfterScheduleSave({
+        status: scheduleStatus,
+        hasCompleteSchedule,
+        docDateInFolderFrame,
+      });
+      if (autoNotStarted) scheduleStatus = autoNotStarted;
+    }
+
     const savedNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
       docId,
@@ -209,8 +231,11 @@ export function useDocBlockNodeModal({
       ...(anchorFinishAt !== undefined && !campaignDocMode ? { anchorFinishAt } : {}),
       ...(campaignDocMode
         ? { status: null, completed: false }
-        : commitSchedule && (nodeDraftStatus != null || nodeDraftCompleted)
-          ? { status: nodeDraftStatus, completed: nodeDraftCompleted }
+        : commitSchedule && (scheduleStatus != null || nodeDraftCompleted)
+          ? {
+            status: scheduleStatus,
+            completed: scheduleStatus === DOC_WORK_STATUS.COMPLETED,
+          }
           : {}),
       sourceId: nodeDraftSourceId,
     });

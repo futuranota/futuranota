@@ -19,6 +19,7 @@ import {
 import { listOccupiedIntervalsByDate, hasTimeframeOverlap } from "../../lib/docScheduleOccupancy.js";
 import {
   folderScheduleDateInputBounds,
+  isDateInputWithinFolderSchedule,
   isFolderScheduleReserved,
 } from "../../lib/folderScheduleReservation.js";
 import { useI18n } from "../../i18n/useI18n.js";
@@ -45,7 +46,7 @@ import {
 import { flushPersistenceSync } from "../../stores/middleware/persistenceMiddleware.js";
 import {
   DOC_WORK_STATUS,
-  hasMeaningfulNodeContent,
+  defaultStatusAfterScheduleSave,
   resolveDocWorkStatus,
   sanitizeDocStatusForFolderSchedule,
 } from "../../lib/docWorkStatus.js";
@@ -422,13 +423,22 @@ export function StandaloneNodeModal({
             folderScheduleReserved,
           );
           let resolved = stale ? null : status;
-          if (
-            !resolved
-            && folderScheduleReserved
-            && hasMeaningfulNodeContent(payload)
-          ) {
-            resolved = DOC_WORK_STATUS.IN_PROGRESS;
-          }
+          const hasCompleteSchedule = Boolean(
+            persistSchedule
+            && scheduleDate
+            && String(anchorTime || "").trim()
+            && String(anchorFinishTime || "").trim()
+            && anchorAt
+            && anchorFinishAt,
+          );
+          const docDateInFolderFrame = folderScheduleReserved
+            && isDateInputWithinFolderSchedule(scheduleDate, parentFolderDoc);
+          const autoNotStarted = defaultStatusAfterScheduleSave({
+            status: resolved,
+            hasCompleteSchedule,
+            docDateInFolderFrame,
+          });
+          if (autoNotStarted) resolved = autoNotStarted;
           return {
             status: resolved,
             completed: resolved === DOC_WORK_STATUS.COMPLETED,

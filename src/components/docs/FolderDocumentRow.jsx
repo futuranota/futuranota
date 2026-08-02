@@ -12,6 +12,15 @@ function getNodeDisplayTitle(node) {
   return (node?.sourceQuery || node?.title || "Untitled query").trim() || "Untitled query";
 }
 
+const DOC_STATUS_CHIP_ICON = {
+  [DOC_WORK_STATUS.NOT_STARTED]: "not-started",
+  [DOC_WORK_STATUS.RESERVED]: "reserved",
+  [DOC_WORK_STATUS.IN_PROGRESS]: "in-progress",
+  [DOC_WORK_STATUS.SUBMITTED]: "submitted",
+  [DOC_WORK_STATUS.PAST_DUE]: "past-due",
+  [DOC_WORK_STATUS.COMPLETED]: "completed",
+};
+
 /** Status chip for folder document rows (work statuses). */
 export function DocStatusChip({ status }) {
   const { t } = useI18n();
@@ -22,18 +31,9 @@ export function DocStatusChip({ status }) {
   );
   if (!resolved) return null;
   const label = docWorkStatusLabel(resolved, t);
-  const iconKind =
-    resolved === DOC_WORK_STATUS.RESERVED
-      ? "reserved"
-      : resolved === DOC_WORK_STATUS.IN_PROGRESS
-        ? "in-progress"
-        : resolved === DOC_WORK_STATUS.SUBMITTED
-          ? "submitted"
-          : resolved === DOC_WORK_STATUS.PAST_DUE
-            ? "past-due"
-            : "completed";
+  const iconKind = DOC_STATUS_CHIP_ICON[resolved] || "completed";
   return (
-    <span className={`doc-status-chip doc-status-chip--${resolved}`}>
+    <span className={`doc-status-chip doc-status-chip--${resolved}`} title={label}>
       <span
         className={`doc-status-chip__icon doc-status-chip__icon--${iconKind}`}
         aria-hidden

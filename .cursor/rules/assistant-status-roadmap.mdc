@@ -24,7 +24,7 @@ Ver `timeline-product-model.mdc`.
 
 ## Document status — live subset (folders)
 
-Campo `node.status`: `reserved` | `in_progress` | `submitted` | `past_due` | `completed` | `null`.
+Campo `node.status`: `not_started` | `reserved` | `in_progress` | `submitted` | `past_due` | `completed` | `null`.
 `completed: boolean` se deriva (`true` iff `status === "completed"`) para timeline / folder pie.
 Legacy `in_review` se migra a `submitted` al hidratar.
 
@@ -33,24 +33,27 @@ Legacy `in_review` se migra a `submitted` al hidratar.
 | Condition | Status UI on the document |
 |---|---|
 | Doc schedule date **outside** folder Start→Finish (or no folder/doc date) | Only **Reserved** (long-term file date aha) |
-| Doc schedule date **inside** folder frame (`anchorDate ∈ [scheduleStartAt, scheduleFinishAt]`) | **All** work statuses (Reserved, In progress, Submitted, Past due, Completed) |
+| Doc schedule date **inside** folder frame (`anchorDate ∈ [scheduleStartAt, scheduleFinishAt]`) | **All** work statuses (Not started, Reserved, In progress, Submitted, Past due, Completed) |
 
 When a Reserved file is moved into the folder frame, every status option appears so the user can leave Reserved and start work. `reserved` remains the long-term escape hatch when the file date is outside the folder window.
 
 | Status | Quién lo setea |
 |---|---|
-| *(null)* | Default al crear |
+| *(null)* | Default al crear (sin schedule completo) |
+| `not_started` | Auto al guardar schedule completo (date + start + finish) con fecha dentro del folder frame y status vacío; también manual |
 | `reserved` | Manual — plan lejos / sin urgencia; desbloquea schedule libre |
-| `in_progress` | Auto al escribir body **solo si el folder tiene reserva**; también manual |
+| `in_progress` | Auto **solo** al escribir body durante la ventana horaria del doc (`now ∈ [anchorAt, anchorFinishAt]`) y status es `not_started`; también manual en cualquier momento |
 | `submitted` | Manual ahora; el asistente lo seteará al terminar un task (entrega para revisar) |
 | `past_due` | Auto cuando `in_progress` + schedule del doc (dentro del frame del folder) ya pasó; también manual |
 | `completed` | Manual (usuario cierra el trabajo) |
 
-Flujo típico (folder reserved): empty → (write) in_progress → (agent) submitted → (user) completed ·· o ·· reserved → in_progress → completed.
+Flujo típico (folder reserved): save schedule → `not_started` → (write during window) `in_progress` → (agent) submitted → (user) completed ·· o ·· reserved → in_progress → completed.
 
-Auto past_due: `src/lib/docPastDueTransition.js` (tick en `useScheduledAgentRunner`). No convierte `reserved` / `submitted` / `completed`.
+Escribir fuera de la ventana horaria **no** cambia el status. Toggle manual siempre permitido.
 
-Helper: `src/lib/docWorkStatus.js` (`sanitizeDocStatusForFolderSchedule`, `shouldShowDocStatusChip`). UI: toggle en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
+Auto past_due: `src/lib/docPastDueTransition.js` (tick en `useScheduledAgentRunner`). No convierte `reserved` / `submitted` / `completed` / `not_started`.
+
+Helper: `src/lib/docWorkStatus.js` (`defaultStatusAfterScheduleSave`, `nextStatusOnWriteDuringScheduleWindow`, `sanitizeDocStatusForFolderSchedule`, `shouldShowDocStatusChip`). UI: toggle en `NodeQueryModal`; chips en `FolderDocumentRow` / `LinkedMacronodeDescription`.
 
 ## Folder status — inherited by priority
 
@@ -61,7 +64,7 @@ Helper: `src/lib/docWorkStatus.js` (`sanitizeDocStatusForFolderSchedule`, `shoul
 3. Cualquier child `past_due` → folder **Past due**
 4. Cualquier child `in_progress` → folder **In progress**
 5. Si todos `completed` → folder **Completed**
-6. Else → **Not started**
+6. Else → **Not started** (children `not_started` no elevan el folder)
 
 Reserved bloquea Completed: 4 completed + 1 reserved → folder Reserved.
 
@@ -73,14 +76,15 @@ Referencia Magic/badge (adaptar a dark `#151515`; SVGs `/uploads`):
 
 | Status | Color ref | Icono | Estado |
 |---|---|---|---|
+| Not started | `#D6B4A7` | CircleDashed (chip icon + label) | **live** |
 | Reserved | `#EAA65D` | pending.svg | **live** |
-| Past due | `#D57463` | pas-due.svg | **live** |
+| Past due | `#CCCCCC` | ClockCountdown (chip icon + label) | **live** |
 | Success / Completed | `#57BC6C` | Checks / completed.svg | **live** |
 | In progress | `#008AF5` | CircleDashed | **live** |
 | Submitted | `#9675FF` / `#6C3CF0` | submitted.svg (+ submitted-icon) | **live** |
 | In review | `#F0B13D` | ScanSearch | retirado (migrado a submitted) |
 
-Label “Submitted” (no “Submited”). Label “Past due” (no “Failed” en UI).
+Folder “Not started” uses the same pink chip as file rows. Label “Submitted” (no “Submited”). Label “Past due” (no “Failed” en UI).
 
 ## Reglas
 

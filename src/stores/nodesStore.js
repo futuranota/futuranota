@@ -25,10 +25,8 @@ import { parseWeatherForecastNodeContent } from "../lib/forecastSearch.js";
 import {
   resolveDocWorkStatus,
   syncDocWorkStatusFields,
-  hasMeaningfulNodeContent,
-  nextStatusOnMeaningfulWrite,
+  nextStatusOnWriteDuringScheduleWindow,
 } from "../lib/docWorkStatus.js";
-import { isFolderScheduleReserved } from "../lib/folderScheduleReservation.js";
 import {
   ensureContinuationAfterLinkedOwner,
   findMacroContinuationIndex,
@@ -299,22 +297,16 @@ export const useNodesStore = create(
           Object.assign(payload, syncDocWorkStatusFields({ completed }));
         } else if (nodeId) {
           const existing = get().nodes[nodeId];
-          const parentForAuto = docId
-            ? useDocsStore.getState().getDoc(docId)
-            : (existing?.parentDocId
-              ? useDocsStore.getState().getDoc(existing.parentDocId)
-              : null);
-          const auto = nextStatusOnMeaningfulWrite(
-            resolveDocWorkStatus(existing),
-            hasMeaningfulNodeContent(resolvedContent),
-            { folderScheduleReserved: isFolderScheduleReserved(parentForAuto) },
-          );
+          const probe = {
+            ...existing,
+            content: resolvedContent,
+            ...(payload.anchorAt !== undefined ? { anchorAt: payload.anchorAt } : {}),
+            ...(payload.anchorFinishAt !== undefined
+              ? { anchorFinishAt: payload.anchorFinishAt }
+              : {}),
+          };
+          const auto = nextStatusOnWriteDuringScheduleWindow(probe);
           if (auto) Object.assign(payload, syncDocWorkStatusFields({ status: auto }));
-        } else if (hasMeaningfulNodeContent(resolvedContent)) {
-          const parentForAuto = docId ? useDocsStore.getState().getDoc(docId) : null;
-          if (isFolderScheduleReserved(parentForAuto)) {
-            Object.assign(payload, syncDocWorkStatusFields({ status: "in_progress" }));
-          }
         }
         if (sourceId !== undefined) {
           payload.sourceId = sourceId;
@@ -830,14 +822,12 @@ export const useNodesStore = create(
           ) {
             Object.assign(nextUpdates, syncDocWorkStatusFields(nextUpdates));
           } else if (Object.prototype.hasOwnProperty.call(nextUpdates, "content")) {
-            const parentForAuto = existing.parentDocId
-              ? useDocsStore.getState().getDoc(existing.parentDocId)
-              : null;
-            const auto = nextStatusOnMeaningfulWrite(
-              resolveDocWorkStatus(existing),
-              hasMeaningfulNodeContent(nextUpdates.content),
-              { folderScheduleReserved: isFolderScheduleReserved(parentForAuto) },
-            );
+            const probe = {
+              ...existing,
+              ...nextUpdates,
+              content: nextUpdates.content,
+            };
+            const auto = nextStatusOnWriteDuringScheduleWindow(probe);
             if (auto) Object.assign(nextUpdates, syncDocWorkStatusFields({ status: auto }));
           }
           const nextNode = { ...existing, ...nextUpdates, updatedAt: new Date().toISOString() };

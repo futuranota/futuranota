@@ -4,8 +4,10 @@
  */
 
 import { getNodeWritingBodyPlainText } from "./nodeWritingExcerpt.js";
+import { parseDate } from "../temporal.js";
 
 export const DOC_WORK_STATUS = {
+  NOT_STARTED: "not_started",
   RESERVED: "reserved",
   IN_PROGRESS: "in_progress",
   SUBMITTED: "submitted",
@@ -16,7 +18,7 @@ export const DOC_WORK_STATUS = {
 const VALID = new Set(Object.values(DOC_WORK_STATUS));
 
 /**
- * @typedef {"reserved" | "in_progress" | "submitted" | "past_due" | "completed"} DocWorkStatus
+ * @typedef {"not_started" | "reserved" | "in_progress" | "submitted" | "past_due" | "completed"} DocWorkStatus
  */
 
 /**
@@ -87,22 +89,56 @@ export function hasMeaningfulNodeContent(content) {
 }
 
 /**
- * Auto in_progress only when status is empty and the parent folder has a reservation.
- * Do not override reserved / past_due / etc.
- * @param {DocWorkStatus | null | undefined} currentStatus
- * @param {boolean} hasMeaningfulContent
- * @param {{ folderScheduleReserved?: boolean }} [options]
- * @returns {"in_progress" | null} next status to apply, or null if no change
+ * Writing alone never auto-sets status (manual first; timed window helper is separate).
+ * @returns {null}
  */
-export function nextStatusOnMeaningfulWrite(
-  currentStatus,
-  hasMeaningfulContent,
-  options = {},
-) {
-  if (!hasMeaningfulContent) return null;
-  if (options.folderScheduleReserved === false) return null;
-  const status = normalizeDocWorkStatus(currentStatus);
-  if (status) return null;
+export function nextStatusOnMeaningfulWrite() {
+  return null;
+}
+
+/**
+ * When saving a complete schedule inside the folder frame with no status yet → not_started.
+ * @param {{
+ *   status?: unknown,
+ *   hasCompleteSchedule?: boolean,
+ *   docDateInFolderFrame?: boolean,
+ * }} args
+ * @returns {"not_started" | null}
+ */
+export function defaultStatusAfterScheduleSave({
+  status,
+  hasCompleteSchedule = false,
+  docDateInFolderFrame = false,
+} = {}) {
+  if (!hasCompleteSchedule || !docDateInFolderFrame) return null;
+  if (normalizeDocWorkStatus(status)) return null;
+  return DOC_WORK_STATUS.NOT_STARTED;
+}
+
+/**
+ * Auto in_progress only when writing during the document's schedule window
+ * and current status is not_started.
+ * @param {{
+ *   status?: unknown,
+ *   completed?: unknown,
+ *   content?: unknown,
+ *   anchorAt?: unknown,
+ *   anchorFinishAt?: unknown,
+ * } | null | undefined} node
+ * @param {Date} [now]
+ * @returns {"in_progress" | null}
+ */
+export function nextStatusOnWriteDuringScheduleWindow(node, now = new Date()) {
+  if (!hasMeaningfulNodeContent(node?.content)) return null;
+  if (resolveDocWorkStatus(node) !== DOC_WORK_STATUS.NOT_STARTED) return null;
+  const start = parseDate(node?.anchorAt);
+  const finish = parseDate(node?.anchorFinishAt) || start;
+  if (!start || !finish) return null;
+  const t = now.getTime();
+  const startMs = start.getTime();
+  const finishMs = finish.getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(finishMs)) return null;
+  if (t < startMs || t > finishMs) return null;
   return DOC_WORK_STATUS.IN_PROGRESS;
 }
 
@@ -112,7 +148,6 @@ export function nextStatusOnMeaningfulWrite(
  * @param {{ status?: unknown, completed?: unknown } | null | undefined} node
  * @param {boolean} folderScheduleReserved
  * @returns {{ status: DocWorkStatus | null, completed: boolean } | null}
- *   Patch to apply, or null when no change needed.
  */
 export function sanitizeDocStatusForFolderSchedule(node, folderScheduleReserved) {
   if (folderScheduleReserved) return null;
@@ -140,6 +175,7 @@ export function shouldShowDocStatusChip(status, docDateInFolderFrame) {
  */
 export function docWorkStatusLabel(status, t) {
   const s = normalizeDocWorkStatus(status);
+  if (s === DOC_WORK_STATUS.NOT_STARTED) return t("sidebar.docStatusNotStarted");
   if (s === DOC_WORK_STATUS.RESERVED) return t("sidebar.docStatusReserved");
   if (s === DOC_WORK_STATUS.IN_PROGRESS) return t("sidebar.docStatusInProgress");
   if (s === DOC_WORK_STATUS.SUBMITTED) return t("sidebar.docStatusSubmitted");

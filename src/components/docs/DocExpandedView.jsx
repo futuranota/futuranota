@@ -21,6 +21,7 @@ import {
 } from "../../lib/campaignDocSource.js";
 import {
   DOC_WORK_STATUS,
+  defaultStatusAfterScheduleSave,
   resolveDocWorkStatus,
   sanitizeDocStatusForFolderSchedule,
 } from "../../lib/docWorkStatus.js";
@@ -37,6 +38,7 @@ import {
   folderScheduleDateInputBounds,
   folderSchedulePickerMinDateInput,
   folderScheduleRangeChanged,
+  isDateInputWithinFolderSchedule,
   isFolderScheduleReserved,
   resetNonReservedChildrenForFolderScheduleChange,
   validateFolderSchedule,
@@ -1804,6 +1806,26 @@ export function DocExpandedView({
       ? nodeDraftContentForStorage(content, dataType)
       : content;
 
+    let scheduleStatus = nodeDraftStatus;
+    if (!draftCampaignActive && commitSchedule) {
+      const hasCompleteSchedule = Boolean(
+        canWriteSchedule
+        && scheduleDate
+        && String(anchorTime || "").trim()
+        && String(anchorFinishTime || "").trim()
+        && anchorAt
+        && anchorFinishAt,
+      );
+      const docDateInFolderFrame = folderReserved
+        && isDateInputWithinFolderSchedule(scheduleDate, folderProbe);
+      const autoNotStarted = defaultStatusAfterScheduleSave({
+        status: scheduleStatus,
+        hasCompleteSchedule,
+        docDateInFolderFrame,
+      });
+      if (autoNotStarted) scheduleStatus = autoNotStarted;
+    }
+
     const savedNodeId = createOrUpdateNodeFromDocBlock({
       nodeId: nodeId || block.nodeId || null,
       docId: doc.id,
@@ -1816,8 +1838,11 @@ export function DocExpandedView({
       ...(anchorFinishAt !== undefined && !draftCampaignActive ? { anchorFinishAt } : {}),
       ...(draftCampaignActive
         ? { status: null, completed: false }
-        : commitSchedule && (nodeDraftStatus != null || nodeDraftCompleted)
-          ? { status: nodeDraftStatus, completed: nodeDraftCompleted }
+        : commitSchedule && (scheduleStatus != null || nodeDraftCompleted)
+          ? {
+            status: scheduleStatus,
+            completed: scheduleStatus === DOC_WORK_STATUS.COMPLETED,
+          }
           : {}),
       sourceId: nodeDraftSourceId,
     });

@@ -88,7 +88,7 @@ export function NodeQueryModal({
   onCreatedDateChange,
   completed = false,
   onCompletedChange,
-  /** Folder-doc work status: reserved | in_progress | submitted | past_due | completed | null */
+  /** Folder-doc work status: not_started | reserved | in_progress | submitted | past_due | completed | null */
   status = null,
   onStatusChange,
   /** Parent folder has scheduleStartAt→scheduleFinishAt reservation. */
@@ -913,6 +913,19 @@ export function NodeQueryModal({
                       </div>
                     ) : (
                       <div className="doc-new-campaign-toggle doc-work-status-toggle" role="group" aria-label={t("meta.status")}>
+                        {showWorkStatuses ? (
+                          <button
+                            type="button"
+                            className={
+                              "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--not-started"
+                              + (workStatus === DOC_WORK_STATUS.NOT_STARTED ? " is-on" : "")
+                            }
+                            onClick={() => handleStatusChange(DOC_WORK_STATUS.NOT_STARTED)}
+                            aria-pressed={workStatus === DOC_WORK_STATUS.NOT_STARTED}
+                          >
+                            {t("sidebar.docStatusNotStarted")}
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           className={
@@ -947,13 +960,6 @@ export function NodeQueryModal({
                               aria-pressed={workStatus === DOC_WORK_STATUS.SUBMITTED}
                             >
                               {t("sidebar.docStatusSubmitted")}
-                              <img
-                                src="/uploads/submitted-icon.svg"
-                                alt=""
-                                className="doc-meta-chip-submitted-icon"
-                                aria-hidden
-                                draggable={false}
-                              />
                             </button>
                             <button
                               type="button"
@@ -976,13 +982,6 @@ export function NodeQueryModal({
                               aria-pressed={workStatus === DOC_WORK_STATUS.COMPLETED}
                             >
                               {t("sidebar.docCompleted")}
-                              <img
-                                src="/uploads/Checks.svg"
-                                alt=""
-                                className="doc-meta-chip-completed-icon"
-                                aria-hidden
-                                draggable={false}
-                              />
                             </button>
                           </>
                         ) : null}
