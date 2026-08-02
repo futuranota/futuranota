@@ -130,15 +130,21 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         inProgress: bd.inProgress || 0,
         pastDue: bd.pastDue || 0,
         submitted: bd.submitted || 0,
-        completed: bd.completed || 0,
+        completed: 0,
         documents: asDocs(today.documents).map(mapDocRow),
+        byHierarchy: Array.isArray(today.byHierarchy) ? today.byHierarchy : [],
         nextDeadline: today.nextDeadline
           ? {
               document: today.nextDeadline.title,
               time: formatGinaTimeRange(today.nextDeadline.time, null, locale),
               folder: today.nextDeadline.folder,
+              department: today.nextDeadline.department,
+              category: today.nextDeadline.category,
             }
           : null,
+        emptyHint: locale === "en"
+          ? "No pending documents in this scope. Explore a department or a document you have in mind?"
+          : "Sin documentos pendientes en este alcance. ¿Exploramos un departamento o un documento que tengas en mente?",
       },
     };
   }

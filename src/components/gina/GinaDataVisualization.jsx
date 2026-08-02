@@ -59,6 +59,7 @@ function DocLine({ doc }) {
 }
 
 function TodayScopeVisualization({ data }) {
+  const groups = Array.isArray(data.byHierarchy) ? data.byHierarchy : [];
   return (
     <div className="gina-viz gina-viz--today">
       <header className="gina-viz__head">
@@ -76,6 +77,25 @@ function TodayScopeVisualization({ data }) {
           Próximo: <strong>{data.nextDeadline.document}</strong>
           {data.nextDeadline.time ? ` (${data.nextDeadline.time})` : ""}
         </p>
+      ) : null}
+      {!(data.total > 0) && data.emptyHint ? (
+        <p className="gina-viz__empty">{data.emptyHint}</p>
+      ) : null}
+      {groups.length ? (
+        <ul className="gina-viz__list">
+          {groups.slice(0, 8).map((g) => (
+            <li key={`${g.department}-${g.category}-${g.folder}`} className="gina-viz__doc">
+              <GinaHierarchyPath
+                department={g.department}
+                category={g.category}
+                folder={g.folder}
+              />
+              <div className="gina-viz__doc-main">
+                <span className="gina-viz__doc-title">{g.documents} docs</span>
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : null}
       {Array.isArray(data.documents) && data.documents.length ? (
         <ul className="gina-viz__list">

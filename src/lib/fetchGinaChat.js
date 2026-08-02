@@ -8,6 +8,8 @@ import { apiClient } from "../api/client.js";
  *   toolsCalled?: string[],
  *   family?: string,
  *   locale?: string,
+ *   visualizationType?: string | null,
+ *   workspaceInventory?: unknown,
  * }} payload
  */
 export async function fetchGinaChat(payload) {

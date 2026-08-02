@@ -24,6 +24,8 @@ import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
 import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
 import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
 import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js";
+import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
+import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { formatMmDdYy, isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import {
@@ -1688,6 +1690,7 @@ export function LeftPanel({
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
   const [ginaDashboardOpen, setGinaDashboardOpen] = useState(false);
+  const [ginaOpeningMessage, setGinaOpeningMessage] = useState("");
   const [departmentFilterId, setDepartmentFilterId] = useState("");
   const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
   const [departmentCreateRequested, setDepartmentCreateRequested] = useState(false);
@@ -1741,6 +1744,16 @@ export function LeftPanel({
   const timelineQueueMode = useTimelineStore((s) => s.timelineQueueMode);
 
   const userEmail = useAuthStore((s) => s.user?.email);
+  const authUser = useAuthStore((s) => s.user);
+
+  const openGinaDashboard = useCallback(() => {
+    setGinaOpeningMessage(pickGinaOpening({
+      locale: locale === "es" ? "es" : "en",
+      userName: resolveGinaUserDisplayName(authUser),
+      now: new Date(),
+    }));
+    setGinaDashboardOpen(true);
+  }, [authUser, locale]);
 
   const handleInsertGuide = useCallback(() => {
     onInsertAgent?.(AGENT_MARKETING_GUIDE);
@@ -2680,10 +2693,14 @@ export function LeftPanel({
     }
 
     try {
-      const visualization = buildGinaVisualization(routed.family, routed.toolContext, {
-        locale: locale === "es" ? "es" : "en",
-        userText: text,
-      });
+      const workspaceInventory = routed.workspaceInventory
+        || get_workspace_inventory(ctx);
+      const visualization = (routed.family === "name_ambiguity" || routed.family === "confirm_date")
+        ? null
+        : buildGinaVisualization(routed.family, routed.toolContext, {
+          locale: locale === "es" ? "es" : "en",
+          userText: text,
+        });
       const result = await fetchGinaChat({
         messages: [{ role: "user", content: text }],
         toolContext: routed.toolContext,
@@ -2691,6 +2708,7 @@ export function LeftPanel({
         family: routed.family,
         locale: locale === "es" ? "es" : "en",
         visualizationType: visualization?.type || null,
+        workspaceInventory,
       });
       const message = typeof result?.reply === "string" && result.reply.trim()
         ? result.reply.trim()
@@ -3221,7 +3239,7 @@ export function LeftPanel({
                   label={t("sidebar.assistanceTitle")}
                 />
                 <div className="lp-click-folder-detail-list">
-                  <AssistanceListCard onTalk={() => setGinaDashboardOpen(true)} />
+                  <AssistanceListCard onTalk={openGinaDashboard} />
                 </div>
               </div>
             ) : null}
@@ -3653,7 +3671,7 @@ export function LeftPanel({
         <GinaChatOverlay
           documentId={null}
           assistantName={t("gina.name")}
-          openingMessage={t("gina.dashboardOpening")}
+          openingMessage={ginaOpeningMessage || t("gina.dashboardOpening")}
           placeholder={t("gina.placeholder")}
           speechLang={locale === "es" ? "es-ES" : "en-US"}
           labels={{

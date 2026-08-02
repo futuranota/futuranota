@@ -193,12 +193,21 @@ export function get_all_company_documents(ctx = {}) {
   return buildDocIndex(ctx).documents;
 }
 
-/** TOOL 3 */
-export function get_documents_by_date_range(ctx = {}, startDate, endDate) {
+/** TOOL 3 — date range; by default exclude completed */
+export function get_documents_by_date_range(ctx = {}, startDate, endDate, opts = {}) {
   const { documents, now } = buildDocIndex(ctx);
   const start = startOfDay(toDate(startDate) || now);
   const end = startOfDay(toDate(endDate) || start);
+  const excludeCompleted = opts.excludeCompleted !== false;
+  const deptFilter = fold(opts.department || "");
+  const folderFilter = fold(opts.folder || "");
+  const categoryFilter = fold(opts.category || "");
+
   const inRange = documents.filter((d) => {
+    if (excludeCompleted && (d.status === DOC_WORK_STATUS.COMPLETED || d.completed)) return false;
+    if (deptFilter && !fold(d.departmentName).includes(deptFilter)) return false;
+    if (categoryFilter && !fold(d.category).includes(categoryFilter)) return false;
+    if (folderFilter && !fold(d.parentFolderName).includes(folderFilter)) return false;
     const at = toDate(d.anchorAt);
     if (!at) return false;
     const day = startOfDay(at).getTime();
@@ -225,6 +234,8 @@ export function get_documents_by_date_range(ctx = {}, startDate, endDate) {
       folder: d.parentFolderName,
       department: d.departmentName,
       category: d.category,
+      anchorAt: d.anchorAt,
+      anchorFinishAt: d.anchorFinishAt,
     })),
   };
 }
@@ -353,50 +364,118 @@ export function get_folder_children_summary(ctx = {}, folderId) {
   };
 }
 
-/** TOOL 7 */
-export function get_today_scope(ctx = {}) {
-  const { documents, now } = buildDocIndex(ctx);
-  const todayDocs = documents.filter((d) => d.isToday);
+/** TOOL 7 — hoy: status≠completed + (anchor hoy restante OR folder ventana incluye hoy) */
+export function get_today_scope(ctx = {}, filters = {}) {
+  const { documents, folders, folderById, now } = buildDocIndex(ctx);
+  const deptFilter = fold(filters.department || "");
+  const folderFilter = fold(filters.folder || "");
+  const categoryFilter = fold(filters.category || "");
+
+  const folderWindowToday = new Set(
+    folders
+      .filter((f) => {
+        const start = toDate(f.scheduleStartAt);
+        const finish = toDate(f.scheduleFinishAt);
+        if (!start || !finish) return false;
+        const t = startOfDay(now).getTime();
+        return t >= startOfDay(start).getTime() && t <= startOfDay(finish).getTime();
+      })
+      .map((f) => f.id),
+  );
+
+  const todayDocs = documents.filter((d) => {
+    if (d.status === DOC_WORK_STATUS.COMPLETED || d.completed) return false;
+
+    if (deptFilter && !fold(d.departmentName).includes(deptFilter)) return false;
+    if (categoryFilter && !fold(d.category).includes(categoryFilter)) return false;
+    if (folderFilter && !fold(d.parentFolderName).includes(folderFilter)) return false;
+
+    const inFolderWindow = d.parentFolderId && folderWindowToday.has(d.parentFolderId);
+    const at = toDate(d.anchorAt);
+    const finish = toDate(d.anchorFinishAt);
+    let inDocToday = false;
+    if (at && sameDay(at, now)) {
+      // resto del día: si ya terminó el bloque horario, fuera
+      if (finish && finish.getTime() < now.getTime()) inDocToday = false;
+      else inDocToday = true;
+    }
+    return inDocToday || inFolderWindow;
+  });
+
   const byStatus = {
     notStarted: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.NOT_STARTED || d.status == null).length,
     inProgress: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.IN_PROGRESS).length,
     submitted: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.SUBMITTED).length,
     pastDue: todayDocs.filter((d) => d.isPastDue || d.status === DOC_WORK_STATUS.PAST_DUE).length,
-    completed: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.COMPLETED).length,
+    completed: 0,
+    reserved: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.RESERVED).length,
   };
-  /** @type {Map<string, { folder: string, documents: number, statuses: string[] }>} */
-  const folderMap = new Map();
+
+  /** @type {Map<string, object>} */
+  const groupMap = new Map();
   for (const d of todayDocs) {
-    const key = d.parentFolderName || "—";
-    const cur = folderMap.get(key) || { folder: key, documents: 0, statuses: [] };
+    const key = `${d.departmentName || "—"}|${d.category || "—"}|${d.parentFolderName || "—"}`;
+    const cur = groupMap.get(key) || {
+      department: d.departmentName || null,
+      category: d.category || null,
+      folder: d.parentFolderName || null,
+      documents: 0,
+      statuses: [],
+    };
     cur.documents += 1;
     if (d.status) cur.statuses.push(d.status);
-    folderMap.set(key, cur);
+    groupMap.set(key, cur);
   }
+
   let nextDeadline = null;
   const timed = todayDocs
-    .filter((d) => d.anchorFinishAt)
+    .filter((d) => d.anchorAt)
     .slice()
-    .sort((a, b) => String(a.anchorFinishAt).localeCompare(String(b.anchorFinishAt)));
+    .sort((a, b) => String(a.anchorAt).localeCompare(String(b.anchorAt)));
   if (timed[0]) {
     nextDeadline = {
       id: timed[0].id,
       title: timed[0].title,
       folder: timed[0].parentFolderName,
-      time: timed[0].anchorFinishAt,
+      department: timed[0].departmentName,
+      category: timed[0].category,
+      time: timed[0].anchorAt,
     };
   }
+
+  const activeFolders = [...folderWindowToday].map((id) => {
+    const f = folderById.get(id);
+    if (!f) return null;
+    const kids = todayDocs.filter((d) => d.parentFolderId === id);
+    return {
+      id,
+      name: folderTitle(f),
+      department: kids[0]?.departmentName || null,
+      category: f.category || null,
+      childIncompleteToday: kids.length,
+    };
+  }).filter(Boolean);
+
   return {
     date: dayKey(now),
     totalDocumentsToday: todayDocs.length,
     breakdown: byStatus,
-    byFolder: [...folderMap.values()].map((f) => ({
-      folder: f.folder,
-      documents: f.documents,
-      status: f.statuses[0] || null,
+    byHierarchy: [...groupMap.values()].sort((a, b) => b.documents - a.documents),
+    byFolder: [...groupMap.values()].map((g) => ({
+      folder: g.folder,
+      department: g.department,
+      category: g.category,
+      documents: g.documents,
+      status: g.statuses[0] || null,
     })),
+    activeFolders,
     documents: todayDocs,
     nextDeadline,
+    filters: {
+      department: filters.department || null,
+      category: filters.category || null,
+      folder: filters.folder || null,
+    },
   };
 }
 
@@ -603,6 +682,170 @@ export function filterDocumentsByDepartmentAndCategory(ctx, departmentQuery, cat
   });
 }
 
+/** Live inventory — only real corpus entities */
+export function get_workspace_inventory(ctx = {}) {
+  const { folders, documents, departments } = buildDocIndex(ctx);
+  const deptList = asList(ctx.departments).filter((d) => {
+    if (!d?.id) return false;
+    if (ctx.objectId && d.objectId && d.objectId !== ctx.objectId) return false;
+    return true;
+  });
+
+  const departmentsOut = deptList.map((d) => {
+    const name = String(d.category || d.name || "").trim();
+    const categories = Array.isArray(d.subcategories)
+      ? d.subcategories.map((s) => String(s?.label || s?.name || "").trim()).filter(Boolean)
+      : [];
+    const deptFolders = folders.filter((f) => f.departmentId === d.id);
+    return {
+      id: d.id,
+      name,
+      categories,
+      folderCount: deptFolders.length,
+      documentCount: documents.filter((doc) => doc.departmentId === d.id).length,
+    };
+  }).filter((d) => d.name);
+
+  const foldersOut = folders.map((f) => {
+    const kids = documents.filter((d) => d.parentFolderId === f.id);
+    const dept = f.departmentId ? findDepartmentById(deptList, f.departmentId) : null;
+    return {
+      id: f.id,
+      name: folderTitle(f),
+      departmentId: f.departmentId || null,
+      departmentName: dept?.category || null,
+      category: f.category || null,
+      childDocuments: kids.length,
+      incompleteDocuments: kids.filter((k) => !k.completed && k.status !== DOC_WORK_STATUS.COMPLETED).length,
+      hasSchedule: Boolean(f.scheduleStartAt && f.scheduleFinishAt),
+      scheduleStartAt: f.scheduleStartAt || null,
+      scheduleFinishAt: f.scheduleFinishAt || null,
+    };
+  });
+
+  return {
+    departmentCount: departmentsOut.length,
+    folderCount: foldersOut.length,
+    documentCount: documents.length,
+    departments: departmentsOut,
+    folders: foldersOut,
+  };
+}
+
+/**
+ * Resolve ambiguous names against live inventory (category vs folder vs loose folder).
+ * @returns {{ ambiguous: boolean, needle: string, options: { id: string, kind: string, label: string, department?: string|null, category?: string|null, folderId?: string|null }[] }}
+ */
+export function resolveNameAmbiguity(ctx, nameQuery) {
+  const needle = fold(nameQuery);
+  const options = [];
+  if (!needle) return { ambiguous: false, needle: "", options: [] };
+
+  const inventory = get_workspace_inventory(ctx);
+
+  for (const d of inventory.departments) {
+    for (const cat of d.categories || []) {
+      if (fold(cat) === needle || fold(cat).includes(needle) || needle.includes(fold(cat))) {
+        options.push({
+          id: `cat:${d.id}:${cat}`,
+          kind: "category",
+          label: `En el departamento de ${d.name} existe como categoría ${cat}`,
+          department: d.name,
+          category: cat,
+          folderId: null,
+        });
+      }
+    }
+  }
+
+  for (const f of inventory.folders) {
+    if (!(fold(f.name) === needle || fold(f.name).includes(needle) || needle.includes(fold(f.name)))) {
+      continue;
+    }
+    if (f.departmentName && f.category) {
+      options.push({
+        id: `folder:${f.id}`,
+        kind: "folder",
+        label: `En el departamento de ${f.departmentName} existe como ${f.category} de ${f.name}`,
+        department: f.departmentName,
+        category: f.category,
+        folderId: f.id,
+        folderName: f.name,
+      });
+    } else if (f.departmentName) {
+      options.push({
+        id: `folder:${f.id}`,
+        kind: "folder",
+        label: `En el departamento de ${f.departmentName} tienes el folder ${f.name}`,
+        department: f.departmentName,
+        category: f.category || null,
+        folderId: f.id,
+        folderName: f.name,
+      });
+    } else {
+      options.push({
+        id: `loose:${f.id}`,
+        kind: "loose_folder",
+        label: `Tienes un folder suelto titulado ${f.name} (sin departamento)`,
+        department: null,
+        category: null,
+        folderId: f.id,
+        folderName: f.name,
+      });
+    }
+  }
+
+  // de-dupe by id
+  const seen = new Set();
+  const unique = [];
+  for (const o of options) {
+    if (seen.has(o.id)) continue;
+    seen.add(o.id);
+    unique.push(o);
+  }
+
+  return {
+    ambiguous: unique.length > 1,
+    needle: String(nameQuery || "").trim(),
+    options: unique,
+  };
+}
+
+/**
+ * Match a department name from live inventory against remainder text.
+ */
+export function matchDepartmentInText(ctx, text) {
+  const q = fold(text);
+  if (!q) return null;
+  const inventory = get_workspace_inventory(ctx);
+  let best = null;
+  for (const d of inventory.departments) {
+    const name = fold(d.name);
+    if (!name) continue;
+    if (q.includes(name) || new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q)) {
+      if (!best || name.length > fold(best.name).length) best = d;
+    }
+  }
+  return best;
+}
+
+/**
+ * Extract a candidate entity name after "en|de|del|para" from remainder.
+ */
+export function extractScopedName(remainder) {
+  const q = fold(remainder);
+  const m = q.match(/\b(?:en|del|de|para)\s+([a-z0-9áéíóúüñ][\wáéíóúüñ\s-]{1,40})$/)
+    || q.match(/\b(?:en|del|de|para)\s+([a-z0-9áéíóúüñ][\wáéíóúüñ\s-]{1,40})\b/);
+  if (m) return m[1].replace(/\?+$/, "").trim();
+  // leftover single token(s)
+  const cleaned = q
+    .replace(/\b(gina|que|qué|tengo|hay|para|el|la|los|las|un|una|me|puedes|decir|mostrar)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (cleaned && cleaned.length >= 2 && cleaned.split(" ").length <= 4) return cleaned;
+  return null;
+}
+
 export const GINA_TOOLS = {
   get_all_company_folders,
   get_all_company_documents,
@@ -616,4 +859,6 @@ export const GINA_TOOLS = {
   get_schedule_conflicts,
   get_document_detail,
   get_gina_scope,
+  get_workspace_inventory,
+  resolveNameAmbiguity,
 };

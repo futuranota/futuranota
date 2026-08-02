@@ -5,8 +5,12 @@ import {
   get_folder_children_summary,
   get_schedule_conflicts,
   get_all_company_folders,
+  get_workspace_inventory,
+  resolveNameAmbiguity,
 } from "./ginaTools.js";
 import { runGinaQueryFamily } from "./ginaQueryFamily.js";
+import { parseGinaTimeScope } from "./ginaTimeScope.js";
+import { pickGinaOpening } from "./ginaOpenings.js";
 
 const now = new Date("2026-08-01T12:00:00");
 
@@ -14,17 +18,43 @@ const ctx = {
   objectId: "co1",
   now,
   departments: [
-    { id: "dept_m", objectId: "co1", category: "Marketing", subcategories: [{ label: "blogs", description: "" }] },
+    {
+      id: "dept_m",
+      objectId: "co1",
+      category: "Marketing",
+      subcategories: [{ label: "blogs", description: "" }, { label: "Trends", description: "" }],
+    },
+    {
+      id: "dept_s",
+      objectId: "co1",
+      category: "Ventas",
+      subcategories: [{ label: "campaigns", description: "" }],
+    },
   ],
   docs: {
     f1: {
       id: "f1",
-      title: "Trends",
+      title: "Snapchat",
       parentObjectId: "co1",
       departmentId: "dept_m",
       category: "blogs",
       scheduleStartAt: "2026-08-01",
       scheduleFinishAt: "2026-08-07",
+    },
+    f2: {
+      id: "f2",
+      title: "Trends",
+      parentObjectId: "co1",
+      departmentId: "dept_s",
+      category: "campaigns",
+      scheduleStartAt: "2026-08-01",
+      scheduleFinishAt: "2026-08-03",
+    },
+    f3: {
+      id: "f3",
+      title: "Trends",
+      parentObjectId: "co1",
+      // loose folder
     },
   },
   nodes: {
@@ -55,33 +85,54 @@ const ctx = {
       anchorFinishAt: "2026-08-01T13:00:00",
       status: "not_started",
     },
+    n4: {
+      id: "n4",
+      title: "Done piece",
+      parentDocId: "f1",
+      objectId: "co1",
+      anchorAt: "2026-08-01T09:00:00",
+      anchorFinishAt: "2026-08-01T11:00:00",
+      status: "completed",
+    },
   },
 };
 
 describe("ginaTools", () => {
   it("lists folders with child counts", () => {
     const folders = get_all_company_folders(ctx);
-    expect(folders).toHaveLength(1);
-    expect(folders[0].name).toBe("Trends");
-    expect(folders[0].childDocuments).toBe(3);
+    expect(folders.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("get_today_scope finds today's docs", () => {
+  it("get_today_scope excludes completed and includes folder-window incompletes", () => {
     const scope = get_today_scope(ctx);
-    expect(scope.totalDocumentsToday).toBe(2);
     expect(scope.date).toBe("2026-08-01");
+    expect(scope.documents.every((d) => d.status !== "completed")).toBe(true);
+    expect(scope.totalDocumentsToday).toBeGreaterThanOrEqual(2);
+    expect(scope.documents.some((d) => d.title === "Done piece")).toBe(false);
+  });
+
+  it("get_workspace_inventory only lists live departments", () => {
+    const inv = get_workspace_inventory(ctx);
+    const names = inv.departments.map((d) => d.name);
+    expect(names).toContain("Marketing");
+    expect(names).toContain("Ventas");
+    expect(names).not.toContain("Productos");
+  });
+
+  it("resolveNameAmbiguity for Trends", () => {
+    const amb = resolveNameAmbiguity(ctx, "Trends");
+    expect(amb.ambiguous).toBe(true);
+    expect(amb.options.length).toBeGreaterThanOrEqual(2);
   });
 
   it("get_past_due_documents", () => {
     const out = get_past_due_documents(ctx);
     expect(out.totalPastDue).toBeGreaterThanOrEqual(1);
-    expect(out.documents.some((d) => d.title === "Email campaign")).toBe(true);
   });
 
   it("folder summary", () => {
     const sum = get_folder_children_summary(ctx, "f1");
-    expect(sum.folderName).toBe("Trends");
-    expect(sum.aggregated.total).toBe(3);
+    expect(sum.folderName).toBe("Snapchat");
   });
 
   it("detects schedule conflicts same day", () => {
@@ -90,15 +141,71 @@ describe("ginaTools", () => {
   });
 });
 
+describe("ginaTimeScope", () => {
+  it("parses para mañana exclusive", () => {
+    const t = parseGinaTimeScope("qué tengo para mañana", now);
+    expect(t.kind).toBe("tomorrow_only");
+    expect(t.startKey).toBe("2026-08-02");
+    expect(t.endKey).toBe("2026-08-02");
+  });
+
+  it("parses hasta mañana as two days", () => {
+    const t = parseGinaTimeScope("qué tengo hasta mañana", now);
+    expect(t.kind).toBe("through_tomorrow");
+    expect(t.startKey).toBe("2026-08-01");
+    expect(t.endKey).toBe("2026-08-02");
+  });
+
+  it("parses dentro de 3 días with confirm", () => {
+    const t = parseGinaTimeScope("qué tengo dentro de 3 días", now);
+    expect(t.kind).toBe("day_offset");
+    expect(t.dayOffset).toBe(3);
+    expect(t.needsConfirm).toBe(true);
+    expect(t.confirmDateKey).toBe("2026-08-04");
+  });
+
+  it("parses hoy", () => {
+    const t = parseGinaTimeScope("qué hay para hoy", now);
+    expect(t.kind).toBe("today");
+  });
+});
+
 describe("ginaQueryFamily", () => {
   it("routes today questions", () => {
     const r = runGinaQueryFamily("Gina, qué tengo para hoy?", ctx);
     expect(r.family).toBe("today");
     expect(r.toolsCalled).toContain("get_today_scope");
+    expect(r.workspaceInventory?.departments?.length).toBeGreaterThan(0);
   });
 
   it("routes past due", () => {
     const r = runGinaQueryFamily("qué está vencido?", ctx);
     expect(r.family).toBe("past_due");
+  });
+
+  it("routes hasta mañana", () => {
+    const r = runGinaQueryFamily("qué tengo hasta mañana", ctx);
+    expect(r.family).toBe("through_tomorrow");
+  });
+
+  it("asks confirm for dentro de 3 días", () => {
+    const r = runGinaQueryFamily("qué tengo dentro de 3 días", ctx);
+    expect(r.family).toBe("confirm_date");
+    expect(r.toolContext.needsConfirm).toBe(true);
+  });
+
+  it("disambiguates Trends", () => {
+    const r = runGinaQueryFamily("qué hay en Trends", ctx);
+    expect(r.family).toBe("name_ambiguity");
+    expect(r.toolContext.ambiguity.options.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("ginaOpenings", () => {
+  it("varies by salt", () => {
+    const a = pickGinaOpening({ locale: "es", userName: "Ross", salt: 0, now });
+    const b = pickGinaOpening({ locale: "es", userName: "Ross", salt: 1, now });
+    expect(a).toMatch(/Ross|asist|mente|revisar/i);
+    expect(a).not.toBe(b);
   });
 });

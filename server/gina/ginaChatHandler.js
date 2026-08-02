@@ -52,6 +52,7 @@ async function groqChat(apiKey, model, payload) {
  *   toolsCalled?: string[],
  *   family?: string,
  *   locale?: string,
+ *   workspaceInventory?: unknown,
  * }} body
  */
 export async function processGinaChatRequest(body = {}) {
@@ -63,9 +64,29 @@ export async function processGinaChatRequest(body = {}) {
     return { status: 400, body: { error: "messages with a user turn are required" } };
   }
 
+  // Client-handled clarification turns — no Groq invention
+  if (body.family === "name_ambiguity" || body.family === "confirm_date") {
+    return {
+      status: 200,
+      body: {
+        reply: fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory),
+        source: "clarify",
+        message: fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory),
+      },
+    };
+  }
+
   const toolJson = (() => {
     try {
       return JSON.stringify(body.toolContext ?? {}, null, 2);
+    } catch {
+      return "{}";
+    }
+  })();
+
+  const inventoryJson = (() => {
+    try {
+      return JSON.stringify(body.workspaceInventory ?? {}, null, 2);
     } catch {
       return "{}";
     }
@@ -78,7 +99,10 @@ export async function processGinaChatRequest(body = {}) {
     `Query family: ${body.family || "unknown"}`,
     `Tools called: ${(body.toolsCalled || []).join(", ") || "none"}`,
     "",
-    "TOOL CONTEXT (JSON — ground truth, do not invent beyond this):",
+    "WORKSPACE INVENTORY (live corpus — ONLY name entities listed here):",
+    inventoryJson.slice(0, 8000),
+    "",
+    "TOOL CONTEXT (JSON — ground truth for this answer, do not invent beyond this):",
     toolJson.slice(0, 12000),
   ].join("\n");
 
@@ -92,7 +116,7 @@ export async function processGinaChatRequest(body = {}) {
     return {
       status: 200,
       body: {
-        reply: fallbackGinaNarration(body.toolContext, locale),
+        reply: fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory),
         source: "fallback",
       },
     };
@@ -105,12 +129,12 @@ export async function processGinaChatRequest(body = {}) {
     } catch {
       reply = await groqChat(apiKey, GROQ_FALLBACK_MODEL, { system, messages: chatMessages });
     }
-    return { status: 200, body: { reply, source: "groq" } };
+    return { status: 200, body: { reply, source: "groq", message: reply } };
   } catch (err) {
     return {
       status: 200,
       body: {
-        reply: fallbackGinaNarration(body.toolContext, locale),
+        reply: fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory),
         source: "fallback",
         warning: err instanceof Error ? err.message : "groq_failed",
       },

@@ -89,6 +89,36 @@ IMPORTANTE:
 
 ---
 
+### **06. TIME_SCOPE_AND_LIVE_CORPUS.md** (Tiempo + corpus vivo)
+```
+QUÉ: Semántica hoy/mañana/hasta/dentro de N + LIVE CORPUS ONLY
+POR QUÉ: Evitar deptos fantasma y "calendario"; grounding en inventory
+
+IMPORTANTE:
+- Solo nombres del WORKSPACE INVENTORY
+- hoy = resto del día; para mañana ≠ hasta mañana
+- status ≠ completed en scope de hoy
+```
+
+**Tiempo:** 8 minutos
+
+---
+
+### **06. TIME_SCOPE_AND_LIVE_CORPUS.md** (Canon tiempo + corpus vivo)
+```
+QUÉ: Semántica hoy/mañana/hasta/dentro de N + LIVE CORPUS ONLY
+POR QUÉ: Evitar departamentos fantasma y "calendario" inventado
+
+IMPORTANTE:
+- Solo nombres del inventario real
+- Qué hay para hoy = status ≠ completed + scope de hoy
+- para mañana ≠ hasta mañana ≠ dentro de N días
+```
+
+**Tiempo:** 8 minutos
+
+---
+
 ## 🎯 ORDEN CORRECTO
 
 ```
@@ -108,6 +138,9 @@ START
   ↓
 05_VISUAL_HIERARCHY_NAVIGATION.md
   (Gina narra como se ve el sidebar)
+  ↓
+06_TIME_SCOPE_AND_LIVE_CORPUS.md
+  (tiempo hoy/mañana + solo corpus vivo)
   ↓
 LISTO → Implementar plan en Cursor
 ```

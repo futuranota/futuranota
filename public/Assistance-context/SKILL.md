@@ -91,18 +91,20 @@ Cuando leas scope, siempre piensa:
 
 ### Guía visual de narración (CRÍTICO — sidebar real)
 
-Referencia completa: `05_VISUAL_HIERARCHY_NAVIGATION.md`.
+Referencia completa: `05_VISUAL_HIERARCHY_NAVIGATION.md` + tiempo/corpus vivo: `06_TIME_SCOPE_AND_LIVE_CORPUS.md`.
+
+**LIVE CORPUS ONLY:** Solo nombra departamentos/categorías/folders del WORKSPACE INVENTORY. Ejemplos Marketing/Blogs/Trends son **ilustrativos**. Prohibido inventar “Productos” u otros. Prohibido hablar de “calendario” — el schedule está en Documents/folders.
 
 En la webapp el user ve: **Corpus → Departamento → Categoría → Folder [n docs] → Document**.
 
-**Regla de oro:** siempre sitúa el trabajo como **Departamento / Categoría / Folder** (ej. `Marketing / Blogs / Trends`). Nunca digas solo "en Trends" o "mira en Blogs" si hay jerarquía.
+**Regla de oro:** siempre sitúa el trabajo como **Departamento / Categoría / Folder** (ej. ilustrativo `Marketing / Blogs / Trends`). Nunca digas solo "en Trends" o "mira en Blogs" si hay jerarquía.
 
-**Incorrecto:** "En Trends tienes 3 documentos" · "Mira en Blogs" · "En Marketing tienes todo"  
-**Correcto:** "En el departamento de Marketing, en los blogs del folder Trends, tienes…" · verbal natural: "blogs de Trends del departamento de Marketing"
+**Incorrecto:** "En Trends tienes 3 documentos" · "Mira en Blogs" · "En Marketing tienes todo" · inventar deptos  
+**Correcto:** "Del departamento de {Depto}, de los {Categoría} de {Folder}, tienes…" (nombres reales del inventario)
 
-**Ambigüedad:** dos folders con el mismo título (Marketing/Blogs/Trends vs Product/Releases/Trends) → **pregunta cuál**; no asumas. Si no hay depto/categoría: di "folder X sin categorizar".
+**Ambigüedad:** mismo nombre en categoría y folder → pregunta A/B/C; no asumas.
 
-**Tours / scope:** agrupa por depto → categoría → folder; lista documents con status; cierra con pregunta de foco.
+**Tours / scope:** agrupa por depto → categoría → folder; lista documents con status ≠ completed en el alcance; cierra con pregunta de foco **abierta** o con deptos reales del inventario.
 
 ### Modelo de Datos (Schedule + Status)
 

@@ -7,30 +7,31 @@ alwaysApply: true
 
 **Gina** = identidad del **Asistente** de dashboard (compañía / corpus). Fase actual = **escuchar / scope** (panorama → foco), no mutaciones.
 
-Canonical context: `public/Assistance-context/` (`00` → `01` Estructura → `02` Schedule/Status → `03` Tools → `04` Skill → `05` Visual hierarchy). Mirror: `.cursor/gina-context/`. Saved notes: `.cursor/saved/gina-system/`.
+Canonical context: `public/Assistance-context/` (`00` → `01` → `02` → `03` → `04` Skill → `05` Visual → `06` Time/live corpus). Mirror: `.cursor/gina-context/`. Saved notes: `.cursor/saved/gina-system/`.
 
-## Fase 1 (live) — Assistance listen
+## Fase 1 (live) — Assistance listen + polish
 
 ```
 Assistance box → Meet Gina → Talk → GinaChatOverlay (sin documentId)
-  → query family → ginaTools (cliente / stores)
-  → POST /api/gina/chat (Groq + system prompt + JSON de tools)
-  → typewriter reply
+  → inventory vivo + query family / time scope
+  → ginaTools (cliente / stores)
+  → POST /api/gina/chat (Groq + system prompt + inventory + tool JSON)
+  → typewriter + visualization
 Focus / “ábreme X” → openDocumentOverlay
 ```
 
-- LLM runtime = **Groq** (`GROQ_API_KEY`), no Claude.
-- Tools = lectura (`src/lib/gina/ginaTools.js` + `ginaQueryFamily.js`); API solo narra.
-- UI: `AssistanceListCard` bajo Agents; Agents card se mantiene.
-- System prompt: `server/gina/ginaSystemPrompt.js` (skill 04 + taxonomía 01 + schedule 02 + narración visual 05).
+- LLM runtime = **Groq** (`GROQ_API_KEY`).
+- **LIVE CORPUS ONLY** — nunca inventar departamentos; no decir “calendario”.
+- Tiempo: hoy / para mañana / hasta mañana / dentro de N (confirm) / semana.
+- Openings variables (`pickGinaOpening`).
+- System prompt: `server/gina/ginaSystemPrompt.js`.
 
 ## Jerarquía (no confundir)
 
 Empresa → Departamento → Categoría → Folder → Document  
-“Marketing / blogs” = depto + categoría — no “categoría Marketing”.
 
-**Narración (05):** siempre **Departamento / Categoría / Folder** en prosa verbal (ej. “blogs de Trends del departamento de Marketing”).  
-**UI path:** encima del bloque visual, mostrar la ruta con `/` en **gris** y tipografía **pequeña** (`Marketing / Blogs / Trends`); el mensaje hablado sigue siendo verbal, no solo la ruta. Guía: `05_VISUAL_HIERARCHY_NAVIGATION.md`.
+**Narración:** verbal “Del departamento de {Depto}, de los {Categoría} de {Folder}…”.  
+**UI path:** `/` grises pequeños encima de cards. Guía: `05` + `06`.
 
 ## Tres capas de tiempo (modelo)
 
