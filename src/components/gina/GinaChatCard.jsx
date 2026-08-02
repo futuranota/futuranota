@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useWebSpeech } from "../../hooks/useWebSpeech.js";
 import { absorbDictationFinal } from "../../lib/ginaSpeechCommands.js";
 import { normalizeDictationTranscript } from "../../lib/ginaSpeechVocab.js";
+import { GinaAnimatedText } from "./GinaAnimatedText.jsx";
 
 /** @typedef {{ sender: "ai" | "user", text: string }} GinaChatMessage */
 
@@ -484,7 +485,7 @@ export function GinaChatCard({
                   : "gina-chat-card__bubble gina-chat-card__bubble--user"
               }
             >
-              {msg.text}
+              {msg.sender === "ai" ? <GinaAnimatedText text={msg.text} /> : msg.text}
             </motion.div>
           ))}
 
