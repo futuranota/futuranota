@@ -341,7 +341,11 @@ export function GinaChatCard({
 
     if (typeof onSendMessage === "function") {
       try {
-        await onSendMessage(trimmed);
+        const reply = await onSendMessage(trimmed);
+        const aiText = typeof reply === "string" ? reply.trim() : "";
+        if (aiText) {
+          setMessages((prev) => [...prev, { sender: "ai", text: aiText }]);
+        }
       } finally {
         setIsTyping(false);
       }

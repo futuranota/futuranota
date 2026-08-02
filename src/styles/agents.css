@@ -55,6 +55,15 @@
   align-self: flex-start;
 }
 
+.lp-assistance-card {
+  background: #151515;
+}
+
+.lp-assistance-card__icon {
+  color: #c9b896;
+  background: color-mix(in oklab, #c9b896 14%, #1a1a1a);
+}
+
 .lp-agent-card--disabled {
   opacity: 0.72;
 }

@@ -19,6 +19,10 @@ import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import { getAgentsForUser, AGENT_MARKETING_GUIDE } from "../../lib/agents/registry.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { AgentListCard } from "../agents/AgentListCard.jsx";
+import { AssistanceListCard } from "../gina/AssistanceListCard.jsx";
+import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
+import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
+import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
 import { ObjectThumbPreview } from "./objectIcons.jsx";
 import { formatMmDdYy, isoFromDateInput, todayDateInputValue } from "../../lib/docDates.js";
 import {
@@ -304,6 +308,22 @@ function ClickFolderIcon({ variant, className = "lp-click-folder-box-icon" }) {
           strokeWidth="1.5"
           strokeLinecap="round"
         />
+      </svg>
+    );
+  }
+
+  if (variant === "assistance") {
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+        <path
+          d="M8 14c1.2 1.2 2.6 1.8 4 1.8s2.8-.6 4-1.8"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+        <circle cx="9" cy="10" r="1" fill="currentColor" />
+        <circle cx="15" cy="10" r="1" fill="currentColor" />
       </svg>
     );
   }
@@ -1651,7 +1671,7 @@ export function LeftPanel({
   canvasNodesForQueue = [],
   onNotify = null,
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
   const panelTypeLabel = usePanelTypeLabels();
   const [panelType, setPanelType] = useState("Objects");
@@ -1666,10 +1686,13 @@ export function LeftPanel({
   const [createDocumentParentDocId, setCreateDocumentParentDocId] = useState(null);
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
+  const [ginaDashboardOpen, setGinaDashboardOpen] = useState(false);
   const [departmentFilterId, setDepartmentFilterId] = useState("");
   const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
   const [departmentCreateRequested, setDepartmentCreateRequested] = useState(false);
   const departments = useDepartmentsStore((s) => s.departments);
+  const docsMap = useDocsStore((s) => s.docs);
+  const nodesMap = useNodesStore((s) => s.nodes);
   const [packImportActive, setPackImportActive] = useState(false);
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
   const [lazyTodosActive, setLazyTodosActive] = useState(false);
@@ -2621,12 +2644,68 @@ export function LeftPanel({
     (!objectWorkspaceActive && panelType !== "Objects")
     || (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId)
     || (panelType === "Documents" && !clickFolderView)
-    || clickFolderView === "agents";
+    || clickFolderView === "agents"
+    || clickFolderView === "assistance";
   const docCreateMode = clickFolderView === "groups"
     ? "product"
     : clickFolderView === "campaign"
       ? "campaign"
       : "content";
+
+  const handleGinaDashboardSend = useCallback(async (text) => {
+    const ctx = {
+      docs: docsMap,
+      nodes: nodesMap,
+      departments,
+      objectId: activeObjectId || filterObjectId || null,
+      now: new Date(),
+    };
+    const routed = runGinaQueryFamily(text, ctx);
+
+    if (routed.family === "focus_open") {
+      if (routed.openDocumentId) {
+        setGinaDashboardOpen(false);
+        onOpenDocument?.(routed.openDocumentId);
+        return "";
+      }
+      if (routed.openFolderId) {
+        setGinaDashboardOpen(false);
+        onOpenDocument?.(routed.openFolderId);
+        return "";
+      }
+      return locale === "es"
+        ? "Dime el título exacto del documento o folder de la lista para enfocarnos en uno solo."
+        : "Tell me the exact document or folder title from the list so we focus on one.";
+    }
+
+    try {
+      const result = await fetchGinaChat({
+        messages: [{ role: "user", content: text }],
+        toolContext: routed.toolContext,
+        toolsCalled: routed.toolsCalled,
+        family: routed.family,
+        locale: locale === "es" ? "es" : "en",
+      });
+      return typeof result?.reply === "string" && result.reply.trim()
+        ? result.reply.trim()
+        : (locale === "es"
+          ? "No pude narrar el scope. Intenta de nuevo."
+          : "Couldn't narrate scope. Try again.");
+    } catch (err) {
+      console.warn("[gina] chat failed", err);
+      return locale === "es"
+        ? "Hubo un problema al hablar con Gina. ¿GROQ_API_KEY está configurada? Puedes preguntar por hoy, vencidos o un departamento."
+        : "Something went wrong talking to Gina. Is GROQ_API_KEY set? You can ask about today, past due, or a department.";
+    }
+  }, [
+    docsMap,
+    nodesMap,
+    departments,
+    activeObjectId,
+    filterObjectId,
+    locale,
+    onOpenDocument,
+  ]);
 
   return (
     <div className="left-panel">
@@ -2846,6 +2925,11 @@ export function LeftPanel({
                     variant="agents"
                     label={t("sidebar.agents")}
                     onClick={() => setClickFolderView("agents")}
+                  />
+                  <ClickFolderBox
+                    variant="assistance"
+                    label={t("sidebar.assistance")}
+                    onClick={() => setClickFolderView("assistance")}
                   />
                 </div>
               </>
@@ -3112,6 +3196,19 @@ export function LeftPanel({
                       onInsert={(agentId) => onInsertAgent?.(agentId)}
                     />
                   ))}
+                </div>
+              </div>
+            ) : null}
+
+            {!packImportActive && !stepsLibraryActive && !lazyTodosActive && !urlTableLibraryActive && clickFolderView === "assistance" ? (
+              <div className="lp-click-folder-detail">
+                <ClickFolderBack
+                  iconOnly
+                  onBack={() => setClickFolderView(null)}
+                  label={t("sidebar.assistanceTitle")}
+                />
+                <div className="lp-click-folder-detail-list">
+                  <AssistanceListCard onTalk={() => setGinaDashboardOpen(true)} />
                 </div>
               </div>
             ) : null}
@@ -3539,6 +3636,33 @@ export function LeftPanel({
         />,
         document.body,
       )}
+      {ginaDashboardOpen ? (
+        <GinaChatOverlay
+          documentId={null}
+          assistantName={t("gina.name")}
+          openingMessage={t("gina.dashboardOpening")}
+          placeholder={t("gina.placeholder")}
+          speechLang={locale === "es" ? "es-ES" : "en-US"}
+          labels={{
+            messageAria: t("gina.messageAria"),
+            sendAria: t("gina.sendAria"),
+            micAria: t("gina.micAria"),
+            micUnsupported: t("gina.micUnsupported"),
+            listeningHold: t("gina.listeningHold"),
+            listeningCancel: t("gina.listeningCancel"),
+            dictationInsert: t("gina.dictationInsert"),
+            deletePhraseArmed: t("gina.deletePhraseArmed"),
+            deletePhraseMiss: t("gina.deletePhraseMiss"),
+            closeAria: t("gina.closeAria"),
+            typingAria: t("gina.typingAria"),
+            dialogAria: t("gina.dialogAria"),
+            ttsOn: t("gina.ttsOn"),
+            ttsOff: t("gina.ttsOff"),
+          }}
+          onSendMessage={handleGinaDashboardSend}
+          onClose={() => setGinaDashboardOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

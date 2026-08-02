@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { GinaChatCard } from "./GinaChatCard.jsx";
 
 /**
- * Portal overlay for Call Asistente chat above the open document modal.
+ * Portal overlay for Gina chat (in-doc Call Asistente or dashboard Assistance).
  *
  * @param {{
  *   documentId?: string | null,
@@ -12,6 +12,7 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
  *   placeholder?: string,
  *   speechLang?: string,
  *   labels?: Record<string, string>,
+ *   onSendMessage?: (text: string) => void | Promise<void>,
  *   onClose: () => void,
  * }} props
  */
@@ -23,6 +24,7 @@ export function GinaChatOverlay({
   placeholder,
   speechLang = "es-ES",
   labels = {},
+  onSendMessage,
   onClose,
 }) {
   useEffect(() => {
@@ -61,6 +63,7 @@ export function GinaChatOverlay({
           placeholder={placeholder}
           speechLang={speechLang}
           labels={labels}
+          onSendMessage={onSendMessage}
           onClose={onClose}
         />
       </div>
