@@ -9,6 +9,7 @@ import { absorbDictationFinal } from "../../lib/ginaSpeechCommands.js";
 import { normalizeDictationTranscript } from "../../lib/ginaSpeechVocab.js";
 import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
+import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 
 /** @typedef {{ sender: "ai" | "user", text: string, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null }} GinaChatMessage */
 
@@ -352,6 +353,8 @@ export function GinaChatCard({
     setMessages((prev) => [...prev, { sender: "user", text: trimmed }]);
     setInput("");
     setIsTyping(true);
+    const typingStartedAt = Date.now();
+    const minTypingMs = 700;
 
     if (typeof onSendMessage === "function") {
       try {
@@ -367,6 +370,10 @@ export function GinaChatCard({
           aiText = String(reply.message || reply.reply || "").trim();
           visualization = reply.visualization || null;
           learnProposal = reply.learnProposal || null;
+        }
+        const waitMore = minTypingMs - (Date.now() - typingStartedAt);
+        if (waitMore > 0) {
+          await new Promise((r) => window.setTimeout(r, waitMore));
         }
         if (aiText || visualization || learnProposal) {
           setMessages((prev) => [
@@ -603,17 +610,11 @@ export function GinaChatCard({
           ))}
 
           {isTyping && (
-            <motion.div
-              className="gina-chat-card__typing"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 0.6, 1] }}
-              transition={{ repeat: Infinity, duration: 1.2 }}
-              aria-label={labels.typingAria || "Gina is typing"}
-            >
-              <span />
-              <span />
-              <span />
-            </motion.div>
+            <GinaThinkingStatus
+              locale={String(speechLang || "").toLowerCase().startsWith("en") ? "en" : "es"}
+              ariaLabel={labels.typingAria || "Gina is thinking"}
+              phrases={Array.isArray(labels.thinkingPhrases) ? labels.thinkingPhrases : undefined}
+            />
           )}
           <div ref={messagesEndRef} />
         </div>

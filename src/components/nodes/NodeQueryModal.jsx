@@ -361,7 +361,10 @@ export function NodeQueryModal({
     const workspaceInventory = routed.workspaceInventory || get_workspace_inventory(ctx);
     const visualization = (routed.family === "name_ambiguity"
       || routed.family === "confirm_date"
-      || routed.family === "unclear")
+      || routed.family === "unclear"
+      || routed.family === "social"
+      || routed.family === "dismiss"
+      || routed.family === "free_chat")
       ? null
       : buildGinaVisualization(routed.family, routed.toolContext, {
         locale: locale === "es" ? "es" : "en",

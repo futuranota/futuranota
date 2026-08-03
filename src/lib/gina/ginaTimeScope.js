@@ -171,7 +171,7 @@ export function parseGinaTimeScope(text, nowValue = new Date(), opts = {}) {
     };
   }
 
-  if (/\b(hoy|today|para hoy)\b/.test(q)) {
+  if (/\b(hoy|today|para hoy)\b/.test(q) && !/\bhoy\s+no\b/.test(q) && !/\bnot\s+today\b/.test(q) && !/\bhasta\s+luego\b/.test(q)) {
     strip(/\b(para\s+hoy|hoy|today)\b/g);
     return {
       kind: "today",

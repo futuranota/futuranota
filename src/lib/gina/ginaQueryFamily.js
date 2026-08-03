@@ -29,6 +29,27 @@ function fold(s) {
   return foldGinaText(s);
 }
 
+/** Explicit work intents — bare "hoy" alone is NOT enough ("hoy no" / charla). */
+const GINA_WORK_CUE_RE = /\b((que|qué)\s+tengo|(que|qué)\s+hay|para\s+hoy|de\s+hoy|hay\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|folder\w*|departamento\w*|documento\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|aprende|significa|past\s*due|incomplete|conflict)\b/;
+
+/**
+ * Clear goodbye / later / rest — wins even if the text mentions "hoy".
+ * @param {string} body folded
+ */
+function isGinaGoodbyeBody(body) {
+  if (!body) return false;
+  if (/\b(buenas\s+noches|hasta\s+luego|hasta\s+pronto|nos\s+vemos|que\s+descanses|descansa|voy\s+a\s+(dormir|descansar)|me\s+voy|he\s+dicho\s+hasta\s+luego)\b/.test(body)) {
+    return true;
+  }
+  if (/\bhoy\s+no\b/.test(body) && /\b(rato|luego|despues|gracias|hasta)\b/.test(body)) {
+    return true;
+  }
+  if (/^(gracias\s+)?(buenas\s+noches|adios|chao|bye)([!?.\s]*)$/.test(body)) {
+    return true;
+  }
+  return false;
+}
+
 /**
  * Gibberish / non-intent utterances must not fall through to default_overview.
  * @param {string} text
@@ -49,6 +70,134 @@ export function isGinaUnclearUtterance(text) {
   // Short keyboard mash without vowels (and no digits)
   const lower = letters.toLowerCase();
   if (letters.length <= 6 && !/[aeiou]/.test(lower) && !/\d/.test(lower)) return true;
+  // Longer mash: mostly consonants, no spaces (avoid flagging "si"/"no"/"ok")
+  if (
+    letters.length >= 5
+    && letters.length <= 12
+    && !/\s/.test(raw.trim())
+    && !/[aeiou]{2}/.test(lower)
+    && (lower.match(/[aeiou]/g) || []).length <= 1
+    && !/\d/.test(lower)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * User declines help / ends the turn — no scope tools, no visualization.
+ * @param {string} text
+ */
+export function isGinaDismissUtterance(text) {
+  const q = fold(text);
+  if (!q) return false;
+
+  const body = q.replace(/^gina\b[\s,:!-]*/, "").trim();
+  if (!body) return false;
+
+  // Goodbye / rest first — overrides bare "hoy" noise
+  if (isGinaGoodbyeBody(body)) return true;
+
+  if (GINA_WORK_CUE_RE.test(q)) return false;
+
+  if (
+    /^(no(\s+en)?\s+nada(\s+gracias)?|nada(\s*,?\s*gracias)?|no\s*,?\s*gracias|no\s+por\s+ahora|ahora\s+no|luego|despues|mas\s+tarde|nothing(\s+thanks)?|no\s+thanks|not\s+now|i'?m\s+good|im\s+good|all\s+good|adios|chao|bye|ok\s+bye|okay\s+bye|bueno\s+chao|nos\s+vemos|hasta\s+luego|hasta\s+pronto)([!?.\s]*)$/.test(body)
+  ) {
+    return true;
+  }
+
+  // Soft decline / goodbye phrases (short)
+  const words = body.split(/\s+/).filter(Boolean);
+  if (words.length <= 10) {
+    if (/\b(no|nada)\b/.test(body) && /\b(gracias|thanks|nada)\b/.test(body) && !GINA_WORK_CUE_RE.test(body)) {
+      return true;
+    }
+    if (/\b(chao|adios|bye)\b/.test(body) && !GINA_WORK_CUE_RE.test(body)) {
+      return true;
+    }
+    if (/\b(ok|okay|vale)\b/.test(body) && /\b(nada|bye|chao)\b/.test(body)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Tokens that can follow "cómo estás" without being a folder/dept name.
+ * @param {string} after folded remainder after cómo estás / qué tal
+ */
+function isGinaHowAreYouFiller(after) {
+  const a = fold(after).replace(/[!?.]+$/g, "").trim();
+  if (!a) return true;
+  if (/^(hoy|tu dia|el dia|usted|vos|tu|de animo)$/.test(a)) return true;
+  const toks = a.split(/\s+/).filter(Boolean);
+  if (toks.length > 5) return false;
+  const soft = /^(tu|usted|vos|te|ti|primeramente|primero|ahora|hoy|de|verdad|realmente|por|favor|estas|esta|bien|mal|que|tal|y|o|muy|super)$/;
+  return toks.every((t) => soft.test(t));
+}
+
+/**
+ * Casual chat (greetings / how-are-you) — must not trigger today/incomplete overview.
+ * Input is matched on folded text. "como esta trends" is NOT social (named target).
+ * @param {string} text
+ */
+export function isGinaSocialUtterance(text) {
+  const q = fold(text);
+  if (!q) return false;
+  if (GINA_WORK_CUE_RE.test(q)) return false;
+  if (isGinaDismissUtterance(text)) return false;
+
+  const body = q.replace(/^gina\b[\s,:!-]*/, "").trim();
+  if (!body) return true;
+
+  if (/^(hola|hey|hi|hello|holi|buenas|saludos|buenos?\s+dias?|buenas?\s+tardes?|buenas?\s+noches?)([!?.\s]*)$/.test(body)) {
+    return true;
+  }
+
+  if (/^(gracias|thanks|thank you|ty)([!?.\s]*)$/.test(body)) {
+    return true;
+  }
+
+  // Short acks ("sí", "ok", "vale") — keep on-task, don't treat as unclear/work
+  if (/^(si|sí|ok|okay|vale|claro|perfecto|de acuerdo|yes|yep|yeah)([!?.\s]*)$/.test(body)) {
+    return true;
+  }
+
+  // "necesito saber cómo estás…" / "dime cómo estás"
+  if (
+    /\b(necesito saber|quiero saber|dime|cuentame|cuéntame)\b/.test(body)
+    && /\b(como est|how are you|que tal)\b/.test(body)
+  ) {
+    return true;
+  }
+
+  // "como estas" / "que tal" alone or with soft address — not "como esta Trends"
+  const howAre = body.match(/\b(?:como estas?|how are you|how'?s it going|que tal)\b(.*)$/);
+  if (howAre) {
+    const after = fold(howAre[1] || "").replace(/[!?.]+$/g, "").trim();
+    if (isGinaHowAreYouFiller(after)) return true;
+    // Likely named target (folder/dept) → not social
+    return false;
+  }
+
+  // Short greeting + smalltalk ("hola como estas", "hey que tal tu dia")
+  if (/\b(hola|hey|hi|hello|buenas|bueno)\b/.test(body)) {
+    const words = body.split(/\s+/).filter(Boolean);
+    if (words.length <= 14) {
+      if (
+        /\b(como est|que tal|how are|todo bien|tal tu dia|primeramente)\b/.test(body)
+        || words.length <= 4
+      ) {
+        return true;
+      }
+    }
+  }
+
+  if (/\b(que tal tu dia|como va tu dia)\b/.test(body)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -120,6 +269,30 @@ export function runGinaQueryFamily(text, ctx = {}) {
       toolContext: {
         unclear: true,
         hint: "User message is not a usable request",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  if (isGinaDismissUtterance(text)) {
+    return {
+      family: "dismiss",
+      toolsCalled,
+      toolContext: {
+        dismiss: true,
+        hint: "User declined help — close politely with no scope data",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  if (isGinaSocialUtterance(text)) {
+    return {
+      family: "social",
+      toolsCalled,
+      toolContext: {
+        social: true,
+        hint: "Casual chat — reply naturally; do not list documents or run scope tools",
       },
       workspaceInventory: inventory,
     };
@@ -364,10 +537,16 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Default: light today + incomplete
-  const toolContext = {
-    today: call("get_today_scope", () => get_today_scope(ctx)),
-    incomplete: call("get_incomplete_documents", () => get_incomplete_documents(ctx)),
+  // No explicit work request → free chat (Groq reasons without scope JSON).
+  // Work tools/cards only when a known family matches (hoy, vencidos, …) —
+  // later: expand that allowlist as a designed input library.
+  return {
+    family: "free_chat",
+    toolsCalled,
+    toolContext: {
+      freeChat: true,
+      hint: "No explicit work request — reply naturally on-task as Gina. Do not invent document lists or counts.",
+    },
+    workspaceInventory: inventory,
   };
-  return { family: "default_overview", toolsCalled, toolContext, workspaceInventory: inventory };
 }

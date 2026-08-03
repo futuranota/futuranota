@@ -67,9 +67,17 @@ export async function processGinaChatRequest(body = {}) {
     return { status: 400, body: { error: "messages with a user turn are required" } };
   }
 
-  // Client-handled clarification turns — no Groq invention
-  if (body.family === "name_ambiguity" || body.family === "confirm_date" || body.family === "unclear") {
-    const clarify = fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory);
+  // Fixed copy only for hard clarify gates — social/dismiss go to Groq (reasoned, no scope tools)
+  if (
+    body.family === "name_ambiguity"
+    || body.family === "confirm_date"
+    || body.family === "unclear"
+  ) {
+    let toolCtx = body.toolContext;
+    if (body.family === "unclear") {
+      toolCtx = { ...(typeof toolCtx === "object" && toolCtx ? toolCtx : {}), unclear: true };
+    }
+    const clarify = fallbackGinaNarration(toolCtx, locale, body.workspaceInventory);
     return {
       status: 200,
       body: {
@@ -80,7 +88,32 @@ export async function processGinaChatRequest(body = {}) {
     };
   }
 
+  const isSocial = body.family === "social" || Boolean(body.toolContext && typeof body.toolContext === "object" && body.toolContext.social);
+  const isDismiss = body.family === "dismiss" || Boolean(body.toolContext && typeof body.toolContext === "object" && body.toolContext.dismiss);
+  const isFreeChat = body.family === "free_chat"
+    || body.family === "default_overview"
+    || Boolean(body.toolContext && typeof body.toolContext === "object" && body.toolContext.freeChat);
+  const noScopeTools = isSocial || isDismiss || isFreeChat;
+
   const toolJson = (() => {
+    if (isSocial) {
+      return JSON.stringify({
+        social: true,
+        hint: "Casual greeting — reply naturally, short. No document lists. No forced CTA.",
+      }, null, 2);
+    }
+    if (isDismiss) {
+      return JSON.stringify({
+        dismiss: true,
+        hint: "Goodbye / later / rest — warm short close. Do NOT ask how you can help today. No lists.",
+      }, null, 2);
+    }
+    if (isFreeChat) {
+      return JSON.stringify({
+        freeChat: true,
+        hint: "Normal chat — answer the human topic. No fake document counts. No workspace pitch unless they ask.",
+      }, null, 2);
+    }
     try {
       return JSON.stringify(body.toolContext ?? {}, null, 2);
     } catch {
@@ -130,15 +163,18 @@ export async function processGinaChatRequest(body = {}) {
     `Query family: ${body.family || "unknown"}`,
     `Tools called: ${(body.toolsCalled || []).join(", ") || "none"}`,
     meetingModeOn ? "Meeting mode: ON" : "Meeting mode: OFF",
+    isSocial ? "SOCIAL TURN: talk normally. Short. No document lists." : "",
+    isDismiss ? "DISMISS TURN: say goodbye / good night warmly. Do not offer help for today. No lists." : "",
+    isFreeChat ? "FREE CHAT: talk normally about what they said. Do not invent workspace data or pitch the dashboard." : "",
     "",
     "WORKSPACE INVENTORY (live corpus — ONLY name entities listed here):",
-    inventoryJson.slice(0, 8000),
+    noScopeTools ? "(omitted — conversational turn)" : inventoryJson.slice(0, 8000),
     "",
     "TOOL CONTEXT (JSON — ground truth for this answer, do not invent beyond this):",
     toolJson.slice(0, 12000),
-    meetingBlock,
-    knowledgeBlock,
-  ].filter((line) => line !== undefined).join("\n");
+    noScopeTools ? "" : meetingBlock,
+    noScopeTools ? "" : knowledgeBlock,
+  ].filter((line) => line !== undefined && line !== "").join("\n");
 
   const chatMessages = history
     .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
@@ -150,7 +186,13 @@ export async function processGinaChatRequest(body = {}) {
     return {
       status: 200,
       body: {
-        reply: fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory),
+        reply: fallbackGinaNarration(
+          isDismiss ? { dismiss: true }
+            : (isSocial ? { social: true }
+              : (isFreeChat ? { freeChat: true } : body.toolContext)),
+          locale,
+          body.workspaceInventory,
+        ),
         source: "fallback",
       },
     };
@@ -163,10 +205,23 @@ export async function processGinaChatRequest(body = {}) {
     } catch {
       reply = await groqChat(apiKey, GROQ_FALLBACK_MODEL, { system, messages: chatMessages });
     }
-    const clean = sanitizeGinaReply(reply, body.toolContext, locale, body.workspaceInventory);
+    const clean = sanitizeGinaReply(
+      reply,
+      isDismiss ? { dismiss: true }
+        : (isSocial ? { social: true }
+          : (isFreeChat ? { freeChat: true } : body.toolContext)),
+      locale,
+      body.workspaceInventory,
+    );
     return { status: 200, body: { reply: clean, source: "groq", message: clean } };
   } catch (err) {
-    const fallback = fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory);
+    const fallback = fallbackGinaNarration(
+      isDismiss ? { dismiss: true }
+        : (isSocial ? { social: true }
+          : (isFreeChat ? { freeChat: true } : body.toolContext)),
+      locale,
+      body.workspaceInventory,
+    );
     return {
       status: 200,
       body: {

@@ -92,7 +92,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
   const wantsTable = /\b(detalle|detail|tabla|table|lista completa)\b/.test(q);
   const wantsTimeline = /\b(horario|horarios|timeline|agenda)\b/.test(q);
 
-  if (family === "focus_open") return null;
+  if (family === "focus_open" || family === "social" || family === "unclear" || family === "dismiss" || family === "free_chat") return null;
 
   if (family === "today" || (family === "default_overview" && ctx.today)) {
     const today = family === "today" ? ctx : ctx.today;

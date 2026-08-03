@@ -207,6 +207,81 @@ describe("ginaQueryFamily", () => {
     expect(r.toolsCalled).not.toContain("get_today_scope");
     expect(r.toolsCalled).not.toContain("get_incomplete_documents");
   });
+
+  it("routes greetings as social without today overview", () => {
+    const r = runGinaQueryFamily("Gina hora como estas ?", ctx);
+    expect(r.family).toBe("social");
+    expect(r.toolContext.social).toBe(true);
+    expect(r.toolsCalled).not.toContain("get_today_scope");
+    expect(r.toolsCalled).not.toContain("get_incomplete_documents");
+  });
+
+  it("routes sí/ok as social (not unclear)", () => {
+    expect(runGinaQueryFamily("Si", ctx).family).toBe("social");
+    expect(runGinaQueryFamily("ok", ctx).family).toBe("social");
+  });
+
+  it("routes hola as social", () => {
+    const r = runGinaQueryFamily("hola como estas?", ctx);
+    expect(r.family).toBe("social");
+  });
+
+  it("routes dismiss without today overview", () => {
+    const r = runGinaQueryFamily("no en nada gracias", ctx);
+    expect(r.family).toBe("dismiss");
+    expect(r.toolContext.dismiss).toBe(true);
+    expect(r.toolsCalled).not.toContain("get_today_scope");
+    expect(r.toolsCalled).not.toContain("get_incomplete_documents");
+  });
+
+  it("routes no gracias as dismiss", () => {
+    expect(runGinaQueryFamily("no gracias", ctx).family).toBe("dismiss");
+  });
+
+  it("routes bueno chao / chao as dismiss", () => {
+    expect(runGinaQueryFamily("bueno chao", ctx).family).toBe("dismiss");
+    expect(runGinaQueryFamily("chao", ctx).family).toBe("dismiss");
+  });
+
+  it("routes necesito saber como estas as social", () => {
+    const r = runGinaQueryFamily("Bueno, necesito saber como estas tu primeramente?", ctx);
+    expect(r.family).toBe("social");
+    expect(r.toolsCalled).not.toContain("get_today_scope");
+  });
+
+  it("keeps cómo está {folder} as work, not social", () => {
+    const r = runGinaQueryFamily("cómo está Trends", ctx);
+    expect(r.family).not.toBe("social");
+  });
+
+  it("routes unknown chat to free_chat without today tools", () => {
+    const r = runGinaQueryFamily("como esta mi pierna izquierda", ctx);
+    expect(r.family).toBe("free_chat");
+    expect(r.toolsCalled).not.toContain("get_today_scope");
+    expect(r.toolsCalled).not.toContain("get_incomplete_documents");
+  });
+
+  it("routes hoy no / hasta luego as dismiss not today", () => {
+    const r = runGinaQueryFamily("hoy no, dentro de un rato, he dicho hasta luego", ctx);
+    expect(r.family).toBe("dismiss");
+    expect(r.toolsCalled).not.toContain("get_today_scope");
+  });
+
+  it("routes gracias buenas noches as dismiss", () => {
+    expect(runGinaQueryFamily("Gracias buenas noches", ctx).family).toBe("dismiss");
+  });
+
+  it("routes sleepy chat to free_chat", () => {
+    const r = runGinaQueryFamily("creo que tengo sueno debo de descansar", ctx);
+    expect(r.family).toBe("free_chat");
+    expect(r.toolsCalled).not.toContain("get_today_scope");
+  });
+
+  it("still routes today after greeting words if work cue present", () => {
+    const r = runGinaQueryFamily("hola, qué tengo para hoy?", ctx);
+    expect(r.family).toBe("today");
+    expect(r.toolsCalled).toContain("get_today_scope");
+  });
 });
 
 describe("ginaOpenings", () => {

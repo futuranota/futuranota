@@ -2770,7 +2770,10 @@ export function LeftPanel({
       const visualization = (meetingOn
         || routed.family === "name_ambiguity"
         || routed.family === "confirm_date"
-        || routed.family === "unclear")
+        || routed.family === "unclear"
+        || routed.family === "social"
+        || routed.family === "dismiss"
+        || routed.family === "free_chat")
         ? null
         : buildGinaVisualization(routed.family, routed.toolContext, {
           locale: locale === "es" ? "es" : "en",
@@ -2798,11 +2801,17 @@ export function LeftPanel({
       }
 
       const knowledgeContext = buildGinaKnowledgePromptBlock(docsMap);
+      const preserveFamily = routed.family === "social"
+        || routed.family === "dismiss"
+        || routed.family === "free_chat"
+        || routed.family === "unclear"
+        || routed.family === "name_ambiguity"
+        || routed.family === "confirm_date";
       const result = await fetchGinaChat({
         messages: [{ role: "user", content: text }],
         toolContext: routed.toolContext,
         toolsCalled: routed.toolsCalled,
-        family: meetingOn ? "meeting_brief" : routed.family,
+        family: (meetingOn && !preserveFamily) ? "meeting_brief" : routed.family,
         locale: locale === "es" ? "es" : "en",
         visualizationType: visualization?.type || null,
         workspaceInventory,
@@ -2835,7 +2844,10 @@ export function LeftPanel({
         visualization: (meetingOn
           || routed.family === "name_ambiguity"
           || routed.family === "confirm_date"
-          || routed.family === "unclear")
+          || routed.family === "unclear"
+          || routed.family === "social"
+          || routed.family === "dismiss"
+          || routed.family === "free_chat")
           ? null
           : buildGinaVisualization(routed.family, routed.toolContext, {
             locale: locale === "es" ? "es" : "en",
