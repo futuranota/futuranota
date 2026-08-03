@@ -121,10 +121,7 @@ export function GinaAiMessageText({ text }) {
             <span className="gina-chat-card__ai-body">{bodyShown || "\u00A0"}</span>
           ) : null}
           {showHead && headReady ? (
-            <>
-              {showBody ? "\n" : null}
-              <span className="gina-chat-card__ai-headline">{headShown || "\u00A0"}</span>
-            </>
+            <span className="gina-chat-card__ai-headline">{headShown || "\u00A0"}</span>
           ) : null}
         </>
       ) : (
@@ -133,10 +130,7 @@ export function GinaAiMessageText({ text }) {
             <span className="gina-chat-card__ai-headline">{headShown || "\u00A0"}</span>
           ) : null}
           {showBody && bodyReady ? (
-            <>
-              {showHead ? "\n" : null}
-              <span className="gina-chat-card__ai-body">{bodyShown || "\u00A0"}</span>
-            </>
+            <span className="gina-chat-card__ai-body">{bodyShown || "\u00A0"}</span>
           ) : null}
         </>
       )}

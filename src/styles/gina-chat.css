@@ -199,7 +199,7 @@
 
 .gina-chat-card__ai-headline + .gina-chat-card__ai-body,
 .gina-chat-card__ai-body + .gina-chat-card__ai-headline {
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 .gina-chat-card__bubble--user {
