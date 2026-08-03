@@ -19,7 +19,7 @@
 
 .gina-chat-card {
   position: relative;
-  width: min(360px, calc(100vw - 32px));
+  width: min(410px, calc(100vw - 32px));
   height: min(460px, calc(100vh - 48px));
   border-radius: 16px;
   overflow: hidden;
@@ -28,7 +28,7 @@
 }
 
 .gina-chat-card--dashboard {
-  width: min(640px, calc(100vw - 32px));
+  width: min(690px, calc(100vw - 32px));
   height: min(720px, calc(100vh - 48px));
 }
 
@@ -134,6 +134,26 @@
   overflow-y: auto;
   font-family: "Inter", var(--sans, system-ui, sans-serif);
   font-size: 15px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) #151515;
+}
+
+.gina-chat-card__messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.gina-chat-card__messages::-webkit-scrollbar-track {
+  background: #151515;
+}
+
+.gina-chat-card__messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  border: 2px solid #151515;
+}
+
+.gina-chat-card__messages::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .gina-chat-card__bubble {
@@ -162,20 +182,24 @@
 .gina-chat-card__ai-headline {
   display: block;
   font-family: "Inter", var(--sans, system-ui, sans-serif);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 15px;
   line-height: 1.45;
-  color: #bbbbbb;
+  color: #f5f5f5;
 }
 
 .gina-chat-card__ai-body {
   display: block;
-  margin-top: 4px;
   font-family: "Inter", var(--sans, system-ui, sans-serif);
   font-weight: 300;
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.5;
   color: #767676;
+}
+
+.gina-chat-card__ai-headline + .gina-chat-card__ai-body,
+.gina-chat-card__ai-body + .gina-chat-card__ai-headline {
+  margin-top: 6px;
 }
 
 .gina-chat-card__bubble--user {
