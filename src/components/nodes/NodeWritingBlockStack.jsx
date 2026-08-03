@@ -44,7 +44,7 @@ import {
   startBoldStickyFromMarker,
 } from "../../lib/docMarkdownBoldShortcut.js";
 import { isHeadingBlockType } from "../../lib/textSelectionHeading.js";
-import { scrollTextareaCaretIntoCameraView } from "../../lib/textareaSelectionRect.js";
+import { scrollTextareaCaretIntoCameraView, withPreservedWritingScroll } from "../../lib/textareaSelectionRect.js";
 import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
 import { H1BlockView } from "../docs/blocks/H1BlockView.jsx";
 import { H2BlockView } from "../docs/blocks/H2BlockView.jsx";
@@ -443,11 +443,13 @@ export function NodeWritingBlockStack({
           if (tries < 12) attempt(tries + 1);
           return;
         }
-        el.focus({ preventScroll: true });
-        if (caret != null && "setSelectionRange" in el) {
-          const pos = caret === "end" ? el.value.length : caret;
-          el.setSelectionRange(pos, pos);
-        }
+        withPreservedWritingScroll(el, () => {
+          el.focus({ preventScroll: true });
+          if (caret != null && "setSelectionRange" in el) {
+            const pos = caret === "end" ? el.value.length : caret;
+            el.setSelectionRange(pos, pos);
+          }
+        });
       });
     };
     attempt();

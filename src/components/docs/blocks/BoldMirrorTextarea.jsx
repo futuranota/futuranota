@@ -114,15 +114,18 @@ export function BoldMirrorTextarea({
 
   return (
     <div className={wrapClass}>
-      {hasBold ? (
-        <div
-          ref={mirrorRef}
-          className="bold-mirror-textarea__mirror"
-          aria-hidden
-        >
+      {/* Stable mirror sibling — toggling bold must not remount the textarea
+          (native undo / caret scroll). */}
+      <div
+        ref={mirrorRef}
+        className="bold-mirror-textarea__mirror"
+        aria-hidden
+        hidden={!hasBold}
+      >
+        {hasBold ? (
           <BoldMirrorContent text={value} boldRanges={boldRanges} />
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       <textarea
         ref={textareaRef}
         className={fieldClass + (hasBold ? " bold-mirror-textarea__input--overlay" : "")}

@@ -82,7 +82,7 @@ import {
   isEmbeddableWidgetBlock,
   WIDGET_SNAPSHOT_KIND,
 } from "../../../lib/captureWidgetSnapshot.js";
-import { scrollTextareaCaretIntoCameraView } from "../../../lib/textareaSelectionRect.js";
+import { scrollTextareaCaretIntoCameraView, withPreservedWritingScroll } from "../../../lib/textareaSelectionRect.js";
 import { tryDocSelectAllKeyDown, requestDocSelectAll } from "../../../lib/docSelectAll.js";
 import {
   replaceProseSegmentInBlocks,
@@ -167,16 +167,20 @@ const UNLINK_H1_PATCH = {
 function focusTextInputWithCamera(input, caretPos) {
   if (!input || !("focus" in input)) return;
   const isAlreadyFocused = document.activeElement === input;
-  input.focus({ preventScroll: true });
-  if (!("setSelectionRange" in input)) return;
-  if (caretPos != null) {
-    input.setSelectionRange(caretPos, caretPos);
-    return;
-  }
-  if (!isAlreadyFocused) {
-    const pos = input.value.length;
-    input.setSelectionRange(pos, pos);
-  }
+  // Keep the doc scroll locked while focus/selection moves — bold shortcut
+  // used to jump the viewport when the field remounted or re-focused.
+  withPreservedWritingScroll(input, () => {
+    input.focus({ preventScroll: true });
+    if (!("setSelectionRange" in input)) return;
+    if (caretPos != null) {
+      input.setSelectionRange(caretPos, caretPos);
+      return;
+    }
+    if (!isAlreadyFocused) {
+      const pos = input.value.length;
+      input.setSelectionRange(pos, pos);
+    }
+  });
 }
 
 function scrollCaretAfterNewline(blockId) {
@@ -1339,9 +1343,11 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     } else {
       boldStickyRef.current = { blockId, boldStart: applied.stickyBoldStart };
     }
-    onFocusBlock?.(blockId);
+    // Keep focusBlockId in sync without treating bold as a "new line" grow pass.
+    if (focusBlockIdRef.current !== blockId) {
+      onFocusBlock?.(blockId);
+    }
     focusBlockCaret(blockId, applied.focusCaret);
-    requestContentGrow();
   };
 
   const tryApplyBoldFromTypedText = (blockIndex, text) => {

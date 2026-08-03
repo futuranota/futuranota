@@ -137,32 +137,39 @@ export function scrollTextareaCaretIntoCameraView(textarea, options = {}) {
 }
 
 const WRITING_SCROLL_PARENT_SELECTORS = [
+  ".doc-new-content-scroll",
   ".note-taker__content-scroll",
   ".node-query-modal__content-scroll",
 ];
 
-function findWritingScrollParent(textarea) {
-  if (!textarea) return null;
+/**
+ * Nearest doc/writing scroll container whose scrollTop must survive height sync.
+ * @param {HTMLElement|null|undefined} el
+ * @returns {HTMLElement|null}
+ */
+export function findWritingScrollParent(el) {
+  if (!el || typeof el.closest !== "function") return null;
   for (const selector of WRITING_SCROLL_PARENT_SELECTORS) {
-    const parent = textarea.closest(selector);
+    const parent = el.closest(selector);
     if (parent) return parent;
   }
   return null;
 }
 
-/** Auto-grow textarea height without jumping the outer scroll container. */
-export function syncAutoGrowTextareaHeight(textarea) {
-  if (!textarea) return;
-
-  const scrollParent = findWritingScrollParent(textarea);
+/**
+ * Run a layout mutation that temporarily collapses height without losing scroll.
+ * @param {HTMLElement|null|undefined} el
+ * @param {() => void} mutate
+ */
+export function withPreservedWritingScroll(el, mutate) {
+  const scrollParent = findWritingScrollParent(el);
   const parentScrollTop = scrollParent?.scrollTop ?? null;
   const prevParentScrollHeight = scrollParent?.scrollHeight ?? 0;
   const wasPinnedToBottom = scrollParent
     ? parentScrollTop + scrollParent.clientHeight >= prevParentScrollHeight - 2
     : false;
 
-  textarea.style.height = "auto";
-  textarea.style.height = `${textarea.scrollHeight}px`;
+  mutate();
 
   if (!scrollParent || parentScrollTop === null) return;
 
@@ -172,6 +179,16 @@ export function syncAutoGrowTextareaHeight(textarea) {
   }
 
   scrollParent.scrollTop = parentScrollTop;
+}
+
+/** Auto-grow textarea height without jumping the outer scroll container. */
+export function syncAutoGrowTextareaHeight(textarea) {
+  if (!textarea) return;
+
+  withPreservedWritingScroll(textarea, () => {
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  });
 }
 
 /** Reset inner + outer scroll after a large content deletion. */

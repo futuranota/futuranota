@@ -39,6 +39,7 @@ import {
   getCaretClientRect,
   resolveSlashGhostOverlayPosition,
   scrollTextareaCaretIntoCameraView,
+  withPreservedWritingScroll,
 } from "../../../lib/textareaSelectionRect.js";
 import { DocMentionHoverCard } from "./DocMentionHoverCard.jsx";
 import { DocMentionMenu } from "./DocMentionMenu.jsx";
@@ -948,13 +949,15 @@ export function SlashAwareTextarea({
     const el = textareaRef.current;
     if (!el) return;
     if (!force && !isFieldVisible(el)) return;
-    el.style.height = "auto";
-    const measured = el.scrollHeight;
-    const next = Math.min(Math.max(measured, minHeightPx), heightCap);
-    if (Math.abs(el.offsetHeight - next) > 1) {
+    // Collapsing to "auto" briefly shrinks the doc scrollHeight; preserve scrollTop
+    // so bold/overlay toggles (and normal typing) don't jump the viewport.
+    withPreservedWritingScroll(el, () => {
+      el.style.height = "auto";
+      const measured = el.scrollHeight;
+      const next = Math.min(Math.max(measured, minHeightPx), heightCap);
       el.style.height = `${next}px`;
-    }
-    el.style.overflowY = measured > next + 1 ? "auto" : "hidden";
+      el.style.overflowY = measured > next + 1 ? "auto" : "hidden";
+    });
     if (hasOverlay) syncMirrorTypography();
   }, [hasOverlay, heightCap, isFieldVisible, minHeightPx, syncMirrorTypography, textareaRef]);
 
@@ -977,7 +980,8 @@ export function SlashAwareTextarea({
   }, [syncHeight, syncGhostPosition, textareaRef]);
 
   useLayoutEffect(() => {
-    if (autoFocus) textareaRef.current?.focus();
+    if (!autoFocus) return;
+    textareaRef.current?.focus({ preventScroll: true });
   }, [autoFocus, textareaRef]);
 
   useLayoutEffect(() => {
@@ -1330,16 +1334,19 @@ export function SlashAwareTextarea({
       onMouseMove={handleWrapMouseMove}
       onMouseLeave={handleWrapMouseLeave}
     >
-      {hasOverlay ? (
-        <div
-          ref={mirrorRef}
-          className={
-            "doc-slash-field__mirror"
-            + (!focused ? " doc-slash-field__mirror--interactive" : "")
-            + (!hideTextareaGlyphs ? " doc-slash-field__mirror--ink-only" : "")
-          }
-          aria-hidden
-        >
+      {/* Always mount the mirror node so toggling bold/mentions never remounts
+          the textarea (that wipe native undo + jumps scroll on --bold). */}
+      <div
+        ref={mirrorRef}
+        className={
+          "doc-slash-field__mirror"
+          + (!focused ? " doc-slash-field__mirror--interactive" : "")
+          + (!hideTextareaGlyphs ? " doc-slash-field__mirror--ink-only" : "")
+        }
+        aria-hidden
+        hidden={!hasOverlay}
+      >
+        {hasOverlay ? (
           <MirrorContent
             text={value}
             mentions={normalizedMentions}
@@ -1351,8 +1358,8 @@ export function SlashAwareTextarea({
             hoveredTagRefId={hoveredTagRefId}
             onDeleteTagRef={deleteTagRef}
           />
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       <textarea
         ref={attachTextareaRef}
         className={fieldClass}
