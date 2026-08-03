@@ -47,6 +47,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
+import { resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
   DOC_WORK_STATUS,
@@ -167,6 +168,7 @@ export function NodeQueryModal({
     || null;
   const dateEditable = Boolean(onCreatedDateChange);
   const userEmail = useAuthStore((s) => s.user?.email);
+  const authUser = useAuthStore((s) => s.user);
   const docsMap = useDocsStore((s) => s.docs);
   const nodesMap = useNodesStore((s) => s.nodes);
   const departments = useDepartmentsStore((s) => s.departments);
@@ -349,7 +351,7 @@ export function NodeQueryModal({
     setWritingBlocks(parseNodeWritingBody(content).blocks);
   }, [entityNodeId, dataType, content]);
 
-  const handleGinaInDocSend = useCallback(async (text) => {
+  const handleGinaInDocSend = useCallback(async (text, meta = {}) => {
     const ctx = {
       docs: docsMap,
       nodes: nodesMap,
@@ -366,14 +368,23 @@ export function NodeQueryModal({
       || routed.family === "dismiss"
       || routed.family === "free_chat")
       ? null
-      : buildGinaVisualization(routed.family, routed.toolContext, {
-        locale: locale === "es" ? "es" : "en",
-        userText: text,
-      });
+      : buildGinaVisualization(
+        routed.family === "confirm_continue" ? "inventory" : routed.family,
+        routed.family === "confirm_continue"
+          ? { inventory: routed.workspaceInventory || routed.toolContext?.inventory, ...(routed.toolContext || {}) }
+          : routed.toolContext,
+        {
+          locale: locale === "es" ? "es" : "en",
+          userText: text,
+        },
+      );
 
     try {
+      const history = Array.isArray(meta.messages) && meta.messages.length
+        ? meta.messages
+        : [{ role: "user", content: text }];
       const result = await fetchGinaChat({
-        messages: [{ role: "user", content: text }],
+        messages: history,
         toolContext: {
           ...(routed.toolContext || {}),
           openDocument: {
@@ -386,6 +397,7 @@ export function NodeQueryModal({
         locale: locale === "es" ? "es" : "en",
         workspaceInventory,
         meetingMode: false,
+        userName: resolveGinaUserDisplayName(authUser) || undefined,
       });
       const message = typeof result?.reply === "string" && result.reply.trim()
         ? result.reply.trim()
@@ -407,6 +419,7 @@ export function NodeQueryModal({
     locale,
     displayQuery,
     entityNodeId,
+    authUser,
   ]);
 
   // Unsaved-changes guard: snapshot the node's content/title when it opens, and

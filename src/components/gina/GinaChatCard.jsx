@@ -358,8 +358,19 @@ export function GinaChatCard({
 
     if (typeof onSendMessage === "function") {
       try {
+        const history = [
+          ...messages
+            .filter((m) => m && typeof m.text === "string" && m.text.trim())
+            .map((m) => ({
+              role: m.sender === "user" ? "user" : "assistant",
+              content: m.text,
+            })),
+          { role: "user", content: trimmed },
+        ].slice(-12);
+
         const reply = await onSendMessage(trimmed, {
           meetingMode: Boolean(allowMeetingMode && (lockMeetingMode || meetingMode)),
+          messages: history,
         });
         let aiText = "";
         let visualization = null;

@@ -30,7 +30,7 @@ function fold(s) {
 }
 
 /** Explicit work intents — bare "hoy" alone is NOT enough ("hoy no" / charla). */
-const GINA_WORK_CUE_RE = /\b((que|qué)\s+tengo|(que|qué)\s+hay|para\s+hoy|de\s+hoy|hay\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|folder\w*|departamento\w*|documento\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|aprende|significa|past\s*due|incomplete|conflict)\b/;
+const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|departamento\w*|folder\w*|documento\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today)\b/;
 
 /**
  * Clear goodbye / later / rest — wins even if the text mentions "hoy".
@@ -138,6 +138,17 @@ function isGinaHowAreYouFiller(after) {
 }
 
 /**
+ * Short yes/ok — continue previous assistant offer (not a greeting).
+ * @param {string} text
+ */
+export function isGinaAffirmationUtterance(text) {
+  const q = fold(text);
+  if (!q) return false;
+  const body = q.replace(/^gina\b[\s,:!-]*/, "").trim();
+  return /^(si|sí|ok|okay|vale|claro|perfecto|de acuerdo|yes|yep|yeah|dale|va|claro que si|claro que sí)([!?.\s]*)$/.test(body);
+}
+
+/**
  * Casual chat (greetings / how-are-you) — must not trigger today/incomplete overview.
  * Input is matched on folded text. "como esta trends" is NOT social (named target).
  * @param {string} text
@@ -147,6 +158,7 @@ export function isGinaSocialUtterance(text) {
   if (!q) return false;
   if (GINA_WORK_CUE_RE.test(q)) return false;
   if (isGinaDismissUtterance(text)) return false;
+  if (isGinaAffirmationUtterance(text)) return false;
 
   const body = q.replace(/^gina\b[\s,:!-]*/, "").trim();
   if (!body) return true;
@@ -156,11 +168,6 @@ export function isGinaSocialUtterance(text) {
   }
 
   if (/^(gracias|thanks|thank you|ty)([!?.\s]*)$/.test(body)) {
-    return true;
-  }
-
-  // Short acks ("sí", "ok", "vale") — keep on-task, don't treat as unclear/work
-  if (/^(si|sí|ok|okay|vale|claro|perfecto|de acuerdo|yes|yep|yeah)([!?.\s]*)$/.test(body)) {
     return true;
   }
 
@@ -293,6 +300,38 @@ export function runGinaQueryFamily(text, ctx = {}) {
       toolContext: {
         social: true,
         hint: "Casual chat — reply naturally; do not list documents or run scope tools",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  if (isGinaAffirmationUtterance(text)) {
+    return {
+      family: "confirm_continue",
+      toolsCalled,
+      toolContext: {
+        confirmContinue: true,
+        inventory,
+        hint: "User said yes/ok to the previous offer — continue that thread with inventory",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  // Departments / daily focus (explicit workflow — not "fuera de contexto")
+  if (
+    /\bdepartamento/.test(q)
+    || /\b(que|qué)\s+departamentos?\b/.test(q)
+    || (/\benfoque\b/.test(q) && /\b(hoy|tengo|hay|que|qué|cual|cuál|quiero|depart|revis)\w*\b/.test(q))
+  ) {
+    const folders = call("get_all_company_folders", () => get_all_company_folders(ctx));
+    return {
+      family: "inventory",
+      toolsCalled,
+      toolContext: {
+        inventory,
+        folders,
+        hint: "User asks which departments / focus they have",
       },
       workspaceInventory: inventory,
     };

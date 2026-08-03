@@ -2775,10 +2775,16 @@ export function LeftPanel({
         || routed.family === "dismiss"
         || routed.family === "free_chat")
         ? null
-        : buildGinaVisualization(routed.family, routed.toolContext, {
-          locale: locale === "es" ? "es" : "en",
-          userText: text,
-        });
+        : buildGinaVisualization(
+          routed.family === "confirm_continue" ? "inventory" : routed.family,
+          routed.family === "confirm_continue"
+            ? { inventory: routed.workspaceInventory || routed.toolContext?.inventory, ...(routed.toolContext || {}) }
+            : routed.toolContext,
+          {
+            locale: locale === "es" ? "es" : "en",
+            userText: text,
+          },
+        );
 
       let meetingBrief = meetingOn ? ginaLearnBrief : null;
       if (meetingOn) {
@@ -2804,11 +2810,15 @@ export function LeftPanel({
       const preserveFamily = routed.family === "social"
         || routed.family === "dismiss"
         || routed.family === "free_chat"
+        || routed.family === "confirm_continue"
         || routed.family === "unclear"
         || routed.family === "name_ambiguity"
         || routed.family === "confirm_date";
+      const history = Array.isArray(meta.messages) && meta.messages.length
+        ? meta.messages
+        : [{ role: "user", content: text }];
       const result = await fetchGinaChat({
-        messages: [{ role: "user", content: text }],
+        messages: history,
         toolContext: routed.toolContext,
         toolsCalled: routed.toolsCalled,
         family: (meetingOn && !preserveFamily) ? "meeting_brief" : routed.family,
@@ -2818,6 +2828,7 @@ export function LeftPanel({
         meetingMode: meetingOn,
         meetingBrief: meetingBrief || undefined,
         knowledgeContext: knowledgeContext || undefined,
+        userName: resolveGinaUserDisplayName(authUser) || undefined,
       });
       const rawReply = typeof result?.reply === "string" && result.reply.trim()
         ? result.reply.trim()
@@ -2849,10 +2860,16 @@ export function LeftPanel({
           || routed.family === "dismiss"
           || routed.family === "free_chat")
           ? null
-          : buildGinaVisualization(routed.family, routed.toolContext, {
-            locale: locale === "es" ? "es" : "en",
-            userText: text,
-          }),
+          : buildGinaVisualization(
+            routed.family === "confirm_continue" ? "inventory" : routed.family,
+            routed.family === "confirm_continue"
+              ? { inventory: routed.workspaceInventory || routed.toolContext?.inventory, ...(routed.toolContext || {}) }
+              : routed.toolContext,
+            {
+              locale: locale === "es" ? "es" : "en",
+              userText: text,
+            },
+          ),
       };
     }
   }, [
@@ -2867,6 +2884,7 @@ export function LeftPanel({
     ginaLearnBrief,
     ginaPendingLearn,
     userEmail,
+    authUser,
     selectedCanvasNodeIds,
     canvasNodes,
   ]);

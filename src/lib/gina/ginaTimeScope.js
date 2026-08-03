@@ -123,10 +123,13 @@ export function parseGinaTimeScope(text, nowValue = new Date(), opts = {}) {
     };
   }
 
-  // para mañana / tomorrow (exclusive)
+  // para mañana — explicit only (not "nos vemos mañana")
   if (
     /\bpara\s+(manana|mañana)\b/.test(q)
-    || (/\b(manana|mañana|tomorrow)\b/.test(q) && !/\bhoy\b/.test(q) && !/\btoday\b/.test(q))
+    || /\b(que|qué)\s+(tengo|hay|tenemos)\b.*\b(manana|mañana)\b/.test(q)
+    || /\b(dime|muestra|muestrame|entreg|lista|revis)\w*\b.*\b(manana|mañana)\b/.test(q)
+    || /\bwhat\s+(do\s+i\s+)?have\s+(for\s+)?tomorrow\b/.test(q)
+    || /\b(show|list|give)\s+me\b.*\btomorrow\b/.test(q)
   ) {
     strip(/\bpara\s+(manana|mañana)\b/g);
     strip(/\b(manana|mañana|tomorrow)\b/g);
@@ -171,18 +174,30 @@ export function parseGinaTimeScope(text, nowValue = new Date(), opts = {}) {
     };
   }
 
-  if (/\b(hoy|today|para hoy)\b/.test(q) && !/\bhoy\s+no\b/.test(q) && !/\bnot\s+today\b/.test(q) && !/\bhasta\s+luego\b/.test(q)) {
-    strip(/\b(para\s+hoy|hoy|today)\b/g);
-    return {
-      kind: "today",
-      startKey: dayKey(now),
-      endKey: dayKey(now),
-      dayOffset: 0,
-      needsConfirm: false,
-      confirmDateKey: null,
-      confirmDateLabel: null,
-      remainder,
-    };
+  // HOY — only explicit scope ask (not "estoy cansado hoy" / "hoy no")
+  if (!/\bhoy\s+no\b/.test(q) && !/\bnot\s+today\b/.test(q) && !/\bhasta\s+luego\b/.test(q)) {
+    const explicitToday =
+      /\b(que|qué)\s+(tengo|hay|tenemos)\b.*\b(para\s+)?hoy\b/.test(q)
+      || /\b(para\s+)?hoy\b.*\b(tengo|hay|tenemos)\b/.test(q)
+      || /\b(dime|muestra|muestrame|muéstrame|entregame|entrégame|entreg[aue]|lista|revis[ae]|scope)\w*\b.*\b(para\s+)?hoy\b/.test(q)
+      || (/\bpara\s+hoy\b/.test(q) && /\b(que|qué|dime|muestra|entreg|hay|tengo|tenemos|lista|scope|revis)\w*\b/.test(q))
+      || /\bwhat\s+(do\s+i\s+)?have\s+(for\s+)?today\b/.test(q)
+      || /\b(show|list|give)\s+me\b.*\btoday\b/.test(q)
+      || /\btoday'?s?\s+(docs|documents|schedule|scope|work|agenda)\b/.test(q);
+
+    if (explicitToday) {
+      strip(/\b(para\s+hoy|hoy|today)\b/g);
+      return {
+        kind: "today",
+        startKey: dayKey(now),
+        endKey: dayKey(now),
+        dayOffset: 0,
+        needsConfirm: false,
+        confirmDateKey: null,
+        confirmDateLabel: null,
+        remainder,
+      };
+    }
   }
 
   return null;

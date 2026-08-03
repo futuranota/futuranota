@@ -56,6 +56,7 @@ async function groqChat(apiKey, model, payload) {
  *   meetingBrief?: { title?: string, body?: string, documentId?: string | null } | null,
  *   meetingMode?: boolean,
  *   knowledgeContext?: string,
+ *   userName?: string,
  * }} body
  */
 export async function processGinaChatRequest(body = {}) {
@@ -66,6 +67,16 @@ export async function processGinaChatRequest(body = {}) {
   if (!userText) {
     return { status: 400, body: { error: "messages with a user turn are required" } };
   }
+
+  const userName = typeof body.userName === "string" ? body.userName.trim() : "";
+  const userNameLabel = userName || (locale === "en" ? "(no name)" : "(sin nombre)");
+  const outOfScopeLine = userName
+    ? (locale === "en"
+      ? `Sorry ${userName}, that is outside my context.`
+      : `Disculpa ${userName}, eso está fuera de mi contexto.`)
+    : (locale === "en"
+      ? "Sorry, that is outside my context."
+      : "Disculpa, eso está fuera de mi contexto.");
 
   // Fixed copy only for hard clarify gates — social/dismiss go to Groq (reasoned, no scope tools)
   if (
@@ -93,9 +104,18 @@ export async function processGinaChatRequest(body = {}) {
   const isFreeChat = body.family === "free_chat"
     || body.family === "default_overview"
     || Boolean(body.toolContext && typeof body.toolContext === "object" && body.toolContext.freeChat);
-  const noScopeTools = isSocial || isDismiss || isFreeChat;
+  const isConfirmContinue = body.family === "confirm_continue"
+    || Boolean(body.toolContext && typeof body.toolContext === "object" && body.toolContext.confirmContinue);
+  const noScopeTools = (isSocial || isDismiss || isFreeChat) && !isConfirmContinue;
 
   const toolJson = (() => {
+    if (isConfirmContinue) {
+      try {
+        return JSON.stringify(body.toolContext ?? { confirmContinue: true }, null, 2);
+      } catch {
+        return JSON.stringify({ confirmContinue: true });
+      }
+    }
     if (isSocial) {
       return JSON.stringify({
         social: true,
@@ -111,7 +131,7 @@ export async function processGinaChatRequest(body = {}) {
     if (isFreeChat) {
       return JSON.stringify({
         freeChat: true,
-        hint: "Normal chat — answer the human topic. No fake document counts. No workspace pitch unless they ask.",
+        hint: "Cordial chat. Personal plans → wish well + pivot to everyday work. No advice, no action offers, no location questions. Soft disclaimer only if they insist on advice/actions outside workflow.",
       }, null, 2);
     }
     try {
@@ -160,12 +180,15 @@ export async function processGinaChatRequest(body = {}) {
     getGinaSystemPrompt(),
     "",
     `Locale: ${locale}`,
+    `User display name: ${userNameLabel}`,
+    `Out-of-scope disclaimer template: ${outOfScopeLine}`,
     `Query family: ${body.family || "unknown"}`,
     `Tools called: ${(body.toolsCalled || []).join(", ") || "none"}`,
     meetingModeOn ? "Meeting mode: ON" : "Meeting mode: OFF",
-    isSocial ? "SOCIAL TURN: talk normally. Short. No document lists." : "",
+    isSocial ? "SOCIAL TURN: talk normally. Short. No document lists. No life advice or action offers." : "",
     isDismiss ? "DISMISS TURN: say goodbye / good night warmly. Do not offer help for today. No lists." : "",
-    isFreeChat ? "FREE CHAT: talk normally about what they said. Do not invent workspace data or pitch the dashboard." : "",
+    isFreeChat && !isConfirmContinue ? "FREE CHAT: cordial. Personal plans → wish well + pivot to everyday tasks (e.g. working from the beach?). NEVER give advice, brands, or offer personal actions. NEVER ask location. Hard disclaimer only if they demand advice/actions outside workflow." : "",
+    isConfirmContinue ? "CONFIRM TURN: user said sí/ok. Read the PREVIOUS assistant message. If you offered to review workspace/focus/departments → do that with inventory. If you only asked a soft pivot (e.g. working from the beach?) → acknowledge briefly; do NOT dump document lists unless they asked for scope." : "",
     "",
     "WORKSPACE INVENTORY (live corpus — ONLY name entities listed here):",
     noScopeTools ? "(omitted — conversational turn)" : inventoryJson.slice(0, 8000),

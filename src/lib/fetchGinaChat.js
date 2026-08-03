@@ -13,6 +13,7 @@ import { apiClient } from "../api/client.js";
  *   meetingBrief?: { title?: string, body?: string, documentId?: string | null } | null,
  *   meetingMode?: boolean,
  *   knowledgeContext?: string,
+ *   userName?: string,
  * }} payload
  */
 export async function fetchGinaChat(payload) {
