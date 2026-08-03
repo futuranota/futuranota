@@ -2767,7 +2767,10 @@ export function LeftPanel({
     try {
       const workspaceInventory = routed.workspaceInventory
         || get_workspace_inventory(ctx);
-      const visualization = (meetingOn || routed.family === "name_ambiguity" || routed.family === "confirm_date")
+      const visualization = (meetingOn
+        || routed.family === "name_ambiguity"
+        || routed.family === "confirm_date"
+        || routed.family === "unclear")
         ? null
         : buildGinaVisualization(routed.family, routed.toolContext, {
           locale: locale === "es" ? "es" : "en",
@@ -2829,7 +2832,10 @@ export function LeftPanel({
         message: locale === "es"
           ? "Hubo un problema al hablar con Gina. ¿GROQ_API_KEY está configurada? Puedes preguntar por hoy, vencidos o un departamento."
           : "Something went wrong talking to Gina. Is GROQ_API_KEY set? You can ask about today, past due, or a department.",
-        visualization: meetingOn
+        visualization: (meetingOn
+          || routed.family === "name_ambiguity"
+          || routed.family === "confirm_date"
+          || routed.family === "unclear")
           ? null
           : buildGinaVisualization(routed.family, routed.toolContext, {
             locale: locale === "es" ? "es" : "en",

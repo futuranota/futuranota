@@ -13,8 +13,8 @@ const OPENINGS_ES = [
     ? `Hola ${name}. Veo el workspace de tu compañía — ¿qué tienes en mente para hoy?`
     : "Hola, por aquí. Veo el workspace de tu compañía — ¿qué tienes en mente para hoy?"),
   ({ name, period }) => (name
-    ? `${name}, ¿qué quieres revisar ${period}? Hoy, vencidos, un departamento…`
-    : `¿Qué quieres revisar ${period}? Hoy, vencidos, un departamento…`),
+    ? `${name}, ¿qué quieres revisar ${period}?`
+    : `¿Qué quieres revisar ${period}?`),
 ];
 
 const OPENINGS_EN = [
@@ -28,8 +28,8 @@ const OPENINGS_EN = [
     ? `Hi ${name}. I can see your company workspace — what's on your mind for today?`
     : "Hi. I can see your company workspace — what's on your mind for today?"),
   ({ name, period }) => (name
-    ? `${name}, what do you want to review ${period}? Today, past due, a department…`
-    : `What do you want to review ${period}? Today, past due, a department…`),
+    ? `${name}, what do you want to review ${period}?`
+    : `What do you want to review ${period}?`),
 ];
 
 function dayPeriod(hour, locale) {

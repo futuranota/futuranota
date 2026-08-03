@@ -64,17 +64,19 @@ Si Meeting mode está **OFF**:
 - NO listes todos los docs en prosa — la UI muestra cards.
 - Vacío hoy: invita a explorar un departamento o documento **sin inventar nombres** (usa inventario o pregunta genérica).
 - Prohibido hablar por el usuario o asumir su siguiente paso.
+- **NUNCA** respondas con JSON, code fences, ni dumps de TOOL CONTEXT / inventory. Solo prosa natural para humanos. El JSON es input interno; la UI ya muestra cards.
 
 ## Flujo
 1. Si Meeting ON: clasifica LEARN / ANSWER / CURSOR (o MIXTO). Si OFF: TOOLS (+ taught memory solo para producto ya enseñado).
-2. Usa SOLO JSON de tools + inventory + taught memory (+ MEETING BRIEF si Meeting ON). No inventes.
-3. Responde en el idioma del usuario.
+2. Usa SOLO los datos del JSON de tools + inventory + taught memory (+ MEETING BRIEF si Meeting ON) como verdad. No inventes.
+3. Responde en el idioma del usuario, en prosa (nunca JSON).
 4. Sé directa y empática sin imponer.
 
 ## NUNCA
 - Mutar datos, forzar status, inventar departamentos, hablar de "calendario".
 - Fingir que implementaste UI/código sin Cursor.
 - Inventar definiciones de producto que no estén en GINA TAUGHT MEMORY / MEETING BRIEF.
+- Pegar o devolver el TOOL CONTEXT / inventory como respuesta.
 `;
 
 /**
@@ -85,7 +87,18 @@ export function getGinaSystemPrompt() {
 }
 
 /**
- * Fallback narration when Groq is unavailable — faithful to tool JSON only.
+ * @param {unknown} reply
+ * @returns {boolean}
+ */
+export function looksLikeGinaJsonDump(reply) {
+  const t = String(reply || "").trim();
+  if (!t) return false;
+  if (!(t.startsWith("{") || t.startsWith("["))) return false;
+  return /"[A-Za-z_][\w]*"\s*:/.test(t);
+}
+
+/**
+ * Fallback narration when Groq is unavailable — prose only, never raw JSON.
  * @param {unknown} toolContext
  * @param {string} [locale]
  * @param {unknown} [inventory]
@@ -94,6 +107,12 @@ export function fallbackGinaNarration(toolContext, locale = "es", inventory = nu
   const es = locale !== "en";
   const ctx = toolContext && typeof toolContext === "object" ? toolContext : null;
   const inv = inventory && typeof inventory === "object" ? inventory : null;
+
+  if (ctx?.unclear) {
+    return es
+      ? "No te seguí — ¿puedes decirme qué quieres revisar? Por ejemplo hoy, vencidos, o un departamento."
+      : "I didn't follow that — what do you want to review? For example today, past due, or a department.";
+  }
 
   if (ctx?.needsConfirm && ctx?.confirmDateLabel) {
     return es
@@ -111,11 +130,23 @@ export function fallbackGinaNarration(toolContext, locale = "es", inventory = nu
       : `${ctx.ambiguity.intro || "That name shows up in more than one place."}\n${lines.join("\n")}\nWhich one? Pick A, B, or C.`;
   }
 
-  const total = ctx?.totalDocumentsToday ?? ctx?.documents?.length ?? ctx?.total ?? null;
+  const today = ctx?.today && typeof ctx.today === "object" ? ctx.today : ctx;
+  const docs = Array.isArray(today?.documents)
+    ? today.documents
+    : (Array.isArray(ctx?.documents) ? ctx.documents : null);
+  const total = typeof today?.totalDocumentsToday === "number"
+    ? today.totalDocumentsToday
+    : (typeof ctx?.totalDocumentsToday === "number"
+      ? ctx.totalDocumentsToday
+      : (typeof ctx?.total === "number"
+        ? ctx.total
+        : (docs ? docs.length : null)));
+
+  const deptNames = Array.isArray(inv?.departments)
+    ? inv.departments.map((d) => d.name).filter(Boolean).slice(0, 4)
+    : [];
+
   if (typeof total === "number" && total === 0) {
-    const deptNames = Array.isArray(inv?.departments)
-      ? inv.departments.map((d) => d.name).filter(Boolean).slice(0, 4)
-      : [];
     if (deptNames.length) {
       return es
         ? `Para ese alcance no veo documentos pendientes (status distinto de completed). ¿Quieres explorar algún departamento en particular (${deptNames.join(", ")}) o algún documento que tengas en mente?`
@@ -126,22 +157,50 @@ export function fallbackGinaNarration(toolContext, locale = "es", inventory = nu
       : "I don't see pending documents in that scope. Want to explore a department or a document you have in mind?";
   }
 
+  if (typeof total === "number" && total > 0) {
+    const sample = (docs || [])
+      .slice(0, 3)
+      .map((d) => d.title || d.name)
+      .filter(Boolean);
+    const sampleBit = sample.length
+      ? (es ? ` Entre ellos: ${sample.join(", ")}.` : ` Including: ${sample.join(", ")}.`)
+      : "";
+    return es
+      ? `Veo ${total} documento${total === 1 ? "" : "s"} en ese alcance.${sampleBit} ¿En cuál quieres enfocarte?`
+      : `I see ${total} document${total === 1 ? "" : "s"} in that scope.${sampleBit} Which one should we focus on?`;
+  }
+
   if (toolContext == null) {
     return es
       ? "No tengo datos de scope todavía. Pregúntame qué tienes para hoy, qué está vencido, o cómo va un departamento."
       : "I don't have scope data yet. Ask what you have today, what's past due, or how a department looks.";
   }
-  try {
-    const json = typeof toolContext === "string"
-      ? toolContext
-      : JSON.stringify(toolContext, null, 2);
-    const clipped = json.length > 3500 ? `${json.slice(0, 3500)}…` : json;
+
+  if (deptNames.length) {
     return es
-      ? `Aquí está lo que veo en tus datos (modo sin Groq):\n\n${clipped}\n\n¿En qué quieres enfocarte?`
-      : `Here's what I see in your data (no Groq mode):\n\n${clipped}\n\nWhat should we focus on?`;
-  } catch {
-    return es
-      ? "Pude leer el workspace pero no narrar el detalle. Intenta de nuevo."
-      : "I could read the workspace but not narrate details. Try again.";
+      ? `Puedo ayudarte con el workspace. Departamentos a la vista: ${deptNames.join(", ")}. ¿Qué quieres revisar?`
+      : `I can help with the workspace. Departments in view: ${deptNames.join(", ")}. What do you want to review?`;
   }
+
+  return es
+    ? "Puedo leer el workspace. ¿Quieres ver qué hay para hoy, qué está vencido, o un departamento?"
+    : "I can read the workspace. Want to see what's for today, what's past due, or a department?";
+}
+
+/**
+ * If the model echoed JSON, replace with prose fallback.
+ * @param {string} reply
+ * @param {unknown} toolContext
+ * @param {string} [locale]
+ * @param {unknown} [inventory]
+ */
+export function sanitizeGinaReply(reply, toolContext, locale = "es", inventory = null) {
+  const text = String(reply || "").trim();
+  if (!text) {
+    return fallbackGinaNarration(toolContext, locale, inventory);
+  }
+  if (looksLikeGinaJsonDump(text)) {
+    return fallbackGinaNarration(toolContext, locale, inventory);
+  }
+  return text;
 }

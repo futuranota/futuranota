@@ -199,6 +199,14 @@ describe("ginaQueryFamily", () => {
     expect(r.family).toBe("name_ambiguity");
     expect(r.toolContext.ambiguity.options.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("treats xxx as unclear without today overview", () => {
+    const r = runGinaQueryFamily("xxx", ctx);
+    expect(r.family).toBe("unclear");
+    expect(r.toolContext.unclear).toBe(true);
+    expect(r.toolsCalled).not.toContain("get_today_scope");
+    expect(r.toolsCalled).not.toContain("get_incomplete_documents");
+  });
 });
 
 describe("ginaOpenings", () => {
@@ -207,5 +215,12 @@ describe("ginaOpenings", () => {
     const b = pickGinaOpening({ locale: "es", userName: "Ross", salt: 1, now });
     expect(a).toMatch(/Ross|asist|mente|revisar/i);
     expect(a).not.toBe(b);
+  });
+
+  it("does not suggest Hoy vencidos in opening", () => {
+    for (let salt = 0; salt < 8; salt += 1) {
+      const line = pickGinaOpening({ locale: "es", userName: "Futura", salt, now });
+      expect(line).not.toMatch(/Hoy,\s*vencidos/i);
+    }
   });
 });

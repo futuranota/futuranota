@@ -30,6 +30,29 @@ function fold(s) {
 }
 
 /**
+ * Gibberish / non-intent utterances must not fall through to default_overview.
+ * @param {string} text
+ */
+export function isGinaUnclearUtterance(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return true;
+
+  const letters = raw
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+
+  if (letters.length === 0) return true;
+  if (letters.length <= 1) return true;
+  // xxx, aaa, 1111…
+  if (/^(.)\1+$/iu.test(letters)) return true;
+  // Short keyboard mash without vowels (and no digits)
+  const lower = letters.toLowerCase();
+  if (letters.length <= 6 && !/[aeiou]/.test(lower) && !/\d/.test(lower)) return true;
+  return false;
+}
+
+/**
  * Apply live name scope (dept / category / folder) with ambiguity gate.
  */
 function resolveScopeFilters(ctx, remainder, toolsCalled) {
@@ -89,6 +112,18 @@ export function runGinaQueryFamily(text, ctx = {}) {
 
   // Always attach inventory for grounding (caller may also inject)
   const inventory = call("get_workspace_inventory", () => get_workspace_inventory(ctx));
+
+  if (isGinaUnclearUtterance(text)) {
+    return {
+      family: "unclear",
+      toolsCalled,
+      toolContext: {
+        unclear: true,
+        hint: "User message is not a usable request",
+      },
+      workspaceInventory: inventory,
+    };
+  }
 
   // Focus / open
   if (/\b(abre|abrir|open|enfoca|enfocarme|trabajar en|focus)\b/.test(q)) {

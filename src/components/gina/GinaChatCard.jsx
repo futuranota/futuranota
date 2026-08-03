@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { useWebSpeech } from "../../hooks/useWebSpeech.js";
 import { absorbDictationFinal } from "../../lib/ginaSpeechCommands.js";
 import { normalizeDictationTranscript } from "../../lib/ginaSpeechVocab.js";
-import { GinaAnimatedText } from "./GinaAnimatedText.jsx";
+import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 
 /** @typedef {{ sender: "ai" | "user", text: string, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null }} GinaChatMessage */
@@ -557,7 +557,7 @@ export function GinaChatCard({
                     : "gina-chat-card__bubble gina-chat-card__bubble--user"
                 }
               >
-                {msg.sender === "ai" ? <GinaAnimatedText text={msg.text} /> : msg.text}
+                {msg.sender === "ai" ? <GinaAiMessageText text={msg.text} /> : msg.text}
               </div>
               {msg.sender === "ai" && msg.visualization ? (
                 <GinaDataVisualization

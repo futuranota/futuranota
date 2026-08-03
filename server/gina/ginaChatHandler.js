@@ -1,4 +1,4 @@
-import { getGinaSystemPrompt, fallbackGinaNarration } from "./ginaSystemPrompt.js";
+import { getGinaSystemPrompt, fallbackGinaNarration, sanitizeGinaReply } from "./ginaSystemPrompt.js";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
@@ -68,13 +68,14 @@ export async function processGinaChatRequest(body = {}) {
   }
 
   // Client-handled clarification turns — no Groq invention
-  if (body.family === "name_ambiguity" || body.family === "confirm_date") {
+  if (body.family === "name_ambiguity" || body.family === "confirm_date" || body.family === "unclear") {
+    const clarify = fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory);
     return {
       status: 200,
       body: {
-        reply: fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory),
+        reply: clarify,
         source: "clarify",
-        message: fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory),
+        message: clarify,
       },
     };
   }
@@ -162,12 +163,14 @@ export async function processGinaChatRequest(body = {}) {
     } catch {
       reply = await groqChat(apiKey, GROQ_FALLBACK_MODEL, { system, messages: chatMessages });
     }
-    return { status: 200, body: { reply, source: "groq", message: reply } };
+    const clean = sanitizeGinaReply(reply, body.toolContext, locale, body.workspaceInventory);
+    return { status: 200, body: { reply: clean, source: "groq", message: clean } };
   } catch (err) {
+    const fallback = fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory);
     return {
       status: 200,
       body: {
-        reply: fallbackGinaNarration(body.toolContext, locale, body.workspaceInventory),
+        reply: fallback,
         source: "fallback",
         warning: err instanceof Error ? err.message : "groq_failed",
       },

@@ -1,0 +1,29 @@
+---
+description: Gina voice/SFX is deferred — polish functions and copy first; audio last
+alwaysApply: true
+---
+
+# Gina audio — deferred (TODO al final)
+
+Do **not** implement ElevenLabs, clip banks, research SFX, or lead-in playback yet.
+
+## Product order
+
+1. **Pulir funciones** — tools, routing, unclear/garabatos, scope fidelity.
+2. **Pulir respuestas** — canonical copy / Q&A bank (text only).
+3. **Audio al final** — only after 1–2 are stable.
+
+## Future design (when unblocked)
+
+Three layers, static clips preferred (cacheable; not live TTS per reply):
+
+- **SFX / atmósfera** — thinking / tool-running / found (keyboard, soft ticks).
+- **Lead-ins** — short spoken hooks before variable answers (“Perfecto, aquí te entrego…”); then show text/viz.
+- **Micro-acks** — openings, “ok”, “tomando nota”, “enseguida lo hago”.
+
+Key by stable **id** (not free LLM text). Web Speech remains interim until this phase.
+
+## Rules
+
+- Keep Gina **text-first** until this TODO is explicitly scheduled.
+- Do not spend cycles wiring audio while functions/copy still need polish.

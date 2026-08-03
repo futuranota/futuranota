@@ -359,7 +359,9 @@ export function NodeQueryModal({
     };
     const routed = runGinaQueryFamily(text, ctx);
     const workspaceInventory = routed.workspaceInventory || get_workspace_inventory(ctx);
-    const visualization = (routed.family === "name_ambiguity" || routed.family === "confirm_date")
+    const visualization = (routed.family === "name_ambiguity"
+      || routed.family === "confirm_date"
+      || routed.family === "unclear")
       ? null
       : buildGinaVisualization(routed.family, routed.toolContext, {
         locale: locale === "es" ? "es" : "en",
