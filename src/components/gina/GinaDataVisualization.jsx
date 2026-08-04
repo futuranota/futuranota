@@ -33,7 +33,7 @@ function DocLine({ doc }) {
   if (!doc) return null;
   const h = doc.hierarchy || {};
   return (
-    <li className="gina-viz__doc">
+    <li className={`gina-viz__doc${doc.passedSlot ? " is-passed-slot" : ""}`}>
       <GinaHierarchyPath
         department={h.department || doc.department}
         category={h.category || doc.category}
@@ -44,6 +44,9 @@ function DocLine({ doc }) {
         {doc.status ? <DocStatusChip status={doc.status} /> : null}
       </div>
       {doc.time ? <span className="gina-viz__doc-meta">{doc.time}</span> : null}
+      {doc.passedSlot ? (
+        <span className="gina-viz__doc-meta gina-viz__doc-meta--passed">Ya pasó</span>
+      ) : null}
       {doc.daysOverdue != null ? (
         <span className="gina-viz__doc-meta gina-viz__doc-meta--warn">
           {doc.daysOverdue === 1 ? "1 día atrás" : `${doc.daysOverdue} días atrás`}
@@ -325,8 +328,15 @@ function CategoryDetailVisualization({ data }) {
                   </p>
                   <ul className="gina-viz__sheet-slots">
                     {(folder.documents || []).map((doc) => (
-                      <li key={doc.id || `${doc.title}-${doc.time}`} className="gina-viz__sheet-slot">
-                        <span className="gina-viz__sheet-time">{doc.time || "—"}</span>
+                      <li
+                        key={doc.id || `${doc.title}-${doc.time}`}
+                        className="gina-viz__sheet-slot"
+                      >
+                        <TimeCell
+                          time={doc.time}
+                          passedSlot={Boolean(doc.passedSlot)}
+                          delayHighlights={Boolean(data.hasRecoveryOffer)}
+                        />
                         <span className="gina-viz__sheet-title">{doc.title}</span>
                         {doc.status ? <DocStatusChip status={doc.status} /> : null}
                       </li>
@@ -342,8 +352,65 @@ function CategoryDetailVisualization({ data }) {
   );
 }
 
+function TimeCell({ time, passedSlot, delayHighlights }) {
+  return (
+    <span className={`gina-viz__sheet-time-wrap${passedSlot && delayHighlights ? " will-highlight" : ""}`}>
+      {passedSlot && delayHighlights ? (
+        <span className="gina-viz__time-overlay" aria-hidden />
+      ) : null}
+      <span className="gina-viz__sheet-time">{time || "—"}</span>
+    </span>
+  );
+}
+
+function RecoveryPreviewVisualization({ data }) {
+  const docs = Array.isArray(data.documents) ? data.documents : [];
+  const isMark = data.intent === "mark_past_due";
+  return (
+    <div className="gina-viz gina-viz--recovery-preview">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">
+          {isMark ? "Marcar como vencidos" : "Reagendar en cadena"}
+        </span>
+        <h3 className="gina-viz__title">Vista previa</h3>
+      </header>
+      {docs.length === 0 ? (
+        <p className="gina-viz__empty">No hay ítems para recuperar ahora.</p>
+      ) : (
+        <ul className="gina-viz__recovery-list">
+          {docs.map((doc) => (
+            <li key={doc.id || doc.title} className="gina-viz__recovery-row">
+              <div className="gina-viz__recovery-title">{doc.title}</div>
+              {isMark ? (
+                <div className="gina-viz__recovery-status">
+                  {doc.status ? <DocStatusChip status={doc.status} /> : (
+                    <span className="gina-viz__recovery-null">Sin status</span>
+                  )}
+                  <span className="gina-viz__recovery-arrow" aria-hidden>→</span>
+                  <DocStatusChip status="past_due" />
+                </div>
+              ) : (
+                <div className="gina-viz__recovery-times">
+                  <span className="gina-viz__recovery-time gina-viz__recovery-time--old">
+                    {doc.time || "—"}
+                  </span>
+                  <span className="gina-viz__recovery-arrow" aria-hidden>→</span>
+                  <span className="gina-viz__recovery-time gina-viz__recovery-time--new">
+                    {doc.proposedTime || "—"}
+                  </span>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ScheduleSheetVisualization({ data }) {
   const groups = Array.isArray(data.groups) ? data.groups : [];
+  const delayHighlights = Boolean(data.hasRecoveryOffer);
   return (
     <div className="gina-viz gina-viz--schedule-sheet">
       <header className="gina-viz__head">
@@ -362,8 +429,15 @@ function ScheduleSheetVisualization({ data }) {
                   <p className="gina-viz__sheet-folder-name">{folder.folder}</p>
                   <ul className="gina-viz__sheet-slots">
                     {(folder.documents || []).map((doc) => (
-                      <li key={doc.id || `${doc.title}-${doc.time}`} className="gina-viz__sheet-slot">
-                        <span className="gina-viz__sheet-time">{doc.time || "—"}</span>
+                      <li
+                        key={doc.id || `${doc.title}-${doc.time}`}
+                        className="gina-viz__sheet-slot"
+                      >
+                        <TimeCell
+                          time={doc.time}
+                          passedSlot={Boolean(doc.passedSlot)}
+                          delayHighlights={delayHighlights}
+                        />
                         <span className="gina-viz__sheet-title">{doc.title}</span>
                         {doc.status ? <DocStatusChip status={doc.status} /> : null}
                       </li>
@@ -622,6 +696,8 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
       return <CategoryDetailVisualization data={data} />;
     case "schedule_sheet":
       return <ScheduleSheetVisualization data={data} />;
+    case "recovery_preview":
+      return <RecoveryPreviewVisualization data={data} />;
     case "today_scope":
       return <TodayScopeVisualization data={data} />;
     case "incomplete":

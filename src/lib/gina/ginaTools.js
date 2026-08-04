@@ -6,6 +6,10 @@
 import { resolveFolderStatus } from "../folderStatus.js";
 import { resolveDocWorkStatus, DOC_WORK_STATUS } from "../docWorkStatus.js";
 import { findDepartmentById } from "../departments.js";
+import {
+  buildPassedSlotSignals,
+  mapPassedSlotRows,
+} from "./ginaScheduleRecovery.js";
 
 /**
  * @typedef {{
@@ -536,6 +540,8 @@ export function get_today_scope(ctx = {}, filters = {}) {
       return b.documents - a.documents;
     });
 
+  const { passedSlots, markableSlots, firstPending } = buildPassedSlotSignals(todayDocs, now);
+
   return {
     date: dayKey(now),
     totalDocumentsToday: todayDocs.length,
@@ -548,6 +554,12 @@ export function get_today_scope(ctx = {}, filters = {}) {
     activeFolders,
     documents: todayDocs,
     nextDeadline,
+    passedSlots: mapPassedSlotRows(passedSlots),
+    markableSlots: mapPassedSlotRows(markableSlots),
+    passedSlotCount: passedSlots.length,
+    markableSlotCount: markableSlots.length,
+    firstPendingId: firstPending?.id || null,
+    firstPendingTitle: firstPending?.title || null,
     filters: {
       department: filters.department || null,
       category: filters.category || null,

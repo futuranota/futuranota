@@ -582,33 +582,57 @@ export function GinaChatCard({
                   : "gina-chat-card__turn gina-chat-card__turn--user"
               }
             >
-              <div
-                className={
-                  msg.sender === "ai"
-                    ? "gina-chat-card__bubble gina-chat-card__bubble--ai"
-                    : "gina-chat-card__bubble gina-chat-card__bubble--user"
-                }
-              >
-                {msg.sender === "ai" ? <GinaAiMessageText text={msg.text} /> : msg.text}
-              </div>
-              {msg.sender === "ai" && msg.visualization ? (
-                <GinaDataVisualization
-                  type={msg.visualization.type}
-                  data={msg.visualization.data}
-                  onSelectDepartment={(deptName) => {
-                    if (!deptName || isTyping) return;
-                    const locale = chipLocale;
-                    const text = locale === "en"
-                      ? `Focus today on ${deptName}`
-                      : `Enfocarme hoy en ${deptName}`;
-                    void deliverUserMessage(text);
-                  }}
-                  onSelectAction={(text) => {
-                    if (!text || isTyping) return;
-                    void deliverUserMessage(text);
-                  }}
-                />
-              ) : null}
+              {msg.sender === "ai" && msg.visualization?.type === "schedule_sheet" && msg.visualization?.data?.hasRecoveryOffer ? (
+                <>
+                  <GinaDataVisualization
+                    type={msg.visualization.type}
+                    data={msg.visualization.data}
+                    onSelectDepartment={(deptName) => {
+                      if (!deptName || isTyping) return;
+                      const focusText = chipLocale === "en"
+                        ? `Focus today on ${deptName}`
+                        : `Enfocarme hoy en ${deptName}`;
+                      void deliverUserMessage(focusText);
+                    }}
+                    onSelectAction={(actionText) => {
+                      if (!actionText || isTyping) return;
+                      void deliverUserMessage(actionText);
+                    }}
+                  />
+                  <div className="gina-chat-card__bubble gina-chat-card__bubble--ai gina-chat-card__bubble--after-viz">
+                    <GinaAiMessageText text={msg.text} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div
+                    className={
+                      msg.sender === "ai"
+                        ? "gina-chat-card__bubble gina-chat-card__bubble--ai"
+                        : "gina-chat-card__bubble gina-chat-card__bubble--user"
+                    }
+                  >
+                    {msg.sender === "ai" ? <GinaAiMessageText text={msg.text} /> : msg.text}
+                  </div>
+                  {msg.sender === "ai" && msg.visualization ? (
+                    <GinaDataVisualization
+                      type={msg.visualization.type}
+                      data={msg.visualization.data}
+                      onSelectDepartment={(deptName) => {
+                        if (!deptName || isTyping) return;
+                        const focusText = chipLocale === "en"
+                          ? `Focus today on ${deptName}`
+                          : `Enfocarme hoy en ${deptName}`;
+                        void deliverUserMessage(focusText);
+                      }}
+                      onSelectAction={(actionText) => {
+                        if (!actionText || isTyping) return;
+                        void deliverUserMessage(actionText);
+                      }}
+                    />
+                  ) : null}
+                </>
+              )}
               {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping ? (
                 <div className="gina-chat-card__chips" role="group" aria-label="Suggested replies">
                   {msg.chips.map((chip) => (

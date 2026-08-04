@@ -41,7 +41,7 @@ Vacío absoluto:
 
 Solo mencionar nombres de deptos si están en el inventario; si no hay deptos, pregunta abierta.
 
-**Después (paso 2):** Gina puede señalar bloques ya pasados y ofrecer marcar vencidos o posponer horario — eso no cambia el filtro de “hoy”.
+**Después (paso 2 — live):** si hay bloques con `anchorFinishAt < now`, la viz de horarios los **highlight** y Gina ofrece chips **Marcar vencidos** / **Posponer horario** (preview sin mutar aún).
 
 ---
 

@@ -61,7 +61,7 @@ function pickBestTitleMatch(foldedQuery, items) {
 }
 
 /** Explicit work intents — bare "hoy" alone is NOT enough ("hoy no" / charla). */
-const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|enfocarme|expandir|expand|departamento\w*|folder\w*|documento\w*|categor\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|horario\w*|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today|focus\s+today)\b/;
+const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|enfocarme|expandir|expand|departamento\w*|folder\w*|documento\w*|categor\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|horario\w*|marcar|posponer|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today|focus\s+today)\b/;
 
 /**
  * Clear goodbye / later / rest — wins even if the text mentions "hoy".
@@ -347,6 +347,74 @@ export function runGinaQueryFamily(text, ctx = {}) {
       },
       workspaceInventory: inventory,
     };
+  }
+
+  // Confirm / skip recovery first (so "Confirmar marcar…" does not hit preview mark).
+  {
+    const wantsSkip = /\bsaltarlo\b/.test(q) || /\bskip\s+schedule\s+recovery\b/.test(q);
+    const wantsConfirmMark = /\bconfirmar\s+marcar\s+vencid/.test(q)
+      || /\bconfirm\s+mark\s+passed\s+slots\s+as\s+past\s+due\b/.test(q);
+    const wantsConfirmCascade = /\bconfirmar\s+reagendar\s+en\s+cadena\b/.test(q)
+      || /\bconfirm\s+cascade\s+reschedule\b/.test(q);
+    if (wantsSkip) {
+      return {
+        family: "schedule_recovery_skip",
+        toolsCalled,
+        toolContext: {
+          skipRecovery: true,
+          hint: "User skipped schedule recovery",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (wantsConfirmMark || wantsConfirmCascade) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: wantsConfirmMark ? "schedule_recovery_mark_confirm" : "schedule_recovery_postpone_confirm",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          recoveryIntent: wantsConfirmMark ? "mark_past_due" : "postpone_schedule",
+          markableSlots: today.markableSlots,
+          passedSlots: today.passedSlots,
+          hint: wantsConfirmMark
+            ? "User confirmed mark past due — host should write status"
+            : "User confirmed cascade — host should write new schedules",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Schedule recovery fork: preview intent (mutations only after confirm).
+  {
+    const wantsMarkPastDue = !/\bconfirm/.test(q) && (
+      /\bmarcar\s+(como\s+)?vencid/.test(q)
+      || /\bmark\s+(today'?s\s+)?(passed\s+)?(slots?\s+)?as\s+past\s+due\b/.test(q)
+      || (/\bhorarios\s+pasados\s+de\s+hoy\b/.test(q) && /\bmarcar\b/.test(q))
+    );
+    const wantsPostpone = !/\bconfirm/.test(q) && (
+      /\bposponer\s+horario\b/.test(q)
+      || /\bpostpone\s+(today'?s\s+)?(passed\s+)?schedule\b/.test(q)
+      || (/\bmanteniendo\s+el\s+orden\b/.test(q) && /\bposponer\b/.test(q))
+    );
+    if (wantsMarkPastDue || wantsPostpone) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: wantsMarkPastDue ? "schedule_recovery_mark" : "schedule_recovery_postpone",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          passedSlots: today.passedSlots,
+          markableSlots: today.markableSlots,
+          firstPendingTitle: today.firstPendingTitle,
+          hint: wantsMarkPastDue
+            ? "User chose mark passed slots as past due (preview only; no write yet)"
+            : "User chose postpone/cascade schedule (preview only; no write yet)",
+        },
+        workspaceInventory: inventory,
+      };
+    }
   }
 
   // Departments / daily focus (explicit workflow — not "fuera de contexto")

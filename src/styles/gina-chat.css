@@ -855,6 +855,10 @@
   text-align: left;
 }
 
+.gina-chat-card__bubble--after-viz {
+  margin-top: 10px;
+}
+
 .gina-chat-card__chip:hover {
   border-color: rgba(255, 255, 255, 0.28);
   color: #fff;
@@ -917,11 +921,116 @@
   color: #9a9a9a;
 }
 
-.gina-viz__prompt {
-  margin: 10px 0 0;
+.gina-viz__prompt--passed {
+  color: #e8c9a0;
+}
+
+.gina-viz__doc.is-passed-slot {
+  border-radius: 8px;
+  background: color-mix(in oklab, #eaa65d 8%, transparent);
+}
+
+.gina-viz__doc-meta--passed {
+  color: #eaa65d;
+  font-weight: 650;
+}
+
+.gina-viz__sheet-time-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 88px;
+  isolation: isolate;
+}
+
+.gina-viz__time-overlay {
+  position: absolute;
+  inset: -3px -6px;
+  border-radius: 6px;
+  background: color-mix(in oklab, #eaa65d 28%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, #eaa65d 55%, transparent);
+  opacity: 0;
+  transform: scaleX(0.92);
+  transform-origin: left center;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.gina-viz__sheet-time-wrap.will-highlight .gina-viz__time-overlay {
+  animation: gina-time-highlight-in 0.85s ease 1.35s forwards;
+}
+
+.gina-viz__sheet-time-wrap .gina-viz__sheet-time {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+@keyframes gina-time-highlight-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.gina-viz__recovery-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gina-viz__recovery-row {
+  padding: 10px 10px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #121212;
+}
+
+.gina-viz__recovery-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: #fff;
+  margin-bottom: 6px;
+}
+
+.gina-viz__recovery-status,
+.gina-viz__recovery-times {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.gina-viz__recovery-arrow {
+  color: #9a9a9a;
   font-size: 12px;
-  color: #c8c8c8;
-  line-height: 1.35;
+}
+
+.gina-viz__recovery-null {
+  font-size: 11px;
+  color: #9a9a9a;
+}
+
+.gina-viz__recovery-time {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.gina-viz__recovery-time--old {
+  color: #8a8a8a;
+  text-decoration: line-through;
+}
+
+.gina-viz__recovery-time--new {
+  color: #c9b896;
 }
 
 .gina-viz__expand-grid {
@@ -1028,8 +1137,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 4px 0;
+  padding: 6px 8px;
+  border: 1px solid transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
 }
 
 .gina-viz__sheet-time {

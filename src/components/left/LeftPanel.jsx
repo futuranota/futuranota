@@ -30,6 +30,13 @@ import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
 } from "../../lib/gina/ginaReplyChips.js";
+import {
+  buildCascadeSchedulePreview,
+  buildGinaWarmGoodbyeReply,
+  buildScheduleRecoveryAppliedText,
+  isGinaWarmGoodbye,
+} from "../../lib/gina/ginaScheduleRecovery.js";
+import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { buildGinaKnowledgePromptBlock, isGinaLearnSaveConfirm, addLocalGinaKnowledge, parseGinaLearnReply } from "../../lib/gina/ginaKnowledgeStore.js";
@@ -2751,6 +2758,92 @@ export function LeftPanel({
       now: new Date(),
     };
     const routed = runGinaQueryFamily(text, ctx);
+    const localeKey = locale === "es" ? "es" : "en";
+
+    if (!meetingOn && isGinaWarmGoodbye(text)) {
+      return {
+        message: buildGinaWarmGoodbyeReply(localeKey),
+        visualization: null,
+        chips: null,
+      };
+    }
+
+    if (!meetingOn && routed.family === "schedule_recovery_skip") {
+      return {
+        message: localeKey === "en"
+          ? "Okay — we’ll leave the schedule as it is for now."
+          : "Va — dejamos el schedule como está por ahora.",
+        visualization: null,
+        chips: [
+          {
+            id: "today_schedule",
+            label: localeKey === "en" ? "Today's schedule" : "Horarios de hoy",
+            text: localeKey === "en" ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
+          },
+        ],
+      };
+    }
+
+    if (!meetingOn && (
+      routed.family === "schedule_recovery_mark_confirm"
+      || routed.family === "schedule_recovery_postpone_confirm"
+    )) {
+      const updateNode = useNodesStore.getState().updateNode;
+      const now = ctx.now;
+      if (routed.family === "schedule_recovery_mark_confirm") {
+        const slots = Array.isArray(routed.toolContext?.markableSlots)
+          ? routed.toolContext.markableSlots
+          : [];
+        for (const slot of slots) {
+          if (!slot?.id) continue;
+          updateNode(slot.id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.PAST_DUE }));
+        }
+        const visualization = buildGinaVisualization("schedule_recovery_applied", {
+          recoveryIntent: "mark_past_due",
+          documents: slots.map((s) => ({ ...s, status: DOC_WORK_STATUS.PAST_DUE })),
+        }, { locale: localeKey, now, userText: text });
+        return {
+          message: buildScheduleRecoveryAppliedText("mark_past_due", {
+            count: slots.length,
+            locale: localeKey,
+          }),
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "schedule_recovery_applied",
+            visualization,
+            locale: localeKey,
+          }),
+        };
+      }
+
+      const todayDocs = Array.isArray(routed.toolContext?.documents)
+        ? routed.toolContext.documents
+        : [];
+      const cascade = buildCascadeSchedulePreview(todayDocs, now);
+      for (const row of cascade) {
+        if (!row?.id) continue;
+        updateNode(row.id, {
+          anchorAt: row.proposedAnchorAt,
+          anchorFinishAt: row.proposedAnchorFinishAt,
+        });
+      }
+      const visualization = buildGinaVisualization("schedule_recovery_applied", {
+        recoveryIntent: "postpone_schedule",
+        documents: cascade,
+      }, { locale: localeKey, now, userText: text });
+      return {
+        message: buildScheduleRecoveryAppliedText("postpone_schedule", {
+          count: cascade.length,
+          locale: localeKey,
+        }),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "schedule_recovery_applied",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
 
     if (!meetingOn && routed.family === "focus_open") {
       if (routed.openDocumentId) {
@@ -2845,7 +2938,6 @@ export function LeftPanel({
         : { displayText: rawReply, learnProposal: null };
       if (learnProposal) setGinaPendingLearn(learnProposal);
 
-      const localeKey = locale === "es" ? "es" : "en";
       const funnelHeadline = !meetingOn
         ? buildGinaFunnelHeadline(visualization, { locale: localeKey })
         : null;

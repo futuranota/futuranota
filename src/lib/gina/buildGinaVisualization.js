@@ -1,3 +1,5 @@
+import { isPassedSlot, buildCascadeSchedulePreview } from "./ginaScheduleRecovery.js";
+
 /**
  * Build deterministic Gina chat visualizations from query family + tool JSON.
  * Groq only narrates; counts and lists come from here.
@@ -56,7 +58,8 @@ function asDocs(list) {
   return Array.isArray(list) ? list : [];
 }
 
-function mapDocRow(d) {
+function mapDocRow(d, now = null) {
+  const clock = now instanceof Date ? now : new Date();
   return {
     id: d.id || null,
     title: d.title || "Untitled",
@@ -69,6 +72,7 @@ function mapDocRow(d) {
     dueDate: d.dueDate || null,
     daysOverdue: d.daysOverdue,
     daysUntilDue: d.daysUntilDue,
+    passedSlot: Boolean(d.passedSlot) || isPassedSlot(d, clock),
     hierarchy: {
       department: d.department || d.departmentName || null,
       category: d.category || null,
@@ -96,12 +100,13 @@ function isSlotFromNow(doc, now = new Date()) {
 /**
  * Group docs Depto → Folder → timed rows for schedule sheet.
  * @param {object[]} docs
+ * @param {Date} [now]
  */
-export function groupDocsForScheduleSheet(docs) {
+export function groupDocsForScheduleSheet(docs, now = new Date()) {
   /** @type {Map<string, Map<string, object[]>>} */
   const byDept = new Map();
   for (const raw of docs) {
-    const row = mapDocRow(raw);
+    const row = mapDocRow(raw, now);
     const dept = row.department || "—";
     const folder = row.folder || "—";
     if (!byDept.has(dept)) byDept.set(dept, new Map());
@@ -193,6 +198,35 @@ function buildDeptSummaryData(today, locale, now) {
     categoryList: categories,
     statusList: statuses,
     sampleDocuments: docs.slice(0, 6).map(mapDocRow),
+  };
+}
+
+function attachRecoveryMeta(data, today, now) {
+  const passed = Array.isArray(today.passedSlots) ? today.passedSlots : [];
+  const markable = Array.isArray(today.markableSlots) ? today.markableSlots : [];
+  const docs = asDocs(today.documents);
+  const computedPassed = passed.length
+    ? passed
+    : docs.filter((d) => isPassedSlot(d, now)).map((d) => ({
+      id: d.id,
+      title: d.title,
+      status: d.status,
+      department: d.departmentName || d.department,
+      folder: d.parentFolderName || d.folder,
+      anchorAt: d.anchorAt,
+      anchorFinishAt: d.anchorFinishAt,
+    }));
+  return {
+    ...data,
+    passedSlots: computedPassed,
+    markableSlots: markable.length ? markable : computedPassed.filter((d) => {
+      const s = d.status;
+      return s !== "past_due" && s !== "completed" && s !== "submitted";
+    }),
+    passedSlotCount: today.passedSlotCount ?? computedPassed.length,
+    markableSlotCount: today.markableSlotCount ?? null,
+    firstPendingTitle: today.firstPendingTitle || computedPassed[0]?.title || null,
+    hasRecoveryOffer: computedPassed.length > 0,
   };
 }
 
@@ -380,25 +414,25 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         : asDocs(today.documents);
       return {
         type: "schedule_sheet",
-        data: {
+        data: attachRecoveryMeta({
           date: today.date,
           dateLabel: formatGinaDayLabel(today.date, locale),
-          groups: groupDocsForScheduleSheet(source),
+          groups: groupDocsForScheduleSheet(source, now),
           documents: source
             .slice()
             .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
-            .map(mapDocRow),
-        },
+            .map((d) => mapDocRow(d, now)),
+        }, today, now),
       };
     }
 
     if (wantsTable) {
       return {
         type: "table",
-        data: {
+        data: attachRecoveryMeta({
           title: locale === "en" ? "Today" : "Hoy",
-          documents: docs.map(mapDocRow),
-        },
+          documents: docs.map((d) => mapDocRow(d, now)),
+        }, today, now),
       };
     }
 
@@ -407,15 +441,15 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       if (wantsOverdueHours || wantsFromNow || wantsAllToday) {
         return {
           type: "schedule_sheet",
-          data: {
+          data: attachRecoveryMeta({
             date: today.date,
             dateLabel: formatGinaDayLabel(today.date, locale),
-            groups: groupDocsForScheduleSheet(docs),
+            groups: groupDocsForScheduleSheet(docs, now),
             documents: docs
               .slice()
               .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
-              .map(mapDocRow),
-          },
+              .map((d) => mapDocRow(d, now)),
+          }, today, now),
         };
       }
       return {
@@ -428,6 +462,57 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     return {
       type: "department_cards",
       data: buildDepartmentCardsData(today, locale),
+    };
+  }
+
+  if (family === "schedule_recovery_mark" || family === "schedule_recovery_postpone") {
+    const isMark = family === "schedule_recovery_mark";
+    if (isMark) {
+      const slots = asDocs(ctx.markableSlots?.length ? ctx.markableSlots : ctx.passedSlots);
+      return {
+        type: "recovery_preview",
+        data: {
+          intent: "mark_past_due",
+          documents: slots.map((d) => mapDocRow(d, now)),
+          count: slots.length,
+          firstPendingTitle: ctx.firstPendingTitle || slots[0]?.title || null,
+        },
+      };
+    }
+
+    const todayDocs = asDocs(ctx.documents);
+    const cascade = buildCascadeSchedulePreview(todayDocs, now);
+    return {
+      type: "recovery_preview",
+      data: {
+        intent: "postpone_schedule",
+        documents: cascade.map((d) => ({
+          ...mapDocRow(d, now),
+          proposedTime: formatGinaTimeRange(d.proposedAnchorAt, d.proposedAnchorFinishAt, locale),
+          proposedAnchorAt: d.proposedAnchorAt,
+          proposedAnchorFinishAt: d.proposedAnchorFinishAt,
+        })),
+        cascade,
+        count: cascade.length,
+        firstPendingTitle: ctx.firstPendingTitle || cascade[0]?.title || null,
+      },
+    };
+  }
+
+  if (family === "schedule_recovery_applied") {
+    const intent = ctx.recoveryIntent === "postpone_schedule" ? "postpone_schedule" : "mark_past_due";
+    const docs = asDocs(ctx.documents);
+    return {
+      type: "recovery_preview",
+      data: {
+        intent,
+        applied: true,
+        documents: docs.map((d) => mapDocRow({
+          ...d,
+          status: intent === "mark_past_due" ? "past_due" : d.status,
+        }, now)),
+        count: docs.length,
+      },
     };
   }
 
