@@ -1713,6 +1713,8 @@ export function LeftPanel({
   const [ginaOpeningMessage, setGinaOpeningMessage] = useState("");
   const [departmentFilterId, setDepartmentFilterId] = useState("");
   const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
+  /** Last category chosen per department — restored when switching back to that dept. */
+  const [categoryByDepartmentId, setCategoryByDepartmentId] = useState({});
   const [departmentCreateRequested, setDepartmentCreateRequested] = useState(false);
   const departments = useDepartmentsStore((s) => s.departments);
   const docsMap = useDocsStore((s) => s.docs);
@@ -1981,6 +1983,12 @@ export function LeftPanel({
     if (!stillExists) {
       setDepartmentFilterId("");
       setDepartmentCategoryFilter("");
+      setCategoryByDepartmentId((prev) => {
+        if (!(departmentFilterId in prev)) return prev;
+        const next = { ...prev };
+        delete next[departmentFilterId];
+        return next;
+      });
       return;
     }
     if (
@@ -1990,6 +1998,10 @@ export function LeftPanel({
       )
     ) {
       setDepartmentCategoryFilter("");
+      setCategoryByDepartmentId((prev) => {
+        if (!prev[departmentFilterId]) return prev;
+        return { ...prev, [departmentFilterId]: "" };
+      });
     }
   }, [
     departmentFilterId,
@@ -3727,8 +3739,20 @@ export function LeftPanel({
                         value={departmentFilterId}
                         onChange={(e) => {
                           const nextId = e.target.value;
+                          setCategoryByDepartmentId((prev) => {
+                            if (!departmentFilterId) return prev;
+                            if (prev[departmentFilterId] === departmentCategoryFilter) {
+                              return prev;
+                            }
+                            return {
+                              ...prev,
+                              [departmentFilterId]: departmentCategoryFilter,
+                            };
+                          });
                           setDepartmentFilterId(nextId);
-                          setDepartmentCategoryFilter("");
+                          setDepartmentCategoryFilter(
+                            nextId ? (categoryByDepartmentId[nextId] || "") : "",
+                          );
                         }}
                       >
                         <option value="">{t("sidebar.departmentFilterAll")}</option>
@@ -3753,7 +3777,15 @@ export function LeftPanel({
                         className="lp-department-filter__select lp-department-filter__select--category"
                         value={departmentCategoryFilter}
                         disabled={!departmentFilterId}
-                        onChange={(e) => setDepartmentCategoryFilter(e.target.value)}
+                        onChange={(e) => {
+                          const nextCategory = e.target.value;
+                          setDepartmentCategoryFilter(nextCategory);
+                          if (!departmentFilterId) return;
+                          setCategoryByDepartmentId((prev) => ({
+                            ...prev,
+                            [departmentFilterId]: nextCategory,
+                          }));
+                        }}
                       >
                         {!departmentFilterId ? (
                           <option value="">
