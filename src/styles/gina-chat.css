@@ -984,6 +984,11 @@
   color: #e8e8e8;
 }
 
+.gina-viz__sheet-cat-tag {
+  color: #c9b896;
+  font-weight: 650;
+}
+
 /* Gina Knowledge dashboard overlay */
 .gina-knowledge-overlay {
   position: fixed;

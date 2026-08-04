@@ -6,6 +6,15 @@
  * @typedef {{ id: string, label: string, text: string, primary?: boolean }} GinaReplyChip
  */
 
+const STATUS_CHIP_META = {
+  past_due: { es: "Vencidos", en: "Past due", key: "past_due" },
+  in_progress: { es: "En progreso", en: "In progress", key: "in_progress" },
+  not_started: { es: "Sin empezar", en: "Not started", key: "not_started" },
+  reserved: { es: "Reserved", en: "Reserved", key: "reserved" },
+  submitted: { es: "Submitted", en: "Submitted", key: "submitted" },
+  completed: { es: "Completed", en: "Completed", key: "completed" },
+};
+
 /**
  * Opening chips under the first Gina message.
  * @param {{ locale?: string }} [opts]
@@ -25,68 +34,7 @@ export function buildGinaOpeningChips(opts = {}) {
       label: en ? "Today's schedule" : "Horarios de hoy",
       text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
     },
-    {
-      id: "past_due",
-      label: en ? "Past due" : "Vencidos",
-      text: en ? "Show me past due documents" : "Muéstrame los documentos vencidos",
-    },
-    {
-      id: "in_progress",
-      label: en ? "In progress" : "En progreso",
-      text: en ? "Show me in progress documents" : "Muéstrame los documentos en progreso",
-    },
   ];
-}
-
-/**
- * @param {object | null | undefined} todayScope
- * @returns {{ name: string, documents: number, pastDue: number, folders: number }[]}
- */
-export function rollupTodayByDepartment(todayScope) {
-  const docs = Array.isArray(todayScope?.documents) ? todayScope.documents : [];
-  /** @type {Map<string, { name: string, documents: number, pastDue: number, folderIds: Set<string> }>} */
-  const map = new Map();
-
-  for (const d of docs) {
-    const name = String(d.departmentName || d.department || "—").trim() || "—";
-    const cur = map.get(name) || {
-      name,
-      documents: 0,
-      pastDue: 0,
-      folderIds: new Set(),
-    };
-    cur.documents += 1;
-    if (d.isPastDue || d.status === "past_due") cur.pastDue += 1;
-    const folderKey = d.parentFolderId || d.parentFolderName || d.folder || "";
-    if (folderKey) cur.folderIds.add(String(folderKey));
-    map.set(name, cur);
-  }
-
-  // Also count active folders without docs in the rollup (window-only)
-  for (const f of todayScope?.activeFolders || []) {
-    const name = String(f.department || "—").trim() || "—";
-    const cur = map.get(name) || {
-      name,
-      documents: 0,
-      pastDue: 0,
-      folderIds: new Set(),
-    };
-    if (f.id) cur.folderIds.add(String(f.id));
-    else if (f.name) cur.folderIds.add(String(f.name));
-    map.set(name, cur);
-  }
-
-  return [...map.values()]
-    .map((d) => ({
-      name: d.name,
-      documents: d.documents,
-      pastDue: d.pastDue,
-      folders: d.folderIds.size,
-    }))
-    .sort((a, b) => {
-      if (b.pastDue !== a.pastDue) return b.pastDue - a.pastDue;
-      return b.documents - a.documents;
-    });
 }
 
 /**
@@ -114,60 +62,167 @@ export function buildTodayDepartmentChips(opts = {}) {
     label: en ? "Today's schedule" : "Horarios de hoy",
     text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
   });
-  chips.push({
-    id: "past_due",
-    label: en ? "Past due" : "Vencidos",
-    text: en ? "Show me past due documents" : "Muéstrame los documentos vencidos",
-  });
   return chips;
 }
 
 /**
- * Chips inside a department focus.
- * @param {{ department: string, overdueHours?: number, fromNow?: number, locale?: string }} opts
+ * After focusing a department: expand modes.
+ * @param {{ department: string, locale?: string }} opts
  */
 export function buildDeptFocusChips(opts = {}) {
   const en = opts.locale === "en";
   const dept = opts.department || "";
+  return [
+    {
+      id: "expand_categories",
+      label: en ? "Expand by categories" : "Expandir por categorías",
+      text: en
+        ? `Expand by categories today in ${dept}`
+        : `Expandir por categorías hoy en ${dept}`,
+      primary: true,
+    },
+    {
+      id: "expand_status",
+      label: en ? "Expand by status" : "Expandir status",
+      text: en
+        ? `Expand status today in ${dept}`
+        : `Expandir status hoy en ${dept}`,
+    },
+    {
+      id: "expand_folders",
+      label: en ? "Expand by folders" : "Expandir por folders",
+      text: en
+        ? `Expand by folders today in ${dept}`
+        : `Expandir por folders hoy en ${dept}`,
+    },
+    {
+      id: "back_depts",
+      label: en ? "Back to departments" : "Volver a departamentos",
+      text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
+    },
+  ];
+}
+
+/**
+ * Status menu chips (only statuses with count > 0).
+ * @param {{ department: string, statuses?: { key: string, count: number }[], locale?: string }} opts
+ */
+export function buildDeptStatusMenuChips(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = opts.department || "";
+  const statuses = Array.isArray(opts.statuses) ? opts.statuses : [];
   /** @type {GinaReplyChip[]} */
   const chips = [];
-  if ((opts.overdueHours || 0) > 0) {
+  for (const row of statuses) {
+    if (!row?.key || !(row.count > 0)) continue;
+    const meta = STATUS_CHIP_META[row.key];
+    if (!meta) continue;
     chips.push({
-      id: "overdue_hours",
-      label: en ? "Overdue hours" : "Horas vencidas",
+      id: `status_${row.key}`,
+      label: `${en ? meta.en : meta.es} (${row.count})`,
       text: en
-        ? `Show overdue hours today in ${dept}`
-        : `Muéstrame las horas vencidas de hoy en ${dept}`,
-      primary: true,
-    });
-  }
-  if ((opts.fromNow || 0) > 0 || (opts.overdueHours || 0) === 0) {
-    chips.push({
-      id: "from_now",
-      label: en ? "From now" : "Desde ahora",
-      text: en
-        ? `Show from now today in ${dept}`
-        : `Muéstrame desde ahora hoy en ${dept}`,
-      primary: (opts.overdueHours || 0) === 0,
+        ? `Status ${row.key} today in ${dept}`
+        : `Status ${row.key} hoy en ${dept}`,
+      primary: chips.length === 0,
     });
   }
   chips.push({
-    id: "all_today_dept",
-    label: en ? "All of today" : "Todos los de hoy",
-    text: en
-      ? `Show all of today in ${dept}`
-      : `Muéstrame todos los de hoy en ${dept}`,
-  });
-  chips.push({
-    id: "back_depts",
-    label: en ? "Back to departments" : "Volver a departamentos",
-    text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
+    id: "back_dept",
+    label: en ? `Back to ${dept}` : `Volver a ${dept}`,
+    text: en ? `Focus today on ${dept}` : `Enfocarme hoy en ${dept}`,
   });
   return chips;
 }
 
 /**
- * Chips after schedule sheet / status lists.
+ * Folder menu chips.
+ * @param {{ department: string, folders?: { name: string, documents?: number }[], locale?: string }} opts
+ */
+export function buildDeptFolderMenuChips(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = opts.department || "";
+  const folders = Array.isArray(opts.folders) ? opts.folders : [];
+  /** @type {GinaReplyChip[]} */
+  const chips = folders.slice(0, 12).map((f, i) => ({
+    id: `folder_${f.name}`,
+    label: f.documents != null ? `${f.name} (${f.documents})` : f.name,
+    text: en
+      ? `Folder ${f.name} today in ${dept}`
+      : `Folder ${f.name} hoy en ${dept}`,
+    primary: i === 0,
+  }));
+  chips.push({
+    id: "back_dept",
+    label: en ? `Back to ${dept}` : `Volver a ${dept}`,
+    text: en ? `Focus today on ${dept}` : `Enfocarme hoy en ${dept}`,
+  });
+  return chips;
+}
+
+/**
+ * Category menu chips.
+ * @param {{ department: string, categories?: { name: string, documents?: number }[], locale?: string }} opts
+ */
+export function buildDeptCategoryMenuChips(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = opts.department || "";
+  const categories = Array.isArray(opts.categories) ? opts.categories : [];
+  /** @type {GinaReplyChip[]} */
+  const chips = categories.slice(0, 12).map((c, i) => ({
+    id: `cat_${c.name}`,
+    label: c.documents != null ? `${c.name} (${c.documents})` : c.name,
+    text: en
+      ? `Category ${c.name} today in ${dept}`
+      : `Categoría ${c.name} hoy en ${dept}`,
+    primary: i === 0,
+  }));
+  chips.push({
+    id: "back_dept",
+    label: en ? `Back to ${dept}` : `Volver a ${dept}`,
+    text: en ? `Focus today on ${dept}` : `Enfocarme hoy en ${dept}`,
+  });
+  return chips;
+}
+
+/**
+ * Nav after a detail list inside a department.
+ * @param {{ department: string, locale?: string }} opts
+ */
+export function buildDeptDetailNavChips(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = opts.department || "";
+  return [
+    {
+      id: "expand_status",
+      label: en ? "Expand by status" : "Expandir status",
+      text: en
+        ? `Expand status today in ${dept}`
+        : `Expandir status hoy en ${dept}`,
+    },
+    {
+      id: "expand_folders",
+      label: en ? "Expand by folders" : "Expandir por folders",
+      text: en
+        ? `Expand by folders today in ${dept}`
+        : `Expandir por folders hoy en ${dept}`,
+    },
+    {
+      id: "expand_categories",
+      label: en ? "Expand by categories" : "Expandir por categorías",
+      text: en
+        ? `Expand by categories today in ${dept}`
+        : `Expandir por categorías hoy en ${dept}`,
+    },
+    {
+      id: "back_depts",
+      label: en ? "Back to departments" : "Volver a departamentos",
+      text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
+    },
+  ];
+}
+
+/**
+ * Chips after schedule sheet.
  * @param {{ locale?: string }} [opts]
  */
 export function buildScheduleSheetChips(opts = {}) {
@@ -178,40 +233,11 @@ export function buildScheduleSheetChips(opts = {}) {
       label: en ? "Departments today" : "Departamentos de hoy",
       text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
     },
-    {
-      id: "past_due",
-      label: en ? "Past due" : "Vencidos",
-      text: en ? "Show me past due documents" : "Muéstrame los documentos vencidos",
-    },
   ];
 }
 
 /**
- * Status confirm chips (all depts vs pick one).
- * @param {{ statusLabel: string, locale?: string }} opts
- */
-export function buildStatusConfirmChips(opts = {}) {
-  const en = opts.locale === "en";
-  const status = opts.statusLabel || (en ? "this status" : "este status");
-  return [
-    {
-      id: "status_all",
-      label: en ? "All departments" : "Todos los departamentos",
-      text: en
-        ? `Yes, show ${status} across all departments`
-        : `Sí, muéstrame ${status} de todos los departamentos`,
-      primary: true,
-    },
-    {
-      id: "status_pick",
-      label: en ? "Pick a department" : "Elegir un departamento",
-      text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
-    },
-  ];
-}
-
-/**
- * Deterministic funnel headline (prefers over long Groq dump for today cards).
+ * Deterministic funnel headline.
  * @param {{ type?: string, data?: object } | null} visualization
  * @param {{ locale?: string }} [opts]
  */
@@ -241,27 +267,65 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
 
   if (visualization.type === "dept_summary") {
     const name = data.department || "—";
-    const overdue = data.overdueHours ?? 0;
-    const fromNow = data.fromNow ?? 0;
     const folders = data.folders ?? 0;
     const docs = data.documents ?? 0;
-    if (overdue > 0 && fromNow > 0) {
-      return en
-        ? `In **${name}**: ${folders} active folders, ${docs} docs. ${overdue} hour slot(s) already passed, ${fromNow} from now. Overdue hours first, or from now?`
-        : `En **${name}**: ${folders} folders activos, ${docs} docs. ${overdue} horario(s) ya pasaron; ${fromNow} desde ahora. ¿Ves primero las horas vencidas, o el schedule desde ahora?`;
-    }
-    if (overdue > 0) {
-      return en
-        ? `In **${name}**: ${docs} docs today — ${overdue} hour slot(s) already passed.`
-        : `En **${name}**: ${docs} docs hoy — ${overdue} horario(s) ya pasaron.`;
-    }
     return en
-      ? `In **${name}**: ${folders} folders, ${docs} docs for today.`
-      : `En **${name}**: ${folders} folders, ${docs} docs para hoy.`;
+      ? `In **${name}**: ${folders} folders, ${docs} docs for today. How do you want to expand?`
+      : `En **${name}**: ${folders} folders, ${docs} docs para hoy. ¿Cómo quieres expandir?`;
+  }
+
+  if (visualization.type === "dept_status_menu") {
+    const name = data.department || "—";
+    return en
+      ? `Statuses available today in **${name}**. Which one do you want to see?`
+      : `Statuses disponibles hoy en **${name}**. ¿Cuál quieres ver?`;
+  }
+
+  if (visualization.type === "dept_status_list") {
+    const name = data.department || "—";
+    const label = data.statusLabel || data.status || "status";
+    const n = Array.isArray(data.documents) ? data.documents.length : 0;
+    return en
+      ? `**${label}** in **${name}** today — ${n} document(s).`
+      : `**${label}** en **${name}** hoy — ${n} documento(s).`;
+  }
+
+  if (visualization.type === "dept_folder_menu") {
+    const name = data.department || "—";
+    const n = Array.isArray(data.folders) ? data.folders.length : 0;
+    return en
+      ? `**${n}** folder(s) with today’s work in **${name}**. Pick one.`
+      : `**${n}** folder(s) con trabajo de hoy en **${name}**. Elige uno.`;
+  }
+
+  if (visualization.type === "dept_folder_detail") {
+    const folder = data.folder || "—";
+    const n = Array.isArray(data.documents) ? data.documents.length : 0;
+    return en
+      ? `Folder **${folder}** today — ${n} document(s).`
+      : `Folder **${folder}** hoy — ${n} documento(s).`;
+  }
+
+  if (visualization.type === "dept_category_menu") {
+    const name = data.department || "—";
+    const n = Array.isArray(data.categories) ? data.categories.length : 0;
+    return en
+      ? `**${n}** categor${n === 1 ? "y" : "ies"} today in **${name}**. Pick one.`
+      : `**${n}** categor${n === 1 ? "ía" : "ías"} hoy en **${name}**. Elige una.`;
+  }
+
+  if (visualization.type === "dept_category_detail") {
+    const cat = data.category || "—";
+    const n = Array.isArray(data.documents) ? data.documents.length : 0;
+    return en
+      ? `Category **${cat}** today — ${n} document(s) across folders.`
+      : `Categoría **${cat}** hoy — ${n} documento(s) en folders.`;
   }
 
   if (visualization.type === "schedule_sheet") {
-    const n = Array.isArray(data.groups) ? data.groups.reduce((acc, g) => acc + (g.folders?.reduce((a, f) => a + (f.documents?.length || 0), 0) || 0), 0) : (data.documents?.length || 0);
+    const n = Array.isArray(data.groups)
+      ? data.groups.reduce((acc, g) => acc + (g.folders?.reduce((a, f) => a + (f.documents?.length || 0), 0) || 0), 0)
+      : (data.documents?.length || 0);
     return en
       ? `Here’s today’s schedule sheet (${n} timed items).`
       : `Aquí está el sheet de horarios de hoy (${n} ítems).`;
@@ -291,8 +355,37 @@ export function buildGinaReplyChips(opts = {}) {
   if (type === "dept_summary") {
     return buildDeptFocusChips({
       department: data.department,
-      overdueHours: data.overdueHours,
-      fromNow: data.fromNow,
+      locale,
+    });
+  }
+  if (type === "dept_status_menu") {
+    return buildDeptStatusMenuChips({
+      department: data.department,
+      statuses: data.statuses,
+      locale,
+    });
+  }
+  if (type === "dept_folder_menu") {
+    return buildDeptFolderMenuChips({
+      department: data.department,
+      folders: data.folders,
+      locale,
+    });
+  }
+  if (type === "dept_category_menu") {
+    return buildDeptCategoryMenuChips({
+      department: data.department,
+      categories: data.categories,
+      locale,
+    });
+  }
+  if (
+    type === "dept_status_list"
+    || type === "dept_folder_detail"
+    || type === "dept_category_detail"
+  ) {
+    return buildDeptDetailNavChips({
+      department: data.department,
       locale,
     });
   }
@@ -300,8 +393,9 @@ export function buildGinaReplyChips(opts = {}) {
     return buildScheduleSheetChips({ locale });
   }
   if (opts.family === "status" || opts.family === "past_due" || opts.family === "incomplete") {
-    // After list shown — light nav chips
     return buildScheduleSheetChips({ locale });
   }
   return [];
 }
+
+export { STATUS_CHIP_META };

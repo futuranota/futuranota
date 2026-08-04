@@ -61,7 +61,7 @@ function pickBestTitleMatch(foldedQuery, items) {
 }
 
 /** Explicit work intents — bare "hoy" alone is NOT enough ("hoy no" / charla). */
-const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|enfocarme|departamento\w*|folder\w*|documento\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|horario\w*|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today|focus\s+today)\b/;
+const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|enfocarme|expandir|expand|departamento\w*|folder\w*|documento\w*|categor\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|horario\w*|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today|focus\s+today)\b/;
 
 /**
  * Clear goodbye / later / rest — wins even if the text mentions "hoy".
@@ -368,14 +368,48 @@ export function runGinaQueryFamily(text, ctx = {}) {
     };
   }
 
-  // Department focus from chips/cards — NOT open a document/folder.
-  // "Enfocarme hoy en Marketing" must scope today to that dept.
+  // Department expand / focus from chips — NOT open a document/folder.
   {
+    const wantsExpand = /\bexpand(ir|e)?\b/.test(q)
+      || /\bstatus\s+(past_due|in_progress|not_started|reserved|submitted|completed)\b/.test(q)
+      || /\bfolder\s+/.test(q)
+      || /\bcategor(í|i)a\s+/.test(q);
     const wantsDeptFocus = /\b(enfocarme|enfoca|enfocate|enfócate|focus(\s+today)?\s+on)\b/.test(q)
       || /\bfocus\s+today\s+on\b/.test(q);
-    const deptHit = wantsDeptFocus ? matchDepartmentInText(ctx, text) : null;
-    if (wantsDeptFocus && deptHit) {
-      const filters = { department: deptHit.name, category: null, folder: null };
+    const deptHit = (wantsExpand || wantsDeptFocus) ? matchDepartmentInText(ctx, text) : null;
+
+    if ((wantsExpand || wantsDeptFocus) && deptHit) {
+      /** @type {Record<string, string | boolean | null>} */
+      const filters = {
+        department: deptHit.name,
+        category: null,
+        folder: null,
+        status: null,
+        includeCompleted: false,
+      };
+
+      const statusMatch = q.match(/\bstatus\s+(past_due|in_progress|not_started|reserved|submitted|completed)\b/);
+      if (statusMatch) {
+        filters.status = statusMatch[1];
+        filters.includeCompleted = statusMatch[1] === "completed";
+      } else if (/\bexpand(ir|e)?\s+status\b/.test(q)) {
+        filters.includeCompleted = true;
+      }
+
+      const folderMatch = text.match(/\bFolder\s+(.+?)\s+hoy\s+en\b/i)
+        || text.match(/\bFolder\s+(.+?)\s+today\s+in\b/i);
+      if (folderMatch) {
+        filters.folder = folderMatch[1].trim();
+        filters.includeCompleted = true;
+      }
+
+      const catMatch = text.match(/\bCategor[íi]a\s+(.+?)\s+hoy\s+en\b/i)
+        || text.match(/\bCategory\s+(.+?)\s+today\s+in\b/i);
+      if (catMatch) {
+        filters.category = catMatch[1].trim();
+        filters.includeCompleted = true;
+      }
+
       const toolContext = call("get_today_scope", () => get_today_scope(ctx, filters));
       return {
         family: "today",

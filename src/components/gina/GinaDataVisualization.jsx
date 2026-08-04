@@ -175,8 +175,6 @@ function DeptSummaryVisualization({ data }) {
       <div className="gina-viz__stats">
         <StatRow label="Folders" value={data.folders ?? 0} />
         <StatRow label="Docs hoy" value={data.documents ?? 0} />
-        <StatRow label="Horas vencidas" value={data.overdueHours ?? 0} tone="past-due" />
-        <StatRow label="Desde ahora" value={data.fromNow ?? 0} tone="in-progress" />
       </div>
       {groups.length ? (
         <ul className="gina-viz__list">
@@ -194,6 +192,104 @@ function DeptSummaryVisualization({ data }) {
           ))}
         </ul>
       ) : null}
+    </div>
+  );
+}
+
+function SelectableMenuVisualization({
+  eyebrow,
+  title,
+  items,
+  onSelect,
+}) {
+  const list = Array.isArray(items) ? items : [];
+  return (
+    <div className="gina-viz gina-viz--select-menu">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{eyebrow}</span>
+        <h3 className="gina-viz__title">{title}</h3>
+      </header>
+      {list.length === 0 ? (
+        <p className="gina-viz__empty">Sin ítems en este alcance.</p>
+      ) : (
+        <div className="gina-viz__dept-grid" role="list">
+          {list.map((item) => (
+            <button
+              key={item.id || item.name || item.label}
+              type="button"
+              role="listitem"
+              className="gina-viz__dept-card"
+              onClick={() => onSelect?.(item)}
+            >
+              <span className="gina-viz__dept-name">{item.label || item.name}</span>
+              {item.meta ? (
+                <span className="gina-viz__dept-meta">{item.meta}</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DocStatusListVisualization({ data }) {
+  const docs = Array.isArray(data.documents) ? data.documents : [];
+  return (
+    <div className="gina-viz gina-viz--status-list">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{data.statusLabel || data.status || "Status"}</span>
+        <h3 className="gina-viz__title">{data.department || "—"}</h3>
+      </header>
+      {docs.length === 0 ? (
+        <p className="gina-viz__empty">Sin documentos con este status hoy.</p>
+      ) : (
+        <ul className="gina-viz__list">
+          {docs.map((doc) => (
+            <DocLine key={doc.id || doc.title} doc={doc} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function CategoryDetailVisualization({ data }) {
+  const groups = Array.isArray(data.groups) ? data.groups : [];
+  return (
+    <div className="gina-viz gina-viz--category-detail">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">Categoría</span>
+        <h3 className="gina-viz__title">{data.category || "—"}</h3>
+      </header>
+      {groups.length === 0 ? (
+        <p className="gina-viz__empty">Sin folders en esta categoría hoy.</p>
+      ) : (
+        <div className="gina-viz__sheet">
+          {groups.map((group) => (
+            <section key={group.category} className="gina-viz__sheet-dept">
+              {(group.folders || []).map((folder) => (
+                <div key={`${group.category}-${folder.folder}`} className="gina-viz__sheet-folder">
+                  <p className="gina-viz__sheet-folder-name">
+                    <span className="gina-viz__sheet-cat-tag">[{data.category || group.category}]</span>
+                    {" "}
+                    {folder.folder}
+                  </p>
+                  <ul className="gina-viz__sheet-slots">
+                    {(folder.documents || []).map((doc) => (
+                      <li key={doc.id || `${doc.title}-${doc.time}`} className="gina-viz__sheet-slot">
+                        <span className="gina-viz__sheet-time">{doc.time || "—"}</span>
+                        <span className="gina-viz__sheet-title">{doc.title}</span>
+                        {doc.status ? <DocStatusChip status={doc.status} /> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -394,10 +490,22 @@ function TimelineVisualization({ data }) {
  *   type?: string | null,
  *   data?: object | null,
  *   onSelectDepartment?: (departmentName: string) => void,
+ *   onSelectAction?: (text: string) => void,
  * }} props
  */
-export function GinaDataVisualization({ type, data, onSelectDepartment }) {
+export function GinaDataVisualization({ type, data, onSelectDepartment, onSelectAction }) {
   if (!type || type === "null" || !data) return null;
+  const dept = data.department || "";
+
+  const statusLabels = {
+    past_due: "Vencidos",
+    in_progress: "En progreso",
+    not_started: "Sin empezar",
+    reserved: "Reserved",
+    submitted: "Submitted",
+    completed: "Completed",
+  };
+
   switch (type) {
     case "department_cards":
       return (
@@ -408,6 +516,65 @@ export function GinaDataVisualization({ type, data, onSelectDepartment }) {
       );
     case "dept_summary":
       return <DeptSummaryVisualization data={data} />;
+    case "dept_status_menu":
+      return (
+        <SelectableMenuVisualization
+          eyebrow="Status"
+          title={dept}
+          items={(data.statuses || []).map((s) => ({
+            id: s.key,
+            name: s.key,
+            label: `${statusLabels[s.key] || s.key} (${s.count})`,
+            meta: `${s.count} docs`,
+            text: `Status ${s.key} hoy en ${dept}`,
+          }))}
+          onSelect={(item) => onSelectAction?.(item.text)}
+        />
+      );
+    case "dept_folder_menu":
+      return (
+        <SelectableMenuVisualization
+          eyebrow="Folders"
+          title={dept}
+          items={(data.folders || []).map((f) => ({
+            id: f.id || f.name,
+            name: f.name,
+            label: f.name,
+            meta: f.documents != null ? `${f.documents} docs` : undefined,
+            text: `Folder ${f.name} hoy en ${dept}`,
+          }))}
+          onSelect={(item) => onSelectAction?.(item.text)}
+        />
+      );
+    case "dept_category_menu":
+      return (
+        <SelectableMenuVisualization
+          eyebrow="Categorías"
+          title={dept}
+          items={(data.categories || []).map((c) => ({
+            id: c.name,
+            name: c.name,
+            label: c.name,
+            meta: c.documents != null ? `${c.documents} docs` : undefined,
+            text: `Categoría ${c.name} hoy en ${dept}`,
+          }))}
+          onSelect={(item) => onSelectAction?.(item.text)}
+        />
+      );
+    case "dept_status_list":
+      return <DocStatusListVisualization data={data} />;
+    case "dept_folder_detail":
+      return (
+        <DocStatusListVisualization
+          data={{
+            ...data,
+            statusLabel: data.folder,
+            status: "folder",
+          }}
+        />
+      );
+    case "dept_category_detail":
+      return <CategoryDetailVisualization data={data} />;
     case "schedule_sheet":
       return <ScheduleSheetVisualization data={data} />;
     case "today_scope":

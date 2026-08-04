@@ -603,6 +603,10 @@ export function GinaChatCard({
                       : `Enfocarme hoy en ${deptName}`;
                     void deliverUserMessage(text);
                   }}
+                  onSelectAction={(text) => {
+                    if (!text || isTyping) return;
+                    void deliverUserMessage(text);
+                  }}
                 />
               ) : null}
               {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping ? (

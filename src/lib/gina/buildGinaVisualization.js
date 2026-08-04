@@ -165,18 +165,70 @@ function buildDeptSummaryData(today, locale, now) {
   const folderIds = new Set(
     docs.map((d) => d.parentFolderId || d.parentFolderName || d.folder).filter(Boolean),
   );
+  const folders = Array.isArray(today.byFolder) && today.byFolder.length
+    ? today.byFolder.map((f) => ({
+      id: f.id || null,
+      name: f.name || f.folder || "—",
+      documents: f.documents || 0,
+      category: f.category || null,
+    }))
+    : [...folderIds].map((name) => ({ id: null, name: String(name), documents: 0, category: null }));
+  const categories = Array.isArray(today.byCategory)
+    ? today.byCategory
+    : [];
+  const statuses = Array.isArray(today.byStatusCounts)
+    ? today.byStatusCounts
+    : [];
   return {
     date: today.date,
     dateLabel: formatGinaDayLabel(today.date, locale),
     department: dept,
     documents: docs.length,
-    folders: folderIds.size,
+    folders: folderIds.size || folders.length,
     overdueHours: overdueDocs.length,
     fromNow: fromNowDocs.length,
     pastDue: docs.filter((d) => d.isPastDue || d.status === "past_due").length,
     byHierarchy: Array.isArray(today.byHierarchy) ? today.byHierarchy : [],
+    folderList: folders,
+    categoryList: categories,
+    statusList: statuses,
     sampleDocuments: docs.slice(0, 6).map(mapDocRow),
   };
+}
+
+function statusLabel(key, locale) {
+  const map = {
+    past_due: { es: "Vencidos", en: "Past due" },
+    in_progress: { es: "En progreso", en: "In progress" },
+    not_started: { es: "Sin empezar", en: "Not started" },
+    reserved: { es: "Reserved", en: "Reserved" },
+    submitted: { es: "Submitted", en: "Submitted" },
+    completed: { es: "Completed", en: "Completed" },
+  };
+  const row = map[key];
+  if (!row) return key;
+  return locale === "en" ? row.en : row.es;
+}
+
+function groupDocsByCategoryFolders(docs) {
+  /** @type {Map<string, Map<string, object[]>>} */
+  const byCat = new Map();
+  for (const raw of docs) {
+    const row = mapDocRow(raw);
+    const cat = row.category || "—";
+    const folder = row.folder || "—";
+    if (!byCat.has(cat)) byCat.set(cat, new Map());
+    const folders = byCat.get(cat);
+    if (!folders.has(folder)) folders.set(folder, []);
+    folders.get(folder).push({ ...row, anchorAt: raw.anchorAt || null });
+  }
+  return [...byCat.entries()].map(([category, folderMap]) => ({
+    category,
+    folders: [...folderMap.entries()].map(([folder, documents]) => ({
+      folder,
+      documents: documents.slice().sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || ""))),
+    })),
+  }));
 }
 
 /**
@@ -188,16 +240,31 @@ function buildDeptSummaryData(today, locale, now) {
 export function buildGinaVisualization(family, toolContext, opts = {}) {
   const locale = opts.locale === "en" ? "en" : "es";
   const q = String(opts.userText || "").toLowerCase();
+  const rawText = String(opts.userText || "");
   const now = opts.now instanceof Date ? opts.now : new Date();
   const ctx = toolContext && typeof toolContext === "object" ? toolContext : null;
   if (!ctx) return null;
 
   const wantsTable = /\b(detalle|detail|tabla|table|lista completa)\b/.test(q);
-  const wantsTimeline = /\b(horario|horarios|timeline|agenda|sheet)\b/.test(q);
+  const wantsTimeline = /\b(horario|horarios|timeline|agenda|sheet)\b/.test(q)
+    && !/\bexpand/.test(q)
+    && !/\bstatus\s+/.test(q)
+    && !/\bfolder\s+/.test(q)
+    && !/\bcategor/.test(q);
   const wantsOverdueHours = /\b(horas?\s+vencid|overdue\s+hours?)\b/.test(q);
   const wantsFromNow = /\bdesde\s+ahora\b/.test(q) || /\bfrom\s+now\b/.test(q);
   const wantsAllToday = /\btodos\s+los\s+de\s+hoy\b/.test(q) || /\ball\s+of\s+today\b/.test(q);
   const wantsFocus = /\benfoc\w*\b/.test(q) || /\bfocus\s+today\s+on\b/.test(q);
+  const wantsExpandStatus = /\bexpand(ir|e)?\s+status\b/.test(q);
+  const wantsExpandFolders = /\bexpand(ir|e)?\s+(por\s+)?folders?\b/.test(q)
+    || /\bexpand\s+by\s+folders?\b/.test(q);
+  const wantsExpandCategories = /\bexpand(ir|e)?\s+(por\s+)?categor/.test(q)
+    || /\bexpand\s+by\s+categor/.test(q);
+  const statusPick = q.match(/\bstatus\s+(past_due|in_progress|not_started|reserved|submitted|completed)\b/);
+  const folderPick = rawText.match(/\bFolder\s+(.+?)\s+hoy\s+en\b/i)
+    || rawText.match(/\bFolder\s+(.+?)\s+today\s+in\b/i);
+  const categoryPick = rawText.match(/\bCategor[íi]a\s+(.+?)\s+hoy\s+en\b/i)
+    || rawText.match(/\bCategory\s+(.+?)\s+today\s+in\b/i);
 
   if (family === "focus_open" || family === "social" || family === "unclear" || family === "dismiss" || family === "free_chat") return null;
 
@@ -210,6 +277,100 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       docs = docs.filter((d) => isSlotOverdue(d, now));
     } else if (wantsFromNow) {
       docs = docs.filter((d) => isSlotFromNow(d, now));
+    }
+
+    const dept = today.filters?.department
+      || docs[0]?.departmentName
+      || docs[0]?.department
+      || "—";
+
+    // Status list for one status inside a department
+    if (statusPick && today.filters?.department) {
+      const key = statusPick[1];
+      return {
+        type: "dept_status_list",
+        data: {
+          date: today.date,
+          dateLabel: formatGinaDayLabel(today.date, locale),
+          department: dept,
+          status: key,
+          statusLabel: statusLabel(key, locale),
+          documents: docs
+            .slice()
+            .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
+            .map(mapDocRow),
+        },
+      };
+    }
+
+    // Folder detail
+    if (folderPick && today.filters?.department) {
+      const folderName = folderPick[1].trim();
+      return {
+        type: "dept_folder_detail",
+        data: {
+          date: today.date,
+          dateLabel: formatGinaDayLabel(today.date, locale),
+          department: dept,
+          folder: folderName,
+          documents: docs
+            .slice()
+            .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
+            .map(mapDocRow),
+        },
+      };
+    }
+
+    // Category detail
+    if (categoryPick && today.filters?.department) {
+      const categoryName = categoryPick[1].trim();
+      return {
+        type: "dept_category_detail",
+        data: {
+          date: today.date,
+          dateLabel: formatGinaDayLabel(today.date, locale),
+          department: dept,
+          category: categoryName,
+          groups: groupDocsByCategoryFolders(docs),
+          documents: docs.map(mapDocRow),
+        },
+      };
+    }
+
+    // Expand menus
+    if (wantsExpandStatus && today.filters?.department) {
+      const summary = buildDeptSummaryData(today, locale, now);
+      return {
+        type: "dept_status_menu",
+        data: {
+          ...summary,
+          statuses: summary.statusList.length
+            ? summary.statusList
+            : (today.byStatusCounts || []),
+        },
+      };
+    }
+
+    if (wantsExpandFolders && today.filters?.department) {
+      const summary = buildDeptSummaryData(today, locale, now);
+      return {
+        type: "dept_folder_menu",
+        data: {
+          ...summary,
+          folders: summary.folderList,
+        },
+      };
+    }
+
+    if (wantsExpandCategories && today.filters?.department) {
+      const summary = buildDeptSummaryData(today, locale, now);
+      return {
+        type: "dept_category_menu",
+        data: {
+          ...summary,
+          categories: summary.categoryList,
+        },
+      };
     }
 
     if (wantsTimeline || (wantsAllToday && today.filters?.department)) {

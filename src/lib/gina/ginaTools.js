@@ -364,12 +364,14 @@ export function get_folder_children_summary(ctx = {}, folderId) {
   };
 }
 
-/** TOOL 7 — hoy: status≠completed + (anchor hoy restante OR folder ventana incluye hoy) */
+/** TOOL 7 — hoy: (anchor hoy OR folder ventana incluye hoy); completed excluded unless includeCompleted */
 export function get_today_scope(ctx = {}, filters = {}) {
   const { documents, folders, folderById, now } = buildDocIndex(ctx);
   const deptFilter = fold(filters.department || "");
   const folderFilter = fold(filters.folder || "");
   const categoryFilter = fold(filters.category || "");
+  const statusFilter = fold(filters.status || "");
+  const includeCompleted = Boolean(filters.includeCompleted);
 
   const folderWindowToday = new Set(
     folders
@@ -383,33 +385,62 @@ export function get_today_scope(ctx = {}, filters = {}) {
       .map((f) => f.id),
   );
 
-  const todayDocs = documents.filter((d) => {
-    if (d.status === DOC_WORK_STATUS.COMPLETED || d.completed) return false;
-
-    if (deptFilter && !fold(d.departmentName).includes(deptFilter)) return false;
-    if (categoryFilter && !fold(d.category).includes(categoryFilter)) return false;
-    if (folderFilter && !fold(d.parentFolderName).includes(folderFilter)) return false;
-
+  const isTodayScoped = (d) => {
     const inFolderWindow = d.parentFolderId && folderWindowToday.has(d.parentFolderId);
     const at = toDate(d.anchorAt);
     const finish = toDate(d.anchorFinishAt);
     let inDocToday = false;
     if (at && sameDay(at, now)) {
-      // resto del día: si ya terminó el bloque horario, fuera
-      if (finish && finish.getTime() < now.getTime()) inDocToday = false;
+      // For incomplete: drop finished time blocks. Completed can still show if includeCompleted.
+      if (!includeCompleted && finish && finish.getTime() < now.getTime()) inDocToday = false;
       else inDocToday = true;
     }
     return inDocToday || inFolderWindow;
+  };
+
+  let todayDocs = documents.filter((d) => {
+    const isCompleted = d.status === DOC_WORK_STATUS.COMPLETED || d.completed;
+    if (isCompleted && !includeCompleted) return false;
+
+    if (deptFilter && !fold(d.departmentName).includes(deptFilter)) return false;
+    if (categoryFilter && !fold(d.category).includes(categoryFilter)) return false;
+    if (folderFilter && !fold(d.parentFolderName).includes(folderFilter)) return false;
+
+    return isTodayScoped(d);
   });
+
+  if (statusFilter) {
+    todayDocs = todayDocs.filter((d) => {
+      if (statusFilter === "past_due" || statusFilter === "vencid") {
+        return d.isPastDue || d.status === DOC_WORK_STATUS.PAST_DUE;
+      }
+      if (statusFilter === "not_started" || statusFilter === "sin empezar") {
+        return d.status === DOC_WORK_STATUS.NOT_STARTED || d.status == null;
+      }
+      if (statusFilter === "completed") {
+        return d.status === DOC_WORK_STATUS.COMPLETED || d.completed;
+      }
+      return fold(d.status) === statusFilter;
+    });
+  }
 
   const byStatus = {
     notStarted: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.NOT_STARTED || d.status == null).length,
     inProgress: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.IN_PROGRESS).length,
     submitted: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.SUBMITTED).length,
     pastDue: todayDocs.filter((d) => d.isPastDue || d.status === DOC_WORK_STATUS.PAST_DUE).length,
-    completed: 0,
+    completed: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.COMPLETED || d.completed).length,
     reserved: todayDocs.filter((d) => d.status === DOC_WORK_STATUS.RESERVED).length,
   };
+
+  const byStatusCounts = [
+    { key: "past_due", count: byStatus.pastDue },
+    { key: "in_progress", count: byStatus.inProgress },
+    { key: "not_started", count: byStatus.notStarted },
+    { key: "reserved", count: byStatus.reserved },
+    { key: "submitted", count: byStatus.submitted },
+    { key: "completed", count: byStatus.completed },
+  ].filter((row) => row.count > 0);
 
   /** @type {Map<string, object>} */
   const groupMap = new Map();
@@ -419,6 +450,7 @@ export function get_today_scope(ctx = {}, filters = {}) {
       department: d.departmentName || null,
       category: d.category || null,
       folder: d.parentFolderName || null,
+      folderId: d.parentFolderId || null,
       documents: 0,
       statuses: [],
     };
@@ -427,9 +459,59 @@ export function get_today_scope(ctx = {}, filters = {}) {
     groupMap.set(key, cur);
   }
 
+  /** @type {Map<string, { name: string, documents: number, folderIds: Set<string> }>} */
+  const categoryMap = new Map();
+  for (const d of todayDocs) {
+    const name = String(d.category || "—").trim() || "—";
+    const cur = categoryMap.get(name) || { name, documents: 0, folderIds: new Set() };
+    cur.documents += 1;
+    if (d.parentFolderId) cur.folderIds.add(String(d.parentFolderId));
+    else if (d.parentFolderName) cur.folderIds.add(String(d.parentFolderName));
+    categoryMap.set(name, cur);
+  }
+  const byCategory = [...categoryMap.values()]
+    .map((c) => ({ name: c.name, documents: c.documents, folders: c.folderIds.size }))
+    .sort((a, b) => b.documents - a.documents);
+
+  /** @type {Map<string, { id: string | null, name: string, category: string | null, documents: number }>} */
+  const folderRollup = new Map();
+  for (const d of todayDocs) {
+    const name = String(d.parentFolderName || "—").trim() || "—";
+    const id = d.parentFolderId || null;
+    const key = id || name;
+    const cur = folderRollup.get(key) || {
+      id,
+      name,
+      category: d.category || null,
+      documents: 0,
+    };
+    cur.documents += 1;
+    folderRollup.set(key, cur);
+  }
+  for (const id of folderWindowToday) {
+    const f = folderById.get(id);
+    if (!f) continue;
+    if (deptFilter) {
+      const kids = documents.filter((d) => d.parentFolderId === id);
+      const deptName = kids[0]?.departmentName || null;
+      if (deptName && !fold(deptName).includes(deptFilter)) continue;
+    }
+    const name = folderTitle(f);
+    const key = id;
+    if (!folderRollup.has(key)) {
+      folderRollup.set(key, {
+        id,
+        name,
+        category: f.category || null,
+        documents: 0,
+      });
+    }
+  }
+  const byFolderList = [...folderRollup.values()].sort((a, b) => b.documents - a.documents);
+
   let nextDeadline = null;
   const timed = todayDocs
-    .filter((d) => d.anchorAt)
+    .filter((d) => d.anchorAt && !(d.status === DOC_WORK_STATUS.COMPLETED || d.completed))
     .slice()
     .sort((a, b) => String(a.anchorAt).localeCompare(String(b.anchorAt)));
   if (timed[0]) {
@@ -447,10 +529,12 @@ export function get_today_scope(ctx = {}, filters = {}) {
     const f = folderById.get(id);
     if (!f) return null;
     const kids = todayDocs.filter((d) => d.parentFolderId === id);
+    const deptName = kids[0]?.departmentName || null;
+    if (deptFilter && deptName && !fold(deptName).includes(deptFilter)) return null;
     return {
       id,
       name: folderTitle(f),
-      department: kids[0]?.departmentName || null,
+      department: deptName,
       category: f.category || null,
       childIncompleteToday: kids.length,
     };
@@ -499,15 +583,11 @@ export function get_today_scope(ctx = {}, filters = {}) {
     date: dayKey(now),
     totalDocumentsToday: todayDocs.length,
     breakdown: byStatus,
+    byStatusCounts,
+    byCategory,
     byDepartment,
     byHierarchy: [...groupMap.values()].sort((a, b) => b.documents - a.documents),
-    byFolder: [...groupMap.values()].map((g) => ({
-      folder: g.folder,
-      department: g.department,
-      category: g.category,
-      documents: g.documents,
-      status: g.statuses[0] || null,
-    })),
+    byFolder: byFolderList,
     activeFolders,
     documents: todayDocs,
     nextDeadline,
@@ -515,6 +595,8 @@ export function get_today_scope(ctx = {}, filters = {}) {
       department: filters.department || null,
       category: filters.category || null,
       folder: filters.folder || null,
+      status: filters.status || null,
+      includeCompleted: includeCompleted || null,
     },
   };
 }

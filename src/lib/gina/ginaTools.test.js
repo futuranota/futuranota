@@ -111,6 +111,17 @@ describe("ginaTools", () => {
     expect(scope.documents.some((d) => d.title === "Done piece")).toBe(false);
   });
 
+  it("get_today_scope includeCompleted + byStatusCounts + byCategory", () => {
+    const scope = get_today_scope(ctx, {
+      department: "Marketing",
+      includeCompleted: true,
+    });
+    expect(scope.documents.some((d) => d.title === "Done piece")).toBe(true);
+    expect(scope.byStatusCounts.some((r) => r.key === "completed" && r.count > 0)).toBe(true);
+    expect(scope.byCategory.some((c) => /blogs/i.test(c.name))).toBe(true);
+    expect(scope.byFolder.some((f) => f.name === "Snapchat")).toBe(true);
+  });
+
   it("get_workspace_inventory only lists live departments", () => {
     const inv = get_workspace_inventory(ctx);
     const names = inv.departments.map((d) => d.name);
@@ -217,6 +228,38 @@ describe("ginaQueryFamily", () => {
     const r = runGinaQueryFamily("abre Blog Post", ctx);
     expect(r.family).toBe("focus_open");
     expect(r.openDocumentId).toBe("n1");
+  });
+
+  it("routes Expandir status hoy en Marketing as today", () => {
+    const r = runGinaQueryFamily("Expandir status hoy en Marketing", ctx);
+    expect(r.family).toBe("today");
+    expect(r.toolContext.filters?.department).toBe("Marketing");
+    expect(r.toolContext.filters?.includeCompleted).toBe(true);
+  });
+
+  it("routes Status in_progress hoy en Marketing", () => {
+    const r = runGinaQueryFamily("Status in_progress hoy en Marketing", ctx);
+    expect(r.family).toBe("today");
+    expect(r.toolContext.filters?.status).toBe("in_progress");
+  });
+
+  it("routes Folder Snapchat hoy en Marketing", () => {
+    const r = runGinaQueryFamily("Folder Snapchat hoy en Marketing", ctx);
+    expect(r.family).toBe("today");
+    expect(r.toolContext.filters?.folder).toBe("Snapchat");
+    expect(r.toolContext.filters?.includeCompleted).toBe(true);
+  });
+
+  it("routes Categoría blogs hoy en Marketing", () => {
+    const r = runGinaQueryFamily("Categoría blogs hoy en Marketing", ctx);
+    expect(r.family).toBe("today");
+    expect(r.toolContext.filters?.category).toBe("blogs");
+  });
+
+  it("routes Expandir por folders hoy en Marketing", () => {
+    const r = runGinaQueryFamily("Expandir por folders hoy en Marketing", ctx);
+    expect(r.family).toBe("today");
+    expect(r.toolContext.filters?.department).toBe("Marketing");
   });
 
   it("routes past due", () => {
