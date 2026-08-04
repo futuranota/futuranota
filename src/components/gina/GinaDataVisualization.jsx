@@ -108,6 +108,133 @@ function TodayScopeVisualization({ data }) {
   );
 }
 
+function DepartmentCardsVisualization({ data, onSelectDepartment }) {
+  const depts = Array.isArray(data.departments) ? data.departments : [];
+  const recommended = data.recommended || depts[0]?.name;
+  return (
+    <div className="gina-viz gina-viz--dept-cards">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">Hoy</span>
+        <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
+      </header>
+      {!(depts.length > 0) && data.emptyHint ? (
+        <p className="gina-viz__empty">{data.emptyHint}</p>
+      ) : (
+        <div className="gina-viz__dept-grid" role="list">
+          {depts.map((dept) => {
+            const isRec = dept.name === recommended;
+            return (
+              <button
+                key={dept.name}
+                type="button"
+                role="listitem"
+                className={
+                  "gina-viz__dept-card"
+                  + (isRec ? " is-recommended" : "")
+                }
+                onClick={() => onSelectDepartment?.(dept.name)}
+              >
+                <span className="gina-viz__dept-icon" aria-hidden>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M4 20V10l8-6 8 6v10H4Z"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinejoin="round"
+                    />
+                    <path d="M9 20v-6h6v6" stroke="currentColor" strokeWidth="1.6" />
+                  </svg>
+                </span>
+                <span className="gina-viz__dept-name">{dept.name}</span>
+                <span className="gina-viz__dept-meta">
+                  {dept.folders ?? 0} folder{(dept.folders ?? 0) === 1 ? "" : "s"}
+                  {" · "}
+                  {dept.documents ?? 0} doc{(dept.documents ?? 0) === 1 ? "" : "s"}
+                  {(dept.pastDue ?? 0) > 0 ? ` · ${dept.pastDue} vencido${dept.pastDue === 1 ? "" : "s"}` : ""}
+                </span>
+                <span className="gina-hierarchy-path gina-viz__dept-path">
+                  departamento de {dept.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeptSummaryVisualization({ data }) {
+  const groups = Array.isArray(data.byHierarchy) ? data.byHierarchy : [];
+  return (
+    <div className="gina-viz gina-viz--dept-summary">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">Departamento</span>
+        <h3 className="gina-viz__title">{data.department || "—"}</h3>
+      </header>
+      <div className="gina-viz__stats">
+        <StatRow label="Folders" value={data.folders ?? 0} />
+        <StatRow label="Docs hoy" value={data.documents ?? 0} />
+        <StatRow label="Horas vencidas" value={data.overdueHours ?? 0} tone="past-due" />
+        <StatRow label="Desde ahora" value={data.fromNow ?? 0} tone="in-progress" />
+      </div>
+      {groups.length ? (
+        <ul className="gina-viz__list">
+          {groups.map((g) => (
+            <li key={`${g.department}-${g.category}-${g.folder}`} className="gina-viz__doc">
+              <GinaHierarchyPath
+                department={g.department}
+                category={g.category}
+                folder={g.folder}
+              />
+              <div className="gina-viz__doc-main">
+                <span className="gina-viz__doc-title">{g.documents} docs</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function ScheduleSheetVisualization({ data }) {
+  const groups = Array.isArray(data.groups) ? data.groups : [];
+  return (
+    <div className="gina-viz gina-viz--schedule-sheet">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">Horarios</span>
+        <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
+      </header>
+      {groups.length === 0 ? (
+        <p className="gina-viz__empty">Sin horarios en este alcance.</p>
+      ) : (
+        <div className="gina-viz__sheet">
+          {groups.map((group) => (
+            <section key={group.department} className="gina-viz__sheet-dept">
+              <h4 className="gina-viz__sheet-dept-name">{group.department}</h4>
+              {(group.folders || []).map((folder) => (
+                <div key={`${group.department}-${folder.folder}`} className="gina-viz__sheet-folder">
+                  <p className="gina-viz__sheet-folder-name">{folder.folder}</p>
+                  <ul className="gina-viz__sheet-slots">
+                    {(folder.documents || []).map((doc) => (
+                      <li key={doc.id || `${doc.title}-${doc.time}`} className="gina-viz__sheet-slot">
+                        <span className="gina-viz__sheet-time">{doc.time || "—"}</span>
+                        <span className="gina-viz__sheet-title">{doc.title}</span>
+                        {doc.status ? <DocStatusChip status={doc.status} /> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IncompleteVisualization({ data }) {
   const sections = [
     { key: "pastDue", title: "Vencidos", items: data.pastDue },
@@ -263,11 +390,26 @@ function TimelineVisualization({ data }) {
 }
 
 /**
- * @param {{ type?: string | null, data?: object | null }} props
+ * @param {{
+ *   type?: string | null,
+ *   data?: object | null,
+ *   onSelectDepartment?: (departmentName: string) => void,
+ * }} props
  */
-export function GinaDataVisualization({ type, data }) {
+export function GinaDataVisualization({ type, data, onSelectDepartment }) {
   if (!type || type === "null" || !data) return null;
   switch (type) {
+    case "department_cards":
+      return (
+        <DepartmentCardsVisualization
+          data={data}
+          onSelectDepartment={onSelectDepartment}
+        />
+      );
+    case "dept_summary":
+      return <DeptSummaryVisualization data={data} />;
+    case "schedule_sheet":
+      return <ScheduleSheetVisualization data={data} />;
     case "today_scope":
       return <TodayScopeVisualization data={data} />;
     case "incomplete":

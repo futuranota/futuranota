@@ -29,8 +29,39 @@ function fold(s) {
   return foldGinaText(s);
 }
 
+/**
+ * Longest whole-token title match inside query. Ignores 1–2 char names
+ * (avoids folder "N" matching inside "enfocarme").
+ * @param {string} foldedQuery
+ * @param {{ id: string, name?: string | null }[]} items
+ * @returns {string | null}
+ */
+function pickBestTitleMatch(foldedQuery, items) {
+  const q = fold(foldedQuery);
+  if (!q) return null;
+  let best = null;
+  let bestLen = 0;
+  for (const item of items) {
+    const name = fold(item?.name || "");
+    if (!name || name.length < 3) continue;
+    if (!q.includes(name)) continue;
+    // Prefer whole-token / bounded match when possible
+    const bounded = new RegExp(
+      `(^|[^\\p{L}\\p{N}])${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}([^\\p{L}\\p{N}]|$)`,
+      "u",
+    );
+    const ok = bounded.test(q) || q.includes(` ${name}`) || q.endsWith(name) || q.startsWith(name);
+    if (!ok && name.length < 6) continue;
+    if (name.length > bestLen) {
+      best = item.id;
+      bestLen = name.length;
+    }
+  }
+  return best;
+}
+
 /** Explicit work intents — bare "hoy" alone is NOT enough ("hoy no" / charla). */
-const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|departamento\w*|folder\w*|documento\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today)\b/;
+const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|enfocarme|departamento\w*|folder\w*|documento\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|horario\w*|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today|focus\s+today)\b/;
 
 /**
  * Clear goodbye / later / rest — wins even if the text mentions "hoy".
@@ -337,26 +368,33 @@ export function runGinaQueryFamily(text, ctx = {}) {
     };
   }
 
-  // Focus / open
-  if (/\b(abre|abrir|open|enfoca|enfocarme|trabajar en|focus)\b/.test(q)) {
+  // Department focus from chips/cards — NOT open a document/folder.
+  // "Enfocarme hoy en Marketing" must scope today to that dept.
+  {
+    const wantsDeptFocus = /\b(enfocarme|enfoca|enfocate|enfócate|focus(\s+today)?\s+on)\b/.test(q)
+      || /\bfocus\s+today\s+on\b/.test(q);
+    const deptHit = wantsDeptFocus ? matchDepartmentInText(ctx, text) : null;
+    if (wantsDeptFocus && deptHit) {
+      const filters = { department: deptHit.name, category: null, folder: null };
+      const toolContext = call("get_today_scope", () => get_today_scope(ctx, filters));
+      return {
+        family: "today",
+        toolsCalled,
+        toolContext,
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Focus / open a specific document or folder (not a department card click).
+  if (/\b(abre|abrir|open|trabajar en)\b/.test(q)
+    || (/\b(enfoca|enfocarme|focus)\b/.test(q) && !matchDepartmentInText(ctx, text))) {
     const docs = get_all_company_documents(ctx);
     const folders = get_all_company_folders(ctx);
-    let openDocumentId = null;
-    let openFolderId = null;
-    for (const d of docs) {
-      if (d.title && q.includes(fold(d.title))) {
-        openDocumentId = d.id;
-        break;
-      }
-    }
-    if (!openDocumentId) {
-      for (const f of folders) {
-        if (f.name && q.includes(fold(f.name))) {
-          openFolderId = f.id;
-          break;
-        }
-      }
-    }
+    const openDocumentId = pickBestTitleMatch(q, docs.map((d) => ({ id: d.id, name: d.title })));
+    const openFolderId = openDocumentId
+      ? null
+      : pickBestTitleMatch(q, folders.map((f) => ({ id: f.id, name: f.name })));
     toolsCalled.push("resolve_focus");
     return {
       family: "focus_open",

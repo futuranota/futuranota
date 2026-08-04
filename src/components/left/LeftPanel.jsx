@@ -26,6 +26,10 @@ import { GinaKnowledgeOverlay } from "../gina/GinaKnowledgeOverlay.jsx";
 import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
 import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
 import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js";
+import {
+  buildGinaFunnelHeadline,
+  buildGinaReplyChips,
+} from "../../lib/gina/ginaReplyChips.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { buildGinaKnowledgePromptBlock, isGinaLearnSaveConfirm, addLocalGinaKnowledge, parseGinaLearnReply } from "../../lib/gina/ginaKnowledgeStore.js";
@@ -2841,10 +2845,23 @@ export function LeftPanel({
         : { displayText: rawReply, learnProposal: null };
       if (learnProposal) setGinaPendingLearn(learnProposal);
 
+      const localeKey = locale === "es" ? "es" : "en";
+      const funnelHeadline = !meetingOn
+        ? buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        : null;
+      const chips = !meetingOn
+        ? buildGinaReplyChips({
+          family: routed.family,
+          visualization,
+          locale: localeKey,
+        })
+        : [];
+
       return {
-        message: displayText,
+        message: funnelHeadline || displayText,
         visualization,
         learnProposal,
+        chips: chips.length ? chips : null,
       };
     } catch (err) {
       console.warn("[gina] chat failed", err);
@@ -2870,6 +2887,7 @@ export function LeftPanel({
               userText: text,
             },
           ),
+        chips: null,
       };
     }
   }, [

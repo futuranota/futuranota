@@ -456,10 +456,50 @@ export function get_today_scope(ctx = {}, filters = {}) {
     };
   }).filter(Boolean);
 
+  /** @type {Map<string, { name: string, documents: number, pastDue: number, folderIds: Set<string> }>} */
+  const deptMap = new Map();
+  for (const d of todayDocs) {
+    const name = String(d.departmentName || "—").trim() || "—";
+    const cur = deptMap.get(name) || {
+      name,
+      documents: 0,
+      pastDue: 0,
+      folderIds: new Set(),
+    };
+    cur.documents += 1;
+    if (d.isPastDue || d.status === DOC_WORK_STATUS.PAST_DUE) cur.pastDue += 1;
+    if (d.parentFolderId) cur.folderIds.add(String(d.parentFolderId));
+    else if (d.parentFolderName) cur.folderIds.add(String(d.parentFolderName));
+    deptMap.set(name, cur);
+  }
+  for (const f of activeFolders) {
+    const name = String(f.department || "—").trim() || "—";
+    const cur = deptMap.get(name) || {
+      name,
+      documents: 0,
+      pastDue: 0,
+      folderIds: new Set(),
+    };
+    if (f.id) cur.folderIds.add(String(f.id));
+    deptMap.set(name, cur);
+  }
+  const byDepartment = [...deptMap.values()]
+    .map((d) => ({
+      name: d.name,
+      documents: d.documents,
+      pastDue: d.pastDue,
+      folders: d.folderIds.size,
+    }))
+    .sort((a, b) => {
+      if (b.pastDue !== a.pastDue) return b.pastDue - a.pastDue;
+      return b.documents - a.documents;
+    });
+
   return {
     date: dayKey(now),
     totalDocumentsToday: todayDocs.length,
     breakdown: byStatus,
+    byDepartment,
     byHierarchy: [...groupMap.values()].sort((a, b) => b.documents - a.documents),
     byFolder: [...groupMap.values()].map((g) => ({
       folder: g.folder,

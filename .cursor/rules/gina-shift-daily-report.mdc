@@ -35,8 +35,8 @@ Scope del reporte = **hoy**. Fuera de hoy = pregunta aparte.
 
 ## Build order (siguiente trabajo, mismo agente)
 
-1. Pulir **respuestas** + **UI de infografías** (Phase 1.5).
-2. **Opciones de texto** (chips / quick replies) bajo el bubble.
-3. Test **“horarios de hoy”** → listado real + viz.
-4. **Reporte manual** — disparar el walkthrough del día y congelar orden/datos.
+1. ~~Pulir respuestas + UI infografías (embudo hoy)~~ — **live:** `department_cards` + chips + sheet.
+2. ~~Opciones de texto (chips)~~ — opening + por estado en `ginaReplyChips.js`.
+3. Test continuo “horarios de hoy” → `schedule_sheet`.
+4. **Reporte manual** — disparar walkthrough del día y congelar orden/datos.
 5. Luego: shift clock + notis + `verified` + onboarding skins.

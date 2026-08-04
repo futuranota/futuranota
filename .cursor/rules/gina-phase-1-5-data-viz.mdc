@@ -21,7 +21,9 @@ Gina replies with short conversational **message** (verbal hierarchy) + structur
 - Groq only narrates `message` (short, verbal Depto/Cat/Folder).
 - UI path label: gray small `Marketing / Blogs / Trends` via `GinaHierarchyPath` — not a substitute for verbal prose.
 
-Types: `today_scope` | `incomplete` | `folder_summary` | `conflicts` | `table` | `timeline` | null.
+Types: `department_cards` | `dept_summary` | `schedule_sheet` | `today_scope` | `incomplete` | `folder_summary` | `conflicts` | `table` | `timeline` | null.
+
+**Today funnel (live):** “qué hay para hoy” → `department_cards` + chips (not full doc dump). Focus dept → `dept_summary`. “horarios de hoy” → `schedule_sheet` (Depto → Folder → horas). Chips: `ginaReplyChips.js`.
 
 ## UI
 

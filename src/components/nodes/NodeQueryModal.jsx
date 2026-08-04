@@ -59,6 +59,10 @@ import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
 import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
 import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
 import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js";
+import {
+  buildGinaFunnelHeadline,
+  buildGinaReplyChips,
+} from "../../lib/gina/ginaReplyChips.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { useDocsStore, useNodesStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
@@ -404,7 +408,18 @@ export function NodeQueryModal({
         : (locale === "es"
           ? "No pude responder. Intenta de nuevo."
           : "Couldn't reply. Try again.");
-      return { message, visualization };
+      const localeKey = locale === "es" ? "es" : "en";
+      const funnelHeadline = buildGinaFunnelHeadline(visualization, { locale: localeKey });
+      const chips = buildGinaReplyChips({
+        family: routed.family,
+        visualization,
+        locale: localeKey,
+      });
+      return {
+        message: funnelHeadline || message,
+        visualization,
+        chips: chips.length ? chips : null,
+      };
     } catch (err) {
       console.warn("[gina] in-doc chat failed", err);
       return locale === "es"

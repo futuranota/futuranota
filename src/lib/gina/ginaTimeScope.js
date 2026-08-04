@@ -181,9 +181,16 @@ export function parseGinaTimeScope(text, nowValue = new Date(), opts = {}) {
       || /\b(para\s+)?hoy\b.*\b(tengo|hay|tenemos)\b/.test(q)
       || /\b(dime|muestra|muestrame|muéstrame|entregame|entrégame|entreg[aue]|lista|revis[ae]|scope)\w*\b.*\b(para\s+)?hoy\b/.test(q)
       || (/\bpara\s+hoy\b/.test(q) && /\b(que|qué|dime|muestra|entreg|hay|tengo|tenemos|lista|scope|revis)\w*\b/.test(q))
+      || /\bhorarios?\s+(de\s+)?hoy\b/.test(q)
+      || /\benfoc\w*\b.*\bhoy\b/.test(q)
+      || /\bhoy\s+en\b/.test(q)
+      || /\b(horas?\s+)?vencid\w*\b.*\bhoy\b/.test(q)
+      || /\bdesde\s+ahora\b.*\bhoy\b/.test(q)
+      || /\btodos\s+los\s+de\s+hoy\b/.test(q)
       || /\bwhat\s+(do\s+i\s+)?have\s+(for\s+)?today\b/.test(q)
       || /\b(show|list|give)\s+me\b.*\btoday\b/.test(q)
-      || /\btoday'?s?\s+(docs|documents|schedule|scope|work|agenda)\b/.test(q);
+      || /\bfocus\s+today\s+on\b/.test(q)
+      || /\btoday'?s?\s+(docs|documents|schedule|scope|work|agenda|hours)\b/.test(q);
 
     if (explicitToday) {
       strip(/\b(para\s+hoy|hoy|today)\b/g);

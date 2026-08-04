@@ -833,6 +833,157 @@
   background: color-mix(in oklab, #c9b896 20%, #151515);
 }
 
+.gina-chat-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  max-width: 100%;
+}
+
+.gina-chat-card__chip {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #151515;
+  color: #d8d8d8;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 550;
+  line-height: 1.25;
+  border-radius: 999px;
+  padding: 7px 11px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.gina-chat-card__chip:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+  background: #1c1c1c;
+}
+
+.gina-chat-card__chip.is-primary {
+  border-color: color-mix(in oklab, #c9b896 50%, transparent);
+  color: #e8dcc4;
+  background: color-mix(in oklab, #c9b896 10%, #151515);
+}
+
+.gina-chat-card__chip.is-primary:hover {
+  background: color-mix(in oklab, #c9b896 18%, #151515);
+  color: #fff;
+}
+
+.gina-viz__dept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.gina-viz__dept-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 10px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #121212;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gina-viz__dept-card:hover,
+.gina-viz__dept-card.is-recommended {
+  border-color: color-mix(in oklab, #c9b896 45%, transparent);
+  background: color-mix(in oklab, #c9b896 8%, #121212);
+}
+
+.gina-viz__dept-icon {
+  color: #a8a8a8;
+  display: inline-flex;
+}
+
+.gina-viz__dept-name {
+  font-size: 13px;
+  font-weight: 650;
+  color: #fff;
+  line-height: 1.25;
+}
+
+.gina-viz__dept-meta {
+  font-size: 10px;
+  color: #9a9a9a;
+}
+
+.gina-viz__dept-path {
+  margin: 2px 0 0;
+  font-size: 10px;
+}
+
+.gina-viz__sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.gina-viz__sheet-dept-name {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: #fff;
+}
+
+.gina-viz__sheet-folder {
+  margin: 0 0 8px 2px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(255, 255, 255, 0.12);
+}
+
+.gina-viz__sheet-folder-name {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #b0b0b0;
+}
+
+.gina-viz__sheet-slots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gina-viz__sheet-slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gina-viz__sheet-time {
+  flex: 0 0 auto;
+  min-width: 88px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #c9b896;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, #c9b896 45%, transparent);
+  text-underline-offset: 3px;
+}
+
+.gina-viz__sheet-title {
+  flex: 1 1 auto;
+  font-size: 12px;
+  color: #e8e8e8;
+}
+
 /* Gina Knowledge dashboard overlay */
 .gina-knowledge-overlay {
   position: fixed;

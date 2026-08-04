@@ -188,6 +188,37 @@ describe("ginaQueryFamily", () => {
     expect(r.workspaceInventory?.departments?.length).toBeGreaterThan(0);
   });
 
+  it("routes Enfocarme hoy en Marketing as today dept scope (not open folder)", () => {
+    const r = runGinaQueryFamily("Enfocarme hoy en Marketing", ctx);
+    expect(r.family).toBe("today");
+    expect(r.toolContext.filters?.department).toBe("Marketing");
+    expect(r.openDocumentId).toBeUndefined();
+    expect(r.openFolderId).toBeUndefined();
+  });
+
+  it("does not open short-named folder from enfocarme phrase", () => {
+    const ctxShort = {
+      ...ctx,
+      docs: {
+        ...ctx.docs,
+        fN: {
+          id: "fN",
+          title: "N",
+          parentObjectId: "co1",
+        },
+      },
+    };
+    const r = runGinaQueryFamily("Enfocarme hoy en Marketing", ctxShort);
+    expect(r.family).toBe("today");
+    expect(r.openFolderId).toBeUndefined();
+  });
+
+  it("routes abre Blog Post as focus_open", () => {
+    const r = runGinaQueryFamily("abre Blog Post", ctx);
+    expect(r.family).toBe("focus_open");
+    expect(r.openDocumentId).toBe("n1");
+  });
+
   it("routes past due", () => {
     const r = runGinaQueryFamily("qué está vencido?", ctx);
     expect(r.family).toBe("past_due");

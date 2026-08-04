@@ -10,8 +10,9 @@ import { normalizeDictationTranscript } from "../../lib/ginaSpeechVocab.js";
 import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
+import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
 
-/** @typedef {{ sender: "ai" | "user", text: string, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null }} GinaChatMessage */
+/** @typedef {{ sender: "ai" | "user", text: string, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id: string, label: string, text: string, primary?: boolean }[] | null }} GinaChatMessage */
 
 function SendIcon() {
   return (
@@ -138,9 +139,14 @@ export function GinaChatCard({
   initialMeetingMode = false,
   lockMeetingMode = false,
 }) {
+  const chipLocale = String(speechLang || "").toLowerCase().startsWith("en") ? "en" : "es";
   /** @type {[GinaChatMessage[], Function]} */
-  const [messages, setMessages] = useState([
-    { sender: "ai", text: openingMessage },
+  const [messages, setMessages] = useState(() => [
+    {
+      sender: "ai",
+      text: openingMessage,
+      chips: buildGinaOpeningChips({ locale: chipLocale }),
+    },
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -375,12 +381,14 @@ export function GinaChatCard({
         let aiText = "";
         let visualization = null;
         let learnProposal = null;
+        let chips = null;
         if (typeof reply === "string") {
           aiText = reply.trim();
         } else if (reply && typeof reply === "object") {
           aiText = String(reply.message || reply.reply || "").trim();
           visualization = reply.visualization || null;
           learnProposal = reply.learnProposal || null;
+          chips = Array.isArray(reply.chips) ? reply.chips : null;
         }
         const waitMore = minTypingMs - (Date.now() - typingStartedAt);
         if (waitMore > 0) {
@@ -389,7 +397,13 @@ export function GinaChatCard({
         if (aiText || visualization || learnProposal) {
           setMessages((prev) => [
             ...prev,
-            { sender: "ai", text: aiText || " ", visualization, learnProposal },
+            {
+              sender: "ai",
+              text: aiText || " ",
+              visualization,
+              learnProposal,
+              chips,
+            },
           ]);
         }
       } finally {
@@ -581,7 +595,35 @@ export function GinaChatCard({
                 <GinaDataVisualization
                   type={msg.visualization.type}
                   data={msg.visualization.data}
+                  onSelectDepartment={(deptName) => {
+                    if (!deptName || isTyping) return;
+                    const locale = chipLocale;
+                    const text = locale === "en"
+                      ? `Focus today on ${deptName}`
+                      : `Enfocarme hoy en ${deptName}`;
+                    void deliverUserMessage(text);
+                  }}
                 />
+              ) : null}
+              {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping ? (
+                <div className="gina-chat-card__chips" role="group" aria-label="Suggested replies">
+                  {msg.chips.map((chip) => (
+                    <button
+                      key={chip.id || chip.label}
+                      type="button"
+                      className={
+                        "gina-chat-card__chip"
+                        + (chip.primary ? " is-primary" : "")
+                      }
+                      onClick={() => {
+                        if (isTyping) return;
+                        void deliverUserMessage(chip.text || chip.label);
+                      }}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
               ) : null}
               {msg.sender === "ai" && msg.learnProposal && allowMeetingMode ? (
                 <button

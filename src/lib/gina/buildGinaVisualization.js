@@ -77,75 +77,195 @@ function mapDocRow(d) {
   };
 }
 
+function isSlotOverdue(doc, now = new Date()) {
+  const finish = doc.anchorFinishAt ? new Date(doc.anchorFinishAt) : null;
+  const start = doc.anchorAt ? new Date(doc.anchorAt) : null;
+  if (finish && !Number.isNaN(finish.getTime()) && finish.getTime() < now.getTime()) return true;
+  if (start && !Number.isNaN(start.getTime()) && start.getTime() < now.getTime()) {
+    if (!finish) return true;
+  }
+  return Boolean(doc.isPastDue || doc.status === "past_due");
+}
+
+function isSlotFromNow(doc, now = new Date()) {
+  const start = doc.anchorAt ? new Date(doc.anchorAt) : null;
+  if (!start || Number.isNaN(start.getTime())) return true; // untimed still in today scope
+  return start.getTime() >= now.getTime();
+}
+
+/**
+ * Group docs Depto → Folder → timed rows for schedule sheet.
+ * @param {object[]} docs
+ */
+export function groupDocsForScheduleSheet(docs) {
+  /** @type {Map<string, Map<string, object[]>>} */
+  const byDept = new Map();
+  for (const raw of docs) {
+    const row = mapDocRow(raw);
+    const dept = row.department || "—";
+    const folder = row.folder || "—";
+    if (!byDept.has(dept)) byDept.set(dept, new Map());
+    const folders = byDept.get(dept);
+    if (!folders.has(folder)) folders.set(folder, []);
+    folders.get(folder).push({
+      ...row,
+      anchorAt: raw.anchorAt || null,
+    });
+  }
+  return [...byDept.entries()].map(([department, folderMap]) => ({
+    department,
+    folders: [...folderMap.entries()].map(([folder, documents]) => ({
+      folder,
+      documents: documents.slice().sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || ""))),
+    })),
+  }));
+}
+
+function buildDepartmentCardsData(today, locale) {
+  const departments = Array.isArray(today.byDepartment) && today.byDepartment.length
+    ? today.byDepartment
+    : (() => {
+        const map = new Map();
+        for (const d of asDocs(today.documents)) {
+          const name = d.departmentName || d.department || "—";
+          const cur = map.get(name) || { name, documents: 0, pastDue: 0, folders: 0, folderIds: new Set() };
+          cur.documents += 1;
+          if (d.isPastDue || d.status === "past_due") cur.pastDue += 1;
+          if (d.parentFolderId) cur.folderIds.add(d.parentFolderId);
+          map.set(name, cur);
+        }
+        return [...map.values()].map((d) => ({
+          name: d.name,
+          documents: d.documents,
+          pastDue: d.pastDue,
+          folders: d.folderIds.size,
+        })).sort((a, b) => (b.pastDue - a.pastDue) || (b.documents - a.documents));
+      })();
+  const recommended = departments[0]?.name || null;
+  return {
+    date: today.date,
+    dateLabel: formatGinaDayLabel(today.date, locale),
+    total: today.totalDocumentsToday ?? asDocs(today.documents).length,
+    departments,
+    recommended,
+    emptyHint: locale === "en"
+      ? "No pending documents for today."
+      : "Sin documentos pendientes para hoy.",
+  };
+}
+
+function buildDeptSummaryData(today, locale, now) {
+  const docs = asDocs(today.documents);
+  const dept = today.filters?.department
+    || docs[0]?.departmentName
+    || docs[0]?.department
+    || "—";
+  const overdueDocs = docs.filter((d) => isSlotOverdue(d, now));
+  const fromNowDocs = docs.filter((d) => isSlotFromNow(d, now));
+  const folderIds = new Set(
+    docs.map((d) => d.parentFolderId || d.parentFolderName || d.folder).filter(Boolean),
+  );
+  return {
+    date: today.date,
+    dateLabel: formatGinaDayLabel(today.date, locale),
+    department: dept,
+    documents: docs.length,
+    folders: folderIds.size,
+    overdueHours: overdueDocs.length,
+    fromNow: fromNowDocs.length,
+    pastDue: docs.filter((d) => d.isPastDue || d.status === "past_due").length,
+    byHierarchy: Array.isArray(today.byHierarchy) ? today.byHierarchy : [],
+    sampleDocuments: docs.slice(0, 6).map(mapDocRow),
+  };
+}
+
 /**
  * @param {string} family
  * @param {unknown} toolContext
- * @param {{ locale?: string, userText?: string }} [opts]
+ * @param {{ locale?: string, userText?: string, now?: Date }} [opts]
  * @returns {{ type: string, data: object } | null}
  */
 export function buildGinaVisualization(family, toolContext, opts = {}) {
   const locale = opts.locale === "en" ? "en" : "es";
   const q = String(opts.userText || "").toLowerCase();
+  const now = opts.now instanceof Date ? opts.now : new Date();
   const ctx = toolContext && typeof toolContext === "object" ? toolContext : null;
   if (!ctx) return null;
 
   const wantsTable = /\b(detalle|detail|tabla|table|lista completa)\b/.test(q);
-  const wantsTimeline = /\b(horario|horarios|timeline|agenda)\b/.test(q);
+  const wantsTimeline = /\b(horario|horarios|timeline|agenda|sheet)\b/.test(q);
+  const wantsOverdueHours = /\b(horas?\s+vencid|overdue\s+hours?)\b/.test(q);
+  const wantsFromNow = /\bdesde\s+ahora\b/.test(q) || /\bfrom\s+now\b/.test(q);
+  const wantsAllToday = /\btodos\s+los\s+de\s+hoy\b/.test(q) || /\ball\s+of\s+today\b/.test(q);
+  const wantsFocus = /\benfoc\w*\b/.test(q) || /\bfocus\s+today\s+on\b/.test(q);
 
   if (family === "focus_open" || family === "social" || family === "unclear" || family === "dismiss" || family === "free_chat") return null;
 
   if (family === "today" || (family === "default_overview" && ctx.today)) {
     const today = family === "today" ? ctx : ctx.today;
     if (!today || typeof today !== "object") return null;
-    if (wantsTimeline) {
+
+    let docs = asDocs(today.documents);
+    if (wantsOverdueHours) {
+      docs = docs.filter((d) => isSlotOverdue(d, now));
+    } else if (wantsFromNow) {
+      docs = docs.filter((d) => isSlotFromNow(d, now));
+    }
+
+    if (wantsTimeline || (wantsAllToday && today.filters?.department)) {
+      const source = wantsTimeline || wantsAllToday || wantsOverdueHours || wantsFromNow
+        ? docs
+        : asDocs(today.documents);
       return {
-        type: "timeline",
+        type: "schedule_sheet",
         data: {
           date: today.date,
           dateLabel: formatGinaDayLabel(today.date, locale),
-          documents: asDocs(today.documents)
+          groups: groupDocsForScheduleSheet(source),
+          documents: source
             .slice()
             .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
             .map(mapDocRow),
         },
       };
     }
+
     if (wantsTable) {
       return {
         type: "table",
         data: {
           title: locale === "en" ? "Today" : "Hoy",
-          documents: asDocs(today.documents).map(mapDocRow),
+          documents: docs.map(mapDocRow),
         },
       };
     }
-    const bd = today.breakdown || {};
+
+    const hasDeptFilter = Boolean(today.filters?.department);
+    if (hasDeptFilter || wantsFocus) {
+      if (wantsOverdueHours || wantsFromNow || wantsAllToday) {
+        return {
+          type: "schedule_sheet",
+          data: {
+            date: today.date,
+            dateLabel: formatGinaDayLabel(today.date, locale),
+            groups: groupDocsForScheduleSheet(docs),
+            documents: docs
+              .slice()
+              .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
+              .map(mapDocRow),
+          },
+        };
+      }
+      return {
+        type: "dept_summary",
+        data: buildDeptSummaryData(today, locale, now),
+      };
+    }
+
+    // Progressive first step: department cards only (no doc dump).
     return {
-      type: "today_scope",
-      data: {
-        date: today.date,
-        dateLabel: formatGinaDayLabel(today.date, locale),
-        total: today.totalDocumentsToday ?? asDocs(today.documents).length,
-        notStarted: bd.notStarted || 0,
-        inProgress: bd.inProgress || 0,
-        pastDue: bd.pastDue || 0,
-        submitted: bd.submitted || 0,
-        completed: 0,
-        documents: asDocs(today.documents).map(mapDocRow),
-        byHierarchy: Array.isArray(today.byHierarchy) ? today.byHierarchy : [],
-        nextDeadline: today.nextDeadline
-          ? {
-              document: today.nextDeadline.title,
-              time: formatGinaTimeRange(today.nextDeadline.time, null, locale),
-              folder: today.nextDeadline.folder,
-              department: today.nextDeadline.department,
-              category: today.nextDeadline.category,
-            }
-          : null,
-        emptyHint: locale === "en"
-          ? "No pending documents in this scope. Explore a department or a document you have in mind?"
-          : "Sin documentos pendientes en este alcance. ¿Exploramos un departamento o un documento que tengas en mente?",
-      },
+      type: "department_cards",
+      data: buildDepartmentCardsData(today, locale),
     };
   }
 
