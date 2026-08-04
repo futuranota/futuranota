@@ -600,7 +600,7 @@ export function GinaChatCard({
                     }}
                   />
                   <div className="gina-chat-card__bubble gina-chat-card__bubble--ai gina-chat-card__bubble--after-viz">
-                    <GinaAiMessageText text={msg.text} />
+                    <GinaAiMessageText text={msg.text} plainBody />
                   </div>
                 </>
               ) : (
@@ -612,7 +612,12 @@ export function GinaChatCard({
                         : "gina-chat-card__bubble gina-chat-card__bubble--user"
                     }
                   >
-                    {msg.sender === "ai" ? <GinaAiMessageText text={msg.text} /> : msg.text}
+                    {msg.sender === "ai" ? (
+                      <GinaAiMessageText
+                        text={msg.text}
+                        plainBody={msg.visualization?.type === "recovery_preview"}
+                      />
+                    ) : msg.text}
                   </div>
                   {msg.sender === "ai" && msg.visualization ? (
                     <GinaDataVisualization

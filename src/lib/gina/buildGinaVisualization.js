@@ -226,7 +226,10 @@ function attachRecoveryMeta(data, today, now) {
     passedSlotCount: today.passedSlotCount ?? computedPassed.length,
     markableSlotCount: today.markableSlotCount ?? null,
     firstPendingTitle: today.firstPendingTitle || computedPassed[0]?.title || null,
-    hasRecoveryOffer: computedPassed.length > 0,
+    hasRecoveryOffer: (today.markableSlotCount ?? computedPassed.filter((d) => {
+      const s = d.status;
+      return s !== "past_due" && s !== "completed" && s !== "submitted";
+    }).length) > 0,
   };
 }
 

@@ -191,10 +191,17 @@
 .gina-chat-card__ai-body {
   display: block;
   font-family: "Inter", var(--sans, system-ui, sans-serif);
-  font-weight: 300;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #767676;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #f5f5f5;
+}
+
+.gina-chat-card__ai-body--soft {
+  color: #f5f5f5;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.45;
 }
 
 .gina-chat-card__ai-headline + .gina-chat-card__ai-body,
@@ -946,19 +953,23 @@
 
 .gina-viz__time-overlay {
   position: absolute;
-  inset: -3px -6px;
-  border-radius: 6px;
-  background: color-mix(in oklab, #eaa65d 28%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in oklab, #eaa65d 55%, transparent);
+  left: -3px;
+  right: -4px;
+  top: 2px;
+  bottom: 0;
+  border-radius: 2px;
+  background: color-mix(in oklab, #30701D 42%, transparent);
+  border: none;
+  box-shadow: none;
   opacity: 0;
-  transform: scaleX(0.92);
+  transform: skewX(-10deg) scaleY(0.92);
   transform-origin: left center;
   pointer-events: none;
   z-index: 0;
 }
 
 .gina-viz__sheet-time-wrap.will-highlight .gina-viz__time-overlay {
-  animation: gina-time-highlight-in 0.85s ease 1.35s forwards;
+  animation: gina-time-highlight-in 0.9s ease 1.35s forwards;
 }
 
 .gina-viz__sheet-time-wrap .gina-viz__sheet-time {
@@ -970,11 +981,11 @@
 @keyframes gina-time-highlight-in {
   from {
     opacity: 0;
-    transform: scaleX(0.92);
+    transform: skewX(-10deg) scaleY(0.92);
   }
   to {
     opacity: 1;
-    transform: scaleX(1);
+    transform: skewX(-10deg) scaleY(1);
   }
 }
 

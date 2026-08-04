@@ -5,6 +5,7 @@ import { useAnimatedText } from "../../hooks/useAnimatedText.js";
  * - Only a question or short title → all headline (white/bold).
  * - Question + prose after → question = headline, prose = body (gray/small).
  * - Prose then question → prose = body, question = headline (reading order via bodyFirst).
+ * - `?` inside quotes does not count as the question boundary.
  * @param {string} text
  * @returns {{ headline: string, body: string, bodyFirst?: boolean }}
  */
@@ -12,7 +13,7 @@ export function splitGinaAiText(text) {
   const plain = String(text || "").replace(/\*\*(.*?)\*\*/g, "$1").trim();
   if (!plain) return { headline: "", body: "" };
 
-  const lastQ = plain.lastIndexOf("?");
+  const lastQ = findLastQuestionMarkOutsideQuotes(plain);
   if (lastQ >= 0) {
     const throughQ = plain.slice(0, lastQ + 1);
     const afterQ = plain.slice(lastQ + 1).trim();
@@ -42,17 +43,14 @@ export function splitGinaAiText(text) {
       return { headline: question, body: before, bodyFirst: true };
     }
 
-    // Question then deep description → classic headline + body
+    // Question then deep description → classic headline + body (title at start)
     if (!before && after) {
       return { headline: question, body: after };
     }
 
-    // Both sides: keep question emphasized; merge desc into body
-    return {
-      headline: question,
-      body: [before, after].filter(Boolean).join("\n"),
-      bodyFirst: Boolean(before),
-    };
+    // Both sides with a mid-question: treat as descriptive body only
+    // (avoid promoting a mid-block line to white bold).
+    return { headline: "", body: plain };
   }
 
   // No question: first sentence = title emphasis; rest = deep desc
@@ -65,6 +63,28 @@ export function splitGinaAiText(text) {
   }
 
   return { headline: plain, body: "" };
+}
+
+/** Last `?` not inside "…" / '…' / “…” / ‘…’. */
+function findLastQuestionMarkOutsideQuotes(text) {
+  let inDouble = false;
+  let inSingle = false;
+  let inCurlyDouble = false;
+  let inCurlySingle = false;
+  let last = -1;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === "“") inCurlyDouble = true;
+    else if (ch === "”") inCurlyDouble = false;
+    else if (ch === "‘") inCurlySingle = true;
+    else if (ch === "’" && inCurlySingle) inCurlySingle = false;
+    else if (ch === '"' && !inSingle && !inCurlyDouble && !inCurlySingle) inDouble = !inDouble;
+    else if (ch === "'" && !inDouble && !inCurlyDouble && !inCurlySingle) inSingle = !inSingle;
+    else if (ch === "?" && !inDouble && !inSingle && !inCurlyDouble && !inCurlySingle) {
+      last = i;
+    }
+  }
+  return last;
 }
 
 /**
@@ -80,9 +100,23 @@ export function GinaAnimatedText({ text, className }) {
 
 /**
  * AI reply: white/bold question·title + gray/small deep description.
- * @param {{ text?: string }} props
+ * @param {{ text?: string, plainBody?: boolean }} props
  */
-export function GinaAiMessageText({ text }) {
+export function GinaAiMessageText({ text, plainBody = false }) {
+  const plain = String(text || "").replace(/\*\*(.*?)\*\*/g, "$1").trim();
+  if (!plain) return null;
+
+  if (plainBody) {
+    const animated = useAnimatedText(plain);
+    return (
+      <span className="gina-chat-card__ai-text">
+        <span className="gina-chat-card__ai-body gina-chat-card__ai-body--soft">
+          {animated || "\u00A0"}
+        </span>
+      </span>
+    );
+  }
+
   const { headline, body, bodyFirst } = splitGinaAiText(text);
   const sep = body ? "\n" : "";
   // Typewriter in reading order

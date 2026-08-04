@@ -160,7 +160,7 @@ export function buildScheduleRecoveryOfferText(opts = {}) {
       `Hey — looking at the clock, these items fell behind this morning.\n`
       + `How do you want to adjust them?\n`
       + `Mark as past due: Clears the current list so you can review them later.\n`
-      + `Cascade reschedule: Keeps the order starting with ${first} and shifts the rest for today.\n`
+      + `Cascade reschedule: Keeps the order starting with ${first} and shifts the rest for today. `
       + `(Pick an option below to apply)`
     );
   }
@@ -168,7 +168,7 @@ export function buildScheduleRecoveryOfferText(opts = {}) {
     `Oye, viendo la hora, estos temas se nos quedaron atrás en la mañana.\n`
     + `¿Cómo prefieres ajustarlos?\n`
     + `Marcar como vencidos: Limpia la lista actual para que la revises más tarde.\n`
-    + `Reagendar en cadena: Mantiene el orden iniciando con ${first} y desplaza el resto para hoy.\n`
+    + `Reagendar en cadena: Mantiene el orden iniciando con ${first} y desplaza el resto para hoy. `
     + `(Selecciona una opción abajo para aplicar)`
   );
 }

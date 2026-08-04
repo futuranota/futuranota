@@ -88,6 +88,29 @@ describe("ginaScheduleRecovery", () => {
     expect(text).toContain("Marcar como vencidos");
     expect(text).toContain("Reagendar en cadena");
     expect(text).toContain("¿Qué es Futura Nota?");
+    expect(text.trim().endsWith("(Selecciona una opción abajo para aplicar)")).toBe(true);
+  });
+
+  it("does not offer recovery when passed slots are already past_due", () => {
+    const markedCtx = {
+      ...ctx,
+      nodes: {
+        ...ctx.nodes,
+        n1: { ...ctx.nodes.n1, status: "past_due" },
+        n3: { ...ctx.nodes.n3, status: "past_due" },
+      },
+    };
+    const today = get_today_scope(markedCtx);
+    expect(today.markableSlotCount).toBe(0);
+    const viz = buildGinaVisualization("today", today, {
+      userText: "Muéstrame los horarios de hoy",
+      now,
+      locale: "es",
+    });
+    expect(viz?.type).toBe("schedule_sheet");
+    expect(viz.data.hasRecoveryOffer).toBe(false);
+    const headline = buildGinaFunnelHeadline(viz, { locale: "es" });
+    expect(headline || "").not.toContain("Oye, viendo la hora");
   });
 
   it("schedule_sheet offers recovery chips", () => {

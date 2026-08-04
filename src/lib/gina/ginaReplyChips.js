@@ -343,7 +343,9 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
   }
 
   if (visualization.type === "schedule_sheet") {
-    if (data.hasRecoveryOffer && data.passedSlotCount > 0) {
+    const markable = data.markableSlotCount
+      ?? (Array.isArray(data.markableSlots) ? data.markableSlots.length : 0);
+    if (data.hasRecoveryOffer && markable > 0) {
       return buildScheduleRecoveryOfferText({
         firstTitle: data.firstPendingTitle,
         locale: opts.locale,
