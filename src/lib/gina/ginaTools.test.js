@@ -103,12 +103,28 @@ describe("ginaTools", () => {
     expect(folders.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("get_today_scope excludes completed and includes folder-window incompletes", () => {
+  it("get_today_scope only includes docs whose anchorAt is today", () => {
     const scope = get_today_scope(ctx);
     expect(scope.date).toBe("2026-08-01");
     expect(scope.documents.every((d) => d.status !== "completed")).toBe(true);
-    expect(scope.totalDocumentsToday).toBeGreaterThanOrEqual(2);
     expect(scope.documents.some((d) => d.title === "Done piece")).toBe(false);
+    // Yesterday past_due must NOT enter via folder window
+    expect(scope.documents.some((d) => d.title === "Email campaign")).toBe(false);
+    // Same-day docs stay even if their time block already finished (now = 12:00, n1 ends 15:00 / n3 ends 13:00)
+    expect(scope.documents.some((d) => d.title === "Blog Post")).toBe(true);
+    expect(scope.documents.some((d) => d.title === "Moodboard")).toBe(true);
+    expect(scope.documents.every((d) => String(d.anchorAt || "").startsWith("2026-08-01"))).toBe(true);
+  });
+
+  it("get_today_scope keeps finished-today blocks (passed slot still in list)", () => {
+    const late = {
+      ...ctx,
+      now: new Date("2026-08-01T16:00:00"),
+    };
+    const scope = get_today_scope(late);
+    expect(scope.documents.some((d) => d.title === "Blog Post")).toBe(true);
+    expect(scope.documents.some((d) => d.title === "Moodboard")).toBe(true);
+    expect(scope.documents.some((d) => d.title === "Email campaign")).toBe(false);
   });
 
   it("get_today_scope includeCompleted + byStatusCounts + byCategory", () => {

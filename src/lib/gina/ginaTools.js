@@ -364,38 +364,21 @@ export function get_folder_children_summary(ctx = {}, folderId) {
   };
 }
 
-/** TOOL 7 — hoy: (anchor hoy OR folder ventana incluye hoy); completed excluded unless includeCompleted */
+/** TOOL 7 — hoy: solo documents cuyo `anchorAt` cae en el día calendario de `now`.
+ * No usa la ventana multi-día del folder. Bloques ya terminados hoy SÍ entran (Gina los señalará después).
+ * Completed excluded unless includeCompleted.
+ */
 export function get_today_scope(ctx = {}, filters = {}) {
-  const { documents, folders, folderById, now } = buildDocIndex(ctx);
+  const { documents, folderById, now } = buildDocIndex(ctx);
   const deptFilter = fold(filters.department || "");
   const folderFilter = fold(filters.folder || "");
   const categoryFilter = fold(filters.category || "");
   const statusFilter = fold(filters.status || "");
   const includeCompleted = Boolean(filters.includeCompleted);
 
-  const folderWindowToday = new Set(
-    folders
-      .filter((f) => {
-        const start = toDate(f.scheduleStartAt);
-        const finish = toDate(f.scheduleFinishAt);
-        if (!start || !finish) return false;
-        const t = startOfDay(now).getTime();
-        return t >= startOfDay(start).getTime() && t <= startOfDay(finish).getTime();
-      })
-      .map((f) => f.id),
-  );
-
   const isTodayScoped = (d) => {
-    const inFolderWindow = d.parentFolderId && folderWindowToday.has(d.parentFolderId);
     const at = toDate(d.anchorAt);
-    const finish = toDate(d.anchorFinishAt);
-    let inDocToday = false;
-    if (at && sameDay(at, now)) {
-      // For incomplete: drop finished time blocks. Completed can still show if includeCompleted.
-      if (!includeCompleted && finish && finish.getTime() < now.getTime()) inDocToday = false;
-      else inDocToday = true;
-    }
-    return inDocToday || inFolderWindow;
+    return Boolean(at && sameDay(at, now));
   };
 
   let todayDocs = documents.filter((d) => {
@@ -488,25 +471,6 @@ export function get_today_scope(ctx = {}, filters = {}) {
     cur.documents += 1;
     folderRollup.set(key, cur);
   }
-  for (const id of folderWindowToday) {
-    const f = folderById.get(id);
-    if (!f) continue;
-    if (deptFilter) {
-      const kids = documents.filter((d) => d.parentFolderId === id);
-      const deptName = kids[0]?.departmentName || null;
-      if (deptName && !fold(deptName).includes(deptFilter)) continue;
-    }
-    const name = folderTitle(f);
-    const key = id;
-    if (!folderRollup.has(key)) {
-      folderRollup.set(key, {
-        id,
-        name,
-        category: f.category || null,
-        documents: 0,
-      });
-    }
-  }
   const byFolderList = [...folderRollup.values()].sort((a, b) => b.documents - a.documents);
 
   let nextDeadline = null;
@@ -525,7 +489,11 @@ export function get_today_scope(ctx = {}, filters = {}) {
     };
   }
 
-  const activeFolders = [...folderWindowToday].map((id) => {
+  /** Folders that actually have today-scoped docs (not multi-day folder window alone). */
+  const activeFolderIds = new Set(
+    todayDocs.map((d) => d.parentFolderId).filter(Boolean),
+  );
+  const activeFolders = [...activeFolderIds].map((id) => {
     const f = folderById.get(id);
     if (!f) return null;
     const kids = todayDocs.filter((d) => d.parentFolderId === id);
@@ -554,17 +522,6 @@ export function get_today_scope(ctx = {}, filters = {}) {
     if (d.isPastDue || d.status === DOC_WORK_STATUS.PAST_DUE) cur.pastDue += 1;
     if (d.parentFolderId) cur.folderIds.add(String(d.parentFolderId));
     else if (d.parentFolderName) cur.folderIds.add(String(d.parentFolderName));
-    deptMap.set(name, cur);
-  }
-  for (const f of activeFolders) {
-    const name = String(f.department || "—").trim() || "—";
-    const cur = deptMap.get(name) || {
-      name,
-      documents: 0,
-      pastDue: 0,
-      folderIds: new Set(),
-    };
-    if (f.id) cur.folderIds.add(String(f.id));
     deptMap.set(name, cur);
   }
   const byDepartment = [...deptMap.values()]

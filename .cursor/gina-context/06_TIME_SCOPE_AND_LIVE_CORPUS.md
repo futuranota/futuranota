@@ -21,10 +21,15 @@ Inventario mínimo por turno:
 
 ## “¿Qué hay para hoy?”
 
-Incluir documents con **`status !== completed`** si:
+Incluir documents cuyo **`anchorAt` cae en el día calendario de hoy** (misma fecha local que `now`).
 
-1. `anchorAt` cae **hoy** y el bloque aún no terminó antes de `now` (resto del día → medianoche), **o**
-2. el document vive en un folder cuya ventana `scheduleStartAt → scheduleFinishAt` **incluye hoy**.
+Reglas:
+
+1. **Sí** si el día de `anchorAt` = hoy — aunque el bloque horario ya haya terminado, aunque el status sea `past_due` / `in_progress` / `not_started`, etc.
+2. **No** si `anchorAt` es ayer o mañana.
+3. **No** meter docs solo porque el folder tiene ventana `scheduleStartAt → scheduleFinishAt` que incluye hoy.
+4. Sin `anchorAt` → fuera del scope de hoy (no inventar “Flexible” como ítem de hoy).
+5. `status === completed` queda fuera por defecto; el funnel de status puede pedir `includeCompleted`.
 
 Narrar agrupado:
 
@@ -36,13 +41,15 @@ Vacío absoluto:
 
 Solo mencionar nombres de deptos si están en el inventario; si no hay deptos, pregunta abierta.
 
+**Después (paso 2):** Gina puede señalar bloques ya pasados y ofrecer marcar vencidos o posponer horario — eso no cambia el filtro de “hoy”.
+
 ---
 
 ## Semántica de tiempo
 
 | Frase | Scope |
 |---|---|
-| hoy / para hoy | desde `now` → fin del día local |
+| hoy / para hoy | día calendario de `anchorAt` = hoy (incluye bloques ya terminados) |
 | para mañana | **solo** mañana (excluye hoy) |
 | hasta mañana | hoy **+** mañana |
 | dentro de N días | **solo** el día `today+N` — confirmar fecha (“¿te refieres al …?”) |
