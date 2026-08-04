@@ -15,6 +15,7 @@ import { useConfirmStore } from "../../stores/confirmStore.js";
 import { MarkLoadingOverlay } from "../shared/MarkLoading.jsx";
 import { NodeForm } from "../nodes/NodeForm.jsx";
 import { NodeQueryModal } from "../nodes/NodeQueryModal.jsx";
+import { StandaloneNodeModal } from "../nodes/StandaloneNodeModal.jsx";
 import {
   CAMPAIGN_DOC_STATUS_INACTIVE,
   normalizeCampaignDocStatus,
@@ -316,6 +317,7 @@ export function DocExpandedView({
   const [draftSubcategoryDocIds, setDraftSubcategoryDocIds] = useState([]);
   const [draftKnowledgeImport, setDraftKnowledgeImport] = useState(null);
   const [activeNodeContext, setActiveNodeContext] = useState(null);
+  const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [nodeDraftContent, setNodeDraftContent] = useState("");
   const [nodeDraftAnchorDate, setNodeDraftAnchorDate] = useState("");
   const [nodeDraftAnchorTime, setNodeDraftAnchorTime] = useState("");
@@ -340,7 +342,13 @@ export function DocExpandedView({
   const docIsDirtyRef = useRef(false);
   const skipDraftPersistRef = useRef(false);
   const pendingCloseActionRef = useRef(null);
-  const hideDocForNodeModal = Boolean(activeNodeContext && !showNodeUnsavedConfirm);
+  const hideDocForNodeModal = Boolean(
+    (activeNodeContext && !showNodeUnsavedConfirm) || showCreateDocument,
+  );
+
+  const handleCreateDocumentInFolder = useCallback(() => {
+    setShowCreateDocument(true);
+  }, []);
   const objects = useObjectsStore((s) => s.objects);
   const allDocs = useDocsStore((s) => s.docs);
   const departments = useDepartmentsStore((s) => s.departments);
@@ -358,6 +366,7 @@ export function DocExpandedView({
     setIsDraftReady(false);
     skipDraftPersistRef.current = false;
     docIsDirtyRef.current = false;
+    setShowCreateDocument(false);
     const d = useDocsStore.getState().docs[docId];
     if (!d) return;
     const cached = useUIStateStore.getState().docEditorDrafts[docId];
@@ -2390,9 +2399,21 @@ export function DocExpandedView({
           onFolderViewModeChange={isContentMode ? (nextMode) => {
             updateDoc(doc.id, { viewMode: nextMode });
           } : undefined}
+          onCreateDocumentInFolder={
+            isContentMode ? handleCreateDocumentInFolder : undefined
+          }
         />
         ) : null}
       </div>
+      {showCreateDocument ? (
+        <StandaloneNodeModal
+          docs={Object.values(allDocs)}
+          parentObjectId={draftParentId || null}
+          initialParentDocId={doc.id}
+          onClose={() => setShowCreateDocument(false)}
+          onSaved={() => setShowCreateDocument(false)}
+        />
+      ) : null}
       {selectionModal && (
         <NodeFromSelectionModal
           query={selectionModal.query}

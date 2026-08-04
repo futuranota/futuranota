@@ -1,7 +1,7 @@
 import { normalizeKnowledgeImport } from "./knowledgeImport.js";
 import { normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import {
-  FOLDER_VIEW_MODE_STORY,
+  FOLDER_VIEW_MODE_QUICK,
   normalizeFolderViewMode,
 } from "./folderViewMode.js";
 import { readLaunchRadarFromDoc } from "./launchRadarSnapshot.js";
@@ -30,8 +30,8 @@ export function emptyDocCampaignFields() {
     /** Selected campaign document (node id) that drives the folder timeline date. */
     timelineSourceNodeId: null,
     nodeLinkColor: "dark",
-    /** Story (descriptive) or Quick (color-link) presentation for linked docs. */
-    viewMode: FOLDER_VIEW_MODE_STORY,
+    /** Story (descriptive) or Quick (title + direct link) presentation for linked docs. */
+    viewMode: FOLDER_VIEW_MODE_QUICK,
     knowledgeImport: null,
     launchRadarSnapshot: null,
     reportPresentation: null,

@@ -9503,6 +9503,67 @@ body.doc-content-resizing * {
   user-select: none;
 }
 
+.doc-slash-command-picker__file-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.9;
+}
+
+.doc-slash-command-picker__btn--create-file {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  opacity: 1;
+  box-shadow: none;
+}
+
+.doc-slash-command-picker__btn--create-file .doc-slash-command-picker__file-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  /* Darker gray than department label (0.55) */
+  background-color: rgba(255, 255, 255, 0.38);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.doc-slash-command-picker__btn--create-file:hover,
+.doc-slash-command-picker__btn--create-file:focus-visible {
+  background: transparent;
+  border: none;
+  opacity: 1;
+  box-shadow: none;
+  transform: none;
+}
+
+.doc-slash-command-picker__btn:hover .doc-slash-command-picker__file-icon,
+.doc-slash-command-picker__btn:focus-visible .doc-slash-command-picker__file-icon {
+  opacity: 1;
+  filter: brightness(0.15);
+}
+
+.doc-slash-command-picker__btn--create-file:hover .doc-slash-command-picker__file-icon,
+.doc-slash-command-picker__btn--create-file:focus-visible .doc-slash-command-picker__file-icon {
+  /* Descriptive / Not started pink */
+  background-color: #D6B4A7;
+  filter: none;
+  opacity: 1;
+  transform: scale(1.08);
+}
+
 .doc-slash-command-picker__btn:hover .doc-slash-command-picker__glyph,
 .doc-slash-command-picker__btn:focus-visible .doc-slash-command-picker__glyph,
 .doc-slash-command-picker__btn[aria-expanded="true"] .doc-slash-command-picker__glyph {

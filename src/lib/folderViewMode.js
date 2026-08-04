@@ -3,9 +3,10 @@ export const FOLDER_VIEW_MODE_STORY = "story";
 export const FOLDER_VIEW_MODE_QUICK = "quick";
 
 export function normalizeFolderViewMode(value) {
-  return value === FOLDER_VIEW_MODE_QUICK
-    ? FOLDER_VIEW_MODE_QUICK
-    : FOLDER_VIEW_MODE_STORY;
+  if (value === FOLDER_VIEW_MODE_STORY) return FOLDER_VIEW_MODE_STORY;
+  if (value === FOLDER_VIEW_MODE_QUICK) return FOLDER_VIEW_MODE_QUICK;
+  // Unset / invalid → Quick (new folders default to Title + Direct Link).
+  return FOLDER_VIEW_MODE_QUICK;
 }
 
 export function isFolderQuickView(viewMode) {

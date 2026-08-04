@@ -111,6 +111,47 @@ function TodayScopeVisualization({ data }) {
   );
 }
 
+function DepartmentBuildingIcon({ className = "" }) {
+  return (
+    <svg
+      className={className}
+      width="28"
+      height="34"
+      viewBox="23 15 28 32"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M33.4966 40.3457H39.7943"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M33.4966 26.3262H39.7943"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M49.2406 15.3105H24.0496C23.4699 15.3105 23 15.7589 23 16.3119V19.316C23 19.8691 23.4699 20.3174 24.0496 20.3174H49.2406C49.8203 20.3174 50.2903 19.8691 50.2903 19.316V16.3119C50.2903 15.7589 49.8203 15.3105 49.2406 15.3105Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M48.1914 20.3184V32.3348M48.1914 32.3348C48.1914 32.6003 48.0808 32.855 47.8839 33.0428C47.6871 33.2306 47.4201 33.3361 47.1417 33.3361H26.1492C25.8709 33.3361 25.6039 33.2306 25.407 33.0428C25.2102 32.855 25.0996 32.6003 25.0996 32.3348M48.1914 32.3348V46.3539M25.0996 32.3348V20.3184M48.1914 42.3484V46.3539H25.0996V32.3348"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function DepartmentCardsVisualization({ data, onSelectDepartment }) {
   const depts = Array.isArray(data.departments) ? data.departments : [];
   const recommended = data.recommended || depts[0]?.name;
@@ -126,37 +167,32 @@ function DepartmentCardsVisualization({ data, onSelectDepartment }) {
         <div className="gina-viz__dept-grid" role="list">
           {depts.map((dept) => {
             const isRec = dept.name === recommended;
+            const docs = dept.documents ?? 0;
+            const folders = dept.folders ?? 0;
             return (
               <button
                 key={dept.name}
                 type="button"
                 role="listitem"
                 className={
-                  "gina-viz__dept-card"
+                  "gina-viz__dept-card gina-viz__dept-card--ref"
                   + (isRec ? " is-recommended" : "")
                 }
                 onClick={() => onSelectDepartment?.(dept.name)}
               >
-                <span className="gina-viz__dept-icon" aria-hidden>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M4 20V10l8-6 8 6v10H4Z"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinejoin="round"
-                    />
-                    <path d="M9 20v-6h6v6" stroke="currentColor" strokeWidth="1.6" />
-                  </svg>
+                <span className="gina-viz__dept-buildings" aria-hidden>
+                  <DepartmentBuildingIcon />
+                  <DepartmentBuildingIcon />
+                  <DepartmentBuildingIcon />
                 </span>
                 <span className="gina-viz__dept-name">{dept.name}</span>
                 <span className="gina-viz__dept-meta">
-                  {dept.folders ?? 0} folder{(dept.folders ?? 0) === 1 ? "" : "s"}
+                  {folders} folder{folders === 1 ? "" : "s"}
                   {" · "}
-                  {dept.documents ?? 0} doc{(dept.documents ?? 0) === 1 ? "" : "s"}
-                  {(dept.pastDue ?? 0) > 0 ? ` · ${dept.pastDue} vencido${dept.pastDue === 1 ? "" : "s"}` : ""}
-                </span>
-                <span className="gina-hierarchy-path gina-viz__dept-path">
-                  departamento de {dept.name}
+                  {docs} doc{docs === 1 ? "" : "s"}
+                  {(dept.pastDue ?? 0) > 0
+                    ? ` · ${dept.pastDue} vencido${dept.pastDue === 1 ? "" : "s"}`
+                    : ""}
                 </span>
               </button>
             );

@@ -45,7 +45,7 @@ import { useDocTextTypography } from "../../hooks/useDocTextTypography.js";
 
 /** Long enough for the Mark write cycle to read while saving. */
 const SAVE_LOADING_MIN_MS = 700;
-const FOLDER_EMPTY_ROOM_SRC = "/uploads/files-room.svg";
+const FOLDER_EMPTY_ROOM_SRC = "/uploads/rooms.svg";
 
 const DEFAULT_HEADER_LABEL = "";
 const CONTENT_BOX_MIN_HEIGHT = 100;
@@ -131,6 +131,7 @@ export function DocDocumentBox({
   onReportAnimationComplete = null,
   folderViewMode = null,
   onFolderViewModeChange = null,
+  onCreateDocumentInFolder = null,
 }) {
   const { t } = useI18n();
   const isTemplate = docKind === "template" || isTemplateDoc({ docKind });
@@ -142,8 +143,7 @@ export function DocDocumentBox({
    */
   const isFolderSlashSurface = metaMode === "content" || docKind === "content";
   const slashCommands = isFolderSlashSurface ? FOLDER_SLASH_COMMANDS : DOCUMENT_SLASH_COMMANDS;
-  // Folder [+] keeps its visual controls, but document creation belongs to the
-  // explicit folder action. Typed slash behavior remains available.
+  // Folder surface: typed slash still works; floating btn creates a document (no color menu).
   const pickerCommands = isFolderSlashSurface ? [] : slashCommands;
   const slashGhostHints = isFolderSlashSurface ? FOLDER_SLASH_GHOST_HINTS : DOCUMENT_SLASH_GHOST_HINTS;
   const parseScopedSlashQuery = isFolderSlashSurface ? parseFolderSlashQuery : parseDocumentSlashQuery;
@@ -1015,7 +1015,13 @@ export function DocDocumentBox({
           isCommandEnabled={isSlashCommandEnabled}
           variant="floating"
           nodeLinkColor={metaStripNodeLinkColor}
-          onNodeLinkColorChange={isKnowledgeMode ? undefined : handleMetaNodeLinkColorChange}
+          onNodeLinkColorChange={
+            isFolderSlashSurface || isKnowledgeMode
+              ? undefined
+              : handleMetaNodeLinkColorChange
+          }
+          createDocumentMode={isFolderSlashSurface && typeof onCreateDocumentInFolder === "function"}
+          onCreateDocument={onCreateDocumentInFolder}
         />
       </div>
 

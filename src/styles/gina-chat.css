@@ -885,9 +885,9 @@
 
 .gina-viz__dept-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
-  margin-top: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .gina-viz__dept-card {
@@ -911,6 +911,46 @@
   background: color-mix(in oklab, #c9b896 8%, #121212);
 }
 
+.gina-viz__dept-card--ref {
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 83px;
+  padding: 12px 10px 10px;
+  border-radius: 5px;
+  border: none;
+  background: color-mix(in oklab, #F2D2D2 4%, #151515);
+  box-shadow:
+    0 0 0 1px rgba(19, 19, 19, 0.4),
+    0 2px 2px rgba(19, 19, 19, 0.4);
+  text-align: center;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gina-viz__dept-card--ref:hover,
+.gina-viz__dept-card--ref.is-recommended {
+  border: none;
+  background: color-mix(in oklab, #F2D2D2 9%, #151515);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, #F2D2D2 18%, transparent),
+    0 2px 4px rgba(19, 19, 19, 0.5);
+}
+
+.gina-viz__dept-buildings {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  color: #4D4D4D;
+  line-height: 0;
+}
+
+.gina-viz__dept-buildings svg {
+  width: 22px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
 .gina-viz__dept-icon {
   color: #a8a8a8;
   display: inline-flex;
@@ -923,9 +963,27 @@
   line-height: 1.25;
 }
 
+.gina-viz__dept-card--ref .gina-viz__dept-name {
+  font-size: 12px;
+  color: #9a9a9a;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gina-viz__dept-card--ref:hover .gina-viz__dept-name,
+.gina-viz__dept-card--ref.is-recommended .gina-viz__dept-name {
+  color: #cfcfcf;
+}
+
 .gina-viz__dept-meta {
   font-size: 10px;
   color: #9a9a9a;
+}
+
+.gina-viz__dept-card--ref .gina-viz__dept-meta {
+  color: #6e6e6e;
 }
 
 .gina-viz__eyebrow--gold {

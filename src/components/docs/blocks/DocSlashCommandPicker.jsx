@@ -27,7 +27,9 @@ function CommandOption({ cmd, enabled, onPick }) {
   );
 }
 
-/** Floating slash-command picker — block commands + optional node link colors. */
+/** Floating slash-command picker — block commands + optional node link colors.
+ * Folder surface can use createDocumentMode to open a document directly.
+ */
 export function DocSlashCommandPicker({
   commands = DOC_SLASH_COMMANDS,
   onSelectCommand,
@@ -36,33 +38,66 @@ export function DocSlashCommandPicker({
   nodeLinkColor,
   onNodeLinkColorChange,
   nodeLinkColorLabel = "Nodes colors",
+  createDocumentMode = false,
+  onCreateDocument = null,
+  createDocumentIconSrc = "/uploads/create-a-file.svg",
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
-  const showNodeLinkColors = Boolean(onNodeLinkColorChange);
+  const showNodeLinkColors = Boolean(onNodeLinkColorChange) && !createDocumentMode;
   const sections = buildSlashMenuSections(commands);
   const hasCommands = sections.length > 0;
   const menuLabel = hasCommands ? "Document tools" : nodeLinkColorLabel;
-  const buttonLabel = hasCommands ? "Block commands and node colors" : nodeLinkColorLabel;
+  const buttonLabel = createDocumentMode
+    ? "Create a document"
+    : (hasCommands ? "Block commands and node colors" : nodeLinkColorLabel);
   const rootClass = [
     "doc-slash-command-picker",
     variant === "pad" ? "doc-slash-command-picker--pad" : "doc-slash-command-picker--floating",
-  ].join(" ");
+    createDocumentMode ? "doc-slash-command-picker--create-file" : "",
+  ].filter(Boolean).join(" ");
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || createDocumentMode) return;
     const onDocDown = (event) => {
       if (rootRef.current?.contains(event.target)) return;
       setOpen(false);
     };
     document.addEventListener("mousedown", onDocDown);
     return () => document.removeEventListener("mousedown", onDocDown);
-  }, [open]);
+  }, [open, createDocumentMode]);
 
   const pick = (alias) => {
     onSelectCommand?.(alias);
     setOpen(false);
   };
+
+  if (createDocumentMode) {
+    return (
+      <div className={rootClass} ref={rootRef}>
+        <button
+          type="button"
+          className="doc-slash-command-picker__btn doc-slash-command-picker__btn--create-file"
+          aria-label={buttonLabel}
+          title={buttonLabel}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onCreateDocument?.();
+          }}
+        >
+          <span
+            className="doc-slash-command-picker__file-icon"
+            style={{
+              WebkitMaskImage: `url("${createDocumentIconSrc}")`,
+              maskImage: `url("${createDocumentIconSrc}")`,
+            }}
+            aria-hidden
+          />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className={rootClass} ref={rootRef}>

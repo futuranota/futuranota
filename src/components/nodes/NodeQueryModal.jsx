@@ -746,7 +746,7 @@ export function NodeQueryModal({
                   ref={focusCategoryRef}
                   className="doc-focus-top__category"
                   value={query}
-                  placeholder="Got a new Question?"
+                  placeholder="Describe a Document"
                   rows={1}
                   aria-label="Query or title"
                   spellCheck={false}
@@ -848,7 +848,7 @@ export function NodeQueryModal({
                   syncQueryInputHeight();
                 }}
                 rows={1}
-                placeholder="Got a new Question?"
+                placeholder="Describe a Document"
                 spellCheck={false}
                 aria-label="Query or title"
               />
