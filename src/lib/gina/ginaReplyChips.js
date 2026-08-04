@@ -168,14 +168,23 @@ export function buildDeptCategoryMenuChips(opts = {}) {
   const dept = opts.department || "";
   const categories = Array.isArray(opts.categories) ? opts.categories : [];
   /** @type {GinaReplyChip[]} */
-  const chips = categories.slice(0, 12).map((c, i) => ({
-    id: `cat_${c.name}`,
-    label: c.documents != null ? `${c.name} (${c.documents})` : c.name,
-    text: en
-      ? `Category ${c.name} today in ${dept}`
-      : `Categoría ${c.name} hoy en ${dept}`,
-    primary: i === 0,
-  }));
+  const chips = [
+    {
+      id: "cat_all",
+      label: "All",
+      text: en
+        ? `Category All today in ${dept}`
+        : `Categoría All hoy en ${dept}`,
+      primary: true,
+    },
+    ...categories.slice(0, 12).map((c) => ({
+      id: `cat_${c.name}`,
+      label: c.documents != null ? `${c.name} (${c.documents})` : c.name,
+      text: en
+        ? `Category ${c.name} today in ${dept}`
+        : `Categoría ${c.name} hoy en ${dept}`,
+    })),
+  ];
   chips.push({
     id: "back_dept",
     label: en ? `Back to ${dept}` : `Volver a ${dept}`,
@@ -267,18 +276,16 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
 
   if (visualization.type === "dept_summary") {
     const name = data.department || "—";
-    const folders = data.folders ?? 0;
-    const docs = data.documents ?? 0;
     return en
-      ? `In **${name}**: ${folders} folders, ${docs} docs for today. How do you want to expand?`
-      : `En **${name}**: ${folders} folders, ${docs} docs para hoy. ¿Cómo quieres expandir?`;
+      ? `You’re in **${name}**. How do you want to view today’s schedules?`
+      : `Estás en **${name}**. ¿Cómo quieres visualizar los horarios?`;
   }
 
   if (visualization.type === "dept_status_menu") {
     const name = data.department || "—";
     return en
-      ? `Statuses available today in **${name}**. Which one do you want to see?`
-      : `Statuses disponibles hoy en **${name}**. ¿Cuál quieres ver?`;
+      ? `You’re in **${name}**. Pick a status:`
+      : `Estás en **${name}**. Elige un status:`;
   }
 
   if (visualization.type === "dept_status_list") {
@@ -353,17 +360,28 @@ export function buildGinaReplyChips(opts = {}) {
     });
   }
   if (type === "dept_summary") {
-    return buildDeptFocusChips({
-      department: data.department,
-      locale,
-    });
+    // Expand modes live in the viz; reply row only goes back.
+    return [
+      {
+        id: "back_depts",
+        label: locale === "en" ? "Back to departments" : "Volver a departamentos",
+        text: locale === "en" ? "What do we have for today?" : "¿Qué tenemos para hoy?",
+      },
+    ];
   }
   if (type === "dept_status_menu") {
-    return buildDeptStatusMenuChips({
-      department: data.department,
-      statuses: data.statuses,
-      locale,
-    });
+    // Status picks live in the viz (color + icon chips); reply row only navigates back.
+    return [
+      {
+        id: "back_dept",
+        label: locale === "en"
+          ? `Back to ${data.department || "department"}`
+          : `Volver a ${data.department || "departamento"}`,
+        text: locale === "en"
+          ? `Focus today on ${data.department || ""}`
+          : `Enfocarme hoy en ${data.department || ""}`,
+      },
+    ];
   }
   if (type === "dept_folder_menu") {
     return buildDeptFolderMenuChips({

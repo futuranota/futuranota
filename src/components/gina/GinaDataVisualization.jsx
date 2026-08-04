@@ -164,34 +164,49 @@ function DepartmentCardsVisualization({ data, onSelectDepartment }) {
   );
 }
 
-function DeptSummaryVisualization({ data }) {
-  const groups = Array.isArray(data.byHierarchy) ? data.byHierarchy : [];
+function DeptSummaryVisualization({ data, onSelectAction }) {
+  const dept = data.department || "";
+  const expandModes = [
+    {
+      id: "expand_categories",
+      label: "Categorías",
+      text: `Expandir por categorías hoy en ${dept}`,
+    },
+    {
+      id: "expand_status",
+      label: "Status",
+      text: `Expandir status hoy en ${dept}`,
+    },
+    {
+      id: "expand_folders",
+      label: "Folders",
+      text: `Expandir por folders hoy en ${dept}`,
+    },
+  ];
   return (
     <div className="gina-viz gina-viz--dept-summary">
       <header className="gina-viz__head">
-        <span className="gina-viz__eyebrow">Departamento</span>
-        <h3 className="gina-viz__title">{data.department || "—"}</h3>
+        <span className="gina-viz__eyebrow">Estás en</span>
+        <h3 className="gina-viz__title">{dept || "—"}</h3>
       </header>
       <div className="gina-viz__stats">
         <StatRow label="Folders" value={data.folders ?? 0} />
         <StatRow label="Docs hoy" value={data.documents ?? 0} />
       </div>
-      {groups.length ? (
-        <ul className="gina-viz__list">
-          {groups.map((g) => (
-            <li key={`${g.department}-${g.category}-${g.folder}`} className="gina-viz__doc">
-              <GinaHierarchyPath
-                department={g.department}
-                category={g.category}
-                folder={g.folder}
-              />
-              <div className="gina-viz__doc-main">
-                <span className="gina-viz__doc-title">{g.documents} docs</span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <p className="gina-viz__prompt">¿Cómo quieres visualizar los horarios?</p>
+      <div className="gina-viz__expand-grid" role="list">
+        {expandModes.map((mode) => (
+          <button
+            key={mode.id}
+            type="button"
+            role="listitem"
+            className="gina-viz__expand-chip"
+            onClick={() => onSelectAction?.(mode.text)}
+          >
+            {mode.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -225,6 +240,37 @@ function SelectableMenuVisualization({
               {item.meta ? (
                 <span className="gina-viz__dept-meta">{item.meta}</span>
               ) : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusMenuVisualization({ data, onSelectAction }) {
+  const dept = data.department || "";
+  const statuses = Array.isArray(data.statuses) ? data.statuses : [];
+  return (
+    <div className="gina-viz gina-viz--status-menu">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">Estás en</span>
+        <h3 className="gina-viz__title">{dept || "—"}</h3>
+      </header>
+      {statuses.length === 0 ? (
+        <p className="gina-viz__empty">Sin statuses con docs hoy.</p>
+      ) : (
+        <div className="gina-viz__status-pickers" role="list">
+          {statuses.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              role="listitem"
+              className="gina-viz__status-picker"
+              onClick={() => onSelectAction?.(`Status ${s.key} hoy en ${dept}`)}
+            >
+              <DocStatusChip status={s.key} />
+              <span className="gina-viz__status-picker-count">{s.count}</span>
             </button>
           ))}
         </div>
@@ -271,7 +317,9 @@ function CategoryDetailVisualization({ data }) {
               {(group.folders || []).map((folder) => (
                 <div key={`${group.category}-${folder.folder}`} className="gina-viz__sheet-folder">
                   <p className="gina-viz__sheet-folder-name">
-                    <span className="gina-viz__sheet-cat-tag">[{data.category || group.category}]</span>
+                    <span className="gina-viz__sheet-cat-tag">
+                      [{data.category === "All" ? (group.category || "—") : (data.category || group.category)}]
+                    </span>
                     {" "}
                     {folder.folder}
                   </p>
@@ -497,15 +545,6 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
   if (!type || type === "null" || !data) return null;
   const dept = data.department || "";
 
-  const statusLabels = {
-    past_due: "Vencidos",
-    in_progress: "En progreso",
-    not_started: "Sin empezar",
-    reserved: "Reserved",
-    submitted: "Submitted",
-    completed: "Completed",
-  };
-
   switch (type) {
     case "department_cards":
       return (
@@ -515,20 +554,17 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
         />
       );
     case "dept_summary":
-      return <DeptSummaryVisualization data={data} />;
+      return (
+        <DeptSummaryVisualization
+          data={data}
+          onSelectAction={onSelectAction}
+        />
+      );
     case "dept_status_menu":
       return (
-        <SelectableMenuVisualization
-          eyebrow="Status"
-          title={dept}
-          items={(data.statuses || []).map((s) => ({
-            id: s.key,
-            name: s.key,
-            label: `${statusLabels[s.key] || s.key} (${s.count})`,
-            meta: `${s.count} docs`,
-            text: `Status ${s.key} hoy en ${dept}`,
-          }))}
-          onSelect={(item) => onSelectAction?.(item.text)}
+        <StatusMenuVisualization
+          data={data}
+          onSelectAction={onSelectAction}
         />
       );
     case "dept_folder_menu":
@@ -551,13 +587,22 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
         <SelectableMenuVisualization
           eyebrow="Categorías"
           title={dept}
-          items={(data.categories || []).map((c) => ({
-            id: c.name,
-            name: c.name,
-            label: c.name,
-            meta: c.documents != null ? `${c.documents} docs` : undefined,
-            text: `Categoría ${c.name} hoy en ${dept}`,
-          }))}
+          items={[
+            {
+              id: "all",
+              name: "All",
+              label: "All",
+              meta: data.documents != null ? `${data.documents} docs` : undefined,
+              text: `Categoría All hoy en ${dept}`,
+            },
+            ...(data.categories || []).map((c) => ({
+              id: c.name,
+              name: c.name,
+              label: c.name,
+              meta: c.documents != null ? `${c.documents} docs` : undefined,
+              text: `Categoría ${c.name} hoy en ${dept}`,
+            })),
+          ]}
           onSelect={(item) => onSelectAction?.(item.text)}
         />
       );

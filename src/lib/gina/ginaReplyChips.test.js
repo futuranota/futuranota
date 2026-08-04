@@ -45,15 +45,16 @@ describe("ginaReplyChips", () => {
     expect(line).toContain("A");
   });
 
-  it("funnel headline for dept_summary asks how to expand", () => {
+  it("funnel headline for dept_summary asks how to view schedules", () => {
     const line = buildGinaFunnelHeadline({
       type: "dept_summary",
       data: { department: "Marketing", folders: 2, documents: 3 },
     }, { locale: "es" });
-    expect(line).toContain("expandir");
+    expect(line).toContain("Marketing");
+    expect(line).toContain("visualizar los horarios");
   });
 
-  it("reply chips from dept_status_menu", () => {
+  it("reply chips from dept_status_menu only navigate back", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       visualization: {
@@ -68,7 +69,23 @@ describe("ginaReplyChips", () => {
       },
       locale: "es",
     });
-    expect(chips.some((c) => c.id === "status_in_progress")).toBe(true);
-    expect(chips[0].text).toContain("Status in_progress");
+    expect(chips.map((c) => c.id)).toEqual(["back_dept"]);
+  });
+
+  it("category menu chips start with All", () => {
+    const chips = buildGinaReplyChips({
+      family: "today",
+      visualization: {
+        type: "dept_category_menu",
+        data: {
+          department: "Marketing",
+          categories: [{ name: "Blogs", documents: 2 }],
+        },
+      },
+      locale: "es",
+    });
+    expect(chips[0].id).toBe("cat_all");
+    expect(chips[0].label).toBe("All");
+    expect(chips[1].id).toBe("cat_Blogs");
   });
 });

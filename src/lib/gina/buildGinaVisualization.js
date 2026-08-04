@@ -324,13 +324,14 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     // Category detail
     if (categoryPick && today.filters?.department) {
       const categoryName = categoryPick[1].trim();
+      const isAll = /^(all|todas?)$/i.test(categoryName);
       return {
         type: "dept_category_detail",
         data: {
           date: today.date,
           dateLabel: formatGinaDayLabel(today.date, locale),
           department: dept,
-          category: categoryName,
+          category: isAll ? "All" : categoryName,
           groups: groupDocsByCategoryFolders(docs),
           documents: docs.map(mapDocRow),
         },

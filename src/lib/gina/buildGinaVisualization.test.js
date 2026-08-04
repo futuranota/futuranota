@@ -189,6 +189,27 @@ describe("buildGinaVisualization", () => {
     expect(viz?.data.categories[0].name).toBe("Blogs");
   });
 
+  it("builds dept_category_detail for Categoría All", () => {
+    const viz = buildGinaVisualization("today", {
+      date: "2026-08-01",
+      documents: [
+        {
+          id: "n1",
+          title: "Blog Post",
+          status: "in_progress",
+          parentFolderName: "Trends",
+          departmentName: "Marketing",
+          category: "Blogs",
+          anchorAt: "2026-08-01T08:00:00",
+        },
+      ],
+      filters: { department: "Marketing" },
+    }, { userText: "Categoría All hoy en Marketing" });
+    expect(viz?.type).toBe("dept_category_detail");
+    expect(viz?.data.category).toBe("All");
+    expect(viz?.data.groups[0].folders[0].folder).toBe("Trends");
+  });
+
   it("builds incomplete sections", () => {
     const viz = buildGinaVisualization("incomplete", {
       pastDue: [{ id: "a", title: "Email", folder: "Campaigns", department: "Marketing", category: "Emails", daysOverdue: 1 }],

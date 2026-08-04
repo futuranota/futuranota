@@ -406,7 +406,10 @@ export function runGinaQueryFamily(text, ctx = {}) {
       const catMatch = text.match(/\bCategor[íi]a\s+(.+?)\s+hoy\s+en\b/i)
         || text.match(/\bCategory\s+(.+?)\s+today\s+in\b/i);
       if (catMatch) {
-        filters.category = catMatch[1].trim();
+        const catName = catMatch[1].trim();
+        if (!/^(all|todas?)$/i.test(catName)) {
+          filters.category = catName;
+        }
         filters.includeCompleted = true;
       }
 

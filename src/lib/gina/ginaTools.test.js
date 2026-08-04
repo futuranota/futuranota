@@ -262,6 +262,14 @@ describe("ginaQueryFamily", () => {
     expect(r.toolContext.filters?.department).toBe("Marketing");
   });
 
+  it("routes Categoría All hoy en Marketing without category filter", () => {
+    const r = runGinaQueryFamily("Categoría All hoy en Marketing", ctx);
+    expect(r.family).toBe("today");
+    expect(r.toolContext.filters?.department).toBe("Marketing");
+    expect(r.toolContext.filters?.category).toBeNull();
+    expect(r.toolContext.filters?.includeCompleted).toBe(true);
+  });
+
   it("routes past due", () => {
     const r = runGinaQueryFamily("qué está vencido?", ctx);
     expect(r.family).toBe("past_due");
