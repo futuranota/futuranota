@@ -5,6 +5,13 @@ import {
   buildScheduleRecoveryConfirmChips,
   buildScheduleRecoveryOfferText,
 } from "./ginaScheduleRecovery.js";
+import {
+  buildDailyReportAppliedText,
+  buildDailyReportChips,
+  buildDailyReportMoveConfirmChips,
+  buildDailyReportMovePreviewText,
+  buildDailyReportOfferText,
+} from "./ginaDailyReport.js";
 
 /**
  * Fixed reply chips for Gina progressive funnel (ids stable; labels user-facing).
@@ -359,6 +366,35 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       : `Aquí está el sheet de horarios de hoy (${n} ítems).`;
   }
 
+  if (visualization.type === "daily_report") {
+    return buildDailyReportOfferText({
+      locale: opts.locale,
+      isEmpty: Boolean(data.isEmpty),
+      dayComplete: Boolean(data.dayComplete),
+      conflictCount: data.conflictCount || 0,
+      occupiedCount: data.occupiedCount || 0,
+      pendingCount: data.pendingCount || 0,
+      struckCount: data.struckCount || 0,
+      folderProgress: data.folderProgress || [],
+      hasRoomToday: Boolean(data.hasRoomToday),
+      lastFinishAt: data.lastFinishAt || null,
+      hasDetails: true,
+    });
+  }
+
+  if (visualization.type === "daily_report_move_preview") {
+    if (data.applied) {
+      return buildDailyReportAppliedText({
+        count: data.count || 0,
+        locale: opts.locale,
+      });
+    }
+    return buildDailyReportMovePreviewText({
+      count: data.count || (data.proposals?.length || 0),
+      locale: opts.locale,
+    });
+  }
+
   if (visualization.type === "recovery_preview") {
     if (data.applied) {
       return buildScheduleRecoveryAppliedText(
@@ -440,6 +476,19 @@ export function buildGinaReplyChips(opts = {}) {
       department: data.department,
       locale,
     });
+  }
+  if (type === "daily_report") {
+    return buildDailyReportChips({
+      locale,
+      hasConflicts: Boolean(data.hasConflicts),
+      isEmpty: Boolean(data.isEmpty),
+    });
+  }
+  if (type === "daily_report_move_preview") {
+    if (data.applied) {
+      return buildScheduleSheetChips({ locale });
+    }
+    return buildDailyReportMoveConfirmChips({ locale });
   }
   if (type === "schedule_sheet" || type === "timeline") {
     return buildScheduleSheetChips({

@@ -17,6 +17,7 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
  *   meetingDocumentTitle?: string,
  *   initialMeetingMode?: boolean,
  *   lockMeetingMode?: boolean,
+ *   autoRunPrompt?: string | null,
  *   onClose: () => void,
  * }} props
  */
@@ -33,6 +34,7 @@ export function GinaChatOverlay({
   meetingDocumentTitle = "",
   initialMeetingMode = false,
   lockMeetingMode = false,
+  autoRunPrompt = null,
   onClose,
 }) {
   useEffect(() => {
@@ -77,6 +79,7 @@ export function GinaChatOverlay({
           meetingDocumentTitle={meetingDocumentTitle}
           initialMeetingMode={initialMeetingMode}
           lockMeetingMode={lockMeetingMode}
+          autoRunPrompt={autoRunPrompt}
           onClose={onClose}
         />
       </div>

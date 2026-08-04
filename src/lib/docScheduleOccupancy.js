@@ -1,4 +1,5 @@
 import { anchorFieldsFromIso, isoFromAnchorFields } from "./nodeAnchor.js";
+import { formatClock12h } from "./clockFormat.js";
 
 function toMs(iso) {
   const t = Date.parse(String(iso || ""));
@@ -6,11 +7,7 @@ function toMs(iso) {
 }
 
 function formatTime(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
+  return formatClock12h(iso);
 }
 
 /**
@@ -54,7 +51,7 @@ export function listOccupiedIntervalsByDate(
       finish: normalizedFinish,
       startMs,
       finishMs: toMs(normalizedFinish),
-      time: `${formatTime(start)}-${formatTime(normalizedFinish)}`,
+      time: `${formatTime(start)}–${formatTime(normalizedFinish)}`,
       title: String(node.sourceQuery || node.title || "Document").trim() || "Document",
     });
   }

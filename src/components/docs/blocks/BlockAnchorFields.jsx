@@ -29,8 +29,18 @@ function overlapsOccupied(time, occupied) {
   const point = minutesFromTime(time);
   if (point == null) return false;
   return occupied.some((interval) => {
-    const start = minutesFromTime(String(interval?.time || "").split("-")[0]);
-    const finish = minutesFromTime(String(interval?.time || "").split("-")[1]);
+    if (Number.isFinite(interval?.startMs) && Number.isFinite(interval?.finishMs)) {
+      const startD = new Date(interval.startMs);
+      const finishD = new Date(interval.finishMs);
+      const start = startD.getHours() * 60 + startD.getMinutes();
+      const finish = finishD.getHours() * 60 + finishD.getMinutes();
+      return point >= start && point < finish;
+    }
+    // Legacy HH:mm-HH:mm strings
+    const raw = String(interval?.time || "");
+    const [left, right] = raw.split(/[-–]/);
+    const start = minutesFromTime(left?.trim());
+    const finish = minutesFromTime(right?.trim());
     return start != null && finish != null && point >= start && point < finish;
   });
 }

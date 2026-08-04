@@ -928,8 +928,38 @@
   color: #9a9a9a;
 }
 
-.gina-viz__prompt--passed {
-  color: #e8c9a0;
+.gina-viz__eyebrow--gold {
+  color: #c9b896;
+}
+
+.gina-viz__occupied-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gina-viz__occupied-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: #d0d0d0;
+}
+
+.gina-viz__occupied-time {
+  min-width: 0;
+}
+
+.gina-viz__occupied-sep {
+  color: #7a7a7a;
+}
+
+.gina-viz__occupied-title {
+  color: #c8c8c8;
 }
 
 .gina-viz__doc.is-passed-slot {
@@ -1384,4 +1414,111 @@
   font-size: 11px;
   line-height: 1.4;
   color: #9a9a9a;
+}
+
+/* Daily report nudge popover (static, not a toast) */
+.gina-daily-report-popover {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 12000;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  background: #151515;
+  border: 1px solid color-mix(in oklab, #c9b896 28%, transparent);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  color: #f0f0f0;
+}
+
+.gina-daily-report-popover__text {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #e8e8e8;
+}
+
+.gina-daily-report-popover__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gina-daily-report-popover__btn {
+  appearance: none;
+  border: 1px solid color-mix(in oklab, #ffffff 14%, transparent);
+  background: color-mix(in oklab, #ffffff 6%, #151515);
+  color: #f2f2f2;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gina-daily-report-popover__btn.is-primary {
+  border-color: color-mix(in oklab, #c9b896 55%, transparent);
+  background: color-mix(in oklab, #c9b896 18%, #151515);
+  color: #f5ecd8;
+}
+
+.gina-daily-report-popover__btn:hover {
+  border-color: color-mix(in oklab, #ffffff 28%, transparent);
+}
+
+.gina-viz__daily-section {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in oklab, #ffffff 8%, transparent);
+}
+
+.gina-viz__daily-section-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a9a9a;
+}
+
+.gina-viz__folder-progress,
+.gina-viz__pending-brief {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gina-viz__folder-progress-row,
+.gina-viz__pending-brief-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #e8e8e8;
+}
+
+.gina-viz__folder-progress-name,
+.gina-viz__pending-brief-title {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gina-viz__folder-progress-pct {
+  flex: 0 0 auto;
+  color: #c9b896;
+  font-weight: 650;
+}
+
+.gina-viz__pending-brief-time {
+  flex: 0 0 auto;
+  min-width: 72px;
+  color: #b0b0b0;
+  font-variant-numeric: tabular-nums;
+}
+
+.gina-daily-report-popover.is-celebrate {
+  border-color: color-mix(in oklab, #57BC6C 40%, transparent);
 }

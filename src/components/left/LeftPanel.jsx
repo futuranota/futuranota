@@ -22,6 +22,7 @@ import { useAuthStore } from "../../stores/authStore.js";
 import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { AssistanceListCard } from "../gina/AssistanceListCard.jsx";
 import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
+import { GinaDailyReportPopover } from "../gina/GinaDailyReportPopover.jsx";
 import { GinaKnowledgeOverlay } from "../gina/GinaKnowledgeOverlay.jsx";
 import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
 import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
@@ -36,6 +37,9 @@ import {
   buildScheduleRecoveryAppliedText,
   isGinaWarmGoodbye,
 } from "../../lib/gina/ginaScheduleRecovery.js";
+import { buildDailyReportAppliedText, buildDailyReportOfferText } from "../../lib/gina/ginaDailyReport.js";
+import { markDailyReportOpened } from "../../lib/gina/ginaDailyReportStore.js";
+import { useGinaDailyReportNudge } from "../../hooks/useGinaDailyReportNudge.js";
 import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
@@ -1701,6 +1705,7 @@ export function LeftPanel({
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
   const [ginaDashboardOpen, setGinaDashboardOpen] = useState(false);
+  const [ginaAutoRunPrompt, setGinaAutoRunPrompt] = useState(/** @type {string | null} */ (null));
   const [ginaKnowledgeOpen, setGinaKnowledgeOpen] = useState(false);
   const [ginaMeetingSession, setGinaMeetingSession] = useState(false);
   const [ginaLearnBrief, setGinaLearnBrief] = useState(null);
@@ -1762,8 +1767,28 @@ export function LeftPanel({
 
   const userEmail = useAuthStore((s) => s.user?.email);
   const authUser = useAuthStore((s) => s.user);
+  const ginaUserId = authUser?.id || "anon";
 
   const isGinaAdmin = isAdminSessionEmail(userEmail);
+
+  const buildGinaToolsCtx = useCallback(() => ({
+    docs: docsMap,
+    nodes: nodesMap,
+    departments,
+    objectId: selectedObjectId || filterObjectId || null,
+    now: new Date(),
+    userId: ginaUserId,
+  }), [docsMap, nodesMap, departments, selectedObjectId, filterObjectId, ginaUserId]);
+
+  const {
+    popoverOpen: ginaDailyReportPopoverOpen,
+    popoverKind: ginaDailyReportPopoverKind,
+    deferDailyReportNudge,
+    acknowledgeOpenChat: acknowledgeDailyReportOpenChat,
+  } = useGinaDailyReportNudge({
+    userId: ginaUserId,
+    buildCtx: buildGinaToolsCtx,
+  });
 
   const openGinaDashboard = useCallback(() => {
     setGinaMeetingSession(false);
@@ -1776,6 +1801,12 @@ export function LeftPanel({
     }));
     setGinaDashboardOpen(true);
   }, [authUser, locale]);
+
+  const openGinaFromDailyReportPopover = useCallback(() => {
+    acknowledgeDailyReportOpenChat();
+    setGinaAutoRunPrompt(locale === "es" ? "reporte del día" : "daily report");
+    openGinaDashboard();
+  }, [acknowledgeDailyReportOpenChat, locale, openGinaDashboard]);
 
   const openGinaMeeting = useCallback(() => {
     if (!isAdminSessionEmail(userEmail)) return;
@@ -2756,6 +2787,7 @@ export function LeftPanel({
       departments,
       objectId: activeObjectId || filterObjectId || null,
       now: new Date(),
+      userId: ginaUserId,
     };
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
@@ -2765,6 +2797,99 @@ export function LeftPanel({
         message: buildGinaWarmGoodbyeReply(localeKey),
         visualization: null,
         chips: null,
+      };
+    }
+
+    if (!meetingOn && routed.family === "daily_report_skip_move") {
+      return {
+        message: localeKey === "en"
+          ? "Okay — we’ll leave the overlapping times as they are."
+          : "Va — dejamos los horarios en conflicto como están.",
+        visualization: null,
+        chips: [
+          {
+            id: "today_schedule",
+            label: localeKey === "en" ? "Today's schedule" : "Horarios de hoy",
+            text: localeKey === "en" ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
+          },
+        ],
+      };
+    }
+
+    if (!meetingOn && (
+      routed.family === "daily_report"
+      || routed.family === "daily_report_move"
+    )) {
+      const report = routed.toolContext?.dailyReport || null;
+      const visualization = buildGinaVisualization(
+        routed.family,
+        {
+          dailyReport: report,
+          proposals: routed.toolContext?.proposals || report?.proposals,
+        },
+        { locale: localeKey, now: ctx.now, userText: text },
+      );
+      const message = routed.family === "daily_report"
+        ? buildDailyReportOfferText({
+          locale: localeKey,
+          isEmpty: Boolean(report?.isEmpty),
+          dayComplete: Boolean(report?.dayComplete),
+          conflictCount: report?.conflictCount || 0,
+          occupiedCount: report?.occupiedCount || 0,
+          pendingCount: report?.pendingCount || 0,
+          struckCount: report?.struckCount || 0,
+          folderProgress: report?.folderProgress || [],
+          hasRoomToday: Boolean(report?.hasRoomToday),
+          lastFinishAt: report?.lastFinishAt || null,
+          hasDetails: Boolean(visualization),
+        })
+        : (buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en" ? "Here’s a preview of the move." : "Aquí va la vista previa del movimiento."));
+      return {
+        message,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: routed.family,
+          visualization: visualization || {
+            type: "daily_report",
+            data: { isEmpty: true },
+          },
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (!meetingOn && routed.family === "daily_report_move_confirm") {
+      const updateNode = useNodesStore.getState().updateNode;
+      const proposals = Array.isArray(routed.toolContext?.proposals)
+        ? routed.toolContext.proposals
+        : [];
+      for (const row of proposals) {
+        if (!row?.id || !row.proposedAnchorAt) continue;
+        updateNode(row.id, {
+          anchorAt: row.proposedAnchorAt,
+          anchorFinishAt: row.proposedAnchorFinishAt || null,
+        });
+      }
+      try {
+        markDailyReportOpened(ginaUserId, ctx.now);
+      } catch { /* ignore */ }
+      const visualization = buildGinaVisualization("daily_report_move", {
+        dailyReport: routed.toolContext?.dailyReport,
+        proposals,
+        applied: true,
+      }, { locale: localeKey, now: ctx.now, userText: text });
+      return {
+        message: buildDailyReportAppliedText({
+          count: proposals.length,
+          locale: localeKey,
+        }),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "daily_report_move_confirm",
+          visualization,
+          locale: localeKey,
+        }),
       };
     }
 
@@ -2988,6 +3113,7 @@ export function LeftPanel({
     departments,
     activeObjectId,
     filterObjectId,
+    ginaUserId,
     locale,
     onOpenDocument,
     ginaMeetingSession,
@@ -3945,6 +4071,7 @@ export function LeftPanel({
           lockMeetingMode={ginaMeetingSession}
           initialMeetingMode={ginaMeetingSession}
           meetingDocumentTitle={ginaMeetingSession ? t("gina.meetingsSessionTitle") : ""}
+          autoRunPrompt={ginaAutoRunPrompt}
           labels={{
             messageAria: t("gina.messageAria"),
             sendAria: t("gina.sendAria"),
@@ -3972,9 +4099,17 @@ export function LeftPanel({
             setGinaMeetingSession(false);
             setGinaLearnBrief(null);
             setGinaPendingLearn(null);
+            setGinaAutoRunPrompt(null);
           }}
         />
       ) : null}
+      <GinaDailyReportPopover
+        open={ginaDailyReportPopoverOpen && !ginaDashboardOpen}
+        locale={locale === "es" ? "es" : "en"}
+        kind={ginaDailyReportPopoverKind}
+        onOpenChat={openGinaFromDailyReportPopover}
+        onDefer={deferDailyReportNudge}
+      />
       {ginaKnowledgeOpen ? (
         <GinaKnowledgeOverlay
           knowledgeDocs={knowledgeDocs}

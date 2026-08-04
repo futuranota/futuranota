@@ -408,6 +408,105 @@ function RecoveryPreviewVisualization({ data }) {
   );
 }
 
+function DailyReportVisualization({ data }) {
+  const rows = Array.isArray(data.occupiedHours) ? data.occupiedHours : [];
+  const pending = Array.isArray(data.pendingBrief) ? data.pendingBrief : [];
+  const folders = Array.isArray(data.folderProgress) ? data.folderProgress : [];
+  const hasConflicts = Boolean(data.hasConflicts);
+  return (
+    <div className="gina-viz gina-viz--daily-report">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow gina-viz__eyebrow--gold">Occupied hours</span>
+        <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
+      </header>
+      {rows.length > 0 ? (
+        <ul className="gina-viz__occupied-list">
+          {rows.map((row) => (
+            <li
+              key={row.id || `${row.time}-${row.title}`}
+              className="gina-viz__occupied-row"
+            >
+              <span
+                className={
+                  "gina-viz__sheet-time-wrap"
+                  + (row.hasConflict && hasConflicts ? " will-highlight" : "")
+                }
+              >
+                {row.hasConflict && hasConflicts ? (
+                  <span className="gina-viz__time-overlay" aria-hidden />
+                ) : null}
+                {row.struck ? (
+                  <s className="gina-viz__sheet-time gina-viz__occupied-time">{row.time || "—"}</s>
+                ) : (
+                  <span className="gina-viz__sheet-time gina-viz__occupied-time">{row.time || "—"}</span>
+                )}
+              </span>
+              <span className="gina-viz__occupied-sep">·</span>
+              <span className="gina-viz__occupied-title">{row.title}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {folders.length > 0 ? (
+        <section className="gina-viz__daily-section">
+          <h4 className="gina-viz__daily-section-title">Progreso</h4>
+          <ul className="gina-viz__folder-progress">
+            {folders.map((f) => (
+              <li key={f.folderId || f.folder} className="gina-viz__folder-progress-row">
+                <span className="gina-viz__folder-progress-name">{f.folder}</span>
+                <span className="gina-viz__folder-progress-pct">{f.percent}%</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {pending.length > 0 ? (
+        <section className="gina-viz__daily-section">
+          <h4 className="gina-viz__daily-section-title">Pendientes</h4>
+          <ul className="gina-viz__pending-brief">
+            {pending.map((row) => (
+              <li key={row.id || row.title} className="gina-viz__pending-brief-row">
+                <span className="gina-viz__pending-brief-time">{row.time || "—"}</span>
+                <span className="gina-viz__occupied-sep">·</span>
+                <span className="gina-viz__pending-brief-title">{row.title}</span>
+                {row.status ? <DocStatusChip status={row.status} /> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function DailyReportMovePreviewVisualization({ data }) {
+  const proposals = Array.isArray(data.proposals) ? data.proposals : [];
+  return (
+    <div className="gina-viz gina-viz--daily-report-move">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">Mover conflictos</span>
+        <h3 className="gina-viz__title">Vista previa</h3>
+      </header>
+      {proposals.length === 0 ? (
+        <p className="gina-viz__empty">No hay propuestas de movimiento.</p>
+      ) : (
+        <ul className="gina-viz__recovery-list">
+          {proposals.map((p) => (
+            <li key={p.id || p.title} className="gina-viz__recovery-row">
+              <div className="gina-viz__recovery-title">{p.title}</div>
+              <div className="gina-viz__recovery-times">
+                <span className="gina-viz__recovery-time gina-viz__recovery-time--old">{p.fromTime}</span>
+                <span className="gina-viz__recovery-arrow" aria-hidden>→</span>
+                <span className="gina-viz__recovery-time gina-viz__recovery-time--new">{p.toTime}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ScheduleSheetVisualization({ data }) {
   const groups = Array.isArray(data.groups) ? data.groups : [];
   const delayHighlights = Boolean(data.hasRecoveryOffer);
@@ -694,6 +793,10 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
       );
     case "dept_category_detail":
       return <CategoryDetailVisualization data={data} />;
+    case "daily_report":
+      return <DailyReportVisualization data={data} />;
+    case "daily_report_move_preview":
+      return <DailyReportMovePreviewVisualization data={data} />;
     case "schedule_sheet":
       return <ScheduleSheetVisualization data={data} />;
     case "recovery_preview":

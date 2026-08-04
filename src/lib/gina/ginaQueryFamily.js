@@ -4,6 +4,8 @@
  */
 
 import { parseGinaTimeScope, foldGinaText } from "./ginaTimeScope.js";
+import { buildGinaDailyReport } from "./ginaDailyReport.js";
+import { getPendingDailyReport, markDailyReportOpened } from "./ginaDailyReportStore.js";
 import {
   filterDocumentsByDepartmentAndCategory,
   findFolderIdByName,
@@ -61,7 +63,66 @@ function pickBestTitleMatch(foldedQuery, items) {
 }
 
 /** Explicit work intents — bare "hoy" alone is NOT enough ("hoy no" / charla). */
-const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|enfocarme|expandir|expand|departamento\w*|folder\w*|documento\w*|categor\w*|\bstatus\b|progreso|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|horario\w*|marcar|posponer|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today|focus\s+today)\b/;
+const GINA_WORK_CUE_RE = /\b((que|qué)\s+(tengo|hay|tenemos)|(dime|muestra|muestrame|entreg|lista|revis)\w*.*\b(hoy|manana|mañana)|para\s+hoy|vencid\w*|atrasad\w*|conflicto\w*|incomplet\w*|sin completar|abre|abrir|\bopen\b|enfoca|enfoque|enfocarme|expandir|expand|departamento\w*|folder\w*|documento\w*|categor\w*|\bstatus\b|progreso|avance|balance|cierre|estatus|estado|\bscope\b|panorama|dentro\s+de\s+\d+\s+d|hasta\s+(manana|mañana)|esta\s+semana|blogs?|schedule|horario\w*|agenda|reporte|resumen|pendiente|marcar|posponer|aprende|significa|past\s*due|incomplete|conflict|what\s+(do\s+i\s+)?have|show\s+me\s+today|focus\s+today|how('?s|\s+is|\s+was)?\s+(my\s+)?day|daily\s+report)\b/;
+
+/**
+ * Daily report / day summary intent (folded text; accents already stripped).
+ * @param {string} text
+ */
+export function isGinaDailyReportUtterance(text) {
+  const q = fold(text);
+  if (!q) return false;
+  const body = q.replace(/^gina\b[\s,:!-]*/, "").trim();
+  if (!body) return false;
+
+  // Any mention of "reporte" (Gina dame el reporte, reporte general, …)
+  if (/\breporte\b/.test(body)) return true;
+
+  // Bare triggers / buttons
+  if (/^(reporte|resumen|balance|mi\s+dia)$/.test(body)) return true;
+
+  // Noun + time frame
+  if (/\b(reporte|resumen|balance|cierre|estatus|estado|avance|progreso)\b/.test(body)
+    && /\b(general|del\s+dia|de\s+hoy|de\s+la\s+jornada|de\s+actividades|de\s+mis\s+proyectos)\b/.test(body)) {
+    return true;
+  }
+
+  // Conversational
+  if (/\bcomo\s+(vamos|va\s+el\s+dia|va\s+hoy|estuvo\s+el\s+dia|esta\s+mi\s+dia|esta\s+el\s+dia)\b/.test(body)) {
+    return true;
+  }
+  if (/\bque\s+(hicimos|hemos\s+hecho|logramos|quedo\s+pendiente|documentos\s+modifique)\b.*\bhoy\b/.test(body)) {
+    return true;
+  }
+  if (/\bcual\s+es\s+el\s+reporte\b/.test(body)) return true;
+  if (/\bcuanto\s+avanzamos\s+hoy\b/.test(body)) return true;
+  if (/\bcuantas\s+tareas\s+complete(\s+hoy)?\b/.test(body)) return true;
+
+  // Agenda / day view
+  if (/\bagenda\s+de\s+hoy\b/.test(body)) return true;
+  if (/\bcomo\s+estuvo\s+mi\s+agenda\b/.test(body)) return true;
+  if (/\bver\s+mi\s+dia\b/.test(body) || /\bmi\s+dia\s+hoy\b/.test(body)) return true;
+
+  // Delivery commands
+  if (/\b(dame|muestra|muestrame|entregame|genera|generar)\b/.test(body)
+    && /\b(reporte|resumen|balance)\b/.test(body)) {
+    return true;
+  }
+
+  // Pending nudge recovery phrases
+  if (/\b(que|qué)\s+querias\s+(decirme|decir)\b/.test(body)) return true;
+  if (/\b(que|qué)\s+tenias\s+pendiente\b/.test(body)) return true;
+  if (/\bpendiente\s+(del\s+)?reporte\b/.test(body)) return true;
+
+  // English
+  if (/\bdaily\s+report\b/.test(body)) return true;
+  if (/\bhow('?s|\s+is|\s+was)\s+(my\s+)?day\b/.test(body)) return true;
+  if (/\bwhat\s+did\s+we\s+(do|achieve)\s+today\b/.test(body)) return true;
+  if (/\b(show|give|generate)\b.*\b(daily\s+)?(report|summary)\b/.test(body)) return true;
+  if (/\btoday('?s)?\s+(report|summary|progress)\b/.test(body)) return true;
+
+  return false;
+}
 
 /**
  * Clear goodbye / later / rest — wins even if the text mentions "hoy".
@@ -322,6 +383,80 @@ export function runGinaQueryFamily(text, ctx = {}) {
       },
       workspaceInventory: inventory,
     };
+  }
+
+  // Daily report (occupied hours + conflicts) — before social so deferred nudge recovers on "hola".
+  {
+    const reportNow = ctx.now instanceof Date ? ctx.now : new Date();
+    const uid = ctx.userId || ctx.authUserId || "anon";
+    const pending = getPendingDailyReport(uid, reportNow);
+    const pendingRecoverable = pending
+      && (pending.status === "deferred" || pending.status === "ready" || pending.status === "queued");
+    const wantsDailyReport = isGinaDailyReportUtterance(text)
+      || (pendingRecoverable && /^(hola|hey|hi|hello|holi|buenas|saludos)([!?.\s]*)$/.test(
+        q.replace(/^gina\b[\s,:!-]*/, "").trim(),
+      ));
+    const wantsMoveConflicts = /\bmover\s+horarios\s+en\s+conflicto\b/.test(q)
+      || /\bmove\s+conflicting\s+schedules?\b/.test(q);
+    const wantsKeepConflicts = /\bdejar\s+horarios\s+en\s+conflicto\s+as[ií]\b/.test(q)
+      || /\bleave\s+conflicting\s+schedules\b/.test(q);
+    const wantsConfirmMove = /\bconfirmar\s+mover\s+horarios\s+en\s+conflicto\b/.test(q)
+      || /\bconfirm\s+move\s+conflicting\s+schedules\b/.test(q);
+    const wantsSkipMove = /\bsaltar\s+mover\s+horarios\s+en\s+conflicto\b/.test(q)
+      || /\bskip\s+moving\s+conflicting\s+schedules\b/.test(q);
+
+    if (wantsConfirmMove) {
+      const dailyReport = call("build_gina_daily_report", () => buildGinaDailyReport(ctx));
+      return {
+        family: "daily_report_move_confirm",
+        toolsCalled,
+        toolContext: {
+          dailyReport,
+          proposals: dailyReport.proposals,
+          hint: "User confirmed moving conflicting schedules",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (wantsSkipMove || wantsKeepConflicts) {
+      return {
+        family: "daily_report_skip_move",
+        toolsCalled,
+        toolContext: {
+          skipMove: true,
+          hint: "User skipped moving conflicting schedules",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (wantsMoveConflicts) {
+      const dailyReport = call("build_gina_daily_report", () => buildGinaDailyReport(ctx));
+      return {
+        family: "daily_report_move",
+        toolsCalled,
+        toolContext: {
+          dailyReport,
+          proposals: dailyReport.proposals,
+          hint: "Preview move conflicting schedules",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (wantsDailyReport) {
+      const dailyReport = call("build_gina_daily_report", () => buildGinaDailyReport(ctx));
+      try {
+        markDailyReportOpened(uid, reportNow);
+      } catch { /* ignore */ }
+      return {
+        family: "daily_report",
+        toolsCalled,
+        toolContext: {
+          dailyReport,
+          hint: "Daily report: occupied hours + conflicts",
+        },
+        workspaceInventory: inventory,
+      };
+    }
   }
 
   if (isGinaSocialUtterance(text)) {

@@ -121,6 +121,7 @@ function joinTranscript(finalParts, interim) {
  *   meetingDocumentTitle?: string,
  *   initialMeetingMode?: boolean,
  *   lockMeetingMode?: boolean,
+ *   autoRunPrompt?: string | null,
  * }} props
  */
 export function GinaChatCard({
@@ -138,6 +139,7 @@ export function GinaChatCard({
   meetingDocumentTitle = "",
   initialMeetingMode = false,
   lockMeetingMode = false,
+  autoRunPrompt = null,
 }) {
   const chipLocale = String(speechLang || "").toLowerCase().startsWith("en") ? "en" : "es";
   /** @type {[GinaChatMessage[], Function]} */
@@ -417,6 +419,19 @@ export function GinaChatCard({
       setIsTyping(false);
     }, 1200);
   };
+
+  const autoRunDoneRef = useRef(false);
+  useEffect(() => {
+    const prompt = typeof autoRunPrompt === "string" ? autoRunPrompt.trim() : "";
+    if (!prompt || autoRunDoneRef.current) return;
+    autoRunDoneRef.current = true;
+    const t = window.setTimeout(() => {
+      void deliverUserMessage(prompt);
+    }, 280);
+    return () => window.clearTimeout(t);
+    // Intentionally once per mount when autoRunPrompt is set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRunPrompt]);
 
   /**
    * Step 1: stop mic and park transcript in the composer so the user can fix

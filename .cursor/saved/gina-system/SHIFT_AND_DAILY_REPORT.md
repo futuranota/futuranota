@@ -108,4 +108,4 @@ Verification for the report should be **deterministic tools** (past due, today s
 
 - Phase 1: listen / scope / open doc — live.
 - Phase 1.5: `{ message, visualization }` — in progress.
-- Shift + Daily Report: **product memory + manual rehearsal next**; automatic turno later.
+- **Daily Report nudge v1 honest — live:** schedule truth + folder % snapshot + pending brief; empty = short message only (no fake collisions); conflict popover 30m; celebrate when dayComplete. No activity log yet.

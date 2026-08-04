@@ -808,45 +808,81 @@ export const useNodesStore = create(
         }
       },
 
-      updateNode: (id, updates) =>
-        set((state) => {
-          const existing = state.nodes[id];
-          if (!existing) return state;
-          const nextUpdates = { ...updates };
-          if (Object.prototype.hasOwnProperty.call(nextUpdates, "campaignStatus")) {
-            nextUpdates.campaignStatus = normalizeCampaignDocStatus(nextUpdates.campaignStatus);
-          }
-          if (
-            Object.prototype.hasOwnProperty.call(nextUpdates, "status")
-            || Object.prototype.hasOwnProperty.call(nextUpdates, "completed")
-          ) {
-            Object.assign(nextUpdates, syncDocWorkStatusFields(nextUpdates));
-          } else if (Object.prototype.hasOwnProperty.call(nextUpdates, "content")) {
-            const probe = {
-              ...existing,
-              ...nextUpdates,
-              content: nextUpdates.content,
-            };
-            const auto = nextStatusOnWriteDuringScheduleWindow(probe);
-            if (auto) Object.assign(nextUpdates, syncDocWorkStatusFields({ status: auto }));
-          }
-          const nextNode = { ...existing, ...nextUpdates, updatedAt: new Date().toISOString() };
-          if (
-            Object.prototype.hasOwnProperty.call(nextUpdates, "title")
-            || Object.prototype.hasOwnProperty.call(nextUpdates, "status")
-            || Object.prototype.hasOwnProperty.call(nextUpdates, "completed")
-          ) {
-            // #region agent log
-            fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H1-H2',location:'src/stores/nodesStore.js:updateNode',message:'Document identity/status mutation',data:{nodeId:id,updateKeys:Object.keys(nextUpdates),before:{numericTitle:/^\d+$/.test(String(existing.title||'').trim())?String(existing.title).trim():null,titleLength:String(existing.title||'').length,status:existing.status??null,completed:Boolean(existing.completed),updatedAt:existing.updatedAt??null},after:{numericTitle:/^\d+$/.test(String(nextNode.title||'').trim())?String(nextNode.title).trim():null,titleLength:String(nextNode.title||'').length,status:nextNode.status??null,completed:Boolean(nextNode.completed),updatedAt:nextNode.updatedAt}},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
-          }
-          return {
-            nodes: {
-              ...state.nodes,
-              [id]: nextNode,
-            },
+      updateNode: (id, updates) => {
+        const existing = get().nodes[id];
+        if (!existing) return;
+        const nextUpdates = { ...updates };
+        if (Object.prototype.hasOwnProperty.call(nextUpdates, "campaignStatus")) {
+          nextUpdates.campaignStatus = normalizeCampaignDocStatus(nextUpdates.campaignStatus);
+        }
+        if (
+          Object.prototype.hasOwnProperty.call(nextUpdates, "status")
+          || Object.prototype.hasOwnProperty.call(nextUpdates, "completed")
+        ) {
+          Object.assign(nextUpdates, syncDocWorkStatusFields(nextUpdates));
+        } else if (Object.prototype.hasOwnProperty.call(nextUpdates, "content")) {
+          const probe = {
+            ...existing,
+            ...nextUpdates,
+            content: nextUpdates.content,
           };
-        }),
+          const auto = nextStatusOnWriteDuringScheduleWindow(probe);
+          if (auto) Object.assign(nextUpdates, syncDocWorkStatusFields({ status: auto }));
+        }
+        const anchorChanged = (
+          Object.prototype.hasOwnProperty.call(nextUpdates, "anchorAt")
+          || Object.prototype.hasOwnProperty.call(nextUpdates, "anchorFinishAt")
+        ) && (
+          (Object.prototype.hasOwnProperty.call(nextUpdates, "anchorAt")
+            && nextUpdates.anchorAt !== existing.anchorAt)
+          || (Object.prototype.hasOwnProperty.call(nextUpdates, "anchorFinishAt")
+            && nextUpdates.anchorFinishAt !== existing.anchorFinishAt)
+        );
+        const statusChanged = Object.prototype.hasOwnProperty.call(nextUpdates, "status")
+          && nextUpdates.status !== existing.status;
+        const nextNode = { ...existing, ...nextUpdates, updatedAt: new Date().toISOString() };
+        if (
+          Object.prototype.hasOwnProperty.call(nextUpdates, "title")
+          || Object.prototype.hasOwnProperty.call(nextUpdates, "status")
+          || Object.prototype.hasOwnProperty.call(nextUpdates, "completed")
+        ) {
+          // #region agent log
+          fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'8974ed'},body:JSON.stringify({sessionId:'8974ed',runId:'pre-fix',hypothesisId:'H1-H2',location:'src/stores/nodesStore.js:updateNode',message:'Document identity/status mutation',data:{nodeId:id,updateKeys:Object.keys(nextUpdates),before:{numericTitle:/^\d+$/.test(String(existing.title||'').trim())?String(existing.title).trim():null,titleLength:String(existing.title||'').length,status:existing.status??null,completed:Boolean(existing.completed),updatedAt:existing.updatedAt??null},after:{numericTitle:/^\d+$/.test(String(nextNode.title||'').trim())?String(nextNode.title).trim():null,titleLength:String(nextNode.title||'').length,status:nextNode.status??null,completed:Boolean(nextNode.completed),updatedAt:nextNode.updatedAt}},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+        }
+        set((state) => ({
+          nodes: {
+            ...state.nodes,
+            [id]: nextNode,
+          },
+        }));
+        if (anchorChanged) {
+          queueMicrotask(() => {
+            try {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("fn-gina-schedule-saved", {
+                  detail: { nodeId: id },
+                }));
+              }
+            } catch {
+              /* ignore */
+            }
+          });
+        }
+        if (statusChanged) {
+          queueMicrotask(() => {
+            try {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("fn-gina-doc-status-changed", {
+                  detail: { nodeId: id, status: nextNode.status },
+                }));
+              }
+            } catch {
+              /* ignore */
+            }
+          });
+        }
+      },
 
       setLinkedToCanvas: (nodeId, canvasNodeId, linked = true) =>
         set((state) => {

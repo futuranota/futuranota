@@ -1,4 +1,5 @@
 import { isPassedSlot, buildCascadeSchedulePreview } from "./ginaScheduleRecovery.js";
+import { formatClockRange12h, formatClock12h } from "../clockFormat.js";
 
 /**
  * Build deterministic Gina chat visualizations from query family + tool JSON.
@@ -27,15 +28,10 @@ export function formatHierarchyPath(h = {}) {
  */
 export function formatGinaTimeRange(start, finish, locale = "es") {
   const a = start ? new Date(start) : null;
-  const b = finish ? new Date(finish) : null;
   if (a && Number.isNaN(a.getTime())) return locale === "en" ? "Flexible" : "Flexible";
   if (!a) return locale === "en" ? "Flexible" : "Flexible";
-  const opts = { hour: "numeric", minute: "2-digit" };
-  const loc = locale === "en" ? "en-US" : "es-ES";
-  if (b && !Number.isNaN(b.getTime())) {
-    return `${a.toLocaleTimeString(loc, opts)} – ${b.toLocaleTimeString(loc, opts)}`;
-  }
-  return a.toLocaleTimeString(loc, opts);
+  const range = formatClockRange12h(start, finish, { sep: " – " });
+  return range || formatClock12h(start) || (locale === "en" ? "Flexible" : "Flexible");
 }
 
 /**
@@ -465,6 +461,50 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     return {
       type: "department_cards",
       data: buildDepartmentCardsData(today, locale),
+    };
+  }
+
+  if (family === "daily_report" || family === "daily_report_pending") {
+    const report = ctx.dailyReport && typeof ctx.dailyReport === "object"
+      ? ctx.dailyReport
+      : null;
+    if (!report || report.isEmpty) return null;
+    return {
+      type: "daily_report",
+      data: {
+        date: report.date,
+        dateLabel: formatGinaDayLabel(report.date, locale),
+        occupiedHours: report.occupiedHours || [],
+        pendingBrief: report.pendingBrief || [],
+        folderProgress: report.folderProgress || [],
+        conflicts: report.conflicts || [],
+        proposals: report.proposals || [],
+        hasConflicts: Boolean(report.hasConflicts),
+        conflictCount: report.conflictCount || 0,
+        occupiedCount: report.occupiedCount || 0,
+        pendingCount: report.pendingCount || 0,
+        struckCount: report.struckCount || 0,
+        hasRoomToday: Boolean(report.hasRoomToday),
+        lastFinishAt: report.lastFinishAt || null,
+        dayComplete: Boolean(report.dayComplete),
+        isEmpty: false,
+        hasConflictHighlight: Boolean(report.hasConflicts),
+      },
+    };
+  }
+
+  if (family === "daily_report_move" || family === "daily_report_move_preview") {
+    const report = ctx.dailyReport && typeof ctx.dailyReport === "object"
+      ? ctx.dailyReport
+      : null;
+    const proposals = report?.proposals || ctx.proposals || [];
+    return {
+      type: "daily_report_move_preview",
+      data: {
+        proposals,
+        count: proposals.length,
+        applied: Boolean(ctx.applied),
+      },
     };
   }
 
