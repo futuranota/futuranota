@@ -45,12 +45,19 @@ Timeline **solo visualiza**. Alarmas/popups = **solo Gina** (aún no en esta fas
 
 ## Más adelante
 
-### Siguiente (Phase 1.5 — backlog)
+### Siguiente (Phase 1.5 — live / polish)
 
 **Data visualization** en el chat: `{ message, visualization }` + cards/tablas.  
-Brief completo: `.cursor/saved/gina-system/PHASE_1_5_DATA_VISUALIZATION.md`  
-Regla: `.cursor/rules/gina-phase-1-5-data-viz.mdc`  
-**No implementar** hasta que el user lo pida.
+Brief: `.cursor/saved/gina-system/PHASE_1_5_DATA_VISUALIZATION.md`  
+Regla: `.cursor/rules/gina-phase-1-5-data-viz.mdc`
+
+**Build order acordado (mismo agente, antes del reloj de turno):** pulir copy + UI viz → chips de opciones de texto → test “horarios de hoy” → **reporte manual** del día (orden fijo). Luego shift clock.
+
+### Turnos + Daily Report (memoria — no clock aún)
+
+Dos cards = UX de turno; 1 report/día; verify al entrar al turno; dashboard dispara notis.  
+Rule: `.cursor/rules/gina-shift-daily-report.mdc`  
+Brief: `.cursor/saved/gina-system/SHIFT_AND_DAILY_REPORT.md`
 
 ### Después
 
@@ -59,6 +66,7 @@ Regla: `.cursor/rules/gina-phase-1-5-data-viz.mdc`
 - Start-file alarms + soft conflict al abrir
 - Call Asistente in-doc (scope al file abierto)
 - Mutaciones solo con confirmación explícita del user
+- Onboarding 2 agentes + landing CTA horario/$20
 
 ## Scope / no hacer (fase 1)
 

@@ -1,0 +1,42 @@
+---
+description: Gina shift UX + Daily Report ritual — product memory (not 24/7; implement after viz/chips/manual report)
+alwaysApply: true
+---
+
+# Gina — turnos + Daily Report (memoria de producto)
+
+Dos **cards de agente** en Asistentes = **solo UX de turno** (misma Gina / mismo cerebro). No son dos pipelines ni dos mutadores.
+
+Canonical detail: `.cursor/saved/gina-system/SHIFT_AND_DAILY_REPORT.md`.
+
+## Modelo v1 (acordado)
+
+- Reloj del día = 24 h. User elige franja ≤ **8 h** para el agente activo.
+- **1 agente activo por día** (skin/card según weekday). Los dos cards quedan visibles en Asistentes.
+- **Verify** = ritual al **entrar al turno**, no un botón del user.
+- **1 Daily Report por día calendario.** Quien abre el día lo genera → `verified`. Otro turno el mismo día = soft welcome (“workspace listo…”), no re-verifica.
+- User **no** declara “empecé el día”: presencia en **dashboard** despacha (o pone al día) la cola de notis, incluidas atrasadas si el turno ya iba.
+- Alarmas/popups = **Gina**, no timeline. Push/email = después; v1 = in-app al abrir `/app`.
+
+## Orden del Daily Report
+
+1. **Vencidos** (prioridad) — gray, más viejo → más nuevo; abrir / cambiar status desde chat; Gina **duda**, no asume completed ni borra.
+2. **Conflictos de horario** — skipeable; tabla hoy con solapes; educación “yo llevo ocupación / sheets”.
+3. **Hoy por departamento** — un depto protagonista (hora más cercana a ahora); otros depto = cards; user elige orden vs énfasis.
+
+Scope del reporte = **hoy**. Fuera de hoy = pregunta aparte.
+
+## Qué NO construir todavía
+
+- Reloj de turno automático / cola 8:00–8:05 hasta que el **reporte manual** se sienta bien.
+- Onboarding 2 agentes + landing “hoy $20” (capa comercial; después).
+- Mutaciones (mover fechas, borrar) sin confirmación explícita.
+- Audio (ver `gina-audio-deferred.mdc`).
+
+## Build order (siguiente trabajo, mismo agente)
+
+1. Pulir **respuestas** + **UI de infografías** (Phase 1.5).
+2. **Opciones de texto** (chips / quick replies) bajo el bubble.
+3. Test **“horarios de hoy”** → listado real + viz.
+4. **Reporte manual** — disparar el walkthrough del día y congelar orden/datos.
+5. Luego: shift clock + notis + `verified` + onboarding skins.
