@@ -1411,7 +1411,7 @@ useEffect(() => {
   const activateLazyTodo = useLazyTodosStore((s) => s.activateItem);
   const createDraftLazyTodo = useLazyTodosStore((s) => s.createDraftItem);
 
-  const handleOpenNewLazyTodo = useCallback((objectId) => {
+  const handleOpenNewLazyTodo = useCallback((objectId, extras = {}) => {
     if (!objectId) return;
     setActiveLazyTodo((current) => {
       if (current) {
@@ -1421,9 +1421,20 @@ useEffect(() => {
           removeLazyTodo(current.id);
         }
       }
-      return createDraftLazyTodo(objectId);
+      return createDraftLazyTodo(objectId, {
+        documentId: extras?.documentId || null,
+      });
     });
   }, [createDraftLazyTodo, parkLazyTodo, removeLazyTodo]);
+
+  const lazyTodoCreateRequest = useUIStateStore((s) => s.lazyTodoCreateRequest);
+  useEffect(() => {
+    if (!lazyTodoCreateRequest?.objectId) return;
+    handleOpenNewLazyTodo(lazyTodoCreateRequest.objectId, {
+      documentId: lazyTodoCreateRequest.documentId || null,
+    });
+    useUIStateStore.getState().clearLazyTodoCreateRequest();
+  }, [lazyTodoCreateRequest, handleOpenNewLazyTodo]);
 
   const handleOpenLazyTodoItem = useCallback((item) => {
     if (!item?.id) return;

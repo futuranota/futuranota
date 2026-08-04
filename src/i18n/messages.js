@@ -955,6 +955,8 @@ export const messages = {
     gina: {
       callAsistente: "Call Asistente",
       callAsistenteTitle: "Open Gina for this document",
+      newTodo: "New to do",
+      newTodoTitle: "Create a to-do linked to this document",
       name: "Gina",
       meetTitle: "Meet Gina",
       meetDescription: "Company-wide dashboard assistant. Ask what’s due today, past due, or in a department — she’ll scope the panorama.",
@@ -1908,6 +1910,8 @@ export const messages = {
     gina: {
       callAsistente: "Llamar Asistente",
       callAsistenteTitle: "Abrir Gina para este documento",
+      newTodo: "Nuevo to do",
+      newTodoTitle: "Crear un to-do ligado a este documento",
       name: "Gina",
       meetTitle: "Conoce a Gina",
       meetDescription: "Asistente de dashboard de toda la empresa. Pregunta por hoy, vencidos o un departamento — ella hace el scope del panorama.",

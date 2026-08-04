@@ -145,6 +145,7 @@ export function NodeQueryModal({
   embedded = false,
 }) {
   const { t, locale } = useI18n();
+  const requestCreateLazyTodo = useUIStateStore((s) => s.requestCreateLazyTodo);
   const bodyRef = useRef(null);
   const queryInputRef = useRef(null);
   const focusCategoryRef = useRef(null);
@@ -170,6 +171,15 @@ export function NodeQueryModal({
   const companyObjectId = parentObjectId
     || adoptableDocsById[resolvedParentDocId]?.parentObjectId
     || null;
+
+  const handleOpenLinkedLazyTodo = useCallback(() => {
+    if (!companyObjectId) return;
+    requestCreateLazyTodo({
+      objectId: companyObjectId,
+      documentId: entityNodeId || null,
+    });
+  }, [companyObjectId, entityNodeId, requestCreateLazyTodo]);
+
   const dateEditable = Boolean(onCreatedDateChange);
   const userEmail = useAuthStore((s) => s.user?.email);
   const authUser = useAuthStore((s) => s.user);
@@ -770,6 +780,20 @@ export function NodeQueryModal({
                 >
                   {t("gina.callAsistente")}
                 </button>
+                <button
+                  type="button"
+                  className="node-query-modal__new-todo"
+                  onClick={handleOpenLinkedLazyTodo}
+                  disabled={!companyObjectId}
+                  title={
+                    companyObjectId
+                      ? t("gina.newTodoTitle")
+                      : t("lazyTodos.enterCompanyFirst")
+                  }
+                  aria-label={t("gina.newTodoTitle")}
+                >
+                  {t("gina.newTodo")}
+                </button>
                 {showCloseButton ? (
                   <button
                     type="button"
@@ -823,6 +847,20 @@ export function NodeQueryModal({
                 aria-label={t("gina.callAsistenteTitle")}
               >
                 {t("gina.callAsistente")}
+              </button>
+              <button
+                type="button"
+                className="node-query-modal__new-todo"
+                onClick={handleOpenLinkedLazyTodo}
+                disabled={!companyObjectId}
+                title={
+                  companyObjectId
+                    ? t("gina.newTodoTitle")
+                    : t("lazyTodos.enterCompanyFirst")
+                }
+                aria-label={t("gina.newTodoTitle")}
+              >
+                {t("gina.newTodo")}
               </button>
               {showCloseButton ? (
                 <button

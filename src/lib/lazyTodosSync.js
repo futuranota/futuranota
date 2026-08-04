@@ -78,6 +78,9 @@ function rowToItem(row) {
   return {
     id: String(row.id || generateId("LAZY")),
     objectId: row.object_id ?? null,
+    documentId: row.document_id != null && String(row.document_id).trim()
+      ? String(row.document_id).trim()
+      : null,
     reminder: String(row.reminder ?? ""),
     listTitle: String(row.list_title ?? "To do").trim() || "To do",
     items,
@@ -97,6 +100,7 @@ function itemToRow(item, userId, now) {
     id: item.id,
     user_id: userId,
     object_id: item.objectId || null,
+    document_id: item.documentId || null,
     reminder: item.reminder ?? "",
     list_title: item.listTitle ?? "To do",
     items: item.items ?? [],

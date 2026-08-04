@@ -72,13 +72,18 @@ function truncate(text, max) {
 
 /**
  * @param {string|null} objectId
+ * @param {{ documentId?: string|null }} [extras]
  * @returns {LazyTodoItem}
  */
-export function createBlankLazyTodo(objectId = null) {
+export function createBlankLazyTodo(objectId = null, extras = {}) {
   const stamp = new Date().toISOString();
+  const documentId = extras?.documentId != null && String(extras.documentId).trim()
+    ? String(extras.documentId).trim()
+    : null;
   return {
     id: null,
     objectId,
+    documentId,
     reminder: "",
     listTitle: "To do",
     items: [createTodoItem()],

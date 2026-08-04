@@ -203,9 +203,9 @@ export const FOLDER_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
   (cmd) => Boolean(cmd.macronodeHeading),
 );
 
-/** Documents (and node writing surfaces): all tools except Create a document. */
+/** Documents (and node writing surfaces): tools except Create a document and in-body Todo list. */
 export const DOCUMENT_SLASH_COMMANDS = DOC_SLASH_COMMANDS.filter(
-  (cmd) => !cmd.macronodeHeading,
+  (cmd) => !cmd.macronodeHeading && cmd.blockType !== DOC_BLOCK_TYPES.TODO,
 );
 
 export const FOLDER_SLASH_GHOST_HINTS = FOLDER_SLASH_COMMANDS.map(

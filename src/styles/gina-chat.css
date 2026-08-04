@@ -523,7 +523,38 @@
   color: #fff;
 }
 
-.doc-focus-top__meta .node-query-modal__call-asistente {
+.node-query-modal__new-todo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(214, 180, 167, 0.45);
+  border-radius: 8px;
+  background: color-mix(in oklab, #D6B4A7 14%, transparent);
+  color: #D6B4A7;
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.node-query-modal__new-todo:hover:not(:disabled) {
+  background: color-mix(in oklab, #D6B4A7 24%, transparent);
+  border-color: rgba(214, 180, 167, 0.7);
+  color: #E4C7BC;
+}
+
+.node-query-modal__new-todo:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.doc-focus-top__meta .node-query-modal__call-asistente,
+.doc-focus-top__meta .node-query-modal__new-todo {
   margin-right: 4px;
 }
 

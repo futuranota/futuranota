@@ -15,6 +15,7 @@ const DELETED_STORAGE_KEY = LAZY_TODOS_DELETED_STORAGE_KEY;
  * @typedef {Object} LazyTodoItem
  * @property {string} id
  * @property {string|null} objectId
+ * @property {string|null} [documentId] Linked document (node) id for Gina / in-doc create.
  * @property {string} reminder
  * @property {string} listTitle
  * @property {{ id: string, text: string, checked: boolean }[]} items
@@ -90,9 +91,13 @@ function normalizeTodoItems(rawItems, legacyTodo = "") {
 function normalizeItem(item) {
   const items = normalizeTodoItems(item?.items, item?.todo);
   const createdAt = item?.createdAt || new Date().toISOString();
+  const documentId = item?.documentId != null && String(item.documentId).trim()
+    ? String(item.documentId).trim()
+    : null;
   const next = {
     id: String(item?.id || generateId("LAZY")),
     objectId: item?.objectId ?? null,
+    documentId,
     reminder: String(item?.reminder ?? ""),
     listTitle: String(item?.listTitle ?? "To do").trim() || "To do",
     items,
@@ -164,11 +169,15 @@ export const useLazyTodosStore = create(
         });
       },
 
-      createDraftItem: (objectId = null) => {
+      createDraftItem: (objectId = null, extras = {}) => {
         const stamp = nowIso();
+        const documentId = extras?.documentId != null && String(extras.documentId).trim()
+          ? String(extras.documentId).trim()
+          : null;
         const nextItem = normalizeItem({
           id: generateId("LAZY"),
           objectId: objectId || null,
+          documentId,
           reminder: "",
           listTitle: "To do",
           items: [createTodoItem()],
@@ -189,6 +198,7 @@ export const useLazyTodosStore = create(
 
       addItem: ({
         objectId = null,
+        documentId = null,
         reminder = "",
         listTitle = "To do",
         items = [createTodoItem()],
@@ -206,6 +216,7 @@ export const useLazyTodosStore = create(
         const nextItem = normalizeItem({
           id: generateId("LAZY"),
           objectId: objectId || null,
+          documentId: documentId || null,
           ...payload,
           createdAt: stamp,
           updatedAt: stamp,
@@ -287,6 +298,7 @@ export const useLazyTodosStore = create(
 
         return get().addItem({
           objectId: normalized.objectId,
+          documentId: normalized.documentId,
           reminder: normalized.reminder,
           listTitle: normalized.listTitle,
           items: normalized.items,

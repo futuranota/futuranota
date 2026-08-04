@@ -302,6 +302,23 @@ export const useUIStateStore = create(
         set({ requestEnterWorkspaceId: objectId || null }),
       clearRequestEnterObjectWorkspace: () => set({ requestEnterWorkspaceId: null }),
 
+      /**
+       * In-doc “New to do” → App opens LazyTodoDashboardOverlay.
+       * @type {{ objectId: string, documentId?: string|null, nonce: number }|null}
+       */
+      lazyTodoCreateRequest: null,
+      requestCreateLazyTodo: ({ objectId, documentId = null } = {}) => {
+        if (!objectId) return;
+        set({
+          lazyTodoCreateRequest: {
+            objectId,
+            documentId: documentId || null,
+            nonce: Date.now(),
+          },
+        });
+      },
+      clearLazyTodoCreateRequest: () => set({ lazyTodoCreateRequest: null }),
+
       setActiveDocMetaDraft: (draft) => set({ activeDocMetaDraft: draft }),
       clearActiveDocMetaDraft: () => set({ activeDocMetaDraft: null }),
 
