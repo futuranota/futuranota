@@ -174,12 +174,13 @@ export const useLazyTodosStore = create(
         const documentId = extras?.documentId != null && String(extras.documentId).trim()
           ? String(extras.documentId).trim()
           : null;
+        const listTitle = String(extras?.listTitle ?? "").trim() || "To do";
         const nextItem = normalizeItem({
           id: generateId("LAZY"),
           objectId: objectId || null,
           documentId,
           reminder: "",
-          listTitle: "To do",
+          listTitle,
           items: [createTodoItem()],
           createdAt: stamp,
           updatedAt: stamp,
@@ -194,6 +195,22 @@ export const useLazyTodosStore = create(
         });
 
         return nextItem;
+      },
+
+      /**
+       * Active (non-deleted) lazy todo linked to a document — for find-or-open.
+       * Prefer newest if several exist (should be rare).
+       * @param {string|null|undefined} documentId
+       */
+      findItemByDocumentId: (documentId) => {
+        const id = documentId != null ? String(documentId).trim() : "";
+        if (!id) return null;
+        const matches = get().items.filter((item) => item?.documentId === id);
+        if (!matches.length) return null;
+        return [...matches].sort(
+          (a, b) => new Date(b.updatedAt || b.createdAt).getTime()
+            - new Date(a.updatedAt || a.createdAt).getTime(),
+        )[0];
       },
 
       addItem: ({

@@ -1413,6 +1413,28 @@ useEffect(() => {
 
   const handleOpenNewLazyTodo = useCallback((objectId, extras = {}) => {
     if (!objectId) return;
+    const documentId = extras?.documentId ? String(extras.documentId).trim() : "";
+    const listTitle = String(extras?.listTitle ?? "").trim() || undefined;
+
+    // Document-linked: reopen existing list if present; else create a fresh id.
+    if (documentId) {
+      const existing = useLazyTodosStore.getState().findItemByDocumentId(documentId);
+      if (existing?.id) {
+        setActiveLazyTodo((current) => {
+          if (current) {
+            if (lazyTodoHasContent(current)) {
+              parkLazyTodo({ ...current, status: 'queued' });
+            } else if (current.id && current.id !== existing.id) {
+              removeLazyTodo(current.id);
+            }
+          }
+          activateLazyTodo(existing.id);
+          return cloneLazyTodo({ ...existing, status: 'active' });
+        });
+        return;
+      }
+    }
+
     setActiveLazyTodo((current) => {
       if (current) {
         if (lazyTodoHasContent(current)) {
@@ -1422,16 +1444,18 @@ useEffect(() => {
         }
       }
       return createDraftLazyTodo(objectId, {
-        documentId: extras?.documentId || null,
+        documentId: documentId || null,
+        listTitle,
       });
     });
-  }, [createDraftLazyTodo, parkLazyTodo, removeLazyTodo]);
+  }, [activateLazyTodo, createDraftLazyTodo, parkLazyTodo, removeLazyTodo]);
 
   const lazyTodoCreateRequest = useUIStateStore((s) => s.lazyTodoCreateRequest);
   useEffect(() => {
     if (!lazyTodoCreateRequest?.objectId) return;
     handleOpenNewLazyTodo(lazyTodoCreateRequest.objectId, {
       documentId: lazyTodoCreateRequest.documentId || null,
+      listTitle: lazyTodoCreateRequest.listTitle || null,
     });
     useUIStateStore.getState().clearLazyTodoCreateRequest();
   }, [lazyTodoCreateRequest, handleOpenNewLazyTodo]);

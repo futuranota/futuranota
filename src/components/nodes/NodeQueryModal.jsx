@@ -174,11 +174,13 @@ export function NodeQueryModal({
 
   const handleOpenLinkedLazyTodo = useCallback(() => {
     if (!companyObjectId) return;
+    const title = String(query || "").trim();
     requestCreateLazyTodo({
       objectId: companyObjectId,
       documentId: entityNodeId || null,
+      listTitle: title || null,
     });
-  }, [companyObjectId, entityNodeId, requestCreateLazyTodo]);
+  }, [companyObjectId, entityNodeId, query, requestCreateLazyTodo]);
 
   const dateEditable = Boolean(onCreatedDateChange);
   const userEmail = useAuthStore((s) => s.user?.email);
