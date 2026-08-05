@@ -9076,6 +9076,9 @@ body.doc-content-resizing * {
   padding: 0 2px 0 4px;
   letter-spacing: 0;
   line-height: 22px;
+  /* Match close-tab tone (trial) */
+  color: rgba(255, 255, 255, 0.16);
+  background: transparent;
 }
 
 .doc-time-range {
@@ -9087,32 +9090,43 @@ body.doc-content-resizing * {
   min-width: 184px;
   height: 22px;
   padding: 0 6px 0 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.92);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.16);
   font: 500 11px/1 var(--sans);
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
   cursor: pointer;
-  transition: border-color 180ms ease, background-color 180ms ease;
+  transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
 }
 
 .doc-time-range__trigger:hover,
 .doc-time-range__trigger[aria-expanded="true"] {
   border-color: rgba(198, 255, 115, 0.55);
   background: rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .doc-time-range__trigger.is-empty {
+  color: rgba(255, 255, 255, 0.16);
+}
+
+.doc-time-range__trigger.is-empty:hover,
+.doc-time-range__trigger.is-empty[aria-expanded="true"] {
   color: rgba(255, 255, 255, 0.48);
 }
 
 .doc-time-range__clock {
-  color: rgba(255, 255, 255, 0.7);
+  color: inherit;
   font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin: 0;
+  margin-left: 2px;
+  padding: 0;
 }
 
 .doc-time-range__popover {
@@ -9314,6 +9328,10 @@ body.doc-content-resizing * {
   width: 12px;
   height: 12px;
   cursor: pointer;
+}
+
+.node-query-modal__schedule .doc-block-anchor__label {
+  color: rgba(255, 255, 255, 0.16);
 }
 
 .node-query-modal__footer-row {
@@ -16587,6 +16605,10 @@ body.doc-content-resizing * {
 .node-query-modal__schedule .doc-block-anchor__date::-webkit-calendar-picker-indicator,
 .node-query-modal__schedule .doc-block-anchor__time::-webkit-calendar-picker-indicator {
   filter: brightness(0) invert(1) !important;
-  opacity: 1 !important;
+  opacity: 0.16 !important;
   cursor: pointer;
+  margin: 0 0 0 2px;
+  padding: 0;
+  width: 12px;
+  height: 12px;
 }

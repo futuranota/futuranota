@@ -506,9 +506,10 @@
   padding-block: 2px;
   padding-inline: 6px;
   border-radius: 999px;
-  border: 1px solid rgba(132, 133, 134, 0.28);
+  /* Same tone as .doc-new-head-expand-btn (close tab) */
+  border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
-  color: #848586;
+  color: rgba(255, 255, 255, 0.16);
   font-family: var(--sans, system-ui, sans-serif);
   font-size: 10px;
   font-weight: 700;
@@ -527,14 +528,14 @@
   object-fit: contain;
   flex-shrink: 0;
   pointer-events: none;
-  /* Match banner muted gray #848586 */
-  filter: brightness(0) saturate(100%) invert(54%) sepia(3%) saturate(201%) hue-rotate(169deg) brightness(94%) contrast(88%);
-  opacity: 0.88;
+  /* White vector at close-tab opacity */
+  filter: brightness(0) invert(1);
+  opacity: 0.16;
 }
 
 .node-query-modal__call-asistente .node-query-modal__doc-action-icon {
-  /* Lighter visual weight on the agent vector */
-  opacity: 0.62;
+  /* Slightly softer agent vector */
+  opacity: 0.14;
 }
 
 .node-query-modal__doc-action:hover:not(:disabled) {
@@ -545,6 +546,7 @@
 
 .node-query-modal__doc-action:hover:not(:disabled) .node-query-modal__doc-action-icon {
   opacity: 0.92;
+  filter: brightness(0) saturate(100%) invert(63%) sepia(3%) saturate(201%) hue-rotate(169deg) brightness(94%) contrast(88%);
 }
 
 .node-query-modal__call-asistente:hover:not(:disabled) .node-query-modal__doc-action-icon {
