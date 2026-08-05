@@ -313,26 +313,44 @@ export function buildDailyReportOfferText(opts = {}) {
   const groups = groupFoldersByPercent(folders);
   const lines = [];
 
-  lines.push(en ? "Today’s summary:" : "Resumen de hoy:");
+  lines.push(en ? "Here’s the summary I prepared for today:" : "Te preparé el resumen de hoy:");
 
   if (occupied > 0) {
     if (en) {
-      lines.push(
-        `You have ${occupied} scheduled block${occupied === 1 ? "" : "s"}, `
-        + `of which ${struck} ${struck === 1 ? "has" : "have"} already passed and `
-        + `${pendingInSummary} ${pendingInSummary === 1 ? "remains" : "remain"} pending.`,
-      );
+      const parts = [`I reviewed today’s agenda — you have ${occupied} scheduled block${occupied === 1 ? "" : "s"}`];
+      if (struck > 0) {
+        parts.push(`${struck} ${struck === 1 ? "has" : "have"} already passed`);
+      }
+      if (pendingInSummary > 0) {
+        parts.push(`${pendingInSummary} ${pendingInSummary === 1 ? "remains" : "remain"} pending`);
+      }
+      if (parts.length === 1) {
+        lines.push(`${parts[0]}.`);
+      } else if (parts.length === 2) {
+        lines.push(`${parts[0]}, of which ${parts[1]}.`);
+      } else {
+        lines.push(`${parts[0]}, of which ${parts[1]} and ${parts[2]}.`);
+      }
     } else {
-      lines.push(
-        `Tienes ${occupied} bloque${occupied === 1 ? "" : "s"} programado${occupied === 1 ? "" : "s"}, `
-        + `de los cuales ${struck} ya ${struck === 1 ? "está vencido" : "están vencidos"} y `
-        + `${pendingInSummary} continúan pendiente${pendingInSummary === 1 ? "" : "s"}.`,
-      );
+      const parts = [`Revisé tu agenda — tienes ${occupied} bloque${occupied === 1 ? "" : "s"} programado${occupied === 1 ? "" : "s"}`];
+      if (struck > 0) {
+        parts.push(`${struck} ya ${struck === 1 ? "está vencido" : "están vencidos"}`);
+      }
+      if (pendingInSummary > 0) {
+        parts.push(`${pendingInSummary} continúan pendiente${pendingInSummary === 1 ? "" : "s"}`);
+      }
+      if (parts.length === 1) {
+        lines.push(`${parts[0]}.`);
+      } else if (parts.length === 2) {
+        lines.push(`${parts[0]}, de los cuales ${parts[1]}.`);
+      } else {
+        lines.push(`${parts[0]}, de los cuales ${parts[1]} y ${parts[2]}.`);
+      }
     }
   } else if (pending > 0) {
     lines.push(en
-      ? `${pending === 1 ? "One item remains" : `${pending} items remain`} pending for today.`
-      : `${pending === 1 ? "Todavía queda 1 pendiente" : `Todavía quedan ${pending} pendientes`} para hoy.`);
+      ? `I still see ${pending === 1 ? "1 pending item" : `${pending} pending items`} for today.`
+      : `Todavía veo ${pending === 1 ? "1 pendiente" : `${pending} pendientes`} para hoy.`);
   }
 
   for (const g of groups) {

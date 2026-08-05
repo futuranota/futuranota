@@ -597,7 +597,10 @@ export function GinaChatCard({
                   : "gina-chat-card__turn gina-chat-card__turn--user"
               }
             >
-              {msg.sender === "ai" && msg.visualization?.type === "schedule_sheet" && msg.visualization?.data?.hasRecoveryOffer ? (
+              {msg.sender === "ai" && msg.visualization?.type === "schedule_sheet" && (
+                msg.visualization?.data?.hasRecoveryOffer
+                || msg.visualization?.data?.recoveryPhase === "brief"
+              ) ? (
                 <>
                   <GinaDataVisualization
                     type={msg.visualization.type}

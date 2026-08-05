@@ -143,7 +143,7 @@ describe("buildGinaDailyReport", () => {
     });
     expect(text.toLowerCase()).not.toContain("chocan");
     expect(text.toLowerCase()).not.toContain("colision");
-    expect(text).toContain("Resumen de hoy");
+    expect(text).toContain("Te preparé el resumen de hoy");
     expect(text).toContain("Snapchat");
     expect(text).toContain("50%");
     expect(text).toContain("Revisa los detalles");
@@ -196,6 +196,20 @@ describe("buildGinaDailyReport", () => {
     const text = buildDailyReportOfferText({ conflictCount: 2, locale: "es" });
     expect(text.toLowerCase()).toContain("colision");
     expect(text.toLowerCase()).not.toContain("me di cuenta");
+  });
+
+  it("omits zero pending clause naturally", () => {
+    const text = buildDailyReportOfferText({
+      locale: "es",
+      occupiedCount: 2,
+      struckCount: 2,
+      pendingCount: 0,
+      folderProgress: [],
+      hasDetails: false,
+    });
+    expect(text).toContain("Revisé tu agenda");
+    expect(text).not.toContain("0 continúan");
+    expect(text).not.toContain("continúan pendiente");
   });
 
   it("empty chips point to today funnel", () => {

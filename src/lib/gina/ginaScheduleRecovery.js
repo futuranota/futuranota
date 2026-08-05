@@ -146,10 +146,41 @@ export function buildCascadeSchedulePreview(docs, now = new Date()) {
 }
 
 /**
- * Recovery offer under the today schedule table.
+ * Recovery offer under the today schedule table (legacy — prefer brief text).
  * @param {{ firstTitle?: string | null, locale?: string }} opts
  */
 export function buildScheduleRecoveryOfferText(opts = {}) {
+  return buildScheduleRecoveryBriefText(opts);
+}
+
+/**
+ * Gate chips after a clean schedule sheet (notify + omit).
+ * @param {{ locale?: string }} [opts]
+ */
+export function buildScheduleRecoveryGateChips(opts = {}) {
+  const en = opts.locale === "en";
+  return [
+    {
+      id: "recovery_notify",
+      label: en ? "Assistance has something to tell you" : "Assistance requiere informarte algo",
+      text: en
+        ? "Assistance has something to tell you"
+        : "Assistance requiere informarte algo",
+      primary: true,
+    },
+    {
+      id: "skip_recovery",
+      label: en ? "Skip" : "Omitir",
+      text: en ? "Skip schedule recovery" : "Omitir recuperación de horario",
+    },
+  ];
+}
+
+/**
+ * Step-2 brief after the user opens the notify chip (first person).
+ * @param {{ firstTitle?: string | null, locale?: string }} opts
+ */
+export function buildScheduleRecoveryBriefText(opts = {}) {
   const en = opts.locale === "en";
   const first = opts.firstTitle
     ? `“${opts.firstTitle}”`
@@ -157,23 +188,26 @@ export function buildScheduleRecoveryOfferText(opts = {}) {
 
   if (en) {
     return (
-      `Hey — looking at the clock, these items fell behind this morning.\n`
-      + `How do you want to adjust them?\n`
-      + `Mark as past due: Clears the current list so you can review them later.\n`
-      + `Cascade reschedule: Keeps the order starting with ${first} and shifts the rest for today. `
+      `I reviewed the content table and the current schedule — I want to flag that these documents are already a bit behind.\n`
+      + `Want to adjust them?\n`
+      + `**Nota:** If you mark them past due, I clear the current list and you can review them in the folders later to catch up. `
+      + `**Por ejemplo:** if you prefer a cascade, I keep this same order starting from ${first} and shift the rest for today.\n`
+      + `Want me to help you change them?\n`
       + `(Pick an option below to apply)`
     );
   }
   return (
-    `Oye, viendo la hora, estos temas se nos quedaron atrás en la mañana.\n`
-    + `¿Cómo prefieres ajustarlos?\n`
-    + `Marcar como vencidos: Limpia la lista actual para que la revises más tarde.\n`
-    + `Reagendar en cadena: Mantiene el orden iniciando con ${first} y desplaza el resto para hoy. `
+    `Revisé la tabla de contenido y el horario actual — quiero señalarte que estos documentos ya van un poco atrasados.\n`
+    + `¿Quieres ajustarlos?\n`
+    + `**Nota:** Si los marcas como vencidos, limpio la lista actual y las revisas en los folders más adelante para ponerte al día. `
+    + `**Por ejemplo:** si prefieres regenerar una cadena, mantengo este mismo orden iniciando desde ${first} y desplazo el resto para hoy.\n`
+    + `¿Quieres que te ayude a modificarlos?\n`
     + `(Selecciona una opción abajo para aplicar)`
   );
 }
 
 /**
+ * Action chips after the recovery brief (mark / cascade / omit).
  * @param {{ locale?: string }} [opts]
  */
 export function buildScheduleRecoveryChips(opts = {}) {
@@ -194,6 +228,11 @@ export function buildScheduleRecoveryChips(opts = {}) {
         ? "Postpone today's passed schedule keeping order"
         : "Posponer horario de hoy manteniendo el orden",
     },
+    {
+      id: "skip_recovery",
+      label: en ? "Skip" : "Omitir",
+      text: en ? "Skip schedule recovery" : "Omitir recuperación de horario",
+    },
   ];
 }
 
@@ -207,16 +246,16 @@ export function buildScheduleRecoveryAck(intent, opts = {}) {
   const n = opts.count ?? 0;
   if (intent === "mark_past_due") {
     return en
-      ? `I identified ${n} document(s) whose time block already ended. `
-        + `They will change to Past due for your review. Please confirm the preview before updating.`
-      : `Identifiqué ${n} documento(s) cuyo horario ya concluyó. `
-        + `Cambiarán al estado Vencido para tu revisión. Por favor, confirma la vista previa antes de actualizar.`;
+      ? `I found ${n} document(s) whose time block already ended. `
+        + `I’ll move them to Past due for your review — confirm the preview before I update.`
+      : `Encontré ${n} documento(s) cuyo horario ya concluyó. `
+        + `Los paso a Vencido para tu revisión — confirma la vista previa antes de que actualice.`;
   }
   return en
     ? `I’ll reorganize your agenda from this moment. I’ll keep the original task order, `
-      + `plus their durations and break times. Review the preview below before applying the changes.`
-    : `Voy a reorganizar tu agenda a partir de este momento. Conservaré el orden original de las tareas, `
-      + `así como sus duraciones y tiempos de descanso. Revisa la vista previa a continuación antes de aplicar los cambios.`;
+      + `plus their durations and break times. Review the preview below before I apply the changes.`
+    : `Voy a reorganizar tu agenda a partir de este momento. Conservo el orden original de las tareas, `
+      + `así como sus duraciones y tiempos de descanso. Revisa la vista previa a continuación antes de que aplique los cambios.`;
 }
 
 /**
@@ -237,8 +276,8 @@ export function buildScheduleRecoveryConfirmChips(intent, opts = {}) {
     },
     {
       id: "skip_recovery",
-      label: en ? "Skip" : "Saltarlo",
-      text: en ? "Skip schedule recovery" : "Saltarlo",
+      label: en ? "Skip" : "Omitir",
+      text: en ? "Skip schedule recovery" : "Omitir recuperación de horario",
     },
   ];
 }
@@ -253,8 +292,8 @@ export function buildScheduleRecoveryAppliedText(intent, opts = {}) {
   const n = opts.count ?? 0;
   if (intent === "mark_past_due") {
     return en
-      ? `Done — ${n} document(s) are now Past due for your review.`
-      : `Listo — ${n} documento(s) quedaron en Vencido para tu revisión.`;
+      ? `Done — I marked ${n} document(s) Past due for your review.`
+      : `Listo — marqué ${n} documento(s) como Vencido para tu revisión.`;
   }
   return en
     ? `Done — I shifted ${n} document(s) in cascade for the rest of today.`

@@ -18,7 +18,6 @@ export function splitGinaAiText(text) {
     const throughQ = plain.slice(0, lastQ + 1);
     const afterQ = plain.slice(lastQ + 1).trim();
 
-    // Start of the question sentence (after prior . ! … or newline)
     let qStart = 0;
     for (let i = throughQ.length - 2; i >= 0; i -= 1) {
       const ch = throughQ[i];
@@ -33,27 +32,21 @@ export function splitGinaAiText(text) {
     const before = throughQ.slice(0, qStart).trim();
     const after = afterQ;
 
-    // Only the question (maybe short) → full emphasis
     if (!before && !after) {
       return { headline: question || plain, body: "" };
     }
 
-    // Desc then question → show desc (gray) then question (white)
     if (before && !after) {
       return { headline: question, body: before, bodyFirst: true };
     }
 
-    // Question then deep description → classic headline + body (title at start)
     if (!before && after) {
       return { headline: question, body: after };
     }
 
-    // Both sides with a mid-question: treat as descriptive body only
-    // (avoid promoting a mid-block line to white bold).
     return { headline: "", body: plain };
   }
 
-  // No question: first sentence = title emphasis; rest = deep desc
   const sentence = plain.match(/^(.+?[.!…])(\s+[\s\S]*)?$/u);
   if (sentence && sentence[2] && sentence[2].trim()) {
     return {
@@ -87,12 +80,42 @@ function findLastQuestionMarkOutsideQuotes(text) {
   return last;
 }
 
+const LABEL_SPLIT_RE = /(\*\*(?:Nota|Por ejemplo|Note|For example):\*\*)/gi;
+const LABEL_MATCH_RE = /^\*\*((?:Nota|Por ejemplo|Note|For example):)\*\*$/i;
+
+/**
+ * Render body text with **Nota:** / **Por ejemplo:** as bold labels.
+ * @param {string} text
+ */
+function renderBodyWithLabels(text) {
+  const raw = String(text || "");
+  if (!raw) return null;
+  if (!LABEL_SPLIT_RE.test(raw)) return raw;
+  LABEL_SPLIT_RE.lastIndex = 0;
+  const parts = raw.split(LABEL_SPLIT_RE);
+  return parts.map((part, i) => {
+    const m = part.match(LABEL_MATCH_RE);
+    if (m) {
+      return (
+        <strong key={`lbl-${i}`} className="gina-chat-card__ai-label">
+          {m[1]}
+        </strong>
+      );
+    }
+    return <span key={`t-${i}`}>{part}</span>;
+  });
+}
+
+function stripMd(text) {
+  return String(text || "").replace(/\*\*(.*?)\*\*/g, "$1");
+}
+
 /**
  * Same typewriter cadence as Intel Overview / AnimatedIntelLine.
  * @param {{ text?: string, className?: string }} props
  */
 export function GinaAnimatedText({ text, className }) {
-  const plain = (text || "").replace(/\*\*(.*?)\*\*/g, "$1").trim();
+  const plain = stripMd(text).trim();
   const animated = useAnimatedText(plain);
   if (!plain) return null;
   return <span className={className}>{animated || "\u00A0"}</span>;
@@ -100,18 +123,23 @@ export function GinaAnimatedText({ text, className }) {
 
 /**
  * AI reply: white/bold question·title + gray/small deep description.
+ * Labels like **Nota:** stay bold inside the body once typing finishes.
  * @param {{ text?: string, plainBody?: boolean }} props
  */
 export function GinaAiMessageText({ text, plainBody = false }) {
-  const plain = String(text || "").replace(/\*\*(.*?)\*\*/g, "$1").trim();
-  if (!plain) return null;
+  const source = String(text || "").trim();
+  if (!source) return null;
 
   if (plainBody) {
+    const plain = stripMd(source);
     const animated = useAnimatedText(plain);
+    const done = Boolean(animated) && animated.length >= plain.length;
     return (
       <span className="gina-chat-card__ai-text">
         <span className="gina-chat-card__ai-body gina-chat-card__ai-body--soft">
-          {animated || "\u00A0"}
+          {done && /\*\*/.test(source)
+            ? renderBodyWithLabels(source)
+            : (animated || "\u00A0")}
         </span>
       </span>
     );
@@ -119,22 +147,23 @@ export function GinaAiMessageText({ text, plainBody = false }) {
 
   const { headline, body, bodyFirst } = splitGinaAiText(text);
   const sep = body ? "\n" : "";
-  // Typewriter in reading order
+  const plainHead = headline;
+  const plainBodyText = body;
   const full = bodyFirst && body
-    ? `${body}${sep}${headline}`
-    : `${headline}${sep}${body}`;
+    ? `${plainBodyText}${sep}${plainHead}`
+    : `${plainHead}${sep}${plainBodyText}`;
   const animated = useAnimatedText(full);
   if (!headline && !body) return null;
 
   let headShown = "";
   let bodyShown = "";
   if (bodyFirst && body) {
-    bodyShown = animated.slice(0, Math.min(animated.length, body.length));
-    const headStart = body.length + sep.length;
+    bodyShown = animated.slice(0, Math.min(animated.length, plainBodyText.length));
+    const headStart = plainBodyText.length + sep.length;
     headShown = animated.length > headStart ? animated.slice(headStart) : "";
   } else {
-    headShown = animated.slice(0, Math.min(animated.length, headline.length));
-    const bodyStart = headline.length + sep.length;
+    headShown = animated.slice(0, Math.min(animated.length, plainHead.length));
+    const bodyStart = plainHead.length + sep.length;
     bodyShown = animated.length > bodyStart ? animated.slice(bodyStart) : "";
   }
 
@@ -142,17 +171,28 @@ export function GinaAiMessageText({ text, plainBody = false }) {
   const showHead = Boolean(headline);
   const bodyReady = bodyFirst
     ? animated.length > 0
-    : animated.length > headline.length;
+    : animated.length > plainHead.length;
   const headReady = bodyFirst
-    ? animated.length > body.length
+    ? animated.length > plainBodyText.length
     : animated.length > 0;
+
+  const bodyDone = bodyShown.length >= plainBodyText.length;
+  const bodyHasLabels = /\*\*(?:Nota|Por ejemplo|Note|For example):/i.test(source);
+  const bodyNode = bodyDone && bodyHasLabels
+    ? renderBodyWithLabels(
+      plainBodyText.replace(
+        /(Nota:|Por ejemplo:|Note:|For example:)/g,
+        (m) => `**${m}**`,
+      ),
+    )
+    : bodyShown;
 
   return (
     <span className="gina-chat-card__ai-text">
       {bodyFirst ? (
         <>
           {showBody && bodyReady ? (
-            <span className="gina-chat-card__ai-body">{bodyShown || "\u00A0"}</span>
+            <span className="gina-chat-card__ai-body">{bodyNode || "\u00A0"}</span>
           ) : null}
           {showHead && headReady ? (
             <span className="gina-chat-card__ai-headline">{headShown || "\u00A0"}</span>
@@ -164,7 +204,7 @@ export function GinaAiMessageText({ text, plainBody = false }) {
             <span className="gina-chat-card__ai-headline">{headShown || "\u00A0"}</span>
           ) : null}
           {showBody && bodyReady ? (
-            <span className="gina-chat-card__ai-body">{bodyShown || "\u00A0"}</span>
+            <span className="gina-chat-card__ai-body">{bodyNode || "\u00A0"}</span>
           ) : null}
         </>
       )}

@@ -126,12 +126,20 @@ export function formatDepartmentOfLabel(department) {
   return `Department of ${name}`;
 }
 
+/** Sentinel filter id for folders with no department assigned. */
+export const UNASSIGNED_DEPARTMENT_FILTER_ID = "";
+
 /**
+ * Match a folder against the sidebar department filter.
+ * Empty / unassigned filter → only folders without a departmentId.
+ * Concrete id → exact department match.
+ *
  * @param {{ departmentId?: string|null, category?: string|null }|null|undefined} folder
  * @param {string|null|undefined} filterDepartmentId
  * @returns {boolean}
  */
 export function folderMatchesDepartmentFilter(folder, filterDepartmentId) {
-  if (!filterDepartmentId) return true;
-  return String(folder?.departmentId || "") === String(filterDepartmentId);
+  const folderDept = String(folder?.departmentId || "").trim();
+  if (!filterDepartmentId) return !folderDept;
+  return folderDept === String(filterDepartmentId);
 }

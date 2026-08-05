@@ -199,17 +199,22 @@
 .gina-chat-card__ai-body {
   display: block;
   font-family: "Inter", var(--sans, system-ui, sans-serif);
-  font-weight: 600;
-  font-size: 15px;
-  line-height: 1.45;
-  color: #f5f5f5;
+  font-weight: 400;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #a8a8a8;
 }
 
 .gina-chat-card__ai-body--soft {
-  color: #f5f5f5;
+  color: #a8a8a8;
+  font-weight: 400;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.gina-chat-card__ai-label {
   font-weight: 600;
-  font-size: 15px;
-  line-height: 1.45;
+  color: #d0d0d0;
 }
 
 .gina-chat-card__ai-headline + .gina-chat-card__ai-body,
@@ -1090,7 +1095,7 @@
   top: 2px;
   bottom: 0;
   border-radius: 2px;
-  background: color-mix(in oklab, #30701D 42%, transparent);
+  background: color-mix(in oklab, #9a9a9a 28%, transparent);
   border: none;
   box-shadow: none;
   opacity: 0;

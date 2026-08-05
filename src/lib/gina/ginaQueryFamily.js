@@ -486,7 +486,9 @@ export function runGinaQueryFamily(text, ctx = {}) {
 
   // Confirm / skip recovery first (so "Confirmar marcar…" does not hit preview mark).
   {
-    const wantsSkip = /\bsaltarlo\b/.test(q) || /\bskip\s+schedule\s+recovery\b/.test(q);
+    const wantsSkip = /\bsaltarlo\b/.test(q)
+      || /\bomitir(\s+recuperaci[oó]n(\s+de\s+horario)?)?\b/.test(q)
+      || /\bskip\s+schedule\s+recovery\b/.test(q);
     const wantsConfirmMark = /\bconfirmar\s+marcar\s+vencid/.test(q)
       || /\bconfirm\s+mark\s+passed\s+slots\s+as\s+past\s+due\b/.test(q);
     const wantsConfirmCascade = /\bconfirmar\s+reagendar\s+en\s+cadena\b/.test(q)
@@ -515,6 +517,26 @@ export function runGinaQueryFamily(text, ctx = {}) {
           hint: wantsConfirmMark
             ? "User confirmed mark past due — host should write status"
             : "User confirmed cascade — host should write new schedules",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Recovery brief gate (notify chip) — show late docs with highlights before a/b.
+  {
+    const wantsBrief = /\bassistance\s+requiere\s+informarte\s+algo\b/.test(q)
+      || /\bassistance\s+has\s+something\s+to\s+tell\s+you\b/.test(q);
+    if (wantsBrief) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_brief",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          recoveryPhase: "brief",
+          highlightPassedSlots: true,
+          hint: "User opened the schedule recovery brief — show late slots with highlights",
         },
         workspaceInventory: inventory,
       };

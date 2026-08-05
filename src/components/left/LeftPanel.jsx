@@ -57,6 +57,7 @@ import { DepartmentsPanel } from "../departments/DepartmentsPanel.jsx";
 import { DocListTitle } from "../docs/DocListTitle.jsx";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 import {
+  UNASSIGNED_DEPARTMENT_FILTER_ID,
   findDepartmentById,
   folderMatchesDepartmentFilter,
   formatDepartmentOfLabel,
@@ -1711,7 +1712,7 @@ export function LeftPanel({
   const [ginaLearnBrief, setGinaLearnBrief] = useState(null);
   const [ginaPendingLearn, setGinaPendingLearn] = useState(null);
   const [ginaOpeningMessage, setGinaOpeningMessage] = useState("");
-  const [departmentFilterId, setDepartmentFilterId] = useState("");
+  const [departmentFilterId, setDepartmentFilterId] = useState(UNASSIGNED_DEPARTMENT_FILTER_ID);
   const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
   /** Last category chosen per department — restored when switching back to that dept. */
   const [categoryByDepartmentId, setCategoryByDepartmentId] = useState({});
@@ -2131,7 +2132,7 @@ export function LeftPanel({
   }, [setKnowledgeFolderActive]);
 
   useEffect(() => {
-    setDepartmentFilterId("");
+    setDepartmentFilterId(UNASSIGNED_DEPARTMENT_FILTER_ID);
   }, [filterObjectId, clickFolderView]);
 
   /** Sidebar highlight only — does not add to the canvas-driven timeline queue. */
@@ -3724,121 +3725,90 @@ export function LeftPanel({
                     />
                   </div>
                 </div>
-                {departmentFilterOptions.length ? (
-                  <div className="lp-department-filter">
-                    <label className="sr-only" htmlFor="lp-department-filter">
-                      {t("sidebar.departmentFilterLabel")}
-                    </label>
-                    <label className="sr-only" htmlFor="lp-department-category-filter">
-                      {t("sidebar.departmentCategoryFilterLabel")}
-                    </label>
-                    <div className="lp-department-filter__control lp-department-filter__control--merged">
-                      <DepartmentsGlyph className="lp-department-filter__icon" />
-                      <select
-                        id="lp-department-filter"
-                        className="lp-department-filter__select lp-department-filter__select--dept"
-                        value={departmentFilterId}
-                        onChange={(e) => {
-                          const nextId = e.target.value;
-                          setCategoryByDepartmentId((prev) => {
-                            if (!departmentFilterId) return prev;
-                            if (prev[departmentFilterId] === departmentCategoryFilter) {
-                              return prev;
-                            }
-                            return {
-                              ...prev,
-                              [departmentFilterId]: departmentCategoryFilter,
-                            };
-                          });
-                          setDepartmentFilterId(nextId);
-                          setDepartmentCategoryFilter(
-                            nextId ? (categoryByDepartmentId[nextId] || "") : "",
-                          );
-                        }}
-                      >
-                        <option value="">{t("sidebar.departmentFilterAll")}</option>
-                        {departmentFilterOptions.map((dept) => (
-                          <option key={dept.id} value={dept.id}>
-                            {dept.category || t("sidebar.departmentsTitle")}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="lp-department-filter__divider" aria-hidden />
-                      <img
-                        src="/uploads/file-open.svg"
-                        alt=""
-                        aria-hidden
-                        className={
-                          "lp-department-filter__category-icon"
-                          + (!departmentFilterId ? " is-disabled" : "")
-                        }
-                      />
-                      <select
-                        id="lp-department-category-filter"
-                        className="lp-department-filter__select lp-department-filter__select--category"
-                        value={departmentCategoryFilter}
-                        disabled={!departmentFilterId}
-                        onChange={(e) => {
-                          const nextCategory = e.target.value;
-                          setDepartmentCategoryFilter(nextCategory);
-                          if (!departmentFilterId) return;
-                          setCategoryByDepartmentId((prev) => ({
+                <div className="lp-department-filter">
+                  <label className="sr-only" htmlFor="lp-department-filter">
+                    {t("sidebar.departmentFilterLabel")}
+                  </label>
+                  <label className="sr-only" htmlFor="lp-department-category-filter">
+                    {t("sidebar.departmentCategoryFilterLabel")}
+                  </label>
+                  <div className="lp-department-filter__control lp-department-filter__control--merged">
+                    <DepartmentsGlyph className="lp-department-filter__icon" />
+                    <select
+                      id="lp-department-filter"
+                      className="lp-department-filter__select lp-department-filter__select--dept"
+                      value={departmentFilterId}
+                      onChange={(e) => {
+                        const nextId = e.target.value;
+                        setCategoryByDepartmentId((prev) => {
+                          if (!departmentFilterId) return prev;
+                          if (prev[departmentFilterId] === departmentCategoryFilter) {
+                            return prev;
+                          }
+                          return {
                             ...prev,
-                            [departmentFilterId]: nextCategory,
-                          }));
-                        }}
-                      >
-                        {!departmentFilterId ? (
-                          <option value="">
-                            {t("sidebar.departmentCategoryFilterNeedParent")}
-                          </option>
-                        ) : (
-                          <>
-                            <option value="">
-                              {t("sidebar.departmentCategoryFilterAll")}
-                            </option>
-                            {departmentCategoryFilterOptions.map((label) => (
-                              <option key={label} value={label}>
-                                {label}
-                              </option>
-                            ))}
-                          </>
-                        )}
-                      </select>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="lp-department-filter">
-                    <div className="lp-department-filter__control lp-department-filter__control--merged">
-                      <DepartmentsGlyph className="lp-department-filter__icon" />
-                      <select
-                        className="lp-department-filter__select lp-department-filter__select--dept"
-                        disabled
-                        value=""
-                        aria-label={t("sidebar.departmentFilterLabel")}
-                      >
-                        <option value="">{t("sidebar.departmentParentEmptyHint")}</option>
-                      </select>
-                      <span className="lp-department-filter__divider" aria-hidden />
-                      <img
-                        src="/uploads/file-open.svg"
-                        alt=""
-                        aria-hidden
-                        className="lp-department-filter__category-icon is-disabled"
-                      />
-                      <select
-                        className="lp-department-filter__select lp-department-filter__select--category"
-                        disabled
-                        value=""
-                        aria-label={t("sidebar.departmentCategoryFilterLabel")}
-                      >
+                            [departmentFilterId]: departmentCategoryFilter,
+                          };
+                        });
+                        setDepartmentFilterId(nextId);
+                        setDepartmentCategoryFilter(
+                          nextId ? (categoryByDepartmentId[nextId] || "") : "",
+                        );
+                      }}
+                    >
+                      <option value={UNASSIGNED_DEPARTMENT_FILTER_ID}>
+                        {t("sidebar.departmentFilterUnassigned")}
+                      </option>
+                      {departmentFilterOptions.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.category || t("sidebar.departmentsTitle")}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="lp-department-filter__divider" aria-hidden />
+                    <img
+                      src="/uploads/file-open.svg"
+                      alt=""
+                      aria-hidden
+                      className={
+                        "lp-department-filter__category-icon"
+                        + (!departmentFilterId ? " is-disabled" : "")
+                      }
+                    />
+                    <select
+                      id="lp-department-category-filter"
+                      className="lp-department-filter__select lp-department-filter__select--category"
+                      value={departmentCategoryFilter}
+                      disabled={!departmentFilterId}
+                      onChange={(e) => {
+                        const nextCategory = e.target.value;
+                        setDepartmentCategoryFilter(nextCategory);
+                        if (!departmentFilterId) return;
+                        setCategoryByDepartmentId((prev) => ({
+                          ...prev,
+                          [departmentFilterId]: nextCategory,
+                        }));
+                      }}
+                    >
+                      {!departmentFilterId ? (
                         <option value="">
                           {t("sidebar.departmentCategoryFilterNeedParent")}
                         </option>
-                      </select>
-                    </div>
+                      ) : (
+                        <>
+                          <option value="">
+                            {t("sidebar.departmentCategoryFilterAll")}
+                          </option>
+                          {departmentCategoryFilterOptions.map((label) => (
+                            <option key={label} value={label}>
+                              {label}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
                   </div>
-                )}
+                </div>
                 {folderBulkDeleteMode ? (
                   <div className="lp-folder-bulk-bar" role="status">
                     <span className="lp-folder-bulk-bar__count">

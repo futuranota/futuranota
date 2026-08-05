@@ -1,9 +1,10 @@
 import {
   buildScheduleRecoveryAck,
   buildScheduleRecoveryAppliedText,
+  buildScheduleRecoveryBriefText,
   buildScheduleRecoveryChips,
   buildScheduleRecoveryConfirmChips,
-  buildScheduleRecoveryOfferText,
+  buildScheduleRecoveryGateChips,
 } from "./ginaScheduleRecovery.js";
 import {
   buildDailyReportAppliedText,
@@ -247,21 +248,25 @@ export function buildDeptDetailNavChips(opts = {}) {
 
 /**
  * Chips after schedule sheet.
- * @param {{ locale?: string }} [opts]
+ * @param {{ locale?: string, hasRecoveryOffer?: boolean, recoveryPhase?: string }} [opts]
  */
 export function buildScheduleSheetChips(opts = {}) {
   const en = opts.locale === "en";
   const hasRecovery = Boolean(opts.hasRecoveryOffer);
+  const phase = opts.recoveryPhase || "gate";
   /** @type {GinaReplyChip[]} */
   const chips = [];
-  if (hasRecovery) {
+  if (hasRecovery && phase === "brief") {
     chips.push(...buildScheduleRecoveryChips({ locale: opts.locale }));
+  } else if (hasRecovery) {
+    chips.push(...buildScheduleRecoveryGateChips({ locale: opts.locale }));
+  } else {
+    chips.push({
+      id: "today_depts",
+      label: en ? "Departments today" : "Departamentos de hoy",
+      text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
+    });
   }
-  chips.push({
-    id: "today_depts",
-    label: en ? "Departments today" : "Departamentos de hoy",
-    text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
-  });
   return chips;
 }
 
@@ -350,10 +355,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
   }
 
   if (visualization.type === "schedule_sheet") {
-    const markable = data.markableSlotCount
-      ?? (Array.isArray(data.markableSlots) ? data.markableSlots.length : 0);
-    if (data.hasRecoveryOffer && markable > 0) {
-      return buildScheduleRecoveryOfferText({
+    if (data.recoveryPhase === "brief" && data.hasRecoveryOffer) {
+      return buildScheduleRecoveryBriefText({
         firstTitle: data.firstPendingTitle,
         locale: opts.locale,
       });
@@ -361,9 +364,14 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     const n = Array.isArray(data.groups)
       ? data.groups.reduce((acc, g) => acc + (g.folders?.reduce((a, f) => a + (f.documents?.length || 0), 0) || 0), 0)
       : (data.documents?.length || 0);
+    if (n === 0) {
+      return en
+        ? "I checked today’s schedule — nothing timed is on the sheet right now."
+        : "Revisé tu agenda de hoy — no hay ítems con horario en el sheet ahora mismo.";
+    }
     return en
-      ? `Here’s today’s schedule sheet (${n} timed items).`
-      : `Aquí está el sheet de horarios de hoy (${n} ítems).`;
+      ? `I checked today’s schedule — here’s the sheet (${n} timed item${n === 1 ? "" : "s"}).`
+      : `Revisé tu agenda de hoy — aquí tienes el sheet (${n} ítem${n === 1 ? "" : "s"}).`;
   }
 
   if (visualization.type === "daily_report") {
@@ -494,6 +502,7 @@ export function buildGinaReplyChips(opts = {}) {
     return buildScheduleSheetChips({
       locale,
       hasRecoveryOffer: Boolean(data.hasRecoveryOffer),
+      recoveryPhase: data.recoveryPhase || "gate",
     });
   }
   if (type === "recovery_preview") {

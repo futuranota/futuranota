@@ -1,0 +1,35 @@
+---
+description: Gina copy voice — first person, omit zero counts, bold only for headline/labels
+globs: src/lib/gina/**,server/gina/**,src/components/gina/**
+alwaysApply: false
+---
+
+# Gina — voz y tipografía de copy
+
+Wording puede **variar**; lo fijo es el tono y el formato.
+
+## Primera persona (Gina actúa)
+
+Sustituye lectura mecánica de inventario por acciones de Gina:
+
+- Bien: “Revisé tu agenda”, “Te preparé el resumen”, “Aquí tengo el balance”, “Identifiqué…”
+- Mal: “Hay 3 documentos…”, “Se listan N items…”, dump sin sujeto
+
+Groq y headlines determinísticos (`buildGinaFunnelHeadline`, daily report, recovery) siguen esta voz.
+
+## Filtro de ceros
+
+Si un conteo es `0`, **omite** esa cláusula de forma natural.
+
+- Mal: “0 continúan pendientes”
+- Bien: no mencionar pendientes, o solo lo que sí aplica (“3 ya están vencidos”)
+
+## Bold tipográfico
+
+| Uso | Estilo |
+|---|---|
+| Primera oración / headline corto | Bold OK (`ai-headline`) |
+| Descripción larga | Soft / body — sin bold, más pequeño, gray |
+| Etiquetas `Nota:` / `Por ejemplo:` | Bold **solo** en la etiqueta; prosa siguiente en body |
+
+No poner párrafos enteros en bold. Chips y viz quedan aparte.

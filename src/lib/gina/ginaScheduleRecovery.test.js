@@ -3,9 +3,10 @@ import {
   buildCascadeSchedulePreview,
   buildPassedSlotSignals,
   buildScheduleRecoveryAck,
+  buildScheduleRecoveryBriefText,
   buildScheduleRecoveryChips,
   buildScheduleRecoveryConfirmChips,
-  buildScheduleRecoveryOfferText,
+  buildScheduleRecoveryGateChips,
   isGinaWarmGoodbye,
   isMarkablePassedSlot,
   isPassedSlot,
@@ -79,14 +80,14 @@ describe("ginaScheduleRecovery", () => {
     expect(isMarkablePassedSlot(scope.documents.find((d) => d.title === "Moodboard"), now)).toBe(true);
   });
 
-  it("offer copy names first doc and explains both options", () => {
-    const text = buildScheduleRecoveryOfferText({
+  it("brief copy is first-person and names first doc", () => {
+    const text = buildScheduleRecoveryBriefText({
       firstTitle: "¿Qué es Futura Nota?",
       locale: "es",
     });
-    expect(text).toContain("Oye, viendo la hora");
-    expect(text).toContain("Marcar como vencidos");
-    expect(text).toContain("Reagendar en cadena");
+    expect(text).toContain("Revisé la tabla");
+    expect(text).toContain("**Nota:**");
+    expect(text).toContain("**Por ejemplo:**");
     expect(text).toContain("¿Qué es Futura Nota?");
     expect(text.trim().endsWith("(Selecciona una opción abajo para aplicar)")).toBe(true);
   });
@@ -109,11 +110,13 @@ describe("ginaScheduleRecovery", () => {
     });
     expect(viz?.type).toBe("schedule_sheet");
     expect(viz.data.hasRecoveryOffer).toBe(false);
+    expect(viz.data.highlightPassedSlots).toBe(false);
     const headline = buildGinaFunnelHeadline(viz, { locale: "es" });
-    expect(headline || "").not.toContain("Oye, viendo la hora");
+    expect(headline || "").not.toContain("Revisé la tabla");
+    expect(headline || "").toContain("Revisé tu agenda");
   });
 
-  it("schedule_sheet offers recovery chips", () => {
+  it("schedule_sheet gate chips notify + omit without highlights in copy", () => {
     const today = get_today_scope(ctx);
     const viz = buildGinaVisualization("today", today, {
       userText: "Muéstrame los horarios de hoy",
@@ -122,13 +125,32 @@ describe("ginaScheduleRecovery", () => {
     });
     expect(viz?.type).toBe("schedule_sheet");
     expect(viz.data.hasRecoveryOffer).toBe(true);
+    expect(viz.data.highlightPassedSlots).toBe(false);
+    expect(viz.data.recoveryPhase).toBe("gate");
     const headline = buildGinaFunnelHeadline(viz, { locale: "es" });
-    expect(headline).toContain("Oye, viendo la hora");
+    expect(headline).toContain("Revisé tu agenda");
+    expect(headline).not.toContain("Revisé la tabla");
+    const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
+    expect(chips.map((c) => c.id)).toEqual(["recovery_notify", "skip_recovery"]);
+    expect(buildScheduleRecoveryGateChips({ locale: "es" })[0].label).toBe(
+      "Assistance requiere informarte algo",
+    );
+  });
+
+  it("notify chip opens recovery brief with highlights", () => {
+    const routed = runGinaQueryFamily("Assistance requiere informarte algo", ctx);
+    expect(routed.family).toBe("schedule_recovery_brief");
+    const viz = buildGinaVisualization(routed.family, routed.toolContext, { now, locale: "es" });
+    expect(viz?.type).toBe("schedule_sheet");
+    expect(viz.data.recoveryPhase).toBe("brief");
+    expect(viz.data.highlightPassedSlots).toBe(true);
+    const headline = buildGinaFunnelHeadline(viz, { locale: "es" });
+    expect(headline).toContain("Revisé la tabla");
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.map((c) => c.id)).toEqual([
       "mark_past_due",
       "postpone_schedule",
-      "today_depts",
+      "skip_recovery",
     ]);
   });
 
@@ -138,7 +160,7 @@ describe("ginaScheduleRecovery", () => {
     const viz = buildGinaVisualization(mark.family, mark.toolContext, { now, locale: "es" });
     expect(viz?.type).toBe("recovery_preview");
     const headline = buildGinaFunnelHeadline(viz, { locale: "es" });
-    expect(headline).toContain("Identifiqué");
+    expect(headline).toContain("Encontré");
     expect(headline).toContain("Vencido");
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.map((c) => c.id)).toEqual(["confirm_recovery", "skip_recovery"]);
@@ -154,10 +176,11 @@ describe("ginaScheduleRecovery", () => {
     expect(headline).toContain("reorganizar tu agenda");
   });
 
-  it("routes confirm and skip", () => {
+  it("routes confirm and skip/omitir", () => {
     expect(runGinaQueryFamily("Confirmar marcar vencidos", ctx).family).toBe("schedule_recovery_mark_confirm");
     expect(runGinaQueryFamily("Confirmar reagendar en cadena", ctx).family).toBe("schedule_recovery_postpone_confirm");
     expect(runGinaQueryFamily("Saltarlo", ctx).family).toBe("schedule_recovery_skip");
+    expect(runGinaQueryFamily("Omitir recuperación de horario", ctx).family).toBe("schedule_recovery_skip");
   });
 
   it("cascade keeps order and durations", () => {
@@ -171,9 +194,9 @@ describe("ginaScheduleRecovery", () => {
 
   it("warm goodbye detection", () => {
     expect(isGinaWarmGoodbye("gracias gina que tengas un buen resto del dia")).toBe(true);
-    expect(buildScheduleRecoveryAck("mark_past_due", { count: 2, locale: "es" })).toContain("Identifiqué 2");
+    expect(buildScheduleRecoveryAck("mark_past_due", { count: 2, locale: "es" })).toContain("Encontré 2");
     expect(buildScheduleRecoveryChips({ locale: "es" })[1].label).toBe("Reagendar en cadena");
-    expect(buildScheduleRecoveryConfirmChips("postpone_schedule", { locale: "es" })[1].label).toBe("Saltarlo");
+    expect(buildScheduleRecoveryConfirmChips("postpone_schedule", { locale: "es" })[1].label).toBe("Omitir");
     expect(buildPassedSlotSignals(get_today_scope(ctx).documents, now).passedSlots).toHaveLength(2);
   });
 });

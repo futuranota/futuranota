@@ -226,6 +226,8 @@ function attachRecoveryMeta(data, today, now) {
       const s = d.status;
       return s !== "past_due" && s !== "completed" && s !== "submitted";
     }).length) > 0,
+    highlightPassedSlots: Boolean(data.highlightPassedSlots),
+    recoveryPhase: data.recoveryPhase || "gate",
   };
 }
 
@@ -505,6 +507,25 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         count: proposals.length,
         applied: Boolean(ctx.applied),
       },
+    };
+  }
+
+  if (family === "schedule_recovery_brief") {
+    const markable = asDocs(ctx.markableSlots?.length ? ctx.markableSlots : ctx.passedSlots);
+    const source = markable.length ? markable : asDocs(ctx.documents).filter((d) => isPassedSlot(d, now));
+    return {
+      type: "schedule_sheet",
+      data: attachRecoveryMeta({
+        date: ctx.date,
+        dateLabel: formatGinaDayLabel(ctx.date, locale),
+        groups: groupDocsForScheduleSheet(source, now),
+        documents: source
+          .slice()
+          .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
+          .map((d) => mapDocRow(d, now)),
+        highlightPassedSlots: true,
+        recoveryPhase: "brief",
+      }, ctx, now),
     };
   }
 

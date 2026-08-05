@@ -371,7 +371,7 @@ function CategoryDetailVisualization({ data }) {
                         <TimeCell
                           time={doc.time}
                           passedSlot={Boolean(doc.passedSlot)}
-                          delayHighlights={Boolean(data.hasRecoveryOffer)}
+                          delayHighlights={Boolean(data.highlightPassedSlots)}
                         />
                         <span className="gina-viz__sheet-title">{doc.title}</span>
                         {doc.status ? <DocStatusChip status={doc.status} /> : null}
@@ -545,7 +545,7 @@ function DailyReportMovePreviewVisualization({ data }) {
 
 function ScheduleSheetVisualization({ data }) {
   const groups = Array.isArray(data.groups) ? data.groups : [];
-  const delayHighlights = Boolean(data.hasRecoveryOffer);
+  const delayHighlights = Boolean(data.highlightPassedSlots);
   return (
     <div className="gina-viz gina-viz--schedule-sheet">
       <header className="gina-viz__head">
