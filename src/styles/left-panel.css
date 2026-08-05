@@ -9388,11 +9388,11 @@ body.doc-content-resizing * {
   height: 22px;
 }
 
-/* Save: same muted inactive look as Larger (is-disabled) */
+/* Save: keep Larger hover look as resting (no hover shift — click is enough) */
 .node-query-modal__footer-start .node-query-modal__footer-save {
   width: auto;
   height: 22px;
-  opacity: 0.34;
+  opacity: 0.52;
   filter: grayscale(0.55);
 }
 

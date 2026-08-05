@@ -22,6 +22,14 @@ export function AssistanceListCard({
 
   return (
     <div className="lp-assistance-space">
+      <div className="lp-assistance-hero" aria-hidden>
+        <img
+          src="/uploads/G-Assistance-Desk.png"
+          alt=""
+          className="lp-assistance-hero__img"
+        />
+      </div>
+
       <div className="lp-agent-card fn-card lp-assistance-card">
         <div className="lp-agent-card__icon lp-assistance-card__icon" aria-hidden>
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
