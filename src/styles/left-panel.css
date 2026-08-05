@@ -9062,6 +9062,11 @@ body.doc-content-resizing * {
 .node-query-modal__schedule.doc-block-anchor {
   padding-left: 0;
   margin-top: 0;
+  /* Date above hour so Save/Larger can baseline to the hour row */
+  flex-direction: column;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 4px;
 }
 
 .node-query-modal__schedule .doc-block-anchor__date,
@@ -9347,7 +9352,8 @@ body.doc-content-resizing * {
 
 .node-query-modal__footer-start {
   display: flex;
-  align-items: center;
+  /* Save + Larger sit on the hour row (schedule stacks date above) */
+  align-items: flex-end;
   gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
@@ -9371,6 +9377,33 @@ body.doc-content-resizing * {
 }
 
 .node-query-modal__footer-start .doc-content-text-size-controls__btn img {
+  width: auto;
+  height: 22px;
+  max-height: 22px;
+}
+
+.node-query-modal__footer-start .node-query-modal__footer-save,
+.node-query-modal__footer-start .doc-content-text-size-controls {
+  align-self: flex-end;
+  height: 22px;
+}
+
+/* Save: same muted inactive look as Larger (is-disabled) */
+.node-query-modal__footer-start .node-query-modal__footer-save {
+  width: auto;
+  height: 22px;
+  opacity: 0.34;
+  filter: grayscale(0.55);
+}
+
+.node-query-modal__footer-start .node-query-modal__footer-save:hover,
+.node-query-modal__footer-start .node-query-modal__footer-save:focus-visible {
+  opacity: 0.52;
+  filter: grayscale(0.55);
+  outline: none;
+}
+
+.node-query-modal__footer-start .node-query-modal__footer-save img {
   width: auto;
   height: 22px;
   max-height: 22px;

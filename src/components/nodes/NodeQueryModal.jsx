@@ -1373,7 +1373,7 @@ export function NodeQueryModal({
             {onSave ? (
               <button
                 type="button"
-                className="doc-content-text-size-controls__btn node-query-modal__footer-save is-active"
+                className="doc-content-text-size-controls__btn node-query-modal__footer-save"
                 onClick={handleFooterSave}
                 aria-label={t("common.save")}
                 title={t("common.save")}
@@ -1381,7 +1381,7 @@ export function NodeQueryModal({
                 <img
                   src={NODE_FOOTER_SAVE_ICON}
                   alt=""
-                  width={48}
+                  width={63}
                   height={22}
                   draggable={false}
                 />
