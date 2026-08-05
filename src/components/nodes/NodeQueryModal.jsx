@@ -775,16 +775,23 @@ export function NodeQueryModal({
               <div className="doc-focus-top__meta">
                 <button
                   type="button"
-                  className="node-query-modal__call-asistente"
+                  className="node-query-modal__doc-action node-query-modal__call-asistente"
                   onClick={() => setGinaChatOpen(true)}
                   title={t("gina.callAsistenteTitle")}
                   aria-label={t("gina.callAsistenteTitle")}
                 >
-                  {t("gina.callAsistente")}
+                  <img
+                    className="node-query-modal__doc-action-icon"
+                    src="/uploads/call%20center%201.svg"
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                  />
+                  <span>{t("gina.callAsistente")}</span>
                 </button>
                 <button
                   type="button"
-                  className="node-query-modal__new-todo"
+                  className="node-query-modal__doc-action node-query-modal__new-todo"
                   onClick={handleOpenLinkedLazyTodo}
                   disabled={!companyObjectId}
                   title={
@@ -794,7 +801,14 @@ export function NodeQueryModal({
                   }
                   aria-label={t("gina.newTodoTitle")}
                 >
-                  {t("gina.newTodo")}
+                  <img
+                    className="node-query-modal__doc-action-icon"
+                    src="/uploads/ClipboardText.svg"
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                  />
+                  <span>{t("gina.newTodo")}</span>
                 </button>
                 {showCloseButton ? (
                   <button
@@ -843,16 +857,23 @@ export function NodeQueryModal({
             <div className="node-query-modal__head-actions">
               <button
                 type="button"
-                className="node-query-modal__call-asistente"
+                className="node-query-modal__doc-action node-query-modal__call-asistente"
                 onClick={() => setGinaChatOpen(true)}
                 title={t("gina.callAsistenteTitle")}
                 aria-label={t("gina.callAsistenteTitle")}
               >
-                {t("gina.callAsistente")}
+                <img
+                  className="node-query-modal__doc-action-icon"
+                  src="/uploads/call%20center%201.svg"
+                  alt=""
+                  aria-hidden
+                  draggable={false}
+                />
+                <span>{t("gina.callAsistente")}</span>
               </button>
               <button
                 type="button"
-                className="node-query-modal__new-todo"
+                className="node-query-modal__doc-action node-query-modal__new-todo"
                 onClick={handleOpenLinkedLazyTodo}
                 disabled={!companyObjectId}
                 title={
@@ -862,7 +883,14 @@ export function NodeQueryModal({
                 }
                 aria-label={t("gina.newTodoTitle")}
               >
-                {t("gina.newTodo")}
+                <img
+                  className="node-query-modal__doc-action-icon"
+                  src="/uploads/ClipboardText.svg"
+                  alt=""
+                  aria-hidden
+                  draggable={false}
+                />
+                <span>{t("gina.newTodo")}</span>
               </button>
               {showCloseButton ? (
                 <button
