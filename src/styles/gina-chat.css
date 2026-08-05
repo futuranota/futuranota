@@ -1,20 +1,28 @@
-/* Gina chat — Call Asistente in-doc shell (surface #151515) */
+/* Gina chat — Call Asistente in-doc shell (surface #151515)
+ * Layer stack: backdrop 12000 → Assistance hero float 12001 → panel 12002
+ */
 
-.gina-chat-overlay {
+.gina-chat-overlay__backdrop {
   position: fixed;
   inset: 0;
   z-index: 12000;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.gina-chat-overlay__panel {
+  position: fixed;
+  inset: 0;
+  z-index: 12002;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
   box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
 }
 
-.gina-chat-overlay__panel {
-  position: relative;
-  z-index: 1;
+.gina-chat-overlay__panel > * {
+  pointer-events: auto;
 }
 
 .gina-chat-card {

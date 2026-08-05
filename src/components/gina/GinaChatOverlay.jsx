@@ -4,6 +4,7 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
 
 /**
  * Portal overlay for Gina chat (in-doc Call Asistente or dashboard Assistance).
+ * Backdrop and panel are separate layers so Assistance hero can sit between them (z 12001).
  *
  * @param {{
  *   documentId?: string | null,
@@ -51,13 +52,12 @@ export function GinaChatOverlay({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div
-      className="gina-chat-overlay"
-      role="presentation"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose?.();
-      }}
-    >
+    <>
+      <div
+        className="gina-chat-overlay__backdrop"
+        role="presentation"
+        onMouseDown={() => onClose?.()}
+      />
       <div
         className="gina-chat-overlay__panel"
         role="dialog"
@@ -83,7 +83,7 @@ export function GinaChatOverlay({
           onClose={onClose}
         />
       </div>
-    </div>,
+    </>,
     document.body,
   );
 }

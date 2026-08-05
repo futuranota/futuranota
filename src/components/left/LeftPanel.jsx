@@ -3644,6 +3644,7 @@ export function LeftPanel({
                     onOpenKnowledge={() => setGinaKnowledgeOpen(true)}
                     isAdmin={isGinaAdmin}
                     knowledgeDocCount={knowledgeDocs.length}
+                    chatOpen={ginaDashboardOpen && !ginaMeetingSession}
                   />
                 </div>
               </div>
