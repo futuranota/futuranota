@@ -664,11 +664,47 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
   }
 
   if (family === "folder_summary" || family === "department") {
+    if (ctx.notFound) {
+      return {
+        type: "table",
+        data: {
+          title: locale === "en" ? "Folder" : "Folder",
+          documents: [],
+          empty: true,
+          listAll: true,
+          notFound: true,
+          department: null,
+        },
+      };
+    }
     if (ctx.aggregated || ctx.folderName) {
       const agg = ctx.aggregated || {};
-      const total = agg.total || asDocs(ctx.documents).length || 0;
+      const docs = asDocs(ctx.documents).map(mapDocRow);
+      const total = agg.total || docs.length || 0;
       const completed = agg.completed || 0;
       const pct = total ? Math.round((completed / total) * 100) : 0;
+      const listAll = Boolean(ctx.listAll) || wantsTable || /\b(todos|all|lista|list)\b/.test(q);
+      if (listAll || total === 0) {
+        return {
+          type: "table",
+          data: {
+            title: ctx.folderName
+              ? (locale === "en" ? `Documents · ${ctx.folderName}` : `Documentos · ${ctx.folderName}`)
+              : (locale === "en" ? "Documents" : "Documentos"),
+            documents: docs,
+            department: ctx.departmentName || ctx.department || null,
+            category: ctx.category || null,
+            folder: ctx.folderName || null,
+            empty: total === 0,
+            listAll: true,
+            hierarchy: {
+              department: ctx.departmentName || ctx.department || null,
+              category: ctx.category || null,
+              folder: ctx.folderName || null,
+            },
+          },
+        };
+      }
       return {
         type: "folder_summary",
         data: {
@@ -686,12 +722,12 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           notStarted: agg.notStarted || 0,
           pastDue: agg.pastDue || 0,
           percentComplete: pct,
-          documents: asDocs(ctx.documents).map(mapDocRow),
-          nextDue: asDocs(ctx.documents).find((d) => d.isPastDue || d.status === "past_due")
-            || asDocs(ctx.documents)[0]
+          documents: docs,
+          nextDue: docs.find((d) => d.isPastDue || d.status === "past_due")
+            || docs[0]
             || null,
           empty: total === 0,
-          listAll: Boolean(ctx.listAll),
+          listAll: false,
         },
       };
     }

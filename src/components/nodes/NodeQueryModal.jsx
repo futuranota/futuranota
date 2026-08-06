@@ -432,6 +432,26 @@ export function NodeQueryModal({
       };
     }
 
+    if (routed.family === "folder_summary") {
+      const visualization = buildGinaVisualization("folder_summary", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? `Here are the documents in ${routed.toolContext?.folderName || "that folder"}.`
+            : `Aquí tienes los documentos de ${routed.toolContext?.folderName || "ese folder"}.`),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "folder_summary",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
     if (routed.family === "today") {
       const docs = Array.isArray(routed.toolContext?.documents)
         ? routed.toolContext.documents

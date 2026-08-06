@@ -17,6 +17,7 @@ import {
   buildDailyReportMovePreviewText,
   buildDailyReportOfferText,
 } from "./ginaDailyReport.js";
+import { getGinaTestQuickLinks } from "./ginaTestQuickLinks.js";
 
 /**
  * Fixed reply chips for Gina progressive funnel (ids stable; labels user-facing).
@@ -42,6 +43,7 @@ const STATUS_CHIP_META = {
  */
 export function buildGinaOpeningChips(opts = {}) {
   const en = opts.locale === "en";
+  const testLinks = getGinaTestQuickLinks({ locale: opts.locale });
   return [
     {
       id: "today",
@@ -49,8 +51,13 @@ export function buildGinaOpeningChips(opts = {}) {
       text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
       primary: true,
     },
+    ...testLinks.map((link) => ({
+      id: link.id,
+      label: link.label,
+      text: link.text,
+    })),
     {
-      id: "today_schedule",
+      id: "schedule",
       label: en ? "Today's schedule" : "Horarios de hoy",
       text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
     },
@@ -369,18 +376,44 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     });
   }
 
-  if (visualization.type === "table" && (data.listAll || data.empty || data.department)) {
-    const name = data.department || "—";
+  if (visualization.type === "table" && (data.listAll || data.empty || data.department || data.folder)) {
+    const name = data.folder || data.department || "—";
     const n = Array.isArray(data.documents) ? data.documents.length : 0;
+    if (data.notFound) {
+      return en
+        ? "I couldn’t find that folder in your live workspace. I won’t invent one — try another name?"
+        : "No encontré ese folder en tu workspace live. No voy a inventar uno — ¿pruebas con otro nombre?";
+    }
     if (data.empty || n === 0) {
       if (data.scope === "today") {
         return en
           ? `Today in **${name}** there are zero scheduled documents.`
           : `Hoy en **${name}** hay cero documentos programados.`;
       }
+      if (data.folder || data.hierarchy?.folder) {
+        const dept = data.department || data.hierarchy?.department;
+        const cat = data.category || data.hierarchy?.category;
+        const path = [dept, cat, data.folder || data.hierarchy?.folder].filter(Boolean).join(" / ");
+        return en
+          ? `Folder **${name}**${path ? ` (${path})` : ""} has zero documents.`
+          : `El folder **${name}**${path ? ` (${path})` : ""} no tiene documentos.`;
+      }
       return en
         ? `From the **${name}** department there is zero data — no categories, folders, or documents.`
         : `Del departamento de **${name}** hay cero datos — sin categorías, folders ni documentos.`;
+    }
+    if (data.folder || data.hierarchy?.folder) {
+      const dept = data.department || data.hierarchy?.department;
+      const cat = data.category || data.hierarchy?.category;
+      const folder = data.folder || data.hierarchy?.folder;
+      const pathBits = [];
+      if (dept) pathBits.push(en ? `department **${dept}**` : `departamento de **${dept}**`);
+      if (cat) pathBits.push(en ? `category **${cat}**` : `categoría **${cat}**`);
+      if (folder) pathBits.push(en ? `folder **${folder}**` : `folder **${folder}**`);
+      const path = pathBits.join(en ? ", " : ", ");
+      return en
+        ? `From the ${path}, here are all **${n}** document(s).`
+        : `Del ${path}, aquí tienes los **${n}** documento(s).`;
     }
     return en
       ? `From the **${name}** department, here are all the documents (${n}), including flexible ones without hours.`

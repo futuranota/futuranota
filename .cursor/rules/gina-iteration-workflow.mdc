@@ -1,0 +1,23 @@
+---
+description: Gina iteration workflow — problem → fix + quick link → user test → wording variants → remove harness
+alwaysApply: true
+---
+
+# Gina — flujo de iteración (siempre)
+
+Cada arreglo de Gina sigue este orden. No saltar pasos.
+
+1. **User informa el problema** — texto enviado + expectativa (qué debió pasar).
+2. **Agent arregla** + agrega **link / pregunta rápida** de test (chip o fila en selector). El link es un **arnés temporal**, no producto final.
+3. **User testeá** con ese link.
+4. **User aporta variantes de wording**; agent las cablea al mismo family/tools.
+5. Cuando el user diga **“quítalo del link rápido”**, retirar el arnés; queda solo el lenguaje natural.
+
+## Hard rules
+
+- Un problema / capacidad a la vez.
+- LIVE CORPUS ONLY — el fix no puede inventar depto/folder/docs.
+- Short-circuit Groq cuando la respuesta sea determinística (lista de folder, vacío, etc.).
+- Links de test viven en `ginaTestQuickLinks.js` (fácil de vaciar).
+
+Ver también: `gina-capability-roadmap.mdc`.

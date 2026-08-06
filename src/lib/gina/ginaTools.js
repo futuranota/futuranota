@@ -796,42 +796,115 @@ export function matchLiveCategoryInText(ctx, text, departmentName = null) {
 
 /**
  * Match a live folder under an optional department (inventory only).
+ * Exact / substring first; soft fuzzy for typos (plann d negocio).
  * @returns {{ id: string, name: string, category: string | null, departmentName: string | null } | null}
  */
 export function matchLiveFolderInText(ctx, text, departmentName = null) {
-  const q = fold(text);
-  if (!q) return null;
+  const hits = matchLiveFoldersByNeedle(ctx, text, { departmentName, limit: 1 });
+  return hits[0] || null;
+}
+
+/**
+ * Rank live folders against a free-text needle (folder title / leftover after "documentos del …").
+ * @param {object} ctx
+ * @param {string} textOrNeedle
+ * @param {{ departmentName?: string | null, limit?: number }} [opts]
+ * @returns {{ id: string, name: string, category: string | null, departmentName: string | null, score: number }[]}
+ */
+export function matchLiveFoldersByNeedle(ctx, textOrNeedle, opts = {}) {
+  const raw = String(textOrNeedle || "");
+  let q = fold(raw);
+  // Prefer explicit "documentos del X" / "folder X" remnant when present
+  const fromDocs = q.match(
+    /\b(?:todos\s+(?:los\s+)?)?documentos?\s+(?:del|de|en|del\s+folder|de\s+la\s+caja)\s+(.+)$/,
+  );
+  const fromFolder = q.match(/\b(?:folder|caja|proyecto)\s+(.+)$/);
+  if (fromDocs?.[1]) q = fold(fromDocs[1]).replace(/[?!.]+$/g, "").trim();
+  else if (fromFolder?.[1]) q = fold(fromFolder[1]).replace(/[?!.]+$/g, "").trim();
+  else {
+    q = q
+      .replace(/\b(gina|dame|muestra|muestrame|entreg\w*|lista\w*|listame|todos|todas|los|las|documentos?|del|de|en|el|la|un|una|por\s+favor|please)\b/g, " ")
+      .replace(/[?!.]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+  if (!q || q.length < 2) return [];
+
   const inventory = get_workspace_inventory(ctx);
-  const deptFold = fold(departmentName);
-  let best = null;
-  let bestLen = 0;
+  const deptFold = fold(opts.departmentName);
+  const limit = opts.limit ?? 5;
+  /** @type {{ id: string, name: string, category: string | null, departmentName: string | null, score: number }[]} */
+  const scored = [];
+
   for (const f of inventory.folders) {
     if (deptFold) {
       const tokens = expandDepartmentNameTokens(f.departmentName || "");
       const fd = fold(f.departmentName);
-      if (fd && fd !== deptFold && !tokens.includes(deptFold) && !expandDepartmentNameTokens(departmentName).includes(fd)) {
+      if (fd && fd !== deptFold && !tokens.includes(deptFold) && !expandDepartmentNameTokens(opts.departmentName).includes(fd)) {
         continue;
       }
       if (!fd && deptFold) continue;
     }
     const name = fold(f.name);
     if (!name || name.length < 2) continue;
-    if (!(q.includes(name) || new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q))) {
-      continue;
-    }
-    if (name.length > bestLen) {
-      best = f;
-      bestLen = name.length;
-    }
-  }
-  return best
-    ? {
-        id: best.id,
-        name: best.name,
-        category: best.category || null,
-        departmentName: best.departmentName || null,
+
+    let score = 0;
+    if (name === q) score = 100;
+    else if (name.includes(q) || q.includes(name)) score = 80 + Math.min(name.length, 20);
+    else {
+      // Token overlap + soft edit distance
+      const nToks = name.split(/\s+/).filter(Boolean);
+      const qToks = q.split(/\s+/).filter(Boolean);
+      let hits = 0;
+      for (const qt of qToks) {
+        if (qt.length < 2) continue;
+        for (const nt of nToks) {
+          if (nt === qt || nt.includes(qt) || qt.includes(nt)) {
+            hits += 1;
+            break;
+          }
+          const maxDist = qt.length >= 6 ? 2 : 1;
+          if (Math.abs(nt.length - qt.length) <= maxDist && folderEditDistance(nt, qt) <= maxDist) {
+            hits += 1;
+            break;
+          }
+        }
       }
-    : null;
+      if (hits === 0) continue;
+      const need = Math.max(1, Math.ceil(qToks.filter((t) => t.length >= 2).length * 0.6));
+      if (hits < need) continue;
+      score = 40 + hits * 10;
+    }
+
+    scored.push({
+      id: f.id,
+      name: f.name,
+      category: f.category || null,
+      departmentName: f.departmentName || null,
+      score,
+    });
+  }
+
+  scored.sort((a, b) => b.score - a.score || String(a.name).localeCompare(String(b.name)));
+  return scored.slice(0, limit);
+}
+
+function folderEditDistance(a, b) {
+  const s = String(a || "");
+  const t = String(b || "");
+  if (s === t) return 0;
+  if (!s.length) return t.length;
+  if (!t.length) return s.length;
+  let prev = Array.from({ length: t.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= s.length; i += 1) {
+    const cur = [i];
+    for (let j = 1; j <= t.length; j += 1) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[t.length];
 }
 
 export function filterDocumentsByDepartmentAndCategory(ctx, departmentQuery, categoryQuery, folderQuery = "") {

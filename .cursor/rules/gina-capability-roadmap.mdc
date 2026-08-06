@@ -38,6 +38,11 @@ No inventa corpus. No edita el **body** del documento.
 6. **GCal reminders** — pocas alarmas externas
 7. **Export → Drive**
 
+## Cómo iteramos (siempre)
+
+Ver `.cursor/rules/gina-iteration-workflow.mdc`:
+problema → fix + **link rápido de test** → user testa → variantes de wording → quitar link cuando el user lo pida.
+
 ## Hard rules mientras se construye
 
 - LIVE CORPUS ONLY — nunca inventar docs, categorías ni to-dos.

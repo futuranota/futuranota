@@ -34,10 +34,76 @@ import {
   getDepartmentCorpusStats,
   matchLiveCategoryInText,
   matchLiveFolderInText,
+  matchLiveFoldersByNeedle,
 } from "./ginaTools.js";
+import {
+  clearPendingGinaOffer,
+  consumePendingGinaOffer,
+  getPendingGinaOffer,
+  setPendingGinaOffer,
+} from "./ginaPendingOffer.js";
 
 function fold(s) {
   return foldGinaText(s);
+}
+
+/**
+ * "Dame todos los documentos del {folder}" — list children of a live folder (no dept required).
+ * Does NOT steal "revisar documentos de {departamento}" (that stays department review).
+ * @param {string} q folded or raw
+ */
+export function wantsFolderDocsList(q) {
+  const body = fold(q).replace(/^gina\b[\s,:!-]*/, "").trim();
+  if (!body) return false;
+  // Strong deliver/list verbs + documentos + del/de/en
+  if (/\b(dame|muestra|muestrame|entreg\w*|lista\w*|listame|show|give)\b/.test(body)
+    && /\bdocumentos?\b/.test(body)
+    && /\b(del|de|en)\b/.test(body)) {
+    return true;
+  }
+  if (/\b(todos|todas)\s+(los|las)\s+documentos?\s+(del|de|en)\b/.test(body)) return true;
+  return false;
+}
+
+/**
+ * Build deterministic folder children reply.
+ */
+function buildFolderDocsFamily(ctx, inventory, toolsCalled, folderHit, opts = {}) {
+  const summary = get_folder_children_summary(ctx, folderHit.id);
+  toolsCalled.push("get_folder_children_summary");
+  if (summary?.error) {
+    clearPendingGinaOffer();
+    return {
+      family: "folder_summary",
+      toolsCalled,
+      toolContext: {
+        empty: true,
+        listAll: true,
+        folderName: folderHit.name,
+        departmentName: folderHit.departmentName || null,
+        category: folderHit.category || null,
+        documents: [],
+        aggregated: { total: 0, completed: 0, inProgress: 0, notStarted: 0, pastDue: 0 },
+        pendingOffer: null,
+      },
+      workspaceInventory: inventory,
+      pendingGinaOffer: null,
+    };
+  }
+  const offer = { type: "list_folder", folderId: folderHit.id };
+  if (!opts.skipPendingOffer) setPendingGinaOffer(offer);
+  return {
+    family: "folder_summary",
+    toolsCalled,
+    toolContext: {
+      ...summary,
+      listAll: true,
+      empty: (summary.aggregated?.total || summary.documents?.length || 0) === 0,
+      pendingOffer: offer,
+    },
+    workspaceInventory: inventory,
+    pendingGinaOffer: offer,
+  };
 }
 
 /**
@@ -662,6 +728,24 @@ export function runGinaQueryFamily(text, ctx = {}) {
   }
 
   if (isGinaAffirmationUtterance(text)) {
+    const pending = getPendingGinaOffer() || ctx.pendingGinaOffer || null;
+    if (pending?.type === "list_folder" && pending.folderId) {
+      consumePendingGinaOffer();
+      const folderHit = {
+        id: pending.folderId,
+        name: "",
+        category: null,
+        departmentName: null,
+      };
+      // Prefer live folder metadata from inventory
+      const live = (inventory.folders || []).find((f) => f.id === pending.folderId);
+      if (live) {
+        folderHit.name = live.name;
+        folderHit.category = live.category || null;
+        folderHit.departmentName = live.departmentName || null;
+      }
+      return buildFolderDocsFamily(ctx, inventory, toolsCalled, folderHit, { skipPendingOffer: true });
+    }
     return {
       family: "confirm_continue",
       toolsCalled,
@@ -883,6 +967,78 @@ export function runGinaQueryFamily(text, ctx = {}) {
       },
       workspaceInventory: inventory,
     };
+  }
+
+  // Folder-first: "Dame todos los documentos del plan de negocio" (no dept required).
+  // If the remnant is clearly a department name (Sales/ventas), fall through to department review.
+  if (wantsFolderDocsList(q)) {
+    const hits = matchLiveFoldersByNeedle(ctx, text, { limit: 5 });
+    toolsCalled.push("match_live_folders_by_needle");
+    const deptHit = matchDepartmentInText(ctx, text);
+    const remnant = fold(text)
+      .replace(/^gina\b[\s,:!-]*/, "")
+      .replace(/\b(dame|muestra|muestrame|entreg\w*|lista\w*|listame|show|give|todos|todas|los|las|documentos?|del|de|en|el|la|un|una|por\s+favor|please)\b/g, " ")
+      .replace(/[?!.]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const remnantIsDept = Boolean(
+      deptHit
+      && remnant
+      && (
+        fold(deptHit.name) === remnant
+        || expandDepartmentNameTokens(deptHit.name).includes(remnant)
+        || remnant.includes(fold(deptHit.name))
+      ),
+    );
+    if (!remnantIsDept && hits.length === 1) {
+      return buildFolderDocsFamily(ctx, inventory, toolsCalled, hits[0]);
+    }
+    if (!remnantIsDept && hits.length > 1) {
+      clearPendingGinaOffer();
+      return {
+        family: "name_ambiguity",
+        toolsCalled,
+        toolContext: {
+          ambiguity: {
+            intro: "Ese nombre encaja con más de un folder.",
+            needle: text,
+            options: hits.slice(0, 3).map((h) => ({
+              id: `folder:${h.id}`,
+              kind: "folder",
+              label: h.departmentName
+                ? `En ${h.departmentName}: folder ${h.name}`
+                : `Folder ${h.name}`,
+              department: h.departmentName || null,
+              category: h.category || null,
+              folderId: h.id,
+              folderName: h.name,
+            })),
+          },
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (!remnantIsDept && hits.length === 0 && !deptHit) {
+      // Intent was folder docs but no live match — honest empty (do not free_chat invent).
+      clearPendingGinaOffer();
+      return {
+        family: "folder_summary",
+        toolsCalled,
+        toolContext: {
+          empty: true,
+          listAll: true,
+          folderName: null,
+          departmentName: null,
+          category: null,
+          documents: [],
+          aggregated: { total: 0, completed: 0, inProgress: 0, notStarted: 0, pastDue: 0 },
+          notFound: true,
+          hint: "No live folder matched — do not invent",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    // remnant is a department (or no folder hit but dept present) → fall through
   }
 
   // Review / list all documents of a department (incl. flexible). Empty → cero datos (no invent).

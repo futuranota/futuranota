@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useAnimatedText } from "../../hooks/useAnimatedText.js";
+import { startGinaTypingSound, stopGinaTypingSound } from "../../lib/ginaTypingSound.js";
 
 /**
  * Split Gina AI copy: emphasis (question / title) vs deep description.
@@ -150,7 +151,15 @@ export function GinaAiMessageText({ text, plainBody = false, onComplete }) {
   const completedRef = useRef(false);
 
   useEffect(() => {
+    if (!source || !full) return undefined;
+    if (done) return undefined;
+    startGinaTypingSound();
+    return () => stopGinaTypingSound();
+  }, [source, full, done]);
+
+  useEffect(() => {
     if (!done || completedRef.current) return;
+    stopGinaTypingSound();
     completedRef.current = true;
     onCompleteRef.current?.();
   }, [done]);

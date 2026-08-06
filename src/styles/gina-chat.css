@@ -95,6 +95,20 @@
   color: #fff;
 }
 
+/* Same green active indicator as folder schedule (`.lp-folder-schedule-dot`). */
+.gina-chat-card__live-dot {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 7px;
+  margin-top: -1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #85da99;
+  box-shadow: 0 0 0 2px rgba(133, 218, 153, 0.18);
+  flex-shrink: 0;
+}
+
 .gina-chat-card__header-actions {
   display: inline-flex;
   align-items: center;

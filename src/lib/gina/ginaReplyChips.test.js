@@ -8,9 +8,12 @@ import {
 } from "./ginaReplyChips.js";
 
 describe("ginaReplyChips", () => {
-  it("opening chips only today + schedule", () => {
+  it("opening chips include today, test harness, and schedule", () => {
     const chips = buildGinaOpeningChips({ locale: "es" });
-    expect(chips.map((c) => c.id)).toEqual(["today", "today_schedule"]);
+    expect(chips[0].id).toBe("today");
+    expect(chips.some((c) => c.id === "test_folder_plan_negocio")).toBe(true);
+    expect(chips.some((c) => c.id === "schedule")).toBe(true);
+    expect(chips.find((c) => c.id === "test_folder_plan_negocio")?.text).toMatch(/plan de negocio/i);
   });
 
   it("department chips have no past_due", () => {

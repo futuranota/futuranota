@@ -3171,6 +3171,27 @@ export function LeftPanel({
       };
     }
 
+    if (!meetingOn && routed.family === "folder_summary") {
+      const visualization = buildGinaVisualization("folder_summary", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en"
+          ? `Here are the documents in ${routed.toolContext?.folderName || "that folder"}.`
+          : `Aquí tienes los documentos de ${routed.toolContext?.folderName || "ese folder"}.`);
+      return {
+        message,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "folder_summary",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
     // Empty today (esp. with dept filter) — deterministic copy, never Groq invent.
     if (!meetingOn && routed.family === "today") {
       const docs = Array.isArray(routed.toolContext?.documents)

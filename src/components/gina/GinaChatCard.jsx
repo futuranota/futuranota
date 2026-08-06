@@ -11,6 +11,12 @@ import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
+import { playGinaEnableSound } from "../../lib/ginaEnableSound.js";
+
+/** Silence after open, before Enable.wav. */
+const GINA_OPEN_SOUND_DELAY_MS = 2_000;
+/** Silence after Enable.wav ends, before greeting typewriter. */
+const GINA_POST_SOUND_TEXT_DELAY_MS = 1_000;
 
 /** @typedef {{ id?: string, sender: "ai" | "user", text: string, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id: string, label: string, text: string, primary?: boolean }[] | null }} GinaChatMessage */
 
@@ -143,13 +149,7 @@ export function GinaChatCard({
 }) {
   const chipLocale = String(speechLang || "").toLowerCase().startsWith("en") ? "en" : "es";
   /** @type {[GinaChatMessage[], Function]} */
-  const [messages, setMessages] = useState(() => [
-    {
-      sender: "ai",
-      text: openingMessage,
-      chips: buildGinaOpeningChips({ locale: chipLocale }),
-    },
-  ]);
+  const [messages, setMessages] = useState(() => []);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   /** True while the latest Gina reply typewriter is still running. */
@@ -163,6 +163,8 @@ export function GinaChatCard({
   const [deletePhraseArmed, setDeletePhraseArmed] = useState(false);
   const [deletePhraseHint, setDeletePhraseHint] = useState(/** @type {string | null} */ (null));
   const [meetingMode, setMeetingMode] = useState(Boolean(initialMeetingMode));
+  /** Green “active” schedule-style dot — shown while Enable.wav plays / Gina is live. */
+  const [enableDotVisible, setEnableDotVisible] = useState(false);
 
   useEffect(() => {
     setMeetingMode(Boolean(initialMeetingMode));
@@ -199,6 +201,50 @@ export function GinaChatCard({
   const deliverUserMessageRef = useRef(/** @type {(text: string, opts?: { existingId?: string }) => Promise<void>} */ (async () => {}));
 
   const makeMsgId = () => `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Open → 2s silence → Enable.wav + green dot → 1s silence → greeting typewriter.
+  useEffect(() => {
+    let cancelled = false;
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    let soundTimer = null;
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    let textTimer = null;
+
+    const revealOpening = () => {
+      if (cancelled) return;
+      setMessages((prev) => {
+        if (prev.some((m) => m.sender === "ai")) return prev;
+        return [
+          {
+            id: makeMsgId(),
+            sender: "ai",
+            text: openingMessage,
+            chips: buildGinaOpeningChips({ locale: chipLocale }),
+          },
+        ];
+      });
+      isAiAnimatingRef.current = true;
+      setIsAiAnimating(true);
+      skipOpeningSpeakRef.current = true;
+    };
+
+    soundTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      setEnableDotVisible(true);
+      void playGinaEnableSound().then(() => {
+        if (cancelled) return;
+        textTimer = window.setTimeout(() => {
+          revealOpening();
+        }, GINA_POST_SOUND_TEXT_DELAY_MS);
+      });
+    }, GINA_OPEN_SOUND_DELAY_MS);
+
+    return () => {
+      cancelled = true;
+      if (soundTimer != null) window.clearTimeout(soundTimer);
+      if (textTimer != null) window.clearTimeout(textTimer);
+    };
+  }, [openingMessage, chipLocale]);
 
   const liveDictation = joinTranscript(dictationFinals, dictationInterim);
 
@@ -614,7 +660,16 @@ export function GinaChatCard({
         ))}
 
         <header className="gina-chat-card__header">
-          <h2 className="gina-chat-card__title">{assistantName}</h2>
+          <h2 className="gina-chat-card__title">
+            {assistantName}
+            {enableDotVisible ? (
+              <span
+                className="gina-chat-card__live-dot"
+                title="Active"
+                aria-label="Active"
+              />
+            ) : null}
+          </h2>
           <div className="gina-chat-card__header-actions">
             <button
               type="button"
