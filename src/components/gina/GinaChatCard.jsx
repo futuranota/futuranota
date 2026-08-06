@@ -12,6 +12,10 @@ import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
 import { playGinaEnableSound } from "../../lib/ginaEnableSound.js";
+import {
+  playGinaFilesMovementSound,
+  stopGinaFilesMovementSound,
+} from "../../lib/ginaFilesMovementSound.js";
 
 /** Silence after open, before Enable.wav. */
 const GINA_OPEN_SOUND_DELAY_MS = 2_000;
@@ -122,7 +126,7 @@ function joinTranscript(finalParts, interim) {
  *   speechLang?: string,
  *   labels?: Record<string, string>,
  *   onClose?: () => void,
- *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null }>,
+ *   onSendMessage?: (text: string, meta?: { meetingMode?: boolean }) => void | Promise<void | string | { message?: string, reply?: string, visualization?: object | null, searchSequence?: { preludeMessage?: string } | null }>,
  *   allowMeetingMode?: boolean,
  *   meetingDocumentTitle?: string,
  *   initialMeetingMode?: boolean,
@@ -196,6 +200,7 @@ export function GinaChatCard({
   const isTypingRef = useRef(false);
   const isAiAnimatingRef = useRef(true);
   const deliveringRef = useRef(false);
+  const pendingAiAnimationTaskRef = useRef(/** @type {null | (() => Promise<void> | void)} */ (null));
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const deliverUserMessageRef = useRef(/** @type {(text: string, opts?: { existingId?: string }) => Promise<void>} */ (async () => {}));
@@ -245,6 +250,10 @@ export function GinaChatCard({
       if (textTimer != null) window.clearTimeout(textTimer);
     };
   }, [openingMessage, chipLocale]);
+
+  useEffect(() => () => {
+    stopGinaFilesMovementSound();
+  }, []);
 
   const liveDictation = joinTranscript(dictationFinals, dictationInterim);
 
@@ -443,6 +452,12 @@ export function GinaChatCard({
   const handleAiAnimComplete = () => {
     isAiAnimatingRef.current = false;
     setIsAiAnimating(false);
+    const afterAnimTask = pendingAiAnimationTaskRef.current;
+    if (afterAnimTask) {
+      pendingAiAnimationTaskRef.current = null;
+      void afterAnimTask();
+      return;
+    }
     queueMicrotask(() => flushPendingQueue());
   };
 
@@ -477,6 +492,7 @@ export function GinaChatCard({
     const minTypingMs = 700;
 
     let startedAiAnim = false;
+    let hasPendingSearchSequence = false;
 
     if (typeof onSendMessage === "function") {
       try {
@@ -511,12 +527,55 @@ export function GinaChatCard({
           visualization = reply.visualization || null;
           learnProposal = reply.learnProposal || null;
           chips = Array.isArray(reply.chips) ? reply.chips : null;
+          const preludeMessage = String(reply.searchSequence?.preludeMessage || "").trim();
+          if (preludeMessage) {
+            hasPendingSearchSequence = true;
+            isAiAnimatingRef.current = true;
+            setIsAiAnimating(true);
+            startedAiAnim = true;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: makeMsgId(),
+                sender: "ai",
+                text: preludeMessage,
+                visualization: null,
+                learnProposal: null,
+                chips: null,
+              },
+            ]);
+            pendingAiAnimationTaskRef.current = async () => {
+              await playGinaFilesMovementSound();
+              const hasAnimatableText = Boolean(aiText && aiText.trim());
+              if (hasAnimatableText) {
+                isAiAnimatingRef.current = true;
+                setIsAiAnimating(true);
+              }
+              if (aiText || visualization || learnProposal) {
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    id: makeMsgId(),
+                    sender: "ai",
+                    text: aiText || " ",
+                    visualization,
+                    learnProposal,
+                    chips,
+                  },
+                ]);
+              }
+              deliveringRef.current = false;
+              if (!hasAnimatableText) {
+                queueMicrotask(() => flushPendingQueue());
+              }
+            };
+          }
         }
         const waitMore = minTypingMs - (Date.now() - typingStartedAt);
         if (waitMore > 0) {
           await new Promise((r) => window.setTimeout(r, waitMore));
         }
-        if (aiText || visualization || learnProposal) {
+        if (!hasPendingSearchSequence && (aiText || visualization || learnProposal)) {
           const hasAnimatableText = Boolean(aiText && aiText.trim());
           if (hasAnimatableText) {
             isAiAnimatingRef.current = true;
@@ -538,8 +597,10 @@ export function GinaChatCard({
       } finally {
         isTypingRef.current = false;
         setIsTyping(false);
-        deliveringRef.current = false;
-        if (!startedAiAnim) {
+        if (!hasPendingSearchSequence) {
+          deliveringRef.current = false;
+        }
+        if (!startedAiAnim && !hasPendingSearchSequence) {
           queueMicrotask(() => flushPendingQueue());
         }
       }

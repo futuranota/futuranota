@@ -404,6 +404,9 @@ export function NodeQueryModal({
         message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
           || (localeKey === "en" ? "I searched your workspace." : "Busqué en tu workspace."),
         visualization,
+        searchSequence: {
+          preludeMessage: localeKey === "en" ? "Wait, let me search..." : "Espera, déjame buscar...",
+        },
         chips: buildGinaReplyChips({
           family: "find_document",
           visualization,
@@ -444,6 +447,9 @@ export function NodeQueryModal({
             ? `Here are the documents in ${routed.toolContext?.folderName || "that folder"}.`
             : `Aquí tienes los documentos de ${routed.toolContext?.folderName || "ese folder"}.`),
         visualization,
+        searchSequence: {
+          preludeMessage: localeKey === "en" ? "Wait, let me search..." : "Espera, déjame buscar...",
+        },
         chips: buildGinaReplyChips({
           family: "folder_summary",
           visualization,

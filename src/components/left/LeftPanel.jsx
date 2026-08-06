@@ -3142,6 +3142,9 @@ export function LeftPanel({
       return {
         message,
         visualization,
+        searchSequence: {
+          preludeMessage: localeKey === "en" ? "Wait, let me search..." : "Espera, déjame buscar...",
+        },
         chips: buildGinaReplyChips({
           family: "find_document",
           visualization,
@@ -3184,6 +3187,9 @@ export function LeftPanel({
       return {
         message,
         visualization,
+        searchSequence: {
+          preludeMessage: localeKey === "en" ? "Wait, let me search..." : "Espera, déjame buscar...",
+        },
         chips: buildGinaReplyChips({
           family: "folder_summary",
           visualization,
