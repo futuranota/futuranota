@@ -303,6 +303,30 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
 
   if (family === "focus_open" || family === "social" || family === "unclear" || family === "dismiss" || family === "free_chat") return null;
 
+  if (family === "count_departments") {
+    const depts = Array.isArray(ctx.departments)
+      ? ctx.departments
+      : (Array.isArray(ctx.inventory?.departments) ? ctx.inventory.departments : []);
+    const list = depts
+      .map((d) => ({
+        id: d.id || d.name,
+        name: String(d.name || "").trim(),
+        folderCount: d.folderCount ?? 0,
+        documentCount: d.documentCount ?? d.documents ?? 0,
+      }))
+      .filter((d) => d.name);
+    const corpusName = String(ctx.corpusName || "").trim() || null;
+    return {
+      type: "department_list",
+      data: {
+        corpusName,
+        count: ctx.count ?? list.length,
+        departments: list,
+        empty: list.length === 0,
+      },
+    };
+  }
+
   if (family === "find_document") {
     const results = asDocs(ctx.results);
     return {

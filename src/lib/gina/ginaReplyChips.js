@@ -65,6 +65,34 @@ export function buildGinaOpeningChips(opts = {}) {
 }
 
 /**
+ * Chips after department count (corpus inventory).
+ * @param {{ departments?: { name: string }[], locale?: string }} opts
+ * @returns {GinaReplyChip[]}
+ */
+export function buildCountDepartmentsChips(opts = {}) {
+  const en = opts.locale === "en";
+  const depts = Array.isArray(opts.departments) ? opts.departments : [];
+  /** @type {GinaReplyChip[]} */
+  const chips = [];
+  for (const dept of depts.slice(0, 6)) {
+    const name = String(dept?.name || "").trim();
+    if (!name) continue;
+    chips.push({
+      id: `focus_${name}`,
+      label: en ? `Focus on ${name}` : `Enfocarme en ${name}`,
+      text: en ? `Focus today on ${name}` : `Enfocarme hoy en ${name}`,
+      primary: chips.length === 0,
+    });
+  }
+  chips.push({
+    id: "today_schedule",
+    label: en ? "Review today's schedule" : "Revisar horarios de hoy",
+    text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
+  });
+  return chips;
+}
+
+/**
  * Chips after department_cards viz.
  * @param {{ departments?: { name: string }[], recommended?: string | null, locale?: string }} opts
  * @returns {GinaReplyChip[]}
@@ -291,6 +319,28 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
   if (!visualization?.type) return null;
   const data = visualization.data || {};
 
+  if (visualization.type === "department_list") {
+    const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
+    const depts = Array.isArray(data.departments) ? data.departments : [];
+    const n = data.count ?? depts.length;
+    if (n === 0) {
+      return en
+        ? `For **${corpus}** there are **0** departments yet.`
+        : `Para **${corpus}** tenemos un total de **0** departamentos.`;
+    }
+    const bullets = depts
+      .slice(0, 12)
+      .map((d) => `• ${d.name}`)
+      .join("\n");
+    const head = en
+      ? `For **${corpus}** we have a total of **${n}** department${n === 1 ? "" : "s"}:`
+      : `Para **${corpus}** tenemos un total de **${n}** departamento${n === 1 ? "" : "s"}:`;
+    const ask = en
+      ? "Want to focus on one of these departments today?"
+      : "¿Quieres enfocarte en uno de estos departamentos hoy?";
+    return `${head}\n${bullets}\n\n${ask}`;
+  }
+
   if (visualization.type === "department_cards") {
     const depts = Array.isArray(data.departments) ? data.departments : [];
     const n = depts.length;
@@ -509,6 +559,12 @@ export function buildGinaReplyChips(opts = {}) {
   const type = viz?.type;
   const data = viz?.data || {};
 
+  if (type === "department_list" || opts.family === "count_departments") {
+    return buildCountDepartmentsChips({
+      departments: data.departments,
+      locale,
+    });
+  }
   if (type === "department_cards") {
     return buildTodayDepartmentChips({
       departments: data.departments,

@@ -2911,6 +2911,7 @@ export function LeftPanel({
       nodes: nodesMap,
       departments,
       objectId: activeObjectId || filterObjectId || null,
+      corpusName: activeObject?.name || null,
       now: new Date(),
       userId: ginaUserId,
       recentText: Array.isArray(meta?.messages)
@@ -3112,6 +3113,27 @@ export function LeftPanel({
       return locale === "es"
         ? "Dime el título exacto del documento o folder de la lista para enfocarnos en uno solo."
         : "Tell me the exact document or folder title from the list so we focus on one.";
+    }
+
+    if (!meetingOn && routed.family === "count_departments") {
+      const visualization = buildGinaVisualization("count_departments", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en"
+          ? `For ${routed.toolContext?.corpusName || "this workspace"} we have ${routed.toolContext?.count ?? 0} departments.`
+          : `Para ${routed.toolContext?.corpusName || "este corpus"} tenemos un total de ${routed.toolContext?.count ?? 0} departamentos.`);
+      return {
+        message,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "count_departments",
+          visualization,
+          locale: localeKey,
+        }),
+      };
     }
 
     if (!meetingOn && routed.family === "find_document") {
@@ -3359,6 +3381,7 @@ export function LeftPanel({
     nodesMap,
     departments,
     activeObjectId,
+    activeObject,
     filterObjectId,
     ginaUserId,
     locale,

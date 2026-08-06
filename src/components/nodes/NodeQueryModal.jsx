@@ -64,7 +64,7 @@ import {
   buildGinaReplyChips,
 } from "../../lib/gina/ginaReplyChips.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
-import { useDocsStore, useNodesStore } from "../../stores/index.js";
+import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
 const NODE_FOOTER_SAVE_ICON = "/uploads/save-buttom.svg";
@@ -188,6 +188,7 @@ export function NodeQueryModal({
   const docsMap = useDocsStore((s) => s.docs);
   const nodesMap = useNodesStore((s) => s.nodes);
   const departments = useDepartmentsStore((s) => s.departments);
+  const objectsMap = useObjectsStore((s) => s.objects);
   const showCampaignStatus = Boolean(campaignMode) && typeof onCampaignStatusChange === "function";
   const showStatusMeta = showCampaignStatus
     || (canUseDocStatusMeta(userEmail)
@@ -368,12 +369,19 @@ export function NodeQueryModal({
   }, [entityNodeId, dataType, content]);
 
   const handleGinaInDocSend = useCallback(async (text, meta = {}) => {
+    const corpusName = companyObjectId
+      ? (objectsMap?.[companyObjectId]?.name || null)
+      : null;
     const ctx = {
       docs: docsMap,
       nodes: nodesMap,
       departments,
       objectId: companyObjectId || null,
+      corpusName,
       now: new Date(),
+      recentText: Array.isArray(meta?.messages)
+        ? meta.messages.slice(-8).map((m) => String(m?.content || "")).filter(Boolean)
+        : [],
     };
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
@@ -392,6 +400,26 @@ export function NodeQueryModal({
           chips: null,
         };
       }
+    }
+
+    if (routed.family === "count_departments") {
+      const visualization = buildGinaVisualization("count_departments", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? `For ${routed.toolContext?.corpusName || "this workspace"} we have ${routed.toolContext?.count ?? 0} departments.`
+            : `Para ${routed.toolContext?.corpusName || "este corpus"} tenemos un total de ${routed.toolContext?.count ?? 0} departamentos.`),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "count_departments",
+          visualization,
+          locale: localeKey,
+        }),
+      };
     }
 
     if (routed.family === "find_document") {
@@ -557,6 +585,7 @@ export function NodeQueryModal({
     docsMap,
     nodesMap,
     departments,
+    objectsMap,
     companyObjectId,
     locale,
     displayQuery,

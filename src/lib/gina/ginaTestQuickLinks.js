@@ -14,6 +14,11 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: docs del folder",
     text: "Dame todos los documentos del plan de negocio",
   },
+  {
+    id: "test_count_departments",
+    label: "Test: cuántos departamentos",
+    text: "Hola gina, Cuantos Departamenos tenemos en General ?",
+  },
 ];
 
 /**

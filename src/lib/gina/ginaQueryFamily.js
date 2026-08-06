@@ -42,9 +42,80 @@ import {
   getPendingGinaOffer,
   setPendingGinaOffer,
 } from "./ginaPendingOffer.js";
+import {
+  textHasNearPhrase,
+  textHasNearToken,
+} from "./ginaFuzzyMatch.js";
 
 function fold(s) {
   return foldGinaText(s);
+}
+
+/** Count-intent vocabulary (fuzzy matched). */
+const COUNT_DEPT_COUNT_TOKENS = [
+  "cuantos",
+  "cuantas",
+  "cuanto",
+  "total",
+  "general",
+];
+const COUNT_DEPT_COUNT_PHRASES = ["how many", "en general"];
+/** Department entity vocabulary (fuzzy matched). */
+const COUNT_DEPT_ENTITY_TOKENS = [
+  "departamento",
+  "departamentos",
+  "depto",
+  "deptos",
+  "department",
+  "departments",
+];
+
+/**
+ * "¿Cuántos departamentos… / en general / total?"
+ * @param {string} text
+ */
+export function wantsCountDepartments(text) {
+  const q = fold(text);
+  if (!q) return false;
+  if (!textHasNearToken(q, COUNT_DEPT_ENTITY_TOKENS)) return false;
+  if (textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)) return true;
+  if (textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)) return true;
+  if (/\bhow\s+many\b/.test(q)) return true;
+  if (/\ben\s+general\b/.test(q)) return true;
+  return false;
+}
+
+/**
+ * Recent chat suggests the last assistant offer was a folder docs list
+ * (so "sí" may re-run list_folder). Otherwise pending is stale.
+ * @param {object} ctx
+ */
+export function recentWasFolderDocsOffer(ctx = {}) {
+  const recent = Array.isArray(ctx.recentText) ? ctx.recentText : [];
+  // No history (immediate "sí" after folder list in same turn stack) → allow pending.
+  if (!recent.length) return true;
+  for (let i = recent.length - 1; i >= 0; i -= 1) {
+    const t = fold(recent[i]);
+    if (!t) continue;
+    if (/^(si|sí|ok|okay|vale|claro|perfecto|de acuerdo|yes|yep|yeah|dale|va)([!?.\s]*)$/.test(t)) {
+      continue;
+    }
+    if (
+      /\b(espera.*buscar|aqui tienes los?\s+\d+\s+documento|documentos?\s+(del|de|en)\b|folder\s+\w+|caja\s+\w+)\b/.test(t)
+      || /\b(dame|muestra|entreg)\w*.*\bdocumentos?\b/.test(t)
+    ) {
+      return true;
+    }
+    // Explicit other topics → do not revive list_folder
+    if (
+      /\b(cuant\w*\s+depart|departament|inventario|workspace|corpus|horarios?\s+de\s+hoy|en\s+general)\b/.test(t)
+    ) {
+      return false;
+    }
+    // First substantive recent turn was not a folder offer
+    return false;
+  }
+  return false;
 }
 
 /**
@@ -729,7 +800,11 @@ export function runGinaQueryFamily(text, ctx = {}) {
 
   if (isGinaAffirmationUtterance(text)) {
     const pending = getPendingGinaOffer() || ctx.pendingGinaOffer || null;
-    if (pending?.type === "list_folder" && pending.folderId) {
+    if (
+      pending?.type === "list_folder"
+      && pending.folderId
+      && recentWasFolderDocsOffer(ctx)
+    ) {
       consumePendingGinaOffer();
       const folderHit = {
         id: pending.folderId,
@@ -745,6 +820,10 @@ export function runGinaQueryFamily(text, ctx = {}) {
         folderHit.departmentName = live.departmentName || null;
       }
       return buildFolderDocsFamily(ctx, inventory, toolsCalled, folderHit, { skipPendingOffer: true });
+    }
+    // Stale list_folder from another topic — do not revive it.
+    if (pending?.type === "list_folder") {
+      clearPendingGinaOffer();
     }
     return {
       family: "confirm_continue",
@@ -846,6 +925,35 @@ export function runGinaQueryFamily(text, ctx = {}) {
         workspaceInventory: inventory,
       };
     }
+  }
+
+  // Quantitative: how many departments in this corpus (total / en general).
+  if (wantsCountDepartments(text)) {
+    clearPendingGinaOffer();
+    call("get_workspace_inventory", () => inventory);
+    const depts = Array.isArray(inventory.departments) ? inventory.departments : [];
+    const corpusName = String(
+      ctx.corpusName || ctx.objectName || ctx.companyName || "",
+    ).trim() || null;
+    return {
+      family: "count_departments",
+      toolsCalled,
+      toolContext: {
+        inventory,
+        corpusName,
+        count: depts.length,
+        departments: depts.map((d) => ({
+          id: d.id,
+          name: d.name,
+          folderCount: d.folderCount ?? 0,
+          documentCount: d.documentCount ?? 0,
+          categories: d.categories || [],
+        })),
+        hint: "Live department count for the active corpus only",
+      },
+      workspaceInventory: inventory,
+      pendingGinaOffer: null,
+    };
   }
 
   // Departments / daily focus (explicit workflow — not "fuera de contexto")

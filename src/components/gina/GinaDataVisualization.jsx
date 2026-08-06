@@ -152,6 +152,46 @@ function DepartmentBuildingIcon({ className = "" }) {
   );
 }
 
+function DepartmentListVisualization({ data, onSelectDepartment }) {
+  const depts = Array.isArray(data.departments) ? data.departments : [];
+  const corpus = data.corpusName || null;
+  const count = data.count ?? depts.length;
+  return (
+    <div className="gina-viz gina-viz--dept-list">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{corpus || "Corpus"}</span>
+        <h3 className="gina-viz__title">
+          {count === 1 ? "1 departamento" : `${count} departamentos`}
+        </h3>
+      </header>
+      {depts.length === 0 ? (
+        <p className="gina-viz__empty">
+          {data.emptyHint || "No hay departamentos en este corpus."}
+        </p>
+      ) : (
+        <ul className="gina-viz__dept-list" role="list">
+          {depts.map((dept) => (
+            <li key={dept.id || dept.name} className="gina-viz__dept-list-item">
+              <button
+                type="button"
+                className="gina-viz__dept-card gina-viz__dept-card--ref"
+                onClick={() => onSelectDepartment?.(dept.name)}
+              >
+                <span className="gina-viz__dept-name">{dept.name}</span>
+                <span className="gina-viz__dept-meta">
+                  {dept.folderCount ?? 0} folder{(dept.folderCount ?? 0) === 1 ? "" : "s"}
+                  {" · "}
+                  {dept.documentCount ?? 0} doc{(dept.documentCount ?? 0) === 1 ? "" : "s"}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function DepartmentCardsVisualization({ data, onSelectDepartment }) {
   const depts = Array.isArray(data.departments) ? data.departments : [];
   const recommended = data.recommended || depts[0]?.name;
@@ -846,6 +886,13 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
   const dept = data.department || "";
 
   switch (type) {
+    case "department_list":
+      return (
+        <DepartmentListVisualization
+          data={data}
+          onSelectDepartment={onSelectDepartment}
+        />
+      );
     case "department_cards":
       return (
         <DepartmentCardsVisualization
