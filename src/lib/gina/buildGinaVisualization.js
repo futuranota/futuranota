@@ -323,6 +323,8 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         count: ctx.count ?? list.length,
         departments: list,
         empty: list.length === 0,
+        hasTodaySchedules: Boolean(ctx.hasTodaySchedules),
+        todayScheduleCount: Number(ctx.todayScheduleCount) || 0,
       },
     };
   }

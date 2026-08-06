@@ -931,6 +931,10 @@ export function runGinaQueryFamily(text, ctx = {}) {
   if (wantsCountDepartments(text)) {
     clearPendingGinaOffer();
     call("get_workspace_inventory", () => inventory);
+    const todayScope = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
+    const todayDocs = Array.isArray(todayScope?.documents) ? todayScope.documents : [];
+    const todayScheduleCount = todayScope?.totalDocumentsToday ?? todayDocs.length;
+    const hasTodaySchedules = todayScheduleCount > 0;
     const depts = Array.isArray(inventory.departments) ? inventory.departments : [];
     const corpusName = String(
       ctx.corpusName || ctx.objectName || ctx.companyName || "",
@@ -949,6 +953,8 @@ export function runGinaQueryFamily(text, ctx = {}) {
           documentCount: d.documentCount ?? 0,
           categories: d.categories || [],
         })),
+        hasTodaySchedules,
+        todayScheduleCount,
         hint: "Live department count for the active corpus only",
       },
       workspaceInventory: inventory,

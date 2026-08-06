@@ -66,7 +66,8 @@ export function buildGinaOpeningChips(opts = {}) {
 
 /**
  * Chips after department count (corpus inventory).
- * @param {{ departments?: { name: string }[], locale?: string }} opts
+ * Schedule chip only when there are scheduled docs today.
+ * @param {{ departments?: { name: string }[], locale?: string, hasTodaySchedules?: boolean }} opts
  * @returns {GinaReplyChip[]}
  */
 export function buildCountDepartmentsChips(opts = {}) {
@@ -84,11 +85,13 @@ export function buildCountDepartmentsChips(opts = {}) {
       primary: chips.length === 0,
     });
   }
-  chips.push({
-    id: "today_schedule",
-    label: en ? "Review today's schedule" : "Revisar horarios de hoy",
-    text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
-  });
+  if (opts.hasTodaySchedules) {
+    chips.push({
+      id: "today_schedule",
+      label: en ? "Review today's schedule" : "Revisar horarios de hoy",
+      text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
+    });
+  }
   return chips;
 }
 
@@ -335,9 +338,13 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     const head = en
       ? `For **${corpus}** we have a total of **${n}** department${n === 1 ? "" : "s"}:`
       : `Para **${corpus}** tenemos un total de **${n}** departamento${n === 1 ? "" : "s"}:`;
-    const ask = en
-      ? "Want to focus on one of these departments today?"
-      : "¿Quieres enfocarte en uno de estos departamentos hoy?";
+    const ask = data.hasTodaySchedules
+      ? (en
+        ? "Want to focus on one of these departments, or should we review which ones have schedules for today?"
+        : "¿Quieres enfocarte en uno de estos departamentos o quieres que revisemos en cuáles de ellos tienes schedules para hoy?")
+      : (en
+        ? "Want to focus on one of these departments today?"
+        : "¿Quieres enfocarte en uno de estos departamentos hoy?");
     return `${head}\n${bullets}\n\n${ask}`;
   }
 
@@ -563,6 +570,7 @@ export function buildGinaReplyChips(opts = {}) {
     return buildCountDepartmentsChips({
       departments: data.departments,
       locale,
+      hasTodaySchedules: Boolean(data.hasTodaySchedules),
     });
   }
   if (type === "department_cards") {

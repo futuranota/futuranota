@@ -105,8 +105,50 @@ describe("Gina count_departments", () => {
       visualization: viz,
       locale: "es",
     });
-    expect(chips.some((c) => /horarios de hoy/i.test(c.label))).toBe(true);
+    expect(routed.toolContext.hasTodaySchedules).toBe(false);
+    expect(viz?.data?.hasTodaySchedules).toBe(false);
+    expect(chips.some((c) => /horarios de hoy/i.test(c.label))).toBe(false);
     expect(chips.some((c) => /Enfocarme en/i.test(c.label))).toBe(true);
+    expect(msg).not.toMatch(/schedules para hoy/i);
+  });
+
+  it("shows schedule chip and dual ask when there are docs scheduled today", () => {
+    const withToday = {
+      ...ctx,
+      now: new Date("2026-08-01T12:00:00"),
+      nodes: {
+        ...ctx.nodes,
+        n_today: {
+          id: "n_today",
+          title: "Call de ventas",
+          parentDocId: "f1",
+          objectId: "co1",
+          status: "not_started",
+          anchorAt: "2026-08-01T10:00:00",
+          anchorFinishAt: "2026-08-01T11:00:00",
+        },
+      },
+    };
+    const routed = runGinaQueryFamily(
+      "Cuantos Departamenos tenemos en General ?",
+      withToday,
+    );
+    expect(routed.family).toBe("count_departments");
+    expect(routed.toolContext.hasTodaySchedules).toBe(true);
+    expect(routed.toolContext.todayScheduleCount).toBeGreaterThan(0);
+
+    const viz = buildGinaVisualization("count_departments", routed.toolContext, {
+      locale: "es",
+    });
+    const msg = buildGinaFunnelHeadline(viz, { locale: "es" });
+    expect(msg).toMatch(/schedules para hoy/i);
+
+    const chips = buildGinaReplyChips({
+      family: "count_departments",
+      visualization: viz,
+      locale: "es",
+    });
+    expect(chips.some((c) => /horarios de hoy/i.test(c.label))).toBe(true);
   });
 
   it("empty corpus answers with zero departments", () => {
