@@ -65,6 +65,65 @@ export function buildGinaOpeningChips(opts = {}) {
 }
 
 /**
+ * Chips after category count.
+ * @param {{
+ *   categories?: { name: string }[],
+ *   department?: string | null,
+ *   empty?: boolean,
+ *   locale?: string,
+ * }} opts
+ * @returns {GinaReplyChip[]}
+ */
+export function buildCountCategoriesChips(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = String(opts.department || "").trim();
+  /** @type {GinaReplyChip[]} */
+  const chips = [];
+  if (opts.empty) {
+    chips.push({
+      id: "back_depts",
+      label: en ? "Back to departments" : "Volver a departamentos",
+      text: en
+        ? "How many departments do we have in total?"
+        : "¿Cuántos departamentos tenemos en general?",
+    });
+    if (dept) {
+      chips.push({
+        id: `count_folders_${dept}`,
+        label: en ? `Folders in ${dept}` : `Folders en ${dept}`,
+        text: en
+          ? `How many folders do we have in ${dept}?`
+          : `¿Cuántos folders tenemos en ${dept}?`,
+      });
+    }
+    return chips;
+  }
+  const categories = Array.isArray(opts.categories) ? opts.categories : [];
+  for (const cat of categories.slice(0, 6)) {
+    const name = String(cat?.name || "").trim();
+    if (!name || !dept) continue;
+    chips.push({
+      id: `cat_${name}`,
+      label: en ? `Category ${name}` : `Categoría ${name}`,
+      text: en
+        ? `Category ${name} today in ${dept}`
+        : `Categoría ${name} hoy en ${dept}`,
+      primary: chips.length === 0,
+    });
+  }
+  if (dept) {
+    chips.push({
+      id: `count_folders_${dept}`,
+      label: en ? `Folders in ${dept}` : `Folders en ${dept}`,
+      text: en
+        ? `How many folders do we have in ${dept}?`
+        : `¿Cuántos folders tenemos en ${dept}?`,
+    });
+  }
+  return chips;
+}
+
+/**
  * Chips after folder count.
  * @param {{
  *   folders?: { name: string, departmentName?: string | null }[],
@@ -379,6 +438,37 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
   if (!visualization?.type) return null;
   const data = visualization.data || {};
 
+  if (visualization.type === "category_list") {
+    const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
+    const dept = data.department || null;
+    const cats = Array.isArray(data.categories) ? data.categories : [];
+    const n = data.count ?? cats.length;
+    if (n === 0 || data.empty) {
+      if (dept) {
+        return en
+          ? `In **${dept}** you have **zero** categories created. Add a category when you create folders so work stays organized.`
+          : `En **${dept}** tienes cero categorías creadas. Agrega una categoría al crear folders para mantener el trabajo organizado.`;
+      }
+      return en
+        ? `For **${corpus}** you have **zero** categories created.`
+        : `Para **${corpus}** tienes cero categorías creadas.`;
+    }
+    const scope = dept
+      ? (en ? `In **${dept}**` : `En **${dept}**`)
+      : (en ? `For **${corpus}**` : `Para **${corpus}**`);
+    const head = en
+      ? `${scope} we have a total of **${n}** categor${n === 1 ? "y" : "ies"}:`
+      : `${scope} tenemos un total de **${n}** categor${n === 1 ? "ía" : "ías"}:`;
+    const bullets = cats
+      .slice(0, 12)
+      .map((c) => `• ${c.name}`)
+      .join("\n");
+    const ask = en
+      ? "Want to open one of these categories, or count the folders next?"
+      : "¿Quieres abrir una de estas categorías, o contamos los folders después?";
+    return `${head}\n${bullets}\n\n${ask}`;
+  }
+
   if (visualization.type === "folder_list") {
     const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
     const dept = data.department || null;
@@ -654,6 +744,14 @@ export function buildGinaReplyChips(opts = {}) {
   const type = viz?.type;
   const data = viz?.data || {};
 
+  if (type === "category_list" || opts.family === "count_categories") {
+    return buildCountCategoriesChips({
+      categories: data.categories,
+      department: data.department,
+      empty: Boolean(data.empty),
+      locale,
+    });
+  }
   if (type === "folder_list" || opts.family === "count_folders") {
     return buildCountFoldersChips({
       folders: data.folders,

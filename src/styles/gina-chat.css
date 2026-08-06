@@ -1056,6 +1056,20 @@
   padding: 0;
 }
 
+.gina-viz--category-list .gina-viz__dept-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+  gap: 10px;
+}
+
+.gina-viz--category-list .gina-viz__dept-list-item {
+  margin: 0;
+  padding: 0;
+}
+
 .gina-viz__dept-card {
   display: flex;
   flex-direction: column;

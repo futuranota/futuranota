@@ -303,6 +303,32 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
 
   if (family === "focus_open" || family === "social" || family === "unclear" || family === "dismiss" || family === "free_chat") return null;
 
+  if (family === "count_categories") {
+    const cats = Array.isArray(ctx.categories) ? ctx.categories : [];
+    const list = cats
+      .map((c) => ({
+        id: c.id || c.name,
+        name: String(c.name || "").trim(),
+        departmentName: c.departmentName || ctx.department || null,
+        folderCount: c.folderCount ?? 0,
+        documentCount: c.documentCount ?? 0,
+      }))
+      .filter((c) => c.name);
+    const corpusName = String(ctx.corpusName || "").trim() || null;
+    const department = String(ctx.department || "").trim() || null;
+    return {
+      type: "category_list",
+      data: {
+        corpusName,
+        department,
+        count: ctx.count ?? list.length,
+        categories: list,
+        empty: Boolean(ctx.empty) || list.length === 0,
+        emptyReason: ctx.emptyReason || (list.length === 0 ? "no_categories" : null),
+      },
+    };
+  }
+
   if (family === "count_folders") {
     const folders = Array.isArray(ctx.folders) ? ctx.folders : [];
     const list = folders

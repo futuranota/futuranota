@@ -29,6 +29,11 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: cuántos folders",
     text: "Cuántos folders tenemos en Marketing?",
   },
+  {
+    id: "test_count_categories",
+    label: "Test: cuántas categorías",
+    text: "Cuántas categorias tenemos en Marketing?",
+  },
 ];
 
 /**

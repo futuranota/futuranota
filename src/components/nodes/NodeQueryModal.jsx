@@ -431,6 +431,31 @@ export function NodeQueryModal({
       };
     }
 
+    if (routed.family === "count_categories") {
+      const visualization = buildGinaVisualization("count_categories", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? (routed.toolContext?.empty
+              ? "You have zero categories created."
+              : `We have ${routed.toolContext?.count ?? 0} categories.`)
+            : (routed.toolContext?.empty
+              ? "Tienes cero categorías creadas."
+              : `Tenemos ${routed.toolContext?.count ?? 0} categorías.`)),
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: "count_categories",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
     if (routed.family === "count_departments") {
       const visualization = buildGinaVisualization("count_departments", routed.toolContext, {
         locale: localeKey,

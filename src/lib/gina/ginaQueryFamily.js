@@ -80,6 +80,14 @@ const COUNT_FOLDER_ENTITY_TOKENS = [
   "cajas",
 ];
 
+/** Category entity vocabulary (fuzzy matched). */
+const COUNT_CATEGORY_ENTITY_TOKENS = [
+  "categoria",
+  "categorias",
+  "category",
+  "categories",
+];
+
 /**
  * "¿Cuántos departamentos… / en general / total?"
  * @param {string} text
@@ -88,6 +96,9 @@ export function wantsCountDepartments(text) {
   const q = fold(text);
   if (!q) return false;
   if (!textHasNearToken(q, COUNT_DEPT_ENTITY_TOKENS)) return false;
+  // Prefer more specific entity counts
+  if (textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS)) return false;
+  if (textHasNearToken(q, COUNT_CATEGORY_ENTITY_TOKENS)) return false;
   if (textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)) return true;
   if (textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)) return true;
   if (/\bhow\s+many\b/.test(q)) return true;
@@ -102,11 +113,24 @@ export function wantsCountDepartments(text) {
 export function wantsCountFolders(text) {
   const q = fold(text);
   if (!q) return false;
-  // Prefer department count when both entities appear with count cue
-  if (textHasNearToken(q, COUNT_DEPT_ENTITY_TOKENS) && !textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS)) {
-    return false;
-  }
   if (!textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS)) return false;
+  if (textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)) return true;
+  if (textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)) return true;
+  if (/\bhow\s+many\b/.test(q)) return true;
+  if (/\ben\s+general\b/.test(q)) return true;
+  return false;
+}
+
+/**
+ * "¿Cuántas categorías… / en {Depto} / en general?"
+ * @param {string} text
+ */
+export function wantsCountCategories(text) {
+  const q = fold(text);
+  if (!q) return false;
+  // Folders win if both entities present
+  if (textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS)) return false;
+  if (!textHasNearToken(q, COUNT_CATEGORY_ENTITY_TOKENS)) return false;
   if (textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)) return true;
   if (textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)) return true;
   if (/\bhow\s+many\b/.test(q)) return true;
@@ -165,6 +189,125 @@ function buildCountFoldersFamily(ctx, inventory, toolsCalled, opts = {}) {
       hint: deptName
         ? `Live folder count for department ${deptName}`
         : "Live folder count for the active corpus",
+    },
+    workspaceInventory: inventory,
+    pendingGinaOffer: null,
+  };
+}
+
+/**
+ * Build deterministic category-count reply for a corpus or department.
+ * Categories come from live dept subcategories + folder.category labels.
+ * @param {object} ctx
+ * @param {object} inventory
+ * @param {string[]} toolsCalled
+ * @param {{ departmentName?: string | null }} [opts]
+ */
+function buildCountCategoriesFamily(ctx, inventory, toolsCalled, opts = {}) {
+  if (!toolsCalled.includes("get_workspace_inventory")) {
+    toolsCalled.push("get_workspace_inventory");
+  }
+  const corpusName = String(
+    ctx.corpusName || ctx.objectName || ctx.companyName || "",
+  ).trim() || null;
+  const deptName = opts.departmentName
+    ? String(opts.departmentName).trim()
+    : null;
+  const depts = Array.isArray(inventory.departments) ? inventory.departments : [];
+  const folders = Array.isArray(inventory.folders) ? inventory.folders : [];
+
+  const scopedDepts = deptName
+    ? depts.filter((d) => {
+      const dn = fold(d.name);
+      const want = fold(deptName);
+      if (dn === want) return true;
+      return expandDepartmentNameTokens(deptName).includes(dn)
+        || expandDepartmentNameTokens(d.name).includes(want);
+    })
+    : depts;
+
+  const scopedFolders = deptName
+    ? folders.filter((f) => {
+      const fd = fold(f.departmentName);
+      const want = fold(deptName);
+      if (fd === want) return true;
+      return expandDepartmentNameTokens(deptName).includes(fd)
+        || expandDepartmentNameTokens(f.departmentName).includes(want);
+    })
+    : folders;
+
+  /** @type {Map<string, { name: string, departmentName: string | null, folderCount: number, documentCount: number }>} */
+  const byKey = new Map();
+
+  const upsert = (rawName, departmentName) => {
+    const name = String(rawName || "").trim();
+    if (!name) return;
+    const key = `${fold(departmentName || "")}::${fold(name)}`;
+    if (!byKey.has(key)) {
+      byKey.set(key, {
+        name,
+        departmentName: departmentName || null,
+        folderCount: 0,
+        documentCount: 0,
+      });
+    }
+  };
+
+  for (const d of scopedDepts) {
+    for (const cat of (d.categories || [])) {
+      upsert(cat, d.name);
+    }
+  }
+  for (const f of scopedFolders) {
+    if (f.category) upsert(f.category, f.departmentName || deptName);
+  }
+
+  for (const f of scopedFolders) {
+    const cat = String(f.category || "").trim();
+    if (!cat) continue;
+    const key = `${fold(f.departmentName || deptName || "")}::${fold(cat)}`;
+    const row = byKey.get(key);
+    if (!row) continue;
+    row.folderCount += 1;
+    row.documentCount += Number(f.childDocuments) || 0;
+  }
+
+  // Corpus-wide without dept: also merge categories that share the same name across depts?
+  // Keep per-department identity when no dept filter so bullets stay honest.
+  let categories = Array.from(byKey.values());
+  if (!deptName) {
+    // Collapse same category name across depts for a cleaner total count
+    /** @type {Map<string, { name: string, departmentName: string | null, folderCount: number, documentCount: number }>} */
+    const byName = new Map();
+    for (const row of categories) {
+      const k = fold(row.name);
+      const prev = byName.get(k);
+      if (!prev) {
+        byName.set(k, { ...row, departmentName: null });
+      } else {
+        prev.folderCount += row.folderCount;
+        prev.documentCount += row.documentCount;
+      }
+    }
+    categories = Array.from(byName.values());
+  }
+
+  categories.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+  return {
+    family: "count_categories",
+    toolsCalled,
+    toolContext: {
+      inventory,
+      corpusName,
+      department: deptName,
+      count: categories.length,
+      categories,
+      empty: categories.length === 0,
+      emptyReason: categories.length === 0 ? "no_categories" : null,
+      hint: deptName
+        ? `Live category count for department ${deptName}`
+        : "Live category count for the active corpus",
     },
     workspaceInventory: inventory,
     pendingGinaOffer: null,
@@ -1020,6 +1163,15 @@ export function runGinaQueryFamily(text, ctx = {}) {
     return buildCountFoldersFamily(ctx, inventory, toolsCalled, {
       departmentName: deptHit?.name || null,
       fromFocus: false,
+    });
+  }
+
+  // Quantitative: how many categories (corpus or department).
+  if (wantsCountCategories(text)) {
+    clearPendingGinaOffer();
+    const deptHit = matchDepartmentInText(ctx, text);
+    return buildCountCategoriesFamily(ctx, inventory, toolsCalled, {
+      departmentName: deptHit?.name || null,
     });
   }
 

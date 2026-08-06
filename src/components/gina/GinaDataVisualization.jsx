@@ -152,6 +152,44 @@ function DepartmentBuildingIcon({ className = "" }) {
   );
 }
 
+function CategoryListVisualization({ data }) {
+  const categories = Array.isArray(data.categories) ? data.categories : [];
+  const corpus = data.corpusName || null;
+  const dept = data.department || null;
+  const count = data.count ?? categories.length;
+  const eyebrow = dept || corpus || "Categorías";
+  return (
+    <div className="gina-viz gina-viz--category-list">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{eyebrow}</span>
+        <h3 className="gina-viz__title">
+          {count === 1 ? "1 categoría" : `${count} categorías`}
+        </h3>
+      </header>
+      {categories.length === 0 ? (
+        <p className="gina-viz__empty">
+          {data.emptyHint || "Cero categorías en este alcance."}
+        </p>
+      ) : (
+        <ul className="gina-viz__dept-list" role="list">
+          {categories.map((cat) => (
+            <li key={cat.id || cat.name} className="gina-viz__dept-list-item">
+              <div className="gina-viz__dept-card gina-viz__dept-card--ref">
+                <span className="gina-viz__dept-name">{cat.name}</span>
+                <span className="gina-viz__dept-meta">
+                  {cat.folderCount ?? 0} folder{(cat.folderCount ?? 0) === 1 ? "" : "s"}
+                  {" · "}
+                  {cat.documentCount ?? 0} doc{(cat.documentCount ?? 0) === 1 ? "" : "s"}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function FolderListVisualization({ data }) {
   const folders = Array.isArray(data.folders) ? data.folders : [];
   const corpus = data.corpusName || null;
@@ -924,6 +962,8 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
   const dept = data.department || "";
 
   switch (type) {
+    case "category_list":
+      return <CategoryListVisualization data={data} />;
     case "folder_list":
       return <FolderListVisualization data={data} />;
     case "department_list":
