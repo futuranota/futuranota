@@ -70,6 +70,16 @@ const COUNT_DEPT_ENTITY_TOKENS = [
   "departments",
 ];
 
+/** Folder entity vocabulary (fuzzy matched). */
+const COUNT_FOLDER_ENTITY_TOKENS = [
+  "folder",
+  "folders",
+  "carpeta",
+  "carpetas",
+  "caja",
+  "cajas",
+];
+
 /**
  * "¿Cuántos departamentos… / en general / total?"
  * @param {string} text
@@ -83,6 +93,82 @@ export function wantsCountDepartments(text) {
   if (/\bhow\s+many\b/.test(q)) return true;
   if (/\ben\s+general\b/.test(q)) return true;
   return false;
+}
+
+/**
+ * "¿Cuántos folders… / en {Depto} / en general?"
+ * @param {string} text
+ */
+export function wantsCountFolders(text) {
+  const q = fold(text);
+  if (!q) return false;
+  // Prefer department count when both entities appear with count cue
+  if (textHasNearToken(q, COUNT_DEPT_ENTITY_TOKENS) && !textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS)) {
+    return false;
+  }
+  if (!textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS)) return false;
+  if (textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)) return true;
+  if (textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)) return true;
+  if (/\bhow\s+many\b/.test(q)) return true;
+  if (/\ben\s+general\b/.test(q)) return true;
+  return false;
+}
+
+/**
+ * Build deterministic folder-count reply for a corpus or department.
+ * @param {object} ctx
+ * @param {object} inventory
+ * @param {string[]} toolsCalled
+ * @param {{ departmentName?: string | null, fromFocus?: boolean }} [opts]
+ */
+function buildCountFoldersFamily(ctx, inventory, toolsCalled, opts = {}) {
+  if (!toolsCalled.includes("get_workspace_inventory")) {
+    toolsCalled.push("get_workspace_inventory");
+  }
+  const corpusName = String(
+    ctx.corpusName || ctx.objectName || ctx.companyName || "",
+  ).trim() || null;
+  const deptName = opts.departmentName
+    ? String(opts.departmentName).trim()
+    : null;
+  const allFolders = Array.isArray(inventory.folders) ? inventory.folders : [];
+  const folders = (deptName
+    ? allFolders.filter((f) => {
+      const fd = fold(f.departmentName);
+      const want = fold(deptName);
+      if (fd === want) return true;
+      return expandDepartmentNameTokens(deptName).includes(fd)
+        || expandDepartmentNameTokens(f.departmentName).includes(want);
+    })
+    : allFolders
+  ).map((f) => ({
+    id: f.id,
+    name: f.name,
+    category: f.category || null,
+    departmentName: f.departmentName || null,
+    documentCount: f.childDocuments ?? 0,
+    hasSchedule: Boolean(f.hasSchedule),
+  }));
+
+  return {
+    family: "count_folders",
+    toolsCalled,
+    toolContext: {
+      inventory,
+      corpusName,
+      department: deptName,
+      count: folders.length,
+      folders,
+      empty: folders.length === 0,
+      emptyReason: folders.length === 0 ? "no_folders" : null,
+      fromFocus: Boolean(opts.fromFocus),
+      hint: deptName
+        ? `Live folder count for department ${deptName}`
+        : "Live folder count for the active corpus",
+    },
+    workspaceInventory: inventory,
+    pendingGinaOffer: null,
+  };
 }
 
 /**
@@ -101,7 +187,7 @@ export function recentWasFolderDocsOffer(ctx = {}) {
       continue;
     }
     if (
-      /\b(espera.*buscar|aqui tienes los?\s+\d+\s+documento|documentos?\s+(del|de|en)\b|folder\s+\w+|caja\s+\w+)\b/.test(t)
+      /\b(espera.*(buscar|momento)|aqui tienes los?\s+\d+\s+documento|documentos?\s+(del|de|en)\b|folder\s+\w+|caja\s+\w+)\b/.test(t)
       || /\b(dame|muestra|entreg)\w*.*\bdocumentos?\b/.test(t)
     ) {
       return true;
@@ -927,6 +1013,16 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
+  // Quantitative: how many folders (corpus or department).
+  if (wantsCountFolders(text)) {
+    clearPendingGinaOffer();
+    const deptHit = matchDepartmentInText(ctx, text);
+    return buildCountFoldersFamily(ctx, inventory, toolsCalled, {
+      departmentName: deptHit?.name || null,
+      fromFocus: false,
+    });
+  }
+
   // Quantitative: how many departments in this corpus (total / en general).
   if (wantsCountDepartments(text)) {
     clearPendingGinaOffer();
@@ -992,6 +1088,19 @@ export function runGinaQueryFamily(text, ctx = {}) {
     const deptHit = (wantsExpand || wantsDeptFocus) ? matchDepartmentInText(ctx, text) : null;
 
     if ((wantsExpand || wantsDeptFocus) && deptHit) {
+      // Bare "Enfocarme hoy en {Depto}" with zero folders → guide to create a folder first.
+      const isBareDeptFocus = wantsDeptFocus && !wantsExpand;
+      if (isBareDeptFocus) {
+        const stats = getDepartmentCorpusStats(ctx, deptHit.name);
+        if (stats && stats.folderCount === 0) {
+          clearPendingGinaOffer();
+          return buildCountFoldersFamily(ctx, inventory, toolsCalled, {
+            departmentName: deptHit.name,
+            fromFocus: true,
+          });
+        }
+      }
+
       /** @type {Record<string, string | boolean | null>} */
       const filters = {
         department: deptHit.name,

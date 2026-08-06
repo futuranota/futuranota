@@ -65,6 +65,63 @@ export function buildGinaOpeningChips(opts = {}) {
 }
 
 /**
+ * Chips after folder count.
+ * @param {{
+ *   folders?: { name: string, departmentName?: string | null }[],
+ *   department?: string | null,
+ *   empty?: boolean,
+ *   locale?: string,
+ * }} opts
+ * @returns {GinaReplyChip[]}
+ */
+export function buildCountFoldersChips(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = String(opts.department || "").trim();
+  /** @type {GinaReplyChip[]} */
+  const chips = [];
+  if (opts.empty) {
+    chips.push({
+      id: "back_depts",
+      label: en ? "Back to departments" : "Volver a departamentos",
+      text: en
+        ? "How many departments do we have in total?"
+        : "¿Cuántos departamentos tenemos en general?",
+    });
+    if (dept) {
+      chips.push({
+        id: `focus_${dept}`,
+        label: en ? `Focus on ${dept}` : `Enfocarme en ${dept}`,
+        text: en ? `Focus today on ${dept}` : `Enfocarme hoy en ${dept}`,
+      });
+    }
+    return chips;
+  }
+  const folders = Array.isArray(opts.folders) ? opts.folders : [];
+  for (const folder of folders.slice(0, 6)) {
+    const name = String(folder?.name || "").trim();
+    if (!name) continue;
+    chips.push({
+      id: `folder_docs_${name}`,
+      label: en ? `Docs in ${name}` : `Docs de ${name}`,
+      text: en
+        ? `Show me all documents in ${name}`
+        : `Dame todos los documentos del ${name}`,
+      primary: chips.length === 0,
+    });
+  }
+  if (dept) {
+    chips.push({
+      id: "today_schedule",
+      label: en ? "Today's schedule" : "Horarios de hoy",
+      text: en
+        ? `Show me today's schedule in ${dept}`
+        : `Muéstrame los horarios de hoy en ${dept}`,
+    });
+  }
+  return chips;
+}
+
+/**
  * Chips after department count (corpus inventory).
  * Schedule chip only when there are scheduled docs today.
  * @param {{ departments?: { name: string }[], locale?: string, hasTodaySchedules?: boolean }} opts
@@ -322,6 +379,37 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
   if (!visualization?.type) return null;
   const data = visualization.data || {};
 
+  if (visualization.type === "folder_list") {
+    const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
+    const dept = data.department || null;
+    const folders = Array.isArray(data.folders) ? data.folders : [];
+    const n = data.count ?? folders.length;
+    if (n === 0 || data.empty) {
+      if (dept) {
+        return en
+          ? `In **${dept}** you have **zero** folders created. Start by creating at least one folder so you can schedule appointments afterward.`
+          : `En **${dept}** tienes cero secciones de folder creadas. Comienza creando al menos un folder para después poder programar citas.`;
+      }
+      return en
+        ? `For **${corpus}** you have **zero** folders created. Start by creating at least one folder so you can schedule appointments afterward.`
+        : `Para **${corpus}** tienes cero secciones de folder creadas. Comienza creando al menos un folder para después poder programar citas.`;
+    }
+    const scope = dept
+      ? (en ? `In **${dept}**` : `En **${dept}**`)
+      : (en ? `For **${corpus}**` : `Para **${corpus}**`);
+    const head = en
+      ? `${scope} we have a total of **${n}** folder${n === 1 ? "" : "s"}:`
+      : `${scope} tenemos un total de **${n}** folder${n === 1 ? "" : "s"}:`;
+    const bullets = folders
+      .slice(0, 12)
+      .map((f) => `• ${f.name}`)
+      .join("\n");
+    const ask = en
+      ? "Want to open the documents of one of these folders?"
+      : "¿Quieres ver los documentos de alguno de estos folders?";
+    return `${head}\n${bullets}\n\n${ask}`;
+  }
+
   if (visualization.type === "department_list") {
     const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
     const depts = Array.isArray(data.departments) ? data.departments : [];
@@ -566,6 +654,14 @@ export function buildGinaReplyChips(opts = {}) {
   const type = viz?.type;
   const data = viz?.data || {};
 
+  if (type === "folder_list" || opts.family === "count_folders") {
+    return buildCountFoldersChips({
+      folders: data.folders,
+      department: data.department,
+      empty: Boolean(data.empty),
+      locale,
+    });
+  }
   if (type === "department_list" || opts.family === "count_departments") {
     return buildCountDepartmentsChips({
       departments: data.departments,

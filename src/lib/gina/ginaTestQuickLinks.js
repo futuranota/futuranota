@@ -19,6 +19,16 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: cuántos departamentos",
     text: "Hola gina, Cuantos Departamenos tenemos en General ?",
   },
+  {
+    id: "test_count_folders_sales",
+    label: "Test: folders en Sales",
+    text: "Enfocarme hoy en Sales",
+  },
+  {
+    id: "test_count_folders_qty",
+    label: "Test: cuántos folders",
+    text: "Cuántos folders tenemos en Marketing?",
+  },
 ];
 
 /**

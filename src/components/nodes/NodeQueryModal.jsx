@@ -63,6 +63,10 @@ import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
 } from "../../lib/gina/ginaReplyChips.js";
+import {
+  buildGinaSearchSequence,
+  shouldUseGinaSearchSequence,
+} from "../../lib/gina/ginaSearchSequence.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
@@ -402,6 +406,31 @@ export function NodeQueryModal({
       }
     }
 
+    if (routed.family === "count_folders") {
+      const visualization = buildGinaVisualization("count_folders", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? (routed.toolContext?.empty
+              ? "You have zero folders created. Start by creating at least one folder."
+              : `We have ${routed.toolContext?.count ?? 0} folders.`)
+            : (routed.toolContext?.empty
+              ? "Tienes cero secciones de folder creadas. Comienza creando al menos un folder."
+              : `Tenemos ${routed.toolContext?.count ?? 0} folders.`)),
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: "count_folders",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
     if (routed.family === "count_departments") {
       const visualization = buildGinaVisualization("count_departments", routed.toolContext, {
         locale: localeKey,
@@ -432,9 +461,7 @@ export function NodeQueryModal({
         message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
           || (localeKey === "en" ? "I searched your workspace." : "Busqué en tu workspace."),
         visualization,
-        searchSequence: {
-          preludeMessage: localeKey === "en" ? "Wait, let me search..." : "Espera, déjame buscar...",
-        },
+        searchSequence: buildGinaSearchSequence(localeKey),
         chips: buildGinaReplyChips({
           family: "find_document",
           visualization,
@@ -475,9 +502,7 @@ export function NodeQueryModal({
             ? `Here are the documents in ${routed.toolContext?.folderName || "that folder"}.`
             : `Aquí tienes los documentos de ${routed.toolContext?.folderName || "ese folder"}.`),
         visualization,
-        searchSequence: {
-          preludeMessage: localeKey === "en" ? "Wait, let me search..." : "Espera, déjame buscar...",
-        },
+        searchSequence: buildGinaSearchSequence(localeKey),
         chips: buildGinaReplyChips({
           family: "folder_summary",
           visualization,
@@ -510,6 +535,9 @@ export function NodeQueryModal({
                 ? `Hoy en ${routed.toolContext.filters.department} hay cero documentos programados.`
                 : "Hoy no hay trabajo programado.")),
           visualization,
+          ...(shouldUseGinaSearchSequence("today", routed.toolContext)
+            ? { searchSequence: buildGinaSearchSequence(localeKey) }
+            : {}),
           chips: buildGinaReplyChips({
             family: "today",
             visualization,
@@ -573,6 +601,9 @@ export function NodeQueryModal({
       return {
         message: funnelHeadline || message,
         visualization,
+        ...(shouldUseGinaSearchSequence(routed.family, routed.toolContext)
+          ? { searchSequence: buildGinaSearchSequence(localeKey) }
+          : {}),
         chips: chips.length ? chips : null,
       };
     } catch (err) {

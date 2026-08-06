@@ -152,6 +152,44 @@ function DepartmentBuildingIcon({ className = "" }) {
   );
 }
 
+function FolderListVisualization({ data }) {
+  const folders = Array.isArray(data.folders) ? data.folders : [];
+  const corpus = data.corpusName || null;
+  const dept = data.department || null;
+  const count = data.count ?? folders.length;
+  const eyebrow = dept || corpus || "Folders";
+  return (
+    <div className="gina-viz gina-viz--folder-list">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{eyebrow}</span>
+        <h3 className="gina-viz__title">
+          {count === 1 ? "1 folder" : `${count} folders`}
+        </h3>
+      </header>
+      {folders.length === 0 ? (
+        <p className="gina-viz__empty">
+          {data.emptyHint
+            || "Cero folders. Crea al menos uno para programar citas."}
+        </p>
+      ) : (
+        <ul className="gina-viz__dept-list" role="list">
+          {folders.map((folder) => (
+            <li key={folder.id || folder.name} className="gina-viz__dept-list-item">
+              <div className="gina-viz__dept-card gina-viz__dept-card--ref">
+                <span className="gina-viz__dept-name">{folder.name}</span>
+                <span className="gina-viz__dept-meta">
+                  {folder.documentCount ?? 0} doc{(folder.documentCount ?? 0) === 1 ? "" : "s"}
+                  {folder.category ? ` · ${folder.category}` : ""}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function DepartmentListVisualization({ data, onSelectDepartment }) {
   const depts = Array.isArray(data.departments) ? data.departments : [];
   const corpus = data.corpusName || null;
@@ -886,6 +924,8 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
   const dept = data.department || "";
 
   switch (type) {
+    case "folder_list":
+      return <FolderListVisualization data={data} />;
     case "department_list":
       return (
         <DepartmentListVisualization

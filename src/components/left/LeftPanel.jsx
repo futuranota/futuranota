@@ -32,6 +32,10 @@ import {
   buildGinaReplyChips,
 } from "../../lib/gina/ginaReplyChips.js";
 import {
+  buildGinaSearchSequence,
+  shouldUseGinaSearchSequence,
+} from "../../lib/gina/ginaSearchSequence.js";
+import {
   buildCascadeSchedulePreview,
   buildGinaWarmGoodbyeReply,
   buildScheduleRecoveryAppliedText,
@@ -3115,6 +3119,32 @@ export function LeftPanel({
         : "Tell me the exact document or folder title from the list so we focus on one.";
     }
 
+    if (!meetingOn && routed.family === "count_folders") {
+      const visualization = buildGinaVisualization("count_folders", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en"
+          ? (routed.toolContext?.empty
+            ? "You have zero folders created. Start by creating at least one folder."
+            : `We have ${routed.toolContext?.count ?? 0} folders.`)
+          : (routed.toolContext?.empty
+            ? "Tienes cero secciones de folder creadas. Comienza creando al menos un folder."
+            : `Tenemos ${routed.toolContext?.count ?? 0} folders.`));
+      return {
+        message,
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: "count_folders",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
     if (!meetingOn && routed.family === "count_departments") {
       const visualization = buildGinaVisualization("count_departments", routed.toolContext, {
         locale: localeKey,
@@ -3164,9 +3194,7 @@ export function LeftPanel({
       return {
         message,
         visualization,
-        searchSequence: {
-          preludeMessage: localeKey === "en" ? "Wait, let me search..." : "Espera, déjame buscar...",
-        },
+        searchSequence: buildGinaSearchSequence(localeKey),
         chips: buildGinaReplyChips({
           family: "find_document",
           visualization,
@@ -3209,9 +3237,7 @@ export function LeftPanel({
       return {
         message,
         visualization,
-        searchSequence: {
-          preludeMessage: localeKey === "en" ? "Wait, let me search..." : "Espera, déjame buscar...",
-        },
+        searchSequence: buildGinaSearchSequence(localeKey),
         chips: buildGinaReplyChips({
           family: "folder_summary",
           visualization,
@@ -3246,6 +3272,9 @@ export function LeftPanel({
         return {
           message,
           visualization,
+          ...(shouldUseGinaSearchSequence("today", routed.toolContext)
+            ? { searchSequence: buildGinaSearchSequence(localeKey) }
+            : {}),
           chips: buildGinaReplyChips({
             family: "today",
             visualization,
@@ -3347,6 +3376,9 @@ export function LeftPanel({
         message: funnelHeadline || displayText,
         visualization,
         learnProposal,
+        ...(shouldUseGinaSearchSequence(routed.family, routed.toolContext)
+          ? { searchSequence: buildGinaSearchSequence(localeKey) }
+          : {}),
         chips: chips.length ? chips : null,
       };
     } catch (err) {
