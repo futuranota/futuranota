@@ -62,6 +62,14 @@
   color: var(--dim);
 }
 
+.confirm-action-card__hint {
+  margin: -10px 0 18px;
+  font-family: var(--sans);
+  font-size: 11px;
+  line-height: 1.45;
+  color: color-mix(in oklab, var(--dim) 78%, transparent);
+}
+
 .confirm-action-card__actions {
   display: flex;
   justify-content: flex-end;

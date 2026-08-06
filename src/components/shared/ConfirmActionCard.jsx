@@ -35,7 +35,11 @@ export function ConfirmActionCard() {
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-action-title"
-        aria-describedby="confirm-action-message"
+        aria-describedby={
+          payload.hint
+            ? "confirm-action-message confirm-action-hint"
+            : "confirm-action-message"
+        }
       >
         {payload.iconSrc ? (
           <img
@@ -53,6 +57,9 @@ export function ConfirmActionCard() {
         <p id="confirm-action-message" className="confirm-action-card__message">
           {payload.message}
         </p>
+        {payload.hint ? (
+          <p id="confirm-action-hint" className="confirm-action-card__hint">{payload.hint}</p>
+        ) : null}
         <div className="confirm-action-card__actions">
           {!payload.hideCancel ? (
             <button

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useAnimatedText } from "../../hooks/useAnimatedText.js";
 
 /**
@@ -124,16 +125,39 @@ export function GinaAnimatedText({ text, className }) {
 /**
  * AI reply: white/bold question·title + gray/small deep description.
  * Labels like **Nota:** stay bold inside the body once typing finishes.
- * @param {{ text?: string, plainBody?: boolean }} props
+ * @param {{ text?: string, plainBody?: boolean, onComplete?: () => void }} props
  */
-export function GinaAiMessageText({ text, plainBody = false }) {
+export function GinaAiMessageText({ text, plainBody = false, onComplete }) {
   const source = String(text || "").trim();
+  const split = plainBody ? null : splitGinaAiText(text);
+  const headline = plainBody ? "" : (split?.headline || "");
+  const body = plainBody ? "" : (split?.body || "");
+  const bodyFirst = Boolean(!plainBody && split?.bodyFirst && body);
+  const sep = body ? "\n" : "";
+  const plainBodyText = plainBody ? stripMd(source) : body;
+  const plainHead = headline;
+  const full = plainBody
+    ? plainBodyText
+    : bodyFirst
+      ? `${plainBodyText}${sep}${plainHead}`
+      : `${plainHead}${sep}${plainBodyText}`;
+
+  const animated = useAnimatedText(full);
+  const done = !source || !full || animated.length >= full.length;
+
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const completedRef = useRef(false);
+
+  useEffect(() => {
+    if (!done || completedRef.current) return;
+    completedRef.current = true;
+    onCompleteRef.current?.();
+  }, [done]);
+
   if (!source) return null;
 
   if (plainBody) {
-    const plain = stripMd(source);
-    const animated = useAnimatedText(plain);
-    const done = Boolean(animated) && animated.length >= plain.length;
     return (
       <span className="gina-chat-card__ai-text">
         <span className="gina-chat-card__ai-body gina-chat-card__ai-body--soft">
@@ -145,14 +169,6 @@ export function GinaAiMessageText({ text, plainBody = false }) {
     );
   }
 
-  const { headline, body, bodyFirst } = splitGinaAiText(text);
-  const sep = body ? "\n" : "";
-  const plainHead = headline;
-  const plainBodyText = body;
-  const full = bodyFirst && body
-    ? `${plainBodyText}${sep}${plainHead}`
-    : `${plainHead}${sep}${plainBodyText}`;
-  const animated = useAnimatedText(full);
   if (!headline && !body) return null;
 
   let headShown = "";

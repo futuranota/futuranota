@@ -7,6 +7,10 @@ import {
   buildScheduleRecoveryGateChips,
 } from "./ginaScheduleRecovery.js";
 import {
+  buildFindDocumentChips,
+  buildFindDocumentMessage,
+} from "./ginaFindDocument.js";
+import {
   buildDailyReportAppliedText,
   buildDailyReportChips,
   buildDailyReportMoveConfirmChips,
@@ -354,6 +358,48 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       : `Categoría **${cat}** hoy — ${n} documento(s) en folders.`;
   }
 
+  if (visualization.type === "find_results") {
+    return buildFindDocumentMessage({
+      locale: opts.locale,
+      empty: Boolean(data.empty),
+      total: data.total ?? (data.results?.length || 0),
+      results: data.results || [],
+      hints: data.hints || {},
+      needsClarify: Boolean(data.needsClarify),
+    });
+  }
+
+  if (visualization.type === "table" && (data.listAll || data.empty || data.department)) {
+    const name = data.department || "—";
+    const n = Array.isArray(data.documents) ? data.documents.length : 0;
+    if (data.empty || n === 0) {
+      if (data.scope === "today") {
+        return en
+          ? `Today in **${name}** there are zero scheduled documents.`
+          : `Hoy en **${name}** hay cero documentos programados.`;
+      }
+      return en
+        ? `From the **${name}** department there is zero data — no categories, folders, or documents.`
+        : `Del departamento de **${name}** hay cero datos — sin categorías, folders ni documentos.`;
+    }
+    return en
+      ? `From the **${name}** department, here are all the documents (${n}), including flexible ones without hours.`
+      : `Del departamento de **${name}**, aquí tienes todos los documentos (${n}), incluidos los flexibles sin horario.`;
+  }
+
+  if (visualization.type === "folder_summary") {
+    const name = data.department || data.folderName || "—";
+    const n = data.total ?? (Array.isArray(data.documents) ? data.documents.length : 0);
+    if (data.empty || n === 0) {
+      return en
+        ? `From the **${name}** department there is zero data — no categories, folders, or documents.`
+        : `Del departamento de **${name}** hay cero datos — sin categorías, folders ni documentos.`;
+    }
+    return en
+      ? `From **${name}** — ${n} document(s).`
+      : `De **${name}** — ${n} documento(s).`;
+  }
+
   if (visualization.type === "schedule_sheet") {
     if (data.recoveryPhase === "brief" && data.hasRecoveryOffer) {
       return buildScheduleRecoveryBriefText({
@@ -497,6 +543,34 @@ export function buildGinaReplyChips(opts = {}) {
       return buildScheduleSheetChips({ locale });
     }
     return buildDailyReportMoveConfirmChips({ locale });
+  }
+  if (type === "find_results") {
+    return buildFindDocumentChips({
+      locale,
+      results: data.results || [],
+      empty: Boolean(data.empty),
+      needsClarify: Boolean(data.needsClarify),
+      clarifyOptions: data.clarifyOptions || data.hints?.clarifyOptions || [],
+    });
+  }
+  if (type === "table" && data.empty && data.department) {
+    const dept = data.department || "";
+    return [
+      {
+        id: "back_depts",
+        label: locale === "en" ? "Back to departments" : "Volver a departamentos",
+        text: locale === "en" ? "What do we have for today?" : "¿Qué tenemos para hoy?",
+      },
+      ...(dept
+        ? [{
+            id: "review_dept_corpus",
+            label: locale === "en" ? `All docs in ${dept}` : `Todos en ${dept}`,
+            text: locale === "en"
+              ? `Show me all documents in ${dept}`
+              : `Entregame todos los documentos de ${dept}`,
+          }]
+        : []),
+    ];
   }
   if (type === "schedule_sheet" || type === "timeline") {
     return buildScheduleSheetChips({

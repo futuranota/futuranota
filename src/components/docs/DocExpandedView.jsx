@@ -957,8 +957,10 @@ export function DocExpandedView({
   const alertFolderScheduleError = async (check) => {
     if (!check || check.ok) return;
     let message = t("meta.scheduleInvalid");
+    let hint = "";
     if (check.code === "required" || check.code === "partial") {
       message = t("meta.schedulePartial");
+      hint = t("meta.schedulePartialHint");
     } else if (check.code === "finishBeforeStart") {
       message = t("meta.scheduleFinishBeforeStart");
     } else if (check.code === "overlap") {
@@ -976,6 +978,7 @@ export function DocExpandedView({
     await askConfirm({
       title: t("meta.scheduleTitle"),
       message,
+      hint,
       confirmLabel: t("common.ok"),
       tone: "default",
       hideCancel: true,

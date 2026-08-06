@@ -3139,6 +3139,16 @@
   color: var(--text);
 }
 
+.lp-doc-nodes-block__node.is-gina-reveal {
+  outline: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+}
+
+.lp-doc-nodes-block__node.is-gina-reveal .lp-doc-nodes-block__node-title {
+  color: #f2f2f2;
+}
+
 /* Tiny inline dot — folder has an active Schedule (visible without expanding). */
 .lp-folder-schedule-dot {
   display: inline-block;

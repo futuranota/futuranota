@@ -1,0 +1,47 @@
+---
+description: Gina capability roadmap — find/confirm, To Do dictation, day ritual, delete, URLs, GCal, Drive (build order)
+alwaysApply: true
+---
+
+# Gina — mapa de capacidades (visión + orden)
+
+Canonical detail: `.cursor/saved/gina-system/CAPABILITY_ROADMAP.md`.  
+Complementa (no reemplaza): `gina-assistant-system.mdc`, `gina-shift-daily-report.mdc`, `assistant-premium-scheduling.mdc`.
+
+## Norte
+
+El usuario puede ser su propio asistente; **Gina organiza, apunta y recuerda** como parte del equipo.  
+No inventa corpus. No edita el **body** del documento.
+
+## Capacidades (visión)
+
+| Capacidad | Notas |
+|---|---|
+| **Encontrar** | Nombre imperfecto + explicación breve; confirmar “¿te refieres a…?”; ofrecer abrir |
+| **Abrir / revelar** | Path depto→cat→folder; open por id (no inventar títulos) |
+| **Borrar** | Con confirmación explícita del user |
+| **No editar body** | Regla fija |
+| **To Do del documento** | Sin horario propio; el horario/goal viene del schedule del doc. User tacha; Gina lee progreso e **inserta** ítems al dictado (“agrega al to do…”) desglosando |
+| **Ritual del día** | “¿qué tenemos / el de ayer sobre xyz?” → confirm → To Do 1/3 + notas → “¿qué sigue?” |
+| **Alarmas** | Pocas: preferencia **1× día** + extras solo si el user pide |
+| **Google Calendar** | Notificador **fuera** de FN; FN = source of truth. Ej. “recuérdame mañana a las 10:30” → evento GCal |
+| **Google Drive** | Transformar doc a otro formato + botón enviar al Drive del user (después) |
+| **URLs / tabla** | Informar filas (cookies, comisión, etc.); llenar listados por pedido |
+
+## Orden de build (seguir este orden)
+
+1. **Find + confirm + abrir** — pulir “ayer / xyz / ¿te refieres a…?”
+2. **To Do del doc** — leer progreso + insertar por dictado (desglose)
+3. **“¿qué sigue?”** del día — To Do + docs (no solo sheet de horarios)
+4. **Borrar con confirm**
+5. **URLs** — informar / listar tabla interna
+6. **GCal reminders** — pocas alarmas externas
+7. **Export → Drive**
+
+## Hard rules mientras se construye
+
+- LIVE CORPUS ONLY — nunca inventar docs, categorías ni to-dos.
+- Mutaciones (borrar, insertar to-do, GCal) solo con **confirmación explícita**.
+- To Do ≠ schedule del documento; no inventar horas en el to-do.
+- Audio / ElevenLabs sigue deferred (`gina-audio-deferred.mdc`).
+- Shift clock / onboarding skins no saltan este orden salvo brief explícito.

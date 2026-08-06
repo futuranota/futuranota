@@ -45,6 +45,9 @@ Timeline **solo visualiza**. Alarmas/popups = **solo Gina** (aún no en esta fas
 
 ## Más adelante
 
+**Mapa de capacidades + orden de build:** `.cursor/rules/gina-capability-roadmap.mdc` · brief `.cursor/saved/gina-system/CAPABILITY_ROADMAP.md`  
+(find/confirm → To Do dictado → “qué sigue” → borrar → URLs → GCal → Drive).
+
 ### Siguiente (Phase 1.5 — live / polish)
 
 **Data visualization** en el chat: `{ message, visualization }` + cards/tablas.  
@@ -59,14 +62,13 @@ Dos cards = UX de turno; 1 report/día; verify al entrar al turno; dashboard dis
 Rule: `.cursor/rules/gina-shift-daily-report.mdc`  
 Brief: `.cursor/saved/gina-system/SHIFT_AND_DAILY_REPORT.md`
 
-### Después
+### Después (ver CAPABILITY_ROADMAP)
 
-- Google Calendar (FN = source of truth; GCal = espejo/reminders) — **después de 1.5**
-- To Do compartido + OK popup → `checked`
-- Start-file alarms + soft conflict al abrir
-- Call Asistente in-doc (scope al file abierto)
-- Mutaciones solo con confirmación explícita del user
-- Onboarding 2 agentes + landing CTA horario/$20
+- To Do del documento (progreso + insertar por dictado) — antes de GCal/Drive
+- “¿qué sigue?” del día (To Do + docs)
+- Borrar docs con confirm; **nunca** editar body
+- URLs / tabla interna · Google Calendar (pocas alarmas) · Export → Drive
+- Onboarding 2 agentes + pricing CTA horario/$20
 
 ## Scope / no hacer (fase 1)
 

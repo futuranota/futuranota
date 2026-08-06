@@ -303,6 +303,21 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
 
   if (family === "focus_open" || family === "social" || family === "unclear" || family === "dismiss" || family === "free_chat") return null;
 
+  if (family === "find_document") {
+    const results = asDocs(ctx.results);
+    return {
+      type: "find_results",
+      data: {
+        results,
+        total: ctx.total ?? results.length,
+        empty: Boolean(ctx.empty) || results.length === 0,
+        needsClarify: Boolean(ctx.needsClarify),
+        clarifyOptions: Array.isArray(ctx.clarifyOptions) ? ctx.clarifyOptions : (ctx.hints?.clarifyOptions || []),
+        hints: ctx.hints || {},
+      },
+    };
+  }
+
   if (family === "today" || (family === "default_overview" && ctx.today)) {
     const today = family === "today" ? ctx : ctx.today;
     if (!today || typeof today !== "object") return null;
@@ -439,6 +454,24 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
 
     const hasDeptFilter = Boolean(today.filters?.department);
     if (hasDeptFilter || wantsFocus) {
+      const deptName = today.filters?.department || null;
+      const emptyTodayDept = (today.totalDocumentsToday === 0 || docs.length === 0)
+        && Boolean(deptName);
+      if (emptyTodayDept) {
+        return {
+          type: "table",
+          data: {
+            title: locale === "en"
+              ? `Today · ${deptName}`
+              : `Hoy · ${deptName}`,
+            department: deptName,
+            documents: [],
+            empty: true,
+            listAll: false,
+            scope: "today",
+          },
+        };
+      }
       if (wantsOverdueHours || wantsFromNow || wantsAllToday) {
         return {
           type: "schedule_sheet",
@@ -657,38 +690,54 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           nextDue: asDocs(ctx.documents).find((d) => d.isPastDue || d.status === "past_due")
             || asDocs(ctx.documents)[0]
             || null,
+          empty: total === 0,
+          listAll: Boolean(ctx.listAll),
         },
       };
     }
-    // department filter result
+    // department filter result — always emit viz (including empty corpus)
     const docs = asDocs(ctx.documents).map(mapDocRow);
-    if (wantsTable || docs.length) {
-      return {
-        type: wantsTable ? "table" : "folder_summary",
-        data: wantsTable
-          ? { title: ctx.department || "Department", documents: docs }
-          : {
-              hierarchy: {
-                department: ctx.department || null,
-                category: ctx.category || null,
-                folder: null,
-              },
-              folderName: ctx.department || null,
+    const empty = Boolean(ctx.empty) || docs.length === 0;
+    const listAll = Boolean(ctx.listAll) || wantsTable || /\b(todos|all|lista|list)\b/.test(q);
+    return {
+      type: listAll || empty ? "table" : (wantsTable ? "table" : "folder_summary"),
+      data: (listAll || empty || wantsTable)
+        ? {
+            title: ctx.department
+              ? (locale === "en" ? `Documents · ${ctx.department}` : `Documentos · ${ctx.department}`)
+              : (locale === "en" ? "Documents" : "Documentos"),
+            documents: docs,
+            department: ctx.department || null,
+            empty,
+            listAll: true,
+            folderCount: ctx.folderCount ?? null,
+            documentCount: ctx.documentCount ?? docs.length,
+            categoryCount: ctx.categoryCount ?? null,
+            categories: Array.isArray(ctx.categories) ? ctx.categories : [],
+          }
+        : {
+            hierarchy: {
               department: ctx.department || null,
               category: ctx.category || null,
-              total: docs.length,
-              completed: docs.filter((d) => d.status === "completed").length,
-              inProgress: docs.filter((d) => d.status === "in_progress").length,
-              notStarted: docs.filter((d) => !d.status || d.status === "not_started").length,
-              pastDue: docs.filter((d) => d.status === "past_due").length,
-              percentComplete: docs.length
-                ? Math.round((docs.filter((d) => d.status === "completed").length / docs.length) * 100)
-                : 0,
-              documents: docs,
-              nextDue: null,
+              folder: null,
             },
-      };
-    }
+            folderName: ctx.department || null,
+            department: ctx.department || null,
+            category: ctx.category || null,
+            total: docs.length,
+            completed: docs.filter((d) => d.status === "completed").length,
+            inProgress: docs.filter((d) => d.status === "in_progress").length,
+            notStarted: docs.filter((d) => !d.status || d.status === "not_started").length,
+            pastDue: docs.filter((d) => d.status === "past_due").length,
+            percentComplete: docs.length
+              ? Math.round((docs.filter((d) => d.status === "completed").length / docs.length) * 100)
+              : 0,
+            documents: docs,
+            nextDue: null,
+            empty,
+            listAll: false,
+          },
+    };
   }
 
   if (family === "this_week" || family === "next_week" || family === "date_range" || family === "tomorrow") {

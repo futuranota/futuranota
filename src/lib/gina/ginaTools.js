@@ -762,14 +762,103 @@ export function findFolderIdByName(ctx, nameQuery) {
   return hit?.id || null;
 }
 
-export function filterDocumentsByDepartmentAndCategory(ctx, departmentQuery, categoryQuery) {
+/**
+ * Match a live category label under a department (inventory only).
+ * @returns {string | null}
+ */
+export function matchLiveCategoryInText(ctx, text, departmentName = null) {
+  const q = fold(text);
+  if (!q) return null;
+  if (/\b(uncategorized|sin\s+categor)/.test(q)) return "uncategorized";
+  const inventory = get_workspace_inventory(ctx);
+  const deptFold = fold(departmentName);
+  let best = null;
+  let bestLen = 0;
+  for (const d of inventory.departments) {
+    if (deptFold) {
+      const tokens = expandDepartmentNameTokens(d.name);
+      if (fold(d.name) !== deptFold && !tokens.includes(deptFold)) continue;
+    }
+    for (const cat of d.categories || []) {
+      const c = fold(cat);
+      if (!c || c.length < 2) continue;
+      if (!(q.includes(c) || new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q))) {
+        continue;
+      }
+      if (c.length > bestLen) {
+        best = cat;
+        bestLen = c.length;
+      }
+    }
+  }
+  return best;
+}
+
+/**
+ * Match a live folder under an optional department (inventory only).
+ * @returns {{ id: string, name: string, category: string | null, departmentName: string | null } | null}
+ */
+export function matchLiveFolderInText(ctx, text, departmentName = null) {
+  const q = fold(text);
+  if (!q) return null;
+  const inventory = get_workspace_inventory(ctx);
+  const deptFold = fold(departmentName);
+  let best = null;
+  let bestLen = 0;
+  for (const f of inventory.folders) {
+    if (deptFold) {
+      const tokens = expandDepartmentNameTokens(f.departmentName || "");
+      const fd = fold(f.departmentName);
+      if (fd && fd !== deptFold && !tokens.includes(deptFold) && !expandDepartmentNameTokens(departmentName).includes(fd)) {
+        continue;
+      }
+      if (!fd && deptFold) continue;
+    }
+    const name = fold(f.name);
+    if (!name || name.length < 2) continue;
+    if (!(q.includes(name) || new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q))) {
+      continue;
+    }
+    if (name.length > bestLen) {
+      best = f;
+      bestLen = name.length;
+    }
+  }
+  return best
+    ? {
+        id: best.id,
+        name: best.name,
+        category: best.category || null,
+        departmentName: best.departmentName || null,
+      }
+    : null;
+}
+
+export function filterDocumentsByDepartmentAndCategory(ctx, departmentQuery, categoryQuery, folderQuery = "") {
   const docs = get_all_company_documents(ctx);
   const dq = fold(departmentQuery);
   const cq = fold(categoryQuery);
+  const fq = fold(folderQuery);
+  const wantUncat = cq === "uncategorized" || cq === "sin categoria" || cq === "sin categoría";
   return docs.filter((d) => {
-    const okDept = !dq || fold(d.departmentName).includes(dq) || fold(d.parentFolderName).includes(dq);
-    const okCat = !cq || fold(d.category).includes(cq) || fold(d.parentFolderName).includes(cq) || fold(d.title).includes(cq);
-    return okDept && okCat;
+    const deptName = fold(d.departmentName);
+    const okDept = !dq
+      || deptName.includes(dq)
+      || expandDepartmentNameTokens(d.departmentName || "").includes(dq)
+      || expandDepartmentNameTokens(departmentQuery).includes(deptName);
+    if (!okDept) return false;
+    if (cq) {
+      const docCat = fold(d.category);
+      if (wantUncat) {
+        if (docCat && docCat !== "uncategorized" && docCat !== "sin categoria") return false;
+      } else if (!docCat.includes(cq) && !cq.includes(docCat) && !fold(d.parentFolderName).includes(cq)) {
+        return false;
+      }
+    }
+    if (fq && !fold(d.parentFolderName).includes(fq) && !fq.includes(fold(d.parentFolderName))) {
+      return false;
+    }
+    return true;
   });
 }
 
@@ -903,7 +992,48 @@ export function resolveNameAmbiguity(ctx, nameQuery) {
 }
 
 /**
+ * Common bilingual aliases for live department names (Sales ↔ ventas, …).
+ * Matching still requires the department to exist in inventory.
+ */
+const DEPT_ALIAS_GROUPS = [
+  ["sales", "ventas"],
+  ["marketing", "mercadeo", "mkt"],
+];
+
+/**
+ * @param {string} nameFolded
+ * @returns {string[]}
+ */
+export function expandDepartmentNameTokens(nameFolded) {
+  const n = fold(nameFolded);
+  if (!n) return [];
+  const group = DEPT_ALIAS_GROUPS.find((g) => g.includes(n));
+  return group ? [...new Set(group)] : [n];
+}
+
+/**
+ * @param {string} queryFolded
+ * @param {string} deptName
+ */
+function departmentNameHitsQuery(queryFolded, deptName) {
+  const q = fold(queryFolded);
+  if (!q) return false;
+  const tokens = expandDepartmentNameTokens(deptName);
+  const live = fold(deptName);
+  const names = new Set([live, ...tokens].filter(Boolean));
+  for (const name of names) {
+    if (!name) continue;
+    if (q === name) return true;
+    if (q.includes(name)) return true;
+    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+    if (re.test(q)) return true;
+  }
+  return false;
+}
+
+/**
  * Match a department name from live inventory against remainder text.
+ * Supports bilingual aliases (e.g. "ventas" → department "Sales").
  */
 export function matchDepartmentInText(ctx, text) {
   const q = fold(text);
@@ -913,11 +1043,38 @@ export function matchDepartmentInText(ctx, text) {
   for (const d of inventory.departments) {
     const name = fold(d.name);
     if (!name) continue;
-    if (q.includes(name) || new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q)) {
-      if (!best || name.length > fold(best.name).length) best = d;
-    }
+    if (!departmentNameHitsQuery(q, d.name)) continue;
+    if (!best || name.length > fold(best.name).length) best = d;
   }
   return best;
+}
+
+/**
+ * Live counts for a department (folders + docs + categories). Never invents.
+ * @returns {{ department: string, folderCount: number, documentCount: number, categories: string[], empty: boolean } | null}
+ */
+export function getDepartmentCorpusStats(ctx, departmentNameOrId) {
+  const inventory = get_workspace_inventory(ctx);
+  const needle = fold(departmentNameOrId);
+  if (!needle) return null;
+  const d = inventory.departments.find((row) => {
+    if (row.id && row.id === departmentNameOrId) return true;
+    if (fold(row.name) === needle) return true;
+    return departmentNameHitsQuery(needle, row.name) && needle.length >= 3;
+  });
+  if (!d) return null;
+  const folderCount = d.folderCount || 0;
+  const documentCount = d.documentCount || 0;
+  const categories = Array.isArray(d.categories) ? d.categories : [];
+  return {
+    department: d.name,
+    departmentId: d.id,
+    folderCount,
+    documentCount,
+    categories,
+    categoryCount: categories.length,
+    empty: folderCount === 0 && documentCount === 0 && categories.length === 0,
+  };
 }
 
 /**

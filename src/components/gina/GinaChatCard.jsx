@@ -12,7 +12,7 @@ import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
 
-/** @typedef {{ sender: "ai" | "user", text: string, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id: string, label: string, text: string, primary?: boolean }[] | null }} GinaChatMessage */
+/** @typedef {{ id?: string, sender: "ai" | "user", text: string, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id: string, label: string, text: string, primary?: boolean }[] | null }} GinaChatMessage */
 
 function SendIcon() {
   return (
@@ -152,6 +152,8 @@ export function GinaChatCard({
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  /** True while the latest Gina reply typewriter is still running. */
+  const [isAiAnimating, setIsAiAnimating] = useState(true);
   const [micError, setMicError] = useState(/** @type {string | null} */ (null));
   const [dictationFinals, setDictationFinals] = useState(/** @type {string[]} */ ([]));
   const [dictationInterim, setDictationInterim] = useState("");
@@ -187,6 +189,16 @@ export function GinaChatCard({
   const deletePhraseArmedRef = useRef(false);
   const hearingTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const focusComposerAfterInsertRef = useRef(false);
+  /** User texts waiting until Gina finishes typing the current reply. */
+  const pendingQueueRef = useRef(/** @type {{ id: string, text: string }[]} */ ([]));
+  const isTypingRef = useRef(false);
+  const isAiAnimatingRef = useRef(true);
+  const deliveringRef = useRef(false);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const deliverUserMessageRef = useRef(/** @type {(text: string, opts?: { existingId?: string }) => Promise<void>} */ (async () => {}));
+
+  const makeMsgId = () => `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   const liveDictation = joinTranscript(dictationFinals, dictationInterim);
 
@@ -354,21 +366,83 @@ export function GinaChatCard({
     setMicError(null);
   };
 
-  const deliverUserMessage = async (text) => {
+  const isChatBusy = () => (
+    isTypingRef.current || isAiAnimatingRef.current || deliveringRef.current
+  );
+
+  const flushPendingQueue = () => {
+    if (isChatBusy()) return;
+    const next = pendingQueueRef.current.shift();
+    if (!next) return;
+    setMessages((prev) => prev.map((m) => (
+      m.id === next.id ? { ...m, queued: false } : m
+    )));
+    void deliverUserMessageRef.current(next.text, { existingId: next.id });
+  };
+
+  const enqueueOrDeliver = (text) => {
+    const trimmed = String(text || "").trim();
+    if (!trimmed) return;
+    setInput("");
+    setMicError(null);
+    if (isChatBusy()) {
+      const id = makeMsgId();
+      pendingQueueRef.current.push({ id, text: trimmed });
+      setMessages((prev) => [...prev, { id, sender: "user", text: trimmed, queued: true }]);
+      return;
+    }
+    void deliverUserMessageRef.current(trimmed);
+  };
+
+  const handleAiAnimComplete = () => {
+    isAiAnimatingRef.current = false;
+    setIsAiAnimating(false);
+    queueMicrotask(() => flushPendingQueue());
+  };
+
+  /**
+   * @param {string} text
+   * @param {{ existingId?: string }} [opts]
+   */
+  const deliverUserMessage = async (text, opts = {}) => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    setMessages((prev) => [...prev, { sender: "user", text: trimmed }]);
+    if (isChatBusy()) {
+      const id = opts.existingId || makeMsgId();
+      if (!opts.existingId) {
+        pendingQueueRef.current.push({ id, text: trimmed });
+        setMessages((prev) => [...prev, { id, sender: "user", text: trimmed, queued: true }]);
+      } else {
+        pendingQueueRef.current.push({ id, text: trimmed });
+      }
+      setInput("");
+      return;
+    }
+
+    deliveringRef.current = true;
+    if (!opts.existingId) {
+      setMessages((prev) => [...prev, { id: makeMsgId(), sender: "user", text: trimmed }]);
+    }
     setInput("");
+    isTypingRef.current = true;
     setIsTyping(true);
     const typingStartedAt = Date.now();
     const minTypingMs = 700;
 
+    let startedAiAnim = false;
+
     if (typeof onSendMessage === "function") {
       try {
         const history = [
-          ...messages
-            .filter((m) => m && typeof m.text === "string" && m.text.trim())
+          ...messagesRef.current
+            .filter((m) => (
+              m
+              && typeof m.text === "string"
+              && m.text.trim()
+              && !m.queued
+              && !(opts.existingId && m.id === opts.existingId)
+            ))
             .map((m) => ({
               role: m.sender === "user" ? "user" : "assistant",
               content: m.text,
@@ -397,9 +471,16 @@ export function GinaChatCard({
           await new Promise((r) => window.setTimeout(r, waitMore));
         }
         if (aiText || visualization || learnProposal) {
+          const hasAnimatableText = Boolean(aiText && aiText.trim());
+          if (hasAnimatableText) {
+            isAiAnimatingRef.current = true;
+            setIsAiAnimating(true);
+            startedAiAnim = true;
+          }
           setMessages((prev) => [
             ...prev,
             {
+              id: makeMsgId(),
               sender: "ai",
               text: aiText || " ",
               visualization,
@@ -409,16 +490,26 @@ export function GinaChatCard({
           ]);
         }
       } finally {
+        isTypingRef.current = false;
         setIsTyping(false);
+        deliveringRef.current = false;
+        if (!startedAiAnim) {
+          queueMicrotask(() => flushPendingQueue());
+        }
       }
       return;
     }
 
     window.setTimeout(() => {
-      setMessages((prev) => [...prev, { sender: "ai", text: demoReply }]);
+      isAiAnimatingRef.current = true;
+      setIsAiAnimating(true);
+      setMessages((prev) => [...prev, { id: makeMsgId(), sender: "ai", text: demoReply }]);
+      isTypingRef.current = false;
       setIsTyping(false);
+      deliveringRef.current = false;
     }, 1200);
   };
+  deliverUserMessageRef.current = deliverUserMessage;
 
   const autoRunDoneRef = useRef(false);
   useEffect(() => {
@@ -426,12 +517,19 @@ export function GinaChatCard({
     if (!prompt || autoRunDoneRef.current) return;
     autoRunDoneRef.current = true;
     const t = window.setTimeout(() => {
-      void deliverUserMessage(prompt);
+      enqueueOrDeliver(prompt);
     }, 280);
     return () => window.clearTimeout(t);
     // Intentionally once per mount when autoRunPrompt is set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRunPrompt]);
+
+  const lastAiMessageIndex = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.sender === "ai") return i;
+    }
+    return -1;
+  }, [messages]);
 
   /**
    * Step 1: stop mic and park transcript in the composer so the user can fix
@@ -463,8 +561,7 @@ export function GinaChatCard({
     }
     const text = input.trim();
     if (!text) return;
-    setMicError(null);
-    await deliverUserMessage(text);
+    enqueueOrDeliver(text);
   };
 
   const micTitle = !recognitionSupported
@@ -606,19 +703,23 @@ export function GinaChatCard({
                     type={msg.visualization.type}
                     data={msg.visualization.data}
                     onSelectDepartment={(deptName) => {
-                      if (!deptName || isTyping) return;
+                      if (!deptName || isTyping || isAiAnimating) return;
                       const focusText = chipLocale === "en"
                         ? `Focus today on ${deptName}`
                         : `Enfocarme hoy en ${deptName}`;
-                      void deliverUserMessage(focusText);
+                      enqueueOrDeliver(focusText);
                     }}
                     onSelectAction={(actionText) => {
-                      if (!actionText || isTyping) return;
-                      void deliverUserMessage(actionText);
+                      if (!actionText || isTyping || isAiAnimating) return;
+                      enqueueOrDeliver(actionText);
                     }}
                   />
                   <div className="gina-chat-card__bubble gina-chat-card__bubble--ai gina-chat-card__bubble--after-viz">
-                    <GinaAiMessageText text={msg.text} plainBody />
+                    <GinaAiMessageText
+                      text={msg.text}
+                      plainBody
+                      onComplete={i === lastAiMessageIndex ? handleAiAnimComplete : undefined}
+                    />
                   </div>
                 </>
               ) : (
@@ -634,29 +735,35 @@ export function GinaChatCard({
                       <GinaAiMessageText
                         text={msg.text}
                         plainBody={msg.visualization?.type === "recovery_preview"}
+                        onComplete={i === lastAiMessageIndex ? handleAiAnimComplete : undefined}
                       />
                     ) : msg.text}
                   </div>
+                  {msg.sender === "user" && msg.queued ? (
+                    <span className="gina-chat-card__queue-label">
+                      {labels.queued || "queue"}
+                    </span>
+                  ) : null}
                   {msg.sender === "ai" && msg.visualization ? (
                     <GinaDataVisualization
                       type={msg.visualization.type}
                       data={msg.visualization.data}
                       onSelectDepartment={(deptName) => {
-                        if (!deptName || isTyping) return;
+                        if (!deptName || isTyping || isAiAnimating) return;
                         const focusText = chipLocale === "en"
                           ? `Focus today on ${deptName}`
                           : `Enfocarme hoy en ${deptName}`;
-                        void deliverUserMessage(focusText);
+                        enqueueOrDeliver(focusText);
                       }}
                       onSelectAction={(actionText) => {
-                        if (!actionText || isTyping) return;
-                        void deliverUserMessage(actionText);
+                        if (!actionText || isTyping || isAiAnimating) return;
+                        enqueueOrDeliver(actionText);
                       }}
                     />
                   ) : null}
                 </>
               )}
-              {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping ? (
+              {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping && !isAiAnimating ? (
                 <div className="gina-chat-card__chips" role="group" aria-label="Suggested replies">
                   {msg.chips.map((chip) => (
                     <button
@@ -667,8 +774,8 @@ export function GinaChatCard({
                         + (chip.primary ? " is-primary" : "")
                       }
                       onClick={() => {
-                        if (isTyping) return;
-                        void deliverUserMessage(chip.text || chip.label);
+                        if (isTyping || isAiAnimating) return;
+                        enqueueOrDeliver(chip.text || chip.label);
                       }}
                     >
                       {chip.label}

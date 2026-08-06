@@ -4,6 +4,7 @@ import { create } from "zustand";
  * @typedef {Object} ConfirmRequest
  * @property {string} title
  * @property {string} message
+ * @property {string} [hint]
  * @property {string} [confirmLabel]
  * @property {string} [cancelLabel]
  * @property {'danger'|'default'} [tone]
@@ -19,6 +20,7 @@ export const useConfirmStore = create((set, get) => ({
    * @param {Object} options
    * @param {string} options.title
    * @param {string} options.message
+   * @param {string} [options.hint] Small secondary line under the message
    * @param {string} [options.confirmLabel]
    * @param {string} [options.cancelLabel]
    * @param {'danger'|'default'} [options.tone]
@@ -28,6 +30,7 @@ export const useConfirmStore = create((set, get) => ({
   ask: ({
     title,
     message,
+    hint = "",
     confirmLabel = "Confirm",
     cancelLabel = "Cancel",
     tone = "danger",
@@ -38,6 +41,7 @@ export const useConfirmStore = create((set, get) => ({
       payload: {
         title,
         message,
+        hint: String(hint || "").trim(),
         confirmLabel,
         cancelLabel: hideCancel ? "" : cancelLabel,
         tone,

@@ -376,6 +376,95 @@ export function NodeQueryModal({
       now: new Date(),
     };
     const routed = runGinaQueryFamily(text, ctx);
+    const localeKey = locale === "es" ? "es" : "en";
+
+    if (routed.family === "focus_open") {
+      if (routed.openDocumentId) {
+        // In-doc chat cannot swap the open editor yet — confirm the match for the user.
+        const title = nodesMap?.[routed.openDocumentId]?.title
+          || nodesMap?.[routed.openDocumentId]?.name
+          || routed.openDocumentId;
+        return {
+          message: localeKey === "en"
+            ? `I found “${title}”. Open it from Assistance (Call Assistance) or from Documents when you’re ready.`
+            : `Encontré «${title}». Ábrelo desde Assistance (Call Assistance) o desde Documents cuando quieras.`,
+          visualization: null,
+          chips: null,
+        };
+      }
+    }
+
+    if (routed.family === "find_document") {
+      const visualization = buildGinaVisualization("find_document", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en" ? "I searched your workspace." : "Busqué en tu workspace."),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "find_document",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (routed.family === "department") {
+      const visualization = buildGinaVisualization("department", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? `From the ${routed.toolContext?.department || "department"} department.`
+            : `Del departamento de ${routed.toolContext?.department || "—"}.`),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "department",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (routed.family === "today") {
+      const docs = Array.isArray(routed.toolContext?.documents)
+        ? routed.toolContext.documents
+        : [];
+      const totalToday = routed.toolContext?.totalDocumentsToday;
+      const isEmpty = docs.length === 0
+        || totalToday === 0
+        || Boolean(routed.toolContext?.empty);
+      if (isEmpty) {
+        const visualization = buildGinaVisualization("today", routed.toolContext, {
+          locale: localeKey,
+          now: ctx.now,
+          userText: text,
+        });
+        return {
+          message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+            || (localeKey === "en"
+              ? (routed.toolContext?.filters?.department
+                ? `Today in ${routed.toolContext.filters.department} there are zero scheduled documents.`
+                : "Nothing scheduled for today.")
+              : (routed.toolContext?.filters?.department
+                ? `Hoy en ${routed.toolContext.filters.department} hay cero documentos programados.`
+                : "Hoy no hay trabajo programado.")),
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "today",
+            visualization,
+            locale: localeKey,
+          }),
+        };
+      }
+    }
+
     const workspaceInventory = routed.workspaceInventory || get_workspace_inventory(ctx);
     const visualization = (routed.family === "name_ambiguity"
       || routed.family === "confirm_date"
@@ -448,7 +537,6 @@ export function NodeQueryModal({
     entityNodeId,
     authUser,
   ]);
-
   // Unsaved-changes guard: snapshot the node's content/title when it opens, and
   // prompt to save if the user closes with pending edits (doc-style card).
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState(false);
@@ -1484,6 +1572,7 @@ export function NodeQueryModal({
         closeAria: t("gina.closeAria"),
         typingAria: t("gina.typingAria"),
         dialogAria: t("gina.dialogAria"),
+        queued: t("gina.queued"),
         meetingToggle: t("gina.meetingToggle"),
         meetingActiveHint: t("gina.meetingActiveHint"),
         meetingThisDocument: t("gina.meetingThisDocument"),

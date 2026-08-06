@@ -205,6 +205,7 @@ function DepartmentCardsVisualization({ data, onSelectDepartment }) {
 
 function DeptSummaryVisualization({ data, onSelectAction }) {
   const dept = data.department || "";
+  const docCount = Number(data.documents) || 0;
   const expandModes = [
     {
       id: "expand_categories",
@@ -230,22 +231,28 @@ function DeptSummaryVisualization({ data, onSelectAction }) {
       </header>
       <div className="gina-viz__stats">
         <StatRow label="Folders" value={data.folders ?? 0} />
-        <StatRow label="Docs hoy" value={data.documents ?? 0} />
+        <StatRow label="Docs hoy" value={docCount} />
       </div>
-      <p className="gina-viz__prompt">¿Cómo quieres visualizar los horarios?</p>
-      <div className="gina-viz__expand-grid" role="list">
-        {expandModes.map((mode) => (
-          <button
-            key={mode.id}
-            type="button"
-            role="listitem"
-            className="gina-viz__expand-chip"
-            onClick={() => onSelectAction?.(mode.text)}
-          >
-            {mode.label}
-          </button>
-        ))}
-      </div>
+      {docCount > 0 ? (
+        <>
+          <p className="gina-viz__prompt">¿Cómo quieres visualizar los horarios?</p>
+          <div className="gina-viz__expand-grid" role="list">
+            {expandModes.map((mode) => (
+              <button
+                key={mode.id}
+                type="button"
+                role="listitem"
+                className="gina-viz__expand-chip"
+                onClick={() => onSelectAction?.(mode.text)}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="gina-viz__empty">Hoy no hay documentos programados en este departamento.</p>
+      )}
     </div>
   );
 }
@@ -676,9 +683,18 @@ function ConflictsVisualization({ data }) {
 
 function TableVisualization({ data }) {
   const docs = Array.isArray(data.documents) ? data.documents : [];
+  const limit = data.listAll ? 80 : 12;
   return (
     <div className="gina-viz gina-viz--table">
       {data.title ? <h3 className="gina-viz__title">{data.title}</h3> : null}
+      {data.empty || !docs.length ? (
+        <p className="gina-viz__empty">
+          {data.department
+            ? `Cero documentos en ${data.department}.`
+            : "Sin documentos en este alcance."}
+        </p>
+      ) : null}
+      {docs.length ? (
       <div className="gina-viz__table-wrap">
         <table className="gina-viz__table">
           <thead>
@@ -690,26 +706,23 @@ function TableVisualization({ data }) {
             </tr>
           </thead>
           <tbody>
-            {docs.slice(0, 12).map((doc) => {
+            {docs.slice(0, limit).map((doc) => {
               const h = doc.hierarchy || {};
               return (
                 <tr key={doc.id || doc.title}>
                   <td>{doc.title}</td>
                   <td>
-                    <GinaHierarchyPath
-                      department={h.department || doc.department}
-                      category={h.category || doc.category}
-                      folder={h.folder || doc.folder}
-                    />
+                    {[h.department, h.category, h.folder].filter(Boolean).join(" / ") || "—"}
                   </td>
                   <td>{doc.status ? <DocStatusChip status={doc.status} /> : "—"}</td>
-                  <td>{doc.time || "—"}</td>
+                  <td>{doc.timeLabel || doc.time || "Flexible"}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      ) : null}
     </div>
   );
 }
@@ -738,6 +751,84 @@ function TimelineVisualization({ data }) {
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+function FindResultsVisualization({ data, onSelectAction }) {
+  const results = Array.isArray(data.results) ? data.results : [];
+  const clarify = Array.isArray(data.clarifyOptions) ? data.clarifyOptions : [];
+  if (data.needsClarify && clarify.length) {
+    return (
+      <div className="gina-viz gina-viz--find-results">
+        <header className="gina-viz__head">
+          <span className="gina-viz__eyebrow">Buscar</span>
+          <h3 className="gina-viz__title">Necesito precisar el alcance</h3>
+        </header>
+        <ul className="gina-viz__find-clarify">
+          {clarify.map((opt) => (
+            <li key={opt.label}>
+              <button
+                type="button"
+                className="gina-viz__find-clarify-btn"
+                onClick={() => onSelectAction?.(opt.text)}
+              >
+                {opt.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+  if (!results.length) {
+    return (
+      <div className="gina-viz gina-viz--find-results">
+        <header className="gina-viz__head">
+          <span className="gina-viz__eyebrow">Buscar</span>
+          <h3 className="gina-viz__title">Sin coincidencias</h3>
+        </header>
+        <p className="gina-viz__empty">No encontré documentos con esos filtros.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="gina-viz gina-viz--find-results">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">Buscar</span>
+        <h3 className="gina-viz__title">
+          {results.length === 1 ? "1 coincidencia" : `${data.total || results.length} opciones`}
+        </h3>
+      </header>
+      <ul className="gina-viz__find-list">
+        {results.map((doc) => (
+          <li key={doc.id || doc.title} className="gina-viz__find-row">
+            <button
+              type="button"
+              className="gina-viz__find-open"
+              onClick={() => onSelectAction?.(`GinaRevealDocument:${doc.id}`)}
+            >
+              <span className="gina-viz__find-title">{doc.title}</span>
+              <GinaHierarchyPath
+                department={doc.department}
+                category={doc.category}
+                folder={doc.folder}
+              />
+              {doc.excerpt ? (
+                <span className="gina-viz__find-excerpt">{doc.excerpt}</span>
+              ) : null}
+              <span className="gina-viz__find-meta">
+                {doc.matchWhere === "title"
+                  ? "título"
+                  : doc.matchWhere === "body"
+                    ? "contenido"
+                    : "alcance"}
+              </span>
+              {doc.status ? <DocStatusChip status={doc.status} /> : null}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -847,6 +938,13 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
       return <ConflictsVisualization data={data} />;
     case "table":
       return <TableVisualization data={data} />;
+    case "find_results":
+      return (
+        <FindResultsVisualization
+          data={data}
+          onSelectAction={onSelectAction}
+        />
+      );
     case "timeline":
       return <TimelineVisualization data={data} />;
     default:

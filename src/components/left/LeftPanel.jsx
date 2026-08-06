@@ -555,6 +555,7 @@ function NodeCompactRow({
   onDelete,
   showScheduleTime = false,
   campaignMode = false,
+  highlighted = false,
 }) {
   const { t } = useI18n();
   const displayTitle = getNodeDisplayTitle(node);
@@ -567,8 +568,14 @@ function NodeCompactRow({
     : "";
 
   return (
-    <div className={"lp-doc-nodes-block__node" + (isCampaignActive ? " is-campaign-active" : "")}>
-      <button
+    <div
+      className={
+        "lp-doc-nodes-block__node"
+        + (isCampaignActive ? " is-campaign-active" : "")
+        + (highlighted ? " is-gina-reveal" : "")
+      }
+      data-gina-reveal={highlighted ? "1" : undefined}
+    >      <button
         type="button"
         className="lp-doc-nodes-block__node-main"
         onClick={onClick}
@@ -656,6 +663,8 @@ function DocNodesBlockCard({
   onCreateDocument,
   onDeleteBox,
   defaultExpanded = false,
+  forceExpanded = false,
+  highlightNodeId = null,
   orphan = false,
   showWhenEmpty = false,
   selectMode = false,
@@ -663,12 +672,24 @@ function DocNodesBlockCard({
   onToggleSelect,
 }) {
   const { t } = useI18n();
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(defaultExpanded || forceExpanded);
   const [menuOpen, setMenuOpen] = useState(false);
   const longPressTimer = useRef(null);
   const suppressClickRef = useRef(false);
   const pointerStartRef = useRef({ x: 0, y: 0 });
   const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (forceExpanded) setExpanded(true);
+  }, [forceExpanded]);
+
+  useEffect(() => {
+    if (!forceExpanded || !rootRef.current) return;
+    try {
+      rootRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch { /* ignore */ }
+  }, [forceExpanded, highlightNodeId]);
+
   const parent = doc?.parentObjectId ? objects[doc.parentObjectId] : null;
   const isKnowledge = doc ? isKnowledgeDoc(doc) : false;
   const isTemplate = doc ? isTemplateDoc(doc) : false;
@@ -927,6 +948,7 @@ function DocNodesBlockCard({
             <NodeCompactRow
               key={node.id}
               node={node}
+              highlighted={Boolean(highlightNodeId && highlightNodeId === node.id)}
               showScheduleTime={
                 hasFolderSchedule
                 || String(node?.status || "").trim().toLowerCase() === "reserved"
@@ -1156,8 +1178,10 @@ function DocCreateModal({
   const alertFolderScheduleError = async (check) => {
     if (!check || check.ok) return;
     let message = t("meta.scheduleInvalid");
+    let hint = "";
     if (check.code === "required" || check.code === "partial") {
       message = t("meta.schedulePartial");
+      hint = t("meta.schedulePartialHint");
     } else if (check.code === "finishBeforeStart") {
       message = t("meta.scheduleFinishBeforeStart");
     } else if (check.code === "overlap") {
@@ -1175,6 +1199,7 @@ function DocCreateModal({
     await askConfirm({
       title: t("meta.scheduleTitle"),
       message,
+      hint,
       confirmLabel: t("common.ok"),
       tone: "default",
       hideCancel: true,
@@ -1716,6 +1741,9 @@ export function LeftPanel({
   const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
   /** Last category chosen per department — restored when switching back to that dept. */
   const [categoryByDepartmentId, setCategoryByDepartmentId] = useState({});
+  /** Gina guided reveal: expand folder + highlight node without opening overlay. */
+  const [revealExpandFolderId, setRevealExpandFolderId] = useState(/** @type {string | null} */ (null));
+  const [revealHighlightNodeId, setRevealHighlightNodeId] = useState(/** @type {string | null} */ (null));
   const [departmentCreateRequested, setDepartmentCreateRequested] = useState(false);
   const departments = useDepartmentsStore((s) => s.departments);
   const docsMap = useDocsStore((s) => s.docs);
@@ -1747,6 +1775,7 @@ export function LeftPanel({
   const workspaceHydrated = useUIStateStore((s) => s.workspaceHydrated);
   const leftPanelNavigateRequest = useUIStateStore((s) => s.leftPanelNavigateRequest);
   const clearLeftPanelNavigateRequest = useUIStateStore((s) => s.clearLeftPanelNavigateRequest);
+  const requestLeftPanelNavigate = useUIStateStore((s) => s.requestLeftPanelNavigate);
   const requestEnterWorkspaceId = useUIStateStore((s) => s.requestEnterWorkspaceId);
   const clearRequestEnterObjectWorkspace = useUIStateStore((s) => s.clearRequestEnterObjectWorkspace);
 
@@ -2602,15 +2631,46 @@ export function LeftPanel({
   useEffect(() => {
     if (!leftPanelNavigateRequest || !objectWorkspaceActive) return;
 
-    const { panel, docId = null, nodeId = null } = leftPanelNavigateRequest;
+    const {
+      panel,
+      docId = null,
+      nodeId = null,
+      clickFolderView: nextFolderView = null,
+      departmentId = undefined,
+      category = undefined,
+      folderId = null,
+      highlightNodeId = null,
+      openDocumentId = null,
+    } = leftPanelNavigateRequest;
 
     if (panel === "Nodes") {
       switchType("Nodes");
       if (nodeId) setActiveId(nodeId);
-    } else if (panel === "Documents" && docId) {
+    } else if (panel === "Documents") {
       switchType("Documents");
-      setClickFolderView(null);
-      handleOpenFolderDoc(docId);
+      if (nextFolderView === "subgroups" || folderId || highlightNodeId || departmentId != null) {
+        setClickFolderView("subgroups");
+      } else if (docId && !folderId && !highlightNodeId) {
+        setClickFolderView(null);
+        handleOpenFolderDoc(docId);
+      }
+      if (departmentId !== undefined) {
+        setDepartmentFilterId(
+          departmentId === null || departmentId === ""
+            ? UNASSIGNED_DEPARTMENT_FILTER_ID
+            : departmentId,
+        );
+      }
+      if (category !== undefined) {
+        setDepartmentCategoryFilter(category || "");
+      }
+      if (folderId) setRevealExpandFolderId(folderId);
+      if (highlightNodeId || nodeId) {
+        setRevealHighlightNodeId(highlightNodeId || nodeId);
+      }
+      if (openDocumentId) {
+        onOpenDocument?.(openDocumentId);
+      }
     }
 
     clearLeftPanelNavigateRequest();
@@ -2770,6 +2830,58 @@ export function LeftPanel({
     const meetingOn = Boolean(ginaMeetingSession)
       || (Boolean(meta?.meetingMode) && isAdminSessionEmail(userEmail));
 
+    const openByIdMatch = String(text || "").match(/^GinaOpenDocument:(.+)$/);
+    if (openByIdMatch && !meetingOn) {
+      const docId = openByIdMatch[1].trim();
+      if (docId && (nodesMap[docId] || docsMap[docId])) {
+        onOpenDocument?.(docId);
+        return {
+          message: locale === "es" ? "Abriendo el documento…" : "Opening the document…",
+          visualization: null,
+          chips: null,
+        };
+      }
+    }
+
+    const revealByIdMatch = String(text || "").match(/^GinaRevealDocument:(.+)$/);
+    if (revealByIdMatch && !meetingOn) {
+      const nodeId = revealByIdMatch[1].trim();
+      const node = nodesMap[nodeId];
+      const folder = node?.parentDocId ? docsMap[node.parentDocId] : null;
+      if (node && folder) {
+        requestLeftPanelNavigate({
+          panel: "Documents",
+          clickFolderView: "subgroups",
+          departmentId: folder.departmentId ?? UNASSIGNED_DEPARTMENT_FILTER_ID,
+          category: folder.category || "",
+          folderId: folder.id,
+          highlightNodeId: node.id,
+        });
+        const path = [
+          folder.departmentId
+            ? (findDepartmentById(departments, folder.departmentId)?.category || null)
+            : null,
+          folder.category || null,
+          folder.title || folder.name || null,
+          node.title || node.name || null,
+        ].filter(Boolean).join(" / ");
+        return {
+          message: locale === "es"
+            ? `Te muestro la ruta en Documents${path ? `: ${path}` : ""}. Cuando quieras, ábrelo.`
+            : `Here’s the path in Documents${path ? `: ${path}` : ""}. Open it when you’re ready.`,
+          visualization: null,
+          chips: [
+            {
+              id: `open_${node.id}`,
+              label: locale === "es" ? `Abrir «${node.title || "documento"}»` : `Open “${node.title || "document"}”`,
+              text: `GinaOpenDocument:${node.id}`,
+              primary: true,
+            },
+          ],
+        };
+      }
+    }
+
     if (meetingOn && ginaPendingLearn && isGinaLearnSaveConfirm(text)) {
       addLocalGinaKnowledge({ ...ginaPendingLearn, source: "taught" });
       setGinaPendingLearn(null);
@@ -2801,6 +2913,9 @@ export function LeftPanel({
       objectId: activeObjectId || filterObjectId || null,
       now: new Date(),
       userId: ginaUserId,
+      recentText: Array.isArray(meta?.messages)
+        ? meta.messages.slice(-8).map((m) => String(m?.content || "")).filter(Boolean)
+        : [],
     };
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
@@ -2999,6 +3114,98 @@ export function LeftPanel({
         : "Tell me the exact document or folder title from the list so we focus on one.";
     }
 
+    if (!meetingOn && routed.family === "find_document") {
+      const visualization = buildGinaVisualization("find_document", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const hits = Array.isArray(routed.toolContext?.results)
+        ? routed.toolContext.results
+        : [];
+      // Single live match → guided reveal in Documents (no instant open).
+      if (hits.length === 1 && hits[0]?.id) {
+        const hit = hits[0];
+        requestLeftPanelNavigate({
+          panel: "Documents",
+          clickFolderView: "subgroups",
+          departmentId: hit.departmentId ?? UNASSIGNED_DEPARTMENT_FILTER_ID,
+          category: hit.category || "",
+          folderId: hit.folderId || null,
+          highlightNodeId: hit.id,
+        });
+      }
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en"
+          ? "I searched your workspace."
+          : "Busqué en tu workspace.");
+      return {
+        message,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "find_document",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (!meetingOn && routed.family === "department") {
+      const visualization = buildGinaVisualization("department", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en"
+          ? `From the ${routed.toolContext?.department || "department"} department.`
+          : `Del departamento de ${routed.toolContext?.department || "—"}.`);
+      return {
+        message,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "department",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    // Empty today (esp. with dept filter) — deterministic copy, never Groq invent.
+    if (!meetingOn && routed.family === "today") {
+      const docs = Array.isArray(routed.toolContext?.documents)
+        ? routed.toolContext.documents
+        : [];
+      const totalToday = routed.toolContext?.totalDocumentsToday;
+      const isEmpty = docs.length === 0
+        || totalToday === 0
+        || Boolean(routed.toolContext?.empty);
+      if (isEmpty) {
+        const visualization = buildGinaVisualization("today", routed.toolContext, {
+          locale: localeKey,
+          now: ctx.now,
+          userText: text,
+        });
+        const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? (routed.toolContext?.filters?.department
+              ? `Today in ${routed.toolContext.filters.department} there are zero scheduled documents.`
+              : "Nothing scheduled for today.")
+            : (routed.toolContext?.filters?.department
+              ? `Hoy en ${routed.toolContext.filters.department} hay cero documentos programados.`
+              : "Hoy no hay trabajo programado."));
+        return {
+          message,
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "today",
+            visualization,
+            locale: localeKey,
+          }),
+        };
+      }
+    }
+
     try {
       const workspaceInventory = routed.workspaceInventory
         || get_workspace_inventory(ctx);
@@ -3136,6 +3343,7 @@ export function LeftPanel({
     authUser,
     selectedCanvasNodeIds,
     canvasNodes,
+    requestLeftPanelNavigate,
   ]);
 
   return (
@@ -3858,6 +4066,8 @@ export function LeftPanel({
                           nodes={nodesByDocId.get(doc.id) || []}
                           objects={objects}
                           showWhenEmpty
+                          forceExpanded={revealExpandFolderId === doc.id}
+                          highlightNodeId={revealExpandFolderId === doc.id ? revealHighlightNodeId : null}
                           selectMode={folderBulkDeleteMode}
                           selected={selectedFolderIds.includes(doc.id)}
                           onToggleSelect={toggleFolderSelect}
@@ -3880,6 +4090,8 @@ export function LeftPanel({
                           nodes={nodesByDocId.get(doc.id) || []}
                           objects={objects}
                           showWhenEmpty
+                          forceExpanded={revealExpandFolderId === doc.id}
+                          highlightNodeId={revealExpandFolderId === doc.id ? revealHighlightNodeId : null}
                           selectMode={folderBulkDeleteMode}
                           selected={selectedFolderIds.includes(doc.id)}
                           onToggleSelect={toggleFolderSelect}
@@ -4088,6 +4300,7 @@ export function LeftPanel({
             closeAria: t("gina.closeAria"),
             typingAria: t("gina.typingAria"),
             dialogAria: t("gina.dialogAria"),
+            queued: t("gina.queued"),
             ttsOn: t("gina.ttsOn"),
             ttsOff: t("gina.ttsOff"),
             meetingToggle: t("gina.meetingToggle"),
