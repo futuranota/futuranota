@@ -22,6 +22,34 @@ export function GinaHierarchyPath({ department, category, folder, className = ""
   );
 }
 
+/** Relative day primary + clock; absolute date in tooltip. */
+function GinaTimeCell({ doc, className = "", as: Tag = "span", struck = false }) {
+  if (!doc) return null;
+  const label = doc.timeLabel || doc.time || "Flexible";
+  const title = doc.absoluteDate || undefined;
+  const Inner = struck ? "s" : "span";
+  if (doc.relativeDay) {
+    return (
+      <Tag className={`gina-viz__time ${className}`.trim()} title={title}>
+        <Inner className="gina-viz__time-inner">
+          <span className="gina-viz__time-rel">{doc.relativeDay}</span>
+          {doc.timeClock ? (
+            <>
+              <span className="gina-viz__time-sep"> · </span>
+              <span className="gina-viz__time-clock">{doc.timeClock}</span>
+            </>
+          ) : null}
+        </Inner>
+      </Tag>
+    );
+  }
+  return (
+    <Tag className={`gina-viz__time ${className}`.trim()} title={title}>
+      <Inner className="gina-viz__time-inner">{label}</Inner>
+    </Tag>
+  );
+}
+
 function StatRow({ label, value, tone }) {
   return (
     <div className={`gina-viz__stat gina-viz__stat--${tone || "neutral"}`}>
@@ -45,7 +73,9 @@ function DocLine({ doc }) {
         <span className="gina-viz__doc-title">{doc.title}</span>
         {doc.status ? <DocStatusChip status={doc.status} /> : null}
       </div>
-      {doc.time ? <span className="gina-viz__doc-meta">{doc.time}</span> : null}
+      {doc.time ? (
+        <GinaTimeCell doc={doc} className="gina-viz__doc-meta" />
+      ) : null}
       {doc.passedSlot ? (
         <span className="gina-viz__doc-meta gina-viz__doc-meta--passed">Ya pasó</span>
       ) : null}
@@ -358,9 +388,7 @@ function DocumentDeptGroupsVisualization({ data }) {
                         <DocStatusChip status={doc.status} />
                       ) : null}
                       {showSchedule ? (
-                        <span className="gina-viz__dept-time">
-                          {doc.timeLabel || doc.time || "Flexible"}
-                        </span>
+                        <GinaTimeCell doc={doc} className="gina-viz__dept-time" />
                       ) : null}
                     </span>
                   </li>
@@ -638,7 +666,7 @@ function CategoryDetailVisualization({ data }) {
                         className="gina-viz__sheet-slot"
                       >
                         <TimeCell
-                          time={doc.time}
+                          doc={doc}
                           passedSlot={Boolean(doc.passedSlot)}
                           delayHighlights={Boolean(data.highlightPassedSlots)}
                         />
@@ -657,13 +685,17 @@ function CategoryDetailVisualization({ data }) {
   );
 }
 
-function TimeCell({ time, passedSlot, delayHighlights }) {
+function TimeCell({ doc, time, passedSlot, delayHighlights }) {
   return (
     <span className={`gina-viz__sheet-time-wrap${passedSlot && delayHighlights ? " will-highlight" : ""}`}>
       {passedSlot && delayHighlights ? (
         <span className="gina-viz__time-overlay" aria-hidden />
       ) : null}
-      <span className="gina-viz__sheet-time">{time || "—"}</span>
+      {doc ? (
+        <GinaTimeCell doc={doc} className="gina-viz__sheet-time" />
+      ) : (
+        <span className="gina-viz__sheet-time">{time || "—"}</span>
+      )}
     </span>
   );
 }
@@ -838,7 +870,7 @@ function ScheduleSheetVisualization({ data }) {
                         className="gina-viz__sheet-slot"
                       >
                         <TimeCell
-                          time={doc.time}
+                          doc={doc}
                           passedSlot={Boolean(doc.passedSlot)}
                           delayHighlights={delayHighlights}
                         />
@@ -1018,7 +1050,7 @@ function TableVisualization({ data }) {
       case "status":
         return doc.status ? <DocStatusChip status={doc.status} /> : "—";
       case "time":
-        return doc.timeLabel || doc.time || "Flexible";
+        return <GinaTimeCell doc={doc} />;
       default:
         return "—";
     }
@@ -1118,7 +1150,7 @@ function TimelineVisualization({ data }) {
       <ol className="gina-viz__timeline">
         {docs.map((doc) => (
           <li key={doc.id || doc.title} className="gina-viz__timeline-item">
-            <span className="gina-viz__timeline-time">{doc.time || "—"}</span>
+            <GinaTimeCell doc={doc} className="gina-viz__timeline-time" />
             <div className="gina-viz__timeline-body">
               <GinaHierarchyPath
                 department={doc.hierarchy?.department || doc.department}

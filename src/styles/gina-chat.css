@@ -1664,6 +1664,24 @@
   text-underline-offset: 3px;
 }
 
+.gina-viz__time {
+  display: inline;
+}
+
+.gina-viz__time-rel {
+  font-weight: 650;
+  color: #d4c4a0;
+}
+
+.gina-viz__time-clock {
+  font-weight: 500;
+  color: #b8b0a0;
+}
+
+.gina-viz__time-sep {
+  color: #6a6a6a;
+}
+
 .gina-viz__sheet-title {
   flex: 1 1 auto;
   font-size: 12px;

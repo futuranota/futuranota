@@ -1,6 +1,7 @@
 import { isPassedSlot, buildCascadeSchedulePreview } from "./ginaScheduleRecovery.js";
 import { formatClockRange12h, formatClock12h } from "../clockFormat.js";
 import { buildGinaDepartmentRail } from "./ginaDepartmentColors.js";
+import { buildGinaTimeDisplay } from "./ginaRelativeDay.js";
 
 /**
  * Build deterministic Gina chat visualizations from query family + tool JSON.
@@ -55,8 +56,24 @@ function asDocs(list) {
   return Array.isArray(list) ? list : [];
 }
 
-function mapDocRow(d, now = null) {
+function mapDocRow(d, now = null, locale = "es") {
+  // Never pass bare to Array#map — index/array would poison now/locale.
   const clock = now instanceof Date ? now : new Date();
+  const loc = typeof locale === "string" ? locale : "es";
+  const anchorAt = d.anchorAt || d.startedAt || null;
+  const finishAt = d.anchorFinishAt || d.dueAt || null;
+  const timeRange = anchorAt
+    ? formatGinaTimeRange(anchorAt, finishAt, loc)
+    : null;
+  const display = buildGinaTimeDisplay(
+    {
+      anchorAt,
+      timeRange: timeRange && timeRange !== "Flexible" ? timeRange : null,
+    },
+    clock,
+    loc,
+  );
+  const timeLabel = display.timeLabel;
   return {
     id: d.id || null,
     title: d.title || "Untitled",
@@ -64,8 +81,11 @@ function mapDocRow(d, now = null) {
     folder: d.folder || d.parentFolderName || null,
     department: d.department || d.departmentName || null,
     category: d.category || null,
-    time: d.time
-      || formatGinaTimeRange(d.anchorAt || d.startedAt, d.anchorFinishAt || d.dueAt),
+    time: timeLabel,
+    timeLabel,
+    relativeDay: display.relativeDay,
+    timeClock: display.timeClock,
+    absoluteDate: display.absoluteDate,
     dueDate: d.dueDate || null,
     daysOverdue: d.daysOverdue,
     daysUntilDue: d.daysUntilDue,
@@ -194,7 +214,7 @@ function buildDeptSummaryData(today, locale, now) {
     folderList: folders,
     categoryList: categories,
     statusList: statuses,
-    sampleDocuments: docs.slice(0, 6).map(mapDocRow),
+    sampleDocuments: docs.slice(0, 6).map((d) => mapDocRow(d, now)),
   };
 }
 
@@ -625,7 +645,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           documents: docs
             .slice()
             .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
-            .map(mapDocRow),
+            .map((d) => mapDocRow(d, now)),
         },
       };
     }
@@ -643,7 +663,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           documents: docs
             .slice()
             .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
-            .map(mapDocRow),
+            .map((d) => mapDocRow(d, now)),
         },
       };
     }
@@ -660,7 +680,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           department: dept,
           category: isAll ? "All" : categoryName,
           groups: groupDocsByCategoryFolders(docs),
-          documents: docs.map(mapDocRow),
+          documents: docs.map((d) => mapDocRow(d, now)),
         },
       };
     }
@@ -895,16 +915,16 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       return {
         type: "incomplete",
         data: {
-          pastDue: asDocs(ctx.documents).map(mapDocRow),
+          pastDue: asDocs(ctx.documents).map((d) => mapDocRow(d, now)),
           upcoming: [],
           reserved: [],
           longTerm: [],
         },
       };
     }
-    const pastDue = asDocs(ctx.pastDue).map(mapDocRow);
-    const upcoming = asDocs(ctx.upcoming).map(mapDocRow);
-    const reserved = asDocs(ctx.reserved).map(mapDocRow);
+    const pastDue = asDocs(ctx.pastDue).map((d) => mapDocRow(d, now));
+    const upcoming = asDocs(ctx.upcoming).map((d) => mapDocRow(d, now));
+    const reserved = asDocs(ctx.reserved).map((d) => mapDocRow(d, now));
     const near = upcoming.filter((d) => d.daysUntilDue != null && d.daysUntilDue <= 14);
     const longTerm = upcoming.filter((d) => d.daysUntilDue == null || d.daysUntilDue > 14);
     return {
@@ -956,7 +976,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     }
     if (ctx.aggregated || ctx.folderName) {
       const agg = ctx.aggregated || {};
-      const docs = asDocs(ctx.documents).map(mapDocRow);
+      const docs = asDocs(ctx.documents).map((d) => mapDocRow(d, now));
       const total = agg.total || docs.length || 0;
       const completed = agg.completed || 0;
       const pct = total ? Math.round((completed / total) * 100) : 0;
@@ -1009,7 +1029,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       };
     }
     // department filter result — always emit viz (including empty corpus)
-    const docs = asDocs(ctx.documents).map(mapDocRow);
+    const docs = asDocs(ctx.documents).map((d) => mapDocRow(d, now));
     const empty = Boolean(ctx.empty) || docs.length === 0;
     const listAll = Boolean(ctx.listAll) || wantsTable || /\b(todos|all|lista|list)\b/.test(q);
     return {
@@ -1054,7 +1074,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
   }
 
   if (family === "this_week" || family === "next_week" || family === "date_range" || family === "tomorrow") {
-    const docs = asDocs(ctx.documents).map(mapDocRow);
+    const docs = asDocs(ctx.documents).map((d) => mapDocRow(d, now));
     if (wantsTimeline) {
       return {
         type: "timeline",
@@ -1075,7 +1095,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
   }
 
   if (family === "status" || family === "blogs" || family === "inventory" || family === "gina_scope") {
-    const docs = asDocs(ctx.documents || ctx.all || []).map(mapDocRow);
+    const docs = asDocs(ctx.documents || ctx.all || []).map((d) => mapDocRow(d, now));
     if (!docs.length && ctx.today) {
       return buildGinaVisualization("today", ctx.today, opts);
     }
