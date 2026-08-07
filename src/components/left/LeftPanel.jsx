@@ -658,7 +658,7 @@ function NodeCompactRow({
 function FolderCategoryChip({ departmentId, category }) {
   const label = String(category || "").trim();
   if (!label || !(departmentId || "").trim()) return null;
-  return <span className="lp-folder-category-chip">{label}</span>;
+  return <span className="lp-folder-category-chip" title={label}>{label}</span>;
 }
 
 function DocNodesBlockCard({
@@ -899,7 +899,7 @@ function DocNodesBlockCard({
           <div className="fn-card-body">
             <div className="lp-doc-card-title-row">
               {orphan ? (
-                <b className="lp-doc-title-text">{displayTitle}</b>
+                <b className="lp-doc-title-text" title={displayTitle}>{displayTitle}</b>
               ) : (
                 <>
                   <DocListTitle doc={doc} />

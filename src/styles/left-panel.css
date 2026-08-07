@@ -1127,6 +1127,60 @@
   min-width: 0;
 }
 
+.lp-doc-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.lp-doc-card-title-row .lp-doc-list-label,
+.lp-doc-card-title-row .lp-doc-file-name,
+.lp-doc-card-title-row .lp-doc-title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-doc-card-title-row .lp-doc-list-label {
+  display: flex;
+  align-items: baseline;
+}
+
+.lp-doc-card-title-row .lp-doc-list-label .lp-doc-category {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-doc-card-title-row .lp-doc-list-label .lp-doc-version {
+  flex-shrink: 0;
+}
+
+.lp-doc-card-title-row .lp-folder-category-chip {
+  flex-shrink: 0;
+  align-self: center;
+  margin-top: 0;
+  margin-left: 2px;
+  max-width: 6.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-doc-card-title-row .lp-expand-btn {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  align-self: center;
+}
+
 .lp-doc-nodes-block--docs {
   --lp-doc-group-font-size: 11px;
 }
@@ -1204,26 +1258,6 @@
   font-size: 10px;
   color: var(--dim);
   margin-top: 2px;
-}
-
-.lp-doc-card-title-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 100%;
-}
-
-.lp-doc-card-title-row .lp-doc-list-label,
-.lp-doc-card-title-row .lp-doc-file-name,
-.lp-doc-card-title-row .lp-doc-title-text {
-  min-width: 0;
-}
-
-.lp-doc-card-title-row .lp-expand-btn {
-  flex-shrink: 0;
-  margin: 0;
-  padding: 0;
-  align-self: center;
 }
 
 .lp-expand-btn {
@@ -1607,7 +1641,7 @@
 
 .lp-doc-nodes-stack--compact .lp-doc-nodes-block__head-main {
   gap: 6px;
-  padding: 8px;
+  padding: 8px 8px 8px 4px;
 }
 
 .lp-doc-nodes-stack--compact .lp-doc-drag-area--folder {
@@ -2088,13 +2122,13 @@
   background: #fff;
 }
 
-/* Category tags — same max height; sits lower so top meets mid line of title */
+/* Category tags — same max height; sits on the title row (no wrap). */
 .lp-folder-category-chip {
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
-  margin-left: 5px;
-  margin-top: 5px; /* ~half of title 11px → top of chip at title mid-line */
+  align-self: center;
+  margin-left: 2px;
+  margin-top: 0;
   height: 10px;
   padding: 0 4px;
   border-radius: 5px;
@@ -2885,7 +2919,7 @@
 .lp-doc-nodes-block__head {
   display: flex;
   align-items: stretch;
-  gap: 4px;
+  gap: 2px;
   border-bottom: 1px solid var(--hairline);
 }
 
@@ -2923,8 +2957,8 @@
   min-width: 0;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px 8px 8px 4px;
   border: none;
   background: transparent;
   color: inherit;
@@ -2992,7 +3026,7 @@
   flex-shrink: 0;
   width: 12px;
   height: 12px;
-  padding: 0;
+  padding: 0 4px 0 0;
   line-height: 0;
 }
 
@@ -3013,7 +3047,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 4px;
+  padding: 4px 4px 4px 2px;
 }
 
 .lp-doc-nodes-block__node--active {
@@ -3056,7 +3090,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px 0 8px;
+  padding: 0 2px 0 4px;
   opacity: 0.55;
   cursor: grab;
   flex-shrink: 0;
@@ -3111,8 +3145,8 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
+  gap: 5px;
+  padding: 5px 6px 5px 4px;
   border: none;
   background: transparent;
   color: inherit;
