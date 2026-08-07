@@ -18,13 +18,27 @@ import {
   buildDailyReportOfferText,
 } from "./ginaDailyReport.js";
 import { getGinaTestQuickLinks } from "./ginaTestQuickLinks.js";
+import { buildResaltarCategoryChipText } from "./ginaSyntaxDocsByCategory.js";
+import {
+  pickGinaDocsByDepartmentHeadline,
+  pickGinaListRefineHints,
+} from "./ginaCopyVariants.js";
 
 /**
  * Fixed reply chips for Gina progressive funnel (ids stable; labels user-facing).
  */
 
 /**
- * @typedef {{ id: string, label: string, text: string, primary?: boolean }} GinaReplyChip
+ * @typedef {{
+ *   id: string,
+ *   label: string,
+ *   text?: string,
+ *   primary?: boolean,
+ *   kind?: "category" | "layer_schedule" | "layer_status" | "omit" | "prompt" | "action",
+ *   group?: string,
+ *   selectable?: boolean,
+ *   value?: string,
+ * }} GinaReplyChip
  */
 
 const STATUS_CHIP_META = {
@@ -284,12 +298,102 @@ export function buildCountDocumentsChips(opts = {}) {
         showSchedule: Boolean(opts.view?.showSchedule),
         showStatus: Boolean(opts.view?.showStatus),
         categories: Array.isArray(opts.view?.categories) ? [...opts.view.categories] : [],
+        highlightCategories: Array.isArray(opts.view?.highlightCategories)
+          ? [...opts.view.highlightCategories]
+          : [],
+      };
+      const selectedCats = (view.highlightCategories.length
+        ? view.highlightCategories
+        : view.categories).filter(Boolean);
+      const available = Array.isArray(opts.availableCategories) ? opts.availableCategories : [];
+      const selected = new Set(selectedCats.map((c) => String(c).trim().toLowerCase()));
+
+      // Full list without filter → multi-select refine palette
+      if (!selectedCats.length && !view.showSchedule && !view.showStatus) {
+        const hints = pickGinaListRefineHints({
+          locale: en ? "en" : "es",
+          salt: opts.salt,
+        });
+        chips.push({
+          id: "hint_categories",
+          kind: "prompt",
+          group: "list_refine",
+          label: hints.categoryHint,
+          selectable: false,
+        });
+        const soft = available.slice(0, 8);
+        for (const cat of soft) {
+          const name = String(cat || "").trim();
+          if (!name) continue;
+          chips.push({
+            id: `cat_refine_${name}`,
+            kind: "category",
+            group: "list_refine",
+            label: name,
+            value: name,
+            selectable: true,
+          });
+        }
+        chips.push({
+          id: "hint_layers",
+          kind: "prompt",
+          group: "list_refine",
+          label: hints.layerHint,
+          selectable: false,
+        });
+        chips.push({
+          id: "layer_schedule",
+          kind: "layer_schedule",
+          group: "list_refine",
+          label: en ? "+schedule" : "+horarios",
+          selectable: true,
+        });
+        chips.push({
+          id: "layer_status",
+          kind: "layer_status",
+          group: "list_refine",
+          label: en ? "+status" : "+status",
+          selectable: true,
+        });
+        chips.push({
+          id: "layer_omit",
+          kind: "omit",
+          group: "list_refine",
+          label: en ? "skip" : "omitir",
+          selectable: true,
+        });
+        if (available.length > 8) {
+          chips.push({
+            id: "more_cats",
+            kind: "action",
+            label: en ? "More categories…" : "Más categorías…",
+            text: en
+              ? "Show documents by category"
+              : "Ver documentos por categoría",
+          });
+        }
+        return chips;
+      }
+
+      // Already filtered / layered → one-shot follow-up chips
+      const layerChipText = (next) => {
+        if (selectedCats.length || (next.categories && next.categories.length)) {
+          const cats = (next.highlightCategories?.length
+            ? next.highlightCategories
+            : (next.categories?.length ? next.categories : selectedCats));
+          return buildResaltarCategoryChipText(cats, {
+            locale: en ? "en" : "es",
+            showSchedule: next.showSchedule,
+            showStatus: next.showStatus,
+          });
+        }
+        return viewChipText(next);
       };
       if (!view.showSchedule) {
         chips.push({
           id: "add_schedule",
-          label: en ? "+ Schedule" : "+ Horario",
-          text: viewChipText({ ...view, showSchedule: true }),
+          label: en ? "+ Schedule" : "+ Horarios",
+          text: layerChipText({ ...view, showSchedule: true }),
           primary: true,
         });
       }
@@ -297,22 +401,22 @@ export function buildCountDocumentsChips(opts = {}) {
         chips.push({
           id: "add_status",
           label: en ? "+ Status" : "+ Status",
-          text: viewChipText({ ...view, showStatus: true }),
+          text: layerChipText({ ...view, showStatus: true }),
         });
       }
-      const available = Array.isArray(opts.availableCategories) ? opts.availableCategories : [];
-      const selected = new Set(view.categories.map((c) => String(c).trim().toLowerCase()));
       const soft = available.slice(0, 8);
       for (const cat of soft) {
         const name = String(cat || "").trim();
         if (!name) continue;
-        const nextCats = selected.has(name.toLowerCase())
-          ? view.categories
-          : [...view.categories, name];
+        if (selected.has(name.toLowerCase())) continue;
         chips.push({
-          id: `cat_filter_${name}`,
+          id: `cat_highlight_${name}`,
           label: name,
-          text: viewChipText({ ...view, categories: nextCats }),
+          text: buildResaltarCategoryChipText(name, {
+            locale: en ? "en" : "es",
+            showSchedule: view.showSchedule,
+            showStatus: view.showStatus,
+          }),
           primary: chips.length === 0,
         });
       }
@@ -674,7 +778,7 @@ export function buildScheduleSheetChips(opts = {}) {
 /**
  * Deterministic funnel headline.
  * @param {{ type?: string, data?: object } | null} visualization
- * @param {{ locale?: string }} [opts]
+ * @param {{ locale?: string, salt?: number }} [opts]
  */
 export function buildGinaFunnelHeadline(visualization, opts = {}) {
   const en = opts.locale === "en";
@@ -804,9 +908,12 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     const layerNote = bits.length
       ? (en ? ` Filters: ${bits.join(" · ")}.` : ` Filtros: ${bits.join(" · ")}.`)
       : "";
-    return en
-      ? `In total, **${n}** document${n === 1 ? "" : "s"}. Grouped by department.${layerNote}`
-      : `En total, **${n}** documento${n === 1 ? "" : "s"}. Agrupados por departamento.${layerNote}`;
+    return pickGinaDocsByDepartmentHeadline({
+      count: n,
+      locale: en ? "en" : "es",
+      salt: opts.salt,
+      layerNote,
+    });
   }
 
   if (visualization.type === "document_list" || visualization.type === "document_count") {
@@ -975,11 +1082,10 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       if (view.showSchedule) bits.push(en ? "schedule" : "horarios");
       if (view.showStatus) bits.push("status");
       const cats = Array.isArray(view.categories) ? view.categories.filter(Boolean) : [];
-      if (cats.length) {
-        bits.push(en
-          ? `categories: ${cats.join(", ")}`
-          : `categorías: ${cats.join(", ")}`);
-      }
+      const highlightCats = Array.isArray(view.highlightCategories) && view.highlightCategories.length
+        ? view.highlightCategories.filter(Boolean)
+        : [];
+      // Highlight copy names categories in the sentence — don't duplicate in Filtros
       const layerNote = bits.length
         ? (en ? ` Filters: ${bits.join(" · ")}.` : ` Filtros: ${bits.join(" · ")}.`)
         : "";
@@ -994,9 +1100,21 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
             ? `Department **${data.department}** has zero documents.`
             : `El departamento **${data.department}** no tiene documentos.`;
         }
+        if (cats.length || highlightCats.length) {
+          const label = (highlightCats.length ? highlightCats : cats).join(", ");
+          return en
+            ? `No documents in category **${label}**.`
+            : `No hay documentos en la categoría **${label}**.`;
+        }
         return en
           ? "There are zero documents in this workspace."
           : "No hay documentos en este workspace.";
+      }
+      if (highlightCats.length) {
+        const label = highlightCats.join(", ");
+        return en
+          ? `Filtered **${n}** document${n === 1 ? "" : "s"} in category **${label}**.${layerNote}`
+          : `Se filtraron **${n}** documento${n === 1 ? "" : "s"} en la categoría **${label}**.${layerNote}`;
       }
       if (data.scope === "category" && data.category) {
         return en
@@ -1008,9 +1126,12 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
           ? `Department **${data.department}** — **${n}** document${n === 1 ? "" : "s"}.${layerNote}`
           : `Departamento **${data.department}** — **${n}** documento${n === 1 ? "" : "s"}.${layerNote}`;
       }
-      return en
-        ? `**${n}** document${n === 1 ? "" : "s"} · by department.${layerNote}`
-        : `**${n}** documento${n === 1 ? "" : "s"} · por departamento.${layerNote}`;
+      return pickGinaDocsByDepartmentHeadline({
+        count: n,
+        locale: en ? "en" : "es",
+        salt: opts.salt,
+        layerNote,
+      });
     }
     if (data.empty || n === 0) {
       if (data.scope === "today") {
@@ -1128,7 +1249,7 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
 
 /**
  * Attach chips for a visualization + family.
- * @param {{ family?: string, visualization?: { type?: string, data?: object } | null, locale?: string }} opts
+ * @param {{ family?: string, visualization?: { type?: string, data?: object } | null, locale?: string, salt?: number }} opts
  * @returns {GinaReplyChip[]}
  */
 export function buildGinaReplyChips(opts = {}) {
@@ -1136,6 +1257,7 @@ export function buildGinaReplyChips(opts = {}) {
   const viz = opts.visualization;
   const type = viz?.type;
   const data = viz?.data || {};
+  const salt = opts.salt;
 
   if (type === "category_scope" || opts.family === "category_scope") {
     return buildCategoryScopeChips({
@@ -1213,6 +1335,7 @@ export function buildGinaReplyChips(opts = {}) {
       category: data.category,
       empty: Boolean(data.empty),
       locale,
+      salt,
       view: data.view,
       availableCategories: data.availableCategories,
     });
@@ -1227,6 +1350,7 @@ export function buildGinaReplyChips(opts = {}) {
       category: data.category,
       empty: Boolean(data.empty),
       locale,
+      salt,
       browseMode: data.browseMode,
       view: data.view,
       availableCategories: data.availableCategories,

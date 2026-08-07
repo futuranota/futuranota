@@ -19,5 +19,6 @@ Cada arreglo de Gina sigue este orden. No saltar pasos.
 - LIVE CORPUS ONLY — el fix no puede inventar depto/folder/docs.
 - Short-circuit Groq cuando la respuesta sea determinística (lista de folder, vacío, etc.).
 - Links de test viven en `ginaTestQuickLinks.js` (fácil de vaciar).
+- **Nuevo intent → syntax bank:** cada feature/intent nuevo debe traer un `ginaSyntax*.js` (phrasing + typos + sinónimos) **y** tests de variantes; cablear el router a ese bank antes de caer a `unclear` / listado vacío.
 
 Ver también: `gina-capability-roadmap.mdc`.

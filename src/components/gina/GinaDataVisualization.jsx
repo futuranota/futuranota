@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
 import { formatHierarchyPath } from "../../lib/gina/buildGinaVisualization.js";
 import { buildGinaDepartmentRail } from "../../lib/gina/ginaDepartmentColors.js";
@@ -947,10 +948,39 @@ function TableVisualization({ data }) {
   const limit = data.listAll ? 80 : 12;
   const view = data.view || {};
   const fromCount = Boolean(data.fromCountDocuments);
+  const highlightCats = (Array.isArray(view.highlightCategories) && view.highlightCategories.length
+    ? view.highlightCategories
+    : [])
+    .map((c) => String(c || "").trim().toLowerCase())
+    .filter(Boolean);
+  const deferMs = highlightCats.length > 0
+    ? (Number.isFinite(Number(data.highlightDelayMs))
+      ? Number(data.highlightDelayMs)
+      : (data.deferredCategoryHighlight ? 2000 : 0))
+    : 0;
+  const highlightKey = highlightCats.join("|");
+  const [highlightReady, setHighlightReady] = useState(deferMs <= 0);
+
+  useEffect(() => {
+    if (deferMs <= 0) {
+      setHighlightReady(true);
+      return undefined;
+    }
+    setHighlightReady(false);
+    const t = window.setTimeout(() => setHighlightReady(true), deferMs);
+    return () => window.clearTimeout(t);
+  }, [deferMs, highlightKey]);
+
   const shown = docs.slice(0, limit);
   // Rail must match visible rows so segment height lines up with tbody
   const departmentRail = fromCount ? buildGinaDepartmentRail(shown) : [];
   const showDeptRail = fromCount && departmentRail.length > 0 && shown.length > 0;
+  const categoryIsHighlighted = (doc) => {
+    if (!fromCount || !highlightCats.length || !highlightReady) return false;
+    const cat = String(doc.category || doc.hierarchy?.category || "").trim().toLowerCase();
+    if (!cat) return false;
+    return highlightCats.some((h) => cat === h || cat.includes(h) || h.includes(cat));
+  };
   const columns = Array.isArray(data.columns) && data.columns.length
     ? data.columns.filter((key) => !(fromCount && key === "department"))
     : fromCount
@@ -1040,7 +1070,16 @@ function TableVisualization({ data }) {
                   {shown.map((doc) => (
                     <tr key={doc.id || doc.title}>
                       {columns.map((key) => (
-                        <td key={key}>{renderCell(doc, key)}</td>
+                        <td
+                          key={key}
+                          className={
+                            key === "category" && categoryIsHighlighted(doc)
+                              ? "gina-viz__table-cell--highlight"
+                              : undefined
+                          }
+                        >
+                          {renderCell(doc, key)}
+                        </td>
                       ))}
                     </tr>
                   ))}

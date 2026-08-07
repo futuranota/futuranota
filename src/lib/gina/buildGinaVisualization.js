@@ -475,6 +475,9 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         showSchedule: Boolean(ctx.view?.showSchedule),
         showStatus: Boolean(ctx.view?.showStatus),
         categories: Array.isArray(ctx.view?.categories) ? ctx.view.categories : [],
+        highlightCategories: Array.isArray(ctx.view?.highlightCategories)
+          ? ctx.view.highlightCategories
+          : [],
       };
       const docs = documents.map((d) => mapDocRow(d, now));
       // Stable sort by department (preserves schedule-first order within dept)
@@ -496,6 +499,10 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       if (view.showSchedule) columns.push("time");
       if (view.showStatus) columns.push("status");
       const departmentRail = buildGinaDepartmentRail(docs);
+      const deferred = Boolean(ctx.deferredCategoryHighlight) && view.highlightCategories.length > 0;
+      const highlightDelayMs = deferred
+        ? (Number.isFinite(Number(ctx.highlightDelayMs)) ? Number(ctx.highlightDelayMs) : 2000)
+        : 0;
 
       return {
         type: "table",
@@ -504,7 +511,9 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
             ? department
             : (mode === "list_by_category" && category
               ? category
-              : (corpusName || (locale === "en" ? "All documents" : "Todos los documentos"))),
+              : (view.highlightCategories.length
+                ? view.highlightCategories.join(", ")
+                : (corpusName || (locale === "en" ? "All documents" : "Todos los documentos")))),
           corpusName,
           department,
           category,
@@ -517,6 +526,8 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
             ? ctx.availableCategories
             : [],
           empty: Boolean(ctx.empty) || docs.length === 0,
+          deferredCategoryHighlight: deferred,
+          highlightDelayMs,
           listAll: true,
           groupBy: "department",
           scope: mode === "list_by_category"

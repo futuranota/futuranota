@@ -85,7 +85,7 @@ describe("Gina count_folders", () => {
     expect(msg).toMatch(/2/);
     expect(msg).toMatch(/Trends/);
     expect(shouldUseGinaSearchSequence("count_folders")).toBe(true);
-    expect(buildGinaSearchSequence("es").preludeMessage).toMatch(/dame un momento/i);
+    expect(buildGinaSearchSequence("es", { salt: 3 }).preludeMessage).toMatch(/dame un momento/i);
   });
 
   it("Enfocarme hoy en Sales with zero folders guides to create a folder", () => {

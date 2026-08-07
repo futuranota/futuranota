@@ -135,7 +135,7 @@ describe("Gina named category scope", () => {
     expect(msg).toMatch(/creados\s+\*\*2\*\*\s+documentos de \*\*Blogs\*\*/i);
     expect(msg).toMatch(/por sección primero/i);
     expect(shouldUseGinaSearchSequence("category_scope")).toBe(true);
-    expect(buildGinaSearchSequence("es").preludeMessage).toMatch(/dame un momento/i);
+    expect(buildGinaSearchSequence("es", { salt: 3 }).preludeMessage).toMatch(/dame un momento/i);
 
     const chips = buildGinaReplyChips({
       family: "category_scope",

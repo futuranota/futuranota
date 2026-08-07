@@ -49,6 +49,10 @@ import {
   textHasNearPhrase,
   textHasNearToken,
 } from "./ginaFuzzyMatch.js";
+import {
+  extractCategoryHintFromDocsSyntax,
+  wantsDocsByCategorySyntax,
+} from "./ginaSyntaxDocsByCategory.js";
 
 function fold(s) {
   return foldGinaText(s);
@@ -260,20 +264,35 @@ export function sortDocsScheduledThenFlexible(docs) {
 /**
  * Parse optional list-view layers from utterance / chip text.
  * @param {string} text
- * @returns {{ showSchedule: boolean, showStatus: boolean, categories: string[] }}
+ * @returns {{
+ *   showSchedule: boolean,
+ *   showStatus: boolean,
+ *   categories: string[],
+ *   highlightCategories: string[],
+ * }}
  */
 export function parseDocsListView(text) {
   const q = fold(text);
   const showSchedule = /\b(con\s+horarios?|por\s+horario|agrega(?:me)?\s+los\s+horarios?|muestramelo\s+por\s+horario|show\s+(the\s+)?schedule|with\s+times?|add\s+(the\s+)?times?)\b/.test(q);
   const showStatus = /\b(con\s+status|con\s+estados?|agrega(?:me)?\s+(el\s+)?status|muestramelo\s+por\s+status|with\s+status|add\s+(the\s+)?status)\b/.test(q);
+  const wantsHighlight = /\b(resaltar|subrayar|highlight|subrayado)\b/.test(q)
+    || /\bfiltrar\s+y\s+resaltar\s*:/.test(q)
+    || /\bfilter\s+and\s+highlight\s*:/.test(q)
+    || (/\/buscar\b/.test(String(text || "")) && /--resaltar|--highlight/i.test(String(text || "")));
 
   /** @type {string[]} */
   const categories = [];
   const pushCat = (raw) => {
     const name = String(raw || "").trim().replace(/[.?!,;]+$/g, "").trim();
     if (!name || name.length < 2) return;
-    if (categories.some((c) => fold(c) === fold(name))) return;
-    categories.push(name);
+    // Strip leftover layer words from category tokens
+    const cleaned = name
+      .replace(/\b(con\s+horarios?|con\s+status|con\s+estados?|listado\s+completo|full\s+document\s+list)\b/gi, "")
+      .replace(/^["']+|["']+$/g, "")
+      .trim();
+    if (!cleaned || cleaned.length < 2) return;
+    if (categories.some((c) => fold(c) === fold(cleaned))) return;
+    categories.push(cleaned);
   };
 
   const multi = String(text || "").match(/categor[ií]as?\s*:\s*([^\n]+)/i)
@@ -286,11 +305,63 @@ export function parseDocsListView(text) {
       pushCat(part);
     }
   }
+
+  // Direct command: "Filtrar y resaltar: Blogs · con horarios"
+  const filterCmd = String(text || "").match(/\bfiltrar\s+y\s+resaltar\s*:\s*([^\n]+)/i)
+    || String(text || "").match(/\bfilter\s+and\s+highlight\s*:\s*([^\n]+)/i);
+  if (filterCmd) {
+    const blob = filterCmd[1]
+      .replace(/\s*·\s*/g, ",")
+      .replace(/\b(con\s+horarios?|con\s+status|con\s+estados?|with\s+schedule|with\s+status)\b/gi, " ")
+      .trim();
+    for (const part of blob.split(/\s*(?:,|;| y | and )\s*/i)) {
+      pushCat(part);
+    }
+  }
+
+  // /buscar --categoria "Blogs" --resaltar
+  const slashCat = String(text || "").match(/--categor(?:ia|y)\s*[=\s]\s*["']?([^"'\n]+?)["']?(?=\s+--|\s*$)/i)
+    || String(text || "").match(/--categor(?:ia|y)\s+["']?([^"'\s\n]+)/i);
+  if (slashCat && /--resaltar|--highlight/i.test(String(text || ""))) {
+    pushCat(slashCat[1]);
+  }
+
   const single = String(text || "").match(/filtrado\s+por\s+categor[ií]a\s+([^\n,]+)/i)
     || String(text || "").match(/filtered\s+by\s+categor(?:y|ies)\s+([^\n,]+)/i);
   if (single) pushCat(single[1]);
 
-  return { showSchedule, showStatus, categories };
+  // "Resaltar Campaigns Results" / "highlight Blogs" / "subrayar la categoría X"
+  // Skip bare "resaltar" when already parsed via "Filtrar y resaltar:"
+  const hlNamed = !filterCmd && (
+    String(text || "").match(
+      /\b(?:resaltar|subrayar|highlight)\s+(?:la\s+)?(?:categor[ií]a\s+)?(.+?)(?:\s*$|\s+con\s+|\s+y\s+tambi[eé]n\b)/i,
+    )
+    || String(text || "").match(/\b(?:resaltar|subrayar|highlight)\s+(.+)$/i)
+  );
+  if (hlNamed) {
+    const blob = hlNamed[1]
+      .replace(/\b(con\s+horarios?|con\s+status|listado\s+completo)\b/gi, " ")
+      .replace(/\bentr[eé]game\b[\s\S]*$/i, " ")
+      .replace(/\bgive\s+me\b[\s\S]*$/i, " ")
+      .trim();
+    // Allow "A, B" after resaltar
+    for (const part of blob.split(/\s*(?:,|;| y | and )\s*/i)) {
+      pushCat(part);
+    }
+  }
+
+  // NL: "docs que sean de Blogs" / "documentos de la categoría X"
+  if (!categories.length) {
+    const hint = extractCategoryHintFromDocsSyntax(text);
+    if (hint) pushCat(hint);
+  }
+
+  // Highlight overlay for Resaltar / Filtrar y resaltar / categorías: / slash --resaltar
+  const highlightCategories = (wantsHighlight || Boolean(multi) || Boolean(hlNamed) || Boolean(filterCmd))
+    ? categories.slice()
+    : [];
+
+  return { showSchedule, showStatus, categories, highlightCategories };
 }
 
 /**
@@ -526,6 +597,11 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
     showSchedule: Boolean(opts.view?.showSchedule ?? parsedView.showSchedule),
     showStatus: Boolean(opts.view?.showStatus ?? parsedView.showStatus),
     categories: viewCategories,
+    highlightCategories: Array.isArray(opts.view?.highlightCategories) && opts.view.highlightCategories.length
+      ? opts.view.highlightCategories
+      : (parsedView.highlightCategories?.length
+        ? parsedView.highlightCategories
+        : []),
   };
   const allDocs = get_all_company_documents(ctx);
 
@@ -647,18 +723,37 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
     };
   }
 
-  let filtered = allDocs;
+  let scoped = allDocs;
   if (mode === "list_by_department" || (mode === "count" && deptName)) {
-    if (deptName) filtered = allDocs.filter((d) => matchDept(d, deptName));
+    if (deptName) scoped = allDocs.filter((d) => matchDept(d, deptName));
   }
-  if (mode === "list_by_category" && categoryName && !view.categories.length) {
-    filtered = allDocs.filter((d) => matchCat(d, categoryName));
+  if (mode === "list_by_category" && categoryName && !view.highlightCategories.length) {
+    scoped = allDocs.filter((d) => matchCat(d, categoryName));
   }
   if (mode === "list_all") {
-    filtered = allDocs;
+    scoped = allDocs;
   }
-  if (view.categories.length) {
-    filtered = filtered.filter((d) => view.categories.some((c) => matchCat(d, c)));
+
+  const highlightCats = Array.isArray(view.highlightCategories)
+    ? view.highlightCategories.filter(Boolean)
+    : [];
+  const isHighlightList = (
+    mode === "list_all"
+    || mode === "list_by_department"
+    || mode === "list_by_category"
+  ) && highlightCats.length > 0;
+
+  let filtered = scoped;
+  // Resaltar / docs-by-category: deliver ONLY the filtered sheet (no full-corpus duplicate).
+  if (isHighlightList) {
+    filtered = scoped.filter((d) => highlightCats.some((c) => matchCat(d, c)));
+  } else if (view.categories.length) {
+    filtered = scoped.filter((d) => view.categories.some((c) => matchCat(d, c)));
+  }
+
+  // +horarios / con horarios: timed docs only — exclude flexible (no anchorAt)
+  if (view.showSchedule) {
+    filtered = filtered.filter((d) => Boolean(d?.anchorAt));
   }
 
   const sortFn = view.showSchedule
@@ -695,16 +790,22 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
       category: categoryName,
       count: documents.length,
       documents,
+      filteredDocuments: [],
       groups,
       view,
       availableCategories,
       departments: [],
       categories: [],
       empty: documents.length === 0,
+      emptyFiltered: false,
+      deferredCategoryHighlight: isHighlightList,
+      highlightDelayMs: isHighlightList ? 2000 : 0,
       emptyReason: documents.length === 0 ? "no_documents" : null,
       listAll: isList,
       hint: isList
-        ? `Live document list (${mode})`
+        ? (isHighlightList
+          ? `Filtered document list with deferred category highlight (${mode})`
+          : `Live document list (${mode})`)
         : (deptName
           ? `Live document count for department ${deptName}`
           : "Live document count for the active corpus"),
@@ -1790,6 +1891,42 @@ export function runGinaQueryFamily(text, ctx = {}) {
       mode: "count",
       departmentName: acrossAllDepts ? null : (deptHit?.name || null),
     });
+  }
+
+  // Docs by category syntax (Resaltar / “docs que sean de X”) → full sheet + highlight + filtered.
+  // Before bare list_all so “entregame todos los docs que sean de Blogs” is not an unscoped dump.
+  // Only fires when a LIVE category resolves — never invent; never steal department review.
+  if (wantsDocsByCategorySyntax(text)) {
+    const view = parseDocsListView(text);
+    /** @type {string[]} */
+    let catNames = (view.highlightCategories?.length
+      ? view.highlightCategories
+      : view.categories).filter(Boolean);
+    if (!catNames.length) {
+      const hint = extractCategoryHintFromDocsSyntax(text);
+      const hit = (hint && matchNamedCategoryInText(ctx, hint, null))
+        || matchNamedCategoryInText(ctx, text, null);
+      if (hit?.name) catNames = [hit.name];
+    } else {
+      catNames = catNames
+        .map((raw) => matchNamedCategoryInText(ctx, String(raw || "").trim(), null)?.name)
+        .filter(Boolean);
+    }
+    // If the only named entity is a department (Sales/ventas), leave for department review.
+    if (!catNames.length) {
+      // fall through
+    } else {
+      clearPendingGinaOffer();
+      return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+        mode: "list_all",
+        view: {
+          ...view,
+          categories: catNames,
+          highlightCategories: catNames,
+        },
+        text,
+      });
+    }
   }
 
   // Full corpus document list (before folder-list steals "listado de todos…").

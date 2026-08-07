@@ -3,16 +3,19 @@
  * Use whenever Gina looks up documents, folders, or categories in the live corpus.
  */
 
+import { pickGinaSearchPrelude } from "./ginaCopyVariants.js";
+
 /**
  * @param {string} [locale]
+ * @param {{ salt?: number }} [opts]
  * @returns {{ preludeMessage: string }}
  */
-export function buildGinaSearchSequence(locale = "es") {
-  const en = locale === "en";
+export function buildGinaSearchSequence(locale = "es", opts = {}) {
   return {
-    preludeMessage: en
-      ? "Wait, give me a moment..."
-      : "Espera, dame un momento...",
+    preludeMessage: pickGinaSearchPrelude({
+      locale: locale === "en" ? "en" : "es",
+      salt: opts.salt,
+    }),
   };
 }
 

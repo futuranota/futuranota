@@ -14,6 +14,7 @@ import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
 } from "./ginaReplyChips.js";
+import { buildResaltarCategoryChipText } from "./ginaSyntaxDocsByCategory.js";
 import { shouldUseGinaSearchSequence } from "./ginaSearchSequence.js";
 import { clearPendingGinaOffer } from "./ginaPendingOffer.js";
 
@@ -205,10 +206,75 @@ describe("Gina count_documents browse + list", () => {
       family: "count_documents",
       visualization: viz,
       locale: "es",
+      salt: 0,
     });
-    expect(chips.some((c) => /\+ Horario/i.test(c.label))).toBe(true);
-    expect(chips.some((c) => /\+ Status/i.test(c.label))).toBe(true);
-    expect(chips.filter((c) => c.id?.startsWith("cat_filter_")).length).toBeLessThanOrEqual(8);
+    expect(chips.some((c) => c.group === "list_refine")).toBe(true);
+    expect(chips.some((c) => c.kind === "prompt")).toBe(true);
+    expect(chips.some((c) => c.kind === "category" && c.label === "Blogs")).toBe(true);
+    expect(chips.some((c) => /^Resaltar\s+/i.test(c.label))).toBe(false);
+    expect(chips.some((c) => c.kind === "layer_schedule" && /^\+horarios$/i.test(c.label))).toBe(true);
+    expect(chips.some((c) => c.kind === "layer_status" && /^\+status$/i.test(c.label))).toBe(true);
+    expect(chips.some((c) => c.kind === "omit")).toBe(true);
+    expect(chips.filter((c) => c.kind === "category").length).toBeLessThanOrEqual(8);
+  });
+
+  it("Resaltar categoría → solo lista filtrada + deferred highlight + copy", () => {
+    const routed = runGinaQueryFamily(
+      "Filtrar y resaltar: Blogs",
+      ctx,
+    );
+    expect(routed.family).toBe("count_documents");
+    expect(routed.toolContext.mode).toBe("list_all");
+    expect(routed.toolContext.view.highlightCategories.map((c) => c.toLowerCase())).toContain("blogs");
+    expect(routed.toolContext.documents.length).toBe(2);
+    expect(
+      routed.toolContext.documents.every((d) => /blogs/i.test(d.category || "")),
+    ).toBe(true);
+    expect(routed.toolContext.deferredCategoryHighlight).toBe(true);
+    expect(routed.toolContext.highlightDelayMs).toBe(2000);
+
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    expect(viz?.type).toBe("table");
+    expect(viz.data.documents.length).toBe(2);
+    expect(viz.data.deferredCategoryHighlight).toBe(true);
+    expect(viz.data.highlightDelayMs).toBe(2000);
+    expect(viz.data.view.highlightCategories.map((c) => c.toLowerCase())).toContain("blogs");
+    const msg = buildGinaFunnelHeadline(viz, { locale: "es" });
+    expect(msg).toMatch(/se filtraron\s+\*\*2\*\*/i);
+    expect(msg).toMatch(/categor[ií]a\s+\*\*blogs\*\*/i);
+    expect(msg).not.toMatch(/subrayar el área/i);
+
+    const chips = buildGinaReplyChips({
+      family: "count_documents",
+      visualization: viz,
+      locale: "es",
+    });
+    expect(chips.some((c) => /\+ Horarios?/i.test(c.label))).toBe(true);
+    expect(chips.some((c) => /Resaltar Blogs/i.test(c.label))).toBe(false);
+    const infoChip = chips.find((c) => c.label === "Informes" || /Resaltar Informes/i.test(c.label));
+    expect(infoChip?.text).toBe("Filtrar y resaltar: Informes");
+  });
+
+  it("NL docs que sean de / Resaltar / comando / slash → filtered sheet", () => {
+    for (const phrase of [
+      "entregame todos los docs que sean de Blogs",
+      "Resaltar Blogs",
+      "Filtrar y resaltar: Blogs",
+      '/buscar --categoria "Blogs" --resaltar',
+      buildResaltarCategoryChipText("Blogs", { locale: "es" }),
+    ]) {
+      const routed = runGinaQueryFamily(phrase, ctx);
+      expect(routed.family).toBe("count_documents");
+      expect(routed.toolContext.mode).toBe("list_all");
+      expect(routed.toolContext.view.highlightCategories.map((c) => c.toLowerCase())).toContain(
+        "blogs",
+      );
+      expect(routed.toolContext.documents.length).toBe(2);
+      expect(routed.toolContext.deferredCategoryHighlight).toBe(true);
+    }
   });
 
   it("entregame / tráeme todos los docs → list_all (not unclear)", () => {
@@ -232,14 +298,17 @@ describe("Gina count_documents browse + list", () => {
     }
   });
 
-  it("listado completo con horarios → showSchedule + Time column", () => {
+  it("listado completo con horarios → timed only (excluye flexible) + Time column", () => {
     const routed = runGinaQueryFamily(
       "Listado completo con horarios",
       ctx,
     );
     expect(routed.family).toBe("count_documents");
     expect(routed.toolContext.view.showSchedule).toBe(true);
+    expect(routed.toolContext.documents.every((d) => Boolean(d.anchorAt))).toBe(true);
+    expect(routed.toolContext.documents.some((d) => d.title === "Flexible B")).toBe(false);
     expect(routed.toolContext.documents[0].title).toBe("Scheduled A");
+    expect(routed.toolContext.count).toBe(2);
     const viz = buildGinaVisualization("count_documents", routed.toolContext, {
       locale: "es",
       now,
@@ -252,7 +321,18 @@ describe("Gina count_documents browse + list", () => {
     expect(msg).toMatch(/horarios/i);
   });
 
-  it("listado completo categorías multi → unión", () => {
+  it("+horarios con categoría filtrada también excluye flexible", () => {
+    const routed = runGinaQueryFamily(
+      "Filtrar y resaltar: Blogs · con horarios",
+      ctx,
+    );
+    expect(routed.family).toBe("count_documents");
+    expect(routed.toolContext.view.showSchedule).toBe(true);
+    expect(routed.toolContext.documents.map((d) => d.title)).toEqual(["Scheduled A"]);
+    expect(routed.toolContext.documents.every((d) => Boolean(d.anchorAt))).toBe(true);
+  });
+
+  it("listado completo categorías multi → unión filtrada", () => {
     const routed = runGinaQueryFamily(
       "Listado completo categorías: Blogs, Informes",
       ctx,
@@ -263,6 +343,8 @@ describe("Gina count_documents browse + list", () => {
       expect.arrayContaining(["blogs", "informes"]),
     );
     expect(routed.toolContext.count).toBe(3);
+    expect(routed.toolContext.documents.length).toBe(3);
+    expect(routed.toolContext.deferredCategoryHighlight).toBe(true);
   });
 
   it("por departamento → pick menu then columnar table", () => {

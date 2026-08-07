@@ -69,6 +69,16 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: listado + horarios",
     text: "Listado completo con horarios",
   },
+  {
+    id: "test_docs_resaltar_cat",
+    label: "Test: resaltar categoría",
+    text: "Filtrar y resaltar: Blogs",
+  },
+  {
+    id: "test_docs_que_sean_de",
+    label: "Test: docs que sean de Blogs",
+    text: "entregame todos los docs que sean de Blogs",
+  },
 ];
 
 /**

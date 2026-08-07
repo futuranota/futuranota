@@ -99,7 +99,7 @@ describe("Gina count_categories", () => {
     expect(msg).toMatch(/2/);
     expect(msg).toMatch(/Blogs/);
     expect(shouldUseGinaSearchSequence("count_categories")).toBe(true);
-    expect(buildGinaSearchSequence("es").preludeMessage).toMatch(/dame un momento/i);
+    expect(buildGinaSearchSequence("es", { salt: 3 }).preludeMessage).toMatch(/dame un momento/i);
 
     const chips = buildGinaReplyChips({
       family: "count_categories",

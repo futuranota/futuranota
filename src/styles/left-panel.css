@@ -1139,12 +1139,14 @@
 
 .lp-doc-card-title-row .lp-doc-list-label,
 .lp-doc-card-title-row .lp-doc-file-name,
-.lp-doc-card-title-row .lp-doc-title-text {
+.lp-doc-card-title-row .lp-doc-title-text,
+.lp-doc-card-title-row b.lp-doc-title-text {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 11px;
 }
 
 .lp-doc-card-title-row .lp-doc-list-label {
@@ -1157,6 +1159,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 11px;
 }
 
 .lp-doc-card-title-row .lp-doc-list-label .lp-doc-version {
