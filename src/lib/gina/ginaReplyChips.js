@@ -65,6 +65,93 @@ export function buildGinaOpeningChips(opts = {}) {
 }
 
 /**
+ * Chips after named category scope.
+ * @param {{
+ *   mode?: string,
+ *   department?: string | null,
+ *   category?: string | null,
+ *   folders?: { name: string }[],
+ *   empty?: boolean,
+ *   locale?: string,
+ * }} opts
+ */
+export function buildCategoryScopeChips(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = String(opts.department || "").trim();
+  const cat = String(opts.category || "").trim();
+  const mode = opts.mode || "count_docs";
+  /** @type {GinaReplyChip[]} */
+  const chips = [];
+
+  if (mode === "count_docs") {
+    if (cat) {
+      chips.push({
+        id: "by_section",
+        label: en ? "By section" : "Por sección",
+        text: dept
+          ? (en
+            ? `Show sections of ${cat} in ${dept}`
+            : `Por sección primero en ${cat} de ${dept}`)
+          : (en
+            ? `Show sections of ${cat}`
+            : `Por sección primero en ${cat}`),
+        primary: true,
+      });
+      chips.push({
+        id: "full_list",
+        label: en ? "Full list" : "Listado completo",
+        text: dept
+          ? (en
+            ? `Full list of ${cat} in ${dept}`
+            : `Listado completo de ${cat} en ${dept}`)
+          : (en
+            ? `Full list of ${cat}`
+            : `Listado completo de ${cat}`),
+      });
+    }
+    return chips;
+  }
+
+  if (mode === "list_folders") {
+    if (opts.empty) {
+      chips.push({
+        id: "back_depts",
+        label: en ? "Back to departments" : "Volver a departamentos",
+        text: en
+          ? "How many departments do we have in total?"
+          : "¿Cuántos departamentos tenemos en general?",
+      });
+      return chips;
+    }
+    for (const folder of (opts.folders || []).slice(0, 6)) {
+      const name = String(folder?.name || "").trim();
+      if (!name) continue;
+      chips.push({
+        id: `folder_docs_${name}`,
+        label: en ? `Docs in ${name}` : `Docs de ${name}`,
+        text: en
+          ? `Show me all documents in ${name}`
+          : `Dame todos los documentos del ${name}`,
+        primary: chips.length === 0,
+      });
+    }
+    return chips;
+  }
+
+  // list_docs
+  if (dept && cat) {
+    chips.push({
+      id: "by_section",
+      label: en ? "By section" : "Por sección",
+      text: en
+        ? `Show sections of ${cat} in ${dept}`
+        : `Por sección primero en ${cat} de ${dept}`,
+    });
+  }
+  return chips;
+}
+
+/**
  * Chips after category count.
  * @param {{
  *   categories?: { name: string }[],
@@ -120,6 +207,162 @@ export function buildCountCategoriesChips(opts = {}) {
         : `¿Cuántos folders tenemos en ${dept}?`,
     });
   }
+  return chips;
+}
+
+/**
+ * Chips after generic document count / browse.
+ * @param {{
+ *   mode?: string,
+ *   documents?: { id?: string, title?: string, folder?: string | null }[],
+ *   departments?: { name?: string }[],
+ *   categories?: { name?: string }[],
+ *   availableCategories?: string[],
+ *   view?: { showSchedule?: boolean, showStatus?: boolean, categories?: string[] },
+ *   department?: string | null,
+ *   category?: string | null,
+ *   empty?: boolean,
+ *   locale?: string,
+ *   fromCountDocuments?: boolean,
+ *   browseMode?: string,
+ * }} opts
+ * @returns {GinaReplyChip[]}
+ */
+export function buildCountDocumentsChips(opts = {}) {
+  const en = opts.locale === "en";
+  const mode = opts.mode || "count";
+  const dept = String(opts.department || "").trim();
+  /** @type {GinaReplyChip[]} */
+  const chips = [];
+
+  const viewChipText = (view) => {
+    const parts = [en ? "Full document list" : "Listado completo"];
+    if (view.showSchedule) parts.push(en ? "with schedule" : "con horarios");
+    if (view.showStatus) parts.push(en ? "with status" : "con status");
+    const cats = Array.isArray(view.categories) ? view.categories.filter(Boolean) : [];
+    if (cats.length) {
+      parts.push(en ? `categories: ${cats.join(", ")}` : `categorías: ${cats.join(", ")}`);
+    }
+    return parts.join(" ");
+  };
+
+  if (mode === "pick_department" || opts.browseMode === "department") {
+    for (const d of (opts.departments || []).slice(0, 8)) {
+      const name = String(d?.name || "").trim();
+      if (!name) continue;
+      chips.push({
+        id: `docs_dept_${name}`,
+        label: name,
+        text: en
+          ? `Documents in department: ${name}`
+          : `Documentos del departamento ${name}`,
+        primary: chips.length === 0,
+      });
+    }
+    return chips;
+  }
+
+  if (mode === "pick_category" || opts.browseMode === "category") {
+    for (const c of (opts.categories || []).slice(0, 8)) {
+      const name = String(c?.name || "").trim();
+      if (!name) continue;
+      chips.push({
+        id: `docs_cat_${name}`,
+        label: name,
+        text: en
+          ? `Documents in category: ${name}`
+          : `Documentos de la categoría ${name}`,
+        primary: chips.length === 0,
+      });
+    }
+    return chips;
+  }
+
+  if (mode === "list_all" || mode === "list_by_department" || mode === "list_by_category") {
+    if (!opts.empty) {
+      const view = {
+        showSchedule: Boolean(opts.view?.showSchedule),
+        showStatus: Boolean(opts.view?.showStatus),
+        categories: Array.isArray(opts.view?.categories) ? [...opts.view.categories] : [],
+      };
+      if (!view.showSchedule) {
+        chips.push({
+          id: "add_schedule",
+          label: en ? "+ Schedule" : "+ Horario",
+          text: viewChipText({ ...view, showSchedule: true }),
+          primary: true,
+        });
+      }
+      if (!view.showStatus) {
+        chips.push({
+          id: "add_status",
+          label: en ? "+ Status" : "+ Status",
+          text: viewChipText({ ...view, showStatus: true }),
+        });
+      }
+      const available = Array.isArray(opts.availableCategories) ? opts.availableCategories : [];
+      const selected = new Set(view.categories.map((c) => String(c).trim().toLowerCase()));
+      const soft = available.slice(0, 8);
+      for (const cat of soft) {
+        const name = String(cat || "").trim();
+        if (!name) continue;
+        const nextCats = selected.has(name.toLowerCase())
+          ? view.categories
+          : [...view.categories, name];
+        chips.push({
+          id: `cat_filter_${name}`,
+          label: name,
+          text: viewChipText({ ...view, categories: nextCats }),
+          primary: chips.length === 0,
+        });
+      }
+      if (available.length > 8) {
+        chips.push({
+          id: "more_cats",
+          label: en ? "More categories…" : "Más categorías…",
+          text: en
+            ? "Show documents by category"
+            : "Ver documentos por categoría",
+        });
+      }
+    }
+    return chips;
+  }
+
+  // count mode
+  if (opts.empty) {
+    chips.push({
+      id: "back_depts",
+      label: en ? "Back to departments" : "Volver a departamentos",
+      text: en
+        ? "How many departments do we have in total?"
+        : "¿Cuántos departamentos tenemos en general?",
+    });
+    return chips;
+  }
+  chips.push({
+    id: "full_list",
+    label: en ? "Full list" : "Listado completo",
+    text: en
+      ? "I want the full list of all documents"
+      : "Quiero el listado completo de todos los documentos",
+    primary: true,
+  });
+  chips.push({
+    id: "by_dept",
+    label: en ? "By department" : "Por departamento",
+    text: en
+      ? "Show documents by department"
+      : "Ver documentos por departamento",
+  });
+  chips.push({
+    id: "by_cat",
+    label: en ? "By category" : "Por categoría",
+    text: en
+      ? "Show documents by category"
+      : "Ver documentos por categoría",
+  });
+  void dept;
   return chips;
 }
 
@@ -438,11 +681,41 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
   if (!visualization?.type) return null;
   const data = visualization.data || {};
 
+  if (visualization.type === "category_scope") {
+    const dept = data.department || (en ? "this department" : "este departamento");
+    const cat = data.category || (en ? "that category" : "esa categoría");
+    const n = Number(data.documentCount) || 0;
+    if (n === 0) {
+      return en
+        ? `In **${dept}** you have **zero** documents in **${cat}**.`
+        : `En **${dept}** tienes cero documentos de **${cat}**.`;
+    }
+    if (n === 1) {
+      return en
+        ? `In **${dept}** you have **1** document in **${cat}**. Want me to find it by section (box / drawer title) first, or show the full list?`
+        : `En **${dept}** tienes creado **1** documento de **${cat}**. ¿Quieres que te lo busque por sección (título de caja / cajón) o el listado completo?`;
+    }
+    return en
+      ? `In **${dept}** you have **${n}** documents in **${cat}**. Want me to search by section first, or do you want the full list?`
+      : `En **${dept}** tienes creados **${n}** documentos de **${cat}**. ¿Quieres que te busque por sección primero o quieres el listado completo?`;
+  }
+
   if (visualization.type === "category_list") {
     const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
     const dept = data.department || null;
     const cats = Array.isArray(data.categories) ? data.categories : [];
     const n = data.count ?? cats.length;
+    if (data.fromCountDocuments || data.browseMode === "category") {
+      if (n === 0 || data.empty) {
+        return en
+          ? `You don’t have any categories to filter documents by.`
+          : `No tienes categorías para filtrar documentos.`;
+      }
+      const bullets = cats.slice(0, 12).map((c) => `• ${c.name}`).join("\n");
+      return en
+        ? `Which category do you want to open?\n${bullets}`
+        : `¿Qué categoría quieres abrir?\n${bullets}`;
+    }
     if (n === 0 || data.empty) {
       if (dept) {
         return en
@@ -472,9 +745,15 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
   if (visualization.type === "folder_list") {
     const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
     const dept = data.department || null;
+    const cat = data.category || null;
     const folders = Array.isArray(data.folders) ? data.folders : [];
     const n = data.count ?? folders.length;
     if (n === 0 || data.empty) {
+      if (data.emptyReason === "no_folders_in_category" || (cat && data.fromCategoryScope)) {
+        return en
+          ? `You don’t have any folders created in **${cat}**.`
+          : `No tienes folders creados en **${cat}**.`;
+      }
       if (dept) {
         return en
           ? `In **${dept}** you have **zero** folders created. Start by creating at least one folder so you can schedule appointments afterward.`
@@ -484,9 +763,11 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
         ? `For **${corpus}** you have **zero** folders created. Start by creating at least one folder so you can schedule appointments afterward.`
         : `Para **${corpus}** tienes cero secciones de folder creadas. Comienza creando al menos un folder para después poder programar citas.`;
     }
-    const scope = dept
-      ? (en ? `In **${dept}**` : `En **${dept}**`)
-      : (en ? `For **${corpus}**` : `Para **${corpus}**`);
+    const scope = cat
+      ? (en ? `In **${cat}**` : `En **${cat}**`)
+      : dept
+        ? (en ? `In **${dept}**` : `En **${dept}**`)
+        : (en ? `For **${corpus}**` : `Para **${corpus}**`);
     const head = en
       ? `${scope} we have a total of **${n}** folder${n === 1 ? "" : "s"}:`
       : `${scope} tenemos un total de **${n}** folder${n === 1 ? "" : "s"}:`;
@@ -500,10 +781,79 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     return `${head}\n${bullets}\n\n${ask}`;
   }
 
+  if (visualization.type === "document_dept_groups") {
+    const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
+    const n = data.count ?? (Array.isArray(data.groups)
+      ? data.groups.reduce((sum, g) => sum + (g.documentCount || 0), 0)
+      : 0);
+    const view = data.view || {};
+    if (n === 0 || data.empty) {
+      return en
+        ? `For **${corpus}** you have **zero** documents.`
+        : `Para **${corpus}** tienes cero documentos.`;
+    }
+    const bits = [];
+    if (view.showSchedule) bits.push(en ? "schedule" : "horarios");
+    if (view.showStatus) bits.push("status");
+    const cats = Array.isArray(view.categories) ? view.categories.filter(Boolean) : [];
+    if (cats.length) {
+      bits.push(en
+        ? `categories: ${cats.join(", ")}`
+        : `categorías: ${cats.join(", ")}`);
+    }
+    const layerNote = bits.length
+      ? (en ? ` Filters: ${bits.join(" · ")}.` : ` Filtros: ${bits.join(" · ")}.`)
+      : "";
+    return en
+      ? `In total, **${n}** document${n === 1 ? "" : "s"}. Grouped by department.${layerNote}`
+      : `En total, **${n}** documento${n === 1 ? "" : "s"}. Agrupados por departamento.${layerNote}`;
+  }
+
+  if (visualization.type === "document_list" || visualization.type === "document_count") {
+    const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
+    const dept = data.department || null;
+    const n = data.count ?? (Array.isArray(data.documents) ? data.documents.length : 0);
+    if (n === 0 || data.empty) {
+      if (dept) {
+        return en
+          ? `In **${dept}** you have **zero** documents created.`
+          : `En **${dept}** tienes cero documentos creados.`;
+      }
+      return en
+        ? `For **${corpus}** you have **zero** documents created.`
+        : `Para **${corpus}** tienes cero documentos creados.`;
+    }
+    const scope = dept
+      ? (en ? `In **${dept}**` : `En **${dept}**`)
+      : (en ? `In total` : `En total`);
+    const head = en
+      ? (n === 1
+        ? `${scope}, you have **1** document.`
+        : `${scope}, we have **${n}** documents.`)
+      : (n === 1
+        ? `${scope}, tienes **1** documento.`
+        : `${scope}, tenemos **${n}** documentos.`);
+    const ask = en
+      ? "Want to do something else — show the full list, or look them up by department or by category?"
+      : "¿Quieres hacer algo más? Por ejemplo: ¿te muestro el listado completo, o prefieres que te lo busque por departamentos o por categorías?";
+    return `${head}\n\n${ask}`;
+  }
+
   if (visualization.type === "department_list") {
     const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
     const depts = Array.isArray(data.departments) ? data.departments : [];
     const n = data.count ?? depts.length;
+    if (data.fromCountDocuments || data.browseMode === "department") {
+      if (n === 0 || data.empty) {
+        return en
+          ? `You don’t have any departments to filter documents by.`
+          : `No tienes departamentos para filtrar documentos.`;
+      }
+      const bullets = depts.slice(0, 12).map((d) => `• ${d.name}`).join("\n");
+      return en
+        ? `Which department do you want to open?\n${bullets}`
+        : `¿Qué departamento quieres abrir?\n${bullets}`;
+    }
     if (n === 0) {
       return en
         ? `For **${corpus}** there are **0** departments yet.`
@@ -611,13 +961,56 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     });
   }
 
-  if (visualization.type === "table" && (data.listAll || data.empty || data.department || data.folder)) {
-    const name = data.folder || data.department || "—";
+  if (visualization.type === "table" && (data.listAll || data.empty || data.department || data.folder || data.fromCountDocuments)) {
+    const name = data.folder || data.department || data.category || "—";
     const n = Array.isArray(data.documents) ? data.documents.length : 0;
     if (data.notFound) {
       return en
         ? "I couldn’t find that folder in your live workspace. I won’t invent one — try another name?"
         : "No encontré ese folder en tu workspace live. No voy a inventar uno — ¿pruebas con otro nombre?";
+    }
+    if (data.fromCountDocuments) {
+      const view = data.view || {};
+      const bits = [];
+      if (view.showSchedule) bits.push(en ? "schedule" : "horarios");
+      if (view.showStatus) bits.push("status");
+      const cats = Array.isArray(view.categories) ? view.categories.filter(Boolean) : [];
+      if (cats.length) {
+        bits.push(en
+          ? `categories: ${cats.join(", ")}`
+          : `categorías: ${cats.join(", ")}`);
+      }
+      const layerNote = bits.length
+        ? (en ? ` Filters: ${bits.join(" · ")}.` : ` Filtros: ${bits.join(" · ")}.`)
+        : "";
+      if (data.empty || n === 0) {
+        if (data.scope === "category" && data.category) {
+          return en
+            ? `Category **${data.category}** has zero documents.`
+            : `La categoría **${data.category}** no tiene documentos.`;
+        }
+        if (data.scope === "department" && data.department) {
+          return en
+            ? `Department **${data.department}** has zero documents.`
+            : `El departamento **${data.department}** no tiene documentos.`;
+        }
+        return en
+          ? "There are zero documents in this workspace."
+          : "No hay documentos en este workspace.";
+      }
+      if (data.scope === "category" && data.category) {
+        return en
+          ? `Category **${data.category}** — **${n}** document${n === 1 ? "" : "s"}.${layerNote}`
+          : `Categoría **${data.category}** — **${n}** documento${n === 1 ? "" : "s"}.${layerNote}`;
+      }
+      if (data.scope === "department" && data.department) {
+        return en
+          ? `Department **${data.department}** — **${n}** document${n === 1 ? "" : "s"}.${layerNote}`
+          : `Departamento **${data.department}** — **${n}** documento${n === 1 ? "" : "s"}.${layerNote}`;
+      }
+      return en
+        ? `**${n}** document${n === 1 ? "" : "s"} · by department.${layerNote}`
+        : `**${n}** documento${n === 1 ? "" : "s"} · por departamento.${layerNote}`;
     }
     if (data.empty || n === 0) {
       if (data.scope === "today") {
@@ -744,6 +1137,16 @@ export function buildGinaReplyChips(opts = {}) {
   const type = viz?.type;
   const data = viz?.data || {};
 
+  if (type === "category_scope" || opts.family === "category_scope") {
+    return buildCategoryScopeChips({
+      mode: data.mode || "count_docs",
+      department: data.department,
+      category: data.category,
+      folders: data.folders,
+      empty: Boolean(data.empty),
+      locale,
+    });
+  }
   if (type === "category_list" || opts.family === "count_categories") {
     return buildCountCategoriesChips({
       categories: data.categories,
@@ -753,11 +1156,80 @@ export function buildGinaReplyChips(opts = {}) {
     });
   }
   if (type === "folder_list" || opts.family === "count_folders") {
+    if (data.fromCategoryScope || data.category) {
+      return buildCategoryScopeChips({
+        mode: "list_folders",
+        department: data.department,
+        category: data.category,
+        folders: data.folders,
+        empty: Boolean(data.empty),
+        locale,
+      });
+    }
     return buildCountFoldersChips({
       folders: data.folders,
       department: data.department,
       empty: Boolean(data.empty),
       locale,
+    });
+  }
+  if (type === "document_list" || type === "document_count") {
+    return buildCountDocumentsChips({
+      mode: data.mode || "count",
+      documents: data.documents,
+      departments: data.departments,
+      categories: data.categories,
+      department: data.department,
+      category: data.category,
+      empty: Boolean(data.empty),
+      locale,
+      fromCountDocuments: Boolean(data.fromCountDocuments),
+      browseMode: data.browseMode,
+    });
+  }
+  if (
+    (type === "department_list" || type === "category_list")
+    && (data.fromCountDocuments || opts.family === "count_documents")
+  ) {
+    return buildCountDocumentsChips({
+      mode: type === "category_list" || data.browseMode === "category"
+        ? "pick_category"
+        : "pick_department",
+      departments: data.departments,
+      categories: data.categories,
+      empty: Boolean(data.empty),
+      locale,
+      browseMode: data.browseMode || (type === "category_list" ? "category" : "department"),
+    });
+  }
+  if (type === "document_dept_groups" || (type === "table" && data.fromCountDocuments)) {
+    return buildCountDocumentsChips({
+      mode: data.mode
+        || (data.scope === "category"
+          ? "list_by_category"
+          : (data.scope === "department" ? "list_by_department" : "list_all")),
+      documents: data.documents,
+      department: data.department,
+      category: data.category,
+      empty: Boolean(data.empty),
+      locale,
+      view: data.view,
+      availableCategories: data.availableCategories,
+    });
+  }
+  if (opts.family === "count_documents") {
+    return buildCountDocumentsChips({
+      mode: data.mode || "count",
+      documents: data.documents,
+      departments: data.departments,
+      categories: data.categories,
+      department: data.department,
+      category: data.category,
+      empty: Boolean(data.empty),
+      locale,
+      browseMode: data.browseMode,
+      view: data.view,
+      availableCategories: data.availableCategories,
     });
   }
   if (type === "department_list" || opts.family === "count_departments") {

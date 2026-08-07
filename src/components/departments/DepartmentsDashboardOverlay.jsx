@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../../i18n/useI18n.js";
-import { useDepartmentsStore } from "../../stores/departmentsStore.js";
+import { useDepartmentsStore, cascadeFolderCategoryClear } from "../../stores/departmentsStore.js";
 import { findDepartmentById, normalizeDescription } from "../../lib/departments.js";
 
 const DEPT_BG_SRC = "/uploads/department-img.png";
@@ -265,6 +265,18 @@ export function DepartmentsDashboardOverlay({ session, onSessionChange, onClose 
           label: tag.label,
           description: tag.description,
         });
+      }
+    });
+
+    // Erase folder.category for tags removed from the board.
+    const nextKeys = new Set(
+      tagsToSave.map((tag) => tag.label.trim().toLowerCase()).filter(Boolean),
+    );
+    (existing.subcategories || []).forEach((sub) => {
+      const label = String(sub?.label || "").trim();
+      if (!label) return;
+      if (!nextKeys.has(label.toLowerCase())) {
+        cascadeFolderCategoryClear(existing.id, label);
       }
     });
 

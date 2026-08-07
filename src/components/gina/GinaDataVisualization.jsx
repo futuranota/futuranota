@@ -152,6 +152,25 @@ function DepartmentBuildingIcon({ className = "" }) {
   );
 }
 
+function CategoryScopeVisualization({ data }) {
+  const dept = data.department || "—";
+  const cat = data.category || "—";
+  const docs = Number(data.documentCount) || 0;
+  const folders = Number(data.folderCount) || 0;
+  return (
+    <div className="gina-viz gina-viz--category-scope">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{dept}</span>
+        <h3 className="gina-viz__title">{cat}</h3>
+      </header>
+      <div className="gina-viz__stats">
+        <StatRow label="Documentos" value={docs} tone="neutral" />
+        <StatRow label="Folders" value={folders} tone="neutral" />
+      </div>
+    </div>
+  );
+}
+
 function CategoryListVisualization({ data }) {
   const categories = Array.isArray(data.categories) ? data.categories : [];
   const corpus = data.corpusName || null;
@@ -223,6 +242,131 @@ function FolderListVisualization({ data }) {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+function DocumentListVisualization({ data }) {
+  const documents = Array.isArray(data.documents) ? data.documents : [];
+  const corpus = data.corpusName || null;
+  const dept = data.department || null;
+  const count = data.count ?? documents.length;
+  const eyebrow = dept || corpus || "Documentos";
+  return (
+    <div className="gina-viz gina-viz--document-list">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{eyebrow}</span>
+        <h3 className="gina-viz__title">
+          {count === 1 ? "1 documento" : `${count} documentos`}
+        </h3>
+      </header>
+      {documents.length === 0 ? (
+        <p className="gina-viz__empty">
+          {data.emptyHint || "Cero documentos en este alcance."}
+        </p>
+      ) : (
+        <ul className="gina-viz__dept-list" role="list">
+          {documents.slice(0, 12).map((doc) => (
+            <li key={doc.id || doc.title} className="gina-viz__dept-list-item">
+              <div className="gina-viz__dept-card gina-viz__dept-card--ref">
+                <span className="gina-viz__dept-name">{doc.title || "—"}</span>
+                <span className="gina-viz__dept-meta">
+                  {[doc.folder, doc.category].filter(Boolean).join(" · ") || "—"}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Count-only summary — no document cards (table comes on list_all). */
+function DocumentCountVisualization({ data }) {
+  const corpus = data.corpusName || null;
+  const dept = data.department || null;
+  const count = Number(data.count) || 0;
+  const eyebrow = dept || corpus || "Documentos";
+  return (
+    <div className="gina-viz gina-viz--document-count">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{eyebrow}</span>
+        <h3 className="gina-viz__title">
+          {count === 1 ? "1 documento" : `${count} documentos`}
+        </h3>
+      </header>
+      {data.empty || count === 0 ? (
+        <p className="gina-viz__empty">
+          {data.emptyHint || "Cero documentos en este alcance."}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Grouped by department — schedule/status only when view flags on. */
+function DocumentDeptGroupsVisualization({ data }) {
+  const groups = Array.isArray(data.groups) ? data.groups : [];
+  const view = data.view || {};
+  const showSchedule = Boolean(view.showSchedule);
+  const showStatus = Boolean(view.showStatus);
+  const corpus = data.corpusName || null;
+  const count = data.count ?? groups.reduce((n, g) => n + (g.documentCount || 0), 0);
+
+  return (
+    <div className="gina-viz gina-viz--document-dept-groups">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{corpus || "Documentos"}</span>
+        <h3 className="gina-viz__title">
+          {count === 1 ? "1 documento" : `${count} documentos`}
+        </h3>
+      </header>
+      {data.empty || !groups.length ? (
+        <p className="gina-viz__empty">Sin documentos en este alcance.</p>
+      ) : (
+        <div className="gina-viz__dept-groups">
+          {groups.map((group) => (
+            <section
+              key={group.department}
+              className="gina-viz__dept-group"
+            >
+              <header className="gina-viz__dept-group-head">
+                <h4 className="gina-viz__dept-group-title">
+                  {group.department}
+                  <span className="gina-viz__dept-group-count">
+                    {" · "}
+                    {group.documentCount ?? (group.documents || []).length}
+                    {" docs"}
+                  </span>
+                </h4>
+                {(group.categories || []).length ? (
+                  <p className="gina-viz__dept-group-cats">
+                    {(group.categories || []).join(", ")}
+                  </p>
+                ) : null}
+              </header>
+              <ul className="gina-viz__dept-group-docs" role="list">
+                {(group.documents || []).map((doc) => (
+                  <li key={doc.id || doc.title} className="gina-viz__dept-group-doc">
+                    <span className="gina-viz__dept-name">{doc.title || "—"}</span>
+                    <span className="gina-viz__dept-meta">
+                      {showStatus && doc.status ? (
+                        <DocStatusChip status={doc.status} />
+                      ) : null}
+                      {showSchedule ? (
+                        <span className="gina-viz__dept-time">
+                          {doc.timeLabel || doc.time || "Flexible"}
+                        </span>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -800,6 +944,52 @@ function ConflictsVisualization({ data }) {
 function TableVisualization({ data }) {
   const docs = Array.isArray(data.documents) ? data.documents : [];
   const limit = data.listAll ? 80 : 12;
+  const view = data.view || {};
+  const fromCount = Boolean(data.fromCountDocuments);
+  const columns = Array.isArray(data.columns) && data.columns.length
+    ? data.columns
+    : fromCount
+      ? [
+        "document",
+        "department",
+        "category",
+        ...(view.showSchedule ? ["time"] : []),
+        ...(view.showStatus ? ["status"] : []),
+      ]
+      : ["document", "path", "status", "time"];
+
+  const colLabel = (key) => {
+    switch (key) {
+      case "document": return "Document";
+      case "department": return "Departamento";
+      case "category": return "Categoría";
+      case "path": return "Ruta";
+      case "status": return "Status";
+      case "time": return "Time";
+      default: return key;
+    }
+  };
+
+  const renderCell = (doc, key) => {
+    const h = doc.hierarchy || {};
+    switch (key) {
+      case "document":
+        return doc.title || "—";
+      case "department":
+        return doc.department || h.department || "—";
+      case "category":
+        return doc.category || h.category || "—";
+      case "path":
+        return [h.department, h.category, h.folder].filter(Boolean).join(" / ") || "—";
+      case "status":
+        return doc.status ? <DocStatusChip status={doc.status} /> : "—";
+      case "time":
+        return doc.timeLabel || doc.time || "Flexible";
+      default:
+        return "—";
+    }
+  };
+
   return (
     <div className="gina-viz gina-viz--table">
       {data.title ? <h3 className="gina-viz__title">{data.title}</h3> : null}
@@ -807,7 +997,9 @@ function TableVisualization({ data }) {
         <p className="gina-viz__empty">
           {data.department
             ? `Cero documentos en ${data.department}.`
-            : "Sin documentos en este alcance."}
+            : data.category
+              ? `Cero documentos en ${data.category}.`
+              : "Sin documentos en este alcance."}
         </p>
       ) : null}
       {docs.length ? (
@@ -815,26 +1007,19 @@ function TableVisualization({ data }) {
         <table className="gina-viz__table">
           <thead>
             <tr>
-              <th>Document</th>
-              <th>Ruta</th>
-              <th>Status</th>
-              <th>Time</th>
+              {columns.map((key) => (
+                <th key={key}>{colLabel(key)}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {docs.slice(0, limit).map((doc) => {
-              const h = doc.hierarchy || {};
-              return (
-                <tr key={doc.id || doc.title}>
-                  <td>{doc.title}</td>
-                  <td>
-                    {[h.department, h.category, h.folder].filter(Boolean).join(" / ") || "—"}
-                  </td>
-                  <td>{doc.status ? <DocStatusChip status={doc.status} /> : "—"}</td>
-                  <td>{doc.timeLabel || doc.time || "Flexible"}</td>
-                </tr>
-              );
-            })}
+            {docs.slice(0, limit).map((doc) => (
+              <tr key={doc.id || doc.title}>
+                {columns.map((key) => (
+                  <td key={key}>{renderCell(doc, key)}</td>
+                ))}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -962,10 +1147,18 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
   const dept = data.department || "";
 
   switch (type) {
+    case "category_scope":
+      return <CategoryScopeVisualization data={data} />;
     case "category_list":
       return <CategoryListVisualization data={data} />;
     case "folder_list":
       return <FolderListVisualization data={data} />;
+    case "document_list":
+      return <DocumentListVisualization data={data} />;
+    case "document_count":
+      return <DocumentCountVisualization data={data} />;
+    case "document_dept_groups":
+      return <DocumentDeptGroupsVisualization data={data} />;
     case "department_list":
       return (
         <DepartmentListVisualization

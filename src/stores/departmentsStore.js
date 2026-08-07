@@ -61,6 +61,23 @@ function persistDepartments(departments) {
 }
 
 /**
+ * Cascade clear folder.category when a department tag is deleted.
+ * @param {string} departmentId
+ * @param {string} label
+ */
+export function cascadeFolderCategoryClear(departmentId, label) {
+  const key = String(label || "").trim().toLowerCase();
+  if (!departmentId || !key) return;
+  const docs = useDocsStore.getState().docs || {};
+  const updateDoc = useDocsStore.getState().updateDoc;
+  Object.values(docs).forEach((doc) => {
+    if (!doc || String(doc.departmentId || "") !== String(departmentId)) return;
+    if (String(doc.category || "").trim().toLowerCase() !== key) return;
+    updateDoc(doc.id, { category: "" });
+  });
+}
+
+/**
  * Cascade folder.category when a department tag label is renamed.
  * @param {string} departmentId
  * @param {string} oldLabel
@@ -194,11 +211,16 @@ export const useDepartmentsStore = create(
         const dept = get().departments.find((d) => d.id === id);
         if (!dept) return null;
         const key = String(subcategory || "").trim().toLowerCase();
-        return get().updateDepartment(id, {
+        const removed = dept.subcategories.find(
+          (s) => s.label.toLowerCase() === key,
+        );
+        const updated = get().updateDepartment(id, {
           subcategories: dept.subcategories.filter(
             (s) => s.label.toLowerCase() !== key,
           ),
         });
+        if (removed?.label) cascadeFolderCategoryClear(id, removed.label);
+        return updated;
       },
 
       /**

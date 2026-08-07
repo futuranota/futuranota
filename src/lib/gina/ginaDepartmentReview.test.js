@@ -128,8 +128,8 @@ describe("Gina department review (Sales / ventas)", () => {
     expect(routed.toolContext.empty).toBe(true);
   });
 
-  it("entregame todos uses recent Sales context and still says cero", () => {
-    const routed = runGinaQueryFamily("entregame todos los documentos", {
+  it("entregame todos (short follow-up) uses recent Sales context and still says cero", () => {
+    const routed = runGinaQueryFamily("entregame todos", {
       ...emptySalesCtx,
       recentText: [
         "Gina quiero revisar los documentos de ventas",
@@ -139,6 +139,18 @@ describe("Gina department review (Sales / ventas)", () => {
     expect(routed.family).toBe("department");
     expect(routed.toolContext.department).toBe("Sales");
     expect(routed.toolContext.empty).toBe(true);
+  });
+
+  it("entregame todos los documentos is corpus list even with Sales in recent turns", () => {
+    const routed = runGinaQueryFamily("entregame todos los documentos", {
+      ...emptySalesCtx,
+      recentText: [
+        "Gina quiero revisar los documentos de ventas",
+        "Del departamento de Sales hay cero datos",
+      ],
+    });
+    expect(routed.family).toBe("count_documents");
+    expect(routed.toolContext.mode).toBe("list_all");
   });
 
   it("lists all Sales docs including flexible ones", () => {

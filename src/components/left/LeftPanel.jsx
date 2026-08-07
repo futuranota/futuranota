@@ -963,11 +963,11 @@ function DocNodesBlockCard({
               onDelete={() => onNodeDelete?.(node)}
             />
           ))}
-          {!orphan && onCreateDocument ? (
+          {onCreateDocument ? (
             <button
               type="button"
               className="lp-doc-nodes-block__create-doc"
-              onClick={() => onCreateDocument(doc)}
+              onClick={() => onCreateDocument(orphan ? null : doc)}
             >
               <img
                 src="/uploads/FileDashed.svg"
@@ -978,7 +978,10 @@ function DocNodesBlockCard({
               <span>{t("sidebar.createDocumentInBox")}</span>
             </button>
           ) : null}
-          {!nodes.length && !onCreateDocument ? (
+          {!nodes.length && orphan ? (
+            <p className="lp-doc-nodes-block__empty dim">{t("sidebar.departmentInboxHint")}</p>
+          ) : null}
+          {!nodes.length && !orphan && !onCreateDocument ? (
             <p className="lp-doc-nodes-block__empty dim">{t("sidebar.noNodesInDoc")}</p>
           ) : null}
         </div>
@@ -1730,7 +1733,6 @@ export function LeftPanel({
   const [folderOpen, setFolderOpen] = useState(false);
   const [nodeEditId, setNodeEditId] = useState(null);
   const [nodeEditContentFocus, setNodeEditContentFocus] = useState(false);
-  const [nodeSearch, setNodeSearch] = useState("");
   const [createDocumentParentDocId, setCreateDocumentParentDocId] = useState(null);
   const [showCreateDocument, setShowCreateDocument] = useState(false);
   const [clickFolderView, setClickFolderView] = useState(null);
@@ -1913,6 +1915,7 @@ export function LeftPanel({
 
   // Independent Documents: only orphans scoped to this company/corpus.
   // Never pull parentless nodes from other corpus objects.
+  // UI: Documents → # Department inbox (not a separate Nodes panel).
   const independentNodes = useMemo(() => {
     if (!activeObjectId) return [];
     return nodeList.filter((node) => {
@@ -1921,14 +1924,18 @@ export function LeftPanel({
     });
   }, [activeObjectId, nodeList]);
 
-  const filteredIndependentNodes = independentNodes.filter((node) => {
-    const q = nodeSearch.trim().toLowerCase();
-    if (!q) return true;
-    const title = (node.sourceQuery || node.title || "").toLowerCase();
-    const content =
-      typeof node.content === "string" ? node.content.toLowerCase() : JSON.stringify(node.content || "").toLowerCase();
-    return title.includes(q) || content.includes(q);
-  });
+  /** # Department inbox — searchable from Documents folder search. */
+  const departmentInboxNodes = useMemo(() => {
+    const q = folderSearchQuery.trim().toLowerCase();
+    if (!q) return independentNodes;
+    return independentNodes.filter((node) => {
+      const title = (node.sourceQuery || node.title || "").toLowerCase();
+      return title.includes(q);
+    });
+  }, [independentNodes, folderSearchQuery]);
+
+  const isDepartmentInboxView =
+    clickFolderView === "subgroups" && !departmentFilterId;
 
   // Resolve folder children from block.nodeId (editor source of truth) + parentDocId.
   // Many persisted nodes have parentDocId wiped; counting only parentDocId shows "0 documents".
@@ -2456,7 +2463,6 @@ export function LeftPanel({
     setActiveId(null);
     const heldId = useObjectTargetHoldStore.getState().heldObjectId;
     setCorpusTimelineAuthority(heldId || null);
-    setNodeSearch("");
     clearLeftPanelNavSnapshot();
   };
 
@@ -2516,12 +2522,19 @@ export function LeftPanel({
       setFilterObjectId(objectId);
       setCorpusTimelineAuthority(authorityId);
       setObjectWorkspaceActive(true);
-      const nextPanel = ["Documents", "Nodes", "Objects"].includes(snap.panelType)
+      const rawPanel = ["Documents", "Nodes", "Objects"].includes(snap.panelType)
         ? snap.panelType
         : "Documents";
-      setPanelType(nextPanel);
-      if (typeof snap.clickFolderView === "string" || snap.clickFolderView === null) {
-        setClickFolderView(snap.clickFolderView);
+      if (rawPanel === "Nodes") {
+        setPanelType("Documents");
+        setClickFolderView("subgroups");
+        setDepartmentFilterId(UNASSIGNED_DEPARTMENT_FILTER_ID);
+        setDepartmentCategoryFilter("");
+      } else {
+        setPanelType(rawPanel);
+        if (typeof snap.clickFolderView === "string" || snap.clickFolderView === null) {
+          setClickFolderView(snap.clickFolderView);
+        }
       }
     } else if (objectId && objects[objectId]) {
       setSelectedObjectId(objectId);
@@ -2560,12 +2573,19 @@ export function LeftPanel({
         setFilterObjectId(resolvedObjectId);
         if (snap.objectWorkspaceActive) {
           setObjectWorkspaceActive(true);
-          const nextPanel = ["Documents", "Nodes", "Objects"].includes(snap.panelType)
+          const rawPanel = ["Documents", "Nodes", "Objects"].includes(snap.panelType)
             ? snap.panelType
             : "Documents";
-          setPanelType(nextPanel);
-          if (typeof snap.clickFolderView === "string" || snap.clickFolderView === null) {
-            setClickFolderView(snap.clickFolderView);
+          if (rawPanel === "Nodes") {
+            setPanelType("Documents");
+            setClickFolderView("subgroups");
+            setDepartmentFilterId(UNASSIGNED_DEPARTMENT_FILTER_ID);
+            setDepartmentCategoryFilter("");
+          } else {
+            setPanelType(rawPanel);
+            if (typeof snap.clickFolderView === "string" || snap.clickFolderView === null) {
+              setClickFolderView(snap.clickFolderView);
+            }
           }
         }
       } else if (rawObjectId) {
@@ -2626,6 +2646,16 @@ export function LeftPanel({
     if (objectWorkspaceActive && activeObjectId) {
       setFilterObjectId(activeObjectId);
     }
+    // Independent Documents → Documents / # Department inbox
+    if (t === "Nodes") {
+      setPanelType("Documents");
+      setActiveId(null);
+      setClickFolderView("subgroups");
+      setDepartmentFilterId(UNASSIGNED_DEPARTMENT_FILTER_ID);
+      setDepartmentCategoryFilter("");
+      setFolderOpen(false);
+      return;
+    }
     setPanelType(t);
     setActiveId(null);
     setClickFolderView(null);
@@ -2648,8 +2678,16 @@ export function LeftPanel({
     } = leftPanelNavigateRequest;
 
     if (panel === "Nodes") {
-      switchType("Nodes");
-      if (nodeId) setActiveId(nodeId);
+      // Independent Documents live under Documents → # Department
+      switchType("Documents");
+      setClickFolderView("subgroups");
+      setDepartmentFilterId(UNASSIGNED_DEPARTMENT_FILTER_ID);
+      setDepartmentCategoryFilter("");
+      if (nodeId) {
+        setActiveId(nodeId);
+        setNodeEditContentFocus(false);
+        setNodeEditId(nodeId);
+      }
     } else if (panel === "Documents") {
       switchType("Documents");
       if (nextFolderView === "subgroups" || folderId || highlightNodeId || departmentId != null) {
@@ -2796,7 +2834,9 @@ export function LeftPanel({
     setShowCreate(false);
   };
 
-  const dropdownPanelTypes = objectWorkspaceActive ? PANEL_TYPES : ["Objects"];
+  const dropdownPanelTypes = objectWorkspaceActive
+    ? PANEL_TYPES.filter((type) => type !== "Nodes")
+    : ["Objects"];
   const folderLabel = objectWorkspaceActive
     ? `${panelTypeLabel(panelType).toLowerCase()} : ${activeObject?.name || ""}`
     : panelTypeLabel("Objects").toLowerCase();
@@ -2805,6 +2845,15 @@ export function LeftPanel({
     if (!objectWorkspaceActive && panelType !== "Objects") return;
     if (objectWorkspaceActive && (panelType === "Documents" || panelType === "Nodes") && !activeObjectId) return;
     if (panelType === "Documents" && !clickFolderView) return;
+    // # Department inbox — create independent documents (not folders)
+    if (
+      panelType === "Documents"
+      && clickFolderView === "subgroups"
+      && !departmentFilterId
+    ) {
+      openCreateDocument(null);
+      return;
+    }
     if (panelType === "Nodes") {
       openCreateDocument(null);
       return;
@@ -3165,6 +3214,54 @@ export function LeftPanel({
         searchSequence: buildGinaSearchSequence(localeKey),
         chips: buildGinaReplyChips({
           family: "count_categories",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (!meetingOn && routed.family === "category_scope") {
+      const visualization = buildGinaVisualization("category_scope", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en"
+          ? `In ${routed.toolContext?.department || "this department"} — ${routed.toolContext?.category || "category"}.`
+          : `En ${routed.toolContext?.department || "este departamento"} — ${routed.toolContext?.category || "categoría"}.`);
+      return {
+        message,
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: "category_scope",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (!meetingOn && routed.family === "count_documents") {
+      const visualization = buildGinaVisualization("count_documents", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en"
+          ? (routed.toolContext?.empty
+            ? "You have zero documents created."
+            : `We have ${routed.toolContext?.count ?? 0} documents.`)
+          : (routed.toolContext?.empty
+            ? "Tienes cero documentos creados."
+            : `Tenemos ${routed.toolContext?.count ?? 0} documentos.`));
+      return {
+        message,
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: "count_documents",
           visualization,
           locale: localeKey,
         }),
@@ -4165,6 +4262,25 @@ export function LeftPanel({
                     + (folderBulkDeleteMode ? " lp-doc-nodes-stack--selecting" : "")
                   }
                 >
+                  {isDepartmentInboxView ? (
+                    <DocNodesBlockCard
+                      doc={null}
+                      orphan
+                      nodes={departmentInboxNodes}
+                      objects={objects}
+                      showWhenEmpty
+                      defaultExpanded
+                      highlightNodeId={revealHighlightNodeId}
+                      onCreateDocument={() => openCreateDocument(null)}
+                      onNodeClick={(node) => {
+                        setActiveId(node.id);
+                        setNodeEditContentFocus(false);
+                        setNodeEditId(node.id);
+                      }}
+                      onNodeInsert={(node) => onInsertToCanvas?.(node)}
+                      onNodeDelete={handleDeleteNode}
+                    />
+                  ) : null}
                   {visibleContentDocs.length || visibleUncategorizedDocs.length ? (
                     <>
                       {visibleContentDocs.map((doc) => (
@@ -4236,6 +4352,8 @@ export function LeftPanel({
                         {t("sidebar.useNewContentInDepartment")}
                       </p>
                     </div>
+                  ) : isDepartmentInboxView ? (
+                    null
                   ) : (
                     <div className="lp-empty">
                       <p className="dim">
@@ -4264,38 +4382,7 @@ export function LeftPanel({
           </div>
         )}
 
-        {/* Independent Documents — parentless docs for this corpus only */}
-        {panelType === "Nodes" && objectWorkspaceActive && !nodeEditId && (
-          <>
-            <input
-              type="text"
-              className="note-form-field"
-              placeholder={t("sidebar.searchNodesPlaceholder")}
-              value={nodeSearch}
-              onChange={(e) => setNodeSearch(e.target.value)}
-            />
-            {objectWorkspaceActive && activeObject ? (
-              <p className="lp-context-label"><TranslatedText text={activeObject.name} /></p>
-            ) : null}
-            <div className="lp-doc-nodes-stack">
-              <DocNodesBlockCard
-                doc={null}
-                orphan
-                nodes={filteredIndependentNodes}
-                objects={objects}
-                showWhenEmpty
-                defaultExpanded
-                onNodeClick={(node) => {
-                  setActiveId(node.id);
-                  setNodeEditContentFocus(false);
-                  setNodeEditId(node.id);
-                }}
-                onNodeInsert={(node) => onInsertToCanvas?.(node)}
-                onNodeDelete={handleDeleteNode}
-              />
-            </div>
-          </>
-        )}
+        {/* Independent Documents panel removed — inbox lives under Documents → # Department */}
 
       </div>
 

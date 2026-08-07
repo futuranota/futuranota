@@ -34,6 +34,41 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: cuántas categorías",
     text: "Cuántas categorias tenemos en Marketing?",
   },
+  {
+    id: "test_named_category_blogs",
+    label: "Test: cuantos blogs",
+    text: "Cuantos blogs tenemos en marketing gina?",
+  },
+  {
+    id: "test_named_category_social",
+    label: "Test: redes sociales",
+    text: "Cuales son los redes sociales que tenemos creadas?",
+  },
+  {
+    id: "test_count_documents",
+    label: "Test: cuántos documentos",
+    text: "Cuántos documentos en total tenemos en todos los departamentos?",
+  },
+  {
+    id: "test_docs_total_moment",
+    label: "Test: total docs por el momento",
+    text: "hola gina como estas, me puedes dar el total de documentos que tenemos por el momento?",
+  },
+  {
+    id: "test_docs_list_all",
+    label: "Test: listado completo docs",
+    text: "Quiero el listado completo de todos los documentos",
+  },
+  {
+    id: "test_docs_entregame",
+    label: "Test: entregame todos los docs",
+    text: "entregame todos los documentos",
+  },
+  {
+    id: "test_docs_list_schedule",
+    label: "Test: listado + horarios",
+    text: "Listado completo con horarios",
+  },
 ];
 
 /**

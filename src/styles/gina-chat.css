@@ -1070,6 +1070,80 @@
   padding: 0;
 }
 
+.gina-viz--document-dept-groups {
+  background: #151515;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.gina-viz__dept-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.gina-viz__dept-group {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.gina-viz__dept-group-head {
+  margin-bottom: 8px;
+}
+
+.gina-viz__dept-group-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.gina-viz__dept-group-count {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.gina-viz__dept-group-cats {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.gina-viz__dept-group-docs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gina-viz__dept-group-doc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.gina-viz__dept-group-doc .gina-viz__dept-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.gina-viz__dept-time {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+}
+
 .gina-viz__dept-card {
   display: flex;
   flex-direction: column;

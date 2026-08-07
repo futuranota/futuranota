@@ -2094,6 +2094,7 @@
   --dept-lock-tone-b: #343330;
   --dept-lock-color: var(--dept-lock-tone-a);
   position: relative;
+  z-index: 2;
   flex: 1;
   min-width: 0;
   margin-left: 4px;
@@ -2193,7 +2194,7 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 40;
+  z-index: 5;
   min-width: 180px;
   max-width: min(280px, 70vw);
   max-height: 220px;
@@ -2205,6 +2206,28 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: #151515;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  isolation: isolate;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) #151515;
+}
+
+.doc-department-head-picker__menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.doc-department-head-picker__menu::-webkit-scrollbar-track {
+  background: #151515;
+  border-radius: 0 8px 8px 0;
+}
+
+.doc-department-head-picker__menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  border: 2px solid #151515;
+}
+
+.doc-department-head-picker__menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 .doc-department-head-picker__item {
@@ -3864,10 +3887,14 @@
 .doc-new-head {
   flex-shrink: 0;
   margin-bottom: 4px;
+  /* Above .doc-meta-strip so department + lock menu isn't covered by Category chips */
+  position: relative;
+  z-index: 80;
 }
 
 .doc-new-head-top {
   position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4269,7 +4296,8 @@
   margin-bottom: 10px;
   flex-shrink: 0;
   position: relative;
-  z-index: 60;
+  /* Below .doc-new-head (80) so Category never paints over department picker */
+  z-index: 40;
   overflow: visible;
 }
 
@@ -4647,6 +4675,27 @@
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
   isolation: isolate;
   pointer-events: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) #151515;
+}
+
+.doc-product-category-picker::-webkit-scrollbar {
+  width: 8px;
+}
+
+.doc-product-category-picker::-webkit-scrollbar-track {
+  background: #151515;
+  border-radius: 0 6px 6px 0;
+}
+
+.doc-product-category-picker::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  border: 2px solid #151515;
+}
+
+.doc-product-category-picker::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 .doc-product-category-picker__item {

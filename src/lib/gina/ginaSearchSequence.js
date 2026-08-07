@@ -25,6 +25,8 @@ export const GINA_SEARCH_SEQUENCE_FAMILIES = new Set([
   "folder_summary",
   "count_folders",
   "count_categories",
+  "category_scope",
+  "count_documents",
 ]);
 
 /**

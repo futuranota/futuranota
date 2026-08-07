@@ -303,6 +303,69 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
 
   if (family === "focus_open" || family === "social" || family === "unclear" || family === "dismiss" || family === "free_chat") return null;
 
+  if (family === "category_scope") {
+    const mode = ctx.mode || "count_docs";
+    const department = String(ctx.department || "").trim() || null;
+    const category = String(ctx.category || "").trim() || null;
+    const corpusName = String(ctx.corpusName || "").trim() || null;
+    const folders = Array.isArray(ctx.folders) ? ctx.folders : [];
+    const documents = Array.isArray(ctx.documents) ? ctx.documents : [];
+
+    if (mode === "list_folders") {
+      return {
+        type: "folder_list",
+        data: {
+          corpusName,
+          department,
+          category,
+          count: ctx.folderCount ?? folders.length,
+          folders: folders.map((f) => ({
+            id: f.id || f.name,
+            name: String(f.name || "").trim(),
+            category: f.category || category,
+            departmentName: f.departmentName || department,
+            documentCount: f.documentCount ?? 0,
+            hasSchedule: Boolean(f.hasSchedule),
+          })).filter((f) => f.name),
+          empty: Boolean(ctx.empty) || folders.length === 0,
+          emptyReason: folders.length === 0 ? "no_folders_in_category" : null,
+          fromCategoryScope: true,
+        },
+      };
+    }
+
+    if (mode === "list_docs") {
+      return {
+        type: "table",
+        data: {
+          title: department && category
+            ? `${department} · ${category}`
+            : (category || (locale === "en" ? "Documents" : "Documentos")),
+          department,
+          category,
+          documents: documents.map((d) => mapDocRow(d, now)),
+          empty: documents.length === 0,
+          listAll: true,
+          scope: "category",
+        },
+      };
+    }
+
+    // count_docs — light summary card using category_list-like single focus
+    return {
+      type: "category_scope",
+      data: {
+        corpusName,
+        department,
+        category,
+        mode: "count_docs",
+        documentCount: ctx.documentCount ?? documents.length,
+        folderCount: ctx.folderCount ?? folders.length,
+        empty: (ctx.documentCount ?? documents.length) === 0,
+      },
+    };
+  }
+
   if (family === "count_categories") {
     const cats = Array.isArray(ctx.categories) ? ctx.categories : [];
     const list = cats
@@ -353,6 +416,125 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         empty: Boolean(ctx.empty) || list.length === 0,
         emptyReason: ctx.emptyReason || (list.length === 0 ? "no_folders" : null),
         fromFocus: Boolean(ctx.fromFocus),
+      },
+    };
+  }
+
+  if (family === "count_documents") {
+    const mode = ctx.mode || "count";
+    const corpusName = String(ctx.corpusName || "").trim() || null;
+    const department = String(ctx.department || "").trim() || null;
+    const category = String(ctx.category || "").trim() || null;
+    const documents = Array.isArray(ctx.documents) ? ctx.documents : [];
+
+    if (mode === "pick_department") {
+      const depts = Array.isArray(ctx.departments) ? ctx.departments : [];
+      return {
+        type: "department_list",
+        data: {
+          corpusName,
+          count: ctx.count ?? depts.length,
+          departments: depts.map((d) => ({
+            id: d.id || d.name,
+            name: String(d.name || "").trim(),
+            folderCount: d.folderCount ?? 0,
+            documentCount: d.documentCount ?? 0,
+          })).filter((d) => d.name),
+          empty: Boolean(ctx.empty) || depts.length === 0,
+          fromCountDocuments: true,
+          browseMode: "department",
+        },
+      };
+    }
+
+    if (mode === "pick_category") {
+      const cats = Array.isArray(ctx.categories) ? ctx.categories : [];
+      return {
+        type: "category_list",
+        data: {
+          corpusName,
+          department: null,
+          count: ctx.count ?? cats.length,
+          categories: cats.map((c) => ({
+            id: c.id || c.name,
+            name: String(c.name || "").trim(),
+            departmentName: c.departmentName || null,
+            folderCount: c.folderCount ?? 0,
+            documentCount: c.documentCount ?? 0,
+          })).filter((c) => c.name),
+          empty: Boolean(ctx.empty) || cats.length === 0,
+          fromCountDocuments: true,
+          browseMode: "category",
+        },
+      };
+    }
+
+    if (mode === "list_all" || mode === "list_by_department" || mode === "list_by_category") {
+      const view = {
+        showSchedule: Boolean(ctx.view?.showSchedule),
+        showStatus: Boolean(ctx.view?.showStatus),
+        categories: Array.isArray(ctx.view?.categories) ? ctx.view.categories : [],
+      };
+      const docs = documents.map((d) => mapDocRow(d, now));
+      // Stable sort by department (preserves schedule-first order within dept)
+      docs.sort((a, b) => {
+        const da = String(a.department || "").localeCompare(
+          String(b.department || ""),
+          undefined,
+          { sensitivity: "base" },
+        );
+        if (da !== 0) return da;
+        if (view.showSchedule) return 0;
+        return String(a.title || "").localeCompare(String(b.title || ""), undefined, {
+          sensitivity: "base",
+        });
+      });
+      /** @type {string[]} */
+      const columns = ["document", "department", "category"];
+      if (view.showSchedule) columns.push("time");
+      if (view.showStatus) columns.push("status");
+
+      return {
+        type: "table",
+        data: {
+          title: mode === "list_by_department" && department
+            ? department
+            : (mode === "list_by_category" && category
+              ? category
+              : (corpusName || (locale === "en" ? "All documents" : "Todos los documentos"))),
+          corpusName,
+          department,
+          category,
+          count: ctx.count ?? docs.length,
+          documents: docs,
+          view,
+          columns,
+          availableCategories: Array.isArray(ctx.availableCategories)
+            ? ctx.availableCategories
+            : [],
+          empty: Boolean(ctx.empty) || docs.length === 0,
+          listAll: true,
+          groupBy: "department",
+          scope: mode === "list_by_category"
+            ? "category"
+            : (mode === "list_by_department" ? "department" : "corpus"),
+          fromCountDocuments: true,
+        },
+      };
+    }
+
+    // count — number only (no block list); table comes on list_all / filters
+    const n = ctx.count ?? documents.length;
+    return {
+      type: "document_count",
+      data: {
+        corpusName,
+        department,
+        mode: "count",
+        count: n,
+        documents: [],
+        empty: Boolean(ctx.empty) || n === 0,
+        emptyReason: ctx.emptyReason || (n === 0 ? "no_documents" : null),
       },
     };
   }

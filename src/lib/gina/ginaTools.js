@@ -10,6 +10,11 @@ import {
   buildPassedSlotSignals,
   mapPassedSlotRows,
 } from "./ginaScheduleRecovery.js";
+import {
+  nearMatchToken,
+  textHasNearPhrase,
+  tokenizeGinaText,
+} from "./ginaFuzzyMatch.js";
 
 /**
  * @typedef {{
@@ -84,7 +89,11 @@ function filterNodesForObject(nodes, docs, objectId) {
   const folderIds = new Set(filterFoldersForObject(docs, objectId).map((d) => d.id));
   return asList(nodes).filter((n) => {
     if (!n?.id) return false;
-    if (!n.parentDocId) return false;
+    // Independent / # Department inbox — corpus-scoped, no folder yet
+    if (!n.parentDocId) {
+      if (!objectId) return true;
+      return n.objectId === objectId;
+    }
     if (objectId && n.objectId && n.objectId !== objectId) {
       // also allow via parent folder membership
       if (!folderIds.has(n.parentDocId)) return false;
@@ -139,14 +148,16 @@ function enrichDocument(node, folder, departments, now) {
   const dept = folder?.departmentId
     ? findDepartmentById(departments, folder.departmentId)
     : null;
+  const independent = !node.parentDocId;
   return {
     id: node.id,
     title: nodeTitle(node),
     parentFolderId: node.parentDocId || null,
     parentFolderName: folder ? folderTitle(folder) : null,
     departmentId: folder?.departmentId || null,
-    departmentName: dept?.category || null,
+    departmentName: dept?.category || (independent ? "# Department" : null),
     category: folder?.category || null,
+    independent,
     anchorAt,
     anchorFinishAt,
     status,
@@ -763,35 +774,116 @@ export function findFolderIdByName(ctx, nameQuery) {
 }
 
 /**
+ * Common aliases for live category labels (blogs ↔ blog, social media ↔ redes sociales).
+ * Matching still requires the category to exist in inventory.
+ */
+const CATEGORY_ALIAS_GROUPS = [
+  ["blog", "blogs"],
+  [
+    "social",
+    "social media",
+    "social medias",
+    "redes sociales",
+    "red social",
+    "redes",
+  ],
+];
+
+/**
+ * @param {string} liveName
+ * @returns {string[]}
+ */
+export function expandCategoryNameTokens(liveName) {
+  const n = fold(liveName);
+  if (!n) return [];
+  for (const group of CATEGORY_ALIAS_GROUPS) {
+    const hits = group.some((alias) => (
+      nearMatchToken(alias, n)
+      || n.includes(fold(alias))
+      || fold(alias).includes(n)
+      || textHasNearPhrase(n, [alias])
+    ));
+    if (hits) return [...new Set([n, ...group.map((a) => fold(a)).filter(Boolean)])];
+  }
+  return [n];
+}
+
+/**
  * Match a live category label under a department (inventory only).
+ * Exact / substring first.
  * @returns {string | null}
  */
 export function matchLiveCategoryInText(ctx, text, departmentName = null) {
+  const named = matchNamedCategoryInText(ctx, text, departmentName);
+  return named?.name || null;
+}
+
+/**
+ * Resolve a live category by name/alias without requiring the word "categoría".
+ * @returns {{ name: string, departmentName: string | null, departmentId?: string | null } | null}
+ */
+export function matchNamedCategoryInText(ctx, text, departmentName = null) {
   const q = fold(text);
   if (!q) return null;
-  if (/\b(uncategorized|sin\s+categor)/.test(q)) return "uncategorized";
+  if (/\b(uncategorized|sin\s+categor)/.test(q)) {
+    return { name: "uncategorized", departmentName: departmentName || null };
+  }
   const inventory = get_workspace_inventory(ctx);
   const deptFold = fold(departmentName);
+  /** @type {{ name: string, departmentName: string | null, departmentId?: string | null, score: number } | null} */
   let best = null;
-  let bestLen = 0;
+
   for (const d of inventory.departments) {
     if (deptFold) {
       const tokens = expandDepartmentNameTokens(d.name);
       if (fold(d.name) !== deptFold && !tokens.includes(deptFold)) continue;
     }
-    for (const cat of d.categories || []) {
-      const c = fold(cat);
-      if (!c || c.length < 2) continue;
-      if (!(q.includes(c) || new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q))) {
+    const liveCats = new Set(
+      (d.categories || []).map((c) => String(c || "").trim()).filter(Boolean),
+    );
+    // Also categories that appear only on folders
+    for (const f of inventory.folders || []) {
+      if (f.departmentId && d.id && f.departmentId !== d.id) continue;
+      if (fold(f.departmentName) && fold(f.departmentName) !== fold(d.name)
+        && !expandDepartmentNameTokens(d.name).includes(fold(f.departmentName))) {
         continue;
       }
-      if (c.length > bestLen) {
-        best = cat;
-        bestLen = c.length;
+      if (f.category) liveCats.add(String(f.category).trim());
+    }
+
+    for (const cat of liveCats) {
+      const c = fold(cat);
+      if (!c || c.length < 2) continue;
+      const aliases = expandCategoryNameTokens(cat);
+      let score = 0;
+      if (q.includes(c) || new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q)) {
+        score = 100 + c.length;
+      } else {
+        for (const alias of aliases) {
+          if (!alias || alias.length < 2) continue;
+          if (alias.includes(" ")) {
+            if (textHasNearPhrase(q, [alias])) {
+              score = Math.max(score, 80 + alias.length);
+            }
+          } else if (textHasNearPhrase(q, [alias]) || tokenizeGinaText(q).some((tok) => nearMatchToken(tok, alias))) {
+            score = Math.max(score, 70 + alias.length);
+          }
+        }
+      }
+      if (score <= 0) continue;
+      if (!best || score > best.score) {
+        best = {
+          name: cat,
+          departmentName: d.name,
+          departmentId: d.id,
+          score,
+        };
       }
     }
   }
-  return best;
+  return best
+    ? { name: best.name, departmentName: best.departmentName, departmentId: best.departmentId || null }
+    : null;
 }
 
 /**

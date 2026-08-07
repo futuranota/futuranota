@@ -33,6 +33,8 @@ import {
   expandDepartmentNameTokens,
   getDepartmentCorpusStats,
   matchLiveCategoryInText,
+  matchNamedCategoryInText,
+  expandCategoryNameTokens,
   matchLiveFolderInText,
   matchLiveFoldersByNeedle,
 } from "./ginaTools.js";
@@ -43,6 +45,7 @@ import {
   setPendingGinaOffer,
 } from "./ginaPendingOffer.js";
 import {
+  nearMatchToken,
   textHasNearPhrase,
   textHasNearToken,
 } from "./ginaFuzzyMatch.js";
@@ -88,6 +91,18 @@ const COUNT_CATEGORY_ENTITY_TOKENS = [
   "categories",
 ];
 
+/** Document entity vocabulary (fuzzy matched). */
+const COUNT_DOCUMENT_ENTITY_TOKENS = [
+  "documento",
+  "documentos",
+  "document",
+  "documents",
+  "doc",
+  "docs",
+  "archivo",
+  "archivos",
+];
+
 /**
  * "¿Cuántos departamentos… / en general / total?"
  * @param {string} text
@@ -99,6 +114,7 @@ export function wantsCountDepartments(text) {
   // Prefer more specific entity counts
   if (textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS)) return false;
   if (textHasNearToken(q, COUNT_CATEGORY_ENTITY_TOKENS)) return false;
+  if (textHasNearToken(q, COUNT_DOCUMENT_ENTITY_TOKENS)) return false;
   if (textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)) return true;
   if (textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)) return true;
   if (/\bhow\s+many\b/.test(q)) return true;
@@ -136,6 +152,566 @@ export function wantsCountCategories(text) {
   if (/\bhow\s+many\b/.test(q)) return true;
   if (/\ben\s+general\b/.test(q)) return true;
   return false;
+}
+
+/**
+ * "¿Cuántos documentos… / docs / en {Depto} / en general / en todos los departamentos?"
+ * Generic count — no named category/folder required.
+ * @param {string} text
+ */
+export function wantsCountDocuments(text) {
+  const q = fold(text);
+  if (!q) return false;
+  // Prefer more specific entity counts
+  if (textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS)) return false;
+  if (textHasNearToken(q, COUNT_CATEGORY_ENTITY_TOKENS)) return false;
+  if (!textHasNearToken(q, COUNT_DOCUMENT_ENTITY_TOKENS)) return false;
+  // "cuántos documentos en todos los departamentos" is still a document count
+  const docsAcrossDepts = /\b(todos\s+los\s+departamentos|en\s+total|en\s+general)\b/.test(q);
+  if (textHasNearToken(q, COUNT_DEPT_ENTITY_TOKENS) && !docsAcrossDepts) return false;
+  if (textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)) return true;
+  if (textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)) return true;
+  if (/\bhow\s+many\b/.test(q)) return true;
+  if (/\ben\s+general\b/.test(q)) return true;
+  if (docsAcrossDepts) return true;
+  return false;
+}
+
+/**
+ * Corpus-wide full document list (not a named folder).
+ * Uses workspace_query FETCH contract (entregame / tráeme / dame / …).
+ * @param {string} text
+ */
+export function wantsCorpusDocsListAll(text) {
+  const q = fold(text);
+  if (!q) return false;
+  // Explicit full-list phrasing (corpus)
+  if (/\blistado\s+completo\b/.test(q)) return true;
+  if (/\bfull\s+(document\s+)?list\b/.test(q)) return true;
+  if (/\b(el\s+)?listado\s+de\s+todos\s+(los\s+)?documentos?\b/.test(q)) return true;
+  if (/\b(all\s+(the\s+)?documents?|every\s+document)\b/.test(q)
+    && !/\b(of|in|from)\s+[a-z0-9áéíóúüñ]{3,}/.test(q)) {
+    return true;
+  }
+  // "dame/entregame/tráeme todos los documentos" — only if NOT scoped to a folder/name via del/de/en X
+  if (/\b(todos|todas)\s+(los|las)\s+(documentos?|docs?)\b/.test(q)) {
+    // "documentos del plan de negocio" / "documentos de Marketing" → not corpus-wide
+    if (/\bdocumentos?\s+(del|de|en)\s+(?!todos\b|todas\b|general\b|total\b)/.test(q)) {
+      return false;
+    }
+    if (/\b(entreg\w*|dame|muestra\w*|trae\w*|quiero|ver|lista\w*|listame|show|give|fetch|bring)\b/.test(q)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Browse / filter documents by department (menu or named dept).
+ * @param {string} text
+ */
+export function wantsDocsByDepartmentBrowse(text) {
+  const q = fold(text);
+  if (!q) return false;
+  if (/\b(por|por\s+los|ver\s+por|mostrar\s+por|busc\w*\s+por)\s+departamentos?\b/.test(q)) return true;
+  if (/\b(by|per)\s+departments?\b/.test(q)) return true;
+  if (/\bdocumentos?\s+(del|de|en)\s+departamento\b/.test(q)) return true;
+  if (/\bdepartamento\s*:\s*\w+/.test(q)) return true;
+  if (/\bdocuments?\s+(in|from|of)\s+(the\s+)?department\b/.test(q)) return true;
+  if (/\bdepartment\s*:\s*\w+/.test(q)) return true;
+  return false;
+}
+
+/**
+ * Browse / filter documents by category (menu or named cat).
+ * @param {string} text
+ */
+export function wantsDocsByCategoryBrowse(text) {
+  const q = fold(text);
+  if (!q) return false;
+  if (/\b(por|por\s+las|ver\s+por|mostrar\s+por|busc\w*\s+por)\s+categor[ií]as?\b/.test(q)) return true;
+  if (/\b(by|per)\s+categor(y|ies)\b/.test(q)) return true;
+  if (/\bdocumentos?\s+(de|del|en)\s+(la\s+)?categor[ií]a\b/.test(q)) return true;
+  if (/\bcategor[ií]a\s*:\s*\w+/.test(q)) return true;
+  if (/\bdocuments?\s+(in|from|of)\s+(the\s+)?categor(y|ies)\b/.test(q)) return true;
+  if (/\bcategory\s*:\s*\w+/.test(q)) return true;
+  return false;
+}
+
+/**
+ * Sort scheduled docs (by anchorAt) first, then flexible (no schedule).
+ * @param {object[]} docs
+ */
+export function sortDocsScheduledThenFlexible(docs) {
+  return [...(Array.isArray(docs) ? docs : [])].sort((a, b) => {
+    const aAt = a?.anchorAt ? new Date(a.anchorAt).getTime() : NaN;
+    const bAt = b?.anchorAt ? new Date(b.anchorAt).getTime() : NaN;
+    const aOk = Number.isFinite(aAt);
+    const bOk = Number.isFinite(bAt);
+    if (aOk && !bOk) return -1;
+    if (!aOk && bOk) return 1;
+    if (aOk && bOk && aAt !== bAt) return aAt - bAt;
+    return String(a?.title || "").localeCompare(String(b?.title || ""), undefined, {
+      sensitivity: "base",
+    });
+  });
+}
+
+/**
+ * Parse optional list-view layers from utterance / chip text.
+ * @param {string} text
+ * @returns {{ showSchedule: boolean, showStatus: boolean, categories: string[] }}
+ */
+export function parseDocsListView(text) {
+  const q = fold(text);
+  const showSchedule = /\b(con\s+horarios?|por\s+horario|agrega(?:me)?\s+los\s+horarios?|muestramelo\s+por\s+horario|show\s+(the\s+)?schedule|with\s+times?|add\s+(the\s+)?times?)\b/.test(q);
+  const showStatus = /\b(con\s+status|con\s+estados?|agrega(?:me)?\s+(el\s+)?status|muestramelo\s+por\s+status|with\s+status|add\s+(the\s+)?status)\b/.test(q);
+
+  /** @type {string[]} */
+  const categories = [];
+  const pushCat = (raw) => {
+    const name = String(raw || "").trim().replace(/[.?!,;]+$/g, "").trim();
+    if (!name || name.length < 2) return;
+    if (categories.some((c) => fold(c) === fold(name))) return;
+    categories.push(name);
+  };
+
+  const multi = String(text || "").match(/categor[ií]as?\s*:\s*([^\n]+)/i)
+    || String(text || "").match(/categories?\s*:\s*([^\n]+)/i);
+  if (multi) {
+    const blob = multi[1]
+      .replace(/\b(con\s+horarios?|con\s+status|con\s+estados?)\b/gi, " ")
+      .trim();
+    for (const part of blob.split(/\s*(?:,|;| y | and )\s*/i)) {
+      pushCat(part);
+    }
+  }
+  const single = String(text || "").match(/filtrado\s+por\s+categor[ií]a\s+([^\n,]+)/i)
+    || String(text || "").match(/filtered\s+by\s+categor(?:y|ies)\s+([^\n,]+)/i);
+  if (single) pushCat(single[1]);
+
+  return { showSchedule, showStatus, categories };
+}
+
+/**
+ * Group documents by department (name once).
+ * @param {object[]} docs
+ * @returns {{ department: string, documentCount: number, categories: string[], documents: object[] }[]}
+ */
+export function groupDocsByDepartment(docs) {
+  /** @type {Map<string, object[]>} */
+  const map = new Map();
+  for (const d of (Array.isArray(docs) ? docs : [])) {
+    const dept = String(d.departmentName || d.department || "").trim() || "Sin departamento";
+    if (!map.has(dept)) map.set(dept, []);
+    map.get(dept).push(d);
+  }
+  return [...map.entries()]
+    .map(([department, documents]) => {
+      const catSet = new Set();
+      for (const doc of documents) {
+        const c = String(doc.category || "").trim();
+        if (c) catSet.add(c);
+      }
+      return {
+        department,
+        documentCount: documents.length,
+        categories: [...catSet],
+        documents,
+      };
+    })
+    .sort((a, b) => a.department.localeCompare(b.department, undefined, { sensitivity: "base" }));
+}
+
+/**
+ * Build declarative chip text for a docs list view.
+ * @param {{ showSchedule?: boolean, showStatus?: boolean, categories?: string[] }} view
+ * @param {{ locale?: string }} [opts]
+ */
+export function buildDocsListViewChipText(view = {}, opts = {}) {
+  const en = opts.locale === "en";
+  const parts = [en ? "Full document list" : "Listado completo"];
+  if (view.showSchedule) parts.push(en ? "with schedule" : "con horarios");
+  if (view.showStatus) parts.push(en ? "with status" : "con status");
+  const cats = Array.isArray(view.categories) ? view.categories.filter(Boolean) : [];
+  if (cats.length === 1) {
+    parts.push(en ? `categories: ${cats[0]}` : `categorías: ${cats[0]}`);
+  } else if (cats.length > 1) {
+    parts.push(en ? `categories: ${cats.join(", ")}` : `categorías: ${cats.join(", ")}`);
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Count docs of a named category without saying "categoría" (e.g. cuantos blogs).
+ * @param {string} text
+ */
+export function wantsNamedCategoryCountDocs(text) {
+  const q = fold(text);
+  if (!q) return false;
+  if (textHasNearToken(q, COUNT_CATEGORY_ENTITY_TOKENS)) return false; // handled by count_categories
+  if (textHasNearToken(q, COUNT_FOLDER_ENTITY_TOKENS) && !/\b(seccion|sección|caja|cajon|cajón)\b/.test(q)) {
+    // "cuántos folders" stays folder count
+    if (textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS) || /\bhow\s+many\b/.test(q)) return false;
+  }
+  const hasCount = textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)
+    || textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)
+    || /\bhow\s+many\b/.test(q);
+  if (!hasCount) return false;
+  return true; // category hit checked by caller via matchNamedCategoryInText
+}
+
+/**
+ * List folders/sections of a named category (cuales son redes sociales / por sección).
+ * @param {string} text
+ */
+export function wantsNamedCategoryListFolders(text) {
+  const q = fold(text);
+  if (!q) return false;
+  const hasExplicitList = (
+    /\b(cuales?\s+son|cuáles?\s+son|que\s+folders?|qué\s+folders?|que\s+cajas?|qué\s+cajas?|que\s+secciones|qué\s+secciones)\b/.test(q)
+    || /\bpor\s+secci[oó]n(\s+primero)?\b/.test(q)
+    || /\b(show\s+sections?|sections?\s+of)\b/.test(q)
+    || /\b(secci[oó]n|secciones|t[ií]tulo\s+de\s+caja|caj[oó]n)\b/.test(q)
+  );
+  const hasCreatedList = /\b(tenemos|hay)\s+cread/.test(q);
+  if (!hasExplicitList && !hasCreatedList) return false;
+  // "cuántos blogs tenemos creados" → count_docs, not list_folders
+  const hasCount = textHasNearToken(q, COUNT_DEPT_COUNT_TOKENS)
+    || textHasNearPhrase(q, COUNT_DEPT_COUNT_PHRASES)
+    || /\bhow\s+many\b/.test(q);
+  if (hasCount && !hasExplicitList) return false;
+  return true;
+}
+
+/**
+ * List all documents in a named category (listado completo).
+ * @param {string} text
+ */
+export function wantsNamedCategoryListDocs(text) {
+  const q = fold(text);
+  if (!q) return false;
+  if (/\blistado\s+completo\b/.test(q)) return true;
+  if (/\bfull\s+list\b/.test(q)) return true;
+  if (/\b(todos|todas)\s+(los|las)\s+documentos?\b/.test(q) && !wantsFolderDocsList(q)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @param {object} ctx
+ * @param {object} inventory
+ * @param {string[]} toolsCalled
+ * @param {{
+ *   mode: "count_docs" | "list_folders" | "list_docs",
+ *   category: string,
+ *   departmentName?: string | null,
+ * }} opts
+ */
+function buildCategoryScopeFamily(ctx, inventory, toolsCalled, opts) {
+  if (!toolsCalled.includes("get_workspace_inventory")) {
+    toolsCalled.push("get_workspace_inventory");
+  }
+  const category = String(opts.category || "").trim();
+  const deptName = opts.departmentName ? String(opts.departmentName).trim() : null;
+  const corpusName = String(
+    ctx.corpusName || ctx.objectName || ctx.companyName || "",
+  ).trim() || null;
+
+  const allFolders = Array.isArray(inventory.folders) ? inventory.folders : [];
+  const folders = allFolders.filter((f) => {
+    const cat = fold(f.category);
+    const want = fold(category);
+    if (!cat || !want) return false;
+    const aliases = expandCategoryNameTokens(category);
+    const catOk = cat === want
+      || cat.includes(want)
+      || want.includes(cat)
+      || aliases.some((a) => cat === a || nearMatchToken(cat, a));
+    if (!catOk) return false;
+    if (!deptName) return true;
+    const fd = fold(f.departmentName);
+    const wantDept = fold(deptName);
+    if (fd === wantDept) return true;
+    return expandDepartmentNameTokens(deptName).includes(fd)
+      || expandDepartmentNameTokens(f.departmentName).includes(wantDept);
+  }).map((f) => ({
+    id: f.id,
+    name: f.name,
+    category: f.category || category,
+    departmentName: f.departmentName || deptName,
+    documentCount: f.childDocuments ?? 0,
+    hasSchedule: Boolean(f.hasSchedule),
+  }));
+
+  toolsCalled.push("filter_documents_by_department_and_category");
+  const documents = filterDocumentsByDepartmentAndCategory(
+    ctx,
+    deptName || "",
+    category,
+    "",
+  ).map((d) => ({
+    id: d.id,
+    title: d.title || d.name || "—",
+    status: d.status || null,
+    departmentName: d.departmentName || deptName,
+    category: d.category || category,
+    folder: d.parentFolderName || null,
+    anchorAt: d.anchorAt || null,
+    anchorFinishAt: d.anchorFinishAt || null,
+  }));
+
+  return {
+    family: "category_scope",
+    toolsCalled,
+    toolContext: {
+      inventory,
+      corpusName,
+      mode: opts.mode,
+      department: deptName,
+      category,
+      folderCount: folders.length,
+      documentCount: documents.length,
+      folders,
+      documents,
+      empty: opts.mode === "list_folders"
+        ? folders.length === 0
+        : documents.length === 0,
+      hint: `Named category scope (${opts.mode}) for ${category}`,
+    },
+    workspaceInventory: inventory,
+    pendingGinaOffer: null,
+  };
+}
+
+/**
+ * Build deterministic document count / browse / list for corpus, department, or category.
+ * @param {object} ctx
+ * @param {object} inventory
+ * @param {string[]} toolsCalled
+ * @param {{
+ *   mode?: "count" | "list_all" | "pick_department" | "pick_category" | "list_by_department" | "list_by_category",
+ *   departmentName?: string | null,
+ *   categoryName?: string | null,
+ *   view?: { showSchedule?: boolean, showStatus?: boolean, categories?: string[] },
+ *   text?: string,
+ * }} [opts]
+ */
+function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
+  if (!toolsCalled.includes("get_workspace_inventory")) {
+    toolsCalled.push("get_workspace_inventory");
+  }
+  if (!toolsCalled.includes("get_all_company_documents")) {
+    toolsCalled.push("get_all_company_documents");
+  }
+  const mode = opts.mode || "count";
+  const corpusName = String(
+    ctx.corpusName || ctx.objectName || ctx.companyName || "",
+  ).trim() || null;
+  const deptName = opts.departmentName
+    ? String(opts.departmentName).trim()
+    : null;
+  const categoryName = opts.categoryName
+    ? String(opts.categoryName).trim()
+    : null;
+  const parsedView = parseDocsListView(opts.text || "");
+  const viewCategories = Array.isArray(opts.view?.categories) && opts.view.categories.length
+    ? opts.view.categories
+    : parsedView.categories;
+  if (categoryName && !viewCategories.some((c) => fold(c) === fold(categoryName))) {
+    viewCategories.push(categoryName);
+  }
+  const view = {
+    showSchedule: Boolean(opts.view?.showSchedule ?? parsedView.showSchedule),
+    showStatus: Boolean(opts.view?.showStatus ?? parsedView.showStatus),
+    categories: viewCategories,
+  };
+  const allDocs = get_all_company_documents(ctx);
+
+  const mapDoc = (d) => ({
+    id: d.id,
+    title: d.title || d.name || "—",
+    status: d.status || null,
+    departmentName: d.departmentName || null,
+    category: d.category || null,
+    folder: d.parentFolderName || null,
+    anchorAt: d.anchorAt || null,
+    anchorFinishAt: d.anchorFinishAt || null,
+  });
+
+  const matchDept = (d, wantRaw) => {
+    const fd = fold(d.departmentName);
+    const want = fold(wantRaw);
+    if (!want) return true;
+    if (fd === want) return true;
+    return expandDepartmentNameTokens(wantRaw).includes(fd)
+      || expandDepartmentNameTokens(d.departmentName).includes(want);
+  };
+
+  const matchCat = (d, wantRaw) => {
+    const fc = fold(d.category);
+    const want = fold(wantRaw);
+    if (!want) return true;
+    if (!fc) return false;
+    if (fc === want || fc.includes(want) || want.includes(fc)) return true;
+    const aliases = expandCategoryNameTokens(wantRaw);
+    return aliases.some((a) => fc === a || nearMatchToken(fc, a));
+  };
+
+  if (mode === "pick_department") {
+    const depts = (Array.isArray(inventory.departments) ? inventory.departments : []).map((d) => ({
+      id: d.id || d.name,
+      name: d.name,
+      folderCount: d.folderCount ?? 0,
+      documentCount: d.documentCount ?? 0,
+    }));
+    return {
+      family: "count_documents",
+      toolsCalled,
+      toolContext: {
+        inventory,
+        corpusName,
+        mode,
+        department: null,
+        category: null,
+        count: depts.length,
+        departments: depts,
+        documents: [],
+        empty: depts.length === 0,
+        hint: "Pick a live department to list its documents",
+      },
+      workspaceInventory: inventory,
+      pendingGinaOffer: null,
+    };
+  }
+
+  if (mode === "pick_category") {
+    /** @type {Map<string, { name: string, departmentName: string | null, folderCount: number, documentCount: number }>} */
+    const byKey = new Map();
+    for (const d of (inventory.departments || [])) {
+      for (const cat of (d.categories || [])) {
+        const name = String(cat || "").trim();
+        if (!name) continue;
+        const key = fold(name);
+        const prev = byKey.get(key) || {
+          name,
+          departmentName: d.name || null,
+          folderCount: 0,
+          documentCount: 0,
+        };
+        prev.documentCount += Number(d.documentCount) || 0;
+        byKey.set(key, prev);
+      }
+    }
+    for (const f of (inventory.folders || [])) {
+      const name = String(f.category || "").trim();
+      if (!name) continue;
+      const key = fold(name);
+      const prev = byKey.get(key) || {
+        name,
+        departmentName: f.departmentName || null,
+        folderCount: 0,
+        documentCount: 0,
+      };
+      prev.folderCount += 1;
+      prev.documentCount += Number(f.childDocuments) || 0;
+      byKey.set(key, prev);
+    }
+    const categories = [...byKey.values()].map((row) => {
+      const docs = allDocs.filter((d) => matchCat(d, row.name));
+      return {
+        ...row,
+        documentCount: docs.length,
+        folderCount: row.folderCount,
+      };
+    }).filter((c) => c.name);
+
+    return {
+      family: "count_documents",
+      toolsCalled,
+      toolContext: {
+        inventory,
+        corpusName,
+        mode,
+        department: null,
+        category: null,
+        count: categories.length,
+        categories,
+        documents: [],
+        empty: categories.length === 0,
+        hint: "Pick a live category to list matching documents",
+      },
+      workspaceInventory: inventory,
+      pendingGinaOffer: null,
+    };
+  }
+
+  let filtered = allDocs;
+  if (mode === "list_by_department" || (mode === "count" && deptName)) {
+    if (deptName) filtered = allDocs.filter((d) => matchDept(d, deptName));
+  }
+  if (mode === "list_by_category" && categoryName && !view.categories.length) {
+    filtered = allDocs.filter((d) => matchCat(d, categoryName));
+  }
+  if (mode === "list_all") {
+    filtered = allDocs;
+  }
+  if (view.categories.length) {
+    filtered = filtered.filter((d) => view.categories.some((c) => matchCat(d, c)));
+  }
+
+  const sortFn = view.showSchedule
+    ? sortDocsScheduledThenFlexible
+    : (docs) => [...docs].sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), undefined, { sensitivity: "base" }));
+  const documents = sortFn(filtered.map(mapDoc));
+  const isList = mode === "list_all"
+    || mode === "list_by_department"
+    || mode === "list_by_category";
+
+  /** @type {string[]} */
+  const availableCategories = [];
+  const seenCat = new Set();
+  for (const d of allDocs) {
+    const c = String(d.category || "").trim();
+    if (!c) continue;
+    const key = fold(c);
+    if (seenCat.has(key)) continue;
+    seenCat.add(key);
+    availableCategories.push(c);
+  }
+  availableCategories.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+  const groups = isList ? groupDocsByDepartment(documents) : [];
+
+  return {
+    family: "count_documents",
+    toolsCalled,
+    toolContext: {
+      inventory,
+      corpusName,
+      mode,
+      department: mode === "list_by_category" ? null : deptName,
+      category: categoryName,
+      count: documents.length,
+      documents,
+      groups,
+      view,
+      availableCategories,
+      departments: [],
+      categories: [],
+      empty: documents.length === 0,
+      emptyReason: documents.length === 0 ? "no_documents" : null,
+      listAll: isList,
+      hint: isList
+        ? `Live document list (${mode})`
+        : (deptName
+          ? `Live document count for department ${deptName}`
+          : "Live document count for the active corpus"),
+    },
+    workspaceInventory: inventory,
+    pendingGinaOffer: null,
+  };
 }
 
 /**
@@ -355,6 +931,9 @@ export function recentWasFolderDocsOffer(ctx = {}) {
 export function wantsFolderDocsList(q) {
   const body = fold(q).replace(/^gina\b[\s,:!-]*/, "").trim();
   if (!body) return false;
+  // Corpus-wide list — handled by count_documents list_all, not folder lookup
+  if (wantsCorpusDocsListAll(body)) return false;
+  if (wantsDocsByDepartmentBrowse(body) || wantsDocsByCategoryBrowse(body)) return false;
   // Strong deliver/list verbs + documentos + del/de/en
   if (/\b(dame|muestra|muestrame|entreg\w*|lista\w*|listame|show|give)\b/.test(body)
     && /\bdocumentos?\b/.test(body)
@@ -1172,6 +1751,107 @@ export function runGinaQueryFamily(text, ctx = {}) {
     const deptHit = matchDepartmentInText(ctx, text);
     return buildCountCategoriesFamily(ctx, inventory, toolsCalled, {
       departmentName: deptHit?.name || null,
+    });
+  }
+
+  // Named category without saying "categoría" (blogs / social media / redes sociales).
+  {
+    const deptHit = matchDepartmentInText(ctx, text);
+    const catHit = matchNamedCategoryInText(ctx, text, deptHit?.name || null)
+      || matchNamedCategoryInText(ctx, text, null);
+    if (catHit?.name) {
+      const deptName = deptHit?.name || catHit.departmentName || null;
+      // Explicit "categorías: A, B" layers → count_documents; "Listado completo de Blogs" stays category_scope
+      const layeredCats = parseDocsListView(text).categories.length > 0;
+      const listDocs = wantsNamedCategoryListDocs(text) && !layeredCats;
+      const listFolders = wantsNamedCategoryListFolders(text);
+      const countDocs = wantsNamedCategoryCountDocs(text);
+      if (listDocs || listFolders || countDocs) {
+        clearPendingGinaOffer();
+        const mode = listDocs
+          ? "list_docs"
+          : (listFolders ? "list_folders" : "count_docs");
+        return buildCategoryScopeFamily(ctx, inventory, toolsCalled, {
+          mode,
+          category: catHit.name,
+          departmentName: deptName,
+        });
+      }
+    }
+  }
+
+  // Quantitative: how many documents (corpus or department) — no named cat/folder.
+  if (wantsCountDocuments(text)) {
+    clearPendingGinaOffer();
+    const deptHit = matchDepartmentInText(ctx, text);
+    // "en todos los departamentos" → corpus total, not a single dept filter
+    const acrossAllDepts = /\b(todos\s+los\s+departamentos|en\s+total)\b/.test(fold(text));
+    return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+      mode: "count",
+      departmentName: acrossAllDepts ? null : (deptHit?.name || null),
+    });
+  }
+
+  // Full corpus document list (before folder-list steals "listado de todos…").
+  if (wantsCorpusDocsListAll(text)) {
+    clearPendingGinaOffer();
+    const view = parseDocsListView(text);
+    return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+      mode: "list_all",
+      view,
+      text,
+    });
+  }
+
+  // Browse docs by department (menu or filtered table).
+  if (wantsDocsByDepartmentBrowse(text)) {
+    clearPendingGinaOffer();
+    const deptHit = matchDepartmentInText(ctx, text);
+    const explicitDept = /\bdepartamento\s*:/.test(fold(text))
+      || /\bdocumentos?\s+(del|de|en)\s+departamento\b/.test(fold(text));
+    const view = parseDocsListView(text);
+    if (deptHit && (explicitDept || /\bdepartamento\b/.test(fold(text)))) {
+      return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+        mode: "list_by_department",
+        departmentName: deptHit.name,
+        view,
+        text,
+      });
+    }
+    return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+      mode: "pick_department",
+    });
+  }
+
+  // Browse docs by category (menu or filtered table).
+  if (wantsDocsByCategoryBrowse(text)) {
+    clearPendingGinaOffer();
+    const catHit = matchNamedCategoryInText(ctx, text, null);
+    const explicitCat = /\bcategor[ií]a\s*:/.test(fold(text))
+      || /\bdocumentos?\s+(de|del|en)\s+(la\s+)?categor[ií]a\b/.test(fold(text));
+    const view = parseDocsListView(text);
+    if (catHit?.name && (explicitCat || /\bcategor[ií]a\b/.test(fold(text)))) {
+      return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+        mode: "list_by_category",
+        categoryName: catHit.name,
+        departmentName: catHit.departmentName || null,
+        view: {
+          ...view,
+          categories: view.categories.length ? view.categories : [catHit.name],
+        },
+        text,
+      });
+    }
+    // Layered "categorías: A, B" without the browse menu phrase → still list_all
+    if (view.categories.length) {
+      return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+        mode: "list_all",
+        view,
+        text,
+      });
+    }
+    return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+      mode: "pick_category",
     });
   }
 

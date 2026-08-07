@@ -456,6 +456,52 @@ export function NodeQueryModal({
       };
     }
 
+    if (routed.family === "category_scope") {
+      const visualization = buildGinaVisualization("category_scope", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? `In ${routed.toolContext?.department || "this department"} — ${routed.toolContext?.category || "category"}.`
+            : `En ${routed.toolContext?.department || "este departamento"} — ${routed.toolContext?.category || "categoría"}.`),
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: "category_scope",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (routed.family === "count_documents") {
+      const visualization = buildGinaVisualization("count_documents", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? (routed.toolContext?.empty
+              ? "You have zero documents created."
+              : `We have ${routed.toolContext?.count ?? 0} documents.`)
+            : (routed.toolContext?.empty
+              ? "Tienes cero documentos creados."
+              : `Tenemos ${routed.toolContext?.count ?? 0} documentos.`)),
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: "count_documents",
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
     if (routed.family === "count_departments") {
       const visualization = buildGinaVisualization("count_departments", routed.toolContext, {
         locale: localeKey,
