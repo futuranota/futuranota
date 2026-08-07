@@ -1,5 +1,6 @@
 import { isPassedSlot, buildCascadeSchedulePreview } from "./ginaScheduleRecovery.js";
 import { formatClockRange12h, formatClock12h } from "../clockFormat.js";
+import { buildGinaDepartmentRail } from "./ginaDepartmentColors.js";
 
 /**
  * Build deterministic Gina chat visualizations from query family + tool JSON.
@@ -490,9 +491,11 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         });
       });
       /** @type {string[]} */
-      const columns = ["document", "department", "category"];
+      // Department shown as left color rail + legend — not a repeated column
+      const columns = ["document", "category"];
       if (view.showSchedule) columns.push("time");
       if (view.showStatus) columns.push("status");
+      const departmentRail = buildGinaDepartmentRail(docs);
 
       return {
         type: "table",
@@ -509,6 +512,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           documents: docs,
           view,
           columns,
+          departmentRail,
           availableCategories: Array.isArray(ctx.availableCategories)
             ? ctx.availableCategories
             : [],

@@ -193,7 +193,9 @@ describe("Gina count_documents browse + list", () => {
     expect(viz.data.fromCountDocuments).toBe(true);
     expect(viz.data.view.showSchedule).toBe(false);
     expect(viz.data.view.showStatus).toBe(false);
-    expect(viz.data.columns).toEqual(["document", "department", "category"]);
+    expect(viz.data.columns).toEqual(["document", "category"]);
+    expect(viz.data.departmentRail?.length).toBeGreaterThan(0);
+    expect(viz.data.departmentRail.every((s) => s.color && s.count > 0)).toBe(true);
     expect(viz.data.documents.every((d) => d.department)).toBe(true);
     const msg = buildGinaFunnelHeadline(viz, { locale: "es" });
     expect(msg).toMatch(/por departamento/i);
@@ -294,7 +296,9 @@ describe("Gina count_documents browse + list", () => {
     });
     expect(tableViz?.type).toBe("table");
     expect(tableViz.data.scope).toBe("department");
-    expect(tableViz.data.columns).toEqual(["document", "department", "category"]);
+    expect(tableViz.data.columns).toEqual(["document", "category"]);
+    expect(tableViz.data.departmentRail?.length).toBe(1);
+    expect(tableViz.data.departmentRail[0].name).toBe("Marketing");
   });
 
   it("por categoría → pick menu then filtered list", () => {

@@ -1,5 +1,6 @@
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
 import { formatHierarchyPath } from "../../lib/gina/buildGinaVisualization.js";
+import { buildGinaDepartmentRail } from "../../lib/gina/ginaDepartmentColors.js";
 
 /**
  * Gray small Depto / Categoría / Folder path above visual blocks.
@@ -946,12 +947,15 @@ function TableVisualization({ data }) {
   const limit = data.listAll ? 80 : 12;
   const view = data.view || {};
   const fromCount = Boolean(data.fromCountDocuments);
+  const shown = docs.slice(0, limit);
+  // Rail must match visible rows so segment height lines up with tbody
+  const departmentRail = fromCount ? buildGinaDepartmentRail(shown) : [];
+  const showDeptRail = fromCount && departmentRail.length > 0 && shown.length > 0;
   const columns = Array.isArray(data.columns) && data.columns.length
-    ? data.columns
+    ? data.columns.filter((key) => !(fromCount && key === "department"))
     : fromCount
       ? [
         "document",
-        "department",
         "category",
         ...(view.showSchedule ? ["time"] : []),
         ...(view.showStatus ? ["status"] : []),
@@ -991,7 +995,7 @@ function TableVisualization({ data }) {
   };
 
   return (
-    <div className="gina-viz gina-viz--table">
+    <div className={"gina-viz gina-viz--table" + (showDeptRail ? " gina-viz--table-rail" : "")}>
       {data.title ? <h3 className="gina-viz__title">{data.title}</h3> : null}
       {data.empty || !docs.length ? (
         <p className="gina-viz__empty">
@@ -1002,27 +1006,63 @@ function TableVisualization({ data }) {
               : "Sin documentos en este alcance."}
         </p>
       ) : null}
-      {docs.length ? (
-      <div className="gina-viz__table-wrap">
-        <table className="gina-viz__table">
-          <thead>
-            <tr>
-              {columns.map((key) => (
-                <th key={key}>{colLabel(key)}</th>
+      {shown.length ? (
+        <>
+          <div className="gina-viz__table-layout">
+            {showDeptRail ? (
+              <div className="gina-viz__dept-rail" aria-hidden="true">
+                <div className="gina-viz__dept-rail-head" />
+                <div className="gina-viz__dept-rail-body">
+                  {departmentRail.map((seg) => (
+                    <div
+                      key={seg.name}
+                      className="gina-viz__dept-rail-seg"
+                      style={{
+                        flexGrow: Math.max(1, seg.count),
+                        background: seg.color,
+                      }}
+                      title={`${seg.name} · ${seg.count}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div className="gina-viz__table-wrap">
+              <table className="gina-viz__table">
+                <thead>
+                  <tr>
+                    {columns.map((key) => (
+                      <th key={key}>{colLabel(key)}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((doc) => (
+                    <tr key={doc.id || doc.title}>
+                      {columns.map((key) => (
+                        <td key={key}>{renderCell(doc, key)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {showDeptRail ? (
+            <ul className="gina-viz__dept-legend" aria-label="Departamentos">
+              {departmentRail.map((seg) => (
+                <li key={seg.name} className="gina-viz__dept-legend-item">
+                  <span
+                    className="gina-viz__dept-legend-dot"
+                    style={{ background: seg.color }}
+                    aria-hidden
+                  />
+                  <span className="gina-viz__dept-legend-name">{seg.name}</span>
+                </li>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {docs.slice(0, limit).map((doc) => (
-              <tr key={doc.id || doc.title}>
-                {columns.map((key) => (
-                  <td key={key}>{renderCell(doc, key)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </ul>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
