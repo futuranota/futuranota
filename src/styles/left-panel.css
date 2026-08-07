@@ -1570,7 +1570,7 @@
 }
 
 .lp-doc-nodes-block.is-sidebar-dragging {
-  opacity: 0.55;
+  opacity: 0.4;
 }
 
 .lp-doc-nodes-block.is-sidebar-drag-over {
@@ -1580,6 +1580,22 @@
 .lp-doc-nodes-block.is-sidebar-dragging .lp-doc-drag-area,
 .lp-doc-nodes-block .lp-doc-drag-area:active {
   cursor: grabbing;
+}
+
+/* Solid HTML5 drag preview (setDragImage clone). */
+.lp-doc-nodes-block--drag-image {
+  background: #151515 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: var(--radius-sm);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  opacity: 1 !important;
+  overflow: hidden;
+}
+
+.lp-doc-nodes-block--drag-image .lp-doc-nodes-block__head {
+  border-bottom: none;
 }
 
 .lp-doc-nodes-stack--compact {

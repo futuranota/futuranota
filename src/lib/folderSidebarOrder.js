@@ -70,3 +70,55 @@ export function nextSidebarOrderAmong(siblings) {
   }
   return max + 1;
 }
+
+/**
+ * Solid card preview for HTML5 reorder drag (avoids the translucent OS ghost).
+ * @param {DataTransfer} dataTransfer
+ * @param {HTMLElement | null | undefined} sourceEl
+ * @param {DragEvent | { clientX: number, clientY: number } | null} [event]
+ */
+export function setSidebarFolderDragImage(dataTransfer, sourceEl, event = null) {
+  if (!dataTransfer || !sourceEl || typeof dataTransfer.setDragImage !== "function") return;
+  const rect = sourceEl.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const clone = sourceEl.cloneNode(true);
+  if (!(clone instanceof HTMLElement)) return;
+
+  clone.classList.add("lp-doc-nodes-block--drag-image");
+  clone.classList.remove(
+    "is-sidebar-dragging",
+    "is-sidebar-drag-over",
+    "is-menu-open",
+    "is-selected",
+  );
+  clone.removeAttribute("aria-selected");
+  clone.querySelector(".lp-doc-nodes-block__body")?.remove();
+  clone.querySelector(".lp-doc-nodes-block__press-actions")?.remove();
+
+  Object.assign(clone.style, {
+    position: "fixed",
+    top: "-10000px",
+    left: "-10000px",
+    width: `${Math.round(rect.width)}px`,
+    margin: "0",
+    zIndex: "99999",
+    pointerEvents: "none",
+    opacity: "1",
+    transform: "none",
+  });
+  document.body.appendChild(clone);
+
+  const clientX = event && typeof event.clientX === "number" ? event.clientX : rect.left + 20;
+  const clientY = event && typeof event.clientY === "number" ? event.clientY : rect.top + 18;
+  const offsetX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+  const offsetY = Math.max(0, Math.min(rect.height, clientY - rect.top));
+  dataTransfer.setDragImage(clone, offsetX, offsetY);
+
+  // Browser snapshots the node synchronously; remove on next frames.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      clone.remove();
+    });
+  });
+}

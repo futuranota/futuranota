@@ -20,6 +20,7 @@ import { setCanvasDragData } from "../../lib/canvasDrag.js";
 import {
   SIDEBAR_REORDER_MIME,
   moveIdBeforeTarget,
+  setSidebarFolderDragImage,
 } from "../../lib/folderSidebarOrder.js";
 import { getAgentsForUser, AGENT_CONTENT_CREATOR, AGENT_MARKETING_GUIDE, AGENT_SOCIAL_HYPE_ANALYST } from "../../lib/agents/registry.js";
 import { useAuthStore } from "../../stores/authStore.js";
@@ -836,6 +837,7 @@ function DocNodesBlockCard({
                   e.dataTransfer.setData(SIDEBAR_REORDER_MIME, doc.id);
                   // Some browsers require a text/plain payload for DnD to start.
                   e.dataTransfer.setData("text/plain", doc.id);
+                  setSidebarFolderDragImage(e.dataTransfer, rootRef.current, e);
                   onReorderDragStart?.(doc.id);
                   return;
                 }
