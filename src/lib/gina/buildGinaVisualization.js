@@ -498,6 +498,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         highlightCategories: Array.isArray(ctx.view?.highlightCategories)
           ? ctx.view.highlightCategories
           : [],
+        scheduleScope: ctx.view?.scheduleScope || null,
       };
       const docs = documents.map((d) => mapDocRow(d, now));
       // Stable sort by department (preserves schedule-first order within dept)

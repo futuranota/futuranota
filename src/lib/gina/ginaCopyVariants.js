@@ -99,14 +99,55 @@ const LIST_REFINE_LAYER_HINTS_EN = [
   "Another suggestion: we can also add Schedule and Status to the table.",
 ];
 
+const LIST_REFINE_RAIL_HINT_SINGULAR_ES =
+  "Te resalté la columna lateral con un color representando al departamento al que pertenece. Los detalles estan en la parte baja de la tabla.";
+
+const LIST_REFINE_RAIL_HINT_PLURAL_ES =
+  "Te resalté las columnas laterales con variantes de colores representando al departamento al que le pertenece. Los detalles estan en la parte baja de la tabla.";
+
+const LIST_REFINE_RAIL_HINT_SINGULAR_EN =
+  "I highlighted the side column with a color representing the department it belongs to. Details are at the bottom of the table.";
+
+const LIST_REFINE_RAIL_HINT_PLURAL_EN =
+  "I highlighted the side columns with color variants representing the department each row belongs to. Details are at the bottom of the table.";
+
+const LIST_REFINE_INTENT_HINT_ES = "Qué quieres lograr con los documentos hoy ?";
+
+const LIST_REFINE_INTENT_HINT_EN = "What do you want to achieve with the documents today?";
+
+/** Unassigned rail segment — not a real department. */
+const UNASSIGNED_DEPT_NAME = "# Department";
+
+/**
+ * Count real departments on the list rail (excludes unassigned).
+ * @param {{ name?: string }[] | null | undefined} departmentRail
+ * @returns {number}
+ */
+export function countGinaRealDepartments(departmentRail) {
+  if (!Array.isArray(departmentRail)) return 0;
+  return departmentRail.filter((seg) => {
+    const name = String(seg?.name || "").trim();
+    return name && name !== UNASSIGNED_DEPT_NAME;
+  }).length;
+}
+
 /**
  * Microcopy for post-listado refine chips (fixed copy — user’s wording).
- * @param {{ locale?: string, salt?: number }} [opts]
- * @returns {{ categoryHint: string, layerHint: string }}
+ * @param {{ locale?: string, salt?: number, departmentCount?: number }} [opts]
+ * @returns {{ railHint: string | null, intentHint: string, categoryHint: string, layerHint: string }}
  */
 export function pickGinaListRefineHints(opts = {}) {
   const en = opts.locale === "en";
+  const n = Math.max(0, Number(opts.departmentCount) || 0);
+  let railHint = null;
+  if (n === 1) {
+    railHint = en ? LIST_REFINE_RAIL_HINT_SINGULAR_EN : LIST_REFINE_RAIL_HINT_SINGULAR_ES;
+  } else if (n > 1) {
+    railHint = en ? LIST_REFINE_RAIL_HINT_PLURAL_EN : LIST_REFINE_RAIL_HINT_PLURAL_ES;
+  }
   return {
+    railHint,
+    intentHint: en ? LIST_REFINE_INTENT_HINT_EN : LIST_REFINE_INTENT_HINT_ES,
     categoryHint: (en ? LIST_REFINE_CAT_HINTS_EN : LIST_REFINE_CAT_HINTS_ES)[0],
     layerHint: (en ? LIST_REFINE_LAYER_HINTS_EN : LIST_REFINE_LAYER_HINTS_ES)[0],
   };

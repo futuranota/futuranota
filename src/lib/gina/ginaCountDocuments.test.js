@@ -252,10 +252,10 @@ describe("Gina count_documents browse + list", () => {
       visualization: viz,
       locale: "es",
     });
-    expect(chips.some((c) => /\+ Horarios?/i.test(c.label))).toBe(true);
+    expect(chips).toHaveLength(1);
+    expect(chips[0].kind).toBe("nav_back");
+    expect(chips[0].label).toMatch(/regresar atrás/i);
     expect(chips.some((c) => /Resaltar Blogs/i.test(c.label))).toBe(false);
-    const infoChip = chips.find((c) => c.label === "Informes" || /Resaltar Informes/i.test(c.label));
-    expect(infoChip?.text).toBe("Filtrar y resaltar: Informes");
   });
 
   it("NL docs que sean de / Resaltar / comando / slash → filtered sheet", () => {

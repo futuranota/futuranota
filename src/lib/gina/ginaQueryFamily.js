@@ -53,6 +53,11 @@ import {
   extractCategoryHintFromDocsSyntax,
   wantsDocsByCategorySyntax,
 } from "./ginaSyntaxDocsByCategory.js";
+import {
+  parseGinaScheduleScope,
+  wantsGinaScheduleScopeList,
+  filterDocsByScheduleScope,
+} from "./ginaSyntaxScheduleScope.js";
 
 function fold(s) {
   return foldGinaText(s);
@@ -269,11 +274,14 @@ export function sortDocsScheduledThenFlexible(docs) {
  *   showStatus: boolean,
  *   categories: string[],
  *   highlightCategories: string[],
+ *   scheduleScope: "all" | "week" | "today" | null,
  * }}
  */
 export function parseDocsListView(text) {
   const q = fold(text);
-  const showSchedule = /\b(con\s+horarios?|por\s+horario|agrega(?:me)?\s+los\s+horarios?|muestramelo\s+por\s+horario|show\s+(the\s+)?schedule|with\s+times?|add\s+(the\s+)?times?)\b/.test(q);
+  const scheduleScope = parseGinaScheduleScope(text);
+  const showSchedule = Boolean(scheduleScope)
+    || /\b(con\s+horarios?|por\s+horario|agrega(?:me)?\s+los\s+horarios?|muestramelo\s+por\s+horario|show\s+(the\s+)?schedule|with\s+times?|add\s+(the\s+)?times?)\b/.test(q);
   const showStatus = /\b(con\s+status|con\s+estados?|agrega(?:me)?\s+(el\s+)?status|muestramelo\s+por\s+status|with\s+status|add\s+(the\s+)?status)\b/.test(q);
   const wantsHighlight = /\b(resaltar|subrayar|highlight|subrayado)\b/.test(q)
     || /\bfiltrar\s+y\s+resaltar\s*:/.test(q)
@@ -361,7 +369,7 @@ export function parseDocsListView(text) {
     ? categories.slice()
     : [];
 
-  return { showSchedule, showStatus, categories, highlightCategories };
+  return { showSchedule, showStatus, categories, highlightCategories, scheduleScope };
 }
 
 /**
@@ -602,6 +610,7 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
       : (parsedView.highlightCategories?.length
         ? parsedView.highlightCategories
         : []),
+    scheduleScope: opts.view?.scheduleScope || parsedView.scheduleScope || null,
   };
   const allDocs = get_all_company_documents(ctx);
 
@@ -754,6 +763,10 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
   // +horarios / con horarios: timed docs only — exclude flexible (no anchorAt)
   if (view.showSchedule) {
     filtered = filtered.filter((d) => Boolean(d?.anchorAt));
+  }
+  if (view.showSchedule && view.scheduleScope) {
+    const now = ctx.now instanceof Date ? ctx.now : new Date();
+    filtered = filterDocsByScheduleScope(filtered, view.scheduleScope, now);
   }
 
   const sortFn = view.showSchedule
@@ -1927,6 +1940,23 @@ export function runGinaQueryFamily(text, ctx = {}) {
         text,
       });
     }
+  }
+
+  // Schedule-scope list from post-listado refine chips (before bare list_all / time scopes).
+  if (wantsGinaScheduleScopeList(text)) {
+    clearPendingGinaOffer();
+    const scheduleScope = parseGinaScheduleScope(text);
+    return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+      mode: "list_all",
+      view: {
+        showSchedule: true,
+        showStatus: false,
+        categories: [],
+        highlightCategories: [],
+        scheduleScope,
+      },
+      text,
+    });
   }
 
   // Full corpus document list (before folder-list steals "listado de todos…").

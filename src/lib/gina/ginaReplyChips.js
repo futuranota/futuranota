@@ -22,7 +22,9 @@ import { buildResaltarCategoryChipText } from "./ginaSyntaxDocsByCategory.js";
 import {
   pickGinaDocsByDepartmentHeadline,
   pickGinaListRefineHints,
+  countGinaRealDepartments,
 } from "./ginaCopyVariants.js";
+import { getGinaScheduleScopeChips } from "./ginaSyntaxScheduleScope.js";
 
 /**
  * Fixed reply chips for Gina progressive funnel (ids stable; labels user-facing).
@@ -301,6 +303,7 @@ export function buildCountDocumentsChips(opts = {}) {
         highlightCategories: Array.isArray(opts.view?.highlightCategories)
           ? [...opts.view.highlightCategories]
           : [],
+        scheduleScope: opts.view?.scheduleScope || null,
       };
       const selectedCats = (view.highlightCategories.length
         ? view.highlightCategories
@@ -310,10 +313,48 @@ export function buildCountDocumentsChips(opts = {}) {
 
       // Full list without filter → multi-select refine palette
       if (!selectedCats.length && !view.showSchedule && !view.showStatus) {
+        const isFullCorpusList = mode === "list_all";
+        const departmentCount = isFullCorpusList
+          ? (Number.isFinite(Number(opts.departmentCount))
+            ? Number(opts.departmentCount)
+            : countGinaRealDepartments(opts.departmentRail))
+          : 0;
         const hints = pickGinaListRefineHints({
           locale: en ? "en" : "es",
           salt: opts.salt,
+          departmentCount: isFullCorpusList ? departmentCount : 0,
         });
+        // list_all: explain rail colors + intent before schedule scopes / categories
+        if (isFullCorpusList) {
+          if (hints.railHint) {
+            chips.push({
+              id: "hint_rail",
+              kind: "prompt",
+              group: "list_refine",
+              label: hints.railHint,
+              selectable: false,
+            });
+          }
+          chips.push({
+            id: "hint_intent",
+            kind: "prompt",
+            group: "list_refine",
+            label: hints.intentHint,
+            emphasis: "intent",
+            selectable: false,
+          });
+          for (const scope of getGinaScheduleScopeChips(en ? "en" : "es")) {
+            chips.push({
+              id: scope.id,
+              kind: "schedule_scope",
+              group: "list_refine",
+              label: scope.label,
+              text: scope.text,
+              value: scope.scope,
+              selectable: true,
+            });
+          }
+        }
         chips.push({
           id: "hint_categories",
           kind: "prompt",
@@ -372,6 +413,21 @@ export function buildCountDocumentsChips(opts = {}) {
               : "Ver documentos por categoría",
           });
         }
+        return chips;
+      }
+
+      // Left the refine (schedule scope / layers / category filter) → only go back
+      if (
+        view.scheduleScope
+        || Boolean(opts.fromCountDocuments)
+      ) {
+        chips.push({
+          id: "nav_back_refine",
+          kind: "nav_back",
+          group: "list_refine",
+          label: en ? "go back" : "regresar atrás",
+          selectable: false,
+        });
         return chips;
       }
 
@@ -1338,6 +1394,9 @@ export function buildGinaReplyChips(opts = {}) {
       salt,
       view: data.view,
       availableCategories: data.availableCategories,
+      fromCountDocuments: true,
+      departmentRail: data.departmentRail,
+      departmentCount: countGinaRealDepartments(data.departmentRail),
     });
   }
   if (opts.family === "count_documents") {
@@ -1354,6 +1413,9 @@ export function buildGinaReplyChips(opts = {}) {
       browseMode: data.browseMode,
       view: data.view,
       availableCategories: data.availableCategories,
+      fromCountDocuments: Boolean(data.fromCountDocuments),
+      departmentRail: data.departmentRail,
+      departmentCount: countGinaRealDepartments(data.departmentRail),
     });
   }
   if (type === "department_list" || opts.family === "count_departments") {

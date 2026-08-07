@@ -23,29 +23,33 @@ const GINA_OPEN_SOUND_DELAY_MS = 2_000;
 /** Silence after Enable.wav ends, before greeting typewriter. */
 const GINA_POST_SOUND_TEXT_DELAY_MS = 1_000;
 
-/** @typedef {{ id?: string, sender: "ai" | "user", text: string, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null }} GinaChatMessage */
+/** @typedef {{ id?: string, sender: "ai" | "user", text: string, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
 
 function chipsAreListRefine(chips) {
-  return Array.isArray(chips) && chips.some((c) => c?.group === "list_refine");
+  if (!Array.isArray(chips) || !chips.length) return false;
+  // nav_back-only results use the plain chip row
+  if (chips.every((c) => c?.kind === "nav_back")) return false;
+  return chips.some((c) => c?.group === "list_refine" && c?.kind !== "nav_back");
 }
 
 /**
  * Multi-select refine palette under a full document list.
- * Sequence: type hint 1 → category chips → type hint 2 → layer chips.
- * Category chips and layer chips (+horarios / +status) are multi-select;
- * omitir clears layers. Layer commits debounce so both layers can be chosen.
+ * Sequence: rail explain → intent (bold) → schedule scopes → category hint + chips
+ * → layer hint + chips.
+ * @param {{ instant?: boolean }} props — skip typewriter (regresar atrás = page already written)
  */
-function GinaListRefineChips({ chips, locale = "es", disabled, onSubmit, onDismiss }) {
+function GinaListRefineChips({ chips, locale = "es", disabled, instant = false, onSubmit, onDismiss }) {
   const [selectedCats, setSelectedCats] = useState(() => new Set());
   const [schedule, setSchedule] = useState(false);
   const [status, setStatus] = useState(false);
   const [omit, setOmit] = useState(false);
   const [closed, setClosed] = useState(false);
-  /** 0 = typing cat hint · 1 = cats + typing layer hint · 2 = layers visible */
-  const [phase, setPhase] = useState(0);
   const submitTimerRef = useRef(null);
 
   const prompts = Array.isArray(chips) ? chips.filter((c) => c.kind === "prompt") : [];
+  const scheduleScopes = Array.isArray(chips)
+    ? chips.filter((c) => c.kind === "schedule_scope")
+    : [];
   const categories = Array.isArray(chips) ? chips.filter((c) => c.kind === "category") : [];
   const layers = Array.isArray(chips)
     ? chips.filter((c) => (
@@ -56,16 +60,35 @@ function GinaListRefineChips({ chips, locale = "es", disabled, onSubmit, onDismi
     ? chips.filter((c) => c.group !== "list_refine" || c.kind === "action")
     : [];
 
-  const catHint = prompts.find((p) => p.id === "hint_categories") || prompts[0] || null;
-  const layerHint = prompts.find((p) => p.id === "hint_layers") || prompts[1] || null;
+  /** Index of the prompt currently typing (0-based). Instant = all already shown. */
+  const [promptIndex, setPromptIndex] = useState(() => (
+    instant ? prompts.length : 0
+  ));
+
+  const intentPromptIdx = prompts.findIndex((p) => p.id === "hint_intent");
+  const catPromptIdx = prompts.findIndex((p) => p.id === "hint_categories");
+  const layerPromptIdx = prompts.findIndex((p) => p.id === "hint_layers");
+  const scopesUnlocked = intentPromptIdx >= 0
+    ? promptIndex > intentPromptIdx
+    : (prompts.length === 0 || promptIndex > 0);
+  const catsUnlocked = catPromptIdx >= 0 && promptIndex > catPromptIdx;
+  const layersUnlocked = layerPromptIdx >= 0
+    ? promptIndex > layerPromptIdx
+    : catsUnlocked;
+  const allPromptsDone = prompts.length === 0 || promptIndex >= prompts.length;
+  const currentPromptLabel = prompts[promptIndex]?.label;
 
   useEffect(() => {
-    if (!catHint?.label) setPhase((p) => Math.max(p, 1));
-  }, [catHint?.label]);
-
-  useEffect(() => {
-    if (phase >= 1 && !layerHint?.label) setPhase((p) => Math.max(p, 2));
-  }, [phase, layerHint?.label]);
+    if (instant) {
+      setPromptIndex(prompts.length);
+      return;
+    }
+    if (!prompts.length) return;
+    if (promptIndex >= prompts.length) return;
+    if (!currentPromptLabel) {
+      setPromptIndex((i) => i + 1);
+    }
+  }, [instant, promptIndex, prompts.length, currentPromptLabel]);
 
   useEffect(() => () => {
     if (submitTimerRef.current) window.clearTimeout(submitTimerRef.current);
@@ -97,12 +120,10 @@ function GinaListRefineChips({ chips, locale = "es", disabled, onSubmit, onDismi
       submitTimerRef.current = null;
     }
     if (resolved.action === "wait") return;
-    // omitir / dismiss: apply immediately
     if (resolved.action === "dismiss" || next.omit) {
       commit(resolved);
       return;
     }
-    // Layers (and cat+layers) debounce so +horarios and +status can both be picked
     submitTimerRef.current = window.setTimeout(() => {
       submitTimerRef.current = null;
       commit(resolved);
@@ -110,7 +131,7 @@ function GinaListRefineChips({ chips, locale = "es", disabled, onSubmit, onDismi
   };
 
   const toggleCategory = (name) => {
-    if (disabled || phase < 1) return;
+    if (disabled || !catsUnlocked) return;
     const next = new Set(selectedCats);
     if (next.has(name)) next.delete(name);
     else next.add(name);
@@ -124,7 +145,7 @@ function GinaListRefineChips({ chips, locale = "es", disabled, onSubmit, onDismi
   };
 
   const toggleSchedule = () => {
-    if (disabled || phase < 2) return;
+    if (disabled || !layersUnlocked) return;
     const nextSchedule = !schedule;
     const nextOmit = nextSchedule || status ? false : omit;
     setSchedule(nextSchedule);
@@ -138,7 +159,7 @@ function GinaListRefineChips({ chips, locale = "es", disabled, onSubmit, onDismi
   };
 
   const toggleStatus = () => {
-    if (disabled || phase < 2) return;
+    if (disabled || !layersUnlocked) return;
     const nextStatus = !status;
     const nextOmit = schedule || nextStatus ? false : omit;
     setStatus(nextStatus);
@@ -152,7 +173,7 @@ function GinaListRefineChips({ chips, locale = "es", disabled, onSubmit, onDismi
   };
 
   const toggleOmit = () => {
-    if (disabled || phase < 2) return;
+    if (disabled || !layersUnlocked) return;
     const nextOmit = !omit;
     setOmit(nextOmit);
     if (nextOmit) {
@@ -169,69 +190,94 @@ function GinaListRefineChips({ chips, locale = "es", disabled, onSubmit, onDismi
 
   return (
     <div className="gina-chat-card__refine" role="group" aria-label="Refine list">
-      {catHint?.label ? (
-        <div className="gina-chat-card__refine-line">
-          <GinaAiMessageText
-            text={catHint.label}
-            plainBody
-            onComplete={() => setPhase((p) => Math.max(p, 1))}
-          />
-        </div>
-      ) : null}
-      {phase >= 1 && categories.length ? (
-        <div className="gina-chat-card__chips gina-chat-card__chips--refine">
-          {categories.map((chip) => {
-            const name = chip.value || chip.label;
-            const on = selectedCats.has(name);
-            return (
-              <button
-                key={chip.id || name}
-                type="button"
-                className={"gina-chat-card__chip" + (on ? " is-selected" : "")}
-                disabled={disabled}
-                aria-pressed={on}
-                onClick={() => toggleCategory(name)}
-              >
-                {chip.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-      {phase >= 1 && layerHint?.label ? (
-        <div className="gina-chat-card__refine-line">
-          <GinaAiMessageText
-            text={layerHint.label}
-            plainBody
-            onComplete={() => setPhase((p) => Math.max(p, 2))}
-          />
-        </div>
-      ) : null}
-      {phase >= 2 && layers.length ? (
-        <div className="gina-chat-card__chips gina-chat-card__chips--refine">
-          {layers.map((chip) => {
-            const on = chip.kind === "layer_schedule"
-              ? schedule
-              : (chip.kind === "layer_status" ? status : omit);
-            const onClick = chip.kind === "layer_schedule"
-              ? toggleSchedule
-              : (chip.kind === "layer_status" ? toggleStatus : toggleOmit);
-            return (
-              <button
-                key={chip.id || chip.label}
-                type="button"
-                className={"gina-chat-card__chip" + (on ? " is-selected" : "")}
-                disabled={disabled}
-                aria-pressed={on}
-                onClick={onClick}
-              >
-                {chip.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-      {phase >= 2 && extras.length ? (
+      {prompts.map((prompt, i) => {
+        if (i > promptIndex) return null;
+        const isTyping = !instant && i === promptIndex && !allPromptsDone;
+        const intent = prompt.id === "hint_intent" || prompt.emphasis === "intent";
+        const lineClass = "gina-chat-card__refine-line"
+          + (intent ? " gina-chat-card__refine-line--intent" : "");
+        const staticClass = "gina-chat-card__refine-static"
+          + (intent ? " gina-chat-card__refine-intent" : "");
+        return (
+          <div key={prompt.id || `prompt-${i}`}>
+            <div className={lineClass}>
+              {isTyping ? (
+                <GinaAiMessageText
+                  text={prompt.label}
+                  plainBody
+                  onComplete={() => setPromptIndex((n) => Math.max(n, i + 1))}
+                />
+              ) : (
+                <span className={staticClass}>{prompt.label}</span>
+              )}
+            </div>
+            {prompt.id === "hint_intent" && scopesUnlocked && scheduleScopes.length ? (
+              <div className="gina-chat-card__chips gina-chat-card__chips--refine">
+                {scheduleScopes.map((chip) => (
+                  <button
+                    key={chip.id || chip.label}
+                    type="button"
+                    className="gina-chat-card__chip"
+                    disabled={disabled}
+                    onClick={() => {
+                      if (disabled || !chip.text) return;
+                      setClosed(true);
+                      onSubmit?.(chip.text);
+                    }}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {prompt.id === "hint_categories" && catsUnlocked && categories.length ? (
+              <div className="gina-chat-card__chips gina-chat-card__chips--refine">
+                {categories.map((chip) => {
+                  const name = chip.value || chip.label;
+                  const on = selectedCats.has(name);
+                  return (
+                    <button
+                      key={chip.id || name}
+                      type="button"
+                      className={"gina-chat-card__chip" + (on ? " is-selected" : "")}
+                      disabled={disabled}
+                      aria-pressed={on}
+                      onClick={() => toggleCategory(name)}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+            {prompt.id === "hint_layers" && layersUnlocked && layers.length ? (
+              <div className="gina-chat-card__chips gina-chat-card__chips--refine">
+                {layers.map((chip) => {
+                  const on = chip.kind === "layer_schedule"
+                    ? schedule
+                    : (chip.kind === "layer_status" ? status : omit);
+                  const onClick = chip.kind === "layer_schedule"
+                    ? toggleSchedule
+                    : (chip.kind === "layer_status" ? toggleStatus : toggleOmit);
+                  return (
+                    <button
+                      key={chip.id || chip.label}
+                      type="button"
+                      className={"gina-chat-card__chip" + (on ? " is-selected" : "")}
+                      disabled={disabled}
+                      aria-pressed={on}
+                      onClick={onClick}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+      {allPromptsDone && extras.length ? (
         <div className="gina-chat-card__chips">
           {extras.map((chip) => (
             <button
@@ -1030,7 +1076,7 @@ export function GinaChatCard({
           {messages.map((msg, i) => (
             <motion.div
               key={`${msg.sender}-${i}-${msg.text.slice(0, 12)}`}
-              initial={{ opacity: 0, y: 10 }}
+              initial={msg.refineRevealed ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
               className={
@@ -1063,6 +1109,7 @@ export function GinaChatCard({
                     <GinaAiMessageText
                       text={msg.text}
                       plainBody
+                      instant={Boolean(msg.refineRevealed)}
                       onComplete={i === lastAiMessageIndex ? handleAiAnimComplete : undefined}
                     />
                   </div>
@@ -1080,6 +1127,7 @@ export function GinaChatCard({
                       <GinaAiMessageText
                         text={msg.text}
                         plainBody={msg.visualization?.type === "recovery_preview"}
+                        instant={Boolean(msg.refineRevealed)}
                         onComplete={i === lastAiMessageIndex ? handleAiAnimComplete : undefined}
                       />
                     ) : msg.text}
@@ -1113,17 +1161,32 @@ export function GinaChatCard({
                   <GinaListRefineChips
                     chips={msg.chips}
                     locale={chipLocale}
+                    instant={Boolean(msg.refineRevealed)}
                     disabled={isTyping || isAiAnimating}
                     onSubmit={(text) => {
                       if (!text) return;
                       setMessages((prev) => prev.map((m, idx) => (
-                        idx === i ? { ...m, chips: null } : m
+                        idx === i
+                          ? {
+                            ...m,
+                            chips: null,
+                            chipsRestorable: Array.isArray(m.chips) ? m.chips : m.chipsRestorable,
+                            refineRevealed: true,
+                          }
+                          : m
                       )));
                       enqueueOrDeliver(text);
                     }}
                     onDismiss={() => {
                       setMessages((prev) => prev.map((m, idx) => (
-                        idx === i ? { ...m, chips: null } : m
+                        idx === i
+                          ? {
+                            ...m,
+                            chips: null,
+                            chipsRestorable: Array.isArray(m.chips) ? m.chips : m.chipsRestorable,
+                            refineRevealed: true,
+                          }
+                          : m
                       )));
                     }}
                   />
@@ -1136,9 +1199,47 @@ export function GinaChatCard({
                         className={
                           "gina-chat-card__chip"
                           + (chip.primary ? " is-primary" : "")
+                          + (chip.kind === "nav_back" ? " gina-chat-card__chip--back" : "")
                         }
                         onClick={() => {
                           if (isTyping || isAiAnimating) return;
+                          if (chip.kind === "nav_back") {
+                            isAiAnimatingRef.current = false;
+                            setIsAiAnimating(false);
+                            setMessages((prev) => {
+                              let next = [...prev];
+                              // Drop trailing user + ai turn (the filtered result)
+                              while (next.length) {
+                                const last = next[next.length - 1];
+                                if (last?.sender === "ai") {
+                                  next = next.slice(0, -1);
+                                  break;
+                                }
+                                if (last?.sender === "user") {
+                                  next = next.slice(0, -1);
+                                  continue;
+                                }
+                                break;
+                              }
+                              if (next.length && next[next.length - 1]?.sender === "user") {
+                                next = next.slice(0, -1);
+                              }
+                              // Restore refine chips on the previous AI message (already-written page)
+                              for (let j = next.length - 1; j >= 0; j -= 1) {
+                                if (next[j]?.sender === "ai" && Array.isArray(next[j].chipsRestorable)) {
+                                  next[j] = {
+                                    ...next[j],
+                                    chips: next[j].chipsRestorable,
+                                    chipsRestorable: null,
+                                    refineRevealed: true,
+                                  };
+                                  break;
+                                }
+                              }
+                              return next;
+                            });
+                            return;
+                          }
                           enqueueOrDeliver(chip.text || chip.label);
                         }}
                       >
