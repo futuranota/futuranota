@@ -162,18 +162,51 @@ function timelineSourceNodeIdFromPersistedDoc(camp) {
   return null;
 }
 
-/** knowledge_import JSONB sidecar for timelineSourceNodeId (no dedicated column yet). */
-function stripTimelineSourceFromKnowledgeImport(raw) {
+function sidebarOrderFromPersistedDoc(camp) {
+  if (!camp) return null;
+  if (typeof camp.sidebar_order === "number" && Number.isFinite(camp.sidebar_order)) {
+    return camp.sidebar_order;
+  }
+  const ki = camp.knowledge_import;
+  if (ki && typeof ki === "object" && typeof ki.sidebarOrder === "number" && Number.isFinite(ki.sidebarOrder)) {
+    return ki.sidebarOrder;
+  }
+  return null;
+}
+
+/** knowledge_import JSONB sidecar for timelineSourceNodeId + sidebarOrder (no dedicated columns required). */
+function stripKnowledgeImportSidecar(raw) {
   if (!raw || typeof raw !== "object") return raw || null;
-  if (!Object.prototype.hasOwnProperty.call(raw, "timelineSourceNodeId")) return raw;
-  const { timelineSourceNodeId: _drop, ...rest } = raw;
-  return Object.keys(rest).length ? rest : null;
+  const next = { ...raw };
+  let changed = false;
+  if (Object.prototype.hasOwnProperty.call(next, "timelineSourceNodeId")) {
+    delete next.timelineSourceNodeId;
+    changed = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "sidebarOrder")) {
+    delete next.sidebarOrder;
+    changed = true;
+  }
+  if (!changed) return raw;
+  return Object.keys(next).length ? next : null;
+}
+
+/** @deprecated use stripKnowledgeImportSidecar */
+function stripTimelineSourceFromKnowledgeImport(raw) {
+  return stripKnowledgeImportSidecar(raw);
 }
 
 function knowledgeImportWithTimelineSource(doc) {
-  const base = stripTimelineSourceFromKnowledgeImport(doc?.knowledgeImport);
-  if (!doc?.campaignActive || !doc?.timelineSourceNodeId) return base;
-  return { ...(base && typeof base === "object" ? base : {}), timelineSourceNodeId: doc.timelineSourceNodeId };
+  const base = stripKnowledgeImportSidecar(doc?.knowledgeImport);
+  const extras = {};
+  if (doc?.campaignActive && doc?.timelineSourceNodeId) {
+    extras.timelineSourceNodeId = doc.timelineSourceNodeId;
+  }
+  if (typeof doc?.sidebarOrder === "number" && Number.isFinite(doc.sidebarOrder)) {
+    extras.sidebarOrder = doc.sidebarOrder;
+  }
+  if (!Object.keys(extras).length) return base;
+  return { ...(base && typeof base === "object" ? base : {}), ...extras };
 }
 
 /** Read schedule from reference payload or legacy top-level field. */
@@ -1415,9 +1448,10 @@ export function initPersistenceMiddleware(stores) {
           // Match normalizeDoc: only explicit true is a Campaign folder.
           campaignActive: Boolean(camp.campaign_active),
           timelineSourceNodeId: timelineSourceNodeIdFromPersistedDoc(camp),
+          sidebarOrder: sidebarOrderFromPersistedDoc(camp),
           nodeLinkColor: camp.node_link_color || "mint",
           viewMode: camp.view_mode === "quick" ? "quick" : "story",
-          knowledgeImport: stripTimelineSourceFromKnowledgeImport(camp.knowledge_import),
+          knowledgeImport: stripKnowledgeImportSidecar(camp.knowledge_import),
         };
         if (camp.company_id && objects[camp.company_id]) {
           objects[camp.company_id].children.push(camp.id);

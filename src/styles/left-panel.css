@@ -1569,6 +1569,19 @@
   gap: 10px;
 }
 
+.lp-doc-nodes-block.is-sidebar-dragging {
+  opacity: 0.55;
+}
+
+.lp-doc-nodes-block.is-sidebar-drag-over {
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.35);
+}
+
+.lp-doc-nodes-block.is-sidebar-dragging .lp-doc-drag-area,
+.lp-doc-nodes-block .lp-doc-drag-area:active {
+  cursor: grabbing;
+}
+
 .lp-doc-nodes-stack--compact {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1579,6 +1592,10 @@
 .lp-doc-nodes-stack--compact .lp-doc-nodes-block__head-main {
   gap: 6px;
   padding: 8px;
+}
+
+.lp-doc-nodes-stack--compact .lp-doc-drag-area--folder {
+  padding: 0 2px 0 6px;
 }
 
 .lp-doc-nodes-stack--compact .lp-doc-nodes-block__head .lp-doc-icon--box {
@@ -3016,6 +3033,22 @@
   opacity: 0.55;
   align-self: center;
   padding: 2px 0;
+}
+
+.lp-doc-drag-area--folder {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px 0 8px;
+  opacity: 0.55;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.lp-doc-nodes-block__head:hover .lp-doc-drag-area--folder,
+.lp-doc-nodes-block__head:focus-within .lp-doc-drag-area--folder {
+  opacity: 0.9;
 }
 
 .lp-doc-nodes-block__head-main:hover .lp-doc-drag-area--compact,

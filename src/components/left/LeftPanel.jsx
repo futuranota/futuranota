@@ -17,6 +17,10 @@ import {
   clearLeftPanelNavSnapshot,
 } from "../../stores/uiStateStore.js";
 import { setCanvasDragData } from "../../lib/canvasDrag.js";
+import {
+  SIDEBAR_REORDER_MIME,
+  moveIdBeforeTarget,
+} from "../../lib/folderSidebarOrder.js";
 import { getAgentsForUser, AGENT_CONTENT_CREATOR, AGENT_MARKETING_GUIDE, AGENT_SOCIAL_HYPE_ANALYST } from "../../lib/agents/registry.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { AgentListCard } from "../agents/AgentListCard.jsx";
@@ -674,6 +678,15 @@ function DocNodesBlockCard({
   selectMode = false,
   selected = false,
   onToggleSelect,
+  /** When set, the maya reorders folders in the Documents list (Y-axis). */
+  reorderEnabled = false,
+  reorderActive = false,
+  reorderDragging = false,
+  reorderDragOver = false,
+  onReorderDragStart,
+  onReorderDragOver,
+  onReorderDrop,
+  onReorderDragEnd,
 }) {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(defaultExpanded || forceExpanded);
@@ -786,10 +799,59 @@ function DocNodesBlockCard({
         + (menuOpen ? " is-menu-open" : "")
         + (selectMode ? " lp-doc-nodes-block--select-mode" : "")
         + (selected ? " is-selected" : "")
+        + (reorderDragging ? " is-sidebar-dragging" : "")
+        + (reorderDragOver ? " is-sidebar-drag-over" : "")
       }
       aria-selected={selectMode ? selected : undefined}
+      onDragOver={reorderEnabled && !orphan && !selectMode ? (e) => {
+        const types = [...e.dataTransfer.types];
+        const isSidebarReorder = types.includes(SIDEBAR_REORDER_MIME)
+          || (reorderActive && types.includes("text/plain"));
+        if (!isSidebarReorder && !reorderActive) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        onReorderDragOver?.(doc.id);
+      } : undefined}
+      onDrop={reorderEnabled && !orphan && !selectMode ? (e) => {
+        const types = [...e.dataTransfer.types];
+        const isSidebarReorder = types.includes(SIDEBAR_REORDER_MIME)
+          || types.includes("text/plain");
+        if (!isSidebarReorder && !reorderActive) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onReorderDrop?.(doc.id);
+      } : undefined}
+      onDragEnd={reorderEnabled ? () => onReorderDragEnd?.() : undefined}
     >
       <div className="lp-doc-nodes-block__head">
+          {!orphan && doc && !selectMode ? (
+            <span
+              className="lp-doc-drag-area lp-doc-drag-area--compact lp-doc-drag-area--folder"
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                clearLongPress();
+                if (reorderEnabled) {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData(SIDEBAR_REORDER_MIME, doc.id);
+                  // Some browsers require a text/plain payload for DnD to start.
+                  e.dataTransfer.setData("text/plain", doc.id);
+                  onReorderDragStart?.(doc.id);
+                  return;
+                }
+                startDocDrag(e, doc.id);
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                clearLongPress();
+              }}
+              onClick={(e) => e.stopPropagation()}
+              title={reorderEnabled ? t("sidebar.reorderFolder") : t("sidebar.dragDocToCanvas")}
+              aria-label={reorderEnabled ? t("sidebar.reorderFolder") : t("sidebar.dragDocToCanvas")}
+            >
+              ⋮⋮
+            </span>
+          ) : null}
         <button
           type="button"
           className="lp-doc-nodes-block__head-main"
@@ -807,23 +869,6 @@ function DocNodesBlockCard({
               className={"lp-doc-nodes-block__check" + (selected ? " is-checked" : "")}
               aria-hidden
             />
-          ) : null}
-          {!orphan && doc && !selectMode ? (
-            <span
-              className="lp-doc-drag-area lp-doc-drag-area--compact"
-              draggable
-              onDragStart={(e) => {
-                e.stopPropagation();
-                clearLongPress();
-                startDocDrag(e, doc.id);
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              title={t("sidebar.dragDocToCanvas")}
-              aria-label={t("sidebar.dragDocToCanvas")}
-            >
-              ⋮⋮
-            </span>
           ) : null}
           {!orphan ? (
             <span className={"lp-doc-icon lp-doc-icon--box" + (expanded ? " lp-doc-icon--box-open" : "")}>
@@ -1757,6 +1802,10 @@ export function LeftPanel({
   const [packImportActive, setPackImportActive] = useState(false);
   const [stepsLibraryActive, setStepsLibraryActive] = useState(false);
   const [lazyTodosActive, setLazyTodosActive] = useState(false);
+  const [sidebarReorderDragId, setSidebarReorderDragId] = useState(/** @type {string | null} */ (null));
+  const [sidebarReorderOverId, setSidebarReorderOverId] = useState(/** @type {string | null} */ (null));
+  const sidebarReorderListRef = useRef(/** @type {string[] | null} */ (null));
+  const sidebarReorderDragIdRef = useRef(/** @type {string | null} */ (null));
   const [urlTableLibraryActive, setUrlTableLibraryActive] = useState(false);
   const [leftPanelNavRestored, setLeftPanelNavRestored] = useState(false);
   const [folderBulkDeleteMode, setFolderBulkDeleteMode] = useState(false);
@@ -1795,6 +1844,7 @@ export function LeftPanel({
   const canvasNodes = useCanvasStore((s) => s.canvasNodes);
   const addDoc     = useDocsStore(s => s.addDoc);
   const deleteDoc  = useDocsStore(s => s.deleteDoc);
+  const reorderDocsSidebar = useDocsStore(s => s.reorderDocsSidebar);
   const getDocsByObject = useDocsStore(s => s.getDocsByObject);
   const deleteObjectWithCascade = useObjectsStore(s => s.deleteObjectWithCascade);
   const nodes      = useNodesStore(s => s.nodes);
@@ -2098,6 +2148,19 @@ export function LeftPanel({
     [filteredUncategorizedDocs, matchesFolderSearch],
   );
 
+  const visibleCampaignDocIds = useMemo(
+    () => visibleCampaignDocs.map((doc) => doc.id),
+    [visibleCampaignDocs],
+  );
+  const visibleContentDocIds = useMemo(
+    () => visibleContentDocs.map((doc) => doc.id),
+    [visibleContentDocs],
+  );
+  const visibleUncategorizedDocIds = useMemo(
+    () => visibleUncategorizedDocs.map((doc) => doc.id),
+    [visibleUncategorizedDocs],
+  );
+
   const groupedProductDocs = useMemo(
     () => groupProductDocsFromList(filteredProductDocs, t("sidebar.docGroupUncategorized")),
     [filteredProductDocs, t],
@@ -2246,6 +2309,48 @@ export function LeftPanel({
         : [...prev, docId]
     ));
   }, []);
+
+  const beginFolderSidebarReorder = useCallback((docId, orderedIds) => {
+    sidebarReorderListRef.current = Array.isArray(orderedIds) ? [...orderedIds] : null;
+    sidebarReorderDragIdRef.current = docId;
+    setSidebarReorderDragId(docId);
+    setSidebarReorderOverId(docId);
+  }, []);
+
+  const clearFolderSidebarReorder = useCallback(() => {
+    sidebarReorderListRef.current = null;
+    sidebarReorderDragIdRef.current = null;
+    setSidebarReorderDragId(null);
+    setSidebarReorderOverId(null);
+  }, []);
+
+  const dropFolderSidebarReorder = useCallback((targetId) => {
+    const fromId = sidebarReorderDragIdRef.current;
+    const list = sidebarReorderListRef.current;
+    clearFolderSidebarReorder();
+    if (!fromId || !targetId || !list?.length) return;
+    const next = moveIdBeforeTarget(list, fromId, targetId);
+    if (!next) return;
+    reorderDocsSidebar(next);
+  }, [clearFolderSidebarReorder, reorderDocsSidebar]);
+
+  const folderSidebarReorderProps = useCallback((docId, orderedIds) => ({
+    reorderEnabled: !folderBulkDeleteMode,
+    reorderActive: Boolean(sidebarReorderDragId),
+    reorderDragging: sidebarReorderDragId === docId,
+    reorderDragOver: sidebarReorderOverId === docId && sidebarReorderDragId !== docId,
+    onReorderDragStart: (id) => beginFolderSidebarReorder(id, orderedIds),
+    onReorderDragOver: setSidebarReorderOverId,
+    onReorderDrop: dropFolderSidebarReorder,
+    onReorderDragEnd: clearFolderSidebarReorder,
+  }), [
+    folderBulkDeleteMode,
+    sidebarReorderDragId,
+    sidebarReorderOverId,
+    beginFolderSidebarReorder,
+    dropFolderSidebarReorder,
+    clearFolderSidebarReorder,
+  ]);
 
   const handleDeleteSelectedFolders = async () => {
     const ids = selectedFolderIds.filter((id) => docs[id]);
@@ -3992,6 +4097,7 @@ export function LeftPanel({
                         }}
                         onNodeInsert={(node) => onInsertToCanvas?.(node)}
                         onNodeDelete={handleDeleteNode}
+                        {...folderSidebarReorderProps(doc.id, visibleCampaignDocIds)}
                       />
                     ))
                   ) : (
@@ -4305,6 +4411,7 @@ export function LeftPanel({
                           }}
                           onNodeInsert={(node) => onInsertToCanvas?.(node)}
                           onNodeDelete={handleDeleteNode}
+                          {...folderSidebarReorderProps(doc.id, visibleContentDocIds)}
                         />
                       ))}
                       {visibleUncategorizedDocs.map((doc) => (
@@ -4329,6 +4436,7 @@ export function LeftPanel({
                           }}
                           onNodeInsert={(node) => onInsertToCanvas?.(node)}
                           onNodeDelete={handleDeleteNode}
+                          {...folderSidebarReorderProps(doc.id, visibleUncategorizedDocIds)}
                         />
                       ))}
                     </>

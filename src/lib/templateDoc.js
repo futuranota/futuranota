@@ -1,4 +1,5 @@
 import { categoriesMatch } from "./docListGrouping.js";
+import { sortDocsBySidebarOrder } from "./folderSidebarOrder.js";
 
 /** Document kind: product, content/campaign, global knowledge corpus, legacy standard, or template. */
 export const DOC_KIND_STANDARD = "standard";
@@ -325,16 +326,16 @@ export function listProductDocs(allDocs, parentObjectId) {
 /** Content docs under an object (folder 2). */
 export function listContentDocs(allDocs, parentObjectId) {
   if (!parentObjectId) return [];
-  return contentDocsUnderParent(allDocs, parentObjectId)
-    .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  return sortDocsBySidebarOrder(contentDocsUnderParent(allDocs, parentObjectId));
 }
 
 /** Docs under an object that do not match content, product, knowledge, or template. */
 export function listUncategorizedDocs(allDocs, parentObjectId) {
   if (!parentObjectId) return [];
-  return siblingDocsUnderParent(allDocs, parentObjectId)
-    .filter((doc) => !isContentDoc(doc) && !isProductDoc(doc) && !isKnowledgeDoc(doc) && !isTemplateDoc(doc))
-    .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  return sortDocsBySidebarOrder(
+    siblingDocsUnderParent(allDocs, parentObjectId)
+      .filter((doc) => !isContentDoc(doc) && !isProductDoc(doc) && !isKnowledgeDoc(doc) && !isTemplateDoc(doc)),
+  );
 }
 
 /** Global knowledge corpus docs (no parent object). */

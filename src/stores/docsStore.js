@@ -10,6 +10,10 @@ import {
 } from "../lib/docBlocks.js";
 import { emptyDocCampaignFields, normalizeDoc } from "../lib/normalizeDoc.js";
 import {
+  nextSidebarOrderAmong,
+  sidebarOrderPatchForIds,
+} from "../lib/folderSidebarOrder.js";
+import {
   flushPersistenceSync,
   markDocsDeletedForSync,
 } from "./middleware/persistenceMiddleware.js";
@@ -92,6 +96,11 @@ export const useDocsStore = create(
               viewMode: campaign.viewMode,
               knowledgeImport: campaign.knowledgeImport ?? null,
               reportPresentation: campaign.reportPresentation ?? null,
+              sidebarOrder: typeof campaign.sidebarOrder === "number"
+                ? campaign.sidebarOrder
+                : nextSidebarOrderAmong(
+                  Object.values(state.docs).filter((d) => d.parentObjectId === parentObjectId),
+                ),
             }),
           },
         }));
@@ -235,6 +244,30 @@ export const useDocsStore = create(
 
       setSyncedWithCanvas: (id, synced) =>
         get().updateDoc(id, { syncedWithCanvas: synced }),
+
+      /**
+       * Persist Documents-sidebar folder order for the given id sequence (dense 0..n-1).
+       * @param {string[]} orderedIds
+       */
+      reorderDocsSidebar: (orderedIds) => {
+        const patchById = sidebarOrderPatchForIds(orderedIds);
+        const ids = Object.keys(patchById);
+        if (!ids.length) return;
+        set((state) => {
+          let changed = false;
+          const nextDocs = { ...state.docs };
+          const now = new Date().toISOString();
+          for (const id of ids) {
+            const doc = nextDocs[id];
+            if (!doc) continue;
+            const nextOrder = patchById[id];
+            if (doc.sidebarOrder === nextOrder) continue;
+            changed = true;
+            nextDocs[id] = normalizeDoc({ ...doc, sidebarOrder: nextOrder, updatedAt: now });
+          }
+          return changed ? { docs: nextDocs } : state;
+        });
+      },
 
       deleteDoc: (id) => {
         const existing = get().docs[id];

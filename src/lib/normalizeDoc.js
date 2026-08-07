@@ -1,3 +1,4 @@
+import { normalizeSidebarOrder } from "./folderSidebarOrder.js";
 import { normalizeKnowledgeImport } from "./knowledgeImport.js";
 import { normalizeNodeLinkColorId } from "./docNodeLinkColors.js";
 import {
@@ -29,6 +30,8 @@ export function emptyDocCampaignFields() {
     campaignActive: false,
     /** Selected campaign document (node id) that drives the folder timeline date. */
     timelineSourceNodeId: null,
+    /** Manual Documents list order (left panel); null = sort by title. */
+    sidebarOrder: null,
     nodeLinkColor: "dark",
     /** Story (descriptive) or Quick (title + direct link) presentation for linked docs. */
     viewMode: FOLDER_VIEW_MODE_QUICK,
@@ -89,6 +92,7 @@ export function normalizeDoc(doc) {
     timelineSourceNodeId: typeof doc.timelineSourceNodeId === "string" && doc.timelineSourceNodeId
       ? doc.timelineSourceNodeId
       : null,
+    sidebarOrder: normalizeSidebarOrder(doc.sidebarOrder ?? base.sidebarOrder),
     nodeLinkColor: normalizeNodeLinkColorId(doc.nodeLinkColor ?? base.nodeLinkColor),
     viewMode: normalizeFolderViewMode(doc.viewMode ?? base.viewMode),
     knowledgeImport: normalizeKnowledgeImport(doc.knowledgeImport),
