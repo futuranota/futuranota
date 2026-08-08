@@ -15,6 +15,7 @@ function getNodeDisplayTitle(node) {
 const DOC_STATUS_CHIP_ICON = {
   [DOC_WORK_STATUS.NOT_STARTED]: "not-started",
   [DOC_WORK_STATUS.RESERVED]: "reserved",
+  [DOC_WORK_STATUS.FLEXIBLE]: "flexible",
   [DOC_WORK_STATUS.IN_PROGRESS]: "in-progress",
   [DOC_WORK_STATUS.SUBMITTED]: "submitted",
   [DOC_WORK_STATUS.PAST_DUE]: "past-due",

@@ -359,6 +359,20 @@ export function StandaloneNodeModal({
   const handleAnchorDateChange = (next) => {
     const nextDate = String(next || "").trim();
     setAnchorDate(nextDate);
+    if (!nextDate) {
+      setAnchorTime("");
+      setAnchorFinishTime("");
+    }
+    if (nextDate && status === DOC_WORK_STATUS.FLEXIBLE) {
+      setStatus(null);
+      setCompleted(false);
+      if (node?.id) updateNode(node.id, { status: null, completed: false });
+      openSnapshotRef.current = {
+        ...openSnapshotRef.current,
+        status: null,
+        completed: false,
+      };
+    }
   };
 
   const handleDataTypeChange = (nextType) => {
@@ -513,12 +527,25 @@ export function StandaloneNodeModal({
   const handleStatusChange = (value) => {
     setStatus(value);
     setCompleted(value === "completed");
-    if (node?.id) updateNode(node.id, { status: value });
+    const clearingSchedule = value === DOC_WORK_STATUS.FLEXIBLE;
+    if (clearingSchedule) {
+      setAnchorDate("");
+      setAnchorTime("");
+      setAnchorFinishTime("");
+    }
+    if (node?.id) {
+      updateNode(node.id, clearingSchedule
+        ? { status: value, anchorAt: null, anchorFinishAt: null }
+        : { status: value });
+    }
     // Live-committed — do not treat as discardable unsaved edit.
     openSnapshotRef.current = {
       ...openSnapshotRef.current,
       status: value ?? null,
       completed: value === "completed",
+      ...(clearingSchedule
+        ? { anchorAt: null, anchorFinishAt: null, anchorDate: "", anchorTime: "", anchorFinishTime: "" }
+        : {}),
     };
   };
 

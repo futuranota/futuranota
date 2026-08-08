@@ -79,6 +79,21 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: docs que sean de Blogs",
     text: "entregame todos los docs que sean de Blogs",
   },
+  {
+    id: "test_day_sheet_save",
+    label: "Test: guardar sheet del día",
+    text: "Guardar esta tabla de referencia del día",
+  },
+  {
+    id: "test_day_sheet_open",
+    label: "Test: sheet del día",
+    text: "Sheet del día",
+  },
+  {
+    id: "test_day_sheet_next",
+    label: "Test: qué sigue",
+    text: "¿Qué sigue?",
+  },
 ];
 
 /**

@@ -60,13 +60,23 @@ const STATUS_CHIP_META = {
 export function buildGinaOpeningChips(opts = {}) {
   const en = opts.locale === "en";
   const testLinks = getGinaTestQuickLinks({ locale: opts.locale });
-  return [
+  /** @type {GinaReplyChip[]} */
+  const chips = [
     {
       id: "today",
       label: en ? "What's for today?" : "¿Qué tenemos para hoy?",
       text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
       primary: true,
     },
+  ];
+  if (opts.hasDaySheet) {
+    chips.push({
+      id: "day_sheet",
+      label: en ? "Day sheet" : "Sheet del día",
+      text: en ? "Open day sheet" : "Sheet del día",
+    });
+  }
+  chips.push(
     ...testLinks.map((link) => ({
       id: link.id,
       label: link.label,
@@ -77,7 +87,8 @@ export function buildGinaOpeningChips(opts = {}) {
       label: en ? "Today's schedule" : "Horarios de hoy",
       text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
     },
-  ];
+  );
+  return chips;
 }
 
 /**
@@ -809,7 +820,15 @@ export function buildDeptDetailNavChips(opts = {}) {
 
 /**
  * Chips after schedule sheet.
- * @param {{ locale?: string, hasRecoveryOffer?: boolean, recoveryPhase?: string }} [opts]
+ * @param {{
+ *   locale?: string,
+ *   hasRecoveryOffer?: boolean,
+ *   recoveryPhase?: string,
+ *   isDaySheet?: boolean,
+ *   justSaved?: boolean,
+ *   missingAnchor?: boolean,
+ *   hasDaySheet?: boolean,
+ * }} [opts]
  */
 export function buildScheduleSheetChips(opts = {}) {
   const en = opts.locale === "en";
@@ -821,13 +840,107 @@ export function buildScheduleSheetChips(opts = {}) {
     chips.push(...buildScheduleRecoveryChips({ locale: opts.locale }));
   } else if (hasRecovery) {
     chips.push(...buildScheduleRecoveryGateChips({ locale: opts.locale }));
+  } else if (opts.missingAnchor) {
+    chips.push({
+      id: "today_schedule",
+      label: en ? "Today's schedule" : "Horarios de hoy",
+      text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
+      primary: true,
+    });
+  } else if (opts.isDaySheet) {
+    chips.push({
+      id: "day_sheet_next",
+      label: en ? "What's next?" : "¿Qué sigue?",
+      text: en ? "What's next?" : "¿Qué sigue?",
+      primary: true,
+    });
+    chips.push({
+      id: "day_sheet_done",
+      label: en ? "I finished" : "Ya terminé",
+      text: en ? "I finished" : "Ya terminé",
+    });
   } else {
+    chips.push({
+      id: "save_day_sheet",
+      label: en ? "Save day sheet" : "Guardar sheet del día",
+      text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
+      primary: true,
+    });
+    if (opts.hasDaySheet) {
+      chips.push({
+        id: "open_day_sheet",
+        label: en ? "Day sheet" : "Sheet del día",
+        text: en ? "Open day sheet" : "Sheet del día",
+      });
+    }
     chips.push({
       id: "today_depts",
       label: en ? "Departments today" : "Departamentos de hoy",
       text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
     });
   }
+  return chips;
+}
+
+/**
+ * Confirm mark completed on day sheet.
+ * @param {{ locale?: string, title?: string }} [opts]
+ */
+export function buildDaySheetCompleteConfirmChips(opts = {}) {
+  const en = opts.locale === "en";
+  const title = String(opts.title || "").trim();
+  return [
+    {
+      id: "confirm_complete",
+      label: en ? "Confirm completed" : "Confirmar completed",
+      text: en ? "Confirm mark as completed" : "Confirmar marcar como completed",
+      primary: true,
+    },
+    {
+      id: "open_day_sheet",
+      label: en ? "Day sheet" : "Sheet del día",
+      text: en ? "Open day sheet" : "Sheet del día",
+    },
+    ...(title
+      ? [{
+          id: "open_doc",
+          label: en ? `Open «${title}»` : `Abrir «${title}»`,
+          text: en ? `Open ${title}` : `Abrir ${title}`,
+        }]
+      : []),
+  ];
+}
+
+/**
+ * Chips after next-doc suggestion.
+ * @param {{ locale?: string, title?: string, documentId?: string | null }} [opts]
+ */
+export function buildDaySheetNextChips(opts = {}) {
+  const en = opts.locale === "en";
+  const title = String(opts.title || "").trim();
+  const id = opts.documentId || null;
+  /** @type {GinaReplyChip[]} */
+  const chips = [];
+  if (id) {
+    chips.push({
+      id: `open_${id}`,
+      label: en ? `Open «${title || "document"}»` : `Abrir «${title || "documento"}»`,
+      text: `GinaOpenDocument:${id}`,
+      primary: true,
+    });
+  } else if (title) {
+    chips.push({
+      id: "open_next",
+      label: en ? `Open «${title}»` : `Abrir «${title}»`,
+      text: en ? `Open ${title}` : `Abrir ${title}`,
+      primary: true,
+    });
+  }
+  chips.push({
+    id: "open_day_sheet",
+    label: en ? "Day sheet" : "Sheet del día",
+    text: en ? "Open day sheet" : "Sheet del día",
+  });
   return chips;
 }
 
@@ -1248,14 +1361,50 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     const n = Array.isArray(data.groups)
       ? data.groups.reduce((acc, g) => acc + (g.folders?.reduce((a, f) => a + (f.documents?.length || 0), 0) || 0), 0)
       : (data.documents?.length || 0);
+    if (data.missingAnchor) {
+      return en
+        ? "You don’t have a day reference sheet yet. Open today’s schedule and save it as your guide."
+        : "Aún no tienes tabla de referencia del día. Mira los horarios de hoy y guárdala como guía.";
+    }
+    if (data.completePreview) {
+      const title = data.documents?.[0]?.title || (en ? "this document" : "este documento");
+      return en
+        ? `Got it — I’ll mark **${title}** as completed. Confirm?`
+        : `Va — marco **${title}** como completed. ¿Confirmas?`;
+    }
+    if (data.completeApplied) {
+      const title = data.documents?.[0]?.title || (en ? "the document" : "el documento");
+      return en
+        ? `Done — **${title}** is completed.`
+        : `Listo — **${title}** quedó completed.`;
+    }
+    if (data.justSaved) {
+      const p = data.progress || {};
+      return en
+        ? `Saved. Your day sheet has ${p.total || n} document(s) — reopen anytime with **Sheet del día**.`
+        : `Listo — guardé tu sheet del día (${p.total || n} documento${(p.total || n) === 1 ? "" : "s"}). Reábrelo cuando quieras con **Sheet del día**.`;
+    }
+    if (data.isDaySheet) {
+      const p = data.progress || {};
+      const done = p.completed || 0;
+      const left = p.remaining ?? Math.max(0, (p.total || n) - done);
+      if (n === 0) {
+        return en
+          ? "Your day sheet is empty right now."
+          : "Tu sheet del día está vacío por ahora.";
+      }
+      return en
+        ? `Here’s your day sheet: **${done}** done, **${left}** left. Say “I finished”, “what’s next”, or open a document.`
+        : `Aquí tienes tu sheet del día: **${done}** tachado${done === 1 ? "" : "s"}, **${left}** restante${left === 1 ? "" : "s"}. Puedes decir “ya terminé”, “qué sigue”, o abrir un documento.`;
+    }
     if (n === 0) {
       return en
         ? "I checked today’s schedule — nothing timed is on the sheet right now."
         : "Revisé tu agenda de hoy — no hay ítems con horario en el sheet ahora mismo.";
     }
     return en
-      ? `I checked today’s schedule — here’s the sheet (${n} timed item${n === 1 ? "" : "s"}).`
-      : `Revisé tu agenda de hoy — aquí tienes el sheet (${n} ítem${n === 1 ? "" : "s"}).`;
+      ? `I checked today’s schedule — here’s the sheet (${n} timed item${n === 1 ? "" : "s"}). Want me to save it as your day reference guide?`
+      : `Revisé tu agenda de hoy — aquí tienes el sheet (${n} ítem${n === 1 ? "" : "s"}). ¿Quieres que te guarde esta tabla de referencia como guía de visualización?`;
   }
 
   if (visualization.type === "daily_report") {
@@ -1305,7 +1454,13 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
 
 /**
  * Attach chips for a visualization + family.
- * @param {{ family?: string, visualization?: { type?: string, data?: object } | null, locale?: string, salt?: number }} opts
+ * @param {{
+ *   family?: string,
+ *   visualization?: { type?: string, data?: object } | null,
+ *   locale?: string,
+ *   salt?: number,
+ *   hasDaySheet?: boolean,
+ * }} opts
  * @returns {GinaReplyChip[]}
  */
 export function buildGinaReplyChips(opts = {}) {
@@ -1314,6 +1469,49 @@ export function buildGinaReplyChips(opts = {}) {
   const type = viz?.type;
   const data = viz?.data || {};
   const salt = opts.salt;
+
+  if (opts.family === "day_sheet_complete_confirm") {
+    const title = data.documents?.[0]?.title || "";
+    return [
+      {
+        id: "day_sheet_next",
+        label: locale === "en" ? "What's next?" : "¿Qué sigue?",
+        text: locale === "en" ? "What's next?" : "¿Qué sigue?",
+        primary: true,
+      },
+      {
+        id: "open_day_sheet",
+        label: locale === "en" ? "Day sheet" : "Sheet del día",
+        text: locale === "en" ? "Open day sheet" : "Sheet del día",
+      },
+      ...(title
+        ? []
+        : []),
+    ];
+  }
+  if (opts.family === "day_sheet_complete") {
+    if (data.clarifyComplete) {
+      return (data.documents || []).slice(0, 5).map((doc, i) => ({
+        id: `complete_${doc.id || i}`,
+        label: doc.title || (locale === "en" ? "Document" : "Documento"),
+        text: locale === "en"
+          ? `I finished ${doc.title}`
+          : `Ya terminé ${doc.title}`,
+        primary: i === 0,
+      }));
+    }
+    return buildDaySheetCompleteConfirmChips({
+      locale,
+      title: data.documents?.[0]?.title || "",
+    });
+  }
+  if (opts.family === "day_sheet_next") {
+    return buildDaySheetNextChips({
+      locale,
+      title: opts.nextDocumentTitle || data.documents?.find((d) => d.id === data.nextDocumentId)?.title,
+      documentId: opts.nextDocumentId || data.nextDocumentId || null,
+    });
+  }
 
   if (type === "category_scope" || opts.family === "category_scope") {
     return buildCategoryScopeChips({
@@ -1526,6 +1724,10 @@ export function buildGinaReplyChips(opts = {}) {
       locale,
       hasRecoveryOffer: Boolean(data.hasRecoveryOffer),
       recoveryPhase: data.recoveryPhase || "gate",
+      isDaySheet: Boolean(data.isDaySheet),
+      justSaved: Boolean(data.justSaved),
+      missingAnchor: Boolean(data.missingAnchor),
+      hasDaySheet: Boolean(opts.hasDaySheet),
     });
   }
   if (type === "recovery_preview") {

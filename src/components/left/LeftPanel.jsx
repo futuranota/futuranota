@@ -48,6 +48,9 @@ import {
 } from "../../lib/gina/ginaScheduleRecovery.js";
 import { buildDailyReportAppliedText, buildDailyReportOfferText } from "../../lib/gina/ginaDailyReport.js";
 import { markDailyReportOpened } from "../../lib/gina/ginaDailyReportStore.js";
+import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { consumePendingGinaOffer } from "../../lib/gina/ginaPendingOffer.js";
+import { pickNextDaySheetDoc, summarizeDaySheetProgress } from "../../lib/gina/ginaDaySheet.js";
 import { useGinaDailyReportNudge } from "../../hooks/useGinaDailyReportNudge.js";
 import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
@@ -3259,6 +3262,163 @@ export function LeftPanel({
       };
     }
 
+    // Day reference sheet (save / reopen / complete / next) — deterministic, no Groq.
+    if (!meetingOn && (
+      routed.family === "day_sheet"
+      || routed.family === "day_sheet_next"
+      || routed.family === "day_sheet_complete"
+      || routed.family === "day_sheet_complete_confirm"
+    )) {
+      const daySheetAnchored = hasDaySheet(ginaUserId, ctx.now);
+
+      if (routed.family === "day_sheet_complete_confirm") {
+        const updateNode = useNodesStore.getState().updateNode;
+        const doc = routed.toolContext?.document || null;
+        const docId = doc?.id || routed.toolContext?.documentId || null;
+        consumePendingGinaOffer();
+        if (docId) {
+          updateNode(docId, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.COMPLETED }));
+        }
+        const title = doc?.title || (localeKey === "en" ? "the document" : "el documento");
+        const pool = Array.isArray(routed.toolContext?.documents)
+          ? routed.toolContext.documents.map((d) => (
+            d.id === docId
+              ? { ...d, status: DOC_WORK_STATUS.COMPLETED, completed: true }
+              : d
+          ))
+          : [];
+        const next = pickNextDaySheetDoc(pool);
+        const progress = summarizeDaySheetProgress(pool);
+        const visualization = buildGinaVisualization("day_sheet", {
+          ...routed.toolContext,
+          documents: pool,
+          progress,
+          justSaved: false,
+          missingAnchor: false,
+          nextDocument: next,
+        }, { locale: localeKey, now: ctx.now, userText: text });
+        const nextLine = next
+          ? (localeKey === "en"
+            ? ` Next up: **${next.title}**${next.folder ? ` in ${next.folder}` : ""}. Want me to open it?`
+            : ` Tu siguiente: **${next.title}**${next.folder ? ` en ${next.folder}` : ""}. ¿Te lo abro?`)
+          : (localeKey === "en"
+            ? " Nothing left on today’s sheet — nice work."
+            : " No queda nada pendiente en el sheet de hoy — buen trabajo.");
+        return {
+          message: (localeKey === "en"
+            ? `Done — **${title}** is completed.`
+            : `Listo — **${title}** quedó completed.`)
+            + nextLine,
+          visualization,
+          chips: next
+            ? buildGinaReplyChips({
+              family: "day_sheet_next",
+              visualization: {
+                ...visualization,
+                data: {
+                  ...(visualization?.data || {}),
+                  nextDocumentId: next.id,
+                },
+              },
+              locale: localeKey,
+              nextDocumentId: next.id,
+              nextDocumentTitle: next.title,
+              hasDaySheet: true,
+            })
+            : buildGinaReplyChips({
+              family: "day_sheet",
+              visualization,
+              locale: localeKey,
+              hasDaySheet: true,
+            }),
+        };
+      }
+
+      if (routed.family === "day_sheet_next") {
+        const next = routed.toolContext?.nextDocument || null;
+        const visualization = buildGinaVisualization("day_sheet_next", routed.toolContext, {
+          locale: localeKey,
+          now: ctx.now,
+          userText: text,
+        });
+        const message = next
+          ? (localeKey === "en"
+            ? `Your next document is **${next.title}**${next.folder ? ` (folder ${next.folder})` : ""}. Want me to open it?`
+            : `Tu siguiente documento es **${next.title}**${next.folder ? ` (folder ${next.folder})` : ""}. ¿Quieres que te lo abra?`)
+          : (localeKey === "en"
+            ? "You’re done — nothing pending left on the day sheet."
+            : "Listo — no queda nada pendiente en el sheet del día.");
+        return {
+          message,
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "day_sheet_next",
+            visualization,
+            locale: localeKey,
+            nextDocumentId: next?.id || null,
+            nextDocumentTitle: next?.title || "",
+            hasDaySheet: daySheetAnchored,
+          }),
+        };
+      }
+
+      if (routed.family === "day_sheet_complete") {
+        const visualization = buildGinaVisualization("day_sheet_complete", routed.toolContext, {
+          locale: localeKey,
+          now: ctx.now,
+          userText: text,
+        });
+        const ambiguous = Array.isArray(routed.toolContext?.ambiguous)
+          ? routed.toolContext.ambiguous
+          : [];
+        const doc = routed.toolContext?.document || null;
+        let message;
+        if (doc) {
+          message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+            || (localeKey === "en"
+              ? `Got it — I’ll mark **${doc.title}** as completed. Confirm?`
+              : `Va — marco **${doc.title}** como completed. ¿Confirmas?`);
+        } else if (ambiguous.length) {
+          message = localeKey === "en"
+            ? "Which document did you finish?"
+            : "¿Cuál documento terminaste?";
+        } else {
+          message = localeKey === "en"
+            ? "I couldn’t match that document on today’s sheet. Open the day sheet and name the title."
+            : "No encontré ese documento en el sheet de hoy. Abre el sheet del día y dime el título.";
+        }
+        return {
+          message,
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "day_sheet_complete",
+            visualization,
+            locale: localeKey,
+            hasDaySheet: daySheetAnchored,
+          }),
+        };
+      }
+
+      // day_sheet (save / reopen / missing)
+      const visualization = buildGinaVisualization("day_sheet", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en" ? "Here’s your day sheet." : "Aquí tienes tu sheet del día.");
+      return {
+        message,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "day_sheet",
+          visualization,
+          locale: localeKey,
+          hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
+        }),
+      };
+    }
+
     if (!meetingOn && routed.family === "focus_open") {
       if (routed.openDocumentId) {
         setGinaDashboardOpen(false);
@@ -3599,6 +3759,7 @@ export function LeftPanel({
           family: routed.family,
           visualization,
           locale: localeKey,
+          hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
         })
         : [];
 

@@ -186,4 +186,45 @@ describe("resetNonReservedChildrenForFolderScheduleChange", () => {
     expect(nextBlocks[0].anchorDate).toBe("");
     expect(nextBlocks[1].anchorDate).toBe("2026-12-01");
   });
+
+  it("keeps flexible children (no schedule reset of status)", () => {
+    const nodes = {
+      flex: {
+        id: "flex",
+        parentDocId: "folder-1",
+        status: "flexible",
+        completed: false,
+        anchorAt: null,
+        anchorFinishAt: null,
+      },
+      work: {
+        id: "work",
+        parentDocId: "folder-1",
+        status: "not_started",
+        completed: false,
+        anchorAt: "2026-07-10T15:00:00.000Z",
+        anchorFinishAt: "2026-07-10T16:00:00.000Z",
+      },
+    };
+    const docs = { "folder-1": { id: "folder-1", blocks: [] } };
+    const updateNode = vi.fn((id, patch) => {
+      nodes[id] = { ...nodes[id], ...patch };
+    });
+
+    const cleared = resetNonReservedChildrenForFolderScheduleChange("folder-1", {
+      getDoc: (id) => docs[id],
+      updateDoc: vi.fn(),
+      getNodesByDoc: (id) => Object.values(nodes).filter((n) => n.parentDocId === id),
+      updateNode,
+    });
+
+    expect(cleared).toBe(1);
+    expect(nodes.flex.status).toBe("flexible");
+    expect(updateNode).toHaveBeenCalledWith("work", {
+      anchorAt: null,
+      anchorFinishAt: null,
+      status: null,
+      completed: false,
+    });
+  });
 });

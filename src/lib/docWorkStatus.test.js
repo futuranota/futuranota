@@ -88,6 +88,13 @@ describe("sanitizeDocStatusForFolderSchedule", () => {
       false,
     )).toBe(null);
   });
+
+  it("keeps flexible", () => {
+    expect(sanitizeDocStatusForFolderSchedule(
+      { status: "flexible" },
+      false,
+    )).toBe(null);
+  });
 });
 
 describe("shouldShowDocStatusChip", () => {
@@ -95,8 +102,31 @@ describe("shouldShowDocStatusChip", () => {
     expect(shouldShowDocStatusChip("reserved", false)).toBe(true);
   });
 
+  it("always shows flexible", () => {
+    expect(shouldShowDocStatusChip("flexible", false)).toBe(true);
+  });
+
   it("shows not_started when doc date is in folder frame", () => {
     expect(shouldShowDocStatusChip("not_started", true)).toBe(true);
     expect(shouldShowDocStatusChip("not_started", false)).toBe(false);
+  });
+});
+
+describe("flexible status", () => {
+  it("does not override defaultStatusAfterScheduleSave when already flexible", () => {
+    expect(defaultStatusAfterScheduleSave({
+      status: "flexible",
+      hasCompleteSchedule: true,
+      docDateInFolderFrame: true,
+    })).toBe(null);
+  });
+
+  it("does not promote flexible to in_progress on write in window", () => {
+    expect(nextStatusOnWriteDuringScheduleWindow({
+      status: "flexible",
+      content: "Working",
+      anchorAt: "2026-08-01T14:00:00.000Z",
+      anchorFinishAt: "2026-08-01T16:00:00.000Z",
+    }, new Date("2026-08-01T15:00:00.000Z"))).toBe(null);
   });
 });

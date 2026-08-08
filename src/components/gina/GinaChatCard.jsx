@@ -11,6 +11,8 @@ import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
+import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { useAuthStore } from "../../stores/authStore.js";
 import { resolveListRefineSelection } from "../../lib/gina/ginaSyntaxDocsByCategory.js";
 import { playGinaEnableSound } from "../../lib/ginaEnableSound.js";
 import {
@@ -499,7 +501,10 @@ export function GinaChatCard({
             id: makeMsgId(),
             sender: "ai",
             text: openingMessage,
-            chips: buildGinaOpeningChips({ locale: chipLocale }),
+            chips: buildGinaOpeningChips({
+              locale: chipLocale,
+              hasDaySheet: hasDaySheet(useAuthStore.getState().user?.id || "anon"),
+            }),
           },
         ];
       });

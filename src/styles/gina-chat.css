@@ -1714,6 +1714,27 @@
   color: #e8e8e8;
 }
 
+.gina-viz__sheet-title--struck,
+.gina-viz__sheet-title--struck s {
+  color: #8a8a8a;
+  text-decoration: line-through;
+}
+
+.gina-viz__sheet-slot--done {
+  opacity: 0.72;
+}
+
+.gina-viz__sheet-slot--next .gina-viz__sheet-title {
+  color: #fff;
+  font-weight: 600;
+}
+
+.gina-viz__sheet-progress {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #9a9a9a;
+}
+
 .gina-viz__sheet-cat-tag {
   color: #c9b896;
   font-weight: 650;

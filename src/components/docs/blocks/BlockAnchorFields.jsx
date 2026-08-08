@@ -199,7 +199,14 @@ export function BlockAnchorFields({
         readOnly={readOnly}
         tabIndex={readOnly ? -1 : 0}
         aria-readonly={readOnly}
-        onChange={readOnly ? undefined : (e) => onAnchorDateChange(e.target.value)}
+        onChange={readOnly ? undefined : (e) => {
+          const next = e.target.value;
+          onAnchorDateChange(next);
+          if (!String(next || "").trim()) {
+            onAnchorTimeChange?.("");
+            onAnchorFinishTimeChange?.("");
+          }
+        }}
         onKeyDown={(e) => e.stopPropagation()}
         aria-label={label === "Launch date" ? "Launch date" : "Anchor date"}
       />

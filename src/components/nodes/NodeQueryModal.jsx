@@ -1221,7 +1221,9 @@ export function NodeQueryModal({
                       </span>
                     </div>
                   ) : workStatus && (
-                    workStatus === DOC_WORK_STATUS.RESERVED || docDateInFolderFrame
+                    workStatus === DOC_WORK_STATUS.RESERVED
+                    || workStatus === DOC_WORK_STATUS.FLEXIBLE
+                    || docDateInFolderFrame
                   ) ? (
                     <div
                       className={
@@ -1346,6 +1348,17 @@ export function NodeQueryModal({
                           aria-pressed={workStatus === DOC_WORK_STATUS.RESERVED}
                         >
                           {t("sidebar.docStatusReserved")}
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            "doc-new-campaign-opt doc-work-status-opt doc-work-status-opt--flexible"
+                            + (workStatus === DOC_WORK_STATUS.FLEXIBLE ? " is-on" : "")
+                          }
+                          onClick={() => handleStatusChange(DOC_WORK_STATUS.FLEXIBLE)}
+                          aria-pressed={workStatus === DOC_WORK_STATUS.FLEXIBLE}
+                        >
+                          {t("sidebar.docStatusFlexible")}
                         </button>
                         {showWorkStatuses ? (
                           <>

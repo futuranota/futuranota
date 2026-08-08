@@ -78,6 +78,8 @@ function mapDocRow(d, now = null, locale = "es") {
     id: d.id || null,
     title: d.title || "Untitled",
     status: d.status || null,
+    completed: d.status === "completed" || d.completed === true,
+    struck: d.status === "completed" || d.completed === true,
     folder: d.folder || d.parentFolderName || null,
     department: d.department || d.departmentName || null,
     category: d.category || null,
@@ -612,6 +614,82 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         needsClarify: Boolean(ctx.needsClarify),
         clarifyOptions: Array.isArray(ctx.clarifyOptions) ? ctx.clarifyOptions : (ctx.hints?.clarifyOptions || []),
         hints: ctx.hints || {},
+      },
+    };
+  }
+
+  if (
+    family === "day_sheet"
+    || family === "day_sheet_next"
+    || family === "day_sheet_complete"
+    || family === "day_sheet_complete_confirm"
+  ) {
+    const docs = asDocs(ctx.documents);
+    const dateKey = typeof ctx.date === "string" && ctx.date
+      ? ctx.date
+      : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const progress = ctx.progress || {
+      total: docs.length,
+      completed: docs.filter((d) => d.status === "completed" || d.completed).length,
+      remaining: docs.filter((d) => d.status !== "completed" && !d.completed).length,
+    };
+    if (family === "day_sheet_complete" || family === "day_sheet_complete_confirm") {
+      const target = ctx.document || null;
+      if (!target && Array.isArray(ctx.ambiguous) && ctx.ambiguous.length) {
+        return {
+          type: "table",
+          data: {
+            title: locale === "en" ? "Which document?" : "¿Cuál documento?",
+            documents: ctx.ambiguous.map((d) => mapDocRow(d, now, locale)),
+            isDaySheet: true,
+            clarifyComplete: true,
+          },
+        };
+      }
+      if (target) {
+        return {
+          type: "schedule_sheet",
+          data: {
+            date: dateKey,
+            dateLabel: formatGinaDayLabel(dateKey, locale),
+            groups: groupDocsForScheduleSheet([target], now),
+            documents: [mapDocRow(target, now, locale)],
+            isDaySheet: true,
+            completePreview: family === "day_sheet_complete",
+            completeApplied: family === "day_sheet_complete_confirm",
+            progress,
+          },
+        };
+      }
+    }
+    if (ctx.missingAnchor || (ctx.empty && !docs.length)) {
+      return {
+        type: "schedule_sheet",
+        data: {
+          date: dateKey,
+          dateLabel: formatGinaDayLabel(dateKey, locale),
+          groups: [],
+          documents: [],
+          isDaySheet: true,
+          missingAnchor: Boolean(ctx.missingAnchor),
+          progress,
+        },
+      };
+    }
+    const highlightId = ctx.nextDocument?.id || null;
+    return {
+      type: "schedule_sheet",
+      data: {
+        date: dateKey,
+        dateLabel: formatGinaDayLabel(dateKey, locale),
+        groups: groupDocsForScheduleSheet(docs, now),
+        documents: docs
+          .slice()
+          .map((d) => mapDocRow(d, now, locale)),
+        isDaySheet: true,
+        justSaved: Boolean(ctx.justSaved),
+        nextDocumentId: highlightId,
+        progress,
       },
     };
   }

@@ -58,6 +58,21 @@ import {
   wantsGinaScheduleScopeList,
   filterDocsByScheduleScope,
 } from "./ginaSyntaxScheduleScope.js";
+import {
+  isDaySheetReopenIntent,
+  isDaySheetSaveIntent,
+  isDaySheetCompleteConfirmIntent,
+  isDaySheetNextIntent,
+  parseDaySheetCompleteIntent,
+} from "./ginaSyntaxDaySheet.js";
+import {
+  matchDocInDaySheet,
+  orderDocsByDaySheetIds,
+  pickNextDaySheetDoc,
+  resolveAnchoredDaySheetDocs,
+  summarizeDaySheetProgress,
+} from "./ginaDaySheet.js";
+import { writeDaySheet } from "./ginaDaySheetStore.js";
 
 function fold(s) {
   return foldGinaText(s);
@@ -1846,6 +1861,154 @@ export function runGinaQueryFamily(text, ctx = {}) {
         },
         workspaceInventory: inventory,
       };
+    }
+  }
+
+  // Day reference sheet — reopen / save / complete / next (before generic counts).
+  {
+    const uid = ctx.userId || ctx.authUserId || "anon";
+    const now = ctx.now instanceof Date ? ctx.now : new Date();
+
+    if (isDaySheetCompleteConfirmIntent(text)) {
+      const pending = getPendingGinaOffer();
+      const documentId = pending?.type === "day_sheet_complete" ? pending.documentId : null;
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
+      const { documents } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
+      const pool = documents.length ? documents : (today.documents || []);
+      const target = documentId
+        ? pool.find((d) => d.id === documentId) || null
+        : null;
+      return {
+        family: "day_sheet_complete_confirm",
+        toolsCalled,
+        toolContext: {
+          document: target,
+          documentId: target?.id || documentId || null,
+          documents: pool,
+          progress: summarizeDaySheetProgress(pool),
+          hint: "User confirmed mark document completed",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+
+    if (isDaySheetSaveIntent(text)) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      const docs = Array.isArray(today.documents) ? today.documents : [];
+      const docIds = docs.map((d) => d.id).filter(Boolean);
+      const sheet = writeDaySheet(uid, { docIds, now, source: "schedule_sheet" });
+      const live = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
+      const anchored = orderDocsByDaySheetIds(live.documents || [], sheet?.docIds || docIds);
+      return {
+        family: "day_sheet",
+        toolsCalled,
+        toolContext: {
+          ...live,
+          documents: anchored,
+          totalDocumentsToday: anchored.length,
+          isDaySheet: true,
+          justSaved: true,
+          progress: summarizeDaySheetProgress(anchored),
+          hint: "User saved today's reference sheet",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+
+    if (isDaySheetReopenIntent(text)) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
+      const { sheet, documents } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
+      if (!sheet) {
+        return {
+          family: "day_sheet",
+          toolsCalled,
+          toolContext: {
+            documents: [],
+            empty: true,
+            isDaySheet: true,
+            missingAnchor: true,
+            hint: "No day sheet anchored yet — offer horarios de hoy first",
+          },
+          workspaceInventory: inventory,
+        };
+      }
+      return {
+        family: "day_sheet",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          documents,
+          totalDocumentsToday: documents.length,
+          isDaySheet: true,
+          progress: summarizeDaySheetProgress(documents),
+          hint: "Reopen anchored day reference sheet with live status",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+
+    if (isDaySheetNextIntent(text)) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
+      const { sheet, documents } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
+      const pool = documents.length
+        ? documents
+        : (today.documents || []).slice().sort((a, b) => (
+          String(a.anchorAt || "").localeCompare(String(b.anchorAt || ""))
+        ));
+      const next = pickNextDaySheetDoc(pool);
+      return {
+        family: "day_sheet_next",
+        toolsCalled,
+        toolContext: {
+          documents: pool,
+          nextDocument: next,
+          progress: summarizeDaySheetProgress(pool),
+          hasSheet: Boolean(sheet),
+          isDaySheet: true,
+          hint: next
+            ? "Next pending document on day sheet"
+            : "No pending documents left on day sheet",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+
+    const completeIntent = parseDaySheetCompleteIntent(text);
+    if (completeIntent.match) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
+      const { sheet, documents } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
+      const pool = documents.length ? documents : (today.documents || []);
+      // Bare "terminé" without sheet/today docs → leave for other families
+      if (!sheet && !pool.length && !completeIntent.titleHint) {
+        /* fall through */
+      } else {
+        const { doc, ambiguous } = matchDocInDaySheet(pool, completeIntent.titleHint);
+        if (doc?.id) {
+          setPendingGinaOffer({
+            type: "day_sheet_complete",
+            documentId: doc.id,
+            title: doc.title || "",
+          });
+        } else {
+          clearPendingGinaOffer();
+        }
+        return {
+          family: "day_sheet_complete",
+          toolsCalled,
+          toolContext: {
+            document: doc,
+            ambiguous,
+            documents: pool,
+            progress: summarizeDaySheetProgress(pool),
+            hasSheet: Boolean(sheet),
+            isDaySheet: true,
+            hint: doc
+              ? "Preview mark completed — wait for confirm"
+              : "Need document clarify for complete",
+          },
+          workspaceInventory: inventory,
+        };
+      }
     }
   }
 

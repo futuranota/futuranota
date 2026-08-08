@@ -685,14 +685,14 @@ function CategoryDetailVisualization({ data }) {
   );
 }
 
-function TimeCell({ doc, time, passedSlot, delayHighlights }) {
+function TimeCell({ doc, time, passedSlot, delayHighlights, struck = false }) {
   return (
     <span className={`gina-viz__sheet-time-wrap${passedSlot && delayHighlights ? " will-highlight" : ""}`}>
       {passedSlot && delayHighlights ? (
         <span className="gina-viz__time-overlay" aria-hidden />
       ) : null}
       {doc ? (
-        <GinaTimeCell doc={doc} className="gina-viz__sheet-time" />
+        <GinaTimeCell doc={doc} className="gina-viz__sheet-time" struck={struck || Boolean(doc.struck)} />
       ) : (
         <span className="gina-viz__sheet-time">{time || "—"}</span>
       )}
@@ -847,14 +847,28 @@ function DailyReportMovePreviewVisualization({ data }) {
 function ScheduleSheetVisualization({ data }) {
   const groups = Array.isArray(data.groups) ? data.groups : [];
   const delayHighlights = Boolean(data.highlightPassedSlots);
+  const isDaySheet = Boolean(data.isDaySheet);
+  const progress = data.progress || null;
   return (
     <div className="gina-viz gina-viz--schedule-sheet">
       <header className="gina-viz__head">
-        <span className="gina-viz__eyebrow">Horarios</span>
+        <span className="gina-viz__eyebrow">
+          {isDaySheet ? "Sheet del día" : "Horarios"}
+        </span>
         <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
+        {progress && progress.total > 0 ? (
+          <p className="gina-viz__sheet-progress">
+            {progress.completed}/{progress.total} completados
+            {progress.remaining > 0 ? ` · ${progress.remaining} restante${progress.remaining === 1 ? "" : "s"}` : ""}
+          </p>
+        ) : null}
       </header>
       {groups.length === 0 ? (
-        <p className="gina-viz__empty">Sin horarios en este alcance.</p>
+        <p className="gina-viz__empty">
+          {data.missingAnchor
+            ? "Aún no hay tabla de referencia guardada. Mira los horarios de hoy y guárdala."
+            : "Sin horarios en este alcance."}
+        </p>
       ) : (
         <div className="gina-viz__sheet">
           {groups.map((group) => (
@@ -864,20 +878,30 @@ function ScheduleSheetVisualization({ data }) {
                 <div key={`${group.department}-${folder.folder}`} className="gina-viz__sheet-folder">
                   <p className="gina-viz__sheet-folder-name">{folder.folder}</p>
                   <ul className="gina-viz__sheet-slots">
-                    {(folder.documents || []).map((doc) => (
-                      <li
-                        key={doc.id || `${doc.title}-${doc.time}`}
-                        className="gina-viz__sheet-slot"
-                      >
-                        <TimeCell
-                          doc={doc}
-                          passedSlot={Boolean(doc.passedSlot)}
-                          delayHighlights={delayHighlights}
-                        />
-                        <span className="gina-viz__sheet-title">{doc.title}</span>
-                        {doc.status ? <DocStatusChip status={doc.status} /> : null}
-                      </li>
-                    ))}
+                    {(folder.documents || []).map((doc) => {
+                      const struck = Boolean(doc.struck || doc.completed || doc.status === "completed");
+                      return (
+                        <li
+                          key={doc.id || `${doc.title}-${doc.time}`}
+                          className={
+                            "gina-viz__sheet-slot"
+                            + (struck ? " gina-viz__sheet-slot--done" : "")
+                            + (doc.id && doc.id === data.nextDocumentId ? " gina-viz__sheet-slot--next" : "")
+                          }
+                        >
+                          <TimeCell
+                            doc={doc}
+                            passedSlot={Boolean(doc.passedSlot)}
+                            delayHighlights={delayHighlights}
+                            struck={struck}
+                          />
+                          <span className={"gina-viz__sheet-title" + (struck ? " gina-viz__sheet-title--struck" : "")}>
+                            {struck ? <s>{doc.title}</s> : doc.title}
+                          </span>
+                          {doc.status ? <DocStatusChip status={doc.status} /> : null}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ))}

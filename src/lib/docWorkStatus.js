@@ -9,6 +9,7 @@ import { parseDate } from "../temporal.js";
 export const DOC_WORK_STATUS = {
   NOT_STARTED: "not_started",
   RESERVED: "reserved",
+  FLEXIBLE: "flexible",
   IN_PROGRESS: "in_progress",
   SUBMITTED: "submitted",
   PAST_DUE: "past_due",
@@ -18,7 +19,7 @@ export const DOC_WORK_STATUS = {
 const VALID = new Set(Object.values(DOC_WORK_STATUS));
 
 /**
- * @typedef {"not_started" | "reserved" | "in_progress" | "submitted" | "past_due" | "completed"} DocWorkStatus
+ * @typedef {"not_started" | "reserved" | "flexible" | "in_progress" | "submitted" | "past_due" | "completed"} DocWorkStatus
  */
 
 /**
@@ -143,8 +144,8 @@ export function nextStatusOnWriteDuringScheduleWindow(node, now = new Date()) {
 }
 
 /**
- * Without a folder schedule reservation, only `reserved` (or null) is allowed.
- * Clears stale work statuses; keeps reserved + schedule.
+ * Without a folder schedule reservation, only `reserved` / `flexible` (or null) are allowed.
+ * Clears stale work statuses; keeps reserved + schedule; keeps flexible (no schedule).
  * @param {{ status?: unknown, completed?: unknown } | null | undefined} node
  * @param {boolean} folderScheduleReserved
  * @returns {{ status: DocWorkStatus | null, completed: boolean } | null}
@@ -152,20 +153,26 @@ export function nextStatusOnWriteDuringScheduleWindow(node, now = new Date()) {
 export function sanitizeDocStatusForFolderSchedule(node, folderScheduleReserved) {
   if (folderScheduleReserved) return null;
   const status = resolveDocWorkStatus(node);
-  if (!status || status === DOC_WORK_STATUS.RESERVED) return null;
+  if (
+    !status
+    || status === DOC_WORK_STATUS.RESERVED
+    || status === DOC_WORK_STATUS.FLEXIBLE
+  ) {
+    return null;
+  }
   return { status: null, completed: false };
 }
 
 /**
  * Whether a status chip should render for a document under a folder.
- * Reserved always shows; other work statuses when the doc date is inside the folder frame.
+ * Reserved and flexible always show; other work statuses when the doc date is inside the folder frame.
  * @param {DocWorkStatus | null | undefined} status
  * @param {boolean} docDateInFolderFrame
  */
 export function shouldShowDocStatusChip(status, docDateInFolderFrame) {
   const s = normalizeDocWorkStatus(status);
   if (!s) return false;
-  if (s === DOC_WORK_STATUS.RESERVED) return true;
+  if (s === DOC_WORK_STATUS.RESERVED || s === DOC_WORK_STATUS.FLEXIBLE) return true;
   return Boolean(docDateInFolderFrame);
 }
 
@@ -177,6 +184,7 @@ export function docWorkStatusLabel(status, t) {
   const s = normalizeDocWorkStatus(status);
   if (s === DOC_WORK_STATUS.NOT_STARTED) return t("sidebar.docStatusNotStarted");
   if (s === DOC_WORK_STATUS.RESERVED) return t("sidebar.docStatusReserved");
+  if (s === DOC_WORK_STATUS.FLEXIBLE) return t("sidebar.docStatusFlexible");
   if (s === DOC_WORK_STATUS.IN_PROGRESS) return t("sidebar.docStatusInProgress");
   if (s === DOC_WORK_STATUS.SUBMITTED) return t("sidebar.docStatusSubmitted");
   if (s === DOC_WORK_STATUS.PAST_DUE) return t("sidebar.docStatusPastDue");

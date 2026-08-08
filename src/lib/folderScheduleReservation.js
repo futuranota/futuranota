@@ -143,7 +143,8 @@ export function resetNonReservedChildrenForFolderScheduleChange(folderDocId, sto
   for (const node of nodes || []) {
     if (!node?.id) continue;
     const status = String(node.status || "").trim().toLowerCase();
-    if (status === "reserved") continue;
+    // Reserved keeps schedule + status; flexible keeps "no hours" classification.
+    if (status === "reserved" || status === "flexible") continue;
 
     const hasStart = !(node.anchorAt == null || node.anchorAt === "");
     const hasFinish = !(node.anchorFinishAt == null || node.anchorFinishAt === "");

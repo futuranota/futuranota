@@ -517,12 +517,24 @@ export function useDocBlockNodeModal({
     const nextDate = String(anchorDate || "").trim();
     // Persist Schedule immediately — must survive tab switch.
     setNodeDraftAnchorDate(nextDate);
+    const nextTime = nextDate ? nodeDraftAnchorTime : "";
+    const nextFinish = nextDate ? nodeDraftAnchorFinishTime : "";
+    if (!nextDate) {
+      setNodeDraftAnchorTime("");
+      setNodeDraftAnchorFinishTime("");
+    }
+    if (nextDate && nodeDraftStatus === DOC_WORK_STATUS.FLEXIBLE) {
+      setNodeDraftStatus(null);
+      setNodeDraftCompleted(false);
+      const id = activeNodeContext?.nodeId;
+      if (id) updateNode(id, { status: null, completed: false });
+    }
     if (!activeNodeContext) return;
     handleBlockAnchorChange(
       activeNodeContext.blockIndex,
       nextDate,
-      nodeDraftAnchorTime,
-      nodeDraftAnchorFinishTime,
+      nextTime,
+      nextFinish,
     );
   };
 
@@ -595,7 +607,25 @@ export function useDocBlockNodeModal({
           setNodeDraftStatus(v);
           setNodeDraftCompleted(v === "completed");
           const id = activeNodeContext?.nodeId;
-          if (id) updateNode(id, { status: v });
+          const clearingSchedule = v === DOC_WORK_STATUS.FLEXIBLE;
+          if (clearingSchedule) {
+            setNodeDraftAnchorDate("");
+            setNodeDraftAnchorTime("");
+            setNodeDraftAnchorFinishTime("");
+            if (activeNodeContext) {
+              handleBlockAnchorChange(
+                activeNodeContext.blockIndex,
+                "",
+                "",
+                "",
+              );
+            }
+          }
+          if (id) {
+            updateNode(id, clearingSchedule
+              ? { status: v, anchorAt: null, anchorFinishAt: null }
+              : { status: v });
+          }
         }}
       onCompletedChange={undefined}
       campaignMode={campaignDocMode}

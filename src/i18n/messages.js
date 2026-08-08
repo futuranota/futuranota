@@ -470,6 +470,7 @@ export const messages = {
       docStatusSubmitted: "Submitted",
       docStatusNotStarted: "Not started",
       docStatusReserved: "Reserved",
+      docStatusFlexible: "Flexible",
       docStatusPastDue: "Past due",
       edit: "edit",
       docTemplatePrefix: "template · ",
@@ -1192,6 +1193,7 @@ export const messages = {
       docStatusSubmitted: "Submitted",
       docStatusNotStarted: "Sin empezar",
       docStatusReserved: "Reservado",
+      docStatusFlexible: "Flexible",
       docStatusPastDue: "Vencido",
       /* Department UI copy stays English (product labels); keep EN for overlay + cards. */
       clickFolderDocuments: "Documents",
