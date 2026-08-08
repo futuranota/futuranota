@@ -770,7 +770,8 @@ export function NodeQueryModal({
 
   const handleFooterSave = useCallback(async () => {
     if (!onSave) return;
-    if (scheduleValidationError) return;
+    // Do not gate on scheduleValidationError — Cmd+Enter and close→Yes also skip it.
+    // Incomplete schedule stays a soft hint in the time popover only.
     const gate = await ensureChildScheduleOrRemind();
     if (gate === "stay") return;
     if (gate === "discard") {
@@ -778,7 +779,7 @@ export function NodeQueryModal({
       return;
     }
     onSave();
-  }, [onSave, ensureChildScheduleOrRemind, discardWithoutSave, scheduleValidationError]);
+  }, [onSave, ensureChildScheduleOrRemind, discardWithoutSave]);
 
   const requestDismiss = useCallback(async () => {
     const gate = await ensureChildScheduleOrRemind();

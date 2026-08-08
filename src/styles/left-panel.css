@@ -9607,18 +9607,20 @@ body.doc-content-resizing * {
   height: 22px;
 }
 
-/* Save: keep Larger hover look as resting (no hover shift — click is enough) */
+/* Save: muted at rest; clear hover like Larger */
 .node-query-modal__footer-start .node-query-modal__footer-save {
   width: auto;
   height: 22px;
   opacity: 0.52;
   filter: grayscale(0.55);
+  transition: opacity 120ms ease, filter 120ms ease;
+  cursor: pointer;
 }
 
 .node-query-modal__footer-start .node-query-modal__footer-save:hover,
 .node-query-modal__footer-start .node-query-modal__footer-save:focus-visible {
-  opacity: 0.52;
-  filter: grayscale(0.55);
+  opacity: 0.92;
+  filter: grayscale(0);
   outline: none;
 }
 

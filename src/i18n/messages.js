@@ -959,7 +959,7 @@ export const messages = {
       deleteSelectedConfirm: "Delete {count} to-do lists? This cannot be undone.",
     },
     gina: {
-      callAsistente: "Call Asistente",
+      callAsistente: "Call Assistance",
       callAsistenteTitle: "Open Gina for this document",
       newTodo: "Quick notes",
       newTodoTitle: "Open or create quick notes for this document",
