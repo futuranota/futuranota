@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   GINA_SEARCH_PRELUDE_ES,
   pickGinaDocsByDepartmentHeadline,
+  pickGinaDocsByStatusHeadline,
   pickGinaRandom,
   pickGinaSearchPrelude,
 } from "./ginaCopyVariants.js";
@@ -33,5 +34,12 @@ describe("ginaCopyVariants", () => {
     expect(b).toMatch(/27/);
     expect(b).toMatch(/listo|encontr/i);
     expect(a).not.toBe(b);
+  });
+
+  it("docs-by-status headline says status not departments", () => {
+    const a = pickGinaDocsByStatusHeadline({ count: 12, locale: "es", salt: 2 });
+    expect(a).toMatch(/12/);
+    expect(a).toMatch(/status/i);
+    expect(a).not.toMatch(/departamentos/i);
   });
 });

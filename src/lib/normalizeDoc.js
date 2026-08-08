@@ -46,12 +46,18 @@ function resolveNormalizedScheduleFields(doc, base) {
   let scheduleStartAt = doc.scheduleStartAt ?? null;
   let scheduleFinishAt = doc.scheduleFinishAt ?? null;
   const launchAt = doc.launchAt ?? base.launchAt;
+  const synthesizedFromLaunch = Boolean(!scheduleStartAt && launchAt);
   if (!scheduleStartAt && launchAt) scheduleStartAt = launchAt;
   if (!scheduleFinishAt && scheduleStartAt) scheduleFinishAt = scheduleStartAt;
   // Launch is its own field — never clobber an explicit launchAt with the
   // schedule reservation (that froze the Launch date node on stale dates).
   // Only fill launchAt from start when the doc has no launch of its own.
   const mirroredLaunch = launchAt ?? scheduleStartAt ?? null;
+  // #region agent log
+  if (synthesizedFromLaunch && doc?.id) {
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'A',location:'normalizeDoc.js:resolveNormalizedScheduleFields',message:'normalizeDoc synthesized schedule from launchAt',data:{docId:doc.id,title:doc.title||null,inScheduleStart:doc.scheduleStartAt??null,inScheduleFinish:doc.scheduleFinishAt??null,inLaunchAt:doc.launchAt??null,outScheduleStart:scheduleStartAt,outScheduleFinish:scheduleFinishAt,outLaunchAt:mirroredLaunch},timestamp:Date.now()})}).catch(()=>{});
+  }
+  // #endregion
   return {
     scheduleStartAt,
     scheduleFinishAt,

@@ -67,6 +67,20 @@ const DOCS_BY_DEPT_EN = [
   (n) => `I found **${n}** ${docWordEn(n)} organized by departments.`,
 ];
 
+const DOCS_BY_STATUS_ES = [
+  (n) => `Se encontraron **${n}** ${docWordEs(n)} agrupados por status.`,
+  (n) => `¡Listo! Encontré **${n}** ${docWordEs(n)} organizados por status.`,
+  (n) => `Aquí tienes **${n}** ${docWordEs(n)} · agrupados por status.`,
+  (n) => `Encontré **${n}** ${docWordEs(n)} organizados por status (vencidos, en curso, pendientes…).`,
+];
+
+const DOCS_BY_STATUS_EN = [
+  (n) => `Found **${n}** ${docWordEn(n)} grouped by status.`,
+  (n) => `Done! I found **${n}** ${docWordEn(n)} organized by status.`,
+  (n) => `Here are **${n}** ${docWordEn(n)} · grouped by status.`,
+  (n) => `I found **${n}** ${docWordEn(n)} organized by status (past due, in progress, pending…).`,
+];
+
 /**
  * Random headline after listado completo (corpus, by department).
  * @param {{ count: number, locale?: string, salt?: number, layerNote?: string }} opts
@@ -75,6 +89,19 @@ export function pickGinaDocsByDepartmentHeadline(opts = {}) {
   const en = opts.locale === "en";
   const n = Number(opts.count) || 0;
   const pool = en ? DOCS_BY_DEPT_EN : DOCS_BY_DEPT_ES;
+  const fn = pickGinaRandom(pool, opts.salt);
+  const line = typeof fn === "function" ? fn(n) : String(fn || "");
+  return `${line}${opts.layerNote || ""}`;
+}
+
+/**
+ * Random headline for week schedule table (grouped by document status).
+ * @param {{ count: number, locale?: string, salt?: number, layerNote?: string }} opts
+ */
+export function pickGinaDocsByStatusHeadline(opts = {}) {
+  const en = opts.locale === "en";
+  const n = Number(opts.count) || 0;
+  const pool = en ? DOCS_BY_STATUS_EN : DOCS_BY_STATUS_ES;
   const fn = pickGinaRandom(pool, opts.salt);
   const line = typeof fn === "function" ? fn(n) : String(fn || "");
   return `${line}${opts.layerNote || ""}`;

@@ -21,6 +21,7 @@ import { getGinaTestQuickLinks } from "./ginaTestQuickLinks.js";
 import { buildResaltarCategoryChipText } from "./ginaSyntaxDocsByCategory.js";
 import {
   pickGinaDocsByDepartmentHeadline,
+  pickGinaDocsByStatusHeadline,
   pickGinaListRefineHints,
   countGinaRealDepartments,
 } from "./ginaCopyVariants.js";
@@ -1438,7 +1439,12 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     if (data.fromCountDocuments) {
       const view = data.view || {};
       const bits = [];
-      if (view.showSchedule) bits.push(en ? "schedule" : "horarios");
+      if (view.showSchedule) {
+        if (view.scheduleScope === "week") bits.push(en ? "this week" : "semana");
+        else if (view.scheduleScope === "today") bits.push(en ? "today" : "hoy");
+        else if (view.scheduleScope === "all") bits.push(en ? "all schedules" : "todos los horarios");
+        else bits.push(en ? "schedule" : "horarios");
+      }
       if (view.showStatus) bits.push("status");
       const cats = Array.isArray(view.categories) ? view.categories.filter(Boolean) : [];
       const highlightCats = Array.isArray(view.highlightCategories) && view.highlightCategories.length
@@ -1484,6 +1490,14 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
         return en
           ? `Department **${data.department}** — **${n}** document${n === 1 ? "" : "s"}.${layerNote}`
           : `Departamento **${data.department}** — **${n}** documento${n === 1 ? "" : "s"}.${layerNote}`;
+      }
+      if (data.railMode === "status" || data.groupBy === "status") {
+        return pickGinaDocsByStatusHeadline({
+          count: n,
+          locale: en ? "en" : "es",
+          salt: opts.salt,
+          layerNote,
+        });
       }
       return pickGinaDocsByDepartmentHeadline({
         count: n,

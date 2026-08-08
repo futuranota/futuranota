@@ -1025,11 +1025,20 @@ export function DocExpandedView({
     const prevFinish = launchDateInputFromIso(liveDoc?.scheduleFinishAt);
     const startAt = startInput ? isoFromDateInput(startInput) : null;
     const finishAt = finishInput ? isoFromDateInput(finishInput) : null;
+    // #region agent log
+    fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'A',location:'DocExpandedView.jsx:persistFolderScheduleToStore',message:'Folder schedule persist (clear or set)',data:{docId:doc.id,title:liveDoc?.title||doc.title,startInput,finishInput,prevStartAt:liveDoc?.scheduleStartAt||null,prevFinishAt:liveDoc?.scheduleFinishAt||null,prevLaunchAt:liveDoc?.launchAt||null,nextStartAt:startAt,nextFinishAt:finishAt,isClear:!startAt&&!finishAt},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     updateDoc(doc.id, {
       scheduleStartAt: startAt,
       scheduleFinishAt: finishAt,
       launchAt: startAt,
     });
+    // #region agent log
+    {
+      const after = useDocsStore.getState().docs?.[doc.id];
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'A',location:'DocExpandedView.jsx:persistFolderScheduleToStore:afterUpdate',message:'Store after schedule updateDoc+normalize',data:{docId:doc.id,afterStartAt:after?.scheduleStartAt||null,afterFinishAt:after?.scheduleFinishAt||null,afterLaunchAt:after?.launchAt||null,resurrected:Boolean(!startAt&&!finishAt&&(after?.scheduleStartAt||after?.scheduleFinishAt||after?.launchAt))},timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion
     runChildScheduleResetIfRangeChanged(
       prevStart,
       prevFinish,

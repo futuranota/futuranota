@@ -7,7 +7,7 @@ import {
 } from "./ginaSyntaxScheduleScope.js";
 import { runGinaQueryFamily } from "./ginaQueryFamily.js";
 import { buildGinaVisualization } from "./buildGinaVisualization.js";
-import { buildGinaReplyChips } from "./ginaReplyChips.js";
+import { buildGinaFunnelHeadline, buildGinaReplyChips } from "./ginaReplyChips.js";
 
 const now = new Date("2026-08-07T15:00:00"); // Friday
 
@@ -69,7 +69,8 @@ const ctx = {
       title: "Blog semana",
       parentDocId: "f1",
       objectId: "co1",
-      status: "not_started",
+      status: "completed",
+      completed: true,
       anchorAt: "2026-08-05T09:00:00",
       anchorFinishAt: "2026-08-05T10:00:00",
     },
@@ -78,9 +79,18 @@ const ctx = {
       title: "Viejo",
       parentDocId: "f1",
       objectId: "co1",
-      status: "not_started",
+      status: "past_due",
       anchorAt: "2026-07-01T09:00:00",
       anchorFinishAt: "2026-07-01T10:00:00",
+    },
+    n6: {
+      id: "n6",
+      title: "Past due semana",
+      parentDocId: "f1",
+      objectId: "co1",
+      status: "past_due",
+      anchorAt: "2026-08-04T14:00:00",
+      anchorFinishAt: "2026-08-04T15:00:00",
     },
     n5: {
       id: "n5",
@@ -154,6 +164,57 @@ describe("schedule scope routing → list_all table", () => {
     expect(titles).toContain("Viejo");
     expect(titles).toContain("Blog hoy");
     expect(titles).not.toContain("Flexible");
+  });
+
+  it("week table uses status rail (not department) + struck completed", () => {
+    const routed = runGinaQueryFamily("visualizar todos los horarios de la semana", ctx);
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    expect(viz?.type).toBe("table");
+    expect(viz.data.railMode).toBe("status");
+    expect(viz.data.groupBy).toBe("status");
+    expect(Array.isArray(viz.data.rail)).toBe(true);
+    expect(viz.data.statusRail).toEqual(viz.data.rail);
+    expect(viz.data.departmentRail).toBeUndefined();
+
+    const ids = viz.data.rail.map((s) => s.id);
+    expect(ids).toContain("past_due");
+    expect(ids).toContain("in_progress");
+    expect(ids).toContain("completed");
+    expect(ids.indexOf("past_due")).toBeLessThan(ids.indexOf("in_progress"));
+    expect(ids.indexOf("in_progress")).toBeLessThan(ids.indexOf("completed"));
+
+    const completed = viz.data.documents.find((d) => d.title === "Blog semana");
+    expect(completed?.struck).toBe(true);
+    expect(completed?.status).toBe("completed");
+
+    // Contiguous order: all past_due before in_progress before completed
+    const statuses = viz.data.documents.map((d) => d.status);
+    const firstIp = statuses.indexOf("in_progress");
+    const lastPast = statuses.lastIndexOf("past_due");
+    const firstDone = statuses.indexOf("completed");
+    expect(lastPast).toBeLessThan(firstIp);
+    expect(firstIp).toBeLessThan(firstDone);
+
+    const headline = buildGinaFunnelHeadline(viz, { locale: "es", salt: 1 });
+    expect(headline).toMatch(/status/i);
+    expect(headline).not.toMatch(/departamentos/i);
+    expect(headline).toMatch(/semana|Filtros/i);
+  });
+
+  it("today schedule scope keeps department rail", () => {
+    const routed = runGinaQueryFamily("visualizar todos los horarios de hoy", ctx);
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    expect(viz?.type).toBe("table");
+    expect(viz.data.railMode).toBe("department");
+    expect(viz.data.groupBy).toBe("department");
+    expect(Array.isArray(viz.data.departmentRail)).toBe(true);
+    expect(viz.data.departmentRail.length).toBeGreaterThan(0);
   });
 });
 

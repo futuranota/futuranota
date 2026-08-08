@@ -34,6 +34,8 @@ export function ginaDepartmentRailColor(index, total = GINA_DEPT_RAIL_COLORS.len
 
 /**
  * Build ordered rail segments from mapped document rows (already dept-sorted).
+ * Collapses all rows of the same department into one segment (first-seen order).
+ * Use for corpus listados where rows are sorted by department.
  * @param {object[]} docs
  * @returns {{ name: string, count: number, color: string }[]}
  */
@@ -62,4 +64,44 @@ export function buildGinaDepartmentRail(docs = []) {
       ? GINA_DEPT_RAIL_UNASSIGNED
       : ginaDepartmentRailColor(i, total),
   }));
+}
+
+/**
+ * Contiguous runs in row order — merge only adjacent same-department rows.
+ * Use for chronologically sorted tables (today overview) so rail colors
+ * align with each row when departments interleave.
+ *
+ * @param {object[]} docs
+ * @param {{ colorByDept?: Record<string, string> }} [opts]
+ * @returns {{ name: string, count: number, color: string }[]}
+ */
+export function buildGinaDepartmentRailRuns(docs = [], opts = {}) {
+  const colorByDept = opts.colorByDept && typeof opts.colorByDept === "object"
+    ? opts.colorByDept
+    : {};
+  /** @type {{ name: string, count: number, color: string }[]} */
+  const runs = [];
+  /** @type {Map<string, number>} first-seen index for palette fallback */
+  const firstIndex = new Map();
+
+  for (const doc of docs) {
+    const raw = doc?.department || doc?.hierarchy?.department || "";
+    const name = String(raw).trim() || "—";
+    if (!firstIndex.has(name)) firstIndex.set(name, firstIndex.size);
+
+    const color = String(doc?.departmentColor || "").trim()
+      || colorByDept[name]
+      || (name === "# Department" || name === "—"
+        ? GINA_DEPT_RAIL_UNASSIGNED
+        : ginaDepartmentRailColor(firstIndex.get(name), Math.max(1, firstIndex.size)));
+
+    const last = runs[runs.length - 1];
+    if (last && last.name === name) {
+      last.count += 1;
+    } else {
+      runs.push({ name, count: 1, color });
+    }
+  }
+
+  return runs;
 }

@@ -1741,7 +1741,9 @@
 }
 
 .gina-viz__sheet-title--struck,
-.gina-viz__sheet-title--struck s {
+.gina-viz__sheet-title--struck s,
+.gina-viz__table-title--struck,
+.gina-viz__table-title--struck s {
   color: #8a8a8a;
   text-decoration: line-through;
 }

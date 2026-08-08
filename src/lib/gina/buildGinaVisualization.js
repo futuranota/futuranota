@@ -6,6 +6,10 @@ import {
   GINA_DEPT_RAIL_UNASSIGNED,
   ginaDepartmentRailColor,
 } from "./ginaDepartmentColors.js";
+import {
+  buildGinaStatusRail,
+  compareDocsByStatusThenTime,
+} from "./ginaStatusColors.js";
 import { buildGinaTimeDisplay } from "./ginaRelativeDay.js";
 
 /**
@@ -634,26 +638,39 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           : [],
         scheduleScope: ctx.view?.scheduleScope || null,
       };
-      const docs = documents.map((d) => mapDocRow(d, now));
-      // Stable sort by department (preserves schedule-first order within dept)
-      docs.sort((a, b) => {
-        const da = String(a.department || "").localeCompare(
-          String(b.department || ""),
-          undefined,
-          { sensitivity: "base" },
-        );
-        if (da !== 0) return da;
-        if (view.showSchedule) return 0;
-        return String(a.title || "").localeCompare(String(b.title || ""), undefined, {
-          sensitivity: "base",
+      const docs = documents.map((d) => ({
+        ...mapDocRow(d, now, locale),
+        anchorAt: d.anchorAt || d.startedAt || null,
+      }));
+      const useStatusRail = Boolean(view.showSchedule && view.scheduleScope === "week");
+      if (useStatusRail) {
+        docs.sort(compareDocsByStatusThenTime);
+      } else {
+        // Stable sort by department (preserves schedule-first order within dept)
+        docs.sort((a, b) => {
+          const da = String(a.department || "").localeCompare(
+            String(b.department || ""),
+            undefined,
+            { sensitivity: "base" },
+          );
+          if (da !== 0) return da;
+          if (view.showSchedule) return 0;
+          return String(a.title || "").localeCompare(String(b.title || ""), undefined, {
+            sensitivity: "base",
+          });
         });
-      });
+      }
       /** @type {string[]} */
-      // Department shown as left color rail + legend — not a repeated column
+      // Department (or status) shown as left color rail + legend — not a repeated column
       const columns = ["document", "category"];
       if (view.showSchedule) columns.push("time");
       if (view.showStatus) columns.push("status");
-      const departmentRail = buildGinaDepartmentRail(docs);
+      const railMode = useStatusRail ? "status" : "department";
+      const rail = useStatusRail
+        ? buildGinaStatusRail(docs, locale)
+        : buildGinaDepartmentRail(docs);
+      const departmentRail = railMode === "department" ? rail : undefined;
+      const statusRail = railMode === "status" ? rail : undefined;
       const deferred = Boolean(ctx.deferredCategoryHighlight) && view.highlightCategories.length > 0;
       const highlightDelayMs = deferred
         ? (Number.isFinite(Number(ctx.highlightDelayMs)) ? Number(ctx.highlightDelayMs) : 2000)
@@ -676,7 +693,10 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           documents: docs,
           view,
           columns,
+          rail,
+          railMode,
           departmentRail,
+          statusRail,
           availableCategories: Array.isArray(ctx.availableCategories)
             ? ctx.availableCategories
             : [],
@@ -684,7 +704,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           deferredCategoryHighlight: deferred,
           highlightDelayMs,
           listAll: true,
-          groupBy: "department",
+          groupBy: railMode === "status" ? "status" : "department",
           scope: mode === "list_by_category"
             ? "category"
             : (mode === "list_by_department" ? "department" : "corpus"),

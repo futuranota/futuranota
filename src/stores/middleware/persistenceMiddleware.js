@@ -930,6 +930,11 @@ function mergeEntityMapsPreferNewer(remoteMap, localMap, contentLen, opts = {}) 
     const localT = Date.parse(String(localItem.updatedAt || localItem.createdAt || "")) || 0;
     const remoteT = Date.parse(String(remoteItem.updatedAt || remoteItem.createdAt || "")) || 0;
     if (localT > remoteT) {
+      // #region agent log
+      if ((localItem.scheduleStartAt || localItem.launchAt) && !remoteItem.scheduleStartAt && !remoteItem.launchAt) {
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'E',location:'persistenceMiddleware.js:mergeEntityMapsPreferNewer',message:'Local newer won over remote-cleared schedule',data:{id,title:localItem.title||null,localT,remoteT,localStart:localItem.scheduleStartAt||null,localLaunch:localItem.launchAt||null,remoteStart:remoteItem.scheduleStartAt||null,remoteLaunch:remoteItem.launchAt||null},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion
       out[id] = localItem;
     } else if (localT === remoteT && len(localItem) > len(remoteItem)) {
       out[id] = localItem;
@@ -997,6 +1002,25 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
   }
 
   if (isLocalRicherThanRemote(localState, remoteState)) {
+    // #region agent log
+    {
+      const localDocs = localState.docs && typeof localState.docs === "object" ? localState.docs : {};
+      const remoteDocs = remoteState.docs && typeof remoteState.docs === "object" ? remoteState.docs : {};
+      const scheduleDiffs = Object.keys(localDocs).slice(0, 40).map((id) => {
+        const l = localDocs[id];
+        const r = remoteDocs[id];
+        return {
+          id,
+          title: l?.title || null,
+          localStart: l?.scheduleStartAt || null,
+          remoteStart: r?.scheduleStartAt || null,
+          localLaunch: l?.launchAt || null,
+          remoteLaunch: r?.launchAt || null,
+        };
+      }).filter((d) => d.localStart || d.remoteStart || d.localLaunch || d.remoteLaunch);
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'C',location:'persistenceMiddleware.js:isLocalRicherThanRemote',message:'Hydrate preferred entire LOCAL workspace',data:{scheduleDiffs},timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion
     return {
       state: stripPendingDeletesFromState({
         ...remoteState,
@@ -1061,6 +1085,9 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
       doc.docKind = localDoc.docKind;
     }
     // Prefer explicit Launch schedule from local when remote wiped it.
+    const beforeLaunch = doc.launchAt || null;
+    const beforeStart = doc.scheduleStartAt || null;
+    const beforeFinish = doc.scheduleFinishAt || null;
     if (!doc.launchAt && localDoc.launchAt) {
       doc.launchAt = localDoc.launchAt;
     }
@@ -1072,6 +1099,11 @@ function mergeRemoteWithLocalSnapshot(remoteState, localState) {
         || localDoc.scheduleStartAt
         || localDoc.launchAt;
     }
+    // #region agent log
+    if ((!beforeStart && doc.scheduleStartAt) || (!beforeFinish && doc.scheduleFinishAt) || (!beforeLaunch && doc.launchAt)) {
+      fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'B',location:'persistenceMiddleware.js:mergeSchedulePreserve',message:'Merge reinjected schedule/launch from local into empty remote',data:{docId:id,title:doc.title||localDoc.title||null,beforeStart,beforeFinish,beforeLaunch,afterStart:doc.scheduleStartAt||null,afterFinish:doc.scheduleFinishAt||null,afterLaunch:doc.launchAt||null,localStart:localDoc.scheduleStartAt||null,localFinish:localDoc.scheduleFinishAt||null,localLaunch:localDoc.launchAt||null,localUpdatedAt:localDoc.updatedAt||null,mergedUpdatedAt:doc.updatedAt||null},timestamp:Date.now()})}).catch(()=>{});
+    }
+    // #endregion
   }
 
   // Schedule (anchorAt) always wins — never let a newer remote row without it wipe local.
@@ -1457,6 +1489,25 @@ export function initPersistenceMiddleware(stores) {
           objects[camp.company_id].children.push(camp.id);
         }
       });
+      // #region agent log
+      {
+        const remoteSchedules = Object.values(docs)
+          .filter((d) => d?.scheduleStartAt || d?.scheduleFinishAt || d?.launchAt)
+          .slice(0, 30)
+          .map((d) => ({
+            id: d.id,
+            title: d.title,
+            scheduleStartAt: d.scheduleStartAt,
+            scheduleFinishAt: d.scheduleFinishAt,
+            launchAt: d.launchAt,
+            updatedAt: d.updatedAt,
+          }));
+        const clearedRemote = Object.values(docs)
+          .filter((d) => !d?.scheduleStartAt && !d?.scheduleFinishAt)
+          .length;
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'D',location:'persistenceMiddleware.js:loadFromSupabase:remoteDocs',message:'Remote campaigns schedule snapshot after SELECT',data:{totalDocs:Object.keys(docs).length,clearedRemote,remoteSchedules},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion
 
       // Reconstruct nodes (schedule lives in reference.anchorAt — no DB column)
       const nodes = {};
@@ -1826,6 +1877,23 @@ export function initPersistenceMiddleware(stores) {
       }));
 
       const campaignLocalIds = campaignsRows.map((r) => r.id);
+      // #region agent log
+      {
+        const scheduleRows = campaignsRows
+          .filter((r) => r.schedule_start_at || r.schedule_finish_at || r.launch_at || true)
+          .slice(0, 30)
+          .map((r) => ({
+            id: r.id,
+            name: r.name,
+            schedule_start_at: r.schedule_start_at,
+            schedule_finish_at: r.schedule_finish_at,
+            launch_at: r.launch_at,
+            updated_at: r.updated_at,
+            cleared: !r.schedule_start_at && !r.schedule_finish_at,
+          }));
+        fetch('http://127.0.0.1:7584/ingest/0bdaa960-233e-4e1f-9399-7eb9779e2d4f',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'473a3d'},body:JSON.stringify({sessionId:'473a3d',runId:'pre-fix',hypothesisId:'D',location:'persistenceMiddleware.js:syncCampaignsUpsert',message:'Upserting campaigns schedule fields to Supabase',data:{rowCount:campaignsRows.length,scheduleRows},timestamp:Date.now()})}).catch(()=>{});
+      }
+      // #endregion
       // Empty local = intentional wipe (last folder deleted) → orphan-delete still runs.
       let campaignsUpsertOk = true;
       if (campaignsRows.length > 0) {

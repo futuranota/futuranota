@@ -6,7 +6,8 @@ import {
   formatWorkDurationLabel,
 } from "../../lib/gina/buildGinaVisualization.js";
 import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
-import { buildGinaDepartmentRail } from "../../lib/gina/ginaDepartmentColors.js";
+import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns } from "../../lib/gina/ginaDepartmentColors.js";
+import { buildGinaStatusRail } from "../../lib/gina/ginaStatusColors.js";
 
 /**
  * Gray small Depto / Categoría / Folder path above visual blocks.
@@ -978,24 +979,9 @@ function TodayOverviewVisualization({ data }) {
   const shown = docs.slice(0, 80);
   const locale = data.locale === "en" ? "en" : "es";
 
-  // Rail segments in document order, colors match pie/overview
-  /** @type {{ name: string, count: number, color: string }[]} */
-  const departmentRail = [];
-  /** @type {Map<string, number>} */
-  const railIndex = new Map();
-  for (const doc of shown) {
-    const name = String(doc.department || doc.hierarchy?.department || "—").trim() || "—";
-    if (railIndex.has(name)) {
-      departmentRail[railIndex.get(name)].count += 1;
-    } else {
-      railIndex.set(name, departmentRail.length);
-      departmentRail.push({
-        name,
-        count: 1,
-        color: doc.departmentColor || colorByDept[name] || "#8a8a8a",
-      });
-    }
-  }
+  // Contiguous runs in row order so colors align when departments interleave
+  const departmentRail = buildGinaDepartmentRailRuns(shown, { colorByDept });
+
 
   const legendItems = overview.length
     ? overview.map((d) => ({
@@ -1258,9 +1244,15 @@ function TableVisualization({ data }) {
   }, [deferMs, highlightKey]);
 
   const shown = docs.slice(0, limit);
+  const railMode = data.railMode === "status" ? "status" : "department";
   // Rail must match visible rows so segment height lines up with tbody
-  const departmentRail = fromCount ? buildGinaDepartmentRail(shown) : [];
-  const showDeptRail = fromCount && departmentRail.length > 0 && shown.length > 0;
+  const tableRail = fromCount
+    ? (railMode === "status"
+      ? buildGinaStatusRail(shown, "es")
+      : buildGinaDepartmentRail(shown))
+    : [];
+  const showTableRail = fromCount && tableRail.length > 0 && shown.length > 0;
+  const railLegendLabel = railMode === "status" ? "Status" : "Departamentos";
   const categoryIsHighlighted = (doc) => {
     if (!fromCount || !highlightCats.length || !highlightReady) return false;
     const cat = String(doc.category || doc.hierarchy?.category || "").trim().toLowerCase();
@@ -1293,8 +1285,16 @@ function TableVisualization({ data }) {
   const renderCell = (doc, key) => {
     const h = doc.hierarchy || {};
     switch (key) {
-      case "document":
-        return doc.title || "—";
+      case "document": {
+        const struck = Boolean(doc.struck || doc.completed || doc.status === "completed");
+        const title = doc.title || "—";
+        if (!struck) return title;
+        return (
+          <span className="gina-viz__table-title gina-viz__table-title--struck">
+            <s>{title}</s>
+          </span>
+        );
+      }
       case "department":
         return doc.department || h.department || "—";
       case "category":
@@ -1304,14 +1304,14 @@ function TableVisualization({ data }) {
       case "status":
         return doc.status ? <DocStatusChip status={doc.status} /> : "—";
       case "time":
-        return <GinaTimeCell doc={doc} />;
+        return <GinaTimeCell doc={doc} struck={Boolean(doc.struck || doc.completed)} />;
       default:
         return "—";
     }
   };
 
   return (
-    <div className={"gina-viz gina-viz--table" + (showDeptRail ? " gina-viz--table-rail" : "")}>
+    <div className={"gina-viz gina-viz--table" + (showTableRail ? " gina-viz--table-rail" : "")}>
       {data.title ? <h3 className="gina-viz__title">{data.title}</h3> : null}
       {data.empty || !docs.length ? (
         <p className="gina-viz__empty">
@@ -1325,13 +1325,13 @@ function TableVisualization({ data }) {
       {shown.length ? (
         <>
           <div className="gina-viz__table-layout">
-            {showDeptRail ? (
+            {showTableRail ? (
               <div className="gina-viz__dept-rail" aria-hidden="true">
                 <div className="gina-viz__dept-rail-head" />
                 <div className="gina-viz__dept-rail-body">
-                  {departmentRail.map((seg) => (
+                  {tableRail.map((seg) => (
                     <div
-                      key={seg.name}
+                      key={seg.id || seg.name}
                       className="gina-viz__dept-rail-seg"
                       style={{
                         flexGrow: Math.max(1, seg.count),
@@ -1373,10 +1373,10 @@ function TableVisualization({ data }) {
               </table>
             </div>
           </div>
-          {showDeptRail ? (
-            <ul className="gina-viz__dept-legend" aria-label="Departamentos">
-              {departmentRail.map((seg) => (
-                <li key={seg.name} className="gina-viz__dept-legend-item">
+          {showTableRail ? (
+            <ul className="gina-viz__dept-legend" aria-label={railLegendLabel}>
+              {tableRail.map((seg) => (
+                <li key={seg.id || seg.name} className="gina-viz__dept-legend-item">
                   <span
                     className="gina-viz__dept-legend-dot"
                     style={{ background: seg.color }}
