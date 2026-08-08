@@ -1050,6 +1050,12 @@
   opacity: 0.92;
 }
 
+/* Assistance glyph — slightly larger, inherits folder-card currentColor hover. */
+.lp-click-folder-box--assistance .lp-click-folder-box-icon {
+  width: 28px;
+  height: 28px;
+}
+
 .lp-doc-card {
   display: flex;
   align-items: stretch;
@@ -6566,6 +6572,8 @@
 
 .doc-focus-top__close {
   position: static;
+  margin-left: 6px;
+  margin-right: -7px;
 }
 
 .doc-new-inner--content-focus .doc-new-head,
@@ -9272,9 +9280,15 @@ body.doc-content-resizing * {
   padding: 0 2px 0 4px;
   letter-spacing: 0;
   line-height: 22px;
-  /* Match close-tab tone (trial) */
+  /* Empty: keep dark close-tab tone */
   color: rgba(255, 255, 255, 0.16);
   background: transparent;
+}
+
+/* Filled date/time: gray like FileDashed / parent-doc label */
+.node-query-modal__schedule .doc-block-anchor__date:not(.is-empty),
+.node-query-modal__schedule .doc-block-anchor__time:not(.is-empty) {
+  color: rgba(216, 216, 216, 0.55);
 }
 
 .doc-time-range {
@@ -9283,18 +9297,19 @@ body.doc-content-resizing * {
 }
 
 .doc-time-range__trigger {
-  min-width: 184px;
-  height: 22px;
-  padding: 0 6px 0 8px;
+  min-width: 0;
+  width: auto;
+  height: 20px;
+  padding: 0 6px;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 4px;
   background: transparent;
   color: rgba(255, 255, 255, 0.16);
-  font: 500 11px/1 var(--sans);
+  font: 500 10.5px/1 var(--sans);
   display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  justify-content: center;
+  gap: 0;
   cursor: pointer;
   transition: border-color 180ms ease, background-color 180ms ease, color 180ms ease;
 }
@@ -9313,6 +9328,19 @@ body.doc-content-resizing * {
 .doc-time-range__trigger.is-empty:hover,
 .doc-time-range__trigger.is-empty[aria-expanded="true"] {
   color: rgba(255, 255, 255, 0.48);
+}
+
+/* Selected range: same gray as file icon / parent label */
+.doc-time-range__trigger:not(.is-empty) {
+  color: rgba(216, 216, 216, 0.55);
+  border-color: rgba(216, 216, 216, 0.28);
+}
+
+.doc-time-range__trigger:not(.is-empty):hover,
+.doc-time-range__trigger:not(.is-empty)[aria-expanded="true"] {
+  color: rgba(216, 216, 216, 0.78);
+  border-color: rgba(198, 255, 115, 0.55);
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .doc-time-range__clock {
@@ -15131,8 +15159,8 @@ body.doc-content-resizing * {
   min-height: 390px;
   max-height: calc(100vh - 48px);
   flex-shrink: 0;
-  /* Left 27px; 5px right padding (non-expand) */
-  padding: 22px 5px 18px 27px;
+  /* Left 27px; 5px right; equal top/bottom = expand roof rhythm */
+  padding: 18px 5px 18px 27px;
   background: #151515;
   border-radius: 14px;
   border: none;
@@ -15159,11 +15187,11 @@ body.doc-content-resizing * {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 1px;
   min-height: 24px;
   padding-right: 0;
-  margin-top: -4px;
-  margin-bottom: 6px;
+  margin-top: 0;
+  margin-bottom: 12px;
 }
 
 .node-query-modal__head-top--closable {
@@ -15229,8 +15257,9 @@ body.doc-content-resizing * {
   margin-left: auto;
   flex-shrink: 0;
   align-self: center;
-  /* Align × with [+] floating picker (right: 12px / 10px in content box) */
-  padding-right: 12px;
+  /* Pull trio left from the modal’s right edge */
+  padding-right: 18px;
+  margin-right: 0;
 }
 
 /* Folder × pill in the doc header actions row (not absolute) */
@@ -15238,6 +15267,10 @@ body.doc-content-resizing * {
   position: static;
   top: auto;
   right: auto;
+  /* Extra air after sticky / Call Asistente */
+  margin-left: 6px;
+  /* Nudge × ~5px further toward the right edge */
+  margin-right: -7px;
 }
 
 .node-query-modal__back-link {
@@ -15627,14 +15660,14 @@ body.doc-content-resizing * {
 
 .node-query-modal--expanded .node-query-modal__action--search {
   font-size: 18px;
-  padding: 4px 10px;
+  padding: 2.5px 10px 4px;
 }
 
 /* Query/title is for long questions — compact, bold, same color as doc titles */
 .node-query-modal__query-title {
   margin: 0 0 3px;
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #dcb2a6;
@@ -15653,7 +15686,7 @@ body.doc-content-resizing * {
 .node-query-modal__query-prefix {
   flex-shrink: 0;
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #dcb2a6;
@@ -15676,7 +15709,7 @@ body.doc-content-resizing * {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #dcb2a6;
@@ -16716,7 +16749,7 @@ body.doc-content-resizing * {
   opacity: 0.95;
   border: 1px solid transparent;
   border-radius: 6px;
-  padding: 4px 10px;
+  padding: 2.5px 10px 4px;
   transition:
     color 120ms ease,
     background 120ms ease,
@@ -16840,4 +16873,11 @@ body.doc-content-resizing * {
   padding: 0;
   width: 12px;
   height: 12px;
+}
+
+.node-query-modal__schedule .doc-block-anchor__date:not(.is-empty)::-webkit-calendar-picker-indicator,
+.node-query-modal__schedule .doc-block-anchor__time:not(.is-empty)::-webkit-calendar-picker-indicator {
+  /* Match .node-query-modal__node-icon */
+  filter: brightness(0) invert(0.85) !important;
+  opacity: 0.55 !important;
 }

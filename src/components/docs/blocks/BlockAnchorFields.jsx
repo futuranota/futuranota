@@ -192,7 +192,10 @@ export function BlockAnchorFields({
       )}
       <input
         type="date"
-        className="doc-block-anchor__date"
+        className={
+          "doc-block-anchor__date"
+          + (String(anchorDate || "").trim() ? "" : " is-empty")
+        }
         value={anchorDate}
         min={min}
         max={max}
@@ -221,7 +224,6 @@ export function BlockAnchorFields({
           disabled={readOnly}
         >
           {rangeLabel}
-          <span className="doc-time-range__clock" aria-hidden>◷</span>
         </button>
         {timeOpen && typeof document !== "undefined" ? createPortal(
           <div

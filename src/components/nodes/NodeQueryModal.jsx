@@ -1003,7 +1003,7 @@ export function NodeQueryModal({
                   ref={focusCategoryRef}
                   className="doc-focus-top__category"
                   value={query}
-                  placeholder="Describe a Document"
+                  placeholder="Describe a Title"
                   rows={1}
                   aria-label="Query or title"
                   spellCheck={false}
@@ -1025,18 +1025,11 @@ export function NodeQueryModal({
                   title={t("gina.callAsistenteTitle")}
                   aria-label={t("gina.callAsistenteTitle")}
                 >
-                  <img
-                    className="node-query-modal__doc-action-icon"
-                    src="/uploads/call%20center%201.svg"
-                    alt=""
-                    aria-hidden
-                    draggable={false}
-                  />
                   <span>{t("gina.callAsistente")}</span>
                 </button>
                 <button
                   type="button"
-                  className="node-query-modal__doc-action node-query-modal__new-todo"
+                  className="node-query-modal__doc-action node-query-modal__doc-action--icon-only node-query-modal__new-todo"
                   onClick={handleOpenLinkedLazyTodo}
                   disabled={!companyObjectId}
                   title={
@@ -1048,12 +1041,11 @@ export function NodeQueryModal({
                 >
                   <img
                     className="node-query-modal__doc-action-icon"
-                    src="/uploads/ClipboardText.svg"
+                    src="/uploads/sticky-note-02.svg"
                     alt=""
                     aria-hidden
                     draggable={false}
                   />
-                  <span>{t("gina.newTodo")}</span>
                 </button>
                 {showCloseButton ? (
                   <button
@@ -1107,18 +1099,11 @@ export function NodeQueryModal({
                 title={t("gina.callAsistenteTitle")}
                 aria-label={t("gina.callAsistenteTitle")}
               >
-                <img
-                  className="node-query-modal__doc-action-icon"
-                  src="/uploads/call%20center%201.svg"
-                  alt=""
-                  aria-hidden
-                  draggable={false}
-                />
                 <span>{t("gina.callAsistente")}</span>
               </button>
               <button
                 type="button"
-                className="node-query-modal__doc-action node-query-modal__new-todo"
+                className="node-query-modal__doc-action node-query-modal__doc-action--icon-only node-query-modal__new-todo"
                 onClick={handleOpenLinkedLazyTodo}
                 disabled={!companyObjectId}
                 title={
@@ -1130,12 +1115,11 @@ export function NodeQueryModal({
               >
                 <img
                   className="node-query-modal__doc-action-icon"
-                  src="/uploads/ClipboardText.svg"
+                  src="/uploads/sticky-note-02.svg"
                   alt=""
                   aria-hidden
                   draggable={false}
                 />
-                <span>{t("gina.newTodo")}</span>
               </button>
               {showCloseButton ? (
                 <button
@@ -1161,7 +1145,7 @@ export function NodeQueryModal({
                   syncQueryInputHeight();
                 }}
                 rows={1}
-                placeholder="Describe a Document"
+                placeholder="Describe a Title"
                 spellCheck={false}
                 aria-label="Query or title"
               />
