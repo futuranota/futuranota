@@ -916,6 +916,23 @@ export function collectNodeIdsReferencedByBlocks(blocks) {
   return ids;
 }
 
+/**
+ * Unique H1/TODO owner nodeIds in document order (first appearance).
+ * @param {object[]} blocks
+ * @returns {string[]}
+ */
+export function linkedOwnerNodeIdsInOrder(blocks) {
+  const ids = [];
+  const seen = new Set();
+  for (const block of normalizeDocBlocks(blocks)) {
+    if (!block?.nodeId || seen.has(block.nodeId)) continue;
+    if (block.type !== DOC_BLOCK_TYPES.H1 && block.type !== DOC_BLOCK_TYPES.TODO) continue;
+    seen.add(block.nodeId);
+    ids.push(block.nodeId);
+  }
+  return ids;
+}
+
 /** Nodes still belonging to a folder (panel membership), with or without body layers. */
 export function collectFolderMemberNodeIds(docId, nodesById = {}) {
   const ids = new Set();

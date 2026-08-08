@@ -94,7 +94,9 @@ import {
   removeLinkedOwnerBundleFromBlocks,
   reconcileLinkedBlockTitlesFromNodes,
   shouldMirrorNodeContentInDoc,
+  linkedOwnerNodeIdsInOrder,
 } from "../../lib/docNodeSync.js";
+import { reorderLinkedOwnerBundlesInBlocks } from "../../lib/folderDocumentOrder.js";
 import {
   buildDetachedWidgetEmbedded,
   captureDocBlockWidgetSnapshot,
@@ -394,10 +396,15 @@ export function DocExpandedView({
     const useCachedDraft = cached?.schemaVersion === 2 && !preferStoreContent && cachedHasText;
 
     const blocksForSnapshotRaw = useCachedDraft ? cachedBlocks : loadedBlocks;
-    const blocksForSnapshot = mergeMissingLinkedOwnerBundles(
+    const storeOwnerOrder = linkedOwnerNodeIdsInOrder(loadedBlocks);
+    const blocksForSnapshotMerged = mergeMissingLinkedOwnerBundles(
       blocksForSnapshotRaw,
       loadedBlocks,
     );
+    // Cached drafts can outlive a left-panel reorder — realign owner bundles to store.
+    const blocksForSnapshot = storeOwnerOrder.length
+      ? reorderLinkedOwnerBundlesInBlocks(blocksForSnapshotMerged, storeOwnerOrder)
+      : blocksForSnapshotMerged;
     const loadedTitle = useCachedDraft ? (cached.title ?? savedTitle) : savedTitle;
     const loadedBody = useCachedDraft
       ? (cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")))
@@ -525,17 +532,14 @@ export function DocExpandedView({
     setInitialSnapshot(openSnapshot);
     docSnapshotRef.current = JSON.stringify(openSnapshot);
     setShowUnsavedConfirm(false);
-    storeLinkedNodeIdsKeyRef.current = blocksForSnapshot
-      .filter((b) => b?.nodeId)
-      .map((b) => b.nodeId)
-      .sort()
-      .join("|");
+    storeLinkedNodeIdsKeyRef.current = linkedOwnerNodeIdsInOrder(blocksForSnapshot).join("|");
     setIsDraftReady(true);
   }, [docId]);
 
   /**
    * When Create a new Document syncs into docsStore while this folder is open,
    * pull only *new* linked titles into the draft — never remarge removals.
+   * Also realign owner-bundle order after left-panel document reorder.
    */
   useEffect(() => {
     if (!doc || !isDraftReady) return;
@@ -543,11 +547,8 @@ export function DocExpandedView({
     const storeBlocks = normalizeDocBlocks(
       doc.blocks?.length ? doc.blocks : docBlocksFromBody(doc.body ?? doc.content ?? ""),
     );
-    const storeLinkedKey = storeBlocks
-      .filter((b) => b?.nodeId)
-      .map((b) => b.nodeId)
-      .sort()
-      .join("|");
+    const storeOwnerOrder = linkedOwnerNodeIdsInOrder(storeBlocks);
+    const storeLinkedKey = storeOwnerOrder.join("|");
     if (storeLinkedKey === storeLinkedNodeIdsKeyRef.current) return;
 
     const prevIds = new Set(
@@ -555,40 +556,34 @@ export function DocExpandedView({
         ? storeLinkedNodeIdsKeyRef.current.split("|").filter(Boolean)
         : [],
     );
-    const hasNewLinkedIds = storeBlocks.some(
-      (b) => b?.nodeId && !prevIds.has(b.nodeId),
-    );
+    const hasNewLinkedIds = storeOwnerOrder.some((id) => !prevIds.has(id));
     storeLinkedNodeIdsKeyRef.current = storeLinkedKey;
+
+    let nextBlocks = draftBlocksRef.current;
 
     if (!hasNewLinkedIds) {
       // Panel delete purged the node — strip leftover title layers from the open draft.
       const nodesById = useNodesStore.getState().nodes;
-      let pruned = draftBlocksRef.current;
-      let changed = false;
-      for (const block of draftBlocksRef.current) {
+      let pruned = nextBlocks;
+      for (const block of nextBlocks) {
         if (!block?.nodeId || nodesById[block.nodeId]) continue;
         pruned = removeLinkedOwnerBundleFromBlocks(pruned, block.nodeId).blocks;
-        changed = true;
       }
-      if (changed) {
-        setDraftBlocks(pruned);
-        setInitialSnapshot((prev) => {
-          if (!prev) return prev;
-          const next = { ...prev, blocks: pruned };
-          docSnapshotRef.current = JSON.stringify(next);
-          return next;
-        });
-      }
-      return;
+      nextBlocks = pruned;
+    } else {
+      nextBlocks = mergeMissingLinkedOwnerBundles(nextBlocks, storeBlocks);
     }
 
-    const merged = mergeMissingLinkedOwnerBundles(draftBlocksRef.current, storeBlocks);
-    if (JSON.stringify(merged) === JSON.stringify(draftBlocksRef.current)) return;
+    if (storeOwnerOrder.length) {
+      nextBlocks = reorderLinkedOwnerBundlesInBlocks(nextBlocks, storeOwnerOrder);
+    }
 
-    setDraftBlocks(merged);
+    if (JSON.stringify(nextBlocks) === JSON.stringify(draftBlocksRef.current)) return;
+
+    setDraftBlocks(nextBlocks);
     setInitialSnapshot((prev) => {
       if (!prev) return prev;
-      const next = { ...prev, blocks: merged };
+      const next = { ...prev, blocks: nextBlocks };
       docSnapshotRef.current = JSON.stringify(next);
       return next;
     });
@@ -654,7 +649,7 @@ export function DocExpandedView({
       useDocsStore.getState().addNodeToDoc(doc.id, nodeId);
     }
     updateDoc(doc.id, { blocks: next });
-    storeLinkedNodeIdsKeyRef.current = [...nextIds].sort().join("|");
+    storeLinkedNodeIdsKeyRef.current = linkedOwnerNodeIdsInOrder(next).join("|");
     setInitialSnapshot((prev) => {
       if (!prev) return prev;
       const aligned = { ...prev, blocks: next };
@@ -1750,11 +1745,7 @@ export function DocExpandedView({
       linkedToDoc: true,
     });
     useDocsStore.getState().addNodeToDoc(doc.id, nodeId);
-    storeLinkedNodeIdsKeyRef.current = next
-      .filter((b) => b?.nodeId)
-      .map((b) => b.nodeId)
-      .sort()
-      .join("|");
+    storeLinkedNodeIdsKeyRef.current = linkedOwnerNodeIdsInOrder(next).join("|");
 
     // Align dirty baseline so close/Yes does not treat unlink as a stale save wipe.
     setInitialSnapshot((prev) => {

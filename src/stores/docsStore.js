@@ -3,6 +3,7 @@ import { devtools } from "zustand/middleware";
 import { generateId } from "../lib/ids.js";
 import { useObjectsStore } from "./objectsStore.js";
 import { useNodesStore } from "./nodesStore.js";
+import { useUIStateStore } from "./uiStateStore.js";
 import {
   docBlocksFromBody,
   docBlocksToBody,
@@ -17,7 +18,7 @@ import {
   applyVisibleNodeReorder,
   reorderLinkedOwnerBundlesInBlocks,
 } from "../lib/folderDocumentOrder.js";
-import { collectFolderMemberNodeIds } from "../lib/docNodeSync.js";
+import { collectFolderMemberNodeIds, linkedOwnerNodeIdsInOrder } from "../lib/docNodeSync.js";
 import {
   flushPersistenceSync,
   markDocsDeletedForSync,
@@ -299,6 +300,17 @@ export const useDocsStore = create(
           nodeIds: nextNodeIds,
           blocks: nextBlocks,
         });
+
+        // Keep open/reopen draft cache aligned with left-panel document order.
+        const ownerOrder = linkedOwnerNodeIdsInOrder(nextBlocks);
+        const cached = useUIStateStore.getState().docEditorDrafts[folderId];
+        if (cached?.blocks?.length && ownerOrder.length) {
+          const cachedBlocks = reorderLinkedOwnerBundlesInBlocks(cached.blocks, ownerOrder);
+          useUIStateStore.getState().setDocEditorDraft(folderId, {
+            ...cached,
+            blocks: cachedBlocks,
+          });
+        }
       },
 
       deleteDoc: (id) => {
