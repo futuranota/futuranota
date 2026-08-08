@@ -454,6 +454,7 @@ export const messages = {
       insertNode: "Insert document",
       dragDocToCanvas: "Drag document to canvas",
       reorderFolder: "Drag to reorder folders",
+      reorderFolderDoc: "Drag to reorder documents",
       clickFolderDocs: "Click for documents · hold for edit or delete · drag to canvas",
       clickOpenFolder: "Click to open folder",
       createDocumentInBox: "Create a new Document",

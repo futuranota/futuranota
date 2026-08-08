@@ -1,11 +1,9 @@
 import { useI18n } from "../../i18n/useI18n.js";
 
-const GUIDE_ICON_SRC = "/uploads/branding.svg";
 const IMPORT_ICON_SRC = "/uploads/import.svg";
 const STEPS_ICON_SRC = "/uploads/step-by-step.svg";
 const LAZY_TODO_ICON_SRC = "/uploads/to-do.svg";
 const URL_TABLE_ICON_SRC = "/uploads/url-table.svg";
-const PASSWORD_TABLE_ICON_SRC = "/uploads/Password-table.svg";
 const PRODUCTS_ICON_SRC = "/uploads/botones/click-groups.svg";
 const CAMPAIGN_ICON_SRC = "/uploads/market-hype.svg";
 
@@ -27,11 +25,9 @@ function PackActionsToolbarIcon({ src, className = "pack-actions__btn-icon" }) {
  * @param {() => void} [props.onOpenStepsLibrary]
  * @param {() => void} [props.onOpenLazyTodos]
  * @param {() => void} [props.onOpenUrlTable]
- * @param {() => void} [props.onOpenPasswordTable]
  * @param {() => void} [props.onOpenProducts]
  * @param {() => void} [props.onOpenCampaign]
  * @param {boolean} [props.companySelected]
- * @param {() => void} [props.onInsertGuide]
  * @param {'category'|null} [props.filterMode]
  * @param {{ id: string, label: string }[]} [props.filterOptions]
  * @param {string|null} [props.filterValue]
@@ -43,11 +39,9 @@ export function PackActionsBar({
   onOpenStepsLibrary,
   onOpenLazyTodos,
   onOpenUrlTable,
-  onOpenPasswordTable,
   onOpenProducts,
   onOpenCampaign,
   companySelected = false,
-  onInsertGuide,
   filterMode = null,
   filterOptions = [],
   filterValue = null,
@@ -119,17 +113,6 @@ export function PackActionsBar({
           <span className="pack-actions__btn-label">{t("pack.urlTable")}</span>
         </button>
       ) : null}
-      {companySelected && onOpenPasswordTable ? (
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onOpenPasswordTable}
-          title={t("pack.passwordTableTitle")}
-        >
-          <PackActionsToolbarIcon src={PASSWORD_TABLE_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.passwordTable")}</span>
-        </button>
-      ) : null}
       {companySelected && onOpenProducts ? (
         <button
           type="button"
@@ -150,17 +133,6 @@ export function PackActionsBar({
         >
           <PackActionsToolbarIcon src={CAMPAIGN_ICON_SRC} />
           <span className="pack-actions__btn-label">{t("pack.campaign")}</span>
-        </button>
-      ) : null}
-      {placement === "documents" && onInsertGuide ? (
-        <button
-          type="button"
-          className="btn xs pack-actions__btn pack-actions__btn--toolbar"
-          onClick={onInsertGuide}
-          title={t("pack.guideTitle")}
-        >
-          <PackActionsToolbarIcon src={GUIDE_ICON_SRC} />
-          <span className="pack-actions__btn-label">{t("pack.guide")}</span>
         </button>
       ) : null}
       {filterEnabled ? (

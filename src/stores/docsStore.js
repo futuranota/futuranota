@@ -14,6 +14,11 @@ import {
   sidebarOrderPatchForIds,
 } from "../lib/folderSidebarOrder.js";
 import {
+  applyVisibleNodeReorder,
+  reorderLinkedOwnerBundlesInBlocks,
+} from "../lib/folderDocumentOrder.js";
+import { collectFolderMemberNodeIds } from "../lib/docNodeSync.js";
+import {
   flushPersistenceSync,
   markDocsDeletedForSync,
 } from "./middleware/persistenceMiddleware.js";
@@ -266,6 +271,33 @@ export const useDocsStore = create(
             nextDocs[id] = normalizeDoc({ ...doc, sidebarOrder: nextOrder, updatedAt: now });
           }
           return changed ? { docs: nextDocs } : state;
+        });
+      },
+
+      /**
+       * Reorder documents inside a folder (left-panel collapse list).
+       * Updates nodeIds + linked owner block bundles so open-folder order stays aligned.
+       * @param {string} folderId
+       * @param {string[]} orderedNodeIds visible list order after drop
+       */
+      reorderFolderDocuments: (folderId, orderedNodeIds) => {
+        if (!folderId || !Array.isArray(orderedNodeIds) || !orderedNodeIds.length) return;
+        const doc = get().docs[folderId];
+        if (!doc) return;
+
+        const nodesById = useNodesStore.getState().nodes || {};
+        const memberIds = [
+          ...new Set([
+            ...(Array.isArray(doc.nodeIds) ? doc.nodeIds.filter(Boolean) : []),
+            ...collectFolderMemberNodeIds(folderId, nodesById),
+          ]),
+        ];
+        const nextNodeIds = applyVisibleNodeReorder(memberIds, orderedNodeIds);
+        const nextBlocks = reorderLinkedOwnerBundlesInBlocks(doc.blocks, orderedNodeIds);
+
+        get().updateDoc(folderId, {
+          nodeIds: nextNodeIds,
+          blocks: nextBlocks,
         });
       },
 

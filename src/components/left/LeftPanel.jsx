@@ -22,7 +22,11 @@ import {
   moveIdBeforeTarget,
   setSidebarFolderDragImage,
 } from "../../lib/folderSidebarOrder.js";
-import { getAgentsForUser, AGENT_CONTENT_CREATOR, AGENT_MARKETING_GUIDE, AGENT_SOCIAL_HYPE_ANALYST } from "../../lib/agents/registry.js";
+import {
+  FOLDER_DOC_REORDER_MIME,
+  setFolderDocDragImage,
+} from "../../lib/folderDocumentOrder.js";
+import { getAgentsForUser, AGENT_CONTENT_CREATOR, AGENT_SOCIAL_HYPE_ANALYST } from "../../lib/agents/registry.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { AssistanceListCard } from "../gina/AssistanceListCard.jsx";
@@ -568,8 +572,17 @@ function NodeCompactRow({
   showScheduleTime = false,
   campaignMode = false,
   highlighted = false,
+  reorderEnabled = false,
+  reorderActive = false,
+  reorderDragging = false,
+  reorderDragOver = false,
+  onReorderDragStart,
+  onReorderDragOver,
+  onReorderDrop,
+  onReorderDragEnd,
 }) {
   const { t } = useI18n();
+  const rowRef = useRef(null);
   const displayTitle = getNodeDisplayTitle(node);
   const source = resolveDocSource(node?.sourceId);
   const iconSrc = source?.src || "/uploads/File.svg";
@@ -581,13 +594,56 @@ function NodeCompactRow({
 
   return (
     <div
+      ref={rowRef}
       className={
         "lp-doc-nodes-block__node"
         + (isCampaignActive ? " is-campaign-active" : "")
         + (highlighted ? " is-gina-reveal" : "")
+        + (reorderDragging ? " is-folder-doc-dragging" : "")
+        + (reorderDragOver ? " is-folder-doc-drag-over" : "")
       }
       data-gina-reveal={highlighted ? "1" : undefined}
-    >      <button
+      onDragOver={reorderEnabled ? (e) => {
+        const types = [...e.dataTransfer.types];
+        const isDocReorder = types.includes(FOLDER_DOC_REORDER_MIME)
+          || (reorderActive && types.includes("text/plain"));
+        if (!isDocReorder && !reorderActive) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        onReorderDragOver?.(node.id);
+      } : undefined}
+      onDrop={reorderEnabled ? (e) => {
+        const types = [...e.dataTransfer.types];
+        const isDocReorder = types.includes(FOLDER_DOC_REORDER_MIME)
+          || types.includes("text/plain");
+        if (!isDocReorder && !reorderActive) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onReorderDrop?.(node.id);
+      } : undefined}
+      onDragEnd={reorderEnabled ? () => onReorderDragEnd?.() : undefined}
+    >
+      {reorderEnabled ? (
+        <span
+          className="lp-doc-drag-area lp-doc-drag-area--compact lp-doc-drag-area--folder-doc"
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData(FOLDER_DOC_REORDER_MIME, node.id);
+            e.dataTransfer.setData("text/plain", node.id);
+            setFolderDocDragImage(e.dataTransfer, rowRef.current, e);
+            onReorderDragStart?.(node.id);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          title={t("sidebar.reorderFolderDoc")}
+          aria-label={t("sidebar.reorderFolderDoc")}
+        >
+          ⋮⋮
+        </span>
+      ) : null}
+      <button
         type="button"
         className="lp-doc-nodes-block__node-main"
         onClick={onClick}
@@ -695,6 +751,11 @@ function DocNodesBlockCard({
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(defaultExpanded || forceExpanded);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [folderDocDragId, setFolderDocDragId] = useState(/** @type {string | null} */ (null));
+  const [folderDocOverId, setFolderDocOverId] = useState(/** @type {string | null} */ (null));
+  const folderDocDragIdRef = useRef(/** @type {string | null} */ (null));
+  const folderDocListRef = useRef(/** @type {string[] | null} */ (null));
+  const reorderFolderDocuments = useDocsStore((s) => s.reorderFolderDocuments);
   const longPressTimer = useRef(null);
   const suppressClickRef = useRef(false);
   const pointerStartRef = useRef({ x: 0, y: 0 });
@@ -1011,6 +1072,35 @@ function DocNodesBlockCard({
               onClick={() => onNodeClick?.(node)}
               onInsert={() => onNodeInsert?.(node)}
               onDelete={() => onNodeDelete?.(node)}
+              reorderEnabled={!orphan && Boolean(doc?.id) && nodes.length > 1}
+              reorderActive={Boolean(folderDocDragId)}
+              reorderDragging={folderDocDragId === node.id}
+              reorderDragOver={folderDocOverId === node.id && folderDocDragId !== node.id}
+              onReorderDragStart={(id) => {
+                folderDocDragIdRef.current = id;
+                folderDocListRef.current = nodes.map((n) => n.id);
+                setFolderDocDragId(id);
+                setFolderDocOverId(id);
+              }}
+              onReorderDragOver={setFolderDocOverId}
+              onReorderDrop={(targetId) => {
+                const fromId = folderDocDragIdRef.current;
+                const list = folderDocListRef.current;
+                folderDocDragIdRef.current = null;
+                folderDocListRef.current = null;
+                setFolderDocDragId(null);
+                setFolderDocOverId(null);
+                if (!doc?.id || !fromId || !targetId || !list?.length) return;
+                const next = moveIdBeforeTarget(list, fromId, targetId);
+                if (!next) return;
+                reorderFolderDocuments(doc.id, next);
+              }}
+              onReorderDragEnd={() => {
+                folderDocDragIdRef.current = null;
+                folderDocListRef.current = null;
+                setFolderDocDragId(null);
+                setFolderDocOverId(null);
+              }}
             />
           ))}
           {onCreateDocument ? (
@@ -1763,7 +1853,6 @@ export function LeftPanel({
   onOpenUrlTableForCompany,
   onOpenUrlTableRef,
   onOpenNewUrlTable,
-  onOpenPasswordTableForCompany,
   onOpenNewLazyTodo,
   onOpenLazyTodoItem,
   onStepPlaybookRemoved,
@@ -1926,10 +2015,6 @@ export function LeftPanel({
     );
     setGinaDashboardOpen(true);
   }, [userEmail, locale, selectedCanvasNodeIds, canvasNodes, nodesMap, docsMap]);
-
-  const handleInsertGuide = useCallback(() => {
-    onInsertAgent?.(AGENT_MARKETING_GUIDE);
-  }, [onInsertAgent]);
 
   /** Temporary sidebar Agents list — only Social Hype + Content Creator while wiring flows. */
   const canvasAgents = useMemo(
@@ -2474,18 +2559,6 @@ export function LeftPanel({
       setPanelType("Documents");
     }
     openUrlTableLibraryView();
-  };
-
-  const openPasswordTableFromToolbar = () => {
-    const targetObjectId = filterObjectId || selectedObjectId;
-    if (targetObjectId) {
-      if (!objectWorkspaceActive) {
-        enterObjectWorkspace(targetObjectId);
-      }
-      onOpenPasswordTableForCompany?.(targetObjectId);
-      return;
-    }
-    setPanelType("Documents");
   };
 
   const openProductsFromToolbar = () => {
@@ -4016,10 +4089,8 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenPasswordTable={openPasswordTableFromToolbar}
                     onOpenProducts={openProductsFromToolbar}
                     onOpenCampaign={openCampaignFromToolbar}
-                    onInsertGuide={handleInsertGuide}
                   />
                 </div>
                 <div className="lp-click-folders-stack__boxes">
@@ -4063,10 +4134,8 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenPasswordTable={openPasswordTableFromToolbar}
                     onOpenProducts={openProductsFromToolbar}
                     onOpenCampaign={openCampaignFromToolbar}
-                    onInsertGuide={handleInsertGuide}
                     filterMode="category"
                     filterOptions={categoryFilterOptions}
                     filterValue={productCategoryFilter}
@@ -4176,10 +4245,8 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenPasswordTable={openPasswordTableFromToolbar}
                     onOpenProducts={openProductsFromToolbar}
                     onOpenCampaign={openCampaignFromToolbar}
-                    onInsertGuide={handleInsertGuide}
                     filterMode="category"
                     filterOptions={campaignCategoryFilterOptions}
                     filterValue={productCategoryFilter}
@@ -4388,10 +4455,8 @@ export function LeftPanel({
                     onOpenStepsLibrary={openStepsLibraryFromToolbar}
                     onOpenLazyTodos={openLazyTodosFromToolbar}
                     onOpenUrlTable={openUrlTableFromToolbar}
-                    onOpenPasswordTable={openPasswordTableFromToolbar}
                     onOpenProducts={openProductsFromToolbar}
                     onOpenCampaign={openCampaignFromToolbar}
-                    onInsertGuide={handleInsertGuide}
                   />
                 </div>
                 <div className="lp-library-toolbar lp-folder-search-toolbar">

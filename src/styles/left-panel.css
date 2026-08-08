@@ -3134,11 +3134,46 @@
 
 .lp-doc-nodes-block__node {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0;
   padding: 1px 2px;
   border-radius: 4px;
+}
+
+.lp-doc-nodes-block__node.is-folder-doc-dragging {
+  opacity: 0.4;
+}
+
+.lp-doc-nodes-block__node.is-folder-doc-drag-over {
+  box-shadow: inset 0 2px 0 0 rgba(255, 255, 255, 0.35);
+}
+
+.lp-doc-drag-area--folder-doc {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px 0 4px;
+  opacity: 0.45;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.lp-doc-nodes-block__node:hover .lp-doc-drag-area--folder-doc,
+.lp-doc-nodes-block__node:focus-within .lp-doc-drag-area--folder-doc {
+  opacity: 0.9;
+}
+
+.lp-doc-nodes-block__node--drag-image {
+  background: #151515 !important;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  opacity: 1 !important;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
 }
 
 .lp-doc-nodes-block__node:hover {

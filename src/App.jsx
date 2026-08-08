@@ -1665,7 +1665,6 @@ useEffect(() => {
             onOpenUrlTableForCompany={handleOpenUrlTableForCompany}
             onOpenUrlTableRef={handleOpenUrlTableRef}
             onOpenNewUrlTable={handleOpenNewUrlTable}
-            onOpenPasswordTableForCompany={handleOpenPasswordTableForCompany}
             onOpenNewLazyTodo={handleOpenNewLazyTodo}
             onOpenLazyTodoItem={handleOpenLazyTodoItem}
             onStepPlaybookRemoved={handleStepPlaybookRemoved}
