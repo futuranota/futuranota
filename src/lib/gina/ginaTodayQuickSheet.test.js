@@ -3,6 +3,7 @@ import {
   buildTodayQuickSheetSections,
   filterDocsAnchoredToday,
   flattenTodayQuickSheetRows,
+  summarizeTodayOverlaps,
   todayHasScheduleOverlap,
   urgencyChipKind,
 } from "./ginaTodayQuickSheet.js";
@@ -102,11 +103,14 @@ describe("ginaTodayQuickSheet", () => {
     const docs = [
       doc({
         id: "a",
+        title: "Long Sales",
+        departmentName: "Sales",
         anchorAt: "2026-08-08T15:00:00",
         anchorFinishAt: "2026-08-08T17:00:00",
       }),
       doc({
         id: "b",
+        title: "Blogs",
         departmentName: "Marketing",
         anchorAt: "2026-08-08T16:00:00",
         anchorFinishAt: "2026-08-08T16:30:00",
@@ -116,6 +120,11 @@ describe("ginaTodayQuickSheet", () => {
     const s = buildTodayQuickSheetSections(docs, NOW);
     expect(s.hasOverlap).toBe(true);
     expect(s.isCleanDay).toBe(false);
+    const summary = summarizeTodayOverlaps(docs, NOW);
+    expect(summary.hasOverlap).toBe(true);
+    expect(summary.topConflict?.department).toBe("Sales");
+    expect(summary.conflictRails?.longBlock?.id).toBe("a");
+    expect(summary.conflictRails?.overlappingBlocks?.map((b) => b.id)).toContain("b");
   });
 
   it("urgencyChipKind distinguishes past_due vs unassigned", () => {

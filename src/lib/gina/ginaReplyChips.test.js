@@ -38,7 +38,7 @@ describe("ginaReplyChips", () => {
     ]);
   });
 
-  it("funnel headline for today overview is chronological report before table", () => {
+  it("funnel headline for today overview is classic Horario de Hoy opening", () => {
     const line = buildGinaFunnelHeadline({
       type: "schedule_sheet",
       data: {
@@ -72,14 +72,14 @@ describe("ginaReplyChips", () => {
         },
       },
     }, { locale: "es" });
-    expect(line).toMatch(/horario cronológicamente/i);
+    expect(line).toMatch(/^Horario de Hoy:/);
     expect(line).toContain("**5** documento");
-    expect(line).toContain("**2**");
-    expect(line).toContain("3:30 PM");
-    expect(line).toContain("Sales block");
+    expect(line).toContain("2 horas con 15 minutos");
+    expect(line).toContain("departamento principal");
+    expect(line).not.toMatch(/señalar|vencido|choca/i);
   });
 
-  it("today overview after-text offers recovery when urgency remains", () => {
+  it("today overview after-text introduces chronological sheet", () => {
     const after = buildTodayOverviewAfterText({
       locale: "es",
       quickSheet: {
@@ -87,10 +87,11 @@ describe("ginaReplyChips", () => {
         isCleanDay: false,
       },
     });
-    expect(after).toMatch(/vencidos|cadena/i);
+    expect(after).toMatch(/sheet del día/i);
+    expect(after).toMatch(/orden de horario/i);
   });
 
-  it("today overview after-text offers open first doc on clean day", () => {
+  it("today overview after-text still introduces sheet on clean day", () => {
     const after = buildTodayOverviewAfterText({
       locale: "es",
       quickSheet: {
@@ -100,8 +101,8 @@ describe("ginaReplyChips", () => {
         firstPendingId: "n1",
       },
     });
-    expect(after).toContain("Call 1");
-    expect(after).toMatch(/abra el documento/i);
+    expect(after).toMatch(/sheet del día/i);
+    expect(after).not.toMatch(/abra el documento/i);
   });
 
   it("today overview dept blocks have headline + bold docs/hours", () => {
@@ -202,7 +203,8 @@ describe("ginaReplyChips", () => {
         },
       },
     }, { locale: "es" });
-    expect(headline).toMatch(/horario cronológicamente/i);
+    expect(headline).toMatch(/^Horario de Hoy:/);
+    expect(headline).toContain("**1** documento");
     const after = buildTodayOverviewAfterText({
       locale: "es",
       quickSheet: {
@@ -212,10 +214,10 @@ describe("ginaReplyChips", () => {
         urgency: [],
       },
     });
-    expect(after).toContain("¿Quieres que te abra el documento?");
+    expect(after).toMatch(/sheet del día/i);
   });
 
-  it("urgency on today overview nudges recovery copy", () => {
+  it("urgency on today overview stays out of opening (notify later)", () => {
     const headline = buildGinaFunnelHeadline({
       type: "schedule_sheet",
       data: {
@@ -233,8 +235,9 @@ describe("ginaReplyChips", () => {
         },
       },
     }, { locale: "es" });
-    expect(headline).toContain("horario vencido");
-    expect(headline).toContain("2:00 PM");
+    expect(headline).toMatch(/^Horario de Hoy:/);
+    expect(headline).not.toContain("horario vencido");
+    expect(headline).not.toContain("2:00 PM");
   });
 
   it("urgency on today overview chips are recovery-only (errors first)", () => {

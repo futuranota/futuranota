@@ -1,5 +1,19 @@
-import { isPassedSlot, buildCascadeSchedulePreview } from "./ginaScheduleRecovery.js";
-import { formatClockRange12h, formatClock12h } from "../clockFormat.js";
+import {
+  isPassedSlot,
+  buildCascadeSchedulePreview,
+  resolveRecoveryCurrentStep,
+  resolveRecoveryNextStep,
+} from "./ginaScheduleRecovery.js";
+import {
+  partitionTodayByClock,
+  mapLateStartLabels,
+  findFirstFreeSlot,
+  lastOccupiedFinishMs,
+} from "./ginaTodayTimeTriage.js";
+import { listOccupiedIntervalsByDate } from "../docScheduleOccupancy.js";
+import { todayDateInputValue, calendarDateInputValue } from "../docDates.js";
+import { isoFromAnchorFields, anchorFieldsFromIso } from "../nodeAnchor.js";
+import { formatClock12h, formatClockRange12h } from "../clockFormat.js";
 import {
   buildGinaDepartmentRail,
   GINA_DEPT_RAIL_COLORS,
@@ -376,6 +390,33 @@ function attachRecoveryMeta(data, today, now) {
       anchorAt: d.anchorAt,
       anchorFinishAt: d.anchorFinishAt,
     }));
+  const markableCount = today.markableSlotCount ?? computedPassed.filter((d) => {
+    const s = d.status;
+    return s !== "past_due" && s !== "completed" && s !== "submitted";
+  }).length;
+  const overlapSummary = (data.hasOverlap || data.conflictRails || data.quickSheet?.hasOverlap || today.hasOverlap)
+    ? null
+    : summarizeTodayOverlaps(docs, now);
+  const resolvedConflictRails = data.conflictRails
+    || data.quickSheet?.conflictRails
+    || overlapSummary?.conflictRails
+    || null;
+  const hasOverlapOffer = Boolean(
+    data.hasOverlap
+    || data.quickSheet?.hasOverlap
+    || resolvedConflictRails
+    || today.hasOverlap
+    || overlapSummary?.hasOverlap,
+  );
+  // Notify chip = actionable signals: markable vencidos, late-start, and/or traslapes.
+  const triageOffer = partitionTodayByClock(docs, now);
+  const lateStartOffer = triageOffer.lateStartActive.length > 0;
+  const urgencyMarkableOffer = Boolean(
+    markableCount > 0
+    || lateStartOffer
+    || (Array.isArray(data.quickSheet?.urgency)
+      && data.quickSheet.urgency.some((d) => d && d.markable)),
+  );
   return {
     ...data,
     passedSlots: computedPassed,
@@ -385,11 +426,12 @@ function attachRecoveryMeta(data, today, now) {
     }),
     passedSlotCount: today.passedSlotCount ?? computedPassed.length,
     markableSlotCount: today.markableSlotCount ?? null,
+    lateStartCount: data.lateStartCount ?? triageOffer.lateStartActive.length,
     firstPendingTitle: today.firstPendingTitle || computedPassed[0]?.title || null,
-    hasRecoveryOffer: (today.markableSlotCount ?? computedPassed.filter((d) => {
-      const s = d.status;
-      return s !== "past_due" && s !== "completed" && s !== "submitted";
-    }).length) > 0,
+    hasOverlap: Boolean(data.hasOverlap || hasOverlapOffer),
+    conflictRails: resolvedConflictRails || data.conflictRails || null,
+    topConflict: data.topConflict || overlapSummary?.topConflict || data.quickSheet?.topConflict || null,
+    hasRecoveryOffer: urgencyMarkableOffer || hasOverlapOffer,
     highlightPassedSlots: Boolean(data.highlightPassedSlots),
     recoveryPhase: data.recoveryPhase || "gate",
   };
@@ -1036,6 +1078,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       ...mapQuickSheetSections(quickSections, (d) => mapDocRow(d, now, locale)),
       hasOverlap: Boolean(overlap.hasOverlap || quickSections.hasOverlap),
       topConflict: overlap.topConflict,
+      conflictRails: overlap.conflictRails,
       clockLabel: formatClock12h(now),
       totalDocuments: allToday.length,
       urgencyCount: quickSections.urgency.length,
@@ -1068,13 +1111,17 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       totalHoursLabel: formatWorkDurationLabel(totalMinutes, locale),
       hoursChart,
       quickSheet,
+      hasOverlap: quickSheet.hasOverlap,
+      conflictRails: quickSheet.conflictRails,
+      topConflict: quickSheet.topConflict,
     }, today, now);
     return {
       type: "schedule_sheet",
       data: {
         ...baseData,
         hasRecoveryOffer: Boolean(baseData.hasRecoveryOffer)
-          || (Array.isArray(quickSheet.urgency) && quickSheet.urgency.length > 0),
+          || (Array.isArray(quickSheet.urgency) && quickSheet.urgency.some((d) => d && d.markable))
+          || Boolean(quickSheet.hasOverlap),
       },
     };
   }
@@ -1123,26 +1170,176 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     };
   }
 
-  if (family === "schedule_recovery_brief") {
-    const markable = asDocs(ctx.markableSlots?.length ? ctx.markableSlots : ctx.passedSlots);
-    const source = markable.length ? markable : asDocs(ctx.documents).filter((d) => isPassedSlot(d, now));
+  if (family === "schedule_recovery_brief" || family === "schedule_recovery_next") {
+    const allDocs = asDocs(ctx.documents);
+    const triage = partitionTodayByClock(allDocs, now);
+    const fullyExpired = triage.fullyExpired.filter((d) => d.status !== "past_due");
+    const lateStart = triage.lateStartActive;
+    const urgencySource = fullyExpired.length
+      ? fullyExpired
+      : asDocs(ctx.markableSlots?.length ? ctx.markableSlots : []).filter((d) => isPassedSlot(d, now));
+    const overlap = summarizeTodayOverlaps(allDocs, now);
+    const urgencyCount = urgencySource.length;
+    const lateStartCount = lateStart.length;
+    const hasOverlap = Boolean(overlap.hasOverlap);
+    const forced = ctx.currentStep || ctx.recoveryStep || null;
+    const currentStep = family === "schedule_recovery_next" && !forced
+      ? resolveRecoveryNextStep({ urgencyCount: 0, hasOverlap })
+      : resolveRecoveryCurrentStep({
+        urgencyCount,
+        lateStartCount,
+        hasOverlap,
+        forceStep: forced,
+      });
+
+    const overdueTimes = urgencySource
+      .map((d) => {
+        const t = d.anchorAt || d.anchorFinishAt;
+        return t ? formatClock12h(new Date(t)) : "";
+      })
+      .filter(Boolean);
+    const lateStartLabels = mapLateStartLabels(lateStart);
+
+    const invadedLabels = (overlap.conflictRails?.overlappingBlocks || [])
+      .map((b) => String(b.category || b.department || b.title || "").trim())
+      .filter(Boolean);
+
+    const conflictRangeLabel = overlap.conflictRails
+      ? `${formatClock12h(new Date(overlap.conflictRails.rangeStart))} – ${formatClock12h(new Date(overlap.conflictRails.rangeEnd))}`
+      : (overlap.topConflict?.timeLabel || null);
+
+    const showOverdue = currentStep === "overdue_check";
+    const showConflict = currentStep === "conflict_resolve";
+    const source = showOverdue
+      ? [...urgencySource, ...lateStart]
+      : (showConflict && overlap.conflictRails
+        ? [overlap.conflictRails.longBlock, ...(overlap.conflictRails.overlappingBlocks || [])]
+          .map((b) => allDocs.find((d) => d.id && d.id === b.id) || b)
+          .filter(Boolean)
+        : []);
+
     return {
       type: "schedule_sheet",
       data: attachRecoveryMeta({
         date: ctx.date,
         dateLabel: formatGinaDayLabel(ctx.date, locale),
-        groups: groupDocsForScheduleSheet(source, now),
+        groups: showOverdue ? groupDocsForScheduleSheet(source, now) : [],
         documents: source
           .slice()
           .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
-          .map((d) => mapDocRow(d, now)),
-        highlightPassedSlots: true,
+          .map((d) => mapDocRow(d, now, locale)),
+        highlightPassedSlots: showOverdue && urgencyCount > 0,
         recoveryPhase: "brief",
+        recoveryWizard: currentStep !== "summary",
+        notifyBrief: true,
+        currentStep,
+        urgencyCount,
+        lateStartCount,
+        overdueTimes,
+        lateStartLabels,
+        hasOverlap,
+        topConflict: showConflict ? overlap.topConflict : null,
+        conflictRails: showConflict ? overlap.conflictRails : null,
+        conflictRangeLabel: showConflict ? conflictRangeLabel : null,
+        invadedLabels: showConflict ? invadedLabels : [],
+        clockLabel: formatClock12h(now),
+        locale,
+        moveDocIds: triage.actionable.map((d) => d.id).filter(Boolean),
       }, ctx, now),
     };
   }
 
-  if (family === "schedule_recovery_mark" || family === "schedule_recovery_postpone") {
+  if (family === "schedule_recovery_reschedule_pick") {
+    const allDocs = asDocs(ctx.documents);
+    const triage = partitionTodayByClock(allDocs, now);
+    const moveDocs = asDocs(ctx.moveDocs?.length ? ctx.moveDocs : triage.actionable);
+    const excludeIds = new Set(moveDocs.map((d) => d.id).filter(Boolean));
+    const dateKey = ctx.date || calendarDateInputValue(now) || todayDateInputValue();
+    const nodesById = ctx.nodes || Object.fromEntries(allDocs.map((d) => [d.id, d]));
+    const docsById = ctx.docs || {};
+    const occupiedRaw = listOccupiedIntervalsByDate(nodesById, docsById, dateKey, {
+      objectId: ctx.objectId || null,
+    }).filter((o) => !excludeIds.has(o.id));
+
+    const primary = moveDocs[0] || null;
+    const dur = primary
+      ? Math.max(
+        15 * 60 * 1000,
+        (primary.anchorFinishAt ? new Date(primary.anchorFinishAt).getTime() : 0)
+          - (primary.anchorAt ? new Date(primary.anchorAt).getTime() : 0)
+          || 60 * 60 * 1000,
+      )
+      : 60 * 60 * 1000;
+
+    const dayStart = new Date(`${dateKey}T00:00:00`);
+    const dayEnd = new Date(`${dateKey}T23:59:59`);
+    const fromMs = Math.max(now.getTime(), dayStart.getTime());
+    const free = findFirstFreeSlot(occupiedRaw, dur, fromMs, dayEnd.getTime());
+    const hasFreeSlot = Boolean(free);
+    const forceEndMs = lastOccupiedFinishMs(occupiedRaw, now.getTime());
+
+    const suggested = free
+      ? {
+        startIso: new Date(free.startMs).toISOString(),
+        finishIso: new Date(free.finishMs).toISOString(),
+        timeLabel: formatClockRange12h(
+          new Date(free.startMs).toISOString(),
+          new Date(free.finishMs).toISOString(),
+          { sep: " – " },
+        ),
+      }
+      : null;
+
+    return {
+      type: "schedule_slot_picker",
+      data: {
+        locale,
+        date: dateKey,
+        dateLabel: formatGinaDayLabel(dateKey, locale),
+        occupied: occupiedRaw,
+        moveDocs: moveDocs.map((d) => mapDocRow(d, now, locale)),
+        moveDocIds: moveDocs.map((d) => d.id).filter(Boolean),
+        durationMs: dur,
+        hasFreeSlot,
+        suggested,
+        forceEndLabel: formatClock12h(new Date(forceEndMs)),
+        noCupo: !hasFreeSlot,
+        recoveryWizard: true,
+        currentStep: "reschedule_pick",
+      },
+    };
+  }
+
+  if (
+    family === "schedule_recovery_mark"
+    || family === "schedule_recovery_postpone"
+    || family === "schedule_recovery_complete"
+    || family === "schedule_recovery_in_progress"
+  ) {
+    if (family === "schedule_recovery_complete") {
+      const slots = asDocs(ctx.markableSlots?.length ? ctx.markableSlots : ctx.passedSlots);
+      return {
+        type: "recovery_preview",
+        data: {
+          intent: "mark_completed",
+          documents: slots.map((d) => mapDocRow(d, now)),
+          count: slots.length,
+          firstPendingTitle: ctx.firstPendingTitle || slots[0]?.title || null,
+        },
+      };
+    }
+    if (family === "schedule_recovery_in_progress") {
+      const slots = asDocs(ctx.lateStartSlots?.length ? ctx.lateStartSlots : []);
+      return {
+        type: "recovery_preview",
+        data: {
+          intent: "mark_in_progress",
+          documents: slots.map((d) => mapDocRow(d, now)),
+          count: slots.length,
+          firstPendingTitle: ctx.firstPendingTitle || slots[0]?.title || null,
+        },
+      };
+    }
     const isMark = family === "schedule_recovery_mark";
     if (isMark) {
       const slots = asDocs(ctx.markableSlots?.length ? ctx.markableSlots : ctx.passedSlots);

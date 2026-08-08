@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Cell, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
+import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
 import {
   formatHierarchyPath,
   formatWorkDurationLabel,
@@ -10,6 +11,8 @@ import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns } from "../../lib/
 import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
 import { flattenTodayQuickSheetRows } from "../../lib/gina/ginaTodayQuickSheet.js";
 import { DOC_WORK_STATUS } from "../../lib/docWorkStatus.js";
+import { isoFromAnchorFields, anchorFieldsFromIso } from "../../lib/nodeAnchor.js";
+import { todayDateInputValue } from "../../lib/docDates.js";
 
 /**
  * Gray small Depto / Categoría / Folder path above visual blocks.
@@ -710,13 +713,26 @@ function TimeCell({ doc, time, passedSlot, delayHighlights, struck = false }) {
 
 function RecoveryPreviewVisualization({ data }) {
   const docs = Array.isArray(data.documents) ? data.documents : [];
-  const isMark = data.intent === "mark_past_due";
+  const intent = data.intent || "mark_past_due";
+  const isStatusFlip = intent === "mark_past_due"
+    || intent === "mark_completed"
+    || intent === "mark_in_progress";
+  const targetStatus = intent === "mark_completed"
+    ? "completed"
+    : intent === "mark_in_progress"
+      ? "in_progress"
+      : "past_due";
+  const eyebrow = intent === "mark_completed"
+    ? "Marcar como completados"
+    : intent === "mark_in_progress"
+      ? "Pasar a En Progreso"
+      : intent === "mark_past_due"
+        ? "Marcar como vencidos"
+        : "Reagendar en cadena";
   return (
     <div className="gina-viz gina-viz--recovery-preview">
       <header className="gina-viz__head">
-        <span className="gina-viz__eyebrow">
-          {isMark ? "Marcar como vencidos" : "Reagendar en cadena"}
-        </span>
+        <span className="gina-viz__eyebrow">{eyebrow}</span>
         <h3 className="gina-viz__title">Vista previa</h3>
       </header>
       {docs.length === 0 ? (
@@ -726,13 +742,13 @@ function RecoveryPreviewVisualization({ data }) {
           {docs.map((doc) => (
             <li key={doc.id || doc.title} className="gina-viz__recovery-row">
               <div className="gina-viz__recovery-title">{doc.title}</div>
-              {isMark ? (
+              {isStatusFlip ? (
                 <div className="gina-viz__recovery-status">
                   {doc.status ? <DocStatusChip status={doc.status} /> : (
                     <span className="gina-viz__recovery-null">Sin status</span>
                   )}
                   <span className="gina-viz__recovery-arrow" aria-hidden>→</span>
-                  <DocStatusChip status="past_due" />
+                  <DocStatusChip status={targetStatus} />
                 </div>
               ) : (
                 <div className="gina-viz__recovery-times">
@@ -749,6 +765,107 @@ function RecoveryPreviewVisualization({ data }) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function minutesFromHhmm(value) {
+  const [hours, minutes] = String(value || "").split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function hhmmFromMinutes(value) {
+  const hours = Math.floor(value / 60) % 24;
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function addDurationToTime(hhmm, durationMs) {
+  const base = minutesFromHhmm(hhmm);
+  if (base == null) return "";
+  const add = Math.max(15, Math.round(Number(durationMs) / 60000) || 60);
+  return hhmmFromMinutes(Math.min(24 * 60 - 15, base + add));
+}
+
+function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
+  const en = data.locale === "en";
+  const dateKey = data.date || todayDateInputValue();
+  const durationMs = Number(data.durationMs) || 60 * 60 * 1000;
+  const occupied = Array.isArray(data.occupied) ? data.occupied : [];
+  const moveDocs = Array.isArray(data.moveDocs) ? data.moveDocs : [];
+  const suggestedFields = data.suggested?.startIso
+    ? anchorFieldsFromIso(data.suggested.startIso)
+    : null;
+  const suggestedFinish = data.suggested?.finishIso
+    ? anchorFieldsFromIso(data.suggested.finishIso)
+    : null;
+  const [anchorDate, setAnchorDate] = useState(dateKey);
+  const [anchorTime, setAnchorTime] = useState(suggestedFields?.anchorTime || "");
+  const [anchorFinishTime, setAnchorFinishTime] = useState(suggestedFinish?.anchorTime || "");
+
+  const canApply = Boolean(anchorDate && anchorTime && anchorFinishTime);
+
+  const applySlot = () => {
+    if (!canApply || !onSelectAction) return;
+    const startIso = isoFromAnchorFields(anchorDate, anchorTime);
+    const finishIso = isoFromAnchorFields(anchorDate, anchorFinishTime);
+    if (!startIso || !finishIso) return;
+    onSelectAction(
+      en
+        ? `Apply reschedule slot ${startIso}|${finishIso}`
+        : `Aplicar cupo reagendado ${startIso}|${finishIso}`,
+    );
+  };
+
+  return (
+    <div className="gina-viz gina-viz--slot-picker">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">{en ? "Reschedule" : "Reagendar"}</span>
+        <h3 className="gina-viz__title">{data.dateLabel || dateKey}</h3>
+      </header>
+      {data.noCupo || data.hasFreeSlot === false ? (
+        <p className="gina-viz__slot-banner" role="status">
+          {en ? "No free slot available for today" : "Sin cupo disponible para hoy"}
+        </p>
+      ) : null}
+      {moveDocs.length > 0 ? (
+        <ul className="gina-viz__slot-move-list">
+          {moveDocs.slice(0, 4).map((doc) => (
+            <li key={doc.id || doc.title} className="gina-viz__slot-move-row">
+              <span className="gina-viz__slot-move-title">{doc.title}</span>
+              <span className="gina-viz__slot-move-time">{doc.time || doc.timeLabel || "—"}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <BlockAnchorFields
+        className="gina-viz__slot-anchor"
+        enableTimeRange
+        hideLabel={false}
+        label={en ? "Pick a free window" : "Elige un cupo libre"}
+        anchorDate={anchorDate}
+        anchorTime={anchorTime}
+        anchorFinishTime={anchorFinishTime}
+        occupied={occupied}
+        overlapHint={en
+          ? "Struck hours are busy or already past."
+          : "Las horas tachadas están ocupadas o ya pasaron."}
+        onAnchorDateChange={(next) => setAnchorDate(next)}
+        onAnchorTimeChange={(next) => {
+          setAnchorTime(next);
+          setAnchorFinishTime(addDurationToTime(next, durationMs));
+        }}
+        onAnchorFinishTimeChange={(next) => setAnchorFinishTime(next)}
+      />
+      <button
+        type="button"
+        className="gina-viz__slot-apply"
+        disabled={!canApply}
+        onClick={applySlot}
+      >
+        {en ? "Use this slot" : "Usar este cupo"}
+      </button>
     </div>
   );
 }
@@ -983,20 +1100,193 @@ function StatusUnassignedChip({ locale = "es" }) {
   );
 }
 
+/**
+ * Dual timeline for one long block vs the blocks it overlaps.
+ * @param {{ conflictRails: object, locale?: string }} props
+ */
+function TodayConflictDualTimeline({ conflictRails, locale = "es" }) {
+  if (!conflictRails || typeof conflictRails !== "object") return null;
+  const long = conflictRails.longBlock;
+  const others = Array.isArray(conflictRails.overlappingBlocks)
+    ? conflictRails.overlappingBlocks
+    : [];
+  if (!long) return null;
+  const rangeStart = conflictRails.rangeStart
+    ? new Date(conflictRails.rangeStart).getTime()
+    : NaN;
+  const rangeEnd = conflictRails.rangeEnd
+    ? new Date(conflictRails.rangeEnd).getTime()
+    : NaN;
+  if (!Number.isFinite(rangeStart) || !Number.isFinite(rangeEnd) || rangeEnd <= rangeStart) {
+    return null;
+  }
+  const span = rangeEnd - rangeStart;
+  const en = locale === "en";
+  const pct = (ms) => {
+    if (!Number.isFinite(ms)) return 0;
+    return Math.max(0, Math.min(100, ((ms - rangeStart) / span) * 100));
+  };
+  const widthPct = (startMs, finishMs) => {
+    const a = pct(startMs);
+    const b = pct(finishMs);
+    return Math.max(2, b - a);
+  };
+  const rangeLabel = `${formatClockLabel(conflictRails.rangeStart)} – ${formatClockLabel(conflictRails.rangeEnd)}`;
+
+  // Hour ticks across the range (inclusive-ish)
+  const tickCount = Math.min(6, Math.max(3, Math.ceil(span / (90 * 60 * 1000)) + 1));
+  const ticks = Array.from({ length: tickCount }, (_, i) => {
+    const t = rangeStart + (span * i) / (tickCount - 1);
+    return { ms: t, label: formatClockLabel(new Date(t).toISOString()), pct: (i / (tickCount - 1)) * 100 };
+  });
+
+  // Overlap zone = intersection of long with union of others
+  let overlapStart = Infinity;
+  let overlapEnd = -Infinity;
+  for (const o of others) {
+    const a = Math.max(long.startMs || 0, o.startMs || 0);
+    const b = Math.min(long.finishMs || 0, o.finishMs || 0);
+    if (Number.isFinite(a) && Number.isFinite(b) && b > a) {
+      overlapStart = Math.min(overlapStart, a);
+      overlapEnd = Math.max(overlapEnd, b);
+    }
+  }
+  const hasOverlapZone = Number.isFinite(overlapStart) && Number.isFinite(overlapEnd) && overlapEnd > overlapStart;
+  const overlapMinutes = hasOverlapZone ? Math.round((overlapEnd - overlapStart) / 60000) : 0;
+  const overlapHours = Math.floor(overlapMinutes / 60);
+  const overlapRem = overlapMinutes % 60;
+  const overlapDur = overlapHours > 0
+    ? (en
+      ? `${overlapHours}h${overlapRem ? ` ${overlapRem}m` : ""}`
+      : `${overlapHours}h${overlapRem ? ` ${overlapRem}m` : ""}`)
+    : (en ? `${overlapMinutes}m` : `${overlapMinutes}m`);
+
+  const barColor = (block, isLong) => {
+    if (isLong) return undefined;
+    const dept = String(block.department || "").toLowerCase();
+    if (dept.includes("market") || dept.includes("blog")) return "#599FFF";
+    if (dept.includes("estrateg") || dept.includes("plan") || dept.includes("negocio")) return "#EAA65D";
+    return undefined;
+  };
+
+  return (
+    <div className="gina-viz__dual-timeline">
+      <header className="gina-viz__dual-timeline-head">
+        <span className="gina-viz__dual-timeline-badge" aria-hidden>!</span>
+        <div>
+          <p className="gina-viz__dual-timeline-title">
+            {en
+              ? `CONFLICTING HOURS (${rangeLabel})`
+              : `HORARIOS EN CONFLICTO (${rangeLabel})`}
+          </p>
+        </div>
+      </header>
+
+      <div className="gina-viz__dual-timeline-axis" aria-hidden>
+        {ticks.map((tick) => (
+          <span
+            key={tick.ms}
+            className="gina-viz__dual-timeline-tick"
+            style={{ left: `${tick.pct}%` }}
+          >
+            {tick.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="gina-viz__dual-timeline-rail">
+        <p className="gina-viz__dual-timeline-label">
+          {en ? "Rail A (continuous block)" : "Riel A (bloque continuo)"}
+        </p>
+        <div className="gina-viz__dual-timeline-track">
+          {hasOverlapZone ? (
+            <div
+              className="gina-viz__dual-timeline-overlap"
+              style={{
+                left: `${pct(overlapStart)}%`,
+                width: `${widthPct(overlapStart, overlapEnd)}%`,
+              }}
+            />
+          ) : null}
+          <div
+            className="gina-viz__dual-timeline-bar gina-viz__dual-timeline-bar--long"
+            style={{
+              left: `${pct(long.startMs)}%`,
+              width: `${widthPct(long.startMs, long.finishMs)}%`,
+            }}
+            title={long.label || long.title}
+          >
+            <span>{long.label || long.title}: {formatClockLabel(long.anchorAt)} – {formatClockLabel(long.anchorFinishAt)}</span>
+          </div>
+        </div>
+      </div>
+      <div className="gina-viz__dual-timeline-rail">
+        <p className="gina-viz__dual-timeline-label">
+          {en ? "Rail B (split blocks)" : "Riel B (bloques fraccionados)"}
+        </p>
+        <div className="gina-viz__dual-timeline-track">
+          {hasOverlapZone ? (
+            <div
+              className="gina-viz__dual-timeline-overlap"
+              style={{
+                left: `${pct(overlapStart)}%`,
+                width: `${widthPct(overlapStart, overlapEnd)}%`,
+              }}
+            />
+          ) : null}
+          {others.map((block) => (
+            <div
+              key={block.id || `${block.anchorAt}-${block.title}`}
+              className="gina-viz__dual-timeline-bar gina-viz__dual-timeline-bar--frag"
+              style={{
+                left: `${pct(block.startMs)}%`,
+                width: `${widthPct(block.startMs, block.finishMs)}%`,
+                background: barColor(block, false),
+              }}
+              title={block.label || block.title}
+            >
+              <span>
+                {block.label || block.title}
+                {block.anchorAt && block.anchorFinishAt
+                  ? `: ${formatClockLabel(block.anchorAt)}–${formatClockLabel(block.anchorFinishAt)}`
+                  : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {hasOverlapZone ? (
+        <p className="gina-viz__dual-timeline-overlap-note">
+          {en
+            ? `Overlap zone: ${formatClockLabel(new Date(overlapStart).toISOString())} – ${formatClockLabel(new Date(overlapEnd).toISOString())} (${overlapDur} of conflict)`
+            : `Área de solapamiento: ${formatClockLabel(new Date(overlapStart).toISOString())} – ${formatClockLabel(new Date(overlapEnd).toISOString())} (${overlapDur} de conflicto)`}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function formatClockLabel(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
 function TodayQuickSheet({ quickSheet, locale = "es" }) {
   if (!quickSheet || typeof quickSheet !== "object") return null;
   const rows = flattenTodayQuickSheetRows(quickSheet);
   if (!rows.length) return null;
   const en = locale === "en";
-  const urgencyCount = Array.isArray(quickSheet.urgency) ? quickSheet.urgency.length : 0;
   // Contiguous runs in chronological row order (same pattern as week status rail)
   const statusRail = buildGinaStatusRailRuns(rows, locale);
 
   return (
     <div className="gina-viz__quick-sheet gina-viz gina-viz--table gina-viz--table-rail">
       <header className="gina-viz__quick-sheet-head">
-        <span className="gina-viz__eyebrow">{en ? "Today's schedule" : "Horario de hoy"}</span>
-        <h3 className="gina-viz__title">{en ? "Chronological sheet" : "Sheet cronológico"}</h3>
+        <span className="gina-viz__eyebrow">{en ? "Chronological schedule" : "Horario cronológico"}</span>
+        <h3 className="gina-viz__title">{en ? "Today's sheet" : "Sheet del día"}</h3>
       </header>
       <div className="gina-viz__table-layout">
         {statusRail.length ? (
@@ -1022,6 +1312,7 @@ function TodayQuickSheet({ quickSheet, locale = "es" }) {
             <thead>
               <tr>
                 <th>Document</th>
+                <th>Departamento</th>
                 <th>Categoría</th>
                 <th>Time</th>
                 <th>Status</th>
@@ -1049,6 +1340,7 @@ function TodayQuickSheet({ quickSheet, locale = "es" }) {
                         </span>
                       ) : (doc.title || "—")}
                     </td>
+                    <td>{doc.department || doc.hierarchy?.department || "—"}</td>
                     <td>{doc.category || doc.hierarchy?.category || "—"}</td>
                     <td>
                       <GinaTimeCell doc={doc} struck={struck} />
@@ -1082,13 +1374,6 @@ function TodayQuickSheet({ quickSheet, locale = "es" }) {
             </li>
           ))}
         </ul>
-      ) : null}
-      {urgencyCount > 0 ? (
-        <p className="gina-viz__quick-sheet-note">
-          {en
-            ? "Highlighted rows already expired vs now — even if their status still says not started."
-            : "Las filas resaltadas ya expiraron vs la hora actual — aunque su status diga sin empezar."}
-        </p>
       ) : null}
     </div>
   );
@@ -1173,7 +1458,6 @@ function TodayOverviewVisualization({ data }) {
           )}
         </div>
       </div>
-      <TodayQuickSheet quickSheet={data.quickSheet} locale={locale} />
     </div>
   );
 }
@@ -1183,26 +1467,44 @@ function ScheduleSheetVisualization({ data }) {
   const delayHighlights = Boolean(data.highlightPassedSlots);
   const isDaySheet = Boolean(data.isDaySheet);
   const progress = data.progress || null;
+  const locale = data.locale === "en" ? "en" : "es";
+  const step = data.currentStep || null;
+  const showDual = Boolean(
+    step === "conflict_resolve"
+    || ((data.notifyBrief || data.recoveryPhase === "brief") && data.conflictRails && step !== "overdue_check"),
+  );
+  const hideGroups = step === "conflict_resolve" || step === "summary";
 
   if (data.todayOverview) {
     return <TodayOverviewVisualization data={data} />;
   }
 
+  if (step === "summary") {
+    return null;
+  }
+
   return (
     <div className="gina-viz gina-viz--schedule-sheet">
-      <header className="gina-viz__head">
-        <span className="gina-viz__eyebrow">
-          {isDaySheet ? "Sheet del día" : "Horarios"}
-        </span>
-        <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
-        {progress && progress.total > 0 ? (
-          <p className="gina-viz__sheet-progress">
-            {progress.completed}/{progress.total} completados
-            {progress.remaining > 0 ? ` · ${progress.remaining} restante${progress.remaining === 1 ? "" : "s"}` : ""}
-          </p>
-        ) : null}
-      </header>
-      {groups.length === 0 ? (
+      {!showDual ? (
+        <header className="gina-viz__head">
+          <span className="gina-viz__eyebrow">
+            {step === "overdue_check"
+              ? (locale === "en" ? "Expired windows" : "Horarios vencidos")
+              : (isDaySheet ? "Sheet del día" : "Horarios")}
+          </span>
+          <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
+          {progress && progress.total > 0 ? (
+            <p className="gina-viz__sheet-progress">
+              {progress.completed}/{progress.total} completados
+              {progress.remaining > 0 ? ` · ${progress.remaining} restante${progress.remaining === 1 ? "" : "s"}` : ""}
+            </p>
+          ) : null}
+        </header>
+      ) : null}
+      {showDual ? (
+        <TodayConflictDualTimeline conflictRails={data.conflictRails} locale={locale} />
+      ) : null}
+      {hideGroups ? null : groups.length === 0 ? (
         <p className="gina-viz__empty">
           {data.missingAnchor
             ? "Aún no hay tabla de referencia guardada. Mira los horarios de hoy y guárdala."
@@ -1219,12 +1521,14 @@ function ScheduleSheetVisualization({ data }) {
                   <ul className="gina-viz__sheet-slots">
                     {(folder.documents || []).map((doc) => {
                       const struck = Boolean(doc.struck || doc.completed || doc.status === "completed");
+                      const passed = Boolean(doc.passedSlot || delayHighlights);
                       return (
                         <li
                           key={doc.id || `${doc.title}-${doc.time}`}
                           className={
                             "gina-viz__sheet-slot"
                             + (struck ? " gina-viz__sheet-slot--done" : "")
+                            + (passed && delayHighlights ? " gina-viz__sheet-slot--urgency" : "")
                             + (doc.id && doc.id === data.nextDocumentId ? " gina-viz__sheet-slot--next" : "")
                           }
                         >
@@ -1734,8 +2038,22 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
       return <DailyReportMovePreviewVisualization data={data} />;
     case "schedule_sheet":
       return <ScheduleSheetVisualization data={data} />;
+    case "today_quick_sheet":
+      return (
+        <TodayQuickSheet
+          quickSheet={data.quickSheet || data}
+          locale={data.locale === "en" ? "en" : "es"}
+        />
+      );
     case "recovery_preview":
       return <RecoveryPreviewVisualization data={data} />;
+    case "schedule_slot_picker":
+      return (
+        <ScheduleSlotPickerVisualization
+          data={data}
+          onSelectAction={onSelectAction}
+        />
+      );
     case "today_scope":
       return <TodayScopeVisualization data={data} />;
     case "incomplete":

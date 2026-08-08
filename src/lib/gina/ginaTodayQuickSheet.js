@@ -4,6 +4,7 @@
  */
 
 import { DOC_WORK_STATUS, resolveDocWorkStatus } from "../docWorkStatus.js";
+import { formatClock12h } from "../clockFormat.js";
 import { isMarkablePassedSlot, isPassedSlot } from "./ginaScheduleRecovery.js";
 
 function dayKey(value) {
@@ -159,6 +160,8 @@ export function mapQuickSheetSections(sections, mapRow) {
     const row = typeof mapRow === "function" ? mapRow(d) : d;
     return {
       ...row,
+      anchorAt: d.anchorAt || row.anchorAt || null,
+      anchorFinishAt: d.anchorFinishAt || row.anchorFinishAt || null,
       urgencyChip: d.urgencyChip || null,
       markable: Boolean(d.markable),
       struck: Boolean(row.struck || row.completed || d.status === "completed"),
@@ -176,43 +179,113 @@ export function mapQuickSheetSections(sections, mapRow) {
 }
 
 /**
- * Summarize today's overlaps for Gina copy.
+ * Summarize today's overlaps for Gina copy + Dual Timeline.
  * Picks the document that overlaps the most other non-completed docs today.
  * @param {object[]} docs
  * @param {Date} [now]
  * @returns {{
  *   hasOverlap: boolean,
- *   topConflict: { id: string | null, title: string, overlapCount: number } | null,
+ *   topConflict: {
+ *     id: string | null,
+ *     title: string,
+ *     department: string | null,
+ *     anchorAt: string | null,
+ *     anchorFinishAt: string | null,
+ *     overlapCount: number,
+ *     timeLabel: string | null,
+ *     displayLabel: string,
+ *   } | null,
+ *   conflictRails: {
+ *     rangeStart: string,
+ *     rangeEnd: string,
+ *     longBlock: object,
+ *     overlappingBlocks: object[],
+ *   } | null,
  * }}
  */
 export function summarizeTodayOverlaps(docs, now = new Date()) {
   const list = filterDocsAnchoredToday(docs, now).filter((d) => !isCompleted(d));
-  /** @type {Map<string, { id: string | null, title: string, count: number }>} */
+  /** @type {Map<string, { doc: object, count: number, others: object[] }>} */
   const counts = new Map();
+
   for (let i = 0; i < list.length; i += 1) {
     for (let j = i + 1; j < list.length; j += 1) {
       if (!intervalsOverlap(list[i], list[j])) continue;
-      for (const d of [list[i], list[j]]) {
-        const key = String(d.id || d.title || "");
+      for (const [self, other] of [[list[i], list[j]], [list[j], list[i]]]) {
+        const key = String(self.id || self.title || "");
         if (!key) continue;
-        const cur = counts.get(key) || {
-          id: d.id || null,
-          title: String(d.title || "documento"),
-          count: 0,
-        };
+        const cur = counts.get(key) || { doc: self, count: 0, others: [] };
         cur.count += 1;
+        if (!cur.others.some((o) => (o.id || o.title) === (other.id || other.title))) {
+          cur.others.push(other);
+        }
         counts.set(key, cur);
       }
     }
   }
-  let top = null;
+
+  let topEntry = null;
   for (const row of counts.values()) {
-    if (!top || row.count > top.count) top = row;
+    if (!topEntry || row.count > topEntry.count) topEntry = row;
   }
+
+  if (!topEntry) {
+    return { hasOverlap: false, topConflict: null, conflictRails: null };
+  }
+
+  const long = topEntry.doc;
+  const a0 = long.anchorAt ? new Date(long.anchorAt).getTime() : NaN;
+  const a1 = long.anchorFinishAt ? new Date(long.anchorFinishAt).getTime() : NaN;
+  let rangeStart = a0;
+  let rangeEnd = a1;
+  for (const o of topEntry.others) {
+    const b0 = o.anchorAt ? new Date(o.anchorAt).getTime() : NaN;
+    const b1 = o.anchorFinishAt ? new Date(o.anchorFinishAt).getTime() : NaN;
+    if (Number.isFinite(b0)) rangeStart = Number.isFinite(rangeStart) ? Math.min(rangeStart, b0) : b0;
+    if (Number.isFinite(b1)) rangeEnd = Number.isFinite(rangeEnd) ? Math.max(rangeEnd, b1) : b1;
+  }
+
+  const department = String(long.departmentName || long.department || "").trim() || null;
+  const timeLabel = (Number.isFinite(a0) && Number.isFinite(a1))
+    ? `${formatClock12h(new Date(a0))} – ${formatClock12h(new Date(a1))}`
+    : null;
+  const displayLabel = department && timeLabel
+    ? `${department} (${timeLabel})`
+    : (timeLabel || String(long.title || "documento"));
+
+  const toRailBlock = (d) => ({
+    id: d.id || null,
+    title: String(d.title || "").trim() || "—",
+    department: String(d.departmentName || d.department || "").trim() || null,
+    category: String(d.category || "").trim() || null,
+    anchorAt: d.anchorAt || null,
+    anchorFinishAt: d.anchorFinishAt || null,
+    startMs: d.anchorAt ? new Date(d.anchorAt).getTime() : null,
+    finishMs: d.anchorFinishAt ? new Date(d.anchorFinishAt).getTime() : null,
+    label: String(d.departmentName || d.department || d.title || "—").trim(),
+  });
+
   return {
-    hasOverlap: Boolean(top && top.count > 0),
-    topConflict: top
-      ? { id: top.id, title: top.title, overlapCount: top.count }
+    hasOverlap: true,
+    topConflict: {
+      id: long.id || null,
+      title: String(long.title || "documento"),
+      department,
+      anchorAt: long.anchorAt || null,
+      anchorFinishAt: long.anchorFinishAt || null,
+      overlapCount: topEntry.count,
+      timeLabel,
+      displayLabel,
+    },
+    conflictRails: Number.isFinite(rangeStart) && Number.isFinite(rangeEnd)
+      ? {
+        rangeStart: new Date(rangeStart).toISOString(),
+        rangeEnd: new Date(rangeEnd).toISOString(),
+        longBlock: toRailBlock(long),
+        overlappingBlocks: topEntry.others
+          .map(toRailBlock)
+          .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || ""))),
+      }
       : null,
   };
 }

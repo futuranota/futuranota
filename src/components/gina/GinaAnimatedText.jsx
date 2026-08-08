@@ -135,9 +135,9 @@ export function GinaAnimatedText({ text, className }) {
 /**
  * AI reply: white/bold question·title + gray/small deep description.
  * Labels like **Nota:** stay bold inside the body once typing finishes.
- * @param {{ text?: string, plainBody?: boolean, onComplete?: () => void, instant?: boolean }} props
+ * @param {{ text?: string, plainBody?: boolean, onComplete?: () => void, instant?: boolean, pace?: "normal" | "slow" | "fast" }} props
  */
-export function GinaAiMessageText({ text, plainBody = false, onComplete, instant = false }) {
+export function GinaAiMessageText({ text, plainBody = false, onComplete, instant = false, pace = "normal" }) {
   const source = String(text || "").trim();
   const split = plainBody ? null : splitGinaAiText(text);
   const headline = plainBody ? "" : (split?.headline || "");
@@ -152,7 +152,7 @@ export function GinaAiMessageText({ text, plainBody = false, onComplete, instant
       ? `${plainBodyText}${sep}${plainHead}`
       : `${plainHead}${sep}${plainBodyText}`;
 
-  const animatedHook = useAnimatedText(instant ? "" : full);
+  const animatedHook = useAnimatedText(instant ? "" : full, "", { pace });
   const animated = instant ? full : animatedHook;
   const done = instant || !source || !full || animated.length >= full.length;
 

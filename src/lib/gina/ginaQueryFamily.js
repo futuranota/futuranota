@@ -11,6 +11,7 @@ import {
   parseFindHints,
   searchDocumentsByHints,
 } from "./ginaFindDocument.js";
+import { partitionTodayByClock } from "./ginaTodayTimeTriage.js";
 import {
   filterDocumentsByDepartmentAndCategory,
   findFolderIdByName,
@@ -1813,9 +1814,11 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Recovery brief gate (notify chip) — show late docs with highlights before a/b.
+  // Recovery brief gate (notify chip) — sequential wizard.
   {
-    const wantsBrief = /\bassistance\s+requiere\s+informarte\s+algo\b/.test(q)
+    const wantsBrief = /\bgina\s+quiere\s+informarte\s+algo\b/.test(q)
+      || /\bassistance\s+requiere\s+informarte\s+algo\b/.test(q)
+      || /\bgina\s+wants\s+to\s+tell\s+you\s+something\b/.test(q)
       || /\bassistance\s+has\s+something\s+to\s+tell\s+you\b/.test(q);
     if (wantsBrief) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
@@ -1824,9 +1827,125 @@ export function runGinaQueryFamily(text, ctx = {}) {
         toolsCalled,
         toolContext: {
           ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
           recoveryPhase: "brief",
           highlightPassedSlots: true,
-          hint: "User opened the schedule recovery brief — show late slots with highlights",
+          hint: "User opened the schedule recovery wizard",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Snooze notify (~45m) then continue wizard.
+  {
+    const wantsSnooze = /\bposponer\s+recordatorio\s+de\s+recuperacion\b/.test(q)
+      || /\bsnooze\s+schedule\s+recovery\s+reminder\b/.test(q);
+    if (wantsSnooze) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_snooze",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          hint: "User snoozed recovery notify ~45m",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Advance recovery wizard (Seguir from conflict / picker).
+  {
+    const wantsNext = /\bseguir\s+al\s+siguiente\s+paso\s+de\s+recuperacion\b/.test(q)
+      || /\bcontinue\s+to\s+next\s+schedule\s+recovery\s+step\b/.test(q);
+    if (wantsNext) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_next",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          recoveryPhase: "brief",
+          hint: "User continued to the next schedule recovery step",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Free-slot picker for move-to-end-of-day.
+  {
+    const wantsPick = /\breagendar\s+bloques\s+vencidos\s+mostrar\s+cupos\b/.test(q)
+      || /\breschedule\s+expired\s+blocks\s+show\s+free\s+slots\b/.test(q)
+      || /\bmostrar\s+cupos\s+libres\b/.test(q);
+    if (wantsPick) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_reschedule_pick",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          objectId: ctx.objectId,
+          hint: "Show free-slot picker for reschedule",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Apply chosen slot / tomorrow / force end.
+  {
+    const applyMatch = q.match(/\b(?:aplicar\s+cupo\s+reagendado|apply\s+reschedule\s+slot)\s+(\S+)\|(\S+)/);
+    if (applyMatch) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_reschedule_apply",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          applyStartIso: applyMatch[1],
+          applyFinishIso: applyMatch[2],
+          mode: "slot",
+          hint: "Apply chosen free slot to recovery docs",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (/\bmover\s+bloques\s+de\s+recuperacion\s+a\s+manana\b/.test(q)
+      || /\bmove\s+recovery\s+blocks\s+to\s+tomorrow\s+morning\b/.test(q)) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_reschedule_apply",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          mode: "tomorrow",
+          hint: "Move recovery docs to tomorrow morning",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (/\bforzar\s+insercion\s+de\s+bloques\s+al\s+final\b/.test(q)
+      || /\bforce\s+insert\s+recovery\s+blocks\s+at\s+end\b/.test(q)) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_reschedule_apply",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          objectId: ctx.objectId,
+          mode: "force_end",
+          hint: "Force insert at end of tonight",
         },
         workspaceInventory: inventory,
       };
@@ -1835,8 +1954,17 @@ export function runGinaQueryFamily(text, ctx = {}) {
 
   // Schedule recovery fork: preview intent (mutations only after confirm).
   {
+    const wantsMarkCompleted = !/\bconfirm/.test(q) && (
+      /\bmarcar\s+como\s+completados\s+los\s+bloques\s+vencidos\b/.test(q)
+      || /\bmark\s+today'?s\s+expired\s+blocks\s+as\s+completed\b/.test(q)
+    );
+    const wantsMarkInProgress = !/\bconfirm/.test(q) && (
+      /\bmarcar\s+bloques\s+con\s+inicio\s+tardio\s+como\s+en\s+progreso\b/.test(q)
+      || /\bmark\s+late-start\s+blocks\s+as\s+in\s+progress\b/.test(q)
+    );
     const wantsMarkPastDue = !/\bconfirm/.test(q) && (
       /\bmarcar\s+(como\s+)?vencid/.test(q)
+      || /\barchivar\s+como\s+vencid/.test(q)
       || /\bmark\s+(today'?s\s+)?(passed\s+)?(slots?\s+)?as\s+past\s+due\b/.test(q)
       || (/\bhorarios\s+pasados\s+de\s+hoy\b/.test(q) && /\bmarcar\b/.test(q))
     );
@@ -1845,8 +1973,34 @@ export function runGinaQueryFamily(text, ctx = {}) {
       || /\bpostpone\s+(today'?s\s+)?(passed\s+)?schedule\b/.test(q)
       || (/\bmanteniendo\s+el\s+orden\b/.test(q) && /\bposponer\b/.test(q))
     );
-    if (wantsMarkPastDue || wantsPostpone) {
+    if (wantsMarkCompleted || wantsMarkInProgress || wantsMarkPastDue || wantsPostpone) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      const triage = partitionTodayByClock(today.documents || [], ctx.now instanceof Date ? ctx.now : new Date());
+      if (wantsMarkCompleted) {
+        return {
+          family: "schedule_recovery_complete",
+          toolsCalled,
+          toolContext: {
+            ...today,
+            markableSlots: triage.fullyExpired.filter((d) => d.status !== "past_due"),
+            passedSlots: triage.fullyExpired,
+            hint: "User chose mark expired as completed (preview)",
+          },
+          workspaceInventory: inventory,
+        };
+      }
+      if (wantsMarkInProgress) {
+        return {
+          family: "schedule_recovery_in_progress",
+          toolsCalled,
+          toolContext: {
+            ...today,
+            lateStartSlots: triage.lateStartActive,
+            hint: "User chose mark late-start as in progress (preview)",
+          },
+          workspaceInventory: inventory,
+        };
+      }
       return {
         family: wantsMarkPastDue ? "schedule_recovery_mark" : "schedule_recovery_postpone",
         toolsCalled,
@@ -1858,6 +2012,40 @@ export function runGinaQueryFamily(text, ctx = {}) {
           hint: wantsMarkPastDue
             ? "User chose mark passed slots as past due (preview only; no write yet)"
             : "User chose postpone/cascade schedule (preview only; no write yet)",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Confirm completed / in progress
+  {
+    if (/\bconfirmar\s+marcar\s+como\s+completados\b/.test(q) || /\bconfirm\s+mark\s+as\s+completed\b/.test(q)) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      const triage = partitionTodayByClock(today.documents || [], ctx.now instanceof Date ? ctx.now : new Date());
+      return {
+        family: "schedule_recovery_complete_confirm",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          markableSlots: triage.fullyExpired.filter((d) => d.status !== "past_due"),
+          recoveryIntent: "mark_completed",
+          hint: "User confirmed mark completed",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+    if (/\bconfirmar\s+marcar\s+en\s+progreso\b/.test(q) || /\bconfirm\s+mark\s+as\s+in\s+progress\b/.test(q)) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      const triage = partitionTodayByClock(today.documents || [], ctx.now instanceof Date ? ctx.now : new Date());
+      return {
+        family: "schedule_recovery_in_progress_confirm",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          lateStartSlots: triage.lateStartActive,
+          recoveryIntent: "mark_in_progress",
+          hint: "User confirmed mark in progress",
         },
         workspaceInventory: inventory,
       };

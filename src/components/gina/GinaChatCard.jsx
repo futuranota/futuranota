@@ -15,6 +15,7 @@ import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { resolveListRefineSelection } from "../../lib/gina/ginaSyntaxDocsByCategory.js";
 import { playGinaEnableSound } from "../../lib/ginaEnableSound.js";
+import { playGinaAcceptSound } from "../../lib/ginaAcceptSound.js";
 import {
   playGinaFilesMovementSound,
   stopGinaFilesMovementSound,
@@ -515,11 +516,31 @@ export function GinaChatCard({
   const isAiAnimatingRef = useRef(true);
   const deliveringRef = useRef(false);
   const pendingAiAnimationTaskRef = useRef(/** @type {null | (() => Promise<void> | void)} */ (null));
+  const acceptPlayedForMsgIdRef = useRef(/** @type {string | null} */ (null));
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const deliverUserMessageRef = useRef(/** @type {(text: string, opts?: { existingId?: string }) => Promise<void>} */ (async () => {}));
 
   const makeMsgId = () => `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Accept.mp3 when the notify chip becomes enabled (visible), not on click.
+  useEffect(() => {
+    if (isTyping || isAiAnimating) return;
+    let targetId = null;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m?.sender !== "ai" || !Array.isArray(m.chips)) continue;
+      const notify = m.chips.find((c) => c?.id === "recovery_notify");
+      if (notify) {
+        targetId = m.id || `idx-${i}`;
+        break;
+      }
+    }
+    if (!targetId) return;
+    if (acceptPlayedForMsgIdRef.current === targetId) return;
+    acceptPlayedForMsgIdRef.current = targetId;
+    void playGinaAcceptSound();
+  }, [messages, isTyping, isAiAnimating]);
 
   // Open → 2s silence → Enable.wav + green dot → 1s silence → greeting typewriter.
   useEffect(() => {
@@ -875,7 +896,8 @@ export function GinaChatCard({
               }
               if (aiText || visualization || learnProposal) {
                 const deferVisualization = Boolean(
-                  visualization?.data?.todayOverview && (aiText || textAfter),
+                  (visualization?.data?.todayOverview || visualization?.data?.recoveryWizard)
+                  && (aiText || textAfter),
                 );
                 setMessages((prev) => [
                   ...prev,
@@ -912,7 +934,8 @@ export function GinaChatCard({
             startedAiAnim = true;
           }
           const deferVisualization = Boolean(
-            visualization?.data?.todayOverview && (aiText || textAfter),
+            (visualization?.data?.todayOverview || visualization?.data?.recoveryWizard)
+            && (aiText || textAfter),
           );
           setMessages((prev) => [
             ...prev,
@@ -1253,6 +1276,7 @@ export function GinaChatCard({
                       <GinaAiMessageText
                         text={msg.textAfter}
                         plainBody
+                        pace="slow"
                         instant={Boolean(msg.refineRevealed)}
                         onComplete={i === lastAiMessageIndex ? () => {
                           setMessages((prev) => prev.map((m, idx) => (
@@ -1263,6 +1287,20 @@ export function GinaChatCard({
                       />
                     </div>
                   ) : null}
+                  {msg.sender === "ai"
+                    && msg.visualization?.data?.todayOverview
+                    && msg.visualization?.data?.quickSheet
+                    && !msg.visualization?.data?.recoveryWizard
+                    && msg.vizRevealed
+                    && (!msg.textAfter || msg.afterRevealed) ? (
+                      <GinaDataVisualization
+                        type="today_quick_sheet"
+                        data={{
+                          quickSheet: msg.visualization.data.quickSheet,
+                          locale: msg.visualization.data.locale || chipLocale,
+                        }}
+                      />
+                    ) : null}
                 </>
               )}
               {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping && !isAiAnimating
@@ -1288,17 +1326,42 @@ export function GinaChatCard({
                   />
                 ) : (
                   <div className="gina-chat-card__chips" role="group" aria-label="Suggested replies">
-                    {msg.chips.map((chip) => (
+                    {msg.chips.map((chip) => {
+                      const isNotify = chip.id === "recovery_notify";
+                      const comingSoon = Boolean(chip.comingSoon);
+                      return (
                       <button
                         key={chip.id || chip.label}
                         type="button"
                         className={
                           "gina-chat-card__chip"
                           + (chip.primary ? " is-primary" : "")
+                          + (isNotify ? " gina-chat-card__chip--notify" : "")
+                          + (comingSoon ? " is-coming-soon" : "")
                           + (chip.kind === "nav_back" ? " gina-chat-card__chip--back" : "")
                         }
+                        disabled={comingSoon && !chip.text}
+                        title={comingSoon ? (chipLocale === "en" ? "Coming soon" : "Próximamente") : undefined}
                         onClick={() => {
                           if (isTyping || isAiAnimating) return;
+                          if (comingSoon) {
+                            // Deferred actions — show soft ack, no mutation path.
+                            setMessages((prev) => [
+                              ...prev.map((m, idx) => (idx === i ? stashMessageChips(m) : m)),
+                              {
+                                id: makeMsgId(),
+                                sender: "ai",
+                                text: chipLocale === "en"
+                                  ? "Got it — that option is still being wired. Pick another for now, or skip."
+                                  : "Va — esa opción todavía se está cableando. Elige otra por ahora, u omite.",
+                                visualization: null,
+                                chips: null,
+                              },
+                            ]);
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            return;
+                          }
                           if (chip.kind === "nav_back") {
                             isAiAnimatingRef.current = false;
                             setIsAiAnimating(false);
@@ -1342,9 +1405,21 @@ export function GinaChatCard({
                           enqueueOrDeliver(chip.text || chip.label);
                         }}
                       >
-                        {chip.label}
+                        {isNotify ? (
+                          <span className="gina-chat-card__chip-notify-stroke" aria-hidden>
+                            {Array.from({ length: 6 }, (_, n) => (
+                              <span
+                                key={n}
+                                className="gina-chat-card__chip-notify-dot"
+                                style={{ "--dot-i": n }}
+                              />
+                            ))}
+                          </span>
+                        ) : null}
+                        <span className="gina-chat-card__chip-label">{chip.label}</span>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 )
               ) : null}

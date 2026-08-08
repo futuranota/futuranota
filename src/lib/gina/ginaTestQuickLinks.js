@@ -94,6 +94,21 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: qué sigue",
     text: "¿Qué sigue?",
   },
+  {
+    id: "test_today_notify_hub",
+    label: "Test: qué hay hoy (notify)",
+    text: "qué tenemos para hoy",
+  },
+  {
+    id: "test_notify_brief",
+    label: "Test: Gina notify",
+    text: "Gina quiere informarte algo",
+  },
+  {
+    id: "test_recovery_slot_picker",
+    label: "Test: cupos / Easy Links",
+    text: "Reagendar bloques vencidos mostrar cupos libres",
+  },
 ];
 
 /**

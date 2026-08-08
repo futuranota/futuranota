@@ -50,8 +50,22 @@ import {
   buildDayStartAfterRecoveryText,
   buildGinaWarmGoodbyeReply,
   buildScheduleRecoveryAppliedText,
+  buildScheduleRecoveryIntroText,
+  buildScheduleRecoveryStepText,
+  buildReschedulePickerText,
+  buildRescheduleAppliedText,
+  buildRecoverySnoozeText,
   isGinaWarmGoodbye,
 } from "../../lib/gina/ginaScheduleRecovery.js";
+import { partitionTodayByClock, lastOccupiedFinishMs } from "../../lib/gina/ginaTodayTimeTriage.js";
+import {
+  setRecoveryNotifySnooze,
+  isRecoveryNotifySnoozed,
+  clearRecoveryNotifySnooze,
+} from "../../lib/gina/ginaRecoverySnooze.js";
+import { listOccupiedIntervalsByDate } from "../../lib/docScheduleOccupancy.js";
+import { calendarDateInputValue } from "../../lib/docDates.js";
+import { formatClock12h, formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildDailyReportAppliedText, buildDailyReportOfferText } from "../../lib/gina/ginaDailyReport.js";
 import { markDailyReportOpened } from "../../lib/gina/ginaDailyReportStore.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
@@ -3277,18 +3291,345 @@ export function LeftPanel({
       };
     }
 
+    const recoveryDocDurationMs = (doc) => {
+      const a = doc?.anchorAt ? new Date(doc.anchorAt).getTime() : NaN;
+      const f = doc?.anchorFinishAt ? new Date(doc.anchorFinishAt).getTime() : NaN;
+      if (Number.isFinite(a) && Number.isFinite(f) && f > a) return f - a;
+      return 60 * 60 * 1000;
+    };
+
+    const applySequentialAnchors = (docs, startMs, updateNode) => {
+      let cursor = startMs;
+      let count = 0;
+      for (const doc of docs) {
+        if (!doc?.id) continue;
+        const dur = recoveryDocDurationMs(doc);
+        updateNode(doc.id, {
+          anchorAt: new Date(cursor).toISOString(),
+          anchorFinishAt: new Date(cursor + dur).toISOString(),
+        });
+        cursor += dur;
+        count += 1;
+      }
+      return count;
+    };
+
+    const finishRecoveryAfterMutation = (appliedIntent, appliedCount, ackOverride = null) => {
+      const now = ctx.now;
+      const freshNodes = useNodesStore.getState().nodes || {};
+      const freshDocs = useDocsStore.getState().docs || {};
+      const todayScope = get_today_scope({
+        ...ctx,
+        nodes: freshNodes,
+        docs: freshDocs,
+        now,
+      }, { includeCompleted: false });
+
+      const nextViz = buildGinaVisualization("schedule_recovery_next", todayScope, {
+        locale: localeKey,
+        now,
+        userText: localeKey === "en"
+          ? "Continue to next schedule recovery step"
+          : "Seguir al siguiente paso de recuperación",
+      });
+      const nextData = nextViz?.data || {};
+      const applied = ackOverride || buildScheduleRecoveryAppliedText(appliedIntent, {
+        count: appliedCount,
+        locale: localeKey,
+      });
+
+      if (nextData.currentStep === "conflict_resolve") {
+        const stepText = buildScheduleRecoveryStepText({
+          locale: localeKey,
+          currentStep: nextData.currentStep,
+          urgencyCount: nextData.urgencyCount || 0,
+          lateStartCount: nextData.lateStartCount || 0,
+          lateStartLabels: nextData.lateStartLabels || [],
+          hasOverlap: Boolean(nextData.hasOverlap || nextData.conflictRails),
+          overdueTimes: nextData.overdueTimes || [],
+          topConflict: nextData.topConflict || null,
+          conflictRangeLabel: nextData.conflictRangeLabel || null,
+          invadedLabels: nextData.invadedLabels || [],
+        });
+        return {
+          message: `${applied}\n\n${stepText}`,
+          visualization: nextViz,
+          chips: buildGinaReplyChips({
+            family: "schedule_recovery_next",
+            visualization: nextViz,
+            locale: localeKey,
+            recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, now),
+          }),
+        };
+      }
+
+      const todayOverviewScope = get_today_scope({
+        ...ctx,
+        nodes: freshNodes,
+        docs: freshDocs,
+        now,
+      }, { includeCompleted: true });
+      const overviewViz = buildGinaVisualization("today", todayOverviewScope, {
+        locale: localeKey,
+        now,
+        userText: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy?",
+      });
+      const qs = overviewViz?.data?.quickSheet || null;
+      const firstTitle = qs?.firstPendingTitle || null;
+      const message = qs?.firstPendingId
+        ? [
+          applied,
+          buildDayStartAfterRecoveryText({
+            firstPendingTitle: firstTitle,
+            locale: localeKey,
+          }),
+        ].join("\n\n")
+        : applied;
+
+      return {
+        message,
+        visualization: overviewViz,
+        chips: buildGinaReplyChips({
+          family: "today",
+          visualization: overviewViz,
+          locale: localeKey,
+          hasDaySheet: hasDaySheet(ginaUserId, now),
+          recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, now),
+        }),
+        textAfter: overviewViz?.data?.todayOverview
+          ? buildTodayOverviewAfterText({
+            quickSheet: overviewViz.data.quickSheet || null,
+            locale: localeKey,
+          })
+          : null,
+      };
+    };
+
+    if (!meetingOn && (
+      routed.family === "schedule_recovery_brief"
+      || routed.family === "schedule_recovery_next"
+    )) {
+      if (routed.family === "schedule_recovery_brief") {
+        try { clearRecoveryNotifySnooze(ginaUserId); } catch { /* ignore */ }
+      }
+      const visualization = buildGinaVisualization(routed.family, {
+        ...routed.toolContext,
+        nodes: ctx.nodes,
+        docs: ctx.docs,
+        objectId: ctx.objectId,
+      }, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const data = visualization?.data || {};
+      const stepText = buildScheduleRecoveryStepText({
+        locale: localeKey,
+        currentStep: data.currentStep,
+        urgencyCount: data.urgencyCount || 0,
+        lateStartCount: data.lateStartCount || 0,
+        lateStartLabels: data.lateStartLabels || [],
+        hasOverlap: Boolean(data.hasOverlap || data.conflictRails),
+        overdueTimes: data.overdueTimes || [],
+        topConflict: data.topConflict || null,
+        conflictRangeLabel: data.conflictRangeLabel || null,
+        invadedLabels: data.invadedLabels || [],
+      });
+      const isNext = routed.family === "schedule_recovery_next";
+      const introText = buildScheduleRecoveryIntroText({
+        locale: localeKey,
+        urgencyCount: data.urgencyCount || 0,
+        lateStartCount: data.lateStartCount || 0,
+        hasOverlap: Boolean(data.hasOverlap)
+          || Boolean(data.conflictRails)
+          || data.currentStep === "conflict_resolve",
+      });
+      return {
+        message: isNext ? stepText : introText,
+        textAfter: isNext || data.currentStep === "summary" ? null : stepText,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: routed.family,
+          visualization,
+          locale: localeKey,
+          recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, ctx.now),
+        }),
+      };
+    }
+
+    if (!meetingOn && (
+      routed.family === "schedule_recovery_mark"
+      || routed.family === "schedule_recovery_postpone"
+      || routed.family === "schedule_recovery_complete"
+      || routed.family === "schedule_recovery_in_progress"
+    )) {
+      const visualization = buildGinaVisualization(routed.family, routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (localeKey === "en" ? "Review the preview, then confirm." : "Revisa la vista previa y confirma.");
+      return {
+        message,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: routed.family,
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (!meetingOn && routed.family === "schedule_recovery_snooze") {
+      try { setRecoveryNotifySnooze(ginaUserId, ctx.now); } catch { /* ignore */ }
+      const visualization = buildGinaVisualization("schedule_recovery_next", {
+        ...routed.toolContext,
+        nodes: ctx.nodes,
+        docs: ctx.docs,
+        objectId: ctx.objectId,
+      }, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: localeKey === "en"
+          ? "Continue to next schedule recovery step"
+          : "Seguir al siguiente paso de recuperación",
+      });
+      const data = visualization?.data || {};
+      const stepText = buildScheduleRecoveryStepText({
+        locale: localeKey,
+        currentStep: data.currentStep,
+        urgencyCount: data.urgencyCount || 0,
+        lateStartCount: data.lateStartCount || 0,
+        lateStartLabels: data.lateStartLabels || [],
+        hasOverlap: Boolean(data.hasOverlap || data.conflictRails),
+        overdueTimes: data.overdueTimes || [],
+        topConflict: data.topConflict || null,
+        conflictRangeLabel: data.conflictRangeLabel || null,
+        invadedLabels: data.invadedLabels || [],
+      });
+      const snoozeText = buildRecoverySnoozeText({ locale: localeKey });
+      return {
+        message: data.currentStep && data.currentStep !== "summary"
+          ? `${snoozeText}\n\n${stepText}`
+          : snoozeText,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "schedule_recovery_next",
+          visualization,
+          locale: localeKey,
+          recoverySnoozed: true,
+        }),
+      };
+    }
+
+    if (!meetingOn && routed.family === "schedule_recovery_reschedule_pick") {
+      const visualization = buildGinaVisualization("schedule_recovery_reschedule_pick", {
+        ...routed.toolContext,
+        nodes: ctx.nodes,
+        docs: ctx.docs,
+        objectId: ctx.objectId,
+      }, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildReschedulePickerText({
+          locale: localeKey,
+          hasFreeSlot: Boolean(visualization?.data?.hasFreeSlot) && !visualization?.data?.noCupo,
+        }),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: routed.family,
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
+
+    if (!meetingOn && routed.family === "schedule_recovery_reschedule_apply") {
+      const updateNode = useNodesStore.getState().updateNode;
+      const now = ctx.now instanceof Date ? ctx.now : new Date();
+      const triage = partitionTodayByClock(
+        Array.isArray(routed.toolContext?.documents) ? routed.toolContext.documents : [],
+        now,
+      );
+      const moveDocs = triage.actionable;
+      const mode = routed.toolContext?.mode || "slot";
+      let appliedCount = 0;
+      let timeLabel = "";
+      let dayLabel = "";
+
+      if (mode === "tomorrow") {
+        const start = new Date(now);
+        start.setDate(start.getDate() + 1);
+        start.setHours(9, 0, 0, 0);
+        appliedCount = applySequentialAnchors(moveDocs, start.getTime(), updateNode);
+        timeLabel = formatClock12h(start);
+        dayLabel = localeKey === "en" ? "tomorrow" : "mañana";
+      } else if (mode === "force_end") {
+        const dateKey = calendarDateInputValue(now);
+        const occupied = listOccupiedIntervalsByDate(ctx.nodes, ctx.docs, dateKey, {
+          objectId: ctx.objectId || null,
+        }).filter((o) => !moveDocs.some((d) => d.id === o.id));
+        const startMs = lastOccupiedFinishMs(occupied, now.getTime());
+        appliedCount = applySequentialAnchors(moveDocs, startMs, updateNode);
+        timeLabel = formatClock12h(new Date(startMs));
+      } else {
+        const startIso = routed.toolContext?.applyStartIso;
+        const startMs = startIso ? new Date(startIso).getTime() : NaN;
+        if (Number.isFinite(startMs)) {
+          appliedCount = applySequentialAnchors(moveDocs, startMs, updateNode);
+          const firstDur = moveDocs[0] ? recoveryDocDurationMs(moveDocs[0]) : 60 * 60 * 1000;
+          timeLabel = formatClockRange12h(
+            new Date(startMs).toISOString(),
+            new Date(startMs + firstDur).toISOString(),
+            { sep: " – " },
+          );
+        }
+      }
+
+      return finishRecoveryAfterMutation(
+        "postpone_schedule",
+        appliedCount,
+        buildRescheduleAppliedText({ locale: localeKey, timeLabel, dayLabel }),
+      );
+    }
+
     if (!meetingOn && (
       routed.family === "schedule_recovery_mark_confirm"
       || routed.family === "schedule_recovery_postpone_confirm"
+      || routed.family === "schedule_recovery_complete_confirm"
+      || routed.family === "schedule_recovery_in_progress_confirm"
     )) {
       const updateNode = useNodesStore.getState().updateNode;
       const now = ctx.now;
-      const appliedIntent = routed.family === "schedule_recovery_mark_confirm"
-        ? "mark_past_due"
-        : "postpone_schedule";
+      let appliedIntent = "mark_past_due";
       let appliedCount = 0;
 
-      if (routed.family === "schedule_recovery_mark_confirm") {
+      if (routed.family === "schedule_recovery_complete_confirm") {
+        appliedIntent = "mark_completed";
+        const slots = Array.isArray(routed.toolContext?.markableSlots)
+          ? routed.toolContext.markableSlots
+          : [];
+        appliedCount = slots.length;
+        for (const slot of slots) {
+          if (!slot?.id) continue;
+          updateNode(slot.id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.COMPLETED }));
+        }
+      } else if (routed.family === "schedule_recovery_in_progress_confirm") {
+        appliedIntent = "mark_in_progress";
+        const slots = Array.isArray(routed.toolContext?.lateStartSlots)
+          ? routed.toolContext.lateStartSlots
+          : [];
+        appliedCount = slots.length;
+        for (const slot of slots) {
+          if (!slot?.id) continue;
+          updateNode(slot.id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.IN_PROGRESS }));
+        }
+      } else if (routed.family === "schedule_recovery_mark_confirm") {
+        appliedIntent = "mark_past_due";
         const slots = Array.isArray(routed.toolContext?.markableSlots)
           ? routed.toolContext.markableSlots
           : [];
@@ -3298,6 +3639,7 @@ export function LeftPanel({
           updateNode(slot.id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.PAST_DUE }));
         }
       } else {
+        appliedIntent = "postpone_schedule";
         const todayDocs = Array.isArray(routed.toolContext?.documents)
           ? routed.toolContext.documents
           : [];
@@ -3312,69 +3654,7 @@ export function LeftPanel({
         }
       }
 
-      // Fresh today overview from live store after mutations.
-      const freshNodes = useNodesStore.getState().nodes || {};
-      const freshDocs = useDocsStore.getState().docs || {};
-      const todayScope = get_today_scope({
-        ...ctx,
-        nodes: freshNodes,
-        docs: freshDocs,
-        now,
-      }, { includeCompleted: true });
-      const visualization = buildGinaVisualization("today", todayScope, {
-        locale: localeKey,
-        now,
-        userText: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy?",
-      });
-      const qs = visualization?.data?.quickSheet || null;
-      const stillUrgent = Array.isArray(qs?.urgency) && qs.urgency.length > 0;
-      const firstTitle = qs?.firstPendingTitle || null;
-
-      let message;
-      if (stillUrgent) {
-        message = [
-          buildScheduleRecoveryAppliedText(appliedIntent, {
-            count: appliedCount,
-            locale: localeKey,
-          }),
-          localeKey === "en"
-            ? "Some windows still need attention before we start the day."
-            : "Aún hay ventanas que hay que atender antes de arrancar el día.",
-        ].join("\n\n");
-      } else if (qs?.firstPendingId) {
-        message = [
-          buildScheduleRecoveryAppliedText(appliedIntent, {
-            count: appliedCount,
-            locale: localeKey,
-          }),
-          buildDayStartAfterRecoveryText({
-            firstPendingTitle: firstTitle,
-            locale: localeKey,
-          }),
-        ].join("\n\n");
-      } else {
-        message = buildScheduleRecoveryAppliedText(appliedIntent, {
-          count: appliedCount,
-          locale: localeKey,
-        });
-      }
-
-      return {
-        message,
-        visualization,
-        chips: buildGinaReplyChips({
-          family: "today",
-          visualization,
-          locale: localeKey,
-          hasDaySheet: hasDaySheet(ginaUserId, now),
-        }),
-        textAfter: visualization?.data?.todayOverview
-          ? buildTodayOverviewAfterText({
-            quickSheet: visualization.data.quickSheet || null,
-            locale: localeKey,
-          })
-          : null,
-      };
+      return finishRecoveryAfterMutation(appliedIntent, appliedCount);
     }
 
     // Day reference sheet (save / reopen / complete / next) — deterministic, no Groq.
@@ -3784,6 +4064,7 @@ export function LeftPanel({
             family: "today",
             visualization,
             locale: localeKey,
+            recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, ctx.now),
           }),
         };
       }
@@ -3881,6 +4162,7 @@ export function LeftPanel({
           visualization,
           locale: localeKey,
           hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
+          recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, ctx.now),
         })
         : [];
 
