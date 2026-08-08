@@ -34,6 +34,43 @@ function chipsAreListRefine(chips) {
   return chips.some((c) => c?.group === "list_refine" && c?.kind !== "nav_back");
 }
 
+/** Stash visible chips so the user can “regresar atrás” to the option list. */
+function stashMessageChips(message) {
+  if (!message || !Array.isArray(message.chips) || !message.chips.length) return message;
+  // Don't stash a lone back chip
+  if (message.chips.every((c) => c?.kind === "nav_back")) return message;
+  return {
+    ...message,
+    chips: null,
+    chipsRestorable: message.chips,
+    refineRevealed: true,
+  };
+}
+
+/**
+ * Ensure reply chips include “regresar atrás” when a prior turn has restorable options.
+ * @param {GinaChatMessage[] | null | undefined} messages
+ * @param {object[] | null | undefined} chips
+ * @param {string} [locale]
+ */
+function ensureNavBackChip(messages, chips, locale = "es") {
+  const canGoBack = Array.isArray(messages) && messages.some((m) => (
+    m?.sender === "ai"
+    && Array.isArray(m.chipsRestorable)
+    && m.chipsRestorable.length > 0
+    && !(Array.isArray(m.chips) && m.chips.length)
+  ));
+  if (!canGoBack) return Array.isArray(chips) && chips.length ? chips : null;
+  const list = Array.isArray(chips) ? chips.filter((c) => c?.kind !== "nav_back") : [];
+  const en = locale === "en";
+  list.push({
+    id: "nav_back",
+    kind: "nav_back",
+    label: en ? "go back" : "regresar atrás",
+  });
+  return list;
+}
+
 /**
  * Multi-select refine palette under a full document list.
  * Sequence: rail explain → intent (bold) → schedule scopes → category hint + chips
@@ -840,7 +877,7 @@ export function GinaChatCard({
                     text: aiText || " ",
                     visualization,
                     learnProposal,
-                    chips,
+                    chips: ensureNavBackChip(prev, chips, chipLocale),
                   },
                 ]);
               }
@@ -870,7 +907,7 @@ export function GinaChatCard({
               text: aiText || " ",
               visualization,
               learnProposal,
-              chips,
+              chips: ensureNavBackChip(prev, chips, chipLocale),
             },
           ]);
         }
@@ -1103,10 +1140,16 @@ export function GinaChatCard({
                       const focusText = chipLocale === "en"
                         ? `Focus today on ${deptName}`
                         : `Enfocarme hoy en ${deptName}`;
+                      setMessages((prev) => prev.map((m, idx) => (
+                        idx === i ? stashMessageChips(m) : m
+                      )));
                       enqueueOrDeliver(focusText);
                     }}
                     onSelectAction={(actionText) => {
                       if (!actionText || isTyping || isAiAnimating) return;
+                      setMessages((prev) => prev.map((m, idx) => (
+                        idx === i ? stashMessageChips(m) : m
+                      )));
                       enqueueOrDeliver(actionText);
                     }}
                   />
@@ -1151,10 +1194,16 @@ export function GinaChatCard({
                         const focusText = chipLocale === "en"
                           ? `Focus today on ${deptName}`
                           : `Enfocarme hoy en ${deptName}`;
+                        setMessages((prev) => prev.map((m, idx) => (
+                          idx === i ? stashMessageChips(m) : m
+                        )));
                         enqueueOrDeliver(focusText);
                       }}
                       onSelectAction={(actionText) => {
                         if (!actionText || isTyping || isAiAnimating) return;
+                        setMessages((prev) => prev.map((m, idx) => (
+                          idx === i ? stashMessageChips(m) : m
+                        )));
                         enqueueOrDeliver(actionText);
                       }}
                     />
@@ -1171,27 +1220,13 @@ export function GinaChatCard({
                     onSubmit={(text) => {
                       if (!text) return;
                       setMessages((prev) => prev.map((m, idx) => (
-                        idx === i
-                          ? {
-                            ...m,
-                            chips: null,
-                            chipsRestorable: Array.isArray(m.chips) ? m.chips : m.chipsRestorable,
-                            refineRevealed: true,
-                          }
-                          : m
+                        idx === i ? stashMessageChips(m) : m
                       )));
                       enqueueOrDeliver(text);
                     }}
                     onDismiss={() => {
                       setMessages((prev) => prev.map((m, idx) => (
-                        idx === i
-                          ? {
-                            ...m,
-                            chips: null,
-                            chipsRestorable: Array.isArray(m.chips) ? m.chips : m.chipsRestorable,
-                            refineRevealed: true,
-                          }
-                          : m
+                        idx === i ? stashMessageChips(m) : m
                       )));
                     }}
                   />
@@ -1229,7 +1264,7 @@ export function GinaChatCard({
                               if (next.length && next[next.length - 1]?.sender === "user") {
                                 next = next.slice(0, -1);
                               }
-                              // Restore refine chips on the previous AI message (already-written page)
+                              // Restore option chips on the previous AI message (already-written page)
                               for (let j = next.length - 1; j >= 0; j -= 1) {
                                 if (next[j]?.sender === "ai" && Array.isArray(next[j].chipsRestorable)) {
                                   next[j] = {
@@ -1245,6 +1280,9 @@ export function GinaChatCard({
                             });
                             return;
                           }
+                          setMessages((prev) => prev.map((m, idx) => (
+                            idx === i ? stashMessageChips(m) : m
+                          )));
                           enqueueOrDeliver(chip.text || chip.label);
                         }}
                       >

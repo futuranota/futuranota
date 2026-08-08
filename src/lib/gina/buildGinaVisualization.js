@@ -178,6 +178,35 @@ function buildDepartmentCardsData(today, locale) {
   };
 }
 
+/**
+ * Per-department category counts for “qué tenemos para hoy” narration.
+ * @param {object[]} docs
+ * @param {string} [locale]
+ * @returns {{ name: string, total: number, categories: { name: string, count: number }[] }[]}
+ */
+export function buildTodayOverviewByDepartment(docs, locale = "es") {
+  const en = locale === "en";
+  const uncategorized = en ? "uncategorized" : "sin categoría";
+  /** @type {Map<string, Map<string, number>>} */
+  const byDept = new Map();
+  for (const d of asDocs(docs)) {
+    const dept = String(d.departmentName || d.department || "—").trim() || "—";
+    const cat = String(d.category || "").trim() || uncategorized;
+    if (!byDept.has(dept)) byDept.set(dept, new Map());
+    const cats = byDept.get(dept);
+    cats.set(cat, (cats.get(cat) || 0) + 1);
+  }
+  return [...byDept.entries()]
+    .map(([name, catMap]) => {
+      const categories = [...catMap.entries()]
+        .map(([catName, count]) => ({ name: catName, count }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+      const total = categories.reduce((acc, c) => acc + c.count, 0);
+      return { name, total, categories };
+    })
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+}
+
 function buildDeptSummaryData(today, locale, now) {
   const docs = asDocs(today.documents);
   const dept = today.filters?.department
@@ -868,10 +897,20 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       };
     }
 
-    // Progressive first step: department cards only (no doc dump).
+    // Bare “qué tenemos para hoy”: narrate depts + show timed sheet (not department cards).
+    const sorted = docs
+      .slice()
+      .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")));
     return {
-      type: "department_cards",
-      data: buildDepartmentCardsData(today, locale),
+      type: "schedule_sheet",
+      data: attachRecoveryMeta({
+        date: today.date,
+        dateLabel: formatGinaDayLabel(today.date, locale),
+        groups: groupDocsForScheduleSheet(sorted, now),
+        documents: sorted.map((d) => mapDocRow(d, now, locale)),
+        todayOverview: true,
+        overviewByDepartment: buildTodayOverviewByDepartment(sorted, locale),
+      }, today, now),
     };
   }
 

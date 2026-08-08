@@ -36,6 +36,34 @@ describe("ginaReplyChips", () => {
     ]);
   });
 
+  it("funnel headline for today overview narrates depts + categories", () => {
+    const line = buildGinaFunnelHeadline({
+      type: "schedule_sheet",
+      data: {
+        todayOverview: true,
+        documents: [{ id: "1" }, { id: "2" }, { id: "3" }, { id: "4" }, { id: "5" }],
+        overviewByDepartment: [
+          {
+            name: "Estrategias de negocios",
+            total: 3,
+            categories: [{ name: "Plan de negocio", count: 3 }],
+          },
+          {
+            name: "Marketing",
+            total: 2,
+            categories: [{ name: "Social Media", count: 2 }],
+          },
+        ],
+      },
+    }, { locale: "es" });
+    expect(line).toContain("**2** departamentos");
+    expect(line).toContain("Estrategias de negocios");
+    expect(line).toContain("Plan de negocio");
+    expect(line).toContain("Social Media");
+    expect(line).toContain("**5** documentos");
+    expect(line).toContain("horario de trabajo");
+  });
+
   it("funnel headline for department_cards", () => {
     const line = buildGinaFunnelHeadline({
       type: "department_cards",
@@ -46,6 +74,28 @@ describe("ginaReplyChips", () => {
     }, { locale: "es" });
     expect(line).toContain("2 departamentos");
     expect(line).toContain("A");
+  });
+
+  it("today overview chips offer save + focus, not department cards loop", () => {
+    const chips = buildGinaReplyChips({
+      family: "today",
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          todayOverview: true,
+          overviewByDepartment: [
+            { name: "Marketing", total: 2 },
+            { name: "Sales", total: 1 },
+          ],
+          documents: [{ id: "1" }],
+        },
+      },
+      locale: "es",
+    });
+    expect(chips.map((c) => c.id)).toContain("save_day_sheet");
+    expect(chips.map((c) => c.id)).toContain("focus_Marketing");
+    expect(chips.map((c) => c.id)).toContain("focus_Sales");
+    expect(chips.map((c) => c.id)).not.toContain("today_depts");
   });
 
   it("funnel headline for dept_summary asks how to view schedules", () => {

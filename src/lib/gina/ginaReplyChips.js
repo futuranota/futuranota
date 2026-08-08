@@ -828,6 +828,8 @@ export function buildDeptDetailNavChips(opts = {}) {
  *   justSaved?: boolean,
  *   missingAnchor?: boolean,
  *   hasDaySheet?: boolean,
+ *   todayOverview?: boolean,
+ *   overviewByDepartment?: { name: string, total?: number }[],
  * }} [opts]
  */
 export function buildScheduleSheetChips(opts = {}) {
@@ -859,6 +861,32 @@ export function buildScheduleSheetChips(opts = {}) {
       label: en ? "I finished" : "Ya terminé",
       text: en ? "I finished" : "Ya terminé",
     });
+  } else if (opts.todayOverview) {
+    chips.push({
+      id: "save_day_sheet",
+      label: en ? "Save day sheet" : "Guardar sheet del día",
+      text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
+      primary: true,
+    });
+    if (opts.hasDaySheet) {
+      chips.push({
+        id: "open_day_sheet",
+        label: en ? "Day sheet" : "Sheet del día",
+        text: en ? "Open day sheet" : "Sheet del día",
+      });
+    }
+    const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
+    for (const d of depts.slice(0, 4)) {
+      const name = String(d?.name || "").trim();
+      if (!name || name === "—") continue;
+      chips.push({
+        id: `focus_${name}`,
+        label: en ? `Focus on ${name}` : `Enfocarme en ${name}`,
+        text: en
+          ? `Focus today on ${name}`
+          : `Enfocarme hoy en ${name}`,
+      });
+    }
   } else {
     chips.push({
       id: "save_day_sheet",
@@ -874,9 +902,9 @@ export function buildScheduleSheetChips(opts = {}) {
       });
     }
     chips.push({
-      id: "today_depts",
-      label: en ? "Departments today" : "Departamentos de hoy",
-      text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
+      id: "today_schedule",
+      label: en ? "Today's schedule" : "Horarios de hoy",
+      text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
     });
   }
   return chips;
@@ -942,6 +970,82 @@ export function buildDaySheetNextChips(opts = {}) {
     text: en ? "Open day sheet" : "Sheet del día",
   });
   return chips;
+}
+
+/**
+ * Join names: "A y B" / "A, B y C" (ES) or "A and B" (EN).
+ * @param {string[]} names
+ * @param {string} [locale]
+ */
+function joinNameList(names, locale = "es") {
+  const list = (names || []).map((n) => String(n || "").trim()).filter(Boolean);
+  if (!list.length) return "";
+  if (list.length === 1) return list[0];
+  const en = locale === "en";
+  const conj = en ? " and " : " y ";
+  if (list.length === 2) return `${list[0]}${conj}${list[1]}`;
+  return `${list.slice(0, -1).join(", ")}${conj}${list[list.length - 1]}`;
+}
+
+/**
+ * Deterministic narration for “qué tenemos para hoy” + timed sheet.
+ * @param {{
+ *   overviewByDepartment?: { name: string, total: number, categories: { name: string, count: number }[] }[],
+ *   documents?: object[],
+ *   locale?: string,
+ * }} opts
+ */
+export function buildTodayOverviewHeadline(opts = {}) {
+  const en = opts.locale === "en";
+  const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
+  const nDocs = Array.isArray(opts.documents)
+    ? opts.documents.length
+    : depts.reduce((acc, d) => acc + (d.total || 0), 0);
+
+  if (nDocs === 0 || depts.length === 0) {
+    return en
+      ? "Nothing scheduled for today."
+      : "Hoy no hay trabajo programado.";
+  }
+
+  const deptNames = depts.map((d) => d.name).filter((n) => n && n !== "—");
+  const nDepts = deptNames.length || depts.length;
+  const head = en
+    ? (nDepts === 1
+      ? `Today you have activity in **1** department: **${deptNames[0] || depts[0].name}**.`
+      : `Today you have activity in **${nDepts}** departments: ${joinNameList(deptNames.map((n) => `**${n}**`), "en")}.`)
+    : (nDepts === 1
+      ? `Hoy tienes actividad en **1** departamento: **${deptNames[0] || depts[0].name}**.`
+      : `Hoy tienes actividad en **${nDepts}** departamentos: ${joinNameList(deptNames.map((n) => `**${n}**`), "es")}.`);
+
+  const lines = depts.map((d) => {
+    const cats = Array.isArray(d.categories) ? d.categories : [];
+    if (!cats.length) {
+      return en
+        ? `**${d.name}**: ${d.total} document${d.total === 1 ? "" : "s"}.`
+        : `**${d.name}**: ${d.total} documento${d.total === 1 ? "" : "s"}.`;
+    }
+    if (cats.length === 1) {
+      const c = cats[0];
+      return en
+        ? `**${d.name}**: ${c.count} document${c.count === 1 ? "" : "s"} in the **${c.name}** category.`
+        : `**${d.name}**: ${c.count} documento${c.count === 1 ? "" : "s"} en la categoría **${c.name}**.`;
+    }
+    const parts = cats.map((c) => (
+      en
+        ? `${c.count} in **${c.name}**`
+        : `${c.count} en **${c.name}**`
+    ));
+    return en
+      ? `**${d.name}**: ${d.total} document${d.total === 1 ? "" : "s"} — ${joinNameList(parts, "en")}.`
+      : `**${d.name}**: ${d.total} documento${d.total === 1 ? "" : "s"} — ${joinNameList(parts, "es")}.`;
+  });
+
+  const closer = en
+    ? `Here’s the table with the **${nDocs}** document${nDocs === 1 ? "" : "s"} ordered by work schedule:`
+    : `Aquí tienes la tabla con los **${nDocs}** documento${nDocs === 1 ? "" : "s"} ordenados por su horario de trabajo:`;
+
+  return [head, "", ...lines, "", closer].join("\n");
 }
 
 /**
@@ -1361,6 +1465,13 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     const n = Array.isArray(data.groups)
       ? data.groups.reduce((acc, g) => acc + (g.folders?.reduce((a, f) => a + (f.documents?.length || 0), 0) || 0), 0)
       : (data.documents?.length || 0);
+    if (data.todayOverview) {
+      return buildTodayOverviewHeadline({
+        overviewByDepartment: data.overviewByDepartment,
+        documents: data.documents,
+        locale: opts.locale,
+      });
+    }
     if (data.missingAnchor) {
       return en
         ? "You don’t have a day reference sheet yet. Open today’s schedule and save it as your guide."
@@ -1728,6 +1839,8 @@ export function buildGinaReplyChips(opts = {}) {
       justSaved: Boolean(data.justSaved),
       missingAnchor: Boolean(data.missingAnchor),
       hasDaySheet: Boolean(opts.hasDaySheet),
+      todayOverview: Boolean(data.todayOverview),
+      overviewByDepartment: data.overviewByDepartment,
     });
   }
   if (type === "recovery_preview") {

@@ -10,7 +10,7 @@ describe("buildGinaVisualization", () => {
     })).toBe("Marketing / Blogs / Trends");
   });
 
-  it("builds department_cards for today without dept filter", () => {
+  it("builds schedule_sheet overview for qué tenemos para hoy (not department cards)", () => {
     const viz = buildGinaVisualization("today", {
       date: "2026-08-01",
       totalDocumentsToday: 2,
@@ -29,12 +29,25 @@ describe("buildGinaVisualization", () => {
           anchorAt: "2026-08-01T08:00:00",
           anchorFinishAt: "2026-08-01T15:00:00",
         },
+        {
+          id: "n2",
+          title: "Plan A",
+          status: "not_started",
+          parentFolderName: "Plan",
+          departmentName: "Estrategias de negocios",
+          category: "Plan de negocio",
+          anchorAt: "2026-08-01T10:00:00",
+        },
       ],
       filters: {},
     }, { userText: "qué tenemos para hoy?" });
-    expect(viz?.type).toBe("department_cards");
-    expect(viz?.data.departments[0].name).toBe("Marketing");
-    expect(viz?.data.recommended).toBe("Marketing");
+    expect(viz?.type).toBe("schedule_sheet");
+    expect(viz?.data.todayOverview).toBe(true);
+    expect(viz?.data.overviewByDepartment?.map((d) => d.name)).toEqual([
+      "Estrategias de negocios",
+      "Marketing",
+    ]);
+    expect(viz?.data.documents?.map((d) => d.id)).toEqual(["n1", "n2"]);
   });
 
   it("builds schedule_sheet for horarios de hoy", () => {
