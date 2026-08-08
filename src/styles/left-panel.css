@@ -9261,11 +9261,11 @@ body.doc-content-resizing * {
 .node-query-modal__schedule.doc-block-anchor {
   padding-left: 0;
   margin-top: 0;
-  /* Date above hour so Save/Larger can baseline to the hour row */
-  flex-direction: column;
-  align-items: flex-start;
+  /* Date + hour inline — frees former hour row for Save / Larger */
+  flex-direction: row;
+  align-items: center;
   flex-wrap: nowrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .node-query-modal__schedule .doc-block-anchor__date,
@@ -9571,8 +9571,8 @@ body.doc-content-resizing * {
 
 .node-query-modal__footer-start {
   display: flex;
-  /* Save + Larger sit on the hour row (schedule stacks date above) */
-  align-items: flex-end;
+  /* Single schedule row: date | hour | Save | Larger */
+  align-items: center;
   gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
@@ -9603,7 +9603,7 @@ body.doc-content-resizing * {
 
 .node-query-modal__footer-start .node-query-modal__footer-save,
 .node-query-modal__footer-start .doc-content-text-size-controls {
-  align-self: flex-end;
+  align-self: center;
   height: 22px;
 }
 
