@@ -7,7 +7,9 @@ import {
 } from "../../lib/gina/buildGinaVisualization.js";
 import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
 import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns } from "../../lib/gina/ginaDepartmentColors.js";
-import { buildGinaStatusRail } from "../../lib/gina/ginaStatusColors.js";
+import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
+import { flattenTodayQuickSheetRows } from "../../lib/gina/ginaTodayQuickSheet.js";
+import { DOC_WORK_STATUS } from "../../lib/docWorkStatus.js";
 
 /**
  * Gray small Depto / Categoría / Folder path above visual blocks.
@@ -972,6 +974,126 @@ function TodayOverviewDeptNarrative({ overview, locale = "es" }) {
 }
 
 /** Today overview: dept narrative + pie (side) + Document/Category/Time table. */
+function StatusUnassignedChip({ locale = "es" }) {
+  const label = locale === "en" ? "No status assigned" : "Sin status asignado";
+  return (
+    <span className="doc-status-chip doc-status-chip--status_unassigned" title={label}>
+      {label}
+    </span>
+  );
+}
+
+function TodayQuickSheet({ quickSheet, locale = "es" }) {
+  if (!quickSheet || typeof quickSheet !== "object") return null;
+  const rows = flattenTodayQuickSheetRows(quickSheet);
+  if (!rows.length) return null;
+  const en = locale === "en";
+  const urgencyCount = Array.isArray(quickSheet.urgency) ? quickSheet.urgency.length : 0;
+  // Contiguous runs in chronological row order (same pattern as week status rail)
+  const statusRail = buildGinaStatusRailRuns(rows, locale);
+
+  return (
+    <div className="gina-viz__quick-sheet gina-viz gina-viz--table gina-viz--table-rail">
+      <header className="gina-viz__quick-sheet-head">
+        <span className="gina-viz__eyebrow">{en ? "Today's schedule" : "Horario de hoy"}</span>
+        <h3 className="gina-viz__title">{en ? "Chronological sheet" : "Sheet cronológico"}</h3>
+      </header>
+      <div className="gina-viz__table-layout">
+        {statusRail.length ? (
+          <div className="gina-viz__dept-rail" aria-hidden="true">
+            <div className="gina-viz__dept-rail-head" />
+            <div className="gina-viz__dept-rail-body">
+              {statusRail.map((seg) => (
+                <div
+                  key={`${seg.id}-${seg.name}`}
+                  className="gina-viz__dept-rail-seg"
+                  style={{
+                    flexGrow: Math.max(1, seg.count),
+                    background: seg.color,
+                  }}
+                  title={`${seg.name} · ${seg.count}`}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="gina-viz__table-wrap">
+          <table className="gina-viz__table">
+            <thead>
+              <tr>
+                <th>Document</th>
+                <th>Categoría</th>
+                <th>Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((doc) => {
+                const struck = Boolean(
+                  doc.sheetSection === "completed"
+                  || doc.struck
+                  || doc.completed
+                  || doc.status === DOC_WORK_STATUS.COMPLETED,
+                );
+                const isUrgency = doc.sheetSection === "urgency";
+                const hasStatus = Boolean(doc.status) || struck;
+                return (
+                  <tr
+                    key={doc.id || `${doc.title}-${doc.timeLabel}`}
+                    className={isUrgency ? "gina-viz__quick-sheet-row--urgency" : undefined}
+                  >
+                    <td>
+                      {struck ? (
+                        <span className="gina-viz__table-title gina-viz__table-title--struck">
+                          <s>{doc.title || "—"}</s>
+                        </span>
+                      ) : (doc.title || "—")}
+                    </td>
+                    <td>{doc.category || doc.hierarchy?.category || "—"}</td>
+                    <td>
+                      <GinaTimeCell doc={doc} struck={struck} />
+                    </td>
+                    <td>
+                      {struck ? (
+                        <DocStatusChip status={DOC_WORK_STATUS.COMPLETED} />
+                      ) : hasStatus ? (
+                        <DocStatusChip status={doc.status} />
+                      ) : (
+                        <StatusUnassignedChip locale={locale} />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {statusRail.length ? (
+        <ul className="gina-viz__dept-legend" aria-label="Status">
+          {statusRail.map((seg) => (
+            <li key={seg.id || seg.name} className="gina-viz__dept-legend-item">
+              <span
+                className="gina-viz__dept-legend-dot"
+                style={{ background: seg.color }}
+                aria-hidden
+              />
+              <span className="gina-viz__dept-legend-name">{seg.name}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {urgencyCount > 0 ? (
+        <p className="gina-viz__quick-sheet-note">
+          {en
+            ? "Highlighted rows already expired vs now — even if their status still says not started."
+            : "Las filas resaltadas ya expiraron vs la hora actual — aunque su status diga sin empezar."}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function TodayOverviewVisualization({ data }) {
   const docs = Array.isArray(data.documents) ? data.documents : [];
   const overview = Array.isArray(data.overviewByDepartment) ? data.overviewByDepartment : [];
@@ -1051,6 +1173,7 @@ function TodayOverviewVisualization({ data }) {
           )}
         </div>
       </div>
+      <TodayQuickSheet quickSheet={data.quickSheet} locale={locale} />
     </div>
   );
 }

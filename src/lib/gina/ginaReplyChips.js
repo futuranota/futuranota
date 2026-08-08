@@ -831,17 +831,27 @@ export function buildDeptDetailNavChips(opts = {}) {
  *   hasDaySheet?: boolean,
  *   todayOverview?: boolean,
  *   overviewByDepartment?: { name: string, total?: number }[],
+ *   quickSheet?: {
+ *     isCleanDay?: boolean,
+ *     firstPendingId?: string | null,
+ *     firstPendingTitle?: string | null,
+ *     urgency?: object[],
+ *   } | null,
  * }} [opts]
  */
 export function buildScheduleSheetChips(opts = {}) {
   const en = opts.locale === "en";
   const hasRecovery = Boolean(opts.hasRecoveryOffer);
   const phase = opts.recoveryPhase || "gate";
+  const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
+  const urgencyCount = Array.isArray(qs?.urgency) ? qs.urgency.length : 0;
+  /** Errors first: urgency rows or markable recovery — no save/focus/start yet. */
+  const errorsFirst = urgencyCount > 0 || hasRecovery;
   /** @type {GinaReplyChip[]} */
   const chips = [];
-  if (hasRecovery && phase === "brief") {
+  if (errorsFirst && phase === "brief") {
     chips.push(...buildScheduleRecoveryChips({ locale: opts.locale }));
-  } else if (hasRecovery) {
+  } else if (errorsFirst) {
     chips.push(...buildScheduleRecoveryGateChips({ locale: opts.locale }));
   } else if (opts.missingAnchor) {
     chips.push({
@@ -863,11 +873,22 @@ export function buildScheduleSheetChips(opts = {}) {
       text: en ? "I finished" : "Ya terminé",
     });
   } else if (opts.todayOverview) {
+    if (qs?.isCleanDay && qs.firstPendingId) {
+      const title = String(qs.firstPendingTitle || "").trim();
+      chips.push({
+        id: `open_${qs.firstPendingId}`,
+        label: en
+          ? (title ? `Start «${title}»` : "Start first document")
+          : (title ? `Comenzar «${title}»` : "Comenzar primer documento"),
+        text: `GinaOpenDocument:${qs.firstPendingId}`,
+        primary: true,
+      });
+    }
     chips.push({
       id: "save_day_sheet",
       label: en ? "Save day sheet" : "Guardar sheet del día",
       text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
-      primary: true,
+      primary: !chips.some((c) => c.primary),
     });
     if (opts.hasDaySheet) {
       chips.push({
@@ -1070,39 +1091,87 @@ export function buildTodayOverviewDeptBlocks(opts = {}) {
 }
 
 /**
- * Deterministic narration for “qué tenemos para hoy” (bubble only).
- * Dept blocks with color dots live in the visualization.
+ * Deterministic narration BEFORE the today schedule table.
+ * Mentions count, expired windows vs now, and top conflict when present.
  */
 export function buildTodayOverviewHeadline(opts = {}) {
   const en = opts.locale === "en";
+  const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
+  const nFromQs = typeof qs?.totalDocuments === "number"
+    ? qs.totalDocuments
+    : ((qs?.completed?.length || 0) + (qs?.urgency?.length || 0) + (qs?.pending?.length || 0));
   const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
-  const nDocs = Array.isArray(opts.documents)
-    ? opts.documents.length
-    : depts.reduce((acc, d) => acc + (d.total || 0), 0);
-  const totalMinutes = typeof opts.totalMinutes === "number"
-    ? opts.totalMinutes
-    : depts.reduce((acc, d) => acc + (d.minutes || 0), 0);
-  const totalHoursLabel = opts.totalHoursLabel
-    || formatHoursFallback(totalMinutes, en ? "en" : "es", { withCon: true });
+  const nDocs = nFromQs
+    || (Array.isArray(opts.documents) ? opts.documents.length : 0)
+    || depts.reduce((acc, d) => acc + (d.total || 0), 0);
+  const urgencyCount = typeof qs?.urgencyCount === "number"
+    ? qs.urgencyCount
+    : (Array.isArray(qs?.urgency) ? qs.urgency.length : 0);
+  const clock = String(qs?.clockLabel || opts.clockLabel || "").trim();
+  const conflict = qs?.topConflict && qs.topConflict.overlapCount > 0
+    ? qs.topConflict
+    : null;
 
-  if (nDocs === 0 || depts.length === 0) {
+  if (nDocs === 0 && urgencyCount === 0) {
     return en
       ? "Nothing scheduled for today."
       : "Hoy no hay trabajo programado.";
   }
 
-  const nDepts = depts.filter((d) => d.name && d.name !== "—").length || depts.length;
+  let text = en
+    ? `Here I’ll show you today’s schedule in chronological order — you have a total of **${nDocs}** document${nDocs === 1 ? "" : "s"}.`
+    : `Aquí te voy a mostrar el horario cronológicamente — tienes un total de **${nDocs}** documento${nDocs === 1 ? "" : "s"}.`;
 
-  const title = en ? "Today's schedule:" : "Horario de Hoy:";
-  const description = totalMinutes > 0
-    ? (en
-      ? `Today you have a total work block of ${totalHoursLabel}, and your greatest focus comes from a main department.`
-      : `Hoy tienes un bloque total de trabajo de ${totalHoursLabel}, tu mayor concentración viene de un departamento principal.`)
-    : (en
-      ? `Today you have activity across ${nDepts} department${nDepts === 1 ? "" : "s"}.`
-      : `Hoy tienes actividad en ${nDepts} departamento${nDepts === 1 ? "" : "s"}.`);
+  if (urgencyCount > 0) {
+    text += en
+      ? ` But first I want to flag that **${urgencyCount}** of them already have expired time windows`
+      : ` Pero antes te quiero señalar que **${urgencyCount}** de ellos ya tienen el horario vencido`;
+    text += clock
+      ? (en ? `, relative to the current time (**${clock}**).` : `, en referencia a la hora actual (**${clock}**).`)
+      : ".";
+  }
 
-  return `${title}\n${description}`;
+  if (conflict) {
+    const title = String(conflict.title || "").trim() || (en ? "a document" : "un documento");
+    const n = Number(conflict.overlapCount) || 1;
+    text += en
+      ? ` I also want to flag that **${title}** overlaps with **${n}** other document${n === 1 ? "" : "s"}.`
+      : ` También te quiero señalar que el documento **${title}** choca con **${n}** documento${n === 1 ? "" : "s"}.`;
+  }
+
+  return text;
+}
+
+/**
+ * Second bubble AFTER the today schedule table.
+ * Errors first → offer recovery; clean day → open first pending.
+ */
+export function buildTodayOverviewAfterText(opts = {}) {
+  const en = opts.locale === "en";
+  const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
+  const urgencyCount = Array.isArray(qs?.urgency) ? qs.urgency.length : 0;
+
+  if (urgencyCount > 0) {
+    return en
+      ? "Want me to mark the expired ones as past due, cascade-reschedule from now, or skip for now?"
+      : "¿Quieres que marque los vencidos, reagende en cadena desde ahora, u omitamos por ahora?";
+  }
+
+  if (qs?.isCleanDay && qs.firstPendingTitle) {
+    return en
+      ? `Your day starts with **${qs.firstPendingTitle}**. Want me to open the document?`
+      : `Tu día empieza por **${qs.firstPendingTitle}**. ¿Quieres que te abra el documento?`;
+  }
+
+  if (qs?.firstPendingTitle) {
+    return en
+      ? `Want to start working on **${qs.firstPendingTitle}**?`
+      : `¿Quieres comenzar trabajando en **${qs.firstPendingTitle}**?`;
+  }
+
+  return en
+    ? "That’s the full sheet for today."
+    : "Ese es el sheet completo de hoy.";
 }
 
 function formatHoursFallback(minutes, locale, opts = {}) {
@@ -1571,6 +1640,7 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
         documents: data.documents,
         totalMinutes: data.totalMinutes,
         totalHoursLabel: data.totalHoursLabel,
+        quickSheet: data.quickSheet || null,
         locale: opts.locale,
       });
     }
@@ -1943,6 +2013,7 @@ export function buildGinaReplyChips(opts = {}) {
       hasDaySheet: Boolean(opts.hasDaySheet),
       todayOverview: Boolean(data.todayOverview),
       overviewByDepartment: data.overviewByDepartment,
+      quickSheet: data.quickSheet || null,
     });
   }
   if (type === "recovery_preview") {

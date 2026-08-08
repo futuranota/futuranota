@@ -11,6 +11,7 @@ describe("buildGinaVisualization", () => {
   });
 
   it("builds schedule_sheet overview for qué tenemos para hoy (not department cards)", () => {
+    const now = new Date("2026-08-01T07:00:00");
     const viz = buildGinaVisualization("today", {
       date: "2026-08-01",
       totalDocumentsToday: 2,
@@ -41,7 +42,7 @@ describe("buildGinaVisualization", () => {
         },
       ],
       filters: {},
-    }, { userText: "qué tenemos para hoy?" });
+    }, { userText: "qué tenemos para hoy?", now });
     expect(viz?.type).toBe("schedule_sheet");
     expect(viz?.data.todayOverview).toBe(true);
     expect(viz?.data.totalMinutes).toBe(135);
@@ -55,9 +56,59 @@ describe("buildGinaVisualization", () => {
     ]);
     expect(viz?.data.overviewByDepartment[0].minutes).toBe(75);
     expect(viz?.data.documents?.map((d) => d.id)).toEqual(["n1", "n2"]);
+    expect(viz?.data.quickSheet?.pending?.map((d) => d.id)).toEqual(["n1", "n2"]);
+    expect(viz?.data.quickSheet?.isCleanDay).toBe(true);
+  });
+
+  it("today overview keeps completed only in quickSheet, not dept table", () => {
+    const now = new Date("2026-08-01T12:00:00");
+    const viz = buildGinaVisualization("today", {
+      date: "2026-08-01",
+      documents: [
+        {
+          id: "done",
+          title: "Finished",
+          status: "completed",
+          departmentName: "Marketing",
+          category: "Blogs",
+          anchorAt: "2026-08-01T08:00:00",
+          anchorFinishAt: "2026-08-01T09:00:00",
+        },
+        {
+          id: "open",
+          title: "Open",
+          status: "not_started",
+          departmentName: "Sales",
+          category: "Calls",
+          anchorAt: "2026-08-01T15:00:00",
+          anchorFinishAt: "2026-08-01T16:00:00",
+        },
+        {
+          id: "late",
+          title: "Late",
+          status: null,
+          departmentName: "Sales",
+          category: "Calls",
+          anchorAt: "2026-08-01T09:00:00",
+          anchorFinishAt: "2026-08-01T10:00:00",
+        },
+      ],
+      filters: {},
+    }, { userText: "qué tenemos para hoy?", now });
+    expect(viz?.data.documents?.map((d) => d.id)).toEqual(["late", "open"]);
+    expect(viz?.data.overviewByDepartment?.map((d) => d.name)).toEqual(["Sales"]);
+    expect(viz?.data.quickSheet?.completed?.map((d) => d.id)).toEqual(["done"]);
+    expect(viz?.data.quickSheet?.urgency?.map((d) => d.id)).toEqual(["late"]);
+    expect(viz?.data.quickSheet?.urgency?.[0]?.urgencyChip).toBe("status_unassigned");
+    expect(viz?.data.quickSheet?.pending?.map((d) => d.id)).toEqual(["open"]);
+    expect(viz?.data.quickSheet?.isCleanDay).toBe(false);
+    expect(viz?.data.hasRecoveryOffer).toBe(true);
+    expect(viz?.data.quickSheet?.clockLabel).toBeTruthy();
+    expect(viz?.data.quickSheet?.totalDocuments).toBe(3);
   });
 
   it("omits zero-minute departments from hours pie", () => {
+    const now = new Date("2026-08-01T07:00:00");
     const viz = buildGinaVisualization("today", {
       date: "2026-08-01",
       documents: [
@@ -78,7 +129,7 @@ describe("buildGinaVisualization", () => {
         },
       ],
       filters: {},
-    }, { userText: "qué tenemos para hoy?" });
+    }, { userText: "qué tenemos para hoy?", now });
     expect(viz?.data.hoursChart?.map((s) => s.name)).toEqual(["Marketing"]);
     expect(viz?.data.overviewByDepartment?.length).toBe(2);
   });

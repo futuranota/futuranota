@@ -5,6 +5,7 @@ import {
   buildGinaReplyChips,
   buildDeptFocusChips,
   buildTodayDepartmentChips,
+  buildTodayOverviewAfterText,
   buildTodayOverviewDeptBlocks,
 } from "./ginaReplyChips.js";
 
@@ -37,7 +38,7 @@ describe("ginaReplyChips", () => {
     ]);
   });
 
-  it("funnel headline for today overview is title + descriptive body", () => {
+  it("funnel headline for today overview is chronological report before table", () => {
     const line = buildGinaFunnelHeadline({
       type: "schedule_sheet",
       data: {
@@ -61,13 +62,46 @@ describe("ginaReplyChips", () => {
             categories: [{ name: "Social Media", count: 2 }],
           },
         ],
+        quickSheet: {
+          totalDocuments: 5,
+          urgencyCount: 2,
+          clockLabel: "3:30 PM",
+          urgency: [{ id: "a" }, { id: "b" }],
+          topConflict: { id: "a", title: "Sales block", overlapCount: 2 },
+          isCleanDay: false,
+        },
       },
     }, { locale: "es" });
-    expect(line).toMatch(/^Horario de Hoy:/);
-    expect(line).toContain("2 horas con 15 minutos");
-    expect(line).toContain("departamento principal");
-    expect(line).not.toContain("Estrategias de negocios");
-    expect(line).not.toContain("Marketing");
+    expect(line).toMatch(/horario cronológicamente/i);
+    expect(line).toContain("**5** documento");
+    expect(line).toContain("**2**");
+    expect(line).toContain("3:30 PM");
+    expect(line).toContain("Sales block");
+  });
+
+  it("today overview after-text offers recovery when urgency remains", () => {
+    const after = buildTodayOverviewAfterText({
+      locale: "es",
+      quickSheet: {
+        urgency: [{ id: "late" }],
+        isCleanDay: false,
+      },
+    });
+    expect(after).toMatch(/vencidos|cadena/i);
+  });
+
+  it("today overview after-text offers open first doc on clean day", () => {
+    const after = buildTodayOverviewAfterText({
+      locale: "es",
+      quickSheet: {
+        urgency: [],
+        isCleanDay: true,
+        firstPendingTitle: "Call 1",
+        firstPendingId: "n1",
+      },
+    });
+    expect(after).toContain("Call 1");
+    expect(after).toMatch(/abra el documento/i);
   });
 
   it("today overview dept blocks have headline + bold docs/hours", () => {
@@ -123,6 +157,110 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).toContain("focus_Marketing");
     expect(chips.map((c) => c.id)).toContain("focus_Sales");
     expect(chips.map((c) => c.id)).not.toContain("today_depts");
+  });
+
+  it("clean-day today overview adds CTA to open first pending doc", () => {
+    const chips = buildGinaReplyChips({
+      family: "today",
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          todayOverview: true,
+          overviewByDepartment: [{ name: "Sales", total: 1 }],
+          documents: [{ id: "n1", title: "Call 1" }],
+          quickSheet: {
+            completed: [],
+            urgency: [],
+            pending: [{ id: "n1", title: "Call 1" }],
+            isCleanDay: true,
+            firstPendingId: "n1",
+            firstPendingTitle: "Call 1",
+            hasOverlap: false,
+          },
+        },
+      },
+      locale: "es",
+    });
+    expect(chips[0].id).toBe("open_n1");
+    expect(chips[0].text).toBe("GinaOpenDocument:n1");
+    expect(chips[0].primary).toBe(true);
+    const headline = buildGinaFunnelHeadline({
+      type: "schedule_sheet",
+      data: {
+        todayOverview: true,
+        totalMinutes: 60,
+        totalHoursLabel: "1 hora",
+        documents: [{ id: "n1" }],
+        overviewByDepartment: [{ name: "Sales", total: 1, minutes: 60 }],
+        quickSheet: {
+          isCleanDay: true,
+          firstPendingId: "n1",
+          firstPendingTitle: "Call 1",
+          totalDocuments: 1,
+          urgency: [],
+          urgencyCount: 0,
+        },
+      },
+    }, { locale: "es" });
+    expect(headline).toMatch(/horario cronológicamente/i);
+    const after = buildTodayOverviewAfterText({
+      locale: "es",
+      quickSheet: {
+        isCleanDay: true,
+        firstPendingId: "n1",
+        firstPendingTitle: "Call 1",
+        urgency: [],
+      },
+    });
+    expect(after).toContain("¿Quieres que te abra el documento?");
+  });
+
+  it("urgency on today overview nudges recovery copy", () => {
+    const headline = buildGinaFunnelHeadline({
+      type: "schedule_sheet",
+      data: {
+        todayOverview: true,
+        totalMinutes: 60,
+        totalHoursLabel: "1 hora",
+        documents: [{ id: "late" }],
+        overviewByDepartment: [{ name: "Sales", total: 1, minutes: 60 }],
+        quickSheet: {
+          isCleanDay: false,
+          totalDocuments: 1,
+          urgencyCount: 1,
+          clockLabel: "2:00 PM",
+          urgency: [{ id: "late" }],
+        },
+      },
+    }, { locale: "es" });
+    expect(headline).toContain("horario vencido");
+    expect(headline).toContain("2:00 PM");
+  });
+
+  it("urgency on today overview chips are recovery-only (errors first)", () => {
+    const chips = buildGinaReplyChips({
+      family: "today",
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          todayOverview: true,
+          hasRecoveryOffer: false,
+          overviewByDepartment: [{ name: "Sales", total: 1 }],
+          documents: [{ id: "late" }],
+          quickSheet: {
+            completed: [],
+            urgency: [{ id: "late", title: "Late" }],
+            pending: [{ id: "soon" }],
+            isCleanDay: false,
+          },
+        },
+      },
+      locale: "es",
+    });
+    expect(chips.some((c) => c.id === "recovery_notify" || c.id === "mark_past_due")).toBe(true);
+    expect(chips.map((c) => c.id)).not.toContain("save_day_sheet");
+    expect(chips.map((c) => c.id)).not.toContain("focus_Sales");
+    expect(chips.some((c) => String(c.id).startsWith("open_"))).toBe(false);
   });
 
   it("funnel headline for dept_summary asks how to view schedules", () => {

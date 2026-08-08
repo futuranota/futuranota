@@ -39,6 +39,7 @@ import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js
 import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
+  buildTodayOverviewAfterText,
 } from "../../lib/gina/ginaReplyChips.js";
 import {
   buildGinaSearchSequence,
@@ -46,6 +47,7 @@ import {
 } from "../../lib/gina/ginaSearchSequence.js";
 import {
   buildCascadeSchedulePreview,
+  buildDayStartAfterRecoveryText,
   buildGinaWarmGoodbyeReply,
   buildScheduleRecoveryAppliedText,
   isGinaWarmGoodbye,
@@ -58,7 +60,7 @@ import { pickNextDaySheetDoc, summarizeDaySheetProgress } from "../../lib/gina/g
 import { useGinaDailyReportNudge } from "../../hooks/useGinaDailyReportNudge.js";
 import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
-import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
+import { get_today_scope, get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { buildGinaKnowledgePromptBlock, isGinaLearnSaveConfirm, addLocalGinaKnowledge, parseGinaLearnReply } from "../../lib/gina/ginaKnowledgeStore.js";
 import { resolveGinaLearnBrief, resolveGinaLearnBriefByTitle } from "../../lib/gina/resolveGinaLearnBrief.js";
 import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
@@ -3281,58 +3283,97 @@ export function LeftPanel({
     )) {
       const updateNode = useNodesStore.getState().updateNode;
       const now = ctx.now;
+      const appliedIntent = routed.family === "schedule_recovery_mark_confirm"
+        ? "mark_past_due"
+        : "postpone_schedule";
+      let appliedCount = 0;
+
       if (routed.family === "schedule_recovery_mark_confirm") {
         const slots = Array.isArray(routed.toolContext?.markableSlots)
           ? routed.toolContext.markableSlots
           : [];
+        appliedCount = slots.length;
         for (const slot of slots) {
           if (!slot?.id) continue;
           updateNode(slot.id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.PAST_DUE }));
         }
-        const visualization = buildGinaVisualization("schedule_recovery_applied", {
-          recoveryIntent: "mark_past_due",
-          documents: slots.map((s) => ({ ...s, status: DOC_WORK_STATUS.PAST_DUE })),
-        }, { locale: localeKey, now, userText: text });
-        return {
-          message: buildScheduleRecoveryAppliedText("mark_past_due", {
-            count: slots.length,
-            locale: localeKey,
-          }),
-          visualization,
-          chips: buildGinaReplyChips({
-            family: "schedule_recovery_applied",
-            visualization,
-            locale: localeKey,
-          }),
-        };
+      } else {
+        const todayDocs = Array.isArray(routed.toolContext?.documents)
+          ? routed.toolContext.documents
+          : [];
+        const cascade = buildCascadeSchedulePreview(todayDocs, now);
+        appliedCount = cascade.length;
+        for (const row of cascade) {
+          if (!row?.id) continue;
+          updateNode(row.id, {
+            anchorAt: row.proposedAnchorAt,
+            anchorFinishAt: row.proposedAnchorFinishAt,
+          });
+        }
       }
 
-      const todayDocs = Array.isArray(routed.toolContext?.documents)
-        ? routed.toolContext.documents
-        : [];
-      const cascade = buildCascadeSchedulePreview(todayDocs, now);
-      for (const row of cascade) {
-        if (!row?.id) continue;
-        updateNode(row.id, {
-          anchorAt: row.proposedAnchorAt,
-          anchorFinishAt: row.proposedAnchorFinishAt,
+      // Fresh today overview from live store after mutations.
+      const freshNodes = useNodesStore.getState().nodes || {};
+      const freshDocs = useDocsStore.getState().docs || {};
+      const todayScope = get_today_scope({
+        ...ctx,
+        nodes: freshNodes,
+        docs: freshDocs,
+        now,
+      }, { includeCompleted: true });
+      const visualization = buildGinaVisualization("today", todayScope, {
+        locale: localeKey,
+        now,
+        userText: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy?",
+      });
+      const qs = visualization?.data?.quickSheet || null;
+      const stillUrgent = Array.isArray(qs?.urgency) && qs.urgency.length > 0;
+      const firstTitle = qs?.firstPendingTitle || null;
+
+      let message;
+      if (stillUrgent) {
+        message = [
+          buildScheduleRecoveryAppliedText(appliedIntent, {
+            count: appliedCount,
+            locale: localeKey,
+          }),
+          localeKey === "en"
+            ? "Some windows still need attention before we start the day."
+            : "Aún hay ventanas que hay que atender antes de arrancar el día.",
+        ].join("\n\n");
+      } else if (qs?.firstPendingId) {
+        message = [
+          buildScheduleRecoveryAppliedText(appliedIntent, {
+            count: appliedCount,
+            locale: localeKey,
+          }),
+          buildDayStartAfterRecoveryText({
+            firstPendingTitle: firstTitle,
+            locale: localeKey,
+          }),
+        ].join("\n\n");
+      } else {
+        message = buildScheduleRecoveryAppliedText(appliedIntent, {
+          count: appliedCount,
+          locale: localeKey,
         });
       }
-      const visualization = buildGinaVisualization("schedule_recovery_applied", {
-        recoveryIntent: "postpone_schedule",
-        documents: cascade,
-      }, { locale: localeKey, now, userText: text });
+
       return {
-        message: buildScheduleRecoveryAppliedText("postpone_schedule", {
-          count: cascade.length,
-          locale: localeKey,
-        }),
+        message,
         visualization,
         chips: buildGinaReplyChips({
-          family: "schedule_recovery_applied",
+          family: "today",
           visualization,
           locale: localeKey,
+          hasDaySheet: hasDaySheet(ginaUserId, now),
         }),
+        textAfter: visualization?.data?.todayOverview
+          ? buildTodayOverviewAfterText({
+            quickSheet: visualization.data.quickSheet || null,
+            locale: localeKey,
+          })
+          : null,
       };
     }
 
@@ -3828,6 +3869,12 @@ export function LeftPanel({
       const funnelHeadline = !meetingOn
         ? buildGinaFunnelHeadline(visualization, { locale: localeKey })
         : null;
+      const textAfter = !meetingOn && visualization?.data?.todayOverview
+        ? buildTodayOverviewAfterText({
+          quickSheet: visualization.data.quickSheet || null,
+          locale: localeKey,
+        })
+        : null;
       const chips = !meetingOn
         ? buildGinaReplyChips({
           family: routed.family,
@@ -3839,6 +3886,7 @@ export function LeftPanel({
 
       return {
         message: funnelHeadline || displayText,
+        textAfter,
         visualization,
         learnProposal,
         ...(shouldUseGinaSearchSequence(routed.family, routed.toolContext)

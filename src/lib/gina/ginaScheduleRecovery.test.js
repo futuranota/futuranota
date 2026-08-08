@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCascadeSchedulePreview,
+  buildDayStartAfterRecoveryText,
   buildPassedSlotSignals,
   buildScheduleRecoveryAck,
   buildScheduleRecoveryBriefText,
@@ -198,5 +199,16 @@ describe("ginaScheduleRecovery", () => {
     expect(buildScheduleRecoveryChips({ locale: "es" })[1].label).toBe("Reagendar en cadena");
     expect(buildScheduleRecoveryConfirmChips("postpone_schedule", { locale: "es" })[1].label).toBe("Omitir");
     expect(buildPassedSlotSignals(get_today_scope(ctx).documents, now).passedSlots).toHaveLength(2);
+  });
+
+  it("day-start copy after recovery names the first pending doc", () => {
+    expect(buildDayStartAfterRecoveryText({
+      firstPendingTitle: "Blogs PM",
+      locale: "es",
+    })).toContain("Tu día empieza por **Blogs PM**");
+    expect(buildDayStartAfterRecoveryText({
+      firstPendingTitle: "Blogs PM",
+      locale: "en",
+    })).toContain("Your day starts with **Blogs PM**");
   });
 });

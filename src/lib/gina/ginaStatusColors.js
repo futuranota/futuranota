@@ -117,6 +117,37 @@ export function buildGinaStatusRail(docs = [], locale = "es") {
 }
 
 /**
+ * Contiguous status runs in row order — merge only adjacent same-status rows.
+ * Use when rows are NOT re-sorted by status (e.g. Quick sheet completed→urgency→pending).
+ *
+ * @param {object[]} docs
+ * @param {string} [locale]
+ * @returns {{ id: string, name: string, count: number, color: string }[]}
+ */
+export function buildGinaStatusRailRuns(docs = [], locale = "es") {
+  /** @type {{ id: string, name: string, count: number, color: string }[]} */
+  const runs = [];
+
+  for (const doc of docs) {
+    const statusId = resolveStatusRailId(doc);
+    const key = statusId == null ? "_none" : statusId;
+    const last = runs[runs.length - 1];
+    if (last && last.id === key) {
+      last.count += 1;
+    } else {
+      runs.push({
+        id: key,
+        name: statusRailLabel(statusId, locale),
+        count: 1,
+        color: statusRailColor(statusId),
+      });
+    }
+  }
+
+  return runs;
+}
+
+/**
  * Compare two mapped docs for week status-rail table order.
  * @param {object} a
  * @param {object} b

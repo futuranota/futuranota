@@ -2547,7 +2547,13 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
 
     if (time.kind === "today") {
-      const toolContext = call("get_today_scope", () => get_today_scope(ctx, filters));
+      // Bare today informe needs completed for Quick sheet; overview filters them out in viz.
+      const todayFilters = {
+        ...filters,
+        includeCompleted: filters.includeCompleted === true
+          || !filters.department,
+      };
+      const toolContext = call("get_today_scope", () => get_today_scope(ctx, todayFilters));
       return { family: "today", toolsCalled, toolContext, workspaceInventory: inventory };
     }
 

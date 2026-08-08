@@ -25,7 +25,7 @@ const GINA_OPEN_SOUND_DELAY_MS = 2_000;
 /** Silence after Enable.wav ends, before greeting typewriter. */
 const GINA_POST_SOUND_TEXT_DELAY_MS = 1_000;
 
-/** @typedef {{ id?: string, sender: "ai" | "user", text: string, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
+/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textAfter?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, afterRevealed?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
 
 function chipsAreListRefine(chips) {
   if (!Array.isArray(chips) || !chips.length) return false;
@@ -498,7 +498,7 @@ export function GinaChatCard({
     cancelSpeak,
   } = useWebSpeech({ lang: speechLang });
 
-  const [ttsEnabled, setTtsEnabled] = useState(() => synthesisSupported);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
   const spokenCountRef = useRef(0);
   const skipOpeningSpeakRef = useRef(true);
   const messagesEndRef = useRef(null);
@@ -637,23 +637,14 @@ export function GinaChatCard({
     messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
   }, [messages, isTyping, isListening, liveDictation, micError]);
 
+  // Opening greeting is never auto-spoken; later TTS waits for typewriter complete.
   useEffect(() => {
-    if (!ttsEnabled || !synthesisSupported) return;
-    if (isListening) return;
     const aiMessages = messages.filter((m) => m.sender === "ai");
-    if (aiMessages.length <= spokenCountRef.current) return;
-
     if (skipOpeningSpeakRef.current && aiMessages.length === 1) {
       spokenCountRef.current = 1;
       skipOpeningSpeakRef.current = false;
-      return;
     }
-    skipOpeningSpeakRef.current = false;
-
-    const newest = aiMessages[aiMessages.length - 1];
-    spokenCountRef.current = aiMessages.length;
-    if (newest?.text) speak(newest.text, { lang: speechLang });
-  }, [messages, ttsEnabled, synthesisSupported, speak, speechLang, isListening]);
+  }, [messages]);
 
   useEffect(() => () => {
     cancelSpeak();
@@ -769,6 +760,17 @@ export function GinaChatCard({
   const handleAiAnimComplete = () => {
     isAiAnimatingRef.current = false;
     setIsAiAnimating(false);
+
+    // Speak only after the bubble finished typing (never on message append).
+    const aiMessages = messagesRef.current.filter((m) => m.sender === "ai");
+    if (aiMessages.length > spokenCountRef.current) {
+      const newest = aiMessages[aiMessages.length - 1];
+      spokenCountRef.current = aiMessages.length;
+      if (ttsEnabled && synthesisSupported && !isListening && newest?.text) {
+        speak(newest.text, { lang: speechLang });
+      }
+    }
+
     const afterAnimTask = pendingAiAnimationTaskRef.current;
     if (afterAnimTask) {
       pendingAiAnimationTaskRef.current = null;
@@ -834,6 +836,7 @@ export function GinaChatCard({
           messages: history,
         });
         let aiText = "";
+        let textAfter = null;
         let visualization = null;
         let learnProposal = null;
         let chips = null;
@@ -841,6 +844,8 @@ export function GinaChatCard({
           aiText = reply.trim();
         } else if (reply && typeof reply === "object") {
           aiText = String(reply.message || reply.reply || "").trim();
+          textAfter = reply.textAfter != null ? String(reply.textAfter).trim() : null;
+          if (textAfter === "") textAfter = null;
           visualization = reply.visualization || null;
           learnProposal = reply.learnProposal || null;
           chips = Array.isArray(reply.chips) ? reply.chips : null;
@@ -869,12 +874,19 @@ export function GinaChatCard({
                 setIsAiAnimating(true);
               }
               if (aiText || visualization || learnProposal) {
+                const deferVisualization = Boolean(
+                  visualization?.data?.todayOverview && (aiText || textAfter),
+                );
                 setMessages((prev) => [
                   ...prev,
                   {
                     id: makeMsgId(),
                     sender: "ai",
                     text: aiText || " ",
+                    textAfter,
+                    deferVisualization,
+                    vizRevealed: !deferVisualization,
+                    afterRevealed: !textAfter,
                     visualization,
                     learnProposal,
                     chips: ensureNavBackChip(prev, chips, chipLocale),
@@ -899,12 +911,19 @@ export function GinaChatCard({
             setIsAiAnimating(true);
             startedAiAnim = true;
           }
+          const deferVisualization = Boolean(
+            visualization?.data?.todayOverview && (aiText || textAfter),
+          );
           setMessages((prev) => [
             ...prev,
             {
               id: makeMsgId(),
               sender: "ai",
               text: aiText || " ",
+              textAfter,
+              deferVisualization,
+              vizRevealed: !deferVisualization,
+              afterRevealed: !textAfter,
               visualization,
               learnProposal,
               chips: ensureNavBackChip(prev, chips, chipLocale),
@@ -1130,7 +1149,7 @@ export function GinaChatCard({
               {msg.sender === "ai" && msg.visualization?.type === "schedule_sheet" && (
                 msg.visualization?.data?.hasRecoveryOffer
                 || msg.visualization?.data?.recoveryPhase === "brief"
-              ) ? (
+              ) && !msg.visualization?.data?.todayOverview && !msg.deferVisualization ? (
                 <>
                   <GinaDataVisualization
                     type={msg.visualization.type}
@@ -1176,7 +1195,26 @@ export function GinaChatCard({
                         text={msg.text}
                         plainBody={msg.visualization?.type === "recovery_preview"}
                         instant={Boolean(msg.refineRevealed)}
-                        onComplete={i === lastAiMessageIndex ? handleAiAnimComplete : undefined}
+                        onComplete={i === lastAiMessageIndex ? (() => {
+                          if (msg.deferVisualization && !msg.vizRevealed) {
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            setMessages((prev) => prev.map((m, idx) => (
+                              idx === i
+                                ? {
+                                  ...m,
+                                  vizRevealed: true,
+                                  afterRevealed: !m.textAfter,
+                                }
+                                : m
+                            )));
+                            if (!msg.textAfter) {
+                              handleAiAnimComplete();
+                            }
+                            return;
+                          }
+                          handleAiAnimComplete();
+                        }) : undefined}
                       />
                     ) : msg.text}
                   </div>
@@ -1185,7 +1223,9 @@ export function GinaChatCard({
                       {labels.queued || "queue"}
                     </span>
                   ) : null}
-                  {msg.sender === "ai" && msg.visualization ? (
+                  {msg.sender === "ai" && msg.visualization && (
+                    !msg.deferVisualization || msg.vizRevealed
+                  ) ? (
                     <GinaDataVisualization
                       type={msg.visualization.type}
                       data={msg.visualization.data}
@@ -1208,9 +1248,25 @@ export function GinaChatCard({
                       }}
                     />
                   ) : null}
+                  {msg.sender === "ai" && msg.textAfter && msg.vizRevealed ? (
+                    <div className="gina-chat-card__bubble gina-chat-card__bubble--ai gina-chat-card__bubble--after-viz">
+                      <GinaAiMessageText
+                        text={msg.textAfter}
+                        plainBody
+                        instant={Boolean(msg.refineRevealed)}
+                        onComplete={i === lastAiMessageIndex ? () => {
+                          setMessages((prev) => prev.map((m, idx) => (
+                            idx === i ? { ...m, afterRevealed: true } : m
+                          )));
+                          handleAiAnimComplete();
+                        } : undefined}
+                      />
+                    </div>
+                  ) : null}
                 </>
               )}
-              {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping && !isAiAnimating ? (
+              {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping && !isAiAnimating
+                && (!msg.deferVisualization || (msg.vizRevealed && (!msg.textAfter || msg.afterRevealed))) ? (
                 chipsAreListRefine(msg.chips) ? (
                   <GinaListRefineChips
                     chips={msg.chips}

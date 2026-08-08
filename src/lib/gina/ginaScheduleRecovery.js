@@ -300,6 +300,23 @@ export function buildScheduleRecoveryAppliedText(intent, opts = {}) {
     : `Listo — reorganicé ${n} documento(s) en cadena para el resto de hoy.`;
 }
 
+/**
+ * After recovery applied and day is ready to start.
+ * @param {{ firstPendingTitle?: string | null, locale?: string }} [opts]
+ */
+export function buildDayStartAfterRecoveryText(opts = {}) {
+  const en = opts.locale === "en";
+  const title = String(opts.firstPendingTitle || "").trim();
+  if (!title) {
+    return en
+      ? "Your schedule is updated. Want me to open the first document?"
+      : "Actualicé tu horario. ¿Quieres que te abra el primer documento?";
+  }
+  return en
+    ? `Your day starts with **${title}**. Want me to open the document?`
+    : `Tu día empieza por **${title}**. ¿Quieres que te abra el documento?`;
+}
+
 export function buildGinaWarmGoodbyeReply(locale = "es") {
   return locale === "en"
     ? "Thank you — I’m here whenever you need anything."

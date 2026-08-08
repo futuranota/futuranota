@@ -11,6 +11,11 @@ import {
   compareDocsByStatusThenTime,
 } from "./ginaStatusColors.js";
 import { buildGinaTimeDisplay } from "./ginaRelativeDay.js";
+import {
+  buildTodayQuickSheetSections,
+  mapQuickSheetSections,
+  summarizeTodayOverlaps,
+} from "./ginaTodayQuickSheet.js";
 
 /**
  * Build deterministic Gina chat visualizations from query family + tool JSON.
@@ -1021,36 +1026,56 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     }
 
     // Bare “qué tenemos para hoy”: narrate depts + show timed sheet (not department cards).
-    const sorted = docs
+    // Sheet may include completed (includeCompleted); overview table/pie exclude them.
+    const allToday = docs
       .slice()
       .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")));
-    const overviewByDepartment = buildTodayOverviewByDepartment(sorted, locale);
+    const quickSections = buildTodayQuickSheetSections(allToday, now);
+    const overlap = summarizeTodayOverlaps(allToday, now);
+    const quickSheet = {
+      ...mapQuickSheetSections(quickSections, (d) => mapDocRow(d, now, locale)),
+      hasOverlap: Boolean(overlap.hasOverlap || quickSections.hasOverlap),
+      topConflict: overlap.topConflict,
+      clockLabel: formatClock12h(now),
+      totalDocuments: allToday.length,
+      urgencyCount: quickSections.urgency.length,
+    };
+    const overviewDocs = allToday.filter(
+      (d) => !(d.status === "completed" || d.completed === true),
+    );
+    const overviewByDepartment = buildTodayOverviewByDepartment(overviewDocs, locale);
     const totalMinutes = overviewByDepartment.reduce((acc, d) => acc + (d.minutes || 0), 0);
     const hoursChart = buildTodayHoursChart(overviewByDepartment);
     const colorByDept = Object.fromEntries(
       overviewByDepartment.map((d) => [d.name, d.color]),
     );
+    const baseData = attachRecoveryMeta({
+      date: today.date,
+      dateLabel: formatGinaDayLabel(today.date, locale),
+      groups: groupDocsForScheduleSheet(overviewDocs, now),
+      documents: overviewDocs.map((d) => {
+        const row = mapDocRow(d, now, locale);
+        const dept = row.department || "—";
+        return {
+          ...row,
+          departmentColor: colorByDept[dept] || colorForDepartment(dept, 0),
+          workMinutes: docWorkMinutes(d),
+        };
+      }),
+      todayOverview: true,
+      overviewByDepartment,
+      totalMinutes,
+      totalHoursLabel: formatWorkDurationLabel(totalMinutes, locale),
+      hoursChart,
+      quickSheet,
+    }, today, now);
     return {
       type: "schedule_sheet",
-      data: attachRecoveryMeta({
-        date: today.date,
-        dateLabel: formatGinaDayLabel(today.date, locale),
-        groups: groupDocsForScheduleSheet(sorted, now),
-        documents: sorted.map((d) => {
-          const row = mapDocRow(d, now, locale);
-          const dept = row.department || "—";
-          return {
-            ...row,
-            departmentColor: colorByDept[dept] || colorForDepartment(dept, 0),
-            workMinutes: docWorkMinutes(d),
-          };
-        }),
-        todayOverview: true,
-        overviewByDepartment,
-        totalMinutes,
-        totalHoursLabel: formatWorkDurationLabel(totalMinutes, locale),
-        hoursChart,
-      }, today, now),
+      data: {
+        ...baseData,
+        hasRecoveryOffer: Boolean(baseData.hasRecoveryOffer)
+          || (Array.isArray(quickSheet.urgency) && quickSheet.urgency.length > 0),
+      },
     };
   }
 

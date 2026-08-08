@@ -1850,6 +1850,41 @@
   border: none;
 }
 
+.gina-viz__quick-sheet {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gina-viz__quick-sheet-head {
+  margin: 0 0 10px;
+}
+
+.gina-viz__quick-sheet .gina-viz__table-layout {
+  margin-top: 4px;
+}
+
+.gina-viz__quick-sheet-row--urgency > td {
+  background: rgba(255, 80, 80, 0.12);
+}
+
+.gina-viz__quick-sheet-row--urgency > td:first-child {
+  box-shadow: inset 3px 0 0 #FF6B6B;
+}
+
+.gina-viz__quick-sheet-note {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #d0b0b0;
+  background: rgba(255, 80, 80, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.25);
+}
+
 .gina-viz__hours-pie-head {
   display: flex;
   flex-direction: column;

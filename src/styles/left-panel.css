@@ -1519,6 +1519,11 @@
   background: #2E2E2E;
 }
 
+.doc-status-chip--status_unassigned {
+  color: #FF6B6B;
+  background: #3A1F1F;
+}
+
 .doc-status-chip--completed {
   color: #73F09A;
   background: #1F3427;

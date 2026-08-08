@@ -62,6 +62,7 @@ import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js
 import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
+  buildTodayOverviewAfterText,
 } from "../../lib/gina/ginaReplyChips.js";
 import {
   buildGinaSearchSequence,
@@ -664,6 +665,12 @@ export function NodeQueryModal({
           : "Couldn't reply. Try again.");
       const localeKey = locale === "es" ? "es" : "en";
       const funnelHeadline = buildGinaFunnelHeadline(visualization, { locale: localeKey });
+      const textAfter = visualization?.data?.todayOverview
+        ? buildTodayOverviewAfterText({
+          quickSheet: visualization.data.quickSheet || null,
+          locale: localeKey,
+        })
+        : null;
       const chips = buildGinaReplyChips({
         family: routed.family,
         visualization,
@@ -671,6 +678,7 @@ export function NodeQueryModal({
       });
       return {
         message: funnelHeadline || message,
+        textAfter,
         visualization,
         ...(shouldUseGinaSearchSequence(routed.family, routed.toolContext)
           ? { searchSequence: buildGinaSearchSequence(localeKey) }
