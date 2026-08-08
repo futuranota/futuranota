@@ -1,6 +1,11 @@
 import { isPassedSlot, buildCascadeSchedulePreview } from "./ginaScheduleRecovery.js";
 import { formatClockRange12h, formatClock12h } from "../clockFormat.js";
-import { buildGinaDepartmentRail } from "./ginaDepartmentColors.js";
+import {
+  buildGinaDepartmentRail,
+  GINA_DEPT_RAIL_COLORS,
+  GINA_DEPT_RAIL_UNASSIGNED,
+  ginaDepartmentRailColor,
+} from "./ginaDepartmentColors.js";
 import { buildGinaTimeDisplay } from "./ginaRelativeDay.js";
 
 /**
@@ -179,32 +184,130 @@ function buildDepartmentCardsData(today, locale) {
 }
 
 /**
- * Per-department category counts for “qué tenemos para hoy” narration.
+ * Work-block duration in minutes from schedule window. No finish → 0 (do not invent).
+ * @param {object} doc
+ * @returns {number}
+ */
+export function docWorkMinutes(doc) {
+  const start = doc?.anchorAt ? new Date(doc.anchorAt) : null;
+  const finish = doc?.anchorFinishAt || doc?.dueAt
+    ? new Date(doc.anchorFinishAt || doc.dueAt)
+    : null;
+  if (!start || Number.isNaN(start.getTime()) || !finish || Number.isNaN(finish.getTime())) {
+    return 0;
+  }
+  return Math.max(0, Math.round((finish.getTime() - start.getTime()) / 60000));
+}
+
+/**
+ * @param {string} name
+ * @param {number} index
+ * @param {number} [total]
+ */
+export function colorForDepartment(name, index = 0, total = GINA_DEPT_RAIL_COLORS.length) {
+  const key = String(name || "").trim();
+  if (!key || key === "—" || key === "# Department") {
+    return GINA_DEPT_RAIL_UNASSIGNED;
+  }
+  return ginaDepartmentRailColor(index, total);
+}
+
+/**
+ * Human duration for narration / legend.
+ * @param {number} minutes
+ * @param {string} [locale]
+ * @param {{ short?: boolean }} [opts]
+ */
+export function formatWorkDurationLabel(minutes, locale = "es", opts = {}) {
+  const m = Math.max(0, Math.round(Number(minutes) || 0));
+  const en = locale === "en";
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (opts.short) {
+    if (h <= 0) return en ? `${rem}m` : `${rem}m`;
+    if (rem <= 0) return en ? `${h}h` : `${h}h`;
+    return `${h}h ${rem}m`;
+  }
+  if (h <= 0) {
+    return en
+      ? `${rem} minute${rem === 1 ? "" : "s"}`
+      : `${rem} minuto${rem === 1 ? "" : "s"}`;
+  }
+  if (rem <= 0) {
+    return en
+      ? `${h} hour${h === 1 ? "" : "s"}`
+      : `${h} hora${h === 1 ? "" : "s"}`;
+  }
+  return en
+    ? `${h} hour${h === 1 ? "" : "s"} and ${rem} minute${rem === 1 ? "" : "s"}`
+    : `${h} hora${h === 1 ? "" : "s"} con ${rem} minuto${rem === 1 ? "" : "s"}`;
+}
+
+/**
+ * Per-department category counts + work minutes for “qué tenemos para hoy”.
  * @param {object[]} docs
  * @param {string} [locale]
- * @returns {{ name: string, total: number, categories: { name: string, count: number }[] }[]}
+ * @returns {{
+ *   name: string,
+ *   total: number,
+ *   minutes: number,
+ *   hoursLabel: string,
+ *   color: string,
+ *   categories: { name: string, count: number }[],
+ * }[]}
  */
 export function buildTodayOverviewByDepartment(docs, locale = "es") {
   const en = locale === "en";
   const uncategorized = en ? "uncategorized" : "sin categoría";
-  /** @type {Map<string, Map<string, number>>} */
+  /** @type {Map<string, { cats: Map<string, number>, minutes: number }>} */
   const byDept = new Map();
   for (const d of asDocs(docs)) {
     const dept = String(d.departmentName || d.department || "—").trim() || "—";
     const cat = String(d.category || "").trim() || uncategorized;
-    if (!byDept.has(dept)) byDept.set(dept, new Map());
-    const cats = byDept.get(dept);
-    cats.set(cat, (cats.get(cat) || 0) + 1);
+    if (!byDept.has(dept)) byDept.set(dept, { cats: new Map(), minutes: 0 });
+    const cur = byDept.get(dept);
+    cur.cats.set(cat, (cur.cats.get(cat) || 0) + 1);
+    cur.minutes += docWorkMinutes(d);
   }
   return [...byDept.entries()]
-    .map(([name, catMap]) => {
-      const categories = [...catMap.entries()]
+    .map(([name, cur]) => {
+      const categories = [...cur.cats.entries()]
         .map(([catName, count]) => ({ name: catName, count }))
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
       const total = categories.reduce((acc, c) => acc + c.count, 0);
-      return { name, total, categories };
+      const minutes = cur.minutes;
+      return {
+        name,
+        total,
+        minutes,
+        hoursLabel: formatWorkDurationLabel(minutes, locale),
+        categories,
+      };
     })
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    .sort((a, b) => b.minutes - a.minutes || b.total - a.total || a.name.localeCompare(b.name))
+    .map((row, index, arr) => ({
+      ...row,
+      color: colorForDepartment(row.name, index, arr.length),
+    }));
+}
+
+/**
+ * Pie slices for departments with minutes > 0.
+ * @param {{ name: string, minutes: number, color: string }[]} overviewByDepartment
+ */
+export function buildTodayHoursChart(overviewByDepartment) {
+  const rows = Array.isArray(overviewByDepartment) ? overviewByDepartment : [];
+  return rows
+    .filter((d) => (d.minutes || 0) > 0)
+    .map((d, i) => {
+      const key = `dept_${i}_${String(d.name || "x").replace(/\s+/g, "_").slice(0, 24)}`;
+      return {
+        key,
+        name: d.name,
+        minutes: d.minutes,
+        fill: d.color || colorForDepartment(d.name, i),
+      };
+    });
 }
 
 function buildDeptSummaryData(today, locale, now) {
@@ -901,15 +1004,32 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const sorted = docs
       .slice()
       .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")));
+    const overviewByDepartment = buildTodayOverviewByDepartment(sorted, locale);
+    const totalMinutes = overviewByDepartment.reduce((acc, d) => acc + (d.minutes || 0), 0);
+    const hoursChart = buildTodayHoursChart(overviewByDepartment);
+    const colorByDept = Object.fromEntries(
+      overviewByDepartment.map((d) => [d.name, d.color]),
+    );
     return {
       type: "schedule_sheet",
       data: attachRecoveryMeta({
         date: today.date,
         dateLabel: formatGinaDayLabel(today.date, locale),
         groups: groupDocsForScheduleSheet(sorted, now),
-        documents: sorted.map((d) => mapDocRow(d, now, locale)),
+        documents: sorted.map((d) => {
+          const row = mapDocRow(d, now, locale);
+          const dept = row.department || "—";
+          return {
+            ...row,
+            departmentColor: colorByDept[dept] || colorForDepartment(dept, 0),
+            workMinutes: docWorkMinutes(d),
+          };
+        }),
         todayOverview: true,
-        overviewByDepartment: buildTodayOverviewByDepartment(sorted, locale),
+        overviewByDepartment,
+        totalMinutes,
+        totalHoursLabel: formatWorkDurationLabel(totalMinutes, locale),
+        hoursChart,
       }, today, now),
     };
   }

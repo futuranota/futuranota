@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
+import { Cell, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
-import { formatHierarchyPath } from "../../lib/gina/buildGinaVisualization.js";
+import {
+  formatHierarchyPath,
+  formatWorkDurationLabel,
+} from "../../lib/gina/buildGinaVisualization.js";
+import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
 import { buildGinaDepartmentRail } from "../../lib/gina/ginaDepartmentColors.js";
 
 /**
@@ -844,11 +849,236 @@ function DailyReportMovePreviewVisualization({ data }) {
   );
 }
 
+function DeptHoursLegend({ items, locale = "es" }) {
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) return null;
+  return (
+    <ul className="gina-viz__dept-legend" aria-label="Departments">
+      {rows.map((row) => (
+        <li key={row.name || row.key} className="gina-viz__dept-legend-item">
+          <span
+            className="gina-viz__dept-dot"
+            style={{ background: row.color || row.fill || "#8a8a8a" }}
+            aria-hidden
+          />
+          <span className="gina-viz__dept-legend-name">{row.name}</span>
+          {row.hoursLabel || (row.minutes != null && row.minutes > 0) ? (
+            <span className="gina-viz__dept-legend-hours">
+              {row.hoursLabel || formatWorkDurationLabel(row.minutes, locale, { short: true })}
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function TodayHoursPie({ data, locale = "es" }) {
+  const chart = Array.isArray(data?.hoursChart) ? data.hoursChart : [];
+  if (!chart.length) return null;
+  return (
+    <div className="gina-viz__hours-pie gina-viz__hours-pie--side">
+      <div className="gina-viz__hours-pie-chart">
+        <ResponsiveContainer width="100%" height={180}>
+          <PieChart>
+            <Tooltip
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const row = payload[0]?.payload || {};
+                return (
+                  <div className="gina-viz__hours-pie-tooltip">
+                    <span className="gina-viz__hours-pie-tooltip-name">{row.name}</span>
+                    <span className="gina-viz__hours-pie-tooltip-val">
+                      {formatWorkDurationLabel(row.minutes || 0, locale)}
+                    </span>
+                  </div>
+                );
+              }}
+            />
+            <Pie
+              data={chart}
+              dataKey="minutes"
+              nameKey="name"
+              innerRadius={26}
+              outerRadius={68}
+              paddingAngle={3}
+              cornerRadius={6}
+              stroke="none"
+            >
+              {chart.map((entry) => (
+                <Cell key={entry.key || entry.name} fill={entry.fill} stroke="none" />
+              ))}
+              <LabelList
+                dataKey="minutes"
+                stroke="none"
+                fontSize={11}
+                fontWeight={600}
+                fill="#f0f0f0"
+                formatter={(value) => formatWorkDurationLabel(Number(value) || 0, locale, { short: true })}
+              />
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+/** Inline **bold** spans for dept body copy. */
+function renderInlineBold(text) {
+  const raw = String(text || "");
+  if (!raw) return null;
+  const parts = raw.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    const m = part.match(/^\*\*([^*]+)\*\*$/);
+    if (m) {
+      return (
+        <strong key={`b-${i}`} className="gina-viz__overview-dept-em">
+          {m[1]}
+        </strong>
+      );
+    }
+    return part ? <span key={`t-${i}`}>{part}</span> : null;
+  });
+}
+
+/** Dept headlines with color dots (matches pie) under the bubble intro. */
+function TodayOverviewDeptNarrative({ overview, locale = "es" }) {
+  const blocks = buildTodayOverviewDeptBlocks({
+    overviewByDepartment: overview,
+    locale,
+  });
+  if (!blocks.length) return null;
+  return (
+    <div className="gina-viz__overview-depts">
+      {blocks.map((block) => (
+        <section key={block.name} className="gina-viz__overview-dept">
+          <h4 className="gina-viz__overview-dept-head">
+            <span
+              className="gina-viz__overview-dept-dot"
+              style={{ background: block.color }}
+              aria-hidden
+            />
+            <span className="gina-chat-card__ai-headline">{block.headline}</span>
+          </h4>
+          <p className="gina-chat-card__ai-body gina-viz__overview-dept-body">
+            {renderInlineBold(block.body)}
+          </p>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/** Today overview: dept narrative + pie (side) + Document/Category/Time table. */
+function TodayOverviewVisualization({ data }) {
+  const docs = Array.isArray(data.documents) ? data.documents : [];
+  const overview = Array.isArray(data.overviewByDepartment) ? data.overviewByDepartment : [];
+  const colorByDept = Object.fromEntries(overview.map((d) => [d.name, d.color]));
+  const shown = docs.slice(0, 80);
+  const locale = data.locale === "en" ? "en" : "es";
+
+  // Rail segments in document order, colors match pie/overview
+  /** @type {{ name: string, count: number, color: string }[]} */
+  const departmentRail = [];
+  /** @type {Map<string, number>} */
+  const railIndex = new Map();
+  for (const doc of shown) {
+    const name = String(doc.department || doc.hierarchy?.department || "—").trim() || "—";
+    if (railIndex.has(name)) {
+      departmentRail[railIndex.get(name)].count += 1;
+    } else {
+      railIndex.set(name, departmentRail.length);
+      departmentRail.push({
+        name,
+        count: 1,
+        color: doc.departmentColor || colorByDept[name] || "#8a8a8a",
+      });
+    }
+  }
+
+  const legendItems = overview.length
+    ? overview.map((d) => ({
+      name: d.name,
+      color: d.color,
+      minutes: d.minutes,
+      hoursLabel: d.hoursLabel,
+    }))
+    : departmentRail.map((s) => ({ name: s.name, color: s.color }));
+
+  return (
+    <div className="gina-viz gina-viz--today-overview">
+      <TodayOverviewDeptNarrative overview={overview} locale={locale} />
+      <div className="gina-viz__today-overview-layout">
+        <TodayHoursPie data={data} />
+        <div className="gina-viz__today-overview-table gina-viz gina-viz--table gina-viz--table-rail">
+          <header className="gina-viz__head">
+            <span className="gina-viz__eyebrow">Tabla de hoy</span>
+            <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
+          </header>
+          {shown.length === 0 ? (
+            <p className="gina-viz__empty">Sin horarios en este alcance.</p>
+          ) : (
+            <>
+              <div className="gina-viz__table-layout">
+                {departmentRail.length ? (
+                  <div className="gina-viz__dept-rail" aria-hidden="true">
+                    <div className="gina-viz__dept-rail-head" />
+                    <div className="gina-viz__dept-rail-body">
+                      {departmentRail.map((seg) => (
+                        <div
+                          key={seg.name}
+                          className="gina-viz__dept-rail-seg"
+                          style={{
+                            flexGrow: Math.max(1, seg.count),
+                            background: seg.color,
+                          }}
+                          title={`${seg.name} · ${seg.count}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="gina-viz__table-wrap">
+                  <table className="gina-viz__table">
+                    <thead>
+                      <tr>
+                        <th>Document</th>
+                        <th>Categoría</th>
+                        <th>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shown.map((doc) => (
+                        <tr key={doc.id || doc.title}>
+                          <td>{doc.title || "—"}</td>
+                          <td>{doc.category || doc.hierarchy?.category || "—"}</td>
+                          <td><GinaTimeCell doc={doc} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <DeptHoursLegend items={legendItems} />
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleSheetVisualization({ data }) {
   const groups = Array.isArray(data.groups) ? data.groups : [];
   const delayHighlights = Boolean(data.highlightPassedSlots);
   const isDaySheet = Boolean(data.isDaySheet);
   const progress = data.progress || null;
+
+  if (data.todayOverview) {
+    return <TodayOverviewVisualization data={data} />;
+  }
+
   return (
     <div className="gina-viz gina-viz--schedule-sheet">
       <header className="gina-viz__head">

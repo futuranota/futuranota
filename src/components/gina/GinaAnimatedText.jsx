@@ -49,6 +49,15 @@ export function splitGinaAiText(text) {
     return { headline: "", body: plain };
   }
 
+  // Short title line ending with ":" (e.g. "Horario de Hoy:") → headline + body.
+  const colonTitle = plain.match(/^([^\n.!?]{1,80}:)\s*\n+([\s\S]+)$/u);
+  if (colonTitle && colonTitle[2].trim()) {
+    return {
+      headline: colonTitle[1].trim(),
+      body: colonTitle[2].trim(),
+    };
+  }
+
   const sentence = plain.match(/^(.+?[.!…])(\s+[\s\S]*)?$/u);
   if (sentence && sentence[2] && sentence[2].trim()) {
     return {

@@ -988,12 +988,89 @@ function joinNameList(names, locale = "es") {
 }
 
 /**
- * Deterministic narration for “qué tenemos para hoy” + timed sheet.
- * @param {{
- *   overviewByDepartment?: { name: string, total: number, categories: { name: string, count: number }[] }[],
- *   documents?: object[],
- *   locale?: string,
- * }} opts
+ * Bold duration for dept body: "**2 horas con 15** minutos".
+ * @param {number} minutes
+ * @param {string} [locale]
+ * @returns {{ bold: string, after: string } | null}
+ */
+function boldDurationParts(minutes, locale = "es") {
+  const m = Math.max(0, Math.round(Number(minutes) || 0));
+  if (m <= 0) return null;
+  const en = locale === "en";
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  if (h <= 0) {
+    return {
+      bold: en
+        ? `${rem} minute${rem === 1 ? "" : "s"}`
+        : `${rem} minuto${rem === 1 ? "" : "s"}`,
+      after: "",
+    };
+  }
+  if (rem <= 0) {
+    return {
+      bold: en
+        ? `${h} hour${h === 1 ? "" : "s"}`
+        : `${h} hora${h === 1 ? "" : "s"}`,
+      after: "",
+    };
+  }
+  return {
+    bold: en
+      ? `${h} hour${h === 1 ? "" : "s"} with ${rem}`
+      : `${h} hora${h === 1 ? "" : "s"} con ${rem}`,
+    after: en
+      ? ` minute${rem === 1 ? "" : "s"}`
+      : ` minuto${rem === 1 ? "" : "s"}`,
+  };
+}
+
+/**
+ * Per-department blocks for today overview (dot + headline + body with **bold**).
+ * @param {{ overviewByDepartment?: object[], locale?: string }} opts
+ * @returns {{ name: string, color: string, headline: string, body: string }[]}
+ */
+export function buildTodayOverviewDeptBlocks(opts = {}) {
+  const en = opts.locale === "en";
+  const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
+  return depts.map((d) => {
+    const cats = Array.isArray(d.categories) ? d.categories : [];
+    const dur = boldDurationParts(d.minutes || 0, en ? "en" : "es");
+    const hoursTail = dur
+      ? (en
+        ? ` with a total of **${dur.bold}**${dur.after}`
+        : ` con un total de **${dur.bold}**${dur.after}`)
+      : "";
+    let body;
+    if (!cats.length) {
+      body = en
+        ? `Here you have a total of **${d.total} document${d.total === 1 ? "" : "s"}**${hoursTail}.`
+        : `Aquí tienes un total de **${d.total} documento${d.total === 1 ? "" : "s"}**${hoursTail}.`;
+    } else if (cats.length === 1) {
+      const c = cats[0];
+      body = en
+        ? `Here you have a total of **${c.count} document${c.count === 1 ? "" : "s"}** in the ${c.name} category${hoursTail}.`
+        : `Aquí tienes un total de **${c.count} documento${c.count === 1 ? "" : "s"}** en la categoría ${c.name}${hoursTail}.`;
+    } else {
+      const catParts = cats.map((c) => (
+        en ? `**${c.count}** in ${c.name}` : `**${c.count}** en ${c.name}`
+      ));
+      body = en
+        ? `Here you have a total of **${d.total} documents** (${joinNameList(catParts, "en")})${hoursTail}.`
+        : `Aquí tienes un total de **${d.total} documentos** (${joinNameList(catParts, "es")})${hoursTail}.`;
+    }
+    return {
+      name: d.name,
+      color: d.color || "#8a8a8a",
+      headline: `${d.name}:`,
+      body,
+    };
+  });
+}
+
+/**
+ * Deterministic narration for “qué tenemos para hoy” (bubble only).
+ * Dept blocks with color dots live in the visualization.
  */
 export function buildTodayOverviewHeadline(opts = {}) {
   const en = opts.locale === "en";
@@ -1001,6 +1078,11 @@ export function buildTodayOverviewHeadline(opts = {}) {
   const nDocs = Array.isArray(opts.documents)
     ? opts.documents.length
     : depts.reduce((acc, d) => acc + (d.total || 0), 0);
+  const totalMinutes = typeof opts.totalMinutes === "number"
+    ? opts.totalMinutes
+    : depts.reduce((acc, d) => acc + (d.minutes || 0), 0);
+  const totalHoursLabel = opts.totalHoursLabel
+    || formatHoursFallback(totalMinutes, en ? "en" : "es", { withCon: true });
 
   if (nDocs === 0 || depts.length === 0) {
     return en
@@ -1008,44 +1090,48 @@ export function buildTodayOverviewHeadline(opts = {}) {
       : "Hoy no hay trabajo programado.";
   }
 
-  const deptNames = depts.map((d) => d.name).filter((n) => n && n !== "—");
-  const nDepts = deptNames.length || depts.length;
-  const head = en
-    ? (nDepts === 1
-      ? `Today you have activity in **1** department: **${deptNames[0] || depts[0].name}**.`
-      : `Today you have activity in **${nDepts}** departments: ${joinNameList(deptNames.map((n) => `**${n}**`), "en")}.`)
-    : (nDepts === 1
-      ? `Hoy tienes actividad en **1** departamento: **${deptNames[0] || depts[0].name}**.`
-      : `Hoy tienes actividad en **${nDepts}** departamentos: ${joinNameList(deptNames.map((n) => `**${n}**`), "es")}.`);
+  const nDepts = depts.filter((d) => d.name && d.name !== "—").length || depts.length;
 
-  const lines = depts.map((d) => {
-    const cats = Array.isArray(d.categories) ? d.categories : [];
-    if (!cats.length) {
-      return en
-        ? `**${d.name}**: ${d.total} document${d.total === 1 ? "" : "s"}.`
-        : `**${d.name}**: ${d.total} documento${d.total === 1 ? "" : "s"}.`;
-    }
-    if (cats.length === 1) {
-      const c = cats[0];
-      return en
-        ? `**${d.name}**: ${c.count} document${c.count === 1 ? "" : "s"} in the **${c.name}** category.`
-        : `**${d.name}**: ${c.count} documento${c.count === 1 ? "" : "s"} en la categoría **${c.name}**.`;
-    }
-    const parts = cats.map((c) => (
-      en
-        ? `${c.count} in **${c.name}**`
-        : `${c.count} en **${c.name}**`
-    ));
+  const title = en ? "Today's schedule:" : "Horario de Hoy:";
+  const description = totalMinutes > 0
+    ? (en
+      ? `Today you have a total work block of ${totalHoursLabel}, and your greatest focus comes from a main department.`
+      : `Hoy tienes un bloque total de trabajo de ${totalHoursLabel}, tu mayor concentración viene de un departamento principal.`)
+    : (en
+      ? `Today you have activity across ${nDepts} department${nDepts === 1 ? "" : "s"}.`
+      : `Hoy tienes actividad en ${nDepts} departamento${nDepts === 1 ? "" : "s"}.`);
+
+  return `${title}\n${description}`;
+}
+
+function formatHoursFallback(minutes, locale, opts = {}) {
+  const m = Math.max(0, Math.round(Number(minutes) || 0));
+  const en = locale === "en";
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  const withCon = Boolean(opts.withCon);
+  const shortMin = Boolean(opts.shortMin);
+  if (h <= 0) {
+    if (shortMin) return en ? `${rem} min` : `${rem} min`;
     return en
-      ? `**${d.name}**: ${d.total} document${d.total === 1 ? "" : "s"} — ${joinNameList(parts, "en")}.`
-      : `**${d.name}**: ${d.total} documento${d.total === 1 ? "" : "s"} — ${joinNameList(parts, "es")}.`;
-  });
-
-  const closer = en
-    ? `Here’s the table with the **${nDocs}** document${nDocs === 1 ? "" : "s"} ordered by work schedule:`
-    : `Aquí tienes la tabla con los **${nDocs}** documento${nDocs === 1 ? "" : "s"} ordenados por su horario de trabajo:`;
-
-  return [head, "", ...lines, "", closer].join("\n");
+      ? `${rem} minute${rem === 1 ? "" : "s"}`
+      : `${rem} minuto${rem === 1 ? "" : "s"}`;
+  }
+  if (rem <= 0) {
+    return en
+      ? `${h} hour${h === 1 ? "" : "s"}`
+      : `${h} hora${h === 1 ? "" : "s"}`;
+  }
+  if (withCon) {
+    return en
+      ? `${h} hour${h === 1 ? "" : "s"} with ${rem} minute${rem === 1 ? "" : "s"}`
+      : (shortMin
+        ? `${h} hora${h === 1 ? "" : "s"} y ${rem} min`
+        : `${h} hora${h === 1 ? "" : "s"} con ${rem} minuto${rem === 1 ? "" : "s"}`);
+  }
+  return en
+    ? `${h} hour${h === 1 ? "" : "s"} and ${rem} minute${rem === 1 ? "" : "s"}`
+    : `${h} hora${h === 1 ? "" : "s"} y ${rem} minuto${rem === 1 ? "" : "s"}`;
 }
 
 /**
@@ -1469,6 +1555,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       return buildTodayOverviewHeadline({
         overviewByDepartment: data.overviewByDepartment,
         documents: data.documents,
+        totalMinutes: data.totalMinutes,
+        totalHoursLabel: data.totalHoursLabel,
         locale: opts.locale,
       });
     }

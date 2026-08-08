@@ -5,6 +5,7 @@ import {
   buildGinaReplyChips,
   buildDeptFocusChips,
   buildTodayDepartmentChips,
+  buildTodayOverviewDeptBlocks,
 } from "./ginaReplyChips.js";
 
 describe("ginaReplyChips", () => {
@@ -36,32 +37,58 @@ describe("ginaReplyChips", () => {
     ]);
   });
 
-  it("funnel headline for today overview narrates depts + categories", () => {
+  it("funnel headline for today overview is title + descriptive body", () => {
     const line = buildGinaFunnelHeadline({
       type: "schedule_sheet",
       data: {
         todayOverview: true,
+        totalMinutes: 135,
+        totalHoursLabel: "2 horas con 15 minutos",
         documents: [{ id: "1" }, { id: "2" }, { id: "3" }, { id: "4" }, { id: "5" }],
         overviewByDepartment: [
           {
             name: "Estrategias de negocios",
             total: 3,
+            minutes: 75,
+            hoursLabel: "1 hora con 15 minutos",
             categories: [{ name: "Plan de negocio", count: 3 }],
           },
           {
             name: "Marketing",
             total: 2,
+            minutes: 60,
+            hoursLabel: "1 hora",
             categories: [{ name: "Social Media", count: 2 }],
           },
         ],
       },
     }, { locale: "es" });
-    expect(line).toContain("**2** departamentos");
-    expect(line).toContain("Estrategias de negocios");
-    expect(line).toContain("Plan de negocio");
-    expect(line).toContain("Social Media");
-    expect(line).toContain("**5** documentos");
-    expect(line).toContain("horario de trabajo");
+    expect(line).toMatch(/^Horario de Hoy:/);
+    expect(line).toContain("2 horas con 15 minutos");
+    expect(line).toContain("departamento principal");
+    expect(line).not.toContain("Estrategias de negocios");
+    expect(line).not.toContain("Marketing");
+  });
+
+  it("today overview dept blocks have headline + bold docs/hours", () => {
+    const blocks = buildTodayOverviewDeptBlocks({
+      locale: "es",
+      overviewByDepartment: [
+        {
+          name: "Estrategias de negocios",
+          color: "#008AF5",
+          total: 2,
+          minutes: 135,
+          categories: [{ name: "Plan de Negocio", count: 2 }],
+        },
+      ],
+    });
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].headline).toBe("Estrategias de negocios:");
+    expect(blocks[0].color).toBe("#008AF5");
+    expect(blocks[0].body).toContain("**2 documentos**");
+    expect(blocks[0].body).toContain("Plan de Negocio");
+    expect(blocks[0].body).toContain("**2 horas con 15** minutos");
   });
 
   it("funnel headline for department_cards", () => {

@@ -1735,6 +1735,172 @@
   color: #9a9a9a;
 }
 
+.gina-viz--today-overview {
+  display: block;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.gina-viz__overview-depts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 14px;
+  max-width: min(92%, 340px);
+}
+
+.gina-viz__overview-dept {
+  margin: 0;
+}
+
+.gina-viz__overview-dept-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 2px;
+  padding: 0;
+  font: inherit;
+}
+
+.gina-viz__overview-dept-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 0.35em;
+  align-self: flex-start;
+}
+
+.gina-viz__overview-dept-body {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.gina-viz__overview-dept-em {
+  font-weight: 650;
+  color: #e8e8e8;
+}
+
+.gina-viz__today-overview-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.gina-viz__hours-pie--side {
+  flex: 0 0 168px;
+  width: 168px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.gina-viz__hours-pie--side .gina-viz__hours-pie-chart {
+  min-height: 180px;
+  background: transparent;
+}
+
+.gina-viz__today-overview-table {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gina-viz--today-overview .gina-viz__hours-pie {
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+}
+
+.gina-viz__hours-pie-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.gina-viz__hours-pie-total {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: #f0f0f0;
+}
+
+.gina-viz__hours-pie-chart {
+  width: 100%;
+  min-height: 200px;
+}
+
+.gina-viz__hours-pie-tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+}
+
+.gina-viz__hours-pie-tooltip-name {
+  color: #cfcfcf;
+}
+
+.gina-viz__hours-pie-tooltip-val {
+  color: #fff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.gina-viz__dept-legend {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.gina-viz__dept-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #c8c8c8;
+}
+
+.gina-viz__dept-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.gina-viz__dept-legend-name {
+  color: #e4e4e4;
+}
+
+.gina-viz__dept-legend-hours {
+  color: #9a9a9a;
+  font-variant-numeric: tabular-nums;
+}
+
+.gina-viz__sheet-dept-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .gina-viz__sheet-cat-tag {
   color: #c9b896;
   font-weight: 650;
