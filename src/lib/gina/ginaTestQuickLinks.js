@@ -106,8 +106,8 @@ export const GINA_TEST_QUICK_LINKS = [
   },
   {
     id: "test_recovery_slot_picker",
-    label: "Test: cupos / Easy Links",
-    text: "Reagendar bloques vencidos mostrar cupos libres",
+    label: "Test: reagendar fork",
+    text: "Reagendar para hoy",
   },
 ];
 

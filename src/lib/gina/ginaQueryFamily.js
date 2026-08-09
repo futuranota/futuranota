@@ -12,6 +12,7 @@ import {
   searchDocumentsByHints,
 } from "./ginaFindDocument.js";
 import { partitionTodayByClock } from "./ginaTodayTimeTriage.js";
+import { parseRescheduleApplyProtocol, parseRecoverySnoozeProtocol } from "./ginaScheduleRecovery.js";
 import {
   filterDocumentsByDepartmentAndCategory,
   findFolderIdByName,
@@ -1839,11 +1840,10 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Snooze notify (~45m) then continue wizard.
+  // Snooze notify (duration / free gap / exact time) then continue wizard.
   {
-    const wantsSnooze = /\bposponer\s+recordatorio\s+de\s+recuperacion\b/.test(q)
-      || /\bsnooze\s+schedule\s+recovery\s+reminder\b/.test(q);
-    if (wantsSnooze) {
+    const snoozeParsed = parseRecoverySnoozeProtocol(text);
+    if (snoozeParsed.match) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       return {
         family: "schedule_recovery_snooze",
@@ -1852,7 +1852,10 @@ export function runGinaQueryFamily(text, ctx = {}) {
           ...today,
           nodes: ctx.nodes,
           docs: ctx.docs,
-          hint: "User snoozed recovery notify ~45m",
+          snoozeMinutes: snoozeParsed.minutes ?? null,
+          snoozeUntilHhmm: snoozeParsed.untilHhmm || null,
+          snoozeUntilFreeGap: Boolean(snoozeParsed.untilFreeGap),
+          hint: "User snoozed recovery notify",
         },
         workspaceInventory: inventory,
       };
@@ -1880,11 +1883,56 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
+  // Reschedule fork: cascade vs free gaps (before opening a picker).
+  {
+    const wantsFork = /\breagendar\s+para\s+hoy\b/.test(q)
+      || /\breschedule\s+for\s+today\b/.test(q);
+    if (wantsFork) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_reschedule_fork",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          objectId: ctx.objectId,
+          hint: "Choose cascade vs free gaps for reschedule",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Cascade from now → prefilled editable drafts.
+  {
+    const wantsCascade = /\bmover\s+en\s+cascada\b/.test(q)
+      || /\bcascade\s+schedule\s+blocks\s+from\s+now\b/.test(q);
+    if (wantsCascade) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      return {
+        family: "schedule_recovery_reschedule_pick",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          objectId: ctx.objectId,
+          rescheduleMode: "cascade",
+          hint: "Cascade expired blocks from now (editable drafts)",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
   // Free-slot picker for move-to-end-of-day.
   {
     const wantsPick = /\breagendar\s+bloques\s+vencidos\s+mostrar\s+cupos\b/.test(q)
       || /\breschedule\s+expired\s+blocks\s+show\s+free\s+slots\b/.test(q)
-      || /\bmostrar\s+cupos\s+libres\b/.test(q);
+      || /\bmostrar\s+cupos\s+libres\b/.test(q)
+      || /\bencajar\s+en\s+huecos\b/.test(q)
+      || /\bfit\s+into\s+free\s+gaps\b/.test(q);
     if (wantsPick) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       return {
@@ -1895,6 +1943,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
           nodes: ctx.nodes,
           docs: ctx.docs,
           objectId: ctx.objectId,
+          rescheduleMode: "gaps",
           hint: "Show free-slot picker for reschedule",
         },
         workspaceInventory: inventory,
@@ -1902,32 +1951,10 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Apply chosen slot / tomorrow / force end (one doc at a time).
+  // Apply chosen slot(s) / tomorrow / force end.
   {
-    const applyMatch = q.match(
-      /\b(?:aplicar\s+cupo\s+reagendado|apply\s+reschedule\s+slot)\s+(\S+)/,
-    );
-    if (applyMatch) {
-      const parts = String(applyMatch[1] || "").split("|").filter(Boolean);
-      let applyDocId = null;
-      let applyStartIso = null;
-      let applyFinishIso = null;
-      let sessionMoveDocIds = null;
-      if (parts.length >= 4) {
-        applyDocId = parts[0];
-        applyStartIso = parts[1];
-        applyFinishIso = parts[2];
-        sessionMoveDocIds = parts[3].split(",").map((s) => s.trim()).filter(Boolean);
-      } else if (parts.length === 3) {
-        // docId|start|finish
-        applyDocId = parts[0];
-        applyStartIso = parts[1];
-        applyFinishIso = parts[2];
-      } else if (parts.length === 2) {
-        // legacy: start|finish (first actionable)
-        applyStartIso = parts[0];
-        applyFinishIso = parts[1];
-      }
+    const parsedApply = parseRescheduleApplyProtocol(text);
+    if (parsedApply.match) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       return {
         family: "schedule_recovery_reschedule_apply",
@@ -1937,12 +1964,15 @@ export function runGinaQueryFamily(text, ctx = {}) {
           nodes: ctx.nodes,
           docs: ctx.docs,
           objectId: ctx.objectId,
-          applyDocId,
-          applyStartIso,
-          applyFinishIso,
-          sessionMoveDocIds,
+          applyDocId: parsedApply.applyDocId,
+          applyStartIso: parsedApply.applyStartIso,
+          applyFinishIso: parsedApply.applyFinishIso,
+          batchApplies: parsedApply.batchApplies,
+          sessionMoveDocIds: parsedApply.sessionMoveDocIds,
           mode: "slot",
-          hint: "Apply chosen free slot to one recovery doc",
+          hint: parsedApply.batchApplies.length > 1
+            ? "Apply chosen free slots to recovery docs"
+            : "Apply chosen free slot to one recovery doc",
         },
         workspaceInventory: inventory,
       };

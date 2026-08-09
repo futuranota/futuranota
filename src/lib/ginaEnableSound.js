@@ -1,4 +1,4 @@
-/** Gina chat open SFX — plays when Call Assistance opens, before the greeting typewriter. */
+/** Gina chat open SFX — also plays when the day / schedule sheet appears in chat. */
 
 import { isAppSoundMuted } from "./appSoundPrefs.js";
 

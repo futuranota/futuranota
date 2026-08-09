@@ -26,18 +26,46 @@ import { useAuthStore } from "../../stores/authStore.js";
 import { useNodesStore } from "../../stores/index.js";
 import { resolveListRefineSelection } from "../../lib/gina/ginaSyntaxDocsByCategory.js";
 import { playGinaEnableSound } from "../../lib/ginaEnableSound.js";
-import { playGinaAcceptSound } from "../../lib/ginaAcceptSound.js";
+import { playGinaDoubleBipSound } from "../../lib/ginaDoubleBipSound.js";
+import { playGinaHighlightsSound } from "../../lib/ginaHighlightsSound.js";
 import {
   playGinaFilesMovementSound,
   stopGinaFilesMovementSound,
 } from "../../lib/ginaFilesMovementSound.js";
 
-/** Silence after open, before Enable.wav. */
+/** Silence after open, before greeting / chips (Enable.wav moved to sheet reveal). */
 const GINA_OPEN_SOUND_DELAY_MS = 2_000;
-/** Silence after Enable.wav ends, before greeting typewriter. */
+/** Extra beat after open delay before greeting typewriter. */
 const GINA_POST_SOUND_TEXT_DELAY_MS = 1_000;
+/** After the schedule table is ready, wait before showing notify gate chips. */
+const GINA_NOTIFY_GATE_DELAY_MS = 5_000;
 
-/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, savedAckRevealed?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
+/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, savedAckRevealed?: boolean, notifyGateRevealed?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
+
+function messageHasNotifyGate(message) {
+  return Array.isArray(message?.chips)
+    && message.chips.some((c) => c?.id === "recovery_notify");
+}
+
+function messageChipsReadyToShow(message, { isTyping, isAiAnimating }) {
+  if (!message || message.sender !== "ai") return false;
+  if (!Array.isArray(message.chips) || !message.chips.length) return false;
+  if (isTyping || isAiAnimating) return false;
+  if (message.visualization?.type === "day_sheet_saved" && !message.savedAckRevealed) return false;
+  if (message.deferVisualization) {
+    if (!message.vizRevealed) return false;
+    if (message.midRevealed === false) return false;
+    if (message.sheetTableRevealed === false) return false;
+    if (message.textAfter && !message.afterRevealed) return false;
+    if (message.textPitch && !message.pitchRevealed) return false;
+  }
+  return true;
+}
+
+function isScheduleSheetVisualization(visualization) {
+  return visualization?.type === "schedule_sheet"
+    || visualization?.type === "today_quick_sheet";
+}
 
 /** Build AI turn fields: datos → pie+TABLA DE HOY → intro → horario cronológico → post text → chips. */
 function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visualization }) {
@@ -616,33 +644,105 @@ export function GinaChatCard({
   const isAiAnimatingRef = useRef(true);
   const deliveringRef = useRef(false);
   const pendingAiAnimationTaskRef = useRef(/** @type {null | (() => Promise<void> | void)} */ (null));
-  const acceptPlayedForMsgIdRef = useRef(/** @type {string | null} */ (null));
+  const doubleBipPlayedForMsgIdRef = useRef(/** @type {string | null} */ (null));
+  const enablePlayedForSheetMsgIdRef = useRef(/** @type {string | null} */ (null));
+  const highlightsPlayedForMsgIdRef = useRef(/** @type {string | null} */ (null));
+  const notifyGateTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  const notifyGateTimerMsgIdRef = useRef(/** @type {string | null} */ (null));
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const deliverUserMessageRef = useRef(/** @type {(text: string, opts?: { existingId?: string }) => Promise<void>} */ (async () => {}));
 
   const makeMsgId = () => `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  // Accept.mp3 when the notify chip becomes enabled (visible), not on click.
+  // Enable.wav when the day / schedule sheet visualization appears (not on chat open).
   useEffect(() => {
-    if (isTyping || isAiAnimating) return;
     let targetId = null;
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const m = messages[i];
-      if (m?.sender !== "ai" || !Array.isArray(m.chips)) continue;
-      const notify = m.chips.find((c) => c?.id === "recovery_notify");
-      if (notify) {
-        targetId = m.id || `idx-${i}`;
-        break;
-      }
+      if (m?.sender !== "ai" || !isScheduleSheetVisualization(m.visualization)) continue;
+      if (m.deferVisualization && !m.vizRevealed) continue;
+      if (m.visualization?.data?.todayOverview && m.sheetTableRevealed === false) continue;
+      targetId = m.id || `idx-${i}`;
+      break;
     }
     if (!targetId) return;
-    if (acceptPlayedForMsgIdRef.current === targetId) return;
-    acceptPlayedForMsgIdRef.current = targetId;
-    void playGinaAcceptSound();
+    if (enablePlayedForSheetMsgIdRef.current === targetId) return;
+    enablePlayedForSheetMsgIdRef.current = targetId;
+    void playGinaEnableSound();
+  }, [messages]);
+
+  // Recovery overdue (red) table reveal → highlights.mp3 once.
+  useEffect(() => {
+    let targetId = null;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m?.sender !== "ai") continue;
+      if (m.deferVisualization && !m.vizRevealed) continue;
+      const data = m.visualization?.data;
+      if (!data?.playHighlightsSound && !(
+        data?.recoveryWizard
+        && data?.currentStep === "overdue_check"
+        && Number(data?.urgencyCount) > 0
+      )) continue;
+      targetId = m.id || `idx-${i}`;
+      break;
+    }
+    if (!targetId) return;
+    if (highlightsPlayedForMsgIdRef.current === targetId) return;
+    highlightsPlayedForMsgIdRef.current = targetId;
+    void playGinaHighlightsSound();
+  }, [messages]);
+
+  // After the table is ready: wait 5s, then reveal notify gate + play double-bip.
+  useEffect(() => {
+    if (isTyping || isAiAnimating) return;
+
+    let targetIndex = -1;
+    let targetId = null;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (!messageHasNotifyGate(m)) continue;
+      if (m.notifyGateRevealed) continue;
+      if (!messageChipsReadyToShow(m, { isTyping: false, isAiAnimating: false })) continue;
+      targetIndex = i;
+      targetId = m.id || `idx-${i}`;
+      break;
+    }
+
+    if (targetIndex < 0 || !targetId) return;
+    if (notifyGateTimerMsgIdRef.current === targetId) return;
+    if (doubleBipPlayedForMsgIdRef.current === targetId) return;
+
+    if (notifyGateTimerRef.current != null) {
+      window.clearTimeout(notifyGateTimerRef.current);
+      notifyGateTimerRef.current = null;
+    }
+    notifyGateTimerMsgIdRef.current = targetId;
+    const scheduledIndex = targetIndex;
+    const scheduledId = targetId;
+    notifyGateTimerRef.current = window.setTimeout(() => {
+      notifyGateTimerRef.current = null;
+      setMessages((prev) => prev.map((m, idx) => (
+        (m.id && m.id === scheduledId) || idx === scheduledIndex
+          ? { ...m, notifyGateRevealed: true }
+          : m
+      )));
+      if (doubleBipPlayedForMsgIdRef.current !== scheduledId) {
+        doubleBipPlayedForMsgIdRef.current = scheduledId;
+        void playGinaDoubleBipSound();
+      }
+    }, GINA_NOTIFY_GATE_DELAY_MS);
   }, [messages, isTyping, isAiAnimating]);
 
-  // Open → 2s silence → Enable.wav + green dot → 1s silence → greeting typewriter.
+  useEffect(() => () => {
+    if (notifyGateTimerRef.current != null) {
+      window.clearTimeout(notifyGateTimerRef.current);
+      notifyGateTimerRef.current = null;
+    }
+  }, []);
+
+  // Open → silence → green dot → greeting (Enable.wav plays with the sheet instead).
   useEffect(() => {
     let cancelled = false;
     /** @type {ReturnType<typeof setTimeout> | null} */
@@ -689,12 +789,9 @@ export function GinaChatCard({
     soundTimer = window.setTimeout(() => {
       if (cancelled) return;
       setEnableDotVisible(true);
-      void playGinaEnableSound().then(() => {
-        if (cancelled) return;
-        textTimer = window.setTimeout(() => {
-          revealOpening();
-        }, GINA_POST_SOUND_TEXT_DELAY_MS);
-      });
+      textTimer = window.setTimeout(() => {
+        revealOpening();
+      }, GINA_POST_SOUND_TEXT_DELAY_MS);
     }, GINA_OPEN_SOUND_DELAY_MS);
 
     return () => {
@@ -1658,6 +1755,7 @@ export function GinaChatCard({
               )}
               {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping && !isAiAnimating
                 && (msg.visualization?.type !== "day_sheet_saved" || msg.savedAckRevealed)
+                && (!messageHasNotifyGate(msg) || msg.notifyGateRevealed)
                 && (!msg.deferVisualization || (
                   msg.vizRevealed
                   && msg.midRevealed !== false

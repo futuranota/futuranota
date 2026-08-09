@@ -1,4 +1,4 @@
-/** Gina notify-chip SFX — plays when “Gina quiere informarte algo” is tapped. */
+/** Gina notify-chip SFX — legacy Accept clip (notify gate now uses double-bip). */
 
 import { isAppSoundMuted } from "./appSoundPrefs.js";
 

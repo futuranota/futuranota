@@ -8,12 +8,13 @@ import {
   formatWorkDurationLabel,
 } from "../../lib/gina/buildGinaVisualization.js";
 import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
-import { buildRecoveryEasyLinksLegend } from "../../lib/gina/ginaScheduleRecovery.js";
+import { buildRecoveryEasyLinksLegend, buildRecoverySnoozeMenuOptions, buildRecoverySnoozeExactProtocol, buildRescheduleBatchApplyProtocol } from "../../lib/gina/ginaScheduleRecovery.js";
+import { formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns } from "../../lib/gina/ginaDepartmentColors.js";
 import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
 import { flattenTodayQuickSheetRows } from "../../lib/gina/ginaTodayQuickSheet.js";
 import { DOC_WORK_STATUS } from "../../lib/docWorkStatus.js";
-import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
+import { isoFromAnchorFields, anchorFieldsFromIso } from "../../lib/nodeAnchor.js";
 import { todayDateInputValue } from "../../lib/docDates.js";
 import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
 
@@ -791,89 +792,313 @@ function addDurationToTime(hhmm, durationMs) {
   return hhmmFromMinutes(Math.min(24 * 60 - 15, base + add));
 }
 
-function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
+function seedDraftsFromData(data) {
+  const seed = data?.initialDrafts && typeof data.initialDrafts === "object"
+    ? data.initialDrafts
+    : {};
+  const out = {};
+  for (const [id, draft] of Object.entries(seed)) {
+    if (!id || !draft?.startIso || !draft?.finishIso) continue;
+    out[String(id)] = {
+      date: draft.date || "",
+      startIso: draft.startIso,
+      finishIso: draft.finishIso,
+      timeLabel: draft.timeLabel || formatClockRange12h(draft.startIso, draft.finishIso, { sep: " – " }) || "",
+    };
+  }
+  return out;
+}
+
+function writeDraftFields(date, startTime, finishTime) {
+  const startIso = isoFromAnchorFields(date, startTime);
+  const finishIso = isoFromAnchorFields(date, finishTime);
+  if (!startIso || !finishIso) return null;
+  return {
+    date,
+    startIso,
+    finishIso,
+    timeLabel: formatClockRange12h(startIso, finishIso, { sep: " – " })
+      || `${startTime} – ${finishTime}`,
+  };
+}
+
+function CascadeSlotPickerVisualization({ data, onSelectAction }) {
   const en = data.locale === "en";
   const dateKey = data.date || todayDateInputValue();
   const moveDocs = Array.isArray(data.moveDocs) ? data.moveDocs : [];
-  const progress = data.progress || null;
-  const pendingDocs = moveDocs.filter((d) => !d.assigned);
-  const initialActive = data.activeDocId
-    || pendingDocs[0]?.id
-    || moveDocs[0]?.id
-    || null;
-  const [activeDocId, setActiveDocId] = useState(initialActive);
-  const [anchorDate, setAnchorDate] = useState(dateKey);
-  const [anchorTime, setAnchorTime] = useState("");
-  const [anchorFinishTime, setAnchorFinishTime] = useState("");
-  const lastActiveRef = useRef(initialActive);
+  const occupied = Array.isArray(data.occupied) ? data.occupied : [];
+  const seededInitial = seedDraftsFromData(data);
+  const [drafts, setDrafts] = useState(seededInitial);
+  const seedKeyRef = useRef("");
 
   useEffect(() => {
+    const seedKey = `cascade|${(data.moveDocIds || []).join("|")}|${Object.keys(data.initialDrafts || {}).join("|")}`;
+    if (seedKey === seedKeyRef.current) return;
+    seedKeyRef.current = seedKey;
+    setDrafts(seedDraftsFromData(data));
+  }, [data.moveDocIds?.join("|"), Object.keys(data.initialDrafts || {}).join("|")]);
+
+  const draftCount = Object.keys(drafts).length;
+  const totalCount = moveDocs.length;
+  const canCommit = draftCount > 0;
+
+  const patchCascadeDraft = (docId, patch) => {
+    const id = String(docId || "");
+    if (!id) return;
+    setDrafts((prev) => {
+      const cur = prev[id] || {};
+      const startFields = cur.startIso
+        ? anchorFieldsFromIso(cur.startIso)
+        : { anchorDate: dateKey, anchorTime: "" };
+      const finishFields = cur.finishIso
+        ? anchorFieldsFromIso(cur.finishIso)
+        : { anchorTime: "" };
+      const nextDate = patch.date != null ? patch.date : (cur.date || startFields.anchorDate || dateKey);
+      const nextStart = patch.startTime != null ? patch.startTime : (startFields.anchorTime || "");
+      let nextFinish = patch.finishTime != null ? patch.finishTime : (finishFields.anchorTime || "");
+      if (patch.startTime != null && patch.finishTime == null) {
+        const doc = moveDocs.find((d) => String(d.id) === id);
+        const dur = Number(doc?.durationMs || data.durationMs) || 60 * 60 * 1000;
+        nextFinish = addDurationToTime(nextStart, dur);
+      }
+      const written = writeDraftFields(nextDate, nextStart, nextFinish);
+      if (!written) return prev;
+      return { ...prev, [id]: written };
+    });
+  };
+
+  const commitDrafts = () => {
+    if (!canCommit || !onSelectAction) return;
+    const applies = Object.entries(drafts).map(([id, draft]) => ({
+      id,
+      startIso: draft.startIso,
+      finishIso: draft.finishIso,
+    }));
+    const session = (Array.isArray(data.sessionMoveDocIds) && data.sessionMoveDocIds.length
+      ? data.sessionMoveDocIds
+      : data.moveDocIds) || [];
+    const protocol = buildRescheduleBatchApplyProtocol(applies, session);
+    if (!protocol) return;
+    onSelectAction(
+      protocol,
+      en ? "Apply changes" : "Aplicar cambios",
+    );
+  };
+
+  return (
+    <div className="gina-viz gina-viz--slot-picker gina-viz--slot-picker-cascade">
+      <header className="gina-viz__head">
+        <span className="gina-viz__eyebrow">
+          {en ? "Cascade from now" : "Cascada desde ahora"}
+        </span>
+        <h3 className="gina-viz__title">{data.dateLabel || dateKey}</h3>
+        {totalCount > 0 ? (
+          <p className="gina-viz__sheet-progress">
+            {en
+              ? `${draftCount} proposed`
+              : `${draftCount} propuesta${draftCount === 1 ? "" : "s"}`}
+          </p>
+        ) : null}
+      </header>
+      {moveDocs.length > 0 ? (
+        <div className="gina-viz__sheet gina-viz__slot-sheet gina-viz__cascade-sheet">
+          <ul className="gina-viz__sheet-slots gina-viz__cascade-slots">
+            {moveDocs.map((doc) => {
+              const id = String(doc.id || "");
+              const draft = drafts[id] || null;
+              const startFields = draft?.startIso
+                ? anchorFieldsFromIso(draft.startIso)
+                : { anchorDate: dateKey, anchorTime: "" };
+              const finishFields = draft?.finishIso
+                ? anchorFieldsFromIso(draft.finishIso)
+                : { anchorTime: "" };
+              const rowDate = draft?.date || startFields.anchorDate || dateKey;
+              return (
+                <li key={doc.id || doc.title} className="gina-viz__cascade-row">
+                  <BlockAnchorFields
+                    className="gina-viz__cascade-anchor"
+                    enableTimeRange
+                    hideLabel
+                    label={en ? "Proposed slot" : "Horario propuesto"}
+                    anchorDate={rowDate}
+                    anchorTime={startFields.anchorTime || ""}
+                    anchorFinishTime={finishFields.anchorTime || ""}
+                    occupied={occupied}
+                    overlapHint={en
+                      ? "Struck hours are busy or already past — pick a free window."
+                      : "Las horas tachadas son ocupadas o ya pasaron — elige un cupo libre."}
+                    onAnchorDateChange={(next) => patchCascadeDraft(id, { date: next })}
+                    onAnchorTimeChange={(next) => patchCascadeDraft(id, { startTime: next })}
+                    onAnchorFinishTimeChange={(next) => patchCascadeDraft(id, { finishTime: next })}
+                  />
+                  <span className="gina-viz__sheet-title gina-viz__cascade-title">{doc.title}</span>
+                  {doc.status ? <DocStatusChip status={doc.status} /> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : (
+        <p className="gina-viz__empty">
+          {en ? "Nothing left to reschedule." : "No queda nada por reagendar."}
+        </p>
+      )}
+      {canCommit ? (
+        <button
+          type="button"
+          className="gina-viz__slot-apply gina-viz__slot-apply--commit"
+          onClick={commitDrafts}
+        >
+          {en ? "Apply changes" : "Aplicar cambios"}
+          {draftCount > 0 ? ` (${draftCount})` : ""}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function GapsSlotPickerVisualization({ data, onSelectAction }) {
+  const en = data.locale === "en";
+  const dateKey = data.date || todayDateInputValue();
+  const moveDocs = Array.isArray(data.moveDocs) ? data.moveDocs : [];
+  const occupied = Array.isArray(data.occupied) ? data.occupied : [];
+  const serverAssigned = new Set(
+    (Array.isArray(data.assignedDocIds) ? data.assignedDocIds : [])
+      .map((id) => String(id)),
+  );
+  const seededInitial = seedDraftsFromData(data);
+  const initialActive = data.activeDocId
+    || moveDocs.find((d) => !d.assigned && !serverAssigned.has(String(d.id)))?.id
+    || moveDocs[0]?.id
+    || null;
+  const initialDraft = initialActive ? seededInitial[String(initialActive)] : null;
+  const initialFields = initialDraft?.startIso
+    ? anchorFieldsFromIso(initialDraft.startIso)
+    : { anchorDate: dateKey, anchorTime: "" };
+  const initialFinishFields = initialDraft?.finishIso
+    ? anchorFieldsFromIso(initialDraft.finishIso)
+    : { anchorTime: "" };
+  const [activeDocId, setActiveDocId] = useState(initialActive);
+  const [anchorDate, setAnchorDate] = useState(
+    initialDraft?.date || initialFields.anchorDate || dateKey,
+  );
+  const [anchorTime, setAnchorTime] = useState(initialFields.anchorTime || "");
+  const [anchorFinishTime, setAnchorFinishTime] = useState(initialFinishFields.anchorTime || "");
+  const [drafts, setDrafts] = useState({});
+  const lastActiveRef = useRef(initialActive);
+  const seedKeyRef = useRef("");
+
+  const applyDraftToFields = (draft) => {
+    if (!draft?.startIso || !draft?.finishIso) {
+      setAnchorDate(data.date || todayDateInputValue());
+      setAnchorTime("");
+      setAnchorFinishTime("");
+      return;
+    }
+    const startF = anchorFieldsFromIso(draft.startIso);
+    const finishF = anchorFieldsFromIso(draft.finishIso);
+    setAnchorDate(draft.date || startF.anchorDate || data.date || todayDateInputValue());
+    setAnchorTime(startF.anchorTime || "");
+    setAnchorFinishTime(finishF.anchorTime || "");
+  };
+
+  useEffect(() => {
+    const seedKey = `gaps|${(data.moveDocIds || []).join("|")}|${(data.assignedDocIds || []).join("|")}`;
+    if (seedKey !== seedKeyRef.current) {
+      seedKeyRef.current = seedKey;
+      setDrafts({});
+    }
     const next = data.activeDocId
-      || pendingDocs[0]?.id
+      || moveDocs.find((d) => !d.assigned && !serverAssigned.has(String(d.id)))?.id
       || moveDocs[0]?.id
       || null;
     if (next === lastActiveRef.current) return;
     lastActiveRef.current = next;
     setActiveDocId(next);
-    setAnchorDate(data.date || todayDateInputValue());
-    setAnchorTime("");
-    setAnchorFinishTime("");
+    applyDraftToFields(null);
   }, [data.activeDocId, data.assignedDocIds?.join("|"), data.moveDocIds?.join("|")]);
 
-  const activeDoc = moveDocs.find((d) => d.id === activeDocId) || pendingDocs[0] || null;
+  const activeDoc = moveDocs.find((d) => d.id === activeDocId) || null;
   const durationMs = Number(activeDoc?.durationMs || data.durationMs) || 60 * 60 * 1000;
-  const occupied = Array.isArray(data.occupied) ? data.occupied : [];
-  const canApply = Boolean(
+  const draftCount = Object.keys(drafts).length;
+  const totalCount = moveDocs.length;
+  const canStage = Boolean(
     activeDoc?.id
-    && !activeDoc.assigned
+    && !serverAssigned.has(String(activeDoc.id))
     && anchorDate
     && anchorTime
     && anchorFinishTime,
   );
+  const canCommit = draftCount > 0;
   const dateFeedback = !anchorDate
     ? ""
     : (anchorDate === todayDateInputValue()
       ? (en ? "Today" : "Hoy")
       : anchorDate);
 
-  const applySlot = () => {
-    if (!canApply || !onSelectAction || !activeDoc?.id) return;
-    const startIso = isoFromAnchorFields(anchorDate, anchorTime);
-    const finishIso = isoFromAnchorFields(anchorDate, anchorFinishTime);
-    if (!startIso || !finishIso) return;
+  const stageDraft = () => {
+    if (!canStage || !activeDoc?.id) return;
+    const written = writeDraftFields(anchorDate, anchorTime, anchorFinishTime);
+    if (!written) return;
+    const stagedId = String(activeDoc.id);
+    const nextDrafts = { ...drafts, [stagedId]: written };
+    setDrafts(nextDrafts);
+    const nextUnstaged = moveDocs.find((d) => {
+      const id = String(d.id || "");
+      if (!id || id === stagedId) return false;
+      if (d.assigned || serverAssigned.has(id)) return false;
+      return !nextDrafts[id];
+    });
+    if (nextUnstaged?.id) {
+      lastActiveRef.current = nextUnstaged.id;
+      setActiveDocId(nextUnstaged.id);
+      setAnchorDate(data.date || todayDateInputValue());
+      setAnchorTime("");
+      setAnchorFinishTime("");
+    }
+  };
+
+  const commitDrafts = () => {
+    if (!canCommit || !onSelectAction) return;
+    const applies = Object.entries(drafts).map(([id, draft]) => ({
+      id,
+      startIso: draft.startIso,
+      finishIso: draft.finishIso,
+    }));
     const session = (Array.isArray(data.sessionMoveDocIds) && data.sessionMoveDocIds.length
       ? data.sessionMoveDocIds
       : data.moveDocIds) || [];
-    const sessionPart = session.filter(Boolean).join(",");
-    const payload = sessionPart
-      ? `${activeDoc.id}|${startIso}|${finishIso}|${sessionPart}`
-      : `${activeDoc.id}|${startIso}|${finishIso}`;
+    const protocol = buildRescheduleBatchApplyProtocol(applies, session);
+    if (!protocol) return;
     onSelectAction(
-      en
-        ? `Apply reschedule slot ${payload}`
-        : `Aplicar cupo reagendado ${payload}`,
+      protocol,
+      en ? "Apply changes" : "Aplicar cambios",
     );
   };
+
+  const activeIsServerAssigned = Boolean(
+    activeDoc && (activeDoc.assigned || serverAssigned.has(String(activeDoc.id))),
+  );
 
   return (
     <div className="gina-viz gina-viz--slot-picker">
       <header className="gina-viz__head">
         <span className="gina-viz__eyebrow">{en ? "Reschedule" : "Reagendar"}</span>
         <h3 className="gina-viz__title">{data.dateLabel || dateKey}</h3>
-        {progress && progress.total > 0 ? (
+        {totalCount > 0 ? (
           <p className="gina-viz__sheet-progress">
             {en
-              ? `${progress.assigned}/${progress.total} assigned`
-              : `${progress.assigned}/${progress.total} asignados`}
-            {progress.remaining > 0
+              ? `${draftCount}/${totalCount} assigned`
+              : `${draftCount}/${totalCount} asignados`}
+            {totalCount - draftCount > 0
               ? (en
-                ? ` · ${progress.remaining} left`
-                : ` · ${progress.remaining} restante${progress.remaining === 1 ? "" : "s"}`)
+                ? ` · ${totalCount - draftCount} left`
+                : ` · ${totalCount - draftCount} restante${totalCount - draftCount === 1 ? "" : "s"}`)
               : ""}
           </p>
         ) : null}
       </header>
-      {data.noCupo && activeDoc && !activeDoc.assigned ? (
+      {data.noCupo && activeDoc && !activeIsServerAssigned && !drafts[String(activeDoc.id || "")] ? (
         <p className="gina-viz__slot-banner" role="status">
           {en
             ? `No free slot today for ${activeDoc.title}`
@@ -884,8 +1109,10 @@ function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
         <div className="gina-viz__sheet gina-viz__slot-sheet">
           <ul className="gina-viz__sheet-slots">
             {moveDocs.map((doc) => {
-              const active = doc.id === activeDocId;
-              const assigned = Boolean(doc.assigned);
+              const id = String(doc.id || "");
+              const active = id === String(activeDocId || "");
+              const draft = drafts[id] || null;
+              const assigned = Boolean(doc.assigned || serverAssigned.has(id) || draft);
               return (
                 <li key={doc.id || doc.title}>
                   <button
@@ -897,17 +1124,17 @@ function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
                       + (!assigned ? " gina-viz__sheet-slot--urgency" : "")
                     }
                     onClick={() => {
-                      if (assigned) return;
+                      if (doc.assigned || serverAssigned.has(id)) return;
                       lastActiveRef.current = doc.id;
                       setActiveDocId(doc.id);
-                      setAnchorDate(data.date || todayDateInputValue());
-                      setAnchorTime("");
-                      setAnchorFinishTime("");
+                      applyDraftToFields(draft);
                     }}
-                    disabled={assigned}
+                    disabled={Boolean(doc.assigned || serverAssigned.has(id))}
                   >
                     <TimeCell
-                      doc={doc}
+                      doc={draft
+                        ? { ...doc, timeClock: draft.timeLabel, timeLabel: draft.timeLabel, relativeDay: null }
+                        : doc}
                       passedSlot={!assigned}
                       delayHighlights={!assigned}
                       struck={false}
@@ -928,7 +1155,7 @@ function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
           {en ? "Nothing left to reschedule." : "No queda nada por reagendar."}
         </p>
       )}
-      {activeDoc && !activeDoc.assigned ? (
+      {activeDoc && !activeIsServerAssigned ? (
         <>
           <div className="gina-viz__slot-date-row">
             <BlockAnchorFields
@@ -944,7 +1171,7 @@ function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
               occupied={occupied}
               overlapHint={en
                 ? "Struck hours are busy or already past — pick a free window."
-                : "Las horas tachadas están ocupadas o ya pasaron — elige un cupo libre."}
+                : "Las horas tachadas son ocupadas o ya pasaron — elige un cupo libre."}
               onAnchorDateChange={(next) => setAnchorDate(next)}
               onAnchorTimeChange={(next) => {
                 setAnchorTime(next);
@@ -961,8 +1188,8 @@ function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
           <button
             type="button"
             className="gina-viz__slot-apply"
-            disabled={!canApply}
-            onClick={applySlot}
+            disabled={!canStage}
+            onClick={stageDraft}
           >
             {en
               ? `Assign to ${activeDoc.title}`
@@ -970,8 +1197,25 @@ function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
           </button>
         </>
       ) : null}
+      {canCommit ? (
+        <button
+          type="button"
+          className="gina-viz__slot-apply gina-viz__slot-apply--commit"
+          onClick={commitDrafts}
+        >
+          {en ? "Apply changes" : "Aplicar cambios"}
+          {draftCount > 0 ? ` (${draftCount})` : ""}
+        </button>
+      ) : null}
     </div>
   );
+}
+
+function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
+  if (data?.rescheduleMode === "cascade") {
+    return <CascadeSlotPickerVisualization data={data} onSelectAction={onSelectAction} />;
+  }
+  return <GapsSlotPickerVisualization data={data} onSelectAction={onSelectAction} />;
 }
 
 
@@ -1858,11 +2102,116 @@ const EASY_LINK_SFX_BY_ID = {
   mark_past_due: "easy_link_past_due",
   move_end_of_day: "easy_link_reschedule",
   recovery_snooze: "easy_link_snooze",
+  mark_in_progress_batch: "easy_link_in_progress",
+  open_late_start_doc: "easy_link_open",
 };
 
+function RecoverySnoozeMenu({ locale = "es", onSelectAction }) {
+  const en = locale === "en";
+  const options = buildRecoverySnoozeMenuOptions({ locale });
+  const [open, setOpen] = useState(false);
+  const [exactOpen, setExactOpen] = useState(false);
+  const [exactTime, setExactTime] = useState("");
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (!rootRef.current?.contains(event.target)) {
+        setOpen(false);
+        setExactOpen(false);
+      }
+    };
+    const escape = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setExactOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  const confirmExact = () => {
+    const protocol = buildRecoverySnoozeExactProtocol(exactTime, { locale });
+    if (!protocol) return;
+    onSelectAction?.(protocol, en ? "Snooze" : "Posponer");
+    setOpen(false);
+    setExactOpen(false);
+  };
+
+  return (
+    <div className="gina-viz__snooze-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="gina-viz__snooze-trigger"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <img
+          className="gina-viz__snooze-trigger-icon"
+          src="/uploads/CalendarDots.svg"
+          alt=""
+          aria-hidden
+        />
+        {en ? "Snooze" : "Posponer"}
+        <span aria-hidden> ▾</span>
+      </button>
+      {open ? (
+        <div className="gina-viz__snooze-popover" role="menu">
+          {options.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              className="gina-viz__snooze-option"
+              role="menuitem"
+              onClick={() => {
+                if (opt.exactTime) {
+                  setExactOpen(true);
+                  return;
+                }
+                if (opt.text) {
+                  onSelectAction?.(opt.text, opt.label);
+                  setOpen(false);
+                }
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+          {exactOpen ? (
+            <div className="gina-viz__snooze-exact">
+              <input
+                type="time"
+                className="gina-viz__snooze-exact-input"
+                value={exactTime}
+                step={900}
+                onChange={(e) => setExactTime(e.target.value)}
+                aria-label={en ? "Exact reminder time" : "Hora exacta del recordatorio"}
+              />
+              <button
+                type="button"
+                className="gina-viz__snooze-exact-confirm"
+                disabled={!exactTime}
+                onClick={confirmExact}
+              >
+                {en ? "Set" : "Listo"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * Easy Links — 2-col grid (sibling of schedule table).
- * All 4 options: headline + body + inline link; status pills only on completed / past_due.
+ * Easy Links — star Reagendar + secondary alternatives + snooze menu.
  */
 function RecoveryEasyLinksLegend({
   locale = "es",
@@ -1873,6 +2222,7 @@ function RecoveryEasyLinksLegend({
   openDocId,
   openDocTitle,
 }) {
+  const en = locale === "en";
   const rows = buildRecoveryEasyLinksLegend({
     locale,
     recoveryOfferMode,
@@ -1885,71 +2235,111 @@ function RecoveryEasyLinksLegend({
 
   if (!rows.length) return null;
 
+  const star = rows.find((r) => r.tier === "star") || null;
+  const secondary = rows.filter((r) => r.tier === "secondary");
+  const snooze = rows.find((r) => r.tier === "snooze") || null;
+  const typedRows = [
+    ...(star ? [star] : []),
+    ...secondary,
+    ...(snooze ? [snooze] : []),
+  ];
+
+  const renderRowBody = (row, isDone, isTyping, index) => {
+    const blockText = `${row.title}:\n${row.body}`;
+    if (isTyping) {
+      return (
+        <GinaAiMessageText
+          text={blockText}
+          onComplete={() => setTypedThrough(index)}
+        />
+      );
+    }
+    if (!isDone) return null;
+    return (
+      <>
+        <div className="gina-viz__easy-link-headline-row">
+          <span className="gina-chat-card__ai-headline">{`${row.title}:`}</span>
+          {row.statusKey ? (
+            <img
+              className="gina-viz__easy-link-icon"
+              src={row.icon}
+              alt=""
+              aria-hidden
+            />
+          ) : null}
+        </div>
+        <p className="gina-chat-card__ai-body gina-viz__easy-link-body">
+          {row.body}
+          {row.control === "link" && row.actionText ? (
+            <>
+              {" "}
+              <button
+                type="button"
+                className="gina-viz__easy-link-inline"
+                onClick={() => onSelectAction?.(
+                  row.actionText,
+                  row.ctaLabel || row.title,
+                )}
+              >
+                {row.ctaLabel || row.title}
+              </button>
+            </>
+          ) : null}
+        </p>
+        {row.control === "snooze_menu" ? (
+          <RecoverySnoozeMenu locale={locale} onSelectAction={onSelectAction} />
+        ) : null}
+      </>
+    );
+  };
+
   return (
     <div
-      className="gina-viz__easy-links"
-      aria-label={locale === "en" ? "Easy Links" : "Easy Links"}
+      className="gina-viz__easy-links gina-viz__easy-links--stacked"
+      aria-label={en ? "Easy Links" : "Easy Links"}
     >
-      <div className="gina-viz__easy-links-grid">
-        {rows.map((row, index) => {
-          if (index > typedThrough + 1) return null;
-          const isTyping = index === typedThrough + 1;
-          const isDone = index <= typedThrough;
-          const blockText = `${row.title}:\n${row.body}`;
-          return (
+      {typedRows.map((row, index) => {
+        if (index > typedThrough + 1) return null;
+        const isTyping = index === typedThrough + 1;
+        const isDone = index <= typedThrough;
+        const showAltIntro = Boolean(
+          star
+          && row.tier === "secondary"
+          && index === (star ? 1 : 0)
+          && (isDone || isTyping),
+        );
+        return (
+          <div key={row.id} className="gina-viz__easy-links-block">
+            {showAltIntro ? (
+              <p className="gina-viz__easy-links-alt-intro gina-chat-card__ai-headline">
+                {en
+                  ? "As an alternative, you can also take any of these actions:"
+                  : "Como alternativa, también puedes realizar cualquiera de estas acciones:"}
+              </p>
+            ) : null}
             <section
-              key={row.id}
-              className="gina-viz__easy-link"
+              className={
+                "gina-viz__easy-link"
+                + (row.tier === "star" ? " gina-viz__easy-link--star gina-viz__easy-link--flat" : "")
+                + (row.tier === "snooze" ? " gina-viz__easy-link--snooze" : "")
+                + (row.tier === "secondary" ? " gina-viz__easy-link--secondary gina-viz__easy-link--flat" : "")
+              }
               data-sfx-id={EASY_LINK_SFX_BY_ID[row.id] || `easy_link_${row.id}`}
             >
               <div className="gina-viz__easy-link-head">
                 <span
                   className="gina-viz__overview-dept-dot"
-                  style={{ background: row.statusColor || "#8a8a8a" }}
+                  style={{ background: row.statusColor || (row.tier === "star" ? "#c9b896" : "#8a8a8a") }}
                   aria-hidden
                 />
                 <div className="gina-viz__easy-link-copy">
-                  {isDone ? (
-                    <>
-                      <div className="gina-viz__easy-link-headline-row">
-                        <span className="gina-chat-card__ai-headline">{`${row.title}:`}</span>
-                        {row.statusKey ? (
-                          <img
-                            className="gina-viz__easy-link-icon"
-                            src={row.icon}
-                            alt=""
-                            aria-hidden
-                          />
-                        ) : null}
-                      </div>
-                      <p className="gina-chat-card__ai-body gina-viz__easy-link-body">
-                        {row.body}
-                        {row.actionText ? (
-                          <>
-                            {" "}
-                            <button
-                              type="button"
-                              className="gina-viz__easy-link-inline"
-                              onClick={() => onSelectAction?.(row.actionText, row.title)}
-                            >
-                              {row.title}
-                            </button>
-                          </>
-                        ) : null}
-                      </p>
-                    </>
-                  ) : isTyping ? (
-                    <GinaAiMessageText
-                      text={blockText}
-                      onComplete={() => setTypedThrough(index)}
-                    />
-                  ) : null}
+                  {renderRowBody(row, isDone, isTyping, index)}
                 </div>
               </div>
             </section>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

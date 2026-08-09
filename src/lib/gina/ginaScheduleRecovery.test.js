@@ -4,8 +4,12 @@ import {
   buildDayStartAfterRecoveryText,
   buildPassedSlotSignals,
   buildRecoverySnoozeText,
+  parseRecoverySnoozeProtocol,
   buildRescheduleAppliedText,
+  buildRescheduleBatchApplyProtocol,
   buildReschedulePickerText,
+  buildRescheduleForkChips,
+  buildRescheduleForkText,
   buildRescheduleProgressText,
   buildScheduleRecoveryAck,
   buildScheduleRecoveryBriefText,
@@ -196,14 +200,13 @@ describe("ginaScheduleRecovery", () => {
     expect(headline).toContain("Vamos a resolverlos uno por uno");
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.map((c) => c.id)).toEqual([
+      "move_end_of_day",
       "mark_completed",
       "mark_past_due",
-      "move_end_of_day",
-      "recovery_snooze",
     ]);
     expect(chips.find((c) => c.id === "mark_completed")?.comingSoon).toBeFalsy();
     expect(chips.find((c) => c.id === "move_end_of_day")?.comingSoon).toBeFalsy();
-    expect(chips.find((c) => c.id === "mark_past_due")?.primary).toBe(true);
+    expect(chips.find((c) => c.id === "move_end_of_day")?.primary).toBe(true);
   });
 
   it("recovery next advances to conflict_resolve", () => {
@@ -299,7 +302,7 @@ describe("ginaScheduleRecovery", () => {
     expect(text).toContain("Vamos a resolverlos uno por uno");
   });
 
-  it("overdue step chips include live completed / move / snooze", () => {
+  it("overdue step chips include live completed / move (snooze is menu)", () => {
     const chips = buildScheduleRecoveryChips({
       locale: "es",
       urgencyCount: 1,
@@ -309,7 +312,8 @@ describe("ginaScheduleRecovery", () => {
     expect(chips.some((c) => c.id === "mark_past_due")).toBe(true);
     expect(chips.some((c) => c.id === "mark_completed" && !c.comingSoon)).toBe(true);
     expect(chips.some((c) => c.id === "move_end_of_day" && !c.comingSoon)).toBe(true);
-    expect(chips.some((c) => c.id === "recovery_snooze")).toBe(true);
+    expect(chips.find((c) => c.id === "move_end_of_day")?.primary).toBe(true);
+    expect(chips.some((c) => c.id === "recovery_snooze")).toBe(false);
   });
 
   it("partitions today by clock into expired / late-start / future", () => {
@@ -356,6 +360,11 @@ describe("ginaScheduleRecovery", () => {
     expect(viz?.data?.recoveryOfferMode).toBe("mixed");
     expect(viz?.data?.moveDocIds?.sort()).toEqual(["n1", "n3"]);
     expect(viz?.data?.moveDocIds).not.toContain("n5");
+    expect(viz?.data?.cascadeMoveDocIds?.sort()).toEqual(["n1", "n3", "n5"]);
+    // First overdue table = expired only (no late-start n5 mixed in)
+    expect(viz?.data?.documents?.map((d) => d.id).sort()).toEqual(["n1", "n3"]);
+    expect(viz?.data?.playHighlightsSound).toBe(true);
+    expect(viz?.data?.highlightPassedSlots).toBe(true);
 
     const lateOnlyCtx = {
       ...lateCtx,
@@ -424,12 +433,13 @@ describe("ginaScheduleRecovery", () => {
         delay: "1 h 30 min",
       }],
     });
-    expect(step).toMatch(/Evening draft/);
+    expect(step).toMatch(/\*\*Evening draft\*\*/);
     expect(step).toMatch(/1 h 30 min/);
-    expect(step).toMatch(/a tiempo/i);
-    expect(step).toMatch(/En Progreso/i);
+    expect(step).toMatch(/\*\*«Sin empezar»\*\*/);
+    expect(step).toMatch(/retomarlo/i);
     expect(step).not.toMatch(/Ambos/);
     expect(step).not.toMatch(/ya pasó de hora/);
+    expect(step).not.toMatch(/¿Cómo deseas proceder/);
     const plural = buildScheduleRecoveryStepText({
       locale: "es",
       currentStep: "overdue_check",
@@ -441,8 +451,17 @@ describe("ginaScheduleRecovery", () => {
         { label: "PDN", title: "B", time: "5:00 PM", delay: "30 minutos" },
       ],
     });
-    expect(plural).toMatch(/Estos dos bloques/);
-    expect(plural).toMatch(/a tiempo/i);
+    expect(plural).toMatch(/Estos documentos/);
+    expect(plural).toMatch(/retomarlos/i);
+    const expiredStep = buildScheduleRecoveryStepText({
+      locale: "es",
+      currentStep: "overdue_check",
+      urgencyCount: 1,
+      overdueTitles: ["Blogs AM"],
+      lateStartCount: 0,
+      recoveryOfferMode: "expired",
+    });
+    expect(expiredStep).toMatch(/El documento \*\*Blogs AM\*\* ya pasó de hora/);
     const chips = buildScheduleRecoveryChips({
       locale: "es",
       urgencyCount: 0,
@@ -457,7 +476,7 @@ describe("ginaScheduleRecovery", () => {
     expect(chips.find((c) => c.id === "mark_past_due")).toBeUndefined();
     expect(chips.find((c) => c.id === "mark_in_progress_batch")).toBeTruthy();
     expect(chips.find((c) => c.id === "open_late_start_doc")?.text).toBe("GinaRevealDocument:n5");
-    expect(chips.find((c) => c.id === "recovery_snooze")?.label).toBe("Posponer 45 min");
+    expect(chips.find((c) => c.id === "recovery_snooze")).toBeUndefined();
     const lateLegend = buildRecoveryEasyLinksLegend({
       locale: "es",
       recoveryOfferMode: "late_start",
@@ -468,20 +487,26 @@ describe("ginaScheduleRecovery", () => {
       "open_late_start_doc",
       "recovery_snooze",
     ]);
+    expect(lateLegend.find((r) => r.id === "recovery_snooze")?.control).toBe("snooze_menu");
     const expiredLegend = buildRecoveryEasyLinksLegend({
       locale: "es",
       recoveryOfferMode: "expired",
     });
     expect(expiredLegend.map((r) => r.id)).toEqual([
+      "move_end_of_day",
       "mark_completed",
       "mark_past_due",
-      "move_end_of_day",
       "recovery_snooze",
     ]);
+    expect(expiredLegend[0].tier).toBe("star");
+    expect(expiredLegend[0].control).toBe("link");
+    expect(expiredLegend[0].ctaLabel).toBe("Ajustar agenda");
     expect(expiredLegend.filter((r) => r.statusKey).map((r) => r.statusKey)).toEqual([
       "completed",
       "past_due",
     ]);
+    expect(expiredLegend.find((r) => r.id === "recovery_snooze")?.title).toMatch(/Posponer Recordatorio/i);
+    expect(expiredLegend.find((r) => r.id === "recovery_snooze")?.title).not.toMatch(/45/);
   });
 
   it("routes completed / snooze / picker / apply intents", () => {
@@ -498,9 +523,47 @@ describe("ginaScheduleRecovery", () => {
       ctx,
     ).family).toBe("schedule_recovery_snooze");
     expect(runGinaQueryFamily(
+      "Posponer recordatorio de recuperación 15m",
+      ctx,
+    ).toolContext?.snoozeMinutes).toBe(15);
+    expect(runGinaQueryFamily(
+      "Posponer recordatorio de recuperación 60m",
+      ctx,
+    ).toolContext?.snoozeMinutes).toBe(60);
+    expect(runGinaQueryFamily(
+      "Posponer recordatorio de recuperación hasta hueco libre",
+      ctx,
+    ).toolContext?.snoozeUntilFreeGap).toBe(true);
+    expect(runGinaQueryFamily(
+      "Posponer recordatorio de recuperación hasta 18:30",
+      ctx,
+    ).toolContext?.snoozeUntilHhmm).toBe("18:30");
+    expect(parseRecoverySnoozeProtocol("Posponer recordatorio de recuperación 30m")).toEqual({
+      match: true,
+      minutes: 30,
+      untilHhmm: null,
+      untilFreeGap: false,
+    });
+    expect(buildRecoverySnoozeText({ locale: "es", minutes: 15 })).toMatch(/15 minutos/);
+    expect(buildRecoverySnoozeText({ locale: "es", untilLabel: "6:30 PM" })).toMatch(/6:30 PM/);
+    expect(runGinaQueryFamily(
+      "Reagendar para hoy",
+      ctx,
+    ).family).toBe("schedule_recovery_reschedule_fork");
+    expect(runGinaQueryFamily(
+      "Mover en cascada los bloques desde ahora",
+      ctx,
+    )).toMatchObject({
+      family: "schedule_recovery_reschedule_pick",
+      toolContext: expect.objectContaining({ rescheduleMode: "cascade" }),
+    });
+    expect(runGinaQueryFamily(
       "Reagendar bloques vencidos mostrar cupos libres",
       ctx,
-    ).family).toBe("schedule_recovery_reschedule_pick");
+    )).toMatchObject({
+      family: "schedule_recovery_reschedule_pick",
+      toolContext: expect.objectContaining({ rescheduleMode: "gaps" }),
+    });
     const applyOne = runGinaQueryFamily(
       "Aplicar cupo reagendado n1|2026-08-01T21:00:00.000Z|2026-08-01T22:00:00.000Z|n1,n3",
       ctx,
@@ -508,6 +571,38 @@ describe("ginaScheduleRecovery", () => {
     expect(applyOne.family).toBe("schedule_recovery_reschedule_apply");
     expect(applyOne.toolContext?.applyDocId).toBe("n1");
     expect(applyOne.toolContext?.sessionMoveDocIds).toEqual(["n1", "n3"]);
+    expect(applyOne.toolContext?.batchApplies).toEqual([
+      {
+        id: "n1",
+        startIso: "2026-08-01T21:00:00.000Z",
+        finishIso: "2026-08-01T22:00:00.000Z",
+      },
+    ]);
+    const applyBatch = runGinaQueryFamily(
+      "Aplicar cambios reagendados n1|2026-08-01T21:00:00.000Z|2026-08-01T22:00:00.000Z;n3|2026-08-01T22:00:00.000Z|2026-08-01T22:30:00.000Z|n1,n3",
+      ctx,
+    );
+    expect(applyBatch.family).toBe("schedule_recovery_reschedule_apply");
+    expect(applyBatch.toolContext?.batchApplies).toEqual([
+      {
+        id: "n1",
+        startIso: "2026-08-01T21:00:00.000Z",
+        finishIso: "2026-08-01T22:00:00.000Z",
+      },
+      {
+        id: "n3",
+        startIso: "2026-08-01T22:00:00.000Z",
+        finishIso: "2026-08-01T22:30:00.000Z",
+      },
+    ]);
+    expect(applyBatch.toolContext?.sessionMoveDocIds).toEqual(["n1", "n3"]);
+    expect(buildRescheduleBatchApplyProtocol(
+      [
+        { id: "n1", startIso: "a", finishIso: "b" },
+        { id: "n3", startIso: "c", finishIso: "d" },
+      ],
+      ["n1", "n3"],
+    )).toBe("Aplicar cambios reagendados n1|a|b;n3|c|d|n1,n3");
     expect(runGinaQueryFamily(
       "Mover bloques de recuperación a mañana por la mañana",
       ctx,
@@ -526,6 +621,7 @@ describe("ginaScheduleRecovery", () => {
       docs: ctx.docs,
     }, { now, locale: "es" });
     expect(viz?.type).toBe("schedule_slot_picker");
+    expect(viz.data.rescheduleMode).toBe("gaps");
     expect(Array.isArray(viz.data.moveDocIds)).toBe(true);
     expect(viz.data.moveDocIds.length).toBeGreaterThan(0);
     expect(viz.data.activeDocId).toBeTruthy();
@@ -551,19 +647,58 @@ describe("ginaScheduleRecovery", () => {
       remaining: 1,
     })).toMatch(/Siguiente: elige el cupo para \*\*Sales\*\*/);
     expect(buildRescheduleAppliedText({ locale: "es", timeLabel: "9:00 PM – 10:00 PM" })).toMatch(/Reagendé/);
-    expect(buildRecoverySnoozeText({ locale: "es" })).toMatch(/45 minutos/);
+    expect(buildRecoverySnoozeText({ locale: "es" })).toMatch(/siguiente revisión/);
   });
 
-  it("marks assigned docs when rebuilding picker mid-loop", () => {
+  it("forks reschedule and seeds cascade drafts", () => {
+    expect(buildRescheduleForkText({ locale: "es" })).toMatch(/Cascada/i);
+    const forkChips = buildRescheduleForkChips({ locale: "es" });
+    expect(forkChips.map((c) => c.id)).toEqual(["reschedule_cascade", "reschedule_gaps"]);
+    expect(buildGinaReplyChips({
+      family: "schedule_recovery_reschedule_fork",
+      locale: "es",
+    }).map((c) => c.id)).toEqual(["reschedule_cascade", "reschedule_gaps"]);
+
+    const cascade = runGinaQueryFamily("Mover en cascada los bloques desde ahora", ctx);
+    const viz = buildGinaVisualization(cascade.family, {
+      ...cascade.toolContext,
+      nodes: ctx.nodes,
+      docs: ctx.docs,
+    }, { now, locale: "es" });
+    expect(viz?.type).toBe("schedule_slot_picker");
+    expect(viz.data.rescheduleMode).toBe("cascade");
+    expect(viz.data.noCupo).toBe(false);
+    // Cascade session = all today non-completed (expired + future pending), not only fullyExpired
+    expect(viz.data.moveDocIds.sort()).toEqual(["n1", "n3", "n5"]);
+    const draftIds = Object.keys(viz.data.initialDrafts || {});
+    expect(draftIds.length).toBe(viz.data.moveDocIds.length);
+    expect(draftIds.every((id) => viz.data.moveDocIds.includes(id))).toBe(true);
+    for (const id of draftIds) {
+      const draft = viz.data.initialDrafts[id];
+      expect(draft.startIso).toBeTruthy();
+      expect(draft.finishIso).toBeTruthy();
+      expect(new Date(draft.finishIso).getTime()).toBeGreaterThan(new Date(draft.startIso).getTime());
+      expect(new Date(draft.startIso).getTime()).toBeGreaterThanOrEqual(now.getTime() - 15 * 60 * 1000);
+    }
+    // Cascade occupied excludes the whole move session
+    expect(viz.data.occupied.every((o) => !viz.data.moveDocIds.includes(o.id))).toBe(true);
+    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/horario propuesto/i);
+    const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
+    expect(chips.some((c) => c.id === "reschedule_tomorrow")).toBe(false);
+  });
+
+  it("gaps picker still drops non-expired from session", () => {
     const viz = buildGinaVisualization("schedule_recovery_reschedule_pick", {
       documents: get_today_scope(ctx).documents,
       nodes: ctx.nodes,
       docs: ctx.docs,
-      // n5 is future (not fully expired) — dropped from move session
+      rescheduleMode: "gaps",
+      // n5 is future (not fully expired) — dropped from gaps move session
       sessionMoveDocIds: ["n1", "n3", "n5"],
       assignedDocIds: ["n1"],
       activeDocId: "n3",
     }, { now, locale: "es" });
+    expect(viz.data.rescheduleMode).toBe("gaps");
     expect(viz.data.activeDocId).toBe("n3");
     expect(viz.data.moveDocIds.sort()).toEqual(["n1", "n3"]);
     expect(viz.data.moveDocs.find((d) => d.id === "n1")?.assigned).toBe(true);

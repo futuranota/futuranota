@@ -8,6 +8,7 @@ import {
   buildScheduleRecoveryIntroText,
   buildScheduleRecoveryStepText,
   buildReschedulePickerText,
+  buildRescheduleForkChips,
 } from "./ginaScheduleRecovery.js";
 import {
   buildFindDocumentChips,
@@ -1966,6 +1967,7 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
   if (visualization.type === "schedule_slot_picker") {
     return buildReschedulePickerText({
       locale: opts.locale,
+      mode: data.rescheduleMode === "cascade" ? "cascade" : "gaps",
       hasFreeSlot: data.hasFreeSlot !== false && !data.noCupo,
       noCupo: Boolean(data.noCupo),
       activeTitle: data.activeTitle || null,
@@ -1992,6 +1994,10 @@ export function buildGinaReplyChips(opts = {}) {
   const type = viz?.type;
   const data = viz?.data || {};
   const salt = opts.salt;
+
+  if (opts.family === "schedule_recovery_reschedule_fork") {
+    return buildRescheduleForkChips({ locale });
+  }
 
   if (opts.family === "day_sheet_complete_confirm") {
     const title = data.documents?.[0]?.title || "";
@@ -2277,7 +2283,7 @@ export function buildGinaReplyChips(opts = {}) {
     const en = locale === "en";
     const chips = [];
     const activeId = data.activeDocId || null;
-    if (data.noCupo || data.hasFreeSlot === false) {
+    if (data.rescheduleMode !== "cascade" && (data.noCupo || data.hasFreeSlot === false)) {
       chips.push({
         id: "reschedule_tomorrow",
         label: en ? "Select Tomorrow" : "Seleccionar Mañana",

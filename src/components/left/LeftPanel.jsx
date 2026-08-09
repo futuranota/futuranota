@@ -54,13 +54,15 @@ import {
   buildScheduleRecoveryIntroText,
   buildScheduleRecoveryStepText,
   buildReschedulePickerText,
+  buildRescheduleForkText,
+  buildRescheduleForkChips,
   buildRescheduleAppliedText,
   buildRescheduleProgressText,
   buildRecoverySnoozeText,
   isGinaWarmGoodbye,
 } from "../../lib/gina/ginaScheduleRecovery.js";
 import { buildGinaDocumentOpenPlan } from "../../lib/gina/ginaOpenDocument.js";
-import { partitionTodayByClock, lastOccupiedFinishMs } from "../../lib/gina/ginaTodayTimeTriage.js";
+import { partitionTodayByClock, lastOccupiedFinishMs, findFirstFreeSlot } from "../../lib/gina/ginaTodayTimeTriage.js";
 import {
   setRecoveryNotifySnooze,
   isRecoveryNotifySnoozed,
@@ -3334,7 +3336,8 @@ export function LeftPanel({
           lateStartLabels: nextData.lateStartLabels || [],
           hasOverlap: Boolean(nextData.hasOverlap || nextData.conflictRails),
           overdueTimes: nextData.overdueTimes || [],
-          topConflict: nextData.topConflict || null,
+          overdueTitles: nextData.overdueTitles || [],
+          recoveryOfferMode: nextData.recoveryOfferMode,
           conflictRangeLabel: nextData.conflictRangeLabel || null,
           invadedLabels: nextData.invadedLabels || [],
         });
@@ -3433,6 +3436,7 @@ export function LeftPanel({
         recoveryOfferMode: data.recoveryOfferMode,
         hasOverlap: Boolean(data.hasOverlap || data.conflictRails),
         overdueTimes: data.overdueTimes || [],
+        overdueTitles: data.overdueTitles || [],
         topConflict: data.topConflict || null,
         conflictRangeLabel: data.conflictRangeLabel || null,
         invadedLabels: data.invadedLabels || [],
@@ -3484,7 +3488,43 @@ export function LeftPanel({
     }
 
     if (!meetingOn && routed.family === "schedule_recovery_snooze") {
-      try { setRecoveryNotifySnooze(ginaUserId, ctx.now); } catch { /* ignore */ }
+      const now = ctx.now instanceof Date ? ctx.now : new Date();
+      const tc = routed.toolContext || {};
+      let durationMs = 30 * 60 * 1000;
+      let minutes = 30;
+      let untilLabel = null;
+
+      if (tc.snoozeUntilFreeGap) {
+        const dateKey = calendarDateInputValue(now);
+        const occupied = listOccupiedIntervalsByDate(ctx.nodes, ctx.docs, dateKey, {
+          objectId: ctx.objectId || null,
+        });
+        const dayEnd = new Date(`${dateKey}T23:59:59`).getTime();
+        const free = findFirstFreeSlot(occupied, 15 * 60 * 1000, now.getTime(), dayEnd);
+        if (free?.startMs && free.startMs > now.getTime()) {
+          durationMs = free.startMs - now.getTime();
+          minutes = Math.max(1, Math.round(durationMs / 60000));
+          untilLabel = formatClock12h(new Date(free.startMs));
+        } else {
+          durationMs = 60 * 60 * 1000;
+          minutes = 60;
+        }
+      } else if (tc.snoozeUntilHhmm) {
+        const [hh, mm] = String(tc.snoozeUntilHhmm).split(":").map((x) => Number(x));
+        const target = new Date(now);
+        target.setHours(hh || 0, mm || 0, 0, 0);
+        if (target.getTime() <= now.getTime()) {
+          target.setDate(target.getDate() + 1);
+        }
+        durationMs = Math.max(60_000, target.getTime() - now.getTime());
+        minutes = Math.max(1, Math.round(durationMs / 60000));
+        untilLabel = formatClock12h(target);
+      } else if (Number.isFinite(Number(tc.snoozeMinutes)) && Number(tc.snoozeMinutes) > 0) {
+        minutes = Number(tc.snoozeMinutes);
+        durationMs = minutes * 60 * 1000;
+      }
+
+      try { setRecoveryNotifySnooze(ginaUserId, now, durationMs); } catch { /* ignore */ }
       const visualization = buildGinaVisualization("schedule_recovery_next", {
         ...routed.toolContext,
         nodes: ctx.nodes,
@@ -3492,7 +3532,7 @@ export function LeftPanel({
         objectId: ctx.objectId,
       }, {
         locale: localeKey,
-        now: ctx.now,
+        now,
         userText: localeKey === "en"
           ? "Continue to next schedule recovery step"
           : "Seguir al siguiente paso de recuperación",
@@ -3506,11 +3546,17 @@ export function LeftPanel({
         lateStartLabels: data.lateStartLabels || [],
         hasOverlap: Boolean(data.hasOverlap || data.conflictRails),
         overdueTimes: data.overdueTimes || [],
+        overdueTitles: data.overdueTitles || [],
+        recoveryOfferMode: data.recoveryOfferMode,
         topConflict: data.topConflict || null,
         conflictRangeLabel: data.conflictRangeLabel || null,
         invadedLabels: data.invadedLabels || [],
       });
-      const snoozeText = buildRecoverySnoozeText({ locale: localeKey });
+      const snoozeText = buildRecoverySnoozeText({
+        locale: localeKey,
+        minutes: untilLabel ? null : minutes,
+        untilLabel,
+      });
       return {
         message: data.currentStep && data.currentStep !== "summary"
           ? `${snoozeText}\n\n${stepText}`
@@ -3525,19 +3571,37 @@ export function LeftPanel({
       };
     }
 
+    if (!meetingOn && routed.family === "schedule_recovery_reschedule_fork") {
+      return {
+        message: buildRescheduleForkText({ locale: localeKey }),
+        visualization: null,
+        chips: buildRescheduleForkChips({ locale: localeKey }),
+      };
+    }
+
     if (!meetingOn && routed.family === "schedule_recovery_reschedule_pick") {
       const pendingSession = getPendingGinaOffer();
       const sessionFromPending = pendingSession?.type === "reschedule_session"
         ? pendingSession.sessionMoveDocIds
         : null;
+      const rescheduleMode = routed.toolContext?.rescheduleMode === "cascade"
+        ? "cascade"
+        : "gaps";
+      // Gaps can reuse a pending expired session; cascade always rebuilds from today's non-completed.
       const visualization = buildGinaVisualization("schedule_recovery_reschedule_pick", {
         ...routed.toolContext,
         nodes: ctx.nodes,
         docs: ctx.docs,
         objectId: ctx.objectId,
-        sessionMoveDocIds: routed.toolContext?.sessionMoveDocIds || sessionFromPending || undefined,
+        rescheduleMode,
+        sessionMoveDocIds: rescheduleMode === "cascade"
+          ? (routed.toolContext?.sessionMoveDocIds || undefined)
+          : (routed.toolContext?.sessionMoveDocIds || sessionFromPending || undefined),
+        cascadeMoveDocIds: routed.toolContext?.cascadeMoveDocIds || undefined,
         assignedDocIds: routed.toolContext?.assignedDocIds
-          || (pendingSession?.type === "reschedule_session" ? pendingSession.assignedDocIds : undefined),
+          || (pendingSession?.type === "reschedule_session" && rescheduleMode !== "cascade"
+            ? pendingSession.assignedDocIds
+            : undefined),
         activeDocId: routed.toolContext?.activeDocId || undefined,
       }, {
         locale: localeKey,
@@ -3576,11 +3640,13 @@ export function LeftPanel({
           type: "reschedule_session",
           sessionMoveDocIds: visualization?.data?.sessionMoveDocIds || [],
           assignedDocIds: visualization?.data?.assignedDocIds || [],
+          rescheduleMode: visualization?.data?.rescheduleMode || rescheduleMode,
         });
       } catch { /* ignore */ }
       return {
         message: buildReschedulePickerText({
           locale: localeKey,
+          mode: visualization?.data?.rescheduleMode === "cascade" ? "cascade" : "gaps",
           hasFreeSlot: Boolean(visualization?.data?.hasFreeSlot) && !visualization?.data?.noCupo,
           noCupo: Boolean(visualization?.data?.noCupo),
           activeTitle: visualization?.data?.activeTitle || null,
@@ -3603,7 +3669,11 @@ export function LeftPanel({
       const triageBefore = partitionTodayByClock(docsBefore, now);
       const expiredBefore = triageBefore.fullyExpired.filter((d) => d.status !== "past_due");
       const mode = routed.toolContext?.mode || "slot";
+      const batchApplies = Array.isArray(routed.toolContext?.batchApplies)
+        ? routed.toolContext.batchApplies.filter((a) => a?.id && a?.startIso && a?.finishIso)
+        : [];
       const applyDocId = routed.toolContext?.applyDocId
+        || batchApplies[0]?.id
         || expiredBefore[0]?.id
         || null;
       const pendingSession = getPendingGinaOffer();
@@ -3628,6 +3698,7 @@ export function LeftPanel({
       let timeLabel = "";
       let dayLabel = "";
       let appliedTitle = targetDoc?.title || "";
+      let appliedCountLocal = 0;
 
       if (mode === "tomorrow" && targets.length) {
         const start = new Date(now);
@@ -3636,6 +3707,7 @@ export function LeftPanel({
         applySequentialAnchors(targets, start.getTime(), updateNode);
         timeLabel = formatClock12h(start);
         dayLabel = localeKey === "en" ? "tomorrow" : "mañana";
+        appliedCountLocal = targets.length;
       } else if (mode === "force_end" && targets.length) {
         const dateKey = calendarDateInputValue(now);
         const occupied = listOccupiedIntervalsByDate(ctx.nodes, ctx.docs, dateKey, {
@@ -3644,6 +3716,27 @@ export function LeftPanel({
         const startMs = lastOccupiedFinishMs(occupied, now.getTime());
         applySequentialAnchors(targets, startMs, updateNode);
         timeLabel = formatClock12h(new Date(startMs));
+        appliedCountLocal = targets.length;
+      } else if (batchApplies.length > 0) {
+        const labels = [];
+        for (const row of batchApplies) {
+          const startMs = new Date(row.startIso).getTime();
+          const finishMs = new Date(row.finishIso).getTime();
+          if (!Number.isFinite(startMs) || !Number.isFinite(finishMs) || finishMs <= startMs) continue;
+          updateNode(row.id, {
+            anchorAt: new Date(startMs).toISOString(),
+            anchorFinishAt: new Date(finishMs).toISOString(),
+          });
+          appliedCountLocal += 1;
+          const doc = docsBefore.find((d) => String(d.id) === String(row.id));
+          if (doc?.title) appliedTitle = doc.title;
+          labels.push(formatClockRange12h(
+            new Date(startMs).toISOString(),
+            new Date(finishMs).toISOString(),
+            { sep: " – " },
+          ));
+        }
+        timeLabel = labels.filter(Boolean).join(", ");
       } else if (targets.length) {
         const startIso = routed.toolContext?.applyStartIso;
         const finishIso = routed.toolContext?.applyFinishIso;
@@ -3659,6 +3752,7 @@ export function LeftPanel({
             new Date(finishMs).toISOString(),
             { sep: " – " },
           );
+          appliedCountLocal = 1;
         } else if (Number.isFinite(startMs)) {
           applySequentialAnchors(targets, startMs, updateNode);
           const dur = recoveryDocDurationMs(targets[0]);
@@ -3667,6 +3761,7 @@ export function LeftPanel({
             new Date(startMs + dur).toISOString(),
             { sep: " – " },
           );
+          appliedCountLocal = 1;
         }
       }
 
@@ -3684,7 +3779,7 @@ export function LeftPanel({
       );
       const remainingIds = sessionMoveDocIds.filter((id) => actionableAfter.has(id));
       const assignedDocIds = sessionMoveDocIds.filter((id) => !actionableAfter.has(id));
-      const assignedCount = assignedDocIds.length;
+      const assignedCount = assignedDocIds.length || appliedCountLocal;
 
       if (remainingIds.length > 0) {
         const nextId = remainingIds[0];
@@ -3734,7 +3829,7 @@ export function LeftPanel({
           locale: localeKey,
           timeLabel,
           dayLabel,
-          count: assignedCount || 1,
+          count: assignedCount || appliedCountLocal || 1,
         }),
       );
     }
@@ -4239,6 +4334,45 @@ export function LeftPanel({
           }),
         };
       }
+    }
+
+    // Never send schedule-recovery families to Groq (deterministic client path only).
+    if (!meetingOn && String(routed.family || "").startsWith("schedule_recovery_")) {
+      const visualization = buildGinaVisualization(routed.family, {
+        ...routed.toolContext,
+        nodes: ctx.nodes,
+        docs: ctx.docs,
+        objectId: ctx.objectId,
+      }, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildScheduleRecoveryStepText({
+          locale: localeKey,
+          currentStep: visualization?.data?.currentStep || "overdue_check",
+          urgencyCount: visualization?.data?.urgencyCount || 0,
+          lateStartCount: visualization?.data?.lateStartCount || 0,
+          lateStartLabels: visualization?.data?.lateStartLabels || [],
+          recoveryOfferMode: visualization?.data?.recoveryOfferMode,
+          hasOverlap: Boolean(visualization?.data?.hasOverlap || visualization?.data?.conflictRails),
+          overdueTimes: visualization?.data?.overdueTimes || [],
+          overdueTitles: visualization?.data?.overdueTitles || [],
+          topConflict: visualization?.data?.topConflict || null,
+          conflictRangeLabel: visualization?.data?.conflictRangeLabel || null,
+          invadedLabels: visualization?.data?.invadedLabels || [],
+        }) || (localeKey === "en"
+          ? "Let’s continue with today’s schedule recovery."
+          : "Sigamos con la recuperación de la agenda de hoy."),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: routed.family,
+          visualization,
+          locale: localeKey,
+          recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, ctx.now),
+        }),
+      };
     }
 
     try {

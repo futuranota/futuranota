@@ -1216,6 +1216,9 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         return t ? formatClock12h(new Date(t)) : "";
       })
       .filter(Boolean);
+    const overdueTitles = urgencySource
+      .map((d) => String(d.title || "").trim())
+      .filter(Boolean);
     const lateStartLabels = mapLateStartLabels(lateStart, now, locale);
     const recoveryOfferMode = resolveRecoveryOfferMode({
       urgencyCount,
@@ -1233,13 +1236,11 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
 
     const showOverdue = currentStep === "overdue_check";
     const showConflict = currentStep === "conflict_resolve";
-    // Late-start only: show those docs. Expired/mixed: expired (+ late for context in mixed).
+    // First overdue table = expired (red) only. Late-start stays in step copy / chips.
     const source = showOverdue
       ? (recoveryOfferMode === "late_start"
         ? lateStart
-        : recoveryOfferMode === "mixed"
-          ? [...urgencySource, ...lateStart]
-          : urgencySource)
+        : urgencySource)
       : (showConflict && overlap.conflictRails
         ? [overlap.conflictRails.longBlock, ...(overlap.conflictRails.overlappingBlocks || [])]
           .map((b) => allDocs.find((d) => d.id && d.id === b.id) || b)
@@ -1249,6 +1250,20 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const expiredMoveIds = fullyExpired
       .map((d) => d.id)
       .filter(Boolean);
+    const cascadeMoveIds = [
+      ...triage.fullyExpired,
+      ...triage.lateStartActive,
+      ...triage.future,
+    ]
+      .filter((d) => d && d.status !== "completed" && !d.completed && d.id)
+      .map((d) => String(d.id));
+    // Unique preserve order
+    const seenCascade = new Set();
+    const allPendingMoveIds = cascadeMoveIds.filter((id) => {
+      if (seenCascade.has(id)) return false;
+      seenCascade.add(id);
+      return true;
+    });
 
     return {
       type: "schedule_sheet",
@@ -1261,6 +1276,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
           .map((d) => mapDocRow(d, now, locale)),
         highlightPassedSlots: showOverdue && urgencyCount > 0,
+        playHighlightsSound: showOverdue && urgencyCount > 0,
         recoveryPhase: "brief",
         recoveryWizard: currentStep !== "summary",
         notifyBrief: true,
@@ -1271,6 +1287,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         openDocId: openLate?.id || null,
         openDocTitle: openLate?.title || null,
         overdueTimes,
+        overdueTitles,
         lateStartLabels,
         hasOverlap,
         topConflict: showConflict ? overlap.topConflict : null,
@@ -1279,8 +1296,9 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         invadedLabels: showConflict ? invadedLabels : [],
         clockLabel: formatClock12h(now),
         locale,
-        // Reschedule only fully expired windows — never late-start (still active).
+        // Gaps / mark paths: expired only. Cascade uses all pending today.
         moveDocIds: expiredMoveIds,
+        cascadeMoveDocIds: allPendingMoveIds,
       }, ctx, now),
     };
   }
@@ -1289,20 +1307,45 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const allDocs = asDocs(ctx.documents);
     const triage = partitionTodayByClock(allDocs, now);
     const fullyExpiredIds = triage.fullyExpired
-      .filter((d) => d.status !== "past_due")
+      .filter((d) => d.status !== "past_due" && d.status !== "completed" && !d.completed)
       .map((d) => d.id)
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((id) => String(id));
+    const allPendingIds = [
+      ...triage.fullyExpired,
+      ...triage.lateStartActive,
+      ...triage.future,
+    ]
+      .filter((d) => d && d.status !== "completed" && !d.completed && d.id)
+      .map((d) => String(d.id));
+    const seenPending = new Set();
+    const pendingTodayIds = allPendingIds.filter((id) => {
+      if (seenPending.has(id)) return false;
+      seenPending.add(id);
+      return true;
+    });
     const nodesById = ctx.nodes || Object.fromEntries(allDocs.map((d) => [d.id, d]));
     const docsById = ctx.docs || {};
+    const rescheduleMode = ctx.rescheduleMode === "cascade" ? "cascade" : "gaps";
 
+    const defaultIds = rescheduleMode === "cascade" ? pendingTodayIds : fullyExpiredIds;
     const requestedIds = (Array.isArray(ctx.sessionMoveDocIds) && ctx.sessionMoveDocIds.length
       ? ctx.sessionMoveDocIds
-      : (Array.isArray(ctx.moveDocIds) && ctx.moveDocIds.length
-        ? ctx.moveDocIds
-        : fullyExpiredIds))
+      : (Array.isArray(ctx.cascadeMoveDocIds) && ctx.cascadeMoveDocIds.length && rescheduleMode === "cascade"
+        ? ctx.cascadeMoveDocIds
+        : (Array.isArray(ctx.moveDocIds) && ctx.moveDocIds.length
+          ? ctx.moveDocIds
+          : defaultIds)))
       .map((id) => String(id));
-    // Drop late-start / still-active ids from the move session.
-    const sessionIds = requestedIds.filter((id) => fullyExpiredIds.includes(id));
+    // Gaps: only fully expired. Cascade: any today non-completed in the pending set.
+    const sessionIds = rescheduleMode === "cascade"
+      ? requestedIds.filter((id) => pendingTodayIds.includes(id) || Boolean(nodesById[id] || allDocs.find((d) => String(d.id) === id)))
+        .filter((id) => {
+          const d = nodesById[id] || allDocs.find((row) => String(row.id) === id);
+          if (!d) return false;
+          return d.status !== "completed" && !d.completed;
+        })
+      : requestedIds.filter((id) => fullyExpiredIds.includes(id));
 
     if (!sessionIds.length) {
       const late = triage.lateStartActive[0] || null;
@@ -1324,7 +1367,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           openDocId: late?.id || null,
           openDocTitle: late?.title || null,
           lateStartLabels: lateLabels,
-          rescheduleBlockedActive: true,
+          rescheduleBlockedActive: rescheduleMode !== "cascade",
           clockLabel: formatClock12h(now),
           locale,
           moveDocIds: [],
@@ -1343,8 +1386,6 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const moveDocs = sessionIds.map((id) => {
       const d = resolveNode(id);
       if (!d) return null;
-      // Only explicit session progress marks assigned (user chose a slot).
-      // Do not infer from triage — future docs in the session are still pending picks.
       const assigned = assignedFromCtx.has(id);
       const row = mapDocRow(d, now, locale);
       const a = d.anchorAt ? new Date(d.anchorAt).getTime() : NaN;
@@ -1355,7 +1396,6 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       return {
         ...row,
         assigned,
-        // Assigned rows show the new clock (not urgency/struck).
         struck: false,
         passedSlot: !assigned,
         durationMs,
@@ -1375,10 +1415,14 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const dur = activeDoc?.durationMs || 60 * 60 * 1000;
 
     const dateKey = ctx.date || calendarDateInputValue(now) || todayDateInputValue();
-    // Occupied = everyone except the active doc (other pending blocks stay struck).
+    // Gaps: occupy everyone except the active doc. Cascade: exclude the whole move session.
     const occupiedRaw = listOccupiedIntervalsByDate(nodesById, docsById, dateKey, {
       objectId: ctx.objectId || null,
-    }).filter((o) => String(o.id) !== String(activeDocId || ""));
+    }).filter((o) => {
+      const oid = String(o.id || "");
+      if (rescheduleMode === "cascade") return !sessionIds.includes(oid);
+      return oid !== String(activeDocId || "");
+    });
 
     const dayStart = new Date(`${dateKey}T00:00:00`);
     const dayEnd = new Date(`${dateKey}T23:59:59`);
@@ -1387,6 +1431,28 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const hasFreeSlot = Boolean(free);
     const forceEndMs = lastOccupiedFinishMs(occupiedRaw, now.getTime());
     const assignedCount = moveDocs.filter((d) => d.assigned).length;
+
+    /** @type {Record<string, { date: string, startIso: string, finishIso: string, timeLabel: string }>} */
+    const initialDrafts = {};
+    if (rescheduleMode === "cascade") {
+      const rawForCascade = sessionIds.map((id) => resolveNode(id)).filter(Boolean);
+      const cascade = buildCascadeSchedulePreview(rawForCascade, now);
+      for (const row of cascade) {
+        const id = String(row?.id || "").trim();
+        const startIso = row?.proposedAnchorAt || null;
+        const finishIso = row?.proposedAnchorFinishAt || null;
+        if (!id || !startIso || !finishIso) continue;
+        const fields = anchorFieldsFromIso(startIso);
+        const finishFields = anchorFieldsFromIso(finishIso);
+        initialDrafts[id] = {
+          date: fields.anchorDate || dateKey,
+          startIso,
+          finishIso,
+          timeLabel: formatClockRange12h(startIso, finishIso, { sep: " – " })
+            || `${fields.anchorTime || ""} – ${finishFields.anchorTime || ""}`.trim(),
+        };
+      }
+    }
 
     return {
       type: "schedule_slot_picker",
@@ -1404,7 +1470,11 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         durationMs: dur,
         hasFreeSlot,
         forceEndLabel: formatClock12h(new Date(forceEndMs)),
-        noCupo: Boolean(activeDoc && !activeDoc.assigned && !hasFreeSlot),
+        noCupo: rescheduleMode === "cascade"
+          ? false
+          : Boolean(activeDoc && !activeDoc.assigned && !hasFreeSlot),
+        rescheduleMode,
+        initialDrafts,
         progress: {
           assigned: assignedCount,
           total: moveDocs.length,
