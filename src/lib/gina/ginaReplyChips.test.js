@@ -135,6 +135,7 @@ describe("ginaReplyChips", () => {
   it("today overview intro text is separate from headline datos", () => {
     const intro = buildTodayOverviewIntroText("es");
     expect(intro).toMatch(/Ahora te voy a mostrar el sheet del día/i);
+    expect(intro).toMatch(/lista y organizada/i);
     expect(intro).not.toMatch(/Horario de Hoy/i);
   });
 

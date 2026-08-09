@@ -889,7 +889,7 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
     <div className="gina-viz gina-viz--slot-picker gina-viz--slot-picker-cascade">
       <header className="gina-viz__head">
         <span className="gina-viz__eyebrow">
-          {en ? "Cascade from now" : "Cascada desde ahora"}
+          {en ? "Postponed schedule" : "Horario pospuesto"}
         </span>
         <h3 className="gina-viz__title">{data.dateLabel || dateKey}</h3>
         {totalCount > 0 ? (
@@ -2320,7 +2320,7 @@ function RecoveryEasyLinksLegend({
             <section
               className={
                 "gina-viz__easy-link"
-                + (row.tier === "star" ? " gina-viz__easy-link--star gina-viz__easy-link--flat" : "")
+                + (row.tier === "star" ? " gina-viz__easy-link--star" : "")
                 + (row.tier === "snooze" ? " gina-viz__easy-link--snooze" : "")
                 + (row.tier === "secondary" ? " gina-viz__easy-link--secondary gina-viz__easy-link--flat" : "")
               }

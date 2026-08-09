@@ -651,6 +651,7 @@ describe("ginaScheduleRecovery", () => {
   });
 
   it("forks reschedule and seeds cascade drafts", () => {
+    expect(buildRescheduleForkText({ locale: "es" })).toMatch(/ajustes/i);
     expect(buildRescheduleForkText({ locale: "es" })).toMatch(/Cascada/i);
     const forkChips = buildRescheduleForkChips({ locale: "es" });
     expect(forkChips.map((c) => c.id)).toEqual(["reschedule_cascade", "reschedule_gaps"]);
@@ -682,7 +683,7 @@ describe("ginaScheduleRecovery", () => {
     }
     // Cascade occupied excludes the whole move session
     expect(viz.data.occupied.every((o) => !viz.data.moveDocIds.includes(o.id))).toBe(true);
-    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/horario propuesto/i);
+    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/posible horario propuesto/i);
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.some((c) => c.id === "reschedule_tomorrow")).toBe(false);
   });

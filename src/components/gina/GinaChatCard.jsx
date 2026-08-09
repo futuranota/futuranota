@@ -40,7 +40,7 @@ const GINA_POST_SOUND_TEXT_DELAY_MS = 1_000;
 /** After the schedule table is ready, wait before showing notify gate chips. */
 const GINA_NOTIFY_GATE_DELAY_MS = 5_000;
 
-/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, savedAckRevealed?: boolean, notifyGateRevealed?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
+/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, midReady?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, savedAckRevealed?: boolean, notifyGateRevealed?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
 
 function messageHasNotifyGate(message) {
   return Array.isArray(message?.chips)
@@ -54,6 +54,7 @@ function messageChipsReadyToShow(message, { isTyping, isAiAnimating }) {
   if (message.visualization?.type === "day_sheet_saved" && !message.savedAckRevealed) return false;
   if (message.deferVisualization) {
     if (!message.vizRevealed) return false;
+    if (message.textMid && message.midReady === false) return false;
     if (message.midRevealed === false) return false;
     if (message.sheetTableRevealed === false) return false;
     if (message.textAfter && !message.afterRevealed) return false;
@@ -101,6 +102,8 @@ function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visuali
     textPitch: pitch || null,
     deferVisualization,
     vizRevealed: !deferVisualization,
+    // Today overview: pause after infographic before sheet intro (textMid).
+    midReady: !mid || !isTodayOverview,
     midRevealed: !mid,
     // Chrono sheet unlocks after intro; if no chrono payload, don't block copy.
     sheetTableRevealed: !mid || !hasChrono,
@@ -649,13 +652,49 @@ export function GinaChatCard({
   const highlightsPlayedForMsgIdRef = useRef(/** @type {string | null} */ (null));
   const notifyGateTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const notifyGateTimerMsgIdRef = useRef(/** @type {string | null} */ (null));
+  const midReadyTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  const midReadyTimerMsgIdRef = useRef(/** @type {string | null} */ (null));
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const deliverUserMessageRef = useRef(/** @type {(text: string, opts?: { existingId?: string }) => Promise<void>} */ (async () => {}));
 
   const makeMsgId = () => `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+  // After todayOverview infographic: wait 5s, then unlock textMid (sheet intro).
+  useEffect(() => {
+    let targetIndex = -1;
+    let targetId = null;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m?.sender !== "ai") continue;
+      if (!m.textMid || !m.visualization?.data?.todayOverview) continue;
+      if (!m.vizRevealed || m.midReady !== false) continue;
+      targetIndex = i;
+      targetId = m.id || `idx-${i}`;
+      break;
+    }
+    if (targetIndex < 0 || !targetId) return;
+    if (midReadyTimerMsgIdRef.current === targetId) return;
+
+    if (midReadyTimerRef.current != null) {
+      window.clearTimeout(midReadyTimerRef.current);
+      midReadyTimerRef.current = null;
+    }
+    midReadyTimerMsgIdRef.current = targetId;
+    const scheduledIndex = targetIndex;
+    const scheduledId = targetId;
+    midReadyTimerRef.current = window.setTimeout(() => {
+      midReadyTimerRef.current = null;
+      setMessages((prev) => prev.map((m, idx) => (
+        (m.id && m.id === scheduledId) || idx === scheduledIndex
+          ? { ...m, midReady: true }
+          : m
+      )));
+    }, GINA_NOTIFY_GATE_DELAY_MS);
+  }, [messages]);
+
   // Enable.wav when the day / schedule sheet visualization appears (not on chat open).
+  // Skip recovery overdue (red) sheet — that uses highlights.mp3 only.
   useEffect(() => {
     let targetId = null;
     for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -663,6 +702,13 @@ export function GinaChatCard({
       if (m?.sender !== "ai" || !isScheduleSheetVisualization(m.visualization)) continue;
       if (m.deferVisualization && !m.vizRevealed) continue;
       if (m.visualization?.data?.todayOverview && m.sheetTableRevealed === false) continue;
+      const data = m.visualization?.data;
+      if (data?.playHighlightsSound) continue;
+      if (
+        data?.recoveryWizard
+        && data?.currentStep === "overdue_check"
+        && Number(data?.urgencyCount) > 0
+      ) continue;
       targetId = m.id || `idx-${i}`;
       break;
     }
@@ -739,6 +785,10 @@ export function GinaChatCard({
     if (notifyGateTimerRef.current != null) {
       window.clearTimeout(notifyGateTimerRef.current);
       notifyGateTimerRef.current = null;
+    }
+    if (midReadyTimerRef.current != null) {
+      window.clearTimeout(midReadyTimerRef.current);
+      midReadyTimerRef.current = null;
     }
   }, []);
 
@@ -1631,7 +1681,7 @@ export function GinaChatCard({
                       }}
                     />
                   ) : null}
-                  {msg.sender === "ai" && msg.textMid && msg.vizRevealed ? (
+                  {msg.sender === "ai" && msg.textMid && msg.vizRevealed && msg.midReady !== false ? (
                     <div className="gina-chat-card__bubble gina-chat-card__bubble--ai gina-chat-card__bubble--after-viz">
                       <GinaAiMessageText
                         text={msg.textMid}

@@ -1214,8 +1214,8 @@ export function buildTodayOverviewHeadline(opts = {}) {
 export function buildTodayOverviewIntroText(locale = "es") {
   const en = locale === "en";
   return en
-    ? "Now I’ll show you today’s sheet — I already organized this table in schedule order from yesterday."
-    : "Ahora te voy a mostrar el sheet del día, o sea desde ayer ya te organicé esta tabla siguiendo un orden de horario.";
+    ? "Now I’ll show you today’s sheet — from yesterday I already had it ready and organized for you."
+    : "Ahora te voy a mostrar el sheet del día, o sea desde ayer ya te la tuve lista y organizada.";
 }
 
 /**

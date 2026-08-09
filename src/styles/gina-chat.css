@@ -2772,6 +2772,12 @@
   border-radius: 0;
 }
 
+.gina-viz__easy-link--star {
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .gina-viz__easy-link--secondary {
   opacity: 0.96;
 }
@@ -3082,15 +3088,16 @@
 
 .gina-viz__slot-apply--commit {
   margin-top: 10px;
-  width: 100%;
-  align-self: stretch;
-  border-color: rgba(201, 184, 150, 0.45);
-  background: rgba(201, 184, 150, 0.14);
-  color: #f3ead7;
+  width: auto;
+  max-width: max-content;
+  align-self: flex-start;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f2f2f2;
 }
 
 .gina-viz__slot-apply--commit:hover {
-  background: rgba(201, 184, 150, 0.22);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Cascade: proposed list with inline time popover (no Asignar step) */
@@ -3110,7 +3117,7 @@
 .gina-viz__cascade-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -3119,12 +3126,13 @@
 }
 
 .gina-viz__cascade-anchor {
-  flex: 0 1 auto;
-  min-width: 0;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   margin: 0;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .gina-viz__cascade-anchor .doc-block-anchor__label {
@@ -3132,22 +3140,35 @@
 }
 
 .gina-viz__cascade-anchor .doc-block-anchor__date {
-  width: auto;
-  max-width: 7.5rem;
-  flex: 0 0 auto;
+  width: 7rem;
+  max-width: 7rem;
+  flex: 0 0 7rem;
   font-size: 11px;
   padding: 4px 6px;
   background: transparent;
   border-color: rgba(255, 255, 255, 0.12);
-  color: #cfcfcf;
+  color: #e8e8e8;
+}
+
+.gina-viz__cascade-anchor .doc-block-anchor__date::-webkit-calendar-picker-indicator {
+  opacity: 0.95;
+  cursor: pointer;
+  filter: invert(1) brightness(1.15);
 }
 
 .gina-viz__cascade-anchor .doc-time-range {
-  flex: 0 1 auto;
-  min-width: 0;
+  flex: 0 0 10.25rem;
+  width: 10.25rem;
+  min-width: 10.25rem;
 }
 
 .gina-viz__cascade-anchor .doc-time-range__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 10.25rem;
+  max-width: 10.25rem;
   font-size: 12px;
   font-weight: 700;
   color: #8fcb9b;
@@ -3156,7 +3177,6 @@
   border: 1px solid rgba(143, 203, 155, 0.4);
   background: rgba(143, 203, 155, 0.1);
   white-space: nowrap;
-  max-width: 11.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -3175,4 +3195,9 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.gina-viz__cascade-row > .doc-status-chip {
+  flex: 0 0 auto;
+  justify-self: end;
 }

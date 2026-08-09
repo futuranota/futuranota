@@ -1006,8 +1006,8 @@ export function buildRescheduleForkChips(opts = {}) {
 export function buildRescheduleForkText(opts = {}) {
   const en = opts.locale === "en";
   return en
-    ? "How do you want to reschedule?\n\n**Cascade from now** — keep each block’s duration and push the queue forward from now (you can still edit before applying).\n\n**Fit into free gaps** — place each block into an open slot without auto-shifting the rest."
-    : "¿Cómo quieres reagendar?\n\n**Mover en cascada desde ahora** — respeta la duración de cada ficha y empuja la cola desde ahora (puedes editar antes de aplicar).\n\n**Encajar en huecos libres** — coloca cada bloque en un cupo libre sin mover el resto automáticamente.";
+    ? "How do you want to reschedule? (tweaks)\n\n**Cascade from now**: Keep each card’s duration and push the queue forward from now (you can edit before applying).\n\n**Fit into free gaps**: Place each block into an open slot without auto-shifting the rest."
+    : "¿Cómo quieres reagendar? (ajustes)\n\n**Mover en cascada desde ahora**: Respeta la duración de cada ficha y empuja la cola desde ahora (puedes editar antes de aplicar).\n\n**Encajar en huecos libres**: Coloca cada bloque en un cupo libre sin mover el resto automáticamente.";
 }
 
 /**
@@ -1018,8 +1018,8 @@ export function buildReschedulePickerText(opts = {}) {
   const en = opts.locale === "en";
   if (opts.mode === "cascade") {
     return en
-      ? "Here’s the **proposed schedule** from now — durations stay the same and the queue shifts forward. Tap any time to adjust in the popover, then **Apply changes** once."
-      : "Aquí tienes el **horario propuesto** desde ahora — se respetan las duraciones y se empuja la cola. Toca cualquier hora para ajustarla en el popover y luego **Aplicar cambios** una sola vez.";
+      ? "Here’s a possible proposed schedule:\nTap any time to adjust it in the popover, then **Apply changes** once."
+      : "Aquí tienes un posible horario propuesto:\nToca cualquier hora para ajustarla en el popover y luego **Aplicar cambios** una sola vez.";
   }
   if (opts.noCupo || opts.hasFreeSlot === false) {
     const title = String(opts.activeTitle || "").trim();
