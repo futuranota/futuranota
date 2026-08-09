@@ -9,7 +9,7 @@ import {
   resolveDaySheetOfferVariant,
   DAY_SHEET_SAVE_OFFER_VARIANTS,
 } from "./ginaSyntaxDaySheetOffer.js";
-import { buildTodayOverviewAfterText, buildGinaReplyChips } from "./ginaReplyChips.js";
+import { buildTodayOverviewPostTableCopy, buildGinaReplyChips } from "./ginaReplyChips.js";
 
 const memory = new Map();
 globalThis.localStorage = {
@@ -46,7 +46,7 @@ describe("ginaSyntaxDaySheetOffer", () => {
     expect(offer.tier).toBe("novice");
     expect(offer.variantId).toBe("novice_a");
     expect(offer.text).toContain("¡Hey! Antes de empezar");
-    expect(offer.chip?.label).toBe("Guardar sheet del día");
+    expect(offer.chip?.label).toBe("Guardar horario del día");
     expect(getDaySheetOfferCount(UID)).toBe(1);
   });
 
@@ -89,30 +89,62 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
     clearDaySheetOfferCount(UID);
   });
 
-  it("uses save-offer pitch when sheet is not saved", () => {
-    const after = buildTodayOverviewAfterText({
+  it("uses save-offer pitch when sheet is not saved and day is clean", () => {
+    const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       userId: UID,
       hasDaySheet: false,
       offerCount: 0,
       incrementOffer: false,
+      documents: [{
+        id: "n1",
+        title: "Doc A",
+        department: "Marketing",
+        category: "Blogs",
+        workMinutes: 30,
+        timeClock: "10:00 AM – 10:30 AM",
+      }],
+      quickSheet: {
+        urgency: [],
+        isCleanDay: true,
+        hasOverlap: false,
+        firstPendingId: "n1",
+        pending: [{ id: "n1", title: "Doc A" }],
+      },
     });
-    expect(after).toContain("¡Hey! Antes de empezar");
-    expect(after).not.toMatch(/orden de horario/i);
+    expect(post.textAfter).toContain("**Documento de inicio:** Doc A");
+    expect(post.textAfter).toContain("¿Quieres guardar el Sheet del Día de hoy");
+    expect(post.textAfter).not.toMatch(/¡Hey! Antes de empezar/i);
+    expect(post.textPitch).toBeNull();
+    expect(post.textAfter).not.toMatch(/orden de horario/i);
   });
 
-  it("falls back to sheet intro when already saved", () => {
-    const after = buildTodayOverviewAfterText({
+  it("still shows Sheet del Día education when already saved", () => {
+    const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       userId: UID,
       hasDaySheet: true,
+      documents: [{
+        id: "n1",
+        title: "Doc A",
+        department: "Marketing",
+        category: "Blogs",
+        workMinutes: 30,
+        timeClock: "10:00 AM – 10:30 AM",
+      }],
+      quickSheet: {
+        isCleanDay: true,
+        firstPendingId: "n1",
+        pending: [{ id: "n1", title: "Doc A" }],
+      },
     });
-    expect(after).toMatch(/sheet del día/i);
-    expect(after).toMatch(/orden de horario/i);
+    expect(post.textAfter).toContain("**Documento de inicio:** Doc A");
+    expect(post.textAfter).toContain("¿Quieres guardar el Sheet del Día de hoy");
+    expect(post.textPitch).toBeNull();
     expect(getDaySheetOfferCount(UID)).toBe(0);
   });
 
-  it("omits save chip when hasDaySheet on today overview", () => {
+  it("omits open_day_sheet when hasDaySheet on today overview (uses Guardar horario del día)", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       locale: "es",
@@ -126,11 +158,12 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
         },
       },
     });
-    expect(chips.some((c) => c.id === "save_day_sheet")).toBe(false);
-    expect(chips.some((c) => c.id === "open_day_sheet")).toBe(true);
+    expect(chips.some((c) => c.id === "save_day_sheet")).toBe(true);
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
+    expect(chips.some((c) => c.id === "open_day_sheet")).toBe(false);
   });
 
-  it("keeps save chip when sheet not saved", () => {
+  it("keeps Guardar horario del día when sheet not saved on today overview", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       locale: "es",
@@ -140,10 +173,11 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
         data: {
           todayOverview: true,
           overviewByDepartment: [],
-          quickSheet: { isCleanDay: false },
+          quickSheet: { isCleanDay: true },
         },
       },
     });
-    expect(chips.some((c) => c.id === "save_day_sheet")).toBe(true);
+    expect(chips.map((c) => c.id)).toContain("save_day_sheet");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
   });
 });

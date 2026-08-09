@@ -62,6 +62,7 @@ import {
 import {
   isDaySheetReopenIntent,
   isDaySheetSaveIntent,
+  isDaySheetSkipSaveIntent,
   isDaySheetCompleteConfirmIntent,
   isDaySheetNextIntent,
   parseDaySheetCompleteIntent,
@@ -2120,6 +2121,22 @@ export function runGinaQueryFamily(text, ctx = {}) {
       };
     }
 
+    if (isDaySheetSkipSaveIntent(text)) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
+      const next = pickNextDaySheetDoc(today.documents || []);
+      return {
+        family: "day_sheet_skip_save",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          skippedDaySheetSave: true,
+          nextDocument: next,
+          hint: "User skipped saving the day sheet — offer Comenzar without anchoring",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+
     if (isDaySheetSaveIntent(text)) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       const docs = Array.isArray(today.documents) ? today.documents : [];
@@ -2127,6 +2144,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
       const sheet = writeDaySheet(uid, { docIds, now, source: "schedule_sheet" });
       const live = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
       const anchored = orderDocsByDaySheetIds(live.documents || [], sheet?.docIds || docIds);
+      const next = pickNextDaySheetDoc(anchored);
       return {
         family: "day_sheet",
         toolsCalled,
@@ -2136,6 +2154,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
           totalDocumentsToday: anchored.length,
           isDaySheet: true,
           justSaved: true,
+          nextDocument: next,
           progress: summarizeDaySheetProgress(anchored),
           hint: "User saved today's reference sheet",
         },

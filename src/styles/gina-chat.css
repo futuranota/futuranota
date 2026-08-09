@@ -1879,6 +1879,10 @@
   gap: 16px;
 }
 
+.gina-viz__today-overview-layout--infographic-only {
+  justify-content: flex-start;
+}
+
 .gina-viz__hours-pie--side {
   flex: 0 0 168px;
   width: 168px;

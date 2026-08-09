@@ -10,8 +10,8 @@ import {
 
 export const DAY_SHEET_SAVE_CHIP = {
   id: "save_day_sheet",
-  labelEs: "Guardar sheet del día",
-  labelEn: "Save day sheet",
+  labelEs: "Guardar horario del día",
+  labelEn: "Save day schedule",
   textEs: "Guardar esta tabla de referencia del día",
   textEn: "Save this day reference sheet",
 };

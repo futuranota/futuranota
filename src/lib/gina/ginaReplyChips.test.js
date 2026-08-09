@@ -6,6 +6,8 @@ import {
   buildDeptFocusChips,
   buildTodayDepartmentChips,
   buildTodayOverviewAfterText,
+  buildTodayOverviewPostTableCopy,
+  buildTodayOverviewIntroText,
   buildTodayOverviewDeptBlocks,
 } from "./ginaReplyChips.js";
 
@@ -73,13 +75,20 @@ describe("ginaReplyChips", () => {
       },
     }, { locale: "es" });
     expect(line).toMatch(/^Horario de Hoy:/);
+    expect(line).not.toMatch(/Ahora te voy a mostrar/i);
     expect(line).toContain("**5** documento");
     expect(line).toContain("2 horas con 15 minutos");
     expect(line).toContain("departamento principal");
     expect(line).not.toMatch(/señalar|vencido|choca/i);
   });
 
-  it("today overview after-text offers save pitch when sheet not saved", () => {
+  it("today overview intro text is separate from headline datos", () => {
+    const intro = buildTodayOverviewIntroText("es");
+    expect(intro).toMatch(/Ahora te voy a mostrar el sheet del día/i);
+    expect(intro).not.toMatch(/Horario de Hoy/i);
+  });
+
+  it("today overview after-text skips save pitch when recovery is needed", () => {
     const after = buildTodayOverviewAfterText({
       locale: "es",
       hasDaySheet: false,
@@ -90,35 +99,80 @@ describe("ginaReplyChips", () => {
         isCleanDay: false,
       },
     });
-    expect(after).toContain("¡Hey! Antes de empezar");
-    expect(after).toMatch(/Sheet del Día/i);
+    expect(after).toBeNull();
   });
 
-  it("today overview after-text offers save pitch on clean day too", () => {
-    const after = buildTodayOverviewAfterText({
+  it("today overview post-table is one block: start doc + begin + education pitch", () => {
+    const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       hasDaySheet: false,
       offerCount: 4,
       incrementOffer: false,
+      documents: [{
+        id: "n1",
+        title: "Call 1",
+        department: "Sales",
+        category: "Calls",
+        workMinutes: 60,
+        timeClock: "9:00 AM – 10:00 AM",
+      }],
       quickSheet: {
         urgency: [],
         isCleanDay: true,
         firstPendingTitle: "Call 1",
         firstPendingId: "n1",
+        pending: [{ id: "n1", title: "Call 1" }],
       },
     });
-    expect(after).toMatch(/Sheet del Día está listo/i);
-    expect(after).not.toMatch(/abra el documento/i);
+    expect(post.textAfter).toContain("**Documento de inicio:** Call 1");
+    expect(post.textAfter).toContain("**Departamento:** Sales (Calls)");
+    expect(post.textAfter).toContain("**Tiempo asignado:**");
+    expect(post.textAfter).toContain("**Cuando desees puedes comenzar.**");
+    expect(post.textAfter).toContain("¿Quieres guardar el Sheet del Día de hoy");
+    expect(post.textAfter).not.toMatch(/¡Hey! Antes de empezar/i);
+    expect(post.textPitch).toBeNull();
   });
 
-  it("today overview after-text uses sheet intro when already saved", () => {
-    const after = buildTodayOverviewAfterText({
+  it("today overview post-table still educates Sheet del Día when sheet already saved", () => {
+    const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       hasDaySheet: true,
-      quickSheet: { isCleanDay: true },
+      documents: [{
+        id: "n1",
+        title: "Call 1",
+        department: "Sales",
+        category: "Calls",
+        workMinutes: 45,
+        timeClock: "9:00 AM – 9:45 AM",
+      }],
+      quickSheet: {
+        isCleanDay: true,
+        firstPendingId: "n1",
+        pending: [{ id: "n1", title: "Call 1" }],
+      },
     });
-    expect(after).toMatch(/sheet del día/i);
-    expect(after).toMatch(/orden de horario/i);
+    expect(post.textAfter).toContain("**Documento de inicio:** Call 1");
+    expect(post.textAfter).toContain("**Cuando desees puedes comenzar.**");
+    expect(post.textAfter).toContain("¿Quieres guardar el Sheet del Día de hoy");
+    expect(post.textPitch).toBeNull();
+  });
+
+  it("clean-day save gate chip is labeled Guardar horario del día", () => {
+    const chips = buildGinaReplyChips({
+      family: "today",
+      hasDaySheet: false,
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          todayOverview: true,
+          overviewByDepartment: [],
+          quickSheet: { isCleanDay: true, urgency: [], hasOverlap: false },
+        },
+      },
+      locale: "es",
+    });
+    const save = chips.find((c) => c.id === "save_day_sheet");
+    expect(save?.label).toBe("Guardar horario del día");
   });
 
   it("today overview dept blocks have headline + bold docs/hours", () => {
@@ -154,9 +208,10 @@ describe("ginaReplyChips", () => {
     expect(line).toContain("A");
   });
 
-  it("today overview chips offer save + focus, not department cards loop", () => {
+  it("today overview offers Comenzar + Guardar horario del día + focus", () => {
     const chips = buildGinaReplyChips({
       family: "today",
+      hasDaySheet: false,
       visualization: {
         type: "schedule_sheet",
         data: {
@@ -166,19 +221,26 @@ describe("ginaReplyChips", () => {
             { name: "Sales", total: 1 },
           ],
           documents: [{ id: "1" }],
+          quickSheet: {
+            isCleanDay: true,
+            firstPendingId: "1",
+            firstPendingTitle: "Doc 1",
+            pending: [{ id: "1", title: "Doc 1" }],
+          },
         },
       },
       locale: "es",
     });
+    expect(chips.map((c) => c.id)).toContain("open_1");
     expect(chips.map((c) => c.id)).toContain("save_day_sheet");
     expect(chips.map((c) => c.id)).toContain("focus_Marketing");
-    expect(chips.map((c) => c.id)).toContain("focus_Sales");
-    expect(chips.map((c) => c.id)).not.toContain("today_depts");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
   });
 
-  it("clean-day today overview adds CTA to open first pending doc", () => {
+  it("clean-day today overview without sheet offers Guardar horario del día", () => {
     const chips = buildGinaReplyChips({
       family: "today",
+      hasDaySheet: false,
       visualization: {
         type: "schedule_sheet",
         data: {
@@ -198,9 +260,94 @@ describe("ginaReplyChips", () => {
       },
       locale: "es",
     });
+    expect(chips.map((c) => c.id)).toContain("save_day_sheet");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
+    expect(chips.map((c) => c.id)).toContain("open_n1");
+    expect(chips.map((c) => c.id)).toContain("focus_Sales");
+  });
+
+  it("clean-day today overview with saved sheet still offers Guardar horario del día", () => {
+    const chips = buildGinaReplyChips({
+      family: "today",
+      hasDaySheet: true,
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          todayOverview: true,
+          overviewByDepartment: [{ name: "Sales", total: 1 }],
+          documents: [{ id: "n1", title: "Call 1" }],
+          quickSheet: {
+            completed: [],
+            urgency: [],
+            pending: [{ id: "n1", title: "Call 1" }],
+            isCleanDay: true,
+            firstPendingId: "n1",
+            firstPendingTitle: "Call 1",
+            hasOverlap: false,
+          },
+        },
+      },
+      locale: "es",
+    });
+    expect(chips.map((c) => c.id)).toContain("save_day_sheet");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
+    expect(chips.map((c) => c.id)).toContain("open_n1");
+    expect(chips.map((c) => c.id)).not.toContain("open_day_sheet");
+  });
+
+  it("allowOpenWithoutSave on today overview keeps Comenzar + save + focus", () => {
+    const chips = buildGinaReplyChips({
+      family: "today",
+      hasDaySheet: false,
+      allowOpenWithoutSave: true,
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          todayOverview: true,
+          overviewByDepartment: [{ name: "Sales", total: 1 }],
+          documents: [{ id: "n1", title: "Call 1" }],
+          quickSheet: {
+            completed: [],
+            urgency: [],
+            pending: [{ id: "n1", title: "Call 1" }],
+            isCleanDay: true,
+            firstPendingId: "n1",
+            firstPendingTitle: "Call 1",
+            hasOverlap: false,
+          },
+        },
+      },
+      locale: "es",
+    });
+    expect(chips.map((c) => c.id)).toContain("open_n1");
+    expect(chips.map((c) => c.id)).toContain("focus_Sales");
+    expect(chips.map((c) => c.id)).toContain("save_day_sheet");
+  });
+
+  it("justSaved day sheet offers Comenzar as primary", () => {
+    const chips = buildGinaReplyChips({
+      family: "day_sheet",
+      hasDaySheet: true,
+      nextDocumentId: "n1",
+      nextDocumentTitle: "Call 1",
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          isDaySheet: true,
+          justSaved: true,
+          nextDocumentId: "n1",
+          documents: [{ id: "n1", title: "Call 1" }],
+        },
+      },
+      locale: "es",
+    });
     expect(chips[0].id).toBe("open_n1");
     expect(chips[0].text).toBe("GinaOpenDocument:n1");
     expect(chips[0].primary).toBe(true);
+    expect(chips.map((c) => c.id)).toContain("day_sheet_next");
+  });
+
+  it("clean-day today overview headline still pitches save offer after text", () => {
     const headline = buildGinaFunnelHeadline({
       type: "schedule_sheet",
       data: {
@@ -220,19 +367,33 @@ describe("ginaReplyChips", () => {
       },
     }, { locale: "es" });
     expect(headline).toMatch(/^Horario de Hoy:/);
+    expect(headline).not.toMatch(/Ahora te voy a mostrar/i);
     expect(headline).toContain("**1** documento");
+    const mid = buildTodayOverviewIntroText("es");
+    expect(mid).toMatch(/sheet del día/i);
     const after = buildTodayOverviewAfterText({
       locale: "es",
       hasDaySheet: false,
       offerCount: 0,
       incrementOffer: false,
+      documents: [{
+        id: "n1",
+        title: "Call 1",
+        department: "Sales",
+        category: "Calls",
+        workMinutes: 60,
+        timeClock: "9:00 AM – 10:00 AM",
+      }],
       quickSheet: {
         isCleanDay: true,
         firstPendingId: "n1",
         firstPendingTitle: "Call 1",
+        pending: [{ id: "n1", title: "Call 1" }],
         urgency: [],
       },
     });
+    expect(after).toContain("**Documento de inicio:** Call 1");
+    expect(after).toContain("**Pero antes quería informarte algo:**");
     expect(after).toMatch(/Sheet del Día/i);
   });
 

@@ -1194,7 +1194,6 @@ function TodayOverviewDeptNarrative({ overview, locale = "es" }) {
   );
 }
 
-/** Today overview: dept narrative + pie (side) + Document/Category/Time table. */
 function StatusUnassignedChip({ locale = "es" }) {
   const label = locale === "en" ? "No status assigned" : "Sin status asignado";
   return (
@@ -1378,10 +1377,53 @@ function formatClockLabel(iso) {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 }
 
-function TodayQuickSheet({ quickSheet, locale = "es" }) {
-  if (!quickSheet || typeof quickSheet !== "object") return null;
-  const rows = flattenTodayQuickSheetRows(quickSheet);
-  if (!rows.length) return null;
+function collectTodayOverviewTableDocs(data = {}) {
+  const fromFlat = flattenTodayQuickSheetRows(data.quickSheet);
+  if (fromFlat.length) return fromFlat;
+  if (Array.isArray(data.documents) && data.documents.length) {
+    return data.documents.map((d) => ({
+      ...d,
+      sheetSection: d.sheetSection || "pending",
+    }));
+  }
+  const groups = Array.isArray(data.groups) ? data.groups : [];
+  const fromGroups = [];
+  for (const g of groups) {
+    const folders = Array.isArray(g?.folders) ? g.folders : [];
+    for (const f of folders) {
+      const docs = Array.isArray(f?.documents) ? f.documents : [];
+      for (const d of docs) {
+        fromGroups.push({
+          ...d,
+          department: d.department || g.department || g.name || d.hierarchy?.department,
+          category: d.category || f.category || d.hierarchy?.category,
+          sheetSection: d.sheetSection || "pending",
+        });
+      }
+    }
+  }
+  return fromGroups;
+}
+
+function TodayQuickSheet({ quickSheet, documents, groups, locale = "es" }) {
+  const rows = collectTodayOverviewTableDocs({ quickSheet, documents, groups });
+  if (!rows.length) {
+    return (
+      <div className="gina-viz__quick-sheet gina-viz gina-viz--table">
+        <header className="gina-viz__quick-sheet-head">
+          <span className="gina-viz__eyebrow">
+            {locale === "en" ? "Chronological schedule" : "Horario cronológico"}
+          </span>
+          <h3 className="gina-viz__title">
+            {locale === "en" ? "Today's sheet" : "Sheet del día"}
+          </h3>
+        </header>
+        <p className="gina-viz__empty">
+          {locale === "en" ? "No timed items for today." : "Sin ítems con horario para hoy."}
+        </p>
+      </div>
+    );
+  }
   const en = locale === "en";
   // Contiguous runs in chronological row order (same pattern as week status rail)
   const statusRail = buildGinaStatusRailRuns(rows, locale);
@@ -1483,16 +1525,21 @@ function TodayQuickSheet({ quickSheet, locale = "es" }) {
   );
 }
 
-function TodayOverviewVisualization({ data }) {
+/**
+ * Today overview: dept narrative + pie + TABLA DE HOY (side-by-side).
+ * @param {{ data: object, showTable?: boolean }} props
+ */
+function TodayOverviewVisualization({ data, showTable = true }) {
   const docs = Array.isArray(data.documents) ? data.documents : [];
   const overview = Array.isArray(data.overviewByDepartment) ? data.overviewByDepartment : [];
   const colorByDept = Object.fromEntries(overview.map((d) => [d.name, d.color]));
   const shown = docs.slice(0, 80);
   const locale = data.locale === "en" ? "en" : "es";
+  // Default ON — only hide if explicitly false.
+  const tableVisible = showTable !== false && data.overviewShowTable !== false;
 
   // Contiguous runs in row order so colors align when departments interleave
   const departmentRail = buildGinaDepartmentRailRuns(shown, { colorByDept });
-
 
   const legendItems = overview.length
     ? overview.map((d) => ({
@@ -1506,61 +1553,67 @@ function TodayOverviewVisualization({ data }) {
   return (
     <div className="gina-viz gina-viz--today-overview">
       <TodayOverviewDeptNarrative overview={overview} locale={locale} />
-      <div className="gina-viz__today-overview-layout">
+      <div className={
+        "gina-viz__today-overview-layout"
+        + (tableVisible ? "" : " gina-viz__today-overview-layout--infographic-only")
+      }
+      >
         <TodayHoursPie data={data} />
-        <div className="gina-viz__today-overview-table gina-viz gina-viz--table gina-viz--table-rail">
-          <header className="gina-viz__head">
-            <span className="gina-viz__eyebrow">Tabla de hoy</span>
-            <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
-          </header>
-          {shown.length === 0 ? (
-            <p className="gina-viz__empty">Sin horarios en este alcance.</p>
-          ) : (
-            <>
-              <div className="gina-viz__table-layout">
-                {departmentRail.length ? (
-                  <div className="gina-viz__dept-rail" aria-hidden="true">
-                    <div className="gina-viz__dept-rail-head" />
-                    <div className="gina-viz__dept-rail-body">
-                      {departmentRail.map((seg) => (
-                        <div
-                          key={seg.name}
-                          className="gina-viz__dept-rail-seg"
-                          style={{
-                            flexGrow: Math.max(1, seg.count),
-                            background: seg.color,
-                          }}
-                          title={`${seg.name} · ${seg.count}`}
-                        />
-                      ))}
+        {tableVisible ? (
+          <div className="gina-viz__today-overview-table gina-viz gina-viz--table gina-viz--table-rail">
+            <header className="gina-viz__head">
+              <span className="gina-viz__eyebrow">Tabla de hoy</span>
+              <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
+            </header>
+            {shown.length === 0 ? (
+              <p className="gina-viz__empty">Sin horarios en este alcance.</p>
+            ) : (
+              <>
+                <div className="gina-viz__table-layout">
+                  {departmentRail.length ? (
+                    <div className="gina-viz__dept-rail" aria-hidden="true">
+                      <div className="gina-viz__dept-rail-head" />
+                      <div className="gina-viz__dept-rail-body">
+                        {departmentRail.map((seg) => (
+                          <div
+                            key={seg.name}
+                            className="gina-viz__dept-rail-seg"
+                            style={{
+                              flexGrow: Math.max(1, seg.count),
+                              background: seg.color,
+                            }}
+                            title={`${seg.name} · ${seg.count}`}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-                <div className="gina-viz__table-wrap">
-                  <table className="gina-viz__table">
-                    <thead>
-                      <tr>
-                        <th>Document</th>
-                        <th>Categoría</th>
-                        <th>Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {shown.map((doc) => (
-                        <tr key={doc.id || doc.title}>
-                          <td>{doc.title || "—"}</td>
-                          <td>{doc.category || doc.hierarchy?.category || "—"}</td>
-                          <td><GinaTimeCell doc={doc} /></td>
+                  ) : null}
+                  <div className="gina-viz__table-wrap">
+                    <table className="gina-viz__table">
+                      <thead>
+                        <tr>
+                          <th>Document</th>
+                          <th>Categoría</th>
+                          <th>Time</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {shown.map((doc) => (
+                          <tr key={doc.id || doc.title}>
+                            <td>{doc.title || "—"}</td>
+                            <td>{doc.category || doc.hierarchy?.category || "—"}</td>
+                            <td><GinaTimeCell doc={doc} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-              <DeptHoursLegend items={legendItems} />
-            </>
-          )}
-        </div>
+                <DeptHoursLegend items={legendItems} />
+              </>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1580,7 +1633,12 @@ function ScheduleSheetVisualization({ data, onSelectAction }) {
   const hideGroups = step === "conflict_resolve" || step === "summary";
 
   if (data.todayOverview) {
-    return <TodayOverviewVisualization data={data} />;
+    return (
+      <TodayOverviewVisualization
+        data={data}
+        showTable={data.overviewShowTable !== false}
+      />
+    );
   }
 
   if (step === "summary") {
@@ -1753,7 +1811,7 @@ function RecoveryEasyLinksLegend({
                             <button
                               type="button"
                               className="gina-viz__easy-link-inline"
-                              onClick={() => onSelectAction?.(row.actionText)}
+                              onClick={() => onSelectAction?.(row.actionText, row.title)}
                             >
                               {row.title}
                             </button>
@@ -2085,7 +2143,7 @@ function FindResultsVisualization({ data, onSelectAction }) {
               <button
                 type="button"
                 className="gina-viz__find-clarify-btn"
-                onClick={() => onSelectAction?.(opt.text)}
+                onClick={() => onSelectAction?.(opt.text, opt.label)}
               >
                 {opt.label}
               </button>
@@ -2120,7 +2178,10 @@ function FindResultsVisualization({ data, onSelectAction }) {
             <button
               type="button"
               className="gina-viz__find-open"
-              onClick={() => onSelectAction?.(`GinaRevealDocument:${doc.id}`)}
+              onClick={() => onSelectAction?.(
+                `GinaRevealDocument:${doc.id}`,
+                doc.title ? `Abrir «${doc.title}»` : "Abrir documento",
+              )}
             >
               <span className="gina-viz__find-title">{doc.title}</span>
               <GinaHierarchyPath
@@ -2152,7 +2213,7 @@ function FindResultsVisualization({ data, onSelectAction }) {
  *   type?: string | null,
  *   data?: object | null,
  *   onSelectDepartment?: (departmentName: string) => void,
- *   onSelectAction?: (text: string) => void,
+ *   onSelectAction?: (text: string, displayText?: string) => void,
  * }} props
  */
 export function GinaDataVisualization({ type, data, onSelectDepartment, onSelectAction }) {
@@ -2267,7 +2328,9 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
     case "today_quick_sheet":
       return (
         <TodayQuickSheet
-          quickSheet={data.quickSheet || data}
+          quickSheet={data.quickSheet || null}
+          documents={data.documents}
+          groups={data.groups}
           locale={data.locale === "en" ? "en" : "es"}
         />
       );

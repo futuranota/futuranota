@@ -23,10 +23,26 @@ export function isDaySheetReopenIntent(text) {
 }
 
 /**
+ * Skip anchoring the day sheet (gate chip after save offer).
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isDaySheetSkipSaveIntent(text) {
+  const q = foldGinaText(text);
+  if (!q) return false;
+  if (/\bseguir\s+sin\s+guardar\b/.test(q)) return true;
+  if (/\bsin\s+guardar\s+(el\s+)?(sheet|tabla)(\s+del\s+d[ií]a)?\b/.test(q)) return true;
+  if (/\bcontinue\s+without\s+saving\b/.test(q)) return true;
+  if (/\bskip\s+(saving\s+)?(the\s+)?(day\s+)?sheet\b/.test(q)) return true;
+  return false;
+}
+
+/**
  * @param {string} text
  * @returns {boolean}
  */
 export function isDaySheetSaveIntent(text) {
+  if (isDaySheetSkipSaveIntent(text)) return false;
   const q = foldGinaText(text);
   if (!q) return false;
   if (/\bguardar\s+(esta\s+)?(tabla|sheet)(\s+de\s+referencia)?(\s+del\s+d[ií]a)?\b/.test(q)) return true;

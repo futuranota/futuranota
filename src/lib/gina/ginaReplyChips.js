@@ -29,7 +29,13 @@ import {
   countGinaRealDepartments,
 } from "./ginaCopyVariants.js";
 import { getGinaScheduleScopeChips } from "./ginaSyntaxScheduleScope.js";
-import { pickDaySheetSaveOfferText } from "./ginaSyntaxDaySheetOffer.js";
+import { DAY_SHEET_SAVE_OFFER_VARIANTS } from "./ginaSyntaxDaySheetOffer.js";
+import { incrementDaySheetOfferCount } from "./ginaDaySheetOfferStore.js";
+import {
+  docWorkMinutes,
+  formatGinaTimeRange,
+  formatWorkDurationLabel,
+} from "./buildGinaVisualization.js";
 
 /**
  * Fixed reply chips for Gina progressive funnel (ids stable; labels user-facing).
@@ -834,6 +840,7 @@ export function buildDeptDetailNavChips(opts = {}) {
  *   missingAnchor?: boolean,
  *   hasDaySheet?: boolean,
  *   todayOverview?: boolean,
+ *   allowOpenWithoutSave?: boolean,
  *   overviewByDepartment?: { name: string, total?: number }[],
  *   quickSheet?: {
  *     isCleanDay?: boolean,
@@ -841,6 +848,10 @@ export function buildDeptDetailNavChips(opts = {}) {
  *     firstPendingTitle?: string | null,
  *     urgency?: object[],
  *   } | null,
+ *   nextDocumentId?: string | null,
+ *   nextDocumentTitle?: string | null,
+ *   openDocId?: string | null,
+ *   openDocTitle?: string | null,
  *   currentStep?: string,
  *   invadedLabels?: string[],
  * }} [opts]
@@ -855,9 +866,17 @@ export function buildScheduleSheetChips(opts = {}) {
     : (Array.isArray(qs?.urgency) ? qs.urgency.length : 0);
   const hasOverlap = Boolean(opts.hasOverlap || qs?.hasOverlap || opts.conflictRails || qs?.conflictRails);
   const topConflict = opts.topConflict || qs?.topConflict || null;
-  /** Errors first: urgency / late-start / overlap / markable — notify hub first. */
-  const errorsFirst = (urgencyCount > 0 || hasOverlap || hasRecovery || Number(opts.lateStartCount) > 0)
-    && !opts.recoverySnoozed;
+  /** Clean chronological day → save/start path (late-start alone must not steal the pitch). */
+  const cleanDay = Boolean(qs?.isCleanDay);
+  /** Errors first: urgency / overlap / markable — notify hub first (unless table is clean). */
+  const errorsFirst = !cleanDay && todayOverviewNeedsRecoveryGate({
+    quickSheet: qs,
+    hasRecoveryOffer: hasRecovery,
+    urgencyCount,
+    lateStartCount: opts.lateStartCount,
+    hasOverlap,
+    recoverySnoozed: opts.recoverySnoozed,
+  });
   /** @type {GinaReplyChip[]} */
   const chips = [];
   if (errorsFirst && phase === "brief") {
@@ -883,11 +902,31 @@ export function buildScheduleSheetChips(opts = {}) {
       primary: true,
     });
   } else if (opts.isDaySheet) {
+    const startId = opts.nextDocumentId
+      || opts.openDocId
+      || qs?.firstPendingId
+      || null;
+    const startTitle = String(
+      opts.nextDocumentTitle
+      || opts.openDocTitle
+      || qs?.firstPendingTitle
+      || "",
+    ).trim();
+    if (opts.justSaved && startId) {
+      chips.push({
+        id: `open_${startId}`,
+        label: en
+          ? (startTitle ? `Start «${startTitle}»` : "Start first document")
+          : (startTitle ? `Comenzar «${startTitle}»` : "Comenzar primer documento"),
+        text: `GinaOpenDocument:${startId}`,
+        primary: true,
+      });
+    }
     chips.push({
       id: "day_sheet_next",
       label: en ? "What's next?" : "¿Qué sigue?",
       text: en ? "What's next?" : "¿Qué sigue?",
-      primary: true,
+      primary: !chips.some((c) => c.primary),
     });
     chips.push({
       id: "day_sheet_done",
@@ -895,31 +934,27 @@ export function buildScheduleSheetChips(opts = {}) {
       text: en ? "I finished" : "Ya terminé",
     });
   } else if (opts.todayOverview) {
-    if (qs?.isCleanDay && qs.firstPendingId) {
-      const title = String(qs.firstPendingTitle || "").trim();
+    // Comenzar + Guardar horario del día + focus depts
+    if (qs?.firstPendingId || opts.nextDocumentId) {
+      const startId = opts.nextDocumentId || qs.firstPendingId;
+      const title = String(
+        opts.nextDocumentTitle || qs?.firstPendingTitle || "",
+      ).trim();
       chips.push({
-        id: `open_${qs.firstPendingId}`,
+        id: `open_${startId}`,
         label: en
           ? (title ? `Start «${title}»` : "Start first document")
           : (title ? `Comenzar «${title}»` : "Comenzar primer documento"),
-        text: `GinaOpenDocument:${qs.firstPendingId}`,
+        text: `GinaOpenDocument:${startId}`,
         primary: true,
       });
     }
-    if (!opts.hasDaySheet) {
-      chips.push({
-        id: "save_day_sheet",
-        label: en ? "Save day sheet" : "Guardar sheet del día",
-        text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
-        primary: !chips.some((c) => c.primary),
-      });
-    } else {
-      chips.push({
-        id: "open_day_sheet",
-        label: en ? "Day sheet" : "Sheet del día",
-        text: en ? "Open day sheet" : "Sheet del día",
-      });
-    }
+    chips.push({
+      id: "save_day_sheet",
+      label: en ? "Save day schedule" : "Guardar horario del día",
+      text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
+      primary: !chips.some((c) => c.primary),
+    });
     const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
     for (const d of depts.slice(0, 4)) {
       const name = String(d?.name || "").trim();
@@ -927,16 +962,14 @@ export function buildScheduleSheetChips(opts = {}) {
       chips.push({
         id: `focus_${name}`,
         label: en ? `Focus on ${name}` : `Enfocarme en ${name}`,
-        text: en
-          ? `Focus today on ${name}`
-          : `Enfocarme hoy en ${name}`,
+        text: en ? `Focus today on ${name}` : `Enfocarme hoy en ${name}`,
       });
     }
   } else {
     if (!opts.hasDaySheet) {
       chips.push({
         id: "save_day_sheet",
-        label: en ? "Save day sheet" : "Guardar sheet del día",
+        label: en ? "Save day schedule" : "Guardar horario del día",
         text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
         primary: true,
       });
@@ -1154,37 +1187,179 @@ export function buildTodayOverviewHeadline(opts = {}) {
 }
 
 /**
- * Second bubble AFTER the infographic.
- * If the day sheet is not saved yet → save-offer variants (novice / recurrent).
- * If already saved → short intro to the chronological sheet.
+ * Intro BEFORE the today-overview table (sheet delivery).
+ * @param {string} [locale]
+ * @returns {string}
+ */
+export function buildTodayOverviewIntroText(locale = "es") {
+  const en = locale === "en";
+  return en
+    ? "Now I’ll show you today’s sheet — I already organized this table in schedule order from yesterday."
+    : "Ahora te voy a mostrar el sheet del día, o sea desde ayer ya te organicé esta tabla siguiendo un orden de horario.";
+}
+
+/**
+ * Whether today overview still needs the recovery notify gate
+ * (imperfect sheet — do not pitch save yet).
+ * @param {{
+ *   quickSheet?: object | null,
+ *   hasRecoveryOffer?: boolean,
+ *   urgencyCount?: number,
+ *   lateStartCount?: number,
+ *   hasOverlap?: boolean,
+ *   recoverySnoozed?: boolean,
+ * }} [opts]
+ */
+export function todayOverviewNeedsRecoveryGate(opts = {}) {
+  const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
+  const urgencyCount = typeof opts.urgencyCount === "number"
+    ? opts.urgencyCount
+    : (Array.isArray(qs?.urgency) ? qs.urgency.length : 0);
+  const hasOverlap = Boolean(
+    opts.hasOverlap
+    || qs?.hasOverlap
+    || opts.conflictRails
+    || qs?.conflictRails,
+  );
+  const hasRecovery = Boolean(opts.hasRecoveryOffer);
+  return (urgencyCount > 0 || hasOverlap || hasRecovery || Number(opts.lateStartCount) > 0)
+    && !opts.recoverySnoozed;
+}
+
+/**
+ * Resolve first pending document for the post-table “Documento de inicio” block.
+ * @param {{
+ *   quickSheet?: object | null,
+ *   documents?: object[],
+ * }} [opts]
+ * @returns {object | null}
+ */
+export function resolveTodayOverviewStartDoc(opts = {}) {
+  const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
+  const docs = Array.isArray(opts.documents) ? opts.documents : [];
+  const pending = Array.isArray(qs?.pending) ? qs.pending : [];
+  const id = qs?.firstPendingId ? String(qs.firstPendingId) : "";
+  if (id) {
+    const fromDocs = docs.find((d) => d && String(d.id) === id);
+    if (fromDocs) return fromDocs;
+    const fromPending = pending.find((d) => d && String(d.id) === id);
+    if (fromPending) return fromPending;
+  }
+  if (pending[0]) return pending[0];
+  const live = docs.find((d) => d && !d.completed && d.status !== "completed");
+  return live || null;
+}
+
+/**
+ * @param {{
+ *   locale?: string,
+ *   quickSheet?: object | null,
+ *   documents?: object[],
+ * }} [opts]
+ * @returns {string | null}
+ */
+export function buildTodayOverviewStartDocText(opts = {}) {
+  const en = opts.locale === "en";
+  const doc = resolveTodayOverviewStartDoc(opts);
+  if (!doc) return null;
+
+  const title = String(doc.title || doc.name || "").trim()
+    || (en ? "document" : "documento");
+  const department = String(
+    doc.department || doc.departmentName || doc.hierarchy?.department || "",
+  ).trim() || "—";
+  const category = String(
+    doc.category || doc.hierarchy?.category || "",
+  ).trim() || "—";
+  const minutes = typeof doc.workMinutes === "number"
+    ? doc.workMinutes
+    : docWorkMinutes(doc);
+  const duration = minutes > 0
+    ? formatWorkDurationLabel(minutes, en ? "en" : "es", { short: true })
+    : (en ? "—" : "—");
+  const schedule = String(
+    doc.timeClock || doc.timeLabel || doc.time || "",
+  ).trim()
+    || formatGinaTimeRange(doc.anchorAt, doc.anchorFinishAt || doc.dueAt, en ? "en" : "es");
+
+  if (en) {
+    return [
+      `**Starting document:** ${title}`,
+      `**Department:** ${department} (${category})`,
+      `**Assigned time:** ${duration} (${schedule})`,
+    ].join("\n");
+  }
+  return [
+    `**Documento de inicio:** ${title}`,
+    `**Departamento:** ${department} (${category})`,
+    `**Tiempo asignado:** ${duration} (${schedule})`,
+  ].join("\n");
+}
+
+/**
+ * Single post-table text block (start doc + begin + optional save pitch).
+ * Chip “Guardar horario del día” + Comenzar / focus render under this bubble.
  *
  * @param {{
  *   locale?: string,
  *   quickSheet?: object | null,
+ *   documents?: object[],
  *   hasDaySheet?: boolean,
+ *   hasRecoveryOffer?: boolean,
+ *   urgencyCount?: number,
+ *   lateStartCount?: number,
+ *   hasOverlap?: boolean,
+ *   recoverySnoozed?: boolean,
  *   userId?: string,
  *   offerCount?: number,
  *   incrementOffer?: boolean,
  * }} [opts]
+ * @returns {{ textAfter: string | null, textPitch: null }}
  */
-export function buildTodayOverviewAfterText(opts = {}) {
+export function buildTodayOverviewPostTableCopy(opts = {}) {
   const en = opts.locale === "en";
-  void opts.quickSheet;
+  const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
+  const cleanDay = Boolean(qs?.isCleanDay);
 
-  if (!opts.hasDaySheet) {
-    const offer = pickDaySheetSaveOfferText({
-      locale: opts.locale,
-      userId: opts.userId,
-      hasDaySheet: false,
-      offerCount: opts.offerCount,
-      increment: opts.incrementOffer !== false && opts.offerCount == null,
-    });
-    if (offer?.text) return offer.text;
+  if (!cleanDay) {
+    if (todayOverviewNeedsRecoveryGate(opts)) {
+      return { textAfter: null, textPitch: null };
+    }
+    if (!qs?.firstPendingId && !(Array.isArray(qs?.pending) && qs.pending.length)) {
+      return { textAfter: null, textPitch: null };
+    }
   }
 
-  return en
-    ? "Now I’ll show you today’s sheet — I already organized this table in schedule order from yesterday."
-    : "Ahora te voy a mostrar el sheet del día, o sea desde ayer ya te organicé esta tabla siguiendo un orden de horario.";
+  const start = buildTodayOverviewStartDocText(opts);
+  const begin = en
+    ? "**Whenever you're ready, you can start.**"
+    : "**Cuando desees puedes comenzar.**";
+
+  /** Direct save education (recurrent — not the long novice pitch). */
+  const pitchFixed = en
+    ? DAY_SHEET_SAVE_OFFER_VARIANTS.recurrent_4.en
+    : DAY_SHEET_SAVE_OFFER_VARIANTS.recurrent_4.es;
+
+  const parts = [];
+  if (start) parts.push(start);
+  parts.push(begin);
+  parts.push(pitchFixed);
+  if (!opts.hasDaySheet && opts.incrementOffer !== false && opts.offerCount == null) {
+    incrementDaySheetOfferCount(opts.userId);
+  }
+
+  return {
+    textAfter: parts.length ? parts.join("\n\n") : null,
+    textPitch: null,
+  };
+}
+
+/**
+ * @param {Parameters<typeof buildTodayOverviewPostTableCopy>[0]} [opts]
+ * @returns {string | null}
+ */
+export function buildTodayOverviewAfterText(opts = {}) {
+  return buildTodayOverviewPostTableCopy(opts).textAfter;
 }
 
 function formatHoursFallback(minutes, locale, opts = {}) {
@@ -1659,6 +1834,7 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       ? data.groups.reduce((acc, g) => acc + (g.folders?.reduce((a, f) => a + (f.documents?.length || 0), 0) || 0), 0)
       : (data.documents?.length || 0);
     if (data.todayOverview) {
+      // Datos only — sheet intro is textMid after the infographic.
       return buildTodayOverviewHeadline({
         overviewByDepartment: data.overviewByDepartment,
         documents: data.documents,
@@ -2050,6 +2226,7 @@ export function buildGinaReplyChips(opts = {}) {
       justSaved: Boolean(data.justSaved),
       missingAnchor: Boolean(data.missingAnchor),
       hasDaySheet: Boolean(opts.hasDaySheet),
+      allowOpenWithoutSave: Boolean(opts.allowOpenWithoutSave),
       todayOverview: Boolean(data.todayOverview),
       overviewByDepartment: data.overviewByDepartment,
       quickSheet: data.quickSheet || null,
@@ -2058,6 +2235,10 @@ export function buildGinaReplyChips(opts = {}) {
       recoveryOfferMode: data.recoveryOfferMode,
       openDocId: data.openDocId,
       openDocTitle: data.openDocTitle,
+      nextDocumentId: opts.nextDocumentId || data.nextDocumentId || null,
+      nextDocumentTitle: opts.nextDocumentTitle
+        || data.documents?.find((d) => d.id === (opts.nextDocumentId || data.nextDocumentId))?.title
+        || null,
       hasOverlap: Boolean(data.hasOverlap || data.quickSheet?.hasOverlap),
       topConflict: data.topConflict || data.quickSheet?.topConflict || null,
       conflictRails: data.conflictRails || data.quickSheet?.conflictRails || null,

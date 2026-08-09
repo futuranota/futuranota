@@ -91,21 +91,19 @@ function findLastQuestionMarkOutsideQuotes(text) {
   return last;
 }
 
-const LABEL_SPLIT_RE = /(\*\*(?:Nota|Por ejemplo|Note|For example):\*\*)/gi;
-const LABEL_MATCH_RE = /^\*\*((?:Nota|Por ejemplo|Note|For example):)\*\*$/i;
+const BOLD_SPLIT_RE = /(\*\*[^*]+\*\*)/g;
 
 /**
- * Render body text with **Nota:** / **Por ejemplo:** as bold labels.
+ * Render body text with any **bold** spans (labels, CTAs, Nota:, etc.).
  * @param {string} text
  */
 function renderBodyWithLabels(text) {
   const raw = String(text || "");
   if (!raw) return null;
-  if (!LABEL_SPLIT_RE.test(raw)) return raw;
-  LABEL_SPLIT_RE.lastIndex = 0;
-  const parts = raw.split(LABEL_SPLIT_RE);
+  if (!/\*\*[^*]+\*\*/.test(raw)) return raw;
+  const parts = raw.split(BOLD_SPLIT_RE);
   return parts.map((part, i) => {
-    const m = part.match(LABEL_MATCH_RE);
+    const m = part.match(/^\*\*([^*]+)\*\*$/);
     if (m) {
       return (
         <strong key={`lbl-${i}`} className="gina-chat-card__ai-label">
@@ -113,7 +111,7 @@ function renderBodyWithLabels(text) {
         </strong>
       );
     }
-    return <span key={`t-${i}`}>{part}</span>;
+    return part ? <span key={`t-${i}`}>{part}</span> : null;
   });
 }
 

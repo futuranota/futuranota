@@ -39,7 +39,8 @@ import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js
 import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
-  buildTodayOverviewAfterText,
+  buildTodayOverviewPostTableCopy,
+  buildTodayOverviewIntroText,
 } from "../../lib/gina/ginaReplyChips.js";
 import {
   buildGinaSearchSequence,
@@ -58,6 +59,7 @@ import {
   buildRecoverySnoozeText,
   isGinaWarmGoodbye,
 } from "../../lib/gina/ginaScheduleRecovery.js";
+import { buildGinaDocumentOpenPlan } from "../../lib/gina/ginaOpenDocument.js";
 import { partitionTodayByClock, lastOccupiedFinishMs } from "../../lib/gina/ginaTodayTimeTriage.js";
 import {
   setRecoveryNotifySnooze,
@@ -3085,60 +3087,39 @@ export function LeftPanel({
       ? "campaign"
       : "content";
 
+  const openGinaDocumentByNodeId = useCallback((rawId) => {
+    const plan = buildGinaDocumentOpenPlan(rawId, {
+      nodesMap,
+      docsMap,
+      departments,
+      unassignedDepartmentId: UNASSIGNED_DEPARTMENT_FILTER_ID,
+      findDepartmentById,
+    });
+    if (!plan) return null;
+    if (plan.navigate) {
+      requestLeftPanelNavigate(plan.navigate);
+    }
+    if (plan.kind === "node") {
+      onExpandNode?.(plan.targetId);
+    } else {
+      onOpenDocument?.(plan.targetId);
+    }
+    // Same as focus_open: hand off to the document and leave the chat.
+    setGinaDashboardOpen(false);
+    setGinaAutoRunPrompt(null);
+    return plan;
+  }, [nodesMap, docsMap, departments, requestLeftPanelNavigate, onExpandNode, onOpenDocument]);
+
   const handleGinaDashboardSend = useCallback(async (text, meta = {}) => {
     const meetingOn = Boolean(ginaMeetingSession)
       || (Boolean(meta?.meetingMode) && isAdminSessionEmail(userEmail));
 
     const openByIdMatch = String(text || "").match(/^GinaOpenDocument:(.+)$/);
-    if (openByIdMatch && !meetingOn) {
-      const docId = openByIdMatch[1].trim();
-      if (docId && (nodesMap[docId] || docsMap[docId])) {
-        onOpenDocument?.(docId);
-        return {
-          message: locale === "es" ? "Abriendo el documento…" : "Opening the document…",
-          visualization: null,
-          chips: null,
-        };
-      }
-    }
-
     const revealByIdMatch = String(text || "").match(/^GinaRevealDocument:(.+)$/);
-    if (revealByIdMatch && !meetingOn) {
-      const nodeId = revealByIdMatch[1].trim();
-      const node = nodesMap[nodeId];
-      const folder = node?.parentDocId ? docsMap[node.parentDocId] : null;
-      if (node && folder) {
-        requestLeftPanelNavigate({
-          panel: "Documents",
-          clickFolderView: "subgroups",
-          departmentId: folder.departmentId ?? UNASSIGNED_DEPARTMENT_FILTER_ID,
-          category: folder.category || "",
-          folderId: folder.id,
-          highlightNodeId: node.id,
-        });
-        const path = [
-          folder.departmentId
-            ? (findDepartmentById(departments, folder.departmentId)?.category || null)
-            : null,
-          folder.category || null,
-          folder.title || folder.name || null,
-          node.title || node.name || null,
-        ].filter(Boolean).join(" / ");
-        return {
-          message: locale === "es"
-            ? `Te muestro la ruta en Documents${path ? `: ${path}` : ""}. Cuando quieras, ábrelo.`
-            : `Here’s the path in Documents${path ? `: ${path}` : ""}. Open it when you’re ready.`,
-          visualization: null,
-          chips: [
-            {
-              id: `open_${node.id}`,
-              label: locale === "es" ? `Abrir «${node.title || "documento"}»` : `Open “${node.title || "document"}”`,
-              text: `GinaOpenDocument:${node.id}`,
-              primary: true,
-            },
-          ],
-        };
-      }
+    if ((openByIdMatch || revealByIdMatch) && !meetingOn) {
+      const targetId = (openByIdMatch || revealByIdMatch)[1].trim();
+      const plan = openGinaDocumentByNodeId(targetId);
+      if (plan) return "";
     }
 
     if (meetingOn && ginaPendingLearn && isGinaLearnSaveConfirm(text)) {
@@ -3402,14 +3383,26 @@ export function LeftPanel({
           hasDaySheet: hasDaySheet(ginaUserId, now),
           recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, now),
         }),
-        textAfter: overviewViz?.data?.todayOverview
-          ? buildTodayOverviewAfterText({
-            quickSheet: overviewViz.data.quickSheet || null,
-            locale: localeKey,
-            userId: ginaUserId,
-            hasDaySheet: hasDaySheet(ginaUserId, now),
-          })
+        textMid: overviewViz?.data?.todayOverview
+          ? buildTodayOverviewIntroText(localeKey)
           : null,
+        ...(overviewViz?.data?.todayOverview
+          ? (() => {
+            const post = buildTodayOverviewPostTableCopy({
+              quickSheet: overviewViz.data.quickSheet || null,
+              documents: overviewViz.data.documents || [],
+              locale: localeKey,
+              userId: ginaUserId,
+              hasDaySheet: hasDaySheet(ginaUserId, now),
+              hasRecoveryOffer: Boolean(overviewViz.data.hasRecoveryOffer),
+              urgencyCount: overviewViz.data.urgencyCount,
+              lateStartCount: overviewViz.data.lateStartCount,
+              hasOverlap: Boolean(overviewViz.data.hasOverlap),
+              recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, now),
+            });
+            return { textAfter: post.textAfter, textPitch: null };
+          })()
+          : { textAfter: null, textPitch: null }),
       };
     };
 
@@ -3806,14 +3799,40 @@ export function LeftPanel({
       return finishRecoveryAfterMutation(appliedIntent, appliedCount);
     }
 
-    // Day reference sheet (save / reopen / complete / next) — deterministic, no Groq.
+    // Day reference sheet (save / skip-save / reopen / complete / next) — deterministic, no Groq.
     if (!meetingOn && (
       routed.family === "day_sheet"
+      || routed.family === "day_sheet_skip_save"
       || routed.family === "day_sheet_next"
       || routed.family === "day_sheet_complete"
       || routed.family === "day_sheet_complete_confirm"
     )) {
       const daySheetAnchored = hasDaySheet(ginaUserId, ctx.now);
+
+      if (routed.family === "day_sheet_skip_save") {
+        const visualization = buildGinaVisualization("today", routed.toolContext, {
+          locale: localeKey,
+          now: ctx.now,
+          userText: text,
+        });
+        const next = routed.toolContext?.nextDocument || null;
+        const qs = visualization?.data?.quickSheet || null;
+        return {
+          message: localeKey === "en"
+            ? "Got it — we’ll continue without saving the day sheet."
+            : "Va, seguimos sin guardar el sheet.",
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "today",
+            visualization,
+            locale: localeKey,
+            hasDaySheet: false,
+            allowOpenWithoutSave: true,
+            nextDocumentId: next?.id || qs?.firstPendingId || null,
+            nextDocumentTitle: next?.title || qs?.firstPendingTitle || "",
+          }),
+        };
+      }
 
       if (routed.family === "day_sheet_complete_confirm") {
         const updateNode = useNodesStore.getState().updateNode;
@@ -3951,6 +3970,7 @@ export function LeftPanel({
       });
       const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
         || (localeKey === "en" ? "Here’s your day sheet." : "Aquí tienes tu sheet del día.");
+      const next = routed.toolContext?.nextDocument || null;
       return {
         message,
         visualization,
@@ -3959,6 +3979,8 @@ export function LeftPanel({
           visualization,
           locale: localeKey,
           hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
+          nextDocumentId: next?.id || visualization?.data?.nextDocumentId || null,
+          nextDocumentTitle: next?.title || "",
         }),
       };
     }
@@ -4299,14 +4321,23 @@ export function LeftPanel({
       const funnelHeadline = !meetingOn
         ? buildGinaFunnelHeadline(visualization, { locale: localeKey })
         : null;
-      const textAfter = !meetingOn && visualization?.data?.todayOverview
-        ? buildTodayOverviewAfterText({
+      const textMid = !meetingOn && visualization?.data?.todayOverview
+        ? buildTodayOverviewIntroText(localeKey)
+        : null;
+      const postTable = !meetingOn && visualization?.data?.todayOverview
+        ? buildTodayOverviewPostTableCopy({
           quickSheet: visualization.data.quickSheet || null,
+          documents: visualization.data.documents || [],
           locale: localeKey,
           userId: ginaUserId,
           hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
+          hasRecoveryOffer: Boolean(visualization.data.hasRecoveryOffer),
+          urgencyCount: visualization.data.urgencyCount,
+          lateStartCount: visualization.data.lateStartCount,
+          hasOverlap: Boolean(visualization.data.hasOverlap),
+          recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, ctx.now),
         })
-        : null;
+        : { textAfter: null, textPitch: null };
       const chips = !meetingOn
         ? buildGinaReplyChips({
           family: routed.family,
@@ -4319,7 +4350,9 @@ export function LeftPanel({
 
       return {
         message: funnelHeadline || displayText,
-        textAfter,
+        textMid,
+        textAfter: postTable.textAfter,
+        textPitch: null,
         visualization,
         learnProposal,
         ...(shouldUseGinaSearchSequence(routed.family, routed.toolContext)
@@ -4364,6 +4397,8 @@ export function LeftPanel({
     ginaUserId,
     locale,
     onOpenDocument,
+    onExpandNode,
+    openGinaDocumentByNodeId,
     ginaMeetingSession,
     ginaLearnBrief,
     ginaPendingLearn,

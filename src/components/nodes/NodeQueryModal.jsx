@@ -62,7 +62,8 @@ import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js
 import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
-  buildTodayOverviewAfterText,
+  buildTodayOverviewPostTableCopy,
+  buildTodayOverviewIntroText,
 } from "../../lib/gina/ginaReplyChips.js";
 import {
   buildGinaSearchSequence,
@@ -668,14 +669,22 @@ export function NodeQueryModal({
       const funnelHeadline = buildGinaFunnelHeadline(visualization, { locale: localeKey });
       const ginaUserId = authUser?.id || "anon";
       const daySheetAnchored = hasDaySheet(ginaUserId);
-      const textAfter = visualization?.data?.todayOverview
-        ? buildTodayOverviewAfterText({
+      const textMid = visualization?.data?.todayOverview
+        ? buildTodayOverviewIntroText(localeKey)
+        : null;
+      const postTable = visualization?.data?.todayOverview
+        ? buildTodayOverviewPostTableCopy({
           quickSheet: visualization.data.quickSheet || null,
+          documents: visualization.data.documents || [],
           locale: localeKey,
           userId: ginaUserId,
           hasDaySheet: daySheetAnchored,
+          hasRecoveryOffer: Boolean(visualization.data.hasRecoveryOffer),
+          urgencyCount: visualization.data.urgencyCount,
+          lateStartCount: visualization.data.lateStartCount,
+          hasOverlap: Boolean(visualization.data.hasOverlap),
         })
-        : null;
+        : { textAfter: null, textPitch: null };
       const chips = buildGinaReplyChips({
         family: routed.family,
         visualization,
@@ -684,7 +693,9 @@ export function NodeQueryModal({
       });
       return {
         message: funnelHeadline || message,
-        textAfter,
+        textMid,
+        textAfter: postTable.textAfter,
+        textPitch: null,
         visualization,
         ...(shouldUseGinaSearchSequence(routed.family, routed.toolContext)
           ? { searchSequence: buildGinaSearchSequence(localeKey) }
