@@ -358,6 +358,16 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).toContain("save_day_sheet");
   });
 
+  it("justSaved day_sheet_saved funnel copy points to Call Asistente", () => {
+    const line = buildGinaFunnelHeadline({
+      type: "day_sheet_saved",
+      data: { justSaved: true },
+    }, { locale: "es" });
+    expect(line).toMatch(/ya está guardado el horario del día/i);
+    expect(line).toMatch(/Llamar Asistente/);
+    expect(line).not.toMatch(/guarde tu horario/i);
+  });
+
   it("justSaved day sheet offers Comenzar as primary", () => {
     const chips = buildGinaReplyChips({
       family: "day_sheet",
@@ -365,12 +375,13 @@ describe("ginaReplyChips", () => {
       nextDocumentId: "n1",
       nextDocumentTitle: "Call 1",
       visualization: {
-        type: "schedule_sheet",
+        type: "day_sheet_saved",
         data: {
           isDaySheet: true,
           justSaved: true,
           nextDocumentId: "n1",
-          documents: [{ id: "n1", title: "Call 1" }],
+          nextDocumentTitle: "Call 1",
+          documents: [],
         },
       },
       locale: "es",

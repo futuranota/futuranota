@@ -1831,6 +1831,14 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       : `De **${name}** — ${n} documento(s).`;
   }
 
+  if (visualization.type === "day_sheet_saved" || (
+    visualization.type === "schedule_sheet" && data.justSaved
+  )) {
+    return en
+      ? "Done — today’s schedule is saved. When you finish a document, select **Call Asistente**, reopen the saved list, and check what’s next."
+      : "Listo — ya está guardado el horario del día. Para usarlo, cuando termines un documento puedes seleccionar **Llamar Asistente**, reabrir el listado guardado y verificar el siguiente en la lista.";
+  }
+
   if (visualization.type === "schedule_sheet") {
     if (data.recoveryWizard || data.notifyBrief || data.recoveryPhase === "brief") {
       if (data.recoveryWizard && data.currentStep) {
@@ -1879,12 +1887,6 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       return en
         ? `Done — **${title}** is completed.`
         : `Listo — **${title}** quedó completed.`;
-    }
-    if (data.justSaved) {
-      const p = data.progress || {};
-      return en
-        ? `Saved. Your day schedule has ${p.total || n} document(s) — reopen anytime with **Day schedule**.`
-        : `Listo — guardé tu horario del día (${p.total || n} documento${(p.total || n) === 1 ? "" : "s"}). Reábrelo cuando quieras con **Horario del día**.`;
     }
     if (data.isDaySheet) {
       const p = data.progress || {};
@@ -2236,13 +2238,13 @@ export function buildGinaReplyChips(opts = {}) {
         : []),
     ];
   }
-  if (type === "schedule_sheet" || type === "timeline") {
+  if (type === "schedule_sheet" || type === "timeline" || type === "day_sheet_saved") {
     return buildScheduleSheetChips({
       locale,
       hasRecoveryOffer: Boolean(data.hasRecoveryOffer),
       recoveryPhase: data.recoveryPhase || "gate",
-      isDaySheet: Boolean(data.isDaySheet),
-      justSaved: Boolean(data.justSaved),
+      isDaySheet: Boolean(data.isDaySheet || type === "day_sheet_saved"),
+      justSaved: Boolean(data.justSaved || type === "day_sheet_saved"),
       missingAnchor: Boolean(data.missingAnchor),
       hasDaySheet: Boolean(opts.hasDaySheet),
       allowOpenWithoutSave: Boolean(opts.allowOpenWithoutSave),
@@ -2256,6 +2258,7 @@ export function buildGinaReplyChips(opts = {}) {
       openDocTitle: data.openDocTitle,
       nextDocumentId: opts.nextDocumentId || data.nextDocumentId || null,
       nextDocumentTitle: opts.nextDocumentTitle
+        || data.nextDocumentTitle
         || data.documents?.find((d) => d.id === (opts.nextDocumentId || data.nextDocumentId))?.title
         || null,
       hasOverlap: Boolean(data.hasOverlap || data.quickSheet?.hasOverlap),

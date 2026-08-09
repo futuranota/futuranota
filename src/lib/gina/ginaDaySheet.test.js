@@ -123,6 +123,31 @@ describe("day sheet visualization + family", () => {
     clearDaySheet(uid);
   });
 
+  it("justSaved returns day_sheet_saved viz without table rows", () => {
+    const viz = buildGinaVisualization("day_sheet", {
+      date: "2026-08-07",
+      isDaySheet: true,
+      justSaved: true,
+      nextDocument: { id: "2", title: "Pending doc" },
+      documents: [
+        {
+          id: "2",
+          title: "Pending doc",
+          status: "not_started",
+          department: "Marketing",
+          folder: "Blogs",
+          anchorAt: "2026-08-07T14:00:00",
+        },
+      ],
+      progress: { total: 1, completed: 0, remaining: 1 },
+    }, { locale: "es", now, userText: "Guardar horario del día" });
+
+    expect(viz?.type).toBe("day_sheet_saved");
+    expect(viz?.data?.justSaved).toBe(true);
+    expect(viz?.data?.nextDocumentId).toBe("2");
+    expect(viz?.data?.documents).toEqual([]);
+  });
+
   it("builds schedule_sheet with struck completed rows", () => {
     const viz = buildGinaVisualization("day_sheet", {
       date: "2026-08-07",

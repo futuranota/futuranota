@@ -26,7 +26,7 @@ const GINA_OPEN_SOUND_DELAY_MS = 2_000;
 /** Silence after Enable.wav ends, before greeting typewriter. */
 const GINA_POST_SOUND_TEXT_DELAY_MS = 1_000;
 
-/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
+/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, savedAckRevealed?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
 
 /** Build AI turn fields: datos → pie+TABLA DE HOY → intro → horario cronológico → post text → chips. */
 function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visualization }) {
@@ -34,8 +34,10 @@ function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visuali
   const after = textAfter != null ? String(textAfter).trim() : "";
   const pitch = textPitch != null ? String(textPitch).trim() : "";
   const isTodayOverview = Boolean(visualization?.data?.todayOverview);
+  const isDaySheetSaved = visualization?.type === "day_sheet_saved";
   const deferVisualization = Boolean(
-    (isTodayOverview || visualization?.data?.recoveryWizard)
+    !isDaySheetSaved
+    && (isTodayOverview || visualization?.data?.recoveryWizard)
     && (aiText || mid || after || pitch),
   );
   // Side TABLA DE HOY beside the pie (always on for today overview).
@@ -65,6 +67,8 @@ function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visuali
     sheetTableRevealed: !mid || !hasChrono,
     afterRevealed: !after,
     pitchRevealed: !pitch,
+    // Checkmark ack first; typed copy waits for savedAckRevealed.
+    savedAckRevealed: !isDaySheetSaved,
     visualization: viz || null,
   };
 }
@@ -1268,7 +1272,30 @@ export function GinaChatCard({
                   : "gina-chat-card__turn gina-chat-card__turn--user"
               }
             >
-              {msg.sender === "ai" && msg.visualization?.type === "schedule_sheet" && (
+              {msg.sender === "ai" && msg.visualization?.type === "day_sheet_saved" ? (
+                <>
+                  <GinaDataVisualization
+                    type={msg.visualization.type}
+                    data={msg.visualization.data}
+                    onReady={() => {
+                      setMessages((prev) => prev.map((m, idx) => (
+                        idx === i ? { ...m, savedAckRevealed: true } : m
+                      )));
+                    }}
+                  />
+                  {msg.savedAckRevealed ? (
+                    <div className="gina-chat-card__bubble gina-chat-card__bubble--ai gina-chat-card__bubble--after-viz">
+                      <GinaAiMessageText
+                        text={msg.text}
+                        plainBody
+                        pace="slow"
+                        instant={Boolean(msg.refineRevealed)}
+                        onComplete={i === lastAiMessageIndex ? handleAiAnimComplete : undefined}
+                      />
+                    </div>
+                  ) : null}
+                </>
+              ) : msg.sender === "ai" && msg.visualization?.type === "schedule_sheet" && (
                 msg.visualization?.data?.hasRecoveryOffer
                 || msg.visualization?.data?.recoveryPhase === "brief"
               ) && !msg.visualization?.data?.todayOverview && !msg.deferVisualization ? (
@@ -1516,6 +1543,7 @@ export function GinaChatCard({
                 </>
               )}
               {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping && !isAiAnimating
+                && (msg.visualization?.type !== "day_sheet_saved" || msg.savedAckRevealed)
                 && (!msg.deferVisualization || (
                   msg.vizRevealed
                   && msg.midRevealed !== false

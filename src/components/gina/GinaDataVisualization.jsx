@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Cell, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
@@ -2209,18 +2210,66 @@ function FindResultsVisualization({ data, onSelectAction }) {
 }
 
 /**
+ * Success ack after saving today's schedule — checkmark fly-in, no table.
+ * @param {{ data?: object, onReady?: () => void }} props
+ */
+function DaySheetSavedVisualization({ data, onReady }) {
+  const firedRef = useRef(false);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const locale = data?.locale === "en" ? "en" : "es";
+
+  useEffect(() => {
+    if (firedRef.current) return undefined;
+    const t = window.setTimeout(() => {
+      if (firedRef.current) return;
+      firedRef.current = true;
+      onReadyRef.current?.();
+    }, 720);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  return (
+    <div className="gina-viz gina-viz--day-sheet-saved" role="status" aria-live="polite">
+      <motion.div
+        className="gina-viz__saved-plate"
+        initial={{ opacity: 0, scale: 0.55, y: 28 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 380, damping: 22, mass: 0.85 }}
+      >
+        <motion.img
+          className="gina-viz__saved-check"
+          src="/uploads/Checks.svg"
+          alt=""
+          aria-hidden
+          initial={{ opacity: 0, scale: 0.4, rotate: -18 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          transition={{ delay: 0.12, type: "spring", stiffness: 420, damping: 18 }}
+        />
+      </motion.div>
+      <p className="gina-viz__saved-caption">
+        {locale === "en" ? "Schedule saved" : "Horario guardado"}
+      </p>
+    </div>
+  );
+}
+
+/**
  * @param {{
  *   type?: string | null,
  *   data?: object | null,
  *   onSelectDepartment?: (departmentName: string) => void,
  *   onSelectAction?: (text: string, displayText?: string) => void,
+ *   onReady?: () => void,
  * }} props
  */
-export function GinaDataVisualization({ type, data, onSelectDepartment, onSelectAction }) {
+export function GinaDataVisualization({ type, data, onSelectDepartment, onSelectAction, onReady }) {
   if (!type || type === "null" || !data) return null;
   const dept = data.department || "";
 
   switch (type) {
+    case "day_sheet_saved":
+      return <DaySheetSavedVisualization data={data} onReady={onReady} />;
     case "category_scope":
       return <CategoryScopeVisualization data={data} />;
     case "category_list":

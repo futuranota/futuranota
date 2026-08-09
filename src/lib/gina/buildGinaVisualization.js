@@ -877,6 +877,23 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       };
     }
     const highlightId = ctx.nextDocument?.id || null;
+    if (ctx.justSaved) {
+      return {
+        type: "day_sheet_saved",
+        data: {
+          justSaved: true,
+          isDaySheet: true,
+          locale,
+          date: dateKey,
+          dateLabel: formatGinaDayLabel(dateKey, locale),
+          nextDocumentId: highlightId,
+          nextDocumentTitle: ctx.nextDocument?.title || "",
+          progress,
+          documents: [],
+          groups: [],
+        },
+      };
+    }
     return {
       type: "schedule_sheet",
       data: {
@@ -887,7 +904,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           .slice()
           .map((d) => mapDocRow(d, now, locale)),
         isDaySheet: true,
-        justSaved: Boolean(ctx.justSaved),
+        justSaved: false,
         nextDocumentId: highlightId,
         progress,
       },
