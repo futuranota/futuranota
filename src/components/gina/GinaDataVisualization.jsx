@@ -1696,41 +1696,65 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
         ) : (
           <ul className="gina-viz__checklist" role="list">
             {flatDocs.map((doc) => {
-              const struck = Boolean(doc.struck || doc.completed || doc.status === "completed");
-              const status = struck ? "completed" : (doc.status || null);
+              const completed = Boolean(doc.struck || doc.completed || doc.status === "completed");
+              const pendingIds = Array.isArray(data.pendingSelectedIds)
+                ? data.pendingSelectedIds.map(String)
+                : [];
+              const pending = Boolean(doc.id && !completed && pendingIds.includes(String(doc.id)));
+              const checked = completed || pending;
+              const status = doc.status || null;
+              const h = doc.hierarchy || {};
+              const department = h.department || doc.department || null;
+              const category = h.category || doc.category || null;
+              const folder = h.folder || doc.folder || null;
               return (
                 <li
                   key={doc.id || `${doc.title}-${doc.time}`}
                   className={
                     "gina-viz__checklist-row"
-                    + (struck ? " gina-viz__checklist-row--done" : "")
+                    + (completed ? " gina-viz__checklist-row--done" : "")
+                    + (pending ? " gina-viz__checklist-row--pending" : "")
                     + (doc.id && doc.id === data.nextDocumentId ? " gina-viz__checklist-row--next" : "")
                   }
                 >
                   <label className="gina-viz__checklist-check">
                     <input
                       type="checkbox"
-                      checked={struck}
-                      disabled={!doc.id || !onToggleDaySheetDoc}
+                      checked={checked}
+                      disabled={!doc.id || !onToggleDaySheetDoc || completed}
                       aria-label={
                         locale === "en"
-                          ? (struck ? `Unmark ${doc.title}` : `Mark ${doc.title} completed`)
-                          : (struck ? `Desmarcar ${doc.title}` : `Marcar ${doc.title} como completed`)
+                          ? (completed
+                            ? `${doc.title} completed`
+                            : (pending ? `Unselect ${doc.title}` : `Select ${doc.title}`))
+                          : (completed
+                            ? `${doc.title} completed`
+                            : (pending ? `Quitar ${doc.title}` : `Seleccionar ${doc.title}`))
                       }
                       onChange={(e) => {
-                        if (!doc.id || !onToggleDaySheetDoc) return;
+                        if (!doc.id || !onToggleDaySheetDoc || completed) return;
                         onToggleDaySheetDoc(doc.id, e.target.checked);
                       }}
                     />
                     <span className="gina-viz__checklist-box" aria-hidden />
                   </label>
-                  <span className={"gina-viz__checklist-time" + (struck ? " is-struck" : "")}>
-                    {doc.timeClock || doc.timeLabel || doc.time || "—"}
-                  </span>
-                  <span className={"gina-viz__checklist-title" + (struck ? " is-struck" : "")}>
-                    {struck ? <s>{doc.title}</s> : doc.title}
-                  </span>
-                  {status ? <DocStatusChip status={status} /> : null}
+                  <div className="gina-viz__checklist-body">
+                    <div className="gina-viz__checklist-top">
+                      <span className={"gina-viz__checklist-time" + (completed ? " is-struck" : "")}>
+                        {doc.timeClock || doc.timeLabel || doc.time || "—"}
+                      </span>
+                      {status ? <DocStatusChip status={status} /> : null}
+                    </div>
+                    <span className={"gina-viz__checklist-title" + (completed ? " is-struck" : "")}>
+                      {completed ? <s>{doc.title}</s> : doc.title}
+                    </span>
+                    <GinaHierarchyPath
+                      department={department}
+                      category={category}
+                      folder={folder}
+                      className="gina-viz__checklist-path"
+                    />
+                  </div>
                 </li>
               );
             })}

@@ -71,7 +71,6 @@ import {
 } from "../../lib/gina/ginaSearchSequence.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
-import { pickNextDaySheetDoc } from "../../lib/gina/ginaDaySheet.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -431,8 +430,6 @@ export function NodeQueryModal({
           }),
         };
       }
-      const next = routed.toolContext?.nextDocument
-        || pickNextDaySheetDoc(routed.toolContext?.documents || []);
       const message = buildGinaFunnelHeadline(visualization, {
         locale: localeKey,
         compact: true,
@@ -452,17 +449,11 @@ export function NodeQueryModal({
               ...(visualization.data || {}),
               compact: true,
               locale: localeKey,
+              pendingSelectedIds: [],
             },
           }
           : null,
-        chips: buildGinaReplyChips({
-          family: "day_sheet",
-          visualization,
-          locale: localeKey,
-          hasDaySheet: daySheetAnchored,
-          nextDocumentId: next?.id || visualization?.data?.nextDocumentId || null,
-          nextDocumentTitle: next?.title || "",
-        }),
+        chips: null,
       };
     }
 

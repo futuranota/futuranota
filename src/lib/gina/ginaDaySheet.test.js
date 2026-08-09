@@ -11,6 +11,11 @@ import {
   patchDaySheetVisualizationCompletion,
   pickNextDaySheetDoc,
   summarizeDaySheetProgress,
+  togglePendingDaySheetSelection,
+  clearPendingDaySheetSelection,
+  applyDaySheetCompletionBatch,
+  buildDaySheetBatchCompleteAck,
+  buildDaySheetPendingActionChips,
 } from "./ginaDaySheet.js";
 import {
   isDaySheetReopenIntent,
@@ -126,6 +131,84 @@ describe("ginaDaySheet helpers", () => {
     expect(undone.data.documents[0].struck).toBe(false);
     expect(undone.data.progress).toEqual({ total: 2, completed: 0, remaining: 2 });
     expect(undone.data.nextDocumentId).toBe("1");
+  });
+
+  it("toggles pending selection without mutating status", () => {
+    const viz = {
+      type: "schedule_sheet",
+      data: {
+        isDaySheet: true,
+        documents: [
+          { id: "1", title: "One", status: "not_started" },
+          { id: "2", title: "Two", status: "in_progress" },
+          { id: "3", title: "Done", status: "completed", completed: true },
+        ],
+        pendingSelectedIds: [],
+      },
+    };
+    const selected = togglePendingDaySheetSelection(viz, "1", true);
+    expect(selected.data.pendingSelectedIds).toEqual(["1"]);
+    expect(selected.data.documents[0].status).toBe("not_started");
+
+    const both = togglePendingDaySheetSelection(selected, "2", true);
+    expect(both.data.pendingSelectedIds).toEqual(["1", "2"]);
+
+    const locked = togglePendingDaySheetSelection(both, "3", true);
+    expect(locked.data.pendingSelectedIds).toEqual(["1", "2"]);
+
+    const cleared = clearPendingDaySheetSelection(both);
+    expect(cleared.data.pendingSelectedIds).toEqual([]);
+    expect(cleared.data.documents[0].status).toBe("not_started");
+  });
+
+  it("applies batch completion and builds ack with next pending", () => {
+    const viz = {
+      type: "schedule_sheet",
+      data: {
+        isDaySheet: true,
+        documents: [
+          { id: "1", title: "One", status: "not_started" },
+          { id: "2", title: "Two", status: "in_progress" },
+          { id: "3", title: "Three", status: "not_started" },
+        ],
+        pendingSelectedIds: ["1", "2"],
+        progress: { total: 3, completed: 0, remaining: 3 },
+      },
+    };
+    const applied = applyDaySheetCompletionBatch(viz, ["1", "2"]);
+    expect(applied.data.documents[0].status).toBe("completed");
+    expect(applied.data.documents[1].status).toBe("completed");
+    expect(applied.data.documents[2].status).toBe("not_started");
+    expect(applied.data.pendingSelectedIds).toEqual([]);
+    expect(applied.data.progress).toEqual({ total: 3, completed: 2, remaining: 1 });
+    expect(applied.data.nextDocumentId).toBe("3");
+
+    const ack = buildDaySheetBatchCompleteAck({
+      count: 2,
+      nextTitle: "Three",
+      locale: "es",
+    });
+    expect(ack).toMatch(/¡Listo! Tachamos \*\*2\*\* Documentos/);
+    expect(ack).toMatch(/Aún tienes pendiente \*\*Three\*\*/);
+    expect(ack).toMatch(/seguir avanzando/);
+
+    const singular = buildDaySheetBatchCompleteAck({
+      count: 1,
+      nextTitle: "Three",
+      locale: "es",
+    });
+    expect(singular).toMatch(/Tachamos \*\*1\*\* Documento\./);
+
+    const empty = buildDaySheetBatchCompleteAck({ count: 2, nextTitle: "", locale: "es" });
+    expect(empty).toMatch(/No queda nada pendiente/);
+
+    const chips = buildDaySheetPendingActionChips({ locale: "es" });
+    expect(chips.map((c) => c.id)).toEqual([
+      "day_sheet_apply_complete",
+      "day_sheet_discard_selection",
+    ]);
+    expect(chips[0].label).toBe("Marcar como completado");
+    expect(chips[1].label).toBe("Descartar");
   });
 
   it("matches title within sheet", () => {

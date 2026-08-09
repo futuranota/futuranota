@@ -12,7 +12,15 @@ import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
-import { patchDaySheetVisualizationCompletion } from "../../lib/gina/ginaDaySheet.js";
+import {
+  applyDaySheetCompletionBatch,
+  buildDaySheetBatchCompleteAck,
+  buildDaySheetPendingActionChips,
+  clearPendingDaySheetSelection,
+  flattenDaySheetDocs,
+  pickNextDaySheetDoc,
+  togglePendingDaySheetSelection,
+} from "../../lib/gina/ginaDaySheet.js";
 import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
 import { useAuthStore } from "../../stores/authStore.js";
 import { useNodesStore } from "../../stores/index.js";
@@ -1117,27 +1125,82 @@ export function GinaChatCard({
     return -1;
   }, [messages]);
 
-  /** In-doc day sheet checklist: check → completed, uncheck → not_started. */
-  const handleToggleDaySheetDoc = (docId, nextCompleted) => {
+  /** In-doc day sheet: checkbox = pending selection only (confirm chips apply status). */
+  const handleToggleDaySheetDoc = (docId, nextSelected) => {
     if (!documentId || !docId) return;
-    const updateNode = useNodesStore.getState().updateNode;
-    updateNode(
-      docId,
-      syncDocWorkStatusFields({
-        status: nextCompleted ? DOC_WORK_STATUS.COMPLETED : DOC_WORK_STATUS.NOT_STARTED,
-      }),
-    );
+    setMessages((prev) => prev.map((m) => {
+      if (m.sender !== "ai" || !m.visualization?.data?.isDaySheet) return m;
+      const visualization = togglePendingDaySheetSelection(
+        m.visualization,
+        docId,
+        nextSelected,
+      );
+      const pending = visualization?.data?.pendingSelectedIds || [];
+      const chips = pending.length
+        ? buildDaySheetPendingActionChips({ locale: chipLocale })
+        : null;
+      return { ...m, visualization, chips };
+    }));
+  };
+
+  const handleDaySheetDiscardSelection = () => {
+    if (!documentId) return;
     setMessages((prev) => prev.map((m) => {
       if (m.sender !== "ai" || !m.visualization?.data?.isDaySheet) return m;
       return {
         ...m,
-        visualization: patchDaySheetVisualizationCompletion(
-          m.visualization,
-          docId,
-          nextCompleted,
-        ),
+        visualization: clearPendingDaySheetSelection(m.visualization),
+        chips: null,
       };
     }));
+  };
+
+  const handleDaySheetApplyComplete = () => {
+    if (!documentId) return;
+    const sheetMsg = [...messagesRef.current].reverse().find((m) => (
+      m.sender === "ai" && m.visualization?.data?.isDaySheet
+    ));
+    if (!sheetMsg?.visualization) return;
+    const pending = Array.isArray(sheetMsg.visualization.data.pendingSelectedIds)
+      ? sheetMsg.visualization.data.pendingSelectedIds.map(String).filter(Boolean)
+      : [];
+    if (!pending.length) {
+      handleDaySheetDiscardSelection();
+      return;
+    }
+
+    const updateNode = useNodesStore.getState().updateNode;
+    for (const id of pending) {
+      updateNode(id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.COMPLETED }));
+    }
+
+    const visualization = applyDaySheetCompletionBatch(sheetMsg.visualization, pending);
+    const docs = flattenDaySheetDocs(visualization);
+    const nextDoc = pickNextDaySheetDoc(docs);
+    const ackText = buildDaySheetBatchCompleteAck({
+      count: pending.length,
+      nextTitle: nextDoc?.title || "",
+      locale: chipLocale,
+    });
+
+    setMessages((prev) => {
+      const next = prev.map((m) => {
+        if (m.sender !== "ai" || !m.visualization?.data?.isDaySheet) return m;
+        return { ...m, visualization, chips: null };
+      });
+      return [
+        ...next,
+        {
+          id: makeMsgId(),
+          sender: "ai",
+          text: ackText,
+          visualization: null,
+          chips: null,
+        },
+      ];
+    });
+    isAiAnimatingRef.current = true;
+    setIsAiAnimating(true);
   };
 
   /**
@@ -1659,6 +1722,14 @@ export function GinaChatCard({
                             ]);
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
+                            return;
+                          }
+                          if (chip.id === "day_sheet_apply_complete") {
+                            handleDaySheetApplyComplete();
+                            return;
+                          }
+                          if (chip.id === "day_sheet_discard_selection") {
+                            handleDaySheetDiscardSelection();
                             return;
                           }
                           if (chip.kind === "nav_back") {
