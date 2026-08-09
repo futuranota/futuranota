@@ -646,6 +646,7 @@ export function GinaChatCard({
             text: openingMessage,
             chips: buildGinaOpeningChips({
               locale: chipLocale,
+              surface: documentId ? "document" : "dashboard",
               hasDaySheet: hasDaySheet(useAuthStore.getState().user?.id || "anon"),
             }),
           },
@@ -672,7 +673,7 @@ export function GinaChatCard({
       if (soundTimer != null) window.clearTimeout(soundTimer);
       if (textTimer != null) window.clearTimeout(textTimer);
     };
-  }, [openingMessage, chipLocale]);
+  }, [openingMessage, chipLocale, documentId]);
 
   useEffect(() => () => {
     stopGinaFilesMovementSound();

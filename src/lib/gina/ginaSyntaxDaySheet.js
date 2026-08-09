@@ -12,13 +12,15 @@ import { foldGinaText } from "./ginaTimeScope.js";
 export function isDaySheetReopenIntent(text) {
   const q = foldGinaText(text);
   if (!q) return false;
+  if (/\bhorario\s+del\s+d[ií]a\b/.test(q)) return true;
   if (/\bsheet\s+del\s+d[ií]a\b/.test(q)) return true;
   if (/\btabla\s+de\s+referencia(\s+del\s+d[ií]a)?\b/.test(q)) return true;
-  if (/\babrir\s+(el\s+)?sheet(\s+del\s+d[ií]a)?\b/.test(q)) return true;
-  if (/\babre(me)?\s+(el\s+)?sheet(\s+del\s+d[ií]a)?\b/.test(q)) return true;
-  if (/\bopen\s+(my\s+)?(day\s+)?sheet\b/.test(q)) return true;
-  if (/\bday\s+reference\s+(table|sheet)\b/.test(q)) return true;
-  if (/\bshow\s+(me\s+)?(the\s+)?day\s+sheet\b/.test(q)) return true;
+  if (/\babrir\s+(el\s+)?(horario|sheet)(\s+del\s+d[ií]a)?\b/.test(q)) return true;
+  if (/\babre(me)?\s+(el\s+)?(horario|sheet)(\s+del\s+d[ií]a)?\b/.test(q)) return true;
+  if (/\bvisualizar\s+(el\s+)?horario\s+del\s+d[ií]a\b/.test(q)) return true;
+  if (/\bopen\s+(my\s+)?(day\s+)?(sheet|schedule)\b/.test(q)) return true;
+  if (/\bday\s+(reference\s+)?(table|sheet|schedule)\b/.test(q)) return true;
+  if (/\bshow\s+(me\s+)?(the\s+)?day\s+(sheet|schedule)\b/.test(q)) return true;
   return false;
 }
 
@@ -45,11 +47,11 @@ export function isDaySheetSaveIntent(text) {
   if (isDaySheetSkipSaveIntent(text)) return false;
   const q = foldGinaText(text);
   if (!q) return false;
-  if (/\bguardar\s+(esta\s+)?(tabla|sheet)(\s+de\s+referencia)?(\s+del\s+d[ií]a)?\b/.test(q)) return true;
-  if (/\bguarda(me)?\s+(esta\s+)?(tabla|sheet)\b/.test(q)) return true;
-  if (/\banclar\s+(esta\s+)?(tabla|sheet)\b/.test(q)) return true;
-  if (/\bsave\s+(this\s+)?(day\s+)?(reference\s+)?(table|sheet)\b/.test(q)) return true;
-  if (/\banchor\s+(this\s+)?(day\s+)?sheet\b/.test(q)) return true;
+  if (/\bguardar\s+(esta\s+)?(tabla|sheet|horario)(\s+de\s+referencia)?(\s+del\s+d[ií]a)?\b/.test(q)) return true;
+  if (/\bguarda(me)?\s+(esta\s+)?(tabla|sheet|horario)\b/.test(q)) return true;
+  if (/\banclar\s+(esta\s+)?(tabla|sheet|horario)\b/.test(q)) return true;
+  if (/\bsave\s+(this\s+)?(day\s+)?(reference\s+)?(table|sheet|schedule)\b/.test(q)) return true;
+  if (/\banchor\s+(this\s+)?(day\s+)?(sheet|schedule)\b/.test(q)) return true;
   return false;
 }
 

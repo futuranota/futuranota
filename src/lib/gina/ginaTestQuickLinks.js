@@ -86,8 +86,8 @@ export const GINA_TEST_QUICK_LINKS = [
   },
   {
     id: "test_day_sheet_open",
-    label: "Test: sheet del día",
-    text: "Sheet del día",
+    label: "Test: horario del día",
+    text: "Horario del día",
   },
   {
     id: "test_day_sheet_next",

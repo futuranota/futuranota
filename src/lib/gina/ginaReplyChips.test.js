@@ -20,6 +20,37 @@ describe("ginaReplyChips", () => {
     expect(chips.find((c) => c.id === "test_folder_plan_negocio")?.text).toMatch(/plan de negocio/i);
   });
 
+  it("document surface only offers Horario del día when sheet is saved", () => {
+    expect(buildGinaOpeningChips({
+      locale: "es",
+      surface: "document",
+      hasDaySheet: false,
+    })).toEqual([]);
+
+    const chips = buildGinaOpeningChips({
+      locale: "es",
+      surface: "document",
+      hasDaySheet: true,
+    });
+    expect(chips.map((c) => c.id)).toEqual(["day_sheet"]);
+    expect(chips[0].label).toBe("Horario del día");
+    expect(chips[0].text).toBe("Horario del día");
+    expect(chips.some((c) => c.id === "today")).toBe(false);
+    expect(chips.some((c) => c.id === "schedule")).toBe(false);
+    expect(chips.some((c) => String(c.id).startsWith("test_"))).toBe(false);
+  });
+
+  it("dashboard opening chip uses Horario del día when sheet is saved", () => {
+    const chips = buildGinaOpeningChips({
+      locale: "es",
+      surface: "dashboard",
+      hasDaySheet: true,
+    });
+    const day = chips.find((c) => c.id === "day_sheet");
+    expect(day?.label).toBe("Horario del día");
+    expect(chips.some((c) => c.id === "today")).toBe(true);
+  });
+
   it("department chips have no past_due", () => {
     const chips = buildTodayDepartmentChips({
       departments: [{ name: "Marketing" }],
@@ -128,12 +159,14 @@ describe("ginaReplyChips", () => {
     expect(post.textAfter).toContain("**Departamento:** Sales (Calls)");
     expect(post.textAfter).toContain("**Tiempo asignado:**");
     expect(post.textAfter).toContain("**Cuando desees puedes comenzar.**");
-    expect(post.textAfter).toContain("¿Quieres guardar el Sheet del Día de hoy");
-    expect(post.textAfter).not.toMatch(/¡Hey! Antes de empezar/i);
+    expect(post.textAfter).toContain("Antes de empezar: si quieres podemos guardar este Horario del día");
+    expect(post.textAfter).toContain("¿Quieres guardarlo?");
+    expect(post.textAfter).not.toMatch(/¡Hey!/i);
+    expect(post.textAfter).not.toMatch(/Sheet del Día/i);
     expect(post.textPitch).toBeNull();
   });
 
-  it("today overview post-table still educates Sheet del Día when sheet already saved", () => {
+  it("today overview post-table still educates Horario del día when sheet already saved", () => {
     const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       hasDaySheet: true,
@@ -153,7 +186,8 @@ describe("ginaReplyChips", () => {
     });
     expect(post.textAfter).toContain("**Documento de inicio:** Call 1");
     expect(post.textAfter).toContain("**Cuando desees puedes comenzar.**");
-    expect(post.textAfter).toContain("¿Quieres guardar el Sheet del Día de hoy");
+    expect(post.textAfter).toContain("Horario del día");
+    expect(post.textAfter).not.toMatch(/¡Hey!/i);
     expect(post.textPitch).toBeNull();
   });
 

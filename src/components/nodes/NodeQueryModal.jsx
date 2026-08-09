@@ -71,6 +71,7 @@ import {
 } from "../../lib/gina/ginaSearchSequence.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { pickNextDaySheetDoc } from "../../lib/gina/ginaDaySheet.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -379,19 +380,80 @@ export function NodeQueryModal({
     const corpusName = companyObjectId
       ? (objectsMap?.[companyObjectId]?.name || null)
       : null;
+    const ginaUserId = authUser?.id || "anon";
+    const now = new Date();
     const ctx = {
       docs: docsMap,
       nodes: nodesMap,
       departments,
       objectId: companyObjectId || null,
       corpusName,
-      now: new Date(),
+      now,
+      userId: ginaUserId,
       recentText: Array.isArray(meta?.messages)
         ? meta.messages.slice(-8).map((m) => String(m?.content || "")).filter(Boolean)
         : [],
     };
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
+
+    // Day schedule reopen/save — deterministic, no Groq (same store as dashboard).
+    if (
+      routed.family === "day_sheet"
+      || routed.family === "day_sheet_next"
+      || routed.family === "day_sheet_complete"
+      || routed.family === "day_sheet_complete_confirm"
+    ) {
+      const daySheetAnchored = hasDaySheet(ginaUserId, now);
+      const visualization = buildGinaVisualization(
+        routed.family === "day_sheet_next" ? "day_sheet_next" : "day_sheet",
+        routed.toolContext,
+        { locale: localeKey, now, userText: text },
+      );
+      if (routed.family === "day_sheet_next") {
+        const next = routed.toolContext?.nextDocument || null;
+        return {
+          message: next
+            ? (localeKey === "en"
+              ? `Your next document is **${next.title}**.`
+              : `Tu siguiente documento es **${next.title}**.`)
+            : (localeKey === "en"
+              ? "Nothing pending left on today’s schedule."
+              : "No queda nada pendiente en el horario del día."),
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "day_sheet_next",
+            visualization,
+            locale: localeKey,
+            nextDocumentId: next?.id || null,
+            nextDocumentTitle: next?.title || "",
+            hasDaySheet: daySheetAnchored,
+          }),
+        };
+      }
+      const next = routed.toolContext?.nextDocument
+        || pickNextDaySheetDoc(routed.toolContext?.documents || []);
+      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+        || (routed.toolContext?.missingAnchor
+          ? (localeKey === "en"
+            ? "You don’t have today’s schedule saved yet. Ask for today’s schedule from Assistance and save it."
+            : "Aún no tienes el horario del día guardado. Pídelo en Assistance y guárdalo.")
+          : (localeKey === "en"
+            ? "Here’s your day schedule."
+            : "Aquí tienes tu horario del día."));
+      return {
+        message,
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "day_sheet",
+          visualization,
+          locale: localeKey,
+          hasDaySheet: daySheetAnchored,
+          nextDocumentId: next?.id || visualization?.data?.nextDocumentId || null,
+          nextDocumentTitle: next?.title || "",
+        }),
+      };
+    }
 
     if (routed.family === "focus_open") {
       if (routed.openDocumentId) {

@@ -22,6 +22,11 @@ export const DAY_SHEET_SAVE_OFFER_VARIANTS = {
     es: "¡Hey! Antes de empezar: si quieres podemos guardar este Sheet del Día. La ventaja es que, mientras trabajes en cualquier otro documento, podrás abrir este horario general, ir tachando las tareas completadas y saber siempre cuál es tu siguiente paso. ¿Quieres guardarlo?",
     en: "Hey! Before we start: we can save this Day Sheet if you want. While you work in any other document, you’ll be able to open this general schedule, check off finished tasks, and always know what’s next. Want to save it?",
   },
+  /** Post-table pitch: novice_a without “Hey”, “Sheet del Día” → “Horario del día”. */
+  post_table_horario: {
+    es: "Antes de empezar: si quieres podemos guardar este Horario del día. La ventaja es que, mientras trabajes en cualquier otro documento, podrás abrir este horario general, ir tachando las tareas completadas y saber siempre cuál es tu siguiente paso. ¿Quieres guardarlo?",
+    en: "Before we start: we can save this Day schedule if you want. While you work in any other document, you’ll be able to open this general schedule, check off finished tasks, and always know what’s next. Want to save it?",
+  },
   novice_b: {
     es: "Un tip rápido antes de seguir: puedes guardar este Sheet del Día. Así se mantendrá a la mano desde cualquier documento para que consultes tu horario general y vayas marcando tus avances. ¿Lo dejamos guardado?",
     en: "A quick tip before we continue: you can save this Day Sheet. It stays handy from any document so you can check your general schedule and mark progress as you go. Shall we keep it saved?",

@@ -65,11 +65,30 @@ const STATUS_CHIP_META = {
 
 /**
  * Opening chips under the first Gina message.
- * @param {{ locale?: string }} [opts]
+ * @param {{
+ *   locale?: string,
+ *   hasDaySheet?: boolean,
+ *   surface?: "dashboard" | "document",
+ * }} [opts]
  * @returns {GinaReplyChip[]}
  */
 export function buildGinaOpeningChips(opts = {}) {
   const en = opts.locale === "en";
+  const surface = opts.surface === "document" ? "document" : "dashboard";
+
+  // In-document Asistente: only reopen today's anchored schedule (no general easy links).
+  if (surface === "document") {
+    if (!opts.hasDaySheet) return [];
+    return [
+      {
+        id: "day_sheet",
+        label: en ? "Day schedule" : "Horario del día",
+        text: en ? "Day schedule" : "Horario del día",
+        primary: true,
+      },
+    ];
+  }
+
   const testLinks = getGinaTestQuickLinks({ locale: opts.locale });
   /** @type {GinaReplyChip[]} */
   const chips = [
@@ -83,8 +102,8 @@ export function buildGinaOpeningChips(opts = {}) {
   if (opts.hasDaySheet) {
     chips.push({
       id: "day_sheet",
-      label: en ? "Day sheet" : "Sheet del día",
-      text: en ? "Open day sheet" : "Sheet del día",
+      label: en ? "Day schedule" : "Horario del día",
+      text: en ? "Day schedule" : "Horario del día",
     });
   }
   chips.push(
@@ -976,8 +995,8 @@ export function buildScheduleSheetChips(opts = {}) {
     } else {
       chips.push({
         id: "open_day_sheet",
-        label: en ? "Day sheet" : "Sheet del día",
-        text: en ? "Open day sheet" : "Sheet del día",
+        label: en ? "Day schedule" : "Horario del día",
+        text: en ? "Day schedule" : "Horario del día",
       });
     }
     chips.push({
@@ -1005,8 +1024,8 @@ export function buildDaySheetCompleteConfirmChips(opts = {}) {
     },
     {
       id: "open_day_sheet",
-      label: en ? "Day sheet" : "Sheet del día",
-      text: en ? "Open day sheet" : "Sheet del día",
+      label: en ? "Day schedule" : "Horario del día",
+      text: en ? "Day schedule" : "Horario del día",
     },
     ...(title
       ? [{
@@ -1045,8 +1064,8 @@ export function buildDaySheetNextChips(opts = {}) {
   }
   chips.push({
     id: "open_day_sheet",
-    label: en ? "Day sheet" : "Sheet del día",
-    text: en ? "Open day sheet" : "Sheet del día",
+    label: en ? "Day schedule" : "Horario del día",
+    text: en ? "Day schedule" : "Horario del día",
   });
   return chips;
 }
@@ -1335,10 +1354,10 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
     ? "**Whenever you're ready, you can start.**"
     : "**Cuando desees puedes comenzar.**";
 
-  /** Direct save education (recurrent — not the long novice pitch). */
+  /** Novice pitch without “Hey”; “Sheet del Día” → “Horario del día”. */
   const pitchFixed = en
-    ? DAY_SHEET_SAVE_OFFER_VARIANTS.recurrent_4.en
-    : DAY_SHEET_SAVE_OFFER_VARIANTS.recurrent_4.es;
+    ? DAY_SHEET_SAVE_OFFER_VARIANTS.post_table_horario.en
+    : DAY_SHEET_SAVE_OFFER_VARIANTS.post_table_horario.es;
 
   const parts = [];
   if (start) parts.push(start);
@@ -1864,8 +1883,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     if (data.justSaved) {
       const p = data.progress || {};
       return en
-        ? `Saved. Your day sheet has ${p.total || n} document(s) — reopen anytime with **Sheet del día**.`
-        : `Listo — guardé tu sheet del día (${p.total || n} documento${(p.total || n) === 1 ? "" : "s"}). Reábrelo cuando quieras con **Sheet del día**.`;
+        ? `Saved. Your day schedule has ${p.total || n} document(s) — reopen anytime with **Day schedule**.`
+        : `Listo — guardé tu horario del día (${p.total || n} documento${(p.total || n) === 1 ? "" : "s"}). Reábrelo cuando quieras con **Horario del día**.`;
     }
     if (data.isDaySheet) {
       const p = data.progress || {};
@@ -1979,8 +1998,8 @@ export function buildGinaReplyChips(opts = {}) {
       },
       {
         id: "open_day_sheet",
-        label: locale === "en" ? "Day sheet" : "Sheet del día",
-        text: locale === "en" ? "Open day sheet" : "Sheet del día",
+        label: locale === "en" ? "Day schedule" : "Horario del día",
+        text: locale === "en" ? "Day schedule" : "Horario del día",
       },
       ...(title
         ? []

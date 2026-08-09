@@ -98,6 +98,7 @@ describe("ginaDaySheet helpers", () => {
 describe("ginaSyntaxDaySheet", () => {
   it("matches reopen / save / next / complete variants", () => {
     expect(isDaySheetReopenIntent("Sheet del día")).toBe(true);
+    expect(isDaySheetReopenIntent("Horario del día")).toBe(true);
     expect(isDaySheetReopenIntent("abre el sheet del dia")).toBe(true);
     expect(isDaySheetReopenIntent("tabla de referencia del día")).toBe(true);
     expect(isDaySheetSaveIntent("Guardar esta tabla de referencia del día")).toBe(true);

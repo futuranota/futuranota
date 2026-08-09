@@ -113,13 +113,13 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
       },
     });
     expect(post.textAfter).toContain("**Documento de inicio:** Doc A");
-    expect(post.textAfter).toContain("¿Quieres guardar el Sheet del Día de hoy");
-    expect(post.textAfter).not.toMatch(/¡Hey! Antes de empezar/i);
+    expect(post.textAfter).toContain("Antes de empezar: si quieres podemos guardar este Horario del día");
+    expect(post.textAfter).not.toMatch(/¡Hey!/i);
     expect(post.textPitch).toBeNull();
     expect(post.textAfter).not.toMatch(/orden de horario/i);
   });
 
-  it("still shows Sheet del Día education when already saved", () => {
+  it("still shows Horario del día education when already saved", () => {
     const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       userId: UID,
@@ -139,7 +139,8 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
       },
     });
     expect(post.textAfter).toContain("**Documento de inicio:** Doc A");
-    expect(post.textAfter).toContain("¿Quieres guardar el Sheet del Día de hoy");
+    expect(post.textAfter).toContain("Horario del día");
+    expect(post.textAfter).not.toMatch(/¡Hey!/i);
     expect(post.textPitch).toBeNull();
     expect(getDaySheetOfferCount(UID)).toBe(0);
   });
