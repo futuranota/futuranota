@@ -1825,6 +1825,157 @@
   color: #9a9a9a;
 }
 
+/* In-doc Horario del día — compact checklist */
+.gina-viz--day-sheet-compact {
+  padding: 8px 10px 10px;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.gina-viz__head--compact {
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.gina-viz__title--compact {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: #f0f0f0;
+  letter-spacing: 0.01em;
+}
+
+.gina-viz__sheet-progress--compact {
+  margin: 3px 0 0;
+  font-size: 10px;
+  line-height: 1.3;
+  color: #8a8a8a;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.gina-viz__sheet-progress-sep {
+  opacity: 0.55;
+}
+
+.gina-viz__checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(240px, 42vh);
+  overflow-y: auto;
+}
+
+.gina-viz__checklist-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.gina-viz__checklist-row:last-child {
+  border-bottom: none;
+}
+
+.gina-viz__checklist-row--done {
+  opacity: 0.72;
+}
+
+.gina-viz__checklist-row--next .gina-viz__checklist-title {
+  color: #fff;
+  font-weight: 600;
+}
+
+.gina-viz__checklist-check {
+  position: relative;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.gina-viz__checklist-check input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.gina-viz__checklist-box {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  background: transparent;
+  box-sizing: border-box;
+}
+
+.gina-viz__checklist-check input:checked + .gina-viz__checklist-box {
+  border-color: #57bc6c;
+  background: #57bc6c;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23151515' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' d='M2.5 6.2 4.8 8.5 9.5 3.5'/%3E%3C/svg%3E");
+  background-size: 10px 10px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.gina-viz__checklist-check input:disabled + .gina-viz__checklist-box {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.gina-viz__checklist-time {
+  flex: 0 0 auto;
+  max-width: 72px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #c9b896;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gina-viz__checklist-time.is-struck {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.gina-viz__checklist-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.25;
+  color: #e4e4e4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gina-viz__checklist-title.is-struck,
+.gina-viz__checklist-title.is-struck s {
+  color: #8a8a8a;
+  text-decoration: line-through;
+}
+
+.gina-viz__checklist-row .doc-status-chip,
+.gina-viz__checklist-row [class*="DocStatus"],
+.gina-viz__checklist-row .folder-doc-status-chip {
+  flex: 0 0 auto;
+  transform: scale(0.85);
+  transform-origin: right center;
+}
+
 .gina-viz--today-overview {
   display: block;
   background: transparent;

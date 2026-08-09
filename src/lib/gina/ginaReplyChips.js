@@ -1414,7 +1414,7 @@ function formatHoursFallback(minutes, locale, opts = {}) {
 /**
  * Deterministic funnel headline.
  * @param {{ type?: string, data?: object } | null} visualization
- * @param {{ locale?: string, salt?: number }} [opts]
+ * @param {{ locale?: string, salt?: number, compact?: boolean, surface?: "dashboard" | "document" }} [opts]
  */
 export function buildGinaFunnelHeadline(visualization, opts = {}) {
   const en = opts.locale === "en";
@@ -1894,8 +1894,12 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       const left = p.remaining ?? Math.max(0, (p.total || n) - done);
       if (n === 0) {
         return en
-          ? "Your day sheet is empty right now."
-          : "Tu sheet del día está vacío por ahora.";
+          ? "Your day schedule is empty right now."
+          : "Tu horario del día está vacío por ahora.";
+      }
+      // In-doc compact: counts live in the checklist header — no bubble prose.
+      if (opts.compact || opts.surface === "document" || data.compact) {
+        return "";
       }
       return en
         ? `Here’s your day sheet: **${done}** done, **${left}** left. Say “I finished”, “what’s next”, or open a document.`

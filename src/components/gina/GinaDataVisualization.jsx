@@ -1620,7 +1620,7 @@ function TodayOverviewVisualization({ data, showTable = true }) {
   );
 }
 
-function ScheduleSheetVisualization({ data, onSelectAction }) {
+function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc, compact = false }) {
   const groups = Array.isArray(data.groups) ? data.groups : [];
   const delayHighlights = Boolean(data.highlightPassedSlots);
   const isDaySheet = Boolean(data.isDaySheet);
@@ -1632,6 +1632,7 @@ function ScheduleSheetVisualization({ data, onSelectAction }) {
     || ((data.notifyBrief || data.recoveryPhase === "brief") && data.conflictRails && step !== "overdue_check"),
   );
   const hideGroups = step === "conflict_resolve" || step === "summary";
+  const useCompactChecklist = Boolean(compact || data.compact) && isDaySheet && !showDual && !hideGroups;
 
   if (data.todayOverview) {
     return (
@@ -1644,6 +1645,99 @@ function ScheduleSheetVisualization({ data, onSelectAction }) {
 
   if (step === "summary") {
     return null;
+  }
+
+  const flatDocs = (() => {
+    if (Array.isArray(data.documents) && data.documents.length) return data.documents;
+    const out = [];
+    for (const group of groups) {
+      for (const folder of group.folders || []) {
+        for (const doc of folder.documents || []) out.push(doc);
+      }
+    }
+    return out;
+  })();
+
+  if (useCompactChecklist) {
+    const done = progress?.completed ?? flatDocs.filter((d) => (
+      d.struck || d.completed || d.status === "completed"
+    )).length;
+    const left = progress?.remaining ?? Math.max(0, flatDocs.length - done);
+    return (
+      <div className="gina-viz gina-viz--schedule-sheet gina-viz--day-sheet-compact">
+        <header className="gina-viz__head gina-viz__head--compact">
+          <h3 className="gina-viz__title gina-viz__title--compact">
+            {locale === "en" ? "Day schedule" : "Horario del día"}
+          </h3>
+          {flatDocs.length > 0 ? (
+            <p className="gina-viz__sheet-progress gina-viz__sheet-progress--compact">
+              <span>
+                {done}
+                {" "}
+                {locale === "en" ? "done" : (done === 1 ? "tachado" : "tachados")}
+              </span>
+              <span className="gina-viz__sheet-progress-sep" aria-hidden>·</span>
+              <span>
+                {left}
+                {" "}
+                {locale === "en" ? "left" : (left === 1 ? "restante" : "restantes")}
+              </span>
+            </p>
+          ) : null}
+        </header>
+        {flatDocs.length === 0 ? (
+          <p className="gina-viz__empty">
+            {data.missingAnchor
+              ? (locale === "en"
+                ? "No day schedule saved yet. Open today’s schedule from Assistance and save it."
+                : "Aún no hay horario del día guardado. Ábrelo desde Assistance y guárdalo.")
+              : (locale === "en" ? "Nothing on today’s schedule." : "Sin ítems en el horario del día.")}
+          </p>
+        ) : (
+          <ul className="gina-viz__checklist" role="list">
+            {flatDocs.map((doc) => {
+              const struck = Boolean(doc.struck || doc.completed || doc.status === "completed");
+              const status = struck ? "completed" : (doc.status || null);
+              return (
+                <li
+                  key={doc.id || `${doc.title}-${doc.time}`}
+                  className={
+                    "gina-viz__checklist-row"
+                    + (struck ? " gina-viz__checklist-row--done" : "")
+                    + (doc.id && doc.id === data.nextDocumentId ? " gina-viz__checklist-row--next" : "")
+                  }
+                >
+                  <label className="gina-viz__checklist-check">
+                    <input
+                      type="checkbox"
+                      checked={struck}
+                      disabled={!doc.id || !onToggleDaySheetDoc}
+                      aria-label={
+                        locale === "en"
+                          ? (struck ? `Unmark ${doc.title}` : `Mark ${doc.title} completed`)
+                          : (struck ? `Desmarcar ${doc.title}` : `Marcar ${doc.title} como completed`)
+                      }
+                      onChange={(e) => {
+                        if (!doc.id || !onToggleDaySheetDoc) return;
+                        onToggleDaySheetDoc(doc.id, e.target.checked);
+                      }}
+                    />
+                    <span className="gina-viz__checklist-box" aria-hidden />
+                  </label>
+                  <span className={"gina-viz__checklist-time" + (struck ? " is-struck" : "")}>
+                    {doc.timeClock || doc.timeLabel || doc.time || "—"}
+                  </span>
+                  <span className={"gina-viz__checklist-title" + (struck ? " is-struck" : "")}>
+                    {struck ? <s>{doc.title}</s> : doc.title}
+                  </span>
+                  {status ? <DocStatusChip status={status} /> : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -2260,10 +2354,20 @@ function DaySheetSavedVisualization({ data, onReady }) {
  *   data?: object | null,
  *   onSelectDepartment?: (departmentName: string) => void,
  *   onSelectAction?: (text: string, displayText?: string) => void,
+ *   onToggleDaySheetDoc?: (docId: string, nextCompleted: boolean) => void,
+ *   compact?: boolean,
  *   onReady?: () => void,
  * }} props
  */
-export function GinaDataVisualization({ type, data, onSelectDepartment, onSelectAction, onReady }) {
+export function GinaDataVisualization({
+  type,
+  data,
+  onSelectDepartment,
+  onSelectAction,
+  onToggleDaySheetDoc,
+  compact = false,
+  onReady,
+}) {
   if (!type || type === "null" || !data) return null;
   const dept = data.department || "";
 
@@ -2372,6 +2476,8 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
         <ScheduleSheetVisualization
           data={data}
           onSelectAction={onSelectAction}
+          onToggleDaySheetDoc={onToggleDaySheetDoc}
+          compact={compact}
         />
       );
     case "today_quick_sheet":

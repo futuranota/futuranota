@@ -8,6 +8,7 @@ import {
 import {
   matchDocInDaySheet,
   orderDocsByDaySheetIds,
+  patchDaySheetVisualizationCompletion,
   pickNextDaySheetDoc,
   summarizeDaySheetProgress,
 } from "./ginaDaySheet.js";
@@ -83,6 +84,48 @@ describe("ginaDaySheet helpers", () => {
       completed: 1,
       remaining: 2,
     });
+  });
+
+  it("patches day sheet viz completion and recounts progress", () => {
+    const viz = {
+      type: "schedule_sheet",
+      data: {
+        isDaySheet: true,
+        compact: true,
+        documents: [
+          { id: "1", title: "One", status: "not_started", completed: false },
+          { id: "2", title: "Two", status: "in_progress", completed: false },
+        ],
+        groups: [
+          {
+            department: "Marketing",
+            folders: [
+              {
+                folder: "Blogs",
+                documents: [
+                  { id: "1", title: "One", status: "not_started" },
+                  { id: "2", title: "Two", status: "in_progress" },
+                ],
+              },
+            ],
+          },
+        ],
+        progress: { total: 2, completed: 0, remaining: 2 },
+        nextDocumentId: "1",
+      },
+    };
+    const done = patchDaySheetVisualizationCompletion(viz, "1", true);
+    expect(done.data.documents[0].status).toBe("completed");
+    expect(done.data.documents[0].struck).toBe(true);
+    expect(done.data.groups[0].folders[0].documents[0].status).toBe("completed");
+    expect(done.data.progress).toEqual({ total: 2, completed: 1, remaining: 1 });
+    expect(done.data.nextDocumentId).toBe("2");
+
+    const undone = patchDaySheetVisualizationCompletion(done, "1", false);
+    expect(undone.data.documents[0].status).toBe("not_started");
+    expect(undone.data.documents[0].struck).toBe(false);
+    expect(undone.data.progress).toEqual({ total: 2, completed: 0, remaining: 2 });
+    expect(undone.data.nextDocumentId).toBe("1");
   });
 
   it("matches title within sheet", () => {

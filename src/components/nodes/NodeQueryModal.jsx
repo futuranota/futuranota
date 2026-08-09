@@ -433,17 +433,28 @@ export function NodeQueryModal({
       }
       const next = routed.toolContext?.nextDocument
         || pickNextDaySheetDoc(routed.toolContext?.documents || []);
-      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+      const message = buildGinaFunnelHeadline(visualization, {
+        locale: localeKey,
+        compact: true,
+        surface: "document",
+      })
         || (routed.toolContext?.missingAnchor
           ? (localeKey === "en"
             ? "You don’t have today’s schedule saved yet. Ask for today’s schedule from Assistance and save it."
             : "Aún no tienes el horario del día guardado. Pídelo en Assistance y guárdalo.")
-          : (localeKey === "en"
-            ? "Here’s your day schedule."
-            : "Aquí tienes tu horario del día."));
+          : "");
       return {
         message,
-        visualization,
+        visualization: visualization
+          ? {
+            ...visualization,
+            data: {
+              ...(visualization.data || {}),
+              compact: true,
+              locale: localeKey,
+            },
+          }
+          : null,
         chips: buildGinaReplyChips({
           family: "day_sheet",
           visualization,
@@ -1787,7 +1798,7 @@ export function NodeQueryModal({
     <GinaChatOverlay
       documentId={entityNodeId}
       assistantName={t("gina.name")}
-      openingMessage={t("gina.openingMessage")}
+      openingMessage=""
       demoReply={t("gina.demoReply")}
       placeholder={t("gina.placeholder")}
       speechLang={locale === "es" ? "es-ES" : "en-US"}

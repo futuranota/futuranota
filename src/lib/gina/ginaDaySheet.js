@@ -96,6 +96,63 @@ export function summarizeDaySheetProgress(docs) {
 }
 
 /**
+ * Patch an in-chat day-sheet visualization after checkbox toggle.
+ * @param {{ type?: string, data?: object } | null | undefined} visualization
+ * @param {string} docId
+ * @param {boolean} nextCompleted
+ * @returns {{ type?: string, data?: object } | null | undefined}
+ */
+export function patchDaySheetVisualizationCompletion(visualization, docId, nextCompleted) {
+  if (!visualization?.data || !docId) return visualization;
+  const id = String(docId);
+  const completed = Boolean(nextCompleted);
+  const status = completed ? DOC_WORK_STATUS.COMPLETED : DOC_WORK_STATUS.NOT_STARTED;
+
+  const patchDoc = (doc) => {
+    if (!doc || String(doc.id) !== id) return doc;
+    return {
+      ...doc,
+      status,
+      completed,
+      struck: completed,
+    };
+  };
+
+  const documents = Array.isArray(visualization.data.documents)
+    ? visualization.data.documents.map(patchDoc)
+    : visualization.data.documents;
+
+  const groups = Array.isArray(visualization.data.groups)
+    ? visualization.data.groups.map((group) => ({
+      ...group,
+      folders: (group.folders || []).map((folder) => ({
+        ...folder,
+        documents: (folder.documents || []).map(patchDoc),
+      })),
+    }))
+    : visualization.data.groups;
+
+  const progressSource = Array.isArray(documents) && documents.length
+    ? documents
+    : (Array.isArray(groups)
+      ? groups.flatMap((g) => (g.folders || []).flatMap((f) => f.documents || []))
+      : []);
+  const progress = summarizeDaySheetProgress(progressSource);
+  const nextDocument = pickNextDaySheetDoc(progressSource);
+
+  return {
+    ...visualization,
+    data: {
+      ...visualization.data,
+      documents,
+      groups,
+      progress,
+      nextDocumentId: nextDocument?.id || null,
+    },
+  };
+}
+
+/**
  * @param {string} userId
  * @param {object[]} liveTodayDocs - from get_today_scope includeCompleted
  * @param {Date} [now]

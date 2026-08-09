@@ -40,6 +40,25 @@ describe("ginaReplyChips", () => {
     expect(chips.some((c) => String(c.id).startsWith("test_"))).toBe(false);
   });
 
+  it("in-doc day sheet headline omits counts and “puedes decir” prose", () => {
+    const viz = {
+      type: "schedule_sheet",
+      data: {
+        isDaySheet: true,
+        documents: [{ id: "1" }, { id: "2" }],
+        progress: { total: 2, completed: 0, remaining: 2 },
+      },
+    };
+    const compact = buildGinaFunnelHeadline(viz, { locale: "es", compact: true });
+    expect(compact).toBe("");
+    expect(compact).not.toMatch(/puedes decir/i);
+    expect(compact).not.toMatch(/Aquí tienes tu sheet/i);
+
+    const dashboard = buildGinaFunnelHeadline(viz, { locale: "es" });
+    expect(dashboard).toMatch(/Aquí tienes tu sheet del día/);
+    expect(dashboard).toMatch(/puedes decir/i);
+  });
+
   it("dashboard opening chip uses Horario del día when sheet is saved", () => {
     const chips = buildGinaOpeningChips({
       locale: "es",
@@ -438,8 +457,8 @@ describe("ginaReplyChips", () => {
       },
     });
     expect(after).toContain("**Documento de inicio:** Call 1");
-    expect(after).toContain("**Pero antes quería informarte algo:**");
-    expect(after).toMatch(/Sheet del Día/i);
+    expect(after).toContain("Antes de empezar: si quieres podemos guardar este Horario del día");
+    expect(after).toMatch(/Horario del día/i);
   });
 
   it("urgency on today overview stays out of opening (notify later)", () => {

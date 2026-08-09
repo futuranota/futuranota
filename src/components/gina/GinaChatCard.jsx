@@ -12,7 +12,10 @@ import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { patchDaySheetVisualizationCompletion } from "../../lib/gina/ginaDaySheet.js";
+import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
 import { useAuthStore } from "../../stores/authStore.js";
+import { useNodesStore } from "../../stores/index.js";
 import { resolveListRefineSelection } from "../../lib/gina/ginaSyntaxDocsByCategory.js";
 import { playGinaEnableSound } from "../../lib/ginaEnableSound.js";
 import { playGinaAcceptSound } from "../../lib/ginaAcceptSound.js";
@@ -56,7 +59,7 @@ function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visuali
     ),
   );
   return {
-    text: aiText || " ",
+    text: aiText || (visualization ? "" : " "),
     textMid: mid || null,
     textAfter: after || null,
     textPitch: pitch || null,
@@ -542,7 +545,7 @@ export function GinaChatCard({
   className = "",
   documentId = null,
   assistantName = "Gina",
-  openingMessage = "Hey — I’m Gina. What do you need for this document?",
+  openingMessage = "",
   demoReply = "Got it — I’ll use this chat once tools are connected.",
   placeholder = "Type a message…",
   speechLang = "es-ES",
@@ -641,23 +644,37 @@ export function GinaChatCard({
 
     const revealOpening = () => {
       if (cancelled) return;
+      const openingText = String(openingMessage || "").trim();
+      const chips = buildGinaOpeningChips({
+        locale: chipLocale,
+        surface: documentId ? "document" : "dashboard",
+        hasDaySheet: hasDaySheet(useAuthStore.getState().user?.id || "anon"),
+      });
+      // In-doc: no greeting bubble — seed chips only when available.
+      if (!openingText && chips.length === 0) {
+        isAiAnimatingRef.current = false;
+        setIsAiAnimating(false);
+        return;
+      }
       setMessages((prev) => {
         if (prev.some((m) => m.sender === "ai")) return prev;
         return [
           {
             id: makeMsgId(),
             sender: "ai",
-            text: openingMessage,
-            chips: buildGinaOpeningChips({
-              locale: chipLocale,
-              surface: documentId ? "document" : "dashboard",
-              hasDaySheet: hasDaySheet(useAuthStore.getState().user?.id || "anon"),
-            }),
+            text: openingText,
+            chips,
           },
         ];
       });
-      isAiAnimatingRef.current = true;
-      setIsAiAnimating(true);
+      if (!openingText) {
+        // Chips-only opening — no typewriter to wait on.
+        isAiAnimatingRef.current = false;
+        setIsAiAnimating(false);
+      } else {
+        isAiAnimatingRef.current = true;
+        setIsAiAnimating(true);
+      }
       skipOpeningSpeakRef.current = true;
     };
 
@@ -1100,6 +1117,29 @@ export function GinaChatCard({
     return -1;
   }, [messages]);
 
+  /** In-doc day sheet checklist: check → completed, uncheck → not_started. */
+  const handleToggleDaySheetDoc = (docId, nextCompleted) => {
+    if (!documentId || !docId) return;
+    const updateNode = useNodesStore.getState().updateNode;
+    updateNode(
+      docId,
+      syncDocWorkStatusFields({
+        status: nextCompleted ? DOC_WORK_STATUS.COMPLETED : DOC_WORK_STATUS.NOT_STARTED,
+      }),
+    );
+    setMessages((prev) => prev.map((m) => {
+      if (m.sender !== "ai" || !m.visualization?.data?.isDaySheet) return m;
+      return {
+        ...m,
+        visualization: patchDaySheetVisualizationCompletion(
+          m.visualization,
+          docId,
+          nextCompleted,
+        ),
+      };
+    }));
+  };
+
   /**
    * Step 1: stop mic and park transcript in the composer so the user can fix
    * STT mistakes before sending.
@@ -1334,6 +1374,7 @@ export function GinaChatCard({
                 </>
               ) : (
                 <>
+                  {(msg.sender === "user" || String(msg.text || "").trim()) ? (
                   <div
                     className={
                       msg.sender === "ai"
@@ -1383,6 +1424,7 @@ export function GinaChatCard({
                       />
                     ) : msg.text}
                   </div>
+                  ) : null}
                   {msg.sender === "user" && msg.queued ? (
                     <span className="gina-chat-card__queue-label">
                       {labels.queued || "queue"}
@@ -1398,7 +1440,16 @@ export function GinaChatCard({
                         ...(msg.visualization.data?.todayOverview
                           ? { overviewShowTable: true }
                           : null),
+                        ...(documentId && msg.visualization.data?.isDaySheet
+                          ? { compact: true }
+                          : null),
                       }}
+                      compact={Boolean(documentId)}
+                      onToggleDaySheetDoc={
+                        documentId && msg.visualization?.data?.isDaySheet
+                          ? handleToggleDaySheetDoc
+                          : undefined
+                      }
                       onSelectDepartment={(deptName) => {
                         if (!deptName || isTyping || isAiAnimating) return;
                         const focusText = chipLocale === "en"
