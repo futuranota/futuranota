@@ -79,12 +79,14 @@ export function BlockAnchorFields({
   enableTimeRange = false,
 }) {
   const rootRef = useRef(null);
+  const triggerRef = useRef(null);
   const popoverRef = useRef(null);
   const gridRef = useRef(null);
   const [timeOpen, setTimeOpen] = useState(false);
   const [selectingFinish, setSelectingFinish] = useState(false);
   /** Refresh past-slot cutoff while the popover is open. */
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [popoverPos, setPopoverPos] = useState(null);
   const rootClass = [
     "doc-block-anchor",
     readOnly ? "doc-block-anchor--readonly" : "",
@@ -116,6 +118,27 @@ export function BlockAnchorFields({
     ? `${formatTime(anchorTime)} – ${formatTime(anchorFinishTime)}`
     : "Select time range";
 
+  const syncPopoverPos = () => {
+    const el = triggerRef.current;
+    if (!el || typeof window === "undefined") {
+      setPopoverPos(null);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const width = Math.min(392, window.innerWidth - 24);
+    const gap = 8;
+    let left = rect.left;
+    if (left + width > window.innerWidth - 12) {
+      left = Math.max(12, window.innerWidth - width - 12);
+    }
+    let top = rect.bottom + gap;
+    const maxH = Math.min(window.innerHeight - 48, 420);
+    if (top + maxH > window.innerHeight - 12) {
+      top = Math.max(12, rect.top - gap - maxH);
+    }
+    setPopoverPos({ top, left, width, maxHeight: maxH });
+  };
+
   useEffect(() => {
     if (!timeOpen) return undefined;
     const close = (event) => {
@@ -143,8 +166,16 @@ export function BlockAnchorFields({
   useEffect(() => {
     if (!timeOpen) return undefined;
     setNowTick(Date.now());
+    syncPopoverPos();
+    const onResize = () => syncPopoverPos();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onResize, true);
     const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
-    return () => window.clearInterval(id);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onResize, true);
+      window.clearInterval(id);
+    };
   }, [timeOpen]);
 
   useEffect(() => {
@@ -217,8 +248,19 @@ export function BlockAnchorFields({
       <div className="doc-time-range">
         <button
           type="button"
+          ref={triggerRef}
           className={"doc-time-range__trigger" + (anchorTime && anchorFinishTime ? "" : " is-empty")}
-          onClick={() => !readOnly && setTimeOpen((value) => !value)}
+          onClick={() => {
+            if (readOnly) return;
+            setTimeOpen((value) => {
+              const next = !value;
+              if (next) {
+                // Position after open paint
+                requestAnimationFrame(() => syncPopoverPos());
+              }
+              return next;
+            });
+          }}
           aria-expanded={timeOpen}
           aria-haspopup="dialog"
           disabled={readOnly}
@@ -228,9 +270,17 @@ export function BlockAnchorFields({
         {timeOpen && typeof document !== "undefined" ? createPortal(
           <div
             ref={popoverRef}
-            className="doc-time-range__popover"
+            className={"doc-time-range__popover" + (popoverPos ? " is-anchored" : "")}
             role="dialog"
             aria-label="Select time range"
+            style={popoverPos
+              ? {
+                top: popoverPos.top,
+                left: popoverPos.left,
+                width: popoverPos.width,
+                maxHeight: popoverPos.maxHeight,
+              }
+              : undefined}
           >
             <div className="doc-time-range__fields">
               <label>

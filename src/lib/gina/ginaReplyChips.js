@@ -29,6 +29,7 @@ import {
   countGinaRealDepartments,
 } from "./ginaCopyVariants.js";
 import { getGinaScheduleScopeChips } from "./ginaSyntaxScheduleScope.js";
+import { pickDaySheetSaveOfferText } from "./ginaSyntaxDaySheetOffer.js";
 
 /**
  * Fixed reply chips for Gina progressive funnel (ids stable; labels user-facing).
@@ -865,6 +866,9 @@ export function buildScheduleSheetChips(opts = {}) {
       currentStep: opts.currentStep,
       urgencyCount,
       lateStartCount: opts.lateStartCount,
+      recoveryOfferMode: opts.recoveryOfferMode,
+      openDocId: opts.openDocId,
+      openDocTitle: opts.openDocTitle,
       hasOverlap,
       topConflict,
       invadedLabels: opts.invadedLabels,
@@ -902,13 +906,14 @@ export function buildScheduleSheetChips(opts = {}) {
         primary: true,
       });
     }
-    chips.push({
-      id: "save_day_sheet",
-      label: en ? "Save day sheet" : "Guardar sheet del día",
-      text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
-      primary: !chips.some((c) => c.primary),
-    });
-    if (opts.hasDaySheet) {
+    if (!opts.hasDaySheet) {
+      chips.push({
+        id: "save_day_sheet",
+        label: en ? "Save day sheet" : "Guardar sheet del día",
+        text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
+        primary: !chips.some((c) => c.primary),
+      });
+    } else {
       chips.push({
         id: "open_day_sheet",
         label: en ? "Day sheet" : "Sheet del día",
@@ -928,13 +933,14 @@ export function buildScheduleSheetChips(opts = {}) {
       });
     }
   } else {
-    chips.push({
-      id: "save_day_sheet",
-      label: en ? "Save day sheet" : "Guardar sheet del día",
-      text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
-      primary: true,
-    });
-    if (opts.hasDaySheet) {
+    if (!opts.hasDaySheet) {
+      chips.push({
+        id: "save_day_sheet",
+        label: en ? "Save day sheet" : "Guardar sheet del día",
+        text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
+        primary: true,
+      });
+    } else {
       chips.push({
         id: "open_day_sheet",
         label: en ? "Day sheet" : "Sheet del día",
@@ -1148,12 +1154,34 @@ export function buildTodayOverviewHeadline(opts = {}) {
 }
 
 /**
- * Second bubble AFTER the infographic — introduces the chronological sheet.
- * Typed slower in the chat card (pace="slow").
+ * Second bubble AFTER the infographic.
+ * If the day sheet is not saved yet → save-offer variants (novice / recurrent).
+ * If already saved → short intro to the chronological sheet.
+ *
+ * @param {{
+ *   locale?: string,
+ *   quickSheet?: object | null,
+ *   hasDaySheet?: boolean,
+ *   userId?: string,
+ *   offerCount?: number,
+ *   incrementOffer?: boolean,
+ * }} [opts]
  */
 export function buildTodayOverviewAfterText(opts = {}) {
   const en = opts.locale === "en";
   void opts.quickSheet;
+
+  if (!opts.hasDaySheet) {
+    const offer = pickDaySheetSaveOfferText({
+      locale: opts.locale,
+      userId: opts.userId,
+      hasDaySheet: false,
+      offerCount: opts.offerCount,
+      increment: opts.incrementOffer !== false && opts.offerCount == null,
+    });
+    if (offer?.text) return offer.text;
+  }
+
   return en
     ? "Now I’ll show you today’s sheet — I already organized this table in schedule order from yesterday."
     : "Ahora te voy a mostrar el sheet del día, o sea desde ayer ya te organicé esta tabla siguiendo un orden de horario.";
@@ -1738,6 +1766,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     return buildReschedulePickerText({
       locale: opts.locale,
       hasFreeSlot: data.hasFreeSlot !== false && !data.noCupo,
+      noCupo: Boolean(data.noCupo),
+      activeTitle: data.activeTitle || null,
     });
   }
 
@@ -2025,6 +2055,9 @@ export function buildGinaReplyChips(opts = {}) {
       quickSheet: data.quickSheet || null,
       urgencyCount: data.urgencyCount,
       lateStartCount: data.lateStartCount,
+      recoveryOfferMode: data.recoveryOfferMode,
+      openDocId: data.openDocId,
+      openDocTitle: data.openDocTitle,
       hasOverlap: Boolean(data.hasOverlap || data.quickSheet?.hasOverlap),
       topConflict: data.topConflict || data.quickSheet?.topConflict || null,
       conflictRails: data.conflictRails || data.quickSheet?.conflictRails || null,
@@ -2036,24 +2069,19 @@ export function buildGinaReplyChips(opts = {}) {
   if (type === "schedule_slot_picker") {
     const en = locale === "en";
     const chips = [];
-    if (data.suggested?.timeLabel) {
-      chips.push({
-        id: "apply_suggested_slot",
-        label: en
-          ? `Today · ${data.suggested.timeLabel}`
-          : `Hoy · ${data.suggested.timeLabel}`,
-        text: en
-          ? `Apply reschedule slot ${data.suggested.startIso}|${data.suggested.finishIso}`
-          : `Aplicar cupo reagendado ${data.suggested.startIso}|${data.suggested.finishIso}`,
-        primary: true,
-      });
-    }
-    if (data.noCupo || !data.hasFreeSlot) {
+    const activeId = data.activeDocId || null;
+    if (data.noCupo || data.hasFreeSlot === false) {
       chips.push({
         id: "reschedule_tomorrow",
         label: en ? "Select Tomorrow" : "Seleccionar Mañana",
-        text: en ? "Move recovery blocks to tomorrow morning" : "Mover bloques de recuperación a mañana por la mañana",
-        primary: !data.suggested,
+        text: activeId
+          ? (en
+            ? `Move recovery document ${activeId} to tomorrow morning`
+            : `Mover documento de recuperación ${activeId} a mañana por la mañana`)
+          : (en
+            ? "Move recovery blocks to tomorrow morning"
+            : "Mover bloques de recuperación a mañana por la mañana"),
+        primary: true,
       });
       chips.push({
         id: "compress_coming_soon",
@@ -2066,9 +2094,13 @@ export function buildGinaReplyChips(opts = {}) {
         label: en
           ? `Insert at ${data.forceEndLabel || "end"} anyway`
           : `Insertar a las ${data.forceEndLabel || "final"} de todos modos`,
-        text: en
-          ? "Force insert recovery blocks at end of night"
-          : "Forzar inserción de bloques al final de la noche",
+        text: activeId
+          ? (en
+            ? `Force insert document ${activeId} at end of night`
+            : `Forzar inserción documento ${activeId} al final de la noche`)
+          : (en
+            ? "Force insert recovery blocks at end of night"
+            : "Forzar inserción de bloques al final de la noche"),
       });
     }
     chips.push({

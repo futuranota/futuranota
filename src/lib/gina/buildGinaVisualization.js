@@ -9,6 +9,7 @@ import {
   mapLateStartLabels,
   findFirstFreeSlot,
   lastOccupiedFinishMs,
+  resolveRecoveryOfferMode,
 } from "./ginaTodayTimeTriage.js";
 import { listOccupiedIntervalsByDate } from "../docScheduleOccupancy.js";
 import { todayDateInputValue, calendarDateInputValue } from "../docDates.js";
@@ -1198,7 +1199,12 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         return t ? formatClock12h(new Date(t)) : "";
       })
       .filter(Boolean);
-    const lateStartLabels = mapLateStartLabels(lateStart);
+    const lateStartLabels = mapLateStartLabels(lateStart, now, locale);
+    const recoveryOfferMode = resolveRecoveryOfferMode({
+      urgencyCount,
+      lateStartCount,
+    });
+    const openLate = lateStart[0] || null;
 
     const invadedLabels = (overlap.conflictRails?.overlappingBlocks || [])
       .map((b) => String(b.category || b.department || b.title || "").trim())
@@ -1210,13 +1216,22 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
 
     const showOverdue = currentStep === "overdue_check";
     const showConflict = currentStep === "conflict_resolve";
+    // Late-start only: show those docs. Expired/mixed: expired (+ late for context in mixed).
     const source = showOverdue
-      ? [...urgencySource, ...lateStart]
+      ? (recoveryOfferMode === "late_start"
+        ? lateStart
+        : recoveryOfferMode === "mixed"
+          ? [...urgencySource, ...lateStart]
+          : urgencySource)
       : (showConflict && overlap.conflictRails
         ? [overlap.conflictRails.longBlock, ...(overlap.conflictRails.overlappingBlocks || [])]
           .map((b) => allDocs.find((d) => d.id && d.id === b.id) || b)
           .filter(Boolean)
         : []);
+
+    const expiredMoveIds = fullyExpired
+      .map((d) => d.id)
+      .filter(Boolean);
 
     return {
       type: "schedule_sheet",
@@ -1235,6 +1250,9 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         currentStep,
         urgencyCount,
         lateStartCount,
+        recoveryOfferMode,
+        openDocId: openLate?.id || null,
+        openDocTitle: openLate?.title || null,
         overdueTimes,
         lateStartLabels,
         hasOverlap,
@@ -1244,7 +1262,8 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         invadedLabels: showConflict ? invadedLabels : [],
         clockLabel: formatClock12h(now),
         locale,
-        moveDocIds: triage.actionable.map((d) => d.id).filter(Boolean),
+        // Reschedule only fully expired windows — never late-start (still active).
+        moveDocIds: expiredMoveIds,
       }, ctx, now),
     };
   }
@@ -1252,24 +1271,97 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
   if (family === "schedule_recovery_reschedule_pick") {
     const allDocs = asDocs(ctx.documents);
     const triage = partitionTodayByClock(allDocs, now);
-    const moveDocs = asDocs(ctx.moveDocs?.length ? ctx.moveDocs : triage.actionable);
-    const excludeIds = new Set(moveDocs.map((d) => d.id).filter(Boolean));
-    const dateKey = ctx.date || calendarDateInputValue(now) || todayDateInputValue();
+    const fullyExpiredIds = triage.fullyExpired
+      .filter((d) => d.status !== "past_due")
+      .map((d) => d.id)
+      .filter(Boolean);
     const nodesById = ctx.nodes || Object.fromEntries(allDocs.map((d) => [d.id, d]));
     const docsById = ctx.docs || {};
+
+    const requestedIds = (Array.isArray(ctx.sessionMoveDocIds) && ctx.sessionMoveDocIds.length
+      ? ctx.sessionMoveDocIds
+      : (Array.isArray(ctx.moveDocIds) && ctx.moveDocIds.length
+        ? ctx.moveDocIds
+        : fullyExpiredIds))
+      .map((id) => String(id));
+    // Drop late-start / still-active ids from the move session.
+    const sessionIds = requestedIds.filter((id) => fullyExpiredIds.includes(id));
+
+    if (!sessionIds.length) {
+      const late = triage.lateStartActive[0] || null;
+      const lateLabels = mapLateStartLabels(triage.lateStartActive, now, locale);
+      return {
+        type: "schedule_sheet",
+        data: attachRecoveryMeta({
+          date: ctx.date,
+          dateLabel: formatGinaDayLabel(ctx.date, locale),
+          groups: groupDocsForScheduleSheet(triage.lateStartActive, now),
+          documents: triage.lateStartActive.map((d) => mapDocRow(d, now, locale)),
+          recoveryPhase: "brief",
+          recoveryWizard: true,
+          notifyBrief: true,
+          currentStep: "overdue_check",
+          urgencyCount: 0,
+          lateStartCount: triage.lateStartActive.length,
+          recoveryOfferMode: "late_start",
+          openDocId: late?.id || null,
+          openDocTitle: late?.title || null,
+          lateStartLabels: lateLabels,
+          rescheduleBlockedActive: true,
+          clockLabel: formatClock12h(now),
+          locale,
+          moveDocIds: [],
+        }, ctx, now),
+      };
+    }
+
+    const assignedFromCtx = new Set(
+      (Array.isArray(ctx.assignedDocIds) ? ctx.assignedDocIds : []).map((id) => String(id)),
+    );
+
+    const resolveNode = (id) => nodesById[id]
+      || allDocs.find((d) => String(d.id) === id)
+      || null;
+
+    const moveDocs = sessionIds.map((id) => {
+      const d = resolveNode(id);
+      if (!d) return null;
+      // Only explicit session progress marks assigned (user chose a slot).
+      // Do not infer from triage — future docs in the session are still pending picks.
+      const assigned = assignedFromCtx.has(id);
+      const row = mapDocRow(d, now, locale);
+      const a = d.anchorAt ? new Date(d.anchorAt).getTime() : NaN;
+      const f = d.anchorFinishAt ? new Date(d.anchorFinishAt).getTime() : NaN;
+      const durationMs = Number.isFinite(a) && Number.isFinite(f) && f > a
+        ? f - a
+        : 60 * 60 * 1000;
+      return {
+        ...row,
+        assigned,
+        // Assigned rows show the new clock (not urgency/struck).
+        struck: false,
+        passedSlot: !assigned,
+        durationMs,
+        anchorAt: d.anchorAt || null,
+        anchorFinishAt: d.anchorFinishAt || null,
+      };
+    }).filter(Boolean);
+
+    const pendingDocs = moveDocs.filter((d) => !d.assigned);
+    const activeDocId = String(
+      ctx.activeDocId
+      || pendingDocs[0]?.id
+      || moveDocs[0]?.id
+      || "",
+    ) || null;
+    const activeDoc = moveDocs.find((d) => d.id === activeDocId) || pendingDocs[0] || null;
+    const dur = activeDoc?.durationMs || 60 * 60 * 1000;
+
+    const dateKey = ctx.date || calendarDateInputValue(now) || todayDateInputValue();
+    // Occupied = everyone except the active doc (other pending blocks stay struck).
     const occupiedRaw = listOccupiedIntervalsByDate(nodesById, docsById, dateKey, {
       objectId: ctx.objectId || null,
-    }).filter((o) => !excludeIds.has(o.id));
-
-    const primary = moveDocs[0] || null;
-    const dur = primary
-      ? Math.max(
-        15 * 60 * 1000,
-        (primary.anchorFinishAt ? new Date(primary.anchorFinishAt).getTime() : 0)
-          - (primary.anchorAt ? new Date(primary.anchorAt).getTime() : 0)
-          || 60 * 60 * 1000,
-      )
-      : 60 * 60 * 1000;
+    }).filter((o) => String(o.id) !== String(activeDocId || ""));
 
     const dayStart = new Date(`${dateKey}T00:00:00`);
     const dayEnd = new Date(`${dateKey}T23:59:59`);
@@ -1277,18 +1369,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const free = findFirstFreeSlot(occupiedRaw, dur, fromMs, dayEnd.getTime());
     const hasFreeSlot = Boolean(free);
     const forceEndMs = lastOccupiedFinishMs(occupiedRaw, now.getTime());
-
-    const suggested = free
-      ? {
-        startIso: new Date(free.startMs).toISOString(),
-        finishIso: new Date(free.finishMs).toISOString(),
-        timeLabel: formatClockRange12h(
-          new Date(free.startMs).toISOString(),
-          new Date(free.finishMs).toISOString(),
-          { sep: " – " },
-        ),
-      }
-      : null;
+    const assignedCount = moveDocs.filter((d) => d.assigned).length;
 
     return {
       type: "schedule_slot_picker",
@@ -1297,15 +1378,24 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         date: dateKey,
         dateLabel: formatGinaDayLabel(dateKey, locale),
         occupied: occupiedRaw,
-        moveDocs: moveDocs.map((d) => mapDocRow(d, now, locale)),
-        moveDocIds: moveDocs.map((d) => d.id).filter(Boolean),
+        moveDocs,
+        moveDocIds: sessionIds,
+        sessionMoveDocIds: sessionIds,
+        assignedDocIds: moveDocs.filter((d) => d.assigned).map((d) => d.id),
+        activeDocId,
+        activeTitle: activeDoc?.title || null,
         durationMs: dur,
         hasFreeSlot,
-        suggested,
         forceEndLabel: formatClock12h(new Date(forceEndMs)),
-        noCupo: !hasFreeSlot,
+        noCupo: Boolean(activeDoc && !activeDoc.assigned && !hasFreeSlot),
+        progress: {
+          assigned: assignedCount,
+          total: moveDocs.length,
+          remaining: pendingDocs.length,
+        },
         recoveryWizard: true,
         currentStep: "reschedule_pick",
+        highlightPassedSlots: true,
       },
     };
   }

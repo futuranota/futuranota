@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Cell, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { DocStatusChip } from "../docs/FolderDocumentRow.jsx";
 import { BlockAnchorFields } from "../docs/blocks/BlockAnchorFields.jsx";
@@ -7,12 +7,14 @@ import {
   formatWorkDurationLabel,
 } from "../../lib/gina/buildGinaVisualization.js";
 import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
+import { buildRecoveryEasyLinksLegend } from "../../lib/gina/ginaScheduleRecovery.js";
 import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns } from "../../lib/gina/ginaDepartmentColors.js";
 import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
 import { flattenTodayQuickSheetRows } from "../../lib/gina/ginaTodayQuickSheet.js";
 import { DOC_WORK_STATUS } from "../../lib/docWorkStatus.js";
-import { isoFromAnchorFields, anchorFieldsFromIso } from "../../lib/nodeAnchor.js";
+import { isoFromAnchorFields } from "../../lib/nodeAnchor.js";
 import { todayDateInputValue } from "../../lib/docDates.js";
+import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
 
 /**
  * Gray small Depto / Categoría / Folder path above visual blocks.
@@ -791,30 +793,64 @@ function addDurationToTime(hhmm, durationMs) {
 function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
   const en = data.locale === "en";
   const dateKey = data.date || todayDateInputValue();
-  const durationMs = Number(data.durationMs) || 60 * 60 * 1000;
-  const occupied = Array.isArray(data.occupied) ? data.occupied : [];
   const moveDocs = Array.isArray(data.moveDocs) ? data.moveDocs : [];
-  const suggestedFields = data.suggested?.startIso
-    ? anchorFieldsFromIso(data.suggested.startIso)
-    : null;
-  const suggestedFinish = data.suggested?.finishIso
-    ? anchorFieldsFromIso(data.suggested.finishIso)
-    : null;
+  const progress = data.progress || null;
+  const pendingDocs = moveDocs.filter((d) => !d.assigned);
+  const initialActive = data.activeDocId
+    || pendingDocs[0]?.id
+    || moveDocs[0]?.id
+    || null;
+  const [activeDocId, setActiveDocId] = useState(initialActive);
   const [anchorDate, setAnchorDate] = useState(dateKey);
-  const [anchorTime, setAnchorTime] = useState(suggestedFields?.anchorTime || "");
-  const [anchorFinishTime, setAnchorFinishTime] = useState(suggestedFinish?.anchorTime || "");
+  const [anchorTime, setAnchorTime] = useState("");
+  const [anchorFinishTime, setAnchorFinishTime] = useState("");
+  const lastActiveRef = useRef(initialActive);
 
-  const canApply = Boolean(anchorDate && anchorTime && anchorFinishTime);
+  useEffect(() => {
+    const next = data.activeDocId
+      || pendingDocs[0]?.id
+      || moveDocs[0]?.id
+      || null;
+    if (next === lastActiveRef.current) return;
+    lastActiveRef.current = next;
+    setActiveDocId(next);
+    setAnchorDate(data.date || todayDateInputValue());
+    setAnchorTime("");
+    setAnchorFinishTime("");
+  }, [data.activeDocId, data.assignedDocIds?.join("|"), data.moveDocIds?.join("|")]);
+
+  const activeDoc = moveDocs.find((d) => d.id === activeDocId) || pendingDocs[0] || null;
+  const durationMs = Number(activeDoc?.durationMs || data.durationMs) || 60 * 60 * 1000;
+  const occupied = Array.isArray(data.occupied) ? data.occupied : [];
+  const canApply = Boolean(
+    activeDoc?.id
+    && !activeDoc.assigned
+    && anchorDate
+    && anchorTime
+    && anchorFinishTime,
+  );
+  const dateFeedback = !anchorDate
+    ? ""
+    : (anchorDate === todayDateInputValue()
+      ? (en ? "Today" : "Hoy")
+      : anchorDate);
 
   const applySlot = () => {
-    if (!canApply || !onSelectAction) return;
+    if (!canApply || !onSelectAction || !activeDoc?.id) return;
     const startIso = isoFromAnchorFields(anchorDate, anchorTime);
     const finishIso = isoFromAnchorFields(anchorDate, anchorFinishTime);
     if (!startIso || !finishIso) return;
+    const session = (Array.isArray(data.sessionMoveDocIds) && data.sessionMoveDocIds.length
+      ? data.sessionMoveDocIds
+      : data.moveDocIds) || [];
+    const sessionPart = session.filter(Boolean).join(",");
+    const payload = sessionPart
+      ? `${activeDoc.id}|${startIso}|${finishIso}|${sessionPart}`
+      : `${activeDoc.id}|${startIso}|${finishIso}`;
     onSelectAction(
       en
-        ? `Apply reschedule slot ${startIso}|${finishIso}`
-        : `Aplicar cupo reagendado ${startIso}|${finishIso}`,
+        ? `Apply reschedule slot ${payload}`
+        : `Aplicar cupo reagendado ${payload}`,
     );
   };
 
@@ -823,52 +859,120 @@ function ScheduleSlotPickerVisualization({ data, onSelectAction }) {
       <header className="gina-viz__head">
         <span className="gina-viz__eyebrow">{en ? "Reschedule" : "Reagendar"}</span>
         <h3 className="gina-viz__title">{data.dateLabel || dateKey}</h3>
+        {progress && progress.total > 0 ? (
+          <p className="gina-viz__sheet-progress">
+            {en
+              ? `${progress.assigned}/${progress.total} assigned`
+              : `${progress.assigned}/${progress.total} asignados`}
+            {progress.remaining > 0
+              ? (en
+                ? ` · ${progress.remaining} left`
+                : ` · ${progress.remaining} restante${progress.remaining === 1 ? "" : "s"}`)
+              : ""}
+          </p>
+        ) : null}
       </header>
-      {data.noCupo || data.hasFreeSlot === false ? (
+      {data.noCupo && activeDoc && !activeDoc.assigned ? (
         <p className="gina-viz__slot-banner" role="status">
-          {en ? "No free slot available for today" : "Sin cupo disponible para hoy"}
+          {en
+            ? `No free slot today for ${activeDoc.title}`
+            : `Sin cupo disponible hoy para ${activeDoc.title}`}
         </p>
       ) : null}
       {moveDocs.length > 0 ? (
-        <ul className="gina-viz__slot-move-list">
-          {moveDocs.slice(0, 4).map((doc) => (
-            <li key={doc.id || doc.title} className="gina-viz__slot-move-row">
-              <span className="gina-viz__slot-move-title">{doc.title}</span>
-              <span className="gina-viz__slot-move-time">{doc.time || doc.timeLabel || "—"}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="gina-viz__sheet gina-viz__slot-sheet">
+          <ul className="gina-viz__sheet-slots">
+            {moveDocs.map((doc) => {
+              const active = doc.id === activeDocId;
+              const assigned = Boolean(doc.assigned);
+              return (
+                <li key={doc.id || doc.title}>
+                  <button
+                    type="button"
+                    className={
+                      "gina-viz__sheet-slot gina-viz__slot-doc-btn"
+                      + (active ? " gina-viz__slot-doc-btn--active" : "")
+                      + (assigned ? " gina-viz__slot-doc-btn--assigned" : "")
+                      + (!assigned ? " gina-viz__sheet-slot--urgency" : "")
+                    }
+                    onClick={() => {
+                      if (assigned) return;
+                      lastActiveRef.current = doc.id;
+                      setActiveDocId(doc.id);
+                      setAnchorDate(data.date || todayDateInputValue());
+                      setAnchorTime("");
+                      setAnchorFinishTime("");
+                    }}
+                    disabled={assigned}
+                  >
+                    <TimeCell
+                      doc={doc}
+                      passedSlot={!assigned}
+                      delayHighlights={!assigned}
+                      struck={false}
+                    />
+                    <span className="gina-viz__sheet-title">{doc.title}</span>
+                    {assigned ? (
+                      <span className="gina-viz__slot-check" aria-label={en ? "Assigned" : "Asignado"}>✓</span>
+                    ) : null}
+                    {doc.status ? <DocStatusChip status={doc.status} /> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : (
+        <p className="gina-viz__empty">
+          {en ? "Nothing left to reschedule." : "No queda nada por reagendar."}
+        </p>
+      )}
+      {activeDoc && !activeDoc.assigned ? (
+        <>
+          <div className="gina-viz__slot-date-row">
+            <BlockAnchorFields
+              className="gina-viz__slot-anchor"
+              enableTimeRange
+              hideLabel={false}
+              label={en
+                ? `Free slot for ${activeDoc.title}`
+                : `Cupo libre para ${activeDoc.title}`}
+              anchorDate={anchorDate}
+              anchorTime={anchorTime}
+              anchorFinishTime={anchorFinishTime}
+              occupied={occupied}
+              overlapHint={en
+                ? "Struck hours are busy or already past — pick a free window."
+                : "Las horas tachadas están ocupadas o ya pasaron — elige un cupo libre."}
+              onAnchorDateChange={(next) => setAnchorDate(next)}
+              onAnchorTimeChange={(next) => {
+                setAnchorTime(next);
+                setAnchorFinishTime(addDurationToTime(next, durationMs));
+              }}
+              onAnchorFinishTimeChange={(next) => setAnchorFinishTime(next)}
+            />
+            {dateFeedback ? (
+              <span className="gina-viz__slot-date-feedback" aria-live="polite">
+                {dateFeedback}
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="gina-viz__slot-apply"
+            disabled={!canApply}
+            onClick={applySlot}
+          >
+            {en
+              ? `Assign to ${activeDoc.title}`
+              : `Asignar a ${activeDoc.title}`}
+          </button>
+        </>
       ) : null}
-      <BlockAnchorFields
-        className="gina-viz__slot-anchor"
-        enableTimeRange
-        hideLabel={false}
-        label={en ? "Pick a free window" : "Elige un cupo libre"}
-        anchorDate={anchorDate}
-        anchorTime={anchorTime}
-        anchorFinishTime={anchorFinishTime}
-        occupied={occupied}
-        overlapHint={en
-          ? "Struck hours are busy or already past."
-          : "Las horas tachadas están ocupadas o ya pasaron."}
-        onAnchorDateChange={(next) => setAnchorDate(next)}
-        onAnchorTimeChange={(next) => {
-          setAnchorTime(next);
-          setAnchorFinishTime(addDurationToTime(next, durationMs));
-        }}
-        onAnchorFinishTimeChange={(next) => setAnchorFinishTime(next)}
-      />
-      <button
-        type="button"
-        className="gina-viz__slot-apply"
-        disabled={!canApply}
-        onClick={applySlot}
-      >
-        {en ? "Use this slot" : "Usar este cupo"}
-      </button>
     </div>
   );
 }
+
 
 function DailyReportVisualization({ data }) {
   const rows = Array.isArray(data.occupiedHours) ? data.occupiedHours : [];
@@ -1462,7 +1566,7 @@ function TodayOverviewVisualization({ data }) {
   );
 }
 
-function ScheduleSheetVisualization({ data }) {
+function ScheduleSheetVisualization({ data, onSelectAction }) {
   const groups = Array.isArray(data.groups) ? data.groups : [];
   const delayHighlights = Boolean(data.highlightPassedSlots);
   const isDaySheet = Boolean(data.isDaySheet);
@@ -1484,74 +1588,191 @@ function ScheduleSheetVisualization({ data }) {
   }
 
   return (
-    <div className="gina-viz gina-viz--schedule-sheet">
-      {!showDual ? (
-        <header className="gina-viz__head">
-          <span className="gina-viz__eyebrow">
-            {step === "overdue_check"
-              ? (locale === "en" ? "Expired windows" : "Horarios vencidos")
-              : (isDaySheet ? "Sheet del día" : "Horarios")}
-          </span>
-          <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
-          {progress && progress.total > 0 ? (
-            <p className="gina-viz__sheet-progress">
-              {progress.completed}/{progress.total} completados
-              {progress.remaining > 0 ? ` · ${progress.remaining} restante${progress.remaining === 1 ? "" : "s"}` : ""}
-            </p>
-          ) : null}
-        </header>
+    <>
+      <div className="gina-viz gina-viz--schedule-sheet">
+        {!showDual ? (
+          <header className="gina-viz__head">
+            <span className="gina-viz__eyebrow">
+              {step === "overdue_check"
+                ? (data.recoveryOfferMode === "late_start"
+                  ? (locale === "en" ? "Pending start" : "Inicio pendiente")
+                  : (locale === "en" ? "Expired windows" : "Horarios vencidos"))
+                : (isDaySheet ? "Sheet del día" : "Horarios")}
+            </span>
+            <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
+            {progress && progress.total > 0 ? (
+              <p className="gina-viz__sheet-progress">
+                {progress.completed}/{progress.total} completados
+                {progress.remaining > 0 ? ` · ${progress.remaining} restante${progress.remaining === 1 ? "" : "s"}` : ""}
+              </p>
+            ) : null}
+          </header>
+        ) : null}
+        {showDual ? (
+          <TodayConflictDualTimeline conflictRails={data.conflictRails} locale={locale} />
+        ) : null}
+        {hideGroups ? null : groups.length === 0 ? (
+          <p className="gina-viz__empty">
+            {data.missingAnchor
+              ? "Aún no hay tabla de referencia guardada. Mira los horarios de hoy y guárdala."
+              : "Sin horarios en este alcance."}
+          </p>
+        ) : (
+          <div className="gina-viz__sheet">
+            {groups.map((group) => (
+              <section key={group.department} className="gina-viz__sheet-dept">
+                <h4 className="gina-viz__sheet-dept-name">{group.department}</h4>
+                {(group.folders || []).map((folder) => (
+                  <div key={`${group.department}-${folder.folder}`} className="gina-viz__sheet-folder">
+                    <p className="gina-viz__sheet-folder-name">{folder.folder}</p>
+                    <ul className="gina-viz__sheet-slots">
+                      {(folder.documents || []).map((doc) => {
+                        const struck = Boolean(doc.struck || doc.completed || doc.status === "completed");
+                        const passed = Boolean(doc.passedSlot || delayHighlights);
+                        return (
+                          <li
+                            key={doc.id || `${doc.title}-${doc.time}`}
+                            className={
+                              "gina-viz__sheet-slot"
+                              + (struck ? " gina-viz__sheet-slot--done" : "")
+                              + (passed && delayHighlights ? " gina-viz__sheet-slot--urgency" : "")
+                              + (doc.id && doc.id === data.nextDocumentId ? " gina-viz__sheet-slot--next" : "")
+                            }
+                          >
+                            <TimeCell
+                              doc={doc}
+                              passedSlot={Boolean(doc.passedSlot)}
+                              delayHighlights={delayHighlights}
+                              struck={struck}
+                            />
+                            <span className={"gina-viz__sheet-title" + (struck ? " gina-viz__sheet-title--struck" : "")}>
+                              {struck ? <s>{doc.title}</s> : doc.title}
+                            </span>
+                            {doc.status ? <DocStatusChip status={doc.status} /> : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
+      {step === "overdue_check" ? (
+        <RecoveryEasyLinksLegend
+          locale={locale}
+          onSelectAction={onSelectAction}
+          recoveryOfferMode={data.recoveryOfferMode}
+          urgencyCount={data.urgencyCount}
+          lateStartCount={data.lateStartCount}
+          openDocId={data.openDocId}
+          openDocTitle={data.openDocTitle}
+        />
       ) : null}
-      {showDual ? (
-        <TodayConflictDualTimeline conflictRails={data.conflictRails} locale={locale} />
-      ) : null}
-      {hideGroups ? null : groups.length === 0 ? (
-        <p className="gina-viz__empty">
-          {data.missingAnchor
-            ? "Aún no hay tabla de referencia guardada. Mira los horarios de hoy y guárdala."
-            : "Sin horarios en este alcance."}
-        </p>
-      ) : (
-        <div className="gina-viz__sheet">
-          {groups.map((group) => (
-            <section key={group.department} className="gina-viz__sheet-dept">
-              <h4 className="gina-viz__sheet-dept-name">{group.department}</h4>
-              {(group.folders || []).map((folder) => (
-                <div key={`${group.department}-${folder.folder}`} className="gina-viz__sheet-folder">
-                  <p className="gina-viz__sheet-folder-name">{folder.folder}</p>
-                  <ul className="gina-viz__sheet-slots">
-                    {(folder.documents || []).map((doc) => {
-                      const struck = Boolean(doc.struck || doc.completed || doc.status === "completed");
-                      const passed = Boolean(doc.passedSlot || delayHighlights);
-                      return (
-                        <li
-                          key={doc.id || `${doc.title}-${doc.time}`}
-                          className={
-                            "gina-viz__sheet-slot"
-                            + (struck ? " gina-viz__sheet-slot--done" : "")
-                            + (passed && delayHighlights ? " gina-viz__sheet-slot--urgency" : "")
-                            + (doc.id && doc.id === data.nextDocumentId ? " gina-viz__sheet-slot--next" : "")
-                          }
-                        >
-                          <TimeCell
-                            doc={doc}
-                            passedSlot={Boolean(doc.passedSlot)}
-                            delayHighlights={delayHighlights}
-                            struck={struck}
+    </>
+  );
+}
+
+/** Stable ids for future SFX (no playback yet — gina-audio-deferred). */
+const EASY_LINK_SFX_BY_ID = {
+  mark_completed: "easy_link_completed",
+  mark_past_due: "easy_link_past_due",
+  move_end_of_day: "easy_link_reschedule",
+  recovery_snooze: "easy_link_snooze",
+};
+
+/**
+ * Easy Links — 2-col grid (sibling of schedule table).
+ * All 4 options: headline + body + inline link; status pills only on completed / past_due.
+ */
+function RecoveryEasyLinksLegend({
+  locale = "es",
+  onSelectAction,
+  recoveryOfferMode,
+  urgencyCount,
+  lateStartCount,
+  openDocId,
+  openDocTitle,
+}) {
+  const rows = buildRecoveryEasyLinksLegend({
+    locale,
+    recoveryOfferMode,
+    urgencyCount,
+    lateStartCount,
+    openDocId,
+    openDocTitle,
+  });
+  const [typedThrough, setTypedThrough] = useState(-1);
+
+  if (!rows.length) return null;
+
+  return (
+    <div
+      className="gina-viz__easy-links"
+      aria-label={locale === "en" ? "Easy Links" : "Easy Links"}
+    >
+      <div className="gina-viz__easy-links-grid">
+        {rows.map((row, index) => {
+          if (index > typedThrough + 1) return null;
+          const isTyping = index === typedThrough + 1;
+          const isDone = index <= typedThrough;
+          const blockText = `${row.title}:\n${row.body}`;
+          return (
+            <section
+              key={row.id}
+              className="gina-viz__easy-link"
+              data-sfx-id={EASY_LINK_SFX_BY_ID[row.id] || `easy_link_${row.id}`}
+            >
+              <div className="gina-viz__easy-link-head">
+                <span
+                  className="gina-viz__overview-dept-dot"
+                  style={{ background: row.statusColor || "#8a8a8a" }}
+                  aria-hidden
+                />
+                <div className="gina-viz__easy-link-copy">
+                  {isDone ? (
+                    <>
+                      <div className="gina-viz__easy-link-headline-row">
+                        <span className="gina-chat-card__ai-headline">{`${row.title}:`}</span>
+                        {row.statusKey ? (
+                          <img
+                            className="gina-viz__easy-link-icon"
+                            src={row.icon}
+                            alt=""
+                            aria-hidden
                           />
-                          <span className={"gina-viz__sheet-title" + (struck ? " gina-viz__sheet-title--struck" : "")}>
-                            {struck ? <s>{doc.title}</s> : doc.title}
-                          </span>
-                          {doc.status ? <DocStatusChip status={doc.status} /> : null}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                        ) : null}
+                      </div>
+                      <p className="gina-chat-card__ai-body gina-viz__easy-link-body">
+                        {row.body}
+                        {row.actionText ? (
+                          <>
+                            {" "}
+                            <button
+                              type="button"
+                              className="gina-viz__easy-link-inline"
+                              onClick={() => onSelectAction?.(row.actionText)}
+                            >
+                              {row.title}
+                            </button>
+                          </>
+                        ) : null}
+                      </p>
+                    </>
+                  ) : isTyping ? (
+                    <GinaAiMessageText
+                      text={blockText}
+                      onComplete={() => setTypedThrough(index)}
+                    />
+                  ) : null}
                 </div>
-              ))}
+              </div>
             </section>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2037,7 +2258,12 @@ export function GinaDataVisualization({ type, data, onSelectDepartment, onSelect
     case "daily_report_move_preview":
       return <DailyReportMovePreviewVisualization data={data} />;
     case "schedule_sheet":
-      return <ScheduleSheetVisualization data={data} />;
+      return (
+        <ScheduleSheetVisualization
+          data={data}
+          onSelectAction={onSelectAction}
+        />
+      );
     case "today_quick_sheet":
       return (
         <TodayQuickSheet

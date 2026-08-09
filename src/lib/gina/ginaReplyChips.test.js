@@ -79,21 +79,27 @@ describe("ginaReplyChips", () => {
     expect(line).not.toMatch(/señalar|vencido|choca/i);
   });
 
-  it("today overview after-text introduces chronological sheet", () => {
+  it("today overview after-text offers save pitch when sheet not saved", () => {
     const after = buildTodayOverviewAfterText({
       locale: "es",
+      hasDaySheet: false,
+      offerCount: 0,
+      incrementOffer: false,
       quickSheet: {
         urgency: [{ id: "late" }],
         isCleanDay: false,
       },
     });
-    expect(after).toMatch(/sheet del día/i);
-    expect(after).toMatch(/orden de horario/i);
+    expect(after).toContain("¡Hey! Antes de empezar");
+    expect(after).toMatch(/Sheet del Día/i);
   });
 
-  it("today overview after-text still introduces sheet on clean day", () => {
+  it("today overview after-text offers save pitch on clean day too", () => {
     const after = buildTodayOverviewAfterText({
       locale: "es",
+      hasDaySheet: false,
+      offerCount: 4,
+      incrementOffer: false,
       quickSheet: {
         urgency: [],
         isCleanDay: true,
@@ -101,8 +107,18 @@ describe("ginaReplyChips", () => {
         firstPendingId: "n1",
       },
     });
-    expect(after).toMatch(/sheet del día/i);
+    expect(after).toMatch(/Sheet del Día está listo/i);
     expect(after).not.toMatch(/abra el documento/i);
+  });
+
+  it("today overview after-text uses sheet intro when already saved", () => {
+    const after = buildTodayOverviewAfterText({
+      locale: "es",
+      hasDaySheet: true,
+      quickSheet: { isCleanDay: true },
+    });
+    expect(after).toMatch(/sheet del día/i);
+    expect(after).toMatch(/orden de horario/i);
   });
 
   it("today overview dept blocks have headline + bold docs/hours", () => {
@@ -207,6 +223,9 @@ describe("ginaReplyChips", () => {
     expect(headline).toContain("**1** documento");
     const after = buildTodayOverviewAfterText({
       locale: "es",
+      hasDaySheet: false,
+      offerCount: 0,
+      incrementOffer: false,
       quickSheet: {
         isCleanDay: true,
         firstPendingId: "n1",
@@ -214,7 +233,7 @@ describe("ginaReplyChips", () => {
         urgency: [],
       },
     });
-    expect(after).toMatch(/sheet del día/i);
+    expect(after).toMatch(/Sheet del Día/i);
   });
 
   it("urgency on today overview stays out of opening (notify later)", () => {

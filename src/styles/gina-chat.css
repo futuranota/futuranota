@@ -2488,6 +2488,100 @@
   border-color: color-mix(in oklab, #57BC6C 40%, transparent);
 }
 
+/* Easy Links — 2-col grid; sibling of schedule table, transparent. */
+.gina-viz__easy-links {
+  margin: 16px 0 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  background: transparent;
+  border: none;
+}
+
+.gina-viz__easy-links-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+  width: 100%;
+  align-items: start;
+}
+
+.gina-viz__easy-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.gina-viz__easy-link-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.gina-viz__easy-link-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.gina-viz__easy-link-copy .gina-chat-card__ai-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gina-viz__easy-link-headline-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.gina-viz__easy-link-body {
+  margin: 0;
+}
+
+/* Status pill only (completed / past_due) — headline size */
+.gina-viz__easy-link-icon {
+  height: 15px;
+  width: auto;
+  max-width: 96px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+/* Inline action after description */
+.gina-viz__easy-link-inline {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  font-size: inherit;
+  line-height: inherit;
+  color: #e8e8e8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.gina-viz__easy-link-inline:hover {
+  color: #fff;
+}
+
+@media (max-width: 420px) {
+  .gina-viz__easy-links-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 .gina-viz--slot-picker {
   display: flex;
   flex-direction: column;
@@ -2496,6 +2590,23 @@
   background: #151515;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;
+  overflow: visible;
+}
+
+.gina-viz__slot-date-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  z-index: 3;
+  overflow: visible;
+}
+
+.gina-viz__slot-date-feedback {
+  font-size: 11px;
+  font-weight: 600;
+  color: #c9b896;
+  letter-spacing: 0.02em;
 }
 
 .gina-viz__slot-banner {
@@ -2508,32 +2619,54 @@
   line-height: 1.35;
 }
 
-.gina-viz__slot-move-list {
-  list-style: none;
+.gina-viz__slot-sheet {
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
-.gina-viz__slot-move-row {
+.gina-viz__slot-doc-btn {
+  width: 100%;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: #d8d8d8;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: inherit;
+  font: inherit;
 }
 
-.gina-viz__slot-move-time {
-  color: #9a9a9a;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.gina-viz__slot-doc-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.gina-viz__slot-doc-btn--active {
+  border-color: rgba(201, 184, 150, 0.45);
+  background: rgba(201, 184, 150, 0.08);
+}
+
+.gina-viz__slot-doc-btn:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.gina-viz__slot-doc-btn--assigned {
+  opacity: 0.9;
+}
+
+.gina-viz__slot-check {
+  flex: 0 0 auto;
+  color: #57bc6c;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .gina-viz__slot-anchor {
   width: 100%;
+  position: relative;
+  z-index: 2;
 }
 
 .gina-viz__slot-apply {

@@ -6,6 +6,7 @@ import {
   buildRecoverySnoozeText,
   buildRescheduleAppliedText,
   buildReschedulePickerText,
+  buildRescheduleProgressText,
   buildScheduleRecoveryAck,
   buildScheduleRecoveryBriefText,
   buildScheduleRecoveryChips,
@@ -13,13 +14,19 @@ import {
   buildScheduleRecoveryGateChips,
   buildScheduleRecoveryIntroText,
   buildScheduleRecoveryStepText,
+  buildRecoveryEasyLinksLegend,
   isGinaWarmGoodbye,
   isMarkablePassedSlot,
   isPassedSlot,
   resolveRecoveryCurrentStep,
   resolveRecoveryNextStep,
 } from "./ginaScheduleRecovery.js";
-import { partitionTodayByClock, findFirstFreeSlot } from "./ginaTodayTimeTriage.js";
+import {
+  partitionTodayByClock,
+  findFirstFreeSlot,
+  formatLateStartDelay,
+  resolveRecoveryOfferMode,
+} from "./ginaTodayTimeTriage.js";
 import { get_today_scope } from "./ginaTools.js";
 import { buildGinaVisualization } from "./buildGinaVisualization.js";
 import { buildGinaFunnelHeadline, buildGinaReplyChips } from "./ginaReplyChips.js";
@@ -312,6 +319,70 @@ describe("ginaScheduleRecovery", () => {
     expect(triage.lateStartActive).toHaveLength(0);
     expect(triage.future.map((d) => d.id)).toEqual(["n5"]);
     expect(triage.actionable.map((d) => d.id).sort()).toEqual(["n1", "n3"]);
+    expect(resolveRecoveryOfferMode({ urgencyCount: 2, lateStartCount: 0 })).toBe("expired");
+    expect(resolveRecoveryOfferMode({ urgencyCount: 0, lateStartCount: 1 })).toBe("late_start");
+    expect(resolveRecoveryOfferMode({ urgencyCount: 1, lateStartCount: 1 })).toBe("mixed");
+    expect(formatLateStartDelay("2026-08-01T17:00:00", new Date("2026-08-01T18:30:00"), "es"))
+      .toBe("1 h 30 min");
+  });
+
+  it("recovery brief moveDocIds are only fully expired (not late-start)", () => {
+    const lateNow = new Date("2026-08-01T18:30:00");
+    const lateCtx = {
+      ...ctx,
+      now: lateNow,
+      nodes: {
+        ...ctx.nodes,
+        n5: {
+          ...ctx.nodes.n5,
+          anchorAt: "2026-08-01T17:00:00",
+          anchorFinishAt: "2026-08-01T20:00:00",
+          status: "not_started",
+        },
+      },
+    };
+    const scope = get_today_scope(lateCtx);
+    const brief = runGinaQueryFamily("Gina quiere informarte algo", lateCtx);
+    // Prefer explicit brief family if available
+    const family = brief.family === "schedule_recovery_brief"
+      ? brief.family
+      : "schedule_recovery_brief";
+    const viz = buildGinaVisualization(family, {
+      ...scope,
+      documents: scope.documents,
+      nodes: lateCtx.nodes,
+      docs: lateCtx.docs,
+    }, { now: lateNow, locale: "es" });
+    expect(viz?.data?.recoveryOfferMode).toBe("mixed");
+    expect(viz?.data?.moveDocIds?.sort()).toEqual(["n1", "n3"]);
+    expect(viz?.data?.moveDocIds).not.toContain("n5");
+
+    const lateOnlyCtx = {
+      ...lateCtx,
+      nodes: {
+        ...lateCtx.nodes,
+        n1: { ...lateCtx.nodes.n1, status: "completed", completed: true },
+        n3: { ...lateCtx.nodes.n3, status: "completed", completed: true },
+      },
+    };
+    const lateScope = get_today_scope(lateOnlyCtx);
+    const lateViz = buildGinaVisualization("schedule_recovery_brief", {
+      ...lateScope,
+      documents: lateScope.documents,
+      nodes: lateOnlyCtx.nodes,
+      docs: lateOnlyCtx.docs,
+    }, { now: lateNow, locale: "es" });
+    expect(lateViz?.data?.recoveryOfferMode).toBe("late_start");
+    expect(lateViz?.data?.moveDocIds).toEqual([]);
+    const blockedPick = buildGinaVisualization("schedule_recovery_reschedule_pick", {
+      ...lateScope,
+      documents: lateScope.documents,
+      nodes: lateOnlyCtx.nodes,
+      docs: lateOnlyCtx.docs,
+      moveDocIds: ["n5"],
+    }, { now: lateNow, locale: "es" });
+    expect(blockedPick?.data?.rescheduleBlockedActive).toBe(true);
+    expect(blockedPick?.type).toBe("schedule_sheet");
   });
 
   it("late-start triage drives overdue step even without fully expired", () => {
@@ -325,6 +396,7 @@ describe("ginaScheduleRecovery", () => {
         n3: { ...ctx.nodes.n3, status: "completed", completed: true },
         n5: {
           ...ctx.nodes.n5,
+          title: "Evening draft",
           anchorAt: "2026-08-01T17:00:00",
           anchorFinishAt: "2026-08-01T20:00:00",
           status: "not_started",
@@ -342,11 +414,74 @@ describe("ginaScheduleRecovery", () => {
     const step = buildScheduleRecoveryStepText({
       locale: "es",
       currentStep: "overdue_check",
+      urgencyCount: 0,
       lateStartCount: 1,
-      lateStartLabels: [{ label: "Marketing", time: "5:00 PM" }],
+      recoveryOfferMode: "late_start",
+      lateStartLabels: [{
+        label: "Marketing",
+        title: "Evening draft",
+        time: "5:00 PM",
+        delay: "1 h 30 min",
+      }],
     });
-    expect(step).toMatch(/programado iniciar/i);
+    expect(step).toMatch(/Evening draft/);
+    expect(step).toMatch(/1 h 30 min/);
+    expect(step).toMatch(/a tiempo/i);
     expect(step).toMatch(/En Progreso/i);
+    expect(step).not.toMatch(/Ambos/);
+    expect(step).not.toMatch(/ya pasó de hora/);
+    const plural = buildScheduleRecoveryStepText({
+      locale: "es",
+      currentStep: "overdue_check",
+      urgencyCount: 0,
+      lateStartCount: 2,
+      recoveryOfferMode: "late_start",
+      lateStartLabels: [
+        { label: "Sales", title: "A", time: "4:45 PM", delay: "45 minutos" },
+        { label: "PDN", title: "B", time: "5:00 PM", delay: "30 minutos" },
+      ],
+    });
+    expect(plural).toMatch(/Estos dos bloques/);
+    expect(plural).toMatch(/a tiempo/i);
+    const chips = buildScheduleRecoveryChips({
+      locale: "es",
+      urgencyCount: 0,
+      lateStartCount: 1,
+      recoveryOfferMode: "late_start",
+      openDocId: "n5",
+      openDocTitle: "Evening draft",
+      currentStep: "overdue_check",
+    });
+    expect(chips.find((c) => c.id === "move_end_of_day")).toBeUndefined();
+    expect(chips.find((c) => c.id === "mark_completed")).toBeUndefined();
+    expect(chips.find((c) => c.id === "mark_past_due")).toBeUndefined();
+    expect(chips.find((c) => c.id === "mark_in_progress_batch")).toBeTruthy();
+    expect(chips.find((c) => c.id === "open_late_start_doc")?.text).toBe("GinaRevealDocument:n5");
+    expect(chips.find((c) => c.id === "recovery_snooze")?.label).toBe("Posponer 45 min");
+    const lateLegend = buildRecoveryEasyLinksLegend({
+      locale: "es",
+      recoveryOfferMode: "late_start",
+      openDocId: "n5",
+    });
+    expect(lateLegend.map((r) => r.id)).toEqual([
+      "mark_in_progress_batch",
+      "open_late_start_doc",
+      "recovery_snooze",
+    ]);
+    const expiredLegend = buildRecoveryEasyLinksLegend({
+      locale: "es",
+      recoveryOfferMode: "expired",
+    });
+    expect(expiredLegend.map((r) => r.id)).toEqual([
+      "mark_completed",
+      "mark_past_due",
+      "move_end_of_day",
+      "recovery_snooze",
+    ]);
+    expect(expiredLegend.filter((r) => r.statusKey).map((r) => r.statusKey)).toEqual([
+      "completed",
+      "past_due",
+    ]);
   });
 
   it("routes completed / snooze / picker / apply intents", () => {
@@ -366,10 +501,13 @@ describe("ginaScheduleRecovery", () => {
       "Reagendar bloques vencidos mostrar cupos libres",
       ctx,
     ).family).toBe("schedule_recovery_reschedule_pick");
-    expect(runGinaQueryFamily(
-      "Aplicar cupo reagendado 2026-08-01T21:00:00.000Z|2026-08-01T22:00:00.000Z",
+    const applyOne = runGinaQueryFamily(
+      "Aplicar cupo reagendado n1|2026-08-01T21:00:00.000Z|2026-08-01T22:00:00.000Z|n1,n3",
       ctx,
-    ).family).toBe("schedule_recovery_reschedule_apply");
+    );
+    expect(applyOne.family).toBe("schedule_recovery_reschedule_apply");
+    expect(applyOne.toolContext?.applyDocId).toBe("n1");
+    expect(applyOne.toolContext?.sessionMoveDocIds).toEqual(["n1", "n3"]);
     expect(runGinaQueryFamily(
       "Mover bloques de recuperación a mañana por la mañana",
       ctx,
@@ -380,7 +518,7 @@ describe("ginaScheduleRecovery", () => {
     ).toolContext?.mode).toBe("force_end");
   });
 
-  it("builds schedule_slot_picker viz and no-cupo chips", () => {
+  it("builds schedule_slot_picker per-doc loop (no suggested mass chip)", () => {
     const pick = runGinaQueryFamily("Reagendar bloques vencidos mostrar cupos libres", ctx);
     const viz = buildGinaVisualization(pick.family, {
       ...pick.toolContext,
@@ -390,17 +528,48 @@ describe("ginaScheduleRecovery", () => {
     expect(viz?.type).toBe("schedule_slot_picker");
     expect(Array.isArray(viz.data.moveDocIds)).toBe(true);
     expect(viz.data.moveDocIds.length).toBeGreaterThan(0);
+    expect(viz.data.activeDocId).toBeTruthy();
+    expect(viz.data.progress?.total).toBe(viz.data.moveDocIds.length);
+    // Occupied excludes only the active doc
+    expect(viz.data.occupied.every((o) => o.id !== viz.data.activeDocId)).toBe(true);
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
-    if (viz.data.noCupo || !viz.data.hasFreeSlot) {
+    expect(chips.some((c) => c.id === "apply_suggested_slot")).toBe(false);
+    expect(chips.some((c) => c.id === "recovery_next")).toBe(true);
+    if (viz.data.noCupo) {
       expect(chips.some((c) => c.id === "reschedule_tomorrow")).toBe(true);
       expect(chips.some((c) => c.id === "force_end_of_night")).toBe(true);
       expect(chips.some((c) => c.id === "compress_coming_soon" && c.comingSoon)).toBe(true);
-      expect(buildReschedulePickerText({ locale: "es", hasFreeSlot: false })).toMatch(/lleno/i);
-    } else {
-      expect(chips.some((c) => c.id === "apply_suggested_slot" || c.id === "recovery_next")).toBe(true);
     }
+    expect(buildReschedulePickerText({ locale: "es" })).toMatch(/Elige uno/i);
+    expect(buildReschedulePickerText({ locale: "es", noCupo: true, activeTitle: "Blogs" }))
+      .toMatch(/Sin cupo libre hoy para \*\*Blogs\*\*/i);
+    expect(buildRescheduleProgressText({
+      locale: "es",
+      title: "Blogs",
+      timeLabel: "9:00 PM – 10:00 PM",
+      nextTitle: "Sales",
+      remaining: 1,
+    })).toMatch(/Siguiente: elige el cupo para \*\*Sales\*\*/);
     expect(buildRescheduleAppliedText({ locale: "es", timeLabel: "9:00 PM – 10:00 PM" })).toMatch(/Reagendé/);
     expect(buildRecoverySnoozeText({ locale: "es" })).toMatch(/45 minutos/);
+  });
+
+  it("marks assigned docs when rebuilding picker mid-loop", () => {
+    const viz = buildGinaVisualization("schedule_recovery_reschedule_pick", {
+      documents: get_today_scope(ctx).documents,
+      nodes: ctx.nodes,
+      docs: ctx.docs,
+      // n5 is future (not fully expired) — dropped from move session
+      sessionMoveDocIds: ["n1", "n3", "n5"],
+      assignedDocIds: ["n1"],
+      activeDocId: "n3",
+    }, { now, locale: "es" });
+    expect(viz.data.activeDocId).toBe("n3");
+    expect(viz.data.moveDocIds.sort()).toEqual(["n1", "n3"]);
+    expect(viz.data.moveDocs.find((d) => d.id === "n1")?.assigned).toBe(true);
+    expect(viz.data.moveDocs.find((d) => d.id === "n3")?.assigned).toBe(false);
+    expect(viz.data.occupied.some((o) => o.id === "n3")).toBe(false);
+    expect(viz.data.progress).toEqual({ assigned: 1, total: 2, remaining: 1 });
   });
 
   it("findFirstFreeSlot skips occupied ranges", () => {

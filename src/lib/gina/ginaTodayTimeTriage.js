@@ -98,16 +98,72 @@ export function partitionTodayByClock(docs, now = new Date()) {
 /**
  * Labels like "Sales a las 4:45 PM" for late-start copy.
  * @param {object[]} docs
- * @returns {{ label: string, time: string, title: string, department: string }[]}
+ * @param {Date} [now]
+ * @param {string} [locale]
+ * @returns {{ label: string, time: string, title: string, department: string, id: string | null, delay: string, anchorAt: string | null }[]}
  */
-export function mapLateStartLabels(docs) {
+export function mapLateStartLabels(docs, now = new Date(), locale = "es") {
+  const clock = now instanceof Date ? now : new Date();
   return (Array.isArray(docs) ? docs : []).map((d) => {
     const department = String(d.departmentName || d.department || "").trim();
     const title = String(d.title || "documento").trim();
     const time = d.anchorAt ? formatClock12h(new Date(d.anchorAt)) : "";
     const label = department || title;
-    return { label, time, title, department, id: d.id || null };
+    return {
+      label,
+      time,
+      title,
+      department,
+      id: d.id || null,
+      anchorAt: d.anchorAt || null,
+      delay: formatLateStartDelay(d.anchorAt, clock, locale),
+    };
   });
+}
+
+/**
+ * How late past scheduled start (human label).
+ * @param {string | Date | null | undefined} anchorAt
+ * @param {Date} [now]
+ * @param {string} [locale]
+ * @returns {string}
+ */
+export function formatLateStartDelay(anchorAt, now = new Date(), locale = "es") {
+  const en = locale === "en";
+  const start = anchorAt ? new Date(anchorAt).getTime() : NaN;
+  const clock = now instanceof Date ? now : new Date();
+  if (!Number.isFinite(start) || start >= clock.getTime()) {
+    return en ? "a moment" : "un momento";
+  }
+  const mins = Math.max(1, Math.round((clock.getTime() - start) / 60000));
+  if (mins < 60) {
+    return en
+      ? `${mins} minute${mins === 1 ? "" : "s"}`
+      : `${mins} minuto${mins === 1 ? "" : "s"}`;
+  }
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (m === 0) {
+    return en
+      ? `${h} hour${h === 1 ? "" : "s"}`
+      : `${h} hora${h === 1 ? "" : "s"}`;
+  }
+  return en
+    ? `${h} h ${m} min`
+    : `${h} h ${m} min`;
+}
+
+/**
+ * @param {{ urgencyCount?: number, lateStartCount?: number }} opts
+ * @returns {"expired" | "late_start" | "mixed" | "none"}
+ */
+export function resolveRecoveryOfferMode(opts = {}) {
+  const urgency = Number(opts.urgencyCount) || 0;
+  const late = Number(opts.lateStartCount) || 0;
+  if (urgency > 0 && late > 0) return "mixed";
+  if (urgency > 0) return "expired";
+  if (late > 0) return "late_start";
+  return "none";
 }
 
 /**

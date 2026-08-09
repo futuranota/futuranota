@@ -1901,25 +1901,56 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Apply chosen slot / tomorrow / force end.
+  // Apply chosen slot / tomorrow / force end (one doc at a time).
   {
-    const applyMatch = q.match(/\b(?:aplicar\s+cupo\s+reagendado|apply\s+reschedule\s+slot)\s+(\S+)\|(\S+)/);
+    const applyMatch = q.match(
+      /\b(?:aplicar\s+cupo\s+reagendado|apply\s+reschedule\s+slot)\s+(\S+)/,
+    );
     if (applyMatch) {
+      const parts = String(applyMatch[1] || "").split("|").filter(Boolean);
+      let applyDocId = null;
+      let applyStartIso = null;
+      let applyFinishIso = null;
+      let sessionMoveDocIds = null;
+      if (parts.length >= 4) {
+        applyDocId = parts[0];
+        applyStartIso = parts[1];
+        applyFinishIso = parts[2];
+        sessionMoveDocIds = parts[3].split(",").map((s) => s.trim()).filter(Boolean);
+      } else if (parts.length === 3) {
+        // docId|start|finish
+        applyDocId = parts[0];
+        applyStartIso = parts[1];
+        applyFinishIso = parts[2];
+      } else if (parts.length === 2) {
+        // legacy: start|finish (first actionable)
+        applyStartIso = parts[0];
+        applyFinishIso = parts[1];
+      }
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       return {
         family: "schedule_recovery_reschedule_apply",
         toolsCalled,
         toolContext: {
           ...today,
-          applyStartIso: applyMatch[1],
-          applyFinishIso: applyMatch[2],
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          objectId: ctx.objectId,
+          applyDocId,
+          applyStartIso,
+          applyFinishIso,
+          sessionMoveDocIds,
           mode: "slot",
-          hint: "Apply chosen free slot to recovery docs",
+          hint: "Apply chosen free slot to one recovery doc",
         },
         workspaceInventory: inventory,
       };
     }
-    if (/\bmover\s+bloques\s+de\s+recuperacion\s+a\s+manana\b/.test(q)
+    const tomorrowDoc = q.match(
+      /\b(?:mover\s+documento\s+de\s+recuperacion|move\s+recovery\s+document)\s+(\S+)\s+(?:a\s+manana|to\s+tomorrow)/,
+    );
+    if (tomorrowDoc
+      || /\bmover\s+bloques\s+de\s+recuperacion\s+a\s+manana\b/.test(q)
       || /\bmove\s+recovery\s+blocks\s+to\s+tomorrow\s+morning\b/.test(q)) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       return {
@@ -1927,13 +1958,21 @@ export function runGinaQueryFamily(text, ctx = {}) {
         toolsCalled,
         toolContext: {
           ...today,
+          nodes: ctx.nodes,
+          docs: ctx.docs,
+          objectId: ctx.objectId,
+          applyDocId: tomorrowDoc?.[1] || null,
           mode: "tomorrow",
-          hint: "Move recovery docs to tomorrow morning",
+          hint: "Move one recovery doc to tomorrow morning",
         },
         workspaceInventory: inventory,
       };
     }
-    if (/\bforzar\s+insercion\s+de\s+bloques\s+al\s+final\b/.test(q)
+    const forceDoc = q.match(
+      /\b(?:forzar\s+insercion\s+documento|force\s+insert\s+document)\s+(\S+)\s+(?:al\s+final|at\s+end)/,
+    );
+    if (forceDoc
+      || /\bforzar\s+insercion\s+de\s+bloques\s+al\s+final\b/.test(q)
       || /\bforce\s+insert\s+recovery\s+blocks\s+at\s+end\b/.test(q)) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       return {
@@ -1944,8 +1983,9 @@ export function runGinaQueryFamily(text, ctx = {}) {
           nodes: ctx.nodes,
           docs: ctx.docs,
           objectId: ctx.objectId,
+          applyDocId: forceDoc?.[1] || null,
           mode: "force_end",
-          hint: "Force insert at end of tonight",
+          hint: "Force insert one recovery doc at end of tonight",
         },
         workspaceInventory: inventory,
       };

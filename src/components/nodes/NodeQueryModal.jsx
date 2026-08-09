@@ -69,6 +69,7 @@ import {
   shouldUseGinaSearchSequence,
 } from "../../lib/gina/ginaSearchSequence.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
+import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -665,16 +666,21 @@ export function NodeQueryModal({
           : "Couldn't reply. Try again.");
       const localeKey = locale === "es" ? "es" : "en";
       const funnelHeadline = buildGinaFunnelHeadline(visualization, { locale: localeKey });
+      const ginaUserId = authUser?.id || "anon";
+      const daySheetAnchored = hasDaySheet(ginaUserId);
       const textAfter = visualization?.data?.todayOverview
         ? buildTodayOverviewAfterText({
           quickSheet: visualization.data.quickSheet || null,
           locale: localeKey,
+          userId: ginaUserId,
+          hasDaySheet: daySheetAnchored,
         })
         : null;
       const chips = buildGinaReplyChips({
         family: routed.family,
         visualization,
         locale: localeKey,
+        hasDaySheet: daySheetAnchored,
       });
       return {
         message: funnelHeadline || message,

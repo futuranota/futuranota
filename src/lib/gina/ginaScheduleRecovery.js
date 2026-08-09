@@ -3,6 +3,9 @@
  */
 
 import { DOC_WORK_STATUS } from "../docWorkStatus.js";
+import { resolveRecoveryOfferMode } from "./ginaTodayTimeTriage.js";
+
+export { resolveRecoveryOfferMode, formatLateStartDelay } from "./ginaTodayTimeTriage.js";
 
 /**
  * True when the document's timed block has already ended (or start passed with no finish).
@@ -262,6 +265,8 @@ export function buildScheduleRecoveryOverdueStepText(opts = {}) {
   const n = Number(opts.urgencyCount) || times.length || 0;
   const late = Array.isArray(opts.lateStartLabels) ? opts.lateStartLabels : [];
   const lateN = Number(opts.lateStartCount) || late.length || 0;
+  const mode = opts.recoveryOfferMode
+    || resolveRecoveryOfferMode({ urgencyCount: n, lateStartCount: lateN });
   const timeList = times.length
     ? (en
       ? times.join(times.length === 2 ? " and " : ", ")
@@ -286,26 +291,58 @@ export function buildScheduleRecoveryOverdueStepText(opts = {}) {
 
   if (lateN > 0) {
     if (lines.length) lines.push("");
-    const bits = late.slice(0, 4).map((row) => {
-      const name = row.label || row.title || (en ? "a document" : "un documento");
-      return row.time ? `${name} ${en ? "at" : "a las"} ${row.time}` : name;
-    });
-    const joined = en
-      ? bits.join(bits.length === 2 ? " and " : ", ")
-      : bits.length === 2
-        ? `${bits[0]} y ${bits[1]}`
-        : bits.join(", ");
-    if (en) {
+    const first = late[0] || {};
+    const title = String(first.title || first.label || (en ? "this document" : "este documento")).trim();
+    const delay = String(first.delay || "").trim()
+      || (en ? "a while" : "un rato");
+
+    if (mode === "late_start") {
+      // Window still open — nudge to open / start, not expired recovery.
+      if (en) {
+        if (lateN === 1) {
+          lines.push(
+            `If you’re not working on ${title}, you should have started ${delay} ago. `
+            + `You’re still in time to take action — open it, or tell me to mark it In progress if you already started.`,
+          );
+        } else {
+          lines.push(
+            `${lateN === 2 ? "These two blocks" : "These blocks"} already started on the clock but still show as Not started `
+            + `(e.g. ${title}, about ${delay} late). You’re still in time — open one, or tell me which to mark In progress.`,
+          );
+        }
+      } else if (lateN === 1) {
+        lines.push(
+          `Si no estás trabajando en ${title}, deberías haber comenzado hace ${delay}. `
+          + `Aún estás a tiempo de tomar acción — ábrelo, o dime y lo paso a En Progreso si ya empezaste.`,
+        );
+      } else {
+        lines.push(
+          `${lateN === 2 ? "Estos dos bloques" : "Estos bloques"} ya entraron en su horario y siguen como «Sin empezar» `
+          + `(p. ej. ${title}, unos ${delay} de retraso). Aún estás a tiempo — abre uno, o dime cuál paso a En Progreso.`,
+        );
+      }
+    } else if (en) {
+      // Mixed with expired — softer late-start aside (no “reagendar as expired”).
+      if (lateN === 1) {
+        lines.push(
+          `Also, ${title} is still inside its window but shows Not started `
+          + `(you should have started ${delay} ago). You’re still in time — open it or mark In progress.`,
+        );
+      } else {
+        lines.push(
+          `Also, ${lateN} blocks are still inside their windows but Not started. `
+          + `You’re still in time to open them or mark In progress.`,
+        );
+      }
+    } else if (lateN === 1) {
       lines.push(
-        `I also noticed you had scheduled to start ${joined}. `
-        + `They still show as Not started. If you’re already working on one, tell me which to mark In progress. `
-        + `If you haven’t started, you’re more than an hour late on this block.`,
+        `Además, ${title} sigue dentro de su ventana pero figura «Sin empezar» `
+        + `(deberías haber comenzado hace ${delay}). Aún estás a tiempo — ábrelo o pásalo a En Progreso.`,
       );
     } else {
       lines.push(
-        `Noté que tenías programado iniciar ${joined}. `
-        + `Ambos figuran como «Sin empezar». Si ya estás trabajando en alguno, dime cuál para pasarlo a En Progreso. `
-        + `Si no has comenzado, registras un retraso de más de una hora en este bloque.`,
+        `Además, ${lateN} bloques siguen dentro de su ventana con «Sin empezar». `
+        + `Aún estás a tiempo de abrirlos o pasarlos a En Progreso.`,
       );
     }
   }
@@ -318,23 +355,144 @@ export function buildScheduleRecoveryOverdueStepText(opts = {}) {
 
   lines.push("");
   lines.push(en ? "How do you want to proceed?" : "¿Cómo deseas proceder?");
-
-  if (opts.explainEasyLinks !== false) {
-    lines.push("");
-    if (en) {
-      lines.push("**Mark as Completed** — close finished/late blocks; pending work time updates.");
-      lines.push("**Archive as Past due** — keep a record, drop them from today’s active view.");
-      lines.push("**Move to end of day** — pick a free slot (struck hours are busy/expired).");
-      lines.push("**Continue / Later** — leave the plan as-is; I’ll remind you in ~45 minutes.");
-    } else {
-      lines.push("**Marcar como Completados** — cierra bloques pasados/retrasados; actualiza el trabajo pendiente de hoy.");
-      lines.push("**Archivar como Vencidos** — guarda el registro y los retira de la vista activa de hoy.");
-      lines.push("**Mover al final del día** — eliges un cupo libre (horas tachadas = ocupadas/vencidas).");
-      lines.push("**Seguir / Más tarde** — mantengo el plan; te recuerdo en ~45 minutos.");
-    }
-  }
+  // Easy Link blurbs render as RecoveryEasyLinksLegend under the viz (not duplicated here).
 
   return lines.join("\n");
+}
+
+/**
+ * Structured Easy Links legend rows (icons under overdue_check viz).
+ * @param {{
+ *   locale?: string,
+ *   recoveryOfferMode?: string,
+ *   urgencyCount?: number,
+ *   lateStartCount?: number,
+ *   openDocId?: string | null,
+ *   openDocTitle?: string | null,
+ * }} [opts]
+ * @returns {{ id: string, title: string, body: string, icon: string, iconLabel: string, actionText?: string | null, statusKey?: string | null, statusColor?: string | null }[]}
+ */
+export function buildRecoveryEasyLinksLegend(opts = {}) {
+  const en = opts.locale === "en";
+  const mode = opts.recoveryOfferMode
+    || resolveRecoveryOfferMode({
+      urgencyCount: opts.urgencyCount,
+      lateStartCount: opts.lateStartCount,
+    });
+
+  if (mode === "late_start") {
+    const openId = String(opts.openDocId || "").trim();
+    const openTitle = String(opts.openDocTitle || "").trim();
+    /** @type {{ id: string, title: string, body: string, icon: string, iconLabel: string, actionText?: string | null, statusKey?: string | null, statusColor?: string | null }[]} */
+    const rows = [
+      {
+        id: "mark_in_progress_batch",
+        title: en ? "Mark In progress" : "Pasar a En Progreso",
+        body: en
+          ? "You’re already in the window — flip status if you started."
+          : "Ya estás en la ventana — cambia el status si ya empezaste.",
+        icon: "/uploads/pending.svg",
+        iconLabel: en ? "In progress" : "En progreso",
+        actionText: en
+          ? "Mark late-start blocks as in progress"
+          : "Marcar bloques con inicio tardío como en progreso",
+        statusKey: null,
+        statusColor: "#4DB3FF",
+      },
+    ];
+    if (openId) {
+      rows.push({
+        id: "open_late_start_doc",
+        title: openTitle
+          ? (en ? `Open ${openTitle}` : `Abrir ${openTitle}`)
+          : (en ? "Open document" : "Abrir documento"),
+        body: en
+          ? "Still time — open and work inside this block."
+          : "Aún a tiempo — ábrelo y trabaja dentro de este bloque.",
+        icon: "/uploads/pending.svg",
+        iconLabel: en ? "Open" : "Abrir",
+        actionText: `GinaRevealDocument:${openId}`,
+        statusKey: null,
+        statusColor: null,
+      });
+    }
+    rows.push({
+      id: "recovery_snooze",
+      title: en ? "Snooze 45 min" : "Posponer 45 min",
+      body: en
+        ? "Keep the plan and I’ll remind you in 45 minutes."
+        : "Mantiene el plan y te avisa en 45 minutos.",
+      icon: "/uploads/pending.svg",
+      iconLabel: en ? "Reminder" : "Recordatorio",
+      actionText: en
+        ? "Snooze schedule recovery reminder"
+        : "Posponer recordatorio de recuperación de horario",
+      statusKey: null,
+      statusColor: null,
+    });
+    return rows;
+  }
+
+  if (mode === "none") return [];
+
+  return [
+    {
+      id: "mark_completed",
+      title: en ? "Mark as Completed" : "Marcar como Completados",
+      body: en
+        ? "Mark them done and update today’s pending work."
+        : "Dálos por terminados y actualiza tus pendientes de hoy.",
+      icon: "/uploads/completed.svg",
+      iconLabel: en ? "Completed" : "Completado",
+      actionText: en
+        ? "Mark today's expired blocks as completed"
+        : "Marcar como completados los bloques vencidos de hoy",
+      statusKey: "completed",
+      statusColor: "#5CFF9A",
+    },
+    {
+      id: "mark_past_due",
+      title: en ? "Archive as Past due" : "Archivar como Vencidos",
+      body: en
+        ? "Keep them in history and clear today’s active view."
+        : "Guárdalos en el historial y despeja tu vista activa.",
+      icon: "/uploads/pas-due.svg",
+      iconLabel: en ? "Past due" : "Vencido",
+      actionText: en
+        ? "Mark today's passed slots as past due"
+        : "Marcar como vencidos los horarios pasados de hoy",
+      statusKey: "past_due",
+      statusColor: "#F2F2F2",
+    },
+    {
+      id: "move_end_of_day",
+      title: en ? "Reschedule for today" : "Reagendar para hoy",
+      body: en
+        ? "Move them into a free slot later today."
+        : "Reubícalos en un espacio libre más tarde.",
+      icon: "/uploads/CalendarDots.svg",
+      iconLabel: en ? "Later" : "Más tarde",
+      actionText: en
+        ? "Reschedule expired blocks show free slots"
+        : "Reagendar bloques vencidos mostrar cupos libres",
+      statusKey: null,
+      statusColor: null,
+    },
+    {
+      id: "recovery_snooze",
+      title: en ? "Snooze 45 min" : "Posponer 45 min",
+      body: en
+        ? "Keep the plan and I’ll remind you in 45 minutes."
+        : "Mantiene el plan y te avisa en 45 minutos.",
+      icon: "/uploads/pending.svg",
+      iconLabel: en ? "Reminder" : "Recordatorio",
+      actionText: en
+        ? "Snooze schedule recovery reminder"
+        : "Posponer recordatorio de recuperación de horario",
+      statusKey: null,
+      statusColor: null,
+    },
+  ];
 }
 
 /**
@@ -436,24 +594,58 @@ export function buildScheduleRecoveryBriefText(opts = {}) {
 
 /**
  * Paso 1 chips — Easy Links (live where wired).
- * @param {{ locale?: string, lateStartCount?: number }} [opts]
+ * @param {{
+ *   locale?: string,
+ *   lateStartCount?: number,
+ *   urgencyCount?: number,
+ *   recoveryOfferMode?: string,
+ *   openDocId?: string | null,
+ *   openDocTitle?: string | null,
+ * }} [opts]
  */
 export function buildScheduleRecoveryOverdueChips(opts = {}) {
   const en = opts.locale === "en";
   const lateN = Number(opts.lateStartCount) || 0;
+  const urgencyN = Number(opts.urgencyCount) || 0;
+  const mode = opts.recoveryOfferMode
+    || resolveRecoveryOfferMode({ urgencyCount: urgencyN, lateStartCount: lateN });
   /** @type {{ id: string, label: string, text: string, primary?: boolean, comingSoon?: boolean }[]} */
   const chips = [];
 
   if (lateN > 0) {
     chips.push({
       id: "mark_in_progress_batch",
-      label: en ? "Mark late starts In progress" : "Pasar retrasos a En Progreso",
+      label: en ? "Mark late starts In progress" : "Pasar a En Progreso",
       text: en
         ? "Mark late-start blocks as in progress"
         : "Marcar bloques con inicio tardío como en progreso",
+      primary: mode === "late_start",
     });
   }
 
+  if (mode === "late_start") {
+    const openId = String(opts.openDocId || "").trim();
+    const openTitle = String(opts.openDocTitle || "").trim();
+    if (openId) {
+      chips.push({
+        id: "open_late_start_doc",
+        label: openTitle
+          ? (en ? `Open ${openTitle}` : `Abrir ${openTitle}`)
+          : (en ? "Open document" : "Abrir documento"),
+        text: `GinaRevealDocument:${openId}`,
+      });
+    }
+    chips.push({
+      id: "recovery_snooze",
+      label: en ? "Snooze 45 min" : "Posponer 45 min",
+      text: en
+        ? "Snooze schedule recovery reminder"
+        : "Posponer recordatorio de recuperación de horario",
+    });
+    return chips;
+  }
+
+  // expired | mixed — recovery actions for fully ended windows
   chips.push(
     {
       id: "mark_completed",
@@ -472,14 +664,14 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
     },
     {
       id: "move_end_of_day",
-      label: en ? "Move to end of day" : "Mover al final del día",
+      label: en ? "Reschedule for today" : "Reagendar para hoy",
       text: en
         ? "Reschedule expired blocks show free slots"
         : "Reagendar bloques vencidos mostrar cupos libres",
     },
     {
       id: "recovery_snooze",
-      label: en ? "Continue / Later" : "Seguir / Más tarde",
+      label: en ? "Snooze 45 min" : "Posponer 45 min",
       text: en
         ? "Snooze schedule recovery reminder"
         : "Posponer recordatorio de recuperación de horario",
@@ -563,6 +755,10 @@ export function buildScheduleRecoveryChips(opts = {}) {
     return buildScheduleRecoveryOverdueChips({
       locale: opts.locale,
       lateStartCount: opts.lateStartCount,
+      urgencyCount: opts.urgencyCount,
+      recoveryOfferMode: opts.recoveryOfferMode,
+      openDocId: opts.openDocId,
+      openDocTitle: opts.openDocTitle,
     });
   }
   if (step === "conflict_resolve") {
@@ -710,33 +906,74 @@ export function buildScheduleRecoveryAppliedText(intent, opts = {}) {
 }
 
 /**
- * Copy when opening the free-slot picker.
- * @param {{ locale?: string, hasFreeSlot?: boolean }} [opts]
+ * Copy when opening the free-slot picker (Gina facilitates; user chooses).
+ * @param {{ locale?: string, hasFreeSlot?: boolean, noCupo?: boolean, activeTitle?: string | null }} [opts]
  */
 export function buildReschedulePickerText(opts = {}) {
   const en = opts.locale === "en";
-  if (opts.hasFreeSlot === false) {
-    return en
-      ? "Today looks full — struck hours are occupied or already past. Pick tomorrow, compress (soon), or force-insert at the end of the night."
-      : "Hoy parece lleno — las horas tachadas están ocupadas o ya pasaron. Elige mañana, comprimir (próx.) o insertar al final de la noche de todos modos.";
+  if (opts.noCupo || opts.hasFreeSlot === false) {
+    const title = String(opts.activeTitle || "").trim();
+    if (en) {
+      return title
+        ? `No free window left today for **${title}**. Struck hours are busy or already past — pick tomorrow, compress (soon), or insert at the end of the night.`
+        : "No free window left today for this block. Struck hours are busy or already past — pick tomorrow, compress (soon), or insert at the end of the night.";
+    }
+    return title
+      ? `Sin cupo libre hoy para **${title}**. Las horas tachadas están ocupadas o ya pasaron — elige mañana, comprimir (próx.) o insertar al final de la noche.`
+      : "Sin cupo libre hoy para este bloque. Las horas tachadas están ocupadas o ya pasaron — elige mañana, comprimir (próx.) o insertar al final de la noche.";
   }
   return en
-    ? "I’ll find you a slot. Here are today’s blocks and free gaps. Struck hours are busy or expired — pick a free window today or another date."
-    : "Voy a buscarte un espacio. Aquí tienes los bloques de hoy y los cupos disponibles. Las horas tachadas ya están ocupadas o vencidas; puedes seleccionar un hueco libre de hoy o elegir otra fecha.";
+    ? "Here are the blocks to reschedule. Pick one, check the struck hours (busy or already past), and assign a free slot. When you finish one, we continue with the next."
+    : "Aquí están los bloques a reagendar. Elige uno, mira las horas tachadas (ocupadas o ya pasadas) y asígnale un cupo libre. Cuando termines uno, seguimos con el siguiente.";
 }
 
 /**
- * Ack after applying a chosen slot.
- * @param {{ locale?: string, timeLabel?: string, dayLabel?: string }} [opts]
+ * Progress line after assigning one doc in the loop.
+ * @param {{ locale?: string, title?: string, timeLabel?: string, nextTitle?: string | null, remaining?: number }} [opts]
+ */
+export function buildRescheduleProgressText(opts = {}) {
+  const en = opts.locale === "en";
+  const title = String(opts.title || "").trim() || (en ? "the document" : "el documento");
+  const time = String(opts.timeLabel || "").trim();
+  const next = String(opts.nextTitle || "").trim();
+  const left = Number(opts.remaining) || 0;
+  if (en) {
+    const done = time
+      ? `Done — **${title}** is now ${time}.`
+      : `Done — **${title}** is updated.`;
+    if (left <= 0) return done;
+    return next
+      ? `${done} Next: pick a free slot for **${next}**.`
+      : `${done} ${left} block(s) left — pick the next one.`;
+  }
+  const done = time
+    ? `Listo — **${title}** quedó en ${time}.`
+    : `Listo — **${title}** quedó actualizado.`;
+  if (left <= 0) return done;
+  return next
+    ? `${done} Siguiente: elige el cupo para **${next}**.`
+    : `${done} Quedan ${left} bloque(s) — elige el siguiente.`;
+}
+
+/**
+ * Ack after applying the last chosen slot (loop finished).
+ * @param {{ locale?: string, timeLabel?: string, dayLabel?: string, count?: number }} [opts]
  */
 export function buildRescheduleAppliedText(opts = {}) {
   const en = opts.locale === "en";
   const time = String(opts.timeLabel || "").trim();
   const day = String(opts.dayLabel || "").trim();
+  const n = Number(opts.count) || 0;
   if (en) {
+    if (n > 1) {
+      return `Done. I rescheduled ${n} block(s) with the slots you chose. Your agenda is updated without overlaps.`;
+    }
     if (day && time) return `Done. I rescheduled the document for ${day} ${time}. Your agenda is updated without overlaps.`;
     if (time) return `Done. I rescheduled the document for today ${time}. Your agenda is updated without overlaps.`;
     return "Done. I rescheduled the document. Your agenda is updated without overlaps.";
+  }
+  if (n > 1) {
+    return `Listo. Reagendé ${n} bloque(s) con los cupos que elegiste. Tu agenda quedó actualizada sin solapamientos.`;
   }
   if (day && time) return `Listo. Reagendé el documento para ${day} ${time}. Tu agenda quedó actualizada sin solapamientos.`;
   if (time) return `Listo. Reagendé el documento para hoy ${time}. Tu agenda quedó actualizada sin solapamientos.`;

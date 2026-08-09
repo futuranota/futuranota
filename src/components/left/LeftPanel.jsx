@@ -54,6 +54,7 @@ import {
   buildScheduleRecoveryStepText,
   buildReschedulePickerText,
   buildRescheduleAppliedText,
+  buildRescheduleProgressText,
   buildRecoverySnoozeText,
   isGinaWarmGoodbye,
 } from "../../lib/gina/ginaScheduleRecovery.js";
@@ -69,7 +70,12 @@ import { formatClock12h, formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildDailyReportAppliedText, buildDailyReportOfferText } from "../../lib/gina/ginaDailyReport.js";
 import { markDailyReportOpened } from "../../lib/gina/ginaDailyReportStore.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
-import { consumePendingGinaOffer } from "../../lib/gina/ginaPendingOffer.js";
+import {
+  consumePendingGinaOffer,
+  getPendingGinaOffer,
+  setPendingGinaOffer,
+  clearPendingGinaOffer,
+} from "../../lib/gina/ginaPendingOffer.js";
 import { pickNextDaySheetDoc, summarizeDaySheetProgress } from "../../lib/gina/ginaDaySheet.js";
 import { useGinaDailyReportNudge } from "../../hooks/useGinaDailyReportNudge.js";
 import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
@@ -3400,6 +3406,8 @@ export function LeftPanel({
           ? buildTodayOverviewAfterText({
             quickSheet: overviewViz.data.quickSheet || null,
             locale: localeKey,
+            userId: ginaUserId,
+            hasDaySheet: hasDaySheet(ginaUserId, now),
           })
           : null,
       };
@@ -3429,6 +3437,7 @@ export function LeftPanel({
         urgencyCount: data.urgencyCount || 0,
         lateStartCount: data.lateStartCount || 0,
         lateStartLabels: data.lateStartLabels || [],
+        recoveryOfferMode: data.recoveryOfferMode,
         hasOverlap: Boolean(data.hasOverlap || data.conflictRails),
         overdueTimes: data.overdueTimes || [],
         topConflict: data.topConflict || null,
@@ -3524,20 +3533,64 @@ export function LeftPanel({
     }
 
     if (!meetingOn && routed.family === "schedule_recovery_reschedule_pick") {
+      const pendingSession = getPendingGinaOffer();
+      const sessionFromPending = pendingSession?.type === "reschedule_session"
+        ? pendingSession.sessionMoveDocIds
+        : null;
       const visualization = buildGinaVisualization("schedule_recovery_reschedule_pick", {
         ...routed.toolContext,
         nodes: ctx.nodes,
         docs: ctx.docs,
         objectId: ctx.objectId,
+        sessionMoveDocIds: routed.toolContext?.sessionMoveDocIds || sessionFromPending || undefined,
+        assignedDocIds: routed.toolContext?.assignedDocIds
+          || (pendingSession?.type === "reschedule_session" ? pendingSession.assignedDocIds : undefined),
+        activeDocId: routed.toolContext?.activeDocId || undefined,
       }, {
         locale: localeKey,
         now: ctx.now,
         userText: text,
       });
+      const data = visualization?.data || {};
+      if (data.rescheduleBlockedActive || (
+        data.recoveryOfferMode === "late_start" && data.currentStep === "overdue_check"
+      )) {
+        const stepText = buildScheduleRecoveryStepText({
+          locale: localeKey,
+          currentStep: "overdue_check",
+          urgencyCount: 0,
+          lateStartCount: data.lateStartCount || 0,
+          lateStartLabels: data.lateStartLabels || [],
+          recoveryOfferMode: "late_start",
+        });
+        const blockedNote = localeKey === "en"
+          ? "That block is still inside its time window — there’s nothing to reschedule as expired. Open it or mark In progress."
+          : "Ese bloque sigue dentro de su ventana — no hay nada que reagendar como vencido. Ábrelo o pásalo a En Progreso.";
+        return {
+          message: blockedNote,
+          textAfter: stepText,
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "schedule_recovery_brief",
+            visualization,
+            locale: localeKey,
+            recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, ctx.now),
+          }),
+        };
+      }
+      try {
+        setPendingGinaOffer({
+          type: "reschedule_session",
+          sessionMoveDocIds: visualization?.data?.sessionMoveDocIds || [],
+          assignedDocIds: visualization?.data?.assignedDocIds || [],
+        });
+      } catch { /* ignore */ }
       return {
         message: buildReschedulePickerText({
           locale: localeKey,
           hasFreeSlot: Boolean(visualization?.data?.hasFreeSlot) && !visualization?.data?.noCupo,
+          noCupo: Boolean(visualization?.data?.noCupo),
+          activeTitle: visualization?.data?.activeTitle || null,
         }),
         visualization,
         chips: buildGinaReplyChips({
@@ -3551,49 +3604,145 @@ export function LeftPanel({
     if (!meetingOn && routed.family === "schedule_recovery_reschedule_apply") {
       const updateNode = useNodesStore.getState().updateNode;
       const now = ctx.now instanceof Date ? ctx.now : new Date();
-      const triage = partitionTodayByClock(
-        Array.isArray(routed.toolContext?.documents) ? routed.toolContext.documents : [],
-        now,
-      );
-      const moveDocs = triage.actionable;
+      const docsBefore = Array.isArray(routed.toolContext?.documents)
+        ? routed.toolContext.documents
+        : [];
+      const triageBefore = partitionTodayByClock(docsBefore, now);
+      const expiredBefore = triageBefore.fullyExpired.filter((d) => d.status !== "past_due");
       const mode = routed.toolContext?.mode || "slot";
-      let appliedCount = 0;
+      const applyDocId = routed.toolContext?.applyDocId
+        || expiredBefore[0]?.id
+        || null;
+      const pendingSession = getPendingGinaOffer();
+      const sessionMoveDocIds = (
+        Array.isArray(routed.toolContext?.sessionMoveDocIds)
+          && routed.toolContext.sessionMoveDocIds.length
+          ? routed.toolContext.sessionMoveDocIds
+          : (pendingSession?.type === "reschedule_session"
+            && Array.isArray(pendingSession.sessionMoveDocIds)
+            && pendingSession.sessionMoveDocIds.length
+            ? pendingSession.sessionMoveDocIds
+            : expiredBefore.map((d) => d.id).filter(Boolean))
+      ).map((id) => String(id));
+
+      const targetDoc = (applyDocId
+        ? docsBefore.find((d) => String(d.id) === String(applyDocId))
+        : null)
+        || expiredBefore[0]
+        || null;
+      const targets = targetDoc ? [targetDoc] : [];
+
       let timeLabel = "";
       let dayLabel = "";
+      let appliedTitle = targetDoc?.title || "";
 
-      if (mode === "tomorrow") {
+      if (mode === "tomorrow" && targets.length) {
         const start = new Date(now);
         start.setDate(start.getDate() + 1);
         start.setHours(9, 0, 0, 0);
-        appliedCount = applySequentialAnchors(moveDocs, start.getTime(), updateNode);
+        applySequentialAnchors(targets, start.getTime(), updateNode);
         timeLabel = formatClock12h(start);
         dayLabel = localeKey === "en" ? "tomorrow" : "mañana";
-      } else if (mode === "force_end") {
+      } else if (mode === "force_end" && targets.length) {
         const dateKey = calendarDateInputValue(now);
         const occupied = listOccupiedIntervalsByDate(ctx.nodes, ctx.docs, dateKey, {
           objectId: ctx.objectId || null,
-        }).filter((o) => !moveDocs.some((d) => d.id === o.id));
+        }).filter((o) => String(o.id) !== String(targets[0].id));
         const startMs = lastOccupiedFinishMs(occupied, now.getTime());
-        appliedCount = applySequentialAnchors(moveDocs, startMs, updateNode);
+        applySequentialAnchors(targets, startMs, updateNode);
         timeLabel = formatClock12h(new Date(startMs));
-      } else {
+      } else if (targets.length) {
         const startIso = routed.toolContext?.applyStartIso;
+        const finishIso = routed.toolContext?.applyFinishIso;
         const startMs = startIso ? new Date(startIso).getTime() : NaN;
-        if (Number.isFinite(startMs)) {
-          appliedCount = applySequentialAnchors(moveDocs, startMs, updateNode);
-          const firstDur = moveDocs[0] ? recoveryDocDurationMs(moveDocs[0]) : 60 * 60 * 1000;
+        const finishMs = finishIso ? new Date(finishIso).getTime() : NaN;
+        if (Number.isFinite(startMs) && Number.isFinite(finishMs) && finishMs > startMs) {
+          updateNode(targets[0].id, {
+            anchorAt: new Date(startMs).toISOString(),
+            anchorFinishAt: new Date(finishMs).toISOString(),
+          });
           timeLabel = formatClockRange12h(
             new Date(startMs).toISOString(),
-            new Date(startMs + firstDur).toISOString(),
+            new Date(finishMs).toISOString(),
+            { sep: " – " },
+          );
+        } else if (Number.isFinite(startMs)) {
+          applySequentialAnchors(targets, startMs, updateNode);
+          const dur = recoveryDocDurationMs(targets[0]);
+          timeLabel = formatClockRange12h(
+            new Date(startMs).toISOString(),
+            new Date(startMs + dur).toISOString(),
             { sep: " – " },
           );
         }
       }
 
+      const freshNodes = useNodesStore.getState().nodes || {};
+      const freshDocs = useDocsStore.getState().docs || {};
+      const todayScope = get_today_scope({
+        ...ctx,
+        nodes: freshNodes,
+        docs: freshDocs,
+        now,
+      }, { includeCompleted: false });
+      const triageAfter = partitionTodayByClock(todayScope.documents || [], now);
+      const actionableAfter = new Set(
+        triageAfter.actionable.map((d) => String(d.id || "")).filter(Boolean),
+      );
+      const remainingIds = sessionMoveDocIds.filter((id) => actionableAfter.has(id));
+      const assignedDocIds = sessionMoveDocIds.filter((id) => !actionableAfter.has(id));
+      const assignedCount = assignedDocIds.length;
+
+      if (remainingIds.length > 0) {
+        const nextId = remainingIds[0];
+        const nextDoc = (todayScope.documents || []).find((d) => String(d.id) === nextId);
+        const visualization = buildGinaVisualization("schedule_recovery_reschedule_pick", {
+          ...todayScope,
+          nodes: freshNodes,
+          docs: freshDocs,
+          objectId: ctx.objectId,
+          sessionMoveDocIds,
+          assignedDocIds,
+          activeDocId: nextId,
+        }, {
+          locale: localeKey,
+          now,
+          userText: text,
+        });
+        try {
+          setPendingGinaOffer({
+            type: "reschedule_session",
+            sessionMoveDocIds,
+            assignedDocIds,
+          });
+        } catch { /* ignore */ }
+        return {
+          message: buildRescheduleProgressText({
+            locale: localeKey,
+            title: appliedTitle,
+            timeLabel,
+            nextTitle: nextDoc?.title || visualization?.data?.activeTitle || null,
+            remaining: remainingIds.length,
+          }),
+          visualization,
+          chips: buildGinaReplyChips({
+            family: "schedule_recovery_reschedule_pick",
+            visualization,
+            locale: localeKey,
+          }),
+        };
+      }
+
+      try { clearPendingGinaOffer(); } catch { /* ignore */ }
       return finishRecoveryAfterMutation(
         "postpone_schedule",
-        appliedCount,
-        buildRescheduleAppliedText({ locale: localeKey, timeLabel, dayLabel }),
+        assignedCount || 1,
+        buildRescheduleAppliedText({
+          locale: localeKey,
+          timeLabel,
+          dayLabel,
+          count: assignedCount || 1,
+        }),
       );
     }
 
@@ -4154,6 +4303,8 @@ export function LeftPanel({
         ? buildTodayOverviewAfterText({
           quickSheet: visualization.data.quickSheet || null,
           locale: localeKey,
+          userId: ginaUserId,
+          hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
         })
         : null;
       const chips = !meetingOn
