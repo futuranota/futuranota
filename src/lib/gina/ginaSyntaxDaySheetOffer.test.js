@@ -46,7 +46,7 @@ describe("ginaSyntaxDaySheetOffer", () => {
     expect(offer.tier).toBe("novice");
     expect(offer.variantId).toBe("novice_a");
     expect(offer.text).toContain("¡Hey! Antes de empezar");
-    expect(offer.chip?.label).toBe("Guardar horario del día");
+    expect(offer.chip?.label).toBe("Guardar calendario del día");
     expect(getDaySheetOfferCount(UID)).toBe(1);
   });
 
@@ -113,7 +113,9 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
       },
     });
     expect(post.textAfter).toContain("**Documento de inicio:** Doc A");
-    expect(post.textAfter).toContain("Antes de empezar: si quieres podemos guardar este Horario del día");
+    expect(post.textAfter).toContain("Antes de empezar");
+    expect(post.textAfter).toContain("**Antes de empezar:**");
+    expect(post.textAfter).toContain("Horario del día");
     expect(post.textAfter).not.toMatch(/¡Hey!/i);
     expect(post.textPitch).toBeNull();
     expect(post.textAfter).not.toMatch(/orden de horario/i);
@@ -160,7 +162,7 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
       },
     });
     expect(chips.some((c) => c.id === "save_day_sheet")).toBe(true);
-    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar calendario del día");
     expect(chips.some((c) => c.id === "open_day_sheet")).toBe(false);
   });
 
@@ -179,6 +181,6 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
       },
     });
     expect(chips.map((c) => c.id)).toContain("save_day_sheet");
-    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar calendario del día");
   });
 });

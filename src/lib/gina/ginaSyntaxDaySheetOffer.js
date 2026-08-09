@@ -10,8 +10,8 @@ import {
 
 export const DAY_SHEET_SAVE_CHIP = {
   id: "save_day_sheet",
-  labelEs: "Guardar horario del día",
-  labelEn: "Save day schedule",
+  labelEs: "Guardar calendario del día",
+  labelEn: "Save day calendar",
   textEs: "Guardar esta tabla de referencia del día",
   textEn: "Save this day reference sheet",
 };
@@ -24,8 +24,8 @@ export const DAY_SHEET_SAVE_OFFER_VARIANTS = {
   },
   /** Post-table pitch: novice_a without “Hey”, “Sheet del Día” → “Horario del día”. */
   post_table_horario: {
-    es: "Antes de empezar: si quieres podemos guardar este Horario del día. La ventaja es que, mientras trabajes en cualquier otro documento, podrás abrir este horario general, ir tachando las tareas completadas y saber siempre cuál es tu siguiente paso. ¿Quieres guardarlo?",
-    en: "Before we start: we can save this Day schedule if you want. While you work in any other document, you’ll be able to open this general schedule, check off finished tasks, and always know what’s next. Want to save it?",
+    es: "**Antes de empezar:** si quieres podemos guardar este Horario del día. La ventaja es que, mientras trabajes en cualquier otro documento, podrás abrir este horario general, ir tachando las tareas completadas y saber siempre cuál es tu siguiente paso. ¿Quieres guardarlo?",
+    en: "**Before we start:** we can save this Day schedule if you want. While you work in any other document, you’ll be able to open this general schedule, check off finished tasks, and always know what’s next. Want to save it?",
   },
   novice_b: {
     es: "Un tip rápido antes de seguir: puedes guardar este Sheet del Día. Así se mantendrá a la mano desde cualquier documento para que consultes tu horario general y vayas marcando tus avances. ¿Lo dejamos guardado?",

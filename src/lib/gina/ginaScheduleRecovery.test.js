@@ -6,6 +6,8 @@ import {
   buildRecoverySnoozeText,
   parseRecoverySnoozeProtocol,
   buildRescheduleAppliedText,
+  buildRescheduleDayReadyText,
+  resolvePostMutationRecoveryFollowUp,
   buildRescheduleBatchApplyProtocol,
   buildReschedulePickerText,
   buildRescheduleForkChips,
@@ -227,8 +229,17 @@ describe("ginaScheduleRecovery", () => {
     });
     expect(step).toMatch(/choque/i);
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
-    expect(chips.some((c) => c.id === "move_conflict_tomorrow" && c.comingSoon)).toBe(true);
+    expect(chips.find((c) => c.id === "move_end_of_day")?.primary).toBe(true);
+    expect(chips.find((c) => c.id === "move_end_of_day")?.comingSoon).toBeFalsy();
+    expect(chips.find((c) => c.id === "move_end_of_day")?.text).toMatch(/Reagendar para hoy/i);
     expect(chips.some((c) => c.id === "recovery_next")).toBe(true);
+    const conflictLegend = buildRecoveryEasyLinksLegend({
+      locale: "es",
+      currentStep: "conflict_resolve",
+      recoveryOfferMode: "none",
+    });
+    expect(conflictLegend.map((r) => r.id)).toEqual(["move_end_of_day", "recovery_snooze"]);
+    expect(conflictLegend.find((r) => r.id === "move_end_of_day")?.tier).toBe("star");
   });
 
   it("mark preview uses confirm chips and new ack copy", () => {
@@ -290,6 +301,41 @@ describe("ginaScheduleRecovery", () => {
       firstPendingTitle: "Blogs PM",
       locale: "en",
     })).toContain("Your day starts with **Blogs PM**");
+  });
+
+  it("after reschedule apply never reopens conflict_resolve in the same turn", () => {
+    expect(resolvePostMutationRecoveryFollowUp({
+      forceDayReady: true,
+      hasOverlap: true,
+    })).toBe("day_ready");
+    expect(resolvePostMutationRecoveryFollowUp({
+      forceDayReady: false,
+      hasOverlap: true,
+    })).toBe("conflict_resolve");
+    expect(resolvePostMutationRecoveryFollowUp({
+      forceDayReady: false,
+      hasOverlap: false,
+    })).toBe("day_ready");
+  });
+
+  it("post-apply day-ready copy skips infographic framing", () => {
+    expect(buildRescheduleDayReadyText({ locale: "es" })).toMatch(/reajustado y listo/i);
+    expect(buildRescheduleDayReadyText({ locale: "en" })).toMatch(/readjusted and ready/i);
+    const scope = get_today_scope(ctx);
+    const viz = buildGinaVisualization("today", {
+      ...scope,
+      postRescheduleDaySheet: true,
+    }, {
+      now,
+      locale: "es",
+      postRescheduleDaySheet: true,
+      userText: "qué tenemos para hoy?",
+    });
+    expect(viz?.type).toBe("schedule_sheet");
+    expect(viz?.data?.todayOverview).toBe(false);
+    expect(viz?.data?.offerDayReady).toBe(true);
+    expect(viz?.data?.quickSheet?.isCleanDay).toBe(true);
+    expect(viz?.data?.hasRecoveryOffer).toBe(false);
   });
 
   it("brief alias matches intro plural framing", () => {
@@ -383,15 +429,70 @@ describe("ginaScheduleRecovery", () => {
     }, { now: lateNow, locale: "es" });
     expect(lateViz?.data?.recoveryOfferMode).toBe("late_start");
     expect(lateViz?.data?.moveDocIds).toEqual([]);
+    expect(lateViz?.data?.playHighlightsSound).toBe(true);
+    expect(lateViz?.data?.highlightPassedSlots).toBe(true);
+    expect(lateViz?.data?.documents?.every((d) => d.passedSlot)).toBe(true);
     const blockedPick = buildGinaVisualization("schedule_recovery_reschedule_pick", {
       ...lateScope,
       documents: lateScope.documents,
       nodes: lateOnlyCtx.nodes,
       docs: lateOnlyCtx.docs,
       moveDocIds: ["n5"],
+      rescheduleMode: "gaps",
     }, { now: lateNow, locale: "es" });
     expect(blockedPick?.data?.rescheduleBlockedActive).toBe(true);
     expect(blockedPick?.type).toBe("schedule_sheet");
+
+    // Cascade includes late-start even when gaps has nothing expired to move.
+    const cascadeLate = buildGinaVisualization("schedule_recovery_reschedule_pick", {
+      ...lateScope,
+      documents: lateScope.documents,
+      nodes: lateOnlyCtx.nodes,
+      docs: lateOnlyCtx.docs,
+      rescheduleMode: "cascade",
+    }, { now: lateNow, locale: "es" });
+    expect(cascadeLate?.type).toBe("schedule_slot_picker");
+    expect(cascadeLate?.data?.moveDocIds).toEqual(["n5"]);
+    expect(cascadeLate?.data?.moveDocs?.length).toBe(1);
+  });
+
+  it("cascade lists all today non-completed including in_progress in-window", () => {
+    const lateNow = new Date("2026-08-01T18:30:00");
+    const mixCtx = {
+      ...ctx,
+      now: lateNow,
+      nodes: {
+        ...ctx.nodes,
+        n1: { ...ctx.nodes.n1, status: "completed", completed: true },
+        n3: {
+          ...ctx.nodes.n3,
+          anchorAt: "2026-08-01T17:00:00",
+          anchorFinishAt: "2026-08-01T19:00:00",
+          status: "in_progress",
+          completed: false,
+        },
+        n5: {
+          ...ctx.nodes.n5,
+          anchorAt: "2026-08-01T20:00:00",
+          anchorFinishAt: "2026-08-01T21:00:00",
+          status: "not_started",
+          completed: false,
+        },
+      },
+    };
+    const scope = get_today_scope(mixCtx);
+    const viz = buildGinaVisualization("schedule_recovery_reschedule_pick", {
+      ...scope,
+      documents: scope.documents,
+      nodes: mixCtx.nodes,
+      docs: mixCtx.docs,
+      rescheduleMode: "cascade",
+      // Stale expired-only moveDocIds must not shrink cascade.
+      moveDocIds: ["n3"],
+    }, { now: lateNow, locale: "es" });
+    expect(viz?.type).toBe("schedule_slot_picker");
+    expect(viz?.data?.moveDocIds?.sort()).toEqual(["n3", "n5"]);
+    expect(viz?.data?.moveDocs?.length).toBe(2);
   });
 
   it("late-start triage drives overdue step even without fully expired", () => {
@@ -471,10 +572,10 @@ describe("ginaScheduleRecovery", () => {
       openDocTitle: "Evening draft",
       currentStep: "overdue_check",
     });
-    expect(chips.find((c) => c.id === "move_end_of_day")).toBeUndefined();
+    expect(chips.find((c) => c.id === "move_end_of_day")?.text).toMatch(/Reagendar para hoy/i);
     expect(chips.find((c) => c.id === "mark_completed")).toBeUndefined();
     expect(chips.find((c) => c.id === "mark_past_due")).toBeUndefined();
-    expect(chips.find((c) => c.id === "mark_in_progress_batch")).toBeTruthy();
+    expect(chips.find((c) => c.id === "mark_in_progress_batch")).toBeUndefined();
     expect(chips.find((c) => c.id === "open_late_start_doc")?.text).toBe("GinaRevealDocument:n5");
     expect(chips.find((c) => c.id === "recovery_snooze")).toBeUndefined();
     const lateLegend = buildRecoveryEasyLinksLegend({
@@ -483,11 +584,16 @@ describe("ginaScheduleRecovery", () => {
       openDocId: "n5",
     });
     expect(lateLegend.map((r) => r.id)).toEqual([
-      "mark_in_progress_batch",
+      "move_end_of_day",
       "open_late_start_doc",
+      "change_status",
       "recovery_snooze",
     ]);
+    expect(lateLegend.find((r) => r.id === "move_end_of_day")?.tier).toBe("star");
+    expect(lateLegend.find((r) => r.id === "change_status")?.control).toBe("status_menu");
+    expect(lateLegend.find((r) => r.id === "change_status")?.title).toMatch(/Cambiar Status/i);
     expect(lateLegend.find((r) => r.id === "recovery_snooze")?.control).toBe("snooze_menu");
+    expect(lateLegend.find((r) => r.id === "mark_in_progress_batch")).toBeUndefined();
     const expiredLegend = buildRecoveryEasyLinksLegend({
       locale: "es",
       recoveryOfferMode: "expired",
@@ -651,7 +757,10 @@ describe("ginaScheduleRecovery", () => {
   });
 
   it("forks reschedule and seeds cascade drafts", () => {
-    expect(buildRescheduleForkText({ locale: "es" })).toMatch(/ajustes/i);
+    expect(buildRescheduleForkText({ locale: "es" })).toMatch(/¿Cómo quieres reagendar\?/i);
+    expect(buildRescheduleForkText({ locale: "es" })).not.toMatch(/\(ajustes\)/i);
+    expect(buildRescheduleForkText({ locale: "es" })).toMatch(/\*\*Mover en cascada desde ahora\*\*/);
+    expect(buildRescheduleForkText({ locale: "es" })).toMatch(/\*\*Encajar en huecos libres\*\*/);
     expect(buildRescheduleForkText({ locale: "es" })).toMatch(/Cascada/i);
     const forkChips = buildRescheduleForkChips({ locale: "es" });
     expect(forkChips.map((c) => c.id)).toEqual(["reschedule_cascade", "reschedule_gaps"]);

@@ -48,7 +48,6 @@ import {
 } from "../../lib/gina/ginaSearchSequence.js";
 import {
   buildCascadeSchedulePreview,
-  buildDayStartAfterRecoveryText,
   buildGinaWarmGoodbyeReply,
   buildScheduleRecoveryAppliedText,
   buildScheduleRecoveryIntroText,
@@ -57,12 +56,15 @@ import {
   buildRescheduleForkText,
   buildRescheduleForkChips,
   buildRescheduleAppliedText,
+  buildRescheduleDayReadyText,
   buildRescheduleProgressText,
   buildRecoverySnoozeText,
+  resolvePostMutationRecoveryFollowUp,
   isGinaWarmGoodbye,
 } from "../../lib/gina/ginaScheduleRecovery.js";
 import { buildGinaDocumentOpenPlan } from "../../lib/gina/ginaOpenDocument.js";
 import { partitionTodayByClock, lastOccupiedFinishMs, findFirstFreeSlot } from "../../lib/gina/ginaTodayTimeTriage.js";
+import { summarizeTodayOverlaps } from "../../lib/gina/ginaTodayQuickSheet.js";
 import {
   setRecoveryNotifySnooze,
   isRecoveryNotifySnoozed,
@@ -3124,6 +3126,30 @@ export function LeftPanel({
       if (plan) return "";
     }
 
+    // Silent late-start → In progress (status menu). Keeps the recovery Easy Links UI intact.
+    if (!meetingOn && /^GinaSilentMarkInProgress\b/i.test(String(text || "").trim())) {
+      const now = new Date();
+      const today = get_today_scope({
+        docs: docsMap,
+        nodes: nodesMap,
+        departments,
+        objectId: activeObjectId || filterObjectId || null,
+        now,
+        userId: ginaUserId,
+      }, { includeCompleted: false });
+      const triage = partitionTodayByClock(today.documents || [], now);
+      const slots = Array.isArray(triage.lateStartActive) ? triage.lateStartActive : [];
+      const updateNode = useNodesStore.getState().updateNode;
+      let applied = 0;
+      for (const slot of slots) {
+        if (!slot?.id) continue;
+        updateNode(slot.id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.IN_PROGRESS }));
+        applied += 1;
+      }
+      // Empty string = no chat bubbles; menu stays on screen.
+      return "";
+    }
+
     if (meetingOn && ginaPendingLearn && isGinaLearnSaveConfirm(text)) {
       addLocalGinaKnowledge({ ...ginaPendingLearn, source: "taught" });
       setGinaPendingLearn(null);
@@ -3265,18 +3291,37 @@ export function LeftPanel({
     }
 
     if (!meetingOn && routed.family === "schedule_recovery_skip") {
+      try { clearPendingGinaOffer(); } catch { /* ignore */ }
+      const now = ctx.now;
+      const todayScope = get_today_scope({
+        ...ctx,
+        now,
+      }, { includeCompleted: true });
+      const dayReadyViz = buildGinaVisualization("today", {
+        ...todayScope,
+        postRescheduleDaySheet: true,
+      }, {
+        locale: localeKey,
+        now,
+        postRescheduleDaySheet: true,
+        userText: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy?",
+      });
       return {
         message: localeKey === "en"
-          ? "Okay — we’ll leave the schedule as it is for now."
-          : "Va — dejamos el schedule como está por ahora.",
+          ? "Done — we’ll leave the schedule as it is for now."
+          : "Listo, entonces dejamos el horario como está por ahora.",
+        textAfter: localeKey === "en"
+          ? "What do you want to do next?"
+          : "¿Qué es lo siguiente que quieres hacer?",
         visualization: null,
-        chips: [
-          {
-            id: "today_schedule",
-            label: localeKey === "en" ? "Today's schedule" : "Horarios de hoy",
-            text: localeKey === "en" ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
-          },
-        ],
+        voiceSequence: "leave_schedule",
+        chips: buildGinaReplyChips({
+          family: "today",
+          visualization: dayReadyViz,
+          locale: localeKey,
+          hasDaySheet: hasDaySheet(ginaUserId, now),
+          recoverySnoozed: true,
+        }),
       };
     }
 
@@ -3303,7 +3348,12 @@ export function LeftPanel({
       return count;
     };
 
-    const finishRecoveryAfterMutation = (appliedIntent, appliedCount, ackOverride = null) => {
+    const finishRecoveryAfterMutation = (
+      appliedIntent,
+      appliedCount,
+      ackOverride = null,
+      opts = {},
+    ) => {
       const now = ctx.now;
       const freshNodes = useNodesStore.getState().nodes || {};
       const freshDocs = useDocsStore.getState().docs || {};
@@ -3313,21 +3363,29 @@ export function LeftPanel({
         docs: freshDocs,
         now,
       }, { includeCompleted: false });
-
-      const nextViz = buildGinaVisualization("schedule_recovery_next", todayScope, {
-        locale: localeKey,
-        now,
-        userText: localeKey === "en"
-          ? "Continue to next schedule recovery step"
-          : "Seguir al siguiente paso de recuperación",
+      const overlapAfter = summarizeTodayOverlaps(todayScope.documents || [], now);
+      const forceDayReady = Boolean(opts.forceDayReady);
+      const followUp = resolvePostMutationRecoveryFollowUp({
+        forceDayReady,
+        hasOverlap: Boolean(overlapAfter.hasOverlap),
       });
+
+      const nextViz = followUp === "conflict_resolve"
+        ? buildGinaVisualization("schedule_recovery_next", todayScope, {
+          locale: localeKey,
+          now,
+          userText: localeKey === "en"
+            ? "Continue to next schedule recovery step"
+            : "Seguir al siguiente paso de recuperación",
+        })
+        : null;
       const nextData = nextViz?.data || {};
       const applied = ackOverride || buildScheduleRecoveryAppliedText(appliedIntent, {
         count: appliedCount,
         locale: localeKey,
       });
 
-      if (nextData.currentStep === "conflict_resolve") {
+      if (followUp === "conflict_resolve" && nextData.currentStep === "conflict_resolve") {
         const stepText = buildScheduleRecoveryStepText({
           locale: localeKey,
           currentStep: nextData.currentStep,
@@ -3359,53 +3417,52 @@ export function LeftPanel({
         docs: freshDocs,
         now,
       }, { includeCompleted: true });
-      const overviewViz = buildGinaVisualization("today", todayOverviewScope, {
+      const dayReadyViz = buildGinaVisualization("today", {
+        ...todayOverviewScope,
+        postRescheduleDaySheet: true,
+      }, {
         locale: localeKey,
         now,
+        postRescheduleDaySheet: true,
         userText: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy?",
       });
-      const qs = overviewViz?.data?.quickSheet || null;
-      const firstTitle = qs?.firstPendingTitle || null;
-      const message = qs?.firstPendingId
-        ? [
-          applied,
-          buildDayStartAfterRecoveryText({
-            firstPendingTitle: firstTitle,
-            locale: localeKey,
-          }),
-        ].join("\n\n")
-        : applied;
+      const qs = dayReadyViz?.data?.quickSheet || null;
+      const readyMessage = buildRescheduleDayReadyText({ locale: localeKey });
+      const post = buildTodayOverviewPostTableCopy({
+        quickSheet: qs,
+        documents: dayReadyViz?.data?.documents || [],
+        locale: localeKey,
+        userId: ginaUserId,
+        hasDaySheet: hasDaySheet(ginaUserId, now),
+        hasRecoveryOffer: false,
+        urgencyCount: 0,
+        lateStartCount: 0,
+        hasOverlap: false,
+        recoverySnoozed: true,
+        forceCleanDay: true,
+        offerDayReady: true,
+      });
+
+      // Reschedule apply: keep “Listo. Reagendé…” then show the new day sheet.
+      const message = ackOverride
+        ? `${applied}\n\n${readyMessage}`
+        : readyMessage;
 
       return {
         message,
-        visualization: overviewViz,
+        visualization: dayReadyViz,
         chips: buildGinaReplyChips({
           family: "today",
-          visualization: overviewViz,
+          visualization: dayReadyViz,
           locale: localeKey,
           hasDaySheet: hasDaySheet(ginaUserId, now),
-          recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, now),
+          recoverySnoozed: true,
         }),
-        textMid: overviewViz?.data?.todayOverview
-          ? buildTodayOverviewIntroText(localeKey)
-          : null,
-        ...(overviewViz?.data?.todayOverview
-          ? (() => {
-            const post = buildTodayOverviewPostTableCopy({
-              quickSheet: overviewViz.data.quickSheet || null,
-              documents: overviewViz.data.documents || [],
-              locale: localeKey,
-              userId: ginaUserId,
-              hasDaySheet: hasDaySheet(ginaUserId, now),
-              hasRecoveryOffer: Boolean(overviewViz.data.hasRecoveryOffer),
-              urgencyCount: overviewViz.data.urgencyCount,
-              lateStartCount: overviewViz.data.lateStartCount,
-              hasOverlap: Boolean(overviewViz.data.hasOverlap),
-              recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, now),
-            });
-            return { textAfter: post.textAfter, textPitch: null };
-          })()
-          : { textAfter: null, textPitch: null }),
+        textMid: null,
+        textAfter: post.textAfter,
+        textAfterRest: post.textAfterRest,
+        startDocLines: post.startDocLines,
+        textPitch: null,
       };
     };
 
@@ -3450,9 +3507,12 @@ export function LeftPanel({
           || Boolean(data.conflictRails)
           || data.currentStep === "conflict_resolve",
       });
+      // startDocLines already delivered on today overview — omit duplicate on recovery brief.
       return {
         message: isNext ? stepText : introText,
-        textAfter: isNext || data.currentStep === "summary" ? null : stepText,
+        textAfter: null,
+        textAfterRest: isNext || data.currentStep === "summary" ? null : stepText,
+        startDocLines: null,
         visualization,
         chips: buildGinaReplyChips({
           family: routed.family,
@@ -3609,9 +3669,7 @@ export function LeftPanel({
         userText: text,
       });
       const data = visualization?.data || {};
-      if (data.rescheduleBlockedActive || (
-        data.recoveryOfferMode === "late_start" && data.currentStep === "overdue_check"
-      )) {
+      if (data.rescheduleBlockedActive) {
         const stepText = buildScheduleRecoveryStepText({
           locale: localeKey,
           currentStep: "overdue_check",
@@ -3822,6 +3880,7 @@ export function LeftPanel({
       }
 
       try { clearPendingGinaOffer(); } catch { /* ignore */ }
+      const overlapAfterApply = summarizeTodayOverlaps(todayScope.documents || [], now);
       return finishRecoveryAfterMutation(
         "postpone_schedule",
         assignedCount || 1,
@@ -3830,7 +3889,10 @@ export function LeftPanel({
           timeLabel,
           dayLabel,
           count: assignedCount || appliedCountLocal || 1,
+          withoutOverlaps: !overlapAfterApply.hasOverlap,
         }),
+        // Never bounce back into the same conflict wizard after the user just applied slots.
+        { forceDayReady: true },
       );
     }
 
@@ -4486,6 +4548,8 @@ export function LeftPanel({
         message: funnelHeadline || displayText,
         textMid,
         textAfter: postTable.textAfter,
+        textAfterRest: postTable.textAfterRest,
+        startDocLines: postTable.startDocLines,
         textPitch: null,
         visualization,
         learnProposal,

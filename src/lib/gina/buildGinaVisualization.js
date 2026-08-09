@@ -1110,6 +1110,9 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const colorByDept = Object.fromEntries(
       overviewByDepartment.map((d) => [d.name, d.color]),
     );
+    const postRescheduleDaySheet = Boolean(
+      opts.postRescheduleDaySheet || today.postRescheduleDaySheet,
+    );
     const baseData = attachRecoveryMeta({
       date: today.date,
       dateLabel: formatGinaDayLabel(today.date, locale),
@@ -1123,23 +1126,31 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           workMinutes: docWorkMinutes(d),
         };
       }),
-      todayOverview: true,
+      // Post-apply “día listo”: chronological sheet only (no pie / department cards).
+      todayOverview: !postRescheduleDaySheet,
+      offerDayReady: postRescheduleDaySheet,
+      offerSaveDaySheet: postRescheduleDaySheet,
       overviewByDepartment,
       totalMinutes,
       totalHoursLabel: formatWorkDurationLabel(totalMinutes, locale),
       hoursChart,
-      quickSheet,
+      quickSheet: postRescheduleDaySheet
+        ? { ...quickSheet, isCleanDay: true }
+        : quickSheet,
       hasOverlap: quickSheet.hasOverlap,
       conflictRails: quickSheet.conflictRails,
       topConflict: quickSheet.topConflict,
+      locale,
     }, today, now);
     return {
       type: "schedule_sheet",
       data: {
         ...baseData,
-        hasRecoveryOffer: Boolean(baseData.hasRecoveryOffer)
-          || (Array.isArray(quickSheet.urgency) && quickSheet.urgency.some((d) => d && d.markable))
-          || Boolean(quickSheet.hasOverlap),
+        hasRecoveryOffer: postRescheduleDaySheet
+          ? false
+          : (Boolean(baseData.hasRecoveryOffer)
+            || (Array.isArray(quickSheet.urgency) && quickSheet.urgency.some((d) => d && d.markable))
+            || Boolean(quickSheet.hasOverlap)),
       },
     };
   }
@@ -1250,33 +1261,44 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const expiredMoveIds = fullyExpired
       .map((d) => d.id)
       .filter(Boolean);
-    const cascadeMoveIds = [
-      ...triage.fullyExpired,
-      ...triage.lateStartActive,
-      ...triage.future,
-    ]
-      .filter((d) => d && d.status !== "completed" && !d.completed && d.id)
+    // Cascade offer = all today docs that are not completed (incl. in_progress in-window).
+    const allPendingMoveIds = allDocs
+      .filter((d) => d && d.id && d.status !== "completed" && !d.completed)
+      .slice()
+      .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
       .map((d) => String(d.id));
-    // Unique preserve order
-    const seenCascade = new Set();
-    const allPendingMoveIds = cascadeMoveIds.filter((id) => {
-      if (seenCascade.has(id)) return false;
-      seenCascade.add(id);
-      return true;
-    });
+
+    const forceLateHighlight = showOverdue && recoveryOfferMode === "late_start";
+    const mapBriefRow = (d) => {
+      const row = mapDocRow(d, now, locale);
+      return forceLateHighlight ? { ...row, passedSlot: true } : row;
+    };
+    const briefGroups = showOverdue
+      ? groupDocsForScheduleSheet(source, now).map((group) => (
+        forceLateHighlight
+          ? {
+            ...group,
+            folders: (group.folders || []).map((folder) => ({
+              ...folder,
+              documents: (folder.documents || []).map((doc) => ({ ...doc, passedSlot: true })),
+            })),
+          }
+          : group
+      ))
+      : [];
 
     return {
       type: "schedule_sheet",
       data: attachRecoveryMeta({
         date: ctx.date,
         dateLabel: formatGinaDayLabel(ctx.date, locale),
-        groups: showOverdue ? groupDocsForScheduleSheet(source, now) : [],
+        groups: briefGroups,
         documents: source
           .slice()
           .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
-          .map((d) => mapDocRow(d, now, locale)),
-        highlightPassedSlots: showOverdue && urgencyCount > 0,
-        playHighlightsSound: showOverdue && urgencyCount > 0,
+          .map(mapBriefRow),
+        highlightPassedSlots: showOverdue && (urgencyCount > 0 || lateStartCount > 0),
+        playHighlightsSound: showOverdue && (urgencyCount > 0 || lateStartCount > 0),
         recoveryPhase: "brief",
         recoveryWizard: currentStep !== "summary",
         notifyBrief: true,
@@ -1311,41 +1333,28 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       .map((d) => d.id)
       .filter(Boolean)
       .map((id) => String(id));
-    const allPendingIds = [
-      ...triage.fullyExpired,
-      ...triage.lateStartActive,
-      ...triage.future,
-    ]
-      .filter((d) => d && d.status !== "completed" && !d.completed && d.id)
+    // Cascade = every today doc that is not completed (ignore triage buckets / stale moveDocIds).
+    const cascadeIds = allDocs
+      .filter((d) => d && d.id && d.status !== "completed" && !d.completed)
+      .slice()
+      .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
       .map((d) => String(d.id));
-    const seenPending = new Set();
-    const pendingTodayIds = allPendingIds.filter((id) => {
-      if (seenPending.has(id)) return false;
-      seenPending.add(id);
-      return true;
-    });
     const nodesById = ctx.nodes || Object.fromEntries(allDocs.map((d) => [d.id, d]));
     const docsById = ctx.docs || {};
     const rescheduleMode = ctx.rescheduleMode === "cascade" ? "cascade" : "gaps";
 
-    const defaultIds = rescheduleMode === "cascade" ? pendingTodayIds : fullyExpiredIds;
-    const requestedIds = (Array.isArray(ctx.sessionMoveDocIds) && ctx.sessionMoveDocIds.length
-      ? ctx.sessionMoveDocIds
-      : (Array.isArray(ctx.cascadeMoveDocIds) && ctx.cascadeMoveDocIds.length && rescheduleMode === "cascade"
-        ? ctx.cascadeMoveDocIds
-        : (Array.isArray(ctx.moveDocIds) && ctx.moveDocIds.length
-          ? ctx.moveDocIds
-          : defaultIds)))
-      .map((id) => String(id));
-    // Gaps: only fully expired. Cascade: any today non-completed in the pending set.
+    // Gaps: only fully expired (may reuse session / moveDocIds). Cascade: always full non-completed set.
     const sessionIds = rescheduleMode === "cascade"
-      ? requestedIds.filter((id) => pendingTodayIds.includes(id) || Boolean(nodesById[id] || allDocs.find((d) => String(d.id) === id)))
-        .filter((id) => {
-          const d = nodesById[id] || allDocs.find((row) => String(row.id) === id);
-          if (!d) return false;
-          return d.status !== "completed" && !d.completed;
-        })
-      : requestedIds.filter((id) => fullyExpiredIds.includes(id));
+      ? cascadeIds
+      : (() => {
+        const requestedIds = (Array.isArray(ctx.sessionMoveDocIds) && ctx.sessionMoveDocIds.length
+          ? ctx.sessionMoveDocIds
+          : (Array.isArray(ctx.moveDocIds) && ctx.moveDocIds.length
+            ? ctx.moveDocIds
+            : fullyExpiredIds))
+          .map((id) => String(id));
+        return requestedIds.filter((id) => fullyExpiredIds.includes(id));
+      })();
 
     if (!sessionIds.length) {
       const late = triage.lateStartActive[0] || null;

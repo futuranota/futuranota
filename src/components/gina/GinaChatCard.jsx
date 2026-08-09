@@ -8,6 +8,7 @@ import { useWebSpeech } from "../../hooks/useWebSpeech.js";
 import { absorbDictationFinal } from "../../lib/ginaSpeechCommands.js";
 import { normalizeDictationTranscript } from "../../lib/ginaSpeechVocab.js";
 import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
+import { GinaStartDocReveal } from "./GinaStartDocReveal.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
@@ -28,6 +29,8 @@ import { resolveListRefineSelection } from "../../lib/gina/ginaSyntaxDocsByCateg
 import { playGinaEnableSound } from "../../lib/ginaEnableSound.js";
 import { playGinaDoubleBipSound } from "../../lib/ginaDoubleBipSound.js";
 import { playGinaHighlightsSound } from "../../lib/ginaHighlightsSound.js";
+import { playGinaLeaveScheduleSound } from "../../lib/ginaLeaveScheduleSound.js";
+import { playGinaWhatsNextSound } from "../../lib/ginaWhatsNextSound.js";
 import {
   playGinaFilesMovementSound,
   stopGinaFilesMovementSound,
@@ -39,12 +42,18 @@ const GINA_OPEN_SOUND_DELAY_MS = 2_000;
 const GINA_POST_SOUND_TEXT_DELAY_MS = 1_000;
 /** After the schedule table is ready, wait before showing notify gate chips. */
 const GINA_NOTIFY_GATE_DELAY_MS = 5_000;
+/** After todayOverview infographic, wait before sheet intro (textMid). */
+const GINA_SHEET_INTRO_DELAY_MS = 15_000;
 
-/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, midReady?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, savedAckRevealed?: boolean, notifyGateRevealed?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
+/** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textAfterRest?: string | null, startDocLines?: { label: string, value: string }[] | null, startDocRevealed?: boolean, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, recoveryCopyFirst?: boolean, midReady?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, savedAckRevealed?: boolean, notifyGateRevealed?: boolean, voiceSequence?: string | null, leaveAckDone?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
 
 function messageHasNotifyGate(message) {
   return Array.isArray(message?.chips)
     && message.chips.some((c) => c?.id === "recovery_notify");
+}
+
+function messageHasLeaveScheduleVoice(message) {
+  return message?.voiceSequence === "leave_schedule";
 }
 
 function messageChipsReadyToShow(message, { isTyping, isAiAnimating }) {
@@ -52,12 +61,15 @@ function messageChipsReadyToShow(message, { isTyping, isAiAnimating }) {
   if (!Array.isArray(message.chips) || !message.chips.length) return false;
   if (isTyping || isAiAnimating) return false;
   if (message.visualization?.type === "day_sheet_saved" && !message.savedAckRevealed) return false;
+  if (messageHasLeaveScheduleVoice(message) && message.textAfter && !message.afterRevealed) return false;
   if (message.deferVisualization) {
     if (!message.vizRevealed) return false;
     if (message.textMid && message.midReady === false) return false;
     if (message.midRevealed === false) return false;
     if (message.sheetTableRevealed === false) return false;
-    if (message.textAfter && !message.afterRevealed) return false;
+    if (Array.isArray(message.startDocLines) && message.startDocLines.length
+      && message.startDocRevealed === false) return false;
+    if ((message.textAfter || message.textAfterRest) && !message.afterRevealed) return false;
     if (message.textPitch && !message.pitchRevealed) return false;
   }
   return true;
@@ -69,16 +81,32 @@ function isScheduleSheetVisualization(visualization) {
 }
 
 /** Build AI turn fields: datos → pie+TABLA DE HOY → intro → horario cronológico → post text → chips. */
-function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visualization }) {
+function buildAiTurnRevealState({
+  aiText,
+  textMid,
+  textAfter,
+  textAfterRest,
+  startDocLines,
+  textPitch,
+  visualization,
+  voiceSequence = null,
+}) {
   const mid = textMid != null ? String(textMid).trim() : "";
   const after = textAfter != null ? String(textAfter).trim() : "";
+  const afterRest = textAfterRest != null ? String(textAfterRest).trim() : "";
   const pitch = textPitch != null ? String(textPitch).trim() : "";
+  const startLines = Array.isArray(startDocLines)
+    ? startDocLines.filter((r) => r && String(r.label || "").trim())
+    : [];
   const isTodayOverview = Boolean(visualization?.data?.todayOverview);
+  const isDayReadySheet = Boolean(visualization?.data?.offerDayReady);
   const isDaySheetSaved = visualization?.type === "day_sheet_saved";
+  const leaveSchedule = voiceSequence === "leave_schedule" && Boolean(after);
+  const hasAfterBlock = Boolean(after || afterRest || startLines.length);
   const deferVisualization = Boolean(
     !isDaySheetSaved
-    && (isTodayOverview || visualization?.data?.recoveryWizard)
-    && (aiText || mid || after || pitch),
+    && (isTodayOverview || isDayReadySheet || visualization?.data?.recoveryWizard)
+    && (aiText || mid || hasAfterBlock || pitch),
   );
   // Side TABLA DE HOY beside the pie (always on for today overview).
   const vizData = visualization?.data && isTodayOverview
@@ -99,6 +127,8 @@ function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visuali
     text: aiText || (visualization ? "" : " "),
     textMid: mid || null,
     textAfter: after || null,
+    textAfterRest: afterRest || null,
+    startDocLines: startLines.length ? startLines : null,
     textPitch: pitch || null,
     deferVisualization,
     vizRevealed: !deferVisualization,
@@ -107,10 +137,14 @@ function buildAiTurnRevealState({ aiText, textMid, textAfter, textPitch, visuali
     midRevealed: !mid,
     // Chrono sheet unlocks after intro; if no chrono payload, don't block copy.
     sheetTableRevealed: !mid || !hasChrono,
-    afterRevealed: !after,
+    startDocRevealed: !startLines.length,
+    afterRevealed: !hasAfterBlock,
     pitchRevealed: !pitch,
     // Checkmark ack first; typed copy waits for savedAckRevealed.
     savedAckRevealed: !isDaySheetSaved,
+    voiceSequence: leaveSchedule ? "leave_schedule" : (voiceSequence || null),
+    // Gate “qué sigue” until Listo typewriter (+ clip) finishes.
+    leaveAckDone: !leaveSchedule,
     visualization: viz || null,
   };
 }
@@ -690,7 +724,7 @@ export function GinaChatCard({
           ? { ...m, midReady: true }
           : m
       )));
-    }, GINA_NOTIFY_GATE_DELAY_MS);
+    }, GINA_SHEET_INTRO_DELAY_MS);
   }, [messages]);
 
   // Enable.wav when the day / schedule sheet visualization appears (not on chat open).
@@ -729,7 +763,7 @@ export function GinaChatCard({
       if (!data?.playHighlightsSound && !(
         data?.recoveryWizard
         && data?.currentStep === "overdue_check"
-        && Number(data?.urgencyCount) > 0
+        && (Number(data?.urgencyCount) > 0 || Number(data?.lateStartCount) > 0)
       )) continue;
       targetId = m.id || `idx-${i}`;
       break;
@@ -1081,6 +1115,22 @@ export function GinaChatCard({
     if (!trimmed) return;
     const displayText = opts.displayText != null ? String(opts.displayText).trim() : "";
     const bubbleText = displayText || trimmed;
+    const isSilentProtocol = /^GinaSilentMarkInProgress\b/i.test(trimmed);
+
+    if (isSilentProtocol) {
+      // Side-effect only — no user/AI bubbles, keep Easy Links on screen.
+      if (typeof onSendMessage === "function") {
+        try {
+          await onSendMessage(trimmed, {
+            meetingMode: Boolean(allowMeetingMode && (lockMeetingMode || meetingMode)),
+            messages: [],
+          });
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
 
     if (isChatBusy()) {
       const id = opts.existingId || makeMsgId();
@@ -1132,10 +1182,13 @@ export function GinaChatCard({
         let aiText = "";
         let textMid = null;
         let textAfter = null;
+        let textAfterRest = null;
+        let startDocLines = null;
         let textPitch = null;
         let visualization = null;
         let learnProposal = null;
         let chips = null;
+        let voiceSequence = null;
         if (typeof reply === "string") {
           aiText = reply.trim();
         } else if (reply && typeof reply === "object") {
@@ -1144,11 +1197,16 @@ export function GinaChatCard({
           if (textMid === "") textMid = null;
           textAfter = reply.textAfter != null ? String(reply.textAfter).trim() : null;
           if (textAfter === "") textAfter = null;
+          textAfterRest = reply.textAfterRest != null ? String(reply.textAfterRest).trim() : null;
+          if (textAfterRest === "") textAfterRest = null;
+          startDocLines = Array.isArray(reply.startDocLines) ? reply.startDocLines : null;
           textPitch = reply.textPitch != null ? String(reply.textPitch).trim() : null;
           if (textPitch === "") textPitch = null;
           visualization = reply.visualization || null;
           learnProposal = reply.learnProposal || null;
           chips = Array.isArray(reply.chips) ? reply.chips : null;
+          voiceSequence = reply.voiceSequence != null ? String(reply.voiceSequence).trim() : null;
+          if (voiceSequence === "") voiceSequence = null;
           const preludeMessage = String(reply.searchSequence?.preludeMessage || "").trim();
           if (preludeMessage) {
             hasPendingSearchSequence = true;
@@ -1178,8 +1236,11 @@ export function GinaChatCard({
                   aiText,
                   textMid,
                   textAfter,
+                  textAfterRest,
+                  startDocLines,
                   textPitch,
                   visualization,
+                  voiceSequence,
                 });
                 setMessages((prev) => [
                   ...prev,
@@ -1214,8 +1275,11 @@ export function GinaChatCard({
             aiText,
             textMid,
             textAfter,
+            textAfterRest,
+            startDocLines,
             textPitch,
             visualization,
+            voiceSequence,
           });
           setMessages((prev) => [
             ...prev,
@@ -1565,6 +1629,12 @@ export function GinaChatCard({
                     }}
                     onSelectAction={(actionText, displayText) => {
                       if (!actionText || isTyping || isAiAnimating) return;
+                      if (/^GinaSilentMarkInProgress\b/i.test(String(actionText))) {
+                        void deliverUserMessage(actionText, {
+                          displayText: displayText || null,
+                        });
+                        return;
+                      }
                       setMessages((prev) => prev.map((m, idx) => (
                         idx === i ? stashMessageChips(m) : m
                       )));
@@ -1598,33 +1668,79 @@ export function GinaChatCard({
                         plainBody={msg.visualization?.type === "recovery_preview"}
                         instant={Boolean(msg.refineRevealed)}
                         onComplete={i === lastAiMessageIndex ? (() => {
+                          if (messageHasLeaveScheduleVoice(msg) && msg.textAfter && !msg.leaveAckDone) {
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            void (async () => {
+                              await playGinaLeaveScheduleSound();
+                              setMessages((prev) => prev.map((m, idx) => (
+                                idx === i
+                                  ? {
+                                    ...m,
+                                    leaveAckDone: true,
+                                    afterRevealed: false,
+                                  }
+                                  : m
+                              )));
+                            })();
+                            return;
+                          }
                           if (msg.deferVisualization && !msg.vizRevealed) {
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
                             setMessages((prev) => prev.map((m, idx) => (
                               idx === i
-                                ? {
-                                  ...m,
-                                  vizRevealed: true,
-                                  // Side TABLA DE HOY ships with the overview viz.
-                                  // Chrono sheet still waits for intro (mid) to finish.
-                                  sheetTableRevealed: !m.textMid || !m.visualization?.data?.todayOverview,
-                                  midRevealed: !m.textMid,
-                                  afterRevealed: !m.textMid && !m.textAfter,
-                                  pitchRevealed: !m.textMid && !m.textAfter && !m.textPitch,
-                                  visualization: m.visualization?.data?.todayOverview
-                                    ? {
-                                      ...m.visualization,
-                                      data: {
-                                        ...m.visualization.data,
-                                        overviewShowTable: true,
-                                      },
-                                    }
-                                    : m.visualization,
-                                }
+                                ? (() => {
+                                  const hasAfter = Boolean(
+                                    m.textAfter
+                                    || m.textAfterRest
+                                    || (Array.isArray(m.startDocLines) && m.startDocLines.length)
+                                  );
+                                  const recoveryWizard = Boolean(m.visualization?.data?.recoveryWizard);
+                                  // Recovery: finish step copy (“El documento…”) before sheet + Easy Links.
+                                  if (recoveryWizard && hasAfter && !m.textMid) {
+                                    return {
+                                      ...m,
+                                      vizRevealed: false,
+                                      midRevealed: true,
+                                      sheetTableRevealed: true,
+                                      afterRevealed: false,
+                                      pitchRevealed: !m.textPitch,
+                                      recoveryCopyFirst: true,
+                                    };
+                                  }
+                                  return {
+                                    ...m,
+                                    vizRevealed: true,
+                                    // Side TABLA DE HOY ships with the overview viz.
+                                    // Chrono sheet still waits for intro (mid) to finish.
+                                    sheetTableRevealed: !m.textMid || !m.visualization?.data?.todayOverview,
+                                    midRevealed: !m.textMid,
+                                    afterRevealed: !m.textMid && !hasAfter,
+                                    pitchRevealed: !m.textMid && !hasAfter && !m.textPitch,
+                                    visualization: m.visualization?.data?.todayOverview
+                                      ? {
+                                        ...m.visualization,
+                                        data: {
+                                          ...m.visualization.data,
+                                          overviewShowTable: true,
+                                        },
+                                      }
+                                      : m.visualization,
+                                  };
+                                })()
                                 : m
                             )));
-                            if (!msg.textMid && !msg.textAfter && !msg.textPitch) {
+                            const hasAfter = Boolean(
+                              msg.textAfter
+                              || msg.textAfterRest
+                              || (Array.isArray(msg.startDocLines) && msg.startDocLines.length)
+                            );
+                            const recoveryWizard = Boolean(msg.visualization?.data?.recoveryWizard);
+                            if (recoveryWizard && hasAfter && !msg.textMid) {
+                              return;
+                            }
+                            if (!msg.textMid && !hasAfter && !msg.textPitch) {
                               handleAiAnimComplete();
                             }
                             return;
@@ -1653,6 +1769,16 @@ export function GinaChatCard({
                         ...(documentId && msg.visualization.data?.isDaySheet
                           ? { compact: true }
                           : null),
+                        // Recovery easy-links type only after step copy (textAfter) finishes.
+                        easyLinksReady: Boolean(
+                          !msg.visualization.data?.recoveryWizard
+                          || (
+                            msg.vizRevealed
+                            && msg.midRevealed !== false
+                            && (!(msg.textAfter || msg.textAfterRest) || msg.afterRevealed)
+                            && (!msg.startDocLines?.length || msg.startDocRevealed)
+                          )
+                        ),
                       }}
                       compact={Boolean(documentId)}
                       onToggleDaySheetDoc={
@@ -1672,6 +1798,12 @@ export function GinaChatCard({
                       }}
                       onSelectAction={(actionText, displayText) => {
                         if (!actionText || isTyping || isAiAnimating) return;
+                        if (/^GinaSilentMarkInProgress\b/i.test(String(actionText))) {
+                          void deliverUserMessage(actionText, {
+                            displayText: displayText || null,
+                          });
+                          return;
+                        }
                         setMessages((prev) => prev.map((m, idx) => (
                           idx === i ? stashMessageChips(m) : m
                         )));
@@ -1707,11 +1839,16 @@ export function GinaChatCard({
                           window.setTimeout(() => {
                             setMessages((prev) => prev.map((m, idx) => {
                               if (idx !== i || m.sheetTableRevealed) return m;
+                              const hasAfter = Boolean(
+                                m.textAfter
+                                || m.textAfterRest
+                                || (Array.isArray(m.startDocLines) && m.startDocLines.length)
+                              );
                               return {
                                 ...m,
                                 sheetTableRevealed: true,
-                                afterRevealed: !m.textAfter,
-                                pitchRevealed: !m.textAfter && !m.textPitch,
+                                afterRevealed: !hasAfter,
+                                pitchRevealed: !hasAfter && !m.textPitch,
                               };
                             }));
                           }, 900);
@@ -1737,48 +1874,115 @@ export function GinaChatCard({
                         onReady={msg.sheetTableRevealed ? undefined : () => {
                           setMessages((prev) => prev.map((m, idx) => (
                             idx === i
-                              ? {
-                                ...m,
-                                sheetTableRevealed: true,
-                                afterRevealed: !m.textAfter,
-                                pitchRevealed: !m.textAfter && !m.textPitch,
-                              }
+                              ? (() => {
+                                const hasAfter = Boolean(
+                                  m.textAfter
+                                  || m.textAfterRest
+                                  || (Array.isArray(m.startDocLines) && m.startDocLines.length)
+                                );
+                                return {
+                                  ...m,
+                                  sheetTableRevealed: true,
+                                  afterRevealed: !hasAfter,
+                                  pitchRevealed: !hasAfter && !m.textPitch,
+                                };
+                              })()
                               : m
                           )));
-                          if (!msg.textAfter && !msg.textPitch) {
+                          const hasAfter = Boolean(
+                            msg.textAfter
+                            || msg.textAfterRest
+                            || (Array.isArray(msg.startDocLines) && msg.startDocLines.length)
+                          );
+                          if (!hasAfter && !msg.textPitch) {
                             handleAiAnimComplete();
                           }
                         }}
                       />
                     ) : null}
                   {msg.sender === "ai"
-                    && msg.textAfter
-                    && msg.vizRevealed
+                    && (
+                      (Array.isArray(msg.startDocLines) && msg.startDocLines.length)
+                      || msg.textAfter
+                      || msg.textAfterRest
+                    )
+                    && (msg.vizRevealed || msg.recoveryCopyFirst)
                     && msg.midRevealed === true
-                    && msg.sheetTableRevealed !== false ? (
+                    && msg.sheetTableRevealed !== false
+                    && (!messageHasLeaveScheduleVoice(msg) || msg.leaveAckDone) ? (
                     <div className="gina-chat-card__bubble gina-chat-card__bubble--ai gina-chat-card__bubble--after-viz">
-                      <GinaAiMessageText
-                        text={msg.textAfter}
-                        plainBody
-                        pace="slow"
-                        instant={Boolean(msg.refineRevealed)}
-                        onComplete={i === lastAiMessageIndex ? () => {
-                          isAiAnimatingRef.current = true;
-                          setIsAiAnimating(true);
-                          setMessages((prev) => prev.map((m, idx) => (
-                            idx === i
-                              ? {
-                                ...m,
-                                afterRevealed: true,
-                                pitchRevealed: !m.textPitch,
-                              }
-                              : m
-                          )));
-                          if (!msg.textPitch) {
-                            handleAiAnimComplete();
-                          }
-                        } : undefined}
-                      />
+                      {Array.isArray(msg.startDocLines) && msg.startDocLines.length ? (
+                        <GinaStartDocReveal
+                          lines={msg.startDocLines}
+                          instant={Boolean(msg.refineRevealed)}
+                          onComplete={() => {
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            setMessages((prev) => prev.map((m, idx) => (
+                              idx === i
+                                ? {
+                                  ...m,
+                                  startDocRevealed: true,
+                                  afterRevealed: !(m.textAfterRest || (
+                                    !m.startDocLines?.length && m.textAfter
+                                  )),
+                                }
+                                : m
+                            )));
+                            if (!msg.textAfterRest && !(msg.textAfter && !msg.startDocLines?.length)) {
+                              if (!msg.textPitch) handleAiAnimComplete();
+                            }
+                          }}
+                        />
+                      ) : null}
+                      {(
+                        (!msg.startDocLines?.length)
+                        || msg.startDocRevealed === true
+                      ) && (msg.textAfterRest || (!msg.startDocLines?.length && msg.textAfter)) ? (
+                        <GinaAiMessageText
+                          text={msg.textAfterRest || msg.textAfter}
+                          plainBody
+                          pace="slow"
+                          instant={Boolean(msg.refineRevealed)}
+                          onComplete={i === lastAiMessageIndex ? () => {
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            if (messageHasLeaveScheduleVoice(msg)) {
+                              void (async () => {
+                                await playGinaWhatsNextSound();
+                                setMessages((prev) => prev.map((m, idx) => (
+                                  idx === i
+                                    ? {
+                                      ...m,
+                                      afterRevealed: true,
+                                      pitchRevealed: !m.textPitch,
+                                    }
+                                    : m
+                                )));
+                                if (!msg.textPitch) {
+                                  handleAiAnimComplete();
+                                }
+                              })();
+                              return;
+                            }
+                            setMessages((prev) => prev.map((m, idx) => (
+                              idx === i
+                                ? {
+                                  ...m,
+                                  // After recovery step copy: reveal sheet + Easy Links next.
+                                  vizRevealed: true,
+                                  recoveryCopyFirst: false,
+                                  afterRevealed: true,
+                                  pitchRevealed: !m.textPitch,
+                                }
+                                : m
+                            )));
+                            if (!msg.textPitch) {
+                              handleAiAnimComplete();
+                            }
+                          } : undefined}
+                        />
+                      ) : null}
                     </div>
                   ) : null}
                   {msg.sender === "ai"
@@ -1806,11 +2010,13 @@ export function GinaChatCard({
               {msg.sender === "ai" && Array.isArray(msg.chips) && msg.chips.length && !isTyping && !isAiAnimating
                 && (msg.visualization?.type !== "day_sheet_saved" || msg.savedAckRevealed)
                 && (!messageHasNotifyGate(msg) || msg.notifyGateRevealed)
+                && (!messageHasLeaveScheduleVoice(msg) || !msg.textAfter || msg.afterRevealed)
                 && (!msg.deferVisualization || (
                   msg.vizRevealed
                   && msg.midRevealed !== false
                   && msg.sheetTableRevealed !== false
-                  && (!msg.textAfter || msg.afterRevealed)
+                  && (!msg.startDocLines?.length || msg.startDocRevealed)
+                  && (!(msg.textAfter || msg.textAfterRest) || msg.afterRevealed)
                   && (!msg.textPitch || msg.pitchRevealed)
                 )) ? (
                 chipsAreListRefine(msg.chips) ? (
@@ -1849,6 +2055,9 @@ export function GinaChatCard({
                           + (isNotify ? " gina-chat-card__chip--notify" : "")
                           + (comingSoon ? " is-coming-soon" : "")
                           + (chip.kind === "nav_back" ? " gina-chat-card__chip--back" : "")
+                          + (chip.kind === "save_day" || chip.id === "save_day_sheet"
+                            ? " gina-chat-card__chip--save-day"
+                            : "")
                         }
                         disabled={comingSoon && !chip.text}
                         title={comingSoon ? (chipLocale === "en" ? "Coming soon" : "Próximamente") : undefined}

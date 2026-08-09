@@ -403,6 +403,7 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
       urgencyCount: opts.urgencyCount,
       lateStartCount: opts.lateStartCount,
     });
+  const step = opts.currentStep || null;
 
   const snoozeRow = {
     id: "recovery_snooze",
@@ -420,26 +421,50 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
     statusColor: null,
   };
 
+  const rescheduleStar = {
+    id: "move_end_of_day",
+    title: en ? "Reschedule today" : "Reagendar horario",
+    body: en
+      ? "Open today’s calendar options and push what’s pending from now, or fit it into free gaps."
+      : "Abre las opciones del calendario de hoy y corre lo pendiente desde ahora, o acomódalo en los huecos libres.",
+    icon: "/uploads/CalendarDots.svg",
+    iconLabel: en ? "Later" : "Más tarde",
+    actionText: en
+      ? "Reschedule for today"
+      : "Reagendar para hoy",
+    ctaLabel: en ? "Adjust schedule" : "Ajustar agenda",
+    tier: "star",
+    control: "link",
+    statusKey: null,
+    statusColor: null,
+  };
+
+  // After conflict dual-timeline: offer reschedule into today's full calendar listing.
+  if (step === "conflict_resolve") {
+    return [rescheduleStar, snoozeRow];
+  }
+
   if (mode === "late_start") {
     const openId = String(opts.openDocId || "").trim();
     const openTitle = String(opts.openDocTitle || "").trim();
     /** @type {ReturnType<typeof buildRecoveryEasyLinksLegend>} */
     const rows = [
       {
-        id: "mark_in_progress_batch",
-        title: en ? "Mark In progress" : "Pasar a En Progreso",
+        id: "move_end_of_day",
+        title: en ? "Reschedule today" : "Reagendar hoy",
         body: en
-          ? "You’re already in the window — flip status if you started."
-          : "Ya estás en la ventana — cambia el status si ya empezaste.",
-        icon: "/uploads/pending.svg",
-        iconLabel: en ? "In progress" : "En progreso",
+          ? "We push what’s pending from now, or fit it into your free gaps."
+          : "Corremos lo pendiente desde este momento o lo acomodamos en tus espacios disponibles.",
+        icon: "/uploads/CalendarDots.svg",
+        iconLabel: en ? "Later" : "Más tarde",
         actionText: en
-          ? "Mark late-start blocks as in progress"
-          : "Marcar bloques con inicio tardío como en progreso",
-        tier: "secondary",
+          ? "Reschedule for today"
+          : "Reagendar para hoy",
+        ctaLabel: en ? "Adjust schedule" : "Ajustar agenda",
+        tier: "star",
         control: "link",
         statusKey: null,
-        statusColor: "#4DB3FF",
+        statusColor: null,
       },
     ];
     if (openId) {
@@ -454,12 +479,28 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
         icon: "/uploads/pending.svg",
         iconLabel: en ? "Open" : "Abrir",
         actionText: `GinaRevealDocument:${openId}`,
+        ctaLabel: en ? "Open" : "Abrir",
         tier: "secondary",
         control: "link",
         statusKey: null,
         statusColor: null,
       });
     }
+    rows.push({
+      id: "change_status",
+      title: en ? "Change status" : "Cambiar Status",
+      body: en
+        ? "You’re already in the window — change the status if you already started."
+        : "Ya estás en la ventana — cambia el status si ya comenzaste.",
+      icon: "/uploads/pending.svg",
+      iconLabel: en ? "Status" : "Status",
+      actionText: null,
+      ctaLabel: en ? "Change status" : "Cambiar status",
+      tier: "status",
+      control: "status_menu",
+      statusKey: "in_progress",
+      statusColor: "#4DB3FF",
+    });
     rows.push(snoozeRow);
     return rows;
   }
@@ -467,23 +508,7 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
   if (mode === "none") return [];
 
   return [
-    {
-      id: "move_end_of_day",
-      title: en ? "Reschedule today" : "Reagendar hoy",
-      body: en
-        ? "We push what’s pending from now, or fit it into your free gaps."
-        : "Corremos lo pendiente desde este momento o lo acomodamos en tus espacios disponibles.",
-      icon: "/uploads/CalendarDots.svg",
-      iconLabel: en ? "Later" : "Más tarde",
-      actionText: en
-        ? "Reschedule for today"
-        : "Reagendar para hoy",
-      ctaLabel: en ? "Adjust schedule" : "Ajustar agenda",
-      tier: "star",
-      control: "link",
-      statusKey: null,
-      statusColor: null,
-    },
+    rescheduleStar,
     {
       id: "mark_completed",
       title: en ? "Mark as Completed" : "Marcar como Completados",
@@ -517,6 +542,21 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
       statusColor: "#F2F2F2",
     },
     snoozeRow,
+  ];
+}
+
+/**
+ * Status menu options (late-start → In progress). Silent apply — does not rewrite the legend UI.
+ * @param {{ locale?: string }} [opts]
+ */
+export function buildRecoveryChangeStatusMenuOptions(opts = {}) {
+  const en = opts.locale === "en";
+  return [
+    {
+      id: "status_in_progress",
+      label: en ? "In progress" : "En Progreso",
+      text: "GinaSilentMarkInProgress",
+    },
   ];
 }
 
@@ -695,20 +735,28 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
   /** @type {{ id: string, label: string, text: string, primary?: boolean, comingSoon?: boolean }[]} */
   const chips = [];
 
-  if (lateN > 0) {
+  if (lateN > 0 && mode !== "late_start") {
     chips.push({
       id: "mark_in_progress_batch",
       label: en ? "Mark late starts In progress" : "Pasar a En Progreso",
       text: en
         ? "Mark late-start blocks as in progress"
         : "Marcar bloques con inicio tardío como en progreso",
-      primary: mode === "late_start",
+      primary: false,
     });
   }
 
   if (mode === "late_start") {
     const openId = String(opts.openDocId || "").trim();
     const openTitle = String(opts.openDocTitle || "").trim();
+    chips.push({
+      id: "move_end_of_day",
+      label: en ? "Adjust schedule" : "Ajustar agenda",
+      text: en
+        ? "Reschedule for today"
+        : "Reagendar para hoy",
+      primary: true,
+    });
     if (openId) {
       chips.push({
         id: "open_late_start_doc",
@@ -755,40 +803,14 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
  */
 export function buildScheduleRecoveryConflictChips(opts = {}) {
   const en = opts.locale === "en";
-  const dept = String(opts.topConflict?.department || "").trim();
-  const invaded = Array.isArray(opts.invadedLabels) ? opts.invadedLabels.filter(Boolean) : [];
-  const prioritizeLabel = invaded.length
-    ? (en ? `Prioritize ${invaded.join(" & ")}` : `Priorizar ${invaded.join(" y ")}`)
-    : (en ? "Prioritize other blocks" : "Priorizar otros bloques");
   return [
     {
-      id: "move_conflict_tomorrow",
-      label: en
-        ? (dept ? `Move ${dept} to tomorrow` : "Move block to tomorrow")
-        : (dept ? `Mover ${dept} a mañana` : "Mover bloque a mañana"),
+      id: "move_end_of_day",
+      label: en ? "Reschedule today" : "Reagendar horario",
       text: en
-        ? "Move overlapping block to tomorrow (coming soon)"
-        : "Mover bloque en traslape a mañana (próximamente)",
-      comingSoon: true,
+        ? "Reschedule for today"
+        : "Reagendar para hoy",
       primary: true,
-    },
-    {
-      id: "adjust_conflict_hours",
-      label: en
-        ? (dept ? `Adjust ${dept} hours` : "Adjust hours")
-        : (dept ? `Ajustar horas de ${dept}` : "Ajustar horas"),
-      text: en
-        ? "Adjust overlapping block hours (coming soon)"
-        : "Ajustar horas del bloque en traslape (próximamente)",
-      comingSoon: true,
-    },
-    {
-      id: "prioritize_other_blocks",
-      label: prioritizeLabel,
-      text: en
-        ? "Prioritize other blocks (coming soon)"
-        : "Priorizar otros bloques (próximamente)",
-      comingSoon: true,
     },
     {
       id: "recovery_next",
@@ -1006,8 +1028,8 @@ export function buildRescheduleForkChips(opts = {}) {
 export function buildRescheduleForkText(opts = {}) {
   const en = opts.locale === "en";
   return en
-    ? "How do you want to reschedule? (tweaks)\n\n**Cascade from now**: Keep each card’s duration and push the queue forward from now (you can edit before applying).\n\n**Fit into free gaps**: Place each block into an open slot without auto-shifting the rest."
-    : "¿Cómo quieres reagendar? (ajustes)\n\n**Mover en cascada desde ahora**: Respeta la duración de cada ficha y empuja la cola desde ahora (puedes editar antes de aplicar).\n\n**Encajar en huecos libres**: Coloca cada bloque en un cupo libre sin mover el resto automáticamente.";
+    ? "How do you want to reschedule?\n\n**Cascade from now**: Keep each card’s duration and push the queue forward from now (you can edit before applying).\n\n**Fit into free gaps**: Place each block into an open slot without auto-shifting the rest."
+    : "¿Cómo quieres reagendar?\n\n**Mover en cascada desde ahora**: Respeta la duración de cada ficha y empuja la cola desde ahora (puedes editar antes de aplicar).\n\n**Encajar en huecos libres**: Coloca cada bloque en un cupo libre sin mover el resto automáticamente.";
 }
 
 /**
@@ -1067,27 +1089,51 @@ export function buildRescheduleProgressText(opts = {}) {
 
 /**
  * Ack after applying the last chosen slot (loop finished).
- * @param {{ locale?: string, timeLabel?: string, dayLabel?: string, count?: number }} [opts]
+ * @param {{
+ *   locale?: string,
+ *   timeLabel?: string,
+ *   dayLabel?: string,
+ *   count?: number,
+ *   withoutOverlaps?: boolean,
+ * }} [opts]
  */
 export function buildRescheduleAppliedText(opts = {}) {
   const en = opts.locale === "en";
   const time = String(opts.timeLabel || "").trim();
   const day = String(opts.dayLabel || "").trim();
   const n = Number(opts.count) || 0;
+  const clean = opts.withoutOverlaps !== false;
+  const cleanEs = clean
+    ? " Tu agenda quedó actualizada sin solapamientos."
+    : " Tu agenda quedó actualizada con los cupos que elegiste.";
+  const cleanEn = clean
+    ? " Your agenda is updated without overlaps."
+    : " Your agenda is updated with the slots you chose.";
   if (en) {
     if (n > 1) {
-      return `Done. I rescheduled ${n} block(s) with the slots you chose. Your agenda is updated without overlaps.`;
+      return `Done. I rescheduled ${n} block(s) with the slots you chose.${cleanEn}`;
     }
-    if (day && time) return `Done. I rescheduled the document for ${day} ${time}. Your agenda is updated without overlaps.`;
-    if (time) return `Done. I rescheduled the document for today ${time}. Your agenda is updated without overlaps.`;
-    return "Done. I rescheduled the document. Your agenda is updated without overlaps.";
+    if (day && time) return `Done. I rescheduled the document for ${day} ${time}.${cleanEn}`;
+    if (time) return `Done. I rescheduled the document for today ${time}.${cleanEn}`;
+    return `Done. I rescheduled the document.${cleanEn}`;
   }
   if (n > 1) {
-    return `Listo. Reagendé ${n} bloque(s) con los cupos que elegiste. Tu agenda quedó actualizada sin solapamientos.`;
+    return `Listo. Reagendé ${n} bloque(s) con los cupos que elegiste.${cleanEs}`;
   }
-  if (day && time) return `Listo. Reagendé el documento para ${day} ${time}. Tu agenda quedó actualizada sin solapamientos.`;
-  if (time) return `Listo. Reagendé el documento para hoy ${time}. Tu agenda quedó actualizada sin solapamientos.`;
-  return "Listo. Reagendé el documento. Tu agenda quedó actualizada sin solapamientos.";
+  if (day && time) return `Listo. Reagendé el documento para ${day} ${time}.${cleanEs}`;
+  if (time) return `Listo. Reagendé el documento para hoy ${time}.${cleanEs}`;
+  return `Listo. Reagendé el documento.${cleanEs}`;
+}
+
+/**
+ * After a user-confirmed reschedule apply, never re-open conflict_resolve
+ * in the same turn — next beat is the day sheet with the new times.
+ * @param {{ forceDayReady?: boolean, hasOverlap?: boolean }} [opts]
+ * @returns {"conflict_resolve" | "day_ready"}
+ */
+export function resolvePostMutationRecoveryFollowUp(opts = {}) {
+  if (opts.forceDayReady) return "day_ready";
+  return opts.hasOverlap ? "conflict_resolve" : "day_ready";
 }
 
 /**
@@ -1262,6 +1308,17 @@ export function parseRecoverySnoozeProtocol(text) {
   }
   // Legacy bare snooze → 30m default (no more fixed 45).
   return { match: true, minutes: 30, untilHhmm: null, untilFreeGap: false };
+}
+
+/**
+ * Ack after cascade/gaps apply when the day is ready (no infographic).
+ * @param {{ locale?: string }} [opts]
+ */
+export function buildRescheduleDayReadyText(opts = {}) {
+  const en = opts.locale === "en";
+  return en
+    ? "Perfect — your schedule is readjusted and ready."
+    : "Perfecto, ahora tu horario está reajustado y listo.";
 }
 
 /**

@@ -134,8 +134,8 @@ describe("ginaReplyChips", () => {
 
   it("today overview intro text is separate from headline datos", () => {
     const intro = buildTodayOverviewIntroText("es");
-    expect(intro).toMatch(/Ahora te voy a mostrar el sheet del día/i);
-    expect(intro).toMatch(/lista y organizada/i);
+    expect(intro).toBe("Ahora te voy a mostrar el sheet del día:");
+    expect(intro).not.toMatch(/desde ayer|lista y organizada/i);
     expect(intro).not.toMatch(/Horario de Hoy/i);
   });
 
@@ -179,11 +179,117 @@ describe("ginaReplyChips", () => {
     expect(post.textAfter).toContain("**Departamento:** Sales (Calls)");
     expect(post.textAfter).toContain("**Tiempo asignado:**");
     expect(post.textAfter).toContain("**Cuando desees puedes comenzar.**");
-    expect(post.textAfter).toContain("Antes de empezar: si quieres podemos guardar este Horario del día");
+    expect(post.textAfter).toContain("**Antes de empezar:** si quieres podemos guardar este Horario del día");
     expect(post.textAfter).toContain("¿Quieres guardarlo?");
     expect(post.textAfter).not.toMatch(/¡Hey!/i);
     expect(post.textAfter).not.toMatch(/Sheet del Día/i);
     expect(post.textPitch).toBeNull();
+    expect(post.startDocLines?.length).toBe(3);
+    expect(post.startDocLines[0].label).toBe("Documento de inicio");
+    expect(post.textAfterRest).toContain("**Cuando desees puedes comenzar.**");
+    expect(post.textAfterRest).not.toContain("Documento de inicio");
+  });
+
+  it("labels Próximo Documento when a completed doc is earlier in the day", () => {
+    const post = buildTodayOverviewPostTableCopy({
+      locale: "es",
+      hasDaySheet: false,
+      offerCount: 4,
+      incrementOffer: false,
+      forceCleanDay: true,
+      documents: [{
+        id: "n2",
+        title: "Sales call",
+        department: "Sales",
+        category: "Calls",
+        workMinutes: 120,
+        timeClock: "5:30 PM – 7:30 PM",
+        anchorAt: "2026-08-09T17:30:00.000Z",
+      }],
+      quickSheet: {
+        isCleanDay: true,
+        firstPendingId: "n2",
+        firstPendingTitle: "Sales call",
+        completed: [{
+          id: "n1",
+          title: "Blogs",
+          completed: true,
+          anchorAt: "2026-08-09T15:30:00.000Z",
+        }],
+        urgency: [],
+        pending: [{
+          id: "n2",
+          title: "Sales call",
+          anchorAt: "2026-08-09T17:30:00.000Z",
+        }],
+      },
+    });
+    expect(post.startDocLines[0].label).toBe("Próximo Documento");
+    expect(post.textAfter).toContain("**Próximo Documento:** Sales call");
+    expect(post.textAfter).not.toContain("**Documento de inicio:**");
+  });
+
+  it("recovery gate still returns startDocLines with highlight SFX rows", () => {
+    const post = buildTodayOverviewPostTableCopy({
+      locale: "es",
+      hasDaySheet: false,
+      offerCount: 4,
+      incrementOffer: false,
+      hasRecoveryOffer: true,
+      lateStartCount: 1,
+      documents: [{
+        id: "n2",
+        title: "Assistente test",
+        department: "Sales",
+        category: "—",
+        workMinutes: 120,
+        timeClock: "5:30 PM – 7:30 PM",
+      }],
+      quickSheet: {
+        isCleanDay: false,
+        firstPendingId: "n2",
+        firstPendingTitle: "Assistente test",
+        completed: [{ id: "n1", title: "Blogs", completed: true }],
+        urgency: [],
+        pending: [{ id: "n2", title: "Assistente test" }],
+      },
+    });
+    expect(post.startDocLines?.length).toBe(3);
+    expect(post.startDocLines[0].label).toBe("Próximo Documento");
+    expect(post.startDocLines[0].value).toBe("Assistente test");
+    expect(post.startDocLines[1].value).toBe("Sales");
+    expect(post.startDocLines[1].value).not.toMatch(/\(\s*[—-]\s*\)/);
+    expect(post.textAfter).toBeNull();
+    expect(post.textAfterRest).toBeNull();
+    expect(post.textPitch).toBeNull();
+  });
+
+  it("offerDayReady forces post-table copy even if quickSheet is not clean", () => {
+    const post = buildTodayOverviewPostTableCopy({
+      locale: "es",
+      hasDaySheet: false,
+      offerCount: 4,
+      incrementOffer: false,
+      offerDayReady: true,
+      forceCleanDay: true,
+      documents: [{
+        id: "n1",
+        title: "Call 1",
+        department: "Sales",
+        category: "Calls",
+        workMinutes: 60,
+        timeClock: "9:00 AM – 10:00 AM",
+      }],
+      quickSheet: {
+        urgency: [{ id: "late" }],
+        isCleanDay: false,
+        firstPendingTitle: "Call 1",
+        firstPendingId: "n1",
+        pending: [{ id: "n1", title: "Call 1" }],
+      },
+    });
+    expect(post.textAfter).toContain("**Documento de inicio:** Call 1");
+    expect(post.textAfter).toContain("Horario del día");
   });
 
   it("today overview post-table still educates Horario del día when sheet already saved", () => {
@@ -226,7 +332,7 @@ describe("ginaReplyChips", () => {
       locale: "es",
     });
     const save = chips.find((c) => c.id === "save_day_sheet");
-    expect(save?.label).toBe("Guardar horario del día");
+    expect(save?.label).toBe("Guardar calendario del día");
   });
 
   it("today overview dept blocks have headline + bold docs/hours", () => {
@@ -287,8 +393,15 @@ describe("ginaReplyChips", () => {
     });
     expect(chips.map((c) => c.id)).toContain("open_1");
     expect(chips.map((c) => c.id)).toContain("save_day_sheet");
+    expect(chips.map((c) => c.id)).toContain("reschedule_times");
     expect(chips.map((c) => c.id)).toContain("focus_Marketing");
-    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar calendario del día");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.kind).toBe("save_day");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.primary).toBeFalsy();
+    expect(chips.find((c) => c.id === "open_1")?.primary).toBeFalsy();
+    expect(chips.find((c) => c.id === "reschedule_times")?.label).toMatch(/Re-agendar calendario/i);
+    expect(chips.find((c) => c.id === "reschedule_times")?.text).toMatch(/Reagendar para hoy/i);
+    expect(chips.map((c) => c.id)[0]).toBe("save_day_sheet");
   });
 
   it("clean-day today overview without sheet offers Guardar horario del día", () => {
@@ -315,7 +428,7 @@ describe("ginaReplyChips", () => {
       locale: "es",
     });
     expect(chips.map((c) => c.id)).toContain("save_day_sheet");
-    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar calendario del día");
     expect(chips.map((c) => c.id)).toContain("open_n1");
     expect(chips.map((c) => c.id)).toContain("focus_Sales");
   });
@@ -344,7 +457,7 @@ describe("ginaReplyChips", () => {
       locale: "es",
     });
     expect(chips.map((c) => c.id)).toContain("save_day_sheet");
-    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar horario del día");
+    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar calendario del día");
     expect(chips.map((c) => c.id)).toContain("open_n1");
     expect(chips.map((c) => c.id)).not.toContain("open_day_sheet");
   });
@@ -384,7 +497,9 @@ describe("ginaReplyChips", () => {
       data: { justSaved: true },
     }, { locale: "es" });
     expect(line).toMatch(/ya está guardado el horario del día/i);
-    expect(line).toMatch(/Llamar Asistente/);
+    expect(line).toMatch(/llamar asistente/i);
+    expect(line).toMatch(/horario del día/i);
+    expect(line).toMatch(/calendario queda guardado/i);
     expect(line).not.toMatch(/guarde tu horario/i);
   });
 
@@ -458,7 +573,7 @@ describe("ginaReplyChips", () => {
       },
     });
     expect(after).toContain("**Documento de inicio:** Call 1");
-    expect(after).toContain("Antes de empezar: si quieres podemos guardar este Horario del día");
+    expect(after).toContain("**Antes de empezar:** si quieres podemos guardar este Horario del día");
     expect(after).toMatch(/Horario del día/i);
   });
 

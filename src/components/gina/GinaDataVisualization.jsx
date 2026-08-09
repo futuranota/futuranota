@@ -8,7 +8,7 @@ import {
   formatWorkDurationLabel,
 } from "../../lib/gina/buildGinaVisualization.js";
 import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
-import { buildRecoveryEasyLinksLegend, buildRecoverySnoozeMenuOptions, buildRecoverySnoozeExactProtocol, buildRescheduleBatchApplyProtocol } from "../../lib/gina/ginaScheduleRecovery.js";
+import { buildRecoveryEasyLinksLegend, buildRecoverySnoozeMenuOptions, buildRecoverySnoozeExactProtocol, buildRecoveryChangeStatusMenuOptions, buildRescheduleBatchApplyProtocol } from "../../lib/gina/ginaScheduleRecovery.js";
 import { formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns } from "../../lib/gina/ginaDepartmentColors.js";
 import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
@@ -944,14 +944,30 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
         </p>
       )}
       {canCommit ? (
-        <button
-          type="button"
-          className="gina-viz__slot-apply gina-viz__slot-apply--commit"
-          onClick={commitDrafts}
-        >
-          {en ? "Apply changes" : "Aplicar cambios"}
-          {draftCount > 0 ? ` (${draftCount})` : ""}
-        </button>
+        <div className="gina-viz__slot-actions">
+          <button
+            type="button"
+            className="gina-viz__slot-apply gina-viz__slot-apply--commit"
+            onClick={commitDrafts}
+          >
+            {en ? "Apply changes" : "Aplicar cambios"}
+            {draftCount > 0 ? (
+              <span className="gina-viz__slot-apply-count">{`(${draftCount})`}</span>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            className="gina-viz__slot-apply gina-viz__slot-apply--cancel"
+            onClick={() => {
+              onSelectAction?.(
+                en ? "Cancel reschedule" : "Cancelar reagendar horarios",
+                en ? "Cancel" : "Cancelar",
+              );
+            }}
+          >
+            {en ? "Cancel" : "Cancelar"}
+          </button>
+        </div>
       ) : null}
     </div>
   );
@@ -1650,34 +1666,41 @@ function collectTodayOverviewTableDocs(data = {}) {
   return fromGroups;
 }
 
-function TodayQuickSheet({ quickSheet, documents, groups, locale = "es" }) {
+function TodayQuickSheet({
+  quickSheet,
+  documents,
+  groups,
+  locale = "es",
+  title = null,
+  eyebrow = null,
+}) {
   const rows = collectTodayOverviewTableDocs({ quickSheet, documents, groups });
+  const en = locale === "en";
+  const sheetTitle = title
+    || (en ? "Today's sheet" : "Sheet del día");
+  const sheetEyebrow = eyebrow
+    || (en ? "Chronological schedule" : "Horario cronológico");
   if (!rows.length) {
     return (
       <div className="gina-viz__quick-sheet gina-viz gina-viz--table">
         <header className="gina-viz__quick-sheet-head">
-          <span className="gina-viz__eyebrow">
-            {locale === "en" ? "Chronological schedule" : "Horario cronológico"}
-          </span>
-          <h3 className="gina-viz__title">
-            {locale === "en" ? "Today's sheet" : "Sheet del día"}
-          </h3>
+          <span className="gina-viz__eyebrow">{sheetEyebrow}</span>
+          <h3 className="gina-viz__title">{sheetTitle}</h3>
         </header>
         <p className="gina-viz__empty">
-          {locale === "en" ? "No timed items for today." : "Sin ítems con horario para hoy."}
+          {en ? "No timed items for today." : "Sin ítems con horario para hoy."}
         </p>
       </div>
     );
   }
-  const en = locale === "en";
   // Contiguous runs in chronological row order (same pattern as week status rail)
   const statusRail = buildGinaStatusRailRuns(rows, locale);
 
   return (
     <div className="gina-viz__quick-sheet gina-viz gina-viz--table gina-viz--table-rail">
       <header className="gina-viz__quick-sheet-head">
-        <span className="gina-viz__eyebrow">{en ? "Chronological schedule" : "Horario cronológico"}</span>
-        <h3 className="gina-viz__title">{en ? "Today's sheet" : "Sheet del día"}</h3>
+        <span className="gina-viz__eyebrow">{sheetEyebrow}</span>
+        <h3 className="gina-viz__title">{sheetTitle}</h3>
       </header>
       <div className="gina-viz__table-layout">
         {statusRail.length ? (
@@ -1887,6 +1910,20 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
     );
   }
 
+  if (data.offerDayReady || data.postRescheduleDaySheet) {
+    const en = locale === "en";
+    return (
+      <TodayQuickSheet
+        quickSheet={data.quickSheet}
+        documents={data.documents}
+        groups={groups}
+        locale={locale}
+        eyebrow={en ? "Day schedule" : "Horario del día"}
+        title={data.dateLabel || data.date || (en ? "Today" : "Hoy")}
+      />
+    );
+  }
+
   if (step === "summary") {
     return null;
   }
@@ -2081,15 +2118,17 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
           </div>
         )}
       </div>
-      {step === "overdue_check" ? (
+      {step === "overdue_check" || step === "conflict_resolve" ? (
         <RecoveryEasyLinksLegend
           locale={locale}
           onSelectAction={onSelectAction}
           recoveryOfferMode={data.recoveryOfferMode}
+          currentStep={step}
           urgencyCount={data.urgencyCount}
           lateStartCount={data.lateStartCount}
           openDocId={data.openDocId}
           openDocTitle={data.openDocTitle}
+          ready={!data.recoveryWizard || data.easyLinksReady === true}
         />
       ) : null}
     </>
@@ -2210,87 +2249,126 @@ function RecoverySnoozeMenu({ locale = "es", onSelectAction }) {
   );
 }
 
+function RecoveryChangeStatusMenu({ locale = "es", onSelectAction }) {
+  const en = locale === "en";
+  const options = buildRecoveryChangeStatusMenuOptions({ locale });
+  const [open, setOpen] = useState(false);
+  const [appliedId, setAppliedId] = useState(/** @type {string | null} */ (null));
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const escape = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  return (
+    <div className="gina-viz__snooze-menu gina-viz__status-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="gina-viz__snooze-trigger gina-viz__status-trigger"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+      >
+        {en ? "Change status" : "Cambiar status"}
+        <span aria-hidden> ▾</span>
+      </button>
+      {open ? (
+        <div className="gina-viz__snooze-popover" role="menu">
+          {options.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              className="gina-viz__snooze-option"
+              role="menuitem"
+              onClick={() => {
+                if (!opt.text) return;
+                onSelectAction?.(opt.text, opt.label);
+                setAppliedId(opt.id);
+                setOpen(false);
+              }}
+            >
+              {opt.label}
+              {appliedId === opt.id ? (
+                <span className="gina-viz__status-applied" aria-hidden>✓</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /**
- * Easy Links — star Reagendar + secondary alternatives + snooze menu.
+ * Easy Links — star Reagendar + secondary alternatives + status/snooze menus.
  */
 function RecoveryEasyLinksLegend({
   locale = "es",
   onSelectAction,
   recoveryOfferMode,
+  currentStep,
   urgencyCount,
   lateStartCount,
   openDocId,
   openDocTitle,
+  ready = true,
 }) {
   const en = locale === "en";
   const rows = buildRecoveryEasyLinksLegend({
     locale,
     recoveryOfferMode,
+    currentStep,
     urgencyCount,
     lateStartCount,
     openDocId,
     openDocTitle,
   });
-  const [typedThrough, setTypedThrough] = useState(-1);
-
-  if (!rows.length) return null;
-
   const star = rows.find((r) => r.tier === "star") || null;
   const secondary = rows.filter((r) => r.tier === "secondary");
+  const status = rows.find((r) => r.tier === "status") || null;
   const snooze = rows.find((r) => r.tier === "snooze") || null;
-  const typedRows = [
-    ...(star ? [star] : []),
-    ...secondary,
-    ...(snooze ? [snooze] : []),
-  ];
 
-  const renderRowBody = (row, isDone, isTyping, index) => {
-    const blockText = `${row.title}:\n${row.body}`;
-    if (isTyping) {
-      return (
-        <GinaAiMessageText
-          text={blockText}
-          onComplete={() => setTypedThrough(index)}
-        />
-      );
+  /** One typewriter beat at a time: star → alt intro → secondary… → status → snooze. */
+  const steps = [];
+  if (star) steps.push({ kind: "row", row: star });
+  if (star && secondary.length) {
+    steps.push({
+      kind: "intro",
+      text: en
+        ? "As an alternative, you can also take any of these actions:"
+        : "Como alternativa, también puedes realizar cualquiera de estas acciones:",
+    });
+  }
+  for (const row of secondary) steps.push({ kind: "row", row });
+  if (status) steps.push({ kind: "row", row: status });
+  if (snooze) steps.push({ kind: "row", row: snooze });
+
+  const [stepIdx, setStepIdx] = useState(0);
+  const typingKeyRef = useRef(0);
+
+  useEffect(() => {
+    if (!ready) {
+      setStepIdx(0);
+      typingKeyRef.current += 1;
     }
-    if (!isDone) return null;
-    return (
-      <>
-        <div className="gina-viz__easy-link-headline-row">
-          <span className="gina-chat-card__ai-headline">{`${row.title}:`}</span>
-          {row.statusKey ? (
-            <img
-              className="gina-viz__easy-link-icon"
-              src={row.icon}
-              alt=""
-              aria-hidden
-            />
-          ) : null}
-        </div>
-        <p className="gina-chat-card__ai-body gina-viz__easy-link-body">
-          {row.body}
-          {row.control === "link" && row.actionText ? (
-            <>
-              {" "}
-              <button
-                type="button"
-                className="gina-viz__easy-link-inline"
-                onClick={() => onSelectAction?.(
-                  row.actionText,
-                  row.ctaLabel || row.title,
-                )}
-              >
-                {row.ctaLabel || row.title}
-              </button>
-            </>
-          ) : null}
-        </p>
-        {row.control === "snooze_menu" ? (
-          <RecoverySnoozeMenu locale={locale} onSelectAction={onSelectAction} />
-        ) : null}
-      </>
-    );
+  }, [ready]);
+
+  if (!ready || !steps.length) return null;
+
+  const advance = (from) => {
+    setStepIdx((n) => (n === from ? from + 1 : n));
   };
 
   return (
@@ -2298,30 +2376,39 @@ function RecoveryEasyLinksLegend({
       className="gina-viz__easy-links gina-viz__easy-links--stacked"
       aria-label={en ? "Easy Links" : "Easy Links"}
     >
-      {typedRows.map((row, index) => {
-        if (index > typedThrough + 1) return null;
-        const isTyping = index === typedThrough + 1;
-        const isDone = index <= typedThrough;
-        const showAltIntro = Boolean(
-          star
-          && row.tier === "secondary"
-          && index === (star ? 1 : 0)
-          && (isDone || isTyping),
-        );
+      {steps.map((step, index) => {
+        if (index > stepIdx) return null;
+        const isTyping = index === stepIdx;
+        const isDone = index < stepIdx;
+
+        if (step.kind === "intro") {
+          return (
+            <div key="alt-intro" className="gina-viz__easy-links-block">
+              {isTyping ? (
+                <GinaAiMessageText
+                  key={`easy-intro-${typingKeyRef.current}-${index}`}
+                  text={step.text}
+                  onComplete={() => advance(index)}
+                />
+              ) : (
+                <p className="gina-viz__easy-links-alt-intro gina-chat-card__ai-headline">
+                  {step.text}
+                </p>
+              )}
+            </div>
+          );
+        }
+
+        const row = step.row;
+        const blockText = `${row.title}:\n${row.body}`;
         return (
           <div key={row.id} className="gina-viz__easy-links-block">
-            {showAltIntro ? (
-              <p className="gina-viz__easy-links-alt-intro gina-chat-card__ai-headline">
-                {en
-                  ? "As an alternative, you can also take any of these actions:"
-                  : "Como alternativa, también puedes realizar cualquiera de estas acciones:"}
-              </p>
-            ) : null}
             <section
               className={
                 "gina-viz__easy-link"
                 + (row.tier === "star" ? " gina-viz__easy-link--star" : "")
                 + (row.tier === "snooze" ? " gina-viz__easy-link--snooze" : "")
+                + (row.tier === "status" ? " gina-viz__easy-link--status" : "")
                 + (row.tier === "secondary" ? " gina-viz__easy-link--secondary gina-viz__easy-link--flat" : "")
               }
               data-sfx-id={EASY_LINK_SFX_BY_ID[row.id] || `easy_link_${row.id}`}
@@ -2333,7 +2420,44 @@ function RecoveryEasyLinksLegend({
                   aria-hidden
                 />
                 <div className="gina-viz__easy-link-copy">
-                  {renderRowBody(row, isDone, isTyping, index)}
+                  {isTyping ? (
+                    <GinaAiMessageText
+                      key={`easy-row-${typingKeyRef.current}-${row.id}-${index}`}
+                      text={blockText}
+                      onComplete={() => advance(index)}
+                    />
+                  ) : null}
+                  {isDone ? (
+                    <>
+                      <div className="gina-viz__easy-link-headline-row">
+                        <span className="gina-chat-card__ai-headline">{`${row.title}:`}</span>
+                      </div>
+                      <p className="gina-chat-card__ai-body gina-viz__easy-link-body">
+                        {row.body}
+                        {row.control === "link" && row.actionText ? (
+                          <>
+                            {" "}
+                            <button
+                              type="button"
+                              className="gina-viz__easy-link-inline"
+                              onClick={() => onSelectAction?.(
+                                row.actionText,
+                                row.ctaLabel || row.title,
+                              )}
+                            >
+                              {row.ctaLabel || row.title}
+                            </button>
+                          </>
+                        ) : null}
+                      </p>
+                      {row.control === "status_menu" ? (
+                        <RecoveryChangeStatusMenu locale={locale} onSelectAction={onSelectAction} />
+                      ) : null}
+                      {row.control === "snooze_menu" ? (
+                        <RecoverySnoozeMenu locale={locale} onSelectAction={onSelectAction} />
+                      ) : null}
+                    </>
+                  ) : null}
                 </div>
               </div>
             </section>
@@ -2747,7 +2871,7 @@ function DaySheetSavedVisualization({ data, onReady }) {
       >
         <motion.img
           className="gina-viz__saved-check"
-          src="/uploads/Checks.svg"
+          src="/uploads/gina-day-sheet-saved-check.png"
           alt=""
           aria-hidden
           initial={{ opacity: 0, scale: 0.4, rotate: -18 }}

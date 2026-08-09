@@ -759,6 +759,8 @@ export function NodeQueryModal({
         message: funnelHeadline || message,
         textMid,
         textAfter: postTable.textAfter,
+        textAfterRest: postTable.textAfterRest,
+        startDocLines: postTable.startDocLines,
         textPitch: null,
         visualization,
         ...(shouldUseGinaSearchSequence(routed.family, routed.toolContext)

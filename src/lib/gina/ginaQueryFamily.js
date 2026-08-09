@@ -1781,6 +1781,8 @@ export function runGinaQueryFamily(text, ctx = {}) {
   {
     const wantsSkip = /\bsaltarlo\b/.test(q)
       || /\bomitir(\s+recuperaci[oó]n(\s+de\s+horario)?)?\b/.test(q)
+      || /\bcancelar\s+reagendar(\s+horarios)?\b/.test(q)
+      || /\bcancel\s+reschedule\b/.test(q)
       || /\bskip\s+schedule\s+recovery\b/.test(q);
     const wantsConfirmMark = /\bconfirmar\s+marcar\s+vencid/.test(q)
       || /\bconfirm\s+mark\s+passed\s+slots\s+as\s+past\s+due\b/.test(q);

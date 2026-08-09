@@ -47,10 +47,10 @@ export function isDaySheetSaveIntent(text) {
   if (isDaySheetSkipSaveIntent(text)) return false;
   const q = foldGinaText(text);
   if (!q) return false;
-  if (/\bguardar\s+(esta\s+)?(tabla|sheet|horario)(\s+de\s+referencia)?(\s+del\s+d[ií]a)?\b/.test(q)) return true;
-  if (/\bguarda(me)?\s+(esta\s+)?(tabla|sheet|horario)\b/.test(q)) return true;
-  if (/\banclar\s+(esta\s+)?(tabla|sheet|horario)\b/.test(q)) return true;
-  if (/\bsave\s+(this\s+)?(day\s+)?(reference\s+)?(table|sheet|schedule)\b/.test(q)) return true;
+  if (/\bguardar\s+(esta\s+)?(tabla|sheet|horario|calendario)(\s+de\s+referencia)?(\s+del\s+d[ií]a)?\b/.test(q)) return true;
+  if (/\bguarda(me)?\s+(esta\s+)?(tabla|sheet|horario|calendario)\b/.test(q)) return true;
+  if (/\banclar\s+(esta\s+)?(tabla|sheet|horario|calendario)\b/.test(q)) return true;
+  if (/\bsave\s+(this\s+)?(day\s+)?(reference\s+)?(table|sheet|schedule|calendar)\b/.test(q)) return true;
   if (/\banchor\s+(this\s+)?(day\s+)?(sheet|schedule)\b/.test(q)) return true;
   return false;
 }

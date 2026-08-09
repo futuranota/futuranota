@@ -860,6 +860,7 @@ export function buildDeptDetailNavChips(opts = {}) {
  *   missingAnchor?: boolean,
  *   hasDaySheet?: boolean,
  *   todayOverview?: boolean,
+ *   offerDayReady?: boolean,
  *   allowOpenWithoutSave?: boolean,
  *   overviewByDepartment?: { name: string, total?: number }[],
  *   quickSheet?: {
@@ -953,8 +954,14 @@ export function buildScheduleSheetChips(opts = {}) {
       label: en ? "I finished" : "Ya terminé",
       text: en ? "I finished" : "Ya terminé",
     });
-  } else if (opts.todayOverview) {
-    // Comenzar + Guardar horario del día + focus depts
+  } else if (opts.todayOverview || opts.offerDayReady) {
+    // Guardar first (green) · Comenzar · Re-agendar calendario · focus
+    chips.push({
+      id: "save_day_sheet",
+      label: en ? "Save day calendar" : "Guardar calendario del día",
+      text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
+      kind: "save_day",
+    });
     if (qs?.firstPendingId || opts.nextDocumentId) {
       const startId = opts.nextDocumentId || qs.firstPendingId;
       const title = String(
@@ -966,14 +973,12 @@ export function buildScheduleSheetChips(opts = {}) {
           ? (title ? `Start «${title}»` : "Start first document")
           : (title ? `Comenzar «${title}»` : "Comenzar primer documento"),
         text: `GinaOpenDocument:${startId}`,
-        primary: true,
       });
     }
     chips.push({
-      id: "save_day_sheet",
-      label: en ? "Save day schedule" : "Guardar horario del día",
-      text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
-      primary: !chips.some((c) => c.primary),
+      id: "reschedule_times",
+      label: en ? "Re-schedule calendar" : "Re-agendar calendario",
+      text: en ? "Reschedule for today" : "Reagendar para hoy",
     });
     const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
     for (const d of depts.slice(0, 4)) {
@@ -989,9 +994,9 @@ export function buildScheduleSheetChips(opts = {}) {
     if (!opts.hasDaySheet) {
       chips.push({
         id: "save_day_sheet",
-        label: en ? "Save day schedule" : "Guardar horario del día",
+        label: en ? "Save day calendar" : "Guardar calendario del día",
         text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
-        primary: true,
+        kind: "save_day",
       });
     } else {
       chips.push({
@@ -1214,8 +1219,8 @@ export function buildTodayOverviewHeadline(opts = {}) {
 export function buildTodayOverviewIntroText(locale = "es") {
   const en = locale === "en";
   return en
-    ? "Now I’ll show you today’s sheet — from yesterday I already had it ready and organized for you."
-    : "Ahora te voy a mostrar el sheet del día, o sea desde ayer ya te la tuve lista y organizada.";
+    ? "Now I’ll show you today’s sheet:"
+    : "Ahora te voy a mostrar el sheet del día:";
 }
 
 /**
@@ -1279,18 +1284,64 @@ export function resolveTodayOverviewStartDoc(opts = {}) {
  * @returns {string | null}
  */
 export function buildTodayOverviewStartDocText(opts = {}) {
+  const lines = buildTodayOverviewStartDocLines(opts);
+  if (!lines.length) return null;
+  return lines.map((row) => `**${row.label}:** ${row.value}`).join("\n");
+}
+
+/**
+ * Structured start-doc rows for line-by-line reveal + highlight SFX.
+ * @param {{
+ *   locale?: string,
+ *   quickSheet?: object | null,
+ *   documents?: object[],
+ * }} [opts]
+ * @returns {{ label: string, value: string }[]}
+ */
+/**
+ * “Documento de inicio” only for the day’s first unit; once anything is completed,
+ * the live pending target is “Próximo Documento”.
+ * @param {object} doc
+ * @param {{ quickSheet?: object | null, documents?: object[] }} opts
+ */
+function isFirstChronologicalDocOfDay(doc, opts = {}) {
+  const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
+  const completed = Array.isArray(qs?.completed) ? qs.completed : [];
+  if (completed.length > 0) return false;
+
+  const id = doc?.id != null ? String(doc.id) : "";
+  if (!id) return true;
+
+  const docs = Array.isArray(opts.documents) ? opts.documents.filter((d) => d && d.id != null) : [];
+  if (!docs.length) return true;
+
+  const sorted = docs.slice().sort((a, b) => {
+    const ka = String(a.anchorAt || "\uffff");
+    const kb = String(b.anchorAt || "\uffff");
+    return ka.localeCompare(kb);
+  });
+  const firstLive = sorted.find((d) => !(d.completed || d.status === "completed")) || sorted[0];
+  return String(firstLive?.id) === id;
+}
+
+export function buildTodayOverviewStartDocLines(opts = {}) {
   const en = opts.locale === "en";
   const doc = resolveTodayOverviewStartDoc(opts);
-  if (!doc) return null;
+  if (!doc) return [];
 
   const title = String(doc.title || doc.name || "").trim()
     || (en ? "document" : "documento");
   const department = String(
     doc.department || doc.departmentName || doc.hierarchy?.department || "",
   ).trim() || "—";
-  const category = String(
+  const categoryRaw = String(
     doc.category || doc.hierarchy?.category || "",
-  ).trim() || "—";
+  ).trim();
+  const category = (!categoryRaw || categoryRaw === "—" || categoryRaw === "-")
+    ? ""
+    : categoryRaw;
+  // Only show "(Category)" when there is a real category — never "Sales (—)".
+  const departmentValue = category ? `${department} (${category})` : department;
   const minutes = typeof doc.workMinutes === "number"
     ? doc.workMinutes
     : docWorkMinutes(doc);
@@ -1302,18 +1353,21 @@ export function buildTodayOverviewStartDocText(opts = {}) {
   ).trim()
     || formatGinaTimeRange(doc.anchorAt, doc.anchorFinishAt || doc.dueAt, en ? "en" : "es");
 
-  if (en) {
-    return [
-      `**Starting document:** ${title}`,
-      `**Department:** ${department} (${category})`,
-      `**Assigned time:** ${duration} (${schedule})`,
-    ].join("\n");
-  }
-  return [
-    `**Documento de inicio:** ${title}`,
-    `**Departamento:** ${department} (${category})`,
-    `**Tiempo asignado:** ${duration} (${schedule})`,
-  ].join("\n");
+  const startLabel = isFirstChronologicalDocOfDay(doc, opts)
+    ? (en ? "Starting document" : "Documento de inicio")
+    : (en ? "Next document" : "Próximo Documento");
+
+  return en
+    ? [
+      { label: startLabel, value: title },
+      { label: "Department", value: departmentValue },
+      { label: "Assigned time", value: `${duration} (${schedule})` },
+    ]
+    : [
+      { label: startLabel, value: title },
+      { label: "Departamento", value: departmentValue },
+      { label: "Tiempo asignado", value: `${duration} (${schedule})` },
+    ];
 }
 
 /**
@@ -1333,24 +1387,49 @@ export function buildTodayOverviewStartDocText(opts = {}) {
  *   userId?: string,
  *   offerCount?: number,
  *   incrementOffer?: boolean,
+ *   forceCleanDay?: boolean,
+ *   offerDayReady?: boolean,
  * }} [opts]
- * @returns {{ textAfter: string | null, textPitch: null }}
+ * @returns {{
+ *   textAfter: string | null,
+ *   textAfterRest: string | null,
+ *   startDocLines: { label: string, value: string }[],
+ *   textPitch: null,
+ * }}
  */
 export function buildTodayOverviewPostTableCopy(opts = {}) {
   const en = opts.locale === "en";
   const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
-  const cleanDay = Boolean(qs?.isCleanDay);
+  const cleanDay = Boolean(qs?.isCleanDay) || Boolean(opts.forceCleanDay || opts.offerDayReady);
+  const empty = {
+    textAfter: null,
+    textAfterRest: null,
+    startDocLines: [],
+    textPitch: null,
+  };
 
   if (!cleanDay) {
     if (todayOverviewNeedsRecoveryGate(opts)) {
-      return { textAfter: null, textPitch: null };
+      // Still reveal Documento / Depto / Tiempo (+ highlights SFX) after the sheet;
+      // skip save pitch until the day is clear of recovery signals.
+      const startDocLines = buildTodayOverviewStartDocLines(opts);
+      if (!startDocLines.length) return empty;
+      return {
+        textAfter: null,
+        textAfterRest: null,
+        startDocLines,
+        textPitch: null,
+      };
     }
     if (!qs?.firstPendingId && !(Array.isArray(qs?.pending) && qs.pending.length)) {
-      return { textAfter: null, textPitch: null };
+      return empty;
     }
   }
 
-  const start = buildTodayOverviewStartDocText(opts);
+  const startDocLines = buildTodayOverviewStartDocLines(opts);
+  const start = startDocLines.length
+    ? startDocLines.map((row) => `**${row.label}:** ${row.value}`).join("\n")
+    : null;
   const begin = en
     ? "**Whenever you're ready, you can start.**"
     : "**Cuando desees puedes comenzar.**";
@@ -1360,16 +1439,19 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
     ? DAY_SHEET_SAVE_OFFER_VARIANTS.post_table_horario.en
     : DAY_SHEET_SAVE_OFFER_VARIANTS.post_table_horario.es;
 
+  const restParts = [begin, pitchFixed];
+  const textAfterRest = restParts.join("\n\n");
   const parts = [];
   if (start) parts.push(start);
-  parts.push(begin);
-  parts.push(pitchFixed);
+  parts.push(...restParts);
   if (!opts.hasDaySheet && opts.incrementOffer !== false && opts.offerCount == null) {
     incrementDaySheetOfferCount(opts.userId);
   }
 
   return {
     textAfter: parts.length ? parts.join("\n\n") : null,
+    textAfterRest,
+    startDocLines,
     textPitch: null,
   };
 }
@@ -1836,8 +1918,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     visualization.type === "schedule_sheet" && data.justSaved
   )) {
     return en
-      ? "Done — today’s schedule is saved. When you finish a document, select **Call Asistente**, reopen the saved list, and check what’s next."
-      : "Listo — ya está guardado el horario del día. Para usarlo, cuando termines un documento puedes seleccionar **Llamar Asistente**, reabrir el listado guardado y verificar el siguiente en la lista.";
+      ? "Done — today’s schedule is saved. Whenever you need to view the list, check items off, or reopen the next one, select **Call Asistente** and press **Day schedule** — you’ll have everything ready. (This calendar is saved & ready to use.)"
+      : "Listo, ya está guardado el horario del día. Cada vez que necesites visualizar la lista, tacharlo, o reabrir el siguiente, con seleccionar: “llamar asistente” y presionar “horario del día” ya tendrás todo a disposición. (ya este calendario queda guardado & listo de usar)";
   }
 
   if (visualization.type === "schedule_sheet") {
@@ -2259,6 +2341,7 @@ export function buildGinaReplyChips(opts = {}) {
       hasDaySheet: Boolean(opts.hasDaySheet),
       allowOpenWithoutSave: Boolean(opts.allowOpenWithoutSave),
       todayOverview: Boolean(data.todayOverview),
+      offerDayReady: Boolean(data.offerDayReady || data.offerSaveDaySheet),
       overviewByDepartment: data.overviewByDepartment,
       quickSheet: data.quickSheet || null,
       urgencyCount: data.urgencyCount,
