@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
+  anchorDaySheetFromTodayDocs,
   clearDaySheet,
   getDaySheet,
   hasDaySheet,
@@ -61,6 +62,17 @@ describe("ginaDaySheetStore", () => {
   it("expires on another calendar day", () => {
     writeDaySheet(uid, { docIds: ["a"], now });
     expect(getDaySheet(uid, new Date("2026-08-08T10:00:00"))).toBeNull();
+  });
+
+  it("anchorDaySheetFromTodayDocs sorts by anchorAt and enables hasDaySheet", () => {
+    expect(hasDaySheet(uid, now)).toBe(false);
+    const sheet = anchorDaySheetFromTodayDocs(uid, [
+      { id: "b", anchorAt: "2026-08-07T18:00:00" },
+      { id: "a", anchorAt: "2026-08-07T10:00:00" },
+    ], { now, source: "dashboard_today_ritual" });
+    expect(sheet?.docIds).toEqual(["a", "b"]);
+    expect(sheet?.source).toBe("dashboard_today_ritual");
+    expect(hasDaySheet(uid, now)).toBe(true);
   });
 });
 

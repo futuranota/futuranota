@@ -41,6 +41,7 @@ import {
   buildGinaReplyChips,
   buildTodayOverviewPostTableCopy,
   buildTodayOverviewIntroText,
+  todayOverviewNeedsRecoveryGate,
 } from "../../lib/gina/ginaReplyChips.js";
 import {
   buildGinaSearchSequence,
@@ -75,7 +76,7 @@ import { calendarDateInputValue } from "../../lib/docDates.js";
 import { formatClock12h, formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildDailyReportAppliedText, buildDailyReportOfferText } from "../../lib/gina/ginaDailyReport.js";
 import { markDailyReportOpened } from "../../lib/gina/ginaDailyReportStore.js";
-import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { anchorDaySheetFromTodayDocs, hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import {
   consumePendingGinaOffer,
   getPendingGinaOffer,
@@ -3428,12 +3429,18 @@ export function LeftPanel({
       });
       const qs = dayReadyViz?.data?.quickSheet || null;
       const readyMessage = buildRescheduleDayReadyText({ locale: localeKey });
+      try {
+        anchorDaySheetFromTodayDocs(ginaUserId, dayReadyViz?.data?.documents || [], {
+          now,
+          source: "dashboard_today_ritual",
+        });
+      } catch { /* ignore */ }
       const post = buildTodayOverviewPostTableCopy({
         quickSheet: qs,
         documents: dayReadyViz?.data?.documents || [],
         locale: localeKey,
         userId: ginaUserId,
-        hasDaySheet: hasDaySheet(ginaUserId, now),
+        hasDaySheet: true,
         hasRecoveryOffer: false,
         urgencyCount: 0,
         lateStartCount: 0,
@@ -3455,7 +3462,7 @@ export function LeftPanel({
           family: "today",
           visualization: dayReadyViz,
           locale: localeKey,
-          hasDaySheet: hasDaySheet(ginaUserId, now),
+          hasDaySheet: true,
           recoverySnoozed: true,
         }),
         textMid: null,
@@ -4520,18 +4527,39 @@ export function LeftPanel({
       const textMid = !meetingOn && visualization?.data?.todayOverview
         ? buildTodayOverviewIntroText(localeKey)
         : null;
+      const recoverySnoozed = isRecoveryNotifySnoozed(ginaUserId, ctx.now);
+      let daySheetAnchored = hasDaySheet(ginaUserId, ctx.now);
+      if (!meetingOn && visualization?.data?.todayOverview) {
+        const needsGate = todayOverviewNeedsRecoveryGate({
+          quickSheet: visualization.data.quickSheet || null,
+          hasRecoveryOffer: Boolean(visualization.data.hasRecoveryOffer),
+          urgencyCount: visualization.data.urgencyCount,
+          lateStartCount: visualization.data.lateStartCount,
+          hasOverlap: Boolean(visualization.data.hasOverlap || visualization.data.conflictRails),
+          recoverySnoozed,
+        });
+        if (!needsGate) {
+          try {
+            anchorDaySheetFromTodayDocs(ginaUserId, visualization.data.documents || [], {
+              now: ctx.now,
+              source: "dashboard_today_ritual",
+            });
+            daySheetAnchored = true;
+          } catch { /* ignore */ }
+        }
+      }
       const postTable = !meetingOn && visualization?.data?.todayOverview
         ? buildTodayOverviewPostTableCopy({
           quickSheet: visualization.data.quickSheet || null,
           documents: visualization.data.documents || [],
           locale: localeKey,
           userId: ginaUserId,
-          hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
+          hasDaySheet: daySheetAnchored,
           hasRecoveryOffer: Boolean(visualization.data.hasRecoveryOffer),
           urgencyCount: visualization.data.urgencyCount,
           lateStartCount: visualization.data.lateStartCount,
           hasOverlap: Boolean(visualization.data.hasOverlap),
-          recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, ctx.now),
+          recoverySnoozed,
         })
         : { textAfter: null, textPitch: null };
       const chips = !meetingOn
@@ -4539,8 +4567,8 @@ export function LeftPanel({
           family: routed.family,
           visualization,
           locale: localeKey,
-          hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
-          recoverySnoozed: isRecoveryNotifySnoozed(ginaUserId, ctx.now),
+          hasDaySheet: daySheetAnchored,
+          recoverySnoozed,
         })
         : [];
 

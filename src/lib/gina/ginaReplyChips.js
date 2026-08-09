@@ -30,13 +30,17 @@ import {
   countGinaRealDepartments,
 } from "./ginaCopyVariants.js";
 import { getGinaScheduleScopeChips } from "./ginaSyntaxScheduleScope.js";
-import { DAY_SHEET_SAVE_OFFER_VARIANTS } from "./ginaSyntaxDaySheetOffer.js";
-import { incrementDaySheetOfferCount } from "./ginaDaySheetOfferStore.js";
 import {
   docWorkMinutes,
   formatGinaTimeRange,
   formatWorkDurationLabel,
 } from "./buildGinaVisualization.js";
+
+/** Closing after clean day sheet — no “save” CTA; docs already hold the schedule. */
+const DAY_SHEET_ALREADY_READY_CLOSING = {
+  es: "Tu horario del día ya está listo (vive en tus documentos). Cuando trabajes en cualquiera, abre **Call Asistente** y toca **Horario del día** para ver la lista y tachar avances.",
+  en: "Your day schedule is already ready (it lives on your documents). When you work in any of them, open **Call Asistente** and tap **Day schedule** to see the list and check things off.",
+};
 
 /**
  * Fixed reply chips for Gina progressive funnel (ids stable; labels user-facing).
@@ -955,13 +959,7 @@ export function buildScheduleSheetChips(opts = {}) {
       text: en ? "I finished" : "Ya terminé",
     });
   } else if (opts.todayOverview || opts.offerDayReady) {
-    // Guardar first (green) · Comenzar · Re-agendar calendario · focus
-    chips.push({
-      id: "save_day_sheet",
-      label: en ? "Save day calendar" : "Guardar calendario del día",
-      text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
-      kind: "save_day",
-    });
+    // Comenzar · Re-agendar calendario · focus (no save CTA — schedule lives on docs).
     if (qs?.firstPendingId || opts.nextDocumentId) {
       const startId = opts.nextDocumentId || qs.firstPendingId;
       const title = String(
@@ -973,6 +971,7 @@ export function buildScheduleSheetChips(opts = {}) {
           ? (title ? `Start «${title}»` : "Start first document")
           : (title ? `Comenzar «${title}»` : "Comenzar primer documento"),
         text: `GinaOpenDocument:${startId}`,
+        primary: true,
       });
     }
     chips.push({
@@ -980,25 +979,9 @@ export function buildScheduleSheetChips(opts = {}) {
       label: en ? "Re-schedule calendar" : "Re-agendar calendario",
       text: en ? "Reschedule for today" : "Reagendar para hoy",
     });
-    const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
-    for (const d of depts.slice(0, 4)) {
-      const name = String(d?.name || "").trim();
-      if (!name || name === "—") continue;
-      chips.push({
-        id: `focus_${name}`,
-        label: en ? `Focus on ${name}` : `Enfocarme en ${name}`,
-        text: en ? `Focus today on ${name}` : `Enfocarme hoy en ${name}`,
-      });
-    }
+    // No “Enfocarme en {Depto}” on day-ready — keep Comenzar + Re-agendar only.
   } else {
-    if (!opts.hasDaySheet) {
-      chips.push({
-        id: "save_day_sheet",
-        label: en ? "Save day calendar" : "Guardar calendario del día",
-        text: en ? "Save this day reference sheet" : "Guardar esta tabla de referencia del día",
-        kind: "save_day",
-      });
-    } else {
+    if (opts.hasDaySheet) {
       chips.push({
         id: "open_day_sheet",
         label: en ? "Day schedule" : "Horario del día",
@@ -1009,6 +992,7 @@ export function buildScheduleSheetChips(opts = {}) {
       id: "today_schedule",
       label: en ? "Today's schedule" : "Horarios de hoy",
       text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
+      primary: !chips.some((c) => c.primary),
     });
   }
   return chips;
@@ -1372,7 +1356,7 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
 
 /**
  * Single post-table text block (start doc + begin + optional save pitch).
- * Chip “Guardar horario del día” + Comenzar / focus render under this bubble.
+ * Start-doc block + begin + “already ready” closing (no save CTA).
  *
  * @param {{
  *   locale?: string,
@@ -1385,8 +1369,6 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
  *   hasOverlap?: boolean,
  *   recoverySnoozed?: boolean,
  *   userId?: string,
- *   offerCount?: number,
- *   incrementOffer?: boolean,
  *   forceCleanDay?: boolean,
  *   offerDayReady?: boolean,
  * }} [opts]
@@ -1411,7 +1393,7 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
   if (!cleanDay) {
     if (todayOverviewNeedsRecoveryGate(opts)) {
       // Still reveal Documento / Depto / Tiempo (+ highlights SFX) after the sheet;
-      // skip save pitch until the day is clear of recovery signals.
+      // skip “already ready” closing until recovery signals are cleared.
       const startDocLines = buildTodayOverviewStartDocLines(opts);
       if (!startDocLines.length) return empty;
       return {
@@ -1433,20 +1415,15 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
   const begin = en
     ? "**Whenever you're ready, you can start.**"
     : "**Cuando desees puedes comenzar.**";
+  const readyClosing = en
+    ? DAY_SHEET_ALREADY_READY_CLOSING.en
+    : DAY_SHEET_ALREADY_READY_CLOSING.es;
 
-  /** Novice pitch without “Hey”; “Sheet del Día” → “Horario del día”. */
-  const pitchFixed = en
-    ? DAY_SHEET_SAVE_OFFER_VARIANTS.post_table_horario.en
-    : DAY_SHEET_SAVE_OFFER_VARIANTS.post_table_horario.es;
-
-  const restParts = [begin, pitchFixed];
+  const restParts = [begin, readyClosing];
   const textAfterRest = restParts.join("\n\n");
   const parts = [];
   if (start) parts.push(start);
   parts.push(...restParts);
-  if (!opts.hasDaySheet && opts.incrementOffer !== false && opts.offerCount == null) {
-    incrementDaySheetOfferCount(opts.userId);
-  }
 
   return {
     textAfter: parts.length ? parts.join("\n\n") : null,

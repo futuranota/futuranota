@@ -89,13 +89,11 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
     clearDaySheetOfferCount(UID);
   });
 
-  it("uses save-offer pitch when sheet is not saved and day is clean", () => {
+  it("uses already-ready closing when day is clean (no save pitch)", () => {
     const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       userId: UID,
       hasDaySheet: false,
-      offerCount: 0,
-      incrementOffer: false,
       documents: [{
         id: "n1",
         title: "Doc A",
@@ -113,9 +111,9 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
       },
     });
     expect(post.textAfter).toContain("**Documento de inicio:** Doc A");
-    expect(post.textAfter).toContain("Antes de empezar");
-    expect(post.textAfter).toContain("**Antes de empezar:**");
+    expect(post.textAfter).toMatch(/ya está listo/i);
     expect(post.textAfter).toContain("Horario del día");
+    expect(post.textAfter).not.toMatch(/¿Quieres guardarlo/i);
     expect(post.textAfter).not.toMatch(/¡Hey!/i);
     expect(post.textPitch).toBeNull();
     expect(post.textAfter).not.toMatch(/orden de horario/i);
@@ -147,7 +145,7 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
     expect(getDaySheetOfferCount(UID)).toBe(0);
   });
 
-  it("omits open_day_sheet when hasDaySheet on today overview (uses Guardar horario del día)", () => {
+  it("omits open_day_sheet and Guardar on today overview when day is clean", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       locale: "es",
@@ -161,12 +159,11 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
         },
       },
     });
-    expect(chips.some((c) => c.id === "save_day_sheet")).toBe(true);
-    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar calendario del día");
+    expect(chips.some((c) => c.id === "save_day_sheet")).toBe(false);
     expect(chips.some((c) => c.id === "open_day_sheet")).toBe(false);
   });
 
-  it("keeps Guardar horario del día when sheet not saved on today overview", () => {
+  it("does not offer Guardar when sheet not anchored on today overview", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       locale: "es",
@@ -180,7 +177,6 @@ describe("buildTodayOverviewAfterText + chips offer gating", () => {
         },
       },
     });
-    expect(chips.map((c) => c.id)).toContain("save_day_sheet");
-    expect(chips.find((c) => c.id === "save_day_sheet")?.label).toBe("Guardar calendario del día");
+    expect(chips.map((c) => c.id)).not.toContain("save_day_sheet");
   });
 });

@@ -43,7 +43,7 @@ const GINA_POST_SOUND_TEXT_DELAY_MS = 1_000;
 /** After the schedule table is ready, wait before showing notify gate chips. */
 const GINA_NOTIFY_GATE_DELAY_MS = 5_000;
 /** After todayOverview infographic, wait before sheet intro (textMid). */
-const GINA_SHEET_INTRO_DELAY_MS = 15_000;
+const GINA_SHEET_INTRO_DELAY_MS = 10_000;
 
 /** @typedef {{ id?: string, sender: "ai" | "user", text: string, textMid?: string | null, textAfter?: string | null, textAfterRest?: string | null, startDocLines?: { label: string, value: string }[] | null, startDocRevealed?: boolean, textPitch?: string | null, deferVisualization?: boolean, vizRevealed?: boolean, recoveryCopyFirst?: boolean, midReady?: boolean, midRevealed?: boolean, sheetTableRevealed?: boolean, afterRevealed?: boolean, pitchRevealed?: boolean, savedAckRevealed?: boolean, notifyGateRevealed?: boolean, voiceSequence?: string | null, leaveAckDone?: boolean, queued?: boolean, visualization?: { type: string, data: object } | null, learnProposal?: { title: string, body: string } | null, chips?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, chipsRestorable?: { id?: string, label: string, text?: string, primary?: boolean, kind?: string, group?: string, selectable?: boolean, value?: string }[] | null, refineRevealed?: boolean }} GinaChatMessage */
 

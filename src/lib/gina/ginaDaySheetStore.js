@@ -112,6 +112,28 @@ export function hasDaySheet(userId, now = new Date()) {
 }
 
 /**
+ * Auto-anchor today's doc ids after the dashboard “qué hay para hoy” ritual
+ * finishes clean (or post-recovery day-ready). Enables document-chat chip.
+ * @param {string} userId
+ * @param {object[]} docs
+ * @param {{ now?: Date, source?: string }} [opts]
+ */
+export function anchorDaySheetFromTodayDocs(userId, docs, opts = {}) {
+  const now = opts.now instanceof Date ? opts.now : new Date();
+  const docIds = (Array.isArray(docs) ? docs : [])
+    .slice()
+    .sort((a, b) => String(a?.anchorAt || "").localeCompare(String(b?.anchorAt || "")))
+    .map((d) => String(d?.id || "").trim())
+    .filter(Boolean);
+  if (!docIds.length) return null;
+  return writeDaySheet(userId, {
+    docIds,
+    now,
+    source: opts.source || "dashboard_today_ritual",
+  });
+}
+
+/**
  * Clear today's sheet (or any stored entry for user).
  * @param {string} userId
  */
