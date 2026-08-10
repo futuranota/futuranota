@@ -35,6 +35,7 @@ import {
   playGinaFilesMovementSound,
   stopGinaFilesMovementSound,
 } from "../../lib/ginaFilesMovementSound.js";
+import { stopGinaTypingSound } from "../../lib/ginaTypingSound.js";
 
 /** Silence after open, before greeting / chips (Enable.wav moved to sheet reveal). */
 const GINA_OPEN_SOUND_DELAY_MS = 2_000;
@@ -78,6 +79,25 @@ function messageChipsReadyToShow(message, { isTyping, isAiAnimating }) {
 function isScheduleSheetVisualization(visualization) {
   return visualization?.type === "schedule_sheet"
     || visualization?.type === "today_quick_sheet";
+}
+
+/** Instant-reveal all deferred / typewriter stages for the current AI turn. */
+function revealAiTurnFully(message) {
+  if (!message || message.sender !== "ai") return message;
+  return {
+    ...message,
+    refineRevealed: true,
+    midReady: true,
+    midRevealed: true,
+    vizRevealed: true,
+    sheetTableRevealed: true,
+    startDocRevealed: true,
+    afterRevealed: true,
+    pitchRevealed: true,
+    savedAckRevealed: true,
+    notifyGateRevealed: true,
+    leaveAckDone: true,
+  };
 }
 
 /** Build AI turn fields: datos → pie+TABLA DE HOY → intro → horario cronológico → post text → chips. */
@@ -1106,6 +1126,35 @@ export function GinaChatCard({
     queueMicrotask(() => flushPendingQueue());
   };
 
+  /** Skip typewriter: show the whole ready turn at once. */
+  const handleSkipText = () => {
+    if (isTypingRef.current || !isAiAnimatingRef.current) return;
+    if (midReadyTimerRef.current != null) {
+      window.clearTimeout(midReadyTimerRef.current);
+      midReadyTimerRef.current = null;
+      midReadyTimerMsgIdRef.current = null;
+    }
+    try { stopGinaTypingSound(); } catch { /* ignore */ }
+    setMessages((prev) => {
+      const next = [...prev];
+      for (let i = next.length - 1; i >= 0; i -= 1) {
+        if (next[i]?.sender === "ai") {
+          next[i] = revealAiTurnFully(next[i]);
+          break;
+        }
+      }
+      messagesRef.current = next;
+      return next;
+    });
+    handleAiAnimComplete();
+    // Instant onComplete cascades can briefly re-arm animating; pin it off after paint.
+    queueMicrotask(() => {
+      isAiAnimatingRef.current = false;
+      setIsAiAnimating(false);
+      queueMicrotask(() => flushPendingQueue());
+    });
+  };
+
   /**
    * @param {string} text
    * @param {{ existingId?: string, displayText?: string | null }} [opts]
@@ -1668,6 +1717,10 @@ export function GinaChatCard({
                         plainBody={msg.visualization?.type === "recovery_preview"}
                         instant={Boolean(msg.refineRevealed)}
                         onComplete={i === lastAiMessageIndex ? (() => {
+                          if (msg.refineRevealed) {
+                            handleAiAnimComplete();
+                            return;
+                          }
                           if (messageHasLeaveScheduleVoice(msg) && msg.textAfter && !msg.leaveAckDone) {
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
@@ -1821,6 +1874,7 @@ export function GinaChatCard({
                         pace="slow"
                         instant={Boolean(msg.refineRevealed)}
                         onComplete={() => {
+                          if (msg.refineRevealed) return;
                           isAiAnimatingRef.current = true;
                           setIsAiAnimating(true);
                           setMessages((prev) => prev.map((m, idx) => (
@@ -1838,7 +1892,7 @@ export function GinaChatCard({
                           // Safety: never block copy if chrono sheet fails to mount.
                           window.setTimeout(() => {
                             setMessages((prev) => prev.map((m, idx) => {
-                              if (idx !== i || m.sheetTableRevealed) return m;
+                              if (idx !== i || m.sheetTableRevealed || m.refineRevealed) return m;
                               const hasAfter = Boolean(
                                 m.textAfter
                                 || m.textAfterRest
@@ -1916,6 +1970,7 @@ export function GinaChatCard({
                           lines={msg.startDocLines}
                           instant={Boolean(msg.refineRevealed)}
                           onComplete={() => {
+                            if (msg.refineRevealed) return;
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
                             setMessages((prev) => prev.map((m, idx) => (
@@ -1945,6 +2000,10 @@ export function GinaChatCard({
                           pace="slow"
                           instant={Boolean(msg.refineRevealed)}
                           onComplete={i === lastAiMessageIndex ? () => {
+                            if (msg.refineRevealed) {
+                              handleAiAnimComplete();
+                              return;
+                            }
                             isAiAnimatingRef.current = true;
                             setIsAiAnimating(true);
                             if (messageHasLeaveScheduleVoice(msg)) {
@@ -1997,6 +2056,10 @@ export function GinaChatCard({
                         pace="slow"
                         instant={Boolean(msg.refineRevealed)}
                         onComplete={i === lastAiMessageIndex ? () => {
+                          if (msg.refineRevealed) {
+                            handleAiAnimComplete();
+                            return;
+                          }
                           setMessages((prev) => prev.map((m, idx) => (
                             idx === i ? { ...m, pitchRevealed: true } : m
                           )));
@@ -2197,6 +2260,18 @@ export function GinaChatCard({
               phrases={Array.isArray(labels.thinkingPhrases) ? labels.thinkingPhrases : undefined}
             />
           )}
+          {!isTyping && isAiAnimating ? (
+            <div className="gina-chat-card__skip-row">
+              <button
+                type="button"
+                className="gina-chat-card__skip-text"
+                onClick={handleSkipText}
+                aria-label={chipLocale === "en" ? "Skip text" : "Saltar texto"}
+              >
+                {labels.skipText || (chipLocale === "en" ? "skip text" : "saltar texto")}
+              </button>
+            </div>
+          ) : null}
           <div ref={messagesEndRef} />
         </div>
 

@@ -109,6 +109,16 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: reagendar fork",
     text: "Reagendar para hoy",
   },
+  {
+    id: "test_enable_day_notifications",
+    label: "Test: activar notificaciones hoy",
+    text: "Actívame las notificaciones para hoy mientras trabajo",
+  },
+  {
+    id: "test_reset_day_ritual",
+    label: "Test: reset ritual de hoy",
+    text: "Reset ritual de hoy",
+  },
 ];
 
 /**

@@ -32,6 +32,7 @@ import { AgentListCard } from "../agents/AgentListCard.jsx";
 import { AssistanceListCard } from "../gina/AssistanceListCard.jsx";
 import { GinaChatOverlay } from "../gina/GinaChatOverlay.jsx";
 import { GinaDailyReportPopover } from "../gina/GinaDailyReportPopover.jsx";
+import { GinaTalkRequestPopover } from "../gina/GinaTalkRequestPopover.jsx";
 import { GinaKnowledgeOverlay } from "../gina/GinaKnowledgeOverlay.jsx";
 import { runGinaQueryFamily } from "../../lib/gina/ginaQueryFamily.js";
 import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
@@ -39,6 +40,7 @@ import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js
 import {
   buildGinaFunnelHeadline,
   buildGinaReplyChips,
+  buildScheduleSheetChips,
   buildTodayOverviewPostTableCopy,
   buildTodayOverviewIntroText,
   todayOverviewNeedsRecoveryGate,
@@ -77,6 +79,22 @@ import { formatClock12h, formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildDailyReportAppliedText, buildDailyReportOfferText } from "../../lib/gina/ginaDailyReport.js";
 import { markDailyReportOpened } from "../../lib/gina/ginaDailyReportStore.js";
 import { anchorDaySheetFromTodayDocs, hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import {
+  acceptTalkRequest,
+  declineTalkRequest,
+  hasTalkNotificationsDecision,
+} from "../../lib/gina/ginaTalkRequestStore.js";
+import {
+  buildTalkNotificationsEnabledAck,
+  buildTalkNotificationsSkippedAck,
+  buildTalkRequestNotifyChips,
+  buildTalkRequestNotifyText,
+  buildTalkRequestThanksText,
+  buildTalkRequestNotifyPrompt,
+  talkRequestTimeLabel,
+} from "../../lib/gina/ginaTalkRequest.js";
+import { useGinaTalkRequestNudge } from "../../hooks/useGinaTalkRequestNudge.js";
+import { buildGinaDayRitualResetAck } from "../../lib/gina/ginaDayRitualReset.js";
 import {
   consumePendingGinaOffer,
   getPendingGinaOffer,
@@ -2002,6 +2020,14 @@ export function LeftPanel({
     buildCtx: buildGinaToolsCtx,
   });
 
+  const {
+    popoverOpen: ginaTalkRequestOpen,
+  } = useGinaTalkRequestNudge({
+    userId: ginaUserId,
+    buildCtx: buildGinaToolsCtx,
+    chatOpen: ginaDashboardOpen,
+  });
+
   const openGinaDashboard = useCallback(() => {
     setGinaMeetingSession(false);
     setGinaLearnBrief(null);
@@ -2019,6 +2045,20 @@ export function LeftPanel({
     setGinaAutoRunPrompt(locale === "es" ? "reporte del día" : "daily report");
     openGinaDashboard();
   }, [acknowledgeDailyReportOpenChat, locale, openGinaDashboard]);
+
+  const openGinaFromTalkRequestPopover = useCallback(() => {
+    let docId = null;
+    try {
+      const accepted = acceptTalkRequest(ginaUserId, new Date());
+      docId = accepted?.docId || null;
+    } catch { /* ignore */ }
+    setGinaAutoRunPrompt(buildTalkRequestNotifyPrompt(locale === "es" ? "es" : "en", docId));
+    openGinaDashboard();
+  }, [ginaUserId, locale, openGinaDashboard]);
+
+  const declineGinaTalkRequestPopover = useCallback(() => {
+    try { declineTalkRequest(ginaUserId, new Date()); } catch { /* ignore */ }
+  }, [ginaUserId]);
 
   const openGinaMeeting = useCallback(() => {
     if (!isAdminSessionEmail(userEmail)) return;
@@ -3448,6 +3488,7 @@ export function LeftPanel({
         recoverySnoozed: true,
         forceCleanDay: true,
         offerDayReady: true,
+        talkNotificationsDecided: hasTalkNotificationsDecision(ginaUserId, now),
       });
 
       // Reschedule apply: keep “Listo. Reagendé…” then show the new day sheet.
@@ -3464,6 +3505,7 @@ export function LeftPanel({
           locale: localeKey,
           hasDaySheet: true,
           recoverySnoozed: true,
+          talkNotificationsDecided: hasTalkNotificationsDecision(ginaUserId, now),
         }),
         textMid: null,
         textAfter: post.textAfter,
@@ -3963,7 +4005,88 @@ export function LeftPanel({
       return finishRecoveryAfterMutation(appliedIntent, appliedCount);
     }
 
-    // Day reference sheet (save / skip-save / reopen / complete / next) — deterministic, no Groq.
+    // Day talk notifications (opt-in / skip / popover notify) — deterministic, no Groq.
+    if (!meetingOn && (
+      routed.family === "gina_day_ritual_reset"
+      || routed.family === "gina_talk_notifications_enable"
+      || routed.family === "gina_talk_notifications_skip"
+      || routed.family === "gina_talk_request"
+      || routed.family === "gina_talk_request_thanks"
+    )) {
+      if (routed.family === "gina_day_ritual_reset") {
+        return {
+          message: buildGinaDayRitualResetAck(localeKey),
+          visualization: null,
+          chips: [
+            {
+              id: "today_after_reset",
+              label: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy",
+              text: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy",
+              primary: true,
+            },
+          ],
+        };
+      }
+      if (
+        routed.family === "gina_talk_notifications_enable"
+        || routed.family === "gina_talk_notifications_skip"
+      ) {
+        const today = get_today_scope(ctx, { includeCompleted: true });
+        const next = pickNextDaySheetDoc(today.documents || []);
+        const nextChips = buildScheduleSheetChips({
+          locale: localeKey,
+          todayOverview: true,
+          talkNotificationsDecided: true,
+          nextDocumentId: next?.id || null,
+          nextDocumentTitle: next?.title || "",
+          quickSheet: {
+            isCleanDay: true,
+            firstPendingId: next?.id || null,
+            firstPendingTitle: next?.title || "",
+            pending: next ? [{ id: next.id, title: next.title }] : [],
+          },
+        });
+        return {
+          message: routed.family === "gina_talk_notifications_enable"
+            ? buildTalkNotificationsEnabledAck(localeKey)
+            : buildTalkNotificationsSkippedAck(localeKey),
+          visualization: null,
+          chips: nextChips.length ? nextChips : null,
+        };
+      }
+      if (routed.family === "gina_talk_request_thanks") {
+        return {
+          message: buildTalkRequestThanksText(localeKey),
+          visualization: null,
+          chips: null,
+        };
+      }
+      const next = routed.toolContext?.nextDocument || null;
+      const visualization = buildGinaVisualization("day_sheet", {
+        ...routed.toolContext,
+        documents: Array.isArray(routed.toolContext?.documents)
+          ? routed.toolContext.documents
+          : (next ? [next] : []),
+        isDaySheet: true,
+        talkRequestNotify: true,
+        nextDocument: next,
+        missingAnchor: false,
+      }, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildTalkRequestNotifyText({
+          locale: localeKey,
+          nextTitle: next?.title || null,
+          nextTimeLabel: talkRequestTimeLabel(next, localeKey),
+        }),
+        visualization,
+        chips: buildTalkRequestNotifyChips({ locale: localeKey }),
+      };
+    }
+
     if (!meetingOn && (
       routed.family === "day_sheet"
       || routed.family === "day_sheet_skip_save"
@@ -4145,6 +4268,7 @@ export function LeftPanel({
           hasDaySheet: hasDaySheet(ginaUserId, ctx.now),
           nextDocumentId: next?.id || visualization?.data?.nextDocumentId || null,
           nextDocumentTitle: next?.title || "",
+          talkNotificationsDecided: hasTalkNotificationsDecision(ginaUserId, ctx.now),
         }),
       };
     }
@@ -4548,6 +4672,7 @@ export function LeftPanel({
           } catch { /* ignore */ }
         }
       }
+      const talkNotifsDecided = hasTalkNotificationsDecision(ginaUserId, ctx.now);
       const postTable = !meetingOn && visualization?.data?.todayOverview
         ? buildTodayOverviewPostTableCopy({
           quickSheet: visualization.data.quickSheet || null,
@@ -4560,6 +4685,7 @@ export function LeftPanel({
           lateStartCount: visualization.data.lateStartCount,
           hasOverlap: Boolean(visualization.data.hasOverlap),
           recoverySnoozed,
+          talkNotificationsDecided: talkNotifsDecided,
         })
         : { textAfter: null, textPitch: null };
       const chips = !meetingOn
@@ -4568,6 +4694,7 @@ export function LeftPanel({
           visualization,
           locale: localeKey,
           hasDaySheet: daySheetAnchored,
+          talkNotificationsDecided: talkNotifsDecided,
           recoverySnoozed,
         })
         : [];
@@ -5593,6 +5720,12 @@ export function LeftPanel({
           }}
         />
       ) : null}
+      <GinaTalkRequestPopover
+        open={ginaTalkRequestOpen && !ginaDashboardOpen && !ginaDailyReportPopoverOpen}
+        locale={locale === "es" ? "es" : "en"}
+        onAccept={openGinaFromTalkRequestPopover}
+        onDecline={declineGinaTalkRequestPopover}
+      />
       <GinaDailyReportPopover
         open={ginaDailyReportPopoverOpen && !ginaDashboardOpen}
         locale={locale === "es" ? "es" : "en"}

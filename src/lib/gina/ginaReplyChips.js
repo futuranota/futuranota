@@ -35,6 +35,10 @@ import {
   formatGinaTimeRange,
   formatWorkDurationLabel,
 } from "./buildGinaVisualization.js";
+import {
+  buildTalkNotificationsEnableChips,
+  buildTalkNotificationsOfferText,
+} from "./ginaTalkRequest.js";
 
 /** Closing after clean day sheet — no “save” CTA; docs already hold the schedule. */
 const DAY_SHEET_ALREADY_READY_CLOSING = {
@@ -959,27 +963,30 @@ export function buildScheduleSheetChips(opts = {}) {
       text: en ? "I finished" : "Ya terminé",
     });
   } else if (opts.todayOverview || opts.offerDayReady) {
-    // Comenzar · Re-agendar calendario · focus (no save CTA — schedule lives on docs).
-    if (qs?.firstPendingId || opts.nextDocumentId) {
-      const startId = opts.nextDocumentId || qs.firstPendingId;
-      const title = String(
-        opts.nextDocumentTitle || qs?.firstPendingTitle || "",
-      ).trim();
+    // First: live-notifications opt-in. After the user answers → Comenzar + Re-agendar.
+    if (!opts.talkNotificationsDecided) {
+      chips.push(...buildTalkNotificationsEnableChips({ locale: opts.locale }));
+    } else {
+      if (qs?.firstPendingId || opts.nextDocumentId) {
+        const startId = opts.nextDocumentId || qs.firstPendingId;
+        const title = String(
+          opts.nextDocumentTitle || qs?.firstPendingTitle || "",
+        ).trim();
+        chips.push({
+          id: `open_${startId}`,
+          label: en
+            ? (title ? `Start with ${title}` : "Start first document")
+            : (title ? `Comenzar con ${title}` : "Comenzar primer documento"),
+          text: `GinaOpenDocument:${startId}`,
+          primary: true,
+        });
+      }
       chips.push({
-        id: `open_${startId}`,
-        label: en
-          ? (title ? `Start «${title}»` : "Start first document")
-          : (title ? `Comenzar «${title}»` : "Comenzar primer documento"),
-        text: `GinaOpenDocument:${startId}`,
-        primary: true,
+        id: "reschedule_times",
+        label: en ? "Re-schedule calendar" : "Re-agendar calendario",
+        text: en ? "Reschedule for today" : "Reagendar para hoy",
       });
     }
-    chips.push({
-      id: "reschedule_times",
-      label: en ? "Re-schedule calendar" : "Re-agendar calendario",
-      text: en ? "Reschedule for today" : "Reagendar para hoy",
-    });
-    // No “Enfocarme en {Depto}” on day-ready — keep Comenzar + Re-agendar only.
   } else {
     if (opts.hasDaySheet) {
       chips.push({
@@ -1371,6 +1378,8 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
  *   userId?: string,
  *   forceCleanDay?: boolean,
  *   offerDayReady?: boolean,
+ *   talkNotificationsEnabled?: boolean,
+ *   talkNotificationsDecided?: boolean,
  * }} [opts]
  * @returns {{
  *   textAfter: string | null,
@@ -1420,6 +1429,9 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
     : DAY_SHEET_ALREADY_READY_CLOSING.es;
 
   const restParts = [begin, readyClosing];
+  if (!opts.talkNotificationsDecided) {
+    restParts.push(buildTalkNotificationsOfferText(en ? "en" : "es"));
+  }
   const textAfterRest = restParts.join("\n\n");
   const parts = [];
   if (start) parts.push(start);
@@ -2337,6 +2349,10 @@ export function buildGinaReplyChips(opts = {}) {
       currentStep: data.currentStep,
       invadedLabels: data.invadedLabels,
       recoverySnoozed: Boolean(opts.recoverySnoozed),
+      talkNotificationsEnabled: Boolean(opts.talkNotificationsEnabled),
+      talkNotificationsDecided: Boolean(
+        opts.talkNotificationsDecided || opts.talkNotificationsEnabled,
+      ),
     });
   }
   if (type === "schedule_slot_picker") {

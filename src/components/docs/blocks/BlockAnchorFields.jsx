@@ -380,18 +380,6 @@ export function BlockAnchorFields({
                 );
               })}
             </div>
-            {occupied.length ? (
-              <div className="doc-time-range__occupied-list">
-                <span>Occupied hours</span>
-                {occupied.map((interval) => (
-                  <span key={interval.id}>
-                    <s>{String(interval.time || "").replace("-", "–")}</s>
-                    {" · "}
-                    {interval.title}
-                  </span>
-                ))}
-              </div>
-            ) : null}
             {overlapHint || validationError ? (
               <p className="doc-time-range__hint">{validationError || overlapHint}</p>
             ) : null}

@@ -76,6 +76,21 @@ import {
   summarizeDaySheetProgress,
 } from "./ginaDaySheet.js";
 import { writeDaySheet } from "./ginaDaySheetStore.js";
+import {
+  isEnableTalkNotificationsIntent,
+  isGinaTalkRequestNotifyIntent,
+  isSkipTalkNotificationsIntent,
+  isTalkRequestThanksIntent,
+  parseTalkRequestNotifyIntent,
+} from "./ginaTalkRequest.js";
+import {
+  enableTalkNotifications,
+  skipTalkNotifications,
+} from "./ginaTalkRequestStore.js";
+import {
+  isGinaResetDayRitualIntent,
+  resetGinaDayRitualState,
+} from "./ginaDayRitualReset.js";
 
 function fold(s) {
   return foldGinaText(s);
@@ -1647,6 +1662,93 @@ export function runGinaQueryFamily(text, ctx = {}) {
       toolContext: {
         dismiss: true,
         hint: "User declined help — close politely with no scope data",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  // Test harness: wipe today’s day-ritual local state.
+  if (isGinaResetDayRitualIntent(text)) {
+    const uid = ctx.userId || ctx.authUserId || "anon";
+    const { cleared } = resetGinaDayRitualState(uid);
+    return {
+      family: "gina_day_ritual_reset",
+      toolsCalled,
+      toolContext: {
+        dayRitualReset: true,
+        cleared,
+        hint: "Test harness — reset day sheet / notifications / snooze",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  // Opt-in: enable / skip day talk notifications.
+  if (isEnableTalkNotificationsIntent(text)) {
+    const now = ctx.now instanceof Date ? ctx.now : new Date();
+    const uid = ctx.userId || ctx.authUserId || "anon";
+    enableTalkNotifications(uid, now);
+    return {
+      family: "gina_talk_notifications_enable",
+      toolsCalled,
+      toolContext: {
+        talkNotificationsEnabled: true,
+        hint: "User enabled day talk notifications",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  if (isSkipTalkNotificationsIntent(text)) {
+    const now = ctx.now instanceof Date ? ctx.now : new Date();
+    const uid = ctx.userId || ctx.authUserId || "anon";
+    skipTalkNotifications(uid, now);
+    return {
+      family: "gina_talk_notifications_skip",
+      toolsCalled,
+      toolContext: {
+        talkNotificationsSkipped: true,
+        hint: "User declined day talk notifications",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  // Talk-request popover Accept → document-start notification in chat.
+  if (isGinaTalkRequestNotifyIntent(text)) {
+    const now = ctx.now instanceof Date ? ctx.now : new Date();
+    const uid = ctx.userId || ctx.authUserId || "anon";
+    const parsed = parseTalkRequestNotifyIntent(text);
+    const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
+    const { documents } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
+    const pool = documents.length ? documents : (today.documents || []);
+    const byId = parsed.docId
+      ? (pool.find((d) => String(d?.id) === parsed.docId) || null)
+      : null;
+    const next = byId || pickNextDaySheetDoc(pool);
+    return {
+      family: "gina_talk_request",
+      toolsCalled,
+      toolContext: {
+        ...today,
+        documents: next ? [next] : [],
+        nextDocument: next,
+        isDaySheet: true,
+        talkRequestNotify: true,
+        progress: summarizeDaySheetProgress(next ? [next] : []),
+        hint: "Talk-request Accept — notify document schedule started",
+      },
+      workspaceInventory: inventory,
+    };
+  }
+
+  if (isTalkRequestThanksIntent(text)) {
+    return {
+      family: "gina_talk_request_thanks",
+      toolsCalled,
+      toolContext: {
+        thanks: true,
+        hint: "User acknowledged talk-request notification",
       },
       workspaceInventory: inventory,
     };

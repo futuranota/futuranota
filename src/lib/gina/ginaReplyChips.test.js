@@ -179,6 +179,8 @@ describe("ginaReplyChips", () => {
     expect(post.textAfter).toContain("**Cuando desees puedes comenzar.**");
     expect(post.textAfter).toMatch(/ya está listo/i);
     expect(post.textAfter).toMatch(/Horario del día/i);
+    expect(post.textAfter).toMatch(/¿Activamos avisos en vivo\?/i);
+    expect(post.textAfter).toMatch(/pestaña abierta/i);
     expect(post.textAfter).not.toMatch(/¿Quieres guardarlo/i);
     expect(post.textAfter).not.toMatch(/¡Hey!/i);
     expect(post.textAfter).not.toMatch(/Sheet del Día/i);
@@ -366,7 +368,7 @@ describe("ginaReplyChips", () => {
     expect(line).toContain("A");
   });
 
-  it("today overview offers Comenzar + Re-agendar without Guardar or Enfocarme", () => {
+  it("today overview offers live-notifications first (before Comenzar / Re-agendar)", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       hasDaySheet: false,
@@ -389,18 +391,43 @@ describe("ginaReplyChips", () => {
       },
       locale: "es",
     });
-    expect(chips.map((c) => c.id)).toContain("open_1");
+    expect(chips.map((c) => c.id)).toEqual([
+      "enable_day_notifications",
+      "skip_day_notifications",
+    ]);
+    expect(chips.map((c) => c.id)).not.toContain("open_1");
+    expect(chips.map((c) => c.id)).not.toContain("reschedule_times");
     expect(chips.map((c) => c.id)).not.toContain("save_day_sheet");
-    expect(chips.map((c) => c.id)).toContain("reschedule_times");
     expect(chips.map((c) => c.id)).not.toContain("focus_Marketing");
-    expect(chips.map((c) => c.id)).not.toContain("focus_Sales");
-    expect(chips.find((c) => c.id === "open_1")?.primary).toBe(true);
-    expect(chips.find((c) => c.id === "reschedule_times")?.label).toMatch(/Re-agendar calendario/i);
-    expect(chips.find((c) => c.id === "reschedule_times")?.text).toMatch(/Reagendar para hoy/i);
-    expect(chips.map((c) => c.id)[0]).toBe("open_1");
+    expect(chips.find((c) => c.id === "enable_day_notifications")?.label).toBe("activar notificaciones");
+    expect(chips.find((c) => c.id === "skip_day_notifications")?.label).toBe("prefiero chequear por mi cuenta");
   });
 
-  it("clean-day today overview without sheet still offers Comenzar (no Guardar / Enfocarme)", () => {
+  it("after notifications decision, today overview offers Comenzar + Re-agendar", () => {
+    const chips = buildGinaReplyChips({
+      family: "today",
+      talkNotificationsDecided: true,
+      visualization: {
+        type: "schedule_sheet",
+        data: {
+          todayOverview: true,
+          quickSheet: {
+            isCleanDay: true,
+            firstPendingId: "1",
+            firstPendingTitle: "Doc 1",
+            pending: [{ id: "1", title: "Doc 1" }],
+          },
+        },
+      },
+      locale: "es",
+    });
+    expect(chips.map((c) => c.id)).toEqual(["open_1", "reschedule_times"]);
+    expect(chips.find((c) => c.id === "open_1")?.label).toBe("Comenzar con Doc 1");
+    expect(chips.find((c) => c.id === "open_1")?.primary).toBe(true);
+    expect(chips.find((c) => c.id === "reschedule_times")?.label).toMatch(/Re-agendar calendario/i);
+  });
+
+  it("clean-day today overview without decision only offers notifications", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       hasDaySheet: false,
@@ -424,14 +451,16 @@ describe("ginaReplyChips", () => {
       locale: "es",
     });
     expect(chips.map((c) => c.id)).not.toContain("save_day_sheet");
-    expect(chips.map((c) => c.id)).toContain("open_n1");
+    expect(chips.map((c) => c.id)).not.toContain("open_n1");
+    expect(chips.map((c) => c.id)).toContain("enable_day_notifications");
     expect(chips.map((c) => c.id)).not.toContain("focus_Sales");
   });
 
-  it("clean-day today overview with anchored sheet still omits Guardar", () => {
+  it("clean-day today overview with decision + anchored sheet offers Comenzar", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       hasDaySheet: true,
+      talkNotificationsDecided: true,
       visualization: {
         type: "schedule_sheet",
         data: {
@@ -457,7 +486,7 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).not.toContain("focus_Sales");
   });
 
-  it("allowOpenWithoutSave on today overview keeps Comenzar without Guardar or Enfocarme", () => {
+  it("allowOpenWithoutSave still waits for notification decision before Comenzar", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       hasDaySheet: false,
@@ -481,8 +510,8 @@ describe("ginaReplyChips", () => {
       },
       locale: "es",
     });
-    expect(chips.map((c) => c.id)).toContain("open_n1");
-    expect(chips.map((c) => c.id)).not.toContain("focus_Sales");
+    expect(chips.map((c) => c.id)).toContain("enable_day_notifications");
+    expect(chips.map((c) => c.id)).not.toContain("open_n1");
     expect(chips.map((c) => c.id)).not.toContain("save_day_sheet");
   });
 

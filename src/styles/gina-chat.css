@@ -339,6 +339,32 @@
   flex-shrink: 0;
 }
 
+.gina-chat-card__skip-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 4px 8px;
+  flex-shrink: 0;
+}
+
+.gina-chat-card__skip-text {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #151515;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.gina-chat-card__skip-text:hover {
+  color: rgba(255, 255, 255, 0.92);
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .gina-chat-card__dictation {
   position: relative;
   z-index: 1;
@@ -2607,6 +2633,80 @@
   font-size: 11px;
   line-height: 1.4;
   color: #9a9a9a;
+}
+
+/* Gina talk-request popover (once/day after day-schedule check) */
+.gina-talk-request-popover {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 12010;
+  width: min(320px, calc(100vw - 32px));
+  padding: 16px 16px 14px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #2a2a2a 0%, #151515 55%, #101010 100%);
+  border: 1px solid color-mix(in oklab, #ffffff 10%, transparent);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+  color: #f5f5f5;
+}
+
+.gina-talk-request-popover__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.gina-talk-request-popover__avatar {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  object-fit: cover;
+  object-position: center 18%;
+  background: #222;
+  border: 1px solid color-mix(in oklab, #ffffff 12%, transparent);
+}
+
+.gina-talk-request-popover__title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #ffffff;
+}
+
+.gina-talk-request-popover__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-left: 68px;
+}
+
+.gina-talk-request-popover__btn {
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.gina-talk-request-popover__btn.is-accept {
+  background: #c8e6c0;
+  color: #111111;
+}
+
+.gina-talk-request-popover__btn.is-decline {
+  background: #3a3a3a;
+  color: #f2f2f2;
+}
+
+.gina-talk-request-popover__btn:hover {
+  filter: brightness(1.06);
 }
 
 /* Daily report nudge popover (static, not a toast) */
