@@ -1,0 +1,36 @@
+---
+description: API cost management roadmap (phases A–E) + confirmed Groq/Apify tariffs
+globs: src/admin/**,server/management/**,server/discovery/apifySocialHype.js,server/gina/**,supabase_management*.sql
+alwaysApply: false
+---
+
+# API cost management — roadmap
+
+Canonical detail: `.cursor/saved/api-cost-management/ROADMAP.md`
+
+## Phases (do in order)
+
+| Phase | What |
+|---|---|
+| **A** | Full route logging + real provider usage + dynamic `$` on `api_usage_events` |
+| **B** | Users: accumulated API cost $ + inactive 7/30d filter |
+| **C** | Recent calls filters + CSV export |
+| **D** | Credit/endpoint matrix + Top endpoints chart |
+| **E** | Success rate, budgets/alerts, MRR − API, Apify storage |
+
+Storage / general API consumption = long-term priority → **E** (Apify run stats start in **A**).
+
+## Confirmed tariffs (do not invent)
+
+**Groq USD / 1M tokens**
+
+- `llama-3.1-8b-instant`: in **0.75**, out **1.50**
+- `llama-3.3-70b-versatile`: in **1.05**, out **2.10**
+
+**Apify:** **$0.20 / CU**; prefer `usageTotalUsd` else `computeUnits * 0.20`. Default actor `apidojo~tweet-scraper`.
+
+## Hard rules
+
+- Do **not** reuse plan `tokens_debited` as LLM `input_tokens` / `output_tokens`.
+- Flat `api_integrations.estimated_cost_usd` = fallback/display only after A.
+- Campaign Study must not log `provider: apify` as if billed when the path was mock.

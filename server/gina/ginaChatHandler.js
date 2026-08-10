@@ -1,4 +1,6 @@
 import { getGinaSystemPrompt, fallbackGinaNarration, sanitizeGinaReply } from "./ginaSystemPrompt.js";
+import { logApiUsageEvent } from "../management/logApiUsage.js";
+import { normalizeLlmUsage } from "../management/apiCostPricing.js";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
@@ -39,7 +41,13 @@ async function groqChat(apiKey, model, payload) {
     if (!content || typeof content !== "string") {
       throw new Error("Groq returned empty content");
     }
-    return content.trim();
+    const usage = data?.usage && typeof data.usage === "object"
+      ? {
+        prompt_tokens: Number(data.usage.prompt_tokens) || 0,
+        completion_tokens: Number(data.usage.completion_tokens) || 0,
+      }
+      : null;
+    return { content: content.trim(), usage, model };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -222,12 +230,13 @@ export async function processGinaChatRequest(body = {}) {
   }
 
   try {
-    let reply;
+    let chatResult;
     try {
-      reply = await groqChat(apiKey, GROQ_MODEL, { system, messages: chatMessages });
+      chatResult = await groqChat(apiKey, GROQ_MODEL, { system, messages: chatMessages });
     } catch {
-      reply = await groqChat(apiKey, GROQ_FALLBACK_MODEL, { system, messages: chatMessages });
+      chatResult = await groqChat(apiKey, GROQ_FALLBACK_MODEL, { system, messages: chatMessages });
     }
+    const reply = chatResult.content;
     const clean = sanitizeGinaReply(
       reply,
       isDismiss ? { dismiss: true }
@@ -236,6 +245,21 @@ export async function processGinaChatRequest(body = {}) {
       locale,
       body.workspaceInventory,
     );
+    const llmUsage = normalizeLlmUsage(chatResult.usage);
+    const userId = typeof body.userId === "string" ? body.userId : undefined;
+    const userEmail = typeof body.userEmail === "string" ? body.userEmail : undefined;
+    void logApiUsageEvent({
+      userId,
+      userEmail,
+      provider: "groq",
+      endpoint: "gina/chat",
+      routeLabel: "Gina",
+      inputTokens: llmUsage?.inputTokens,
+      outputTokens: llmUsage?.outputTokens,
+      model: chatResult.model,
+      billed: true,
+      meta: { family: body.family || null, locale },
+    });
     return { status: 200, body: { reply: clean, source: "groq", message: clean } };
   } catch (err) {
     const fallback = fallbackGinaNarration(

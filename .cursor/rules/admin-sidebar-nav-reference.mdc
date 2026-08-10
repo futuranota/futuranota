@@ -16,10 +16,12 @@ When changing `/panel` navigation or Management layout, use the saved Magic comp
 
 Under **Management**:
 
-1. API Integrations
+1. API Integrations — table (active/pending, free limits, cost, calls today/total)
 2. Users
 3. Recent Calls
 4. Storage (empty placeholder)
+
+SQL for catalog columns: `supabase_management_integrations_v2.sql`
 
 ## Integrate rules
 

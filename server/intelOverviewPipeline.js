@@ -1,4 +1,5 @@
 import { completeJsonForProvider, describeLlmUnavailable, getLastLlmFailure } from "./llmJson.js";
+import { normalizeLlmUsage } from "./management/apiCostPricing.js";
 import { searchWebMulti } from "./discovery/serpApiSearch.js";
 import { isTavilyConfigured, searchTavilyParallel } from "./discovery/tavilySearch.js";
 import {
@@ -256,6 +257,9 @@ export async function runIntelOverviewPipeline(query, contextNodes = [], options
     modelLabel: modelDef.label,
     provider: llm.provider || modelDef.provider,
     source: `${searchSource || "web"}+${llm.provider || modelDef.provider}`,
+    llmUsage: normalizeLlmUsage(llm.usage),
+    llmModel: llm.model || apiModel,
+    searchSource: searchSource || null,
   };
 }
 

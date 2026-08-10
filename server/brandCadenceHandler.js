@@ -1,4 +1,6 @@
 import { completeJson } from "./llmJson.js";
+import { logApiUsageEvent } from "./management/logApiUsage.js";
+import { normalizeLlmUsage } from "./management/apiCostPricing.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -70,7 +72,13 @@ async function inferBrandCadence(brandName, referenceMonthLabel) {
   }
 
   const normalized = normalizeCadencePayload(llm.data);
-  return { ...normalized, source: llm.provider };
+  const llmUsage = normalizeLlmUsage(llm.usage);
+  return {
+    ...normalized,
+    source: llm.provider,
+    llmModel: llm.model || null,
+    llmUsage,
+  };
 }
 
 /**
@@ -137,9 +145,23 @@ export function createBrandCadenceMiddleware() {
 
       const cadence = await inferBrandCadence(brandName, referenceMonthLabel);
 
+      if (cadence.source === "groq" && cadence.llmUsage) {
+        void logApiUsageEvent({
+          provider: "groq",
+          endpoint: "analytics/brand-cadence",
+          routeLabel: "Launch Radar",
+          inputTokens: cadence.llmUsage.inputTokens,
+          outputTokens: cadence.llmUsage.outputTokens,
+          model: cadence.llmModel || undefined,
+          billed: true,
+          meta: { brandName, referenceMonthLabel },
+        });
+      }
+
+      const { llmUsage: _u, llmModel: _m, ...publicCadence } = cadence;
       res.statusCode = 200;
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(cadence));
+      res.end(JSON.stringify(publicCadence));
     } catch (err) {
       res.statusCode = 500;
       res.setHeader("Content-Type", "application/json");

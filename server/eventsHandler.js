@@ -1,5 +1,6 @@
 import { fetchMergedCalendarEvents } from "./events/fetchEvents.js";
 import { getDefaultEventCountry } from "./events/env.js";
+import { logApiUsageEvent } from "./management/logApiUsage.js";
 
 function sendJson(res, status, body) {
   res.statusCode = status;
@@ -45,6 +46,17 @@ export async function processEventsRequest(reqLike) {
   }
 
   const result = await fetchMergedCalendarEvents({ from, to, country, limit });
+  if (!result.fromCache && result.providers?.calendarific) {
+    void logApiUsageEvent({
+      provider: "calendarific",
+      endpoint: "events",
+      routeLabel: "Event calendar",
+      billed: true,
+      estimatedCostUsd: 0,
+      itemCount: Array.isArray(result.events) ? result.events.length : 0,
+      meta: { from, to, country: result.country, fromCache: false },
+    });
+  }
   return { status: 200, body: result };
 }
 

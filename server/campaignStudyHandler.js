@@ -127,24 +127,43 @@ export async function processCampaignStudyRequest(reqLike) {
 
   const debit = await debitTokens(supabase, { ...profile, user_id: user.id }, TOKEN_COST);
 
-  void logApiUsageEvents([
-    {
+  /** @type {import("./management/logApiUsage.js").ApiUsageEventInput[]} */
+  const usageEvents = [];
+
+  if (pipeline.dataForSeoSource && pipeline.dataForSeoSource !== "mock") {
+    usageEvents.push({
       userId: user.id,
       userEmail: user.email,
       provider: "dataforseo",
       endpoint: "analytics/campaign-study",
       routeLabel: "Campaign Study",
-      meta: { brandName, keyword: keyword || brandName, source: "live" },
-    },
-    {
+      billed: true,
+      meta: { brandName, keyword: keyword || brandName, source: pipeline.dataForSeoSource },
+    });
+  }
+
+  if (pipeline.apifyBilled) {
+    usageEvents.push({
       userId: user.id,
       userEmail: user.email,
       provider: "apify",
-      endpoint: "analytics/campaign-study",
+      endpoint: pipeline.apifyActorId || "analytics/campaign-study",
       routeLabel: "Campaign Study",
-      meta: { brandName, keyword: keyword || brandName, source: "live" },
-    },
-    {
+      billed: true,
+      computeUnits: pipeline.apifyComputeUnits,
+      usageTotalUsd: pipeline.apifyUsageTotalUsd,
+      itemCount: pipeline.apifyItemCount,
+      meta: {
+        brandName,
+        keyword: keyword || brandName,
+        source: "apify",
+        actorId: pipeline.apifyActorId,
+      },
+    });
+  }
+
+  if (pipeline.llmProvider === "groq" || pipeline.llmUsage) {
+    usageEvents.push({
       userId: user.id,
       userEmail: user.email,
       provider: "groq",
@@ -152,9 +171,17 @@ export async function processCampaignStudyRequest(reqLike) {
       routeLabel: "Campaign Study",
       creditsDebited: 1,
       tokensDebited: TOKEN_COST,
+      inputTokens: pipeline.llmUsage?.inputTokens,
+      outputTokens: pipeline.llmUsage?.outputTokens,
+      model: pipeline.llmModel || undefined,
+      billed: true,
       meta: { brandName, keyword: keyword || brandName, source: "live" },
-    },
-  ]);
+    });
+  }
+
+  if (usageEvents.length) {
+    void logApiUsageEvents(usageEvents);
+  }
 
   return {
     status: 200,

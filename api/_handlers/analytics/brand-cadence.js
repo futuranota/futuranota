@@ -3,6 +3,8 @@
 // Usa process.env (no import.meta.env) — estándar de Vercel Functions
 
 import { completeJson } from "../../../server/llmJson.js";
+import { logApiUsageEvent } from "../../../server/management/logApiUsage.js";
+import { normalizeLlmUsage } from "../../../server/management/apiCostPricing.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -63,7 +65,12 @@ async function inferBrandCadence(brandName, referenceMonthLabel) {
   }
 
   const normalized = normalizeCadencePayload(llm.data);
-  return { ...normalized, source: llm.provider };
+  return {
+    ...normalized,
+    source: llm.provider,
+    llmModel: llm.model || null,
+    llmUsage: normalizeLlmUsage(llm.usage),
+  };
 }
 
 // ── Vercel Function handler ──────────────────────────────────
@@ -100,7 +107,22 @@ export default async function handler(req, res) {
       : "June 2026";
 
     const cadence = await inferBrandCadence(brandName, referenceMonthLabel);
-    res.status(200).json(cadence);
+
+    if (cadence.source === "groq" && cadence.llmUsage) {
+      void logApiUsageEvent({
+        provider: "groq",
+        endpoint: "analytics/brand-cadence",
+        routeLabel: "Launch Radar",
+        inputTokens: cadence.llmUsage.inputTokens,
+        outputTokens: cadence.llmUsage.outputTokens,
+        model: cadence.llmModel || undefined,
+        billed: true,
+        meta: { brandName, referenceMonthLabel },
+      });
+    }
+
+    const { llmUsage: _u, llmModel: _m, ...publicCadence } = cadence;
+    res.status(200).json(publicCadence);
   } catch (err) {
     res.status(500).json({
       error: err instanceof Error ? err.message : "Inference failed",

@@ -109,7 +109,18 @@ async function completeJsonWithGroqModel(prompt, options, model) {
   const data = await res.json();
   const raw = data?.choices?.[0]?.message?.content;
   if (!raw) throw new Error("Groq returned empty content");
-  return JSON.parse(raw);
+  const usage = data?.usage && typeof data.usage === "object"
+    ? {
+      prompt_tokens: Number(data.usage.prompt_tokens) || 0,
+      completion_tokens: Number(data.usage.completion_tokens) || 0,
+      total_tokens: Number(data.usage.total_tokens) || 0,
+    }
+    : null;
+  return {
+    data: JSON.parse(raw),
+    usage,
+    model,
+  };
 }
 
 /**
@@ -376,7 +387,14 @@ export async function completeJson(prompt, options = {}) {
 
   try {
     const groq = await completeJsonWithGroq(prompt, options);
-    if (groq) return { provider: "groq", data: groq };
+    if (groq?.data != null) {
+      return {
+        provider: "groq",
+        data: groq.data,
+        model: groq.model,
+        usage: groq.usage,
+      };
+    }
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     lastLlmFailure = {
@@ -431,8 +449,13 @@ export async function completeJsonForProvider(prompt, options = {}) {
       return null;
     }
     try {
-      const data = await completeJsonWithGroqForModel(prompt, options, apiModel);
-      return { provider: "groq", data, model: apiModel };
+      const result = await completeJsonWithGroqForModel(prompt, options, apiModel);
+      return {
+        provider: "groq",
+        data: result?.data ?? result,
+        model: result?.model || apiModel,
+        usage: result?.usage || null,
+      };
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       lastLlmFailure = {

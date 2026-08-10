@@ -35,7 +35,16 @@ export function fetchManagementOverview(opts = {}) {
 
 /**
  * @param {string} id
- * @param {{ label?: string, notes?: string, enabled?: boolean, estimatedCostUsd?: number }} patch
+ * @param {{
+ *   label?: string,
+ *   notes?: string,
+ *   enabled?: boolean,
+ *   estimatedCostUsd?: number,
+ *   lifecycleStatus?: 'active'|'pending',
+ *   dailyFreeLimit?: number|null,
+ *   metaDescription?: string,
+ *   dashboardUrl?: string,
+ * }} patch
  */
 export function patchManagementIntegration(id, patch) {
   return authedFetch(

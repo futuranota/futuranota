@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { getDataForSeoAuthHeader, isDataForSeoConfigured } from "./discovery/dataForSeoAuth.js";
+import { getCalendarificApiKey, getPredictHqApiKey } from "./events/env.js";
 import { createServiceSupabase } from "./supabaseServer.js";
 import { getOpenWeatherApiKey } from "./weather/env.js";
 import { isWeatherCacheConfigured } from "./weather/weatherCache.js";
@@ -324,6 +325,17 @@ function geminiStatusOnly(key = process.env.GEMINI_API_KEY) {
   return { ok: true, configured: true, message: "GEMINI_API_KEY set (skipped live probe)" };
 }
 
+function softStatusOnly(label, configured) {
+  if (configured) {
+    return { ok: true, configured: true, message: `${label} set (skipped live probe)` };
+  }
+  return {
+    ok: true,
+    configured: false,
+    message: `${label} not set`,
+  };
+}
+
 /** @param {{ live?: boolean }} [opts] live=true runs paid API calls (steps 1-5) */
 export async function runAllIntegrationProbes(opts = {}) {
   const live = opts.live !== false;
@@ -338,18 +350,44 @@ export async function runAllIntegrationProbes(opts = {}) {
     ? await probeOpenWeather()
     : statusOnly("OPENWEATHER_API_KEY", getOpenWeatherApiKey());
   const supabase = await probeSupabase();
+  const calendarific = softStatusOnly("CALENDARIFIC_API_KEY", getCalendarificApiKey());
+  const resend = softStatusOnly(
+    "RESEND_API_KEY",
+    process.env.RESEND_API_KEY?.trim() || process.env.RESEND_API?.trim(),
+  );
+  const predicthq = softStatusOnly("PREDICTHQ_API_KEY", getPredictHqApiKey());
+  const tavily = softStatusOnly("TAVILY_API_KEY", process.env.TAVILY_API_KEY?.trim());
+  const google_translate = softStatusOnly(
+    "GOOGLE_TRANSLATE_API_KEY",
+    process.env.GOOGLE_TRANSLATE_API_KEY?.trim(),
+  );
 
-  const steps = { groq, gemini, serper, dataforseo, apify, openweather, supabase };
-  const allOk = Object.values(steps).every((s) => s.ok);
+  const steps = {
+    groq,
+    gemini,
+    serper,
+    dataforseo,
+    apify,
+    openweather,
+    supabase,
+    calendarific,
+    resend,
+    predicthq,
+    tavily,
+    google_translate,
+  };
+  const requiredOk = [groq, serper, dataforseo, apify, openweather, supabase].every((s) => s.ok);
 
   return {
-    ok: allOk,
+    ok: requiredOk,
     steps,
     routes: {
       campaignStudy: "/api/analytics/campaign-study",
       intelOverview: "/api/intel/overview",
       weatherForecast: "/api/weather/forecast",
       horizonScan: "/api/analytics/horizon-scan",
+      events: "/api/events",
+      referralInvite: "/api/billing/referral-invite",
     },
   };
 }

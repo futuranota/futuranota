@@ -16,6 +16,7 @@ import {
   recordServerCityChange,
   WEATHER_ERROR_LOCATION_RATE_LIMITED,
 } from "./weather/locationRateLimit.js";
+import { logApiUsageEvent } from "./management/logApiUsage.js";
 
 const FALLBACK_CITY = process.env.WEATHER_DEFAULT_CITY?.trim() || DEFAULT_CITY;
 
@@ -155,6 +156,28 @@ export async function processWeatherDailyRequest(reqLike) {
     const forecast = await fetchOpenWeatherDailyForecast(urlLocation);
     const payload = { ...forecast, fromCache: false };
     await writeWeatherCache(cacheKey, payload);
+    try {
+      const { user } = await getAuthedUser(reqLike);
+      void logApiUsageEvent({
+        userId: user?.id,
+        userEmail: user?.email,
+        provider: "openweather",
+        endpoint: "weather/forecast",
+        routeLabel: "Forecast",
+        billed: true,
+        estimatedCostUsd: 0,
+        meta: { fromCache: false, city: urlLocation.city || null },
+      });
+    } catch {
+      void logApiUsageEvent({
+        provider: "openweather",
+        endpoint: "weather/forecast",
+        routeLabel: "Forecast",
+        billed: true,
+        estimatedCostUsd: 0,
+        meta: { fromCache: false },
+      });
+    }
     return { status: 200, body: payload };
   } catch (err) {
     return weatherErrorResponse(err);
@@ -190,6 +213,28 @@ export async function processWeatherDateRequest(reqLike) {
       dailyPayload = await fetchOpenWeatherDailyForecast(urlLocation);
       fromCache = false;
       await writeWeatherCache(dailyCacheKey, { ...dailyPayload, fromCache: false });
+      try {
+        const { user } = await getAuthedUser(reqLike);
+        void logApiUsageEvent({
+          userId: user?.id,
+          userEmail: user?.email,
+          provider: "openweather",
+          endpoint: "weather/forecast",
+          routeLabel: "Forecast",
+          billed: true,
+          estimatedCostUsd: 0,
+          meta: { fromCache: false, mode: "date", city: urlLocation.city || null, date },
+        });
+      } catch {
+        void logApiUsageEvent({
+          provider: "openweather",
+          endpoint: "weather/forecast",
+          routeLabel: "Forecast",
+          billed: true,
+          estimatedCostUsd: 0,
+          meta: { fromCache: false, mode: "date", date },
+        });
+      }
     } catch (err) {
       return weatherErrorResponse(err);
     }

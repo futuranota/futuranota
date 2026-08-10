@@ -22,6 +22,11 @@ function mockSocialHype(keyword) {
       { platform: "reddit", text: `Discussion thread tracking ${keyword} launch rumors.` },
     ],
     source: "mock",
+    billed: false,
+    computeUnits: null,
+    usageTotalUsd: null,
+    itemCount: 0,
+    runId: null,
   };
 }
 
@@ -48,7 +53,18 @@ function buildActorInput(actorId, keyword) {
 }
 
 /**
+ * @param {unknown} payload
+ */
+function unwrapApifyData(payload) {
+  if (payload && typeof payload === "object" && "data" in /** @type {object} */ (payload)) {
+    return /** @type {{ data: unknown }} */ (payload).data;
+  }
+  return payload;
+}
+
+/**
  * Runs Apify actor synchronously when APIFY_API_TOKEN is set.
+ * Uses runs?waitForFinish to capture computeUnits / usageTotalUsd (Phase A).
  * Default actor: apidojo~tweet-scraper (override with APIFY_SOCIAL_ACTOR_ID).
  * @param {string} keyword
  */
@@ -60,26 +76,50 @@ export async function fetchApifySocialHype(keyword) {
   if (!token) return mockSocialHype(q);
 
   const actorId = process.env.APIFY_SOCIAL_ACTOR_ID?.trim() || DEFAULT_ACTOR;
-  const runUrl = `${APIFY_BASE}/acts/${actorId}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&timeout=120`;
+  const runUrl =
+    `${APIFY_BASE}/acts/${encodeURIComponent(actorId)}/runs`
+    + `?token=${encodeURIComponent(token)}&waitForFinish=120`;
 
-  const res = await fetch(runUrl, {
+  const runRes = await fetch(runUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildActorInput(actorId, q)),
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Apify ${res.status}: ${text.slice(0, 200)}`);
+  if (!runRes.ok) {
+    const text = await runRes.text();
+    throw new Error(`Apify ${runRes.status}: ${text.slice(0, 200)}`);
   }
 
-  const items = await res.json();
-  const rows = Array.isArray(items) ? items : [];
+  const runJson = unwrapApifyData(await runRes.json());
+  const run = runJson && typeof runJson === "object" ? /** @type {Record<string, unknown>} */ (runJson) : {};
+  const stats = run.stats && typeof run.stats === "object"
+    ? /** @type {Record<string, unknown>} */ (run.stats)
+    : {};
+  const computeUnits = stats.computeUnits != null ? Number(stats.computeUnits) : null;
+  const usageTotalUsd = run.usageTotalUsd != null ? Number(run.usageTotalUsd) : null;
+  const datasetId = typeof run.defaultDatasetId === "string" ? run.defaultDatasetId : null;
+  const runId = typeof run.id === "string" ? run.id : null;
+
+  /** @type {unknown[]} */
+  let rows = [];
+  if (datasetId) {
+    const itemsUrl =
+      `${APIFY_BASE}/datasets/${encodeURIComponent(datasetId)}/items`
+      + `?token=${encodeURIComponent(token)}&clean=true&format=json`;
+    const itemsRes = await fetch(itemsUrl);
+    if (itemsRes.ok) {
+      const items = await itemsRes.json();
+      rows = Array.isArray(items) ? items : [];
+    }
+  }
+
   const mentions = rows.length;
   const engagement = rows.reduce((sum, row) => {
-    const likes = Number(row.likes || row.favorite_count || row.upvotes || 0);
-    const comments = Number(row.comments || row.reply_count || row.replies || 0);
-    const retweets = Number(row.retweets || row.retweet_count || 0);
+    const r = row && typeof row === "object" ? /** @type {Record<string, unknown>} */ (row) : {};
+    const likes = Number(r.likes || r.favorite_count || r.upvotes || 0);
+    const comments = Number(r.comments || r.reply_count || r.replies || 0);
+    const retweets = Number(r.retweets || r.retweet_count || 0);
     return sum + likes + comments + retweets;
   }, 0);
   const hypeScore = Math.min(100, Math.round(Math.log10(Math.max(mentions, 1) + 1) * 25 + engagement / 500));
@@ -94,12 +134,20 @@ export async function fetchApifySocialHype(keyword) {
     platforms: {
       [platform]: hypeScore,
     },
-    samplePosts: rows.slice(0, 5).map((row) => ({
-      platform: row.platform || platform,
-      text: row.full_text || row.text || row.title || row.snippet || "",
-      url: row.url || row.link || row.tweetUrl || null,
-    })),
+    samplePosts: rows.slice(0, 5).map((row) => {
+      const r = row && typeof row === "object" ? /** @type {Record<string, unknown>} */ (row) : {};
+      return {
+        platform: r.platform || platform,
+        text: r.full_text || r.text || r.title || r.snippet || "",
+        url: r.url || r.link || r.tweetUrl || null,
+      };
+    }),
     source: "apify",
     actorId,
+    billed: true,
+    computeUnits: Number.isFinite(computeUnits) ? computeUnits : null,
+    usageTotalUsd: Number.isFinite(usageTotalUsd) ? usageTotalUsd : null,
+    itemCount: mentions,
+    runId,
   };
 }

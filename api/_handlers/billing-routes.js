@@ -241,6 +241,18 @@ export async function handleReferralInvite(req, res) {
       referrerEmail: user.email,
       supabase,
     });
+    const { logApiUsageEvent } = await import("../../server/management/logApiUsage.js");
+    void logApiUsageEvent({
+      userId: user.id,
+      userEmail: user.email,
+      provider: "resend",
+      endpoint: "billing/referral-invite",
+      routeLabel: "Referral invite",
+      billed: true,
+      estimatedCostUsd: 0,
+      itemCount: result.sent ?? 0,
+      meta: { sent: result.sent, failed: result.failed, total: result.total },
+    });
     res.status(200).json(result);
   } catch (err) {
     res.status(500).json({

@@ -5,6 +5,7 @@ import {
   buildSocialHypeAnalystPrompt,
   normalizeSocialHypeLocale,
 } from "./socialHypeAnalystContext.js";
+import { normalizeLlmUsage } from "../management/apiCostPricing.js";
 
 /**
  * @param {unknown} value
@@ -226,18 +227,42 @@ export async function runSocialHypeAnalyst({ brandName, keyword, locale = "en" }
 
   let analystSections = fallbackSections;
   let source = collected.collectorSources.join("+") || "collectors";
+  let llmUsage = null;
+  let llmModel = null;
+  let llmProvider = null;
 
   if (process.env.GROQ_API_KEY) {
     const { system, user } = buildSocialHypeAnalystPrompt(lang, { brandName: brand, hypeDistribution });
     const llm = await completeJson(user, { system });
     analystSections = normalizeAnalystSections(llm?.data, hypeDistribution, lang);
     source = [source, llm?.provider || "groq"].filter(Boolean).join("+");
+    llmUsage = normalizeLlmUsage(llm?.usage);
+    llmModel = llm?.model || null;
+    llmProvider = llm?.provider || null;
   }
+
+  const apify = collected.apifyResult || null;
 
   return {
     hypeDistribution,
     analystSections,
     source,
+    usage: {
+      llmProvider,
+      llmModel,
+      llmUsage,
+      serperUsed: collected.collectorSources.includes("serper"),
+      apify: apify
+        ? {
+          billed: apify.source === "apify" && apify.billed !== false,
+          computeUnits: apify.computeUnits ?? null,
+          usageTotalUsd: apify.usageTotalUsd ?? null,
+          itemCount: apify.itemCount ?? apify.mentions ?? null,
+          actorId: apify.actorId || null,
+          source: apify.source,
+        }
+        : null,
+    },
   };
 }
 

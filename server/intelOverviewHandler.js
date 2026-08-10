@@ -126,7 +126,8 @@ export async function processIntelOverviewRequest(reqLike) {
       provider: "serper",
       endpoint: "intel/overview",
       routeLabel: "Intel Search",
-      meta: { query, modelId: model.id, source: "live" },
+      billed: true,
+      meta: { query, modelId: model.id, source: result.searchSource || "live" },
     },
     {
       userId: user.id,
@@ -136,6 +137,10 @@ export async function processIntelOverviewRequest(reqLike) {
       routeLabel: "Intel Search",
       creditsDebited: model.creditCost,
       tokensDebited: plan === "pro" ? model.tokenCost : 0,
+      inputTokens: result.llmUsage?.inputTokens,
+      outputTokens: result.llmUsage?.outputTokens,
+      model: result.llmModel || model.apiModel,
+      billed: true,
       meta: { query, modelId: model.id, source: "live" },
     },
   ]);

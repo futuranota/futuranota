@@ -26,7 +26,7 @@ const PIE_COLORS = [
 const SECTION_COPY = {
   [MANAGEMENT_SECTIONS.api]: {
     title: "API Integrations",
-    sub: "Status from env + health probe. Edit estimated cost per call for expense tracking. Keys stay in `.env.local` / Vercel — never stored here.",
+    sub: "Active vs pending catalog, meta, dashboard links, free daily limits, cost/unit, and call counts. Keys stay in `.env.local` / Vercel. Run `supabase_management_integrations_v2.sql` + `v3.sql` to persist columns.",
   },
   [MANAGEMENT_SECTIONS.users]: {
     title: "Users",
@@ -64,6 +64,36 @@ function StatusBadge({ ok, configured }) {
     return <span className="mgmt-badge mgmt-badge--ok">OK</span>;
   }
   return <span className="mgmt-badge mgmt-badge--error">Error</span>;
+}
+
+function LifecycleBadge({ status }) {
+  const pending = status === "pending";
+  return (
+    <span className={`mgmt-badge ${pending ? "mgmt-badge--pending" : "mgmt-badge--active"}`}>
+      {pending ? "Pending" : "Active"}
+    </span>
+  );
+}
+
+function FreeLimitCell({ used, limit }) {
+  if (limit == null) {
+    return <span className="muted">—</span>;
+  }
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const over = used >= limit;
+  return (
+    <div className="mgmt-limit-cell">
+      <span className={over ? "mgmt-limit-cell__text is-over" : "mgmt-limit-cell__text"}>
+        {used} / {limit}
+      </span>
+      <div className="mgmt-limit-meter" aria-hidden="true">
+        <div
+          className={`mgmt-limit-meter__fill${over ? " is-over" : ""}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
 function PieBlock({ title, data }) {
@@ -108,7 +138,16 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
   const [includeSeed, setIncludeSeed] = useState(true);
   const [data, setData] = useState(null);
   const [editId, setEditId] = useState(null);
-  const [editForm, setEditForm] = useState({ label: "", notes: "", estimatedCostUsd: "", enabled: true });
+  const [editForm, setEditForm] = useState({
+    label: "",
+    notes: "",
+    estimatedCostUsd: "",
+    enabled: true,
+    lifecycleStatus: "active",
+    dailyFreeLimit: "",
+    metaDescription: "",
+    dashboardUrl: "",
+  });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -140,6 +179,11 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
       notes: integration.notes || "",
       estimatedCostUsd: String(integration.estimatedCostUsd ?? 0),
       enabled: integration.enabled !== false,
+      lifecycleStatus: integration.lifecycleStatus === "pending" ? "pending" : "active",
+      dailyFreeLimit:
+        integration.dailyFreeLimit == null ? "" : String(integration.dailyFreeLimit),
+      metaDescription: integration.metaDescription || "",
+      dashboardUrl: integration.dashboardUrl || "",
     });
   }
 
@@ -149,11 +193,16 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
     setSaving(true);
     setErrorMessage(null);
     try {
+      const limitRaw = editForm.dailyFreeLimit.trim();
       await patchManagementIntegration(editId, {
         label: editForm.label,
         notes: editForm.notes,
         enabled: editForm.enabled,
         estimatedCostUsd: Number(editForm.estimatedCostUsd) || 0,
+        lifecycleStatus: editForm.lifecycleStatus,
+        dailyFreeLimit: limitRaw === "" ? null : Number(limitRaw),
+        metaDescription: editForm.metaDescription,
+        dashboardUrl: editForm.dashboardUrl,
       });
       setEditId(null);
       await load();
@@ -220,7 +269,8 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                 <li>Reinicia <code>npm run dev</code> y pulsa Refresh</li>
               </ol>
               <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
-                Alternativa sin service role: ejecuta <code>supabase_management.sql</code> y en SQL Editor:
+                Alternativa sin service role: ejecuta <code>supabase_management.sql</code> +{" "}
+                <code>supabase_management_integrations_v2.sql</code> y en SQL Editor:
                 <code> INSERT INTO admin_allowlist (email) VALUES (&apos;tu-email-admin&apos;);</code>
               </p>
             </div>
@@ -262,32 +312,117 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
 
           <section className="admin-card">
             <h2 className="mgmt-section-title">Integrations</h2>
-            <div className="mgmt-grid">
-              {(data?.integrations || []).map((integration) => (
-                <article key={integration.id} className="mgmt-api-card">
-                  <div className="mgmt-api-card__head">
-                    <strong>{integration.label}</strong>
-                    <StatusBadge ok={integration.ok} configured={integration.configured} />
-                  </div>
-                  <p className="muted mgmt-api-card__env">
-                    {integration.envVar || "—"}
-                    {integration.configured ? " · set" : " · missing"}
-                  </p>
-                  <p className="mgmt-api-card__msg">{integration.statusMessage}</p>
-                  <p className="muted" style={{ fontSize: 11 }}>
-                    Est. {formatUsd(integration.estimatedCostUsd)} / call
-                    {integration.latencyMs != null ? ` · ${integration.latencyMs}ms` : ""}
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-ghost"
-                    style={{ marginTop: 10 }}
-                    onClick={() => startEdit(integration)}
-                  >
-                    Edit metadata
-                  </button>
-                </article>
-              ))}
+            <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+              Active first, then pending. Call counts come from logged events (Intel / Campaign Study today —
+              other routes land in a later logging pass).{" "}
+              <a
+                className="mgmt-download-link"
+                href="/management-api-integrations.sheets.csv"
+                download="management-api-integrations.sheets.csv"
+              >
+                Download CSV for Google Sheets
+              </a>
+            </p>
+            <div className="mgmt-table-wrap">
+              <table className="mgmt-table mgmt-table--integrations">
+                <thead>
+                  <tr>
+                    <th>API</th>
+                    <th>Meta</th>
+                    <th>Status</th>
+                    <th>Env / probe</th>
+                    <th>Free / day</th>
+                    <th>Used today</th>
+                    <th>Cost / unit</th>
+                    <th>Calls today</th>
+                    <th>Total calls</th>
+                    <th>Est. $ today</th>
+                    <th>Dashboard</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data?.integrations || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="muted">
+                        No integrations — run supabase_management.sql (+ v2/v3) or Refresh.
+                      </td>
+                    </tr>
+                  ) : (
+                    (data?.integrations || []).map((integration) => (
+                      <tr
+                        key={integration.id}
+                        className={
+                          integration.lifecycleStatus === "pending"
+                            ? "mgmt-row--pending"
+                            : undefined
+                        }
+                      >
+                        <td>
+                          <strong>{integration.label}</strong>
+                          <div className="muted" style={{ fontSize: 11 }}>
+                            {integration.id}
+                          </div>
+                        </td>
+                        <td className="mgmt-meta-cell" title={integration.metaDescription || ""}>
+                          {integration.metaDescription || (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td>
+                          <LifecycleBadge status={integration.lifecycleStatus} />
+                        </td>
+                        <td>
+                          <StatusBadge ok={integration.ok} configured={integration.configured} />
+                          <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                            {integration.envVar || "—"}
+                          </div>
+                        </td>
+                        <td className="muted">
+                          {integration.dailyFreeLimit == null
+                            ? "—"
+                            : integration.dailyFreeLimit}
+                        </td>
+                        <td>
+                          <FreeLimitCell
+                            used={integration.callsToday || 0}
+                            limit={integration.dailyFreeLimit}
+                          />
+                        </td>
+                        <td>{formatUsd(integration.estimatedCostUsd)}</td>
+                        <td>{integration.callsToday ?? 0}</td>
+                        <td>{integration.callsTotal ?? 0}</td>
+                        <td className="muted">
+                          {formatUsd(integration.estimatedCostTodayUsd ?? 0)}
+                        </td>
+                        <td>
+                          {integration.dashboardUrl ? (
+                            <a
+                              className="mgmt-dash-link"
+                              href={integration.dashboardUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Open
+                            </a>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => startEdit(integration)}
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </section>
 
@@ -304,6 +439,19 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                   />
                 </label>
                 <label className="admin-field">
+                  Lifecycle
+                  <select
+                    className="auth-split-input"
+                    value={editForm.lifecycleStatus}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, lifecycleStatus: e.target.value }))
+                    }
+                  >
+                    <option value="active">Active</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </label>
+                <label className="admin-field">
                   Est. cost USD / call
                   <input
                     className="auth-split-input"
@@ -311,7 +459,47 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                     step="0.0001"
                     min="0"
                     value={editForm.estimatedCostUsd}
-                    onChange={(e) => setEditForm((f) => ({ ...f, estimatedCostUsd: e.target.value }))}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, estimatedCostUsd: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="admin-field">
+                  Free limit / day
+                  <input
+                    className="auth-split-input"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="Empty = none"
+                    value={editForm.dailyFreeLimit}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, dailyFreeLimit: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
+                  Meta description
+                  <textarea
+                    className="auth-split-input"
+                    rows={2}
+                    value={editForm.metaDescription}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, metaDescription: e.target.value }))
+                    }
+                    placeholder="Qué hace esta API en Futura Nota…"
+                  />
+                </label>
+                <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
+                  Dashboard URL (acceso rápido)
+                  <input
+                    className="auth-split-input"
+                    type="url"
+                    value={editForm.dashboardUrl}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, dashboardUrl: e.target.value }))
+                    }
+                    placeholder="https://…"
                   />
                 </label>
                 <label className="admin-field" style={{ gridColumn: "1 / -1" }}>
@@ -335,7 +523,11 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                   <button type="submit" className="btn btn-sm btn-primary" disabled={saving}>
                     {saving ? "Saving…" : "Save"}
                   </button>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditId(null)}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    onClick={() => setEditId(null)}
+                  >
                     Cancel
                   </button>
                 </div>
@@ -406,48 +598,66 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
         <section className="admin-card">
           <div className="mgmt-table-wrap">
             <table className="mgmt-table">
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>User</th>
-                  <th>Provider</th>
-                  <th>Endpoint</th>
-                  <th>Credits</th>
-                  <th>Tokens</th>
-                  <th>Est.</th>
-                  <th>Status</th>
-                  <th>Preview</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data?.recentEvents || []).length === 0 ? (
+                <thead>
                   <tr>
-                    <td colSpan={9} className="muted">
-                      No calls yet. Run an Intel search from /app or `npm run seed:management`.
-                    </td>
+                    <th>When</th>
+                    <th>User</th>
+                    <th>Provider</th>
+                    <th>Endpoint</th>
+                    <th>Credits</th>
+                    <th>Plan tok</th>
+                    <th>In/Out</th>
+                    <th>Est. $</th>
+                    <th>Status</th>
+                    <th>Preview</th>
                   </tr>
-                ) : (
-                  data.recentEvents.map((ev) => (
-                    <tr key={ev.id}>
-                      <td className="muted">{formatDate(ev.createdAt)}</td>
-                      <td>{ev.userEmail || "—"}</td>
-                      <td>{ev.provider}</td>
-                      <td>{ev.endpoint}</td>
-                      <td>{ev.creditsDebited || "—"}</td>
-                      <td>{ev.tokensDebited || "—"}</td>
-                      <td className="muted">{formatUsd(ev.estimatedCostUsd)}</td>
-                      <td>
-                        <span
-                          className={`mgmt-badge mgmt-badge--${ev.status === "success" ? "ok" : "error"}`}
-                        >
-                          {ev.status}
-                        </span>
+                </thead>
+                <tbody>
+                  {(data?.recentEvents || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="muted">
+                        No calls yet. Run an Intel search from /app or `npm run seed:management`.
                       </td>
-                      <td className="muted mgmt-preview">{ev.queryPreview || "—"}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
+                  ) : (
+                    data.recentEvents.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="muted">{formatDate(ev.createdAt)}</td>
+                        <td>{ev.userEmail || "—"}</td>
+                        <td>
+                          {ev.provider}
+                          {ev.billed === false ? (
+                            <span className="mgmt-badge mgmt-badge--pending" style={{ marginLeft: 6 }}>
+                              mock
+                            </span>
+                          ) : null}
+                        </td>
+                        <td>
+                          {ev.endpoint}
+                          {ev.model ? (
+                            <div className="muted" style={{ fontSize: 10 }}>{ev.model}</div>
+                          ) : null}
+                        </td>
+                        <td>{ev.creditsDebited || "—"}</td>
+                        <td>{ev.tokensDebited || "—"}</td>
+                        <td className="muted">
+                          {(ev.inputTokens || ev.outputTokens)
+                            ? `${ev.inputTokens || 0}/${ev.outputTokens || 0}`
+                            : (ev.computeUnits != null ? `${ev.computeUnits} CU` : "—")}
+                        </td>
+                        <td className="muted">{formatUsd(ev.estimatedCostUsd)}</td>
+                        <td>
+                          <span
+                            className={`mgmt-badge mgmt-badge--${ev.status === "success" ? "ok" : "error"}`}
+                          >
+                            {ev.status}
+                          </span>
+                        </td>
+                        <td className="muted mgmt-preview">{ev.queryPreview || "—"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
             </table>
           </div>
         </section>

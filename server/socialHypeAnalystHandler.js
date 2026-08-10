@@ -1,4 +1,6 @@
 import { runSocialHypeAnalyst, socialHypeKeysConfigured } from "./agents/socialHypeAnalyst.js";
+import { logApiUsageEvents } from "./management/logApiUsage.js";
+import { getAuthedUser } from "./supabaseServer.js";
 
 /**
  * @param {import('http').IncomingMessage} req
@@ -26,6 +28,108 @@ function sendJson(res, status, body) {
 }
 
 /**
+ * @param {object} result
+ * @param {{ userId?: string, userEmail?: string, brandName: string, keyword: string }} ctx
+ */
+function buildSocialHypeUsageEvents(result, ctx) {
+  /** @type {import("./management/logApiUsage.js").ApiUsageEventInput[]} */
+  const events = [];
+  const usage = result.usage || {};
+  if (usage.serperUsed) {
+    events.push({
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      provider: "serper",
+      endpoint: "agents/social-hype-analyst",
+      routeLabel: "Market Hype",
+      billed: true,
+      meta: { brandName: ctx.brandName, keyword: ctx.keyword },
+    });
+  }
+  if (usage.apify?.billed) {
+    events.push({
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      provider: "apify",
+      endpoint: usage.apify.actorId || "agents/social-hype-analyst",
+      routeLabel: "Market Hype",
+      billed: true,
+      computeUnits: usage.apify.computeUnits,
+      usageTotalUsd: usage.apify.usageTotalUsd,
+      itemCount: usage.apify.itemCount,
+      meta: { brandName: ctx.brandName, actorId: usage.apify.actorId },
+    });
+  }
+  if (usage.llmProvider === "groq" && usage.llmUsage) {
+    events.push({
+      userId: ctx.userId,
+      userEmail: ctx.userEmail,
+      provider: "groq",
+      endpoint: "agents/social-hype-analyst",
+      routeLabel: "Market Hype",
+      inputTokens: usage.llmUsage.inputTokens,
+      outputTokens: usage.llmUsage.outputTokens,
+      model: usage.llmModel || undefined,
+      billed: true,
+      meta: { brandName: ctx.brandName },
+    });
+  }
+  return events;
+}
+
+/**
+ * Shared core for Vite middleware + Vercel handlers.
+ * @param {{ headers?: Record<string, string|string[]|undefined>, body?: unknown }} reqLike
+ * @returns {Promise<{ status: number, body: object }>}
+ */
+export async function processSocialHypeAnalystRequest(reqLike) {
+  const body = reqLike.body && typeof reqLike.body === "object" ? reqLike.body : {};
+  const locale = body.locale === "es" ? "es" : "en";
+  const brandName = typeof body.brandName === "string" ? body.brandName.trim() : "";
+  const keyword = typeof body.keyword === "string" ? body.keyword.trim() : "";
+
+  if (!brandName) {
+    return { status: 400, body: { error: "brandName is required" } };
+  }
+
+  if (!socialHypeKeysConfigured()) {
+    return {
+      status: 503,
+      body: {
+        error: "Social hype scan unavailable — configure SERPAPI_KEY, APIFY_API_TOKEN, or GROQ_API_KEY",
+      },
+    };
+  }
+
+  const result = await runSocialHypeAnalyst({
+    locale,
+    brandName,
+    keyword: keyword || brandName,
+  });
+
+  let userId;
+  let userEmail;
+  try {
+    const { user } = await getAuthedUser({ headers: reqLike.headers || {} });
+    userId = user?.id;
+    userEmail = user?.email;
+  } catch {
+    /* optional auth for cost logs */
+  }
+
+  const events = buildSocialHypeUsageEvents(result, {
+    userId,
+    userEmail,
+    brandName,
+    keyword: keyword || brandName,
+  });
+  if (events.length) void logApiUsageEvents(events);
+
+  const { usage: _usage, ...publicResult } = result;
+  return { status: 200, body: publicResult };
+}
+
+/**
  * @param {import('http').IncomingMessage} req
  * @param {import('http').ServerResponse} res
  */
@@ -34,7 +138,7 @@ async function processSocialHypeRequest(req, res) {
     res.statusCode = 204;
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.end();
     return;
   }
@@ -46,29 +150,11 @@ async function processSocialHypeRequest(req, res) {
 
   try {
     const body = await readJsonBody(req);
-    const locale = body.locale === "es" ? "es" : "en";
-    const brandName = typeof body.brandName === "string" ? body.brandName.trim() : "";
-    const keyword = typeof body.keyword === "string" ? body.keyword.trim() : "";
-
-    if (!brandName) {
-      sendJson(res, 400, { error: "brandName is required" });
-      return;
-    }
-
-    if (!socialHypeKeysConfigured()) {
-      sendJson(res, 503, {
-        error: "Social hype scan unavailable — configure SERPAPI_KEY, APIFY_API_TOKEN, or GROQ_API_KEY",
-      });
-      return;
-    }
-
-    const result = await runSocialHypeAnalyst({
-      locale,
-      brandName,
-      keyword: keyword || brandName,
+    const result = await processSocialHypeAnalystRequest({
+      headers: req.headers,
+      body,
     });
-
-    sendJson(res, 200, result);
+    sendJson(res, result.status, result.body);
   } catch (err) {
     sendJson(res, 500, {
       error: err instanceof Error ? err.message : "Social hype analyst failed",

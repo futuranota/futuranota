@@ -89,6 +89,10 @@ async function loadUsageStats(service, opts = {}) {
   let estimatedCostTotal = 0;
   const byProvider = {};
   const byEndpoint = {};
+  /** @type {Record<string, number>} */
+  const callsTodayByProvider = {};
+  /** @type {Record<string, number>} */
+  const callsTotalByProvider = {};
 
   for (const ev of filtered) {
     const created = new Date(ev.created_at);
@@ -101,6 +105,10 @@ async function loadUsageStats(service, opts = {}) {
     const endpoint = ev.endpoint || "unknown";
     byProvider[provider] = (byProvider[provider] || 0) + 1;
     byEndpoint[endpoint] = (byEndpoint[endpoint] || 0) + 1;
+    callsTotalByProvider[provider] = (callsTotalByProvider[provider] || 0) + 1;
+    if (created >= dayStart) {
+      callsTodayByProvider[provider] = (callsTodayByProvider[provider] || 0) + 1;
+    }
   }
 
   const toPie = (map) => Object.entries(map)
@@ -111,6 +119,8 @@ async function loadUsageStats(service, opts = {}) {
     totals: { today, month, allTime, estimatedCostUsd: estimatedCostTotal },
     byProvider: toPie(byProvider),
     byEndpoint: toPie(byEndpoint),
+    callsTodayByProvider,
+    callsTotalByProvider,
   };
 }
 
@@ -146,6 +156,11 @@ async function loadRecentEvents(service, opts = {}) {
       errorCode: row.error_code,
       meta: row.meta,
       createdAt: row.created_at,
+      inputTokens: row.input_tokens ?? row.meta?.inputTokens ?? 0,
+      outputTokens: row.output_tokens ?? row.meta?.outputTokens ?? 0,
+      model: row.model || row.meta?.model || null,
+      computeUnits: row.compute_units ?? row.meta?.computeUnits ?? null,
+      billed: row.billed !== false && row.meta?.billed !== false,
       queryPreview: typeof row.meta?.query === "string"
         ? row.meta.query.slice(0, 80)
         : typeof row.meta?.brandName === "string"
@@ -408,7 +423,13 @@ export async function processManagementOverviewRequest(reqLike) {
   const serviceConfigured = Boolean(service);
 
   let integrations = [];
-  let stats = { totals: { today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 }, byProvider: [], byEndpoint: [] };
+  let stats = {
+    totals: { today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 },
+    byProvider: [],
+    byEndpoint: [],
+    callsTodayByProvider: {},
+    callsTotalByProvider: {},
+  };
   let recentEvents = [];
   let users = [];
   let usersSource = "none";
@@ -466,23 +487,49 @@ export async function processManagementOverviewRequest(reqLike) {
   }
 
   const probe = await runAllIntegrationProbes({ live: false });
+  const callsTodayByProvider = stats.callsTodayByProvider || {};
+  const callsTotalByProvider = stats.callsTotalByProvider || {};
 
-  const integrationCards = (integrations.length ? integrations : getDefaultIntegrations()).map((row) => {
+  const integrationCards = mergeIntegrationRows(integrations).map((row) => {
     const probeKey = row.provider === "serper" ? "serper" : row.id;
-    const step = probe.steps?.[probeKey] || probe.steps?.[row.id];
+    const step = probe.steps?.[probeKey] || probe.steps?.[row.id] || probe.steps?.[row.provider];
+    const callKey = row.provider || row.id;
+    const callsToday = callsTodayByProvider[callKey]
+      ?? callsTodayByProvider[row.id]
+      ?? 0;
+    const callsTotal = callsTotalByProvider[callKey]
+      ?? callsTotalByProvider[row.id]
+      ?? 0;
+    const dailyFreeLimit = row.daily_free_limit != null && row.daily_free_limit !== ""
+      ? Number(row.daily_free_limit)
+      : null;
+    const lifecycleStatus = row.lifecycle_status === "pending" ? "pending" : "active";
+    const estimatedCostUsd = Number(row.estimated_cost_usd ?? 0);
     return {
       id: row.id,
       label: row.label,
       envVar: row.env_var,
       provider: row.provider,
-      estimatedCostUsd: Number(row.estimated_cost_usd ?? 0),
+      estimatedCostUsd,
       enabled: row.enabled !== false,
       notes: row.notes || "",
+      metaDescription: row.meta_description || "",
+      dashboardUrl: row.dashboard_url || "",
+      lifecycleStatus,
+      dailyFreeLimit: Number.isFinite(dailyFreeLimit) ? dailyFreeLimit : null,
+      callsToday,
+      callsTotal,
+      estimatedCostTodayUsd: callsToday * estimatedCostUsd,
       configured: step?.configured ?? false,
       ok: step?.ok ?? false,
       statusMessage: step?.message || (row.env_var ? `${row.env_var} unknown` : ""),
       latencyMs: step?.latencyMs,
     };
+  }).sort((a, b) => {
+    if (a.lifecycleStatus !== b.lifecycleStatus) {
+      return a.lifecycleStatus === "active" ? -1 : 1;
+    }
+    return String(a.label).localeCompare(String(b.label));
   });
 
   return {
@@ -501,15 +548,196 @@ export async function processManagementOverviewRequest(reqLike) {
   };
 }
 
+/**
+ * @param {Array<Record<string, unknown>>} rows
+ */
+function mergeIntegrationRows(rows) {
+  const defaults = getDefaultIntegrations();
+  /** @type {Map<string, Record<string, unknown>>} */
+  const byId = new Map(defaults.map((d) => [d.id, { ...d }]));
+  for (const row of rows || []) {
+    if (!row?.id) continue;
+    const prev = byId.get(row.id) || {};
+    byId.set(row.id, {
+      ...prev,
+      ...row,
+      meta_description: row.meta_description || prev.meta_description || "",
+      dashboard_url: row.dashboard_url || prev.dashboard_url || "",
+    });
+  }
+  return [...byId.values()];
+}
+
 function getDefaultIntegrations() {
   return [
-    { id: "groq", label: "Groq LLM", env_var: "GROQ_API_KEY", provider: "groq", estimated_cost_usd: 0.002, enabled: true, notes: "" },
-    { id: "gemini", label: "Google Gemini", env_var: "GEMINI_API_KEY", provider: "gemini", estimated_cost_usd: 0.001, enabled: true, notes: "" },
-    { id: "serper", label: "Serper Search", env_var: "SERPAPI_KEY", provider: "serper", estimated_cost_usd: 0.001, enabled: true, notes: "" },
-    { id: "dataforseo", label: "DataForSEO", env_var: "DATAFORSEO_LOGIN", provider: "dataforseo", estimated_cost_usd: 0.003, enabled: true, notes: "" },
-    { id: "apify", label: "Apify", env_var: "APIFY_API_TOKEN", provider: "apify", estimated_cost_usd: 0.005, enabled: true, notes: "" },
-    { id: "openweather", label: "OpenWeather", env_var: "OPENWEATHER_API_KEY", provider: "openweather", estimated_cost_usd: 0.0001, enabled: true, notes: "" },
-    { id: "supabase", label: "Supabase", env_var: "SUPABASE_PROJECT_URL", provider: "supabase", estimated_cost_usd: 0, enabled: true, notes: "" },
+    {
+      id: "groq",
+      label: "Groq LLM",
+      env_var: "GROQ_API_KEY",
+      provider: "groq",
+      estimated_cost_usd: 0.002,
+      enabled: true,
+      notes: "Intel, Gina, launch radar, campaign study, agents",
+      daily_free_limit: null,
+      lifecycle_status: "active",
+      meta_description:
+        "LLM principal de Futura Nota: Intel Search, Gina, Launch Radar, Campaign Study y agents. Inferencia rápida vía Groq Cloud.",
+      dashboard_url: "https://console.groq.com",
+    },
+    {
+      id: "gemini",
+      label: "Google Gemini",
+      env_var: "GEMINI_API_KEY",
+      provider: "gemini",
+      estimated_cost_usd: 0.001,
+      enabled: true,
+      notes: "Optional LLM fallback — not in daily use",
+      daily_free_limit: null,
+      lifecycle_status: "pending",
+      meta_description:
+        "Fallback LLM opcional (Google AI). Pendiente — no es el path diario; se usa si Groq falla y hay key.",
+      dashboard_url: "https://aistudio.google.com/apikey",
+    },
+    {
+      id: "serper",
+      label: "Serper Search",
+      env_var: "SERPAPI_KEY",
+      provider: "serper",
+      estimated_cost_usd: 0.001,
+      enabled: true,
+      notes: "Intel overview, horizon scan, social hype",
+      daily_free_limit: null,
+      lifecycle_status: "active",
+      meta_description:
+        "Búsqueda web en vivo (Google vía Serper): Intel overview, Horizon Scan y señales de Market/Social Hype.",
+      dashboard_url: "https://serper.dev/dashboard",
+    },
+    {
+      id: "dataforseo",
+      label: "DataForSEO",
+      env_var: "DATAFORSEO_LOGIN",
+      provider: "dataforseo",
+      estimated_cost_usd: 0.003,
+      enabled: true,
+      notes: "Campaign study PAA + intent, social hype",
+      daily_free_limit: null,
+      lifecycle_status: "active",
+      meta_description:
+        "SEO / SERP enrichment: People Also Ask e intent en Campaign Study; señales extra en social hype.",
+      dashboard_url: "https://app.dataforseo.com",
+    },
+    {
+      id: "apify",
+      label: "Apify",
+      env_var: "APIFY_API_TOKEN",
+      provider: "apify",
+      estimated_cost_usd: 0.005,
+      enabled: true,
+      notes: "Campaign study social hype",
+      daily_free_limit: null,
+      lifecycle_status: "active",
+      meta_description:
+        "Monitoreo de tendencias en redes sociales: actores/scrapers listos para Twitter, TikTok y Reddit vía API (Market Hype / Campaign Study).",
+      dashboard_url: "https://console.apify.com",
+    },
+    {
+      id: "openweather",
+      label: "OpenWeather",
+      env_var: "OPENWEATHER_API_KEY",
+      provider: "openweather",
+      estimated_cost_usd: 0.0001,
+      enabled: true,
+      notes: "Weather forecast nodes",
+      daily_free_limit: 1000,
+      lifecycle_status: "active",
+      meta_description:
+        "Forecast del clima para nodos y widgets de predicción (ventana de días desde OpenWeather).",
+      dashboard_url: "https://home.openweathermap.org/api_keys",
+    },
+    {
+      id: "supabase",
+      label: "Supabase",
+      env_var: "SUPABASE_PROJECT_URL",
+      provider: "supabase",
+      estimated_cost_usd: 0,
+      enabled: true,
+      notes: "Profiles, cache, persistence — fixed plan via ledger",
+      daily_free_limit: null,
+      lifecycle_status: "active",
+      meta_description:
+        "Base de datos, auth y sync del workspace. Gasto fijo de plan (egress) — no se cobra por call en esta tabla.",
+      dashboard_url: "https://supabase.com/dashboard",
+    },
+    {
+      id: "calendarific",
+      label: "Calendarific",
+      env_var: "CALENDARIFIC_API_KEY",
+      provider: "calendarific",
+      estimated_cost_usd: 0.0001,
+      enabled: true,
+      notes: "Event calendar holidays",
+      daily_free_limit: 100,
+      lifecycle_status: "active",
+      meta_description:
+        "Feriados y observances por país en el calendario de eventos de marketing (/api/events).",
+      dashboard_url: "https://calendarific.com/account",
+    },
+    {
+      id: "resend",
+      label: "Resend",
+      env_var: "RESEND_API_KEY",
+      provider: "resend",
+      estimated_cost_usd: 0,
+      enabled: true,
+      notes: "Referral invite emails (free tier)",
+      daily_free_limit: 100,
+      lifecycle_status: "active",
+      meta_description:
+        "Email transaccional: invitaciones de referral. Plan free — llevar conteo de envíos.",
+      dashboard_url: "https://resend.com/emails",
+    },
+    {
+      id: "predicthq",
+      label: "PredictHQ",
+      env_var: "PREDICTHQ_API_KEY",
+      provider: "predicthq",
+      estimated_cost_usd: 0.002,
+      enabled: true,
+      notes: "Events — code present, not in merge path",
+      daily_free_limit: null,
+      lifecycle_status: "pending",
+      meta_description:
+        "Eventos públicos (conciertos, deportes, etc.). Código presente; hoy no está en el merge del calendario.",
+      dashboard_url: "https://control.predicthq.com",
+    },
+    {
+      id: "tavily",
+      label: "Tavily",
+      env_var: "TAVILY_API_KEY",
+      provider: "tavily",
+      estimated_cost_usd: 0.001,
+      enabled: true,
+      notes: "Optional campaign analyst search",
+      daily_free_limit: null,
+      lifecycle_status: "pending",
+      meta_description:
+        "Búsqueda web opcional para Campaign Analyst (Pass 1). Solo si TAVILY_API_KEY está configurada.",
+      dashboard_url: "https://app.tavily.com",
+    },
+    {
+      id: "google_translate",
+      label: "Google Translate",
+      env_var: "GOOGLE_TRANSLATE_API_KEY",
+      provider: "google_translate",
+      estimated_cost_usd: 0.00002,
+      enabled: true,
+      notes: "POST /api/translate",
+      daily_free_limit: null,
+      lifecycle_status: "pending",
+      meta_description:
+        "Traducción de textos vía Cloud Translation API (POST /api/translate).",
+      dashboard_url: "https://console.cloud.google.com/apis/library/translate.googleapis.com",
+    },
   ];
 }
 
@@ -543,11 +771,40 @@ export async function processManagementIntegrationPatch(reqLike) {
   if (body.estimatedCostUsd != null && !Number.isNaN(Number(body.estimatedCostUsd))) {
     patch.estimated_cost_usd = Number(body.estimatedCostUsd);
   }
+  if (body.lifecycleStatus === "active" || body.lifecycleStatus === "pending") {
+    patch.lifecycle_status = body.lifecycleStatus;
+  }
+  if (body.dailyFreeLimit === null || body.dailyFreeLimit === "") {
+    patch.daily_free_limit = null;
+  } else if (body.dailyFreeLimit != null && !Number.isNaN(Number(body.dailyFreeLimit))) {
+    patch.daily_free_limit = Math.max(0, Math.floor(Number(body.dailyFreeLimit)));
+  }
+  if (typeof body.metaDescription === "string") {
+    patch.meta_description = body.metaDescription;
+  }
+  if (typeof body.dashboardUrl === "string") {
+    patch.dashboard_url = body.dashboardUrl.trim();
+  }
+
+  const defaults = getDefaultIntegrations().find((d) => d.id === integrationId);
+  const upsertRow = {
+    id: integrationId,
+    label: defaults?.label || integrationId,
+    env_var: defaults?.env_var || null,
+    provider: defaults?.provider || integrationId,
+    estimated_cost_usd: defaults?.estimated_cost_usd ?? 0,
+    enabled: defaults?.enabled !== false,
+    notes: defaults?.notes || "",
+    daily_free_limit: defaults?.daily_free_limit ?? null,
+    lifecycle_status: defaults?.lifecycle_status || "active",
+    meta_description: defaults?.meta_description || "",
+    dashboard_url: defaults?.dashboard_url || "",
+    ...patch,
+  };
 
   const { data, error } = await service
     .from("api_integrations")
-    .update(patch)
-    .eq("id", integrationId)
+    .upsert(upsertRow, { onConflict: "id" })
     .select("*")
     .single();
 

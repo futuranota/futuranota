@@ -145,6 +145,18 @@ export function createBillingMiddleware() {
           referrerEmail: user.email,
           supabase,
         });
+        const { logApiUsageEvent } = await import("./management/logApiUsage.js");
+        void logApiUsageEvent({
+          userId: user.id,
+          userEmail: user.email,
+          provider: "resend",
+          endpoint: "billing/referral-invite",
+          routeLabel: "Referral invite",
+          billed: true,
+          estimatedCostUsd: 0,
+          itemCount: result.sent ?? 0,
+          meta: { sent: result.sent, failed: result.failed, total: result.total },
+        });
         sendJson(res, 200, result);
         return;
       }

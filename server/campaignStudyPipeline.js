@@ -1,6 +1,8 @@
 import { isDataForSeoConfigured } from "./discovery/dataForSeoAuth.js";
 import { fetchDataForSeoPaa } from "./discovery/dataForSeoPaa.js";
 import { fetchApifySocialHype } from "./discovery/apifySocialHype.js";
+import { completeJson } from "./llmJson.js";
+import { normalizeLlmUsage } from "./management/apiCostPricing.js";
 
 const SYSTEM_PROMPT = `You respond only with valid JSON. No markdown.
 Schema:
@@ -56,6 +58,7 @@ export async function runCampaignStudyPipeline(brandName, keyword) {
 
   const llm = await completeJson(prompt, { system: SYSTEM_PROMPT });
   const data = llm?.data || {};
+  const llmUsage = normalizeLlmUsage(llm?.usage);
 
   const status = ["ACTIVA", "INACTIVA", "EMERGENTE"].includes(data.status)
     ? data.status
@@ -74,6 +77,15 @@ export async function runCampaignStudyPipeline(brandName, keyword) {
     socialHype: hypeResult,
     searchIntent: paaResult.searchIntent,
     source: [paaResult.source, hypeResult.source, llm?.provider || "groq"].filter(Boolean).join("+"),
+    llmProvider: llm?.provider || null,
+    llmModel: llm?.model || null,
+    llmUsage,
+    apifyBilled: hypeResult.source === "apify" && hypeResult.billed !== false,
+    apifyComputeUnits: hypeResult.computeUnits ?? null,
+    apifyUsageTotalUsd: hypeResult.usageTotalUsd ?? null,
+    apifyItemCount: hypeResult.itemCount ?? hypeResult.mentions ?? null,
+    apifyActorId: hypeResult.actorId || null,
+    dataForSeoSource: paaResult.source || null,
   };
 }
 

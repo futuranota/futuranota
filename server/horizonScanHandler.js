@@ -10,6 +10,8 @@ import {
   filterVerifiedHorizonResults,
 } from "./campaignIntelSchema.js";
 import { partitionHorizonCompanies } from "./brandCampaignIntel.js";
+import { logApiUsageEvents } from "./management/logApiUsage.js";
+import { normalizeLlmUsage } from "./management/apiCostPricing.js";
 
 const MAX_RANGE_DAYS = 365;
 const MAX_RESULTS = 8;
@@ -130,6 +132,33 @@ export async function scanHorizonVerified(rangeDays, industry, clientSources) {
 
   const source = `${sourceLabel}+${llm.provider}`;
   const discardedCompanies = discarded.map((hit) => ({ ...hit, source }));
+
+  /** @type {import("./management/logApiUsage.js").ApiUsageEventInput[]} */
+  const usageEvents = [];
+  if (sourceLabel?.includes("serper")) {
+    usageEvents.push({
+      provider: "serper",
+      endpoint: "analytics/horizon-scan",
+      routeLabel: "Horizon Scan",
+      billed: true,
+      meta: { rangeDays, industry: industry || null, source: sourceLabel },
+    });
+  }
+  const llmUsage = normalizeLlmUsage(llm.usage);
+  if (llm.provider === "groq" || llmUsage) {
+    usageEvents.push({
+      provider: llm.provider === "gemini" ? "gemini" : "groq",
+      endpoint: "analytics/horizon-scan",
+      routeLabel: "Horizon Scan",
+      inputTokens: llmUsage?.inputTokens,
+      outputTokens: llmUsage?.outputTokens,
+      model: llm.model || undefined,
+      billed: true,
+      meta: { rangeDays, industry: industry || null },
+    });
+  }
+  if (usageEvents.length) void logApiUsageEvents(usageEvents);
+
   return {
     companies: companies.map((hit) => ({ ...hit, source })),
     discardedCompanies,
