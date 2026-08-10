@@ -1,0 +1,28 @@
+---
+description: Admin /panel sidebar — SidebarNav reference for replacing chip tabs + Management subsections
+globs: src/admin/**
+alwaysApply: false
+---
+
+# Admin sidebar nav reference
+
+When changing `/panel` navigation or Management layout, use the saved Magic component as the **UX reference** (not a drop-in):
+
+- Archive: `.cursor/saved/admin-sidebar-nav/` (`SidebarNav.original.tsx` + `CURSOR_BRIEF.md`)
+- Live nav: `src/admin/AdminSidebarNav.jsx` (hierarchical sidebar)
+- Live shell: `src/admin/AdminPage.jsx`
+
+## Management subsections (live)
+
+Under **Management**:
+
+1. API Integrations
+2. Users
+3. Recent Calls
+4. Storage (empty placeholder)
+
+## Integrate rules
+
+- Port interaction into repo JSX + `admin.css` — do **not** paste lucide/shadcn tokens blindly.
+- Repo does not ship `lucide-react` unless explicitly adopted; prefer inline SVG / existing icons.
+- Do not wire WorkspaceSwitcher / command palette from the mock unless asked.
