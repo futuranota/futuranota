@@ -1,7 +1,9 @@
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { buildTalkRequestPopoverCopy } from "../../lib/gina/ginaTalkRequest.js";
+import { playGinaVoipCallSound } from "../../lib/ginaVoipCallSound.js";
 
-const GINA_AVATAR_SRC = "/uploads/g-assistente-responde.png";
+const GINA_AVATAR_SRC = "/uploads/Assistance-visuals/Gina-Assistance.png";
 
 /**
  * Overlay: Gina is requesting to talk — Accept / Decline.
@@ -18,6 +20,28 @@ export function GinaTalkRequestPopover({
   onAccept,
   onDecline,
 }) {
+  const playedForOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      playedForOpenRef.current = false;
+      return undefined;
+    }
+    const tryPlay = () => {
+      // Browsers often block audio while the tab is hidden — retry on visible.
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (playedForOpenRef.current) return;
+      playedForOpenRef.current = true;
+      void playGinaVoipCallSound();
+    };
+    tryPlay();
+    const onVis = () => {
+      if (!document.hidden) tryPlay();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [open]);
+
   if (!open || typeof document === "undefined") return null;
   const copy = buildTalkRequestPopoverCopy(locale === "en" ? "en" : "es");
 
@@ -35,7 +59,11 @@ export function GinaTalkRequestPopover({
           width={56}
           height={56}
         />
-        <p className="gina-talk-request-popover__title">{copy.title}</p>
+        <p className="gina-talk-request-popover__title">
+          <span className="gina-talk-request-popover__emph">{copy.titleEmph}</span>
+          {" "}
+          <span className="gina-talk-request-popover__muted">{copy.titleMuted}</span>
+        </p>
       </div>
       <div className="gina-talk-request-popover__actions">
         <button

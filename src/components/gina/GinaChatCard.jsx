@@ -125,12 +125,18 @@ function buildAiTurnRevealState({
   const isTodayOverview = Boolean(visualization?.data?.todayOverview);
   const isDayReadySheet = Boolean(visualization?.data?.offerDayReady);
   const isDaySheetSaved = visualization?.type === "day_sheet_saved";
+  const isTalkNotify = Boolean(visualization?.data?.talkRequestNotify);
   const leaveSchedule = voiceSequence === "leave_schedule" && Boolean(after);
   const hasAfterBlock = Boolean(after || afterRest || afterLead || startLines.length);
   const hasLeadText = Boolean(aiText && String(aiText).trim());
   const deferVisualization = Boolean(
     !isDaySheetSaved
-    && (isTodayOverview || isDayReadySheet || visualization?.data?.recoveryWizard)
+    && (
+      isTodayOverview
+      || isDayReadySheet
+      || visualization?.data?.recoveryWizard
+      || isTalkNotify
+    )
     && (hasLeadText || mid || hasAfterBlock || pitch),
   );
   // Side TABLA DE HOY beside the pie (always on for today overview).
@@ -158,12 +164,15 @@ function buildAiTurnRevealState({
     textPitch: pitch || null,
     deferVisualization,
     // Empty pre-sheet message: reveal viz immediately (no typewriter onComplete to unlock it).
-    vizRevealed: !deferVisualization || !hasLeadText,
+    // Talk-notify always waits for intro text before the day sheet.
+    vizRevealed: isTalkNotify
+      ? false
+      : (!deferVisualization || !hasLeadText),
     // Today overview: pause after infographic before sheet intro (textMid).
     midReady: !mid || !isTodayOverview,
     midRevealed: !mid,
-    // Chrono sheet unlocks after intro; if no chrono payload, don't block copy.
-    sheetTableRevealed: !mid || !hasChrono,
+    // Talk-notify / chrono: hold highlights until sheet paints.
+    sheetTableRevealed: isTalkNotify ? false : (!mid || !hasChrono),
     leadRevealed: !afterLead,
     startDocRevealed: !startLines.length,
     afterRevealed: !hasAfterBlock,
@@ -724,11 +733,52 @@ export function GinaChatCard({
   const notifyGateTimerMsgIdRef = useRef(/** @type {string | null} */ (null));
   const midReadyTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const midReadyTimerMsgIdRef = useRef(/** @type {string | null} */ (null));
+  const talkNotifySheetTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  const talkNotifySheetMsgIdRef = useRef(/** @type {string | null} */ (null));
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const deliverUserMessageRef = useRef(/** @type {(text: string, opts?: { existingId?: string }) => Promise<void>} */ (async () => {}));
 
   const makeMsgId = () => `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // Talk-notify: after day sheet paints, unlock startDocLines highlights.
+  useEffect(() => {
+    let targetIndex = -1;
+    let targetId = null;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m?.sender !== "ai") continue;
+      if (!m.visualization?.data?.talkRequestNotify) continue;
+      if (!m.vizRevealed || m.sheetTableRevealed !== false) continue;
+      targetIndex = i;
+      targetId = m.id || `idx-${i}`;
+      break;
+    }
+    if (targetIndex < 0 || !targetId) return;
+    if (talkNotifySheetMsgIdRef.current === targetId) return;
+
+    if (talkNotifySheetTimerRef.current != null) {
+      window.clearTimeout(talkNotifySheetTimerRef.current);
+      talkNotifySheetTimerRef.current = null;
+    }
+    talkNotifySheetMsgIdRef.current = targetId;
+    const scheduledIndex = targetIndex;
+    const scheduledId = targetId;
+    talkNotifySheetTimerRef.current = window.setTimeout(() => {
+      talkNotifySheetTimerRef.current = null;
+      setMessages((prev) => prev.map((m, idx) => (
+        (m.id && m.id === scheduledId) || idx === scheduledIndex
+          ? { ...m, sheetTableRevealed: true }
+          : m
+      )));
+    }, 280);
+    return () => {
+      if (talkNotifySheetTimerRef.current != null) {
+        window.clearTimeout(talkNotifySheetTimerRef.current);
+        talkNotifySheetTimerRef.current = null;
+      }
+    };
+  }, [messages]);
 
   // After todayOverview infographic: wait 5s, then unlock textMid (sheet intro).
   useEffect(() => {
@@ -1160,6 +1210,11 @@ export function GinaChatCard({
       window.clearTimeout(midReadyTimerRef.current);
       midReadyTimerRef.current = null;
       midReadyTimerMsgIdRef.current = null;
+    }
+    if (talkNotifySheetTimerRef.current != null) {
+      window.clearTimeout(talkNotifySheetTimerRef.current);
+      talkNotifySheetTimerRef.current = null;
+      talkNotifySheetMsgIdRef.current = null;
     }
     try { stopGinaTypingSound(); } catch { /* ignore */ }
     setMessages((prev) => {
@@ -1803,6 +1858,7 @@ export function GinaChatCard({
                                     || (Array.isArray(m.startDocLines) && m.startDocLines.length)
                                   );
                                   const recoveryWizard = Boolean(m.visualization?.data?.recoveryWizard);
+                                  const talkNotify = Boolean(m.visualization?.data?.talkRequestNotify);
                                   // Recovery: finish step copy (“El documento…”) before sheet + Easy Links.
                                   if (recoveryWizard && hasAfter && !m.textMid) {
                                     return {
@@ -1813,6 +1869,17 @@ export function GinaChatCard({
                                       afterRevealed: false,
                                       pitchRevealed: !m.textPitch,
                                       recoveryCopyFirst: true,
+                                    };
+                                  }
+                                  // Talk-notify: intro done → show day sheet; highlights wait for sheet paint.
+                                  if (talkNotify) {
+                                    return {
+                                      ...m,
+                                      vizRevealed: true,
+                                      sheetTableRevealed: false,
+                                      startDocRevealed: !m.startDocLines?.length,
+                                      afterRevealed: false,
+                                      pitchRevealed: !m.textPitch,
                                     };
                                   }
                                   return {

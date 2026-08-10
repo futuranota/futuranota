@@ -3,8 +3,14 @@
  *
  * While enabled + webapp open (any tab focus): when a pending doc’s schedule starts,
  * show talk popover. Also catch-up if the user returns within CATCH_UP of the start.
- * Auto-dismiss after 10 minutes with no action.
+ * Auto-dismiss after 10 minutes with no action (paused while the tab is hidden).
+ * Overnight: yesterday’s opt-in stays valid until 06:00 local.
  */
+
+import {
+  ginaDayKey,
+  isAcceptableGinaDayRitualDate,
+} from "./ginaDayRitualDate.js";
 
 export const GINA_TALK_REQUEST_CHANGED = "fn-gina-talk-request-changed";
 export const GINA_TALK_REQUEST_STORAGE_KEY = "fn-gina-talk-request-v2";
@@ -14,12 +20,7 @@ export const GINA_TALK_REQUEST_AUTO_DISMISS_MS = 10 * 60 * 1000;
 export const GINA_TALK_REQUEST_CATCH_UP_MS = 10 * 60 * 1000;
 
 function dayKey(d = new Date()) {
-  const x = d instanceof Date ? d : new Date(d);
-  if (Number.isNaN(x.getTime())) return "";
-  const y = x.getFullYear();
-  const m = String(x.getMonth() + 1).padStart(2, "0");
-  const day = String(x.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return ginaDayKey(d);
 }
 
 function storageKey(userId) {
@@ -56,7 +57,7 @@ export function getTalkRequestState(userId, now = new Date()) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
-    if (parsed.date !== dayKey(now)) return null;
+    if (!isAcceptableGinaDayRitualDate(parsed.date, now)) return null;
     const enabled = Boolean(parsed.enabled);
     return {
       date: parsed.date,
@@ -214,16 +215,28 @@ export function dismissActiveTalkRequest(userId, now = new Date(), opts = {}) {
 
 /**
  * If the armed popover is older than AUTO_DISMISS, clear it (same as Decline).
+ * While the document is hidden, the TTL is paused so background tabs don’t
+ * silently mark docs notified without the user seeing the popover/sound.
  * @param {string} userId
  * @param {Date} [now]
  * @param {number} [ttlMs]
+ * @param {{ pauseWhileHidden?: boolean }} [opts]
  * @returns {object | null} state after possible expiry
  */
 export function expireArmedTalkRequestIfStale(
   userId,
   now = new Date(),
   ttlMs = GINA_TALK_REQUEST_AUTO_DISMISS_MS,
+  opts = {},
 ) {
+  const pauseWhileHidden = opts.pauseWhileHidden !== false;
+  if (
+    pauseWhileHidden
+    && typeof document !== "undefined"
+    && document.hidden
+  ) {
+    return getTalkRequestState(userId, now);
+  }
   const cur = getTalkRequestState(userId, now);
   if (!cur?.enabled || !cur.activeDocId || !cur.armedAt) return cur;
   const armedMs = new Date(cur.armedAt).getTime();

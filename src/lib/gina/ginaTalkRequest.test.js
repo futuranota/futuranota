@@ -238,14 +238,62 @@ describe("ginaTalkRequestStore", () => {
     const almost = new Date(now.getTime() + 9 * 60 * 1000);
     expect(shouldShowTalkRequestPopover(uid, { now: almost })).toBe(true);
   });
+
+  it("catch-up arms a start 2 minutes ago (1:00 → 1:02 missed edge)", () => {
+    const at102 = new Date("2026-08-10T01:02:00");
+    enableTalkNotifications("am-user", at102);
+    // last tick was *after* 1:00 (edge already missed)
+    const lateSince = at102.getTime() - 5_000;
+    evaluateTalkRequestDue("am-user", [{
+      id: "doc-1am",
+      title: "1am block",
+      anchorAt: "2026-08-10T01:00:00",
+      status: "not_started",
+    }], at102, { sinceMs: lateSince });
+    expect(shouldShowTalkRequestPopover("am-user", { now: at102 })).toBe(true);
+    expect(getTalkRequestState("am-user", at102)?.activeDocId).toBe("doc-1am");
+  });
+
+  it("cold evaluate at 1:02 still catch-up arms the 1:00 start", () => {
+    const at102 = new Date("2026-08-10T01:02:00");
+    enableTalkNotifications("am-user-2", at102);
+    evaluateTalkRequestDue("am-user-2", [{
+      id: "doc-1am",
+      title: "1am block",
+      anchorAt: "2026-08-10T01:00:00",
+      status: "not_started",
+    }], at102);
+    expect(shouldShowTalkRequestPopover("am-user-2", { now: at102 })).toBe(true);
+  });
+
+  it("overnight grace: yesterday opt-in still enabled at 1:03am", () => {
+    const evening = new Date("2026-08-09T22:00:00");
+    enableTalkNotifications("overnight-user", evening);
+    const late = new Date("2026-08-10T01:03:00");
+    expect(isTalkNotificationsEnabled("overnight-user", late)).toBe(true);
+    expect(getTalkRequestState("overnight-user", late)?.date).toBe("2026-08-09");
+  });
+
+  it("overnight grace ends at 06:00 — yesterday opt-in no longer loads", () => {
+    const evening = new Date("2026-08-09T22:00:00");
+    enableTalkNotifications("overnight-user-2", evening);
+    const morning = new Date("2026-08-10T06:00:00");
+    expect(isTalkNotificationsEnabled("overnight-user-2", morning)).toBe(false);
+    expect(getTalkRequestState("overnight-user-2", morning)).toBeNull();
+  });
 });
 
 describe("ginaTalkRequest copy + router", () => {
   it("popover copy matches Accept / Decline mock", () => {
     const en = buildTalkRequestPopoverCopy("en");
-    expect(en.title).toMatch(/requesting to talk/i);
+    expect(en.title).toMatch(/next task is ready on the agenda/i);
+    expect(en.titleEmph).toBe("Your");
+    expect(en.titleMuted).toMatch(/next task is ready/i);
     expect(en.accept).toBe("accept");
     expect(en.decline).toBe("Decline");
+    const es = buildTalkRequestPopoverCopy("es");
+    expect(es.titleEmph).toBe("Tu");
+    expect(es.titleMuted).toMatch(/siguiente tarea ya está lista en la agenda/i);
   });
 
   it("offer chips enable / skip notifications", () => {

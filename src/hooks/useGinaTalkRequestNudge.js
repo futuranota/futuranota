@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { hasDaySheet } from "../lib/gina/ginaDaySheetStore.js";
+import {
+  isGinaDayRitualOvernight,
+} from "../lib/gina/ginaDayRitualDate.js";
 import { get_today_scope } from "../lib/gina/ginaTools.js";
 import {
-  clearArmedTalkRequestSoft,
   evaluateTalkRequestDue,
   expireArmedTalkRequestIfStale,
   GINA_TALK_REQUEST_CHANGED,
@@ -11,6 +13,41 @@ import {
 } from "../lib/gina/ginaTalkRequestStore.js";
 
 const TICK_MS = 15_000;
+
+/**
+ * Merge calendar-today docs with yesterday’s when we’re in the overnight window
+ * (late blocks like 11:45 PM → 12:00 AM still notify after midnight).
+ * @param {object} ctx
+ * @param {string} uid
+ * @param {Date} now
+ * @returns {object[]}
+ */
+function collectTalkNotifyDocs(ctx, uid, now) {
+  const today = get_today_scope({
+    ...ctx,
+    now,
+    userId: uid,
+  }, { includeCompleted: true });
+  /** @type {Map<string, object>} */
+  const byId = new Map();
+  for (const d of today.documents || []) {
+    if (d?.id) byId.set(String(d.id), d);
+  }
+  if (isGinaDayRitualOvernight(now)) {
+    const y = new Date(now);
+    y.setDate(y.getDate() - 1);
+    y.setHours(12, 0, 0, 0);
+    const yesterday = get_today_scope({
+      ...ctx,
+      now: y,
+      userId: uid,
+    }, { includeCompleted: true });
+    for (const d of yesterday.documents || []) {
+      if (d?.id && !byId.has(String(d.id))) byId.set(String(d.id), d);
+    }
+  }
+  return [...byId.values()];
+}
 
 /**
  * While day-notifications are enabled and the webapp is open (any tab focus),
@@ -28,24 +65,21 @@ export function useGinaTalkRequestNudge({ userId, buildCtx, chatOpen = false }) 
   const uid = userId || "anon";
   /** Previous tick time — used to detect schedule start edges. */
   const lastTickMsRef = useRef(/** @type {number | null} */ (null));
-  const didSoftClearStaleRef = useRef(false);
+  /** When the tab became hidden — edge window on return covers the whole hide. */
+  const hiddenAtMsRef = useRef(/** @type {number | null} */ (null));
 
   const refresh = useCallback(() => {
     setPopoverOpen(shouldShowTalkRequestPopover(uid, { now: new Date() }));
   }, [uid]);
 
-  const tick = useCallback(() => {
+  const tick = useCallback((opts = {}) => {
     const now = new Date();
     const nowMs = now.getTime();
+    const forceSinceMs = opts.forceSinceMs;
 
-    // One-shot: drop false-positive arms left by older logic, then still evaluate
-    // catch-up so a start that fired while the user was away can show.
-    if (!didSoftClearStaleRef.current) {
-      didSoftClearStaleRef.current = true;
-      try { clearArmedTalkRequestSoft(uid, now); } catch { /* ignore */ }
-    }
-
-    const sinceMs = lastTickMsRef.current != null ? lastTickMsRef.current : null;
+    const sinceMs = forceSinceMs != null && Number.isFinite(forceSinceMs)
+      ? Number(forceSinceMs)
+      : (lastTickMsRef.current != null ? lastTickMsRef.current : null);
     lastTickMsRef.current = nowMs;
 
     expireArmedTalkRequestIfStale(uid, now);
@@ -60,12 +94,8 @@ export function useGinaTalkRequestNudge({ userId, buildCtx, chatOpen = false }) 
     }
     try {
       const ctx = typeof buildCtx === "function" ? buildCtx() : {};
-      const today = get_today_scope({
-        ...ctx,
-        now,
-        userId: uid,
-      }, { includeCompleted: true });
-      evaluateTalkRequestDue(uid, today.documents || [], now, { sinceMs });
+      const docs = collectTalkNotifyDocs(ctx, uid, now);
+      evaluateTalkRequestDue(uid, docs, now, { sinceMs });
     } catch {
       /* ignore */
     }
@@ -83,7 +113,18 @@ export function useGinaTalkRequestNudge({ userId, buildCtx, chatOpen = false }) 
     tick();
     const id = window.setInterval(tick, TICK_MS);
     const onVis = () => {
-      tick();
+      if (typeof document === "undefined") return;
+      if (document.hidden) {
+        hiddenAtMsRef.current = Date.now();
+        return;
+      }
+      // Returning: treat the whole hidden span as the edge window so a start
+      // that fired while away still arms (and sound can play while visible).
+      const since = hiddenAtMsRef.current != null
+        ? hiddenAtMsRef.current
+        : lastTickMsRef.current;
+      hiddenAtMsRef.current = null;
+      tick({ forceSinceMs: since });
     };
     document.addEventListener("visibilitychange", onVis);
     return () => {

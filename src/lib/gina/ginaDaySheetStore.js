@@ -1,18 +1,19 @@
 /**
  * Day reference sheet — localStorage (1 anchored doc list per calendar day).
  * Status is always rehydrated live from nodes; store only keeps ordered doc ids.
+ * Overnight: yesterday’s sheet stays valid until 06:00 local.
  */
+
+import {
+  ginaDayKey,
+  isAcceptableGinaDayRitualDate,
+} from "./ginaDayRitualDate.js";
 
 export const GINA_DAY_SHEET_CHANGED = "fn-gina-day-sheet-changed";
 export const GINA_DAY_SHEET_STORAGE_KEY = "fn-gina-day-sheet-v1";
 
 function dayKey(d = new Date()) {
-  const x = d instanceof Date ? d : new Date(d);
-  if (Number.isNaN(x.getTime())) return "";
-  const y = x.getFullYear();
-  const m = String(x.getMonth() + 1).padStart(2, "0");
-  const day = String(x.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return ginaDayKey(d);
 }
 
 function storageKey(userId) {
@@ -57,7 +58,7 @@ export function getDaySheet(userId, now = new Date()) {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
-    if (parsed.date !== dayKey(now)) return null;
+    if (!isAcceptableGinaDayRitualDate(parsed.date, now)) return null;
     const docIds = Array.isArray(parsed.docIds)
       ? parsed.docIds.map((id) => String(id || "").trim()).filter(Boolean)
       : [];

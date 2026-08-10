@@ -435,6 +435,7 @@ export function NodeQueryModal({
             ...(daySheetViz.data || {}),
             compact: true,
             locale: localeKey,
+            talkRequestNotify: true,
           },
         }
         : null;

@@ -38,8 +38,12 @@ export function buildTalkRequestPopoverCopy(locale = "es") {
   const en = locale === "en";
   return {
     title: en
-      ? "Gina is requesting to talk to you ..."
-      : "Gina quiere hablar contigo ...",
+      ? "Your next task is ready on the agenda."
+      : "Tu siguiente tarea ya está lista en la agenda.",
+    titleEmph: en ? "Your" : "Tu",
+    titleMuted: en
+      ? "next task is ready on the agenda."
+      : "siguiente tarea ya está lista en la agenda.",
     accept: en ? "accept" : "accept",
     decline: en ? "Decline" : "Decline",
   };

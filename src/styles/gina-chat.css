@@ -2638,10 +2638,10 @@
 /* Gina talk-request popover (once/day after day-schedule check) */
 .gina-talk-request-popover {
   position: fixed;
-  right: 20px;
+  left: 20px;
   bottom: 24px;
   z-index: 12010;
-  width: min(320px, calc(100vw - 32px));
+  width: min(340px, calc(100vw - 32px));
   padding: 16px 16px 14px;
   border-radius: 16px;
   background: linear-gradient(160deg, #2a2a2a 0%, #151515 55%, #101010 100%);
@@ -2672,10 +2672,19 @@
   margin: 0;
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 15px;
-  font-weight: 700;
+  font-family: var(--font-doc, Inter, "Segoe UI", system-ui, sans-serif);
+  font-size: 17px;
+  font-weight: 750;
   line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.gina-talk-request-popover__emph {
   color: #ffffff;
+}
+
+.gina-talk-request-popover__muted {
+  color: #a1a0a0;
 }
 
 .gina-talk-request-popover__actions {

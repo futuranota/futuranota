@@ -4104,6 +4104,7 @@ export function LeftPanel({
             ...(daySheetViz.data || {}),
             compact: true,
             locale: localeKey,
+            talkRequestNotify: true,
           },
         }
         : null;

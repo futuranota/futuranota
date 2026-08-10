@@ -907,6 +907,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         justSaved: false,
         nextDocumentId: highlightId,
         progress,
+        ...(ctx.talkRequestNotify ? { talkRequestNotify: true } : null),
       },
     };
   }
