@@ -9,15 +9,26 @@ export const GINA_TALK_REQUEST_NOTIFY_PROTOCOL = "GinaTalkRequestNotify";
 
 /**
  * Friendly user-bubble text for Accept (also matches the router).
+ * Prefer stable protocol so Accept never depends only on localized fold matching.
  * @param {string} [locale]
  * @param {string | null} [docId]
  */
 export function buildTalkRequestNotifyPrompt(locale = "es", docId = null) {
+  void locale;
   const id = String(docId || "").trim();
-  const base = locale === "en"
+  return id
+    ? `${GINA_TALK_REQUEST_NOTIFY_PROTOCOL}:${id}`
+    : GINA_TALK_REQUEST_NOTIFY_PROTOCOL;
+}
+
+/**
+ * Visible user-bubble label for Accept (protocol stays in autoRunPrompt).
+ * @param {string} [locale]
+ */
+export function buildTalkRequestNotifyDisplayText(locale = "es") {
+  return locale === "en"
     ? "Next document notification"
     : "Notificación próximo documento";
-  return id ? `${base}:${id}` : base;
 }
 
 /**
@@ -95,12 +106,12 @@ export function buildTalkRequestNotifyText(opts = {}) {
   if (en) {
     return [
       "Are you almost ready?",
-      "Your next-document notification — it starts soon.",
+      "It’s time for the document you scheduled — your block starts now.",
     ].join("\n\n");
   }
   return [
     "¿Estás casi listo?",
-    "La notificación de tu siguiente documento comienza pronto.",
+    "Ya es hora del documento que agendaste — tu bloque comienza ahora.",
   ].join("\n\n");
 }
 
@@ -202,7 +213,13 @@ export function parseTalkRequestNotifyIntent(text) {
     .replace(/[\u0300-\u036f]/g, "");
   const m = fold.match(/^(notificacion proximo documento|next document notification)(?::([a-z0-9_-]+))?$/i);
   if (m) {
-    return { match: true, docId: m[2] ? String(m[2]).trim() : null };
+    // Keep original id casing (generateId → UPPERCASE); fold capture is lowercased.
+    let docId = null;
+    if (m[2]) {
+      const colon = q.lastIndexOf(":");
+      docId = colon >= 0 ? q.slice(colon + 1).trim() || null : null;
+    }
+    return { match: true, docId };
   }
   return { match: false, docId: null };
 }

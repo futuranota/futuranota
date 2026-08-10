@@ -640,6 +640,7 @@ function joinTranscript(finalParts, interim) {
  *   initialMeetingMode?: boolean,
  *   lockMeetingMode?: boolean,
  *   autoRunPrompt?: string | null,
+ *   autoRunDisplayText?: string | null,
  * }} props
  */
 export function GinaChatCard({
@@ -658,14 +659,21 @@ export function GinaChatCard({
   initialMeetingMode = false,
   lockMeetingMode = false,
   autoRunPrompt = null,
+  autoRunDisplayText = null,
 }) {
   const chipLocale = String(speechLang || "").toLowerCase().startsWith("en") ? "en" : "es";
+  /** Talk-notify / protocol open: skip generic greeting so autoRun can deliver immediately. */
+  const skipOpeningForAutoRun = Boolean(
+    typeof autoRunPrompt === "string"
+    && autoRunPrompt.trim()
+    && !String(openingMessage || "").trim(),
+  );
   /** @type {[GinaChatMessage[], Function]} */
   const [messages, setMessages] = useState(() => []);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   /** True while the latest Gina reply typewriter is still running. */
-  const [isAiAnimating, setIsAiAnimating] = useState(true);
+  const [isAiAnimating, setIsAiAnimating] = useState(() => !skipOpeningForAutoRun);
   const [micError, setMicError] = useState(/** @type {string | null} */ (null));
   const [dictationFinals, setDictationFinals] = useState(/** @type {string[]} */ ([]));
   const [dictationInterim, setDictationInterim] = useState("");
@@ -706,7 +714,7 @@ export function GinaChatCard({
   /** User texts waiting until Gina finishes typing the current reply. */
   const pendingQueueRef = useRef(/** @type {{ id: string, text: string }[]} */ ([]));
   const isTypingRef = useRef(false);
-  const isAiAnimatingRef = useRef(true);
+  const isAiAnimatingRef = useRef(!skipOpeningForAutoRun);
   const deliveringRef = useRef(false);
   const pendingAiAnimationTaskRef = useRef(/** @type {null | (() => Promise<void> | void)} */ (null));
   const doubleBipPlayedForMsgIdRef = useRef(/** @type {string | null} */ (null));
@@ -855,6 +863,7 @@ export function GinaChatCard({
   }, []);
 
   // Open → silence → green dot → greeting (Enable.wav plays with the sheet instead).
+  // Protocol auto-run (talk-notify Accept) skips this so we don't seed a blank “new chat”.
   useEffect(() => {
     let cancelled = false;
     /** @type {ReturnType<typeof setTimeout> | null} */
@@ -862,9 +871,19 @@ export function GinaChatCard({
     /** @type {ReturnType<typeof setTimeout> | null} */
     let textTimer = null;
 
+    const autoRun = typeof autoRunPrompt === "string" ? autoRunPrompt.trim() : "";
+    const openingText = String(openingMessage || "").trim();
+    if (autoRun && !openingText) {
+      isAiAnimatingRef.current = false;
+      setIsAiAnimating(false);
+      setEnableDotVisible(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const revealOpening = () => {
       if (cancelled) return;
-      const openingText = String(openingMessage || "").trim();
       const chips = buildGinaOpeningChips({
         locale: chipLocale,
         surface: documentId ? "document" : "dashboard",
@@ -911,7 +930,7 @@ export function GinaChatCard({
       if (soundTimer != null) window.clearTimeout(soundTimer);
       if (textTimer != null) window.clearTimeout(textTimer);
     };
-  }, [openingMessage, chipLocale, documentId]);
+  }, [openingMessage, chipLocale, documentId, autoRunPrompt]);
 
   useEffect(() => () => {
     stopGinaFilesMovementSound();
@@ -1395,18 +1414,21 @@ export function GinaChatCard({
   };
   deliverUserMessageRef.current = deliverUserMessage;
 
-  const autoRunDoneRef = useRef(false);
+  /** Prompt string actually delivered — survives Strict Mode effect re-run (don't mark done before fire). */
+  const autoRunDeliveredRef = useRef(/** @type {string | null} */ (null));
   useEffect(() => {
     const prompt = typeof autoRunPrompt === "string" ? autoRunPrompt.trim() : "";
-    if (!prompt || autoRunDoneRef.current) return;
-    autoRunDoneRef.current = true;
+    if (!prompt || autoRunDeliveredRef.current === prompt) return;
+    const display = typeof autoRunDisplayText === "string" ? autoRunDisplayText.trim() : "";
     const t = window.setTimeout(() => {
-      enqueueOrDeliver(prompt);
+      if (autoRunDeliveredRef.current === prompt) return;
+      autoRunDeliveredRef.current = prompt;
+      enqueueOrDeliver(prompt, display ? { displayText: display } : {});
     }, 280);
     return () => window.clearTimeout(t);
-    // Intentionally once per mount when autoRunPrompt is set.
+    // Intentionally once per distinct autoRunPrompt (Strict Mode safe).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRunPrompt]);
+  }, [autoRunPrompt, autoRunDisplayText]);
 
   const lastAiMessageIndex = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {

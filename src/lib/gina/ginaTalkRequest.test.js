@@ -15,6 +15,7 @@ import {
 } from "./ginaTalkRequestStore.js";
 import {
   buildTalkRequestNotifyPrompt,
+  buildTalkRequestNotifyDisplayText,
   buildTalkRequestNotifyText,
   buildTalkRequestNotifyStartDocLines,
   buildTalkRequestPopoverCopy,
@@ -25,6 +26,7 @@ import {
   isGinaTalkRequestNotifyIntent,
   isSkipTalkNotificationsIntent,
   isTalkRequestThanksIntent,
+  parseTalkRequestNotifyIntent,
 } from "./ginaTalkRequest.js";
 import { runGinaQueryFamily } from "./ginaQueryFamily.js";
 
@@ -54,9 +56,9 @@ describe("ginaTalkRequestStore", () => {
     memory.clear();
   });
 
-  it("does not arm already-started docs without a start edge (no close-chat flash)", () => {
+  it("does not arm starts older than catch-up (no flood of past blocks)", () => {
     enableTalkNotifications(uid, now);
-    // Cold call / missing since → no arm
+    // Cold call — start 2h ago is outside catch-up
     evaluateTalkRequestDue(uid, [{
       id: "doc-past",
       title: "Past",
@@ -65,7 +67,7 @@ describe("ginaTalkRequestStore", () => {
     }], now);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
 
-    // Edge window that does not include the start → no arm
+    // Edge window that does not include the start + outside catch-up → no arm
     evalEdge(uid, [{
       id: "doc-past",
       title: "Past",
@@ -73,6 +75,32 @@ describe("ginaTalkRequestStore", () => {
       status: "not_started",
     }], now, since);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
+  });
+
+  it("catch-up arms a recent start when the user returns within 10 minutes", () => {
+    enableTalkNotifications(uid, now);
+    // Start was 5 minutes ago; last tick is *after* the start (missed edge)
+    const lateSince = now.getTime() - 5_000;
+    evalEdge(uid, [{
+      id: "doc-recent",
+      title: "Recent",
+      anchorAt: "2026-08-09T19:55:00",
+      status: "not_started",
+    }], now, lateSince);
+    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(true);
+    expect(getTalkRequestState(uid, now)?.activeDocId).toBe("doc-recent");
+  });
+
+  it("catch-up works on cold evaluate (no sinceMs) for starts in the window", () => {
+    enableTalkNotifications(uid, now);
+    evaluateTalkRequestDue(uid, [{
+      id: "doc-cold",
+      title: "Cold",
+      anchorAt: "2026-08-09T19:52:00",
+      status: "not_started",
+    }], now);
+    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(true);
+    expect(getTalkRequestState(uid, now)?.activeDocId).toBe("doc-cold");
   });
 
   it("arms only when an unchecked doc’s schedule start crosses the tick window", () => {
@@ -250,8 +278,8 @@ describe("ginaTalkRequest copy + router", () => {
   it("notify text is short intro (fields go in startDocLines)", () => {
     const text = buildTalkRequestNotifyText({ locale: "es" });
     expect(text).toMatch(/¿Estás casi listo\?/i);
-    expect(text).toMatch(/notificación de tu siguiente documento comienza pronto/i);
-    expect(text).not.toMatch(/Ya terminaste/i);
+    expect(text).toMatch(/Ya es hora del documento que agendaste/i);
+    expect(text).not.toMatch(/comienza pronto/i);
   });
 
   it("notify startDocLines highlight Departamento / Documento / horario", () => {
@@ -288,6 +316,7 @@ describe("ginaTalkRequest copy + router", () => {
 
   it("routes Accept prompt to gina_talk_request with doc id", () => {
     const prompt = buildTalkRequestNotifyPrompt("es", "doc-1");
+    expect(prompt).toBe("GinaTalkRequestNotify:doc-1");
     expect(isGinaTalkRequestNotifyIntent(prompt)).toBe(true);
     const routed = runGinaQueryFamily(prompt, {
       now: new Date("2026-08-09T18:00:00"),
@@ -297,6 +326,20 @@ describe("ginaTalkRequest copy + router", () => {
       departments: [],
     });
     expect(routed.family).toBe("gina_talk_request");
+  });
+
+  it("preserves UPPERCASE generateId casing in notify prompt parse", () => {
+    const id = "NODE-M9ABC123XYZ";
+    const prompt = buildTalkRequestNotifyPrompt("es", id);
+    expect(prompt).toBe(`GinaTalkRequestNotify:${id}`);
+    const parsed = parseTalkRequestNotifyIntent(prompt);
+    expect(parsed.match).toBe(true);
+    expect(parsed.docId).toBe(id);
+  });
+
+  it("friendly display label stays readable (not the protocol)", () => {
+    expect(buildTalkRequestNotifyDisplayText("es")).toMatch(/Notificación próximo documento/i);
+    expect(buildTalkRequestNotifyDisplayText("en")).toMatch(/Next document notification/i);
   });
 
   it("routes Ok gracias thanks", () => {

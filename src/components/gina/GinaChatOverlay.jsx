@@ -19,6 +19,7 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
  *   initialMeetingMode?: boolean,
  *   lockMeetingMode?: boolean,
  *   autoRunPrompt?: string | null,
+ *   autoRunDisplayText?: string | null,
  *   compact?: boolean,
  *   onClose: () => void,
  * }} props
@@ -37,6 +38,7 @@ export function GinaChatOverlay({
   initialMeetingMode = false,
   lockMeetingMode = false,
   autoRunPrompt = null,
+  autoRunDisplayText = null,
   compact = false,
   onClose,
 }) {
@@ -84,6 +86,7 @@ export function GinaChatOverlay({
           initialMeetingMode={initialMeetingMode}
           lockMeetingMode={lockMeetingMode}
           autoRunPrompt={autoRunPrompt}
+          autoRunDisplayText={autoRunDisplayText}
           onClose={onClose}
         />
       </div>

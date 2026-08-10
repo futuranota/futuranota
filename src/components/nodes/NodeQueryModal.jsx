@@ -423,10 +423,25 @@ export function NodeQueryModal({
         };
       }
       const next = routed.toolContext?.nextDocument || null;
+      const daySheetViz = buildGinaVisualization("day_sheet", routed.toolContext, {
+        locale: localeKey,
+        now,
+        userText: text,
+      });
+      const visualization = daySheetViz
+        ? {
+          ...daySheetViz,
+          data: {
+            ...(daySheetViz.data || {}),
+            compact: true,
+            locale: localeKey,
+          },
+        }
+        : null;
       return {
         message: buildTalkRequestNotifyText({ locale: localeKey }),
         startDocLines: buildTalkRequestNotifyStartDocLines(next, localeKey),
-        visualization: null,
+        visualization,
         chips: buildTalkRequestNotifyChips({ locale: localeKey }),
       };
     }

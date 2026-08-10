@@ -92,6 +92,7 @@ import {
   buildTalkRequestNotifyText,
   buildTalkRequestThanksText,
   buildTalkRequestNotifyPrompt,
+  buildTalkRequestNotifyDisplayText,
 } from "../../lib/gina/ginaTalkRequest.js";
 import { useGinaTalkRequestNudge } from "../../hooks/useGinaTalkRequestNudge.js";
 import { buildGinaDayRitualResetAck } from "../../lib/gina/ginaDayRitualReset.js";
@@ -1927,7 +1928,7 @@ export function LeftPanel({
   const [ginaAutoRunPrompt, setGinaAutoRunPrompt] = useState(/** @type {string | null} */ (null));
   /** Small-chat session from talk-request Accept (never dashboard size). */
   const [ginaTalkNotifySession, setGinaTalkNotifySession] = useState(
-    /** @type {{ documentId: string | null, prompt: string, runKey: number } | null} */ (null),
+    /** @type {{ documentId: string | null, prompt: string, displayText: string, runKey: number } | null} */ (null),
   );
   const [ginaKnowledgeOpen, setGinaKnowledgeOpen] = useState(false);
   const [ginaMeetingSession, setGinaMeetingSession] = useState(false);
@@ -2058,34 +2059,11 @@ export function LeftPanel({
     } catch { /* ignore */ }
     const localeKey = locale === "es" ? "es" : "en";
     const prompt = buildTalkRequestNotifyPrompt(localeKey, docId);
-    // Always small chat — never dashboard.
+    const displayText = buildTalkRequestNotifyDisplayText(localeKey);
+    // Always small chat — never dashboard. Reminder only: do not open docs/folders.
     setGinaDashboardOpen(false);
     setGinaMeetingSession(false);
     setGinaAutoRunPrompt(null);
-
-    // Open the notified unit in the background when possible (folder / node).
-    if (docId) {
-      try {
-        const plan = buildGinaDocumentOpenPlan(docId, {
-          nodesMap,
-          docsMap,
-          departments,
-          unassignedDepartmentId: UNASSIGNED_DEPARTMENT_FILTER_ID,
-          findDepartmentById,
-        });
-        if (plan?.navigate) {
-          requestLeftPanelNavigate(plan.navigate);
-        }
-        if (plan?.kind === "folder") {
-          onOpenDocument?.(plan.targetId);
-        } else if (plan?.kind === "node") {
-          // Open parent folder for context — avoid StandaloneNodeModal covering the small chat.
-          if (plan.navigate?.folderId) {
-            onOpenDocument?.(plan.navigate.folderId);
-          }
-        }
-      } catch { /* ignore */ }
-    }
 
     // Remount key overwrites an already-open small chat with the new notify turn.
     try {
@@ -2094,16 +2072,12 @@ export function LeftPanel({
     setGinaTalkNotifySession({
       documentId: docId,
       prompt,
+      displayText,
       runKey: Date.now(),
     });
   }, [
     ginaUserId,
     locale,
-    nodesMap,
-    docsMap,
-    departments,
-    requestLeftPanelNavigate,
-    onOpenDocument,
   ]);
 
   const declineGinaTalkRequestPopover = useCallback(() => {
@@ -4118,10 +4092,25 @@ export function LeftPanel({
         };
       }
       const next = routed.toolContext?.nextDocument || null;
+      const daySheetViz = buildGinaVisualization("day_sheet", routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      const visualization = daySheetViz
+        ? {
+          ...daySheetViz,
+          data: {
+            ...(daySheetViz.data || {}),
+            compact: true,
+            locale: localeKey,
+          },
+        }
+        : null;
       return {
         message: buildTalkRequestNotifyText({ locale: localeKey }),
         startDocLines: buildTalkRequestNotifyStartDocLines(next, localeKey),
-        visualization: null,
+        visualization,
         chips: buildTalkRequestNotifyChips({ locale: localeKey }),
       };
     }
@@ -5776,6 +5765,7 @@ export function LeftPanel({
           placeholder={t("gina.placeholder")}
           speechLang={locale === "es" ? "es-ES" : "en-US"}
           autoRunPrompt={ginaTalkNotifySession.prompt}
+          autoRunDisplayText={ginaTalkNotifySession.displayText}
           labels={{
             messageAria: t("gina.messageAria"),
             sendAria: t("gina.sendAria"),

@@ -2,13 +2,16 @@
  * Gina day talk notifications — opt-in for today, then popover per document start.
  *
  * While enabled + webapp open (any tab focus): when a pending doc’s schedule starts,
- * show talk popover. Auto-dismiss after 10 minutes with no action.
+ * show talk popover. Also catch-up if the user returns within CATCH_UP of the start.
+ * Auto-dismiss after 10 minutes with no action.
  */
 
 export const GINA_TALK_REQUEST_CHANGED = "fn-gina-talk-request-changed";
 export const GINA_TALK_REQUEST_STORAGE_KEY = "fn-gina-talk-request-v2";
 /** Auto-hide armed popover if user takes no Accept/Decline action. */
 export const GINA_TALK_REQUEST_AUTO_DISMISS_MS = 10 * 60 * 1000;
+/** If the user was away, still arm for starts that began within this window. */
+export const GINA_TALK_REQUEST_CATCH_UP_MS = 10 * 60 * 1000;
 
 function dayKey(d = new Date()) {
   const x = d instanceof Date ? d : new Date(d);
@@ -230,14 +233,15 @@ export function expireArmedTalkRequestIfStale(
 }
 
 /**
- * Arm popover only when an unchecked doc’s schedule *crosses* its start
- * since the previous tick (`sinceMs` → `now`). Never arms all already-started docs
- * (that caused a false popover on chat close).
+ * Arm popover when an unchecked doc’s schedule start is due:
+ * - Edge: start crossed since the previous tick (`sinceMs` → `now`), or
+ * - Catch-up: start was within the last CATCH_UP window (user away / remount).
+ * Never arms starts older than CATCH_UP (avoids flooding all past blocks).
  *
  * @param {string} userId
  * @param {object[]} docs today-scoped docs
  * @param {Date} [now]
- * @param {{ sinceMs?: number | null }} [opts]
+ * @param {{ sinceMs?: number | null, catchUpMs?: number }} [opts]
  */
 export function evaluateTalkRequestDue(userId, docs, now = new Date(), opts = {}) {
   let state = expireArmedTalkRequestIfStale(userId, now);
@@ -249,23 +253,29 @@ export function evaluateTalkRequestDue(userId, docs, now = new Date(), opts = {}
   const sinceMs = opts.sinceMs != null && Number.isFinite(Number(opts.sinceMs))
     ? Number(opts.sinceMs)
     : null;
-
-  // Cold start / missing since → wait for the next tick edge (do not arm past docs).
-  if (sinceMs == null) return state;
+  const catchUpMs = opts.catchUpMs != null && Number.isFinite(Number(opts.catchUpMs))
+    ? Math.max(0, Number(opts.catchUpMs))
+    : GINA_TALK_REQUEST_CATCH_UP_MS;
+  const catchUpFloor = nowMs - catchUpMs;
 
   const notified = new Set(state.notifiedDocIds || []);
-  const due = (Array.isArray(docs) ? docs : [])
+  const candidates = (Array.isArray(docs) ? docs : [])
     .filter((d) => isUncheckedPendingDoc(d))
     .filter((d) => !notified.has(String(d.id)))
     .map((d) => ({
       doc: d,
       startMs: new Date(d.anchorAt).getTime(),
     }))
-    .filter((row) => (
-      Number.isFinite(row.startMs)
-      && row.startMs > sinceMs
-      && row.startMs <= nowMs
-    ))
+    .filter((row) => Number.isFinite(row.startMs) && row.startMs <= nowMs);
+
+  const due = candidates
+    .filter((row) => {
+      const edgeHit = sinceMs != null
+        && row.startMs > sinceMs
+        && row.startMs <= nowMs;
+      const catchUpHit = row.startMs >= catchUpFloor;
+      return edgeHit || catchUpHit;
+    })
     .sort((a, b) => a.startMs - b.startMs)[0];
 
   if (!due) return state;

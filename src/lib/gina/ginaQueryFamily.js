@@ -1722,8 +1722,10 @@ export function runGinaQueryFamily(text, ctx = {}) {
     const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
     const { documents } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
     const pool = documents.length ? documents : (today.documents || []);
-    const byId = parsed.docId
-      ? (pool.find((d) => String(d?.id) === parsed.docId) || null)
+    const wantId = parsed.docId ? String(parsed.docId) : "";
+    const byId = wantId
+      ? (pool.find((d) => String(d?.id) === wantId
+        || String(d?.id).toLowerCase() === wantId.toLowerCase()) || null)
       : null;
     const next = byId || pickNextDaySheetDoc(pool);
     return {
@@ -1731,12 +1733,12 @@ export function runGinaQueryFamily(text, ctx = {}) {
       toolsCalled,
       toolContext: {
         ...today,
-        documents: next ? [next] : [],
+        documents: pool,
         nextDocument: next,
         isDaySheet: true,
         talkRequestNotify: true,
-        progress: summarizeDaySheetProgress(next ? [next] : []),
-        hint: "Talk-request Accept — notify document schedule started",
+        progress: summarizeDaySheetProgress(pool),
+        hint: "Talk-request Accept — remind schedule start + day sheet",
       },
       workspaceInventory: inventory,
     };

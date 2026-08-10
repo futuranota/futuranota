@@ -14,8 +14,8 @@ const TICK_MS = 15_000;
 
 /**
  * While day-notifications are enabled and the webapp is open (any tab focus),
- * arm the talk popover only when an unchecked doc’s schedule *starts*
- * (edge across ticks) — not for every already-started block (that flashed on chat close).
+ * arm the talk popover when an unchecked doc’s schedule starts (tick edge)
+ * or when the user returns within the catch-up window after a start.
  *
  * @param {{
  *   userId: string,
@@ -38,16 +38,14 @@ export function useGinaTalkRequestNudge({ userId, buildCtx, chatOpen = false }) 
     const now = new Date();
     const nowMs = now.getTime();
 
-    // One-shot: drop false-positive arms left by the old “any past start” rule.
+    // One-shot: drop false-positive arms left by older logic, then still evaluate
+    // catch-up so a start that fired while the user was away can show.
     if (!didSoftClearStaleRef.current) {
       didSoftClearStaleRef.current = true;
       try { clearArmedTalkRequestSoft(uid, now); } catch { /* ignore */ }
-      lastTickMsRef.current = nowMs;
-      refresh();
-      return;
     }
 
-    const sinceMs = lastTickMsRef.current != null ? lastTickMsRef.current : nowMs;
+    const sinceMs = lastTickMsRef.current != null ? lastTickMsRef.current : null;
     lastTickMsRef.current = nowMs;
 
     expireArmedTalkRequestIfStale(uid, now);
@@ -94,7 +92,7 @@ export function useGinaTalkRequestNudge({ userId, buildCtx, chatOpen = false }) 
     };
   }, [tick]);
 
-  // Hide while chat is open — does not arm-on-close; edge logic prevents stale arms.
+  // Hide while chat is open — catch-up still arms; popover waits until chat closes.
   const visible = Boolean(popoverOpen && !chatOpen);
 
   return { popoverOpen: visible, refreshTalkRequestPopover: refresh };
