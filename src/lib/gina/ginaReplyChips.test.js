@@ -20,24 +20,35 @@ describe("ginaReplyChips", () => {
     expect(chips.find((c) => c.id === "test_folder_plan_negocio")?.text).toMatch(/plan de negocio/i);
   });
 
-  it("document surface only offers Horario del día after dashboard ritual anchored the day", () => {
-    expect(buildGinaOpeningChips({
+  it("document surface offers free-hours check (and day sheet when saved)", () => {
+    const bare = buildGinaOpeningChips({
       locale: "es",
       surface: "document",
       hasDaySheet: false,
-    })).toEqual([]);
+    });
+    expect(bare.map((c) => c.id)).toEqual(["check_free_hours_doc"]);
+    expect(bare[0].label).toMatch(/horas libres/i);
+    expect(bare[0].primary).toBe(true);
 
     const chips = buildGinaOpeningChips({
       locale: "es",
       surface: "document",
       hasDaySheet: true,
     });
-    expect(chips.map((c) => c.id)).toEqual(["day_sheet"]);
-    expect(chips[0].label).toBe("Horario del día");
-    expect(chips[0].text).toBe("Horario del día");
+    expect(chips.map((c) => c.id)).toEqual(["check_free_hours_doc", "day_sheet"]);
+    expect(chips[1].label).toBe("Horario del día");
     expect(chips.some((c) => c.id === "today")).toBe(false);
     expect(chips.some((c) => c.id === "schedule")).toBe(false);
     expect(chips.some((c) => String(c.id).startsWith("test_"))).toBe(false);
+  });
+
+  it("document surface EN chip checks available hours", () => {
+    const chips = buildGinaOpeningChips({
+      locale: "en",
+      surface: "document",
+      hasDaySheet: false,
+    });
+    expect(chips[0].text).toMatch(/available hours for this document/i);
   });
 
   it("in-doc day sheet headline omits counts and “puedes decir” prose", () => {

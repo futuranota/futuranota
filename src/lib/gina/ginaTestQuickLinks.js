@@ -119,6 +119,16 @@ export const GINA_TEST_QUICK_LINKS = [
     label: "Test: reset ritual de hoy",
     text: "Reset ritual de hoy",
   },
+  {
+    id: "test_check_free_hours",
+    label: "Test: horas libres doc",
+    text: "Chequear horas libres para este documento",
+  },
+  {
+    id: "test_activate_occupied_hours",
+    label: "Test: activar horas tomadas",
+    text: "activar horas tomadas",
+  },
 ];
 
 /**

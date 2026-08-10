@@ -1243,7 +1243,11 @@ function DailyReportVisualization({ data }) {
   return (
     <div className="gina-viz gina-viz--daily-report">
       <header className="gina-viz__head">
-        <span className="gina-viz__eyebrow gina-viz__eyebrow--gold">Occupied hours</span>
+        <span className="gina-viz__eyebrow gina-viz__eyebrow--gold">
+          {data.occupiedHoursOnly
+            ? (data.locale === "en" ? "Taken hours" : "Horas tomadas")
+            : "Occupied hours"}
+        </span>
         <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
       </header>
       {rows.length > 0 ? (

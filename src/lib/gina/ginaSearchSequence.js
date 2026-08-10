@@ -30,6 +30,8 @@ export const GINA_SEARCH_SEQUENCE_FAMILIES = new Set([
   "count_categories",
   "category_scope",
   "count_documents",
+  "check_doc_free_hours",
+  "activate_occupied_hours",
 ]);
 
 /**

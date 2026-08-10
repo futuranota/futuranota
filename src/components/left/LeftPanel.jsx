@@ -96,6 +96,7 @@ import {
 } from "../../lib/gina/ginaTalkRequest.js";
 import { useGinaTalkRequestNudge } from "../../hooks/useGinaTalkRequestNudge.js";
 import { buildGinaDayRitualResetAck } from "../../lib/gina/ginaDayRitualReset.js";
+import { buildOccupiedHoursReplyMessage } from "../../lib/gina/ginaSyntaxOccupiedHours.js";
 import {
   consumePendingGinaOffer,
   getPendingGinaOffer,
@@ -602,23 +603,11 @@ function getNodeDisplayTitle(node) {
   return (node.sourceQuery || node.title || "Untitled query").trim() || "Untitled query";
 }
 
-/** Local clock time from node.anchorAt (e.g. "9:30 PM"); empty if missing/invalid. */
-function formatNodeScheduleTime(anchorAt) {
-  if (!anchorAt) return "";
-  const d = new Date(anchorAt);
-  if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(d);
-}
-
 function NodeCompactRow({
   node,
   onClick,
   onInsert,
   onDelete,
-  showScheduleTime = false,
   campaignMode = false,
   highlighted = false,
   reorderEnabled = false,
@@ -635,7 +624,6 @@ function NodeCompactRow({
   const displayTitle = getNodeDisplayTitle(node);
   const source = resolveDocSource(node?.sourceId);
   const iconSrc = source?.src || "/uploads/File.svg";
-  const scheduleTime = showScheduleTime ? formatNodeScheduleTime(node?.anchorAt) : "";
   const isCampaignActive = campaignMode && node?.campaignStatus === "active";
   const campaignStatusLabel = campaignMode
     ? (isCampaignActive ? t("sidebar.campaignDocActive") : t("sidebar.campaignDocInactive"))
@@ -699,9 +687,7 @@ function NodeCompactRow({
         title={
           campaignStatusLabel
             ? `${displayTitle} · ${campaignStatusLabel}`
-            : scheduleTime
-              ? `${displayTitle} · ${scheduleTime}`
-              : (source ? `${displayTitle} · ${source.label}` : displayTitle)
+            : (source ? `${displayTitle} · ${source.label}` : displayTitle)
         }
       >
         <span className="lp-node-type-icon lp-node-type-icon--compact lp-node-type-icon--file">
@@ -723,9 +709,6 @@ function NodeCompactRow({
           >
             {campaignStatusLabel}
           </span>
-        ) : null}
-        {scheduleTime ? (
-          <span className="lp-doc-nodes-block__node-time tnum">{scheduleTime}</span>
         ) : null}
       </button>
       <div className="lp-doc-nodes-block__node-actions">
@@ -1113,10 +1096,6 @@ function DocNodesBlockCard({
               key={node.id}
               node={node}
               highlighted={Boolean(highlightNodeId && highlightNodeId === node.id)}
-              showScheduleTime={
-                hasFolderSchedule
-                || String(node?.status || "").trim().toLowerCase() === "reserved"
-              }
               campaignMode={Boolean(doc?.campaignActive)}
               onClick={() => onNodeClick?.(node)}
               onInsert={() => onNodeInsert?.(node)}
@@ -4316,6 +4295,31 @@ export function LeftPanel({
       return locale === "es"
         ? "Dime el título exacto del documento o folder de la lista para enfocarnos en uno solo."
         : "Tell me the exact document or folder title from the list so we focus on one.";
+    }
+
+    if (
+      !meetingOn
+      && (routed.family === "check_doc_free_hours" || routed.family === "activate_occupied_hours")
+    ) {
+      const visualization = buildGinaVisualization(routed.family, routed.toolContext, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      return {
+        message: buildOccupiedHoursReplyMessage({
+          mode: routed.toolContext?.mode === "activate" ? "activate" : "check",
+          occupied: routed.toolContext?.occupied || [],
+          locale: localeKey,
+        }),
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: routed.family,
+          visualization,
+          locale: localeKey,
+        }),
+      };
     }
 
     if (!meetingOn && routed.family === "count_folders") {

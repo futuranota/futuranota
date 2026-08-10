@@ -47,6 +47,7 @@ import { useI18n } from "../../i18n/useI18n.js";
 import { DOC_SOURCE_OPTIONS, resolveDocSource } from "../../lib/docSources.js";
 import { canUseDocStatusMeta } from "../../lib/docMetaAccess.js";
 import { useAuthStore } from "../../stores/authStore.js";
+import { useGinaOccupiedStrikethroughActive } from "../../hooks/useGinaOccupiedStrikethroughActive.js";
 import { resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
 import { formatMmDdYy } from "../../lib/docDates.js";
 import {
@@ -77,6 +78,7 @@ import {
   buildTalkRequestNotifyText,
   buildTalkRequestThanksText,
 } from "../../lib/gina/ginaTalkRequest.js";
+import { buildOccupiedHoursReplyMessage } from "../../lib/gina/ginaSyntaxOccupiedHours.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -206,6 +208,9 @@ export function NodeQueryModal({
   const dateEditable = Boolean(onCreatedDateChange);
   const userEmail = useAuthStore((s) => s.user?.email);
   const authUser = useAuthStore((s) => s.user);
+  const occupiedStrikethroughActive = useGinaOccupiedStrikethroughActive(authUser?.id || "anon");
+  const gatedScheduleOccupied = occupiedStrikethroughActive ? scheduleOccupied : [];
+  const gatedScheduleOverlapHint = occupiedStrikethroughActive ? scheduleOverlapHint : "";
   const docsMap = useDocsStore((s) => s.docs);
   const nodesMap = useNodesStore((s) => s.nodes);
   const departments = useDepartmentsStore((s) => s.departments);
@@ -403,12 +408,38 @@ export function NodeQueryModal({
       corpusName,
       now,
       userId: ginaUserId,
+      documentId: entityNodeId || null,
       recentText: Array.isArray(meta?.messages)
         ? meta.messages.slice(-8).map((m) => String(m?.content || "")).filter(Boolean)
         : [],
     };
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
+
+    if (
+      routed.family === "check_doc_free_hours"
+      || routed.family === "activate_occupied_hours"
+    ) {
+      const visualization = buildGinaVisualization(routed.family, routed.toolContext, {
+        locale: localeKey,
+        now,
+        userText: text,
+      });
+      return {
+        message: buildOccupiedHoursReplyMessage({
+          mode: routed.toolContext?.mode === "activate" ? "activate" : "check",
+          occupied: routed.toolContext?.occupied || [],
+          locale: localeKey,
+        }),
+        visualization,
+        searchSequence: buildGinaSearchSequence(localeKey),
+        chips: buildGinaReplyChips({
+          family: routed.family,
+          visualization,
+          locale: localeKey,
+        }),
+      };
+    }
 
     // Talk-request Accept notify — same shape as dashboard (intro + startDocLines).
     if (
@@ -1756,8 +1787,8 @@ export function NodeQueryModal({
                 minDate={scheduleMinDate}
                 maxDate={scheduleMaxDate}
                 enableTimeRange
-                occupied={scheduleOccupied}
-                overlapHint={scheduleOverlapHint}
+                occupied={gatedScheduleOccupied}
+                overlapHint={gatedScheduleOverlapHint}
                 validationError={scheduleValidationError}
               />
             ) : null}

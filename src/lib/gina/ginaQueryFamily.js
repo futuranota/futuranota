@@ -91,6 +91,15 @@ import {
   isGinaResetDayRitualIntent,
   resetGinaDayRitualState,
 } from "./ginaDayRitualReset.js";
+import {
+  parseOccupiedHoursIntent,
+} from "./ginaSyntaxOccupiedHours.js";
+import {
+  activateOccupiedStrikethroughForToday,
+} from "./ginaOccupiedHoursStore.js";
+import { ginaDayKey } from "./ginaDayRitualDate.js";
+import { listOccupiedIntervalsByDate } from "../docScheduleOccupancy.js";
+import { anchorFieldsFromIso } from "../nodeAnchor.js";
 
 function fold(s) {
   return foldGinaText(s);
@@ -1712,6 +1721,51 @@ export function runGinaQueryFamily(text, ctx = {}) {
       },
       workspaceInventory: inventory,
     };
+  }
+
+  // Check free hours / activate occupied strikethrough for the rest of the day.
+  {
+    const occupiedMode = parseOccupiedHoursIntent(text);
+    if (occupiedMode) {
+      const now = ctx.now instanceof Date ? ctx.now : new Date();
+      const uid = ctx.userId || ctx.authUserId || "anon";
+      const documentId = ctx.documentId || ctx.activeDocumentId || null;
+      let dateKey = ginaDayKey(now);
+      const node = documentId ? ctx.nodes?.[documentId] : null;
+      if (node?.anchorAt) {
+        const { anchorDate } = anchorFieldsFromIso(node.anchorAt);
+        if (anchorDate) dateKey = anchorDate;
+      }
+      const occupied = call("list_occupied_hours", () => listOccupiedIntervalsByDate(
+        ctx.nodes,
+        ctx.docs,
+        dateKey,
+        {
+          excludeNodeId: documentId || null,
+          objectId: ctx.objectId || null,
+        },
+      ));
+      activateOccupiedStrikethroughForToday(uid, now);
+      const family = occupiedMode === "activate"
+        ? "activate_occupied_hours"
+        : "check_doc_free_hours";
+      return {
+        family,
+        toolsCalled,
+        toolContext: {
+          mode: occupiedMode,
+          date: dateKey,
+          documentId: documentId || null,
+          occupied,
+          empty: occupied.length === 0,
+          activated: true,
+          hint: occupiedMode === "activate"
+            ? "Unlock occupied-hour strikethrough in pickers for today"
+            : "List taken hours for the document day + unlock strikethrough",
+        },
+        workspaceInventory: inventory,
+      };
+    }
   }
 
   // Talk-request popover Accept → document-start notification in chat.

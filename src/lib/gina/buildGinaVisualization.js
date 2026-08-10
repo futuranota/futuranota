@@ -1156,6 +1156,44 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     };
   }
 
+  if (family === "check_doc_free_hours" || family === "activate_occupied_hours") {
+    const rows = Array.isArray(ctx.occupied) ? ctx.occupied : [];
+    if (family === "activate_occupied_hours" || rows.length === 0) return null;
+    const dateKey = String(ctx.date || "").trim();
+    return {
+      type: "daily_report",
+      data: {
+        date: dateKey || null,
+        dateLabel: dateKey
+          ? formatGinaDayLabel(dateKey, locale)
+          : (locale === "en" ? "Taken hours" : "Horas tomadas"),
+        occupiedHours: rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          time: row.time,
+          struck: true,
+          hasConflict: false,
+        })),
+        pendingBrief: [],
+        folderProgress: [],
+        conflicts: [],
+        proposals: [],
+        hasConflicts: false,
+        conflictCount: 0,
+        occupiedCount: rows.length,
+        pendingCount: 0,
+        struckCount: rows.length,
+        hasRoomToday: false,
+        lastFinishAt: null,
+        dayComplete: false,
+        isEmpty: false,
+        hasConflictHighlight: false,
+        occupiedHoursOnly: true,
+        locale: locale === "en" ? "en" : "es",
+      },
+    };
+  }
+
   if (family === "daily_report" || family === "daily_report_pending") {
     const report = ctx.dailyReport && typeof ctx.dailyReport === "object"
       ? ctx.dailyReport

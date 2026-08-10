@@ -85,17 +85,29 @@ export function buildGinaOpeningChips(opts = {}) {
   const en = opts.locale === "en";
   const surface = opts.surface === "document" ? "document" : "dashboard";
 
-  // In-document Asistente: only reopen today's anchored schedule (no general easy links).
+  // In-document Asistente: free-hours check + optional day schedule reopen.
   if (surface === "document") {
-    if (!opts.hasDaySheet) return [];
-    return [
+    /** @type {GinaReplyChip[]} */
+    const docChips = [
       {
-        id: "day_sheet",
-        label: en ? "Day schedule" : "Horario del día",
-        text: en ? "Day schedule" : "Horario del día",
+        id: "check_free_hours_doc",
+        label: en
+          ? "Check available hours for this document"
+          : "Chequear horas libres para este documento",
+        text: en
+          ? "Check available hours for this document"
+          : "Chequear horas libres para este documento",
         primary: true,
       },
     ];
+    if (opts.hasDaySheet) {
+      docChips.push({
+        id: "day_sheet",
+        label: en ? "Day schedule" : "Horario del día",
+        text: en ? "Day schedule" : "Horario del día",
+      });
+    }
+    return docChips;
   }
 
   const testLinks = getGinaTestQuickLinks({ locale: opts.locale });
