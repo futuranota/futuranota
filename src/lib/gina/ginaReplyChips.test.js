@@ -90,7 +90,7 @@ describe("ginaReplyChips", () => {
     ]);
   });
 
-  it("funnel headline for today overview is classic Horario de Hoy opening", () => {
+  it("funnel headline for today overview is empty pre-sheet (summary is post-sheet)", () => {
     const line = buildGinaFunnelHeadline({
       type: "schedule_sheet",
       data: {
@@ -124,11 +124,8 @@ describe("ginaReplyChips", () => {
         },
       },
     }, { locale: "es" });
-    expect(line).toMatch(/^Horario de Hoy:/);
+    expect(line).toBe("");
     expect(line).not.toMatch(/Ahora te voy a mostrar/i);
-    expect(line).toContain("**5** documento");
-    expect(line).toContain("2 horas con 15 minutos");
-    expect(line).toContain("departamento principal");
     expect(line).not.toMatch(/señalar|vencido|choca/i);
   });
 
@@ -153,7 +150,7 @@ describe("ginaReplyChips", () => {
     expect(after).toBeNull();
   });
 
-  it("today overview post-table is one block: start doc + begin + already-ready closing", () => {
+  it("today overview post-table: day summary + start doc + agenda ready + notifs", () => {
     const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       hasDaySheet: false,
@@ -165,30 +162,36 @@ describe("ginaReplyChips", () => {
         workMinutes: 60,
         timeClock: "9:00 AM – 10:00 AM",
       }],
+      overviewByDepartment: [{ name: "Sales", total: 1, minutes: 60, hoursLabel: "1h" }],
+      totalMinutes: 60,
+      totalHoursLabel: "1 hora",
       quickSheet: {
         urgency: [],
         isCleanDay: true,
         firstPendingTitle: "Call 1",
         firstPendingId: "n1",
         pending: [{ id: "n1", title: "Call 1" }],
+        totalDocuments: 1,
       },
     });
+    expect(post.textAfterLead).toMatch(/Resumen inicial del día/i);
+    expect(post.textAfterLead).toMatch(/Sales/i);
     expect(post.textAfter).toContain("**Documento de inicio:** Call 1");
     expect(post.textAfter).toContain("**Departamento:** Sales (Calls)");
     expect(post.textAfter).toContain("**Tiempo asignado:**");
-    expect(post.textAfter).toContain("**Cuando desees puedes comenzar.**");
-    expect(post.textAfter).toMatch(/ya está listo/i);
-    expect(post.textAfter).toMatch(/Horario del día/i);
+    expect(post.textAfter).not.toContain("**Cuando desees puedes comenzar.**");
+    expect(post.textAfter).toMatch(/Tu agenda está lista/i);
+    expect(post.textAfter).toMatch(/abre el Asistente/i);
     expect(post.textAfter).toMatch(/¿Activamos avisos en vivo\?/i);
-    expect(post.textAfter).toMatch(/pestaña abierta/i);
+    expect(post.textAfter).toMatch(/al inicio de cada tarea/i);
     expect(post.textAfter).not.toMatch(/¿Quieres guardarlo/i);
-    expect(post.textAfter).not.toMatch(/¡Hey!/i);
-    expect(post.textAfter).not.toMatch(/Sheet del Día/i);
+    expect(post.textAfter).not.toMatch(/Call Asistente/i);
     expect(post.textPitch).toBeNull();
     expect(post.startDocLines?.length).toBe(3);
     expect(post.startDocLines[0].label).toBe("Documento de inicio");
-    expect(post.textAfterRest).toContain("**Cuando desees puedes comenzar.**");
+    expect(post.textAfterRest).toMatch(/Tu agenda está lista/i);
     expect(post.textAfterRest).not.toContain("Documento de inicio");
+    expect(post.textAfterRest).not.toContain("**Cuando desees puedes comenzar.**");
   });
 
   it("labels Próximo Documento when a completed doc is earlier in the day", () => {
@@ -288,11 +291,11 @@ describe("ginaReplyChips", () => {
       },
     });
     expect(post.textAfter).toContain("**Documento de inicio:** Call 1");
-    expect(post.textAfter).toMatch(/ya está listo/i);
-    expect(post.textAfter).toContain("Horario del día");
+    expect(post.textAfter).toMatch(/Tu agenda está lista/i);
+    expect(post.textAfter).toMatch(/abre el Asistente/i);
   });
 
-  it("today overview post-table still educates Horario del día when sheet already saved", () => {
+  it("today overview post-table still educates Asistente when sheet already saved", () => {
     const post = buildTodayOverviewPostTableCopy({
       locale: "es",
       hasDaySheet: true,
@@ -311,8 +314,9 @@ describe("ginaReplyChips", () => {
       },
     });
     expect(post.textAfter).toContain("**Documento de inicio:** Call 1");
-    expect(post.textAfter).toContain("**Cuando desees puedes comenzar.**");
-    expect(post.textAfter).toContain("Horario del día");
+    expect(post.textAfter).not.toContain("**Cuando desees puedes comenzar.**");
+    expect(post.textAfter).toMatch(/Tu agenda está lista/i);
+    expect(post.textAfter).toMatch(/abre el Asistente/i);
     expect(post.textAfter).not.toMatch(/¿Quieres guardarlo/i);
     expect(post.textAfter).not.toMatch(/¡Hey!/i);
     expect(post.textPitch).toBeNull();
@@ -403,7 +407,7 @@ describe("ginaReplyChips", () => {
     expect(chips.find((c) => c.id === "skip_day_notifications")?.label).toBe("prefiero chequear por mi cuenta");
   });
 
-  it("after notifications decision, today overview offers Comenzar + Re-agendar", () => {
+  it("after notifications decision, today overview offers Comenzar + Reagendar", () => {
     const chips = buildGinaReplyChips({
       family: "today",
       talkNotificationsDecided: true,
@@ -424,7 +428,7 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).toEqual(["open_1", "reschedule_times"]);
     expect(chips.find((c) => c.id === "open_1")?.label).toBe("Comenzar con Doc 1");
     expect(chips.find((c) => c.id === "open_1")?.primary).toBe(true);
-    expect(chips.find((c) => c.id === "reschedule_times")?.label).toMatch(/Re-agendar calendario/i);
+    expect(chips.find((c) => c.id === "reschedule_times")?.label).toBe("Reagendar calendario");
   });
 
   it("clean-day today overview without decision only offers notifications", () => {
@@ -515,15 +519,15 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).not.toContain("save_day_sheet");
   });
 
-  it("justSaved day_sheet_saved funnel copy points to Call Asistente", () => {
+  it("justSaved day_sheet_saved funnel copy points to Asistente", () => {
     const line = buildGinaFunnelHeadline({
       type: "day_sheet_saved",
       data: { justSaved: true },
     }, { locale: "es" });
     expect(line).toMatch(/ya está guardado el horario del día/i);
-    expect(line).toMatch(/llamar asistente/i);
-    expect(line).toMatch(/horario del día/i);
-    expect(line).toMatch(/calendario queda guardado/i);
+    expect(line).toMatch(/abre el Asistente/i);
+    expect(line).toMatch(/Horario del día/i);
+    expect(line).not.toMatch(/Call Asistente/i);
     expect(line).not.toMatch(/guarde tu horario/i);
   });
 
@@ -551,7 +555,7 @@ describe("ginaReplyChips", () => {
     expect(chips.map((c) => c.id)).toContain("day_sheet_next");
   });
 
-  it("clean-day today overview headline still pitches save offer after text", () => {
+  it("clean-day today overview keeps pre-sheet headline empty (summary is post-sheet)", () => {
     const headline = buildGinaFunnelHeadline({
       type: "schedule_sheet",
       data: {
@@ -570,9 +574,7 @@ describe("ginaReplyChips", () => {
         },
       },
     }, { locale: "es" });
-    expect(headline).toMatch(/^Horario de Hoy:/);
-    expect(headline).not.toMatch(/Ahora te voy a mostrar/i);
-    expect(headline).toContain("**1** documento");
+    expect(headline).toBe("");
     const mid = buildTodayOverviewIntroText("es");
     expect(mid).toMatch(/sheet del día/i);
     const after = buildTodayOverviewAfterText({
@@ -580,6 +582,9 @@ describe("ginaReplyChips", () => {
       hasDaySheet: false,
       offerCount: 0,
       incrementOffer: false,
+      overviewByDepartment: [{ name: "Sales", total: 1, minutes: 60, hoursLabel: "1h" }],
+      totalMinutes: 60,
+      totalHoursLabel: "1 hora",
       documents: [{
         id: "n1",
         title: "Call 1",
@@ -594,11 +599,13 @@ describe("ginaReplyChips", () => {
         firstPendingTitle: "Call 1",
         pending: [{ id: "n1", title: "Call 1" }],
         urgency: [],
+        totalDocuments: 1,
       },
     });
+    expect(after).toMatch(/Resumen inicial del día/i);
     expect(after).toContain("**Documento de inicio:** Call 1");
-    expect(after).toMatch(/ya está listo/i);
-    expect(after).toMatch(/Horario del día/i);
+    expect(after).toMatch(/Tu agenda está lista/i);
+    expect(after).toMatch(/abre el Asistente/i);
     expect(after).not.toMatch(/¿Quieres guardarlo/i);
   });
 
@@ -620,7 +627,7 @@ describe("ginaReplyChips", () => {
         },
       },
     }, { locale: "es" });
-    expect(headline).toMatch(/^Horario de Hoy:/);
+    expect(headline).toBe("");
     expect(headline).not.toContain("horario vencido");
     expect(headline).not.toContain("2:00 PM");
   });

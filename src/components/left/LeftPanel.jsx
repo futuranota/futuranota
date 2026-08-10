@@ -88,10 +88,10 @@ import {
   buildTalkNotificationsEnabledAck,
   buildTalkNotificationsSkippedAck,
   buildTalkRequestNotifyChips,
+  buildTalkRequestNotifyStartDocLines,
   buildTalkRequestNotifyText,
   buildTalkRequestThanksText,
   buildTalkRequestNotifyPrompt,
-  talkRequestTimeLabel,
 } from "../../lib/gina/ginaTalkRequest.js";
 import { useGinaTalkRequestNudge } from "../../hooks/useGinaTalkRequestNudge.js";
 import { buildGinaDayRitualResetAck } from "../../lib/gina/ginaDayRitualReset.js";
@@ -1925,6 +1925,10 @@ export function LeftPanel({
   const [clickFolderView, setClickFolderView] = useState(null);
   const [ginaDashboardOpen, setGinaDashboardOpen] = useState(false);
   const [ginaAutoRunPrompt, setGinaAutoRunPrompt] = useState(/** @type {string | null} */ (null));
+  /** Small-chat session from talk-request Accept (never dashboard size). */
+  const [ginaTalkNotifySession, setGinaTalkNotifySession] = useState(
+    /** @type {{ documentId: string | null, prompt: string, runKey: number } | null} */ (null),
+  );
   const [ginaKnowledgeOpen, setGinaKnowledgeOpen] = useState(false);
   const [ginaMeetingSession, setGinaMeetingSession] = useState(false);
   const [ginaLearnBrief, setGinaLearnBrief] = useState(null);
@@ -2025,7 +2029,7 @@ export function LeftPanel({
   } = useGinaTalkRequestNudge({
     userId: ginaUserId,
     buildCtx: buildGinaToolsCtx,
-    chatOpen: ginaDashboardOpen,
+    chatOpen: ginaDashboardOpen || Boolean(ginaTalkNotifySession),
   });
 
   const openGinaDashboard = useCallback(() => {
@@ -2052,13 +2056,63 @@ export function LeftPanel({
       const accepted = acceptTalkRequest(ginaUserId, new Date());
       docId = accepted?.docId || null;
     } catch { /* ignore */ }
-    setGinaAutoRunPrompt(buildTalkRequestNotifyPrompt(locale === "es" ? "es" : "en", docId));
-    openGinaDashboard();
-  }, [ginaUserId, locale, openGinaDashboard]);
+    const localeKey = locale === "es" ? "es" : "en";
+    const prompt = buildTalkRequestNotifyPrompt(localeKey, docId);
+    // Always small chat — never dashboard.
+    setGinaDashboardOpen(false);
+    setGinaMeetingSession(false);
+    setGinaAutoRunPrompt(null);
+
+    // Open the notified unit in the background when possible (folder / node).
+    if (docId) {
+      try {
+        const plan = buildGinaDocumentOpenPlan(docId, {
+          nodesMap,
+          docsMap,
+          departments,
+          unassignedDepartmentId: UNASSIGNED_DEPARTMENT_FILTER_ID,
+          findDepartmentById,
+        });
+        if (plan?.navigate) {
+          requestLeftPanelNavigate(plan.navigate);
+        }
+        if (plan?.kind === "folder") {
+          onOpenDocument?.(plan.targetId);
+        } else if (plan?.kind === "node") {
+          // Open parent folder for context — avoid StandaloneNodeModal covering the small chat.
+          if (plan.navigate?.folderId) {
+            onOpenDocument?.(plan.navigate.folderId);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Remount key overwrites an already-open small chat with the new notify turn.
+    try {
+      window.dispatchEvent(new CustomEvent("gina:talk-notify-open"));
+    } catch { /* ignore */ }
+    setGinaTalkNotifySession({
+      documentId: docId,
+      prompt,
+      runKey: Date.now(),
+    });
+  }, [
+    ginaUserId,
+    locale,
+    nodesMap,
+    docsMap,
+    departments,
+    requestLeftPanelNavigate,
+    onOpenDocument,
+  ]);
 
   const declineGinaTalkRequestPopover = useCallback(() => {
     try { declineTalkRequest(ginaUserId, new Date()); } catch { /* ignore */ }
   }, [ginaUserId]);
+
+  const closeGinaTalkNotifySession = useCallback(() => {
+    setGinaTalkNotifySession(null);
+  }, []);
 
   const openGinaMeeting = useCallback(() => {
     if (!isAdminSessionEmail(userEmail)) return;
@@ -3478,6 +3532,9 @@ export function LeftPanel({
       const post = buildTodayOverviewPostTableCopy({
         quickSheet: qs,
         documents: dayReadyViz?.data?.documents || [],
+        overviewByDepartment: dayReadyViz?.data?.overviewByDepartment || [],
+        totalMinutes: dayReadyViz?.data?.totalMinutes,
+        totalHoursLabel: dayReadyViz?.data?.totalHoursLabel,
         locale: localeKey,
         userId: ginaUserId,
         hasDaySheet: true,
@@ -3491,10 +3548,8 @@ export function LeftPanel({
         talkNotificationsDecided: hasTalkNotificationsDecision(ginaUserId, now),
       });
 
-      // Reschedule apply: keep “Listo. Reagendé…” then show the new day sheet.
-      const message = ackOverride
-        ? `${applied}\n\n${readyMessage}`
-        : readyMessage;
+      // Reschedule apply ack is self-contained — do not append dayReady.
+      const message = ackOverride ? applied : readyMessage;
 
       return {
         message,
@@ -3509,6 +3564,7 @@ export function LeftPanel({
         }),
         textMid: null,
         textAfter: post.textAfter,
+        textAfterLead: post.textAfterLead,
         textAfterRest: post.textAfterRest,
         startDocLines: post.startDocLines,
         textPitch: null,
@@ -4062,27 +4118,10 @@ export function LeftPanel({
         };
       }
       const next = routed.toolContext?.nextDocument || null;
-      const visualization = buildGinaVisualization("day_sheet", {
-        ...routed.toolContext,
-        documents: Array.isArray(routed.toolContext?.documents)
-          ? routed.toolContext.documents
-          : (next ? [next] : []),
-        isDaySheet: true,
-        talkRequestNotify: true,
-        nextDocument: next,
-        missingAnchor: false,
-      }, {
-        locale: localeKey,
-        now: ctx.now,
-        userText: text,
-      });
       return {
-        message: buildTalkRequestNotifyText({
-          locale: localeKey,
-          nextTitle: next?.title || null,
-          nextTimeLabel: talkRequestTimeLabel(next, localeKey),
-        }),
-        visualization,
+        message: buildTalkRequestNotifyText({ locale: localeKey }),
+        startDocLines: buildTalkRequestNotifyStartDocLines(next, localeKey),
+        visualization: null,
         chips: buildTalkRequestNotifyChips({ locale: localeKey }),
       };
     }
@@ -4677,6 +4716,9 @@ export function LeftPanel({
         ? buildTodayOverviewPostTableCopy({
           quickSheet: visualization.data.quickSheet || null,
           documents: visualization.data.documents || [],
+          overviewByDepartment: visualization.data.overviewByDepartment || [],
+          totalMinutes: visualization.data.totalMinutes,
+          totalHoursLabel: visualization.data.totalHoursLabel,
           locale: localeKey,
           userId: ginaUserId,
           hasDaySheet: daySheetAnchored,
@@ -4700,9 +4742,13 @@ export function LeftPanel({
         : [];
 
       return {
-        message: funnelHeadline || displayText,
+        // Today overview: allow empty pre-sheet message (summary is post-sheet).
+        message: visualization?.data?.todayOverview
+          ? (funnelHeadline || "")
+          : (funnelHeadline || displayText),
         textMid,
         textAfter: postTable.textAfter,
+        textAfterLead: postTable.textAfterLead,
         textAfterRest: postTable.textAfterRest,
         startDocLines: postTable.startDocLines,
         textPitch: null,
@@ -5720,14 +5766,50 @@ export function LeftPanel({
           }}
         />
       ) : null}
+      {ginaTalkNotifySession ? (
+        <GinaChatOverlay
+          key={`talk-notify-${ginaTalkNotifySession.runKey}`}
+          documentId={ginaTalkNotifySession.documentId}
+          compact
+          assistantName={t("gina.name")}
+          openingMessage=""
+          placeholder={t("gina.placeholder")}
+          speechLang={locale === "es" ? "es-ES" : "en-US"}
+          autoRunPrompt={ginaTalkNotifySession.prompt}
+          labels={{
+            messageAria: t("gina.messageAria"),
+            sendAria: t("gina.sendAria"),
+            micAria: t("gina.micAria"),
+            micUnsupported: t("gina.micUnsupported"),
+            listeningHold: t("gina.listeningHold"),
+            listeningCancel: t("gina.listeningCancel"),
+            dictationInsert: t("gina.dictationInsert"),
+            deletePhraseArmed: t("gina.deletePhraseArmed"),
+            deletePhraseMiss: t("gina.deletePhraseMiss"),
+            closeAria: t("gina.closeAria"),
+            typingAria: t("gina.typingAria"),
+            dialogAria: t("gina.dialogAria"),
+            queued: t("gina.queued"),
+            ttsOn: t("gina.ttsOn"),
+            ttsOff: t("gina.ttsOff"),
+          }}
+          onSendMessage={handleGinaDashboardSend}
+          onClose={closeGinaTalkNotifySession}
+        />
+      ) : null}
       <GinaTalkRequestPopover
-        open={ginaTalkRequestOpen && !ginaDashboardOpen && !ginaDailyReportPopoverOpen}
+        open={
+          ginaTalkRequestOpen
+          && !ginaDashboardOpen
+          && !ginaTalkNotifySession
+          && !ginaDailyReportPopoverOpen
+        }
         locale={locale === "es" ? "es" : "en"}
         onAccept={openGinaFromTalkRequestPopover}
         onDecline={declineGinaTalkRequestPopover}
       />
       <GinaDailyReportPopover
-        open={ginaDailyReportPopoverOpen && !ginaDashboardOpen}
+        open={ginaDailyReportPopoverOpen && !ginaDashboardOpen && !ginaTalkNotifySession}
         locale={locale === "es" ? "es" : "en"}
         kind={ginaDailyReportPopoverKind}
         onOpenChat={openGinaFromDailyReportPopover}

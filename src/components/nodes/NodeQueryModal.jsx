@@ -71,6 +71,12 @@ import {
 } from "../../lib/gina/ginaSearchSequence.js";
 import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import {
+  buildTalkRequestNotifyChips,
+  buildTalkRequestNotifyStartDocLines,
+  buildTalkRequestNotifyText,
+  buildTalkRequestThanksText,
+} from "../../lib/gina/ginaTalkRequest.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -162,6 +168,14 @@ export function NodeQueryModal({
   const [writingFocusTarget, setWritingFocusTarget] = useState(null);
   const [ginaChatOpen, setGinaChatOpen] = useState(false);
   const writingCaretRef = useRef(null);
+
+  // Accept on talk popover opens a floating small chat — close in-doc overlay so we don't stack two.
+  useEffect(() => {
+    const onTalkNotify = () => setGinaChatOpen(false);
+    window.addEventListener("gina:talk-notify-open", onTalkNotify);
+    return () => window.removeEventListener("gina:talk-notify-open", onTalkNotify);
+  }, []);
+
   const typographyStorageKey = entityNodeId ? `node:${entityNodeId}` : null;
   const { typographyId, setTypographyId, typographyStyle } = useDocTextTypography(typographyStorageKey);
   const displayQuery = (query || "").trim() || "Untitled";
@@ -396,6 +410,27 @@ export function NodeQueryModal({
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
 
+    // Talk-request Accept notify — same shape as dashboard (intro + startDocLines).
+    if (
+      routed.family === "gina_talk_request"
+      || routed.family === "gina_talk_request_thanks"
+    ) {
+      if (routed.family === "gina_talk_request_thanks") {
+        return {
+          message: buildTalkRequestThanksText(localeKey),
+          visualization: null,
+          chips: null,
+        };
+      }
+      const next = routed.toolContext?.nextDocument || null;
+      return {
+        message: buildTalkRequestNotifyText({ locale: localeKey }),
+        startDocLines: buildTalkRequestNotifyStartDocLines(next, localeKey),
+        visualization: null,
+        chips: buildTalkRequestNotifyChips({ locale: localeKey }),
+      };
+    }
+
     // Day schedule reopen/save — deterministic, no Groq (same store as dashboard).
     if (
       routed.family === "day_sheet"
@@ -465,8 +500,8 @@ export function NodeQueryModal({
           || routed.openDocumentId;
         return {
           message: localeKey === "en"
-            ? `I found “${title}”. Open it from Assistance (Call Assistance) or from Documents when you’re ready.`
-            : `Encontré «${title}». Ábrelo desde Assistance (Call Assistance) o desde Documents cuando quieras.`,
+            ? `I found “${title}”. Open it from the Assistant or from Documents when you’re ready.`
+            : `Encontré «${title}». Ábrelo desde el Asistente o desde Documents cuando quieras.`,
           visualization: null,
           chips: null,
         };
@@ -740,6 +775,9 @@ export function NodeQueryModal({
         ? buildTodayOverviewPostTableCopy({
           quickSheet: visualization.data.quickSheet || null,
           documents: visualization.data.documents || [],
+          overviewByDepartment: visualization.data.overviewByDepartment || [],
+          totalMinutes: visualization.data.totalMinutes,
+          totalHoursLabel: visualization.data.totalHoursLabel,
           locale: localeKey,
           userId: ginaUserId,
           hasDaySheet: daySheetAnchored,
@@ -756,9 +794,12 @@ export function NodeQueryModal({
         hasDaySheet: daySheetAnchored,
       });
       return {
-        message: funnelHeadline || message,
+        message: visualization?.data?.todayOverview
+          ? (funnelHeadline || "")
+          : (funnelHeadline || message),
         textMid,
         textAfter: postTable.textAfter,
+        textAfterLead: postTable.textAfterLead,
         textAfterRest: postTable.textAfterRest,
         startDocLines: postTable.startDocLines,
         textPitch: null,

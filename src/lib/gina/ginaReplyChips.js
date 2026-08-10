@@ -40,10 +40,10 @@ import {
   buildTalkNotificationsOfferText,
 } from "./ginaTalkRequest.js";
 
-/** Closing after clean day sheet — no “save” CTA; docs already hold the schedule. */
+/** Closing after clean day sheet — tip to open Asistente in any file. */
 const DAY_SHEET_ALREADY_READY_CLOSING = {
-  es: "Tu horario del día ya está listo (vive en tus documentos). Cuando trabajes en cualquiera, abre **Call Asistente** y toca **Horario del día** para ver la lista y tachar avances.",
-  en: "Your day schedule is already ready (it lives on your documents). When you work in any of them, open **Call Asistente** and tap **Day schedule** to see the list and check things off.",
+  es: "Tu agenda está lista.\n\nCuando trabajes en cualquier archivo, abre el Asistente para revisar o tachar avances.",
+  en: "Your agenda is ready.\n\nWhen you work in any file, open the Assistant to review or check off progress.",
 };
 
 /**
@@ -475,7 +475,7 @@ export function buildCountDocumentsChips(opts = {}) {
           id: "nav_back_refine",
           kind: "nav_back",
           group: "list_refine",
-          label: en ? "go back" : "regresar atrás",
+          label: en ? "Back" : "Volver",
           selectable: false,
         });
         return chips;
@@ -983,7 +983,7 @@ export function buildScheduleSheetChips(opts = {}) {
       }
       chips.push({
         id: "reschedule_times",
-        label: en ? "Re-schedule calendar" : "Re-agendar calendario",
+        label: en ? "Reschedule calendar" : "Reagendar calendario",
         text: en ? "Reschedule for today" : "Reagendar para hoy",
       });
     }
@@ -1165,10 +1165,43 @@ export function buildTodayOverviewDeptBlocks(opts = {}) {
 
 /**
  * Deterministic narration for “qué tenemos para hoy” (bubble only).
- * Dept blocks with color dots live in the visualization.
- * Urgency / overlap flags wait for the notify chip — not this opening.
+ * Full day summary now lives post-sheet (`buildTodayOverviewDaySummary`).
+ * Pre-sheet bubble stays empty so textMid + viz lead.
  */
 export function buildTodayOverviewHeadline(opts = {}) {
+  const en = opts.locale === "en";
+  const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
+  const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
+  const nFromQs = typeof qs?.totalDocuments === "number"
+    ? qs.totalDocuments
+    : ((qs?.completed?.length || 0) + (qs?.urgency?.length || 0) + (qs?.pending?.length || 0));
+  const nDocs = nFromQs
+    || (Array.isArray(opts.documents) ? opts.documents.length : 0)
+    || depts.reduce((acc, d) => acc + (d.total || 0), 0);
+
+  if (nDocs === 0 && depts.length === 0) {
+    return en
+      ? "Nothing scheduled for today."
+      : "Hoy no hay trabajo programado.";
+  }
+
+  // Summary moved after the sheet — keep pre-sheet message empty.
+  return "";
+}
+
+/**
+ * Post-sheet day summary (docs + hours + focus department).
+ * @param {{
+ *   locale?: string,
+ *   overviewByDepartment?: object[],
+ *   documents?: object[],
+ *   totalMinutes?: number,
+ *   totalHoursLabel?: string,
+ *   quickSheet?: object | null,
+ * }} [opts]
+ * @returns {string | null}
+ */
+export function buildTodayOverviewDaySummary(opts = {}) {
   const en = opts.locale === "en";
   const depts = Array.isArray(opts.overviewByDepartment) ? opts.overviewByDepartment : [];
   const qs = opts.quickSheet && typeof opts.quickSheet === "object" ? opts.quickSheet : null;
@@ -1181,25 +1214,34 @@ export function buildTodayOverviewHeadline(opts = {}) {
   const totalMinutes = typeof opts.totalMinutes === "number"
     ? opts.totalMinutes
     : depts.reduce((acc, d) => acc + (d.minutes || 0), 0);
+  if (nDocs <= 0 && totalMinutes <= 0) return null;
+
   const totalHoursLabel = opts.totalHoursLabel
-    || formatHoursFallback(totalMinutes, en ? "en" : "es", { withCon: true });
+    || formatWorkDurationLabel(totalMinutes, en ? "en" : "es")
+    || formatHoursFallback(totalMinutes, en ? "en" : "es");
+  const title = en ? "Initial day summary:" : "Resumen inicial del día:";
+  const top = depts.find((d) => (d?.minutes || 0) > 0) || depts[0] || null;
+  const topName = top ? String(top.name || "").trim() : "";
+  const topHours = top
+    ? (top.hoursLabel
+      || formatWorkDurationLabel(top.minutes || 0, en ? "en" : "es", { short: true }))
+    : "";
 
-  if (nDocs === 0 && depts.length === 0) {
-    return en
-      ? "Nothing scheduled for today."
-      : "Hoy no hay trabajo programado.";
+  let body;
+  if (totalMinutes > 0 && topName) {
+    body = en
+      ? `You have ${nDocs} document${nDocs === 1 ? "" : "s"} assigned and a total of ${totalHoursLabel} of work. Most of your time will be focused on ${topName} (${topHours}).`
+      : `Tienes ${nDocs} documento${nDocs === 1 ? "" : "s"} asignado${nDocs === 1 ? "" : "s"} y un total de ${totalHoursLabel} de trabajo. La mayor parte de tu tiempo estará centrada en ${topName} (${topHours}).`;
+  } else if (totalMinutes > 0) {
+    body = en
+      ? `You have ${nDocs} document${nDocs === 1 ? "" : "s"} assigned and a total of ${totalHoursLabel} of work.`
+      : `Tienes ${nDocs} documento${nDocs === 1 ? "" : "s"} asignado${nDocs === 1 ? "" : "s"} y un total de ${totalHoursLabel} de trabajo.`;
+  } else {
+    body = en
+      ? `You have ${nDocs} document${nDocs === 1 ? "" : "s"} assigned.`
+      : `Tienes ${nDocs} documento${nDocs === 1 ? "" : "s"} asignado${nDocs === 1 ? "" : "s"}.`;
   }
-
-  const title = en ? "Today's schedule:" : "Horario de Hoy:";
-  const description = totalMinutes > 0
-    ? (en
-      ? `Today we have a total of **${nDocs}** document${nDocs === 1 ? "" : "s"} and a total work block of ${totalHoursLabel}; your greatest focus comes from a main department.`
-      : `Hoy tenemos un total de **${nDocs}** documento${nDocs === 1 ? "" : "s"} y un bloque total de trabajo de ${totalHoursLabel}; tu mayor concentración viene de un departamento principal.`)
-    : (en
-      ? `Today we have a total of **${nDocs}** document${nDocs === 1 ? "" : "s"}.`
-      : `Hoy tenemos un total de **${nDocs}** documento${nDocs === 1 ? "" : "s"}.`);
-
-  return `${title}\n${description}`;
+  return `${title}\n${body}`;
 }
 
 /**
@@ -1369,6 +1411,9 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
  *   locale?: string,
  *   quickSheet?: object | null,
  *   documents?: object[],
+ *   overviewByDepartment?: object[],
+ *   totalMinutes?: number,
+ *   totalHoursLabel?: string,
  *   hasDaySheet?: boolean,
  *   hasRecoveryOffer?: boolean,
  *   urgencyCount?: number,
@@ -1383,6 +1428,7 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
  * }} [opts]
  * @returns {{
  *   textAfter: string | null,
+ *   textAfterLead: string | null,
  *   textAfterRest: string | null,
  *   startDocLines: { label: string, value: string }[],
  *   textPitch: null,
@@ -1394,6 +1440,7 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
   const cleanDay = Boolean(qs?.isCleanDay) || Boolean(opts.forceCleanDay || opts.offerDayReady);
   const empty = {
     textAfter: null,
+    textAfterLead: null,
     textAfterRest: null,
     startDocLines: [],
     textPitch: null,
@@ -1407,6 +1454,7 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
       if (!startDocLines.length) return empty;
       return {
         textAfter: null,
+        textAfterLead: null,
         textAfterRest: null,
         startDocLines,
         textPitch: null,
@@ -1417,28 +1465,35 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
     }
   }
 
+  const daySummary = buildTodayOverviewDaySummary({
+    locale: en ? "en" : "es",
+    overviewByDepartment: opts.overviewByDepartment,
+    documents: opts.documents,
+    totalMinutes: opts.totalMinutes,
+    totalHoursLabel: opts.totalHoursLabel,
+    quickSheet: qs,
+  });
   const startDocLines = buildTodayOverviewStartDocLines(opts);
   const start = startDocLines.length
     ? startDocLines.map((row) => `**${row.label}:** ${row.value}`).join("\n")
     : null;
-  const begin = en
-    ? "**Whenever you're ready, you can start.**"
-    : "**Cuando desees puedes comenzar.**";
   const readyClosing = en
     ? DAY_SHEET_ALREADY_READY_CLOSING.en
     : DAY_SHEET_ALREADY_READY_CLOSING.es;
 
-  const restParts = [begin, readyClosing];
+  const restParts = [readyClosing];
   if (!opts.talkNotificationsDecided) {
     restParts.push(buildTalkNotificationsOfferText(en ? "en" : "es"));
   }
   const textAfterRest = restParts.join("\n\n");
   const parts = [];
+  if (daySummary) parts.push(daySummary);
   if (start) parts.push(start);
   parts.push(...restParts);
 
   return {
     textAfter: parts.length ? parts.join("\n\n") : null,
+    textAfterLead: daySummary || null,
     textAfterRest,
     startDocLines,
     textPitch: null,
@@ -1907,8 +1962,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     visualization.type === "schedule_sheet" && data.justSaved
   )) {
     return en
-      ? "Done — today’s schedule is saved. Whenever you need to view the list, check items off, or reopen the next one, select **Call Asistente** and press **Day schedule** — you’ll have everything ready. (This calendar is saved & ready to use.)"
-      : "Listo, ya está guardado el horario del día. Cada vez que necesites visualizar la lista, tacharlo, o reabrir el siguiente, con seleccionar: “llamar asistente” y presionar “horario del día” ya tendrás todo a disposición. (ya este calendario queda guardado & listo de usar)";
+      ? "Done — today’s schedule is saved. Whenever you need the list or to check items off, open the Assistant and tap Day schedule."
+      : "Listo, ya está guardado el horario del día. Cuando necesites la lista o tachar avances, abre el Asistente y toca Horario del día.";
   }
 
   if (visualization.type === "schedule_sheet") {

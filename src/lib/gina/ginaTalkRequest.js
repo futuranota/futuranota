@@ -40,8 +40,8 @@ export function buildTalkRequestPopoverCopy(locale = "es") {
  */
 export function buildTalkNotificationsOfferText(locale = "es") {
   return locale === "en"
-    ? "Turn on live alerts? I’ll notify you when each task starts while you keep this tab open."
-    : "¿Activamos avisos en vivo? Te notificaré el inicio de cada tarea mientras mantengas esta pestaña abierta.";
+    ? "Turn on live alerts? I’ll notify you at the start of each task while you keep this tab open."
+    : "¿Activamos avisos en vivo? Te notificaré al inicio de cada tarea mientras mantengas esta pestaña abierta.";
 }
 
 /**
@@ -73,8 +73,8 @@ export function buildTalkNotificationsEnableChips(opts = {}) {
  */
 export function buildTalkNotificationsEnabledAck(locale = "es") {
   return locale === "en"
-    ? "Done — I’ll notify you when each task starts while this tab stays open."
-    : "Listo — te aviso al inicio de cada tarea mientras mantengas esta pestaña abierta.";
+    ? "Got it. I’ll notify you on screen every time a new work block starts."
+    : "Entendido. Te avisaré en pantalla cada vez que inicie un nuevo bloque de trabajo.";
 }
 
 /**
@@ -87,37 +87,68 @@ export function buildTalkNotificationsSkippedAck(locale = "es") {
 }
 
 /**
- * Chat body after Accept.
- * @param {{
- *   locale?: string,
- *   nextTitle?: string | null,
- *   nextTimeLabel?: string | null,
- * }} [opts]
+ * Chat body after Accept (short intro; fields go in startDocLines).
+ * @param {{ locale?: string }} [opts]
  */
 export function buildTalkRequestNotifyText(opts = {}) {
   const en = opts.locale === "en";
-  const title = String(opts.nextTitle || "").trim();
-  const time = String(opts.nextTimeLabel || "").trim();
-  const nextLine = title
-    ? (en
-      ? `Your next document **${title}**${time ? ` (${time})` : ""} starts soon — this is just a notification.`
-      : `Tu próximo documento **${title}**${time ? ` (${time})` : ""} comienza pronto — esto es solo una notificación.`)
-    : (en
-      ? "Your next document starts soon — this is just a notification."
-      : "Tu próximo documento comienza pronto — esto es solo una notificación.");
-
   if (en) {
     return [
-      "Did you finish your current task?",
-      nextLine,
-      "If you already finished, you can always reopen **Day schedule** to check off and start again.",
+      "Are you almost ready?",
+      "Your next-document notification — it starts soon.",
     ].join("\n\n");
   }
   return [
-    "¿Ya terminaste en tu task actual?",
-    nextLine,
-    "Si ya terminaste, siempre puedes reabrir el **Horario del día** para tachar y comenzar de nuevo.",
+    "¿Estás casi listo?",
+    "La notificación de tu siguiente documento comienza pronto.",
   ].join("\n\n");
+}
+
+/**
+ * Highlight lines: Departamento / Documento / horario (GinaStartDocReveal).
+ * @param {object | null} doc
+ * @param {string} [locale]
+ * @returns {{ label: string, value: string }[]}
+ */
+export function buildTalkRequestNotifyStartDocLines(doc, locale = "es") {
+  const en = locale === "en";
+  if (!doc) {
+    return en
+      ? [
+        { label: "Department", value: "—" },
+        { label: "Document", value: "—" },
+        { label: "Schedule", value: "—" },
+      ]
+      : [
+        { label: "Departamento", value: "—" },
+        { label: "Documento", value: "—" },
+        { label: "horario", value: "—" },
+      ];
+  }
+  const title = String(doc.title || doc.name || "").trim()
+    || (en ? "document" : "documento");
+  const department = String(
+    doc.department || doc.departmentName || doc.hierarchy?.department || "",
+  ).trim() || "—";
+  const categoryRaw = String(
+    doc.category || doc.hierarchy?.category || "",
+  ).trim();
+  const category = (!categoryRaw || categoryRaw === "—" || categoryRaw === "-")
+    ? ""
+    : categoryRaw;
+  const departmentValue = category ? `${department} (${category})` : department;
+  const schedule = talkRequestTimeLabel(doc, en ? "en" : "es") || "—";
+  return en
+    ? [
+      { label: "Department", value: departmentValue },
+      { label: "Document", value: title },
+      { label: "Schedule", value: schedule },
+    ]
+    : [
+      { label: "Departamento", value: departmentValue },
+      { label: "Documento", value: title },
+      { label: "horario", value: schedule },
+    ];
 }
 
 /**

@@ -254,7 +254,7 @@ describe("Gina count_documents browse + list", () => {
     });
     expect(chips).toHaveLength(1);
     expect(chips[0].kind).toBe("nav_back");
-    expect(chips[0].label).toMatch(/regresar atrás/i);
+    expect(chips[0].label).toMatch(/Volver/i);
     expect(chips.some((c) => /Resaltar Blogs/i.test(c.label))).toBe(false);
   });
 

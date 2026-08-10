@@ -752,7 +752,12 @@ describe("ginaScheduleRecovery", () => {
       nextTitle: "Sales",
       remaining: 1,
     })).toMatch(/Siguiente: elige el cupo para \*\*Sales\*\*/);
-    expect(buildRescheduleAppliedText({ locale: "es", timeLabel: "9:00 PM – 10:00 PM" })).toMatch(/Reagendé/);
+    expect(buildRescheduleAppliedText({ locale: "es", count: 2 })).toMatch(
+      /Listo:\nReagendé el horario de 2 archivos y tu agenda quedó actualizada\./,
+    );
+    expect(buildRescheduleAppliedText({ locale: "es", count: 1 })).toMatch(
+      /1 archivo/,
+    );
     expect(buildRecoverySnoozeText({ locale: "es" })).toMatch(/siguiente revisión/);
   });
 

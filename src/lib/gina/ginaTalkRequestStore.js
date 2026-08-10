@@ -158,9 +158,32 @@ export function hasTalkNotificationsDecision(userId, now = new Date()) {
 
 /**
  * @param {object} doc
+ * Unchecked = not completed on the day schedule (status completed counts too).
  */
-function isCompletedDoc(doc) {
-  return Boolean(doc?.completed || doc?.status === "completed");
+function isUncheckedPendingDoc(doc) {
+  if (!doc || !doc.id) return false;
+  if (doc.completed || doc.status === "completed") return false;
+  if (!doc.anchorAt) return false;
+  return true;
+}
+
+/**
+ * Drop a stale armed popover without marking the doc notified
+ * (used when clearing false positives from “any past start” logic).
+ * @param {string} userId
+ * @param {Date} [now]
+ */
+export function clearArmedTalkRequestSoft(userId, now = new Date()) {
+  const cur = getTalkRequestState(userId, now);
+  if (!cur?.activeDocId) return cur;
+  const next = {
+    ...cur,
+    activeDocId: null,
+    activeTitle: null,
+    armedAt: null,
+  };
+  writeTalkRequestState(userId, next);
+  return next;
 }
 
 /**
@@ -207,27 +230,42 @@ export function expireArmedTalkRequestIfStale(
 }
 
 /**
- * Find the next due document and arm the popover (if notifications enabled).
- * Also expires a stale armed popover first.
+ * Arm popover only when an unchecked doc’s schedule *crosses* its start
+ * since the previous tick (`sinceMs` → `now`). Never arms all already-started docs
+ * (that caused a false popover on chat close).
+ *
  * @param {string} userId
  * @param {object[]} docs today-scoped docs
  * @param {Date} [now]
+ * @param {{ sinceMs?: number | null }} [opts]
  */
-export function evaluateTalkRequestDue(userId, docs, now = new Date()) {
+export function evaluateTalkRequestDue(userId, docs, now = new Date(), opts = {}) {
   let state = expireArmedTalkRequestIfStale(userId, now);
   if (!state?.enabled) return state;
+  // Keep a live armed popover until Accept / Decline / auto-dismiss.
   if (state.activeDocId) return state;
 
-  const notified = new Set(state.notifiedDocIds || []);
   const nowMs = now.getTime();
+  const sinceMs = opts.sinceMs != null && Number.isFinite(Number(opts.sinceMs))
+    ? Number(opts.sinceMs)
+    : null;
+
+  // Cold start / missing since → wait for the next tick edge (do not arm past docs).
+  if (sinceMs == null) return state;
+
+  const notified = new Set(state.notifiedDocIds || []);
   const due = (Array.isArray(docs) ? docs : [])
-    .filter((d) => d && d.id && !isCompletedDoc(d) && d.anchorAt)
+    .filter((d) => isUncheckedPendingDoc(d))
     .filter((d) => !notified.has(String(d.id)))
     .map((d) => ({
       doc: d,
       startMs: new Date(d.anchorAt).getTime(),
     }))
-    .filter((row) => Number.isFinite(row.startMs) && row.startMs <= nowMs)
+    .filter((row) => (
+      Number.isFinite(row.startMs)
+      && row.startMs > sinceMs
+      && row.startMs <= nowMs
+    ))
     .sort((a, b) => a.startMs - b.startMs)[0];
 
   if (!due) return state;

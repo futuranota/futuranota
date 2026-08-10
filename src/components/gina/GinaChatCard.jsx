@@ -70,6 +70,7 @@ function messageChipsReadyToShow(message, { isTyping, isAiAnimating }) {
     if (message.sheetTableRevealed === false) return false;
     if (Array.isArray(message.startDocLines) && message.startDocLines.length
       && message.startDocRevealed === false) return false;
+    if (message.textAfterLead && message.leadRevealed === false) return false;
     if ((message.textAfter || message.textAfterRest) && !message.afterRevealed) return false;
     if (message.textPitch && !message.pitchRevealed) return false;
   }
@@ -91,6 +92,7 @@ function revealAiTurnFully(message) {
     midRevealed: true,
     vizRevealed: true,
     sheetTableRevealed: true,
+    leadRevealed: true,
     startDocRevealed: true,
     afterRevealed: true,
     pitchRevealed: true,
@@ -105,6 +107,7 @@ function buildAiTurnRevealState({
   aiText,
   textMid,
   textAfter,
+  textAfterLead,
   textAfterRest,
   startDocLines,
   textPitch,
@@ -113,6 +116,7 @@ function buildAiTurnRevealState({
 }) {
   const mid = textMid != null ? String(textMid).trim() : "";
   const after = textAfter != null ? String(textAfter).trim() : "";
+  const afterLead = textAfterLead != null ? String(textAfterLead).trim() : "";
   const afterRest = textAfterRest != null ? String(textAfterRest).trim() : "";
   const pitch = textPitch != null ? String(textPitch).trim() : "";
   const startLines = Array.isArray(startDocLines)
@@ -122,11 +126,12 @@ function buildAiTurnRevealState({
   const isDayReadySheet = Boolean(visualization?.data?.offerDayReady);
   const isDaySheetSaved = visualization?.type === "day_sheet_saved";
   const leaveSchedule = voiceSequence === "leave_schedule" && Boolean(after);
-  const hasAfterBlock = Boolean(after || afterRest || startLines.length);
+  const hasAfterBlock = Boolean(after || afterRest || afterLead || startLines.length);
+  const hasLeadText = Boolean(aiText && String(aiText).trim());
   const deferVisualization = Boolean(
     !isDaySheetSaved
     && (isTodayOverview || isDayReadySheet || visualization?.data?.recoveryWizard)
-    && (aiText || mid || hasAfterBlock || pitch),
+    && (hasLeadText || mid || hasAfterBlock || pitch),
   );
   // Side TABLA DE HOY beside the pie (always on for today overview).
   const vizData = visualization?.data && isTodayOverview
@@ -147,16 +152,19 @@ function buildAiTurnRevealState({
     text: aiText || (visualization ? "" : " "),
     textMid: mid || null,
     textAfter: after || null,
+    textAfterLead: afterLead || null,
     textAfterRest: afterRest || null,
     startDocLines: startLines.length ? startLines : null,
     textPitch: pitch || null,
     deferVisualization,
-    vizRevealed: !deferVisualization,
+    // Empty pre-sheet message: reveal viz immediately (no typewriter onComplete to unlock it).
+    vizRevealed: !deferVisualization || !hasLeadText,
     // Today overview: pause after infographic before sheet intro (textMid).
     midReady: !mid || !isTodayOverview,
     midRevealed: !mid,
     // Chrono sheet unlocks after intro; if no chrono payload, don't block copy.
     sheetTableRevealed: !mid || !hasChrono,
+    leadRevealed: !afterLead,
     startDocRevealed: !startLines.length,
     afterRevealed: !hasAfterBlock,
     pitchRevealed: !pitch,
@@ -218,7 +226,7 @@ function bubbleTextForProtocolSend(text, label) {
   return human || null;
 }
 
-/** Stash visible chips so the user can “regresar atrás” to the option list. */
+/** Stash visible chips so the user can “Volver” to the option list. */
 function stashMessageChips(message) {
   if (!message || !Array.isArray(message.chips) || !message.chips.length) return message;
   // Don't stash a lone back chip
@@ -232,7 +240,7 @@ function stashMessageChips(message) {
 }
 
 /**
- * Ensure reply chips include “regresar atrás” when a prior turn has restorable options.
+ * Ensure reply chips include “Volver” when a prior turn has restorable options.
  * @param {GinaChatMessage[] | null | undefined} messages
  * @param {object[] | null | undefined} chips
  * @param {string} [locale]
@@ -250,7 +258,7 @@ function ensureNavBackChip(messages, chips, locale = "es") {
   list.push({
     id: "nav_back",
     kind: "nav_back",
-    label: en ? "go back" : "regresar atrás",
+    label: en ? "Back" : "Volver",
   });
   return list;
 }
@@ -259,7 +267,7 @@ function ensureNavBackChip(messages, chips, locale = "es") {
  * Multi-select refine palette under a full document list.
  * Sequence: rail explain → intent (bold) → schedule scopes → category hint + chips
  * → layer hint + chips.
- * @param {{ instant?: boolean }} props — skip typewriter (regresar atrás = page already written)
+ * @param {{ instant?: boolean }} props — skip typewriter (Volver = page already written)
  */
 function GinaListRefineChips({ chips, locale = "es", disabled, instant = false, onSubmit, onDismiss }) {
   const [selectedCats, setSelectedCats] = useState(() => new Set());
@@ -1231,6 +1239,7 @@ export function GinaChatCard({
         let aiText = "";
         let textMid = null;
         let textAfter = null;
+        let textAfterLead = null;
         let textAfterRest = null;
         let startDocLines = null;
         let textPitch = null;
@@ -1246,6 +1255,8 @@ export function GinaChatCard({
           if (textMid === "") textMid = null;
           textAfter = reply.textAfter != null ? String(reply.textAfter).trim() : null;
           if (textAfter === "") textAfter = null;
+          textAfterLead = reply.textAfterLead != null ? String(reply.textAfterLead).trim() : null;
+          if (textAfterLead === "") textAfterLead = null;
           textAfterRest = reply.textAfterRest != null ? String(reply.textAfterRest).trim() : null;
           if (textAfterRest === "") textAfterRest = null;
           startDocLines = Array.isArray(reply.startDocLines) ? reply.startDocLines : null;
@@ -1275,22 +1286,32 @@ export function GinaChatCard({
             ]);
             pendingAiAnimationTaskRef.current = async () => {
               await playGinaFilesMovementSound();
-              const hasAnimatableText = Boolean(aiText && aiText.trim());
-              if (hasAnimatableText) {
-                isAiAnimatingRef.current = true;
-                setIsAiAnimating(true);
-              }
+              let keepAnimating = false;
               if (aiText || visualization || learnProposal) {
                 const reveal = buildAiTurnRevealState({
                   aiText,
                   textMid,
                   textAfter,
+                  textAfterLead,
                   textAfterRest,
                   startDocLines,
                   textPitch,
                   visualization,
                   voiceSequence,
                 });
+                const hasAnimatableText = Boolean(aiText && aiText.trim());
+                keepAnimating = Boolean(
+                  hasAnimatableText
+                  || reveal.deferVisualization
+                  || reveal.textMid
+                  || reveal.textAfterLead
+                  || (Array.isArray(reveal.startDocLines) && reveal.startDocLines.length)
+                  || reveal.textAfterRest
+                );
+                if (keepAnimating) {
+                  isAiAnimatingRef.current = true;
+                  setIsAiAnimating(true);
+                }
                 setMessages((prev) => [
                   ...prev,
                   {
@@ -1303,7 +1324,7 @@ export function GinaChatCard({
                 ]);
               }
               deliveringRef.current = false;
-              if (!hasAnimatableText) {
+              if (!keepAnimating) {
                 queueMicrotask(() => flushPendingQueue());
               }
             };
@@ -1315,21 +1336,30 @@ export function GinaChatCard({
         }
         if (!hasPendingSearchSequence && (aiText || visualization || learnProposal)) {
           const hasAnimatableText = Boolean(aiText && aiText.trim());
-          if (hasAnimatableText) {
-            isAiAnimatingRef.current = true;
-            setIsAiAnimating(true);
-            startedAiAnim = true;
-          }
           const reveal = buildAiTurnRevealState({
             aiText,
             textMid,
             textAfter,
+            textAfterLead,
             textAfterRest,
             startDocLines,
             textPitch,
             visualization,
             voiceSequence,
           });
+          // Keep animating through deferred viz / post-sheet stages even with empty lead text.
+          if (
+            hasAnimatableText
+            || reveal.deferVisualization
+            || reveal.textMid
+            || reveal.textAfterLead
+            || (Array.isArray(reveal.startDocLines) && reveal.startDocLines.length)
+            || reveal.textAfterRest
+          ) {
+            isAiAnimatingRef.current = true;
+            setIsAiAnimating(true);
+            startedAiAnim = true;
+          }
           setMessages((prev) => [
             ...prev,
             {
@@ -1747,6 +1777,7 @@ export function GinaChatCard({
                                   const hasAfter = Boolean(
                                     m.textAfter
                                     || m.textAfterRest
+                                    || m.textAfterLead
                                     || (Array.isArray(m.startDocLines) && m.startDocLines.length)
                                   );
                                   const recoveryWizard = Boolean(m.visualization?.data?.recoveryWizard);
@@ -1787,6 +1818,7 @@ export function GinaChatCard({
                             const hasAfter = Boolean(
                               msg.textAfter
                               || msg.textAfterRest
+                              || msg.textAfterLead
                               || (Array.isArray(msg.startDocLines) && msg.startDocLines.length)
                             );
                             const recoveryWizard = Boolean(msg.visualization?.data?.recoveryWizard);
@@ -1896,6 +1928,7 @@ export function GinaChatCard({
                               const hasAfter = Boolean(
                                 m.textAfter
                                 || m.textAfterRest
+                                || m.textAfterLead
                                 || (Array.isArray(m.startDocLines) && m.startDocLines.length)
                               );
                               return {
@@ -1932,6 +1965,7 @@ export function GinaChatCard({
                                 const hasAfter = Boolean(
                                   m.textAfter
                                   || m.textAfterRest
+                                  || m.textAfterLead
                                   || (Array.isArray(m.startDocLines) && m.startDocLines.length)
                                 );
                                 return {
@@ -1946,6 +1980,7 @@ export function GinaChatCard({
                           const hasAfter = Boolean(
                             msg.textAfter
                             || msg.textAfterRest
+                            || msg.textAfterLead
                             || (Array.isArray(msg.startDocLines) && msg.startDocLines.length)
                           );
                           if (!hasAfter && !msg.textPitch) {
@@ -1956,7 +1991,8 @@ export function GinaChatCard({
                     ) : null}
                   {msg.sender === "ai"
                     && (
-                      (Array.isArray(msg.startDocLines) && msg.startDocLines.length)
+                      msg.textAfterLead
+                      || (Array.isArray(msg.startDocLines) && msg.startDocLines.length)
                       || msg.textAfter
                       || msg.textAfterRest
                     )
@@ -1965,7 +2001,42 @@ export function GinaChatCard({
                     && msg.sheetTableRevealed !== false
                     && (!messageHasLeaveScheduleVoice(msg) || msg.leaveAckDone) ? (
                     <div className="gina-chat-card__bubble gina-chat-card__bubble--ai gina-chat-card__bubble--after-viz">
-                      {Array.isArray(msg.startDocLines) && msg.startDocLines.length ? (
+                      {msg.textAfterLead ? (
+                        <GinaAiMessageText
+                          text={msg.textAfterLead}
+                          plainBody
+                          pace="slow"
+                          instant={Boolean(msg.refineRevealed)}
+                          onComplete={() => {
+                            if (msg.refineRevealed) return;
+                            isAiAnimatingRef.current = true;
+                            setIsAiAnimating(true);
+                            setMessages((prev) => prev.map((m, idx) => (
+                              idx === i
+                                ? {
+                                  ...m,
+                                  leadRevealed: true,
+                                  afterRevealed: !(
+                                    m.startDocLines?.length
+                                    || m.textAfterRest
+                                    || (!m.startDocLines?.length && m.textAfter && !m.textAfterLead)
+                                  ),
+                                }
+                                : m
+                            )));
+                            if (
+                              !msg.startDocLines?.length
+                              && !msg.textAfterRest
+                              && !(msg.textAfter && !msg.textAfterLead)
+                            ) {
+                              if (!msg.textPitch) handleAiAnimComplete();
+                            }
+                          }}
+                        />
+                      ) : null}
+                      {(!msg.textAfterLead || msg.leadRevealed === true)
+                        && Array.isArray(msg.startDocLines)
+                        && msg.startDocLines.length ? (
                         <GinaStartDocReveal
                           lines={msg.startDocLines}
                           instant={Boolean(msg.refineRevealed)}
@@ -1991,9 +2062,12 @@ export function GinaChatCard({
                         />
                       ) : null}
                       {(
-                        (!msg.startDocLines?.length)
-                        || msg.startDocRevealed === true
-                      ) && (msg.textAfterRest || (!msg.startDocLines?.length && msg.textAfter)) ? (
+                        (!msg.textAfterLead || msg.leadRevealed === true)
+                        && (
+                          (!msg.startDocLines?.length)
+                          || msg.startDocRevealed === true
+                        )
+                      ) && (msg.textAfterRest || (!msg.startDocLines?.length && !msg.textAfterLead && msg.textAfter)) ? (
                         <GinaAiMessageText
                           text={msg.textAfterRest || msg.textAfter}
                           plainBody

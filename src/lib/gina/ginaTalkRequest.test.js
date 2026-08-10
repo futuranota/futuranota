@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import {
   acceptTalkRequest,
+  clearArmedTalkRequestSoft,
   clearTalkRequest,
   declineTalkRequest,
   enableTalkNotifications,
@@ -10,13 +11,16 @@ import {
   isTalkNotificationsEnabled,
   shouldShowTalkRequestPopover,
   skipTalkNotifications,
+  writeTalkRequestState,
 } from "./ginaTalkRequestStore.js";
 import {
   buildTalkRequestNotifyPrompt,
   buildTalkRequestNotifyText,
+  buildTalkRequestNotifyStartDocLines,
   buildTalkRequestPopoverCopy,
   buildTalkNotificationsEnableChips,
   buildTalkNotificationsOfferText,
+  buildTalkNotificationsEnabledAck,
   isEnableTalkNotificationsIntent,
   isGinaTalkRequestNotifyIntent,
   isSkipTalkNotificationsIntent,
@@ -32,9 +36,15 @@ globalThis.localStorage = {
   clear: () => { memory.clear(); },
 };
 
+/** Helper: arm as if the schedule start crossed since → now. */
+function evalEdge(uid, docs, now, sinceMs) {
+  return evaluateTalkRequestDue(uid, docs, now, { sinceMs });
+}
+
 describe("ginaTalkRequestStore", () => {
   const uid = "talk-user";
   const now = new Date("2026-08-09T20:00:00");
+  const since = now.getTime() - 15_000;
 
   beforeEach(() => {
     memory.clear();
@@ -44,58 +54,112 @@ describe("ginaTalkRequestStore", () => {
     memory.clear();
   });
 
-  it("does not show popover until opt-in and a doc start is due", () => {
-    expect(isTalkNotificationsEnabled(uid, now)).toBe(false);
-    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
-
+  it("does not arm already-started docs without a start edge (no close-chat flash)", () => {
     enableTalkNotifications(uid, now);
-    expect(isTalkNotificationsEnabled(uid, now)).toBe(true);
+    // Cold call / missing since → no arm
+    evaluateTalkRequestDue(uid, [{
+      id: "doc-past",
+      title: "Past",
+      anchorAt: "2026-08-09T18:00:00",
+      status: "not_started",
+    }], now);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
 
-    evaluateTalkRequestDue(uid, [{
+    // Edge window that does not include the start → no arm
+    evalEdge(uid, [{
+      id: "doc-past",
+      title: "Past",
+      anchorAt: "2026-08-09T18:00:00",
+      status: "not_started",
+    }], now, since);
+    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
+  });
+
+  it("arms only when an unchecked doc’s schedule start crosses the tick window", () => {
+    enableTalkNotifications(uid, now);
+    evalEdge(uid, [{
       id: "doc-8pm",
       title: "Call 8pm",
       anchorAt: "2026-08-09T20:00:00",
       status: "not_started",
-    }], now);
+    }], now, since);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(true);
     expect(getTalkRequestState(uid, now)?.activeDocId).toBe("doc-8pm");
   });
 
+  it("does not arm completed / checked docs", () => {
+    enableTalkNotifications(uid, now);
+    evalEdge(uid, [{
+      id: "done",
+      title: "Done",
+      anchorAt: "2026-08-09T20:00:00",
+      completed: true,
+    }], now, since);
+    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
+
+    evalEdge(uid, [{
+      id: "done2",
+      title: "Done2",
+      anchorAt: "2026-08-09T20:00:00",
+      status: "completed",
+    }], now, since);
+    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
+  });
+
+  it("clears stale armed popover that was not a recent start edge", () => {
+    enableTalkNotifications(uid, now);
+    writeTalkRequestState(uid, {
+      date: "2026-08-09",
+      enabled: true,
+      decided: true,
+      notifiedDocIds: [],
+      activeDocId: "stale",
+      activeTitle: "Stale",
+      armedAt: now.toISOString(),
+      createdAt: now.toISOString(),
+    });
+    // Soft clear (same as hook mount one-shot) — evaluate keeps active if set
+    clearArmedTalkRequestSoft(uid, now);
+    expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
+    expect(getTalkRequestState(uid, now)?.activeDocId).toBeNull();
+    expect(getTalkRequestState(uid, now)?.notifiedDocIds || []).not.toContain("stale");
+  });
+
   it("accept and decline clear active popover but keep notifications on", () => {
     enableTalkNotifications(uid, now);
-    evaluateTalkRequestDue(uid, [{
+    evalEdge(uid, [{
       id: "a",
       title: "A",
-      anchorAt: "2026-08-09T19:00:00",
-    }], now);
+      anchorAt: "2026-08-09T20:00:00",
+    }], now, since);
     const accepted = acceptTalkRequest(uid, now);
     expect(accepted.docId).toBe("a");
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
     expect(isTalkNotificationsEnabled(uid, now)).toBe(true);
 
-    // Same doc won’t re-arm
-    evaluateTalkRequestDue(uid, [{
+    // Same doc won’t re-arm on a later edge (notified)
+    evalEdge(uid, [{
       id: "a",
       title: "A",
-      anchorAt: "2026-08-09T19:00:00",
-    }], now);
+      anchorAt: "2026-08-09T20:00:00",
+    }], now, since);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
 
-    // Next due doc arms again
-    evaluateTalkRequestDue(uid, [
-      { id: "a", title: "A", anchorAt: "2026-08-09T19:00:00" },
-      { id: "b", title: "B", anchorAt: "2026-08-09T20:00:00" },
-    ], now);
-    expect(getTalkRequestState(uid, now)?.activeDocId).toBe("b");
+    // Next doc whose start crosses the window arms
+    const later = new Date("2026-08-09T20:30:00");
+    evalEdge(uid, [
+      { id: "a", title: "A", anchorAt: "2026-08-09T20:00:00" },
+      { id: "b", title: "B", anchorAt: "2026-08-09T20:30:00" },
+    ], later, later.getTime() - 15_000);
+    expect(getTalkRequestState(uid, later)?.activeDocId).toBe("b");
 
     clearTalkRequest(uid);
     enableTalkNotifications(uid, now);
-    evaluateTalkRequestDue(uid, [{
+    evalEdge(uid, [{
       id: "c",
       title: "C",
-      anchorAt: "2026-08-09T19:30:00",
-    }], now);
+      anchorAt: "2026-08-09T20:00:00",
+    }], now, since);
     declineTalkRequest(uid, now);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
     expect(isTalkNotificationsEnabled(uid, now)).toBe(true);
@@ -103,21 +167,21 @@ describe("ginaTalkRequestStore", () => {
 
   it("does not arm future docs before their start", () => {
     enableTalkNotifications(uid, now);
-    evaluateTalkRequestDue(uid, [{
+    evalEdge(uid, [{
       id: "later",
       title: "Later",
       anchorAt: "2026-08-09T21:00:00",
-    }], now);
+    }], now, since);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(false);
   });
 
   it("auto-dismisses armed popover after 10 minutes", () => {
     enableTalkNotifications(uid, now);
-    evaluateTalkRequestDue(uid, [{
+    evalEdge(uid, [{
       id: "doc-8pm",
       title: "Call",
       anchorAt: "2026-08-09T20:00:00",
-    }], now);
+    }], now, since);
     expect(shouldShowTalkRequestPopover(uid, { now })).toBe(true);
     expect(getTalkRequestState(uid, now)?.armedAt).toBeTruthy();
 
@@ -128,21 +192,21 @@ describe("ginaTalkRequestStore", () => {
     expect(isTalkNotificationsEnabled(uid, later)).toBe(true);
 
     // Same doc won’t re-arm after auto-dismiss
-    evaluateTalkRequestDue(uid, [{
+    evalEdge(uid, [{
       id: "doc-8pm",
       title: "Call",
       anchorAt: "2026-08-09T20:00:00",
-    }], later);
+    }], later, later.getTime() - 15_000);
     expect(shouldShowTalkRequestPopover(uid, { now: later })).toBe(false);
   });
 
   it("keeps popover before the 10-minute window ends", () => {
     enableTalkNotifications(uid, now);
-    evaluateTalkRequestDue(uid, [{
+    evalEdge(uid, [{
       id: "doc-8pm",
       title: "Call",
       anchorAt: "2026-08-09T20:00:00",
-    }], now);
+    }], now, since);
     const almost = new Date(now.getTime() + 9 * 60 * 1000);
     expect(shouldShowTalkRequestPopover(uid, { now: almost })).toBe(true);
   });
@@ -165,28 +229,46 @@ describe("ginaTalkRequest copy + router", () => {
     expect(chips[0].label).toBe("activar notificaciones");
     expect(chips[1].label).toBe("prefiero chequear por mi cuenta");
     expect(buildTalkNotificationsOfferText("es")).toMatch(/¿Activamos avisos en vivo\?/i);
+    expect(buildTalkNotificationsOfferText("es")).toMatch(/al inicio de cada tarea/i);
     expect(isEnableTalkNotificationsIntent(chips[0].text)).toBe(true);
     expect(isSkipTalkNotificationsIntent(chips[1].text)).toBe(true);
   });
 
-  it("skip marks decision without enabling notifications", () => {
-    const uid = "talk-skip";
-    const now = new Date("2026-08-09T18:00:00");
-    skipTalkNotifications(uid, now);
-    expect(hasTalkNotificationsDecision(uid, now)).toBe(true);
-    expect(isTalkNotificationsEnabled(uid, now)).toBe(false);
+  it("enabled ack is on-screen new-block copy", () => {
+    expect(buildTalkNotificationsEnabledAck("es")).toMatch(/Entendido/i);
+    expect(buildTalkNotificationsEnabledAck("es")).toMatch(/nuevo bloque de trabajo/i);
   });
 
-  it("notify text mentions current task and next document", () => {
-    const text = buildTalkRequestNotifyText({
-      locale: "es",
-      nextTitle: "Blogs",
-      nextTimeLabel: "7:00 PM – 7:30 PM",
-    });
-    expect(text).toMatch(/Ya terminaste/i);
-    expect(text).toContain("Blogs");
-    expect(text).toMatch(/solo una notificación/i);
-    expect(text).toMatch(/Horario del día/i);
+  it("skip marks decision without enabling notifications", () => {
+    const skipUid = "talk-skip";
+    const skipNow = new Date("2026-08-09T18:00:00");
+    skipTalkNotifications(skipUid, skipNow);
+    expect(hasTalkNotificationsDecision(skipUid, skipNow)).toBe(true);
+    expect(isTalkNotificationsEnabled(skipUid, skipNow)).toBe(false);
+  });
+
+  it("notify text is short intro (fields go in startDocLines)", () => {
+    const text = buildTalkRequestNotifyText({ locale: "es" });
+    expect(text).toMatch(/¿Estás casi listo\?/i);
+    expect(text).toMatch(/notificación de tu siguiente documento comienza pronto/i);
+    expect(text).not.toMatch(/Ya terminaste/i);
+  });
+
+  it("notify startDocLines highlight Departamento / Documento / horario", () => {
+    const lines = buildTalkRequestNotifyStartDocLines({
+      title: "Blogs",
+      department: "Marketing",
+      category: "Content",
+      timeClock: "7:00 PM – 7:30 PM",
+    }, "es");
+    expect(lines.map((r) => r.label)).toEqual([
+      "Departamento",
+      "Documento",
+      "horario",
+    ]);
+    expect(lines[0].value).toContain("Marketing");
+    expect(lines[1].value).toBe("Blogs");
+    expect(lines[2].value).toMatch(/7:00/);
   });
 
   it("routes enable opt-in to gina_talk_notifications_enable", () => {

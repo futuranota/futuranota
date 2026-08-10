@@ -1099,30 +1099,13 @@ export function buildRescheduleProgressText(opts = {}) {
  */
 export function buildRescheduleAppliedText(opts = {}) {
   const en = opts.locale === "en";
-  const time = String(opts.timeLabel || "").trim();
-  const day = String(opts.dayLabel || "").trim();
-  const n = Number(opts.count) || 0;
-  const clean = opts.withoutOverlaps !== false;
-  const cleanEs = clean
-    ? " Tu agenda quedó actualizada sin solapamientos."
-    : " Tu agenda quedó actualizada con los cupos que elegiste.";
-  const cleanEn = clean
-    ? " Your agenda is updated without overlaps."
-    : " Your agenda is updated with the slots you chose.";
+  const n = Math.max(1, Number(opts.count) || 1);
   if (en) {
-    if (n > 1) {
-      return `Done. I rescheduled ${n} block(s) with the slots you chose.${cleanEn}`;
-    }
-    if (day && time) return `Done. I rescheduled the document for ${day} ${time}.${cleanEn}`;
-    if (time) return `Done. I rescheduled the document for today ${time}.${cleanEn}`;
-    return `Done. I rescheduled the document.${cleanEn}`;
+    const noun = n === 1 ? "file" : "files";
+    return `Done:\nI rescheduled the schedule for ${n} ${noun} and your agenda is updated.`;
   }
-  if (n > 1) {
-    return `Listo. Reagendé ${n} bloque(s) con los cupos que elegiste.${cleanEs}`;
-  }
-  if (day && time) return `Listo. Reagendé el documento para ${day} ${time}.${cleanEs}`;
-  if (time) return `Listo. Reagendé el documento para hoy ${time}.${cleanEs}`;
-  return `Listo. Reagendé el documento.${cleanEs}`;
+  const noun = n === 1 ? "archivo" : "archivos";
+  return `Listo:\nReagendé el horario de ${n} ${noun} y tu agenda quedó actualizada.`;
 }
 
 /**

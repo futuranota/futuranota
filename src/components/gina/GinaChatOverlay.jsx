@@ -19,6 +19,7 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
  *   initialMeetingMode?: boolean,
  *   lockMeetingMode?: boolean,
  *   autoRunPrompt?: string | null,
+ *   compact?: boolean,
  *   onClose: () => void,
  * }} props
  */
@@ -36,6 +37,7 @@ export function GinaChatOverlay({
   initialMeetingMode = false,
   lockMeetingMode = false,
   autoRunPrompt = null,
+  compact = false,
   onClose,
 }) {
   useEffect(() => {
@@ -50,6 +52,8 @@ export function GinaChatOverlay({
   }, [onClose]);
 
   if (typeof document === "undefined") return null;
+
+  const useSmall = Boolean(compact || documentId);
 
   return createPortal(
     <>
@@ -66,7 +70,7 @@ export function GinaChatOverlay({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <GinaChatCard
-          className={documentId ? "" : "gina-chat-card--dashboard"}
+          className={useSmall ? "" : "gina-chat-card--dashboard"}
           documentId={documentId}
           assistantName={assistantName}
           openingMessage={openingMessage}

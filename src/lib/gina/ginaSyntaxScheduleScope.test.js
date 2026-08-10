@@ -219,7 +219,7 @@ describe("schedule scope routing → list_all table", () => {
 });
 
 describe("nav_back after schedule scope / filtered list", () => {
-  it("horarios de hoy → only regresar atrás chip", () => {
+  it("horarios de hoy → only Volver chip", () => {
     const routed = runGinaQueryFamily("visualizar todos los horarios de hoy", ctx);
     const viz = buildGinaVisualization("count_documents", routed.toolContext, {
       locale: "es",
@@ -233,7 +233,7 @@ describe("nav_back after schedule scope / filtered list", () => {
     expect(chips).toHaveLength(1);
     expect(chips[0].id).toBe("nav_back_refine");
     expect(chips[0].kind).toBe("nav_back");
-    expect(chips[0].label).toMatch(/regresar atrás/i);
+    expect(chips[0].label).toMatch(/Volver/i);
     expect(chips.some((c) => c.kind === "category")).toBe(false);
     expect(chips.some((c) => /status/i.test(c.label))).toBe(false);
   });
