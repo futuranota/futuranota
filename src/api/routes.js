@@ -25,6 +25,7 @@ export const API_ROUTES = {
   managementIntegration: "/api/admin/management/integration",
   managementGastos: "/api/admin/management/gastos",
   managementQuotas: "/api/admin/management/quotas",
+  managementUsers: "/api/admin/management/users",
   usersMe: "/api/users/me",
   usageLog: "/api/usage/log",
   webProxy: "/api/proxy",

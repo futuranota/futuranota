@@ -424,3 +424,18 @@ export function mapQuotaMeterRow(row) {
     notes: typeof row.notes === "string" ? row.notes : "",
   };
 }
+
+/**
+ * Convert byte allotment into the meter display unit (GB / MB / bytes).
+ * @param {number} bytes
+ * @param {string} unit
+ */
+export function bytesToQuotaUnit(bytes, unit) {
+  const n = Math.max(0, Number(bytes) || 0);
+  const u = String(unit || "").toLowerCase();
+  if (/\btb\b|tib/.test(u)) return Math.round((n / (1024 ** 4)) * 1e4) / 1e4;
+  if (/\bgb\b|gib/.test(u)) return Math.round((n / (1024 ** 3)) * 1e4) / 1e4;
+  if (/\bmb\b|mib/.test(u)) return Math.round((n / (1024 ** 2)) * 1e4) / 1e4;
+  if (/\bkb\b|kib/.test(u)) return Math.round((n / 1024) * 1e4) / 1e4;
+  return Math.round(n);
+}

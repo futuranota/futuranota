@@ -117,3 +117,18 @@ export function deleteManagementQuota(id) {
     { method: "DELETE" },
   );
 }
+
+/**
+ * Toggle Feature usage Active / Inactive (pooled storage).
+ * @param {string} userId
+ * @param {boolean} quotaActive
+ */
+export function patchManagementUserQuotaActive(userId, quotaActive) {
+  return authedFetch(
+    `${API_ROUTES.managementUsers}?id=${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ quotaActive: Boolean(quotaActive) }),
+    },
+  );
+}

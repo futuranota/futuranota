@@ -20,6 +20,7 @@ import {
   createManagementQuota,
   patchManagementQuota,
   deleteManagementQuota,
+  patchManagementUserQuotaActive,
 } from "../lib/managementApi.js";
 import { GINA_DEPT_RAIL_COLORS } from "../lib/gina/ginaDepartmentColors.js";
 import { MANAGEMENT_SECTIONS } from "./AdminSidebarNav.jsx";
@@ -148,13 +149,14 @@ const USER_FEATURE_COLUMNS = [
 ];
 
 function downloadUserFeaturesCsv(users) {
-  const headers = ["email", "plan", ...USER_FEATURE_COLUMNS.map((c) => c.key)];
+  const headers = ["email", "plan", "quota_active", ...USER_FEATURE_COLUMNS.map((c) => c.key)];
   const lines = [headers.join(",")];
   for (const u of users) {
     const f = u.features || {};
     lines.push([
       u.email || "",
       u.plan === "pro" ? "Pro" : "Starter",
+      u.quotaActive === false ? "inactive" : "active",
       ...USER_FEATURE_COLUMNS.map((c) => f[c.key] ?? ""),
     ].map(csvEscape).join(","));
   }
@@ -1068,6 +1070,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
   const [userActivityFilter, setUserActivityFilter] = useState("all");
   const [callFilters, setCallFilters] = useState(EMPTY_CALL_FILTERS);
   const [asOfYmd, setAsOfYmd] = useState(() => todayIsoDate());
+  const [togglingUserId, setTogglingUserId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1129,6 +1132,29 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
       setErrorMessage(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleToggleQuotaActive(user) {
+    const next = user.quotaActive === false;
+    setTogglingUserId(user.userId);
+    setErrorMessage(null);
+    try {
+      await patchManagementUserQuotaActive(user.userId, next);
+      setData((prev) => {
+        if (!prev?.users) return prev;
+        return {
+          ...prev,
+          users: prev.users.map((u) => (
+            u.userId === user.userId ? { ...u, quotaActive: next } : u
+          )),
+        };
+      });
+      await load();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to update active status");
+    } finally {
+      setTogglingUserId(null);
     }
   }
 
@@ -1654,6 +1680,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                 <tr>
                   <th>Email</th>
                   <th>Plan</th>
+                  <th>Status</th>
                   {USER_FEATURE_COLUMNS.map((col) => (
                     <th key={col.key}>{col.label}</th>
                   ))}
@@ -1662,17 +1689,36 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={2 + USER_FEATURE_COLUMNS.length} className="muted">
+                    <td colSpan={3 + USER_FEATURE_COLUMNS.length} className="muted">
                       No users to show.
                     </td>
                   </tr>
                 ) : (
                   filteredUsers.map((u) => {
                     const f = u.features || {};
+                    const isActive = u.quotaActive !== false;
                     return (
-                      <tr key={`feat-${u.userId}`}>
+                      <tr
+                        key={`feat-${u.userId}`}
+                        className={isActive ? undefined : "mgmt-row--inactive"}
+                      >
                         <td>{u.email}</td>
                         <td>{u.plan === "pro" ? "Pro" : "Starter"}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className={`mgmt-active-toggle${isActive ? " is-active" : " is-inactive"}`}
+                            disabled={togglingUserId === u.userId}
+                            onClick={() => handleToggleQuotaActive(u)}
+                            title={isActive
+                              ? "Counts toward Supabase storage pool"
+                              : "Excluded from Supabase storage pool"}
+                          >
+                            {togglingUserId === u.userId
+                              ? "…"
+                              : (isActive ? "Active" : "Inactive")}
+                          </button>
+                        </td>
                         {USER_FEATURE_COLUMNS.map((col) => (
                           <td key={col.key} className="muted">
                             {f[col.key] ?? "—"}

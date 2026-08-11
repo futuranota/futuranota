@@ -23,6 +23,7 @@ import {
   resolveMeterWindow,
   startOfUtcDay,
   addUtcDays,
+  bytesToQuotaUnit,
 } from "./management/quotaCatalog.js";
 
 function getAdminEmail() {
@@ -360,6 +361,39 @@ function buildManagementAlerts(margin, totals) {
 }
 
 /**
+ * Sum plan storage allotments for users with quota_active !== false.
+ * @param {import('@supabase/supabase-js').SupabaseClient} service
+ * @returns {Promise<{ bytes: number, activeUsers: number }>}
+ */
+async function loadActiveStorageAllotment(service) {
+  let rows = null;
+  {
+    const withCol = await service.from("profiles").select("plan, quota_active");
+    if (withCol.error && /quota_active/i.test(withCol.error.message)) {
+      console.warn("[management] Run supabase_management_users_v3.sql for quota_active");
+      const fallback = await service.from("profiles").select("plan");
+      if (fallback.error) return { bytes: 0, activeUsers: 0 };
+      rows = (fallback.data || []).map((r) => ({ ...r, quota_active: true }));
+    } else if (withCol.error) {
+      console.warn("loadActiveStorageAllotment:", withCol.error.message);
+      return { bytes: 0, activeUsers: 0 };
+    } else {
+      rows = withCol.data || [];
+    }
+  }
+
+  let bytes = 0;
+  let activeUsers = 0;
+  for (const row of rows) {
+    if (row.quota_active === false) continue;
+    activeUsers += 1;
+    const plan = row.plan === "pro" ? "pro" : "free";
+    bytes += Number(getPlanLimits(plan).storageBytes) || 0;
+  }
+  return { bytes, activeUsers };
+}
+
+/**
  * Tabla A — API free/call meters for as-of date (UTC).
  * Provider = Recent Calls provider id (e.g. groq). No free-text product name.
  * @param {import('@supabase/supabase-js').SupabaseClient|null} service
@@ -442,6 +476,15 @@ async function loadQuotasDashboard(service, opts = {}) {
     window: resolveMeterWindow(m, asOf),
   }));
 
+  const needsStoragePool = meters.some(
+    (m) => String(m.provider || "").toLowerCase() === "supabase",
+  );
+  /** @type {{ bytes: number, activeUsers: number }} */
+  let storagePool = { bytes: 0, activeUsers: 0 };
+  if (needsStoragePool && service) {
+    storagePool = await loadActiveStorageAllotment(service);
+  }
+
   let totalCostToPay = 0;
 
   const items = windows.map(({ meter, window: w }) => {
@@ -452,19 +495,27 @@ async function loadQuotasDashboard(service, opts = {}) {
     const users = new Set();
     const providerKey = (meter.provider || "").toString().trim().toLowerCase();
 
-    if (providerKey) {
-      for (const ev of events) {
-        if (ev.provider !== providerKey) continue;
-        if (ev.created < w.queryStart) continue;
-        if (ev.created >= w.queryEndExclusive) continue;
-        callsInWindow += 1;
-        tokensInWindow += ev.tokens;
-        apiCostUsdInWindow += ev.costUsd;
-        if (ev.userKey) users.add(ev.userKey);
+    let used;
+    if (providerKey === "supabase") {
+      used = bytesToQuotaUnit(storagePool.bytes, meter.unit);
+      if (storagePool.activeUsers > 0) {
+        users.add(`active:${storagePool.activeUsers}`);
       }
+    } else {
+      if (providerKey) {
+        for (const ev of events) {
+          if (ev.provider !== providerKey) continue;
+          if (ev.created < w.queryStart) continue;
+          if (ev.created >= w.queryEndExclusive) continue;
+          callsInWindow += 1;
+          tokensInWindow += ev.tokens;
+          apiCostUsdInWindow += ev.costUsd;
+          if (ev.userKey) users.add(ev.userKey);
+        }
+      }
+      used = meter.meterKind === "tokens" ? tokensInWindow : callsInWindow;
     }
 
-    const used = meter.meterKind === "tokens" ? tokensInWindow : callsInWindow;
     const included = Number(meter.included) || 0;
     const over = Math.max(0, used - included);
     const costToPay = estimateOverageUsd(used, included, meter.overageUsd);
@@ -498,20 +549,22 @@ async function loadQuotasDashboard(service, opts = {}) {
       resetAtYmd: w.resetAtYmd,
       timeLeftLabel: w.timeLeftLabel,
       daysRemaining: w.daysRemaining,
-      periodLabel: w.periodLabel,
+      periodLabel: providerKey === "supabase"
+        ? `${storagePool.activeUsers} active user(s) · plan allotment`
+        : w.periodLabel,
       used: Math.round(used * 1e4) / 1e4,
       callsInWindow,
       tokensInWindow: Math.round(tokensInWindow),
       apiCostUsdInWindow: Math.round(apiCostUsdInWindow * 1e6) / 1e6,
       over: Math.round(over * 1e4) / 1e4,
-      uniqueUsers: users.size,
+      uniqueUsers: providerKey === "supabase" ? storagePool.activeUsers : users.size,
       pct,
       costToPay,
       exhausted,
     };
   });
 
-  /** Provider picker list: anyone seen in Recent Calls + known catalog providers */
+  /** Provider picker list: anyone seen in Recent Calls + known catalog providers + supabase */
   /** @type {Map<string, { provider: string, callsAll: number, tokensAll: number, costAll: number, callsAsOf: number, tokensAsOf: number, costAsOf: number }>} */
   const pickerMap = new Map();
   for (const [provider, agg] of providerAll) {
@@ -535,6 +588,17 @@ async function loadQuotasDashboard(service, opts = {}) {
         costAsOf: 0,
       });
     }
+  }
+  if (!pickerMap.has("supabase")) {
+    pickerMap.set("supabase", {
+      provider: "supabase",
+      callsAll: 0,
+      tokensAll: 0,
+      costAll: 0,
+      callsAsOf: 0,
+      tokensAsOf: 0,
+      costAsOf: 0,
+    });
   }
   for (const ev of events) {
     if (ev.created < asOf || ev.created >= asOfEnd) continue;
@@ -797,7 +861,7 @@ function buildFeatureUsage(row, usage = {}) {
     launchRadar: plan === "pro" ? `${launchRadarRuns} scans` : (launchRadarRuns ? `${launchRadarRuns} (demo)` : "Demo"),
     marketHype: plan === "pro" ? `${marketHypeRuns} runs` : "Pro only",
     campaignLive,
-    storage: limits.storageLabel,
+    storage: `0 / ${limits.storageLabel}`,
     stepsLibrary: limits.stepsLibraryCrossObject ? "Yes" : "No",
   };
 }
@@ -919,6 +983,7 @@ function buildUserRow(row, emailById, usage, adminEmail, testEmails = getTestEma
     profileUpdatedAt: row.updated_at ?? null,
     planUpgradedAt: row.plan_upgraded_at ?? null,
     lastSignInAt: lastSignInById?.get?.(userId) ?? null,
+    quotaActive: row.quota_active !== false,
     features: buildFeatureUsage(row, usage),
   };
 }
@@ -933,9 +998,9 @@ async function loadUsersOverview(service, adminUser) {
   const testEmails = getTestEmailSet();
 
   const PROFILE_SELECT_FULL =
-    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, plan_upgraded_at, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used";
+    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, plan_upgraded_at, quota_active, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used";
   const PROFILE_SELECT_NO_UPGRADE =
-    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used";
+    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, quota_active, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used";
   const PROFILE_SELECT_BASE =
     "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at";
 
@@ -946,14 +1011,21 @@ async function loadUsersOverview(service, adminUser) {
       .select(PROFILE_SELECT_FULL)
       .order("created_at", { ascending: false });
 
+    if (result.error && /quota_active/i.test(result.error.message)) {
+      console.warn("[management] Run supabase_management_users_v3.sql for quota_active");
+      result = await service
+        .from("profiles")
+        .select(PROFILE_SELECT_FULL.replace(", quota_active", "").replace("quota_active, ", ""))
+        .order("created_at", { ascending: false });
+    }
     if (result.error && /plan_upgraded_at/i.test(result.error.message)) {
       console.warn("[management] Run supabase_management_users_v2.sql for plan_upgraded_at");
       result = await service
         .from("profiles")
-        .select(PROFILE_SELECT_NO_UPGRADE)
+        .select(PROFILE_SELECT_NO_UPGRADE.replace(", quota_active", "").replace("quota_active, ", ""))
         .order("created_at", { ascending: false });
     }
-    if (result.error && /calendar_|weather_|campaign_live/i.test(result.error.message)) {
+    if (result.error && /calendar_|weather_|campaign_live|quota_active|plan_upgraded/i.test(result.error.message)) {
       console.warn("[management] Feature columns missing on profiles:", result.error.message);
       result = await service
         .from("profiles")
@@ -1002,6 +1074,7 @@ async function loadUsersOverview(service, adminUser) {
       profileUpdatedAt: null,
       planUpgradedAt: null,
       lastSignInAt: lastSignInById.get(userId) ?? null,
+      quotaActive: true,
       features: buildFeatureUsage(synthetic, usage),
     });
   }
@@ -1045,6 +1118,7 @@ async function loadUsersOverview(service, adminUser) {
         profileUpdatedAt: null,
         planUpgradedAt: null,
         lastSignInAt: lastSignInById.get(adminUser.id) ?? null,
+        quotaActive: true,
         features: buildFeatureUsage(synthetic, usage),
       });
     }
@@ -1669,6 +1743,65 @@ export async function processManagementGastosRequest(reqLike) {
 }
 
 /**
+ * PATCH profile.quota_active for Feature usage Active/Inactive toggle.
+ * @param {{ headers?: Record<string, string|string[]|undefined>, url?: string, body?: unknown }} reqLike
+ */
+export async function processManagementUserPatch(reqLike) {
+  const auth = await assertAdminUser(reqLike);
+  if (!auth.ok) {
+    return { status: auth.status, body: { error: auth.error } };
+  }
+
+  const service = createServiceSupabase();
+  if (!service) {
+    return { status: 503, body: { error: "Service role not configured" } };
+  }
+
+  const url = new URL(reqLike.url || "/api/admin/management/users", "http://localhost");
+  const userId = url.searchParams.get("id") || url.searchParams.get("userId");
+  if (!userId) return { status: 400, body: { error: "id (userId) required" } };
+
+  const body = reqLike.body && typeof reqLike.body === "object" ? reqLike.body : {};
+  if (body.quotaActive == null && body.quota_active == null) {
+    return { status: 400, body: { error: "quotaActive required" } };
+  }
+  const quotaActive = body.quotaActive != null
+    ? Boolean(body.quotaActive)
+    : Boolean(body.quota_active);
+
+  const { data, error } = await service
+    .from("profiles")
+    .update({
+      quota_active: quotaActive,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId)
+    .select("user_id, quota_active")
+    .maybeSingle();
+
+  if (error) {
+    if (/quota_active/i.test(error.message)) {
+      return {
+        status: 503,
+        body: { error: "Run supabase_management_users_v3.sql in Supabase SQL Editor first." },
+      };
+    }
+    return { status: 500, body: { error: error.message } };
+  }
+  if (!data) {
+    return { status: 404, body: { error: "Profile not found for that user" } };
+  }
+
+  return {
+    status: 200,
+    body: {
+      userId: data.user_id,
+      quotaActive: data.quota_active !== false,
+    },
+  };
+}
+
+/**
  * Tabla A CRUD — admin_quota_meters
  * @param {{ headers?: Record<string, string|string[]|undefined>, url?: string, body?: unknown, method?: string }} reqLike
  */
@@ -1936,6 +2069,25 @@ export async function handleManagement(req, res) {
       return true;
     } catch (err) {
       sendJson(res, 500, { error: err instanceof Error ? err.message : "Gastos update failed" });
+      return true;
+    }
+  }
+
+  if (
+    path === "/api/admin/management/users"
+    && req.method === "PATCH"
+  ) {
+    try {
+      const body = await readJsonBody(req);
+      const result = await processManagementUserPatch({
+        headers: req.headers,
+        url: req.url,
+        body,
+      });
+      sendJson(res, result.status, result.body);
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : "User update failed" });
       return true;
     }
   }
