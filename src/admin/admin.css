@@ -905,8 +905,17 @@
   background: rgba(201, 160, 255, 0.1);
 }
 
-.mgmt-table--quotas td {
-  vertical-align: top;
+.mgmt-table--quotas thead tr:first-child th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: none;
+  padding-bottom: 2px;
+}
+
+.mgmt-table--quotas thead tr:nth-child(2) th {
+  padding-top: 2px;
 }
 
 .mgmt-quota-meter--inline {

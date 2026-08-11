@@ -52,7 +52,7 @@ const SECTION_COPY = {
   },
   [MANAGEMENT_SECTIONS.storage]: {
     title: "Storage & Quotas",
-    sub: "Tabla A — elegí un provider de Recent Calls (ej. groq). Ves calls / tokens / $ de esa ventana. Reset yes/no + Every N. Cost to pay = over × $/u.",
+    sub: "Cupos = oferta (included + reset + time left) vs demanda (used / included). Extra = over + cost to pay. Gasto por user → Users.",
   },
 };
 
@@ -585,6 +585,15 @@ function formatOverageRate(n) {
   return formatUsd(v);
 }
 
+/** Time left as a plain number of days (UTC). */
+function formatTimeLeftDays(q) {
+  if (!q?.resets) return "—";
+  if (q.daysRemaining != null && Number.isFinite(Number(q.daysRemaining))) {
+    return String(q.daysRemaining);
+  }
+  return "0";
+}
+
 const EMPTY_QUOTA_FORM = {
   provider: "",
   meterKind: "calls",
@@ -600,7 +609,7 @@ const EMPTY_QUOTA_FORM = {
 };
 
 /**
- * Tabla A — provider = Recent Calls id. Quantitative cols from live usage.
+ * Cupos — oferta / demanda / extra (sin repetir Users / Recent Calls $).
  */
 function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }) {
   const items = quotas?.items || [];
@@ -727,8 +736,10 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
           />
         </label>
         <p className="muted" style={{ fontSize: 12, margin: 0, flex: 1 }}>
-          {quotas?.note || "Tabla A"}
-          {quotas?.source === "defaults" ? " · using code defaults (run SQL to edit)" : " · DB meters"}
+          Oferta = included + reset + días. Demanda = used / included. Extra = over + pay.
+          {" · "}
+          API $ por user → Users. Totales por call → Recent Calls.
+          {quotas?.source === "defaults" ? " · defaults (run SQL to edit)" : ""}
         </p>
       </div>
 
@@ -738,74 +749,32 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
         </div>
       ) : null}
 
-      <h3 className="mgmt-section-title" style={{ margin: "0 0 8px" }}>
-        Providers disponibles (Recent Calls)
-      </h3>
-      <div className="mgmt-table-wrap" style={{ marginBottom: 18 }}>
-        <table className="mgmt-table">
-          <thead>
-            <tr>
-              <th>Provider</th>
-              <th>Calls (all)</th>
-              <th>Tokens (all)</th>
-              <th>API $ (all)</th>
-              <th>Calls @ date</th>
-              <th>Tokens @ date</th>
-              <th>API $ @ date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {providers.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="muted">
-                  No usage events yet — use Gina / forecast so Recent Calls populate providers.
-                </td>
-              </tr>
-            ) : (
-              providers.map((p) => (
-                <tr key={p.provider}>
-                  <td><code className="mgmt-code">{p.provider}</code></td>
-                  <td><strong>{Number(p.callsAll || 0).toLocaleString()}</strong></td>
-                  <td className="muted">{Number(p.tokensAll || 0).toLocaleString()}</td>
-                  <td>{formatUsd(p.costAll || 0)}</td>
-                  <td>{Number(p.callsAsOf || 0).toLocaleString()}</td>
-                  <td className="muted">{Number(p.tokensAsOf || 0).toLocaleString()}</td>
-                  <td className="muted">{formatUsd(p.costAsOf || 0)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <h3 className="mgmt-section-title" style={{ margin: "0 0 8px" }}>
-        Cupos (meters) — ventana hasta Date picked
-      </h3>
       <div className="mgmt-table-wrap">
         <table className="mgmt-table mgmt-table--quotas">
           <thead>
             <tr>
               <th>Provider</th>
-              <th>Meter</th>
+              <th colSpan={3}>Oferta</th>
+              <th>Demanda</th>
+              <th colSpan={3}>Extra</th>
+              <th />
+            </tr>
+            <tr>
+              <th />
               <th>Included</th>
-              <th>Type</th>
               <th>Reset?</th>
-              <th>Every</th>
-              <th>Time left</th>
-              <th>Calls</th>
-              <th>Tokens</th>
-              <th>API $</th>
-              <th>Used / free</th>
+              <th title="Days until reset (UTC)">Time left</th>
+              <th title="Used / included in current window">Used</th>
               <th>Over</th>
               <th>$ / u</th>
-              <th>Cost to pay</th>
+              <th>Pay</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={15} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
+                <td colSpan={9} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
               </tr>
             ) : (
               items.map((q) => (
@@ -816,28 +785,16 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
                 >
                   <td>
                     <code className="mgmt-code">{q.provider || "—"}</code>
-                    {q.windowStartYmd ? (
-                      <div className="muted" style={{ fontSize: 10, marginTop: 4 }}>
-                        {q.windowStartYmd}
-                        {q.windowEndYmd ? ` → ${q.windowEndYmd}` : " → …"}
-                      </div>
-                    ) : null}
+                    <div className="muted" style={{ fontSize: 10 }}>{q.unit || q.meterKind}</div>
                   </td>
-                  <td className="muted">{q.meterKind}</td>
-                  <td>{formatQuotaNumber(q.included, q.unit)} {q.unit}</td>
                   <td>
-                    <span className={`mgmt-quota-type mgmt-quota-type--${q.type}`}>{q.type}</span>
+                    <strong>{formatQuotaNumber(q.included, q.unit)}</strong>
                   </td>
-                  <td><strong>{q.resets ? "yes" : "no"}</strong></td>
-                  <td className="muted">{q.everyLabel || "—"}</td>
-                  <td>{q.timeLeftLabel}</td>
-                  <td><strong>{Number(q.callsInWindow || 0).toLocaleString()}</strong></td>
-                  <td className="muted">{Number(q.tokensInWindow || 0).toLocaleString()}</td>
-                  <td>{formatUsd(q.apiCostUsdInWindow || 0)}</td>
+                  <td>{q.resets ? "yes" : "no"}</td>
+                  <td>{formatTimeLeftDays(q)}</td>
                   <td>
                     <strong>{formatQuotaNumber(q.used, q.unit)}</strong>
                     <span className="muted"> / {formatQuotaNumber(q.included, q.unit)}</span>
-                    <div className="muted" style={{ fontSize: 10 }}>{q.pct}%</div>
                   </td>
                   <td className={q.over > 0 ? undefined : "muted"}>
                     {formatQuotaNumber(q.over, q.unit)}
@@ -877,7 +834,7 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
       </div>
 
       <div className="mgmt-quota-footer">
-        <span className="muted">Cost to pay (overdue con tarifa):</span>
+        <span className="muted">Extra total (pay):</span>
         {" "}
         <strong>{formatUsd(totalCost)}</strong>
       </div>
@@ -949,17 +906,9 @@ function QuotaMeterFields({ form, setForm, providers, preview }) {
       </label>
       {preview ? (
         <div className="mgmt-quota-preview" style={{ gridColumn: "1 / -1" }}>
-          <span className="muted">Datos de</span>
-          {" "}
-          <code className="mgmt-code">{preview.provider}</code>
-          {": "}
-          <strong>{Number(preview.callsAll || 0).toLocaleString()}</strong> calls all-time
+          Provider <code className="mgmt-code">{preview.provider}</code>
           {" · "}
-          <strong>{Number(preview.tokensAll || 0).toLocaleString()}</strong> tokens
-          {" · "}
-          <strong>{formatUsd(preview.costAll || 0)}</strong> API$
-          {" · "}
-          @ date: {Number(preview.callsAsOf || 0).toLocaleString()} calls
+          {Number(preview.callsAll || 0).toLocaleString()} calls in Recent Calls (picker only — cost by user is in Users)
         </div>
       ) : (
         <p className="muted" style={{ gridColumn: "1 / -1", margin: 0, fontSize: 12 }}>
