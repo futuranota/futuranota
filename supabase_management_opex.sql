@@ -1,0 +1,6 @@
+-- DEPRECATED — use supabase_management_gastos.sql instead (Gastos page, no categories).
+-- Kept so older docs/links do not break. Safe to ignore if you never ran this file.
+--
+-- If you already created admin_opex_entries and want a clean slate:
+--   DROP TABLE IF EXISTS public.admin_opex_entries;
+-- Then run supabase_management_gastos.sql

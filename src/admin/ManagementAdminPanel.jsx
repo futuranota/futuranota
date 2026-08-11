@@ -6,10 +6,20 @@ import {
   ResponsiveContainer,
   Tooltip,
   Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
 } from "recharts";
 import {
   fetchManagementOverview,
   patchManagementIntegration,
+  createManagementGasto,
+  deleteManagementGasto,
+  createManagementQuota,
+  patchManagementQuota,
+  deleteManagementQuota,
 } from "../lib/managementApi.js";
 import { MANAGEMENT_SECTIONS } from "./AdminSidebarNav.jsx";
 
@@ -26,7 +36,7 @@ const PIE_COLORS = [
 const SECTION_COPY = {
   [MANAGEMENT_SECTIONS.api]: {
     title: "API Integrations",
-    sub: "Active vs pending catalog, meta, dashboard links, free daily limits, cost/unit, and call counts. Keys stay in `.env.local` / Vercel. Run `supabase_management_integrations_v2.sql` + `v3.sql` to persist columns.",
+    sub: "Catalog, KPIs, credits/endpoint matrix, and Top endpoints. Keys stay in `.env.local` / Vercel. Run `supabase_management_integrations_v2.sql` + `v3.sql` to persist columns.",
   },
   [MANAGEMENT_SECTIONS.users]: {
     title: "Users",
@@ -34,11 +44,15 @@ const SECTION_COPY = {
   },
   [MANAGEMENT_SECTIONS.calls]: {
     title: "Recent Calls",
-    sub: "Latest API usage events across providers and endpoints.",
+    sub: "API usage events — filter by user, provider, endpoint, status, and date; export the filtered rows as CSV.",
+  },
+  [MANAGEMENT_SECTIONS.gastos]: {
+    title: "Gastos",
+    sub: "Your product costs (Cursor, storage, hosting…). Annual plans count as cost ÷ 12 in the monthly margin.",
   },
   [MANAGEMENT_SECTIONS.storage]: {
-    title: "Storage",
-    sub: "Placeholder for file / blob storage management.",
+    title: "Storage & Quotas",
+    sub: "Tabla A — elegí un provider de Recent Calls (ej. groq). Ves calls / tokens / $ de esa ventana. Reset yes/no + Every N. Cost to pay = over × $/u.",
   },
 };
 
@@ -58,6 +72,16 @@ function formatDate(iso) {
 function formatUsd(n) {
   if (n == null || Number.isNaN(Number(n))) return "—";
   return `$${Number(n).toFixed(4)}`;
+}
+
+function formatUsdShort(n) {
+  if (n == null || Number.isNaN(Number(n))) return "—";
+  return `$${Number(n).toFixed(2)}`;
+}
+
+function formatPct(n) {
+  if (n == null || Number.isNaN(Number(n))) return "—";
+  return `${Number(n)}%`;
 }
 
 function StatusBadge({ ok, configured }) {
@@ -123,6 +147,126 @@ function filterUsersByActivity(users, filter) {
   return users;
 }
 
+/** Local calendar date YYYY-MM-DD from ISO timestamp. */
+function localDateKey(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} events
+ * @param {{
+ *   user: string,
+ *   provider: string,
+ *   endpoint: string,
+ *   status: string,
+ *   dateFrom: string,
+ *   dateTo: string,
+ * }} filters
+ */
+function filterRecentEvents(events, filters) {
+  return events.filter((ev) => {
+    if (filters.user === "__empty__") {
+      if (ev.userEmail) return false;
+    } else if (filters.user && filters.user !== "all") {
+      if (String(ev.userEmail || "").toLowerCase() !== filters.user.toLowerCase()) return false;
+    }
+    if (filters.provider !== "all" && ev.provider !== filters.provider) return false;
+    if (filters.endpoint !== "all" && ev.endpoint !== filters.endpoint) return false;
+    if (filters.status !== "all" && ev.status !== filters.status) return false;
+    const day = localDateKey(ev.createdAt);
+    if (filters.dateFrom && (!day || day < filters.dateFrom)) return false;
+    if (filters.dateTo && (!day || day > filters.dateTo)) return false;
+    return true;
+  });
+}
+
+function uniqueSorted(values) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b)));
+}
+
+function csvEscape(value) {
+  const s = value == null ? "" : String(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} events
+ */
+function downloadRecentCallsCsv(events) {
+  const headers = [
+    "when",
+    "user_email",
+    "provider",
+    "endpoint",
+    "model",
+    "credits",
+    "plan_tokens",
+    "input_tokens",
+    "output_tokens",
+    "compute_units",
+    "estimated_cost_usd",
+    "status",
+    "billed",
+    "preview",
+  ];
+  const lines = [headers.join(",")];
+  for (const ev of events) {
+    lines.push([
+      formatDate(ev.createdAt),
+      ev.userEmail || "",
+      ev.provider || "",
+      ev.endpoint || "",
+      ev.model || "",
+      ev.creditsDebited ?? "",
+      ev.tokensDebited ?? "",
+      ev.inputTokens ?? "",
+      ev.outputTokens ?? "",
+      ev.computeUnits ?? "",
+      ev.estimatedCostUsd ?? "",
+      ev.status || "",
+      ev.billed === false ? "false" : "true",
+      ev.queryPreview || "",
+    ].map(csvEscape).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = localDateKey(new Date().toISOString()) || "export";
+  a.href = url;
+  a.download = `recent-calls-${stamp}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const EMPTY_CALL_FILTERS = {
+  user: "all",
+  provider: "all",
+  endpoint: "all",
+  status: "all",
+  dateFrom: "",
+  dateTo: "",
+};
+
+/** Display ISO date as MM/DD/YYYY */
+function formatDateMdY(isoDate) {
+  if (!isoDate) return "—";
+  const raw = String(isoDate).slice(0, 10);
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return String(isoDate);
+  return `${m[2]}/${m[3]}/${m[1]}`;
+}
+
+function todayIsoDate() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function PieBlock({ title, data }) {
   const hasData = data?.length > 0;
   return (
@@ -155,6 +299,774 @@ function PieBlock({ title, data }) {
   );
 }
 
+const TOP_ENDPOINTS_LIMIT = 8;
+
+function TopEndpointsBar({ data }) {
+  const top = (data || []).slice(0, TOP_ENDPOINTS_LIMIT);
+  const hasData = top.length > 0;
+  return (
+    <div className="mgmt-pie-block">
+      <h3 className="mgmt-section-title">Top endpoints</h3>
+      {!hasData ? (
+        <p className="muted mgmt-empty">No calls logged yet.</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={Math.max(220, top.length * 36)}>
+          <BarChart
+            data={top}
+            layout="vertical"
+            margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" horizontal={false} />
+            <XAxis type="number" allowDecimals={false} tick={{ fill: "#9aa3af", fontSize: 11 }} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={120}
+              tick={{ fill: "#c8cdd5", fontSize: 11 }}
+            />
+            <Tooltip
+              contentStyle={{
+                background: "#151515",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 8,
+              }}
+              labelStyle={{ color: "#e8eaed" }}
+              itemStyle={{ color: "#7ec8ff" }}
+            />
+            <Bar dataKey="value" name="Calls" fill="#7ec8ff" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+function EndpointCreditMatrix({ rows }) {
+  const list = rows || [];
+  return (
+    <section className="admin-card">
+      <h3 className="mgmt-section-title" style={{ marginBottom: 6 }}>
+        Credits / endpoint matrix
+      </h3>
+      <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
+        Plan credits &amp; tokens charged to users vs real API $ (billed events only). Not the same currency.
+      </p>
+      <div className="mgmt-table-wrap">
+        <table className="mgmt-table">
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Calls</th>
+              <th>Success %</th>
+              <th>Credits debited</th>
+              <th>Plan tokens</th>
+              <th>API cost $</th>
+              <th>$ / call</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="muted">No usage events yet.</td>
+              </tr>
+            ) : (
+              list.map((row) => {
+                const perCall = row.calls > 0 ? row.estimatedCostUsd / row.calls : 0;
+                return (
+                  <tr key={row.endpoint}>
+                    <td><code className="mgmt-code">{row.endpoint}</code></td>
+                    <td>{row.calls}</td>
+                    <td>{formatPct(row.successRatePct)}</td>
+                    <td>{row.creditsDebited || "—"}</td>
+                    <td className="muted">{row.tokensDebited || "—"}</td>
+                    <td><strong>{formatUsd(row.estimatedCostUsd)}</strong></td>
+                    <td className="muted">{formatUsd(perCall)}</td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * @param {{
+ *   gastos?: {
+ *     entries?: Array<Record<string, unknown>>,
+ *     totalListedUsd?: number,
+ *     totalMonthlyUsd?: number,
+ *     warning?: string|null,
+ *   },
+ *   onChanged: () => void,
+ *   onError: (msg: string) => void,
+ * }} props
+ */
+function GastosSection({ gastos, onChanged, onError }) {
+  const entries = gastos?.entries || [];
+  const [form, setForm] = useState({
+    productName: "",
+    billing: "monthly",
+    amountUsd: "",
+    startedAt: todayIsoDate(),
+  });
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  async function handleAdd(e) {
+    e.preventDefault();
+    setSaving(true);
+    onError("");
+    try {
+      await createManagementGasto({
+        productName: form.productName.trim(),
+        billing: form.billing === "annual" ? "annual" : "monthly",
+        amountUsd: Number(form.amountUsd),
+        startedAt: form.startedAt,
+      });
+      setForm({
+        productName: "",
+        billing: "monthly",
+        amountUsd: "",
+        startedAt: todayIsoDate(),
+      });
+      await onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to add gasto");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id) {
+    setDeletingId(id);
+    onError("");
+    try {
+      await deleteManagementGasto(id);
+      await onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to delete gasto");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <section className="admin-card">
+      {gastos?.warning ? (
+        <div className="mgmt-setup-banner mgmt-setup-banner--warn" style={{ marginBottom: 12 }}>
+          <p style={{ margin: 0 }}>{gastos.warning}</p>
+        </div>
+      ) : null}
+
+      <form className="mgmt-gastos-form" onSubmit={handleAdd}>
+        <label className="mgmt-filter-field">
+          <span className="muted">Producto</span>
+          <input
+            type="text"
+            required
+            placeholder="Cursor"
+            value={form.productName}
+            onChange={(e) => setForm((f) => ({ ...f, productName: e.target.value }))}
+          />
+        </label>
+        <label className="mgmt-filter-field">
+          <span className="muted">Plan</span>
+          <select
+            value={form.billing}
+            onChange={(e) => setForm((f) => ({ ...f, billing: e.target.value }))}
+          >
+            <option value="monthly">Recurrente (mensual)</option>
+            <option value="annual">Anual</option>
+          </select>
+        </label>
+        <label className="mgmt-filter-field">
+          <span className="muted">Plan cost $</span>
+          <input
+            type="number"
+            required
+            min="0"
+            step="0.01"
+            placeholder="20"
+            value={form.amountUsd}
+            onChange={(e) => setForm((f) => ({ ...f, amountUsd: e.target.value }))}
+          />
+        </label>
+        <label className="mgmt-filter-field">
+          <span className="muted">Fecha inicio</span>
+          <input
+            type="date"
+            required
+            value={form.startedAt}
+            onChange={(e) => setForm((f) => ({ ...f, startedAt: e.target.value }))}
+          />
+        </label>
+        <div className="mgmt-gastos-form__actions">
+          <button type="submit" className="btn btn-sm btn-primary" disabled={saving}>
+            {saving ? "Adding…" : "Add"}
+          </button>
+        </div>
+      </form>
+
+      <div className="mgmt-gastos-totals">
+        <div className="mgmt-kpi">
+          <span className="mgmt-kpi__label">Total a gastar / mes</span>
+          <strong className="mgmt-kpi__value">{formatUsdShort(gastos?.totalMonthlyUsd ?? 0)}</strong>
+          <span className="mgmt-kpi__hint muted">Anual ÷ 12 · resta del margen</span>
+        </div>
+        <div className="mgmt-kpi">
+          <span className="mgmt-kpi__label">Suma planes</span>
+          <strong className="mgmt-kpi__value">{formatUsdShort(gastos?.totalListedUsd ?? 0)}</strong>
+          <span className="mgmt-kpi__hint muted">Costos tal como los anotaste</span>
+        </div>
+      </div>
+
+      <div className="mgmt-table-wrap" style={{ marginTop: 14 }}>
+        <table className="mgmt-table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>Plan</th>
+              <th>Plan cost</th>
+              <th>$ / mes</th>
+              <th>Inicio</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {entries.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="muted">
+                  Sin gastos aún — agrega Cursor, storage, hosting, etc.
+                </td>
+              </tr>
+            ) : (
+              entries.map((row) => (
+                <tr key={row.id}>
+                  <td><strong>{row.productName}</strong></td>
+                  <td>{row.billing === "annual" ? "Anual" : "Recurrente"}</td>
+                  <td>{formatUsdShort(row.amountUsd)}</td>
+                  <td className="muted">{formatUsdShort(row.monthlyUsd)}</td>
+                  <td className="muted">{formatDateMdY(row.startedAt)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      disabled={deletingId === row.id}
+                      onClick={() => handleDelete(row.id)}
+                    >
+                      {deletingId === row.id ? "…" : "Eliminar"}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+
+function formatQuotaNumber(n, unit) {
+  if (unit === "calls" || unit === "tokens" || unit === "MAU") {
+    return Number(n || 0).toLocaleString();
+  }
+  return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function formatOverageRate(n) {
+  if (n == null || Number.isNaN(Number(n))) return "—";
+  const v = Number(n);
+  if (v > 0 && v < 0.0001) return `$${v.toExponential(2)}`;
+  return formatUsd(v);
+}
+
+const EMPTY_QUOTA_FORM = {
+  provider: "",
+  meterKind: "calls",
+  included: "1000",
+  unit: "calls",
+  type: "free",
+  resets: true,
+  everyN: "1",
+  everyUnit: "day",
+  overageUsd: "",
+  anchorAt: "",
+  notes: "",
+};
+
+/**
+ * Tabla A — provider = Recent Calls id. Quantitative cols from live usage.
+ */
+function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }) {
+  const items = quotas?.items || [];
+  const providers = quotas?.availableProviders || [];
+  const totalCost = Number(quotas?.totalCostToPay) || 0;
+  const canEditDb = quotas?.source === "db";
+  const [form, setForm] = useState({ ...EMPTY_QUOTA_FORM });
+  const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [editForm, setEditForm] = useState({ ...EMPTY_QUOTA_FORM });
+  const [deletingId, setDeletingId] = useState(null);
+
+  const formPreview = providers.find((p) => p.provider === form.provider) || null;
+  const editPreview = providers.find((p) => p.provider === editForm.provider) || null;
+
+  function startEdit(row) {
+    setEditId(row.id);
+    setEditForm({
+      provider: row.provider || "",
+      meterKind: row.meterKind === "tokens" ? "tokens" : "calls",
+      included: String(row.included ?? ""),
+      unit: row.unit || "calls",
+      type: row.type || "free",
+      resets: Boolean(row.resets),
+      everyN: row.everyN != null ? String(row.everyN) : "1",
+      everyUnit: row.everyUnit === "month" ? "month" : "day",
+      overageUsd: row.overageUsd != null ? String(row.overageUsd) : "",
+      anchorAt: row.anchorAt || "",
+      notes: row.notes || "",
+    });
+  }
+
+  async function handleAdd(e) {
+    e.preventDefault();
+    if (!canEditDb) {
+      onError("Run supabase_management_quotas.sql first to add meters in DB.");
+      return;
+    }
+    if (!form.provider) {
+      onError("Pick a provider from Recent Calls.");
+      return;
+    }
+    setSaving(true);
+    onError("");
+    try {
+      await createManagementQuota({
+        provider: form.provider,
+        productName: form.provider,
+        meterKind: form.meterKind,
+        included: Number(form.included),
+        unit: form.unit.trim() || (form.meterKind === "tokens" ? "tokens" : "calls"),
+        type: form.type,
+        resets: form.resets,
+        everyN: form.resets ? Number(form.everyN) : null,
+        everyUnit: form.resets ? form.everyUnit : null,
+        overageUsd: form.overageUsd.trim() === "" ? null : Number(form.overageUsd),
+        anchorAt: form.anchorAt.trim() || null,
+        notes: form.notes,
+      });
+      setForm({ ...EMPTY_QUOTA_FORM });
+      await onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to add meter");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveEdit(e) {
+    e.preventDefault();
+    if (!editId) return;
+    if (!editForm.provider) {
+      onError("Pick a provider from Recent Calls.");
+      return;
+    }
+    setSaving(true);
+    onError("");
+    try {
+      await patchManagementQuota(editId, {
+        provider: editForm.provider,
+        productName: editForm.provider,
+        meterKind: editForm.meterKind,
+        included: Number(editForm.included),
+        unit: editForm.unit.trim() || "calls",
+        type: editForm.type,
+        resets: editForm.resets,
+        everyN: editForm.resets ? Number(editForm.everyN) : null,
+        everyUnit: editForm.resets ? editForm.everyUnit : null,
+        overageUsd: editForm.overageUsd.trim() === "" ? null : Number(editForm.overageUsd),
+        anchorAt: editForm.anchorAt.trim() || null,
+        notes: editForm.notes,
+      });
+      setEditId(null);
+      await onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to save meter");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id) {
+    setDeletingId(id);
+    onError("");
+    try {
+      await deleteManagementQuota(id);
+      await onChanged();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to delete meter");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <div className="mgmt-quotas">
+      <div className="mgmt-quota-toolbar">
+        <label className="mgmt-filter-field">
+          <span className="muted">Date picked (UTC)</span>
+          <input
+            type="date"
+            value={asOf}
+            onChange={(e) => onAsOfChange(e.target.value)}
+          />
+        </label>
+        <p className="muted" style={{ fontSize: 12, margin: 0, flex: 1 }}>
+          {quotas?.note || "Tabla A"}
+          {quotas?.source === "defaults" ? " · using code defaults (run SQL to edit)" : " · DB meters"}
+        </p>
+      </div>
+
+      {quotas?.warning ? (
+        <div className="mgmt-setup-banner mgmt-setup-banner--warn" style={{ marginBottom: 12 }}>
+          <p style={{ margin: 0 }}>{String(quotas.warning)}</p>
+        </div>
+      ) : null}
+
+      <h3 className="mgmt-section-title" style={{ margin: "0 0 8px" }}>
+        Providers disponibles (Recent Calls)
+      </h3>
+      <div className="mgmt-table-wrap" style={{ marginBottom: 18 }}>
+        <table className="mgmt-table">
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>Calls (all)</th>
+              <th>Tokens (all)</th>
+              <th>API $ (all)</th>
+              <th>Calls @ date</th>
+              <th>Tokens @ date</th>
+              <th>API $ @ date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {providers.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="muted">
+                  No usage events yet — use Gina / forecast so Recent Calls populate providers.
+                </td>
+              </tr>
+            ) : (
+              providers.map((p) => (
+                <tr key={p.provider}>
+                  <td><code className="mgmt-code">{p.provider}</code></td>
+                  <td><strong>{Number(p.callsAll || 0).toLocaleString()}</strong></td>
+                  <td className="muted">{Number(p.tokensAll || 0).toLocaleString()}</td>
+                  <td>{formatUsd(p.costAll || 0)}</td>
+                  <td>{Number(p.callsAsOf || 0).toLocaleString()}</td>
+                  <td className="muted">{Number(p.tokensAsOf || 0).toLocaleString()}</td>
+                  <td className="muted">{formatUsd(p.costAsOf || 0)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 className="mgmt-section-title" style={{ margin: "0 0 8px" }}>
+        Cupos (meters) — ventana hasta Date picked
+      </h3>
+      <div className="mgmt-table-wrap">
+        <table className="mgmt-table mgmt-table--quotas">
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>Meter</th>
+              <th>Included</th>
+              <th>Type</th>
+              <th>Reset?</th>
+              <th>Every</th>
+              <th>Time left</th>
+              <th>Calls</th>
+              <th>Tokens</th>
+              <th>API $</th>
+              <th>Used / free</th>
+              <th>Over</th>
+              <th>$ / u</th>
+              <th>Cost to pay</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={15} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
+              </tr>
+            ) : (
+              items.map((q) => (
+                <tr
+                  key={q.id}
+                  className={q.exhausted ? "mgmt-row--quota-over" : undefined}
+                  title={q.notes || q.periodLabel || ""}
+                >
+                  <td>
+                    <code className="mgmt-code">{q.provider || "—"}</code>
+                    {q.windowStartYmd ? (
+                      <div className="muted" style={{ fontSize: 10, marginTop: 4 }}>
+                        {q.windowStartYmd}
+                        {q.windowEndYmd ? ` → ${q.windowEndYmd}` : " → …"}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="muted">{q.meterKind}</td>
+                  <td>{formatQuotaNumber(q.included, q.unit)} {q.unit}</td>
+                  <td>
+                    <span className={`mgmt-quota-type mgmt-quota-type--${q.type}`}>{q.type}</span>
+                  </td>
+                  <td><strong>{q.resets ? "yes" : "no"}</strong></td>
+                  <td className="muted">{q.everyLabel || "—"}</td>
+                  <td>{q.timeLeftLabel}</td>
+                  <td><strong>{Number(q.callsInWindow || 0).toLocaleString()}</strong></td>
+                  <td className="muted">{Number(q.tokensInWindow || 0).toLocaleString()}</td>
+                  <td>{formatUsd(q.apiCostUsdInWindow || 0)}</td>
+                  <td>
+                    <strong>{formatQuotaNumber(q.used, q.unit)}</strong>
+                    <span className="muted"> / {formatQuotaNumber(q.included, q.unit)}</span>
+                    <div className="muted" style={{ fontSize: 10 }}>{q.pct}%</div>
+                  </td>
+                  <td className={q.over > 0 ? undefined : "muted"}>
+                    {formatQuotaNumber(q.over, q.unit)}
+                  </td>
+                  <td className="muted">{formatOverageRate(q.overageUsd)}</td>
+                  <td>
+                    {q.costToPay > 0 ? (
+                      <strong>{formatUsd(q.costToPay)}</strong>
+                    ) : (
+                      <span className="muted">{formatUsd(0)}</span>
+                    )}
+                  </td>
+                  <td>
+                    {canEditDb ? (
+                      <div className="mgmt-quota-actions">
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => startEdit(q)}>
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          disabled={deletingId === q.id}
+                          onClick={() => handleDelete(q.id)}
+                        >
+                          {deletingId === q.id ? "…" : "Del"}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mgmt-quota-footer">
+        <span className="muted">Cost to pay (overdue con tarifa):</span>
+        {" "}
+        <strong>{formatUsd(totalCost)}</strong>
+      </div>
+
+      {editId ? (
+        <form className="mgmt-gastos-form" style={{ marginTop: 16 }} onSubmit={handleSaveEdit}>
+          <strong style={{ gridColumn: "1 / -1" }}>Edit meter</strong>
+          <QuotaMeterFields
+            form={editForm}
+            setForm={setEditForm}
+            providers={providers}
+            preview={editPreview}
+          />
+          <div className="admin-form-actions" style={{ gridColumn: "1 / -1" }}>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditId(null)}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-sm btn-primary" disabled={saving || !editForm.provider}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      <form className="mgmt-gastos-form" style={{ marginTop: 16 }} onSubmit={handleAdd}>
+        <strong style={{ gridColumn: "1 / -1" }}>Add meter — pick provider first</strong>
+        <QuotaMeterFields
+          form={form}
+          setForm={setForm}
+          providers={providers}
+          preview={formPreview}
+        />
+        <div className="admin-form-actions" style={{ gridColumn: "1 / -1" }}>
+          <button
+            type="submit"
+            className="btn btn-sm btn-primary"
+            disabled={saving || !canEditDb || !form.provider}
+          >
+            {saving ? "Adding…" : "Add"}
+          </button>
+        </div>
+        {!canEditDb ? (
+          <p className="muted" style={{ gridColumn: "1 / -1", margin: 0, fontSize: 12 }}>
+            Defaults are read-only until you run <code>supabase_management_quotas.sql</code>.
+          </p>
+        ) : null}
+      </form>
+    </div>
+  );
+}
+
+function QuotaMeterFields({ form, setForm, providers, preview }) {
+  return (
+    <>
+      <label className="mgmt-filter-field">
+        <span className="muted">Provider (Recent Calls)</span>
+        <select
+          required
+          value={form.provider}
+          onChange={(e) => setForm((f) => ({ ...f, provider: e.target.value }))}
+        >
+          <option value="">Select…</option>
+          {(providers || []).map((p) => (
+            <option key={p.provider} value={p.provider}>
+              {p.provider} · {Number(p.callsAll || 0).toLocaleString()} calls
+            </option>
+          ))}
+        </select>
+      </label>
+      {preview ? (
+        <div className="mgmt-quota-preview" style={{ gridColumn: "1 / -1" }}>
+          <span className="muted">Datos de</span>
+          {" "}
+          <code className="mgmt-code">{preview.provider}</code>
+          {": "}
+          <strong>{Number(preview.callsAll || 0).toLocaleString()}</strong> calls all-time
+          {" · "}
+          <strong>{Number(preview.tokensAll || 0).toLocaleString()}</strong> tokens
+          {" · "}
+          <strong>{formatUsd(preview.costAll || 0)}</strong> API$
+          {" · "}
+          @ date: {Number(preview.callsAsOf || 0).toLocaleString()} calls
+        </div>
+      ) : (
+        <p className="muted" style={{ gridColumn: "1 / -1", margin: 0, fontSize: 12 }}>
+          Elegí un provider del listado — no se permite texto libre.
+        </p>
+      )}
+      <label className="mgmt-filter-field">
+        <span className="muted">Meter</span>
+        <select
+          value={form.meterKind}
+          onChange={(e) => setForm((f) => ({
+            ...f,
+            meterKind: e.target.value,
+            unit: e.target.value === "tokens" ? "tokens" : "calls",
+          }))}
+        >
+          <option value="calls">calls</option>
+          <option value="tokens">tokens</option>
+        </select>
+      </label>
+      <label className="mgmt-filter-field">
+        <span className="muted">Included (free)</span>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          required
+          value={form.included}
+          onChange={(e) => setForm((f) => ({ ...f, included: e.target.value }))}
+        />
+      </label>
+      <label className="mgmt-filter-field">
+        <span className="muted">Type</span>
+        <select
+          value={form.type}
+          onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+        >
+          <option value="free">Free</option>
+          <option value="welcome">Welcome (one-shot)</option>
+          <option value="paid">Paid</option>
+        </select>
+      </label>
+      <label className="mgmt-filter-field">
+        <span className="muted">Reset?</span>
+        <select
+          value={form.resets ? "yes" : "no"}
+          onChange={(e) => setForm((f) => ({ ...f, resets: e.target.value === "yes" }))}
+        >
+          <option value="yes">yes</option>
+          <option value="no">no</option>
+        </select>
+      </label>
+      {form.resets ? (
+        <>
+          <label className="mgmt-filter-field">
+            <span className="muted">Every N</span>
+            <input
+              type="number"
+              min="1"
+              required
+              value={form.everyN}
+              onChange={(e) => setForm((f) => ({ ...f, everyN: e.target.value }))}
+            />
+          </label>
+          <label className="mgmt-filter-field">
+            <span className="muted">Unit</span>
+            <select
+              value={form.everyUnit}
+              onChange={(e) => setForm((f) => ({ ...f, everyUnit: e.target.value }))}
+            >
+              <option value="day">day</option>
+              <option value="month">month</option>
+            </select>
+          </label>
+        </>
+      ) : null}
+      <label className="mgmt-filter-field">
+        <span className="muted">$ / u overdue</span>
+        <input
+          type="number"
+          min="0"
+          step="any"
+          placeholder="0.23"
+          value={form.overageUsd}
+          onChange={(e) => setForm((f) => ({ ...f, overageUsd: e.target.value }))}
+        />
+      </label>
+      <label className="mgmt-filter-field">
+        <span className="muted">Anchor (YYYY-MM-DD)</span>
+        <input
+          type="date"
+          value={form.anchorAt}
+          onChange={(e) => setForm((f) => ({ ...f, anchorAt: e.target.value }))}
+        />
+      </label>
+      <label className="mgmt-filter-field" style={{ gridColumn: "1 / -1" }}>
+        <span className="muted">Notes</span>
+        <input
+          type="text"
+          value={form.notes}
+          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+        />
+      </label>
+    </>
+  );
+}
+
 /**
  * @param {{ section?: string }} props
  */
@@ -177,12 +1089,14 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
   });
   const [saving, setSaving] = useState(false);
   const [userActivityFilter, setUserActivityFilter] = useState("all");
+  const [callFilters, setCallFilters] = useState(EMPTY_CALL_FILTERS);
+  const [asOfYmd, setAsOfYmd] = useState(() => todayIsoDate());
 
   const load = useCallback(async () => {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const result = await fetchManagementOverview({ includeSeed });
+      const result = await fetchManagementOverview({ includeSeed, asOf: asOfYmd });
       setData(result);
       setDbWarning(result.dbWarning || null);
     } catch (err) {
@@ -190,7 +1104,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
     } finally {
       setLoading(false);
     }
-  }, [includeSeed]);
+  }, [includeSeed, asOfYmd]);
 
   useEffect(() => {
     load();
@@ -241,10 +1155,46 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
     }
   }
 
-  const stats = data?.stats?.totals || { today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 };
+  const stats = data?.stats?.totals || {
+    today: 0,
+    month: 0,
+    allTime: 0,
+    estimatedCostUsd: 0,
+    estimatedCostUsdMonth: 0,
+    successRatePct: null,
+    successCount: 0,
+    errorCount: 0,
+  };
+  const margin = data?.margin || {
+    proSubscribers: 0,
+    proTestSubscribers: 0,
+    mrrUsd: 0,
+    mrrSampleUsd: 0,
+    apiCostMonthUsd: 0,
+    opexMonthUsd: 0,
+    gastosMonthUsd: 0,
+    marginUsd: 0,
+    listPriceUsd: 20,
+  };
+  const alerts = data?.alerts || [];
+  const quotas = data?.quotas || { items: [], note: "", source: "defaults", totalCostToPay: 0 };
   const copy = SECTION_COPY[section] || SECTION_COPY[MANAGEMENT_SECTIONS.api];
-  const showToolbar = section !== MANAGEMENT_SECTIONS.storage;
+  const showToolbar = section !== MANAGEMENT_SECTIONS.storage
+    && section !== MANAGEMENT_SECTIONS.gastos;
   const filteredUsers = filterUsersByActivity(data?.users || [], userActivityFilter);
+  const recentEvents = data?.recentEvents || [];
+  const filteredCalls = filterRecentEvents(recentEvents, callFilters);
+  const callUserOptions = uniqueSorted(recentEvents.map((e) => e.userEmail));
+  const callProviderOptions = uniqueSorted(recentEvents.map((e) => e.provider));
+  const callEndpointOptions = uniqueSorted(recentEvents.map((e) => e.endpoint));
+  const callFiltersActive = Object.entries(callFilters).some(([k, v]) => {
+    if (k === "dateFrom" || k === "dateTo") return Boolean(v);
+    return v !== "all";
+  });
+
+  function setCallFilter(key, value) {
+    setCallFilters((prev) => ({ ...prev, [key]: value }));
+  }
 
   return (
     <div className="mgmt-panel">
@@ -255,6 +1205,9 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
             {copy.title}
             {section === MANAGEMENT_SECTIONS.users && data?.users?.length ? (
               <span className="mgmt-count-badge">{data.users.length}</span>
+            ) : null}
+            {section === MANAGEMENT_SECTIONS.calls && recentEvents.length ? (
+              <span className="mgmt-count-badge">{filteredCalls.length}</span>
             ) : null}
           </h1>
           <p className="muted" style={{ fontSize: 13, margin: 0 }}>
@@ -278,11 +1231,11 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
         ) : null}
       </div>
 
-      {errorMessage && section !== MANAGEMENT_SECTIONS.storage ? (
+      {errorMessage ? (
         <div className="admin-error">{errorMessage}</div>
       ) : null}
 
-      {section !== MANAGEMENT_SECTIONS.storage ? (
+      {section !== MANAGEMENT_SECTIONS.storage && section !== MANAGEMENT_SECTIONS.gastos ? (
         <>
           {dbWarning ? (
             <div className="mgmt-setup-banner">
@@ -334,10 +1287,65 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
               <strong className="mgmt-kpi__value">{stats.allTime}</strong>
             </div>
             <div className="mgmt-kpi">
-              <span className="mgmt-kpi__label">Est. cost (logged)</span>
+              <span className="mgmt-kpi__label">Est. cost (all-time)</span>
               <strong className="mgmt-kpi__value">{formatUsd(stats.estimatedCostUsd)}</strong>
             </div>
           </section>
+
+          <section className="mgmt-kpi-row admin-card">
+            <div className="mgmt-kpi">
+              <span className="mgmt-kpi__label">Success rate</span>
+              <strong className="mgmt-kpi__value">{formatPct(stats.successRatePct)}</strong>
+              <span className="mgmt-kpi__hint muted">
+                {stats.successCount ?? 0} ok · {stats.errorCount ?? 0} err
+              </span>
+            </div>
+            <div className="mgmt-kpi">
+              <span className="mgmt-kpi__label">API $ this month</span>
+              <strong className="mgmt-kpi__value">{formatUsd(stats.estimatedCostUsdMonth)}</strong>
+              {data?.budgetUsd != null ? (
+                <span className="mgmt-kpi__hint muted">Budget ${Number(data.budgetUsd).toFixed(2)}</span>
+              ) : null}
+            </div>
+            <div className="mgmt-kpi">
+              <span className="mgmt-kpi__label">Gastos / mes</span>
+              <strong className="mgmt-kpi__value">{formatUsdShort(margin.gastosMonthUsd ?? margin.opexMonthUsd)}</strong>
+              <span className="mgmt-kpi__hint muted">Desde Gastos (anual ÷ 12)</span>
+            </div>
+            <div className="mgmt-kpi">
+              <span className="mgmt-kpi__label">Paid MRR</span>
+              <strong className="mgmt-kpi__value">{formatUsdShort(margin.mrrUsd)}</strong>
+              <span className="mgmt-kpi__hint muted">
+                {margin.proSubscribers ?? 0} Pro · sample {formatUsdShort(margin.mrrSampleUsd)}
+                {(margin.proTestSubscribers ?? 0) > 0 ? ` · ${margin.proTestSubscribers} test` : ""}
+              </span>
+            </div>
+            <div className="mgmt-kpi">
+              <span className="mgmt-kpi__label">Margin</span>
+              <strong
+                className={`mgmt-kpi__value${Number(margin.marginUsd) < 0 ? " is-neg" : ""}`}
+              >
+                {formatUsdShort(margin.marginUsd)}
+              </strong>
+              <span className="mgmt-kpi__hint muted">Paid MRR − API$ − Gastos</span>
+            </div>
+          </section>
+
+          {alerts.length > 0 ? (
+            <section className="admin-card mgmt-alerts">
+              <h3 className="mgmt-section-title" style={{ marginBottom: 10 }}>Alerts</h3>
+              <ul className="mgmt-alerts__list">
+                {alerts.map((a) => (
+                  <li
+                    key={a.id}
+                    className={`mgmt-alert mgmt-alert--${a.level === "danger" ? "danger" : "warn"}`}
+                  >
+                    {a.message}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="admin-card">
             <h2 className="mgmt-section-title">Integrations</h2>
@@ -566,8 +1574,10 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
 
           <section className="mgmt-pie-row admin-card">
             <PieBlock title="Calls by provider" data={data?.stats?.byProvider || []} />
-            <PieBlock title="Calls by endpoint" data={data?.stats?.byEndpoint || []} />
+            <TopEndpointsBar data={data?.stats?.byEndpoint || []} />
           </section>
+
+          <EndpointCreditMatrix rows={data?.stats?.endpointMatrix || []} />
         </>
       ) : null}
 
@@ -630,6 +1640,11 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                             admin
                           </span>
                         ) : null}
+                        {u.isTest ? (
+                          <span className="mgmt-badge mgmt-badge--pending" style={{ marginLeft: 8 }}>
+                            test
+                          </span>
+                        ) : null}
                       </td>
                       <td>{u.plan === "pro" ? "Pro" : "Starter"}</td>
                       <td>
@@ -656,6 +1671,94 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
 
       {section === MANAGEMENT_SECTIONS.calls ? (
         <section className="admin-card">
+          <div className="mgmt-calls-toolbar">
+            <label className="mgmt-filter-field">
+              <span className="muted">User</span>
+              <select
+                value={callFilters.user}
+                onChange={(e) => setCallFilter("user", e.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="__empty__">(no email)</option>
+                {callUserOptions.map((email) => (
+                  <option key={email} value={email}>{email}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mgmt-filter-field">
+              <span className="muted">Provider</span>
+              <select
+                value={callFilters.provider}
+                onChange={(e) => setCallFilter("provider", e.target.value)}
+              >
+                <option value="all">All</option>
+                {callProviderOptions.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mgmt-filter-field">
+              <span className="muted">Endpoint</span>
+              <select
+                value={callFilters.endpoint}
+                onChange={(e) => setCallFilter("endpoint", e.target.value)}
+              >
+                <option value="all">All</option>
+                {callEndpointOptions.map((ep) => (
+                  <option key={ep} value={ep}>{ep}</option>
+                ))}
+              </select>
+            </label>
+            <label className="mgmt-filter-field">
+              <span className="muted">Status</span>
+              <select
+                value={callFilters.status}
+                onChange={(e) => setCallFilter("status", e.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="success">success</option>
+                <option value="error">error</option>
+              </select>
+            </label>
+            <label className="mgmt-filter-field">
+              <span className="muted">From</span>
+              <input
+                type="date"
+                value={callFilters.dateFrom}
+                onChange={(e) => setCallFilter("dateFrom", e.target.value)}
+              />
+            </label>
+            <label className="mgmt-filter-field">
+              <span className="muted">To</span>
+              <input
+                type="date"
+                value={callFilters.dateTo}
+                onChange={(e) => setCallFilter("dateTo", e.target.value)}
+              />
+            </label>
+            <div className="mgmt-calls-toolbar__actions">
+              {callFiltersActive ? (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => setCallFilters(EMPTY_CALL_FILTERS)}
+                >
+                  Clear
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                disabled={filteredCalls.length === 0}
+                onClick={() => downloadRecentCallsCsv(filteredCalls)}
+              >
+                Export CSV
+              </button>
+              <span className="muted" style={{ fontSize: 12 }}>
+                {filteredCalls.length} / {recentEvents.length}
+              </span>
+            </div>
+          </div>
           <div className="mgmt-table-wrap">
             <table className="mgmt-table">
                 <thead>
@@ -673,14 +1776,16 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(data?.recentEvents || []).length === 0 ? (
+                  {filteredCalls.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="muted">
-                        No calls yet. Run an Intel search from /app or `npm run seed:management`.
+                        {recentEvents.length === 0
+                          ? "No calls yet. Run an Intel search from /app or `npm run seed:management`."
+                          : "No calls match these filters."}
                       </td>
                     </tr>
                   ) : (
-                    data.recentEvents.map((ev) => (
+                    filteredCalls.map((ev) => (
                       <tr key={ev.id}>
                         <td className="muted">{formatDate(ev.createdAt)}</td>
                         <td>{ev.userEmail || "—"}</td>
@@ -723,12 +1828,38 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
         </section>
       ) : null}
 
+      {section === MANAGEMENT_SECTIONS.gastos ? (
+        <>
+          <div className="admin-form-actions" style={{ marginBottom: 12, justifyContent: "flex-end" }}>
+            <button type="button" className="btn btn-sm btn-primary" onClick={load} disabled={loading}>
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+          <GastosSection
+            gastos={data?.gastos}
+            onChanged={load}
+            onError={(msg) => setErrorMessage(msg || null)}
+          />
+        </>
+      ) : null}
+
       {section === MANAGEMENT_SECTIONS.storage ? (
-        <section className="admin-card mgmt-empty-section">
-          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-            Nothing here yet. Storage tools will land in this subsection later.
-          </p>
-        </section>
+        <>
+          <div className="admin-form-actions" style={{ marginBottom: 12, justifyContent: "flex-end" }}>
+            <button type="button" className="btn btn-sm btn-primary" onClick={load} disabled={loading}>
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+          <section className="admin-card">
+            <StorageQuotasSection
+              quotas={quotas}
+              asOf={asOfYmd}
+              onAsOfChange={setAsOfYmd}
+              onChanged={load}
+              onError={(msg) => setErrorMessage(msg || null)}
+            />
+          </section>
+        </>
       ) : null}
     </div>
   );

@@ -15,9 +15,9 @@ No confundir **créditos/tokens de plan** (cobro al user) con **uso real del pro
 |---|---|---|
 | **A** | Logging completo de rutas (Gina, weather, hype, Apify run, Resend, events, launch radar…) + uso real por provider + `$` dinámico en cada `api_usage_events` | **live** (2026-08) |
 | **B** | Users: columna **API cost $** acumulado + filtro sin actividad 7/30 días | **live** (2026-08) |
-| **C** | Recent calls: filtros (user, provider, endpoint, status, fecha) + export CSV | pendiente |
-| **D** | Matriz créditos/endpoint visible + pie → barras / Top endpoints | pendiente |
-| **E** | Success rate %, presupuestos/alertas, MRR − API cost, Apify storage (datasets / GB-h) + `GET /users/me` | pendiente |
+| **C** | Recent calls: filtros (user, provider, endpoint, status, fecha) + export CSV | **live** (2026-08) |
+| **D** | Matriz créditos/endpoint visible + pie → barras / Top endpoints | **live** (2026-08) |
+| **E** | Success + margin + Gastos + test tags + alerts + Apify storage + `users/me` | **live** |
 
 **Nota producto:** storage + consumo API general importa a largo plazo → **E** (instrumentar Apify CU/dataset en **A** cuando haya run stats).
 
@@ -93,9 +93,51 @@ Free tier (referencia): ~5M in + 5M out / mes sin costo (modelar como `billed: f
 
 **Estado B:** live.
 
-## Fuera de B
+## Fase C — Recent calls filters + CSV
 
-Filtros Recent calls, matriz créditos, alertas, MRR → C–E.
+1. Filtros client-side: user (incl. sin email), provider, endpoint, status, From/To (fecha local).
+2. Contador `n / loaded` + Clear + Export CSV de las filas filtradas.
+3. Cargar hasta **300** eventos recientes (antes 50) para que los filtros sean útiles.
+
+### Checklist live (C)
+
+- [x] Toolbar filtros en Recent Calls
+- [x] Export CSV (when, user, provider, endpoint, tokens, $, status…)
+- [x] `loadRecentEvents` limit 300
+
+**Estado C:** live.
+
+## Fase D — Matriz créditos + Top endpoints
+
+1. Agregar `endpointMatrix` en stats: calls, credits_debited, tokens_debited, API $ (solo `billed`).
+2. Tabla **Credits / endpoint matrix** en API Integrations (plan vs costo real).
+3. Reemplazar pie “Calls by endpoint” por **bar chart horizontal Top endpoints** (top 8). Provider pie se mantiene.
+
+### Checklist live (D)
+
+- [x] `loadUsageStats` → `endpointMatrix` + cost total respetando `billed`
+- [x] UI matrix table
+- [x] Top endpoints BarChart (Recharts)
+
+**Estado D:** live.
+
+## Fase E — Health + margen (parcial)
+
+### E.1 live (esta entrega)
+
+1. **Success rate %** — global (KPI) + por endpoint en la matrix.
+2. **API $ this month** — solo eventos `billed` del mes UTC.
+3. **Est. MRR − API** — `Pro users × $20/mo` (list price marketing) minus API $ del mes. No es Stripe live MRR.
+
+### E.2
+
+- [x] **Gastos** page
+- [x] Tag **test** + Paid MRR excludes test Pros (`ADMIN_TEST_EMAILS`)
+- [x] Presupuestos / alertas (`MANAGEMENT_API_BUDGET_USD`, margin, success rate)
+- [x] Apify storage snapshot (CU + account probe) in Storage
+- [x] `GET /api/users/me`
+
+**Estado E:** live (E.1 + E.2).
 
 ## Relacionado
 

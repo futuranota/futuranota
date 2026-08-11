@@ -6,6 +6,7 @@ export const MANAGEMENT_SECTIONS = {
   api: 'api-integrations',
   users: 'users',
   calls: 'recent-calls',
+  gastos: 'gastos',
   storage: 'storage',
 };
 
@@ -13,6 +14,7 @@ export const MANAGEMENT_NAV_IDS = {
   [MANAGEMENT_SECTIONS.api]: 'mgmt-api',
   [MANAGEMENT_SECTIONS.users]: 'mgmt-users',
   [MANAGEMENT_SECTIONS.calls]: 'mgmt-calls',
+  [MANAGEMENT_SECTIONS.gastos]: 'mgmt-gastos',
   [MANAGEMENT_SECTIONS.storage]: 'mgmt-storage',
 };
 
@@ -24,10 +26,6 @@ const SECTION_BY_NAV_ID = Object.fromEntries(
 const NAV_GROUPS = [
   {
     items: [
-      { id: 'signals', title: 'Signals' },
-      { id: 'campaigns', title: 'Campaign Detector' },
-      { id: 'horizon', title: 'Horizon Scan' },
-      { id: 'sources', title: 'Scan Sources' },
       {
         id: 'management',
         title: 'Management',
@@ -35,9 +33,14 @@ const NAV_GROUPS = [
           { id: 'mgmt-api', title: 'API Integrations' },
           { id: 'mgmt-users', title: 'Users' },
           { id: 'mgmt-calls', title: 'Recent Calls' },
-          { id: 'mgmt-storage', title: 'Storage' },
+          { id: 'mgmt-gastos', title: 'Gastos' },
+          { id: 'mgmt-storage', title: 'Storage & Quotas' },
         ],
       },
+      { id: 'signals', title: 'Signals' },
+      { id: 'campaigns', title: 'Campaign Detector' },
+      { id: 'horizon', title: 'Horizon Scan' },
+      { id: 'sources', title: 'Scan Sources' },
     ],
   },
 ];

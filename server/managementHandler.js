@@ -9,6 +9,16 @@ import {
   getCreditsUsed,
   getTokensCap,
 } from "../src/lib/planConfig.js";
+import {
+  DEFAULT_API_QUOTA_METERS,
+  estimateOverageUsd,
+  formatUtcYmd,
+  mapQuotaMeterRow,
+  parseUtcYmd,
+  resolveMeterWindow,
+  startOfUtcDay,
+  addUtcDays,
+} from "./management/quotaCatalog.js";
 
 function getAdminEmail() {
   return (
@@ -16,6 +26,29 @@ function getAdminEmail() {
     || process.env.ADMIN_EMAIL
     || ""
   ).trim().toLowerCase();
+}
+
+/** Admin + comma-separated ADMIN_TEST_EMAILS — excluded from paid MRR. */
+function getTestEmailSet() {
+  /** @type {Set<string>} */
+  const set = new Set();
+  const admin = getAdminEmail();
+  if (admin) set.add(admin);
+  const raw = (
+    process.env.ADMIN_TEST_EMAILS
+    || process.env.VITE_ADMIN_TEST_EMAILS
+    || ""
+  ).trim();
+  for (const part of raw.split(/[,;]+/)) {
+    const email = part.trim().toLowerCase();
+    if (email) set.add(email);
+  }
+  return set;
+}
+
+function isTestAccountEmail(email, testEmails = getTestEmailSet()) {
+  if (!email) return false;
+  return testEmails.has(String(email).toLowerCase());
 }
 
 /**
@@ -53,10 +86,6 @@ function rowToProfileView(row) {
   };
 }
 
-function startOfUtcDay(date = new Date()) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-}
-
 function startOfUtcMonth(date = new Date()) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
@@ -69,7 +98,7 @@ async function loadUsageStats(service, opts = {}) {
   const includeSeed = opts.includeSeed !== false;
   let query = service
     .from("api_usage_events")
-    .select("provider, endpoint, status, estimated_cost_usd, created_at, meta");
+    .select("provider, endpoint, status, estimated_cost_usd, created_at, meta, credits_debited, tokens_debited, billed");
 
   const { data: events, error } = await query;
   if (error) throw new Error(error.message);
@@ -87,40 +116,524 @@ async function loadUsageStats(service, opts = {}) {
   let month = 0;
   let allTime = filtered.length;
   let estimatedCostTotal = 0;
+  let estimatedCostUsdMonth = 0;
+  let estimatedCostUsdToday = 0;
+  let successCount = 0;
+  let errorCount = 0;
   const byProvider = {};
   const byEndpoint = {};
   /** @type {Record<string, number>} */
   const callsTodayByProvider = {};
   /** @type {Record<string, number>} */
   const callsTotalByProvider = {};
+  /** @type {Record<string, {
+   *   endpoint: string,
+   *   calls: number,
+   *   creditsDebited: number,
+   *   tokensDebited: number,
+   *   estimatedCostUsd: number,
+   *   successCount: number,
+   *   errorCount: number,
+   * }>} */
+  const endpointAgg = {};
 
   for (const ev of filtered) {
     const created = new Date(ev.created_at);
-    if (created >= dayStart) today += 1;
-    if (created >= monthStart) month += 1;
-    if (ev.estimated_cost_usd != null) {
-      estimatedCostTotal += Number(ev.estimated_cost_usd);
-    }
+    const inToday = created >= dayStart;
+    const inMonth = created >= monthStart;
+    if (inToday) today += 1;
+    if (inMonth) month += 1;
+    const status = String(ev.status || "").toLowerCase();
+    if (status === "success" || status === "ok") successCount += 1;
+    else if (status === "error" || status === "failed") errorCount += 1;
+
+    const billed = ev.billed !== false && ev.meta?.billed !== false;
+    const cost = billed ? (Number(ev.estimated_cost_usd) || 0) : 0;
+    estimatedCostTotal += cost;
+    if (inMonth) estimatedCostUsdMonth += cost;
+    if (inToday) estimatedCostUsdToday += cost;
     const provider = ev.provider || "unknown";
     const endpoint = ev.endpoint || "unknown";
     byProvider[provider] = (byProvider[provider] || 0) + 1;
     byEndpoint[endpoint] = (byEndpoint[endpoint] || 0) + 1;
     callsTotalByProvider[provider] = (callsTotalByProvider[provider] || 0) + 1;
-    if (created >= dayStart) {
+    if (inToday) {
       callsTodayByProvider[provider] = (callsTodayByProvider[provider] || 0) + 1;
     }
+
+    if (!endpointAgg[endpoint]) {
+      endpointAgg[endpoint] = {
+        endpoint,
+        calls: 0,
+        creditsDebited: 0,
+        tokensDebited: 0,
+        estimatedCostUsd: 0,
+        successCount: 0,
+        errorCount: 0,
+      };
+    }
+    const row = endpointAgg[endpoint];
+    row.calls += 1;
+    row.creditsDebited += Number(ev.credits_debited) || 0;
+    row.tokensDebited += Number(ev.tokens_debited) || 0;
+    row.estimatedCostUsd += cost;
+    if (status === "success" || status === "ok") row.successCount += 1;
+    else if (status === "error" || status === "failed") row.errorCount += 1;
   }
 
   const toPie = (map) => Object.entries(map)
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 
+  const endpointMatrix = Object.values(endpointAgg)
+    .map((row) => {
+      const decided = row.successCount + row.errorCount;
+      return {
+        ...row,
+        estimatedCostUsd: Math.round(row.estimatedCostUsd * 1e6) / 1e6,
+        successRatePct: decided > 0
+          ? Math.round((row.successCount / decided) * 1000) / 10
+          : null,
+      };
+    })
+    .sort((a, b) => b.calls - a.calls || b.estimatedCostUsd - a.estimatedCostUsd);
+
+  const decidedTotal = successCount + errorCount;
+  const successRatePct = decidedTotal > 0
+    ? Math.round((successCount / decidedTotal) * 1000) / 10
+    : null;
+
   return {
-    totals: { today, month, allTime, estimatedCostUsd: estimatedCostTotal },
+    totals: {
+      today,
+      month,
+      allTime,
+      estimatedCostUsd: Math.round(estimatedCostTotal * 1e6) / 1e6,
+      estimatedCostUsdMonth: Math.round(estimatedCostUsdMonth * 1e6) / 1e6,
+      estimatedCostUsdToday: Math.round(estimatedCostUsdToday * 1e6) / 1e6,
+      successCount,
+      errorCount,
+      successRatePct,
+    },
     byProvider: toPie(byProvider),
     byEndpoint: toPie(byEndpoint),
+    endpointMatrix,
     callsTodayByProvider,
     callsTotalByProvider,
+  };
+}
+
+/** List price for Pro monthly (marketing); not live Stripe MRR. */
+const PRO_MONTHLY_LIST_USD = 20;
+
+function monthlyBurnUsd(billing, amountUsd) {
+  const amount = Number(amountUsd) || 0;
+  if (billing === "annual") return Math.round((amount / 12) * 1e4) / 1e4;
+  return Math.round(amount * 1e4) / 1e4;
+}
+
+function mapGastoRow(row) {
+  const billing = row.billing === "annual" ? "annual" : "monthly";
+  const amountUsd = Number(row.amount_usd) || 0;
+  return {
+    id: row.id,
+    productName: row.product_name,
+    billing,
+    amountUsd,
+    monthlyUsd: monthlyBurnUsd(billing, amountUsd),
+    startedAt: row.started_at,
+    notes: row.notes || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * @param {import('@supabase/supabase-js').SupabaseClient} service
+ */
+async function loadGastosEntries(service) {
+  const { data, error } = await service
+    .from("admin_gastos")
+    .select("*")
+    .order("started_at", { ascending: false });
+
+  if (error) {
+    if (/admin_gastos|relation|schema cache/i.test(error.message)) {
+      return {
+        entries: [],
+        totalListedUsd: 0,
+        totalMonthlyUsd: 0,
+        warning: "Run supabase_management_gastos.sql in Supabase SQL Editor for Gastos.",
+      };
+    }
+    throw error;
+  }
+
+  const entries = (data || []).map(mapGastoRow);
+  const totalListedUsd = Math.round(
+    entries.reduce((sum, e) => sum + (Number(e.amountUsd) || 0), 0) * 1e4,
+  ) / 1e4;
+  const totalMonthlyUsd = Math.round(
+    entries.reduce((sum, e) => sum + (Number(e.monthlyUsd) || 0), 0) * 1e4,
+  ) / 1e4;
+
+  return { entries, totalListedUsd, totalMonthlyUsd, warning: null };
+}
+
+/**
+ * @param {Array<{ plan?: string, isTest?: boolean }>} users
+ * @param {{ estimatedCostUsdMonth?: number }} totals
+ * @param {number} [gastosMonthUsd]
+ */
+function buildMarginSnapshot(users, totals, gastosMonthUsd = 0) {
+  const list = users || [];
+  const proAll = list.filter((u) => u.plan === "pro");
+  const proPaid = proAll.filter((u) => !u.isTest);
+  const proTest = proAll.filter((u) => u.isTest);
+  const mrrSampleUsd = Math.round(proAll.length * PRO_MONTHLY_LIST_USD * 100) / 100;
+  const mrrUsd = Math.round(proPaid.length * PRO_MONTHLY_LIST_USD * 100) / 100;
+  const apiCostMonthUsd = Number(totals?.estimatedCostUsdMonth) || 0;
+  const opexUsd = Number(gastosMonthUsd) || 0;
+  return {
+    proSubscribers: proPaid.length,
+    proTestSubscribers: proTest.length,
+    proAllSubscribers: proAll.length,
+    listPriceUsd: PRO_MONTHLY_LIST_USD,
+    mrrUsd,
+    mrrSampleUsd,
+    apiCostMonthUsd,
+    opexMonthUsd: opexUsd,
+    gastosMonthUsd: opexUsd,
+    marginUsd: Math.round((mrrUsd - apiCostMonthUsd - opexUsd) * 1e6) / 1e6,
+    note: "Paid MRR = Pro without test tag × $20 − API$ − Gastos. Test Pros excluded.",
+  };
+}
+
+function buildManagementAlerts(margin, totals) {
+  /** @type {Array<{ id: string, level: 'warn'|'danger'|'info', message: string }>} */
+  const alerts = [];
+  const budgetRaw = process.env.MANAGEMENT_API_BUDGET_USD || process.env.VITE_MANAGEMENT_API_BUDGET_USD || "";
+  const budgetUsd = budgetRaw.trim() === "" ? 25 : Number(budgetRaw);
+  const apiMonth = Number(totals?.estimatedCostUsdMonth) || 0;
+  const marginUsd = Number(margin?.marginUsd) || 0;
+
+  if (Number.isFinite(budgetUsd) && budgetUsd > 0 && apiMonth > budgetUsd) {
+    alerts.push({
+      id: "api_budget",
+      level: "danger",
+      message: `API $ this month ($${apiMonth.toFixed(4)}) exceeds budget $${budgetUsd.toFixed(2)}.`,
+    });
+  } else if (Number.isFinite(budgetUsd) && budgetUsd > 0 && apiMonth > budgetUsd * 0.8) {
+    alerts.push({
+      id: "api_budget_warn",
+      level: "warn",
+      message: `API $ this month is at ${Math.round((apiMonth / budgetUsd) * 100)}% of $${budgetUsd.toFixed(2)} budget.`,
+    });
+  }
+
+  if (marginUsd < 0) {
+    alerts.push({
+      id: "margin_neg",
+      level: "danger",
+      message: `Margin is negative ($${marginUsd.toFixed(2)}). Paid MRR − API$ − Gastos.`,
+    });
+  }
+
+  const successRate = totals?.successRatePct;
+  if (successRate != null && successRate < 90 && (totals?.errorCount || 0) > 0) {
+    alerts.push({
+      id: "success_rate",
+      level: "warn",
+      message: `Success rate ${successRate}% — review Recent Calls errors.`,
+    });
+  }
+
+  return {
+    alerts,
+    budgetUsd: Number.isFinite(budgetUsd) && budgetUsd > 0 ? budgetUsd : null,
+  };
+}
+
+/**
+ * Tabla A — API free/call meters for as-of date (UTC).
+ * Provider = Recent Calls provider id (e.g. groq). No free-text product name.
+ * @param {import('@supabase/supabase-js').SupabaseClient|null} service
+ * @param {{ includeSeed?: boolean, asOfYmd?: string|null }} [opts]
+ */
+async function loadQuotasDashboard(service, opts = {}) {
+  const includeSeed = opts.includeSeed !== false;
+  const asOfParsed = parseUtcYmd(opts.asOfYmd) || new Date();
+  const asOf = startOfUtcDay(asOfParsed);
+  const asOfYmd = formatUtcYmd(asOf);
+  const asOfEnd = addUtcDays(asOf, 1);
+
+  /** @type {import('./management/quotaCatalog.js').QuotaMeterDef[]} */
+  let meters = DEFAULT_API_QUOTA_METERS.map((m) => ({ ...m }));
+  let warning = null;
+  let source = "defaults";
+
+  if (service) {
+    try {
+      const { data, error } = await service
+        .from("admin_quota_meters")
+        .select("*")
+        .eq("enabled", true)
+        .order("sort_order", { ascending: true });
+      if (error) {
+        if (/admin_quota_meters|relation|schema cache/i.test(error.message)) {
+          warning = "Run supabase_management_quotas.sql in Supabase SQL Editor for editable meters.";
+        } else {
+          warning = error.message;
+        }
+      } else if (data && data.length > 0) {
+        meters = data.map(mapQuotaMeterRow);
+        source = "db";
+      }
+    } catch (err) {
+      warning = err instanceof Error ? err.message : "Failed to load quota meters";
+    }
+  }
+
+  /** @type {Array<{ provider: string, created: Date, tokens: number, costUsd: number, userKey: string }>} */
+  const events = [];
+  /** @type {Map<string, { provider: string, callsAll: number, tokensAll: number, costAll: number }>} */
+  const providerAll = new Map();
+
+  if (service) {
+    try {
+      const { data, error } = await service
+        .from("api_usage_events")
+        .select("provider, created_at, meta, input_tokens, output_tokens, estimated_cost_usd, user_id, user_email");
+      if (!error) {
+        for (const row of data || []) {
+          if (!includeSeed && row.meta?.source === "seed-futuranota") continue;
+          const provider = (row.provider || "unknown").toString().trim().toLowerCase() || "unknown";
+          const tokens = Math.max(0, Number(row.input_tokens) || 0)
+            + Math.max(0, Number(row.output_tokens) || 0);
+          const costUsd = Math.max(0, Number(row.estimated_cost_usd) || 0);
+          const userKey = (row.user_id || row.user_email || "").toString().trim().toLowerCase();
+          const created = new Date(row.created_at);
+          events.push({ provider, created, tokens, costUsd, userKey });
+
+          const agg = providerAll.get(provider) || {
+            provider,
+            callsAll: 0,
+            tokensAll: 0,
+            costAll: 0,
+          };
+          agg.callsAll += 1;
+          agg.tokensAll += tokens;
+          agg.costAll += costUsd;
+          providerAll.set(provider, agg);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const windows = meters.map((m) => ({
+    meter: m,
+    window: resolveMeterWindow(m, asOf),
+  }));
+
+  let totalCostToPay = 0;
+
+  const items = windows.map(({ meter, window: w }) => {
+    let callsInWindow = 0;
+    let tokensInWindow = 0;
+    let apiCostUsdInWindow = 0;
+    /** @type {Set<string>} */
+    const users = new Set();
+    const providerKey = (meter.provider || "").toString().trim().toLowerCase();
+
+    if (providerKey) {
+      for (const ev of events) {
+        if (ev.provider !== providerKey) continue;
+        if (ev.created < w.queryStart) continue;
+        if (ev.created >= w.queryEndExclusive) continue;
+        callsInWindow += 1;
+        tokensInWindow += ev.tokens;
+        apiCostUsdInWindow += ev.costUsd;
+        if (ev.userKey) users.add(ev.userKey);
+      }
+    }
+
+    const used = meter.meterKind === "tokens" ? tokensInWindow : callsInWindow;
+    const included = Number(meter.included) || 0;
+    const over = Math.max(0, used - included);
+    const costToPay = estimateOverageUsd(used, included, meter.overageUsd);
+    totalCostToPay += costToPay;
+    const pct = included > 0
+      ? Math.min(999, Math.round((used / included) * 1000) / 10)
+      : 0;
+    const exhausted = used >= included;
+    const displayName = providerKey || meter.productName || "—";
+
+    return {
+      id: meter.id,
+      productName: displayName,
+      provider: providerKey || null,
+      meterKind: meter.meterKind,
+      included,
+      unit: meter.unit,
+      type: meter.type,
+      resets: meter.resets,
+      everyN: meter.everyN,
+      everyUnit: meter.everyUnit,
+      everyLabel: meter.resets
+        ? `every ${meter.everyN} ${meter.everyUnit}${Number(meter.everyN) === 1 ? "" : "s"}`
+        : "—",
+      overageUsd: meter.overageUsd,
+      anchorAt: meter.anchorAt,
+      notes: meter.notes,
+      asOfYmd,
+      windowStartYmd: w.windowStartYmd,
+      windowEndYmd: w.windowEndYmd,
+      resetAtYmd: w.resetAtYmd,
+      timeLeftLabel: w.timeLeftLabel,
+      daysRemaining: w.daysRemaining,
+      periodLabel: w.periodLabel,
+      used: Math.round(used * 1e4) / 1e4,
+      callsInWindow,
+      tokensInWindow: Math.round(tokensInWindow),
+      apiCostUsdInWindow: Math.round(apiCostUsdInWindow * 1e6) / 1e6,
+      over: Math.round(over * 1e4) / 1e4,
+      uniqueUsers: users.size,
+      pct,
+      costToPay,
+      exhausted,
+    };
+  });
+
+  /** Provider picker list: anyone seen in Recent Calls + known catalog providers */
+  /** @type {Map<string, { provider: string, callsAll: number, tokensAll: number, costAll: number, callsAsOf: number, tokensAsOf: number, costAsOf: number }>} */
+  const pickerMap = new Map();
+  for (const [provider, agg] of providerAll) {
+    pickerMap.set(provider, {
+      ...agg,
+      callsAsOf: 0,
+      tokensAsOf: 0,
+      costAsOf: 0,
+    });
+  }
+  for (const m of DEFAULT_API_QUOTA_METERS) {
+    const p = (m.provider || "").toLowerCase();
+    if (p && !pickerMap.has(p)) {
+      pickerMap.set(p, {
+        provider: p,
+        callsAll: 0,
+        tokensAll: 0,
+        costAll: 0,
+        callsAsOf: 0,
+        tokensAsOf: 0,
+        costAsOf: 0,
+      });
+    }
+  }
+  for (const ev of events) {
+    if (ev.created < asOf || ev.created >= asOfEnd) continue;
+    const row = pickerMap.get(ev.provider);
+    if (!row) continue;
+    row.callsAsOf += 1;
+    row.tokensAsOf += ev.tokens;
+    row.costAsOf += ev.costUsd;
+  }
+
+  const availableProviders = [...pickerMap.values()]
+    .map((p) => ({
+      provider: p.provider,
+      callsAll: p.callsAll,
+      tokensAll: Math.round(p.tokensAll),
+      costAll: Math.round(p.costAll * 1e6) / 1e6,
+      callsAsOf: p.callsAsOf,
+      tokensAsOf: Math.round(p.tokensAsOf),
+      costAsOf: Math.round(p.costAsOf * 1e6) / 1e6,
+    }))
+    .sort((a, b) => a.provider.localeCompare(b.provider));
+
+  return {
+    table: "A",
+    asOfYmd,
+    items,
+    availableProviders,
+    totalCostToPay: Math.round(totalCostToPay * 1e6) / 1e6,
+    source,
+    warning,
+    note:
+      "Tabla A — elegí un provider de Recent Calls (ej. groq). Totales = calls/tokens/$ en la ventana hasta Date picked.",
+  };
+}
+
+/**
+ * Apify CU from usage logs + optional live user probe.
+ * @param {import('@supabase/supabase-js').SupabaseClient|null} service
+ * @param {{ includeSeed?: boolean }} [opts]
+ */
+async function loadApifyStorageSnapshot(service, opts = {}) {
+  const includeSeed = opts.includeSeed !== false;
+  let computeUnitsMonth = 0;
+  let computeUnitsAll = 0;
+  let runsMonth = 0;
+  let apifyCostMonth = 0;
+
+  if (service) {
+    try {
+      const { data, error } = await service
+        .from("api_usage_events")
+        .select("provider, compute_units, estimated_cost_usd, created_at, billed, meta")
+        .eq("provider", "apify");
+      if (!error) {
+        const now = new Date();
+        const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+        for (const row of data || []) {
+          if (!includeSeed && row.meta?.source === "seed-futuranota") continue;
+          const cu = Number(row.compute_units ?? row.meta?.computeUnits) || 0;
+          const billed = row.billed !== false && row.meta?.billed !== false;
+          const cost = billed ? (Number(row.estimated_cost_usd) || 0) : 0;
+          computeUnitsAll += cu;
+          const created = new Date(row.created_at);
+          if (created >= monthStart) {
+            computeUnitsMonth += cu;
+            runsMonth += 1;
+            apifyCostMonth += cost;
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let account = null;
+  const token = (process.env.APIFY_TOKEN || process.env.APIFY_API_TOKEN || "").trim();
+  if (token) {
+    try {
+      const res = await fetch("https://api.apify.com/v2/users/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const u = json?.data || json;
+        account = {
+          username: u?.username || null,
+          email: u?.email || null,
+          plan: u?.plan || u?.proxy?.groups?.[0] || null,
+        };
+      }
+    } catch {
+      /* ignore live probe */
+    }
+  }
+
+  return {
+    computeUnitsMonth: Math.round(computeUnitsMonth * 1e4) / 1e4,
+    computeUnitsAll: Math.round(computeUnitsAll * 1e4) / 1e4,
+    runsMonth,
+    apifyCostMonthUsd: Math.round(apifyCostMonth * 1e6) / 1e6,
+    account,
+    dashboardUrl: "https://console.apify.com/billing",
+    note: "CU from logged Apify runs. Dataset GB-h detailed billing stays on Apify console.",
   };
 }
 
@@ -129,7 +642,7 @@ async function loadUsageStats(service, opts = {}) {
  * @param {{ includeSeed?: boolean, limit?: number }} [opts]
  */
 async function loadRecentEvents(service, opts = {}) {
-  const limit = opts.limit ?? 50;
+  const limit = opts.limit ?? 300;
   const includeSeed = opts.includeSeed !== false;
 
   const { data, error } = await service
@@ -263,13 +776,15 @@ function resolveUserCallStats(usage, userId, email) {
   return { totalCalls: byId + byEmail, lastCallAt };
 }
 
-function buildUserRow(row, emailById, usage, adminEmail) {
+function buildUserRow(row, emailById, usage, adminEmail, testEmails = getTestEmailSet()) {
   const userId = row.user_id;
   const email = row.email || emailById.get(userId) || userId;
   const view = rowToProfileView(row);
   const creditsUsed = view?.creditsUsed ?? 0;
   const creditsCap = view?.creditsCap ?? getCreditsCap("free");
-  const isAdmin = Boolean(adminEmail && email?.toLowerCase() === adminEmail);
+  const emailKey = email?.toLowerCase?.() || String(email).toLowerCase();
+  const isAdmin = Boolean(adminEmail && emailKey === adminEmail);
+  const isTest = isTestAccountEmail(emailKey, testEmails);
   const callStats = resolveUserCallStats(usage, userId, email);
 
   return {
@@ -285,6 +800,7 @@ function buildUserRow(row, emailById, usage, adminEmail) {
     lastCallAt: callStats.lastCallAt,
     apiCostUsd: resolveUserApiCostUsd(usage, userId, email),
     isAdmin,
+    isTest,
     profileCreatedAt: row.created_at ?? null,
   };
 }
@@ -296,6 +812,7 @@ function buildUserRow(row, emailById, usage, adminEmail) {
  */
 async function loadUsersOverview(service, adminUser) {
   const adminEmail = getAdminEmail();
+  const testEmails = getTestEmailSet();
 
   const { data: profileRows, error: profilesErr } = await service
     .from("profiles")
@@ -310,13 +827,14 @@ async function loadUsersOverview(service, adminUser) {
   const seen = new Set();
   const users = (profileRows || []).map((row) => {
     seen.add(row.user_id);
-    return buildUserRow(row, emailById, usage, adminEmail);
+    return buildUserRow(row, emailById, usage, adminEmail, testEmails);
   });
 
   for (const [userId, email] of emailById) {
     if (seen.has(userId)) continue;
     const creditsCap = getCreditsCap("free");
     const callStats = resolveUserCallStats(usage, userId, email);
+    const emailKey = String(email || "").toLowerCase();
     users.push({
       userId,
       email: email || userId,
@@ -329,7 +847,8 @@ async function loadUsersOverview(service, adminUser) {
       totalCalls: callStats.totalCalls,
       lastCallAt: callStats.lastCallAt,
       apiCostUsd: resolveUserApiCostUsd(usage, userId, email),
-      isAdmin: Boolean(adminEmail && email?.toLowerCase() === adminEmail),
+      isAdmin: Boolean(adminEmail && emailKey === adminEmail),
+      isTest: isTestAccountEmail(emailKey, testEmails),
       profileCreatedAt: null,
     });
   }
@@ -337,15 +856,18 @@ async function loadUsersOverview(service, adminUser) {
   users.sort((a, b) => {
     if (a.isAdmin && !b.isAdmin) return -1;
     if (!a.isAdmin && b.isAdmin) return 1;
+    if (a.isTest && !b.isTest) return -1;
+    if (!a.isTest && b.isTest) return 1;
     return String(b.profileCreatedAt || "").localeCompare(String(a.profileCreatedAt || ""));
   });
 
   if (users.length === 0 && adminUser?.id) {
     const row = profileRows?.find((p) => p.user_id === adminUser.id);
     if (row) {
-      users.push(buildUserRow(row, emailById, usage, adminEmail));
+      users.push(buildUserRow(row, emailById, usage, adminEmail, testEmails));
     } else {
       const callStats = resolveUserCallStats(usage, adminUser.id, adminUser.email);
+      const emailKey = String(adminUser.email || "").toLowerCase();
       users.push({
         userId: adminUser.id,
         email: adminUser.email || adminUser.id,
@@ -359,6 +881,7 @@ async function loadUsersOverview(service, adminUser) {
         lastCallAt: callStats.lastCallAt,
         apiCostUsd: resolveUserApiCostUsd(usage, adminUser.id, adminUser.email),
         isAdmin: true,
+        isTest: isTestAccountEmail(emailKey, testEmails),
         profileCreatedAt: null,
       });
     }
@@ -431,6 +954,7 @@ async function loadUsersOverviewFromSession(userSupabase, adminUser) {
       lastCallAt: null,
       apiCostUsd: 0,
       isAdmin: true,
+      isTest: true,
       profileCreatedAt: null,
     }];
   }
@@ -476,15 +1000,27 @@ export async function processManagementOverviewRequest(reqLike) {
 
   const url = new URL(reqLike.url || "/api/admin/management/overview", "http://localhost");
   const includeSeed = url.searchParams.get("includeSeed") !== "0";
+  const asOfYmd = url.searchParams.get("asOf") || null;
 
   const service = createServiceSupabase();
   const serviceConfigured = Boolean(service);
 
   let integrations = [];
   let stats = {
-    totals: { today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 },
+    totals: {
+      today: 0,
+      month: 0,
+      allTime: 0,
+      estimatedCostUsd: 0,
+      estimatedCostUsdMonth: 0,
+      estimatedCostUsdToday: 0,
+      successCount: 0,
+      errorCount: 0,
+      successRatePct: null,
+    },
     byProvider: [],
     byEndpoint: [],
+    endpointMatrix: [],
     callsTodayByProvider: {},
     callsTotalByProvider: {},
   };
@@ -493,6 +1029,12 @@ export async function processManagementOverviewRequest(reqLike) {
   let usersSource = "none";
   let usersWarning = null;
   let dbWarning = null;
+  let gastos = {
+    entries: [],
+    totalListedUsd: 0,
+    totalMonthlyUsd: 0,
+    warning: null,
+  };
 
   try {
     const resolved = await resolveUsersOverview(service, auth.supabase, auth.user);
@@ -536,6 +1078,17 @@ export async function processManagementOverviewRequest(reqLike) {
         } else if (!dbWarning) {
           dbWarning = statsErr instanceof Error ? statsErr.message : "Failed to load usage stats";
         }
+      }
+
+      try {
+        gastos = await loadGastosEntries(service);
+      } catch (gastosErr) {
+        gastos = {
+          entries: [],
+          totalListedUsd: 0,
+          totalMonthlyUsd: 0,
+          warning: gastosErr instanceof Error ? gastosErr.message : "Failed to load gastos",
+        };
       }
     } catch (err) {
       if (!dbWarning) {
@@ -590,6 +1143,10 @@ export async function processManagementOverviewRequest(reqLike) {
     return String(a.label).localeCompare(String(b.label));
   });
 
+  const margin = buildMarginSnapshot(users, stats.totals || {}, gastos.totalMonthlyUsd);
+  const budgetInfo = buildManagementAlerts(margin, stats.totals || {});
+  const quotas = await loadQuotasDashboard(service, { includeSeed, asOfYmd });
+
   return {
     status: 200,
     body: {
@@ -598,6 +1155,11 @@ export async function processManagementOverviewRequest(reqLike) {
       usersSource,
       usersWarning,
       stats,
+      margin,
+      alerts: budgetInfo.alerts,
+      budgetUsd: budgetInfo.budgetUsd,
+      gastos,
+      quotas,
       integrations: integrationCards,
       users,
       recentEvents,
@@ -873,6 +1435,261 @@ export async function processManagementIntegrationPatch(reqLike) {
   return { status: 200, body: { integration: data } };
 }
 
+/**
+ * @param {{ headers?: Record<string, string|string[]|undefined>, url?: string, body?: unknown, method?: string }} reqLike
+ */
+export async function processManagementGastosRequest(reqLike) {
+  const auth = await assertAdminUser(reqLike);
+  if (!auth.ok) {
+    return { status: auth.status, body: { error: auth.error } };
+  }
+
+  const service = createServiceSupabase();
+  if (!service) {
+    return { status: 503, body: { error: "Service role not configured" } };
+  }
+
+  const method = (reqLike.method || "GET").toUpperCase();
+  const url = new URL(reqLike.url || "/api/admin/management/gastos", "http://localhost");
+  const id = url.searchParams.get("id");
+  const body = reqLike.body && typeof reqLike.body === "object" ? reqLike.body : {};
+
+  if (method === "POST") {
+    const productName = typeof body.productName === "string" ? body.productName.trim() : "";
+    if (!productName) return { status: 400, body: { error: "productName required" } };
+    const billing = body.billing === "annual" ? "annual" : "monthly";
+    const amountUsd = Number(body.amountUsd);
+    if (!Number.isFinite(amountUsd) || amountUsd < 0) {
+      return { status: 400, body: { error: "amountUsd must be a non-negative number" } };
+    }
+    const startedRaw = typeof body.startedAt === "string" ? body.startedAt.trim() : "";
+    const startedAt = normalizeStartedAt(startedRaw);
+    if (!startedAt) {
+      return { status: 400, body: { error: "startedAt must be YYYY-MM-DD or MM/DD/YYYY" } };
+    }
+
+    const { data, error } = await service
+      .from("admin_gastos")
+      .insert({
+        product_name: productName,
+        billing,
+        amount_usd: amountUsd,
+        started_at: startedAt,
+        notes: typeof body.notes === "string" ? body.notes : "",
+      })
+      .select("*")
+      .single();
+
+    if (error) {
+      if (/admin_gastos|relation|schema cache/i.test(error.message)) {
+        return {
+          status: 503,
+          body: { error: "Run supabase_management_gastos.sql in Supabase SQL Editor first." },
+        };
+      }
+      return { status: 500, body: { error: error.message } };
+    }
+    return { status: 200, body: { entry: mapGastoRow(data) } };
+  }
+
+  if (method === "DELETE") {
+    if (!id) return { status: 400, body: { error: "id required" } };
+    const { error } = await service.from("admin_gastos").delete().eq("id", id);
+    if (error) return { status: 500, body: { error: error.message } };
+    return { status: 200, body: { ok: true } };
+  }
+
+  return { status: 405, body: { error: "Method not allowed" } };
+}
+
+/**
+ * Tabla A CRUD — admin_quota_meters
+ * @param {{ headers?: Record<string, string|string[]|undefined>, url?: string, body?: unknown, method?: string }} reqLike
+ */
+export async function processManagementQuotasRequest(reqLike) {
+  const auth = await assertAdminUser(reqLike);
+  if (!auth.ok) {
+    return { status: auth.status, body: { error: auth.error } };
+  }
+
+  const service = createServiceSupabase();
+  if (!service) {
+    return { status: 503, body: { error: "Service role not configured" } };
+  }
+
+  const method = (reqLike.method || "GET").toUpperCase();
+  const url = new URL(reqLike.url || "/api/admin/management/quotas", "http://localhost");
+  const id = url.searchParams.get("id");
+  const body = reqLike.body && typeof reqLike.body === "object" ? reqLike.body : {};
+
+  if (method === "POST") {
+    const provider = typeof body.provider === "string" ? body.provider.trim().toLowerCase() : "";
+    if (!provider) return { status: 400, body: { error: "provider required (pick from Recent Calls)" } };
+    const productName = typeof body.productName === "string" && body.productName.trim()
+      ? body.productName.trim()
+      : provider;
+    const resets = body.resets !== false && body.resets !== "false";
+    const everyN = body.everyN != null ? Math.max(1, Math.floor(Number(body.everyN))) : null;
+    const everyUnit = body.everyUnit === "month" ? "month" : body.everyUnit === "day" ? "day" : null;
+    if (resets && (!everyN || !everyUnit)) {
+      return { status: 400, body: { error: "everyN + everyUnit required when resets=true" } };
+    }
+    const included = Number(body.included);
+    if (!Number.isFinite(included) || included < 0) {
+      return { status: 400, body: { error: "included must be a non-negative number" } };
+    }
+    const overageRaw = body.overageUsd;
+    const overageUsd = overageRaw === "" || overageRaw == null
+      ? null
+      : Number(overageRaw);
+    if (overageUsd != null && !Number.isFinite(overageUsd)) {
+      return { status: 400, body: { error: "overageUsd must be a number" } };
+    }
+    const anchorAt = typeof body.anchorAt === "string" && body.anchorAt.trim()
+      ? normalizeStartedAt(body.anchorAt.trim())
+      : null;
+    if (body.anchorAt && !anchorAt) {
+      return { status: 400, body: { error: "anchorAt must be YYYY-MM-DD" } };
+    }
+
+    const row = {
+      product_name: productName,
+      provider,
+      meter_kind: body.meterKind === "tokens" ? "tokens" : "calls",
+      included,
+      unit: typeof body.unit === "string" && body.unit.trim()
+        ? body.unit.trim()
+        : (body.meterKind === "tokens" ? "tokens" : "calls"),
+      type: body.type === "welcome" || body.type === "paid" ? body.type : "free",
+      resets,
+      every_n: resets ? everyN : null,
+      every_unit: resets ? everyUnit : null,
+      overage_usd: overageUsd,
+      anchor_at: anchorAt,
+      sort_order: Number.isFinite(Number(body.sortOrder)) ? Number(body.sortOrder) : 100,
+      notes: typeof body.notes === "string" ? body.notes : "",
+      enabled: body.enabled !== false,
+    };
+
+    const { data, error } = await service
+      .from("admin_quota_meters")
+      .insert(row)
+      .select("*")
+      .single();
+
+    if (error) {
+      if (/admin_quota_meters|relation|schema cache/i.test(error.message)) {
+        return {
+          status: 503,
+          body: { error: "Run supabase_management_quotas.sql in Supabase SQL Editor first." },
+        };
+      }
+      return { status: 500, body: { error: error.message } };
+    }
+    return { status: 200, body: { meter: mapQuotaMeterRow(data) } };
+  }
+
+  if (method === "PATCH") {
+    if (!id) return { status: 400, body: { error: "id required" } };
+    /** @type {Record<string, unknown>} */
+    const patch = { updated_at: new Date().toISOString() };
+    if (typeof body.provider === "string") {
+      const p = body.provider.trim().toLowerCase();
+      if (!p) return { status: 400, body: { error: "provider required" } };
+      patch.provider = p;
+      // Keep product_name in sync with provider (product = Recent Calls name)
+      if (body.productName == null) patch.product_name = p;
+    }
+    if (typeof body.productName === "string" && body.productName.trim()) {
+      patch.product_name = body.productName.trim();
+    }
+    if (body.meterKind === "tokens" || body.meterKind === "calls") patch.meter_kind = body.meterKind;
+    if (body.included != null) {
+      const included = Number(body.included);
+      if (!Number.isFinite(included) || included < 0) {
+        return { status: 400, body: { error: "included must be a non-negative number" } };
+      }
+      patch.included = included;
+    }
+    if (typeof body.unit === "string" && body.unit.trim()) patch.unit = body.unit.trim();
+    if (body.type === "free" || body.type === "welcome" || body.type === "paid") {
+      patch.type = body.type;
+    }
+    if (body.resets != null) patch.resets = Boolean(body.resets);
+    if (body.everyN != null) patch.every_n = Math.max(1, Math.floor(Number(body.everyN)));
+    if (body.everyUnit === "day" || body.everyUnit === "month" || body.everyUnit === null) {
+      patch.every_unit = body.everyUnit;
+    }
+    if (body.overageUsd === "" || body.overageUsd === null) patch.overage_usd = null;
+    else if (body.overageUsd != null) {
+      const o = Number(body.overageUsd);
+      if (!Number.isFinite(o)) return { status: 400, body: { error: "overageUsd must be a number" } };
+      patch.overage_usd = o;
+    }
+    if (body.anchorAt === "" || body.anchorAt === null) patch.anchor_at = null;
+    else if (typeof body.anchorAt === "string") {
+      const a = normalizeStartedAt(body.anchorAt.trim());
+      if (!a) return { status: 400, body: { error: "anchorAt must be YYYY-MM-DD" } };
+      patch.anchor_at = a;
+    }
+    if (typeof body.notes === "string") patch.notes = body.notes;
+    if (body.enabled != null) patch.enabled = Boolean(body.enabled);
+    if (body.sortOrder != null && Number.isFinite(Number(body.sortOrder))) {
+      patch.sort_order = Number(body.sortOrder);
+    }
+
+    // If patching resets=false, clear every_*
+    if (patch.resets === false) {
+      patch.every_n = null;
+      patch.every_unit = null;
+    }
+
+    const { data, error } = await service
+      .from("admin_quota_meters")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (error) {
+      if (/admin_quota_meters|relation|schema cache/i.test(error.message)) {
+        return {
+          status: 503,
+          body: { error: "Run supabase_management_quotas.sql in Supabase SQL Editor first." },
+        };
+      }
+      return { status: 500, body: { error: error.message } };
+    }
+    return { status: 200, body: { meter: mapQuotaMeterRow(data) } };
+  }
+
+  if (method === "DELETE") {
+    if (!id) return { status: 400, body: { error: "id required" } };
+    const { error } = await service.from("admin_quota_meters").delete().eq("id", id);
+    if (error) return { status: 500, body: { error: error.message } };
+    return { status: 200, body: { ok: true } };
+  }
+
+  return { status: 405, body: { error: "Method not allowed" } };
+}
+
+/** Accept YYYY-MM-DD or MM/DD/YYYY → YYYY-MM-DD */
+function normalizeStartedAt(raw) {
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const d = new Date(`${raw}T12:00:00Z`);
+    return Number.isNaN(d.getTime()) ? null : raw;
+  }
+  const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const mm = String(m[1]).padStart(2, "0");
+  const dd = String(m[2]).padStart(2, "0");
+  const yyyy = m[3];
+  const iso = `${yyyy}-${mm}-${dd}`;
+  const d = new Date(`${iso}T12:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : iso;
+}
+
 function sendJson(res, status, body) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
@@ -899,13 +1716,14 @@ export async function handleManagement(req, res) {
   if (req.method === "OPTIONS") {
     res.statusCode = 204;
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, PATCH, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.end();
     return true;
   }
 
-  const path = req.url?.split("?")[0] || "";
+  const rawPath = req.url?.split("?")[0] || "";
+  const path = rawPath.replace(/\/+$/, "") || "/";
 
   if (path === "/api/admin/management/overview" && req.method === "GET") {
     try {
@@ -917,6 +1735,43 @@ export async function handleManagement(req, res) {
       return true;
     } catch (err) {
       sendJson(res, 500, { error: err instanceof Error ? err.message : "Management overview failed" });
+      return true;
+    }
+  }
+
+  if (path === "/api/admin/management/gastos" && (req.method === "POST" || req.method === "DELETE")) {
+    try {
+      const body = req.method === "DELETE" ? {} : await readJsonBody(req);
+      const result = await processManagementGastosRequest({
+        headers: req.headers,
+        url: req.url,
+        body,
+        method: req.method,
+      });
+      sendJson(res, result.status, result.body);
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : "Gastos update failed" });
+      return true;
+    }
+  }
+
+  if (
+    path === "/api/admin/management/quotas"
+    && (req.method === "POST" || req.method === "PATCH" || req.method === "DELETE")
+  ) {
+    try {
+      const body = req.method === "DELETE" ? {} : await readJsonBody(req);
+      const result = await processManagementQuotasRequest({
+        headers: req.headers,
+        url: req.url,
+        body,
+        method: req.method,
+      });
+      sendJson(res, result.status, result.body);
+      return true;
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : "Quotas update failed" });
       return true;
     }
   }

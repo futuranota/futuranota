@@ -25,11 +25,14 @@ async function authedFetch(url, init = {}) {
 }
 
 /**
- * @param {{ includeSeed?: boolean }} [opts]
+ * @param {{ includeSeed?: boolean, asOf?: string|null }} [opts]
  */
 export function fetchManagementOverview(opts = {}) {
   const includeSeed = opts.includeSeed !== false;
-  const q = includeSeed ? "" : "?includeSeed=0";
+  const params = new URLSearchParams();
+  if (!includeSeed) params.set("includeSeed", "0");
+  if (opts.asOf) params.set("asOf", opts.asOf);
+  const q = params.toString() ? `?${params.toString()}` : "";
   return authedFetch(`${API_ROUTES.managementOverview}${q}`);
 }
 
@@ -53,5 +56,64 @@ export function patchManagementIntegration(id, patch) {
       method: "PATCH",
       body: JSON.stringify(patch),
     },
+  );
+}
+
+/**
+ * @param {{
+ *   productName: string,
+ *   billing: 'monthly'|'annual',
+ *   amountUsd: number,
+ *   startedAt: string,
+ * }} body
+ */
+export function createManagementGasto(body) {
+  return authedFetch(API_ROUTES.managementGastos, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * @param {string} id
+ */
+export function deleteManagementGasto(id) {
+  return authedFetch(
+    `${API_ROUTES.managementGastos}?id=${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
+
+/**
+ * @param {Record<string, unknown>} body
+ */
+export function createManagementQuota(body) {
+  return authedFetch(API_ROUTES.managementQuotas, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * @param {string} id
+ * @param {Record<string, unknown>} patch
+ */
+export function patchManagementQuota(id, patch) {
+  return authedFetch(
+    `${API_ROUTES.managementQuotas}?id=${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    },
+  );
+}
+
+/**
+ * @param {string} id
+ */
+export function deleteManagementQuota(id) {
+  return authedFetch(
+    `${API_ROUTES.managementQuotas}?id=${encodeURIComponent(id)}`,
+    { method: "DELETE" },
   );
 }

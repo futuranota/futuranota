@@ -23,6 +23,9 @@ export const API_ROUTES = {
   integrationsHealth: "/api/health/integrations",
   managementOverview: "/api/admin/management/overview",
   managementIntegration: "/api/admin/management/integration",
+  managementGastos: "/api/admin/management/gastos",
+  managementQuotas: "/api/admin/management/quotas",
+  usersMe: "/api/users/me",
   usageLog: "/api/usage/log",
   webProxy: "/api/proxy",
 };

@@ -14,12 +14,15 @@ When changing `/panel` navigation or Management layout, use the saved Magic comp
 
 ## Management subsections (live)
 
+**Management is first** in the sidebar group.
+
 Under **Management**:
 
 1. API Integrations — table (active/pending, free limits, cost, calls today/total)
-2. Users
+2. Users (admin + **test** badges; test excluded from paid MRR)
 3. Recent Calls
-4. Storage (empty placeholder)
+4. Gastos — product costs (monthly / annual ÷ 12 → margin)
+5. Storage & Quotas — day (Weather 1000/day) vs fixed (Supabase Pro overages)
 
 SQL for catalog columns: `supabase_management_integrations_v2.sql`
 

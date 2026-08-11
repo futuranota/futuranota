@@ -1,10 +1,14 @@
 import { dispatchEndpoint } from "../../_lib/dispatch.js";
 import overview from "../../_handlers/admin/management-overview.js";
 import integration from "../../_handlers/admin/management-integration.js";
+import gastos from "../../_handlers/admin/management-gastos.js";
+import quotas from "../../_handlers/admin/management-quotas.js";
 
 const routes = {
   overview,
   integration,
+  gastos,
+  quotas,
 };
 
 export default async function handler(req, res) {

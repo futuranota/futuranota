@@ -23,6 +23,7 @@ import { createUsageLogMiddleware } from './server/usageLogHandler.js';
 import { createBillingMiddleware } from './server/billingHandler.js';
 import { createDebugAgentLogMiddleware } from './server/debugAgentLogHandler.js';
 import { createGinaChatMiddleware } from './server/gina/ginaChatHandler.js';
+import { createUsersMeMiddleware } from './server/usersMeHandler.js';
 
 function brandCadenceApiPlugin(env) {
   return {
@@ -46,6 +47,7 @@ function brandCadenceApiPlugin(env) {
       server.middlewares.use(createWeatherForecastMiddleware());
       server.middlewares.use(createIntegrationsHealthMiddleware());
       server.middlewares.use(createManagementMiddleware());
+      server.middlewares.use(createUsersMeMiddleware());
       server.middlewares.use(createOrchestratorMiddleware());
       server.middlewares.use(createCampaignAnalystMiddleware());
       server.middlewares.use(createMarketingGuideMiddleware());
