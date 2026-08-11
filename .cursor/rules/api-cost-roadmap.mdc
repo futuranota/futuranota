@@ -13,7 +13,7 @@ Canonical detail: `.cursor/saved/api-cost-management/ROADMAP.md`
 | Phase | What |
 |---|---|
 | **A** | Full route logging + real provider usage + dynamic `$` on `api_usage_events` |
-| **B** | Users: accumulated API cost $ + inactive 7/30d filter |
+| **B** | Users: accumulated API cost $ + inactive 7/30d filter | **live** |
 | **C** | Recent calls filters + CSV export |
 | **D** | Credit/endpoint matrix + Top endpoints chart |
 | **E** | Success rate, budgets/alerts, MRR − API, Apify storage |

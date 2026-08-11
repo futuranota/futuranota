@@ -30,7 +30,7 @@ const SECTION_COPY = {
   },
   [MANAGEMENT_SECTIONS.users]: {
     title: "Users",
-    sub: "All accounts from Supabase — plan and credits from profiles.",
+    sub: "Accounts from Supabase — plan, credits, accumulated API cost $, and activity. Filter inactive users for retention.",
   },
   [MANAGEMENT_SECTIONS.calls]: {
     title: "Recent Calls",
@@ -42,12 +42,16 @@ const SECTION_COPY = {
   },
 };
 
+/** Local time, unambiguous Y-M-D (avoids 8/10 vs 10/8 locale confusion). */
 function formatDate(iso) {
   if (!iso) return "—";
   try {
-    return new Date(iso).toLocaleString();
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return String(iso);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   } catch {
-    return iso;
+    return String(iso);
   }
 }
 
@@ -94,6 +98,29 @@ function FreeLimitCell({ used, limit }) {
       </div>
     </div>
   );
+}
+
+/**
+ * @param {string|null|undefined} lastCallAt
+ * @param {number} days
+ */
+function isInactiveSince(lastCallAt, days) {
+  if (!lastCallAt) return true;
+  const t = new Date(lastCallAt).getTime();
+  if (!Number.isFinite(t)) return true;
+  return t < Date.now() - days * 24 * 60 * 60 * 1000;
+}
+
+/**
+ * @param {Array<{ totalCalls?: number, lastCallAt?: string|null }>} users
+ * @param {'all'|'never'|'inactive_7'|'inactive_30'} filter
+ */
+function filterUsersByActivity(users, filter) {
+  if (filter === "all") return users;
+  if (filter === "never") return users.filter((u) => !u.totalCalls);
+  if (filter === "inactive_7") return users.filter((u) => isInactiveSince(u.lastCallAt, 7));
+  if (filter === "inactive_30") return users.filter((u) => isInactiveSince(u.lastCallAt, 30));
+  return users;
 }
 
 function PieBlock({ title, data }) {
@@ -149,6 +176,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
     dashboardUrl: "",
   });
   const [saving, setSaving] = useState(false);
+  const [userActivityFilter, setUserActivityFilter] = useState("all");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -216,6 +244,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
   const stats = data?.stats?.totals || { today: 0, month: 0, allTime: 0, estimatedCostUsd: 0 };
   const copy = SECTION_COPY[section] || SECTION_COPY[MANAGEMENT_SECTIONS.api];
   const showToolbar = section !== MANAGEMENT_SECTIONS.storage;
+  const filteredUsers = filterUsersByActivity(data?.users || [], userActivityFilter);
 
   return (
     <div className="mgmt-panel">
@@ -544,6 +573,31 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
 
       {section === MANAGEMENT_SECTIONS.users ? (
         <section className="admin-card">
+          <div className="mgmt-users-toolbar">
+            <span className="muted" style={{ fontSize: 12 }}>
+              Activity
+            </span>
+            <div className="mgmt-filter-chips" role="group" aria-label="User activity filter">
+              {[
+                { id: "all", label: "All" },
+                { id: "never", label: "Never called" },
+                { id: "inactive_7", label: "Inactive 7d" },
+                { id: "inactive_30", label: "Inactive 30d" },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`mgmt-filter-chip${userActivityFilter === opt.id ? " is-active" : ""}`}
+                  onClick={() => setUserActivityFilter(opt.id)}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <span className="muted" style={{ fontSize: 12, marginLeft: "auto" }}>
+              {filteredUsers.length} / {(data?.users || []).length}
+            </span>
+          </div>
           <div className="mgmt-table-wrap">
             <table className="mgmt-table">
               <thead>
@@ -553,18 +607,21 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                   <th>Credits</th>
                   <th>Tokens</th>
                   <th>Total calls</th>
+                  <th>API cost $</th>
                   <th>Last call</th>
                 </tr>
               </thead>
               <tbody>
-                {(data?.users || []).length === 0 ? (
+                {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="muted">
-                      No users — set FUTURA_SUPABASE_SERVICE_ROLE_KEY and ensure profiles exist in Supabase.
+                    <td colSpan={7} className="muted">
+                      {(data?.users || []).length === 0
+                        ? "No users — set FUTURA_SUPABASE_SERVICE_ROLE_KEY and ensure profiles exist in Supabase."
+                        : "No users match this activity filter."}
                     </td>
                   </tr>
                 ) : (
-                  data.users.map((u) => (
+                  filteredUsers.map((u) => (
                     <tr key={u.userId}>
                       <td>
                         {u.email}
@@ -584,6 +641,9 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                           : "—"}
                       </td>
                       <td>{u.totalCalls}</td>
+                      <td>
+                        <strong>{formatUsd(u.apiCostUsd ?? 0)}</strong>
+                      </td>
                       <td className="muted">{formatDate(u.lastCallAt)}</td>
                     </tr>
                   ))

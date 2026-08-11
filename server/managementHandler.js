@@ -202,28 +202,65 @@ async function loadUsageByUserId(service) {
   const counts = new Map();
   /** @type {Map<string, string>} */
   const lastCall = new Map();
+  /** @type {Map<string, number>} */
+  const costs = new Map();
+  /** @type {Map<string, number>} */
+  const costsByEmail = new Map();
+  /** @type {Map<string, number>} */
+  const countsByEmail = new Map();
+  /** @type {Map<string, string>} */
+  const lastCallByEmail = new Map();
 
   const { data, error } = await service
     .from("api_usage_events")
-    .select("user_id, created_at");
+    .select("user_id, user_email, created_at, estimated_cost_usd, billed");
 
   if (error) {
     if (error.message.includes("api_usage_events")) {
-      return { counts, lastCall };
+      return { counts, lastCall, costs, costsByEmail, countsByEmail, lastCallByEmail };
     }
     throw error;
   }
 
   for (const row of data || []) {
-    if (!row.user_id) continue;
-    counts.set(row.user_id, (counts.get(row.user_id) || 0) + 1);
-    const prev = lastCall.get(row.user_id);
-    if (!prev || row.created_at > prev) {
-      lastCall.set(row.user_id, row.created_at);
+    const cost = row.billed === false ? 0 : Number(row.estimated_cost_usd) || 0;
+    if (row.user_id) {
+      counts.set(row.user_id, (counts.get(row.user_id) || 0) + 1);
+      costs.set(row.user_id, (costs.get(row.user_id) || 0) + cost);
+      const prev = lastCall.get(row.user_id);
+      if (!prev || row.created_at > prev) {
+        lastCall.set(row.user_id, row.created_at);
+      }
+    } else if (row.user_email) {
+      const emailKey = String(row.user_email).toLowerCase();
+      costsByEmail.set(emailKey, (costsByEmail.get(emailKey) || 0) + cost);
+      countsByEmail.set(emailKey, (countsByEmail.get(emailKey) || 0) + 1);
+      const prev = lastCallByEmail.get(emailKey);
+      if (!prev || row.created_at > prev) {
+        lastCallByEmail.set(emailKey, row.created_at);
+      }
     }
   }
 
-  return { counts, lastCall };
+  return { counts, lastCall, costs, costsByEmail, countsByEmail, lastCallByEmail };
+}
+
+function resolveUserApiCostUsd(usage, userId, email) {
+  const byId = usage.costs?.get(userId) ?? 0;
+  const emailKey = email ? String(email).toLowerCase() : "";
+  const byEmail = emailKey && usage.costsByEmail ? (usage.costsByEmail.get(emailKey) || 0) : 0;
+  return Math.round((byId + byEmail) * 1e6) / 1e6;
+}
+
+function resolveUserCallStats(usage, userId, email) {
+  const emailKey = email ? String(email).toLowerCase() : "";
+  const byId = usage.counts?.get(userId) ?? 0;
+  const byEmail = emailKey && usage.countsByEmail ? (usage.countsByEmail.get(emailKey) || 0) : 0;
+  const lastId = usage.lastCall?.get(userId) ?? null;
+  const lastEmail = emailKey && usage.lastCallByEmail ? (usage.lastCallByEmail.get(emailKey) ?? null) : null;
+  let lastCallAt = lastId;
+  if (lastEmail && (!lastCallAt || lastEmail > lastCallAt)) lastCallAt = lastEmail;
+  return { totalCalls: byId + byEmail, lastCallAt };
 }
 
 function buildUserRow(row, emailById, usage, adminEmail) {
@@ -233,6 +270,7 @@ function buildUserRow(row, emailById, usage, adminEmail) {
   const creditsUsed = view?.creditsUsed ?? 0;
   const creditsCap = view?.creditsCap ?? getCreditsCap("free");
   const isAdmin = Boolean(adminEmail && email?.toLowerCase() === adminEmail);
+  const callStats = resolveUserCallStats(usage, userId, email);
 
   return {
     userId,
@@ -243,8 +281,9 @@ function buildUserRow(row, emailById, usage, adminEmail) {
     creditsLabel: `${creditsUsed}/${creditsCap}`,
     tokensBalance: view?.tokensBalance ?? null,
     tokensCap: view?.tokensCap ?? null,
-    totalCalls: usage.counts.get(userId) ?? 0,
-    lastCallAt: usage.lastCall.get(userId) ?? null,
+    totalCalls: callStats.totalCalls,
+    lastCallAt: callStats.lastCallAt,
+    apiCostUsd: resolveUserApiCostUsd(usage, userId, email),
     isAdmin,
     profileCreatedAt: row.created_at ?? null,
   };
@@ -277,6 +316,7 @@ async function loadUsersOverview(service, adminUser) {
   for (const [userId, email] of emailById) {
     if (seen.has(userId)) continue;
     const creditsCap = getCreditsCap("free");
+    const callStats = resolveUserCallStats(usage, userId, email);
     users.push({
       userId,
       email: email || userId,
@@ -286,8 +326,9 @@ async function loadUsersOverview(service, adminUser) {
       creditsLabel: `0/${creditsCap}`,
       tokensBalance: getTokensCap("free"),
       tokensCap: getTokensCap("free"),
-      totalCalls: usage.counts.get(userId) ?? 0,
-      lastCallAt: usage.lastCall.get(userId) ?? null,
+      totalCalls: callStats.totalCalls,
+      lastCallAt: callStats.lastCallAt,
+      apiCostUsd: resolveUserApiCostUsd(usage, userId, email),
       isAdmin: Boolean(adminEmail && email?.toLowerCase() === adminEmail),
       profileCreatedAt: null,
     });
@@ -304,6 +345,7 @@ async function loadUsersOverview(service, adminUser) {
     if (row) {
       users.push(buildUserRow(row, emailById, usage, adminEmail));
     } else {
+      const callStats = resolveUserCallStats(usage, adminUser.id, adminUser.email);
       users.push({
         userId: adminUser.id,
         email: adminUser.email || adminUser.id,
@@ -313,8 +355,9 @@ async function loadUsersOverview(service, adminUser) {
         creditsLabel: `0/${getCreditsCap("free")}`,
         tokensBalance: null,
         tokensCap: getTokensCap("free"),
-        totalCalls: usage.counts.get(adminUser.id) ?? 0,
-        lastCallAt: usage.lastCall.get(adminUser.id) ?? null,
+        totalCalls: callStats.totalCalls,
+        lastCallAt: callStats.lastCallAt,
+        apiCostUsd: resolveUserApiCostUsd(usage, adminUser.id, adminUser.email),
         isAdmin: true,
         profileCreatedAt: null,
       });
@@ -334,7 +377,14 @@ async function loadUsersOverviewViaRpc(userSupabase, adminUser) {
   const { data, error } = await userSupabase.rpc("admin_list_users_overview");
   if (error) throw error;
 
-  const usage = { counts: new Map(), lastCall: new Map() };
+  const usage = {
+    counts: new Map(),
+    lastCall: new Map(),
+    costs: new Map(),
+    costsByEmail: new Map(),
+    countsByEmail: new Map(),
+    lastCallByEmail: new Map(),
+  };
   const emailById = new Map();
 
   const users = (data || []).map((row) => {
@@ -356,7 +406,14 @@ async function loadUsersOverviewViaRpc(userSupabase, adminUser) {
 async function loadUsersOverviewFromSession(userSupabase, adminUser) {
   const adminEmail = getAdminEmail();
   const row = await loadUserProfile(userSupabase, adminUser.id);
-  const usage = { counts: new Map(), lastCall: new Map() };
+  const usage = {
+    counts: new Map(),
+    lastCall: new Map(),
+    costs: new Map(),
+    costsByEmail: new Map(),
+    countsByEmail: new Map(),
+    lastCallByEmail: new Map(),
+  };
   const emailById = new Map([[adminUser.id, adminUser.email ?? null]]);
 
   if (!row) {
@@ -372,6 +429,7 @@ async function loadUsersOverviewFromSession(userSupabase, adminUser) {
       tokensCap: getTokensCap("free"),
       totalCalls: 0,
       lastCallAt: null,
+      apiCostUsd: 0,
       isAdmin: true,
       profileCreatedAt: null,
     }];

@@ -14,7 +14,7 @@ No confundir **créditos/tokens de plan** (cobro al user) con **uso real del pro
 | Fase | Alcance | Estado |
 |---|---|---|
 | **A** | Logging completo de rutas (Gina, weather, hype, Apify run, Resend, events, launch radar…) + uso real por provider + `$` dinámico en cada `api_usage_events` | **live** (2026-08) |
-| **B** | Users: columna **API cost $** acumulado + filtro sin actividad 7/30 días | pendiente |
+| **B** | Users: columna **API cost $** acumulado + filtro sin actividad 7/30 días | **live** (2026-08) |
 | **C** | Recent calls: filtros (user, provider, endpoint, status, fecha) + export CSV | pendiente |
 | **D** | Matriz créditos/endpoint visible + pie → barras / Top endpoints | pendiente |
 | **E** | Success rate %, presupuestos/alertas, MRR − API cost, Apify storage (datasets / GB-h) + `GET /users/me` | pendiente |
@@ -77,9 +77,25 @@ Free tier (referencia): ~5M in + 5M out / mes sin costo (modelar como `billed: f
 
 **Estado A:** código live en repo — pendiente solo migración SQL en tu proyecto Supabase.
 
-## Fuera de A
+## Fase B — Users cost + inactivity
 
-Filtros Recent calls, Users cost column, alertas, MRR card, auto-delete datasets → B–E.
+1. Sumar `estimated_cost_usd` por `user_id` (y fallback por `user_email` cuando falte id).
+2. Excluir eventos `billed: false` del acumulado $.
+3. Columna **API cost $** en Users table.
+4. Filtros de actividad: All / Never called / Inactive 7d / Inactive 30d (por `lastCallAt`).
+
+### Checklist live (B)
+
+- [x] `loadUsageByUserId` → `costs` + `costsByEmail` + call stats por email
+- [x] `apiCostUsd` en cada user row del overview
+- [x] UI Users: columna API cost $ + chips de filtro
+- [x] Contador `n / total` al filtrar
+
+**Estado B:** live.
+
+## Fuera de B
+
+Filtros Recent calls, matriz créditos, alertas, MRR → C–E.
 
 ## Relacionado
 
