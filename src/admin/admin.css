@@ -422,11 +422,26 @@
   gap: 8px;
 }
 
+.mgmt-alerts__list--mini {
+  gap: 4px;
+  margin: 0 0 14px;
+}
+
 .mgmt-alert {
   font-size: 13px;
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid var(--line);
+}
+
+.mgmt-alert--mini {
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 4px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  opacity: 0.85;
 }
 
 .mgmt-alert--warn {
@@ -439,6 +454,12 @@
   background: rgba(255, 158, 181, 0.1);
   border-color: rgba(255, 158, 181, 0.4);
   color: #ff9eb5;
+}
+
+.mgmt-alert--mini.mgmt-alert--warn,
+.mgmt-alert--mini.mgmt-alert--danger {
+  background: transparent;
+  border: none;
 }
 
 .mgmt-grid {

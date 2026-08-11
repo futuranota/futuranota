@@ -14,6 +14,29 @@ const FREE_TOKENS = getTokensCap("free");
  */
 export async function activateProSubscription(supabase, userId, opts = {}) {
   const now = new Date().toISOString();
+
+  let current = null;
+  {
+    const withCol = await supabase
+      .from("profiles")
+      .select("plan, plan_upgraded_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (withCol.error && /plan_upgraded_at/i.test(withCol.error.message)) {
+      const fallback = await supabase
+        .from("profiles")
+        .select("plan")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (fallback.error) throw new Error(fallback.error.message);
+      current = fallback.data;
+    } else if (withCol.error) {
+      throw new Error(withCol.error.message);
+    } else {
+      current = withCol.data;
+    }
+  }
+
   const patch = {
     plan: "pro",
     tokens_balance: PRO_TOKENS,
@@ -24,7 +47,19 @@ export async function activateProSubscription(supabase, userId, opts = {}) {
   if (opts.customerId) patch.stripe_customer_id = opts.customerId;
   if (opts.subscriptionId) patch.stripe_subscription_id = opts.subscriptionId;
 
+  // First free → pro only. Skip renewals (already pro) and re-upgrades that already have a stamp.
+  const stampUpgrade = current?.plan !== "pro" && !current?.plan_upgraded_at;
+  if (stampUpgrade) {
+    patch.plan_upgraded_at = now;
+  }
+
   const { error } = await supabase.from("profiles").update(patch).eq("user_id", userId);
+  if (error && stampUpgrade && /plan_upgraded_at/i.test(error.message)) {
+    delete patch.plan_upgraded_at;
+    const retry = await supabase.from("profiles").update(patch).eq("user_id", userId);
+    if (retry.error) throw new Error(retry.error.message);
+    return;
+  }
   if (error) throw new Error(error.message);
 }
 

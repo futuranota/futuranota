@@ -5,9 +5,14 @@ import {
   loadUserProfile,
 } from "./supabaseServer.js";
 import {
+  formatTokenCount,
+  getCalendarSearchesCap,
+  getCalendarSearchesUsed,
   getCreditsCap,
   getCreditsUsed,
+  getPlanLimits,
   getTokensCap,
+  getWeatherActionCap,
 } from "../src/lib/planConfig.js";
 import {
   DEFAULT_API_QUOTA_METERS,
@@ -684,32 +689,119 @@ async function loadRecentEvents(service, opts = {}) {
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} service
+ * @returns {Promise<{ emails: Map<string, string|null>, lastSignIn: Map<string, string|null> }>}
  */
-async function loadAllAuthEmails(service) {
+async function loadAuthUserMeta(service) {
   /** @type {Map<string, string|null>} */
-  const map = new Map();
+  const emails = new Map();
+  /** @type {Map<string, string|null>} */
+  const lastSignIn = new Map();
   let page = 1;
   const perPage = 200;
 
   while (page <= 50) {
     const { data, error } = await service.auth.admin.listUsers({ page, perPage });
     if (error) {
-      console.warn("loadAllAuthEmails:", error.message);
-      return map;
+      console.warn("loadAuthUserMeta:", error.message);
+      return { emails, lastSignIn };
     }
     for (const user of data.users) {
-      map.set(user.id, user.email ?? null);
+      emails.set(user.id, user.email ?? null);
+      lastSignIn.set(user.id, user.last_sign_in_at ?? null);
     }
     if (data.users.length < perPage) break;
     page += 1;
   }
 
-  return map;
+  return { emails, lastSignIn };
+}
+
+/** @deprecated use loadAuthUserMeta */
+async function loadAllAuthEmails(service) {
+  const { emails } = await loadAuthUserMeta(service);
+  return emails;
 }
 
 /**
  * @param {import('@supabase/supabase-js').SupabaseClient} service
  */
+function isSameUtcMonth(a, b) {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
+}
+
+function formatUsedCap(used, cap) {
+  const u = Math.max(0, Number(used) || 0);
+  if (cap == null || !Number.isFinite(Number(cap))) return `${u}/Unlimited`;
+  const c = Number(cap);
+  return `${Math.min(u, c)}/${c}`;
+}
+
+/**
+ * Profile feature counters for Management Users table 2 (used/cap).
+ * @param {Record<string, unknown>} row
+ * @param {{ launchRadarByUser?: Map<string, number>, marketHypeByUser?: Map<string, number> }} usage
+ */
+function buildFeatureUsage(row, usage = {}) {
+  const plan = row.plan === "pro" ? "pro" : "free";
+  const limits = getPlanLimits(plan);
+  const tokensCap = getTokensCap(plan);
+  let tokensBalance = Number(row.tokens_balance);
+  if (!Number.isFinite(tokensBalance)) tokensBalance = tokensCap;
+  const tokensUsed = Math.max(0, tokensCap - tokensBalance);
+
+  let calendarSearchesCount = Number(row.calendar_searches_count) || 0;
+  if (plan === "pro" && row.calendar_period_start) {
+    const calStart = new Date(String(row.calendar_period_start));
+    if (!Number.isNaN(calStart.getTime()) && !isSameUtcMonth(calStart, new Date())) {
+      calendarSearchesCount = 0;
+    }
+  }
+  const calendarUsed = getCalendarSearchesUsed({
+    plan,
+    calendarUsed: Boolean(row.calendar_used),
+    calendarSearchesCount,
+  });
+  const calendarCap = getCalendarSearchesCap(plan);
+
+  let weatherUsed = Number(row.weather_actions_count);
+  if (!Number.isFinite(weatherUsed) || weatherUsed < 0) {
+    weatherUsed = row.weather_used ? 1 : 0;
+  } else {
+    weatherUsed = Math.floor(weatherUsed);
+  }
+  const weatherCap = getWeatherActionCap(plan);
+
+  const creditsUsed = getCreditsUsed({
+    plan,
+    searchCount: row.search_count ?? 0,
+    tokensBalance,
+  });
+  const creditsCap = getCreditsCap(plan);
+
+  const userId = String(row.user_id || "");
+  const launchRadarRuns = usage.launchRadarByUser?.get?.(userId) ?? 0;
+  const marketHypeRuns = usage.marketHypeByUser?.get?.(userId) ?? 0;
+
+  let campaignLive = "—";
+  if (plan === "free") {
+    campaignLive = formatUsedCap(row.campaign_live_used ? 1 : 0, limits.campaignLiveRuns);
+  } else {
+    campaignLive = "Via credits";
+  }
+
+  return {
+    credits: formatUsedCap(creditsUsed, creditsCap),
+    tokens: `${formatTokenCount(tokensUsed)} / ${formatTokenCount(tokensCap)}`,
+    calendar: formatUsedCap(calendarUsed, calendarCap),
+    forecast: formatUsedCap(weatherUsed, weatherCap),
+    launchRadar: plan === "pro" ? `${launchRadarRuns} scans` : (launchRadarRuns ? `${launchRadarRuns} (demo)` : "Demo"),
+    marketHype: plan === "pro" ? `${marketHypeRuns} runs` : "Pro only",
+    campaignLive,
+    storage: limits.storageLabel,
+    stepsLibrary: limits.stepsLibraryCrossObject ? "Yes" : "No",
+  };
+}
+
 async function loadUsageByUserId(service) {
   /** @type {Map<string, number>} */
   const counts = new Map();
@@ -723,26 +815,48 @@ async function loadUsageByUserId(service) {
   const countsByEmail = new Map();
   /** @type {Map<string, string>} */
   const lastCallByEmail = new Map();
+  /** @type {Map<string, number>} */
+  const launchRadarByUser = new Map();
+  /** @type {Map<string, number>} */
+  const marketHypeByUser = new Map();
+
+  const empty = {
+    counts,
+    lastCall,
+    costs,
+    costsByEmail,
+    countsByEmail,
+    lastCallByEmail,
+    launchRadarByUser,
+    marketHypeByUser,
+  };
 
   const { data, error } = await service
     .from("api_usage_events")
-    .select("user_id, user_email, created_at, estimated_cost_usd, billed");
+    .select("user_id, user_email, created_at, estimated_cost_usd, billed, endpoint");
 
   if (error) {
     if (error.message.includes("api_usage_events")) {
-      return { counts, lastCall, costs, costsByEmail, countsByEmail, lastCallByEmail };
+      return empty;
     }
     throw error;
   }
 
   for (const row of data || []) {
     const cost = row.billed === false ? 0 : Number(row.estimated_cost_usd) || 0;
+    const endpoint = String(row.endpoint || "").toLowerCase();
     if (row.user_id) {
       counts.set(row.user_id, (counts.get(row.user_id) || 0) + 1);
       costs.set(row.user_id, (costs.get(row.user_id) || 0) + cost);
       const prev = lastCall.get(row.user_id);
       if (!prev || row.created_at > prev) {
         lastCall.set(row.user_id, row.created_at);
+      }
+      if (endpoint.includes("horizon-scan") || endpoint.includes("launch-radar")) {
+        launchRadarByUser.set(row.user_id, (launchRadarByUser.get(row.user_id) || 0) + 1);
+      }
+      if (endpoint.includes("social-hype") || endpoint.includes("market-hype")) {
+        marketHypeByUser.set(row.user_id, (marketHypeByUser.get(row.user_id) || 0) + 1);
       }
     } else if (row.user_email) {
       const emailKey = String(row.user_email).toLowerCase();
@@ -755,7 +869,7 @@ async function loadUsageByUserId(service) {
     }
   }
 
-  return { counts, lastCall, costs, costsByEmail, countsByEmail, lastCallByEmail };
+  return empty;
 }
 
 function resolveUserApiCostUsd(usage, userId, email) {
@@ -776,7 +890,7 @@ function resolveUserCallStats(usage, userId, email) {
   return { totalCalls: byId + byEmail, lastCallAt };
 }
 
-function buildUserRow(row, emailById, usage, adminEmail, testEmails = getTestEmailSet()) {
+function buildUserRow(row, emailById, usage, adminEmail, testEmails = getTestEmailSet(), lastSignInById = null) {
   const userId = row.user_id;
   const email = row.email || emailById.get(userId) || userId;
   const view = rowToProfileView(row);
@@ -802,6 +916,10 @@ function buildUserRow(row, emailById, usage, adminEmail, testEmails = getTestEma
     isAdmin,
     isTest,
     profileCreatedAt: row.created_at ?? null,
+    profileUpdatedAt: row.updated_at ?? null,
+    planUpgradedAt: row.plan_upgraded_at ?? null,
+    lastSignInAt: lastSignInById?.get?.(userId) ?? null,
+    features: buildFeatureUsage(row, usage),
   };
 }
 
@@ -814,20 +932,45 @@ async function loadUsersOverview(service, adminUser) {
   const adminEmail = getAdminEmail();
   const testEmails = getTestEmailSet();
 
-  const { data: profileRows, error: profilesErr } = await service
-    .from("profiles")
-    .select("user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at")
-    .order("created_at", { ascending: false });
+  const PROFILE_SELECT_FULL =
+    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, plan_upgraded_at, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used";
+  const PROFILE_SELECT_NO_UPGRADE =
+    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used";
+  const PROFILE_SELECT_BASE =
+    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at";
 
-  if (profilesErr) throw new Error(profilesErr.message);
+  let profileRows = null;
+  {
+    let result = await service
+      .from("profiles")
+      .select(PROFILE_SELECT_FULL)
+      .order("created_at", { ascending: false });
 
-  const emailById = await loadAllAuthEmails(service);
+    if (result.error && /plan_upgraded_at/i.test(result.error.message)) {
+      console.warn("[management] Run supabase_management_users_v2.sql for plan_upgraded_at");
+      result = await service
+        .from("profiles")
+        .select(PROFILE_SELECT_NO_UPGRADE)
+        .order("created_at", { ascending: false });
+    }
+    if (result.error && /calendar_|weather_|campaign_live/i.test(result.error.message)) {
+      console.warn("[management] Feature columns missing on profiles:", result.error.message);
+      result = await service
+        .from("profiles")
+        .select(PROFILE_SELECT_BASE)
+        .order("created_at", { ascending: false });
+    }
+    if (result.error) throw new Error(result.error.message);
+    profileRows = result.data || [];
+  }
+
+  const { emails: emailById, lastSignIn: lastSignInById } = await loadAuthUserMeta(service);
   const usage = await loadUsageByUserId(service);
 
   const seen = new Set();
   const users = (profileRows || []).map((row) => {
     seen.add(row.user_id);
-    return buildUserRow(row, emailById, usage, adminEmail, testEmails);
+    return buildUserRow(row, emailById, usage, adminEmail, testEmails, lastSignInById);
   });
 
   for (const [userId, email] of emailById) {
@@ -835,6 +978,12 @@ async function loadUsersOverview(service, adminUser) {
     const creditsCap = getCreditsCap("free");
     const callStats = resolveUserCallStats(usage, userId, email);
     const emailKey = String(email || "").toLowerCase();
+    const synthetic = {
+      user_id: userId,
+      plan: "free",
+      search_count: 0,
+      tokens_balance: getTokensCap("free"),
+    };
     users.push({
       userId,
       email: email || userId,
@@ -850,6 +999,10 @@ async function loadUsersOverview(service, adminUser) {
       isAdmin: Boolean(adminEmail && emailKey === adminEmail),
       isTest: isTestAccountEmail(emailKey, testEmails),
       profileCreatedAt: null,
+      profileUpdatedAt: null,
+      planUpgradedAt: null,
+      lastSignInAt: lastSignInById.get(userId) ?? null,
+      features: buildFeatureUsage(synthetic, usage),
     });
   }
 
@@ -864,10 +1017,16 @@ async function loadUsersOverview(service, adminUser) {
   if (users.length === 0 && adminUser?.id) {
     const row = profileRows?.find((p) => p.user_id === adminUser.id);
     if (row) {
-      users.push(buildUserRow(row, emailById, usage, adminEmail, testEmails));
+      users.push(buildUserRow(row, emailById, usage, adminEmail, testEmails, lastSignInById));
     } else {
       const callStats = resolveUserCallStats(usage, adminUser.id, adminUser.email);
       const emailKey = String(adminUser.email || "").toLowerCase();
+      const synthetic = {
+        user_id: adminUser.id,
+        plan: "free",
+        search_count: 0,
+        tokens_balance: getTokensCap("free"),
+      };
       users.push({
         userId: adminUser.id,
         email: adminUser.email || adminUser.id,
@@ -883,6 +1042,10 @@ async function loadUsersOverview(service, adminUser) {
         isAdmin: true,
         isTest: isTestAccountEmail(emailKey, testEmails),
         profileCreatedAt: null,
+        profileUpdatedAt: null,
+        planUpgradedAt: null,
+        lastSignInAt: lastSignInById.get(adminUser.id) ?? null,
+        features: buildFeatureUsage(synthetic, usage),
       });
     }
   }
@@ -956,6 +1119,9 @@ async function loadUsersOverviewFromSession(userSupabase, adminUser) {
       isAdmin: true,
       isTest: true,
       profileCreatedAt: null,
+      profileUpdatedAt: null,
+      planUpgradedAt: null,
+      lastSignInAt: null,
     }];
   }
 

@@ -43,10 +43,10 @@ export const DEFAULT_API_QUOTA_METERS = [
     everyN: 1,
     everyUnit: "month",
     overageUsd: null,
-    anchorAt: null,
+    anchorAt: "2026-02-20",
     sortOrder: 10,
     enabled: true,
-    notes: "Free 5 000 requests / month UTC. Paid via tokens after free.",
+    notes: "Free 5 000 requests / month. Resets on the 20th (account anniversary).",
   },
   {
     id: "groq_tokens",
@@ -60,10 +60,10 @@ export const DEFAULT_API_QUOTA_METERS = [
     everyN: 1,
     everyUnit: "month",
     overageUsd: ((1.05 + 2.1) / 2) / 1e6,
-    anchorAt: null,
+    anchorAt: "2026-02-20",
     sortOrder: 20,
     enabled: true,
-    notes: "Free 250 000 tokens / month UTC.",
+    notes: "Free 250 000 tokens / month. Resets on the 20th (account anniversary).",
   },
   {
     id: "openweather",
@@ -196,7 +196,33 @@ export function endOfUtcDayExclusive(asOf) {
 }
 
 /**
+ * @param {Date} date
+ * @param {number} months
+ */
+export function addUtcMonths(date, months) {
+  return new Date(Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth() + months,
+    date.getUTCDate(),
+  ));
+}
+
+/**
+ * Days from asOfDay until reset date (windowEnd). Aug 11 → Aug 20 = 9.
+ * @param {Date} asOfDay
+ * @param {Date} windowEnd
+ */
+function daysRemainingUntil(asOfDay, windowEnd) {
+  return Math.max(
+    0,
+    Math.round((windowEnd.getTime() - asOfDay.getTime()) / 86_400_000),
+  );
+}
+
+/**
  * Resolve the free window that contains `asOf` for a meter.
+ * Month + Anchor = anniversary cycle (e.g. 20th→20th). If windowStart would be
+ * after asOf (day-of-month before anniversary), step back one period.
  * @param {Pick<QuotaMeterDef, 'resets'|'everyN'|'everyUnit'|'anchorAt'>} meter
  * @param {Date} asOf
  */
@@ -216,7 +242,6 @@ export function resolveMeterWindow(meter, asOf) {
       windowEndYmd: null,
       resetAtYmd: null,
       asOfYmd,
-      /** For one-shot: no calendar reset — UI shows "until depleted" */
       timeLeftLabel: "until depleted",
       daysRemaining: null,
       periodLabel: "one-shot (no reset)",
@@ -229,13 +254,11 @@ export function resolveMeterWindow(meter, asOf) {
   const everyUnit = meter.everyUnit === "month" ? "month" : "day";
   const anchor = parseUtcYmd(meter.anchorAt);
 
+  // Calendar month (1st → 1st) when no anniversary anchor
   if (everyUnit === "month" && everyN === 1 && !anchor) {
     const windowStart = startOfUtcMonth(asOfDay);
     const windowEnd = new Date(Date.UTC(asOfDay.getUTCFullYear(), asOfDay.getUTCMonth() + 1, 1));
-    const daysRemaining = Math.max(
-      0,
-      Math.ceil((windowEnd.getTime() - asOfDay.getTime()) / 86_400_000) - 1,
-    );
+    const daysRemaining = daysRemainingUntil(asOfDay, windowEnd);
     return {
       resets: true,
       windowStart,
@@ -246,7 +269,7 @@ export function resolveMeterWindow(meter, asOf) {
       asOfYmd,
       timeLeftLabel: daysRemaining === 0 ? "resets tomorrow (UTC)" : `${daysRemaining}d`,
       daysRemaining,
-      periodLabel: "every 1 month",
+      periodLabel: "every 1 month (calendar)",
       queryStart: windowStart,
       queryEndExclusive: asOfEnd < windowEnd ? asOfEnd : windowEnd,
     };
@@ -263,7 +286,7 @@ export function resolveMeterWindow(meter, asOf) {
       windowEndYmd: formatUtcYmd(windowEnd),
       resetAtYmd: formatUtcYmd(windowEnd),
       asOfYmd,
-      timeLeftLabel: "0d (resets next UTC day)",
+      timeLeftLabel: "0",
       daysRemaining: 0,
       periodLabel: "every 1 day",
       queryStart: windowStart,
@@ -271,7 +294,6 @@ export function resolveMeterWindow(meter, asOf) {
     };
   }
 
-  // Custom cycle: every N days|months from anchor (default: epoch UTC day 0 aligned… use asOf month start or a fixed anchor)
   const cycleAnchor = anchor
     ? startOfUtcDay(anchor)
     : everyUnit === "month"
@@ -279,24 +301,39 @@ export function resolveMeterWindow(meter, asOf) {
       : asOfDay;
 
   if (everyUnit === "month") {
+    // If asOf is before first anchor, still open the first window starting at anchor
+    if (asOfDay < cycleAnchor) {
+      const windowStart = cycleAnchor;
+      const windowEnd = addUtcMonths(windowStart, everyN);
+      const daysRemaining = daysRemainingUntil(asOfDay, windowEnd);
+      return {
+        resets: true,
+        windowStart,
+        windowEnd,
+        windowStartYmd: formatUtcYmd(windowStart),
+        windowEndYmd: formatUtcYmd(windowEnd),
+        resetAtYmd: formatUtcYmd(windowEnd),
+        asOfYmd,
+        timeLeftLabel: String(daysRemaining),
+        daysRemaining,
+        periodLabel: `every ${everyN} month(s) from ${formatUtcYmd(cycleAnchor)}`,
+        queryStart: windowStart,
+        queryEndExclusive: asOfEnd < windowEnd ? asOfEnd : windowEnd,
+      };
+    }
+
     const monthsSince =
       (asOfDay.getUTCFullYear() - cycleAnchor.getUTCFullYear()) * 12
       + (asOfDay.getUTCMonth() - cycleAnchor.getUTCMonth());
-    const k = Math.floor(monthsSince / everyN);
-    const windowStart = new Date(Date.UTC(
-      cycleAnchor.getUTCFullYear(),
-      cycleAnchor.getUTCMonth() + k * everyN,
-      cycleAnchor.getUTCDate(),
-    ));
-    const windowEnd = new Date(Date.UTC(
-      cycleAnchor.getUTCFullYear(),
-      cycleAnchor.getUTCMonth() + (k + 1) * everyN,
-      cycleAnchor.getUTCDate(),
-    ));
-    const daysRemaining = Math.max(
-      0,
-      Math.ceil((windowEnd.getTime() - asOfDay.getTime()) / 86_400_000) - 1,
-    );
+    let k = Math.floor(monthsSince / everyN);
+    let windowStart = addUtcMonths(cycleAnchor, k * everyN);
+    // Anniversary not reached yet this period (e.g. today 11th, reset on 20th)
+    if (windowStart > asOfDay) {
+      k -= 1;
+      windowStart = addUtcMonths(cycleAnchor, k * everyN);
+    }
+    const windowEnd = addUtcMonths(windowStart, everyN);
+    const daysRemaining = daysRemainingUntil(asOfDay, windowEnd);
     return {
       resets: true,
       windowStart,
@@ -305,24 +342,45 @@ export function resolveMeterWindow(meter, asOf) {
       windowEndYmd: formatUtcYmd(windowEnd),
       resetAtYmd: formatUtcYmd(windowEnd),
       asOfYmd,
-      timeLeftLabel: `${daysRemaining}d`,
+      timeLeftLabel: String(daysRemaining),
       daysRemaining,
-      periodLabel: `every ${everyN} month(s)`,
+      periodLabel: `every ${everyN} month(s) from ${formatUtcYmd(cycleAnchor)}`,
       queryStart: windowStart,
       queryEndExclusive: asOfEnd < windowEnd ? asOfEnd : windowEnd,
     };
   }
 
   // every N days from anchor
+  if (asOfDay < cycleAnchor) {
+    const windowStart = cycleAnchor;
+    const windowEnd = addUtcDays(windowStart, everyN);
+    const daysRemaining = daysRemainingUntil(asOfDay, windowEnd);
+    return {
+      resets: true,
+      windowStart,
+      windowEnd,
+      windowStartYmd: formatUtcYmd(windowStart),
+      windowEndYmd: formatUtcYmd(windowEnd),
+      resetAtYmd: formatUtcYmd(windowEnd),
+      asOfYmd,
+      timeLeftLabel: String(daysRemaining),
+      daysRemaining,
+      periodLabel: `every ${everyN} day(s)`,
+      queryStart: windowStart,
+      queryEndExclusive: asOfEnd < windowEnd ? asOfEnd : windowEnd,
+    };
+  }
+
   const ms = asOfDay.getTime() - cycleAnchor.getTime();
   const dayIndex = Math.floor(ms / 86_400_000);
-  const k = Math.floor(dayIndex / everyN);
-  const windowStart = addUtcDays(cycleAnchor, k * everyN);
+  let k = Math.floor(dayIndex / everyN);
+  let windowStart = addUtcDays(cycleAnchor, k * everyN);
+  if (windowStart > asOfDay) {
+    k -= 1;
+    windowStart = addUtcDays(cycleAnchor, k * everyN);
+  }
   const windowEnd = addUtcDays(windowStart, everyN);
-  const daysRemaining = Math.max(
-    0,
-    Math.ceil((windowEnd.getTime() - asOfDay.getTime()) / 86_400_000) - 1,
-  );
+  const daysRemaining = daysRemainingUntil(asOfDay, windowEnd);
   return {
     resets: true,
     windowStart,
@@ -331,7 +389,7 @@ export function resolveMeterWindow(meter, asOf) {
     windowEndYmd: formatUtcYmd(windowEnd),
     resetAtYmd: formatUtcYmd(windowEnd),
     asOfYmd,
-    timeLeftLabel: daysRemaining === 0 ? "resets next window" : `${daysRemaining}d`,
+    timeLeftLabel: String(daysRemaining),
     daysRemaining,
     periodLabel: `every ${everyN} day(s)`,
     queryStart: windowStart,

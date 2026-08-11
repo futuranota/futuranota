@@ -230,3 +230,74 @@ export function getPlanFeatureRows(plan) {
     { key: 'youtube', label: 'YouTube notes', value: isPro ? 'Included' : '1 credit/embed' },
   ];
 }
+
+/**
+ * Management catalog: Feature | Free (Starter) | Pro — from PLAN_LIMITS.
+ * @returns {Array<{ key: string, label: string, free: string, pro: string }>}
+ */
+export function getPlanFeatureMatrix() {
+  const free = PLAN_LIMITS.free;
+  const pro = PLAN_LIMITS.pro;
+  return [
+    {
+      key: 'credits',
+      label: 'Credits / month (or lifetime free)',
+      free: `${free.maxSearchesLifetime} lifetime`,
+      pro: `${pro.maxLiveRunsPerMonth}/mo`,
+    },
+    {
+      key: 'tokens',
+      label: 'Tokens',
+      free: formatTokenCount(free.tokensCap),
+      pro: `${formatTokenCount(pro.tokensCap)}/mo`,
+    },
+    {
+      key: 'objects',
+      label: 'Objects / companies',
+      free: String(free.maxObjects),
+      pro: 'Unlimited',
+    },
+    {
+      key: 'storage',
+      label: 'Storage',
+      free: free.storageLabel,
+      pro: pro.storageLabel,
+    },
+    {
+      key: 'intel',
+      label: 'Intel searches',
+      free: `${free.maxSearchesLifetime} lifetime`,
+      pro: 'Via credits',
+    },
+    {
+      key: 'calendar',
+      label: 'Calendar uses',
+      free: `${free.calendarSearchesCap} use`,
+      pro: `${pro.calendarSearchesCap}/mo`,
+    },
+    {
+      key: 'weather',
+      label: 'Weather',
+      free: '1 city · 1 insert',
+      pro: 'Unlimited · 50 inserts',
+    },
+    {
+      key: 'campaignLive',
+      label: 'Campaign live runs',
+      free: String(free.campaignLiveRuns),
+      pro: `${pro.maxLiveRunsPerMonth}/mo (credits)`,
+    },
+    {
+      key: 'launchRadar',
+      label: 'Launch Radar / agents',
+      free: 'Demo · 3 credits/call',
+      pro: '2 credits/scan · 3 credits/call',
+    },
+    {
+      key: 'stepsLibrary',
+      label: 'Steps library cross-object',
+      free: free.stepsLibraryCrossObject ? 'Yes' : 'No',
+      pro: pro.stepsLibraryCrossObject ? 'Yes' : 'No',
+    },
+  ];
+}

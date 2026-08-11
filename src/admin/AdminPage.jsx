@@ -27,7 +27,7 @@ export function AdminPage() {
   const [password, setPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
-  const [tab, setTab] = useState('signals');
+  const [tab, setTab] = useState('management');
   const [managementSection, setManagementSection] = useState(MANAGEMENT_SECTIONS.api);
   const [flashMessage, setFlashMessage] = useState(null);
   const [signalsRefreshToken, setSignalsRefreshToken] = useState(0);

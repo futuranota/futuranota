@@ -40,7 +40,7 @@ const SECTION_COPY = {
   },
   [MANAGEMENT_SECTIONS.users]: {
     title: "Users",
-    sub: "Accounts from Supabase — plan, credits, accumulated API cost $, and activity. Filter inactive users for retention.",
+    sub: "Accounts from Supabase — plan, credits, accumulated API cost $, and activity. Feature usage (used/cap) below.",
   },
   [MANAGEMENT_SECTIONS.calls]: {
     title: "Recent Calls",
@@ -145,6 +145,39 @@ function filterUsersByActivity(users, filter) {
   if (filter === "inactive_7") return users.filter((u) => isInactiveSince(u.lastCallAt, 7));
   if (filter === "inactive_30") return users.filter((u) => isInactiveSince(u.lastCallAt, 30));
   return users;
+}
+
+const USER_FEATURE_COLUMNS = [
+  { key: "credits", label: "Credits" },
+  { key: "calendar", label: "Event calendar" },
+  { key: "forecast", label: "Forecast" },
+  { key: "launchRadar", label: "Launch Radar" },
+  { key: "marketHype", label: "Market Hype" },
+  { key: "campaignLive", label: "Campaign live" },
+  { key: "tokens", label: "Tokens" },
+  { key: "storage", label: "Storage" },
+  { key: "stepsLibrary", label: "Steps library" },
+];
+
+function downloadUserFeaturesCsv(users) {
+  const headers = ["email", "plan", ...USER_FEATURE_COLUMNS.map((c) => c.key)];
+  const lines = [headers.join(",")];
+  for (const u of users) {
+    const f = u.features || {};
+    lines.push([
+      u.email || "",
+      u.plan === "pro" ? "Pro" : "Starter",
+      ...USER_FEATURE_COLUMNS.map((c) => f[c.key] ?? ""),
+    ].map(csvEscape).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = localDateKey(new Date().toISOString()) || "export";
+  a.href = url;
+  a.download = `user-features-${stamp}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /** Local calendar date YYYY-MM-DD from ISO timestamp. */
@@ -1281,19 +1314,16 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
           </section>
 
           {alerts.length > 0 ? (
-            <section className="admin-card mgmt-alerts">
-              <h3 className="mgmt-section-title" style={{ marginBottom: 10 }}>Alerts</h3>
-              <ul className="mgmt-alerts__list">
-                {alerts.map((a) => (
-                  <li
-                    key={a.id}
-                    className={`mgmt-alert mgmt-alert--${a.level === "danger" ? "danger" : "warn"}`}
-                  >
-                    {a.message}
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <ul className="mgmt-alerts__list mgmt-alerts__list--mini" aria-label="Alerts">
+              {alerts.map((a) => (
+                <li
+                  key={a.id}
+                  className={`mgmt-alert mgmt-alert--mini mgmt-alert--${a.level === "danger" ? "danger" : "warn"}`}
+                >
+                  {a.message}
+                </li>
+              ))}
+            </ul>
           ) : null}
 
           <section className="admin-card">
@@ -1531,6 +1561,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
       ) : null}
 
       {section === MANAGEMENT_SECTIONS.users ? (
+        <>
         <section className="admin-card">
           <div className="mgmt-users-toolbar">
             <span className="muted" style={{ fontSize: 12 }}>
@@ -1616,6 +1647,64 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
             </table>
           </div>
         </section>
+
+        <section className="admin-card" style={{ marginTop: 16 }}>
+          <div className="mgmt-users-toolbar">
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
+              Feature usage
+            </h3>
+            <span className="muted" style={{ fontSize: 12 }}>
+              Per user · used/cap from plan (Event calendar, Forecast, …)
+            </span>
+            <button
+              type="button"
+              className="btn btn-sm"
+              style={{ marginLeft: "auto" }}
+              disabled={filteredUsers.length === 0}
+              onClick={() => downloadUserFeaturesCsv(filteredUsers)}
+            >
+              Export CSV
+            </button>
+          </div>
+          <div className="mgmt-table-wrap">
+            <table className="mgmt-table">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Plan</th>
+                  {USER_FEATURE_COLUMNS.map((col) => (
+                    <th key={col.key}>{col.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={2 + USER_FEATURE_COLUMNS.length} className="muted">
+                      No users to show.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => {
+                    const f = u.features || {};
+                    return (
+                      <tr key={`feat-${u.userId}`}>
+                        <td>{u.email}</td>
+                        <td>{u.plan === "pro" ? "Pro" : "Starter"}</td>
+                        {USER_FEATURE_COLUMNS.map((col) => (
+                          <td key={col.key} className="muted">
+                            {f[col.key] ?? "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        </>
       ) : null}
 
       {section === MANAGEMENT_SECTIONS.calls ? (
