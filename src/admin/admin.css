@@ -11,6 +11,38 @@
   --admin-blue-strong: #b3deff;
   --admin-blue-soft: rgba(126, 200, 255, 0.14);
   --admin-blue-border: rgba(126, 200, 255, 0.45);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) #151515;
+}
+
+.admin-shell,
+.admin-shell * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.admin-shell::-webkit-scrollbar,
+.admin-shell *::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.admin-shell::-webkit-scrollbar-track,
+.admin-shell *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-shell::-webkit-scrollbar-thumb,
+.admin-shell *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.admin-shell::-webkit-scrollbar-corner,
+.admin-shell *::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .admin-topbar {
@@ -56,6 +88,28 @@
   max-height: calc(100vh - 96px);
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.admin-nav::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.admin-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 
 .admin-nav__group {
@@ -621,6 +675,98 @@
 
 .mgmt-table-wrap {
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.mgmt-table-wrap::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.mgmt-table-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mgmt-table-wrap::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.mgmt-table-wrap::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.mgmt-provider-pie {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mgmt-provider-pie__chart {
+  width: 100%;
+  min-height: 200px;
+}
+
+.mgmt-provider-pie__tooltip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+}
+
+.mgmt-provider-pie__tooltip-name {
+  color: #cfcfcf;
+}
+
+.mgmt-provider-pie__tooltip-val {
+  color: #fff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mgmt-provider-pie__legend {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.mgmt-provider-pie__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #c8c8c8;
+}
+
+.mgmt-provider-pie__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mgmt-provider-pie__legend-name {
+  color: #cfcfcf;
+}
+
+.mgmt-provider-pie__legend-val {
+  color: #f0f0f0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.mgmt-row--editing td {
+  background: rgba(126, 200, 255, 0.06);
 }
 
 .mgmt-table {

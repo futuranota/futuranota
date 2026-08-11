@@ -6,7 +6,15 @@
 export function parseJsonBody(req) {
   const raw = req?.body;
   if (raw == null || raw === "") return {};
-  if (typeof raw === "object" && !Buffer.isBuffer(raw)) return raw;
+  if (Buffer.isBuffer(raw)) {
+    try {
+      const parsed = JSON.parse(raw.toString("utf8") || "{}");
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof raw === "object") return raw;
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);

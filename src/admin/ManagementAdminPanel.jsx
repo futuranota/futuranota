@@ -5,12 +5,12 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
-  Legend,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   CartesianGrid,
+  LabelList,
 } from "recharts";
 import {
   fetchManagementOverview,
@@ -21,39 +21,27 @@ import {
   patchManagementQuota,
   deleteManagementQuota,
 } from "../lib/managementApi.js";
+import { GINA_DEPT_RAIL_COLORS } from "../lib/gina/ginaDepartmentColors.js";
 import { MANAGEMENT_SECTIONS } from "./AdminSidebarNav.jsx";
 
-const PIE_COLORS = [
-  "#7ec8ff",
-  "#e8a87c",
-  "#85d4a0",
-  "#c9a0ff",
-  "#ff9eb5",
-  "#ffd166",
-  "#6ee7d8",
-];
+const PIE_COLORS = GINA_DEPT_RAIL_COLORS.length
+  ? GINA_DEPT_RAIL_COLORS
+  : [
+    "#7ec8ff",
+    "#e8a87c",
+    "#85d4a0",
+    "#c9a0ff",
+    "#ff9eb5",
+    "#ffd166",
+    "#6ee7d8",
+  ];
 
 const SECTION_COPY = {
-  [MANAGEMENT_SECTIONS.api]: {
-    title: "API Integrations",
-    sub: "Catalog, KPIs, credits/endpoint matrix, and Top endpoints. Keys stay in `.env.local` / Vercel. Run `supabase_management_integrations_v2.sql` + `v3.sql` to persist columns.",
-  },
-  [MANAGEMENT_SECTIONS.users]: {
-    title: "Users",
-    sub: "Accounts from Supabase — plan, credits, accumulated API cost $, and activity. Feature usage (used/cap) below.",
-  },
-  [MANAGEMENT_SECTIONS.calls]: {
-    title: "Recent Calls",
-    sub: "API usage events — filter by user, provider, endpoint, status, and date; export the filtered rows as CSV.",
-  },
-  [MANAGEMENT_SECTIONS.gastos]: {
-    title: "Gastos",
-    sub: "Your product costs (Cursor, storage, hosting…). Annual plans count as cost ÷ 12 in the monthly margin.",
-  },
-  [MANAGEMENT_SECTIONS.storage]: {
-    title: "Storage & Quotas",
-    sub: "Cupos = oferta (included + reset + time left) vs demanda (used / included). Extra = over + cost to pay. Gasto por user → Users.",
-  },
+  [MANAGEMENT_SECTIONS.api]: { title: "API Integrations" },
+  [MANAGEMENT_SECTIONS.users]: { title: "Users" },
+  [MANAGEMENT_SECTIONS.calls]: { title: "Recent Calls" },
+  [MANAGEMENT_SECTIONS.gastos]: { title: "Gastos" },
+  [MANAGEMENT_SECTIONS.storage]: { title: "Storage & Quotas" },
 };
 
 /** Local time, unambiguous Y-M-D (avoids 8/10 vs 10/8 locale confusion). */
@@ -301,32 +289,71 @@ function todayIsoDate() {
 }
 
 function PieBlock({ title, data }) {
-  const hasData = data?.length > 0;
+  const chart = (data || []).map((row, i) => ({
+    ...row,
+    fill: PIE_COLORS[i % PIE_COLORS.length],
+  }));
+  const hasData = chart.length > 0;
   return (
     <div className="mgmt-pie-block">
       <h3 className="mgmt-section-title">{title}</h3>
       {!hasData ? (
         <p className="muted mgmt-empty">No calls logged yet.</p>
       ) : (
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={72}
-              label={({ name, value }) => `${name} (${value})`}
-            >
-              {data.map((entry, index) => (
-                <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-              ))}
-            </Pie>
-            <Tooltip />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="mgmt-provider-pie">
+          <div className="mgmt-provider-pie__chart">
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const row = payload[0]?.payload || {};
+                    return (
+                      <div className="mgmt-provider-pie__tooltip">
+                        <span className="mgmt-provider-pie__tooltip-name">{row.name}</span>
+                        <span className="mgmt-provider-pie__tooltip-val">{row.value} calls</span>
+                      </div>
+                    );
+                  }}
+                />
+                <Pie
+                  data={chart}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={28}
+                  outerRadius={72}
+                  paddingAngle={3}
+                  cornerRadius={6}
+                  stroke="none"
+                >
+                  {chart.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} stroke="none" />
+                  ))}
+                  <LabelList
+                    dataKey="value"
+                    stroke="none"
+                    fontSize={11}
+                    fontWeight={600}
+                    fill="#f0f0f0"
+                  />
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <ul className="mgmt-provider-pie__legend" aria-label="Providers">
+            {chart.map((row) => (
+              <li key={row.name} className="mgmt-provider-pie__legend-item">
+                <span
+                  className="mgmt-provider-pie__dot"
+                  style={{ background: row.fill }}
+                  aria-hidden
+                />
+                <span className="mgmt-provider-pie__legend-name">{row.name}</span>
+                <span className="mgmt-provider-pie__legend-val">{row.value}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );
@@ -378,12 +405,9 @@ function EndpointCreditMatrix({ rows }) {
   const list = rows || [];
   return (
     <section className="admin-card">
-      <h3 className="mgmt-section-title" style={{ marginBottom: 6 }}>
+      <h3 className="mgmt-section-title" style={{ marginBottom: 12 }}>
         Credits / endpoint matrix
       </h3>
-      <p className="muted" style={{ fontSize: 12, margin: "0 0 12px" }}>
-        Plan credits &amp; tokens charged to users vs real API $ (billed events only). Not the same currency.
-      </p>
       <div className="mgmt-table-wrap">
         <table className="mgmt-table">
           <thead>
@@ -655,8 +679,9 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
   const [editForm, setEditForm] = useState({ ...EMPTY_QUOTA_FORM });
   const [deletingId, setDeletingId] = useState(null);
 
-  const formPreview = providers.find((p) => p.provider === form.provider) || null;
-  const editPreview = providers.find((p) => p.provider === editForm.provider) || null;
+  const isEditing = Boolean(editId);
+  const activeForm = isEditing ? editForm : form;
+  const setActiveForm = isEditing ? setEditForm : setForm;
 
   function startEdit(row) {
     setEditId(row.id);
@@ -675,70 +700,66 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
     });
   }
 
-  async function handleAdd(e) {
+  function cancelEdit() {
+    setEditId(null);
+    setEditForm({ ...EMPTY_QUOTA_FORM });
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
     if (!canEditDb) {
       onError("Run supabase_management_quotas.sql first to add meters in DB.");
       return;
     }
-    if (!form.provider) {
+    if (!activeForm.provider) {
       onError("Pick a provider from Recent Calls.");
       return;
     }
-    setSaving(true);
-    onError("");
-    try {
-      await createManagementQuota({
-        provider: form.provider,
-        productName: form.provider,
-        meterKind: form.meterKind,
-        included: Number(form.included),
-        unit: form.unit.trim() || (form.meterKind === "tokens" ? "tokens" : "calls"),
-        type: form.type,
-        resets: form.resets,
-        everyN: form.resets ? Number(form.everyN) : null,
-        everyUnit: form.resets ? form.everyUnit : null,
-        overageUsd: form.overageUsd.trim() === "" ? null : Number(form.overageUsd),
-        anchorAt: form.anchorAt.trim() || null,
-        notes: form.notes,
-      });
-      setForm({ ...EMPTY_QUOTA_FORM });
-      await onChanged();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to add meter");
-    } finally {
-      setSaving(false);
+    const included = Number(activeForm.included);
+    if (!Number.isFinite(included) || included < 0) {
+      onError("Included must be a non-negative number.");
+      return;
     }
-  }
+    if (activeForm.resets) {
+      const everyN = Number(activeForm.everyN);
+      if (!Number.isFinite(everyN) || everyN < 1) {
+        onError("Every N must be ≥ 1 when Reset is yes.");
+        return;
+      }
+    }
 
-  async function handleSaveEdit(e) {
-    e.preventDefault();
-    if (!editId) return;
-    if (!editForm.provider) {
-      onError("Pick a provider from Recent Calls.");
+    const payload = {
+      provider: activeForm.provider,
+      productName: activeForm.provider,
+      meterKind: activeForm.meterKind,
+      included,
+      unit: activeForm.unit.trim() || (activeForm.meterKind === "tokens" ? "tokens" : "calls"),
+      type: activeForm.type,
+      resets: Boolean(activeForm.resets),
+      everyN: activeForm.resets ? Number(activeForm.everyN) : null,
+      everyUnit: activeForm.resets ? activeForm.everyUnit : null,
+      overageUsd: activeForm.overageUsd.trim() === "" ? null : Number(activeForm.overageUsd),
+      anchorAt: activeForm.anchorAt.trim() || null,
+      notes: activeForm.notes,
+    };
+    if (payload.overageUsd != null && !Number.isFinite(payload.overageUsd)) {
+      onError("$ / u overdue must be a number.");
       return;
     }
+
     setSaving(true);
     onError("");
     try {
-      await patchManagementQuota(editId, {
-        provider: editForm.provider,
-        productName: editForm.provider,
-        meterKind: editForm.meterKind,
-        included: Number(editForm.included),
-        unit: editForm.unit.trim() || "calls",
-        type: editForm.type,
-        resets: editForm.resets,
-        everyN: editForm.resets ? Number(editForm.everyN) : null,
-        everyUnit: editForm.resets ? editForm.everyUnit : null,
-        overageUsd: editForm.overageUsd.trim() === "" ? null : Number(editForm.overageUsd),
-        anchorAt: editForm.anchorAt.trim() || null,
-        notes: editForm.notes,
-      });
-      setEditId(null);
+      if (isEditing) {
+        await patchManagementQuota(editId, payload);
+        cancelEdit();
+      } else {
+        await createManagementQuota(payload);
+        setForm({ ...EMPTY_QUOTA_FORM });
+      }
       await onChanged();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to save meter");
+      onError(err instanceof Error ? err.message : (isEditing ? "Failed to save meter" : "Failed to add meter"));
     } finally {
       setSaving(false);
     }
@@ -749,6 +770,7 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
     onError("");
     try {
       await deleteManagementQuota(id);
+      if (editId === id) cancelEdit();
       await onChanged();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to delete meter");
@@ -768,12 +790,11 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
             onChange={(e) => onAsOfChange(e.target.value)}
           />
         </label>
-        <p className="muted" style={{ fontSize: 12, margin: 0, flex: 1 }}>
-          Oferta = included + reset + días. Demanda = used / included. Extra = over + pay.
-          {" · "}
-          API $ por user → Users. Totales por call → Recent Calls.
-          {quotas?.source === "defaults" ? " · defaults (run SQL to edit)" : ""}
-        </p>
+        {quotas?.source === "defaults" ? (
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+            Defaults · run SQL to edit
+          </p>
+        ) : null}
       </div>
 
       {quotas?.warning ? (
@@ -813,7 +834,10 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
               items.map((q) => (
                 <tr
                   key={q.id}
-                  className={q.exhausted ? "mgmt-row--quota-over" : undefined}
+                  className={[
+                    q.exhausted ? "mgmt-row--quota-over" : "",
+                    editId === q.id ? "mgmt-row--editing" : "",
+                  ].filter(Boolean).join(" ") || undefined}
                   title={q.notes || q.periodLabel || ""}
                 >
                   <td>
@@ -843,8 +867,12 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
                   <td>
                     {canEditDb ? (
                       <div className="mgmt-quota-actions">
-                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => startEdit(q)}>
-                          Edit
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => (editId === q.id ? cancelEdit() : startEdit(q))}
+                        >
+                          {editId === q.id ? "Close" : "Edit"}
                         </button>
                         <button
                           type="button"
@@ -872,41 +900,27 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
         <strong>{formatUsd(totalCost)}</strong>
       </div>
 
-      {editId ? (
-        <form className="mgmt-gastos-form" style={{ marginTop: 16 }} onSubmit={handleSaveEdit}>
-          <strong style={{ gridColumn: "1 / -1" }}>Edit meter</strong>
-          <QuotaMeterFields
-            form={editForm}
-            setForm={setEditForm}
-            providers={providers}
-            preview={editPreview}
-          />
-          <div className="admin-form-actions" style={{ gridColumn: "1 / -1" }}>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditId(null)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-sm btn-primary" disabled={saving || !editForm.provider}>
-              {saving ? "Saving…" : "Save"}
-            </button>
-          </div>
-        </form>
-      ) : null}
-
-      <form className="mgmt-gastos-form" style={{ marginTop: 16 }} onSubmit={handleAdd}>
-        <strong style={{ gridColumn: "1 / -1" }}>Add meter — pick provider first</strong>
+      <form className="mgmt-gastos-form" style={{ marginTop: 16 }} onSubmit={handleSubmit}>
+        <strong style={{ gridColumn: "1 / -1" }}>
+          {isEditing ? "Edit meter" : "Add meter"}
+        </strong>
         <QuotaMeterFields
-          form={form}
-          setForm={setForm}
+          form={activeForm}
+          setForm={setActiveForm}
           providers={providers}
-          preview={formPreview}
         />
         <div className="admin-form-actions" style={{ gridColumn: "1 / -1" }}>
+          {isEditing ? (
+            <button type="button" className="btn btn-sm btn-ghost" onClick={cancelEdit}>
+              Cancel
+            </button>
+          ) : null}
           <button
             type="submit"
             className="btn btn-sm btn-primary"
-            disabled={saving || !canEditDb || !form.provider}
+            disabled={saving || !canEditDb || !activeForm.provider}
           >
-            {saving ? "Adding…" : "Add"}
+            {saving ? (isEditing ? "Saving…" : "Adding…") : (isEditing ? "Save" : "Add")}
           </button>
         </div>
         {!canEditDb ? (
@@ -919,7 +933,7 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
   );
 }
 
-function QuotaMeterFields({ form, setForm, providers, preview }) {
+function QuotaMeterFields({ form, setForm, providers }) {
   return (
     <>
       <label className="mgmt-filter-field">
@@ -937,17 +951,6 @@ function QuotaMeterFields({ form, setForm, providers, preview }) {
           ))}
         </select>
       </label>
-      {preview ? (
-        <div className="mgmt-quota-preview" style={{ gridColumn: "1 / -1" }}>
-          Provider <code className="mgmt-code">{preview.provider}</code>
-          {" · "}
-          {Number(preview.callsAll || 0).toLocaleString()} calls in Recent Calls (picker only — cost by user is in Users)
-        </div>
-      ) : (
-        <p className="muted" style={{ gridColumn: "1 / -1", margin: 0, fontSize: 12 }}>
-          Elegí un provider del listado — no se permite texto libre.
-        </p>
-      )}
       <label className="mgmt-filter-field">
         <span className="muted">Meter</span>
         <select
@@ -1183,7 +1186,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
       <div className="admin-panel__head">
         <div>
           <p className="mgmt-breadcrumb muted">Management</p>
-          <h1 className="admin-card__title" style={{ fontSize: 18, marginBottom: 6 }}>
+          <h1 className="admin-card__title" style={{ fontSize: 18, marginBottom: 0 }}>
             {copy.title}
             {section === MANAGEMENT_SECTIONS.users && data?.users?.length ? (
               <span className="mgmt-count-badge">{data.users.length}</span>
@@ -1192,9 +1195,6 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
               <span className="mgmt-count-badge">{filteredCalls.length}</span>
             ) : null}
           </h1>
-          <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-            {copy.sub}
-          </p>
         </div>
         {showToolbar ? (
           <div className="admin-form-actions">
@@ -1327,24 +1327,22 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
           ) : null}
 
           <section className="admin-card">
-            <h2 className="mgmt-section-title">Integrations</h2>
-            <p className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-              Active first, then pending. Call counts come from logged events (Intel / Campaign Study today —
-              other routes land in a later logging pass).{" "}
+            <div className="mgmt-users-toolbar" style={{ marginBottom: 12 }}>
+              <h2 className="mgmt-section-title" style={{ margin: 0 }}>Integrations</h2>
               <a
                 className="mgmt-download-link"
+                style={{ marginLeft: "auto" }}
                 href="/management-api-integrations.sheets.csv"
                 download="management-api-integrations.sheets.csv"
               >
-                Download CSV for Google Sheets
+                CSV
               </a>
-            </p>
+            </div>
             <div className="mgmt-table-wrap">
               <table className="mgmt-table mgmt-table--integrations">
                 <thead>
                   <tr>
                     <th>API</th>
-                    <th>Meta</th>
                     <th>Status</th>
                     <th>Env / probe</th>
                     <th>Free / day</th>
@@ -1360,7 +1358,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                 <tbody>
                   {(data?.integrations || []).length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="muted">
+                      <td colSpan={11} className="muted">
                         No integrations — run supabase_management.sql (+ v2/v3) or Refresh.
                       </td>
                     </tr>
@@ -1379,11 +1377,6 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                           <div className="muted" style={{ fontSize: 11 }}>
                             {integration.id}
                           </div>
-                        </td>
-                        <td className="mgmt-meta-cell" title={integration.metaDescription || ""}>
-                          {integration.metaDescription || (
-                            <span className="muted">—</span>
-                          )}
                         </td>
                         <td>
                           <LifecycleBadge status={integration.lifecycleStatus} />
@@ -1653,9 +1646,6 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
               Feature usage
             </h3>
-            <span className="muted" style={{ fontSize: 12 }}>
-              Per user · used/cap from plan (Event calendar, Forecast, …)
-            </span>
             <button
               type="button"
               className="btn btn-sm"

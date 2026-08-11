@@ -1815,7 +1815,7 @@ export async function processManagementQuotasRequest(reqLike) {
       .update(patch)
       .eq("id", id)
       .select("*")
-      .single();
+      .maybeSingle();
 
     if (error) {
       if (/admin_quota_meters|relation|schema cache/i.test(error.message)) {
@@ -1825,6 +1825,9 @@ export async function processManagementQuotasRequest(reqLike) {
         };
       }
       return { status: 500, body: { error: error.message } };
+    }
+    if (!data) {
+      return { status: 404, body: { error: "Meter not found — add it first (defaults are read-only)." } };
     }
     return { status: 200, body: { meter: mapQuotaMeterRow(data) } };
   }

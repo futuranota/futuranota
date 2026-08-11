@@ -1,0 +1,23 @@
+---
+description: Product transition — Gina Asistente replaces multi-agents; package measured by hours/TPS not only 200 credits
+alwaysApply: true
+---
+
+# Gina package transition (product memory)
+
+## Direction
+
+- Primordial build: **Gina / Asistente**. Multi-agent cards will be removed soon (keep Agents card until explicit approval — see `assistant-single-card-roadmap.mdc`).
+- Intel tools that stay (**Launch Radar**, **Forecast**, **Event calendar**, Market Hype, etc.) remain in **their panel only** — not as a multi-agent package.
+
+## Credits → capacity model
+
+- Current Pro UX: **~200 monthly credits**.
+- Target package: assistant may feel **unlimited**, but delivery is capped by **provider capacity** (calls + time window / TPS), e.g. Groq-style **5 000 calls / ~6 h TPS** — that defines the sold package, not a pure credit counter.
+- Measure package viability from **Recent Calls** + quota meters (provider included / window / overage), not by moving the ledger to Sheets.
+
+## While building
+
+- Do not redesign billing UX around hours until that package brief is scheduled.
+- Do not remove Launch Radar / Forecast panels when retiring Agents.
+- Prefer instrumenting provider windows (anchor, reset, time left) over inventing new credit types.
