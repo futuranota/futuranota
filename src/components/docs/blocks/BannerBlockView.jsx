@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
+import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   BANNER_HEADLINE_MAX,
   BANNER_HEADLINE_MAX_LINES,
@@ -209,7 +209,10 @@ export function BannerBlockView({
 
     try {
       // Always convert to WebP; keep source resolution — slot size is CSS.
-      const converted = await convertFileToWebpData(file, { idPrefix: "BNIMG" });
+      const converted = await convertAndUploadDocImage(file, {
+        idPrefix: "BNIMG",
+        scopeId: block?.id,
+      });
       if (!converted) {
         setError(t("doc.imageBlock.convertFailed"));
         return;
@@ -224,8 +227,8 @@ export function BannerBlockView({
         imageSaved: true,
         openFilePicker: false,
       });
-    } catch {
-      setError(t("doc.imageBlock.convertFailed"));
+    } catch (err) {
+      setError(err?.message || t("doc.imageBlock.convertFailed"));
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";

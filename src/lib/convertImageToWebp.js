@@ -88,7 +88,7 @@ export async function rasterizeImageToWebpBlob(image, options = {}) {
 /**
  * @param {File|Blob} file
  * @param {{ quality?: number, fileName?: string, idPrefix?: string, maxWidth?: number, maxHeight?: number }} [options]
- * @returns {Promise<{ id: string, src: string, name: string, width: number, height: number }|null>}
+ * @returns {Promise<{ id: string, src: string, name: string, width: number, height: number, blob: Blob }|null>}
  */
 export async function convertFileToWebpData(file, options = {}) {
   if (!file || typeof document === "undefined") return null;
@@ -109,6 +109,7 @@ export async function convertFileToWebpData(file, options = {}) {
       name: `${baseName}.webp`,
       width: raster.width,
       height: raster.height,
+      blob: raster.blob,
     };
   } finally {
     URL.revokeObjectURL(objectUrl);
@@ -119,7 +120,7 @@ export async function convertFileToWebpData(file, options = {}) {
  * Accepts png, jpg, svg, gif, webp, etc. Optionally downscales via maxWidth/maxHeight.
  * @param {string|File|Blob} source URL, data URL, File, or Blob
  * @param {{ quality?: number, fileName?: string, idPrefix?: string, maxWidth?: number, maxHeight?: number }} [options]
- * @returns {Promise<{ id: string, src: string, name: string, width: number, height: number }|null>}
+ * @returns {Promise<{ id: string, src: string, name: string, width: number, height: number, blob?: Blob }|null>}
  */
 export async function convertImageSourceToWebp(source, options = {}) {
   if (!source) return null;
@@ -148,6 +149,7 @@ export async function convertImageSourceToWebp(source, options = {}) {
       name: `${baseName}.webp`,
       width: raster.width,
       height: raster.height,
+      blob: raster.blob,
     };
   } catch {
     return null;

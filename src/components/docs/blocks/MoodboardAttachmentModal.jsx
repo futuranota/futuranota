@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
+import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   MOODBOARD_FILE_ICON_SRC,
   MOODBOARD_TAG_MAX,
@@ -96,7 +96,9 @@ export function MoodboardAttachmentModal({
     setUploading(true);
     setError("");
     try {
-      const converted = await convertFileToWebpData(file);
+      const converted = await convertAndUploadDocImage(file, {
+        scopeId: image?.slotId || "moodboard",
+      });
       if (!converted?.src) {
         setError(t("doc.imageBlock.convertFailed"));
         return;

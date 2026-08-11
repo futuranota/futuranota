@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
+import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   createTodoItem,
   IMAGE_SPLIT_BODY_MAX_LINES,
@@ -514,7 +514,10 @@ export function ImageSplitBlockView({
     setError(null);
 
     try {
-      const converted = await convertFileToWebpData(file, { idPrefix: "SPLIMG" });
+      const converted = await convertAndUploadDocImage(file, {
+        idPrefix: "SPLIMG",
+        scopeId: block?.id,
+      });
       if (!converted) {
         setError(t("doc.imageBlock.convertFailed"));
         return;
@@ -530,8 +533,8 @@ export function ImageSplitBlockView({
         openFilePicker: false,
         splitSaved: false,
       });
-    } catch {
-      setError(t("doc.imageBlock.convertFailed"));
+    } catch (err) {
+      setError(err?.message || t("doc.imageBlock.convertFailed"));
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";

@@ -1,5 +1,5 @@
 import { ProductCard } from "../../products/ProductCard.tsx";
-import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
+import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 
 function safeProductData(block) {
   const specs = block?.specs && typeof block.specs === "object" ? block.specs : {};
@@ -51,14 +51,23 @@ export function ProductCardBlockView({ block, onChange, onInsertToCanvas, onDele
   const handleUploadImages = async (files) => {
     const list = files ? Array.from(files) : [];
     if (!list.length) return;
-    const converted = await Promise.all(
-      list.map((file) => convertFileToWebpData(file, { idPrefix: "PRDIMG" })),
-    );
-    const nextImages = [...data.images, ...converted.filter(Boolean)];
-    onChange?.({
-      images: nextImages,
-      activeImageIndex: Math.min(data.activeImageIndex, Math.max(0, nextImages.length - 1)),
-    });
+    try {
+      const converted = await Promise.all(
+        list.map((file) =>
+          convertAndUploadDocImage(file, {
+            idPrefix: "PRDIMG",
+            scopeId: block?.id,
+          }),
+        ),
+      );
+      const nextImages = [...data.images, ...converted.filter(Boolean)];
+      onChange?.({
+        images: nextImages,
+        activeImageIndex: Math.min(data.activeImageIndex, Math.max(0, nextImages.length - 1)),
+      });
+    } catch (err) {
+      console.error("[ProductCard] image upload failed:", err?.message || err);
+    }
   };
 
   const handleExportSpecs = () => {

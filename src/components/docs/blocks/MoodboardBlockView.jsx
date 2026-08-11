@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
+import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import {
   IMAGE_SPLIT_BODY_MAX_LINES,
   MOODBOARD_BOARD_LAYOUTS,
@@ -853,8 +853,9 @@ export function MoodboardBlockView({
     setActiveCol(colIndex);
 
     try {
-      const converted = await convertFileToWebpData(file, {
+      const converted = await convertAndUploadDocImage(file, {
         idPrefix: `MB${colIndex}${imageIndex}`,
+        scopeId: block?.id,
       });
       if (!converted) {
         setError(t("doc.imageBlock.convertFailed"));
@@ -884,8 +885,8 @@ export function MoodboardBlockView({
           ...columnTextPatch(col),
         });
       });
-    } catch {
-      setError(t("doc.imageBlock.convertFailed"));
+    } catch (err) {
+      setError(err?.message || t("doc.imageBlock.convertFailed"));
     } finally {
       setUploadingKey(null);
       if (fileInputRef.current) fileInputRef.current.value = "";

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { convertFileToWebpData } from "../../../lib/convertImageToWebp.js";
+import { convertAndUploadDocImage } from "../../../lib/docImageStorage.js";
 import { useI18n } from "../../../i18n/useI18n.js";
 
 export function ImageBlockView({ block, onChange, onDelete }) {
@@ -32,7 +32,10 @@ export function ImageBlockView({ block, onChange, onDelete }) {
     setError(null);
 
     try {
-      const converted = await convertFileToWebpData(file, { idPrefix: "DOCIMG" });
+      const converted = await convertAndUploadDocImage(file, {
+        idPrefix: "DOCIMG",
+        scopeId: block?.id,
+      });
       if (!converted) {
         setError(t("doc.imageBlock.convertFailed"));
         return;
@@ -47,8 +50,8 @@ export function ImageBlockView({ block, onChange, onDelete }) {
         imageSaved: true,
         openFilePicker: false,
       });
-    } catch {
-      setError(t("doc.imageBlock.convertFailed"));
+    } catch (err) {
+      setError(err?.message || t("doc.imageBlock.convertFailed"));
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
