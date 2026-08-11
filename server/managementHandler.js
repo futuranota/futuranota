@@ -1718,14 +1718,22 @@ export async function processManagementQuotasRequest(reqLike) {
       return { status: 400, body: { error: "anchorAt must be YYYY-MM-DD" } };
     }
 
+    const unit = typeof body.unit === "string" && body.unit.trim()
+      ? body.unit.trim()
+      : "";
+    if (!unit) {
+      return { status: 400, body: { error: "unit (Meter) required" } };
+    }
+    const meterKind = body.meterKind === "tokens" || body.meterKind === "calls"
+      ? body.meterKind
+      : (/token/i.test(unit) ? "tokens" : "calls");
+
     const row = {
       product_name: productName,
       provider,
-      meter_kind: body.meterKind === "tokens" ? "tokens" : "calls",
+      meter_kind: meterKind,
       included,
-      unit: typeof body.unit === "string" && body.unit.trim()
-        ? body.unit.trim()
-        : (body.meterKind === "tokens" ? "tokens" : "calls"),
+      unit,
       type: body.type === "welcome" || body.type === "paid" ? body.type : "free",
       resets,
       every_n: resets ? everyN : null,
@@ -1769,7 +1777,15 @@ export async function processManagementQuotasRequest(reqLike) {
     if (typeof body.productName === "string" && body.productName.trim()) {
       patch.product_name = body.productName.trim();
     }
-    if (body.meterKind === "tokens" || body.meterKind === "calls") patch.meter_kind = body.meterKind;
+    if (typeof body.unit === "string" && body.unit.trim()) {
+      patch.unit = body.unit.trim();
+      if (body.meterKind !== "tokens" && body.meterKind !== "calls") {
+        patch.meter_kind = /token/i.test(patch.unit) ? "tokens" : "calls";
+      }
+    }
+    if (body.meterKind === "tokens" || body.meterKind === "calls") {
+      patch.meter_kind = body.meterKind;
+    }
     if (body.included != null) {
       const included = Number(body.included);
       if (!Number.isFinite(included) || included < 0) {
@@ -1777,7 +1793,6 @@ export async function processManagementQuotasRequest(reqLike) {
       }
       patch.included = included;
     }
-    if (typeof body.unit === "string" && body.unit.trim()) patch.unit = body.unit.trim();
     if (body.type === "free" || body.type === "welcome" || body.type === "paid") {
       patch.type = body.type;
     }

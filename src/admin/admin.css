@@ -765,6 +765,46 @@
   font-variant-numeric: tabular-nums;
 }
 
+.mgmt-money-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #151515;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 10px;
+  min-height: 34px;
+}
+
+.mgmt-money-input__prefix {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.mgmt-money-input input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 6px 0;
+  outline: none;
+}
+
+.mgmt-money-input input::-webkit-outer-spin-button,
+.mgmt-money-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.mgmt-money-input input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
 .mgmt-row--editing td {
   background: rgba(126, 200, 255, 0.06);
 }
@@ -997,6 +1037,18 @@
   font-size: 12px;
   min-width: 140px;
   color-scheme: dark;
+}
+
+.mgmt-gastos-form .mgmt-money-input {
+  min-width: 140px;
+}
+
+.mgmt-gastos-form .mgmt-money-input input[type="number"] {
+  border: none;
+  background: transparent;
+  padding: 6px 0;
+  min-width: 0;
+  border-radius: 0;
 }
 
 .mgmt-gastos-form__actions {

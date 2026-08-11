@@ -653,7 +653,6 @@ function formatTimeLeftDays(q) {
 
 const EMPTY_QUOTA_FORM = {
   provider: "",
-  meterKind: "calls",
   included: "1000",
   unit: "calls",
   type: "free",
@@ -662,8 +661,12 @@ const EMPTY_QUOTA_FORM = {
   everyUnit: "day",
   overageUsd: "",
   anchorAt: "",
-  notes: "",
 };
+
+/** Derive internal meter_kind from free-text Meter (unit). */
+function deriveMeterKindFromUnit(unit) {
+  return /token/i.test(String(unit || "")) ? "tokens" : "calls";
+}
 
 /**
  * Cupos — oferta / demanda / extra (sin repetir Users / Recent Calls $).
@@ -687,7 +690,6 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
     setEditId(row.id);
     setEditForm({
       provider: row.provider || "",
-      meterKind: row.meterKind === "tokens" ? "tokens" : "calls",
       included: String(row.included ?? ""),
       unit: row.unit || "calls",
       type: row.type || "free",
@@ -696,7 +698,6 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
       everyUnit: row.everyUnit === "month" ? "month" : "day",
       overageUsd: row.overageUsd != null ? String(row.overageUsd) : "",
       anchorAt: row.anchorAt || "",
-      notes: row.notes || "",
     });
   }
 
@@ -728,22 +729,28 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
       }
     }
 
+    const unit = activeForm.unit.trim();
+    if (!unit) {
+      onError("Meter is required.");
+      return;
+    }
+    const meterKind = deriveMeterKindFromUnit(unit);
+
     const payload = {
       provider: activeForm.provider,
       productName: activeForm.provider,
-      meterKind: activeForm.meterKind,
+      meterKind,
       included,
-      unit: activeForm.unit.trim() || (activeForm.meterKind === "tokens" ? "tokens" : "calls"),
+      unit,
       type: activeForm.type,
       resets: Boolean(activeForm.resets),
       everyN: activeForm.resets ? Number(activeForm.everyN) : null,
       everyUnit: activeForm.resets ? activeForm.everyUnit : null,
       overageUsd: activeForm.overageUsd.trim() === "" ? null : Number(activeForm.overageUsd),
       anchorAt: activeForm.anchorAt.trim() || null,
-      notes: activeForm.notes,
     };
     if (payload.overageUsd != null && !Number.isFinite(payload.overageUsd)) {
-      onError("$ / u overdue must be a number.");
+      onError("Cost Overdue must be a number.");
       return;
     }
 
@@ -808,19 +815,13 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
           <thead>
             <tr>
               <th>Provider</th>
-              <th colSpan={3}>Oferta</th>
-              <th>Demanda</th>
-              <th colSpan={3}>Extra</th>
-              <th />
-            </tr>
-            <tr>
-              <th />
               <th>Included</th>
+              <th>Meter</th>
               <th>Reset?</th>
               <th title="Days until reset (UTC)">Time left</th>
               <th title="Used / included in current window">Used</th>
               <th>Over</th>
-              <th>$ / u</th>
+              <th>Cost Overdue</th>
               <th>Pay</th>
               <th />
             </tr>
@@ -828,7 +829,7 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={9} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
+                <td colSpan={10} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
               </tr>
             ) : (
               items.map((q) => (
@@ -838,15 +839,15 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
                     q.exhausted ? "mgmt-row--quota-over" : "",
                     editId === q.id ? "mgmt-row--editing" : "",
                   ].filter(Boolean).join(" ") || undefined}
-                  title={q.notes || q.periodLabel || ""}
+                  title={q.periodLabel || ""}
                 >
                   <td>
                     <code className="mgmt-code">{q.provider || "—"}</code>
-                    <div className="muted" style={{ fontSize: 10 }}>{q.unit || q.meterKind}</div>
                   </td>
                   <td>
                     <strong>{formatQuotaNumber(q.included, q.unit)}</strong>
                   </td>
+                  <td className="muted">{q.unit || "—"}</td>
                   <td>{q.resets ? "yes" : "no"}</td>
                   <td>{formatTimeLeftDays(q)}</td>
                   <td>
@@ -937,7 +938,7 @@ function QuotaMeterFields({ form, setForm, providers }) {
   return (
     <>
       <label className="mgmt-filter-field">
-        <span className="muted">Provider (Recent Calls)</span>
+        <span className="muted">Provider</span>
         <select
           required
           value={form.provider}
@@ -946,24 +947,20 @@ function QuotaMeterFields({ form, setForm, providers }) {
           <option value="">Select…</option>
           {(providers || []).map((p) => (
             <option key={p.provider} value={p.provider}>
-              {p.provider} · {Number(p.callsAll || 0).toLocaleString()} calls
+              {p.provider}
             </option>
           ))}
         </select>
       </label>
       <label className="mgmt-filter-field">
         <span className="muted">Meter</span>
-        <select
-          value={form.meterKind}
-          onChange={(e) => setForm((f) => ({
-            ...f,
-            meterKind: e.target.value,
-            unit: e.target.value === "tokens" ? "tokens" : "calls",
-          }))}
-        >
-          <option value="calls">calls</option>
-          <option value="tokens">tokens</option>
-        </select>
+        <input
+          type="text"
+          required
+          placeholder="calls"
+          value={form.unit}
+          onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
+        />
       </label>
       <label className="mgmt-filter-field">
         <span className="muted">Included (free)</span>
@@ -1022,15 +1019,18 @@ function QuotaMeterFields({ form, setForm, providers }) {
         </>
       ) : null}
       <label className="mgmt-filter-field">
-        <span className="muted">$ / u overdue</span>
-        <input
-          type="number"
-          min="0"
-          step="any"
-          placeholder="0.23"
-          value={form.overageUsd}
-          onChange={(e) => setForm((f) => ({ ...f, overageUsd: e.target.value }))}
-        />
+        <span className="muted">Cost Overdue</span>
+        <div className="mgmt-money-input">
+          <span className="mgmt-money-input__prefix" aria-hidden>$</span>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            placeholder="0.23"
+            value={form.overageUsd}
+            onChange={(e) => setForm((f) => ({ ...f, overageUsd: e.target.value }))}
+          />
+        </div>
       </label>
       <label className="mgmt-filter-field">
         <span className="muted">Anchor (YYYY-MM-DD)</span>
@@ -1038,14 +1038,6 @@ function QuotaMeterFields({ form, setForm, providers }) {
           type="date"
           value={form.anchorAt}
           onChange={(e) => setForm((f) => ({ ...f, anchorAt: e.target.value }))}
-        />
-      </label>
-      <label className="mgmt-filter-field" style={{ gridColumn: "1 / -1" }}>
-        <span className="muted">Notes</span>
-        <input
-          type="text"
-          value={form.notes}
-          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
         />
       </label>
     </>
