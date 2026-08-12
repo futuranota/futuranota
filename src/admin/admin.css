@@ -1233,6 +1233,15 @@
   font-size: 13px;
 }
 
+.mgmt-storage-spend {
+  margin-bottom: 8px;
+}
+
+.mgmt-storage-spend + .mgmt-quota-toolbar {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
 .mgmt-row--quota-over td {
   background: rgba(255, 158, 181, 0.06);
 }

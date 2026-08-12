@@ -536,6 +536,53 @@ export function DocExpandedView({
     setIsDraftReady(true);
   }, [docId]);
 
+  // Migrate legacy data-URL block images + folder icon to Storage.
+  useEffect(() => {
+    if (!docId || !isDraftReady) return undefined;
+    let cancelled = false;
+    (async () => {
+      const {
+        docBlocksHaveImageDataUrls,
+        isDocImageDataUrl,
+        migrateAndPersistDocImages,
+      } = await import("../../lib/migrateDocImageDataUrls.js");
+      if (cancelled) return;
+      const iconNeeds = isDocImageDataUrl(draftIcon);
+      const blocksNeed = docBlocksHaveImageDataUrls(draftBlocksRef.current);
+      if (!iconNeeds && !blocksNeed) return;
+      console.log("[doc-images] open-doc backfill", { docId, iconNeeds, blocksNeed });
+      const result = await migrateAndPersistDocImages(docId);
+      if (cancelled || !result?.changed) return;
+      if (result.blocks?.length) {
+        setDraftBlocks(result.blocks);
+        setInitialSnapshot((prev) => {
+          if (!prev) return prev;
+          const next = {
+            ...prev,
+            blocks: result.blocks,
+            ...(result.icon ? { icon: result.icon } : {}),
+          };
+          docSnapshotRef.current = JSON.stringify(next);
+          return next;
+        });
+      }
+      if (result.icon && result.icon !== draftIcon) {
+        setDraftIcon(result.icon);
+        setInitialSnapshot((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev, icon: result.icon };
+          docSnapshotRef.current = JSON.stringify(next);
+          return next;
+        });
+      }
+    })().catch((err) => {
+      console.warn("[doc-images] open-doc backfill failed:", err?.message || err);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [docId, isDraftReady, draftIcon]);
+
   /**
    * When Create a new Document syncs into docsStore while this folder is open,
    * pull only *new* linked titles into the draft — never remarge removals.

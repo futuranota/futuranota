@@ -1,18 +1,21 @@
 import { useRef, useState } from "react";
-import { convertFileToWebpData } from "../../lib/convertImageToWebp.js";
+import { convertAndUploadDocImage } from "../../lib/docImageStorage.js";
 
 export const FOLDER_ICON_EMPTY_SRC = "/uploads/Tag.svg";
 
 /**
  * Circular folder icon upload for content-mode document banners.
- * Empty state shows Tag.svg; custom icon is a WebP data URL (or any string src).
+ * Empty state shows Tag.svg; custom icon is a Storage public URL (legacy data-URLs still render).
  */
 export function FolderIconPicker({
   icon = "",
   onIconChange,
+  /** Doc / folder id — Storage path `{user}/{scopeId}/{FICON-…}.webp` */
+  scopeId = "folder-icon",
 }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
   const customSrc = typeof icon === "string" ? icon.trim() : "";
   const hasCustom = Boolean(customSrc);
   const displaySrc = hasCustom ? customSrc : FOLDER_ICON_EMPTY_SRC;
@@ -24,9 +27,11 @@ export function FolderIconPicker({
     if (!file.type.startsWith("image/")) return;
 
     setUploading(true);
+    setError("");
     try {
-      const converted = await convertFileToWebpData(file, {
+      const converted = await convertAndUploadDocImage(file, {
         idPrefix: "FICON",
+        scopeId,
         maxWidth: 128,
         maxHeight: 128,
         quality: 0.88,
@@ -34,6 +39,9 @@ export function FolderIconPicker({
       if (converted?.src) {
         onIconChange(converted.src);
       }
+    } catch (err) {
+      setError(err?.message || "Upload failed");
+      console.warn("[folder-icon] upload failed:", err?.message || err);
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -44,6 +52,7 @@ export function FolderIconPicker({
     e.preventDefault();
     e.stopPropagation();
     if (!canEdit || !hasCustom) return;
+    setError("");
     onIconChange("");
   };
 
@@ -62,7 +71,10 @@ export function FolderIconPicker({
         onContextMenu={handleClear}
         disabled={!canEdit || uploading}
         aria-label={hasCustom ? "Change folder icon" : "Add folder icon"}
-        title={hasCustom ? "Click to replace · right-click to clear" : "Upload folder icon"}
+        title={
+          error
+            || (hasCustom ? "Click to replace · right-click to clear" : "Upload folder icon")
+        }
       >
         <img
           className={

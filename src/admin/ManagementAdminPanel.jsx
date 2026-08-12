@@ -23,6 +23,7 @@ import {
   patchManagementUserQuotaActive,
 } from "../lib/managementApi.js";
 import { GINA_DEPT_RAIL_COLORS } from "../lib/gina/ginaDepartmentColors.js";
+import { formatStorageBytes } from "../lib/planConfig.js";
 import { MANAGEMENT_SECTIONS } from "./AdminSidebarNav.jsx";
 
 const PIE_COLORS = GINA_DEPT_RAIL_COLORS.length
@@ -670,10 +671,94 @@ function deriveMeterKindFromUnit(unit) {
   return /token/i.test(String(unit || "")) ? "tokens" : "calls";
 }
 
+function shortAccountId(id) {
+  const s = String(id || "");
+  if (s.length <= 12) return s || "—";
+  return `${s.slice(0, 8)}…`;
+}
+
+/**
+ * Per-account Postgres + Bucket used. Plan Used = sum vs 5 GB / 5 MB.
+ * 8 GB / 100 GB are project ceilings — not shown as denominators.
+ */
+function AccountStorageSpendTable({ storageSpend }) {
+  const rows = storageSpend?.rows || [];
+  const totals = storageSpend?.totals || {};
+  return (
+    <div className="mgmt-storage-spend">
+      <h3 className="mgmt-section-title" style={{ marginBottom: 8 }}>
+        Storage by account
+      </h3>
+      <p className="muted" style={{ margin: "0 0 12px", fontSize: 12 }}>
+        Postgres = DB rows. Bucket = <code>doc-images</code>. Used = both, against the user plan cap.
+      </p>
+      {storageSpend?.warning ? (
+        <div className="mgmt-setup-banner mgmt-setup-banner--warn" style={{ marginBottom: 12 }}>
+          <p style={{ margin: 0 }}>{String(storageSpend.warning)}</p>
+        </div>
+      ) : null}
+      <div className="mgmt-table-wrap">
+        <table className="mgmt-table">
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Email</th>
+              <th title="Workspace rows in Postgres">Postgres</th>
+              <th title="Files in Storage bucket doc-images">Bucket</th>
+              <th title="Postgres + Bucket vs plan cap">Used</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="muted">No accounts yet.</td>
+              </tr>
+            ) : (
+              rows.map((row) => {
+                const over = row.capBytes > 0 && row.usedBytes > row.capBytes;
+                return (
+                  <tr
+                    key={row.userId}
+                    className={over ? "mgmt-row--quota-over" : undefined}
+                  >
+                    <td>
+                      <code className="mgmt-code" title={row.userId}>
+                        {shortAccountId(row.userId)}
+                      </code>
+                    </td>
+                    <td>{row.email || "—"}</td>
+                    <td>{formatStorageBytes(row.postgresBytes)}</td>
+                    <td>{formatStorageBytes(row.bucketBytes)}</td>
+                    <td>
+                      <strong>{formatStorageBytes(row.usedBytes)}</strong>
+                      <span className="muted"> / {row.capLabel || "—"}</span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="mgmt-quota-footer">
+        <span className="muted">Total Postgres:</span>
+        {" "}
+        <strong>{formatStorageBytes(totals.postgresBytes)}</strong>
+        <span className="muted" style={{ marginLeft: 16 }}>Total Bucket:</span>
+        {" "}
+        <strong>{formatStorageBytes(totals.bucketBytes)}</strong>
+        <span className="muted" style={{ marginLeft: 16 }}>Total used:</span>
+        {" "}
+        <strong>{formatStorageBytes(totals.usedBytes)}</strong>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Cupos — oferta / demanda / extra (sin repetir Users / Recent Calls $).
  */
-function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }) {
+function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, storageSpend }) {
   const items = quotas?.items || [];
   const providers = quotas?.availableProviders || [];
   const totalCost = Number(quotas?.totalCostToPay) || 0;
@@ -790,7 +875,9 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError }
 
   return (
     <div className="mgmt-quotas">
-      <div className="mgmt-quota-toolbar">
+      <AccountStorageSpendTable storageSpend={storageSpend} />
+
+      <div className="mgmt-quota-toolbar" style={{ marginTop: 20 }}>
         <label className="mgmt-filter-field">
           <span className="muted">Date picked (UTC)</span>
           <input
@@ -1919,6 +2006,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
           <section className="admin-card">
             <StorageQuotasSection
               quotas={quotas}
+              storageSpend={data?.storageSpend}
               asOf={asOfYmd}
               onAsOfChange={setAsOfYmd}
               onChanged={load}

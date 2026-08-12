@@ -10,6 +10,7 @@ import {
   getCalendarSearchesUsed,
   getCreditsCap,
   getCreditsUsed,
+  formatStorageBytes,
   getPlanLimits,
   getTokensCap,
   getWeatherActionCap,
@@ -391,6 +392,167 @@ async function loadActiveStorageAllotment(service) {
     bytes += Number(getPlanLimits(plan).storageBytes) || 0;
   }
   return { bytes, activeUsers };
+}
+
+function storageUserKey(id) {
+  return String(id || "").trim().toLowerCase();
+}
+
+/**
+ * @param {unknown} rows
+ * @returns {Map<string, number>}
+ */
+function mapBytesByUserId(rows) {
+  /** @type {Map<string, number>} */
+  const map = new Map();
+  for (const row of rows || []) {
+    const key = storageUserKey(row?.user_id);
+    if (!key) continue;
+    const bytes = Math.max(0, Number(row.bytes) || 0);
+    map.set(key, (map.get(key) || 0) + bytes);
+  }
+  return map;
+}
+
+/**
+ * Fallback: read storage.objects via PostgREST if RPC is missing.
+ * @param {import('@supabase/supabase-js').SupabaseClient} service
+ */
+async function loadDocImageBytesFromObjectsTable(service) {
+  /** @type {Map<string, number>} */
+  const map = new Map();
+  const { data, error } = await service
+    .schema("storage")
+    .from("objects")
+    .select("name, metadata")
+    .eq("bucket_id", "doc-images");
+  if (error) throw error;
+  for (const row of data || []) {
+    const name = String(row?.name || "");
+    const folder = name.split("/").filter(Boolean)[0] || "";
+    const key = storageUserKey(folder);
+    if (!key) continue;
+    const size = Number(row?.metadata?.size);
+    if (!Number.isFinite(size) || size < 0) continue;
+    map.set(key, (map.get(key) || 0) + size);
+  }
+  return map;
+}
+
+/**
+ * Real Postgres + doc-images bytes per account.
+ * @param {import('@supabase/supabase-js').SupabaseClient|null} service
+ * @returns {Promise<{
+ *   dbByUser: Map<string, number>,
+ *   bucketByUser: Map<string, number>,
+ *   warning: string|null,
+ * }>}
+ */
+async function loadStorageBytesMaps(service) {
+  /** @type {Map<string, number>} */
+  const empty = new Map();
+  if (!service) {
+    return { dbByUser: empty, bucketByUser: empty, warning: "Service role required for storage bytes." };
+  }
+
+  /** @type {string[]} */
+  const warnings = [];
+  /** @type {Map<string, number>} */
+  let dbByUser = empty;
+  /** @type {Map<string, number>} */
+  let bucketByUser = empty;
+
+  try {
+    const { data, error } = await service.rpc("get_workspace_db_bytes_by_user");
+    if (error) throw error;
+    dbByUser = mapBytesByUserId(data);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    warnings.push("Run supabase_management_storage_bytes.sql for Postgres bytes.");
+    console.warn("[management] get_workspace_db_bytes_by_user:", msg);
+  }
+
+  try {
+    const { data, error } = await service.rpc("get_doc_images_bytes_by_user");
+    if (error) throw error;
+    bucketByUser = mapBytesByUserId(data);
+  } catch (err) {
+    try {
+      bucketByUser = await loadDocImageBytesFromObjectsTable(service);
+    } catch (fallbackErr) {
+      const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+      warnings.push("Could not read doc-images sizes (RPC or storage.objects).");
+      console.warn("[management] doc-images bytes:", err instanceof Error ? err.message : err, msg);
+    }
+  }
+
+  return {
+    dbByUser,
+    bucketByUser,
+    warning: warnings.length ? warnings.join(" ") : null,
+  };
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} users
+ * @param {{ dbByUser: Map<string, number>, bucketByUser: Map<string, number>, warning: string|null }} maps
+ */
+function applyStorageSpendToUsers(users, maps) {
+  const dbByUser = maps.dbByUser || new Map();
+  const bucketByUser = maps.bucketByUser || new Map();
+  let postgresTotal = 0;
+  let bucketTotal = 0;
+  let usedTotal = 0;
+
+  const nextUsers = (users || []).map((u) => {
+    const key = storageUserKey(u.userId);
+    const postgresBytes = dbByUser.get(key) || 0;
+    const bucketBytes = bucketByUser.get(key) || 0;
+    const usedBytes = postgresBytes + bucketBytes;
+    const limits = getPlanLimits(u.plan === "pro" ? "pro" : "free");
+    const capBytes = Number(limits.storageBytes) || 0;
+    postgresTotal += postgresBytes;
+    bucketTotal += bucketBytes;
+    usedTotal += usedBytes;
+    return {
+      ...u,
+      postgresBytes,
+      bucketBytes,
+      storageUsedBytes: usedBytes,
+      storageCapBytes: capBytes,
+      features: {
+        ...(u.features || {}),
+        storage: `${formatStorageBytes(usedBytes)} / ${limits.storageLabel}`,
+      },
+    };
+  });
+
+  const rows = nextUsers
+    .map((u) => ({
+      userId: u.userId,
+      email: u.email,
+      plan: u.plan,
+      quotaActive: u.quotaActive !== false,
+      postgresBytes: u.postgresBytes || 0,
+      bucketBytes: u.bucketBytes || 0,
+      usedBytes: u.storageUsedBytes || 0,
+      capBytes: u.storageCapBytes || 0,
+      capLabel: getPlanLimits(u.plan === "pro" ? "pro" : "free").storageLabel,
+    }))
+    .sort((a, b) => (b.usedBytes - a.usedBytes) || String(a.email || "").localeCompare(String(b.email || "")));
+
+  return {
+    users: nextUsers,
+    storageSpend: {
+      warning: maps.warning || null,
+      rows,
+      totals: {
+        postgresBytes: postgresTotal,
+        bucketBytes: bucketTotal,
+        usedBytes: usedTotal,
+      },
+    },
+  };
 }
 
 /**
@@ -861,7 +1023,7 @@ function buildFeatureUsage(row, usage = {}) {
     launchRadar: plan === "pro" ? `${launchRadarRuns} scans` : (launchRadarRuns ? `${launchRadarRuns} (demo)` : "Demo"),
     marketHype: plan === "pro" ? `${marketHypeRuns} runs` : "Pro only",
     campaignLive,
-    storage: `0 / ${limits.storageLabel}`,
+    storage: `0 / ${limits.storageLabel}`, // patched with real db+bucket in applyStorageSpendToUsers
     stepsLibrary: limits.stepsLibraryCrossObject ? "Yes" : "No",
   };
 }
@@ -1387,6 +1549,24 @@ export async function processManagementOverviewRequest(reqLike) {
   const budgetInfo = buildManagementAlerts(margin, stats.totals || {});
   const quotas = await loadQuotasDashboard(service, { includeSeed, asOfYmd });
 
+  let storageSpend = {
+    warning: null,
+    rows: [],
+    totals: { postgresBytes: 0, bucketBytes: 0, usedBytes: 0 },
+  };
+  try {
+    const maps = await loadStorageBytesMaps(service);
+    const applied = applyStorageSpendToUsers(users, maps);
+    users = applied.users;
+    storageSpend = applied.storageSpend;
+  } catch (storageErr) {
+    storageSpend = {
+      warning: storageErr instanceof Error ? storageErr.message : "Failed to load storage bytes",
+      rows: [],
+      totals: { postgresBytes: 0, bucketBytes: 0, usedBytes: 0 },
+    };
+  }
+
   return {
     status: 200,
     body: {
@@ -1400,6 +1580,7 @@ export async function processManagementOverviewRequest(reqLike) {
       budgetUsd: budgetInfo.budgetUsd,
       gastos,
       quotas,
+      storageSpend,
       integrations: integrationCards,
       users,
       recentEvents,

@@ -116,6 +116,21 @@ export function getPlanLimits(plan) {
   return plan === 'pro' ? PLAN_LIMITS.pro : PLAN_LIMITS.free;
 }
 
+/** Admin / feature-usage: human bytes (B / KB / MB / GB). */
+export function formatStorageBytes(bytes) {
+  const n = Math.max(0, Number(bytes) || 0);
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) {
+    const kb = n / 1024;
+    return `${kb >= 10 ? Math.round(kb) : Number(kb.toFixed(1))} KB`;
+  }
+  if (n < 1024 * 1024 * 1024) {
+    const mb = n / (1024 * 1024);
+    return `${mb >= 10 ? Number(mb.toFixed(1)) : Number(mb.toFixed(2))} MB`;
+  }
+  return `${Number((n / (1024 * 1024 * 1024)).toFixed(2))} GB`;
+}
+
 /** @param {PlanId|string} plan */
 export function getTokensCap(plan) {
   return getPlanLimits(plan).tokensCap;

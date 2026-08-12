@@ -768,6 +768,7 @@ export function DocDocumentBox({
               <FolderIconPicker
                 icon={icon}
                 onIconChange={onIconChange}
+                scopeId={docId || "folder-icon"}
               />
               <DocDepartmentHeadPicker
                 departmentId={departmentId}

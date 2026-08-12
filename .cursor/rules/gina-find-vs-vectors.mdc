@@ -1,0 +1,22 @@
+---
+description: Gina Find capa A (live) vs Vectors (después). Day sheet ≠ Find.
+alwaysApply: true
+---
+
+# Gina Find vs Vectors
+
+## Qué está live (capa A)
+
+[`src/lib/gina/ginaFindDocument.js`](src/lib/gina/ginaFindDocument.js): “buscame / encontrá / documento sobre…”. Scan local de **título + body**, typos, 0 / N / “¿te referís a…?”, abrir por id. **LIVE CORPUS ONLY** — no inventa.
+
+Pulido reciente del día (**horarios / queue / day sheet**) **no es Find**. No confundir.
+
+## Qué no es A
+
+Descripción semántica sin palabras en título/body (“poetas desnudos”, “Hz”, “mosquitos del polo norte” cuando el doc se llama otra cosa) → **capa B = embeddings + Storage Vectors**. El JSON del doc sigue en Postgres; Vectors solo guarda vectores + `docId`.
+
+## Orden
+
+1. Pulir A (confirm + abrir) cuando toque Find.
+2. Opcional: scan literal de body más agresivo (sin Vectors).
+3. Recién entonces Vectors. No activar B antes de que A se sienta bien.

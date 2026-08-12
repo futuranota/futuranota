@@ -30,7 +30,7 @@ No inventa corpus. No edita el **body** del documento.
 
 ## Orden de build (seguir este orden)
 
-1. **Find + confirm + abrir** — pulir “ayer / xyz / ¿te refieres a…?”
+1. **Find + confirm + abrir** — capa A **ya existe** (`ginaFindDocument.js`: título/body + confirm). Pulir wording. Semántica profunda = **Vectors después** (ver `gina-find-vs-vectors.mdc`). Day sheet / queue ≠ Find.
 2. **To Do del doc** — leer progreso + insertar por dictado (desglose)
 3. **“¿qué sigue?”** del día — To Do + docs (no solo sheet de horarios)
 4. **Borrar con confirm**

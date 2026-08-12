@@ -13,6 +13,7 @@ import {
   shouldSkipFullHydrate,
   writeLastSyncedAt,
 } from "../../lib/workspaceVersionGate.js";
+import { scheduleDocImageDataUrlBackfill } from "../../lib/migrateDocImageDataUrls.js";
 import { useScheduledTasksStore } from "../scheduledTasksStore.js";
 import { useUIStateStore } from "../uiStateStore.js";
 
@@ -1394,12 +1395,14 @@ export function initPersistenceMiddleware(stores) {
           "[futura-nota] Version gate: skipped full hydrate (local in sync).",
           { lastSyncedAt, remoteVersion },
         );
+        scheduleDocImageDataUrlBackfill();
         return;
       }
 
       if (versionFetchFailed && !hydrateOnVersionError) {
         isSyncedWithRemote = true;
         finishWorkspaceHydration();
+        scheduleDocImageDataUrlBackfill();
         return;
       }
 
@@ -1757,6 +1760,7 @@ export function initPersistenceMiddleware(stores) {
           console.warn("Failed to push preferred-local workspace to Supabase:", err);
         });
       }
+      scheduleDocImageDataUrlBackfill();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn("Supabase load failed — falling back to localStorage.", message);
