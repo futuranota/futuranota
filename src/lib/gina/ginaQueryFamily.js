@@ -39,6 +39,9 @@ import {
   expandCategoryNameTokens,
   matchLiveFolderInText,
   matchLiveFoldersByNeedle,
+  listFoldersForDepartmentCategory,
+  resolveEntitySearchScope,
+  filterDocsByTitleNeedle,
 } from "./ginaTools.js";
 import {
   clearPendingGinaOffer,
@@ -99,9 +102,13 @@ import {
 } from "./ginaSyntaxClock.js";
 import {
   parseLastTurnIntent,
+  extractLastTurnOpenTitle,
+  extractLastTurnCategoryHint,
+  matchLastTurnDocumentId,
 } from "./ginaSyntaxLastTurn.js";
 import {
   getGinaLastTurn,
+  resolveLastTurnAnchor,
 } from "./ginaLastTurn.js";
 import {
   activateOccupiedStrikethroughForToday,
@@ -1703,12 +1710,249 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Follow-ups that need the last shown result (“este”, modificar, ábrelo).
+  // Follow-ups that need the last shown result (“este”, filtrar, ábrelo).
   {
     const lastIntent = parseLastTurnIntent(text);
     if (lastIntent) {
-      const last = getGinaLastTurn() || ctx.lastTurn || null;
+      const needleForAnchor = lastIntent === "refine_filter_category"
+        ? extractLastTurnCategoryHint(text)
+        : null;
+      const { anchor: resolvedAnchor, reason: anchorReason } = resolveLastTurnAnchor(text, {
+        categoryNeedle: needleForAnchor,
+        ctx,
+      });
+      const last = resolvedAnchor || getGinaLastTurn() || ctx.lastTurn || null;
       const docs = Array.isArray(last?.documents) ? last.documents : [];
+
+      if (lastIntent === "refine_filter_category") {
+        if (!last) {
+          return {
+            family: "last_turn_missing",
+            toolsCalled,
+            toolContext: {
+              intent: lastIntent,
+              documents: [],
+              hint: "Category refine without listable history — ask for a department list first",
+            },
+            workspaceInventory: inventory,
+          };
+        }
+        const needle = extractLastTurnCategoryHint(text) || needleForAnchor || text;
+        const view = parseDocsListView(text);
+        const scope = resolveEntitySearchScope(ctx, needle, {
+          departmentHint: last.department || null,
+        });
+
+        if (scope.kind === "category") {
+          const deptName = last.department || scope.departmentName || null;
+          const folders = listFoldersForDepartmentCategory(inventory, deptName, scope.name);
+          const folderNames = folders.map((f) => f.name).filter(Boolean);
+          const refined = buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+            mode: deptName ? "list_by_department" : "list_all",
+            departmentName: deptName,
+            view: {
+              showSchedule: view.showSchedule,
+              showStatus: view.showStatus,
+              categories: [],
+              highlightCategories: [scope.name],
+              scheduleScope: view.scheduleScope || null,
+            },
+            text: "",
+          });
+          return {
+            ...refined,
+            toolContext: {
+              ...(refined.toolContext || {}),
+              fromLastTurnCategoryRefine: true,
+              matchKind: "category",
+              category: scope.name,
+              categoryFolders: folderNames,
+              folderCount: folders.length,
+              singleFolderName: folderNames.length === 1 ? folderNames[0] : null,
+              lastTurnFamily: last.family || null,
+              anchorReason,
+              hint: "Anchored category refine — strict doc.category metadata",
+            },
+          };
+        }
+
+        if (scope.kind === "department") {
+          const refined = buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+            mode: "list_by_department",
+            departmentName: scope.name,
+            view: {
+              showSchedule: view.showSchedule,
+              showStatus: view.showStatus,
+              categories: [],
+              highlightCategories: [],
+              scheduleScope: view.scheduleScope || null,
+            },
+            text: "",
+          });
+          return {
+            ...refined,
+            toolContext: {
+              ...(refined.toolContext || {}),
+              fromLastTurnCategoryRefine: true,
+              matchKind: "department",
+              lastTurnFamily: last.family || null,
+              anchorReason,
+              hint: "Anchored department refine from table history",
+            },
+          };
+        }
+
+        const titleHits = filterDocsByTitleNeedle(ctx, last, needle);
+        if (!titleHits.length) {
+          return {
+            family: "last_turn_empty",
+            toolsCalled,
+            toolContext: {
+              intent: lastIntent,
+              matchKind: "empty",
+              needle,
+              department: last.department || null,
+              lastTurnFamily: last.family || null,
+              anchorReason,
+              hint: "No title matches for keyword in anchored scope",
+            },
+            workspaceInventory: inventory,
+          };
+        }
+
+        const mapped = titleHits.map((d) => ({
+          id: d.id,
+          title: d.title || d.name || "—",
+          status: d.status || null,
+          departmentName: d.departmentName || null,
+          category: d.category || null,
+          folder: d.parentFolderName || null,
+          anchorAt: d.anchorAt || null,
+          anchorFinishAt: d.anchorFinishAt || null,
+        }));
+
+        return {
+          family: "count_documents",
+          toolsCalled,
+          toolContext: {
+            inventory,
+            corpusName: String(ctx.corpusName || ctx.objectName || ctx.companyName || "").trim() || null,
+            mode: last.department ? "list_by_department" : "list_all",
+            department: last.department || null,
+            category: null,
+            count: mapped.length,
+            documents: mapped,
+            filteredDocuments: [],
+            groups: groupDocsByDepartment(mapped),
+            view: {
+              showSchedule: view.showSchedule,
+              showStatus: view.showStatus,
+              categories: [],
+              highlightCategories: [],
+              scheduleScope: view.scheduleScope || null,
+            },
+            availableCategories: [],
+            departments: [],
+            categories: [],
+            empty: false,
+            listAll: true,
+            fromLastTurnCategoryRefine: true,
+            matchKind: "title",
+            needle,
+            lastTurnFamily: last.family || null,
+            anchorReason,
+            hint: "Title-only refine within anchored table scope",
+          },
+          workspaceInventory: inventory,
+          pendingGinaOffer: null,
+        };
+      }
+
+      if (lastIntent === "refine_exclude_flexible_today") {
+        if (!last) {
+          return {
+            family: "last_turn_missing",
+            toolsCalled,
+            toolContext: {
+              intent: lastIntent,
+              documents: [],
+              hint: "Refine without lastTurn — ask for department list first",
+            },
+            workspaceInventory: inventory,
+          };
+        }
+        const deptName = last.department || null;
+        const refined = buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+          mode: deptName ? "list_by_department" : "list_all",
+          departmentName: deptName,
+          view: {
+            showSchedule: true,
+            showStatus: false,
+            categories: [],
+            highlightCategories: [],
+            scheduleScope: "today",
+          },
+          text: "",
+        });
+        return {
+          ...refined,
+          toolContext: {
+            ...(refined.toolContext || {}),
+            fromLastTurnRefine: true,
+            lastTurnFamily: last.family || null,
+            anchorReason,
+            hint: "Anchored table refine — exclude flexible, today timed only",
+          },
+        };
+      }
+
+      if (lastIntent === "open_named") {
+        const titleNeedle = extractLastTurnOpenTitle(text);
+        let targetId = titleNeedle
+          ? matchLastTurnDocumentId(titleNeedle, docs)
+          : null;
+        if (!targetId && titleNeedle) {
+          const all = get_all_company_documents(ctx);
+          targetId = pickBestTitleMatch(
+            fold(titleNeedle),
+            all.map((d) => ({ id: d.id, name: d.title })),
+          );
+          if (!targetId) {
+            targetId = pickBestTitleMatch(
+              fold(text),
+              all.map((d) => ({ id: d.id, name: d.title })),
+            );
+          }
+        }
+        if (targetId) {
+          toolsCalled.push("resolve_focus_last_turn");
+          return {
+            family: "focus_open",
+            toolsCalled,
+            toolContext: {
+              openDocumentId: targetId,
+              fromLastTurn: true,
+              openNamed: true,
+              lastTurnFamily: last?.family || null,
+              hint: "Open named document — no save-reference pitch",
+            },
+            openDocumentId: targetId,
+            openFolderId: null,
+            workspaceInventory: inventory,
+          };
+        }
+        return {
+          family: "last_turn_missing",
+          toolsCalled,
+          toolContext: {
+            intent: lastIntent,
+            documents: docs,
+            titleNeedle: titleNeedle || null,
+            hint: "Named open — no matching document in lastTurn or corpus",
+          },
+          workspaceInventory: inventory,
+        };
+      }
 
       if (
         (lastIntent === "open_first" || lastIntent === "open_ref")
@@ -1738,7 +1982,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
           toolContext: {
             intent: lastIntent,
             documents: [],
-            hint: "Follow-up without lastTurn — ask for schedule first",
+            hint: "Follow-up without lastTurn — ask for list or schedule first",
           },
           workspaceInventory: inventory,
         };

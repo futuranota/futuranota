@@ -83,8 +83,10 @@ import { formatGinaWallClockMessage } from "../../lib/gina/ginaSyntaxClock.js";
 import {
   buildLastTurnModifyChips,
   buildLastTurnModifyMessage,
+  buildLastTurnRefineMessage,
+  buildLastTurnCategoryRefineMessage,
 } from "../../lib/gina/ginaSyntaxLastTurn.js";
-import { stampGinaLastTurnFromRouted } from "../../lib/gina/ginaLastTurn.js";
+import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization } from "../../lib/gina/ginaLastTurn.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -459,6 +461,18 @@ export function NodeQueryModal({
       };
     }
 
+    if (routed.family === "last_turn_empty") {
+      return {
+        message: buildLastTurnCategoryRefineMessage({
+          locale: localeKey,
+          matchKind: "empty",
+          needle: routed.toolContext?.needle || null,
+        }),
+        visualization: null,
+        chips: null,
+      };
+    }
+
     if (
       routed.family === "check_doc_free_hours"
       || routed.family === "activate_occupied_hours"
@@ -675,15 +689,33 @@ export function NodeQueryModal({
         now: ctx.now,
         userText: text,
       });
+      enrichGinaLastTurnFromVisualization(visualization);
       return {
-        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
-          || (localeKey === "en"
-            ? (routed.toolContext?.empty
-              ? "You have zero documents created."
-              : `We have ${routed.toolContext?.count ?? 0} documents.`)
-            : (routed.toolContext?.empty
-              ? "Tienes cero documentos creados."
-              : `Tenemos ${routed.toolContext?.count ?? 0} documentos.`)),
+        message: routed.toolContext?.fromLastTurnCategoryRefine
+          ? buildLastTurnCategoryRefineMessage({
+            locale: localeKey,
+            matchKind: routed.toolContext?.matchKind || "category",
+            department: routed.toolContext?.department || null,
+            category: routed.toolContext?.category || null,
+            needle: routed.toolContext?.needle || routed.toolContext?.category || null,
+            folderCount: routed.toolContext?.folderCount ?? 0,
+            singleFolderName: routed.toolContext?.singleFolderName || null,
+            count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
+          })
+          : routed.toolContext?.fromLastTurnRefine
+          ? buildLastTurnRefineMessage({
+            locale: localeKey,
+            department: routed.toolContext?.department || null,
+            count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
+          })
+          : (buildGinaFunnelHeadline(visualization, { locale: localeKey })
+            || (localeKey === "en"
+              ? (routed.toolContext?.empty
+                ? "You have zero documents created."
+                : `We have ${routed.toolContext?.count ?? 0} documents.`)
+              : (routed.toolContext?.empty
+                ? "Tienes cero documentos creados."
+                : `Tenemos ${routed.toolContext?.count ?? 0} documentos.`))),
         visualization,
         searchSequence: buildGinaSearchSequence(localeKey),
         chips: buildGinaReplyChips({

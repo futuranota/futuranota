@@ -1,12 +1,21 @@
 /**
- * Syntax bank: follow-ups that need lastTurn (“este”, modificar, ábrelo).
- * No schedule mutation — open / clarify only.
+ * Syntax bank: follow-ups that need lastTurn
+ * (“este”, modificar, ábrelo, filtrar flexibles+hoy, filtrar categoría, abrir {título}).
+ * No schedule mutation — open / clarify / re-list only.
  */
 
 import { foldGinaText } from "./ginaTimeScope.js";
+import { formatCategoryPhrase, formatNeedlePhrase } from "./ginaCategoryGrammar.js";
 
 /**
- * @typedef {"modify_ref" | "open_ref" | "open_first"} GinaLastTurnIntent
+ * @typedef {
+ *   | "modify_ref"
+ *   | "open_ref"
+ *   | "open_first"
+ *   | "open_named"
+ *   | "refine_exclude_flexible_today"
+ *   | "refine_filter_category"
+ * } GinaLastTurnIntent
  */
 
 /** Modify / change stems incl. conjugations + typos (modifiques / modiques). */
@@ -14,6 +23,132 @@ const MODIFY_ES = /\b(modif\w*|modiqu\w*|cambia\w*|mover|muev\w*|edit\w*|ajust\w
 const MODIFY_EN = /\b(modify|modifying|change|changing|edit|editing|move|moving|adjust|adjusting)\b/;
 const THIS_ES = /\b(este|esto|esta|ese|esa|calendario|horario|sheet|agenda|documento)\b/;
 const THIS_EN = /\b(this|that|schedule|calendar|sheet|document)\b/;
+
+/** Open verbs incl. subjunctive abras / abres (used in open_first / title extract). */
+const OPEN_FIRST = /\b(abra[s]?|abre[s]?|abrir|open)\s+(el\s+)?primero\b/;
+
+/**
+ * Exclude flexibles + keep only timed-for-today (on anchored table).
+ * @param {string} q folded
+ */
+function isRefineExcludeFlexibleToday(q) {
+  if (!q) return false;
+  // Classic global sheet ask — not a table refine
+  if (
+    /\bmuestra(?:me)?\s+los\s+horarios\s+de\s+hoy\b/.test(q)
+    || /\bshow\s+me\s+today'?s\s+schedule\b/.test(q)
+  ) {
+    return false;
+  }
+
+  const mentionsFlexible = /\bflexibl\w*\b/.test(q) || /\bflexibles?\b/.test(q);
+  const excludeCue = /\b(excluir|excluya[s]?|excluye|quitar|quita|sin|omitir|omite|sacar|saca)\b/.test(q);
+  const todayCue = /\b(para\s+hoy|de\s+hoy|hoy)\b/.test(q) || /\b(for\s+)?today\b/.test(q);
+  const scheduleCue = /\b(horario\w*|agenda|schedule\w*|timed)\b/.test(q)
+    || /\btienen\s+horarios?\b/.test(q)
+    || /\bwith\s+(a\s+)?(time|schedule)\b/.test(q);
+
+  // "excluir flexibles … solo … hoy"
+  if (mentionsFlexible && excludeCue && (todayCue || scheduleCue)) return true;
+  // "solo los que tienen horarios para hoy" + flexible mention
+  if (mentionsFlexible && todayCue && scheduleCue) return true;
+  // "deja solamente los de hoy" + exclude flexible
+  if (mentionsFlexible && excludeCue && todayCue) return true;
+
+  return false;
+}
+
+/** Filter anchored table by category / keyword. */
+function isRefineFilterCategory(q) {
+  if (!q) return false;
+  const filterCue = /\b(filtr\w*|filtra|filter)\b/.test(q);
+  const tableCue = /\b(de\s+la\s+tabla\s+anterior|tabla\s+anterior|lista\s+anterior|previous\s+table|last\s+table|previous\s+list)\b/.test(q);
+  const porCue = /\bpor\s+(todos\s+los|todas\s+las|la\s+categor[ií]a|los|las)\b/.test(q);
+  if (filterCue && (tableCue || porCue)) return true;
+  if (/\bfiltr\w*\s+(la\s+)?(tabla|lista)\s+anterior\b/.test(q)) return true;
+  return false;
+}
+
+/**
+ * Extract category / keyword needle from a table-refine utterance.
+ * @param {string} text
+ * @returns {string}
+ */
+export function extractLastTurnCategoryHint(text) {
+  const raw = String(text || "").trim();
+  const q = foldGinaText(raw);
+  if (!q) return "";
+
+  const stripNoise = (s) => String(s || "")
+    .replace(/\b(por\s+favor|please|gina|tabla\s+anterior|lista\s+anterior|de\s+la\s+tabla\s+anterior)\b/gi, " ")
+    .replace(/\b(todos|todas)\s+(los|las)\s+/gi, " ")
+    .replace(/\b(la\s+categor[ií]a|category)\s+/gi, " ")
+    .replace(/[.?!,;]+$/g, "")
+    .replace(/^["']+|["']+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const porMatch = raw.match(/\bpor\s+(?:todos\s+los|todas\s+las|la\s+categor[ií]a\s+)?(.+)$/i);
+  if (porMatch) {
+    const hint = stripNoise(porMatch[1]);
+    if (hint.length >= 2) return hint;
+  }
+
+  const filterMatch = raw.match(/\bfiltr\w*\s+(?:la\s+)?(?:tabla|lista)\s+anterior\s+(?:por\s+)?(.+)$/i);
+  if (filterMatch) {
+    const hint = stripNoise(filterMatch[1]);
+    if (hint.length >= 2) return hint;
+  }
+
+  return "";
+}
+
+/**
+ * @param {string} raw
+ */
+function cleanOpenTitle(raw) {
+  return String(raw || "")
+    .replace(/^[«"']+|[»"']+$/g, "")
+    .replace(/\b(por\s+favor|please|ahora|ya|gracias)\b/gi, " ")
+    .replace(/[!?.]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Title after “documento …” / open verb (for open_named).
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function extractLastTurnOpenTitle(text) {
+  const q = foldGinaText(text);
+  if (!q) return null;
+
+  const afterDoc = q.match(/\bdocumento\s+(.+)$/);
+  if (afterDoc) {
+    const title = cleanOpenTitle(afterDoc[1]);
+    if (title && title.length >= 2 && !/^(por\s+favor|please|ahora|ya)$/.test(title)) {
+      return title;
+    }
+  }
+
+  const afterOpen = q.match(
+    /\b(?:abra[s]?|abre(?:me)?|abrir|open)\s+(?:el\s+)?(?:documento\s+)?(.+)$/,
+  );
+  if (afterOpen) {
+    const title = cleanOpenTitle(afterOpen[1]);
+    // Ignore bare pronouns
+    if (
+      title
+      && title.length >= 3
+      && !/^(ese|esa|esto|este|it|that|this|primero|first|documento|document)$/.test(title)
+    ) {
+      return title;
+    }
+  }
+
+  return null;
+}
 
 /**
  * @param {string} text
@@ -23,18 +158,28 @@ export function parseLastTurnIntent(text) {
   const q = foldGinaText(text);
   if (!q) return null;
 
-  // Don't steal classic schedule sheet asks (unless they also ask to modify "this")
+  // Table refine first — before classic "horarios de hoy" null-out
+  if (isRefineExcludeFlexibleToday(q)) {
+    return "refine_exclude_flexible_today";
+  }
+
+  if (isRefineFilterCategory(q)) {
+    return "refine_filter_category";
+  }
+
+  // Don't steal classic schedule sheet asks (unless modify "this")
   if (
     /\bhorarios\s+de\s+hoy\b/.test(q)
     && !MODIFY_ES.test(q)
     && !MODIFY_EN.test(q)
     && !/\b(este|esto|this)\b/.test(q)
+    && !/\bflexibl\w*\b/.test(q)
   ) {
     return null;
   }
 
   if (
-    /\b(abre|abrir|open)\s+(el\s+)?primero\b/.test(q)
+    OPEN_FIRST.test(q)
     || /\bopen\s+the\s+first\b/.test(q)
     || /^el\s+primero\b/.test(q)
     || /^the\s+first\b/.test(q)
@@ -42,20 +187,25 @@ export function parseLastTurnIntent(text) {
     return "open_first";
   }
 
+  const namedTitle = extractLastTurnOpenTitle(text);
+  const fromPrevTable = /\b(de\s+la\s+tabla\s+anterior|tabla\s+anterior|from\s+the\s+(previous|last)\s+(table|list))\b/.test(q);
+  const mentionsDocumento = /\bdocumento\b/.test(q) || /\bdocument\b/.test(q);
+  // Require "documento" or "tabla anterior" — bare "Abrir Blog Post" stays global focus_open.
+  if (namedTitle && (fromPrevTable || mentionsDocumento)) {
+    return "open_named";
+  }
+
   // Open the (last) document — pronoun / bare doc, not a titled “abrir X…”
   if (
     /^(abrelo|abrilo|abre\s+ese|abre\s+esa|abre\s+esto|abre\s+este|open\s+it|open\s+that|open\s+this)([!?.\s]*)$/.test(q)
-    || /\babre(me)?\s+(el\s+)?documento\b/.test(q)
-    || /\babrir\s+(el\s+)?documento\b/.test(q)
-    || /\bopen\s+(the\s+)?document\b/.test(q)
+    || (
+      (/\babre(me)?\s+(el\s+)?documento\b/.test(q)
+        || /\babra[s]?\s+(el\s+)?documento\b/.test(q)
+        || /\babrir\s+(el\s+)?documento\b/.test(q)
+        || /\bopen\s+(the\s+)?document\b/.test(q))
+      && !namedTitle
+    )
   ) {
-    // If they named a specific title after documento, let focus_open handle it.
-    if (/\bdocumento\s+\w{3,}/.test(q) && !/\bdocumento\s*$/.test(q.replace(/[!?.]+$/g, "").trim())) {
-      const after = q.replace(/^.*\bdocumento\s+/, "").trim();
-      if (after && !/^(por\s+favor|please|ahora|ya)$/.test(after)) {
-        return null;
-      }
-    }
     return "open_ref";
   }
 
@@ -67,7 +217,6 @@ export function parseLastTurnIntent(text) {
     return "modify_ref";
   }
 
-  // "quiero que me modiques…" / "I want you to change this…"
   if (
     /\b(quiero|necesito)\s+(que\s+)?(me\s+)?(modif\w*|modiqu\w*|cambia\w*|edites?|muevas?)\b/.test(q)
     && THIS_ES.test(q)
@@ -93,6 +242,32 @@ export function wantsGinaLastTurnFollowUp(text) {
 }
 
 /**
+ * Match a title needle against lastTurn (or any) doc list.
+ * @param {string} titleNeedle
+ * @param {Array<{ id?: string, title?: string, name?: string }>} documents
+ * @returns {string | null} document id
+ */
+export function matchLastTurnDocumentId(titleNeedle, documents) {
+  const needle = foldGinaText(titleNeedle);
+  if (!needle || needle.length < 2) return null;
+  const list = Array.isArray(documents) ? documents : [];
+  let best = null;
+  let bestLen = 0;
+  for (const d of list) {
+    if (!d?.id) continue;
+    const title = foldGinaText(d.title || d.name || "");
+    if (!title || title.length < 2) continue;
+    if (title === needle || needle.includes(title) || title.includes(needle)) {
+      if (title.length > bestLen) {
+        best = String(d.id);
+        bestLen = title.length;
+      }
+    }
+  }
+  return best;
+}
+
+/**
  * @param {{
  *   locale?: "es"|"en",
  *   hasLastTurn?: boolean,
@@ -107,8 +282,8 @@ export function buildLastTurnModifyMessage(opts = {}) {
 
   if (!opts.hasLastTurn) {
     return en
-      ? "I don’t have a recent schedule anchored. Ask for today’s schedule first, then tell me what you want to change."
-      : "No tengo anclado un horario reciente. Pide primero los horarios de hoy y después dime qué quieres modificar.";
+      ? "I don’t have a recent list anchored. Ask for the department docs or today’s schedule first, then tell me what to change."
+      : "No tengo anclada una lista reciente. Pide primero los docs del departamento o los horarios de hoy y después dime qué quieres modificar.";
   }
 
   if (refKind === "schedule") {
@@ -137,6 +312,90 @@ export function buildLastTurnModifyMessage(opts = {}) {
   return en
     ? "I don’t have a clear document from the last turn. Ask for today’s schedule or name the document."
     : "No tengo claro un documento del último turno. Pide los horarios de hoy o nombra el documento.";
+}
+
+/**
+ * Short copy after refining anchored table (no save-reference pitch).
+ * @param {{
+ *   locale?: "es"|"en",
+ *   department?: string | null,
+ *   count?: number,
+ * }} opts
+ */
+export function buildLastTurnRefineMessage(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = String(opts.department || "").trim();
+  const n = Number(opts.count) || 0;
+  if (en) {
+    return dept
+      ? `${dept} — excluding flexible, only timed for today (${n}).`
+      : `Excluding flexible — only timed for today (${n}).`;
+  }
+  return dept
+    ? `${dept} · sin flexibles · solo horarios de hoy (${n}).`
+    : `Sin flexibles · solo horarios de hoy (${n}).`;
+}
+
+/**
+ * Copy after category / keyword refine on anchored table.
+ * @param {{
+ *   locale?: "es"|"en",
+ *   matchKind?: "category" | "department" | "title" | "empty",
+ *   department?: string | null,
+ *   category?: string | null,
+ *   needle?: string | null,
+ *   folderCount?: number,
+ *   singleFolderName?: string | null,
+ *   count?: number,
+ * }} opts
+ */
+export function buildLastTurnCategoryRefineMessage(opts = {}) {
+  const en = opts.locale === "en";
+  const matchKind = opts.matchKind || "category";
+  const n = Number(opts.count) || 0;
+  const dept = String(opts.department || "").trim();
+  const category = String(opts.category || "").trim();
+  const needle = String(opts.needle || category || "").trim();
+  const folderCount = Number(opts.folderCount) || 0;
+  const singleFolder = String(opts.singleFolderName || "").trim();
+
+  if (matchKind === "empty") {
+    const word = formatNeedlePhrase(needle, { locale: en ? "en" : "es" });
+    return en
+      ? `I haven't found absolutely anything about ${word}.`
+      : `No he encontrado absolutamente nada sobre ${word}.`;
+  }
+
+  if (matchKind === "title") {
+    const word = formatNeedlePhrase(needle, { locale: en ? "en" : "es" });
+    return en
+      ? `I found this information containing the word «${word}» (${n}). Here you go.`
+      : `Encontré esta información que contiene la palabra «${word}» (${n}). Aquí te la muestro.`;
+  }
+
+  if (matchKind === "department") {
+    return en
+      ? `${dept} — ${n} document${n === 1 ? "" : "s"} in that department.`
+      : `${dept} — ${n} documento${n === 1 ? "" : "s"} en ese departamento.`;
+  }
+
+  const catPhrase = formatCategoryPhrase(category || needle, { locale: en ? "en" : "es" });
+  if (folderCount === 1 && singleFolder) {
+    return en
+      ? `I found a single folder with the **${category || needle}** category: **${singleFolder}**. Here are the ${n} document${n === 1 ? "" : "s"}.`
+      : `Te encontré un solo folder que contiene la categoría ${category || needle}: ${singleFolder}. Aquí te muestro ${n === 1 ? "el documento" : `los ${n} documentos`}.`;
+  }
+  if (folderCount > 1) {
+    return en
+      ? `I found folders with the **${category || needle}** category (${n} document${n === 1 ? "" : "s"}). Here you go.`
+      : `Te encontré los folders que contienen la categoría ${category || needle}. Aquí te muestro ${n === 1 ? "el documento" : `los ${n} documentos`}.`;
+  }
+  const deptBit = dept
+    ? (en ? `In **${dept}**` : `Del departamento de ${dept}, ${catPhrase.ofPhrase}`)
+    : catPhrase.ofPhrase;
+  return en
+    ? `${deptBit} — ${n} document${n === 1 ? "" : "s"} with schedule metadata when applicable.`
+    : `${deptBit}, aquí tienes ${n === 1 ? "el documento" : `los ${n} documentos`}.`;
 }
 
 /**

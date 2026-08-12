@@ -1,7 +1,10 @@
 /**
- * Session-scoped last Gina turn (what she just showed).
- * Follow-ups like “este / modificar / ábrelo” read this before folder-name match.
+ * Session-scoped Gina turn history (what she just showed).
+ * Follow-ups like “este / modificar / filtrar tabla anterior” read this stack.
  */
+
+import { foldGinaText } from "./ginaTimeScope.js";
+import { matchNamedCategoryInText } from "./ginaTools.js";
 
 /**
  * @typedef {{
@@ -23,8 +26,13 @@
  * }} GinaLastTurn
  */
 
+const MAX_TURN_HISTORY = 5;
+
 /** @type {GinaLastTurn | null} */
 let lastTurn = null;
+
+/** @type {GinaLastTurn[]} */
+let turnHistory = [];
 
 const NO_STAMP_FAMILIES = new Set([
   "wall_clock",
@@ -34,6 +42,7 @@ const NO_STAMP_FAMILIES = new Set([
   "free_chat",
   "last_turn_modify",
   "last_turn_missing",
+  "last_turn_empty",
   "confirm_continue",
   "confirm_date",
   "name_ambiguity",
@@ -50,20 +59,67 @@ export function shouldStampGinaLastTurn(family) {
 }
 
 /**
+ * @param {GinaLastTurn | null | undefined} turn
+ */
+export function isListableGinaTurn(turn) {
+  if (!turn) return false;
+  if (turn.refKind === "list") return true;
+  if (turn.family === "category_scope") return true;
+  if (turn.refKind === "department" && (turn.documents?.length || turn.department)) return true;
+  return false;
+}
+
+/**
+ * @param {GinaLastTurn} turn
+ */
+function normalizeTurn(turn) {
+  return {
+    ...turn,
+    documents: Array.isArray(turn.documents) ? turn.documents.slice(0, 40) : [],
+    ts: turn.ts || Date.now(),
+  };
+}
+
+/**
+ * @param {GinaLastTurn} turn
+ */
+function pushTurnHistory(turn) {
+  if (!isListableGinaTurn(turn)) return;
+  const snap = normalizeTurn(turn);
+  turnHistory = [
+    snap,
+    ...turnHistory.filter((t) => (
+      t.family !== snap.family
+      || t.department !== snap.department
+      || t.ts !== snap.ts
+    )),
+  ].slice(0, MAX_TURN_HISTORY);
+}
+
+/**
  * @param {GinaLastTurn | null} turn
  */
 export function setGinaLastTurn(turn) {
-  lastTurn = turn
-    ? { ...turn, documents: Array.isArray(turn.documents) ? turn.documents.slice(0, 12) : [], ts: Date.now() }
-    : null;
+  if (!turn) {
+    lastTurn = null;
+    return;
+  }
+  lastTurn = normalizeTurn(turn);
+  pushTurnHistory(lastTurn);
 }
 
 export function getGinaLastTurn() {
   return lastTurn;
 }
 
+/** @returns {GinaLastTurn[]} */
+export function getGinaTurnHistory() {
+  return turnHistory.slice();
+}
+
 export function clearGinaLastTurn() {
   lastTurn = null;
+  turnHistory = [];
 }
 
 /**
@@ -84,7 +140,7 @@ function mapDocs(raw) {
       || "",
     ).trim();
     out.push({ id, title });
-    if (out.length >= 12) break;
+    if (out.length >= 40) break;
   }
   return out;
 }
@@ -110,8 +166,81 @@ function refKindForFamily(family) {
   if (family === "folder_summary") return "folder";
   if (family === "department") return "department";
   if (family === "find_document") return "find";
-  if (family === "count_documents" || family === "blogs" || family === "status") return "list";
+  if (
+    family === "count_documents"
+    || family === "category_scope"
+    || family === "blogs"
+    || family === "status"
+  ) {
+    return "list";
+  }
   return "other";
+}
+
+/**
+ * Explicit stack offset from utterance (“anterior a la anterior” = 2 listables back).
+ * @param {string} text
+ * @returns {number | null} 1-based index into listable stack, or null for smart resolve
+ */
+export function parseLastTurnAnchorOffset(text) {
+  const q = foldGinaText(text);
+  if (!q) return null;
+  if (
+    /\banterior\s+a\s+la\s+anterior\b/.test(q)
+    || /\bdos\s+tablas?\s+atr[aá]s\b/.test(q)
+    || /\btwo\s+tables?\s+back\b/.test(q)
+  ) {
+    return 2;
+  }
+  if (
+    /\btres\s+tablas?\s+atr[aá]s\b/.test(q)
+    || /\bthree\s+tables?\s+back\b/.test(q)
+  ) {
+    return 3;
+  }
+  return null;
+}
+
+/**
+ * Pick the best listable turn to anchor a table refine / open.
+ * @param {string} text
+ * @param {{ categoryNeedle?: string | null, ctx?: object }} [opts]
+ * @returns {{ anchor: GinaLastTurn | null, depth: number, reason: string }}
+ */
+export function resolveLastTurnAnchor(text, opts = {}) {
+  const listable = turnHistory.filter(isListableGinaTurn);
+  if (!listable.length && lastTurn && isListableGinaTurn(lastTurn)) {
+    listable.push(lastTurn);
+  }
+  if (!listable.length) {
+    return { anchor: null, depth: 0, reason: "no_listable_history" };
+  }
+
+  const explicitOffset = parseLastTurnAnchorOffset(text);
+  if (explicitOffset != null) {
+    const idx = explicitOffset - 1;
+    const anchor = listable[idx] || null;
+    return {
+      anchor,
+      depth: explicitOffset,
+      reason: anchor ? "explicit_offset" : "explicit_offset_out_of_range",
+    };
+  }
+
+  const needle = String(opts.categoryNeedle || "").trim();
+  const ctx = opts.ctx || null;
+  if (needle && ctx) {
+    const catHit = matchNamedCategoryInText(ctx, needle, null);
+    if (catHit?.departmentName) {
+      const deptFold = foldGinaText(catHit.departmentName);
+      const deptMatch = listable.find((t) => foldGinaText(t.department || "") === deptFold);
+      if (deptMatch) {
+        return { anchor: deptMatch, depth: 1, reason: "category_department_match" };
+      }
+    }
+  }
+
+  return { anchor: listable[0], depth: 1, reason: "most_recent_listable" };
 }
 
 /**
@@ -182,8 +311,20 @@ export function enrichGinaLastTurnFromVisualization(visualization) {
   if (!data) return lastTurn;
   const fromViz = mapDocs(data.documents);
   if (!fromViz.length) return lastTurn;
-  if (lastTurn.documents.length === 0) {
-    lastTurn = { ...lastTurn, documents: fromViz, ts: Date.now() };
+  lastTurn = {
+    ...lastTurn,
+    documents: fromViz,
+    department: lastTurn.department
+      || String(data.department || "").trim()
+      || null,
+    ts: Date.now(),
+  };
+  if (turnHistory.length && turnHistory[0]?.ts === lastTurn.ts) {
+    turnHistory[0] = { ...lastTurn };
+  } else if (turnHistory.length === 0 || turnHistory[0]?.family !== lastTurn.family) {
+    pushTurnHistory(lastTurn);
+  } else {
+    turnHistory[0] = { ...lastTurn };
   }
   return lastTurn;
 }

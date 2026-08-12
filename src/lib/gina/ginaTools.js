@@ -1259,6 +1259,112 @@ export function extractScopedName(remainder) {
   return null;
 }
 
+/**
+ * Live folders under a department whose category label matches.
+ * @param {object} inventory from get_workspace_inventory
+ * @param {string | null} departmentName
+ * @param {string} categoryName
+ */
+export function listFoldersForDepartmentCategory(inventory, departmentName, categoryName) {
+  const allFolders = Array.isArray(inventory?.folders) ? inventory.folders : [];
+  const category = String(categoryName || "").trim();
+  const deptName = departmentName ? String(departmentName).trim() : null;
+  return allFolders.filter((f) => {
+    const cat = fold(f.category);
+    const want = fold(category);
+    if (!cat || !want) return false;
+    const aliases = expandCategoryNameTokens(category);
+    const catOk = cat === want
+      || cat.includes(want)
+      || want.includes(cat)
+      || aliases.some((a) => cat === a || nearMatchToken(cat, a));
+    if (!catOk) return false;
+    if (!deptName) return true;
+    const fd = fold(f.departmentName);
+    const wantDept = fold(deptName);
+    if (fd === wantDept) return true;
+    return expandDepartmentNameTokens(deptName).includes(fd)
+      || expandDepartmentNameTokens(f.departmentName).includes(wantDept);
+  }).map((f) => ({
+    id: f.id,
+    name: f.name,
+    category: f.category || category,
+    departmentName: f.departmentName || deptName,
+    documentCount: f.childDocuments ?? 0,
+  }));
+}
+
+/**
+ * Resolve search needle: department → category → title (LIVE CORPUS ONLY).
+ * @param {GinaToolsContext} ctx
+ * @param {string} needle
+ * @param {{ departmentHint?: string | null }} [opts]
+ * @returns {{
+ *   kind: "department" | "category" | "title",
+ *   name?: string,
+ *   departmentName?: string | null,
+ *   needle?: string,
+ * }}
+ */
+export function resolveEntitySearchScope(ctx, needle, opts = {}) {
+  const raw = String(needle || "").trim();
+  const n = fold(raw);
+  if (!n || n.length < 2) {
+    return { kind: "title", needle: raw };
+  }
+
+  const deptHit = matchDepartmentInText(ctx, raw);
+  if (deptHit?.name && departmentNameHitsQuery(n, deptHit.name)) {
+    return { kind: "department", name: deptHit.name };
+  }
+
+  const deptHint = opts.departmentHint ? String(opts.departmentHint).trim() : null;
+  const catHit = matchNamedCategoryInText(ctx, raw, deptHint)
+    || matchNamedCategoryInText(ctx, raw, null);
+  if (catHit?.name) {
+    return {
+      kind: "category",
+      name: catHit.name,
+      departmentName: deptHint || catHit.departmentName || null,
+    };
+  }
+
+  return { kind: "title", needle: raw };
+}
+
+/**
+ * Title-only filter within an anchored table scope.
+ * @param {GinaToolsContext} ctx
+ * @param {{ department?: string | null, documents?: Array<{ id?: string }> } | null} anchor
+ * @param {string} needle
+ */
+export function filterDocsByTitleNeedle(ctx, anchor, needle) {
+  const n = fold(needle);
+  if (!n) return [];
+  const all = get_all_company_documents(ctx);
+  let scoped = all;
+  const dept = anchor?.department ? String(anchor.department).trim() : null;
+  if (dept) {
+    const dq = fold(dept);
+    scoped = all.filter((d) => {
+      const fd = fold(d.departmentName);
+      if (fd === dq) return true;
+      return expandDepartmentNameTokens(dept).includes(fd)
+        || expandDepartmentNameTokens(d.departmentName).includes(dq);
+    });
+  } else if (Array.isArray(anchor?.documents) && anchor.documents.length) {
+    const ids = new Set(
+      anchor.documents.map((d) => String(d?.id || "").trim()).filter(Boolean),
+    );
+    if (ids.size) scoped = all.filter((d) => ids.has(d.id));
+  }
+  return scoped.filter((d) => {
+    const title = fold(d.title || d.name || "");
+    if (!title) return false;
+    return title.includes(n) || n.includes(title);
+  });
+}
+
 export const GINA_TOOLS = {
   get_all_company_folders,
   get_all_company_documents,

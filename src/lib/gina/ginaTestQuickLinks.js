@@ -10,10 +10,35 @@
 /** @type {GinaTestQuickLink[]} */
 export const GINA_TEST_QUICK_LINKS = [
   {
+    id: "test_last_turn_mkt_docs",
+    label: "Test: docs Marketing (ancla)",
+    text: "gina quiero todos los docs del departamento de marketing",
+    primary: true,
+  },
+  {
+    id: "test_last_turn_filter_blogs",
+    label: "Test: filtrar tabla por blogs",
+    text: "filtrame la tabla anterior por todos los blogs",
+  },
+  {
+    id: "test_last_turn_filter_empty",
+    label: "Test: filtrar sin matches",
+    text: "filtrame la tabla anterior por xyzabc",
+  },
+  {
+    id: "test_last_turn_refine_flex",
+    label: "Test: excluir flexibles + hoy",
+    text: "QUIERO QUE ME EXCLUYAS LOS FLEXIBLES Y ME DEJES SOLAMENTE LOS QUE TIENEN HORARIOS PARA HOY",
+  },
+  {
+    id: "test_last_turn_open_named",
+    label: "Test: abrir Guion (tabla ant.)",
+    text: "DE LA TABLA ANTERIOR QUIERO QUE ME ABRAS EL DOCUMENTO Guion de la Parte 01",
+  },
+  {
     id: "test_last_turn_sheet",
     label: "Test: horarios de hoy (ancla)",
     text: "Muéstrame los horarios de hoy",
-    primary: true,
   },
   {
     id: "test_last_turn_modify",
