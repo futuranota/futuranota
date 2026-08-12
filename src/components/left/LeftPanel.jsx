@@ -97,6 +97,7 @@ import {
 import { useGinaTalkRequestNudge } from "../../hooks/useGinaTalkRequestNudge.js";
 import { buildGinaDayRitualResetAck } from "../../lib/gina/ginaDayRitualReset.js";
 import { buildOccupiedHoursReplyMessage } from "../../lib/gina/ginaSyntaxOccupiedHours.js";
+import { formatGinaWallClockMessage } from "../../lib/gina/ginaSyntaxClock.js";
 import {
   consumePendingGinaOffer,
   getPendingGinaOffer,
@@ -3245,6 +3246,17 @@ export function LeftPanel({
       };
     }
 
+    if (!meetingOn && routed.family === "wall_clock") {
+      const clockNow = routed.toolContext?.nowIso
+        ? new Date(routed.toolContext.nowIso)
+        : ctx.now;
+      return {
+        message: formatGinaWallClockMessage(clockNow, localeKey),
+        visualization: null,
+        chips: null,
+      };
+    }
+
     if (!meetingOn && routed.family === "daily_report_skip_move") {
       return {
         message: localeKey === "en"
@@ -4610,6 +4622,7 @@ export function LeftPanel({
         || routed.family === "unclear"
         || routed.family === "social"
         || routed.family === "dismiss"
+        || routed.family === "wall_clock"
         || routed.family === "free_chat")
         ? null
         : buildGinaVisualization(

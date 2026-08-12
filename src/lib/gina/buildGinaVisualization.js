@@ -508,7 +508,14 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
   const categoryPick = rawText.match(/\bCategor[íi]a\s+(.+?)\s+hoy\s+en\b/i)
     || rawText.match(/\bCategory\s+(.+?)\s+today\s+in\b/i);
 
-  if (family === "focus_open" || family === "social" || family === "unclear" || family === "dismiss" || family === "free_chat") return null;
+  if (
+    family === "focus_open"
+    || family === "social"
+    || family === "unclear"
+    || family === "dismiss"
+    || family === "free_chat"
+    || family === "wall_clock"
+  ) return null;
 
   if (family === "category_scope") {
     const mode = ctx.mode || "count_docs";

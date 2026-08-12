@@ -95,6 +95,9 @@ import {
   parseOccupiedHoursIntent,
 } from "./ginaSyntaxOccupiedHours.js";
 import {
+  parseWallClockIntent,
+} from "./ginaSyntaxClock.js";
+import {
   activateOccupiedStrikethroughForToday,
 } from "./ginaOccupiedHoursStore.js";
 import { ginaDayKey } from "./ginaDayRitualDate.js";
@@ -1674,6 +1677,24 @@ export function runGinaQueryFamily(text, ctx = {}) {
       },
       workspaceInventory: inventory,
     };
+  }
+
+  // Wall clock — day/date/time of now (local TZ). Deterministic; no workspace pivot.
+  {
+    const clockMode = parseWallClockIntent(text);
+    if (clockMode) {
+      const now = ctx.now instanceof Date ? ctx.now : new Date();
+      return {
+        family: "wall_clock",
+        toolsCalled,
+        toolContext: {
+          mode: clockMode,
+          nowIso: now.toISOString(),
+          hint: "Wall clock — answer with formatGinaWallClockMessage(now); no docs or folders",
+        },
+        workspaceInventory: inventory,
+      };
+    }
   }
 
   // Test harness: wipe today’s day-ritual local state.

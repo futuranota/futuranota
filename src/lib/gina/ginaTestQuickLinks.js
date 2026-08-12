@@ -10,6 +10,22 @@
 /** @type {GinaTestQuickLink[]} */
 export const GINA_TEST_QUICK_LINKS = [
   {
+    id: "test_wall_clock_day",
+    label: "Test: qué día es hoy",
+    text: "Qué día es hoy?",
+    primary: true,
+  },
+  {
+    id: "test_wall_clock_date",
+    label: "Test: qué fecha es",
+    text: "Qué fecha es?",
+  },
+  {
+    id: "test_wall_clock_time",
+    label: "Test: qué hora es",
+    text: "Qué hora es?",
+  },
+  {
     id: "test_folder_plan_negocio",
     label: "Test: docs del folder",
     text: "Dame todos los documentos del plan de negocio",

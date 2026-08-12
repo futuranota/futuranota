@@ -35,14 +35,6 @@ import {
   findH1MarkdownShortcutCaret,
   resolveH1MarkdownShortcutFromKey,
 } from "../../lib/docMarkdownHeadingShortcut.js";
-import {
-  applyBoldMarkerIfPending,
-  extendBoldSticky,
-  isBoldStickyContinueKey,
-  isBoldStickyTriggerKey,
-  matchBoldMarkerAtCaret,
-  startBoldStickyFromMarker,
-} from "../../lib/docMarkdownBoldShortcut.js";
 import { isHeadingBlockType } from "../../lib/textSelectionHeading.js";
 import { scrollTextareaCaretIntoCameraView, withPreservedWritingScroll } from "../../lib/textareaSelectionRect.js";
 import { SlashAwareTextarea } from "../docs/blocks/SlashAwareTextarea.jsx";
@@ -279,8 +271,6 @@ export function NodeWritingBlockStack({
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
   const [focusedBlockId, setFocusedBlockId] = useState(null);
-  /** @type {React.MutableRefObject<{ blockId: string, boldStart: number }|null>} */
-  const boldStickyRef = useRef(null);
 
   const snapshotWritingCaret = useCallback((blockIndex, el) => {
     if (!writingCaretRef) return;
@@ -443,8 +433,11 @@ export function NodeWritingBlockStack({
           if (tries < 12) attempt(tries + 1);
           return;
         }
+        const alreadyFocused = document.activeElement === el;
         withPreservedWritingScroll(el, () => {
-          el.focus({ preventScroll: true });
+          if (!alreadyFocused) {
+            el.focus({ preventScroll: true });
+          }
           if (caret != null && "setSelectionRange" in el) {
             const pos = caret === "end" ? el.value.length : caret;
             el.setSelectionRange(pos, pos);
@@ -524,60 +517,9 @@ export function NodeWritingBlockStack({
           );
           if (applied) {
             e.preventDefault();
-            boldStickyRef.current = null;
             updateBlocks(applied.blocks);
             onFocusTargetChange?.(null);
             focusBlockById(applied.h1Id, 0);
-            return;
-          }
-        }
-
-        const meta = {
-          boldRanges: block.boldRanges,
-          mentions: block.mentions,
-          tagRefs: block.tagRefs,
-          markerRanges: block.markerRanges,
-        };
-        const sticky = boldStickyRef.current?.blockId === block.id
-          ? boldStickyRef.current
-          : null;
-
-        const commitBold = (applied) => {
-          updateBlockAt(blockIndex, {
-            text: applied.text,
-            boldRanges: applied.boldRanges.length ? applied.boldRanges : undefined,
-            mentions: applied.mentions.length ? applied.mentions : undefined,
-            tagRefs: applied.tagRefs.length ? applied.tagRefs : undefined,
-            markerRanges: applied.markerRanges.length ? applied.markerRanges : undefined,
-          });
-          if (applied.stickyBoldStart == null) {
-            if (boldStickyRef.current?.blockId === block.id) boldStickyRef.current = null;
-          } else {
-            boldStickyRef.current = { blockId: block.id, boldStart: applied.stickyBoldStart };
-          }
-          onFocusTargetChange?.(null);
-          focusBlockById(block.id, applied.focusCaret);
-        };
-
-        if (sticky) {
-          if (e.key === "Enter" || e.key === "Escape") {
-            boldStickyRef.current = null;
-          } else if (e.key === " " || e.code === "Space" || isBoldStickyContinueKey(e.key)) {
-            const char = (e.key === " " || e.code === "Space") ? " " : e.key;
-            if (isBoldStickyContinueKey(char)) {
-              const applied = extendBoldSticky(textValue, meta, caret, char, sticky.boldStart);
-              if (applied) {
-                e.preventDefault();
-                commitBold(applied);
-                return;
-              }
-            }
-          }
-        } else if (isBoldStickyTriggerKey(e.key) && matchBoldMarkerAtCaret(textValue, caret)) {
-          const applied = startBoldStickyFromMarker(textValue, meta, caret, e.key);
-          if (applied) {
-            e.preventDefault();
-            commitBold(applied);
             return;
           }
         }
@@ -1381,26 +1323,6 @@ export function NodeWritingBlockStack({
                       return;
                     }
                   }
-                  const boldPending = applyBoldMarkerIfPending(text, {
-                    boldRanges: normalizeWritingBlocks(blocksRef.current)[blockIndex]?.boldRanges,
-                    mentions: normalizeWritingBlocks(blocksRef.current)[blockIndex]?.mentions,
-                    tagRefs: normalizeWritingBlocks(blocksRef.current)[blockIndex]?.tagRefs,
-                    markerRanges: normalizeWritingBlocks(blocksRef.current)[blockIndex]?.markerRanges,
-                  });
-                  if (boldPending) {
-                    const currentBlock = normalizeWritingBlocks(blocksRef.current)[blockIndex];
-                    updateBlockAt(blockIndex, {
-                      text: boldPending.text,
-                      boldRanges: boldPending.boldRanges.length ? boldPending.boldRanges : undefined,
-                      mentions: boldPending.mentions.length ? boldPending.mentions : undefined,
-                      tagRefs: boldPending.tagRefs.length ? boldPending.tagRefs : undefined,
-                      markerRanges: boldPending.markerRanges.length ? boldPending.markerRanges : undefined,
-                    });
-                    boldStickyRef.current = null;
-                    onFocusTargetChange?.(null);
-                    focusBlockById(currentBlock?.id || block.id, boldPending.focusCaret);
-                    return;
-                  }
                   updateBlockAt(blockIndex, {
                   text,
                   ...(meta && "mentions" in meta
@@ -1469,26 +1391,6 @@ export function NodeWritingBlockStack({
                         focusBlockById(applied.h1Id, 0);
                         return;
                       }
-                    }
-                    const boldPending = applyBoldMarkerIfPending(text, {
-                      boldRanges: normalizeWritingBlocks(blocksRef.current)[blockIndex]?.boldRanges,
-                      mentions: normalizeWritingBlocks(blocksRef.current)[blockIndex]?.mentions,
-                      tagRefs: normalizeWritingBlocks(blocksRef.current)[blockIndex]?.tagRefs,
-                      markerRanges: normalizeWritingBlocks(blocksRef.current)[blockIndex]?.markerRanges,
-                    });
-                    if (boldPending) {
-                      const currentBlock = normalizeWritingBlocks(blocksRef.current)[blockIndex];
-                      updateBlockAt(blockIndex, {
-                        text: boldPending.text,
-                        boldRanges: boldPending.boldRanges.length ? boldPending.boldRanges : undefined,
-                        mentions: boldPending.mentions.length ? boldPending.mentions : undefined,
-                        tagRefs: boldPending.tagRefs.length ? boldPending.tagRefs : undefined,
-                        markerRanges: boldPending.markerRanges.length ? boldPending.markerRanges : undefined,
-                      });
-                      boldStickyRef.current = null;
-                      onFocusTargetChange?.(null);
-                      focusBlockById(currentBlock?.id || block.id, boldPending.focusCaret);
-                      return;
                     }
                     updateBlockAt(blockIndex, {
                     text,

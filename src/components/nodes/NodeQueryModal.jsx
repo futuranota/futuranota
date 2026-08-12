@@ -79,6 +79,7 @@ import {
   buildTalkRequestThanksText,
 } from "../../lib/gina/ginaTalkRequest.js";
 import { buildOccupiedHoursReplyMessage } from "../../lib/gina/ginaSyntaxOccupiedHours.js";
+import { formatGinaWallClockMessage } from "../../lib/gina/ginaSyntaxClock.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -415,6 +416,17 @@ export function NodeQueryModal({
     };
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
+
+    if (routed.family === "wall_clock") {
+      const clockNow = routed.toolContext?.nowIso
+        ? new Date(routed.toolContext.nowIso)
+        : now;
+      return {
+        message: formatGinaWallClockMessage(clockNow, localeKey),
+        visualization: null,
+        chips: null,
+      };
+    }
 
     if (
       routed.family === "check_doc_free_hours"
@@ -773,6 +785,7 @@ export function NodeQueryModal({
       || routed.family === "unclear"
       || routed.family === "social"
       || routed.family === "dismiss"
+      || routed.family === "wall_clock"
       || routed.family === "free_chat")
       ? null
       : buildGinaVisualization(

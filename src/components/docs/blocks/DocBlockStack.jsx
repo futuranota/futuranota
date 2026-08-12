@@ -49,14 +49,6 @@ import {
   resolveH1MarkdownShortcutFromKey,
 } from "../../../lib/docMarkdownHeadingShortcut.js";
 import {
-  applyBoldMarkerIfPending,
-  extendBoldSticky,
-  isBoldStickyContinueKey,
-  isBoldStickyTriggerKey,
-  matchBoldMarkerAtCaret,
-  startBoldStickyFromMarker,
-} from "../../../lib/docMarkdownBoldShortcut.js";
-import {
   applyTextEditToMentions,
   mergeMentionBlocks,
 } from "../../../lib/docMentions.js";
@@ -170,7 +162,9 @@ function focusTextInputWithCamera(input, caretPos) {
   // Keep the doc scroll locked while focus/selection moves — bold shortcut
   // used to jump the viewport when the field remounted or re-focused.
   withPreservedWritingScroll(input, () => {
-    input.focus({ preventScroll: true });
+    if (!isAlreadyFocused) {
+      input.focus({ preventScroll: true });
+    }
     if (!("setSelectionRange" in input)) return;
     if (caretPos != null) {
       input.setSelectionRange(caretPos, caretPos);
@@ -256,8 +250,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   const stackRef = useRef(null);
   const slashCommandsRef = useRef(slashCommands);
   const focusBlockIdRef = useRef(focusBlockId);
-  /** @type {React.MutableRefObject<{ blockId: string, boldStart: number }|null>} */
-  const boldStickyRef = useRef(null);
 
   useLayoutEffect(() => {
     blocksRef.current = blocks;
@@ -1330,90 +1322,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
     return true;
   };
 
-  const commitBoldShortcutResult = (blockIndex, blockId, applied) => {
-    updateAt(blockIndex, {
-      text: applied.text,
-      boldRanges: applied.boldRanges.length ? applied.boldRanges : undefined,
-      mentions: applied.mentions.length ? applied.mentions : undefined,
-      tagRefs: applied.tagRefs.length ? applied.tagRefs : undefined,
-      markerRanges: applied.markerRanges.length ? applied.markerRanges : undefined,
-    });
-    if (applied.stickyBoldStart == null) {
-      if (boldStickyRef.current?.blockId === blockId) boldStickyRef.current = null;
-    } else {
-      boldStickyRef.current = { blockId, boldStart: applied.stickyBoldStart };
-    }
-    // Keep focusBlockId in sync without treating bold as a "new line" grow pass.
-    if (focusBlockIdRef.current !== blockId) {
-      onFocusBlock?.(blockId);
-    }
-    focusBlockCaret(blockId, applied.focusCaret);
-  };
-
-  const tryApplyBoldFromTypedText = (blockIndex, text) => {
-    const block = blocksRef.current[blockIndex];
-    if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return false;
-    // Only paste/IME fallback — never eat `-------` or bare `--`.
-    const applied = applyBoldMarkerIfPending(text, {
-      boldRanges: block.boldRanges,
-      mentions: block.mentions,
-      tagRefs: block.tagRefs,
-      markerRanges: block.markerRanges,
-    });
-    if (!applied) return false;
-    commitBoldShortcutResult(blockIndex, block.id, applied);
-    return true;
-  };
-
-  const tryHandleBoldStickyKeyDown = (blockIndex, e, textValue) => {
-    if (e.metaKey || e.ctrlKey || e.altKey || e.nativeEvent?.isComposing) return false;
-    const block = blocksRef.current[blockIndex];
-    if (!block || block.type !== DOC_BLOCK_TYPES.TEXT) return false;
-
-    const caret = e.currentTarget?.selectionStart ?? textValue.length;
-    const caretEnd = e.currentTarget?.selectionEnd ?? caret;
-    if (caret !== caretEnd) return false;
-
-    const meta = {
-      boldRanges: block.boldRanges,
-      mentions: block.mentions,
-      tagRefs: block.tagRefs,
-      markerRanges: block.markerRanges,
-    };
-    const sticky = boldStickyRef.current?.blockId === block.id
-      ? boldStickyRef.current
-      : null;
-
-    if (sticky) {
-      // Enter / Escape end sticky bold; newline proceeds normally.
-      if (e.key === "Enter" || e.key === "Escape") {
-        boldStickyRef.current = null;
-        return false;
-      }
-      if (e.key === " " || e.code === "Space" || isBoldStickyContinueKey(e.key)) {
-        const char = (e.key === " " || e.code === "Space") ? " " : e.key;
-        if (!isBoldStickyContinueKey(char)) return false;
-        const applied = extendBoldSticky(textValue, meta, caret, char, sticky.boldStart);
-        if (!applied) return false;
-        e.preventDefault();
-        commitBoldShortcutResult(blockIndex, block.id, applied);
-        return true;
-      }
-      return false;
-    }
-
-    // Start sticky bold only when `--` then a non-dash char (------- stays free).
-    if (isBoldStickyTriggerKey(e.key) && matchBoldMarkerAtCaret(textValue, caret)) {
-      const applied = startBoldStickyFromMarker(textValue, meta, caret, e.key);
-      if (!applied) return false;
-      e.preventDefault();
-      commitBoldShortcutResult(blockIndex, block.id, applied);
-      return true;
-    }
-
-    return false;
-  };
-
   const handleTextKeyDown = (blockIndex, e) => {
     if (tryDocSelectAllKeyDown(e, blocksRef.current)) return;
 
@@ -1441,13 +1349,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           );
           if (applied) {
             e.preventDefault();
-            boldStickyRef.current = null;
             finalizeH1MarkdownInsert(applied.blocks, applied.h1Id);
             return;
           }
         }
-
-        if (tryHandleBoldStickyKeyDown(blockIndex, e, textValue)) return;
       }
     }
 
@@ -1466,7 +1371,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
           return;
         }
       }
-      boldStickyRef.current = null;
       insertNewlineAtCaret(blockIndex, e);
       return;
     }
@@ -2546,7 +2450,6 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
               }
               onChange={(text, meta) => {
                 if (tryApplyH1FromTypedText(index, text)) return;
-                if (tryApplyBoldFromTypedText(index, text)) return;
                 updateAt(index, {
                   text,
                   ...(meta && "mentions" in meta

@@ -10,7 +10,6 @@ import {
 } from "../../lib/textSelectionHeading.js";
 import {
   ensureNodeWritingTail,
-  NODE_BLOCK_TYPES,
   normalizeWritingBlocks,
 } from "../../lib/nodeInlineContent.js";
 import {
@@ -199,8 +198,7 @@ export function useNodeTextSelectionToolbar({
     } else if (formatId === "body") {
       nextBlocks = demoteHeadingBlockToText(blocksRef.current, index);
       nextBlocks = ensureNodeWritingTail(normalizeWritingBlocks(nextBlocks));
-    } else if (formatId === "macronodo" || formatId === "h1" || formatId === "h2" || formatId === "h3") {
-      const level = formatId === "macronodo" ? "h1" : formatId;
+    } else if (formatId === "h1" || formatId === "h2" || formatId === "h3") {
       const block = { ...blocksRef.current[index], text, boldRanges: blocksRef.current[index].boldRanges };
       const splitBlocks = applyHeadingToTextBlock(
         blocksRef.current.map((entry, entryIndex) => (
@@ -208,19 +206,12 @@ export function useNodeTextSelectionToolbar({
         )),
         index,
         { start, end },
-        level,
+        formatId,
         { idPrefix: "NTX" },
       );
       const pieceCount = splitBlocks.length - blocksRef.current.length + 1;
       const pieces = splitBlocks.slice(index, index + pieceCount);
-      let materialized = materializeNodeBlocksFromPieces(pieces);
-      if (formatId === "macronodo") {
-        materialized = materialized.map((entry) => (
-          entry.type === NODE_BLOCK_TYPES.H1
-            ? { ...entry, macronodeHeading: true }
-            : entry
-        ));
-      }
+      const materialized = materializeNodeBlocksFromPieces(pieces);
       nextBlocks = [
         ...blocksRef.current.slice(0, index),
         ...materialized,

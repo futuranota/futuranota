@@ -158,26 +158,17 @@ export function findWritingScrollParent(el) {
 
 /**
  * Run a layout mutation that temporarily collapses height without losing scroll.
+ * Always restores the prior scrollTop — never stick-to-bottom (docs are not chat).
  * @param {HTMLElement|null|undefined} el
  * @param {() => void} mutate
  */
 export function withPreservedWritingScroll(el, mutate) {
   const scrollParent = findWritingScrollParent(el);
   const parentScrollTop = scrollParent?.scrollTop ?? null;
-  const prevParentScrollHeight = scrollParent?.scrollHeight ?? 0;
-  const wasPinnedToBottom = scrollParent
-    ? parentScrollTop + scrollParent.clientHeight >= prevParentScrollHeight - 2
-    : false;
 
   mutate();
 
   if (!scrollParent || parentScrollTop === null) return;
-
-  if (wasPinnedToBottom) {
-    scrollParent.scrollTop = scrollParent.scrollHeight;
-    return;
-  }
-
   scrollParent.scrollTop = parentScrollTop;
 }
 
