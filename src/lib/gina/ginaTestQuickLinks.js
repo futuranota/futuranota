@@ -10,10 +10,30 @@
 /** @type {GinaTestQuickLink[]} */
 export const GINA_TEST_QUICK_LINKS = [
   {
+    id: "test_last_turn_sheet",
+    label: "Test: horarios de hoy (ancla)",
+    text: "Muéstrame los horarios de hoy",
+    primary: true,
+  },
+  {
+    id: "test_last_turn_modify",
+    label: "Test: modificar este calendario",
+    text: "no, quiero que me modiques este calendario",
+  },
+  {
+    id: "test_last_turn_open_doc",
+    label: "Test: ábreme el documento",
+    text: "abreme el documento",
+  },
+  {
+    id: "test_last_turn_open_first",
+    label: "Test: abre el primero",
+    text: "abre el primero",
+  },
+  {
     id: "test_wall_clock_day",
     label: "Test: qué día es hoy",
     text: "Qué día es hoy?",
-    primary: true,
   },
   {
     id: "test_wall_clock_date",

@@ -515,6 +515,8 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     || family === "dismiss"
     || family === "free_chat"
     || family === "wall_clock"
+    || family === "last_turn_modify"
+    || family === "last_turn_missing"
   ) return null;
 
   if (family === "category_scope") {

@@ -99,6 +99,11 @@ import { buildGinaDayRitualResetAck } from "../../lib/gina/ginaDayRitualReset.js
 import { buildOccupiedHoursReplyMessage } from "../../lib/gina/ginaSyntaxOccupiedHours.js";
 import { formatGinaWallClockMessage } from "../../lib/gina/ginaSyntaxClock.js";
 import {
+  buildLastTurnModifyChips,
+  buildLastTurnModifyMessage,
+} from "../../lib/gina/ginaSyntaxLastTurn.js";
+import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization } from "../../lib/gina/ginaLastTurn.js";
+import {
   consumePendingGinaOffer,
   getPendingGinaOffer,
   setPendingGinaOffer,
@@ -3237,6 +3242,10 @@ export function LeftPanel({
     };
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
+    stampGinaLastTurnFromRouted(routed, {
+      objectId: ctx.objectId || null,
+      userText: text,
+    });
 
     if (!meetingOn && isGinaWarmGoodbye(text)) {
       return {
@@ -3254,6 +3263,28 @@ export function LeftPanel({
         message: formatGinaWallClockMessage(clockNow, localeKey),
         visualization: null,
         chips: null,
+      };
+    }
+
+    if (
+      !meetingOn
+      && (routed.family === "last_turn_modify" || routed.family === "last_turn_missing")
+    ) {
+      const docs = Array.isArray(routed.toolContext?.documents)
+        ? routed.toolContext.documents
+        : [];
+      return {
+        message: buildLastTurnModifyMessage({
+          locale: localeKey,
+          hasLastTurn: routed.family === "last_turn_modify",
+          refKind: routed.toolContext?.refKind || null,
+          documents: docs,
+        }),
+        visualization: null,
+        chips: buildLastTurnModifyChips({
+          locale: localeKey,
+          documents: docs,
+        }),
       };
     }
 
@@ -4623,6 +4654,8 @@ export function LeftPanel({
         || routed.family === "social"
         || routed.family === "dismiss"
         || routed.family === "wall_clock"
+        || routed.family === "last_turn_modify"
+        || routed.family === "last_turn_missing"
         || routed.family === "free_chat")
         ? null
         : buildGinaVisualization(
@@ -4747,6 +4780,10 @@ export function LeftPanel({
           recoverySnoozed,
         })
         : [];
+
+      if (!meetingOn && visualization) {
+        enrichGinaLastTurnFromVisualization(visualization);
+      }
 
       return {
         // Today overview: allow empty pre-sheet message (summary is post-sheet).

@@ -98,6 +98,12 @@ import {
   parseWallClockIntent,
 } from "./ginaSyntaxClock.js";
 import {
+  parseLastTurnIntent,
+} from "./ginaSyntaxLastTurn.js";
+import {
+  getGinaLastTurn,
+} from "./ginaLastTurn.js";
+import {
   activateOccupiedStrikethroughForToday,
 } from "./ginaOccupiedHoursStore.js";
 import { ginaDayKey } from "./ginaDayRitualDate.js";
@@ -1691,6 +1697,64 @@ export function runGinaQueryFamily(text, ctx = {}) {
           mode: clockMode,
           nowIso: now.toISOString(),
           hint: "Wall clock — answer with formatGinaWallClockMessage(now); no docs or folders",
+        },
+        workspaceInventory: inventory,
+      };
+    }
+  }
+
+  // Follow-ups that need the last shown result (“este”, modificar, ábrelo).
+  {
+    const lastIntent = parseLastTurnIntent(text);
+    if (lastIntent) {
+      const last = getGinaLastTurn() || ctx.lastTurn || null;
+      const docs = Array.isArray(last?.documents) ? last.documents : [];
+
+      if (
+        (lastIntent === "open_first" || lastIntent === "open_ref")
+        && docs[0]?.id
+      ) {
+        const targetId = docs[0].id;
+        toolsCalled.push("resolve_focus_last_turn");
+        return {
+          family: "focus_open",
+          toolsCalled,
+          toolContext: {
+            openDocumentId: targetId,
+            fromLastTurn: true,
+            lastTurnFamily: last?.family || null,
+            hint: "Open document from lastTurn anchor",
+          },
+          openDocumentId: targetId,
+          openFolderId: null,
+          workspaceInventory: inventory,
+        };
+      }
+
+      if (!last) {
+        return {
+          family: "last_turn_missing",
+          toolsCalled,
+          toolContext: {
+            intent: lastIntent,
+            documents: [],
+            hint: "Follow-up without lastTurn — ask for schedule first",
+          },
+          workspaceInventory: inventory,
+        };
+      }
+
+      return {
+        family: "last_turn_modify",
+        toolsCalled,
+        toolContext: {
+          intent: lastIntent,
+          refKind: last.refKind || "other",
+          lastTurnFamily: last.family || null,
+          department: last.department || null,
+          folderName: last.folderName || null,
+          documents: docs,
+          hint: "Clarify which lastTurn document to open — no schedule mutation",
         },
         workspaceInventory: inventory,
       };

@@ -80,6 +80,11 @@ import {
 } from "../../lib/gina/ginaTalkRequest.js";
 import { buildOccupiedHoursReplyMessage } from "../../lib/gina/ginaSyntaxOccupiedHours.js";
 import { formatGinaWallClockMessage } from "../../lib/gina/ginaSyntaxClock.js";
+import {
+  buildLastTurnModifyChips,
+  buildLastTurnModifyMessage,
+} from "../../lib/gina/ginaSyntaxLastTurn.js";
+import { stampGinaLastTurnFromRouted } from "../../lib/gina/ginaLastTurn.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -416,6 +421,10 @@ export function NodeQueryModal({
     };
     const routed = runGinaQueryFamily(text, ctx);
     const localeKey = locale === "es" ? "es" : "en";
+    stampGinaLastTurnFromRouted(routed, {
+      objectId: ctx.objectId || null,
+      userText: text,
+    });
 
     if (routed.family === "wall_clock") {
       const clockNow = routed.toolContext?.nowIso
@@ -425,6 +434,28 @@ export function NodeQueryModal({
         message: formatGinaWallClockMessage(clockNow, localeKey),
         visualization: null,
         chips: null,
+      };
+    }
+
+    if (
+      routed.family === "last_turn_modify"
+      || routed.family === "last_turn_missing"
+    ) {
+      const docs = Array.isArray(routed.toolContext?.documents)
+        ? routed.toolContext.documents
+        : [];
+      return {
+        message: buildLastTurnModifyMessage({
+          locale: localeKey,
+          hasLastTurn: routed.family === "last_turn_modify",
+          refKind: routed.toolContext?.refKind || null,
+          documents: docs,
+        }),
+        visualization: null,
+        chips: buildLastTurnModifyChips({
+          locale: localeKey,
+          documents: docs,
+        }),
       };
     }
 
@@ -786,6 +817,8 @@ export function NodeQueryModal({
       || routed.family === "social"
       || routed.family === "dismiss"
       || routed.family === "wall_clock"
+      || routed.family === "last_turn_modify"
+      || routed.family === "last_turn_missing"
       || routed.family === "free_chat")
       ? null
       : buildGinaVisualization(
