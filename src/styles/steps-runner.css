@@ -304,24 +304,6 @@
   flex-shrink: 0;
 }
 
-.steps-library-panel__delete-btn {
-  border: none;
-  background: transparent;
-  padding: 0 4px;
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--dim);
-  cursor: pointer;
-  transition: color 0.15s ease;
-  flex-shrink: 0;
-}
-
-.steps-library-panel__delete-btn:hover {
-  color: color-mix(in oklab, #e07070 85%, var(--text));
-}
-
 .steps-library-panel__empty {
   padding: 12px 0;
 }

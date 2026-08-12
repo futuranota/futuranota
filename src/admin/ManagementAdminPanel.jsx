@@ -24,6 +24,7 @@ import {
 } from "../lib/managementApi.js";
 import { GINA_DEPT_RAIL_COLORS } from "../lib/gina/ginaDepartmentColors.js";
 import { formatStorageBytes, formatStorageBytesParts } from "../lib/planConfig.js";
+import { resolveUserPlanDates } from "../lib/planCycleDates.js";
 import { MANAGEMENT_SECTIONS } from "./AdminSidebarNav.jsx";
 
 const PIE_COLORS = GINA_DEPT_RAIL_COLORS.length
@@ -150,13 +151,31 @@ const USER_FEATURE_COLUMNS = [
 ];
 
 function downloadUserFeaturesCsv(users) {
-  const headers = ["email", "plan", "quota_active", ...USER_FEATURE_COLUMNS.map((c) => c.key)];
+  const headers = [
+    "email",
+    "plan",
+    "date_free",
+    "date_pro",
+    "days_to_pro",
+    "next_date",
+    "quota_active",
+    ...USER_FEATURE_COLUMNS.map((c) => c.key),
+  ];
   const lines = [headers.join(",")];
   for (const u of users) {
     const f = u.features || {};
+    const planDates = resolveUserPlanDates({
+      plan: u.plan,
+      freeStartedAt: u.profileCreatedAt,
+      proStartedAt: u.planUpgradedAt,
+    });
     lines.push([
       u.email || "",
       u.plan === "pro" ? "Pro" : "Starter",
+      planDates.freeYmd || "",
+      planDates.proYmd || "",
+      planDates.daysToPro != null ? String(planDates.daysToPro) : "",
+      planDates.nextYmd || "",
       u.quotaActive === false ? "inactive" : "active",
       ...USER_FEATURE_COLUMNS.map((c) => f[c.key] ?? ""),
     ].map(csvEscape).join(","));
@@ -1183,6 +1202,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
   const [callFilters, setCallFilters] = useState(EMPTY_CALL_FILTERS);
   const [asOfYmd, setAsOfYmd] = useState(() => todayIsoDate());
   const [togglingUserId, setTogglingUserId] = useState(null);
+  const [featureUsageExpanded, setFeatureUsageExpanded] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1473,6 +1493,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                 <thead>
                   <tr>
                     <th>API</th>
+                    <th>Meta</th>
                     <th>Status</th>
                     <th>Env / probe</th>
                     <th>Free / day</th>
@@ -1488,7 +1509,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                 <tbody>
                   {(data?.integrations || []).length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="muted">
+                      <td colSpan={12} className="muted">
                         No integrations — run supabase_management.sql (+ v2/v3) or Refresh.
                       </td>
                     </tr>
@@ -1507,6 +1528,11 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                           <div className="muted" style={{ fontSize: 11 }}>
                             {integration.id}
                           </div>
+                        </td>
+                        <td className="mgmt-meta-cell" title={integration.metaDescription || ""}>
+                          {integration.metaDescription || (
+                            <span className="muted">—</span>
+                          )}
                         </td>
                         <td>
                           <LifecycleBadge status={integration.lifecycleStatus} />
@@ -1771,11 +1797,49 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
           </div>
         </section>
 
-        <section className="admin-card" style={{ marginTop: 16 }}>
+        <section
+          className={`admin-card mgmt-feature-usage${featureUsageExpanded ? " is-expanded" : ""}`}
+          style={{ marginTop: 16 }}
+        >
           <div className="mgmt-users-toolbar">
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>
               Feature usage
             </h3>
+            <button
+              type="button"
+              className={`mgmt-expand-toggle${featureUsageExpanded ? " is-expanded" : ""}`}
+              aria-pressed={featureUsageExpanded}
+              onClick={() => setFeatureUsageExpanded((open) => !open)}
+              title={featureUsageExpanded ? "Fit table to column" : "Widen table, no horizontal scroll"}
+            >
+              <svg
+                className="mgmt-expand-icon"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                {featureUsageExpanded ? (
+                  <path
+                    d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ) : (
+                  <path
+                    d="M9 4H4v5M20 9V4h-5M4 15v5h5M20 15v5h-5"
+                    stroke="currentColor"
+                    strokeWidth="1.75"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                )}
+              </svg>
+              {featureUsageExpanded ? "Compact" : "Expand"}
+            </button>
             <button
               type="button"
               className="btn btn-sm"
@@ -1792,6 +1856,9 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                 <tr>
                   <th>Email</th>
                   <th>Plan</th>
+                  <th>Date (free)</th>
+                  <th>Date (Pro)</th>
+                  <th>Next Date</th>
                   <th>Status</th>
                   {USER_FEATURE_COLUMNS.map((col) => (
                     <th key={col.key}>{col.label}</th>
@@ -1801,7 +1868,7 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={3 + USER_FEATURE_COLUMNS.length} className="muted">
+                    <td colSpan={6 + USER_FEATURE_COLUMNS.length} className="muted">
                       No users to show.
                     </td>
                   </tr>
@@ -1809,6 +1876,11 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                   filteredUsers.map((u) => {
                     const f = u.features || {};
                     const isActive = u.quotaActive !== false;
+                    const planDates = resolveUserPlanDates({
+                      plan: u.plan,
+                      freeStartedAt: u.profileCreatedAt,
+                      proStartedAt: u.planUpgradedAt,
+                    });
                     return (
                       <tr
                         key={`feat-${u.userId}`}
@@ -1816,6 +1888,25 @@ export function ManagementAdminPanel({ section = MANAGEMENT_SECTIONS.api }) {
                       >
                         <td>{u.email}</td>
                         <td>{u.plan === "pro" ? "Pro" : "Starter"}</td>
+                        <td className="muted">{planDates.freeYmd || "—"}</td>
+                        <td>
+                          {planDates.proYmd || <span className="muted">—</span>}
+                          {planDates.daysToPro != null ? (
+                            <div className="muted mgmt-plan-date-hint">{planDates.daysToPro}d</div>
+                          ) : null}
+                        </td>
+                        <td
+                          className="muted"
+                          title={
+                            planDates.anchorKind === "pro"
+                              ? "Monthly reset from Pro date"
+                              : planDates.anchorKind === "free"
+                                ? "Monthly reset from free date"
+                                : ""
+                          }
+                        >
+                          {planDates.nextYmd || "—"}
+                        </td>
                         <td>
                           <button
                             type="button"

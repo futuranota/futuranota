@@ -2,12 +2,13 @@ import { getOpenWeatherApiKey, isWeatherMockAllowed } from "./env.js";
 import { mapConditionIcon } from "../../src/lib/weatherConditions.js";
 
 const OPENWEATHER_URL = "https://api.openweathermap.org/data/2.5/forecast";
+const OPENWEATHER_CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather";
 const OPENWEATHER_GEO_URL = "https://api.openweathermap.org/geo/1.0/direct";
 export const DEFAULT_CITY = "New York,US";
 export const FORECAST_DAILY_HORIZON = 7;
 /** OpenWeather 2.5 /forecast returns 3-hour steps (~5 full days + partial 6th). */
 export const OPENWEATHER_MAX_DAILY_DAYS = 6;
-export const WEATHER_CACHE_VERSION = "v5";
+export const WEATHER_CACHE_VERSION = "v6";
 export const WEATHER_ERROR_LOCATION_NOT_FOUND = "location_not_found";
 export const WEATHER_ERROR_NOT_CONFIGURED = "openweather_not_configured";
 
@@ -366,6 +367,73 @@ function aggregateDailyFromEntries(byDate, dateIso, timezoneOffsetSec) {
   };
 }
 
+/**
+ * OpenWeather /forecast only returns upcoming 3h steps. Late in a city's local day
+ * (or after the last slot rolled off), "today" can be missing while tomorrow is present.
+ * Fill that gap from /weather current conditions so the daily window always starts on city-today.
+ */
+function buildDailyDayFromCurrentWeather(current, dateIso, timezoneOffsetSec) {
+  if (!current) return null;
+
+  const weather = current.weather?.[0] || {};
+  const main = current.main || {};
+  const wind = current.wind || {};
+  const temp = Number.isFinite(main.temp) ? main.temp : 0;
+  const high = Math.round(Number.isFinite(main.temp_max) ? main.temp_max : temp);
+  const low = Math.round(Number.isFinite(main.temp_min) ? main.temp_min : temp);
+  const condition = weather.main || weather.description || "Unknown";
+  const iconCode = typeof weather.icon === "string" ? weather.icon : "";
+  const dayIconCode = iconCode ? iconCode.replace(/n$/, "d") : iconCode;
+  const nightIconCode = iconCode ? iconCode.replace(/d$/, "n") : iconCode;
+  const windPayload = {
+    dir: degToCompass(wind.deg),
+    speed: Math.round(wind.speed ?? 0),
+    unit: "mph",
+  };
+  const dayPeriod = {
+    dateLabel: `${weekdayShortFromIso(dateIso)} ${Number(dateIso.slice(8, 10))}`,
+    temp: high,
+    condition,
+    conditionIcon: mapConditionIcon(condition, dayIconCode || iconCode, "day"),
+    precipPct: 0,
+    wind: windPayload,
+    description: weather.description || condition,
+    humidity: main.humidity ?? null,
+  };
+  const nightPeriod = {
+    ...dayPeriod,
+    temp: low,
+    conditionIcon: mapConditionIcon(condition, nightIconCode || iconCode, "night"),
+  };
+  const cityTodayIso = getCityDateIso(timezoneOffsetSec);
+
+  return {
+    id: dateIso,
+    label: dayLabelForDate(dateIso, cityTodayIso),
+    high,
+    low,
+    condition,
+    conditionIcon: dayPeriod.conditionIcon,
+    precipPct: 0,
+    wind: windPayload,
+    day: buildDailyPeriod(dayPeriod, "Day"),
+    night: buildDailyPeriod(nightPeriod, "Night"),
+    dayMetrics: buildDailyMetrics(dayPeriod),
+    nightMetrics: buildDailyMetrics(nightPeriod),
+  };
+}
+
+async function fetchOpenWeatherCurrentConditions(resolvedQuery, apiKey) {
+  const res = await fetch(
+    `${OPENWEATHER_CURRENT_URL}?${resolvedQuery}&appid=${apiKey}&units=imperial`,
+  );
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`OpenWeather current ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
 function buildDailyPeriod(summary, periodLabel) {
   if (!summary) return null;
   return {
@@ -468,29 +536,51 @@ export async function fetchOpenWeatherDailyForecast(location = {}, horizonDays =
   const timezoneOffsetSec = Number(data?.city?.timezone) || 0;
   const grouped = groupForecastEntries(list, timezoneOffsetSec);
   const cityTodayIso = getCityDateIso(timezoneOffsetSec);
-  const sortedDates = [...grouped.keys()]
+  let sortedDates = [...grouped.keys()]
     .sort()
     .filter((dateIso) => dateIso >= cityTodayIso);
+
+  let currentWeather = null;
+  if (!sortedDates.includes(cityTodayIso)) {
+    const apiKey = getOpenWeatherApiKey();
+    if (apiKey && resolved?.query) {
+      try {
+        currentWeather = await fetchOpenWeatherCurrentConditions(resolved.query, apiKey);
+      } catch {
+        currentWeather = null;
+      }
+    }
+    if (currentWeather) {
+      sortedDates = [cityTodayIso, ...sortedDates.filter((d) => d !== cityTodayIso)];
+    }
+  }
+
   const maxDays = Math.min(horizonDays, OPENWEATHER_MAX_DAILY_DAYS, sortedDates.length);
 
   const days = sortedDates.slice(0, maxDays).map((dateIso) => {
     const summary = aggregateDailyFromEntries(grouped, dateIso, timezoneOffsetSec);
-    if (!summary) return null;
+    if (summary) {
+      return {
+        id: dateIso,
+        label: summary.label,
+        high: summary.high,
+        low: summary.low,
+        condition: summary.condition,
+        conditionIcon: summary.conditionIcon,
+        precipPct: summary.precipPct,
+        wind: summary.wind,
+        day: buildDailyPeriod({ ...summary.day, temp: summary.high }, "Day"),
+        night: buildDailyPeriod({ ...summary.night, temp: summary.low }, "Night"),
+        dayMetrics: buildDailyMetrics(summary.day),
+        nightMetrics: buildDailyMetrics(summary.night),
+      };
+    }
 
-    return {
-      id: dateIso,
-      label: summary.label,
-      high: summary.high,
-      low: summary.low,
-      condition: summary.condition,
-      conditionIcon: summary.conditionIcon,
-      precipPct: summary.precipPct,
-      wind: summary.wind,
-      day: buildDailyPeriod({ ...summary.day, temp: summary.high }, "Day"),
-      night: buildDailyPeriod({ ...summary.night, temp: summary.low }, "Night"),
-      dayMetrics: buildDailyMetrics(summary.day),
-      nightMetrics: buildDailyMetrics(summary.night),
-    };
+    if (dateIso === cityTodayIso && currentWeather) {
+      return buildDailyDayFromCurrentWeather(currentWeather, dateIso, timezoneOffsetSec);
+    }
+
+    return null;
   }).filter(Boolean);
 
   if (!days.length) {
@@ -505,6 +595,7 @@ export async function fetchOpenWeatherDailyForecast(location = {}, horizonDays =
     horizonDays: maxDays,
     timezoneOffsetSec,
     resolvedLocation: resolved ? { lat: resolved.lat, lon: resolved.lon, label: resolved.label } : null,
+    todayFromCurrent: Boolean(currentWeather && days[0]?.id === cityTodayIso && !grouped.has(cityTodayIso)),
   };
 }
 

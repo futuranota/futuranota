@@ -67,26 +67,6 @@ export function StepsLibraryPanel({
     ));
   }, []);
 
-  const handleDeletePlaybook = async (playbook) => {
-    const doc = docs[playbook.docId];
-    if (!doc) return;
-
-    const confirmed = await askConfirm({
-      title: t("stepsLibrary.deleteTitle"),
-      message: t("stepsLibrary.deleteConfirm", { title: playbook.title }),
-      confirmLabel: t("stepsLibrary.delete"),
-      cancelLabel: t("common.cancel"),
-    });
-    if (!confirmed) return;
-
-    const { docRemoved } = removeStepPlaybookFromDoc(playbook, doc, updateDoc, deleteDoc);
-    onPlaybookDeleted?.({
-      docId: playbook.docId,
-      blockId: playbook.blockId,
-      docRemoved,
-    });
-  };
-
   const handleDeleteSelected = async () => {
     const ids = selectedIds.filter(Boolean);
     if (!ids.length) return;
@@ -256,37 +236,26 @@ export function StepsLibraryPanel({
                             </span>
                           </button>
                         ) : (
-                          <>
-                            <button
-                              type="button"
-                              className="steps-library-panel__card"
-                              onClick={() => onRunPlaybook?.(playbook)}
-                            >
-                              <img
-                                src="/uploads/step-by-step.svg"
-                                alt=""
-                                aria-hidden
-                                className="steps-library-panel__card-icon"
-                              />
-                              <span className="steps-library-panel__card-body">
-                                <span className="steps-library-panel__card-title">
-                                  {playbook.title}
-                                </span>
+                          <button
+                            type="button"
+                            className="steps-library-panel__card"
+                            onClick={() => onRunPlaybook?.(playbook)}
+                          >
+                            <img
+                              src="/uploads/step-by-step.svg"
+                              alt=""
+                              aria-hidden
+                              className="steps-library-panel__card-icon"
+                            />
+                            <span className="steps-library-panel__card-body">
+                              <span className="steps-library-panel__card-title">
+                                {playbook.title}
                               </span>
-                              <span className="steps-library-panel__card-chevron" aria-hidden>
-                                ›
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              className="steps-library-panel__delete-btn"
-                              onClick={() => handleDeletePlaybook(playbook)}
-                              aria-label={t("stepsLibrary.delete")}
-                              title={t("stepsLibrary.delete")}
-                            >
-                              {t("stepsLibrary.delete")}
-                            </button>
-                          </>
+                            </span>
+                            <span className="steps-library-panel__card-chevron" aria-hidden>
+                              ›
+                            </span>
+                          </button>
                         )}
                       </li>
                     );

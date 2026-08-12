@@ -36,10 +36,13 @@ function getAdminEmail() {
   ).trim().toLowerCase();
 }
 
-/** Admin + comma-separated ADMIN_TEST_EMAILS — excluded from paid MRR. */
+/** Always treated as test — badge + excluded from paid MRR (owner QA accounts). */
+const DEFAULT_TEST_EMAILS = ["xapplex65@gmail.com"];
+
+/** Admin + defaults + comma-separated ADMIN_TEST_EMAILS — excluded from paid MRR. */
 function getTestEmailSet() {
   /** @type {Set<string>} */
-  const set = new Set();
+  const set = new Set(DEFAULT_TEST_EMAILS.map((email) => email.toLowerCase()));
   const admin = getAdminEmail();
   if (admin) set.add(admin);
   const raw = (
@@ -57,6 +60,19 @@ function getTestEmailSet() {
 function isTestAccountEmail(email, testEmails = getTestEmailSet()) {
   if (!email) return false;
   return testEmails.has(String(email).toLowerCase());
+}
+
+/**
+ * Real paid sub for MRR: Stripe id present and not canceled.
+ * Manual `plan = pro` without Stripe does not count.
+ * @param {{ stripeSubscriptionId?: string|null, billingStatus?: string|null }} user
+ */
+function hasPaidStripeSubscription(user) {
+  const id = String(user?.stripeSubscriptionId || "").trim();
+  if (!id) return false;
+  const status = String(user?.billingStatus || "").trim().toLowerCase();
+  if (!status) return true;
+  return status !== "canceled" && status !== "cancelled" && status !== "incomplete_expired";
 }
 
 /**
@@ -296,7 +312,7 @@ async function loadGastosEntries(service) {
 function buildMarginSnapshot(users, totals, gastosMonthUsd = 0) {
   const list = users || [];
   const proAll = list.filter((u) => u.plan === "pro");
-  const proPaid = proAll.filter((u) => !u.isTest);
+  const proPaid = proAll.filter((u) => !u.isTest && hasPaidStripeSubscription(u));
   const proTest = proAll.filter((u) => u.isTest);
   const mrrSampleUsd = Math.round(proAll.length * PRO_MONTHLY_LIST_USD * 100) / 100;
   const mrrUsd = Math.round(proPaid.length * PRO_MONTHLY_LIST_USD * 100) / 100;
@@ -313,7 +329,7 @@ function buildMarginSnapshot(users, totals, gastosMonthUsd = 0) {
     opexMonthUsd: opexUsd,
     gastosMonthUsd: opexUsd,
     marginUsd: Math.round((mrrUsd - apiCostMonthUsd - opexUsd) * 1e6) / 1e6,
-    note: "Paid MRR = Pro without test tag × $20 − API$ − Gastos. Test Pros excluded.",
+    note: "Paid MRR = Pro + active Stripe sub, minus test tag × $20 − API$ − Gastos.",
   };
 }
 
@@ -477,7 +493,9 @@ async function loadStorageBytesMaps(service) {
     dbByUser = mapBytesByUserId(data);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    warnings.push("Run supabase_management_storage_bytes.sql for Postgres bytes.");
+    warnings.push(
+      `Postgres product bytes RPC failed (${msg}). Re-run supabase_management_storage_bytes.sql.`,
+    );
     console.warn("[management] get_workspace_db_bytes_by_user:", msg);
   }
 
@@ -957,6 +975,8 @@ async function loadAuthUserMeta(service) {
   const emails = new Map();
   /** @type {Map<string, string|null>} */
   const lastSignIn = new Map();
+  /** @type {Map<string, string|null>} */
+  const createdAt = new Map();
   let page = 1;
   const perPage = 200;
 
@@ -964,17 +984,18 @@ async function loadAuthUserMeta(service) {
     const { data, error } = await service.auth.admin.listUsers({ page, perPage });
     if (error) {
       console.warn("loadAuthUserMeta:", error.message);
-      return { emails, lastSignIn };
+      return { emails, lastSignIn, createdAt };
     }
     for (const user of data.users) {
       emails.set(user.id, user.email ?? null);
       lastSignIn.set(user.id, user.last_sign_in_at ?? null);
+      createdAt.set(user.id, user.created_at ?? null);
     }
     if (data.users.length < perPage) break;
     page += 1;
   }
 
-  return { emails, lastSignIn };
+  return { emails, lastSignIn, createdAt };
 }
 
 /** @deprecated use loadAuthUserMeta */
@@ -1151,7 +1172,7 @@ function resolveUserCallStats(usage, userId, email) {
   return { totalCalls: byId + byEmail, lastCallAt };
 }
 
-function buildUserRow(row, emailById, usage, adminEmail, testEmails = getTestEmailSet(), lastSignInById = null) {
+function buildUserRow(row, emailById, usage, adminEmail, testEmails = getTestEmailSet(), lastSignInById = null, createdAtById = null) {
   const userId = row.user_id;
   const email = row.email || emailById.get(userId) || userId;
   const view = rowToProfileView(row);
@@ -1176,9 +1197,11 @@ function buildUserRow(row, emailById, usage, adminEmail, testEmails = getTestEma
     apiCostUsd: resolveUserApiCostUsd(usage, userId, email),
     isAdmin,
     isTest,
-    profileCreatedAt: row.created_at ?? null,
+    profileCreatedAt: row.created_at ?? createdAtById?.get?.(userId) ?? null,
     profileUpdatedAt: row.updated_at ?? null,
     planUpgradedAt: row.plan_upgraded_at ?? null,
+    stripeSubscriptionId: row.stripe_subscription_id ?? null,
+    billingStatus: row.billing_status ?? null,
     lastSignInAt: lastSignInById?.get?.(userId) ?? null,
     quotaActive: row.quota_active !== false,
     features: buildFeatureUsage(row, usage),
@@ -1195,9 +1218,9 @@ async function loadUsersOverview(service, adminUser) {
   const testEmails = getTestEmailSet();
 
   const PROFILE_SELECT_FULL =
-    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, plan_upgraded_at, quota_active, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used";
+    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, plan_upgraded_at, quota_active, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used, stripe_subscription_id, billing_status";
   const PROFILE_SELECT_NO_UPGRADE =
-    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, quota_active, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used";
+    "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at, quota_active, calendar_searches_count, calendar_used, calendar_period_start, weather_actions_count, weather_used, campaign_live_used, stripe_subscription_id, billing_status";
   const PROFILE_SELECT_BASE =
     "user_id, plan, search_count, tokens_balance, tokens_period_start, created_at, updated_at";
 
@@ -1222,6 +1245,13 @@ async function loadUsersOverview(service, adminUser) {
         .select(PROFILE_SELECT_NO_UPGRADE.replace(", quota_active", "").replace("quota_active, ", ""))
         .order("created_at", { ascending: false });
     }
+    if (result.error && /stripe_subscription_id|billing_status/i.test(result.error.message)) {
+      console.warn("[management] Stripe columns missing on profiles:", result.error.message);
+      result = await service
+        .from("profiles")
+        .select(PROFILE_SELECT_FULL.replace(", stripe_subscription_id, billing_status", ""))
+        .order("created_at", { ascending: false });
+    }
     if (result.error && /calendar_|weather_|campaign_live|quota_active|plan_upgraded/i.test(result.error.message)) {
       console.warn("[management] Feature columns missing on profiles:", result.error.message);
       result = await service
@@ -1233,13 +1263,13 @@ async function loadUsersOverview(service, adminUser) {
     profileRows = result.data || [];
   }
 
-  const { emails: emailById, lastSignIn: lastSignInById } = await loadAuthUserMeta(service);
+  const { emails: emailById, lastSignIn: lastSignInById, createdAt: createdAtById } = await loadAuthUserMeta(service);
   const usage = await loadUsageByUserId(service);
 
   const seen = new Set();
   const users = (profileRows || []).map((row) => {
     seen.add(row.user_id);
-    return buildUserRow(row, emailById, usage, adminEmail, testEmails, lastSignInById);
+    return buildUserRow(row, emailById, usage, adminEmail, testEmails, lastSignInById, createdAtById);
   });
 
   for (const [userId, email] of emailById) {
@@ -1267,7 +1297,7 @@ async function loadUsersOverview(service, adminUser) {
       apiCostUsd: resolveUserApiCostUsd(usage, userId, email),
       isAdmin: Boolean(adminEmail && emailKey === adminEmail),
       isTest: isTestAccountEmail(emailKey, testEmails),
-      profileCreatedAt: null,
+      profileCreatedAt: createdAtById.get(userId) ?? null,
       profileUpdatedAt: null,
       planUpgradedAt: null,
       lastSignInAt: lastSignInById.get(userId) ?? null,
@@ -1287,7 +1317,7 @@ async function loadUsersOverview(service, adminUser) {
   if (users.length === 0 && adminUser?.id) {
     const row = profileRows?.find((p) => p.user_id === adminUser.id);
     if (row) {
-      users.push(buildUserRow(row, emailById, usage, adminEmail, testEmails, lastSignInById));
+      users.push(buildUserRow(row, emailById, usage, adminEmail, testEmails, lastSignInById, createdAtById));
     } else {
       const callStats = resolveUserCallStats(usage, adminUser.id, adminUser.email);
       const emailKey = String(adminUser.email || "").toLowerCase();
@@ -1311,7 +1341,7 @@ async function loadUsersOverview(service, adminUser) {
         apiCostUsd: resolveUserApiCostUsd(usage, adminUser.id, adminUser.email),
         isAdmin: true,
         isTest: isTestAccountEmail(emailKey, testEmails),
-        profileCreatedAt: null,
+        profileCreatedAt: createdAtById.get(adminUser.id) ?? null,
         profileUpdatedAt: null,
         planUpgradedAt: null,
         lastSignInAt: lastSignInById.get(adminUser.id) ?? null,
