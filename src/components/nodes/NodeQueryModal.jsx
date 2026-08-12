@@ -70,7 +70,7 @@ import {
   buildGinaSearchSequence,
   shouldUseGinaSearchSequence,
 } from "../../lib/gina/ginaSearchSequence.js";
-import { get_workspace_inventory } from "../../lib/gina/ginaTools.js";
+import { get_workspace_inventory, matchDepartmentInText } from "../../lib/gina/ginaTools.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import {
   buildTalkRequestNotifyChips,
@@ -85,8 +85,16 @@ import {
   buildLastTurnModifyMessage,
   buildLastTurnRefineMessage,
   buildLastTurnCategoryRefineMessage,
+  buildLastTurnDepartmentRefineMessage,
+  buildLastTurnFolderRefineMessage,
 } from "../../lib/gina/ginaSyntaxLastTurn.js";
-import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization } from "../../lib/gina/ginaLastTurn.js";
+import {
+  buildWordScopeAskMessage,
+  buildWordScopeEmptyMessage,
+  buildWordScopeChips,
+} from "../../lib/gina/ginaSyntaxWordScope.js";
+import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization, getGinaLastTurn } from "../../lib/gina/ginaLastTurn.js";
+import { inferConfirmContinueAction } from "../../lib/gina/ginaConfirmContinue.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
 import { useDepartmentsStore } from "../../stores/departmentsStore.js";
 
@@ -408,6 +416,7 @@ export function NodeQueryModal({
       : null;
     const ginaUserId = authUser?.id || "anon";
     const now = new Date();
+    const lastTurnSnap = getGinaLastTurn();
     const ctx = {
       docs: docsMap,
       nodes: nodesMap,
@@ -417,6 +426,9 @@ export function NodeQueryModal({
       now,
       userId: ginaUserId,
       documentId: entityNodeId || null,
+      priorDepartment: lastTurnSnap?.department || null,
+      lastTurn: lastTurnSnap,
+      recentMessages: Array.isArray(meta?.messages) ? meta.messages : [],
       recentText: Array.isArray(meta?.messages)
         ? meta.messages.slice(-8).map((m) => String(m?.content || "")).filter(Boolean)
         : [],
@@ -470,6 +482,25 @@ export function NodeQueryModal({
         }),
         visualization: null,
         chips: null,
+      };
+    }
+
+    if (routed.family === "word_scope") {
+      const scan = routed.toolContext?.scan || {
+        needle: routed.toolContext?.needle,
+        departments: routed.toolContext?.departments,
+        categories: routed.toolContext?.categories,
+        folders: routed.toolContext?.folders,
+        documents: routed.toolContext?.documents,
+      };
+      return {
+        message: routed.toolContext?.empty
+          ? buildWordScopeEmptyMessage(routed.toolContext?.needle, { locale: localeKey })
+          : buildWordScopeAskMessage(scan, { locale: localeKey }),
+        visualization: null,
+        chips: routed.toolContext?.empty
+          ? null
+          : buildWordScopeChips(scan, { locale: localeKey }),
       };
     }
 
@@ -702,6 +733,12 @@ export function NodeQueryModal({
             singleFolderName: routed.toolContext?.singleFolderName || null,
             count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
           })
+          : routed.toolContext?.fromLastTurnDepartmentRefine
+          ? buildLastTurnDepartmentRefineMessage({
+            locale: localeKey,
+            department: routed.toolContext?.department || null,
+            count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
+          })
           : routed.toolContext?.fromLastTurnRefine
           ? buildLastTurnRefineMessage({
             locale: localeKey,
@@ -792,10 +829,19 @@ export function NodeQueryModal({
         userText: text,
       });
       return {
-        message: buildGinaFunnelHeadline(visualization, { locale: localeKey })
-          || (localeKey === "en"
-            ? `Here are the documents in ${routed.toolContext?.folderName || "that folder"}.`
-            : `Aquí tienes los documentos de ${routed.toolContext?.folderName || "ese folder"}.`),
+        message: routed.toolContext?.fromLastTurnFolderRefine
+          ? buildLastTurnFolderRefineMessage({
+            locale: localeKey,
+            folderName: routed.toolContext?.folderName || null,
+            department: routed.toolContext?.departmentName || routed.toolContext?.department || null,
+            count: routed.toolContext?.documents?.length
+              ?? routed.toolContext?.aggregated?.total
+              ?? 0,
+          })
+          : (buildGinaFunnelHeadline(visualization, { locale: localeKey })
+            || (localeKey === "en"
+              ? `Here are the documents in ${routed.toolContext?.folderName || "that folder"}.`
+              : `Aquí tienes los documentos de ${routed.toolContext?.folderName || "ese folder"}.`)),
         visualization,
         searchSequence: buildGinaSearchSequence(localeKey),
         chips: buildGinaReplyChips({
@@ -842,8 +888,48 @@ export function NodeQueryModal({
       }
     }
 
+    if (routed.family === "confirm_continue") {
+      const action = inferConfirmContinueAction(ctx, meta.messages || []);
+      if (action?.action === "list_department_docs" && action.departmentName) {
+        const deptHit = matchDepartmentInText(ctx, action.departmentName);
+        if (deptHit) {
+          const deptRouted = runGinaQueryFamily(
+            `entregame todos los documentos del departamento de ${deptHit.name}`,
+            ctx,
+          );
+          if (deptRouted.family === "department") {
+            const deptViz = buildGinaVisualization("department", deptRouted.toolContext, {
+              locale: localeKey,
+              now: ctx.now,
+              userText: text,
+            });
+            enrichGinaLastTurnFromVisualization(deptViz);
+            stampGinaLastTurnFromRouted(deptRouted, {
+              objectId: ctx.objectId || null,
+              userText: text,
+            });
+            return {
+              message: buildGinaFunnelHeadline(deptViz, { locale: localeKey })
+                || buildLastTurnDepartmentRefineMessage({
+                  locale: localeKey,
+                  department: deptRouted.toolContext?.department || null,
+                  count: deptRouted.toolContext?.documentCount ?? deptViz?.data?.documents?.length ?? 0,
+                }),
+              visualization: deptViz,
+              chips: buildGinaReplyChips({
+                family: "department",
+                visualization: deptViz,
+                locale: localeKey,
+              }),
+            };
+          }
+        }
+      }
+    }
+
     const workspaceInventory = routed.workspaceInventory || get_workspace_inventory(ctx);
     const visualization = (routed.family === "name_ambiguity"
+      || routed.family === "word_scope"
       || routed.family === "confirm_date"
       || routed.family === "unclear"
       || routed.family === "social"

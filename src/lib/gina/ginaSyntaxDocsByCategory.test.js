@@ -15,6 +15,7 @@ describe("ginaSyntaxDocsByCategory", () => {
     expect(wantsDocsByCategorySyntax("Filtrar y resaltar: Blogs")).toBe(true);
     expect(wantsDocsByCategorySyntax(' /buscar --categoria "Blogs" --resaltar')).toBe(true);
     expect(wantsDocsByCategorySyntax("Listado completo categorías: Blogs")).toBe(true);
+    expect(wantsDocsByCategorySyntax("entrégame todo sobre blogs")).toBe(true);
     expect(wantsDocsByCategorySyntax("entregame todos los documentos")).toBe(false);
   });
 
@@ -29,6 +30,7 @@ describe("ginaSyntaxDocsByCategory", () => {
       .toMatch(/blogs/i);
     expect(extractCategoryHintFromDocsSyntax("categorías: Campaign Results")).toMatch(/campaign/i);
     expect(extractCategoryHintFromDocsSyntax("dame los docs de Informes")).toMatch(/informes/i);
+    expect(extractCategoryHintFromDocsSyntax("entrégame todo sobre blogs")).toMatch(/^blogs$/i);
   });
 
   it("chip text is direct command (no Entrégame redundancy)", () => {

@@ -4,7 +4,7 @@
  */
 
 import { foldGinaText } from "./ginaTimeScope.js";
-import { matchNamedCategoryInText } from "./ginaTools.js";
+import { matchNamedCategoryInText, matchDepartmentInText } from "./ginaTools.js";
 
 /**
  * @typedef {{
@@ -46,6 +46,7 @@ const NO_STAMP_FAMILIES = new Set([
   "confirm_continue",
   "confirm_date",
   "name_ambiguity",
+  "word_scope",
   "gina_day_ritual_reset",
 ]);
 
@@ -204,7 +205,7 @@ export function parseLastTurnAnchorOffset(text) {
 /**
  * Pick the best listable turn to anchor a table refine / open.
  * @param {string} text
- * @param {{ categoryNeedle?: string | null, ctx?: object }} [opts]
+ * @param {{ categoryNeedle?: string | null, departmentNeedle?: string | null, ctx?: object }} [opts]
  * @returns {{ anchor: GinaLastTurn | null, depth: number, reason: string }}
  */
 export function resolveLastTurnAnchor(text, opts = {}) {
@@ -215,6 +216,9 @@ export function resolveLastTurnAnchor(text, opts = {}) {
   if (!listable.length) {
     return { anchor: null, depth: 0, reason: "no_listable_history" };
   }
+
+  const qText = foldGinaText(text);
+  const tableCue = /\b(tabla\s+anterior|lista\s+anterior|de\s+la\s+tabla\s+anterior)\b/.test(qText);
 
   const explicitOffset = parseLastTurnAnchorOffset(text);
   if (explicitOffset != null) {
@@ -227,8 +231,32 @@ export function resolveLastTurnAnchor(text, opts = {}) {
     };
   }
 
-  const needle = String(opts.categoryNeedle || "").trim();
+  const deptNeedle = String(opts.departmentNeedle || "").trim();
   const ctx = opts.ctx || null;
+  if (deptNeedle && ctx && !tableCue) {
+    for (let i = listable.length - 1; i >= 0; i -= 1) {
+      if (!listable[i].department) {
+        return {
+          anchor: listable[i],
+          depth: listable.length - i,
+          reason: "corpus_list_for_department_pivot",
+        };
+      }
+    }
+  }
+
+  if (deptNeedle && ctx) {
+    const deptHit = matchDepartmentInText(ctx, deptNeedle);
+    if (deptHit?.name) {
+      const deptFold = foldGinaText(deptHit.name);
+      const deptMatch = listable.find((t) => foldGinaText(t.department || "") === deptFold);
+      if (deptMatch) {
+        return { anchor: deptMatch, depth: 1, reason: "department_match" };
+      }
+    }
+  }
+
+  const needle = String(opts.categoryNeedle || "").trim();
   if (needle && ctx) {
     const catHit = matchNamedCategoryInText(ctx, needle, null);
     if (catHit?.departmentName) {

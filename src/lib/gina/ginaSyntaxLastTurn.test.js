@@ -21,8 +21,12 @@ import {
   buildLastTurnModifyChips,
   buildLastTurnRefineMessage,
   buildLastTurnCategoryRefineMessage,
+  buildLastTurnDepartmentRefineMessage,
+  extractLastTurnDepartmentHint,
+  extractLastTurnFolderHint,
 } from "./ginaSyntaxLastTurn.js";
-import { runGinaQueryFamily } from "./ginaQueryFamily.js";
+import { inferConfirmContinueAction } from "./ginaConfirmContinue.js";
+import { runGinaQueryFamily, wantsDepartmentDocsReview } from "./ginaQueryFamily.js";
 
 const now = new Date(2026, 7, 12, 12, 0, 0); // Wed Aug 12, 2026 local
 
@@ -141,6 +145,60 @@ const marketingCtx = {
       status: "not_started",
       anchorAt: "2026-08-12T09:00:00",
       anchorFinishAt: "2026-08-12T10:00:00",
+    },
+  },
+};
+
+const estrategiaCtx = {
+  ...marketingCtx,
+  departments: [
+    ...marketingCtx.departments,
+    {
+      id: "dept_e",
+      objectId: "co1",
+      category: "Estrategias de negocios",
+      subcategories: [],
+    },
+  ],
+  docs: {
+    ...marketingCtx.docs,
+    f_estr: {
+      id: "f_estr",
+      title: "Planes Estratégicos",
+      parentObjectId: "co1",
+      departmentId: "dept_e",
+      category: "uncategorized",
+    },
+    f_pdn: {
+      id: "f_pdn",
+      title: "Plan de Negocio",
+      parentObjectId: "co1",
+      departmentId: "dept_e",
+      category: "plan de negocio",
+    },
+  },
+  nodes: {
+    ...marketingCtx.nodes,
+    estr_doc1: {
+      id: "estr_doc1",
+      title: "Plan estratégico Q3",
+      parentDocId: "f_estr",
+      objectId: "co1",
+      status: "not_started",
+    },
+    estr_doc2: {
+      id: "estr_doc2",
+      title: "Análisis de mercado",
+      parentDocId: "f_estr",
+      objectId: "co1",
+      status: "flexible",
+    },
+    pdn_doc: {
+      id: "pdn_doc",
+      title: "Canvas PDN",
+      parentDocId: "f_pdn",
+      objectId: "co1",
+      status: "flexible",
     },
   },
 };
@@ -417,6 +475,138 @@ describe("ginaSyntaxLastTurn", () => {
     expect(reason).toBe("explicit_offset");
     expect(anchor?.department).toBeNull();
     expect(getGinaTurnHistory().length).toBe(2);
+  });
+
+  it("matches department pivot refine syntax", () => {
+    const phrase = "ok gracias, mejor entregamos los del departamento de estrategia de negocios";
+    expect(parseLastTurnIntent(phrase)).toBe("refine_filter_department");
+    expect(extractLastTurnDepartmentHint(phrase)).toMatch(/estrategia/i);
+  });
+
+  it("pivots corpus table to Estrategias de negocios department", () => {
+    stampGinaLastTurnFromRouted({
+      family: "count_documents",
+      toolContext: {
+        department: null,
+        documents: [
+          { id: "today_mkt", title: "Blog slot hoy Marketing" },
+          { id: "estr_doc1", title: "Plan estratégico Q3" },
+          { id: "sales_doc", title: "Sales follow-up" },
+        ],
+      },
+    }, { userText: "listado completo de todos los documentos" });
+    stampGinaLastTurnFromRouted({
+      family: "count_documents",
+      toolContext: {
+        department: "Marketing",
+        documents: [{ id: "today_mkt", title: "Blog slot hoy Marketing" }],
+      },
+    }, { userText: "filtrame blogs" });
+
+    const refined = runGinaQueryFamily(
+      "ok gracias, mejor entregamos los del departamento de estrategia de negocios",
+      estrategiaCtx,
+    );
+    expect(refined.family).toBe("count_documents");
+    expect(refined.toolContext?.fromLastTurnDepartmentRefine).toBe(true);
+    expect(refined.toolContext?.department).toBe("Estrategias de negocios");
+    const ids = (refined.toolContext?.documents || []).map((d) => d.id);
+    expect(ids).toContain("estr_doc1");
+    expect(ids).toContain("estr_doc2");
+    expect(ids).not.toContain("today_mkt");
+    expect(ids).not.toContain("sales_doc");
+  });
+
+  it("revisar todo sobre estrategia routes to department docs without free_chat", () => {
+    expect(wantsDepartmentDocsReview("revisar todo sobre estrategia de negocios")).toBe(true);
+    const routed = runGinaQueryFamily(
+      "revisar todo sobre estrategia de negocios",
+      estrategiaCtx,
+    );
+    expect(routed.family).toBe("department");
+    expect(routed.toolContext?.department).toBe("Estrategias de negocios");
+    expect((routed.toolContext?.documents || []).length).toBeGreaterThan(0);
+  });
+
+  it("sí after department docs offer lists department table", () => {
+    const messages = [
+      { role: "user", content: "revisar todo sobre estrategia de negocios" },
+      {
+        role: "assistant",
+        content: "Del departamento de Estrategias de Negocios, hay 4 folders. ¿Quieres ver todos los documentos de estos folders?",
+      },
+      { role: "user", content: "si" },
+    ];
+    const action = inferConfirmContinueAction(estrategiaCtx, messages);
+    expect(action?.action).toBe("list_department_docs");
+    expect(action?.departmentName).toBe("Estrategias de negocios");
+
+    const routed = runGinaQueryFamily("si", {
+      ...estrategiaCtx,
+      recentMessages: messages,
+      priorDepartment: "Estrategias de negocios",
+    });
+    expect(routed.family).toBe("department");
+    expect(routed.toolContext?.department).toBe("Estrategias de negocios");
+  });
+
+  it("entrégame todo sobre blogs lists only Blogs category — not title matches or other depts", () => {
+    stampGinaLastTurnFromRouted({
+      family: "count_documents",
+      toolContext: {
+        department: null,
+        documents: [
+          { id: "today_mkt", title: "Blog slot hoy Marketing" },
+          { id: "guion", title: "Guion de la Parte 01" },
+          { id: "sales_doc", title: "Sales follow-up" },
+          { id: "blogs_in_title_only", title: "Apify notes about Blogs pricing" },
+          { id: "estr_doc1", title: "Plan estratégico Q3" },
+        ],
+      },
+    }, { userText: "listado completo de todos los documentos" });
+
+    expect(parseLastTurnIntent("entrégame todo sobre blogs")).toBe(null);
+
+    const routed = runGinaQueryFamily("entrégame todo sobre blogs", marketingCtx);
+    expect(routed.family).toBe("count_documents");
+    expect(routed.toolContext?.mode).toBe("list_by_category");
+    expect(routed.toolContext?.category).toBe("Blogs");
+    const ids = (routed.toolContext?.documents || []).map((d) => d.id);
+    expect(ids).toContain("today_mkt");
+    expect(ids).toContain("past_mkt");
+    expect(ids).toContain("blog_third");
+    expect(ids).not.toContain("guion");
+    expect(ids).not.toContain("sales_doc");
+    expect(ids).not.toContain("blogs_in_title_only");
+    expect(ids).not.toContain("neg_today");
+  });
+
+  it("mejor entregamelos por plan de negocio lists that folder — not a fake department", () => {
+    const phrase = "mejor entregamelos por plan de negocio";
+    expect(parseLastTurnIntent(phrase)).toBe("refine_filter_folder");
+    expect(extractLastTurnFolderHint(phrase)).toMatch(/plan de negocio/i);
+    expect(extractLastTurnDepartmentHint(phrase)).toBe("");
+
+    stampGinaLastTurnFromRouted({
+      family: "count_documents",
+      toolContext: {
+        department: null,
+        documents: [
+          { id: "estr_doc1", title: "Plan estratégico Q3" },
+          { id: "pdn_doc", title: "Canvas PDN" },
+          { id: "today_mkt", title: "Blog slot hoy Marketing" },
+        ],
+      },
+    }, { userText: "listado completo de todos los documentos" });
+
+    const routed = runGinaQueryFamily(phrase, estrategiaCtx);
+    expect(routed.family).toBe("folder_summary");
+    expect(routed.toolContext?.fromLastTurnFolderRefine).toBe(true);
+    expect(routed.toolContext?.folderName).toMatch(/plan de negocio/i);
+    const ids = (routed.toolContext?.documents || []).map((d) => d.id);
+    expect(ids).toContain("pdn_doc");
+    expect(ids).not.toContain("estr_doc1");
+    expect(ids).not.toContain("today_mkt");
   });
 
   it("routes live wording: modiques + ábreme el documento", () => {

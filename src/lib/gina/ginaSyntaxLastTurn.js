@@ -15,6 +15,8 @@ import { formatCategoryPhrase, formatNeedlePhrase } from "./ginaCategoryGrammar.
  *   | "open_named"
  *   | "refine_exclude_flexible_today"
  *   | "refine_filter_category"
+ *   | "refine_filter_department"
+ *   | "refine_filter_folder"
  * } GinaLastTurnIntent
  */
 
@@ -58,9 +60,36 @@ function isRefineExcludeFlexibleToday(q) {
   return false;
 }
 
+/** Pivot anchored / corpus table to a live department. */
+function isRefineFilterDepartment(q) {
+  if (!q) return false;
+  if (!/\b(departamento|depto)\b/.test(q)) return false;
+  if (/\b(tabla\s+anterior|lista\s+anterior)\b/.test(q) && /\bfiltr\w*\b/.test(q)) {
+    // "filtrame la tabla anterior por blogs" stays category refine
+    return false;
+  }
+  return (
+    /\b(entreg\w*|mejor|solo|filtr\w*|filter|mostrar|muestra\w*|dame|list\w*|quiero)\b/.test(q)
+    || /\bdel\s+departamento\b/.test(q)
+    || /\bdepartamento\s+(de|del)\b/.test(q)
+  );
+}
+
+/** Pivot anchored / corpus table to a live folder ("mejor entregamelos por plan de negocio"). */
+function isRefineFilterFolder(q) {
+  if (!q) return false;
+  if (/\b(departamento|depto)\b/.test(q)) return false;
+  if (!/\bpor\b/.test(q)) return false;
+  return (
+    /\b(mejor|solo)\b/.test(q) && /\b(entreg\w*|dame|muestra\w*|trae\w*|list\w*)\b/.test(q)
+    || /\b(entreg\w*|dame|muestra\w*|trae\w*)\w*\s+por\b/.test(q)
+  );
+}
+
 /** Filter anchored table by category / keyword. */
 function isRefineFilterCategory(q) {
   if (!q) return false;
+  if (isRefineFilterFolder(q)) return false;
   const filterCue = /\b(filtr\w*|filtra|filter)\b/.test(q);
   const tableCue = /\b(de\s+la\s+tabla\s+anterior|tabla\s+anterior|lista\s+anterior|previous\s+table|last\s+table|previous\s+list)\b/.test(q);
   const porCue = /\bpor\s+(todos\s+los|todas\s+las|la\s+categor[ií]a|los|las)\b/.test(q);
@@ -88,6 +117,18 @@ export function extractLastTurnCategoryHint(text) {
     .replace(/\s+/g, " ")
     .trim();
 
+  const todoSobre = raw.match(/\btodo\s+sobre\s+(.+)$/i);
+  if (todoSobre) {
+    const hint = stripNoise(todoSobre[1]);
+    if (hint.length >= 2) return hint;
+  }
+
+  const sobreOnly = raw.match(/\bsobre\s+(.+)$/i);
+  if (sobreOnly && /\b(entreg\w*|dame|muestra\w*|todo)\b/i.test(raw)) {
+    const hint = stripNoise(sobreOnly[1]);
+    if (hint.length >= 2 && !/^(documentos?|docs?)$/i.test(hint)) return hint;
+  }
+
   const porMatch = raw.match(/\bpor\s+(?:todos\s+los|todas\s+las|la\s+categor[ií]a\s+)?(.+)$/i);
   if (porMatch) {
     const hint = stripNoise(porMatch[1]);
@@ -101,6 +142,67 @@ export function extractLastTurnCategoryHint(text) {
   }
 
   return "";
+}
+
+/**
+ * Extract department needle from pivot / refine utterance.
+ * @param {string} text
+ * @returns {string}
+ */
+export function extractLastTurnDepartmentHint(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+
+  const stripNoise = (s) => String(s || "")
+    .replace(/\b(por\s+favor|please|gina|ok|okay|gracias|thanks|mejor|tabla\s+anterior|lista\s+anterior)\b/gi, " ")
+    .replace(/[.?!,;]+$/g, "")
+    .replace(/^["']+|["']+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const delDept = raw.match(/\bdel\s+departamento\s+(?:de|del)\s+(.+)$/i);
+  if (delDept) {
+    const hint = stripNoise(delDept[1]);
+    if (hint.length >= 2) return hint;
+  }
+
+  const deptDe = raw.match(/\b(?:departamento|depto)\s+(?:de|del)\s+(.+)$/i);
+  if (deptDe) {
+    const hint = stripNoise(deptDe[1]);
+    if (hint.length >= 2) return hint;
+  }
+
+  // Folder pivot ("por plan de negocio") — not a department hint
+  if (/\bpor\s+/i.test(raw) && !/\b(departamento|depto)\b/i.test(raw)) {
+    return "";
+  }
+
+  const sobre = raw.match(/\b(?:sobre|de|del|en)\s+(?:el\s+)?(?:departamento\s+(?:de|del)\s+)?(.+)$/i);
+  if (sobre && /\b(revisar|entreg\w*|mejor|solo)\b/i.test(raw)) {
+    const hint = stripNoise(sobre[1]);
+    if (hint.length >= 2 && !/^(documentos?|docs?)$/i.test(hint)) return hint;
+  }
+
+  return "";
+}
+
+/**
+ * Folder needle from "mejor entregamelos por plan de negocio".
+ * @param {string} text
+ * @returns {string}
+ */
+export function extractLastTurnFolderHint(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  const por = raw.match(/\bpor\s+(.+)$/i);
+  if (!por) return "";
+  const hint = String(por[1] || "")
+    .replace(/\b(por\s+favor|please|gina)\b/gi, " ")
+    .replace(/[.?!,;]+$/g, "")
+    .replace(/^["']+|["']+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return hint.length >= 2 ? hint : "";
 }
 
 /**
@@ -165,6 +267,14 @@ export function parseLastTurnIntent(text) {
 
   if (isRefineFilterCategory(q)) {
     return "refine_filter_category";
+  }
+
+  if (isRefineFilterDepartment(q)) {
+    return "refine_filter_department";
+  }
+
+  if (isRefineFilterFolder(q)) {
+    return "refine_filter_folder";
   }
 
   // Don't steal classic schedule sheet asks (unless modify "this")
@@ -396,6 +506,55 @@ export function buildLastTurnCategoryRefineMessage(opts = {}) {
   return en
     ? `${deptBit} — ${n} document${n === 1 ? "" : "s"} with schedule metadata when applicable.`
     : `${deptBit}, aquí tienes ${n === 1 ? "el documento" : `los ${n} documentos`}.`;
+}
+
+/**
+ * Copy after department pivot on anchored / corpus table.
+ * @param {{
+ *   locale?: "es"|"en",
+ *   department?: string | null,
+ *   count?: number,
+ * }} opts
+ */
+export function buildLastTurnDepartmentRefineMessage(opts = {}) {
+  const en = opts.locale === "en";
+  const dept = String(opts.department || "").trim();
+  const n = Number(opts.count) || 0;
+  if (!dept) {
+    return en
+      ? `Here are ${n} document${n === 1 ? "" : "s"}.`
+      : `Aquí tienes ${n === 1 ? "el documento" : `los ${n} documentos`}.`;
+  }
+  return en
+    ? `From **${dept}** — ${n} document${n === 1 ? "" : "s"}.`
+    : `Del departamento de ${dept}, aquí tienes ${n === 1 ? "el documento" : `los ${n} documentos`}.`;
+}
+
+/**
+ * Copy after folder pivot on anchored / corpus table.
+ * @param {{
+ *   locale?: "es"|"en",
+ *   folderName?: string | null,
+ *   department?: string | null,
+ *   count?: number,
+ * }} opts
+ */
+export function buildLastTurnFolderRefineMessage(opts = {}) {
+  const en = opts.locale === "en";
+  const folder = String(opts.folderName || "").trim();
+  const dept = String(opts.department || "").trim();
+  const n = Number(opts.count) || 0;
+  if (!folder) {
+    return en
+      ? `Here are ${n} document${n === 1 ? "" : "s"}.`
+      : `Aquí tienes ${n === 1 ? "el documento" : `los ${n} documentos`}.`;
+  }
+  const deptBit = dept
+    ? (en ? `in **${dept}**` : `del departamento de ${dept}`)
+    : "";
+  return en
+    ? `Folder **${folder}**${deptBit ? ` ${deptBit}` : ""} — ${n} document${n === 1 ? "" : "s"}.`
+    : `Del folder ${folder}${deptBit ? `, ${deptBit}` : ""}, aquí tienes ${n === 1 ? "el documento" : `los ${n} documentos`}.`;
 }
 
 /**

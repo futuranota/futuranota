@@ -1016,8 +1016,18 @@ export function filterDocumentsByDepartmentAndCategory(ctx, departmentQuery, cat
       const docCat = fold(d.category);
       if (wantUncat) {
         if (docCat && docCat !== "uncategorized" && docCat !== "sin categoria") return false;
-      } else if (!docCat.includes(cq) && !cq.includes(docCat) && !fold(d.parentFolderName).includes(cq)) {
-        return false;
+      } else {
+        const aliases = expandCategoryNameTokens(categoryQuery);
+        const catOk = Boolean(docCat) && (
+          docCat === cq
+          || aliases.some((a) => docCat === a || nearMatchToken(docCat, a))
+          || (docCat.length >= 4 && cq.length >= 4 && (docCat.includes(cq) || cq.includes(docCat)))
+        );
+        const folderName = fold(d.parentFolderName);
+        const folderOk = Boolean(folderName)
+          && cq.length >= 4
+          && (folderName === cq || folderName.includes(cq));
+        if (!catOk && !folderOk) return false;
       }
     }
     if (fq && !fold(d.parentFolderName).includes(fq) && !fq.includes(fold(d.parentFolderName))) {
@@ -1177,6 +1187,29 @@ export function expandDepartmentNameTokens(nameFolded) {
 }
 
 /**
+ * @param {string} q folded query
+ * @param {string} name folded multi-word department name
+ */
+function multiWordDeptPhraseMatches(q, name) {
+  if (!name.includes(" ")) return false;
+  const qTokens = q.split(/\s+/).filter(Boolean);
+  const nTokens = name.split(/\s+/).filter(Boolean);
+  if (!qTokens.length || qTokens.length < nTokens.length) return false;
+  for (let i = 0; i <= qTokens.length - nTokens.length; i += 1) {
+    let ok = true;
+    for (let j = 0; j < nTokens.length; j += 1) {
+      const qt = qTokens[i + j];
+      const nt = nTokens[j];
+      if (qt === nt || qt.includes(nt) || nt.includes(qt) || nearMatchToken(qt, nt)) continue;
+      ok = false;
+      break;
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+
+/**
  * @param {string} queryFolded
  * @param {string} deptName
  */
@@ -1189,9 +1222,12 @@ function departmentNameHitsQuery(queryFolded, deptName) {
   for (const name of names) {
     if (!name) continue;
     if (q === name) return true;
-    if (q.includes(name)) return true;
-    const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`\\b${escaped}\\b`);
     if (re.test(q)) return true;
+    // Multi-word live names may appear as contiguous phrase without extra tokens
+    if (name.includes(" ") && q.includes(name)) return true;
+    if (multiWordDeptPhraseMatches(q, name)) return true;
   }
   return false;
 }
@@ -1205,11 +1241,17 @@ export function matchDepartmentInText(ctx, text) {
   if (!q) return null;
   const inventory = get_workspace_inventory(ctx);
   let best = null;
+  let bestScore = 0;
   for (const d of inventory.departments) {
     const name = fold(d.name);
     if (!name) continue;
     if (!departmentNameHitsQuery(q, d.name)) continue;
-    if (!best || name.length > fold(best.name).length) best = d;
+    let score = name.length;
+    if (q === name) score += 200;
+    if (q.includes(name) && name.includes(" ")) score += 100;
+    if (score <= bestScore) continue;
+    bestScore = score;
+    best = d;
   }
   return best;
 }
@@ -1363,6 +1405,117 @@ export function filterDocsByTitleNeedle(ctx, anchor, needle) {
     if (!title) return false;
     return title.includes(n) || n.includes(title);
   });
+}
+
+const WORD_SCOPE_STOP = new Set([
+  "a", "al", "de", "del", "el", "la", "las", "lo", "los", "un", "una",
+  "todo", "todos", "todas", "sobre", "por", "en", "con",
+]);
+
+function wordScopeTokens(text) {
+  return fold(text)
+    .split(/\s+/)
+    .filter((t) => t.length >= 3 && !WORD_SCOPE_STOP.has(t));
+}
+
+/**
+ * Live name contains the search needle (phrase or all significant tokens).
+ * "estrategia" hits "Estrategias de negocios"; "plan de negocio" does not.
+ * @param {string} liveName
+ * @param {string} needle
+ */
+export function wordScopeNameHits(liveName, needle) {
+  const nf = fold(liveName);
+  const q = fold(needle);
+  if (!nf || !q || q.length < 3) return false;
+  if (nf === q) return true;
+  if (nf.includes(q)) return true;
+  const qToks = wordScopeTokens(q);
+  const nToks = wordScopeTokens(nf);
+  if (!qToks.length) return false;
+  return qToks.every((qt) => nToks.some((nt) => (
+    nt === qt
+    || nt.includes(qt)
+    || (qt.length >= 4 && qt.includes(nt) && nt.length >= 4)
+    || nearMatchToken(nt, qt)
+  )));
+}
+
+function isUncategorizedCategory(category) {
+  const c = fold(category);
+  return !c || c === "uncategorized" || c === "sin categoria";
+}
+
+/**
+ * Scan live corpus for a word: department → category → folder → document title.
+ * Never invents names.
+ * @param {GinaToolsContext} ctx
+ * @param {string} needle
+ */
+export function scanGinaWordScope(ctx, needle) {
+  const raw = String(needle || "").trim();
+  const inventory = get_workspace_inventory(ctx);
+  /** @type {Array<{ id: string, name: string }>} */
+  const departments = [];
+  /** @type {Array<{ name: string, departmentName: string | null, departmentId?: string | null }>} */
+  const categories = [];
+  /** @type {Array<{ id: string, name: string, category: string | null, departmentName: string | null }>} */
+  const folders = [];
+
+  for (const d of inventory.departments || []) {
+    if (wordScopeNameHits(d.name, raw)) {
+      departments.push({ id: d.id, name: d.name });
+    }
+    for (const cat of d.categories || []) {
+      const name = String(cat || "").trim();
+      if (!name || isUncategorizedCategory(name)) continue;
+      if (!wordScopeNameHits(name, raw)) continue;
+      const key = `${fold(d.name)}:${fold(name)}`;
+      if (categories.some((c) => `${fold(c.departmentName)}:${fold(c.name)}` === key)) continue;
+      categories.push({
+        name,
+        departmentName: d.name || null,
+        departmentId: d.id || null,
+      });
+    }
+  }
+
+  for (const f of inventory.folders || []) {
+    if (!wordScopeNameHits(f.name, raw)) continue;
+    folders.push({
+      id: f.id,
+      name: f.name,
+      category: f.category || null,
+      departmentName: f.departmentName || null,
+    });
+  }
+
+  const documents = get_all_company_documents(ctx)
+    .filter((d) => wordScopeNameHits(d.title || d.name || "", raw))
+    .map((d) => ({
+      id: d.id,
+      title: d.title || d.name || "—",
+      departmentName: d.departmentName || null,
+      category: d.category || null,
+      folder: d.parentFolderName || null,
+      status: d.status || null,
+      anchorAt: d.anchorAt || null,
+      anchorFinishAt: d.anchorFinishAt || null,
+    }));
+
+  const structuralCount = (departments.length ? 1 : 0)
+    + (categories.length ? 1 : 0)
+    + (folders.length ? 1 : 0);
+
+  return {
+    needle: raw,
+    departments,
+    categories,
+    folders,
+    documents,
+    structuralCount,
+    empty: structuralCount === 0 && documents.length === 0,
+  };
 }
 
 export const GINA_TOOLS = {

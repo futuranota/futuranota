@@ -33,9 +33,12 @@ export function wantsDocsByCategorySyntax(text) {
   const q = fold(text);
   if (!q) return false;
 
-  // Do not steal department review / browse
+  // Do not steal department review / browse / folder-first "documentos del {folder}"
   if (/\b(departamento|departamentos|revisar|review)\b/.test(q)) return false;
   if (/\bdocumentos?\s+(del|de|en)\s+departamento\b/.test(q)) return false;
+  if (/\bdocumentos?\s+del\s+/.test(q) && !/\b(que\s+sean?\s+de|categor[ií]a)\b/.test(q)) {
+    return false;
+  }
 
   // Direct chip command
   if (FILTER_HIGHLIGHT_CMD.test(raw)) return true;
@@ -52,6 +55,11 @@ export function wantsDocsByCategorySyntax(text) {
 
   // Chip / layer legacy
   if (/\bcategor[ií]as?\s*:/.test(raw) || /\bcategories?\s*:/.test(raw)) {
+    return true;
+  }
+
+  // "entrégame todo sobre blogs" (no "documentos" required)
+  if (FETCH_VERBS.test(q) && /\btodo\s+sobre\b/.test(q) && !/\b(departamento|depto)\b/.test(q)) {
     return true;
   }
 
@@ -136,6 +144,12 @@ export function extractCategoryHintFromDocsSyntax(text) {
     // First category if multi
     const first = layered[1].split(/\s*(?:,|;| y | and )\s*/i)[0];
     const hint = cleanHint(first);
+    return isDepartmentScopedHint(hint) ? "" : hint;
+  }
+
+  const todoSobre = raw.match(/\btodo\s+sobre\s+(.+)$/i);
+  if (todoSobre) {
+    const hint = cleanHint(todoSobre[1]);
     return isDepartmentScopedHint(hint) ? "" : hint;
   }
 

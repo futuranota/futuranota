@@ -42,6 +42,7 @@ import {
   listFoldersForDepartmentCategory,
   resolveEntitySearchScope,
   filterDocsByTitleNeedle,
+  scanGinaWordScope,
 } from "./ginaTools.js";
 import {
   clearPendingGinaOffer,
@@ -58,6 +59,13 @@ import {
   extractCategoryHintFromDocsSyntax,
   wantsDocsByCategorySyntax,
 } from "./ginaSyntaxDocsByCategory.js";
+import {
+  wantsWordScopeScan,
+  extractWordScopeNeedle,
+  parseWordScopeLayerReply,
+  buildWordScopeAskMessage,
+  buildWordScopeEmptyMessage,
+} from "./ginaSyntaxWordScope.js";
 import {
   parseGinaScheduleScope,
   wantsGinaScheduleScopeList,
@@ -104,8 +112,11 @@ import {
   parseLastTurnIntent,
   extractLastTurnOpenTitle,
   extractLastTurnCategoryHint,
+  extractLastTurnDepartmentHint,
+  extractLastTurnFolderHint,
   matchLastTurnDocumentId,
 } from "./ginaSyntaxLastTurn.js";
+import { inferConfirmContinueAction } from "./ginaConfirmContinue.js";
 import {
   getGinaLastTurn,
   resolveLastTurnAnchor,
@@ -533,6 +544,15 @@ export function wantsNamedCategoryListDocs(text) {
   if (/\b(todos|todas)\s+(los|las)\s+documentos?\b/.test(q) && !wantsFolderDocsList(q)) {
     return true;
   }
+  // "entrégame todo sobre blogs" — category dump, not Find / free_chat
+  if (/\btodo\s+sobre\b/.test(q) && !/\b(departamento|depto)\b/.test(q)) return true;
+  if (
+    /\b(entreg\w*|dame|muestra\w*|trae\w*)\b/.test(q)
+    && /\bsobre\b/.test(q)
+    && !/\b(departamento|depto|documento\s+sobre)\b/.test(q)
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -697,9 +717,11 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
     const want = fold(wantRaw);
     if (!want) return true;
     if (!fc) return false;
-    if (fc === want || fc.includes(want) || want.includes(fc)) return true;
+    if (fc === want) return true;
     const aliases = expandCategoryNameTokens(wantRaw);
-    return aliases.some((a) => fc === a || nearMatchToken(fc, a));
+    if (aliases.some((a) => fc === a || nearMatchToken(fc, a))) return true;
+    if (fc.length >= 4 && want.length >= 4 && (fc.includes(want) || want.includes(fc))) return true;
+    return false;
   };
 
   if (mode === "pick_department") {
@@ -1177,6 +1199,9 @@ export function wantsDepartmentDocsReview(q) {
   }
   if (/\b(show|list|give)\s+(me\s+)?(all\s+)?(the\s+)?documents?\b/.test(body)) return true;
   if (/\breview\s+(the\s+)?documents?\b/.test(body)) return true;
+  if (/\b(revisar|revisemos)\b/.test(body) && /\b(sobre|de|del|en)\b/.test(body)) return true;
+  if (/\bentreg\w*\b/.test(body) && /\b(departamento|depto)\b/.test(body)) return true;
+  if (/\b(mejor|solo)\b/.test(body) && /\b(departamento|depto)\b/.test(body)) return true;
   return false;
 }
 
@@ -1292,6 +1317,11 @@ function buildDepartmentDocsFamily(ctx, inventory, toolsCalled, deptHit, extra =
     folderHit?.name || "",
   );
   toolsCalled.push("filter_department");
+  setPendingGinaOffer({
+    type: "list_department_docs",
+    departmentName: deptHit.name,
+    departmentId: deptHit.id || stats?.departmentId || null,
+  });
   return {
     family: "department",
     toolsCalled,
@@ -1652,6 +1682,179 @@ function resolveScopeFilters(ctx, remainder, toolsCalled) {
 }
 
 /**
+ * Unique live hit from a word-scope scan (one layer, one name).
+ * @param {ReturnType<typeof scanGinaWordScope>} scan
+ */
+function uniqueWordScopeHit(scan) {
+  if (!scan || scan.empty) return null;
+  const depts = scan.departments || [];
+  const cats = scan.categories || [];
+  const folders = scan.folders || [];
+  const docs = scan.documents || [];
+  if (scan.structuralCount === 1) {
+    if (depts.length === 1 && !cats.length && !folders.length) {
+      return { layer: "department", name: depts[0].name, departmentName: depts[0].name };
+    }
+    if (cats.length === 1 && !depts.length && !folders.length) {
+      return {
+        layer: "category",
+        name: cats[0].name,
+        departmentName: cats[0].departmentName || null,
+        category: cats[0].name,
+      };
+    }
+    if (folders.length === 1 && !depts.length && !cats.length) {
+      return {
+        layer: "folder",
+        name: folders[0].name,
+        id: folders[0].id,
+        departmentName: folders[0].departmentName || null,
+        category: folders[0].category || null,
+      };
+    }
+    return null;
+  }
+  if (scan.structuralCount === 0 && docs.length === 1) {
+    return { layer: "document", name: docs[0].title, id: docs[0].id };
+  }
+  if (scan.structuralCount === 0 && docs.length > 1) {
+    return { layer: "documents", documents: docs };
+  }
+  return null;
+}
+
+function deliverWordScopeHit(ctx, inventory, toolsCalled, hit) {
+  if (!hit?.layer) return null;
+  if (hit.layer === "department" && hit.name) {
+    const deptHit = matchDepartmentInText(ctx, hit.name);
+    if (deptHit) return buildDepartmentDocsFamily(ctx, inventory, toolsCalled, deptHit, { text: hit.name });
+  }
+  if (hit.layer === "category" && hit.name) {
+    return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+      mode: "list_by_category",
+      categoryName: hit.name,
+      departmentName: hit.departmentName || null,
+      view: {
+        categories: [hit.name],
+        highlightCategories: [],
+      },
+      text: "",
+    });
+  }
+  if (hit.layer === "folder") {
+    const folderHit = hit.id
+      ? {
+        id: hit.id,
+        name: hit.name,
+        category: hit.category || null,
+        departmentName: hit.departmentName || null,
+      }
+      : (matchLiveFoldersByNeedle(ctx, hit.name || "", { limit: 1 })[0] || null);
+    if (folderHit?.id) {
+      return buildFolderDocsFamily(ctx, inventory, toolsCalled, folderHit);
+    }
+  }
+  if (hit.layer === "document" && hit.id) {
+    toolsCalled.push("resolve_focus");
+    return {
+      family: "focus_open",
+      toolsCalled,
+      toolContext: {
+        openDocumentId: hit.id,
+        openFolderId: null,
+        fromWordScope: true,
+        hint: "Open the live document that matched the word-scope pick",
+      },
+      openDocumentId: hit.id,
+      openFolderId: null,
+      workspaceInventory: inventory,
+    };
+  }
+  if (hit.layer === "documents" && Array.isArray(hit.documents)) {
+    const documents = hit.documents;
+    return {
+      family: "count_documents",
+      toolsCalled,
+      toolContext: {
+        inventory,
+        mode: "list_all",
+        department: null,
+        category: null,
+        count: documents.length,
+        documents,
+        groups: groupDocsByDepartment(documents),
+        view: {
+          showSchedule: false,
+          showStatus: false,
+          categories: [],
+          highlightCategories: [],
+        },
+        empty: documents.length === 0,
+        listAll: true,
+        fromWordScope: true,
+        hint: "Title matches only — no department/category/folder with that word",
+      },
+      workspaceInventory: inventory,
+      pendingGinaOffer: null,
+    };
+  }
+  return null;
+}
+
+function buildWordScopeAskFamily(inventory, toolsCalled, scan) {
+  const offer = {
+    type: "word_scope",
+    needle: scan.needle,
+    scan,
+  };
+  setPendingGinaOffer(offer);
+  return {
+    family: "word_scope",
+    toolsCalled,
+    toolContext: {
+      needsClarify: true,
+      needle: scan.needle,
+      scan,
+      departments: scan.departments,
+      categories: scan.categories,
+      folders: scan.folders,
+      documents: scan.documents,
+      pendingOffer: offer,
+      hint: "Multiple live layers match — ask; do not invent hierarchy",
+    },
+    workspaceInventory: inventory,
+    pendingGinaOffer: offer,
+  };
+}
+
+function runWordScopeNeedle(ctx, inventory, toolsCalled, needle, text) {
+  const scan = scanGinaWordScope(ctx, needle);
+  toolsCalled.push("scan_gina_word_scope");
+  if (scan.empty) {
+    clearPendingGinaOffer();
+    return {
+      family: "word_scope",
+      toolsCalled,
+      toolContext: {
+        empty: true,
+        needle: needle || text,
+        scan,
+        hint: "No live department/category/folder/document — do not invent",
+      },
+      workspaceInventory: inventory,
+      pendingGinaOffer: null,
+    };
+  }
+  const unique = uniqueWordScopeHit(scan);
+  if (unique) {
+    clearPendingGinaOffer();
+    const delivered = deliverWordScopeHit(ctx, inventory, toolsCalled, unique);
+    if (delivered) return delivered;
+  }
+  return buildWordScopeAskFamily(inventory, toolsCalled, scan);
+}
+
+/**
  * @param {string} text
  * @param {import("./ginaTools.js").GinaToolsContext} ctx
  */
@@ -1710,22 +1913,48 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Follow-ups that need the last shown result (“este”, filtrar, ábrelo).
+  // Word-scope follow-up: user named the layer and/or the live name (two variables).
   {
-    const lastIntent = parseLastTurnIntent(text);
+    const pending = getPendingGinaOffer() || ctx.pendingGinaOffer || null;
+    if (pending?.type === "word_scope" && pending.scan) {
+      const picked = parseWordScopeLayerReply(text, pending.scan);
+      if (picked?.layer && (picked.name || picked.id)) {
+        consumePendingGinaOffer();
+        const delivered = deliverWordScopeHit(ctx, inventory, toolsCalled, picked);
+        if (delivered) return delivered;
+      }
+      const narrower = extractWordScopeNeedle(text);
+      if (narrower && fold(narrower) !== fold(pending.needle || "")) {
+        consumePendingGinaOffer();
+        return runWordScopeNeedle(ctx, inventory, toolsCalled, narrower, text);
+      }
+    }
+  }
+
+  // Follow-ups that need the last shown result (“este”, filtrar, ábrelo).
+  // Find (“encuentra un documento sobre…”) is global scan — do not steal as lastTurn open_named.
+  {
+    const lastIntent = isFindDocumentIntent(text) ? null : parseLastTurnIntent(text);
     if (lastIntent) {
       const needleForAnchor = lastIntent === "refine_filter_category"
         ? extractLastTurnCategoryHint(text)
-        : null;
+        : (lastIntent === "refine_filter_department"
+          ? extractLastTurnDepartmentHint(text)
+          : null);
       const { anchor: resolvedAnchor, reason: anchorReason } = resolveLastTurnAnchor(text, {
-        categoryNeedle: needleForAnchor,
+        categoryNeedle: lastIntent === "refine_filter_category" ? needleForAnchor : null,
+        departmentNeedle: lastIntent === "refine_filter_department" ? needleForAnchor : null,
         ctx,
       });
       const last = resolvedAnchor || getGinaLastTurn() || ctx.lastTurn || null;
       const docs = Array.isArray(last?.documents) ? last.documents : [];
 
       if (lastIntent === "refine_filter_category") {
-        if (!last) {
+        const needle = extractLastTurnCategoryHint(text) || needleForAnchor || text;
+        const qFold = fold(text);
+        const corpusWide = /\btodo\s+sobre\b/.test(qFold)
+          && !/\b(tabla\s+anterior|lista\s+anterior)\b/.test(qFold);
+        if (!last && !corpusWide) {
           return {
             family: "last_turn_missing",
             toolsCalled,
@@ -1737,24 +1966,26 @@ export function runGinaQueryFamily(text, ctx = {}) {
             workspaceInventory: inventory,
           };
         }
-        const needle = extractLastTurnCategoryHint(text) || needleForAnchor || text;
         const view = parseDocsListView(text);
         const scope = resolveEntitySearchScope(ctx, needle, {
-          departmentHint: last.department || null,
+          departmentHint: corpusWide ? null : (last?.department || null),
         });
 
         if (scope.kind === "category") {
-          const deptName = last.department || scope.departmentName || null;
+          const deptName = corpusWide
+            ? null
+            : (last?.department || scope.departmentName || null);
           const folders = listFoldersForDepartmentCategory(inventory, deptName, scope.name);
           const folderNames = folders.map((f) => f.name).filter(Boolean);
           const refined = buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
-            mode: deptName ? "list_by_department" : "list_all",
+            mode: deptName ? "list_by_department" : "list_by_category",
             departmentName: deptName,
+            categoryName: scope.name,
             view: {
               showSchedule: view.showSchedule,
               showStatus: view.showStatus,
-              categories: [],
-              highlightCategories: [scope.name],
+              categories: [scope.name],
+              highlightCategories: [],
               scheduleScope: view.scheduleScope || null,
             },
             text: "",
@@ -1769,7 +2000,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
               categoryFolders: folderNames,
               folderCount: folders.length,
               singleFolderName: folderNames.length === 1 ? folderNames[0] : null,
-              lastTurnFamily: last.family || null,
+              lastTurnFamily: last?.family || null,
               anchorReason,
               hint: "Anchored category refine — strict doc.category metadata",
             },
@@ -1865,6 +2096,102 @@ export function runGinaQueryFamily(text, ctx = {}) {
           },
           workspaceInventory: inventory,
           pendingGinaOffer: null,
+        };
+      }
+
+      if (lastIntent === "refine_filter_department") {
+        const deptHint = extractLastTurnDepartmentHint(text);
+        const deptHit = matchDepartmentInText(ctx, deptHint)
+          || matchDepartmentInText(ctx, text);
+        if (!deptHit) {
+          return {
+            family: "last_turn_missing",
+            toolsCalled,
+            toolContext: {
+              intent: lastIntent,
+              documents: docs,
+              hint: "Department pivot without live department — name the department",
+            },
+            workspaceInventory: inventory,
+          };
+        }
+        const view = parseDocsListView(text);
+        const refined = buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+          mode: "list_by_department",
+          departmentName: deptHit.name,
+          view: {
+            showSchedule: view.showSchedule,
+            showStatus: view.showStatus,
+            categories: [],
+            highlightCategories: [],
+            scheduleScope: view.scheduleScope || null,
+          },
+          text: "",
+        });
+        return {
+          ...refined,
+          toolContext: {
+            ...(refined.toolContext || {}),
+            fromLastTurnDepartmentRefine: true,
+            lastTurnFamily: last?.family || null,
+            anchorReason,
+            hint: "Anchored department pivot — corpus or table scope",
+          },
+        };
+      }
+
+      if (lastIntent === "refine_filter_folder") {
+        const folderHint = extractLastTurnFolderHint(text);
+        const hits = matchLiveFoldersByNeedle(ctx, folderHint || text, { limit: 5 });
+        toolsCalled.push("match_live_folders_by_needle");
+        if (hits.length === 1) {
+          const built = buildFolderDocsFamily(ctx, inventory, toolsCalled, hits[0]);
+          return {
+            ...built,
+            toolContext: {
+              ...(built.toolContext || {}),
+              fromLastTurnFolderRefine: true,
+              lastTurnFamily: last?.family || null,
+              hint: "Folder pivot — live folder children only",
+            },
+          };
+        }
+        if (hits.length > 1) {
+          clearPendingGinaOffer();
+          return {
+            family: "name_ambiguity",
+            toolsCalled,
+            toolContext: {
+              ambiguity: {
+                intro: "Ese nombre encaja con más de un folder.",
+                needle: folderHint || text,
+                options: hits.slice(0, 3).map((h) => ({
+                  id: `folder:${h.id}`,
+                  kind: "folder",
+                  label: h.departmentName
+                    ? `En ${h.departmentName}: folder ${h.name}`
+                    : `Folder ${h.name}`,
+                  department: h.departmentName || null,
+                  category: h.category || null,
+                  folderId: h.id,
+                  folderName: h.name,
+                })),
+              },
+            },
+            workspaceInventory: inventory,
+          };
+        }
+        return {
+          family: "last_turn_empty",
+          toolsCalled,
+          toolContext: {
+            intent: lastIntent,
+            matchKind: "empty",
+            needle: folderHint || text,
+            documents: [],
+            hint: "No live folder matched that name",
+          },
+          workspaceInventory: inventory,
         };
       }
 
@@ -2002,6 +2329,14 @@ export function runGinaQueryFamily(text, ctx = {}) {
         },
         workspaceInventory: inventory,
       };
+    }
+  }
+
+  // Fetch-about a word without naming the layer — scan depto → cat → folder → doc.
+  if (wantsWordScopeScan(text)) {
+    const needle = extractWordScopeNeedle(text);
+    if (needle) {
+      return runWordScopeNeedle(ctx, inventory, toolsCalled, needle, text);
     }
   }
 
@@ -2247,6 +2582,23 @@ export function runGinaQueryFamily(text, ctx = {}) {
         folderHit.departmentName = live.departmentName || null;
       }
       return buildFolderDocsFamily(ctx, inventory, toolsCalled, folderHit, { skipPendingOffer: true });
+    }
+    if (pending?.type === "list_department_docs" && pending.departmentName) {
+      consumePendingGinaOffer();
+      const deptHit = matchDepartmentInText(ctx, pending.departmentName);
+      if (deptHit) {
+        return buildDepartmentDocsFamily(ctx, inventory, toolsCalled, deptHit, { text });
+      }
+    }
+    const confirmAction = inferConfirmContinueAction(
+      ctx,
+      Array.isArray(ctx.recentMessages) ? ctx.recentMessages : [],
+    );
+    if (confirmAction?.action === "list_department_docs" && confirmAction.departmentName) {
+      const deptHit = matchDepartmentInText(ctx, confirmAction.departmentName);
+      if (deptHit) {
+        return buildDepartmentDocsFamily(ctx, inventory, toolsCalled, deptHit, { text });
+      }
     }
     // Stale list_folder from another topic — do not revive it.
     if (pending?.type === "list_folder") {
@@ -2806,20 +3158,21 @@ export function runGinaQueryFamily(text, ctx = {}) {
       const deptName = deptHit?.name || catHit.departmentName || null;
       // Explicit "categorías: A, B" layers → count_documents; "Listado completo de Blogs" stays category_scope
       const layeredCats = parseDocsListView(text).categories.length > 0;
-      const listDocs = wantsNamedCategoryListDocs(text) && !layeredCats;
-      const listFolders = wantsNamedCategoryListFolders(text);
-      const countDocs = wantsNamedCategoryCountDocs(text);
-      if (listDocs || listFolders || countDocs) {
-        clearPendingGinaOffer();
-        const mode = listDocs
-          ? "list_docs"
-          : (listFolders ? "list_folders" : "count_docs");
-        return buildCategoryScopeFamily(ctx, inventory, toolsCalled, {
-          mode,
-          category: catHit.name,
-          departmentName: deptName,
-        });
-      }
+        const listDocs = wantsNamedCategoryListDocs(text) && !layeredCats;
+        const listFolders = wantsNamedCategoryListFolders(text);
+        const countDocs = wantsNamedCategoryCountDocs(text);
+        if (listDocs || listFolders || countDocs) {
+          clearPendingGinaOffer();
+          const todoSobre = /\btodo\s+sobre\b/.test(fold(text));
+          const mode = listDocs
+            ? "list_docs"
+            : (listFolders ? "list_folders" : "count_docs");
+          return buildCategoryScopeFamily(ctx, inventory, toolsCalled, {
+            mode,
+            category: catHit.name,
+            departmentName: todoSobre ? null : deptName,
+          });
+        }
     }
   }
 
@@ -3344,24 +3697,22 @@ export function runGinaQueryFamily(text, ctx = {}) {
     return { family: "status", toolsCalled, toolContext, workspaceInventory: inventory };
   }
 
-  // Category blogs — only if inventory has that category (no hardcoded Marketing)
+  // Category blogs — strict live category list (never dump uncategorized / other depts)
   if (/\b(blog|blogs)\b/.test(q)) {
-    const deptHit = matchDepartmentInText(ctx, q);
-    const docs = call("filter_dept_category", () => filterDocumentsByDepartmentAndCategory(
-      ctx,
-      deptHit?.name || "",
-      "blog",
-    ));
-    return {
-      family: "blogs",
-      toolsCalled,
-      toolContext: {
-        department: deptHit?.name || null,
-        category: "blogs",
-        documents: docs,
-      },
-      workspaceInventory: inventory,
-    };
+    const catHit = matchNamedCategoryInText(ctx, text, null)
+      || matchNamedCategoryInText(ctx, "blogs", null);
+    if (catHit?.name) {
+      clearPendingGinaOffer();
+      return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+        mode: "list_by_category",
+        categoryName: catHit.name,
+        view: {
+          categories: [catHit.name],
+          highlightCategories: [],
+        },
+        text,
+      });
+    }
   }
 
   // Folder / department summary — match live inventory names only (aliases OK)

@@ -103,8 +103,16 @@ import {
   buildLastTurnModifyMessage,
   buildLastTurnRefineMessage,
   buildLastTurnCategoryRefineMessage,
+  buildLastTurnDepartmentRefineMessage,
+  buildLastTurnFolderRefineMessage,
 } from "../../lib/gina/ginaSyntaxLastTurn.js";
-import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization } from "../../lib/gina/ginaLastTurn.js";
+import {
+  buildWordScopeAskMessage,
+  buildWordScopeEmptyMessage,
+  buildWordScopeChips,
+} from "../../lib/gina/ginaSyntaxWordScope.js";
+import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization, getGinaLastTurn } from "../../lib/gina/ginaLastTurn.js";
+import { inferConfirmContinueAction } from "../../lib/gina/ginaConfirmContinue.js";
 import {
   consumePendingGinaOffer,
   getPendingGinaOffer,
@@ -115,7 +123,7 @@ import { pickNextDaySheetDoc, summarizeDaySheetProgress } from "../../lib/gina/g
 import { useGinaDailyReportNudge } from "../../hooks/useGinaDailyReportNudge.js";
 import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
 import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
-import { get_today_scope, get_workspace_inventory } from "../../lib/gina/ginaTools.js";
+import { get_today_scope, get_workspace_inventory, matchDepartmentInText } from "../../lib/gina/ginaTools.js";
 import { buildGinaKnowledgePromptBlock, isGinaLearnSaveConfirm, addLocalGinaKnowledge, parseGinaLearnReply } from "../../lib/gina/ginaKnowledgeStore.js";
 import { resolveGinaLearnBrief, resolveGinaLearnBriefByTitle } from "../../lib/gina/resolveGinaLearnBrief.js";
 import { isAdminSessionEmail } from "../../lib/adminPlanCredits.js";
@@ -3230,6 +3238,7 @@ export function LeftPanel({
       };
     }
 
+    const lastTurnSnap = getGinaLastTurn();
     const ctx = {
       docs: docsMap,
       nodes: nodesMap,
@@ -3238,6 +3247,9 @@ export function LeftPanel({
       corpusName: activeObject?.name || null,
       now: new Date(),
       userId: ginaUserId,
+      priorDepartment: lastTurnSnap?.department || null,
+      lastTurn: lastTurnSnap,
+      recentMessages: Array.isArray(meta?.messages) ? meta.messages : [],
       recentText: Array.isArray(meta?.messages)
         ? meta.messages.slice(-8).map((m) => String(m?.content || "")).filter(Boolean)
         : [],
@@ -3299,6 +3311,25 @@ export function LeftPanel({
         }),
         visualization: null,
         chips: null,
+      };
+    }
+
+    if (!meetingOn && routed.family === "word_scope") {
+      const scan = routed.toolContext?.scan || {
+        needle: routed.toolContext?.needle,
+        departments: routed.toolContext?.departments,
+        categories: routed.toolContext?.categories,
+        folders: routed.toolContext?.folders,
+        documents: routed.toolContext?.documents,
+      };
+      return {
+        message: routed.toolContext?.empty
+          ? buildWordScopeEmptyMessage(routed.toolContext?.needle, { locale: localeKey })
+          : buildWordScopeAskMessage(scan, { locale: localeKey }),
+        visualization: null,
+        chips: routed.toolContext?.empty
+          ? null
+          : buildWordScopeChips(scan, { locale: localeKey }),
       };
     }
 
@@ -4471,6 +4502,12 @@ export function LeftPanel({
           singleFolderName: routed.toolContext?.singleFolderName || null,
           count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
         })
+        : routed.toolContext?.fromLastTurnDepartmentRefine
+        ? buildLastTurnDepartmentRefineMessage({
+          locale: localeKey,
+          department: routed.toolContext?.department || null,
+          count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
+        })
         : routed.toolContext?.fromLastTurnRefine
         ? buildLastTurnRefineMessage({
           locale: localeKey,
@@ -4583,10 +4620,19 @@ export function LeftPanel({
         now: ctx.now,
         userText: text,
       });
-      const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
-        || (localeKey === "en"
-          ? `Here are the documents in ${routed.toolContext?.folderName || "that folder"}.`
-          : `Aquí tienes los documentos de ${routed.toolContext?.folderName || "ese folder"}.`);
+      const message = routed.toolContext?.fromLastTurnFolderRefine
+        ? buildLastTurnFolderRefineMessage({
+          locale: localeKey,
+          folderName: routed.toolContext?.folderName || null,
+          department: routed.toolContext?.departmentName || routed.toolContext?.department || null,
+          count: routed.toolContext?.documents?.length
+            ?? routed.toolContext?.aggregated?.total
+            ?? 0,
+        })
+        : (buildGinaFunnelHeadline(visualization, { locale: localeKey })
+          || (localeKey === "en"
+            ? `Here are the documents in ${routed.toolContext?.folderName || "that folder"}.`
+            : `Aquí tienes los documentos de ${routed.toolContext?.folderName || "ese folder"}.`));
       return {
         message,
         visualization,
@@ -4677,11 +4723,52 @@ export function LeftPanel({
       };
     }
 
+    if (!meetingOn && routed.family === "confirm_continue") {
+      const action = inferConfirmContinueAction(ctx, meta.messages || []);
+      if (action?.action === "list_department_docs" && action.departmentName) {
+        const deptHit = matchDepartmentInText(ctx, action.departmentName);
+        if (deptHit) {
+          const deptRouted = runGinaQueryFamily(
+            `entregame todos los documentos del departamento de ${deptHit.name}`,
+            ctx,
+          );
+          if (deptRouted.family === "department") {
+            const visualization = buildGinaVisualization("department", deptRouted.toolContext, {
+              locale: localeKey,
+              now: ctx.now,
+              userText: text,
+            });
+            enrichGinaLastTurnFromVisualization(visualization);
+            stampGinaLastTurnFromRouted(deptRouted, {
+              objectId: ctx.objectId || null,
+              userText: text,
+            });
+            const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
+              || buildLastTurnDepartmentRefineMessage({
+                locale: localeKey,
+                department: deptRouted.toolContext?.department || null,
+                count: deptRouted.toolContext?.documentCount ?? visualization?.data?.documents?.length ?? 0,
+              });
+            return {
+              message,
+              visualization,
+              chips: buildGinaReplyChips({
+                family: "department",
+                visualization,
+                locale: localeKey,
+              }),
+            };
+          }
+        }
+      }
+    }
+
     try {
       const workspaceInventory = routed.workspaceInventory
         || get_workspace_inventory(ctx);
       const visualization = (meetingOn
         || routed.family === "name_ambiguity"
+        || routed.family === "word_scope"
         || routed.family === "confirm_date"
         || routed.family === "unclear"
         || routed.family === "social"
@@ -4729,6 +4816,7 @@ export function LeftPanel({
         || routed.family === "confirm_continue"
         || routed.family === "unclear"
         || routed.family === "name_ambiguity"
+        || routed.family === "word_scope"
         || routed.family === "confirm_date";
       const history = Array.isArray(meta.messages) && meta.messages.length
         ? meta.messages

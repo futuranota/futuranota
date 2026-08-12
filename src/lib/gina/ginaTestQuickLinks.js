@@ -26,6 +26,31 @@ export const GINA_TEST_QUICK_LINKS = [
     text: "filtrame la tabla anterior por xyzabc",
   },
   {
+    id: "test_last_turn_dept_estrategia",
+    label: "Test: pivot a Estrategias de negocios",
+    text: "ok gracias, mejor entregamos los del departamento de estrategia de negocios",
+  },
+  {
+    id: "test_word_scope_plan_negocio",
+    label: "Test: todo lo de plan de negocio",
+    text: "dame todo lo de plan de negocio",
+  },
+  {
+    id: "test_word_scope_estrategias",
+    label: "Test: todos sobre estrategias",
+    text: "entregame todos sobre estrategias",
+  },
+  {
+    id: "test_last_turn_todo_sobre_blogs",
+    label: "Test: todo sobre blogs",
+    text: "entrégame todo sobre blogs",
+  },
+  {
+    id: "test_last_turn_por_plan_negocio",
+    label: "Test: por plan de negocio",
+    text: "mejor entregamelos por plan de negocio",
+  },
+  {
     id: "test_last_turn_refine_flex",
     label: "Test: excluir flexibles + hoy",
     text: "QUIERO QUE ME EXCLUYAS LOS FLEXIBLES Y ME DEJES SOLAMENTE LOS QUE TIENEN HORARIOS PARA HOY",
