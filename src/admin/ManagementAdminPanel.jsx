@@ -23,7 +23,7 @@ import {
   patchManagementUserQuotaActive,
 } from "../lib/managementApi.js";
 import { GINA_DEPT_RAIL_COLORS } from "../lib/gina/ginaDepartmentColors.js";
-import { formatStorageBytes } from "../lib/planConfig.js";
+import { formatStorageBytes, formatStorageBytesParts } from "../lib/planConfig.js";
 import { MANAGEMENT_SECTIONS } from "./AdminSidebarNav.jsx";
 
 const PIE_COLORS = GINA_DEPT_RAIL_COLORS.length
@@ -654,6 +654,15 @@ function formatTimeLeftDays(q) {
   return "0";
 }
 
+/** Next reset calendar date UTC, e.g. 09/18. */
+function formatNextResetDate(q) {
+  if (!q?.resets || !q.resetAtYmd) return "—";
+  const parts = String(q.resetAtYmd).slice(0, 10).split("-");
+  if (parts.length !== 3) return "—";
+  const [, month, day] = parts;
+  return `${month}/${day}`;
+}
+
 const EMPTY_QUOTA_FORM = {
   provider: "",
   included: "1000",
@@ -690,7 +699,8 @@ function AccountStorageSpendTable({ storageSpend }) {
         Storage by account
       </h3>
       <p className="muted" style={{ margin: "0 0 12px", fontSize: 12 }}>
-        Postgres = DB rows. Bucket = <code>doc-images</code>. Used = both, against the user plan cap.
+        Postgres = DB rows. Bucket = <code>doc-images</code>. Used = both.
+        Total assigned = plan cap given to that account (sum in footer).
       </p>
       {storageSpend?.warning ? (
         <div className="mgmt-setup-banner mgmt-setup-banner--warn" style={{ marginBottom: 12 }}>
@@ -705,13 +715,14 @@ function AccountStorageSpendTable({ storageSpend }) {
               <th>Email</th>
               <th title="Workspace rows in Postgres">Postgres</th>
               <th title="Files in Storage bucket doc-images">Bucket</th>
-              <th title="Postgres + Bucket vs plan cap">Used</th>
+              <th title="Postgres + Bucket">Used</th>
+              <th title="Plan storage allotted to this account">Total assigned</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={5} className="muted">No accounts yet.</td>
+                <td colSpan={6} className="muted">No accounts yet.</td>
               </tr>
             ) : (
               rows.map((row) => {
@@ -731,8 +742,8 @@ function AccountStorageSpendTable({ storageSpend }) {
                     <td>{formatStorageBytes(row.bucketBytes)}</td>
                     <td>
                       <strong>{formatStorageBytes(row.usedBytes)}</strong>
-                      <span className="muted"> / {row.capLabel || "—"}</span>
                     </td>
+                    <td>{row.capLabel || formatStorageBytes(row.capBytes)}</td>
                   </tr>
                 );
               })
@@ -750,6 +761,9 @@ function AccountStorageSpendTable({ storageSpend }) {
         <span className="muted" style={{ marginLeft: 16 }}>Total used:</span>
         {" "}
         <strong>{formatStorageBytes(totals.usedBytes)}</strong>
+        <span className="muted" style={{ marginLeft: 16 }}>Total assigned:</span>
+        {" "}
+        <strong>{formatStorageBytesParts(totals.assignedBytes)}</strong>
       </div>
     </div>
   );
@@ -908,6 +922,7 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
               <th>Meter</th>
               <th>Reset?</th>
               <th title="Days until reset (UTC)">Time left</th>
+              <th title="Next reset date (UTC)">Next reset</th>
               <th title="Used / included in current window">Used</th>
               <th>Over</th>
               <th>Cost Overdue</th>
@@ -918,7 +933,7 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td colSpan={10} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
+                <td colSpan={11} className="muted">No meters — pick a provider below or run supabase_management_quotas.sql.</td>
               </tr>
             ) : (
               items.map((q) => (
@@ -939,6 +954,9 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
                   <td className="muted">{q.unit || "—"}</td>
                   <td>{q.resets ? "yes" : "no"}</td>
                   <td>{formatTimeLeftDays(q)}</td>
+                  <td title={q.resets ? (q.resetAtYmd || "") : "No reset"}>
+                    {formatNextResetDate(q)}
+                  </td>
                   <td>
                     <strong>{formatQuotaNumber(q.used, q.unit)}</strong>
                     <span className="muted"> / {formatQuotaNumber(q.included, q.unit)}</span>
@@ -963,14 +981,6 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
                           onClick={() => (editId === q.id ? cancelEdit() : startEdit(q))}
                         >
                           {editId === q.id ? "Close" : "Edit"}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-ghost"
-                          disabled={deletingId === q.id}
-                          onClick={() => handleDelete(q.id)}
-                        >
-                          {deletingId === q.id ? "…" : "Del"}
                         </button>
                       </div>
                     ) : (
@@ -1012,6 +1022,21 @@ function StorageQuotasSection({ quotas, asOf, onAsOfChange, onChanged, onError, 
           >
             {saving ? (isEditing ? "Saving…" : "Adding…") : (isEditing ? "Save" : "Add")}
           </button>
+          {isEditing && canEditDb ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              disabled={deletingId === editId || saving}
+              onClick={() => {
+                if (!editId) return;
+                const ok = window.confirm("Delete this meter? This does not wipe usage history yet.");
+                if (!ok) return;
+                handleDelete(editId);
+              }}
+            >
+              {deletingId === editId ? "…" : "Delete"}
+            </button>
+          ) : null}
         </div>
         {!canEditDb ? (
           <p className="muted" style={{ gridColumn: "1 / -1", margin: 0, fontSize: 12 }}>

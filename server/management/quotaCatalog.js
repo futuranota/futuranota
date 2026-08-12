@@ -439,3 +439,23 @@ export function bytesToQuotaUnit(bytes, unit) {
   if (/\bkb\b|kib/.test(u)) return Math.round((n / 1024) * 1e4) / 1e4;
   return Math.round(n);
 }
+
+/**
+ * Which Supabase project pool a meter tracks.
+ * 100 GB-class → bucket; 8 GB-class → Postgres. Name/notes can override.
+ * @param {{ productName?: string, notes?: string, provider?: string, included?: number, unit?: string }} meter
+ * @returns {"bucket"|"postgres"}
+ */
+export function resolveSupabaseStorageMeterKind(meter) {
+  const label = `${meter?.productName || ""} ${meter?.notes || ""} ${meter?.provider || ""}`.toLowerCase();
+  if (/\bpostgres\b|\bpostgr\b|\bdatabase\b|\bdb\b/.test(label)) return "postgres";
+  if (/\bbucket\b|\bfiles\b|\bdoc-images\b|\bstorage\b/.test(label)) return "bucket";
+  const included = Number(meter?.included) || 0;
+  const unit = String(meter?.unit || "").toLowerCase();
+  let gb = included;
+  if (/\btb\b|tib/.test(unit)) gb = included * 1024;
+  else if (/\bmb\b|mib/.test(unit)) gb = included / 1024;
+  else if (/\bkb\b|kib/.test(unit)) gb = included / (1024 * 1024);
+  else if (!/\bgb\b|gib/.test(unit) && included > 1024) gb = included / (1024 ** 3);
+  return gb >= 20 ? "bucket" : "postgres";
+}

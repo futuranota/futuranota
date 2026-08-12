@@ -25,6 +25,7 @@ import {
   startOfUtcDay,
   addUtcDays,
   bytesToQuotaUnit,
+  resolveSupabaseStorageMeterKind,
 } from "./management/quotaCatalog.js";
 
 function getAdminEmail() {
@@ -398,6 +399,14 @@ function storageUserKey(id) {
   return String(id || "").trim().toLowerCase();
 }
 
+/** @param {Map<string, number>|null|undefined} map */
+function sumBytesMap(map) {
+  let total = 0;
+  if (!map) return 0;
+  for (const v of map.values()) total += Math.max(0, Number(v) || 0);
+  return total;
+}
+
 /**
  * @param {unknown} rows
  * @returns {Map<string, number>}
@@ -541,6 +550,8 @@ function applyStorageSpendToUsers(users, maps) {
     }))
     .sort((a, b) => (b.usedBytes - a.usedBytes) || String(a.email || "").localeCompare(String(b.email || "")));
 
+  const assignedTotal = rows.reduce((sum, row) => sum + (Number(row.capBytes) || 0), 0);
+
   return {
     users: nextUsers,
     storageSpend: {
@@ -550,6 +561,7 @@ function applyStorageSpendToUsers(users, maps) {
         postgresBytes: postgresTotal,
         bucketBytes: bucketTotal,
         usedBytes: usedTotal,
+        assignedBytes: assignedTotal,
       },
     },
   };
@@ -647,6 +659,23 @@ async function loadQuotasDashboard(service, opts = {}) {
     storagePool = await loadActiveStorageAllotment(service);
   }
 
+  let postgresUsedBytes = 0;
+  let bucketUsedBytes = 0;
+  if (needsStoragePool) {
+    if (opts.storageMaps) {
+      postgresUsedBytes = sumBytesMap(opts.storageMaps.dbByUser);
+      bucketUsedBytes = sumBytesMap(opts.storageMaps.bucketByUser);
+    } else if (service) {
+      try {
+        const maps = await loadStorageBytesMaps(service);
+        postgresUsedBytes = sumBytesMap(maps.dbByUser);
+        bucketUsedBytes = sumBytesMap(maps.bucketByUser);
+      } catch (err) {
+        console.warn("[management] supabase meter bytes:", err?.message || err);
+      }
+    }
+  }
+
   let totalCostToPay = 0;
 
   const items = windows.map(({ meter, window: w }) => {
@@ -658,8 +687,12 @@ async function loadQuotasDashboard(service, opts = {}) {
     const providerKey = (meter.provider || "").toString().trim().toLowerCase();
 
     let used;
+    /** @type {"bucket"|"postgres"|null} */
+    let supabaseKind = null;
     if (providerKey === "supabase") {
-      used = bytesToQuotaUnit(storagePool.bytes, meter.unit);
+      supabaseKind = resolveSupabaseStorageMeterKind(meter);
+      const actualBytes = supabaseKind === "bucket" ? bucketUsedBytes : postgresUsedBytes;
+      used = bytesToQuotaUnit(actualBytes, meter.unit);
       if (storagePool.activeUsers > 0) {
         users.add(`active:${storagePool.activeUsers}`);
       }
@@ -712,7 +745,9 @@ async function loadQuotasDashboard(service, opts = {}) {
       timeLeftLabel: w.timeLeftLabel,
       daysRemaining: w.daysRemaining,
       periodLabel: providerKey === "supabase"
-        ? `${storagePool.activeUsers} active user(s) · plan allotment`
+        ? (supabaseKind === "bucket"
+          ? `${storagePool.activeUsers} active user(s) · doc-images bucket`
+          : `${storagePool.activeUsers} active user(s) · Postgres workspace`)
         : w.periodLabel,
       used: Math.round(used * 1e4) / 1e4,
       callsInWindow,
@@ -1547,25 +1582,35 @@ export async function processManagementOverviewRequest(reqLike) {
 
   const margin = buildMarginSnapshot(users, stats.totals || {}, gastos.totalMonthlyUsd);
   const budgetInfo = buildManagementAlerts(margin, stats.totals || {});
-  const quotas = await loadQuotasDashboard(service, { includeSeed, asOfYmd });
 
+  let storageMaps = {
+    dbByUser: new Map(),
+    bucketByUser: new Map(),
+    warning: null,
+  };
   let storageSpend = {
     warning: null,
     rows: [],
-    totals: { postgresBytes: 0, bucketBytes: 0, usedBytes: 0 },
+    totals: { postgresBytes: 0, bucketBytes: 0, usedBytes: 0, assignedBytes: 0 },
   };
   try {
-    const maps = await loadStorageBytesMaps(service);
-    const applied = applyStorageSpendToUsers(users, maps);
+    storageMaps = await loadStorageBytesMaps(service);
+    const applied = applyStorageSpendToUsers(users, storageMaps);
     users = applied.users;
     storageSpend = applied.storageSpend;
   } catch (storageErr) {
     storageSpend = {
       warning: storageErr instanceof Error ? storageErr.message : "Failed to load storage bytes",
       rows: [],
-      totals: { postgresBytes: 0, bucketBytes: 0, usedBytes: 0 },
+      totals: { postgresBytes: 0, bucketBytes: 0, usedBytes: 0, assignedBytes: 0 },
     };
   }
+
+  const quotas = await loadQuotasDashboard(service, {
+    includeSeed,
+    asOfYmd,
+    storageMaps,
+  });
 
   return {
     status: 200,

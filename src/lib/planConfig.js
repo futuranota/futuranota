@@ -131,6 +131,28 @@ export function formatStorageBytes(bytes) {
   return `${Number((n / (1024 * 1024 * 1024)).toFixed(2))} GB`;
 }
 
+/**
+ * Sum of mixed allotments (e.g. 5 GB + 5 GB + 5 MB) without rounding away MB.
+ * → "10 GB + 5 MB"
+ */
+export function formatStorageBytesParts(bytes) {
+  const n = Math.max(0, Number(bytes) || 0);
+  if (n <= 0) return "0 B";
+  const GB = 1024 ** 3;
+  const MB = 1024 ** 2;
+  const gb = Math.floor(n / GB);
+  let rest = n - gb * GB;
+  const mbExact = rest / MB;
+  const mb = mbExact >= 10 ? Math.round(mbExact) : Number(mbExact.toFixed(1));
+  rest = Math.max(0, rest - mb * MB);
+  const parts = [];
+  if (gb > 0) parts.push(`${gb} GB`);
+  if (mb > 0) parts.push(`${mb} MB`);
+  if (!parts.length) return formatStorageBytes(n);
+  if (rest >= 1024 && gb === 0 && mb === 0) return formatStorageBytes(n);
+  return parts.join(" + ");
+}
+
 /** @param {PlanId|string} plan */
 export function getTokensCap(plan) {
   return getPlanLimits(plan).tokensCap;
