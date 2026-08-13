@@ -1112,8 +1112,8 @@ export function buildReschedulePickerText(opts = {}) {
   const en = opts.locale === "en";
   if (opts.mode === "cascade") {
     return en
-      ? "Here’s a possible proposed schedule:\nTap any time to adjust it in the popover, then **Apply changes** once."
-      : "Aquí tienes un posible horario propuesto:\nToca cualquier hora para ajustarla en el popover y luego **Aplicar cambios** una sola vez.";
+      ? "Here’s a possible proposed schedule:\nTap any time to adjust it in the popover, then **Apply changes** once; you can also change the status if you want."
+      : "Aquí tienes un posible horario propuesto:\nToca cualquier hora para ajustarla en el popover y luego **Aplicar cambios** una sola vez; también puedes mover el status si así lo deseas.";
   }
   if (opts.noCupo || opts.hasFreeSlot === false) {
     const title = String(opts.activeTitle || "").trim();

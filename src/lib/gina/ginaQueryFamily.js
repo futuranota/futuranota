@@ -68,6 +68,7 @@ import {
 } from "./ginaSyntaxWordScope.js";
 import {
   parseGinaScheduleScope,
+  parseGinaWeekViewMode,
   wantsGinaScheduleScopeList,
   filterDocsByScheduleScope,
 } from "./ginaSyntaxScheduleScope.js";
@@ -736,6 +737,8 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
     departmentName: d.departmentName || null,
     category: d.category || null,
     folder: d.parentFolderName || null,
+    parentDocId: d.parentDocId || d.parentFolderId || null,
+    parentFolderId: d.parentFolderId || d.parentDocId || null,
     anchorAt: d.anchorAt || null,
     anchorFinishAt: d.anchorFinishAt || null,
   });
@@ -936,6 +939,9 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
       highlightDelayMs: isHighlightList ? 2000 : 0,
       emptyReason: documents.length === 0 ? "no_documents" : null,
       listAll: isList,
+      nodes: ctx.nodes || {},
+      docs: ctx.docs || {},
+      weekDisplayMode: opts.weekDisplayMode || view.weekDisplayMode || "schedule",
       hint: isList
         ? (isHighlightList
           ? `Filtered document list with deferred category highlight (${mode})`
@@ -2117,6 +2123,56 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
 
     const lastIntent = isFindDocumentIntent(text) ? null : parseLastTurnIntent(text);
+
+    // Week secondary views + week schedule scope must win over last-table
+    // “filas con horario” refine (horario cue would otherwise steal the week list).
+    {
+      const weekMode = parseGinaWeekViewMode(text);
+      if (weekMode) {
+        clearPendingGinaOffer();
+        return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+          mode: "list_all",
+          weekDisplayMode: weekMode,
+          view: {
+            showSchedule: true,
+            showStatus: true,
+            categories: [],
+            highlightCategories: [],
+            scheduleScope: "week",
+            layout: "schedules_week",
+            timedOnly: true,
+            railMode: "weekday",
+            weekDisplayMode: weekMode,
+          },
+          text,
+        });
+      }
+      if (wantsGinaScheduleScopeList(text)) {
+        clearPendingGinaOffer();
+        const scheduleScope = parseGinaScheduleScope(text);
+        const layout = scheduleScope === "week"
+          ? "schedules_week"
+          : (scheduleScope === "today" ? "schedules_today" : "schedules_all");
+        const withStatus = layout === "schedules_week" || layout === "schedules_all";
+        return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+          mode: "list_all",
+          weekDisplayMode: layout === "schedules_week" ? "schedule" : undefined,
+          view: {
+            showSchedule: true,
+            showStatus: withStatus,
+            categories: [],
+            highlightCategories: [],
+            scheduleScope,
+            layout,
+            timedOnly: true,
+            railMode: scheduleScope === "week" ? "weekday" : "department",
+            weekDisplayMode: layout === "schedules_week" ? "schedule" : undefined,
+          },
+          text,
+        });
+      }
+    }
+
     // Bridge: any live cell value from last table (Plan de Negocio, folder…) → filter + show.
     // Runs before dedicated intents only when those intents are absent — except we also
     // run when organiza/por matches a schema value even if lastIntent is null.
@@ -3542,6 +3598,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
     const withStatus = layout === "schedules_week" || layout === "schedules_all";
     return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
       mode: "list_all",
+      weekDisplayMode: layout === "schedules_week" ? "schedule" : undefined,
       view: {
         showSchedule: true,
         showStatus: withStatus,
@@ -3551,6 +3608,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
         layout,
         timedOnly: true,
         railMode: scheduleScope === "week" ? "weekday" : "department",
+        weekDisplayMode: layout === "schedules_week" ? "schedule" : undefined,
       },
       text,
     });

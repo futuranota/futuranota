@@ -29,7 +29,7 @@ import {
   pickGinaListRefineHints,
   countGinaRealDepartments,
 } from "./ginaCopyVariants.js";
-import { getGinaScheduleScopeChips } from "./ginaSyntaxScheduleScope.js";
+import { getGinaScheduleScopeChips, getGinaWeekViewChips } from "./ginaSyntaxScheduleScope.js";
 import {
   docWorkMinutes,
   formatGinaTimeRange,
@@ -524,10 +524,39 @@ export function buildCountDocumentsChips(opts = {}) {
         view.scheduleScope
         || Boolean(opts.fromCountDocuments)
       ) {
+        const isWeek = opts.view?.layout === "schedules_week"
+          || view.scheduleScope === "week";
+        if (isWeek && !opts.empty) {
+          const weekMode = opts.view?.weekDisplayMode || "schedule";
+          for (const chip of getGinaWeekViewChips(en ? "en" : "es")) {
+            if (weekMode === chip.mode) continue;
+            chips.push({
+              id: chip.id,
+              kind: "week_view",
+              group: "week_view",
+              label: chip.label,
+              text: chip.text,
+              value: chip.mode,
+              selectable: true,
+              primary: chip.mode === "folder_pct",
+            });
+          }
+          if (weekMode !== "schedule") {
+            chips.push({
+              id: "week_back_schedule",
+              kind: "week_view",
+              group: "week_view",
+              label: en ? "Back to week schedule" : "Volver a horarios de la semana",
+              text: en ? "back to this week's schedules" : "volver a horarios de la semana",
+              value: "schedule",
+              selectable: true,
+            });
+          }
+        }
         const liveCats = liveCategoriesFromTableDocs(opts.documents);
         // Offer ask only when the shown table still has cats and isn't already
         // narrowed to a category highlight selection.
-        if (liveCats.length && !selectedCats.length) {
+        if (liveCats.length && !selectedCats.length && !isWeek) {
           chips.push({
             id: "ask_filter_categories",
             kind: "ask_table_categories",
@@ -1516,6 +1545,74 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
 }
 
 /**
+ * Gina narration of today’s timed-schedule progress (under the infographic).
+ * Metric: docs with a schedule on today’s list (`dayProgress`).
+ *
+ * @param {{
+ *   dayProgress?: { total?: number, completed?: number, percent?: number, remaining?: number } | null,
+ *   folderProgress?: { folder?: string, folderId?: string, percent?: number }[],
+ *   startFolder?: string | { folder?: string, percent?: number } | null,
+ *   locale?: string,
+ * }} [opts]
+ * @returns {string | null}
+ */
+export function buildTodayScheduleProgressNarration(opts = {}) {
+  const en = opts.locale === "en";
+  const day = opts.dayProgress && typeof opts.dayProgress === "object"
+    ? opts.dayProgress
+    : null;
+  const total = Math.max(0, Math.round(Number(day?.total) || 0));
+  if (total <= 0) return null;
+  const done = Math.max(0, Math.min(total, Math.round(Number(day?.completed) || 0)));
+  const percent = Number.isFinite(Number(day?.percent))
+    ? Math.max(0, Math.min(100, Math.round(Number(day.percent))))
+    : Math.min(100, Math.round((done / total) * 100));
+
+  const docWord = en
+    ? (total === 1 ? "document" : "documents")
+    : (total === 1 ? "documento" : "documentos");
+  const lead = en
+    ? `On today’s schedule you have **${total} ${docWord}** with a time slot · you’re at **${percent}%** completed (${done} of ${total}).`
+    : `En el horario de hoy tienes **${total} ${docWord}** con horario · vas al **${percent}%** completado (${done} de ${total}).`;
+
+  let startFolderName = "";
+  let startFolderPct = null;
+  const startFolder = opts.startFolder;
+  if (startFolder && typeof startFolder === "object") {
+    startFolderName = String(startFolder.folder || "").trim();
+    if (Number.isFinite(Number(startFolder.percent))) {
+      startFolderPct = Math.round(Number(startFolder.percent));
+    }
+  } else if (typeof startFolder === "string") {
+    startFolderName = startFolder.trim();
+  }
+  const folders = Array.isArray(opts.folderProgress) ? opts.folderProgress : [];
+  if (!startFolderName && folders[0]) {
+    startFolderName = String(folders[0].folder || "").trim();
+    if (startFolderPct == null && Number.isFinite(Number(folders[0].percent))) {
+      startFolderPct = Math.round(Number(folders[0].percent));
+    }
+  } else if (startFolderName && startFolderPct == null) {
+    const snap = folders.find((f) => (
+      String(f.folder || "").toLowerCase() === startFolderName.toLowerCase()
+    ));
+    if (snap && Number.isFinite(Number(snap.percent))) {
+      startFolderPct = Math.round(Number(snap.percent));
+    }
+  }
+
+  if (!startFolderName) return lead;
+  const folderLine = en
+    ? (startFolderPct != null
+      ? `The first one is in **${startFolderName}** (${startFolderPct}% of that folder).`
+      : `The first one is in **${startFolderName}**.`)
+    : (startFolderPct != null
+      ? `El primero está en **${startFolderName}** (${startFolderPct}% de ese folder).`
+      : `El primero está en **${startFolderName}**.`);
+  return `${lead}\n${folderLine}`;
+}
+
+/**
  * Single post-table text block (start doc + begin + optional save pitch).
  * Start-doc block + begin + “already ready” closing (no save CTA).
  *
@@ -1526,6 +1623,8 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
  *   overviewByDepartment?: object[],
  *   totalMinutes?: number,
  *   totalHoursLabel?: string,
+ *   dayProgress?: object | null,
+ *   folderProgress?: object[],
  *   hasDaySheet?: boolean,
  *   hasRecoveryOffer?: boolean,
  *   urgencyCount?: number,
@@ -1558,15 +1657,29 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
     textPitch: null,
   };
 
+  const startDoc = resolveTodayOverviewStartDoc(opts);
+  const startFolderName = String(
+    startDoc?.folder
+    || startDoc?.parentFolderName
+    || startDoc?.hierarchy?.folder
+    || "",
+  ).trim();
+  const progressNarration = buildTodayScheduleProgressNarration({
+    dayProgress: opts.dayProgress,
+    folderProgress: opts.folderProgress,
+    startFolder: startFolderName || null,
+    locale: en ? "en" : "es",
+  });
+
   if (!cleanDay) {
     if (todayOverviewNeedsRecoveryGate(opts)) {
       // Still reveal Documento / Depto / Tiempo (+ highlights SFX) after the sheet;
       // skip “already ready” closing until recovery signals are cleared.
       const startDocLines = buildTodayOverviewStartDocLines(opts);
-      if (!startDocLines.length) return empty;
+      if (!startDocLines.length && !progressNarration) return empty;
       return {
-        textAfter: null,
-        textAfterLead: null,
+        textAfter: progressNarration || null,
+        textAfterLead: progressNarration || null,
         textAfterRest: null,
         startDocLines,
         textPitch: null,
@@ -1598,14 +1711,18 @@ export function buildTodayOverviewPostTableCopy(opts = {}) {
     restParts.push(buildTalkNotificationsOfferText(en ? "en" : "es"));
   }
   const textAfterRest = restParts.join("\n\n");
+  const leadParts = [];
+  if (progressNarration) leadParts.push(progressNarration);
+  if (daySummary) leadParts.push(daySummary);
+  const textAfterLead = leadParts.length ? leadParts.join("\n\n") : null;
   const parts = [];
-  if (daySummary) parts.push(daySummary);
+  if (textAfterLead) parts.push(textAfterLead);
   if (start) parts.push(start);
   parts.push(...restParts);
 
   return {
     textAfter: parts.length ? parts.join("\n\n") : null,
-    textAfterLead: daySummary || null,
+    textAfterLead,
     textAfterRest,
     startDocLines,
     textPitch: null,
@@ -2045,9 +2162,25 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
         });
       }
       if (data.railMode === "weekday" || data.groupBy === "weekday") {
+        if (data.weekDisplayMode === "folder_pct") {
+          const folders = Array.isArray(data.folderProgress) ? data.folderProgress.length : 0;
+          return en
+            ? `Here’s this week’s progress by folder${folders ? ` (${folders})` : ""}.${layerNote}`
+            : `Aquí tienes el avance de esta semana por folder${folders ? ` (${folders})` : ""}.${layerNote}`;
+        }
+        if (data.weekDisplayMode === "overdue") {
+          if (data.empty || n === 0) {
+            return en
+              ? "No overdue timed slots this week that still need a status change."
+              : "Esta semana no hay horarios vencidos que aún necesiten cambio de status.";
+          }
+          return en
+            ? `Here are **${n}** overdue schedule${n === 1 ? "" : "s"} from this week (hours passed, status not updated).${layerNote}`
+            : `Aquí tienes **${n}** horario${n === 1 ? "" : "s"} vencido${n === 1 ? "" : "s"} de esta semana (horas pasadas, status sin actualizar).${layerNote}`;
+        }
         return en
-          ? `Here are **${n}** scheduled document${n === 1 ? "" : "s"} by weekday.${layerNote}`
-          : `Aquí tienes **${n}** documento${n === 1 ? "" : "s"} con horario, por día de la semana.${layerNote}`;
+          ? `Here are **${n}** scheduled document${n === 1 ? "" : "s"} from this week, by weekday.${layerNote}`
+          : `Aquí tienes **${n}** documento${n === 1 ? "" : "s"} con horario de esta semana, por día.${layerNote}`;
       }
       return pickGinaDocsByDepartmentHeadline({
         count: n,
@@ -2407,7 +2540,10 @@ export function buildGinaReplyChips(opts = {}) {
       empty: Boolean(data.empty),
       locale,
       salt,
-      view: data.view,
+      view: {
+        ...(data.view || {}),
+        weekDisplayMode: data.weekDisplayMode || data.view?.weekDisplayMode,
+      },
       availableCategories: data.availableCategories,
       fromCountDocuments: true,
       departmentRail: data.departmentRail,

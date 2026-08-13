@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   filterDocsByScheduleScope,
   parseGinaScheduleScope,
+  parseGinaWeekViewMode,
   wantsGinaScheduleScopeList,
   GINA_SCHEDULE_SCOPE_CHIPS_ES,
 } from "./ginaSyntaxScheduleScope.js";
 import { runGinaQueryFamily } from "./ginaQueryFamily.js";
 import { buildGinaVisualization } from "./buildGinaVisualization.js";
 import { buildGinaFunnelHeadline, buildGinaReplyChips } from "./ginaReplyChips.js";
+import { clearGinaLastTurn, setGinaLastTurn } from "./ginaLastTurn.js";
 
 const now = new Date("2026-08-07T15:00:00"); // Friday
 
@@ -108,6 +110,21 @@ describe("ginaSyntaxScheduleScope", () => {
     expect(parseGinaScheduleScope("visualizar todos los horarios de la semana")).toBe("week");
     expect(parseGinaScheduleScope("visualizar todos los horarios de hoy")).toBe("today");
     expect(wantsGinaScheduleScopeList("visualizar todos los horarios de hoy")).toBe(true);
+  });
+
+  it("parses tabla / revisar la semana as week scope", () => {
+    expect(parseGinaScheduleScope("tabla de la semana")).toBe("week");
+    expect(parseGinaScheduleScope("dame la tabla de la semana")).toBe("week");
+    expect(parseGinaScheduleScope("Revisar la semana")).toBe("week");
+    expect(parseGinaScheduleScope("review the week")).toBe("week");
+  });
+
+  it("parses week view modes without stealing week list", () => {
+    expect(parseGinaWeekViewMode("visualizar por % completado")).toBe("folder_pct");
+    expect(parseGinaWeekViewMode("horarios vencidos de la semana")).toBe("overdue");
+    expect(parseGinaWeekViewMode("volver a horarios de la semana")).toBe("schedule");
+    expect(wantsGinaScheduleScopeList("visualizar por % completado")).toBe(false);
+    expect(wantsGinaScheduleScopeList("horarios vencidos de la semana")).toBe(false);
   });
 
   it("does not steal classic muéstrame los horarios de hoy", () => {
@@ -214,8 +231,95 @@ describe("schedule scope routing → list_all table", () => {
     expect(completed?.status).toBe("completed");
 
     const headline = buildGinaFunnelHeadline(viz, { locale: "es", salt: 1 });
-    expect(headline).toMatch(/d[ií]a de la semana|semana/i);
+    expect(headline).toMatch(/esta semana|por d[ií]a/i);
     expect(headline).not.toMatch(/por departamento/i);
+    expect(headline).not.toMatch(/esa tabla/i);
+    expect(viz.data.title).toMatch(/Horarios de la semana/i);
+    expect(viz.data.rail.every((s) => (s.abbr || s.letter) && s.dayIndex != null)).toBe(true);
+    expect(viz.data.weekProgress?.total).toBeGreaterThan(0);
+  });
+
+  it("week folder % mode attaches folderProgress chart", () => {
+    const routed = runGinaQueryFamily("visualizar por % completado", ctx);
+    expect(routed.family).toBe("count_documents");
+    expect(routed.toolContext.view.scheduleScope).toBe("week");
+    expect(routed.toolContext.weekDisplayMode).toBe("folder_pct");
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    expect(viz.data.weekDisplayMode).toBe("folder_pct");
+    expect(Array.isArray(viz.data.folderProgress)).toBe(true);
+    expect(viz.data.folderProgress.length).toBeGreaterThan(0);
+    expect(Array.isArray(viz.data.folderPctChart)).toBe(true);
+    expect(viz.data.title).toMatch(/folder/i);
+    const chips = buildGinaReplyChips({
+      family: "count_documents",
+      visualization: viz,
+      locale: "es",
+    });
+    expect(chips.some((c) => c.id === "week_back_schedule")).toBe(true);
+    expect(chips.some((c) => c.id === "week_overdue")).toBe(true);
+  });
+
+  it("week overdue mode keeps only markable passed slots", () => {
+    const routed = runGinaQueryFamily("horarios vencidos de la semana", ctx);
+    expect(routed.toolContext.weekDisplayMode).toBe("overdue");
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    expect(viz.data.weekDisplayMode).toBe("overdue");
+    // n6 is already past_due → not markable; n3 completed Wed morning is not markable
+    const titles = (viz.data.documents || []).map((d) => d.title);
+    expect(titles).not.toContain("Past due semana");
+    expect(titles).not.toContain("Viejo");
+    const chips = buildGinaReplyChips({
+      family: "count_documents",
+      visualization: viz,
+      locale: "es",
+    });
+    expect(chips.some((c) => c.id === "week_pct")).toBe(true);
+  });
+
+  it("week chips include % and overdue from schedules_week", () => {
+    const routed = runGinaQueryFamily("tabla de la semana", ctx);
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    const chips = buildGinaReplyChips({
+      family: "count_documents",
+      visualization: viz,
+      locale: "es",
+    });
+    expect(chips.some((c) => c.id === "week_pct")).toBe(true);
+    expect(chips.some((c) => c.id === "week_overdue")).toBe(true);
+    expect(chips.some((c) => c.id === "ask_filter_categories")).toBe(false);
+  });
+
+  it("week scope wins over last-table horario refine", () => {
+    clearGinaLastTurn();
+    setGinaLastTurn({
+      family: "count_documents",
+      documents: [
+        { id: "n4", title: "Viejo", anchorAt: "2026-07-01T09:00:00" },
+        { id: "n1", title: "Blog hoy", anchorAt: "2026-08-07T09:00:00" },
+      ],
+      tableSchema: {
+        columns: [{ key: "document" }, { key: "time" }],
+        valuesByKey: { document: ["Viejo", "Blog hoy"] },
+      },
+    });
+    try {
+      const routed = runGinaQueryFamily("visualizar todos los horarios de la semana", ctx);
+      expect(routed.toolContext.view.layout).toBe("schedules_week");
+      const titles = routed.toolContext.documents.map((d) => d.title);
+      expect(titles).not.toContain("Viejo");
+      expect(titles).toContain("Blog hoy");
+    } finally {
+      clearGinaLastTurn();
+    }
   });
 
   it("today schedule scope keeps department rail", () => {

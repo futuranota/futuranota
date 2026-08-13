@@ -51,11 +51,82 @@ export const GINA_SCHEDULE_SCOPE_CHIPS_EN = [
   },
 ];
 
+/** Week-table secondary modes (after schedules_week is shown). */
+export const GINA_WEEK_VIEW_CHIPS_ES = [
+  {
+    id: "week_pct",
+    mode: "folder_pct",
+    label: "visualizar por % completado",
+    text: "visualizar por % completado",
+  },
+  {
+    id: "week_overdue",
+    mode: "overdue",
+    label: "horarios vencidos de la semana",
+    text: "horarios vencidos de la semana",
+  },
+];
+
+/** @type {typeof GINA_WEEK_VIEW_CHIPS_ES} */
+export const GINA_WEEK_VIEW_CHIPS_EN = [
+  {
+    id: "week_pct",
+    mode: "folder_pct",
+    label: "visualize by % completed",
+    text: "visualize by % completed",
+  },
+  {
+    id: "week_overdue",
+    mode: "overdue",
+    label: "overdue schedules this week",
+    text: "overdue schedules this week",
+  },
+];
+
 /**
  * @param {string} [locale]
  */
 export function getGinaScheduleScopeChips(locale = "es") {
   return locale === "en" ? GINA_SCHEDULE_SCOPE_CHIPS_EN : GINA_SCHEDULE_SCOPE_CHIPS_ES;
+}
+
+/**
+ * @param {string} [locale]
+ */
+export function getGinaWeekViewChips(locale = "es") {
+  return locale === "en" ? GINA_WEEK_VIEW_CHIPS_EN : GINA_WEEK_VIEW_CHIPS_ES;
+}
+
+/**
+ * Secondary week display: folder % pie | overdue filter | back to schedule table.
+ * @param {string} text
+ * @returns {"folder_pct" | "overdue" | "schedule" | null}
+ */
+export function parseGinaWeekViewMode(text) {
+  const q = foldGinaText(text);
+  if (!q) return null;
+  if (
+    /\bvisualizar\s+por\s*%?\s*completado\b/.test(q)
+    || /\bvisualize\s+by\s*%?\s*completed\b/.test(q)
+    || /\bpor\s+%\s*completado\b/.test(q)
+    || /\bfolder\s*%\b/.test(q)
+  ) {
+    return "folder_pct";
+  }
+  if (
+    /\bhorarios?\s+vencid\w*\s+(de\s+)?(la\s+)?semana\b/.test(q)
+    || /\boverdue\s+schedules?\s+(this\s+)?week\b/.test(q)
+    || /\bvencid\w*\s+de\s+la\s+semana\b/.test(q)
+  ) {
+    return "overdue";
+  }
+  if (
+    /\bvolver\s+(a\s+)?(los\s+)?horarios?\s+(de\s+)?(la\s+)?semana\b/.test(q)
+    || /\bback\s+to\s+(this\s+)?week('?s)?\s+schedules?\b/.test(q)
+  ) {
+    return "schedule";
+  }
+  return null;
 }
 
 /**
@@ -78,6 +149,9 @@ export function parseGinaScheduleScope(text) {
     /\bvisualizar\s+todos\s+los\s+horarios\s+de\s+la\s+semana\b/.test(q)
     || /\bview\s+all\s+schedules?\s+(this\s+)?week\b/.test(q)
     || /\bhorarios?\s+de\s+la\s+semana\b/.test(q)
+    || /\btabla\s+(de\s+)?(la\s+)?semana\b/.test(q)
+    || /\brevisar\s+(la\s+)?semana\b/.test(q)
+    || /\breview\s+(the\s+)?week\b/.test(q)
     || (/\bhorarios?\b/.test(q) && /\b(esta\s+)?semana\b/.test(q) && !/\bhoy\b/.test(q))
     || (/\bdocumentos?\b/.test(q) && /\bhorarios?\b/.test(q) && /\bsemana\b/.test(q))
   ) {
@@ -103,6 +177,11 @@ export function parseGinaScheduleScope(text) {
  * @param {string} text
  */
 export function wantsGinaScheduleScopeList(text) {
+  // Week secondary modes are not a fresh schedule-scope list (handled separately).
+  const weekMode = parseGinaWeekViewMode(text);
+  if (weekMode === "folder_pct" || weekMode === "overdue") {
+    return false;
+  }
   return parseGinaScheduleScope(text) != null;
 }
 

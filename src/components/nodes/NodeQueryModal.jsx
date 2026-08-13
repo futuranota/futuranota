@@ -997,6 +997,8 @@ export function NodeQueryModal({
           overviewByDepartment: visualization.data.overviewByDepartment || [],
           totalMinutes: visualization.data.totalMinutes,
           totalHoursLabel: visualization.data.totalHoursLabel,
+          dayProgress: visualization.data.dayProgress || null,
+          folderProgress: visualization.data.folderProgress || [],
           locale: localeKey,
           userId: ginaUserId,
           hasDaySheet: daySheetAnchored,

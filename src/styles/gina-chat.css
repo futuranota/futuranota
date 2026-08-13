@@ -894,6 +894,10 @@
   min-height: 0;
 }
 
+.gina-viz__dept-rail--weekday {
+  width: 30px;
+}
+
 .gina-viz__dept-rail-head {
   flex: 0 0 auto;
   height: 22px;
@@ -918,7 +922,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 18px;
+  min-height: 22px;
+  border-radius: 5px;
+  padding: 0 2px;
 }
 
 .gina-viz__dept-rail-letter {
@@ -929,6 +935,49 @@
   color: rgba(255, 255, 255, 0.92);
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
   pointer-events: none;
+  letter-spacing: 0.02em;
+}
+
+.gina-viz__week-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.gina-viz__week-mode-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #1a1a1a;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.gina-viz__week-mode-btn:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: #222;
+}
+
+.gina-viz__week-mode-btn.is-active {
+  border-color: rgba(0, 138, 245, 0.55);
+  background: rgba(0, 138, 245, 0.16);
+}
+
+.gina-viz__week-pct {
+  margin-top: 8px;
+}
+
+.gina-viz__week-pct-foot {
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
 }
 
 .gina-viz__dept-legend {

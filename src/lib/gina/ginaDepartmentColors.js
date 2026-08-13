@@ -139,9 +139,12 @@ export function buildGinaDepartmentRailRuns(docs = [], opts = {}) {
   return runs;
 }
 
-/** ES weekday letters indexed by Date#getDay() (0=Sun). */
+/** ES single letters (legacy / weekday field) indexed by Date#getDay() (0=Sun). */
 const WEEKDAY_LETTER_ES = ["D", "L", "M", "X", "J", "V", "S"];
 const WEEKDAY_LETTER_EN = ["S", "M", "T", "W", "T", "F", "S"];
+/** Medium rail labels — 2-letter ES abbreviations (Lu, Ma…). */
+const WEEKDAY_ABBR_ES = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sa"];
+const WEEKDAY_ABBR_EN = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 /** Full labels for legend */
 const WEEKDAY_NAME_ES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const WEEKDAY_NAME_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -151,12 +154,13 @@ const WEEKDAY_NAME_EN = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
  * Rows should already be sorted by weekday then time.
  * @param {object[]} docs
  * @param {{ locale?: string, weekStartsOn?: 0|1 }} [opts]
- * @returns {{ name: string, letter: string, dayIndex: number, count: number, color: string }[]}
+ * @returns {{ name: string, letter: string, abbr: string, dayIndex: number, count: number, color: string }[]}
  */
 export function buildGinaWeekdayRail(docs = [], opts = {}) {
   const locale = opts.locale === "en" ? "en" : "es";
   const weekStartsOn = opts.weekStartsOn === 0 ? 0 : 1;
   const letters = locale === "en" ? WEEKDAY_LETTER_EN : WEEKDAY_LETTER_ES;
+  const abbrs = locale === "en" ? WEEKDAY_ABBR_EN : WEEKDAY_ABBR_ES;
   const names = locale === "en" ? WEEKDAY_NAME_EN : WEEKDAY_NAME_ES;
   const order = weekStartsOn === 0
     ? [0, 1, 2, 3, 4, 5, 6]
@@ -170,7 +174,7 @@ export function buildGinaWeekdayRail(docs = [], opts = {}) {
     counts.set(idx, (counts.get(idx) || 0) + 1);
   }
 
-  /** @type {{ name: string, letter: string, dayIndex: number, count: number, color: string }[]} */
+  /** @type {{ name: string, letter: string, abbr: string, dayIndex: number, count: number, color: string }[]} */
   const segs = [];
   for (const dayIndex of order) {
     const count = counts.get(dayIndex) || 0;
@@ -180,6 +184,7 @@ export function buildGinaWeekdayRail(docs = [], opts = {}) {
       id: `wd-${dayIndex}`,
       name: names[dayIndex],
       letter: letters[dayIndex],
+      abbr: abbrs[dayIndex],
       dayIndex,
       count,
       color: ginaDepartmentRailColor(paletteIndex, 7),

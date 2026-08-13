@@ -838,6 +838,8 @@ describe("ginaScheduleRecovery", () => {
     // Cascade occupied excludes the whole move session
     expect(viz.data.occupied.every((o) => !viz.data.moveDocIds.includes(o.id))).toBe(true);
     expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/posible horario propuesto/i);
+    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/mover el status/i);
+    expect(buildReschedulePickerText({ locale: "en", mode: "cascade" })).toMatch(/status/i);
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.some((c) => c.id === "reschedule_tomorrow")).toBe(false);
   });

@@ -11,6 +11,7 @@ import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
 import { buildRecoveryEasyLinksLegend, buildRecoverySnoozeMenuOptions, buildRecoverySnoozeExactProtocol, buildRecoveryChangeStatusMenuOptions, buildSheetRowStatusMenuOptions, buildRescheduleBatchApplyProtocol } from "../../lib/gina/ginaScheduleRecovery.js";
 import { formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns, buildGinaCategoryRail, buildGinaWeekdayRail } from "../../lib/gina/ginaDepartmentColors.js";
+import { getGinaWeekViewChips } from "../../lib/gina/ginaSyntaxScheduleScope.js";
 import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
 import { getGinaPrefs } from "../../lib/gina/ginaPrefs.js";
 import { flattenTodayQuickSheetRows } from "../../lib/gina/ginaTodayQuickSheet.js";
@@ -1844,8 +1845,8 @@ function TodayQuickSheet({
           {day && day.total > 0 ? (
             <p className="gina-viz__day-folder-foot-day">
               {en
-                ? `Day progress: ${day.completed}/${day.total} done · ${day.remaining} left`
-                : `Avance del día: ${day.completed}/${day.total} listos · faltan ${day.remaining}`}
+                ? `${day.total} timed document${day.total === 1 ? "" : "s"} · ${day.percent ?? 0}%`
+                : `${day.total} documento${day.total === 1 ? "" : "s"} con horario · ${day.percent ?? 0}%`}
             </p>
           ) : null}
           {folders.length > 0 ? (
@@ -1958,8 +1959,8 @@ function TodayOverviewVisualization({ data, showTable = true }) {
                     {data.dayProgress?.total > 0 ? (
                       <p className="gina-viz__day-folder-foot-day">
                         {locale === "en"
-                          ? `Day progress: ${data.dayProgress.completed}/${data.dayProgress.total} done · ${data.dayProgress.remaining} left`
-                          : `Avance del día: ${data.dayProgress.completed}/${data.dayProgress.total} listos · faltan ${data.dayProgress.remaining}`}
+                          ? `${data.dayProgress.total} timed document${data.dayProgress.total === 1 ? "" : "s"} · ${data.dayProgress.percent ?? 0}%`
+                          : `${data.dayProgress.total} documento${data.dayProgress.total === 1 ? "" : "s"} con horario · ${data.dayProgress.percent ?? 0}%`}
                       </p>
                     ) : null}
                     {Array.isArray(data.folderProgress) && data.folderProgress.length ? (
@@ -2808,12 +2809,103 @@ function ConflictsVisualization({ data }) {
   );
 }
 
-function TableVisualization({ data }) {
+function WeekFolderPctPie({ data, locale = "es" }) {
+  const chart = Array.isArray(data?.folderPctChart) ? data.folderPctChart : [];
+  const week = data?.weekProgress && typeof data.weekProgress === "object"
+    ? data.weekProgress
+    : null;
+  const en = locale === "en";
+  if (!chart.length && !(week && week.total > 0)) {
+    return (
+      <p className="gina-viz__empty">
+        {en
+          ? "No folder progress for this week’s schedules."
+          : "Sin avance de folders en los horarios de esta semana."}
+      </p>
+    );
+  }
+  return (
+    <div className="gina-viz__week-pct">
+      {chart.length ? (
+        <div className="gina-viz__hours-pie gina-viz__hours-pie--side">
+          <div className="gina-viz__hours-pie-chart">
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const row = payload[0]?.payload || {};
+                    return (
+                      <div className="gina-viz__hours-pie-tooltip">
+                        <span className="gina-viz__hours-pie-tooltip-name">{row.name}</span>
+                        <span className="gina-viz__hours-pie-tooltip-val">
+                          {`${row.percent ?? 0}% (${row.done ?? 0}/${row.total ?? 0})`}
+                        </span>
+                      </div>
+                    );
+                  }}
+                />
+                <Pie
+                  data={chart}
+                  dataKey="minutes"
+                  nameKey="name"
+                  innerRadius={26}
+                  outerRadius={68}
+                  paddingAngle={3}
+                  cornerRadius={6}
+                  stroke="none"
+                >
+                  {chart.map((entry) => (
+                    <Cell key={entry.key || entry.name} fill={entry.fill} stroke="none" />
+                  ))}
+                  <LabelList
+                    dataKey="percent"
+                    stroke="none"
+                    fontSize={11}
+                    fontWeight={600}
+                    fill="#f0f0f0"
+                    formatter={(value) => `${Number(value) || 0}%`}
+                  />
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      ) : null}
+      {Array.isArray(data.folderProgress) && data.folderProgress.length ? (
+        <ul className="gina-viz__day-folder-foot-list">
+          {data.folderProgress.map((f) => (
+            <li key={f.folderId || f.folder} className="gina-viz__day-folder-foot-row">
+              <span className="gina-viz__day-folder-foot-name">{f.folder}</span>
+              <span className="gina-viz__day-folder-foot-meta">
+                {en
+                  ? `${f.todayCount || 0} on week · ${f.percent}% (${f.done}/${f.total})`
+                  : `${f.todayCount || 0} en semana · ${f.percent}% (${f.done}/${f.total})`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {week && week.total > 0 ? (
+        <p className="gina-viz__week-pct-foot">
+          {en
+            ? `${week.total} timed document${week.total === 1 ? "" : "s"} · ${week.percent ?? 0}%`
+            : `${week.total} documento${week.total === 1 ? "" : "s"} con horario · ${week.percent ?? 0}%`}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function TableVisualization({ data, onSelectAction }) {
   const docs = Array.isArray(data.documents) ? data.documents : [];
   const limit = data.listAll ? 80 : 12;
   const view = data.view || {};
   const locale = data.locale === "en" ? "en" : "es";
+  const en = locale === "en";
   const fromCount = Boolean(data.fromCountDocuments);
+  const weekDisplayMode = data.weekDisplayMode || view.weekDisplayMode || "schedule";
+  const isWeekLayout = view.layout === "schedules_week" || data.railMode === "weekday";
   const highlightCats = (Array.isArray(view.highlightCategories) && view.highlightCategories.length
     ? view.highlightCategories
     : [])
@@ -2847,7 +2939,7 @@ function TableVisualization({ data }) {
     : "department";
   const weekStartsOn = getGinaPrefs().weekStartsOn === 0 ? 0 : 1;
   // Rail must match visible rows so segment height lines up with tbody
-  const tableRail = fromCount && railMode !== "none"
+  const tableRail = fromCount && railMode !== "none" && weekDisplayMode !== "folder_pct"
     ? (railMode === "status"
       ? buildGinaStatusRail(shown, locale)
       : (railMode === "category"
@@ -2863,8 +2955,9 @@ function TableVisualization({ data }) {
       ? "Categorías"
       : (railMode === "weekday" ? (locale === "en" ? "Days" : "Días") : "Departamentos"));
   const legendName = (seg) => {
-    if (railMode === "weekday" && seg.letter) {
-      return `${seg.letter} · ${seg.name}`;
+    if (railMode === "weekday") {
+      const abbr = seg.abbr || seg.letter;
+      return abbr ? `${abbr} · ${seg.name}` : seg.name;
     }
     return seg.name;
   };
@@ -2898,7 +2991,6 @@ function TableVisualization({ data }) {
       : ["document", "path", "status", "time"];
 
   const colLabel = (key) => {
-    const en = locale === "en";
     switch (key) {
       case "document": return en ? "Document" : "Documento";
       case "department": return en ? "Department" : "Departamento";
@@ -2944,91 +3036,148 @@ function TableVisualization({ data }) {
     }
   };
 
+  const weekModeButtons = isWeekLayout
+    ? [
+      ...getGinaWeekViewChips(locale).map((c) => ({
+        id: c.id,
+        mode: c.mode,
+        label: c.label,
+        text: c.text,
+      })),
+      ...(weekDisplayMode !== "schedule"
+        ? [{
+          id: "week_back_schedule",
+          mode: "schedule",
+          label: en ? "Back to week schedule" : "Volver a horarios de la semana",
+          text: en ? "back to this week's schedules" : "volver a horarios de la semana",
+        }]
+        : []),
+    ]
+    : [];
+
+  const emptyCopy = weekDisplayMode === "overdue"
+    ? (en
+      ? "No overdue timed slots this week that still need a status change."
+      : "Esta semana no hay horarios vencidos que aún necesiten cambio de status.")
+    : (data.department
+      ? `Cero documentos en ${data.department}.`
+      : data.category
+        ? `Cero documentos en ${data.category}.`
+        : "Sin documentos en este alcance.");
+
   return (
     <div className={"gina-viz gina-viz--table" + (showTableRail ? " gina-viz--table-rail" : "")}>
       {data.title ? <h3 className="gina-viz__title">{data.title}</h3> : null}
-      {data.empty || !docs.length ? (
-        <p className="gina-viz__empty">
-          {data.department
-            ? `Cero documentos en ${data.department}.`
-            : data.category
-              ? `Cero documentos en ${data.category}.`
-              : "Sin documentos en este alcance."}
-        </p>
-      ) : null}
-      {shown.length ? (
+      {weekDisplayMode === "folder_pct" ? (
+        <WeekFolderPctPie data={data} locale={locale} />
+      ) : (
         <>
-          <div className="gina-viz__table-layout">
-            {showTableRail ? (
-              <div className="gina-viz__dept-rail" aria-hidden="true">
-                <div className="gina-viz__dept-rail-head" />
-                <div className="gina-viz__dept-rail-body">
-                  {tableRail.map((seg) => (
-                    <div
-                      key={seg.id || seg.name}
-                      className={
-                        "gina-viz__dept-rail-seg"
-                        + (railMode === "weekday" ? " gina-viz__dept-rail-seg--weekday" : "")
-                      }
-                      style={{
-                        flexGrow: Math.max(1, seg.count),
-                        background: seg.color,
-                      }}
-                      title={`${seg.name} · ${seg.count}`}
-                    >
-                      {railMode === "weekday" && seg.letter ? (
-                        <span className="gina-viz__dept-rail-letter">{seg.letter}</span>
-                      ) : null}
+          {(data.empty || !docs.length) ? (
+            <p className="gina-viz__empty">{emptyCopy}</p>
+          ) : null}
+          {shown.length ? (
+            <>
+              <div className="gina-viz__table-layout">
+                {showTableRail ? (
+                  <div
+                    className={
+                      "gina-viz__dept-rail"
+                      + (railMode === "weekday" ? " gina-viz__dept-rail--weekday" : "")
+                    }
+                    aria-hidden="true"
+                  >
+                    <div className="gina-viz__dept-rail-head" />
+                    <div className="gina-viz__dept-rail-body">
+                      {tableRail.map((seg) => (
+                        <div
+                          key={seg.id || seg.name}
+                          className={
+                            "gina-viz__dept-rail-seg"
+                            + (railMode === "weekday" ? " gina-viz__dept-rail-seg--weekday" : "")
+                          }
+                          style={{
+                            flexGrow: Math.max(1, seg.count),
+                            background: seg.color,
+                          }}
+                          title={`${seg.name} · ${seg.count}`}
+                        >
+                          {railMode === "weekday" && (seg.abbr || seg.letter) ? (
+                            <span className="gina-viz__dept-rail-letter">
+                              {seg.abbr || seg.letter}
+                            </span>
+                          ) : null}
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                ) : null}
+                <div className="gina-viz__table-wrap">
+                  <table className="gina-viz__table">
+                    <thead>
+                      <tr>
+                        {columns.map((key) => (
+                          <th key={key}>{colLabel(key)}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shown.map((doc) => (
+                        <tr key={doc.id || doc.title}>
+                          {columns.map((key) => (
+                            <td
+                              key={key}
+                              className={
+                                key === "category" && categoryIsHighlighted(doc)
+                                  ? "gina-viz__table-cell--highlight"
+                                  : undefined
+                              }
+                            >
+                              {renderCell(doc, key)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            ) : null}
-            <div className="gina-viz__table-wrap">
-              <table className="gina-viz__table">
-                <thead>
-                  <tr>
-                    {columns.map((key) => (
-                      <th key={key}>{colLabel(key)}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((doc) => (
-                    <tr key={doc.id || doc.title}>
-                      {columns.map((key) => (
-                        <td
-                          key={key}
-                          className={
-                            key === "category" && categoryIsHighlighted(doc)
-                              ? "gina-viz__table-cell--highlight"
-                              : undefined
-                          }
-                        >
-                          {renderCell(doc, key)}
-                        </td>
-                      ))}
-                    </tr>
+              {showTableRail ? (
+                <ul className="gina-viz__dept-legend" aria-label={railLegendLabel}>
+                  {tableRail.map((seg) => (
+                    <li key={seg.id || seg.name} className="gina-viz__dept-legend-item">
+                      <span
+                        className="gina-viz__dept-legend-dot"
+                        style={{ background: seg.color }}
+                        aria-hidden
+                      />
+                      <span className="gina-viz__dept-legend-name">
+                        {legendName(seg)}
+                        {seg.count != null ? ` · ${seg.count}` : ""}
+                      </span>
+                    </li>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {showTableRail ? (
-            <ul className="gina-viz__dept-legend" aria-label={railLegendLabel}>
-              {tableRail.map((seg) => (
-                <li key={seg.id || seg.name} className="gina-viz__dept-legend-item">
-                  <span
-                    className="gina-viz__dept-legend-dot"
-                    style={{ background: seg.color }}
-                    aria-hidden
-                  />
-                  <span className="gina-viz__dept-legend-name">{legendName(seg)}</span>
-                </li>
-              ))}
-            </ul>
+                </ul>
+              ) : null}
+            </>
           ) : null}
         </>
+      )}
+      {weekModeButtons.length && onSelectAction ? (
+        <div className="gina-viz__week-modes" role="group">
+          {weekModeButtons.map((btn) => (
+            <button
+              key={btn.id}
+              type="button"
+              className={
+                "gina-viz__week-mode-btn"
+                + (weekDisplayMode === btn.mode ? " is-active" : "")
+              }
+              onClick={() => onSelectAction?.(btn.text, btn.label)}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
       ) : null}
     </div>
   );
@@ -3349,7 +3498,12 @@ export function GinaDataVisualization({
     case "conflicts":
       return <ConflictsVisualization data={data} />;
     case "table":
-      return <TableVisualization data={data} />;
+      return (
+        <TableVisualization
+          data={data}
+          onSelectAction={onSelectAction}
+        />
+      );
     case "find_results":
       return (
         <FindResultsVisualization

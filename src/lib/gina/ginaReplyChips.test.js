@@ -9,6 +9,7 @@ import {
   buildTodayOverviewPostTableCopy,
   buildTodayOverviewIntroText,
   buildTodayOverviewDeptBlocks,
+  buildTodayScheduleProgressNarration,
 } from "./ginaReplyChips.js";
 
 describe("ginaReplyChips", () => {
@@ -286,6 +287,81 @@ describe("ginaReplyChips", () => {
     expect(post.textAfter).toBeNull();
     expect(post.textAfterRest).toBeNull();
     expect(post.textPitch).toBeNull();
+  });
+
+  it("buildTodayScheduleProgressNarration: N=2, P=0", () => {
+    const text = buildTodayScheduleProgressNarration({
+      locale: "es",
+      dayProgress: { total: 2, completed: 0, percent: 0, remaining: 2 },
+      folderProgress: [{ folder: "Youtube", percent: 0 }],
+      startFolder: "Youtube",
+    });
+    expect(text).toMatch(/2 documentos/i);
+    expect(text).toMatch(/\*\*0%\*\*/);
+    expect(text).toMatch(/0 de 2/);
+    expect(text).toMatch(/Youtube/);
+    expect(text).toMatch(/0% de ese folder/);
+  });
+
+  it("post-table lead includes day progress when dayProgress.total > 0", () => {
+    const post = buildTodayOverviewPostTableCopy({
+      locale: "es",
+      hasDaySheet: false,
+      documents: [{
+        id: "n1",
+        title: "Call 1",
+        department: "Sales",
+        category: "Calls",
+        folder: "Youtube",
+        workMinutes: 60,
+        timeClock: "9:00 AM – 10:00 AM",
+      }],
+      overviewByDepartment: [{ name: "Sales", total: 1, minutes: 60, hoursLabel: "1h" }],
+      totalMinutes: 60,
+      totalHoursLabel: "1 hora",
+      dayProgress: { total: 2, completed: 0, percent: 0, remaining: 2 },
+      folderProgress: [{ folder: "Youtube", percent: 0, done: 0, total: 2 }],
+      quickSheet: {
+        urgency: [],
+        isCleanDay: true,
+        firstPendingTitle: "Call 1",
+        firstPendingId: "n1",
+        pending: [{ id: "n1", title: "Call 1", folder: "Youtube" }],
+        totalDocuments: 1,
+      },
+    });
+    expect(post.textAfterLead).toMatch(/2 documentos/i);
+    expect(post.textAfterLead).toMatch(/\*\*0%\*\*/);
+    expect(post.textAfterLead).toMatch(/Youtube/);
+    expect(post.textAfterLead).toMatch(/Resumen inicial del día/i);
+  });
+
+  it("recovery gate surfaces progress narration as textAfterLead", () => {
+    const post = buildTodayOverviewPostTableCopy({
+      locale: "es",
+      hasRecoveryOffer: true,
+      lateStartCount: 1,
+      dayProgress: { total: 2, completed: 0, percent: 0 },
+      folderProgress: [{ folder: "Youtube", percent: 0 }],
+      documents: [{
+        id: "n2",
+        title: "Assistente test",
+        department: "Sales",
+        folder: "Youtube",
+        workMinutes: 120,
+        timeClock: "5:30 PM – 7:30 PM",
+      }],
+      quickSheet: {
+        isCleanDay: false,
+        firstPendingId: "n2",
+        pending: [{ id: "n2", title: "Assistente test", folder: "Youtube" }],
+        completed: [{ id: "n1", completed: true }],
+        urgency: [],
+      },
+    });
+    expect(post.textAfterLead).toMatch(/2 documentos/i);
+    expect(post.textAfterLead).toMatch(/\*\*0%\*\*/);
+    expect(post.startDocLines?.length).toBeGreaterThan(0);
   });
 
   it("offerDayReady forces post-table copy even if quickSheet is not clean", () => {
