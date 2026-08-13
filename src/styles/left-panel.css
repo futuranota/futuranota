@@ -3152,6 +3152,12 @@
   border-radius: 4px;
 }
 
+/* No drag handle (# Department / single-doc folders): keep title in 1fr so
+   hover delete/insert stay on the right instead of flush against the label. */
+.lp-doc-nodes-block__node--no-handle {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .lp-doc-nodes-block__node.is-folder-doc-dragging {
   opacity: 0.4;
 }
@@ -3393,9 +3399,10 @@
 
 .lp-doc-nodes-block__node:hover .lp-doc-nodes-block__node-actions,
 .lp-doc-nodes-block__node:focus-within .lp-doc-nodes-block__node-actions {
-  max-width: 76px;
+  max-width: 84px;
   opacity: 1;
   gap: 1px;
+  padding-left: 8px;
   padding-right: 4px;
   pointer-events: auto;
 }
@@ -3447,9 +3454,10 @@
 
 @media (hover: none) {
   .lp-doc-nodes-block__node-actions {
-    max-width: 76px;
+    max-width: 84px;
     opacity: 1;
     gap: 1px;
+    padding-left: 8px;
     padding-right: 4px;
     pointer-events: auto;
   }

@@ -656,6 +656,7 @@ function NodeCompactRow({
       ref={rowRef}
       className={
         "lp-doc-nodes-block__node"
+        + (reorderEnabled ? "" : " lp-doc-nodes-block__node--no-handle")
         + (isCampaignActive ? " is-campaign-active" : "")
         + (highlighted ? " is-gina-reveal" : "")
         + (reorderDragging ? " is-folder-doc-dragging" : "")
@@ -990,30 +991,24 @@ function DocNodesBlockCard({
               aria-hidden
             />
           ) : null}
-          {!orphan ? (
-            <span className={"lp-doc-icon lp-doc-icon--box" + (expanded ? " lp-doc-icon--box-open" : "")}>
-              {(doc?.icon || "").trim() ? (
-                <img
-                  src={(doc.icon || "").trim()}
-                  alt=""
-                  aria-hidden
-                  className="lp-folder-custom-icon"
-                />
-              ) : (
-                <img
-                  src={expanded ? "/uploads/open-box.svg" : "/uploads/box-closed.svg"}
-                  alt=""
-                  aria-hidden
-                  className="lp-item-icon-img lp-box-icon-img"
-                  key={expanded ? "open" : "closed"}
-                />
-              )}
-            </span>
-          ) : (
-            <span className="lp-doc-icon lp-doc-icon--box">
-              <SelectorTypeIcon type="Nodes" />
-            </span>
-          )}
+          <span className={"lp-doc-icon lp-doc-icon--box" + (expanded ? " lp-doc-icon--box-open" : "")}>
+            {!orphan && (doc?.icon || "").trim() ? (
+              <img
+                src={(doc.icon || "").trim()}
+                alt=""
+                aria-hidden
+                className="lp-folder-custom-icon"
+              />
+            ) : (
+              <img
+                src={expanded ? "/uploads/open-box.svg" : "/uploads/box-closed.svg"}
+                alt=""
+                aria-hidden
+                className="lp-item-icon-img lp-box-icon-img"
+                key={expanded ? "open" : "closed"}
+              />
+            )}
+          </span>
           <div className="fn-card-body">
             <div className="lp-doc-card-title-row">
               {orphan ? (

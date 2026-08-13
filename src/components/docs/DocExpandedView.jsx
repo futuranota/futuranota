@@ -68,6 +68,7 @@ import {
   docBlocksFromBody,
   docBlocksHaveContent,
   docBlocksToBody,
+  ensureWritableDocTail,
   normalizeDocBlocks,
   updateBlockAt,
   DOC_BLOCK_TYPES,
@@ -91,6 +92,7 @@ import {
   getOwnedTextBlockIndices,
   isDocBlockLinkedToNode,
   mergeMissingLinkedOwnerBundles,
+  ensureAllLinkedOwnerContinuationSlots,
   removeLinkedOwnerBundleFromBlocks,
   reconcileLinkedBlockTitlesFromNodes,
   shouldMirrorNodeContentInDoc,
@@ -131,6 +133,18 @@ function isEmptyDocState(title, blocks, body) {
     && !docBlocksHaveText(blocks)
     && !(body || "").trim()
   );
+}
+
+function resolvePersistLaunchAt(campaignActive, scheduleStartDate, launchDate) {
+  if (campaignActive) return null;
+  if (scheduleStartDate) return isoFromDateInput(scheduleStartDate);
+  if (launchDate) return isoFromDateInput(launchDate);
+  return null;
+}
+
+/** Same heals the editor applies on mount — must be in the dirty baseline. */
+function prepareOpenDocBlocks(blocks) {
+  return ensureWritableDocTail(ensureAllLinkedOwnerContinuationSlots(blocks));
 }
 
 function NodeFromSelectionModal({ query, onClose, onSave }) {
@@ -402,9 +416,10 @@ export function DocExpandedView({
       loadedBlocks,
     );
     // Cached drafts can outlive a left-panel reorder — realign owner bundles to store.
-    const blocksForSnapshot = storeOwnerOrder.length
+    const blocksReordered = storeOwnerOrder.length
       ? reorderLinkedOwnerBundlesInBlocks(blocksForSnapshotMerged, storeOwnerOrder)
       : blocksForSnapshotMerged;
+    const blocksForSnapshot = prepareOpenDocBlocks(blocksReordered);
     const loadedTitle = useCachedDraft ? (cached.title ?? savedTitle) : savedTitle;
     const loadedBody = useCachedDraft
       ? (cached.body ?? (loadedBlocks.length ? "" : (d.body ?? d.content ?? "")))
@@ -459,45 +474,24 @@ export function DocExpandedView({
       ? (cached.knowledgeImport ?? normalized.knowledgeImport ?? null)
       : (normalized.knowledgeImport ?? null);
 
-    if (useCachedDraft) {
-      setDraftTitle(loadedTitle);
-      setDraftBlocks(blocksForSnapshot);
-      setDraftBody(loadedBody);
-      setDraftCreatedDate(loadedCreatedDate);
-      setDraftVersion(loadedVersion);
-      setDraftCategory(loadedCategory);
-      setDraftDepartmentId(loadedDepartmentId);
-      setDraftIcon(loadedIcon);
-      setDraftLaunchDate(loadedLaunchDate);
-      setDraftScheduleStartDate(loadedScheduleStartDate);
-      setDraftScheduleFinishDate(loadedScheduleFinishDate);
-      setDraftCampaignActive(loadedCampaignActive);
-      setDraftNodeLinkColor(loadedNodeLinkColor);
-      setDraftParentId(loadedParentId);
-      setDraftDocKind(loadedDocKind);
-      setDraftTemplateKind(loadedTemplateKind);
-      setDraftSubcategoryDocIds(loadedSubcategoryDocIds);
-      setDraftKnowledgeImport(loadedKnowledgeImport);
-    } else {
-      setDraftTitle(loadedTitle);
-      setDraftBlocks(loadedBlocks);
-      setDraftBody(loadedBody);
-      setDraftCreatedDate(loadedCreatedDate);
-      setDraftVersion(loadedVersion);
-      setDraftCategory(loadedCategory);
-      setDraftDepartmentId(loadedDepartmentId);
-      setDraftIcon(loadedIcon);
-      setDraftLaunchDate(loadedLaunchDate);
-      setDraftScheduleStartDate(loadedScheduleStartDate);
-      setDraftScheduleFinishDate(loadedScheduleFinishDate);
-      setDraftCampaignActive(loadedCampaignActive);
-      setDraftNodeLinkColor(loadedNodeLinkColor);
-      setDraftParentId(loadedParentId);
-      setDraftDocKind(loadedDocKind);
-      setDraftTemplateKind(loadedTemplateKind);
-      setDraftSubcategoryDocIds(loadedSubcategoryDocIds);
-      setDraftKnowledgeImport(loadedKnowledgeImport);
-    }
+    setDraftTitle(loadedTitle);
+    setDraftBlocks(blocksForSnapshot);
+    setDraftBody(loadedBody);
+    setDraftCreatedDate(loadedCreatedDate);
+    setDraftVersion(loadedVersion);
+    setDraftCategory(loadedCategory);
+    setDraftDepartmentId(loadedDepartmentId);
+    setDraftIcon(loadedIcon);
+    setDraftLaunchDate(loadedLaunchDate);
+    setDraftScheduleStartDate(loadedScheduleStartDate);
+    setDraftScheduleFinishDate(loadedScheduleFinishDate);
+    setDraftCampaignActive(loadedCampaignActive);
+    setDraftNodeLinkColor(loadedNodeLinkColor);
+    setDraftParentId(loadedParentId);
+    setDraftDocKind(loadedDocKind);
+    setDraftTemplateKind(loadedTemplateKind);
+    setDraftSubcategoryDocIds(loadedSubcategoryDocIds);
+    setDraftKnowledgeImport(loadedKnowledgeImport);
 
     const openSnapshot = buildDocPersistSnapshot({
       title: resolvePersistTitle({
@@ -514,7 +508,11 @@ export function DocExpandedView({
       category: loadedCategory,
       icon: loadedIcon,
       departmentId: loadedDepartmentId,
-      launchAt: loadedLaunchDate ? isoFromDateInput(loadedLaunchDate) : null,
+      launchAt: resolvePersistLaunchAt(
+        loadedCampaignActive,
+        loadedScheduleStartDate,
+        loadedLaunchDate,
+      ),
       scheduleStartAt: loadedScheduleStartDate
         ? isoFromDateInput(loadedScheduleStartDate)
         : null,
@@ -817,11 +815,11 @@ export function DocExpandedView({
   ]);
 
   // Campaign folders do not own Launch (child docs do). Content may mirror Schedule.
-  const draftLaunchAt = draftCampaignActive
-    ? null
-    : (draftScheduleStartDate
-      ? isoFromDateInput(draftScheduleStartDate)
-      : (draftLaunchDate ? isoFromDateInput(draftLaunchDate) : null));
+  const draftLaunchAt = resolvePersistLaunchAt(
+    draftCampaignActive,
+    draftScheduleStartDate,
+    draftLaunchDate,
+  );
   const draftScheduleStartAt = draftScheduleStartDate
     ? isoFromDateInput(draftScheduleStartDate)
     : null;

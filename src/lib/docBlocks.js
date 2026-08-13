@@ -42,11 +42,12 @@ export const IMAGE_SPLIT_BODY_MODE = {
 };
 
 export function createTodoItem(patch = {}) {
+  const { id: patchId, ...rest } = patch;
   return {
-    id: generateId("TODO"),
+    id: patchId || generateId("TODO"),
     text: "",
     checked: false,
-    ...patch,
+    ...rest,
   };
 }
 
@@ -986,6 +987,7 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       nodeLinkColor: NO_NODE_LINK_COLOR_ID,
       macronodeHeading: Boolean(patch.macronodeHeading),
       ...patch,
+      id,
     };
   }
 
@@ -995,11 +997,12 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       type,
       title: "",
       ...patch,
+      id,
     };
   }
 
   if (type === DOC_BLOCK_TYPES.TODO) {
-    const items = patch.items || [createTodoItem()];
+    const items = patch.items || [createTodoItem({ id: `${id}__empty` })];
     return {
       ...base,
       type: DOC_BLOCK_TYPES.TODO,
@@ -1009,6 +1012,8 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
       queryEnabled: false,
       nodeLinkColor: NO_NODE_LINK_COLOR_ID,
       ...patch,
+      id,
+      items,
     };
   }
 
@@ -1147,7 +1152,7 @@ export function createDocBlock(type = DOC_BLOCK_TYPES.TEXT, patch = {}) {
     };
   }
 
-  return { ...base, type: DOC_BLOCK_TYPES.TEXT, text: "", ...patch };
+  return { ...base, type: DOC_BLOCK_TYPES.TEXT, text: "", ...patch, id };
 }
 
 export function normalizeDocBlock(block) {
@@ -1196,7 +1201,9 @@ export function normalizeDocBlock(block) {
               checked: Boolean(item.checked),
             }),
           )
-        : [createTodoItem()];
+        : [createTodoItem({
+          id: block.id ? `${block.id}__empty` : "TODO_EMPTY",
+        })];
     const anchor = normalizeAnchorFields(block);
     const queryEnabled = Boolean(block.queryEnabled ?? block.nodeId);
     return createDocBlock(DOC_BLOCK_TYPES.TODO, {

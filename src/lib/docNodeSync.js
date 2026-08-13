@@ -763,6 +763,21 @@ export function ensureContinuationAfterLinkedOwner(blocks, ownerIndex) {
   );
 }
 
+/** Ensure every linked H1/TODO has an answer stamp + empty continuation slot. */
+export function ensureAllLinkedOwnerContinuationSlots(blocks) {
+  let next = normalizeDocBlocks(blocks);
+  for (let i = 0; i < next.length; i += 1) {
+    const block = next[i];
+    if (
+      (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
+      && isDocBlockLinkedToNode(block)
+    ) {
+      next = ensureContinuationAfterLinkedOwner(next, i);
+    }
+  }
+  return next;
+}
+
 /** True when this TEXT block holds the node-linked answer (syncs to node). */
 export function isPrimaryAnswerTextForLinkedOwner(blocks, textBlockIndex) {
   return getLinkedOwnerIndexForTextBlock(blocks, textBlockIndex) >= 0;

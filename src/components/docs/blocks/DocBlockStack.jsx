@@ -66,7 +66,7 @@ import {
   mergeBlockBoldRanges,
 } from "../../../lib/docTextBoldRanges.js";
 import { collectTagCandidatesForObject } from "../../../lib/urlTableTags.js";
-import { getH1IndexForTextBlock, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
+import { getH1IndexForTextBlock, ensureAllLinkedOwnerContinuationSlots, ensureContinuationAfterLinkedOwner, getLinkedContinuationTextIndex, getLinkedOwnerForContinuationSlot, getLinkedOwnerIndexForTextBlock, getOwnedTextBlockIndices, getOwningScheduleBlockIndexForText, getWritableTextIndexBelowLinkedOwner, isDocBlockLinkedToNode, isLinkedOwnerContinuationSlot, isPrimaryAnswerTextForLinkedOwner, isTextHiddenByLinkedMacroNode, removeLinkedOwnerBundleFromBlocks } from "../../../lib/docNodeSync.js";
 import { isNoNodeLinkMode, NO_NODE_LINK_COLOR_ID, resolveBlockNodeLinkColor } from "../../../lib/docNodeLinkColors.js";
 import {
   buildDetachedWidgetEmbedded,
@@ -113,24 +113,6 @@ function findLastDocVaultBlockIndex(blocks, blockType) {
   return -1;
 }
 
-function ensureLinkedMacroContinuationSlots(blocks) {
-  let next = normalizeDocBlocks(blocks);
-  let changed = false;
-  for (let i = 0; i < next.length; i++) {
-    const block = next[i];
-    if (
-      (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
-      && isDocBlockLinkedToNode(block)
-    ) {
-      const ensured = ensureContinuationAfterLinkedOwner(next, i);
-      if (ensured !== next) {
-        next = ensured;
-        changed = true;
-      }
-    }
-  }
-  return changed ? next : blocks;
-}
 import { DocTodoPlanBlockView } from "./DocTodoPlanBlockView.jsx";
 import { DateBlockView } from "./DateBlockView.jsx";
 import { MetricBlockView } from "./MetricBlockView.jsx";
@@ -632,24 +614,9 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
 
   useLayoutEffect(() => {
     const current = blocksRef.current;
-    let next = current;
-    let changed = false;
-
-    for (let i = 0; i < next.length; i++) {
-      const block = next[i];
-      if (
-        (block.type === DOC_BLOCK_TYPES.H1 || block.type === DOC_BLOCK_TYPES.TODO)
-        && isDocBlockLinkedToNode(block)
-      ) {
-        const ensured = ensureContinuationAfterLinkedOwner(next, i);
-        if (ensured !== next) {
-          next = ensured;
-          changed = true;
-        }
-      }
-    }
-
-    if (changed) setBlocks(next);
+    const next = ensureAllLinkedOwnerContinuationSlots(current);
+    if (JSON.stringify(next) === JSON.stringify(current)) return;
+    setBlocks(next);
   }, [linkedOwnersKey, blocksStructureKey]);
 
   const requestContentGrow = () => {
@@ -712,8 +679,10 @@ export const DocBlockStack = forwardRef(function DocBlockStack({
   }, [blocksStructureKey, collapsedContentByBlockId, collapsedPadWriteByOwnerId, resyncAllTextHeights]);
 
   const setBlocks = (next) => {
-    const merged = ensureLinkedMacroContinuationSlots(normalizeDocBlocks(next));
+    const merged = ensureAllLinkedOwnerContinuationSlots(normalizeDocBlocks(next));
+    const prev = blocksRef.current;
     blocksRef.current = merged;
+    if (JSON.stringify(merged) === JSON.stringify(prev)) return;
     onBlocksChange?.(merged);
   };
 
