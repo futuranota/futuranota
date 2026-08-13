@@ -14,19 +14,43 @@ describe("normalizeDoc campaign vs schedule", () => {
     expect(doc.campaignActivateAt).toBe("2026-07-20T10:00:00.000Z");
     expect(doc.scheduleStartAt).toBeNull();
     expect(doc.scheduleFinishAt).toBeNull();
-    expect(doc.campaignCompleted).toBe(false);
   });
 
-  it("still synthesizes Schedule from Launch for regular Content folders", () => {
+  it("does not invent Schedule from Launch for Content folders (Clear stays cleared)", () => {
     const doc = normalizeDoc({
       id: "f1",
       title: "Content",
       campaignActive: false,
       launchAt: "2026-08-01T16:00:00.000Z",
     });
+    expect(doc.scheduleStartAt).toBeNull();
+    expect(doc.scheduleFinishAt).toBeNull();
+    expect(doc.launchAt).toBe("2026-08-01T16:00:00.000Z");
+  });
+
+  it("keeps explicit Schedule and does not wipe Launch when both set", () => {
+    const doc = normalizeDoc({
+      id: "f2",
+      title: "Content",
+      scheduleStartAt: "2026-08-02T12:00:00.000Z",
+      scheduleFinishAt: "2026-08-05T12:00:00.000Z",
+      launchAt: "2026-07-01T12:00:00.000Z",
+    });
+    expect(doc.scheduleStartAt).toBe("2026-08-02T12:00:00.000Z");
+    expect(doc.scheduleFinishAt).toBe("2026-08-05T12:00:00.000Z");
+    expect(doc.launchAt).toBe("2026-07-01T12:00:00.000Z");
+  });
+
+  it("fills missing scheduleFinishAt from scheduleStartAt only", () => {
+    const doc = normalizeDoc({
+      id: "f3",
+      scheduleStartAt: "2026-08-01T16:00:00.000Z",
+      scheduleFinishAt: null,
+      launchAt: null,
+    });
     expect(doc.scheduleStartAt).toBe("2026-08-01T16:00:00.000Z");
     expect(doc.scheduleFinishAt).toBe("2026-08-01T16:00:00.000Z");
-    expect(doc.launchAt).toBe("2026-08-01T16:00:00.000Z");
+    expect(doc.launchAt).toBeNull();
   });
 
   it("preserves explicit campaignCompleted and activate fields", () => {

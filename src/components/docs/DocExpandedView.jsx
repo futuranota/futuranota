@@ -1027,14 +1027,19 @@ export function DocExpandedView({
     });
   };
 
-  const runChildScheduleResetIfRangeChanged = (prevStart, prevFinish, nextStart, nextFinish) => {
+  const runChildScheduleResetIfRangeChanged = (prevStart, prevFinish, nextStart, nextFinish, opts = {}) => {
     if (!doc?.id) return;
-    if (!folderScheduleRangeChanged(
-      { start: prevStart, finish: prevFinish },
-      { start: nextStart, finish: nextFinish },
-    )) {
-      return;
-    }
+    const nextEmpty = !String(nextStart || "").trim() && !String(nextFinish || "").trim();
+    const prevEmpty = !String(prevStart || "").trim() && !String(prevFinish || "").trim();
+    // Clear (empty frame) or any Start/Finish change → reset child dates/hours.
+    const shouldReset = Boolean(opts.force)
+      || (nextEmpty && !prevEmpty)
+      || folderScheduleRangeChanged(
+        { start: prevStart, finish: prevFinish },
+        { start: nextStart, finish: nextFinish },
+      );
+    if (!shouldReset) return;
+
     const nodesStore = useNodesStore.getState();
     const docsStore = useDocsStore.getState();
     const cleared = resetNonReservedChildrenForFolderScheduleChange(doc.id, {
@@ -1078,6 +1083,7 @@ export function DocExpandedView({
     updateDoc(doc.id, {
       scheduleStartAt: startAt,
       scheduleFinishAt: finishAt,
+      // Clear Launch together with Schedule so normalize cannot resurrect the frame.
       launchAt: startAt,
     });
     // #region agent log
@@ -1091,6 +1097,7 @@ export function DocExpandedView({
       prevFinish,
       startInput || "",
       finishInput || "",
+      { force: !startAt && !finishAt },
     );
   };
 
