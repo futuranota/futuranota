@@ -24,6 +24,7 @@ import {
   listUnfinishedPriorBlocks,
   buildTalkRequestConditionText,
   parseDaySheetRescheduleIntent,
+  buildTalkRequestNotifyChips,
   buildTalkRequestPopoverCopy,
   buildTalkNotificationsEnableChips,
   buildTalkNotificationsOfferText,
@@ -35,6 +36,7 @@ import {
   parseTalkRequestNotifyIntent,
 } from "./ginaTalkRequest.js";
 import { runGinaQueryFamily } from "./ginaQueryFamily.js";
+import { writeDaySheet } from "./ginaDaySheetStore.js";
 
 const memory = new Map();
 globalThis.localStorage = {
@@ -504,5 +506,68 @@ describe("ginaTalkRequest copy + router", () => {
     expect(routed.family).toBe("schedule_recovery_reschedule_pick");
     expect(routed.toolContext.rescheduleMode).toBe("cascade");
     expect(routed.toolContext.cascadeMoveDocIds).toEqual(["n1", "n2"]);
+  });
+
+  it("initial notify chips put Open first", () => {
+    const chips = buildTalkRequestNotifyChips({
+      locale: "es",
+      documentId: "n2",
+      title: "Horizon blog title 2",
+    });
+    expect(chips[0].id).toBe("open_n2");
+    expect(chips[0].primary).toBe(true);
+    expect(chips[0].text).toBe("GinaOpenDocument:n2");
+    expect(chips.some((c) => c.id === "talk_request_thanks")).toBe(true);
+  });
+
+  it("talk request pool keeps completed today even if missing from the sheet", () => {
+    const now = new Date("2026-08-13T15:00:00");
+    writeDaySheet("talk-user", { docIds: ["n2"], now });
+    const routed = runGinaQueryFamily("GinaTalkRequestNotify:n2", {
+      now,
+      userId: "talk-user",
+      objectId: "co1",
+      departments: [{
+        id: "dept_m",
+        objectId: "co1",
+        category: "Marketing",
+        subcategories: [{ label: "blogs", description: "" }],
+      }],
+      docs: {
+        f1: {
+          id: "f1",
+          title: "Horizon",
+          parentObjectId: "co1",
+          departmentId: "dept_m",
+          category: "blogs",
+        },
+      },
+      nodes: {
+        n1: {
+          id: "n1",
+          title: "Horizon blog title 1",
+          parentDocId: "f1",
+          objectId: "co1",
+          anchorAt: "2026-08-13T09:00:00",
+          anchorFinishAt: "2026-08-13T10:00:00",
+          status: "completed",
+          completed: true,
+        },
+        n2: {
+          id: "n2",
+          title: "Horizon blog title 2",
+          parentDocId: "f1",
+          objectId: "co1",
+          anchorAt: "2026-08-13T14:00:00",
+          anchorFinishAt: "2026-08-13T16:00:00",
+          status: "not_started",
+        },
+      },
+    });
+    expect(routed.family).toBe("gina_talk_request");
+    const ids = (routed.toolContext.documents || []).map((d) => d.id);
+    expect(ids).toContain("n2");
+    expect(ids).toContain("n1");
+    expect(ids.indexOf("n2")).toBeLessThan(ids.indexOf("n1"));
   });
 });

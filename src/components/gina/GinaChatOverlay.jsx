@@ -9,6 +9,7 @@ import { GinaChatCard } from "./GinaChatCard.jsx";
  * @param {{
  *   documentId?: string | null,
  *   openingMessage?: string,
+ *   openingMode?: "first" | "return" | "progress",
  *   demoReply?: string,
  *   placeholder?: string,
  *   speechLang?: string,
@@ -28,6 +29,7 @@ export function GinaChatOverlay({
   documentId = null,
   assistantName = "Gina",
   openingMessage,
+  openingMode = "first",
   demoReply,
   placeholder,
   speechLang = "es-ES",
@@ -76,6 +78,7 @@ export function GinaChatOverlay({
           documentId={documentId}
           assistantName={assistantName}
           openingMessage={openingMessage}
+          openingMode={openingMode}
           demoReply={demoReply}
           placeholder={placeholder}
           speechLang={speechLang}

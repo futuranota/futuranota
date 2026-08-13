@@ -26,6 +26,39 @@ export function orderDocsByDaySheetIds(liveDocs, docIds) {
 }
 
 /**
+ * Sheet order first, then any live-today docs missing from the sheet
+ * (e.g. completed blocks that were never anchored).
+ * @param {object[]} liveTodayDocs
+ * @param {string[]} [sheetDocIds]
+ * @returns {object[]}
+ */
+export function mergeDaySheetWithLiveToday(liveTodayDocs, sheetDocIds) {
+  const live = Array.isArray(liveTodayDocs) ? liveTodayDocs : [];
+  const byId = new Map();
+  for (const d of live) {
+    if (d?.id) byId.set(String(d.id), d);
+  }
+  const ordered = [];
+  const seen = new Set();
+  for (const rawId of sheetDocIds || []) {
+    const id = String(rawId || "").trim();
+    if (!id || seen.has(id)) continue;
+    const hit = byId.get(id);
+    if (hit) {
+      ordered.push(hit);
+      seen.add(id);
+    }
+  }
+  for (const d of live) {
+    const id = String(d?.id || "").trim();
+    if (!id || seen.has(id)) continue;
+    ordered.push(d);
+    seen.add(id);
+  }
+  return ordered;
+}
+
+/**
  * @param {object} doc
  * @returns {boolean}
  */
@@ -260,37 +293,40 @@ export function buildDaySheetPendingActionChips(opts = {}) {
       ? talkRequestDocId
       : (selectedIds[0] || talkRequestDocId || ""));
   const openTitle = String(opts.openTitle || "").trim();
-  /** @type {{ id: string, label: string, text: string, primary?: boolean }[]} */
-  const chips = [
-    {
-      id: "day_sheet_apply_complete",
-      label: en ? "Mark as completed" : "Marcar como completados",
-      text: "GinaDaySheetApplyComplete",
-      primary: true,
-    },
-  ];
-  if (selectedIds.length) {
-    chips.push({
+  const openFirst = Boolean(talkRequestDocId && selectedIds.includes(talkRequestDocId));
+  const markChip = {
+    id: "day_sheet_apply_complete",
+    label: en ? "Mark as completed" : "Marcar como completados",
+    text: "GinaDaySheetApplyComplete",
+    primary: !openFirst,
+  };
+  const rescheduleChip = selectedIds.length
+    ? {
       id: "day_sheet_reschedule",
       label: en ? "Reschedule" : "Reagendar",
       text: `GinaDaySheetReschedule:${selectedIds.join(",")}`,
-    });
-  }
-  if (openId) {
-    chips.push({
+    }
+    : null;
+  const openChip = openId
+    ? {
       id: `open_${openId}`,
       label: en
-        ? (openTitle ? `Open ${openTitle}` : "Open")
-        : (openTitle ? `Abrir ${openTitle}` : "Abrir"),
+        ? (openTitle ? `Open ${openTitle}` : "Open document")
+        : (openTitle ? `Abrir ${openTitle}` : "Abrir documento"),
       text: `GinaOpenDocument:${openId}`,
-    });
-  }
-  chips.push({
+      primary: openFirst,
+    }
+    : null;
+  const discardChip = {
     id: "day_sheet_discard_selection",
     label: en ? "Discard" : "Descartar",
     text: "GinaDaySheetDiscardSelection",
-  });
-  return chips;
+  };
+  /** @type {{ id: string, label: string, text: string, primary?: boolean }[]} */
+  if (openFirst && openChip) {
+    return [openChip, rescheduleChip, markChip, discardChip].filter(Boolean);
+  }
+  return [markChip, rescheduleChip, openChip, discardChip].filter(Boolean);
 }
 
 /**

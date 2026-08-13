@@ -410,10 +410,13 @@ function attachRecoveryMeta(data, today, now) {
   const overlapSummary = (data.hasOverlap || data.conflictRails || data.quickSheet?.hasOverlap || today.hasOverlap)
     ? null
     : summarizeTodayOverlaps(docs, now);
-  const resolvedConflictRails = data.conflictRails
-    || data.quickSheet?.conflictRails
-    || overlapSummary?.conflictRails
-    || null;
+  const hideConflictUi = Boolean(data.notifyBrief && data.currentStep === "overdue_check");
+  const resolvedConflictRails = hideConflictUi
+    ? null
+    : (data.conflictRails
+      || data.quickSheet?.conflictRails
+      || overlapSummary?.conflictRails
+      || null);
   const hasOverlapOffer = Boolean(
     data.hasOverlap
     || data.quickSheet?.hasOverlap
@@ -442,8 +445,10 @@ function attachRecoveryMeta(data, today, now) {
     lateStartCount: data.lateStartCount ?? triageOffer.lateStartActive.length,
     firstPendingTitle: today.firstPendingTitle || computedPassed[0]?.title || null,
     hasOverlap: Boolean(data.hasOverlap || hasOverlapOffer),
-    conflictRails: resolvedConflictRails || data.conflictRails || null,
-    topConflict: data.topConflict || overlapSummary?.topConflict || data.quickSheet?.topConflict || null,
+    conflictRails: hideConflictUi ? null : (resolvedConflictRails || data.conflictRails || null),
+    topConflict: hideConflictUi
+      ? null
+      : (data.topConflict || overlapSummary?.topConflict || data.quickSheet?.topConflict || null),
     hasRecoveryOffer: urgencyMarkableOffer || hasOverlapOffer,
     highlightPassedSlots: Boolean(data.highlightPassedSlots),
     recoveryPhase: data.recoveryPhase || "gate",
@@ -1252,7 +1257,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       };
     }
 
-    if (wantsTimeline || (wantsAllToday && today.filters?.department)) {
+    if ((wantsTimeline || wantsAllToday) && today.filters?.department) {
       const source = wantsTimeline || wantsAllToday || wantsOverdueHours || wantsFromNow
         ? docs
         : asDocs(today.documents);
@@ -1393,14 +1398,16 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       topConflict: quickSheet.topConflict,
       locale,
     }, today, now);
+    const hasPassedUrgency = Array.isArray(quickSheet.urgency) && quickSheet.urgency.length > 0;
     return {
       type: "schedule_sheet",
       data: {
         ...baseData,
+        highlightPassedSlots: false,
         hasRecoveryOffer: postRescheduleDaySheet
           ? false
           : (Boolean(baseData.hasRecoveryOffer)
-            || (Array.isArray(quickSheet.urgency) && quickSheet.urgency.some((d) => d && d.markable))
+            || hasPassedUrgency
             || Boolean(quickSheet.hasOverlap)),
       },
     };
@@ -1536,16 +1543,25 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
 
     const showOverdue = currentStep === "overdue_check";
     const showConflict = currentStep === "conflict_resolve";
-    // First overdue table = expired (red) only. Late-start stays in step copy / chips.
-    const source = showOverdue
-      ? (recoveryOfferMode === "late_start"
-        ? lateStart
-        : urgencySource)
-      : (showConflict && overlap.conflictRails
-        ? [overlap.conflictRails.longBlock, ...(overlap.conflictRails.overlappingBlocks || [])]
-          .map((b) => allDocs.find((d) => d.id && d.id === b.id) || b)
-          .filter(Boolean)
-        : []);
+    const conflictSource = showConflict && overlap.conflictRails
+      ? [overlap.conflictRails.longBlock, ...(overlap.conflictRails.overlappingBlocks || [])]
+        .map((b) => allDocs.find((d) => d.id && d.id === b.id) || b)
+        .filter(Boolean)
+      : [];
+
+    const dayDocs = allDocs
+      .slice()
+      .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")));
+    const quickSections = buildTodayQuickSheetSections(dayDocs, now);
+    const quickSheet = {
+      ...mapQuickSheetSections(quickSections, (d) => mapDocRow(d, now, locale)),
+      hasOverlap: Boolean(overlap.hasOverlap || quickSections.hasOverlap),
+      topConflict: overlap.topConflict,
+      conflictRails: overlap.conflictRails,
+      clockLabel: formatClock12h(now),
+      totalDocuments: dayDocs.length,
+      urgencyCount: quickSections.urgency.length,
+    };
 
     const expiredMoveIds = fullyExpired
       .map((d) => d.id)
@@ -1557,24 +1573,18 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
       .map((d) => String(d.id));
 
-    const forceLateHighlight = showOverdue && recoveryOfferMode === "late_start";
-    const mapBriefRow = (d) => {
-      const row = mapDocRow(d, now, locale);
-      return forceLateHighlight ? { ...row, passedSlot: true } : row;
-    };
+    const nodesById = ctx.nodes || {};
+    const docsById = ctx.docs || {};
+    const folderProgress = buildFolderProgressForDocuments(dayDocs, nodesById, docsById);
+    const timedCompleted = dayDocs.filter(
+      (d) => d.status === "completed" || d.completed === true,
+    ).length;
+    const timedTotal = dayDocs.length;
+
+    const tableDocs = showOverdue ? dayDocs : conflictSource;
     const briefGroups = showOverdue
-      ? groupDocsForScheduleSheet(source, now).map((group) => (
-        forceLateHighlight
-          ? {
-            ...group,
-            folders: (group.folders || []).map((folder) => ({
-              ...folder,
-              documents: (folder.documents || []).map((doc) => ({ ...doc, passedSlot: true })),
-            })),
-          }
-          : group
-      ))
-      : [];
+      ? groupDocsForScheduleSheet(dayDocs, now)
+      : (showConflict ? groupDocsForScheduleSheet(conflictSource, now) : []);
 
     return {
       type: "schedule_sheet",
@@ -1582,10 +1592,18 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         date: ctx.date,
         dateLabel: formatGinaDayLabel(ctx.date, locale),
         groups: briefGroups,
-        documents: source
-          .slice()
-          .sort((a, b) => String(a.anchorAt || "").localeCompare(String(b.anchorAt || "")))
-          .map(mapBriefRow),
+        documents: tableDocs.map((d) => mapDocRow(d, now, locale)),
+        quickSheet,
+        folderProgress,
+        dayProgress: {
+          completed: timedCompleted,
+          total: timedTotal,
+          remaining: Math.max(0, timedTotal - timedCompleted),
+          percent: timedTotal > 0
+            ? Math.min(100, Math.round((timedCompleted / timedTotal) * 100))
+            : 0,
+        },
+        fullDayTable: showOverdue,
         highlightPassedSlots: showOverdue && (urgencyCount > 0 || lateStartCount > 0),
         playHighlightsSound: showOverdue && (urgencyCount > 0 || lateStartCount > 0),
         recoveryPhase: "brief",

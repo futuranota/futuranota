@@ -69,6 +69,7 @@ export function chipsAreHomeOpening(chips) {
  *   group?: string,
  *   selectable?: boolean,
  *   value?: string,
+ *   hint?: string,
  * }} GinaReplyChip
  */
 
@@ -87,12 +88,16 @@ const STATUS_CHIP_META = {
  *   locale?: string,
  *   hasDaySheet?: boolean,
  *   surface?: "dashboard" | "document",
+ *   mode?: "first" | "return" | "progress",
  * }} [opts]
  * @returns {GinaReplyChip[]}
  */
 export function buildGinaOpeningChips(opts = {}) {
   const en = opts.locale === "en";
   const surface = opts.surface === "document" ? "document" : "dashboard";
+  const mode = opts.mode === "return" || opts.mode === "progress"
+    ? opts.mode
+    : "first";
 
   // In-document Asistente: free-hours check + optional day schedule reopen.
   if (surface === "document") {
@@ -117,6 +122,86 @@ export function buildGinaOpeningChips(opts = {}) {
       });
     }
     return docChips;
+  }
+
+  const pendingChip = {
+    id: "review_pending_today",
+    kind: "home_schedule",
+    group: "opening_home",
+    label: en ? "Review today’s pending items" : "Revisar los pendientes del día",
+    hint: en
+      ? "Check active tasks and the current status of your documents."
+      : "Consulta las tareas activas y el estado actual de tus documentos.",
+    text: en ? "review today’s pending items" : "revisar los pendientes de hoy",
+    primary: mode === "return",
+    selectable: true,
+  };
+  const hoursChip = {
+    id: "review_hours_today",
+    kind: "home_schedule",
+    group: "opening_home",
+    label: en ? "Review today’s schedule" : "Revisar horarios del día",
+    hint: en
+      ? "Look at how your blocks are distributed across the day."
+      : "Analiza la distribución horaria de tus bloques.",
+    text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
+    primary: mode === "progress",
+    selectable: true,
+  };
+  const weekLine = {
+    id: "home_week_line",
+    kind: "prompt",
+    group: "opening_home",
+    label: en
+      ? "If you want to explore the schedule for your week, let me know."
+      : "Si quieres explorar el horario durante tu semana, déjame saber.",
+    selectable: false,
+  };
+  const weekChip = {
+    id: "review_week",
+    kind: "home_schedule",
+    group: "opening_home",
+    label: en ? "Review the week" : "Revisar la semana",
+    text: en
+      ? "view all schedules this week"
+      : "visualizar todos los horarios de la semana",
+    selectable: true,
+  };
+
+  if (mode === "return") {
+    return [
+      {
+        id: "home_intro",
+        kind: "prompt",
+        group: "opening_home",
+        label: en
+          ? "What would you like to check now?"
+          : "¿Qué te gustaría consultar ahora?",
+        selectable: false,
+      },
+      pendingChip,
+      hoursChip,
+      weekLine,
+      weekChip,
+    ];
+  }
+
+  if (mode === "progress") {
+    return [
+      {
+        id: "home_intro",
+        kind: "prompt",
+        group: "opening_home",
+        label: en
+          ? "I can see you’re making strong progress on your projects today. To keep the pace without losing control, what would you like to review right now?"
+          : "Veo que estás avanzando fuerte con tus proyectos hoy. Para mantener el ritmo sin perder el control, ¿qué te gustaría revisar en este momento?",
+        selectable: false,
+      },
+      hoursChip,
+      { ...pendingChip, primary: false },
+      weekLine,
+      weekChip,
+    ];
   }
 
   // Dashboard home — greeting is separate; chips carry body copy + actions.

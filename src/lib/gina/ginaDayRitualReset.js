@@ -8,6 +8,7 @@ import { clearTalkRequest } from "./ginaTalkRequestStore.js";
 import { clearRecoveryNotifySnooze } from "./ginaRecoverySnooze.js";
 import { clearDailyReport } from "./ginaDailyReportStore.js";
 import { clearOccupiedStrikethrough } from "./ginaOccupiedHoursStore.js";
+import { clearTodayAgendaChecked } from "./ginaTodayAgendaCheckStore.js";
 
 export const GINA_RESET_DAY_RITUAL_PROTOCOL = "GinaResetDayRitual";
 
@@ -43,6 +44,10 @@ export function resetGinaDayRitualState(userId) {
   try {
     clearOccupiedStrikethrough(uid);
     cleared.push("occupied_strikethrough");
+  } catch { /* ignore */ }
+  try {
+    clearTodayAgendaChecked(uid);
+    cleared.push("today_agenda_check");
   } catch { /* ignore */ }
   return { cleared };
 }

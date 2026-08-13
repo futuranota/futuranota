@@ -141,8 +141,6 @@ describe("ginaScheduleRecovery", () => {
     expect(viz?.type).toBe("schedule_sheet");
     expect(viz.data.hasRecoveryOffer).toBe(true);
     expect(viz.data.highlightPassedSlots).toBe(false);
-    const headline = buildGinaFunnelHeadline(viz, { locale: "es" });
-    expect(headline || "").toContain("Revisé tu agenda");
   });
 
   it("does not offer notify when day is clean (no markable, no overlap)", () => {
@@ -177,10 +175,10 @@ describe("ginaScheduleRecovery", () => {
     expect(viz.data.hasRecoveryOffer).toBe(true);
     expect(viz.data.highlightPassedSlots).toBe(false);
     expect(viz.data.recoveryPhase).toBe("gate");
-    const headline = buildGinaFunnelHeadline(viz, { locale: "es" });
-    expect(headline).toContain("Revisé tu agenda");
+    expect(viz.data.todayOverview).toBe(true);
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
-    expect(chips.map((c) => c.id)).toEqual(["recovery_notify", "skip_recovery"]);
+    expect(chips.map((c) => c.id)).toEqual(["recovery_notify", "move_end_of_day", "skip_recovery"]);
+    expect(chips.find((c) => c.id === "move_end_of_day")?.label).toBe("Reagendar");
     expect(buildScheduleRecoveryGateChips({ locale: "es" })[0].label).toBe(
       "Gina quiere informarte algo",
     );
@@ -208,6 +206,10 @@ describe("ginaScheduleRecovery", () => {
       "move_end_of_day",
       "delete_overdue_docs",
     ]);
+    expect(chips.find((c) => c.id === "move_end_of_day")?.label).toBe("Reagendar");
+    expect(viz.data.documents?.map((d) => d.id).sort()).toEqual(["n1", "n3", "n5"]);
+    expect(viz.data.fullDayTable).toBe(true);
+    expect(viz.data.quickSheet).toBeTruthy();
     expect(chips.find((c) => c.id === "delete_overdue_docs")?.comingSoon).toBeFalsy();
     expect(chips.find((c) => c.id === "move_end_of_day")?.comingSoon).toBeFalsy();
     expect(chips.find((c) => c.id === "move_end_of_day")?.primary).toBe(true);
@@ -410,8 +412,9 @@ describe("ginaScheduleRecovery", () => {
     expect(viz?.data?.moveDocIds?.sort()).toEqual(["n1", "n3"]);
     expect(viz?.data?.moveDocIds).not.toContain("n5");
     expect(viz?.data?.cascadeMoveDocIds?.sort()).toEqual(["n1", "n3", "n5"]);
-    // First overdue table = expired only (no late-start n5 mixed in)
-    expect(viz?.data?.documents?.map((d) => d.id).sort()).toEqual(["n1", "n3"]);
+    // Full day table (completed + pending), not expired-only
+    expect(viz?.data?.documents?.map((d) => d.id).sort()).toEqual(["n1", "n3", "n5"]);
+    expect(viz?.data?.fullDayTable).toBe(true);
     expect(viz?.data?.playHighlightsSound).toBe(true);
     expect(viz?.data?.highlightPassedSlots).toBe(true);
 
@@ -423,7 +426,7 @@ describe("ginaScheduleRecovery", () => {
         n3: { ...lateCtx.nodes.n3, status: "completed", completed: true },
       },
     };
-    const lateScope = get_today_scope(lateOnlyCtx);
+    const lateScope = get_today_scope(lateOnlyCtx, { includeCompleted: true });
     const lateViz = buildGinaVisualization("schedule_recovery_brief", {
       ...lateScope,
       documents: lateScope.documents,
@@ -434,7 +437,8 @@ describe("ginaScheduleRecovery", () => {
     expect(lateViz?.data?.moveDocIds).toEqual([]);
     expect(lateViz?.data?.playHighlightsSound).toBe(true);
     expect(lateViz?.data?.highlightPassedSlots).toBe(true);
-    expect(lateViz?.data?.documents?.every((d) => d.passedSlot)).toBe(true);
+    expect(lateViz?.data?.documents?.map((d) => d.id).sort()).toEqual(["n1", "n3", "n5"]);
+    expect(lateViz?.data?.documents?.some((d) => d.id === "n5")).toBe(true);
     const blockedPick = buildGinaVisualization("schedule_recovery_reschedule_pick", {
       ...lateScope,
       documents: lateScope.documents,
@@ -608,7 +612,7 @@ describe("ginaScheduleRecovery", () => {
     ]);
     expect(expiredLegend[0].tier).toBe("star");
     expect(expiredLegend[0].control).toBe("link");
-    expect(expiredLegend[0].ctaLabel).toBe("Ajustar agenda");
+    expect(expiredLegend[0].ctaLabel).toBe("Reagendar");
     expect(expiredLegend.find((r) => r.id === "change_status")).toBeUndefined();
     expect(expiredLegend.find((r) => r.id === "mark_completed")).toBeUndefined();
     expect(expiredLegend.find((r) => r.id === "mark_past_due")).toBeUndefined();
@@ -837,9 +841,10 @@ describe("ginaScheduleRecovery", () => {
     }
     // Cascade occupied excludes the whole move session
     expect(viz.data.occupied.every((o) => !viz.data.moveDocIds.includes(o.id))).toBe(true);
-    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/posible horario propuesto/i);
-    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/mover el status/i);
-    expect(buildReschedulePickerText({ locale: "en", mode: "cascade" })).toMatch(/status/i);
+    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/Horario ajustado para ti/i);
+    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/Aplicar cambios/i);
+    expect(buildReschedulePickerText({ locale: "es", mode: "cascade" })).toMatch(/estado de cada bloque/i);
+    expect(buildReschedulePickerText({ locale: "en", mode: "cascade" })).toMatch(/Adjusted schedule/i);
     const chips = buildGinaReplyChips({ visualization: viz, locale: "es" });
     expect(chips.some((c) => c.id === "reschedule_tomorrow")).toBe(false);
   });

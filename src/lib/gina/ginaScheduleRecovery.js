@@ -461,7 +461,7 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
     actionText: en
       ? "Reschedule for today"
       : "Reagendar para hoy",
-    ctaLabel: en ? "Adjust schedule" : "Ajustar agenda",
+    ctaLabel: en ? "Reschedule" : "Reagendar",
     tier: "star",
     control: "link",
     statusKey: null,
@@ -489,7 +489,7 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
         actionText: en
           ? "Reschedule for today"
           : "Reagendar para hoy",
-        ctaLabel: en ? "Adjust schedule" : "Ajustar agenda",
+        ctaLabel: en ? "Reschedule" : "Reagendar",
         tier: "star",
         control: "link",
         statusKey: null,
@@ -759,6 +759,13 @@ export function buildScheduleRecoveryGateChips(opts = {}) {
       primary: true,
     },
     {
+      id: "move_end_of_day",
+      label: en ? "Reschedule" : "Reagendar",
+      text: en
+        ? "Reschedule for today"
+        : "Reagendar para hoy",
+    },
+    {
       id: "skip_recovery",
       label: en ? "Skip" : "Omitir",
       text: en ? "Skip schedule recovery" : "Omitir recuperación de horario",
@@ -817,7 +824,7 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
     const openTitle = String(opts.openDocTitle || "").trim();
     chips.push({
       id: "move_end_of_day",
-      label: en ? "Adjust schedule" : "Ajustar agenda",
+      label: en ? "Reschedule" : "Reagendar",
       text: en
         ? "Reschedule for today"
         : "Reagendar para hoy",
@@ -839,7 +846,7 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
   chips.push(
     {
       id: "move_end_of_day",
-      label: en ? "Adjust schedule" : "Ajustar agenda",
+      label: en ? "Reschedule" : "Reagendar",
       text: en
         ? "Reschedule for today"
         : "Reagendar para hoy",
@@ -1112,8 +1119,8 @@ export function buildReschedulePickerText(opts = {}) {
   const en = opts.locale === "en";
   if (opts.mode === "cascade") {
     return en
-      ? "Here’s a possible proposed schedule:\nTap any time to adjust it in the popover, then **Apply changes** once; you can also change the status if you want."
-      : "Aquí tienes un posible horario propuesto:\nToca cualquier hora para ajustarla en el popover y luego **Aplicar cambios** una sola vez; también puedes mover el status si así lo deseas.";
+      ? "Adjusted schedule for you:\nEdit the hours directly if you need to, then tap Apply changes. You can also update each block’s status individually."
+      : "Horario ajustado para ti:\nModifica las horas directamente si lo necesitas y pulsa Aplicar cambios. También puedes actualizar el estado de cada bloque de forma individual.";
   }
   if (opts.noCupo || opts.hasFreeSlot === false) {
     const title = String(opts.activeTitle || "").trim();

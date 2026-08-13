@@ -8,6 +8,7 @@ import {
 } from "./ginaDaySheetStore.js";
 import {
   matchDocInDaySheet,
+  mergeDaySheetWithLiveToday,
   orderDocsByDaySheetIds,
   patchDaySheetVisualizationCompletion,
   pickNextDaySheetDoc,
@@ -88,6 +89,18 @@ describe("ginaDaySheet helpers", () => {
       ["a", "missing", "b"],
     );
     expect(ordered.map((d) => d.id)).toEqual(["a", "b"]);
+  });
+
+  it("merges sheet ids first, then remaining live today including completed", () => {
+    const merged = mergeDaySheetWithLiveToday(
+      [
+        { id: "done", title: "Horizon blog title 1", status: "completed" },
+        { id: "n2", title: "Horizon blog title 2", status: "not_started" },
+        { id: "n3", title: "Later", status: "in_progress" },
+      ],
+      ["n2", "n3"],
+    );
+    expect(merged.map((d) => d.id)).toEqual(["n2", "n3", "done"]);
   });
 
   it("picks next non-completed and summarizes progress", () => {
@@ -234,8 +247,24 @@ describe("ginaDaySheet helpers", () => {
       "open_n2",
       "day_sheet_discard_selection",
     ]);
+    expect(selected[0].primary).toBe(true);
     expect(selected.find((c) => c.id === "day_sheet_reschedule")?.text).toBe("GinaDaySheetReschedule:n2");
     expect(selected.find((c) => c.id === "open_n2")?.text).toBe("GinaOpenDocument:n2");
+
+    const notified = buildDaySheetPendingActionChips({
+      locale: "es",
+      selectedIds: ["n2"],
+      talkRequestDocId: "n2",
+      openTitle: "Horizon blog title 2",
+    });
+    expect(notified.map((c) => c.id)).toEqual([
+      "open_n2",
+      "day_sheet_reschedule",
+      "day_sheet_apply_complete",
+      "day_sheet_discard_selection",
+    ]);
+    expect(notified[0].primary).toBe(true);
+    expect(notified[0].label).toMatch(/^Abrir Horizon blog title 2$/);
 
     const afterAck = buildDaySheetBatchCompleteChips({
       locale: "es",

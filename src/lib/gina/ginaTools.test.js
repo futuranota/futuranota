@@ -435,6 +435,18 @@ describe("ginaOpenings", () => {
     expect(line).not.toMatch(/organizados por horarios/i);
   });
 
+  it("return mode greets hello again", () => {
+    expect(pickGinaOpening({ locale: "es", userName: "Futura", mode: "return" }))
+      .toBe("Hola de nuevo, Futura.");
+    expect(pickGinaOpening({ locale: "en", userName: "Futura", mode: "return" }))
+      .toBe("Hello again, Futura.");
+  });
+
+  it("progress mode keeps classic buenas greeting", () => {
+    expect(pickGinaOpening({ locale: "es", userName: "Futura", mode: "progress" }))
+      .toBe("Hola, buenas Futura.");
+  });
+
   it("does not suggest Hoy vencidos in opening", () => {
     for (let salt = 0; salt < 8; salt += 1) {
       const line = pickGinaOpening({ locale: "es", userName: "Futura", salt, now });

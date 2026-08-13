@@ -115,6 +115,29 @@
   gap: 4px;
 }
 
+.gina-chat-card__reset-dev {
+  margin-right: 4px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.gina-chat-card__reset-dev:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.gina-chat-card__reset-dev:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .gina-chat-card__icon-btn {
   display: inline-flex;
   align-items: center;
@@ -1260,6 +1283,16 @@
   max-width: 100%;
 }
 
+.gina-chat-card__chips--test {
+  margin-top: 4px;
+}
+
+.gina-chat-card__chip--test {
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #8a8a8a;
+  font-weight: 500;
+}
+
 .gina-chat-card__refine {
   display: flex;
   flex-direction: column;
@@ -1355,6 +1388,23 @@
   padding: 7px 11px;
   cursor: pointer;
   text-align: left;
+}
+
+.gina-chat-card__chip--with-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  border-radius: 12px;
+  max-width: 100%;
+}
+
+.gina-chat-card__chip-hint {
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: #8a8a8a;
+  white-space: normal;
 }
 
 .gina-chat-card__bubble--after-viz {
@@ -3620,6 +3670,7 @@
 
 .gina-viz__cascade-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -3631,11 +3682,11 @@
 
 .gina-viz__cascade-anchor {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin: 0;
-  flex: 0 0 auto;
+  flex: 1 1 100%;
   min-width: 0;
 }
 
@@ -3709,8 +3760,11 @@
   overflow: hidden;
 }
 
-.gina-viz__cascade-row > .doc-status-chip {
+.gina-viz__cascade-row > .doc-status-chip,
+.gina-viz__cascade-row > .gina-viz__row-status-picker {
   flex: 0 0 auto;
+  min-width: min-content;
+  max-width: 100%;
   justify-self: end;
 }
 
@@ -3771,4 +3825,43 @@
 
 .gina-viz__snooze-option--active {
   background: rgba(255, 255, 255, 0.06);
+}
+
+/* Canvas-corner shortcut — sits above .canvas-coords (bottom-left HUD). */
+.gina-canvas-fab {
+  position: absolute;
+  left: 12px;
+  bottom: 52px;
+  z-index: 20;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: #151515;
+  color: #ececec;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.gina-canvas-fab:hover {
+  background: #1c1c1c;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.gina-canvas-fab:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.35);
+  outline-offset: 2px;
+}
+
+.gina-canvas-fab__label {
+  font-family: "Inter", var(--sans, system-ui, sans-serif);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
 }

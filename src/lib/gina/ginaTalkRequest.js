@@ -324,18 +324,31 @@ export function parseDaySheetRescheduleIntent(text) {
 }
 
 /**
- * @param {{ locale?: string }} [opts]
+ * @param {{ locale?: string, documentId?: string | null, title?: string | null }} [opts]
  */
 export function buildTalkRequestNotifyChips(opts = {}) {
   const en = opts.locale === "en";
-  return [
-    {
-      id: "talk_request_thanks",
-      label: en ? "Ok thanks" : "Ok gracias",
-      text: en ? "Ok thanks" : "Ok gracias",
+  const id = String(opts.documentId || "").trim();
+  const title = String(opts.title || "").trim();
+  /** @type {{ id: string, label: string, text: string, primary?: boolean }[]} */
+  const chips = [];
+  if (id) {
+    chips.push({
+      id: `open_${id}`,
+      label: en
+        ? (title ? `Open ${title}` : "Open document")
+        : (title ? `Abrir ${title}` : "Abrir documento"),
+      text: `GinaOpenDocument:${id}`,
       primary: true,
-    },
-  ];
+    });
+  }
+  chips.push({
+    id: "talk_request_thanks",
+    label: en ? "Ok thanks" : "Ok gracias",
+    text: en ? "Ok thanks" : "Ok gracias",
+    primary: !id,
+  });
+  return chips;
 }
 
 /**

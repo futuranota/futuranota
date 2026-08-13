@@ -72,6 +72,7 @@ import {
 } from "../../lib/gina/ginaSearchSequence.js";
 import { get_workspace_inventory, matchDepartmentInText } from "../../lib/gina/ginaTools.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { markTodayAgendaCheckedFromFamily } from "../../lib/gina/ginaTodayAgendaCheckStore.js";
 import {
   buildTalkRequestNotifyChips,
   buildTalkRequestNotifyStartDocLines,
@@ -443,6 +444,9 @@ export function NodeQueryModal({
       objectId: ctx.objectId || null,
       userText: text,
     });
+    try {
+      markTodayAgendaCheckedFromFamily(ginaUserId, routed.family, now);
+    } catch { /* ignore */ }
 
     if (routed.family === "wall_clock") {
       const clockNow = routed.toolContext?.nowIso
@@ -578,7 +582,11 @@ export function NodeQueryModal({
           priorTitles: prior.map((d) => d.title || d.name),
         }),
         visualization,
-        chips: buildTalkRequestNotifyChips({ locale: localeKey }),
+        chips: buildTalkRequestNotifyChips({
+          locale: localeKey,
+          documentId: next?.id || null,
+          title: next?.title || "",
+        }),
       };
     }
 

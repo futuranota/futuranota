@@ -37,6 +37,7 @@ import { useProCheckoutAbandonPrompt } from './lib/useProCheckoutAbandonPrompt.j
 import { ProCheckoutAbandonModal } from './components/plans/ProCheckoutAbandonModal.jsx';
 import { CompanySelectorPage } from './pages/CompanySelectorPage.jsx';
 import { LeftPanel } from './components/left/LeftPanel.jsx';
+import { GinaCanvasFab } from './components/gina/GinaCanvasFab.jsx';
 import { DocExpandedView } from './components/docs/DocExpandedView.jsx';
 import { StepsRunnerOverlay } from './components/steps/StepsRunnerOverlay.jsx';
 import { StepPlaybookDashboardOverlay } from './components/steps/StepPlaybookDashboardOverlay.jsx';
@@ -237,6 +238,12 @@ function Dashboard({ company, onBack }) {
   const [adoptPrompt, setAdoptPrompt] = useState(null);
   const { t } = useI18n();
   const locale = useLocaleStore((s) => s.locale);
+  const [ginaDashboardOpen, setGinaDashboardOpen] = useState(false);
+  const openGinaDashboardFromFab = useCallback(() => {
+    try {
+      window.dispatchEvent(new CustomEvent("gina:open-dashboard"));
+    } catch { /* ignore */ }
+  }, []);
   const docs = useDocsStore((s) => s.docs);
   const objects = useObjectsStore((s) => s.objects);
   const nodeEntities = useNodesStore((s) => s.nodes);
@@ -1672,6 +1679,7 @@ useEffect(() => {
             timelineCanvasSelection={selection}
             canvasNodesForQueue={canvasNodes}
             onNotify={(message, kind = "warm") => setToast({ message, kind })}
+            onGinaDashboardOpenChange={setGinaDashboardOpen}
           />
         </div>
 
@@ -1715,6 +1723,13 @@ useEffect(() => {
               useScheduledTasksStore.getState().setAutoRunEnabled(!scheduledAutoRunEnabled);
             }}
           />
+          {!ginaDashboardOpen ? (
+            <GinaCanvasFab
+              onOpen={openGinaDashboardFromFab}
+              label={t("gina.name")}
+              title={t("gina.openChat")}
+            />
+          ) : null}
           {scanState === "scanning-blogs" && (
             <ScanOverlay logs={scanLogs} kind="blogs" />
           )}

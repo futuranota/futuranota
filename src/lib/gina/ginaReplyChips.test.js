@@ -30,6 +30,35 @@ describe("ginaReplyChips", () => {
     expect(chips.some((c) => String(c.id).startsWith("test_") || String(c.id).startsWith("core_"))).toBe(false);
   });
 
+  it("return opening drops panorama and offers pending + hours + week", () => {
+    const chips = buildGinaOpeningChips({ locale: "es", mode: "return" });
+    expect(chips.map((c) => c.id)).toEqual([
+      "home_intro",
+      "review_pending_today",
+      "review_hours_today",
+      "home_week_line",
+      "review_week",
+    ]);
+    expect(chips.find((c) => c.id === "home_intro")?.label).toMatch(/consultar ahora/i);
+    expect(chips.find((c) => c.id === "review_pending_today")?.primary).toBe(true);
+    expect(chips.find((c) => c.id === "review_pending_today")?.hint).toMatch(/tareas activas/i);
+    expect(chips.find((c) => c.id === "review_hours_today")?.text).toMatch(/horarios de hoy/i);
+    expect(chips.some((c) => c.id === "agenda_today")).toBe(false);
+  });
+
+  it("progress opening leads with hours and progress body", () => {
+    const chips = buildGinaOpeningChips({ locale: "es", mode: "progress" });
+    expect(chips.map((c) => c.id)).toEqual([
+      "home_intro",
+      "review_hours_today",
+      "review_pending_today",
+      "home_week_line",
+      "review_week",
+    ]);
+    expect(chips.find((c) => c.id === "home_intro")?.label).toMatch(/avanzando fuerte/i);
+    expect(chips.find((c) => c.id === "review_hours_today")?.primary).toBe(true);
+  });
+
   it("document surface offers free-hours check (and day sheet when saved)", () => {
     const bare = buildGinaOpeningChips({
       locale: "es",

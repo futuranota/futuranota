@@ -10,6 +10,10 @@ import {
   isTalkNotificationsEnabled,
   hasTalkNotificationsDecision,
 } from "./ginaTalkRequestStore.js";
+import {
+  hasTodayAgendaChecked,
+  markTodayAgendaChecked,
+} from "./ginaTodayAgendaCheckStore.js";
 import { runGinaQueryFamily } from "./ginaQueryFamily.js";
 
 const memory = new Map();
@@ -35,15 +39,19 @@ describe("ginaDayRitualReset", () => {
   it("clears day sheet and talk notification opt-in", () => {
     writeDaySheet(uid, { docIds: ["a", "b"], now, source: "test" });
     enableTalkNotifications(uid, now);
+    markTodayAgendaChecked(uid, now);
     expect(hasDaySheet(uid, now)).toBe(true);
     expect(isTalkNotificationsEnabled(uid, now)).toBe(true);
+    expect(hasTodayAgendaChecked(uid, now)).toBe(true);
 
     const { cleared } = resetGinaDayRitualState(uid);
     expect(cleared).toContain("day_sheet");
     expect(cleared).toContain("talk_notifications");
+    expect(cleared).toContain("today_agenda_check");
     expect(hasDaySheet(uid, now)).toBe(false);
     expect(isTalkNotificationsEnabled(uid, now)).toBe(false);
     expect(hasTalkNotificationsDecision(uid, now)).toBe(false);
+    expect(hasTodayAgendaChecked(uid, now)).toBe(false);
   });
 
   it("routes reset intent", () => {

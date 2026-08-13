@@ -39,6 +39,7 @@ import { fetchGinaChat } from "../../lib/fetchGinaChat.js";
 import { buildGinaVisualization } from "../../lib/gina/buildGinaVisualization.js";
 import {
   buildGinaFunnelHeadline,
+  buildGinaOpeningChips,
   buildGinaReplyChips,
   buildScheduleSheetChips,
   buildTodayOverviewPostTableCopy,
@@ -79,6 +80,7 @@ import { formatClock12h, formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildDailyReportAppliedText, buildDailyReportOfferText } from "../../lib/gina/ginaDailyReport.js";
 import { markDailyReportOpened } from "../../lib/gina/ginaDailyReportStore.js";
 import { anchorDaySheetFromTodayDocs, hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
+import { markTodayAgendaCheckedFromFamily } from "../../lib/gina/ginaTodayAgendaCheckStore.js";
 import {
   acceptTalkRequest,
   declineTalkRequest,
@@ -132,7 +134,7 @@ import {
 import { pickNextDaySheetDoc, summarizeDaySheetProgress } from "../../lib/gina/ginaDaySheet.js";
 import { useGinaDailyReportNudge } from "../../hooks/useGinaDailyReportNudge.js";
 import { DOC_WORK_STATUS, syncDocWorkStatusFields } from "../../lib/docWorkStatus.js";
-import { pickGinaOpening, resolveGinaUserDisplayName } from "../../lib/gina/ginaOpenings.js";
+import { pickGinaOpening, resolveGinaUserDisplayName, resolveGinaDashboardOpeningMode } from "../../lib/gina/ginaOpenings.js";
 import { get_today_scope, get_workspace_inventory, matchDepartmentInText } from "../../lib/gina/ginaTools.js";
 import { buildGinaKnowledgePromptBlock, isGinaLearnSaveConfirm, addLocalGinaKnowledge, parseGinaLearnReply } from "../../lib/gina/ginaKnowledgeStore.js";
 import { resolveGinaLearnBrief, resolveGinaLearnBriefByTitle } from "../../lib/gina/resolveGinaLearnBrief.js";
@@ -1909,6 +1911,7 @@ export function LeftPanel({
   timelineCanvasSelection = [],
   canvasNodesForQueue = [],
   onNotify = null,
+  onGinaDashboardOpenChange = null,
 }) {
   const { t, locale } = useI18n();
   const askConfirm = useConfirmStore((s) => s.ask);
@@ -1935,6 +1938,7 @@ export function LeftPanel({
   const [ginaLearnBrief, setGinaLearnBrief] = useState(null);
   const [ginaPendingLearn, setGinaPendingLearn] = useState(null);
   const [ginaOpeningMessage, setGinaOpeningMessage] = useState("");
+  const [ginaOpeningMode, setGinaOpeningMode] = useState(/** @type {"first" | "return" | "progress"} */ ("first"));
   const [departmentFilterId, setDepartmentFilterId] = useState(UNASSIGNED_DEPARTMENT_FILTER_ID);
   const [departmentCategoryFilter, setDepartmentCategoryFilter] = useState("");
   /** Last category chosen per department — restored when switching back to that dept. */
@@ -2037,13 +2041,31 @@ export function LeftPanel({
     setGinaMeetingSession(false);
     setGinaLearnBrief(null);
     setGinaPendingLearn(null);
+    const now = new Date();
+    const mode = resolveGinaDashboardOpeningMode({
+      userId: ginaUserId,
+      now,
+      ctx: buildGinaToolsCtx(),
+    });
+    setGinaOpeningMode(mode);
     setGinaOpeningMessage(pickGinaOpening({
       locale: locale === "es" ? "es" : "en",
       userName: resolveGinaUserDisplayName(authUser),
-      now: new Date(),
+      now,
+      mode,
     }));
     setGinaDashboardOpen(true);
-  }, [authUser, locale]);
+  }, [authUser, locale, ginaUserId, buildGinaToolsCtx]);
+
+  useEffect(() => {
+    const onOpen = () => openGinaDashboard();
+    window.addEventListener("gina:open-dashboard", onOpen);
+    return () => window.removeEventListener("gina:open-dashboard", onOpen);
+  }, [openGinaDashboard]);
+
+  useEffect(() => {
+    onGinaDashboardOpenChange?.(ginaDashboardOpen);
+  }, [ginaDashboardOpen, onGinaDashboardOpenChange]);
 
   const openGinaFromDailyReportPopover = useCallback(() => {
     acknowledgeDailyReportOpenChat();
@@ -3296,6 +3318,9 @@ export function LeftPanel({
       objectId: ctx.objectId || null,
       userText: text,
     });
+    try {
+      markTodayAgendaCheckedFromFamily(ginaUserId, routed.family, ctx.now);
+    } catch { /* ignore */ }
 
     if (!meetingOn && isGinaWarmGoodbye(text)) {
       return {
@@ -4258,14 +4283,13 @@ export function LeftPanel({
         return {
           message: buildGinaDayRitualResetAck(localeKey),
           visualization: null,
-          chips: [
-            {
-              id: "today_after_reset",
-              label: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy",
-              text: localeKey === "en" ? "What do we have for today?" : "qué tenemos para hoy",
-              primary: true,
-            },
-          ],
+          chips: buildGinaOpeningChips({
+            locale: localeKey,
+            surface: "dashboard",
+            hasDaySheet: false,
+            mode: "first",
+          }),
+          resetChat: true,
         };
       }
       if (
@@ -4335,7 +4359,11 @@ export function LeftPanel({
           priorTitles: prior.map((d) => d.title || d.name),
         }),
         visualization,
-        chips: buildTalkRequestNotifyChips({ locale: localeKey }),
+        chips: buildTalkRequestNotifyChips({
+          locale: localeKey,
+          documentId: next?.id || null,
+          title: next?.title || "",
+        }),
       };
     }
 
@@ -6080,6 +6108,7 @@ export function LeftPanel({
           documentId={null}
           assistantName={t("gina.name")}
           openingMessage={ginaOpeningMessage || t("gina.dashboardOpening")}
+          openingMode={ginaOpeningMode}
           placeholder={t("gina.placeholder")}
           speechLang={locale === "es" ? "es-ES" : "en-US"}
           allowMeetingMode={ginaMeetingSession}

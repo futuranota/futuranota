@@ -82,6 +82,7 @@ import {
 } from "./ginaSyntaxDaySheet.js";
 import {
   matchDocInDaySheet,
+  mergeDaySheetWithLiveToday,
   orderDocsByDaySheetIds,
   pickNextDaySheetDoc,
   resolveAnchoredDaySheetDocs,
@@ -2766,8 +2767,8 @@ export function runGinaQueryFamily(text, ctx = {}) {
     const uid = ctx.userId || ctx.authUserId || "anon";
     const parsed = parseTalkRequestNotifyIntent(text);
     const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
-    const { documents } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
-    const pool = documents.length ? documents : (today.documents || []);
+    const { sheet } = resolveAnchoredDaySheetDocs(uid, today.documents || [], now);
+    const pool = mergeDaySheetWithLiveToday(today.documents || [], sheet?.docIds || []);
     const wantId = parsed.docId ? String(parsed.docId) : "";
     const byId = wantId
       ? (pool.find((d) => String(d?.id) === wantId
@@ -2992,7 +2993,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
       || /\bgina\s+wants\s+to\s+tell\s+you\s+something\b/.test(q)
       || /\bassistance\s+has\s+something\s+to\s+tell\s+you\b/.test(q);
     if (wantsBrief) {
-      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: true }));
       return {
         family: "schedule_recovery_brief",
         toolsCalled,

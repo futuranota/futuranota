@@ -12,6 +12,8 @@ import { GinaStartDocReveal } from "./GinaStartDocReveal.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
 import { buildGinaOpeningChips, chipsAreHomeOpening } from "../../lib/gina/ginaReplyChips.js";
+import { getGinaTestQuickLinks } from "../../lib/gina/ginaTestQuickLinks.js";
+import { GINA_RESET_DAY_RITUAL_PROTOCOL } from "../../lib/gina/ginaDayRitualReset.js";
 import { buildTalkRequestNotifyChips } from "../../lib/gina/ginaTalkRequest.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import {
@@ -174,8 +176,8 @@ function buildAiTurnRevealState({
     // Today overview: pause after infographic before sheet intro (textMid).
     midReady: !mid || !isTodayOverview,
     midRevealed: !mid,
-    // Talk-notify / chrono: hold highlights until sheet paints.
-    sheetTableRevealed: isTalkNotify ? false : (!mid || !hasChrono),
+    // Talk-notify: highlights/todos/condition unlock immediately after intro (sheet waits).
+    sheetTableRevealed: isTalkNotify ? true : (!mid || !hasChrono),
     leadRevealed: !afterLead,
     startDocRevealed: !startLines.length,
     afterRevealed: !hasAfterBlock,
@@ -231,56 +233,84 @@ function chipsAreListRefine(chips) {
 }
 
 /**
- * Home opening: intro copy → 3 schedule chips → explore copy → Ver todo.
+ * Home opening: intro copy → schedule chips → explore/week line → Ver todo / week.
  */
-function GinaHomeOpeningChips({ chips, disabled, onSubmit }) {
+function GinaHomeOpeningChips({ chips, locale = "es", disabled, onSubmit }) {
   const list = Array.isArray(chips) ? chips : [];
   const intro = list.find((c) => c.id === "home_intro");
+  const weekLine = list.find((c) => c.id === "home_week_line");
   const explore = list.find((c) => c.id === "home_explore");
-  const schedules = list.filter((c) => c.kind === "home_schedule");
+  const afterPrompt = weekLine || explore;
+  const allSchedules = list.filter((c) => c.kind === "home_schedule");
+  const mainSchedules = weekLine
+    ? allSchedules.filter((c) => c.id !== "review_week")
+    : allSchedules;
+  const weekSchedules = weekLine
+    ? allSchedules.filter((c) => c.id === "review_week")
+    : [];
   const seeAll = list.filter((c) => c.kind === "home_all");
+  const testLinks = getGinaTestQuickLinks({ locale });
 
   const send = (chip) => {
     if (disabled || !chip?.text) return;
     onSubmit?.(chip.text, chip.label);
   };
 
+  const renderChipButton = (chip) => (
+    <button
+      key={chip.id || chip.label}
+      type="button"
+      className={
+        "gina-chat-card__chip"
+        + (chip.primary ? " is-primary" : "")
+        + (chip.hint ? " gina-chat-card__chip--with-hint" : "")
+      }
+      disabled={disabled}
+      onClick={() => send(chip)}
+    >
+      <span className="gina-chat-card__chip-label">{chip.label}</span>
+      {chip.hint ? (
+        <span className="gina-chat-card__chip-hint">{chip.hint}</span>
+      ) : null}
+    </button>
+  );
+
   return (
     <div className="gina-chat-card__home-opening" role="group" aria-label="Home options">
       {intro?.label ? (
         <p className="gina-chat-card__home-opening-body">{intro.label}</p>
       ) : null}
-      {schedules.length ? (
+      {mainSchedules.length ? (
         <div className="gina-chat-card__chips" role="group">
-          {schedules.map((chip) => (
-            <button
-              key={chip.id || chip.label}
-              type="button"
-              className={"gina-chat-card__chip" + (chip.primary ? " is-primary" : "")}
-              disabled={disabled}
-              onClick={() => send(chip)}
-            >
-              {chip.label}
-            </button>
-          ))}
+          {mainSchedules.map((chip) => renderChipButton(chip))}
         </div>
       ) : null}
-      {explore?.label ? (
+      {afterPrompt?.label ? (
         <p className="gina-chat-card__home-opening-body gina-chat-card__home-opening-body--after">
-          {explore.label}
+          {afterPrompt.label}
         </p>
+      ) : null}
+      {weekSchedules.length ? (
+        <div className="gina-chat-card__chips" role="group">
+          {weekSchedules.map((chip) => renderChipButton(chip))}
+        </div>
       ) : null}
       {seeAll.length ? (
         <div className="gina-chat-card__chips" role="group">
-          {seeAll.map((chip) => (
+          {seeAll.map((chip) => renderChipButton(chip))}
+        </div>
+      ) : null}
+      {testLinks.length ? (
+        <div className="gina-chat-card__chips gina-chat-card__chips--test" role="group" aria-label="Test">
+          {testLinks.map((chip) => (
             <button
               key={chip.id || chip.label}
               type="button"
-              className="gina-chat-card__chip"
+              className="gina-chat-card__chip gina-chat-card__chip--test"
               disabled={disabled}
               onClick={() => send(chip)}
             >
-              {chip.label}
+              <span className="gina-chat-card__chip-label">{chip.label}</span>
             </button>
           ))}
         </div>
@@ -700,6 +730,7 @@ function joinTranscript(finalParts, interim) {
  *   documentId?: string | null,
  *   assistantName?: string,
  *   openingMessage?: string,
+ *   openingMode?: "first" | "return" | "progress",
  *   demoReply?: string,
  *   placeholder?: string,
  *   speechLang?: string,
@@ -719,6 +750,7 @@ export function GinaChatCard({
   documentId = null,
   assistantName = "Gina",
   openingMessage = "",
+  openingMode = "first",
   demoReply = "Got it — I’ll use this chat once tools are connected.",
   placeholder = "Type a message…",
   speechLang = "es-ES",
@@ -795,52 +827,13 @@ export function GinaChatCard({
   const notifyGateTimerMsgIdRef = useRef(/** @type {string | null} */ (null));
   const midReadyTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
   const midReadyTimerMsgIdRef = useRef(/** @type {string | null} */ (null));
-  const talkNotifySheetTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
-  const talkNotifySheetMsgIdRef = useRef(/** @type {string | null} */ (null));
+  const rescheduleWaitTimerRef = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null));
+  const pendingRescheduleRef = useRef(/** @type {{ sendText: string, displayText: string } | null} */ (null));
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const deliverUserMessageRef = useRef(/** @type {(text: string, opts?: { existingId?: string }) => Promise<void>} */ (async () => {}));
 
   const makeMsgId = () => `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-  // Talk-notify: after day sheet paints, unlock startDocLines highlights.
-  useEffect(() => {
-    let targetIndex = -1;
-    let targetId = null;
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const m = messages[i];
-      if (m?.sender !== "ai") continue;
-      if (!m.visualization?.data?.talkRequestNotify) continue;
-      if (!m.vizRevealed || m.sheetTableRevealed !== false) continue;
-      targetIndex = i;
-      targetId = m.id || `idx-${i}`;
-      break;
-    }
-    if (targetIndex < 0 || !targetId) return;
-    if (talkNotifySheetMsgIdRef.current === targetId) return;
-
-    if (talkNotifySheetTimerRef.current != null) {
-      window.clearTimeout(talkNotifySheetTimerRef.current);
-      talkNotifySheetTimerRef.current = null;
-    }
-    talkNotifySheetMsgIdRef.current = targetId;
-    const scheduledIndex = targetIndex;
-    const scheduledId = targetId;
-    talkNotifySheetTimerRef.current = window.setTimeout(() => {
-      talkNotifySheetTimerRef.current = null;
-      setMessages((prev) => prev.map((m, idx) => (
-        (m.id && m.id === scheduledId) || idx === scheduledIndex
-          ? { ...m, sheetTableRevealed: true }
-          : m
-      )));
-    }, 280);
-    return () => {
-      if (talkNotifySheetTimerRef.current != null) {
-        window.clearTimeout(talkNotifySheetTimerRef.current);
-        talkNotifySheetTimerRef.current = null;
-      }
-    };
-  }, [messages]);
 
   // After todayOverview infographic: wait 5s, then unlock textMid (sheet intro).
   useEffect(() => {
@@ -972,6 +965,11 @@ export function GinaChatCard({
       window.clearTimeout(midReadyTimerRef.current);
       midReadyTimerRef.current = null;
     }
+    if (rescheduleWaitTimerRef.current != null) {
+      window.clearTimeout(rescheduleWaitTimerRef.current);
+      rescheduleWaitTimerRef.current = null;
+    }
+    pendingRescheduleRef.current = null;
   }, []);
 
   // Open → silence → green dot → greeting (Enable.wav plays with the sheet instead).
@@ -1000,6 +998,7 @@ export function GinaChatCard({
         locale: chipLocale,
         surface: documentId ? "document" : "dashboard",
         hasDaySheet: hasDaySheet(useAuthStore.getState().user?.id || "anon"),
+        mode: documentId ? "first" : (openingMode || "first"),
       });
       // In-doc: no greeting bubble — seed chips only when available.
       if (!openingText && chips.length === 0) {
@@ -1042,7 +1041,7 @@ export function GinaChatCard({
       if (soundTimer != null) window.clearTimeout(soundTimer);
       if (textTimer != null) window.clearTimeout(textTimer);
     };
-  }, [openingMessage, chipLocale, documentId, autoRunPrompt]);
+  }, [openingMessage, openingMode, chipLocale, documentId, autoRunPrompt]);
 
   useEffect(() => () => {
     stopGinaFilesMovementSound();
@@ -1273,10 +1272,19 @@ export function GinaChatCard({
       midReadyTimerRef.current = null;
       midReadyTimerMsgIdRef.current = null;
     }
-    if (talkNotifySheetTimerRef.current != null) {
-      window.clearTimeout(talkNotifySheetTimerRef.current);
-      talkNotifySheetTimerRef.current = null;
-      talkNotifySheetMsgIdRef.current = null;
+    if (rescheduleWaitTimerRef.current != null) {
+      window.clearTimeout(rescheduleWaitTimerRef.current);
+      rescheduleWaitTimerRef.current = null;
+    }
+    const pendingReschedule = pendingRescheduleRef.current;
+    pendingRescheduleRef.current = null;
+    if (pendingReschedule) {
+      isAiAnimatingRef.current = false;
+      setIsAiAnimating(false);
+      void deliverUserMessageRef.current(pendingReschedule.sendText, {
+        displayText: pendingReschedule.displayText,
+      });
+      return;
     }
     try { stopGinaTypingSound(); } catch { /* ignore */ }
     setMessages((prev) => {
@@ -1407,6 +1415,20 @@ export function GinaChatCard({
           chips = Array.isArray(reply.chips) ? reply.chips : null;
           voiceSequence = reply.voiceSequence != null ? String(reply.voiceSequence).trim() : null;
           if (voiceSequence === "") voiceSequence = null;
+          if (reply.resetChat) {
+            setMessages([
+              {
+                id: makeMsgId(),
+                sender: "ai",
+                text: aiText,
+                chips,
+              },
+            ]);
+            isAiAnimatingRef.current = Boolean(aiText && aiText.trim());
+            setIsAiAnimating(Boolean(aiText && aiText.trim()));
+            startedAiAnim = Boolean(aiText && aiText.trim());
+            return;
+          }
           const preludeMessage = String(reply.searchSequence?.preludeMessage || "").trim();
           if (preludeMessage) {
             hasPendingSearchSequence = true;
@@ -1573,17 +1595,25 @@ export function GinaChatCard({
       );
       const pending = visualization?.data?.pendingSelectedIds || [];
       const docs = flattenDaySheetDocs(visualization);
-      const openId = pending.length === 1 ? pending[0] : (visualization?.data?.talkRequestDocId || pending[0]);
+      const talkRequestDocId = visualization?.data?.talkRequestDocId || null;
+      const openId = pending.length === 1 ? pending[0] : (talkRequestDocId || pending[0]);
       const openDoc = docs.find((d) => String(d?.id) === String(openId));
+      const notifyDoc = talkRequestDocId
+        ? docs.find((d) => String(d?.id) === String(talkRequestDocId))
+        : null;
       const chips = pending.length
         ? buildDaySheetPendingActionChips({
           locale: chipLocale,
           selectedIds: pending,
-          talkRequestDocId: visualization?.data?.talkRequestDocId || null,
+          talkRequestDocId,
           openTitle: openDoc?.title || "",
         })
         : (m.visualization?.data?.talkRequestNotify
-          ? buildTalkRequestNotifyChips({ locale: chipLocale })
+          ? buildTalkRequestNotifyChips({
+            locale: chipLocale,
+            documentId: talkRequestDocId,
+            title: notifyDoc?.title || "",
+          })
           : null);
       return { ...m, visualization, chips };
     }));
@@ -1597,7 +1627,18 @@ export function GinaChatCard({
         ...m,
         visualization: clearPendingDaySheetSelection(m.visualization),
         chips: m.visualization?.data?.talkRequestNotify
-          ? buildTalkRequestNotifyChips({ locale: chipLocale })
+          ? (() => {
+            const talkRequestDocId = m.visualization?.data?.talkRequestDocId || null;
+            const docs = flattenDaySheetDocs(m.visualization);
+            const notifyDoc = talkRequestDocId
+              ? docs.find((d) => String(d?.id) === String(talkRequestDocId))
+              : null;
+            return buildTalkRequestNotifyChips({
+              locale: chipLocale,
+              documentId: talkRequestDocId,
+              title: notifyDoc?.title || "",
+            });
+          })()
           : null,
       };
     }));
@@ -1662,6 +1703,43 @@ export function GinaChatCard({
     });
     isAiAnimatingRef.current = true;
     setIsAiAnimating(true);
+  };
+
+  const handleDaySheetReschedule = (protocolText, chipIndex) => {
+    const sendText = String(protocolText || "").trim();
+    if (!sendText) return;
+    if (rescheduleWaitTimerRef.current != null) {
+      window.clearTimeout(rescheduleWaitTimerRef.current);
+      rescheduleWaitTimerRef.current = null;
+    }
+    const displayText = chipLocale === "en" ? "Reschedule" : "Reagendar";
+    pendingRescheduleRef.current = { sendText, displayText };
+    const waitLabel = chipLocale === "en" ? "wait a moment…" : "espera un momento…";
+    setMessages((prev) => [
+      ...prev.map((m, idx) => (idx === chipIndex ? stashMessageChips(m) : m)),
+      {
+        id: makeMsgId(),
+        sender: "ai",
+        text: waitLabel,
+        searching: true,
+        refineRevealed: true,
+        visualization: null,
+        chips: null,
+      },
+    ]);
+    isAiAnimatingRef.current = true;
+    setIsAiAnimating(true);
+    rescheduleWaitTimerRef.current = window.setTimeout(() => {
+      rescheduleWaitTimerRef.current = null;
+      const pending = pendingRescheduleRef.current;
+      pendingRescheduleRef.current = null;
+      if (!pending) return;
+      isAiAnimatingRef.current = false;
+      setIsAiAnimating(false);
+      void deliverUserMessageRef.current(pending.sendText, {
+        displayText: pending.displayText,
+      });
+    }, 2000);
   };
 
   /**
@@ -1758,6 +1836,23 @@ export function GinaChatCard({
             ) : null}
           </h2>
           <div className="gina-chat-card__header-actions">
+            {!documentId ? (
+              <button
+                type="button"
+                className="gina-chat-card__reset-dev"
+                disabled={isTyping || isAiAnimating}
+                onClick={() => {
+                  const links = getGinaTestQuickLinks({ locale: chipLocale });
+                  const reset = links.find((l) => l.id === "test_reset_day_ritual") || {
+                    text: GINA_RESET_DAY_RITUAL_PROTOCOL,
+                    label: chipLocale === "en" ? "Reset today’s ritual" : "Reset ritual de hoy",
+                  };
+                  enqueueOrDeliver(reset.text, { displayText: reset.label });
+                }}
+              >
+                {chipLocale === "en" ? "Reset ritual" : "Reset ritual"}
+              </button>
+            ) : null}
             <button
               type="button"
               className={`gina-chat-card__icon-btn${ttsEnabled ? " is-active" : ""}`}
@@ -2381,6 +2476,7 @@ export function GinaChatCard({
                 chipsAreHomeOpening(msg.chips) ? (
                   <GinaHomeOpeningChips
                     chips={msg.chips}
+                    locale={chipLocale}
                     disabled={isTyping || isAiAnimating}
                     onSubmit={(text, displayText) => {
                       if (!text) return;
@@ -2460,6 +2556,10 @@ export function GinaChatCard({
                           }
                           if (chip.id === "day_sheet_discard_selection") {
                             handleDaySheetDiscardSelection();
+                            return;
+                          }
+                          if (chip.id === "day_sheet_reschedule") {
+                            handleDaySheetReschedule(chip.text || chip.label, i);
                             return;
                           }
                           if (chip.kind === "nav_back") {
