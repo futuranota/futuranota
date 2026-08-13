@@ -1305,7 +1305,7 @@ export function GinaChatCard({
     if (!trimmed) return;
     const displayText = opts.displayText != null ? String(opts.displayText).trim() : "";
     const bubbleText = displayText || trimmed;
-    const isSilentProtocol = /^GinaSilentMarkInProgress\b/i.test(trimmed);
+    const isSilentProtocol = /^(GinaSilentMark(InProgress|Completed|PastDue)\b|GinaSilentSetDocStatus:)/i.test(trimmed);
 
     if (isSilentProtocol) {
       // Side-effect only — no user/AI bubbles, keep Easy Links on screen.
@@ -1845,7 +1845,7 @@ export function GinaChatCard({
                     }}
                     onSelectAction={(actionText, displayText) => {
                       if (!actionText || isTyping || isAiAnimating) return;
-                      if (/^GinaSilentMarkInProgress\b/i.test(String(actionText))) {
+                      if (/^(GinaSilentMark(InProgress|Completed|PastDue)\b|GinaSilentSetDocStatus:)/i.test(String(actionText))) {
                         void deliverUserMessage(actionText, {
                           displayText: displayText || null,
                         });
@@ -2043,7 +2043,7 @@ export function GinaChatCard({
                       }}
                       onSelectAction={(actionText, displayText) => {
                         if (!actionText || isTyping || isAiAnimating) return;
-                        if (/^GinaSilentMarkInProgress\b/i.test(String(actionText))) {
+                        if (/^(GinaSilentMark(InProgress|Completed|PastDue)\b|GinaSilentSetDocStatus:)/i.test(String(actionText))) {
                           void deliverUserMessage(actionText, {
                             displayText: displayText || null,
                           });

@@ -390,8 +390,8 @@ export function buildScheduleRecoveryOverdueStepText(opts = {}) {
  *   iconLabel: string,
  *   actionText?: string | null,
  *   ctaLabel?: string | null,
- *   tier?: "star"|"secondary"|"snooze",
- *   control?: "link"|"cta"|"snooze_menu",
+ *   tier?: "star"|"secondary"|"snooze"|"status"|"card",
+ *   control?: "link"|"cta"|"snooze_menu"|"status_menu",
  *   statusKey?: string | null,
  *   statusColor?: string | null,
  * }[]}
@@ -419,6 +419,35 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
     control: "snooze_menu",
     statusKey: null,
     statusColor: null,
+  };
+
+  /** Overdue: snooze + mark past_due in one card. */
+  const snoozeRowOverdue = {
+    ...snoozeRow,
+    body: en
+      ? "We can set the status to «past due», keep the plan, and I’ll remind you at the time you choose."
+      : "Podemos cambiar el status a «vencido» manteniendo el plan y te aviso a la hora que elijas.",
+    bodyHighlight: en ? "past due" : "vencido",
+    statusKey: "past_due",
+    statusColor: "#F2F2F2",
+  };
+
+  const deleteOverdueRow = {
+    id: "delete_overdue_docs",
+    title: en ? "Delete files" : "Borrar archivos",
+    body: en
+      ? "Mark them done — this permanently deletes them and updates today’s pending work."
+      : "Dalos por terminados, esto se borrará permanentemente y actualiza tus pendientes de hoy.",
+    icon: "/uploads/pas-due.svg",
+    iconLabel: en ? "Delete" : "Borrar",
+    actionText: en
+      ? "Delete today's overdue files"
+      : "Borrar archivos vencidos de hoy",
+    ctaLabel: en ? "Delete files" : "Borrar archivos",
+    tier: "card",
+    control: "link",
+    statusKey: null,
+    statusColor: "#c9b896",
   };
 
   const rescheduleStar = {
@@ -507,50 +536,22 @@ export function buildRecoveryEasyLinksLegend(opts = {}) {
 
   if (mode === "none") return [];
 
+  // expired | mixed: Posponer(+vencido) then Borrar (last), both card-wrapped in UI.
   return [
     rescheduleStar,
-    {
-      id: "mark_completed",
-      title: en ? "Mark as Completed" : "Marcar como Completados",
-      body: en
-        ? "Mark them done and update today’s pending work."
-        : "Dálos por terminados y actualiza tus pendientes de hoy.",
-      icon: "/uploads/completed.svg",
-      iconLabel: en ? "Completed" : "Completado",
-      actionText: en
-        ? "Mark today's expired blocks as completed"
-        : "Marcar como completados los bloques vencidos de hoy",
-      tier: "secondary",
-      control: "link",
-      statusKey: "completed",
-      statusColor: "#5CFF9A",
-    },
-    {
-      id: "mark_past_due",
-      title: en ? "Archive as Past due" : "Archivar como Vencidos",
-      body: en
-        ? "Keep them in history and clear today’s active view."
-        : "Guárdalos en el historial y despeja tu vista activa.",
-      icon: "/uploads/pas-due.svg",
-      iconLabel: en ? "Past due" : "Vencido",
-      actionText: en
-        ? "Mark today's passed slots as past due"
-        : "Marcar como vencidos los horarios pasados de hoy",
-      tier: "secondary",
-      control: "link",
-      statusKey: "past_due",
-      statusColor: "#F2F2F2",
-    },
-    snoozeRow,
+    snoozeRowOverdue,
+    deleteOverdueRow,
   ];
 }
 
 /**
- * Status menu options (late-start → In progress). Silent apply — does not rewrite the legend UI.
- * @param {{ locale?: string }} [opts]
+ * Status menu options (late-start Easy Links). Silent apply — does not rewrite the legend UI.
+ * Per-row status in tables uses {@link buildSheetRowStatusMenuOptions} instead.
+ * @param {{ locale?: string, recoveryOfferMode?: string }} [opts]
  */
 export function buildRecoveryChangeStatusMenuOptions(opts = {}) {
   const en = opts.locale === "en";
+  void opts.recoveryOfferMode;
   return [
     {
       id: "status_in_progress",
@@ -558,6 +559,71 @@ export function buildRecoveryChangeStatusMenuOptions(opts = {}) {
       text: "GinaSilentMarkInProgress",
     },
   ];
+}
+
+/**
+ * Per-row status options inside schedule / reschedule tables.
+ * @param {{ locale?: string, docId?: string }} [opts]
+ */
+export function buildSheetRowStatusMenuOptions(opts = {}) {
+  const en = opts.locale === "en";
+  const docId = String(opts.docId || "").trim();
+  const protocol = (status) => (
+    docId ? buildGinaSilentSetDocStatusProtocol(status, docId) : ""
+  );
+  return [
+    {
+      id: "row_status_completed",
+      status: DOC_WORK_STATUS.COMPLETED,
+      label: en ? "Completed" : "Completado",
+      text: protocol(DOC_WORK_STATUS.COMPLETED),
+    },
+    {
+      id: "row_status_past_due",
+      status: DOC_WORK_STATUS.PAST_DUE,
+      label: en ? "Past due" : "Archivar / Vencido",
+      text: protocol(DOC_WORK_STATUS.PAST_DUE),
+    },
+    {
+      id: "row_status_in_progress",
+      status: DOC_WORK_STATUS.IN_PROGRESS,
+      label: en ? "In progress" : "En Progreso",
+      text: protocol(DOC_WORK_STATUS.IN_PROGRESS),
+    },
+    {
+      id: "row_status_not_started",
+      status: DOC_WORK_STATUS.NOT_STARTED,
+      label: en ? "Not started" : "Sin empezar",
+      text: protocol(DOC_WORK_STATUS.NOT_STARTED),
+    },
+  ].filter((o) => Boolean(o.text));
+}
+
+/**
+ * Silent per-doc status: GinaSilentSetDocStatus:<status>:<docId>
+ * @param {string} status
+ * @param {string} docId
+ */
+export function buildGinaSilentSetDocStatusProtocol(status, docId) {
+  const s = String(status || "").trim().toLowerCase();
+  const id = String(docId || "").trim();
+  if (!s || !id) return "";
+  return `GinaSilentSetDocStatus:${s}:${id}`;
+}
+
+/**
+ * @param {string} text
+ * @returns {{ status: string, docId: string } | null}
+ */
+export function parseGinaSilentSetDocStatus(text) {
+  const m = String(text || "").trim().match(
+    /^GinaSilentSetDocStatus:(not_started|reserved|flexible|in_progress|submitted|past_due|completed):(.+)$/i,
+  );
+  if (!m) return null;
+  return {
+    status: String(m[1] || "").toLowerCase(),
+    docId: String(m[2] || "").trim(),
+  };
 }
 
 /**
@@ -769,7 +835,7 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
     return chips;
   }
 
-  // expired | mixed — recovery actions for fully ended windows
+  // expired | mixed — Posponer(+vencido) via Easy Links; chips mirror primary actions
   chips.push(
     {
       id: "move_end_of_day",
@@ -780,18 +846,11 @@ export function buildScheduleRecoveryOverdueChips(opts = {}) {
       primary: true,
     },
     {
-      id: "mark_completed",
-      label: en ? "Mark as Completed" : "Marcar como Completados",
+      id: "delete_overdue_docs",
+      label: en ? "Delete files" : "Borrar archivos",
       text: en
-        ? "Mark today's expired blocks as completed"
-        : "Marcar como completados los bloques vencidos de hoy",
-    },
-    {
-      id: "mark_past_due",
-      label: en ? "Archive as Past due" : "Archivar como Vencidos",
-      text: en
-        ? "Mark today's passed slots as past due"
-        : "Marcar como vencidos los horarios pasados de hoy",
+        ? "Delete today's overdue files"
+        : "Borrar archivos vencidos de hoy",
     },
   );
   return chips;
@@ -905,12 +964,17 @@ export function buildScheduleRecoveryStepText(opts = {}) {
 
 /**
  * Preview copy after choosing a recovery path (before confirm).
- * @param {"mark_past_due" | "postpone_schedule" | "mark_completed" | "mark_in_progress"} intent
+ * @param {"mark_past_due" | "postpone_schedule" | "mark_completed" | "mark_in_progress" | "delete_docs"} intent
  * @param {{ count?: number, locale?: string }} [opts]
  */
 export function buildScheduleRecoveryAck(intent, opts = {}) {
   const en = opts.locale === "en";
   const n = opts.count ?? 0;
+  if (intent === "delete_docs") {
+    return en
+      ? `I’ll permanently delete ${n} overdue file(s) and update today’s pending work. Confirm before I remove them.`
+      : `Voy a borrar permanentemente ${n} archivo(s) vencido(s) y actualizar tus pendientes de hoy. Confirma antes de que los elimine.`;
+  }
   if (intent === "mark_completed") {
     return en
       ? `I’ll mark ${n} block(s) as Completed. Confirm before I update.`
@@ -936,12 +1000,15 @@ export function buildScheduleRecoveryAck(intent, opts = {}) {
 }
 
 /**
- * @param {"mark_past_due" | "postpone_schedule" | "mark_completed" | "mark_in_progress"} intent
+ * @param {"mark_past_due" | "postpone_schedule" | "mark_completed" | "mark_in_progress" | "delete_docs"} intent
  * @param {{ locale?: string }} [opts]
  */
 export function buildScheduleRecoveryConfirmChips(intent, opts = {}) {
   const en = opts.locale === "en";
   const confirmText = (() => {
+    if (intent === "delete_docs") {
+      return en ? "Confirm delete overdue files" : "Confirmar borrar archivos vencidos";
+    }
     if (intent === "mark_completed") {
       return en ? "Confirm mark as completed" : "Confirmar marcar como completados";
     }
@@ -970,12 +1037,17 @@ export function buildScheduleRecoveryConfirmChips(intent, opts = {}) {
 
 /**
  * After confirm applied.
- * @param {"mark_past_due" | "postpone_schedule" | "mark_completed" | "mark_in_progress"} intent
+ * @param {"mark_past_due" | "postpone_schedule" | "mark_completed" | "mark_in_progress" | "delete_docs"} intent
  * @param {{ count?: number, locale?: string, startLabel?: string | null }} [opts]
  */
 export function buildScheduleRecoveryAppliedText(intent, opts = {}) {
   const en = opts.locale === "en";
   const n = opts.count ?? 0;
+  if (intent === "delete_docs") {
+    return en
+      ? `Done — permanently deleted ${n} file(s) and refreshed today’s pending list.`
+      : `Listo — borré permanentemente ${n} archivo(s) y actualicé tus pendientes de hoy.`;
+  }
   if (intent === "mark_completed") {
     return en
       ? `Got it. I marked those blocks as completed. Your pending work time for today updated automatically.`
@@ -1239,31 +1311,37 @@ export function parseRescheduleApplyProtocol(text) {
 
 /**
  * Snooze ack + advance.
- * @param {{ locale?: string, minutes?: number | null, untilLabel?: string | null }} [opts]
+ * @param {{ locale?: string, minutes?: number | null, untilLabel?: string | null, markPastDue?: boolean }} [opts]
  */
 export function buildRecoverySnoozeText(opts = {}) {
   const en = opts.locale === "en";
   const untilLabel = String(opts.untilLabel || "").trim();
   const minutes = Number(opts.minutes);
+  const markPastDue = Boolean(opts.markPastDue);
+  const pastDueBit = markPastDue
+    ? (en
+      ? " I marked those blocks as Past due."
+      : " Pasé esos bloques a Vencido.")
+    : "";
   if (untilLabel) {
     return en
-      ? `Okay — I’ll keep the current plan and remind you at ${untilLabel}.`
-      : `De acuerdo, mantengo el plan actual y te aviso a las ${untilLabel}.`;
+      ? `Okay — I’ll keep the current plan and remind you at ${untilLabel}.${pastDueBit}`
+      : `De acuerdo, mantengo el plan actual y te aviso a las ${untilLabel}.${pastDueBit}`;
   }
   if (Number.isFinite(minutes) && minutes > 0) {
     if (minutes >= 60 && minutes % 60 === 0) {
       const hours = minutes / 60;
       return en
-        ? `Okay — I’ll keep the current plan. I’ll remind you in ${hours} hour${hours === 1 ? "" : "s"}.`
-        : `De acuerdo, mantengo el plan actual. Te recordaré en ${hours} hora${hours === 1 ? "" : "s"}.`;
+        ? `Okay — I’ll keep the current plan. I’ll remind you in ${hours} hour${hours === 1 ? "" : "s"}.${pastDueBit}`
+        : `De acuerdo, mantengo el plan actual. Te recordaré en ${hours} hora${hours === 1 ? "" : "s"}.${pastDueBit}`;
     }
     return en
-      ? `Okay — I’ll keep the current plan. I’ll remind you in ${minutes} minutes.`
-      : `De acuerdo, mantengo el plan actual. Te recordaré en ${minutes} minutos.`;
+      ? `Okay — I’ll keep the current plan. I’ll remind you in ${minutes} minutes.${pastDueBit}`
+      : `De acuerdo, mantengo el plan actual. Te recordaré en ${minutes} minutos.${pastDueBit}`;
   }
   return en
-    ? "Okay — I’ll keep the current plan. I’ll remind you about these blocks in the next review."
-    : "De acuerdo, mantengo el plan actual. Te recordaré el estado de tus bloques en la siguiente revisión.";
+    ? `Okay — I’ll keep the current plan. I’ll remind you about these blocks in the next review.${pastDueBit}`
+    : `De acuerdo, mantengo el plan actual. Te recordaré el estado de tus bloques en la siguiente revisión.${pastDueBit}`;
 }
 
 /**

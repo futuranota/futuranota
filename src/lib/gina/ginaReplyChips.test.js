@@ -151,7 +151,7 @@ describe("ginaReplyChips", () => {
 
   it("today overview intro text is separate from headline datos", () => {
     const intro = buildTodayOverviewIntroText("es");
-    expect(intro).toBe("Ahora te voy a mostrar el sheet del día:");
+    expect(intro).toBe("Ahora te voy a mostrar el horario del día:");
     expect(intro).not.toMatch(/desde ayer|lista y organizada/i);
     expect(intro).not.toMatch(/Horario de Hoy/i);
   });
@@ -596,7 +596,7 @@ describe("ginaReplyChips", () => {
     }, { locale: "es" });
     expect(headline).toBe("");
     const mid = buildTodayOverviewIntroText("es");
-    expect(mid).toMatch(/sheet del día/i);
+    expect(mid).toMatch(/horario del día/i);
     const after = buildTodayOverviewAfterText({
       locale: "es",
       hasDaySheet: false,

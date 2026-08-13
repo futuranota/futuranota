@@ -12,7 +12,7 @@ import { startGinaTypingSound, stopGinaTypingSound } from "../../lib/ginaTypingS
  *   onTyped?: () => void,
  * }} props
  */
-function StartDocLine({ label, value, mode, highlighted, onTyped }) {
+function StartDocLine({ label, value, mode, highlighted, onTyped, tone }) {
   const full = `${label}: ${value}`;
   const shouldType = mode === "typing";
   // Slightly quicker than bubble "slow" — still readable, not a race.
@@ -48,12 +48,14 @@ function StartDocLine({ label, value, mode, highlighted, onTyped }) {
   const valueShown = shown.length > labelPrefix.length
     ? shown.slice(labelPrefix.length)
     : "";
+  const isFoot = tone === "foot";
 
   return (
     <p
       className={
         "gina-chat-card__start-doc-line"
         + (highlighted ? " is-highlighted" : "")
+        + (isFoot ? " gina-chat-card__start-doc-line--foot" : "")
       }
     >
       {mode === "done" ? (
@@ -124,6 +126,7 @@ export function GinaStartDocReveal({ lines = [], instant = false, onComplete }) 
             key={`${row.label}-${idx}`}
             label={String(row.label)}
             value={String(row.value || "")}
+            tone={row.tone || null}
             mode={mode}
             highlighted={Boolean(highlighted[idx])}
             onTyped={() => {

@@ -1327,8 +1327,8 @@ export function buildTodayOverviewDaySummary(opts = {}) {
 export function buildTodayOverviewIntroText(locale = "es") {
   const en = locale === "en";
   return en
-    ? "Now I’ll show you today’s sheet:"
-    : "Ahora te voy a mostrar el sheet del día:";
+    ? "Now I’ll show you today’s schedule:"
+    : "Ahora te voy a mostrar el horario del día:";
 }
 
 /**
@@ -1461,11 +1461,33 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
   ).trim()
     || formatGinaTimeRange(doc.anchorAt, doc.anchorFinishAt || doc.dueAt, en ? "en" : "es");
 
+  const folderName = String(
+    doc.folder
+    || doc.parentFolderName
+    || doc.hierarchy?.folder
+    || "",
+  ).trim();
+  const folderId = String(
+    doc.parentFolderId || doc.folderId || doc.parentDocId || "",
+  ).trim();
+  const folderProgress = Array.isArray(opts.folderProgress) ? opts.folderProgress : [];
+  const folderSnap = folderProgress.find((f) => (
+    (folderId && String(f.folderId) === folderId)
+    || (folderName && String(f.folder || "").toLowerCase() === folderName.toLowerCase())
+  )) || null;
+  const folderLabel = folderSnap?.folder || folderName || "";
+  const folderPct = folderSnap
+    ? (en
+      ? `${folderSnap.percent}% of folder (${folderSnap.done}/${folderSnap.total})`
+      : `${folderSnap.percent}% del folder (${folderSnap.done}/${folderSnap.total})`)
+    : "";
+
   const startLabel = isFirstChronologicalDocOfDay(doc, opts)
     ? (en ? "Starting document" : "Documento de inicio")
     : (en ? "Next document" : "Próximo Documento");
 
-  return en
+  /** @type {{ label: string, value: string, tone?: string }[]} */
+  const lines = en
     ? [
       { label: startLabel, value: title },
       { label: "Department", value: departmentValue },
@@ -1476,6 +1498,21 @@ export function buildTodayOverviewStartDocLines(opts = {}) {
       { label: "Departamento", value: departmentValue },
       { label: "Tiempo asignado", value: `${duration} (${schedule})` },
     ];
+
+  if (folderLabel) {
+    lines.push({
+      label: en ? "Folder" : "Folder",
+      value: folderLabel,
+    });
+  }
+  if (folderPct) {
+    lines.push({
+      label: en ? "Folder progress" : "Avance del folder",
+      value: folderPct,
+      tone: "foot",
+    });
+  }
+  return lines;
 }
 
 /**
@@ -2188,7 +2225,9 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
         ? "mark_completed"
         : data.intent === "mark_in_progress"
           ? "mark_in_progress"
-          : "mark_past_due";
+          : data.intent === "delete_docs"
+            ? "delete_docs"
+            : "mark_past_due";
     if (data.applied) {
       return buildScheduleRecoveryAppliedText(intent, {
         count: data.count || 0,
@@ -2570,6 +2609,15 @@ export function buildGinaReplyChips(opts = {}) {
             : "Forzar inserción de bloques al final de la noche"),
       });
     }
+    if (data.rescheduleMode === "cascade") {
+      chips.push({
+        id: "reschedule_gaps",
+        label: en ? "Fit into free gaps" : "Encajar en huecos libres",
+        text: en
+          ? "Reschedule expired blocks show free slots"
+          : "Reagendar bloques vencidos mostrar cupos libres",
+      });
+    }
     chips.push({
       id: "recovery_next",
       label: en ? "Continue" : "Seguir",
@@ -2589,7 +2637,9 @@ export function buildGinaReplyChips(opts = {}) {
         ? "mark_completed"
         : data.intent === "mark_in_progress"
           ? "mark_in_progress"
-          : "mark_past_due";
+          : data.intent === "delete_docs"
+            ? "delete_docs"
+            : "mark_past_due";
     return buildScheduleRecoveryConfirmChips(intent, { locale });
   }
   if (opts.family === "status" || opts.family === "past_due" || opts.family === "incomplete") {

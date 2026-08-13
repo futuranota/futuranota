@@ -2995,21 +2995,22 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Reschedule fork: cascade vs free gaps (before opening a picker).
+  // Reschedule today → open cascade picker directly (skip fork essay).
   {
-    const wantsFork = /\breagendar\s+para\s+hoy\b/.test(q)
+    const wantsRescheduleToday = /\breagendar\s+para\s+hoy\b/.test(q)
       || /\breschedule\s+for\s+today\b/.test(q);
-    if (wantsFork) {
+    if (wantsRescheduleToday) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       return {
-        family: "schedule_recovery_reschedule_fork",
+        family: "schedule_recovery_reschedule_pick",
         toolsCalled,
         toolContext: {
           ...today,
           nodes: ctx.nodes,
           docs: ctx.docs,
           objectId: ctx.objectId,
-          hint: "Choose cascade vs free gaps for reschedule",
+          rescheduleMode: "cascade",
+          hint: "Reschedule for today opens cascade picker directly",
         },
         workspaceInventory: inventory,
       };
@@ -3137,6 +3138,11 @@ export function runGinaQueryFamily(text, ctx = {}) {
 
   // Schedule recovery fork: preview intent (mutations only after confirm).
   {
+    const wantsDeleteOverdue = !/\bconfirm/.test(q) && !/\bconfirmar\b/.test(q) && (
+      /\bborrar\s+archivos\s+vencidos\b/.test(q)
+      || /\bdelete\s+today'?s\s+overdue\s+files\b/.test(q)
+      || /\bborrar\s+archivos\b/.test(q) && /\bvencid/.test(q)
+    );
     const wantsMarkCompleted = !/\bconfirm/.test(q) && (
       /\bmarcar\s+como\s+completados\s+los\s+bloques\s+vencidos\b/.test(q)
       || /\bmark\s+today'?s\s+expired\s+blocks\s+as\s+completed\b/.test(q)
@@ -3156,9 +3162,22 @@ export function runGinaQueryFamily(text, ctx = {}) {
       || /\bpostpone\s+(today'?s\s+)?(passed\s+)?schedule\b/.test(q)
       || (/\bmanteniendo\s+el\s+orden\b/.test(q) && /\bposponer\b/.test(q))
     );
-    if (wantsMarkCompleted || wantsMarkInProgress || wantsMarkPastDue || wantsPostpone) {
+    if (wantsDeleteOverdue || wantsMarkCompleted || wantsMarkInProgress || wantsMarkPastDue || wantsPostpone) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       const triage = partitionTodayByClock(today.documents || [], ctx.now instanceof Date ? ctx.now : new Date());
+      if (wantsDeleteOverdue) {
+        return {
+          family: "schedule_recovery_delete",
+          toolsCalled,
+          toolContext: {
+            ...today,
+            markableSlots: triage.fullyExpired.filter((d) => d.status !== "past_due" && d.status !== "completed"),
+            passedSlots: triage.fullyExpired,
+            hint: "User chose permanently delete overdue files (preview)",
+          },
+          workspaceInventory: inventory,
+        };
+      }
       if (wantsMarkCompleted) {
         return {
           family: "schedule_recovery_complete",
@@ -3201,8 +3220,26 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Confirm completed / in progress
+  // Confirm completed / in progress / delete overdue
   {
+    if (
+      /\bconfirmar\s+borrar\s+archivos\s+vencidos\b/.test(q)
+      || /\bconfirm\s+delete\s+overdue\s+files\b/.test(q)
+    ) {
+      const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
+      const triage = partitionTodayByClock(today.documents || [], ctx.now instanceof Date ? ctx.now : new Date());
+      return {
+        family: "schedule_recovery_delete_confirm",
+        toolsCalled,
+        toolContext: {
+          ...today,
+          markableSlots: triage.fullyExpired.filter((d) => d.status !== "past_due" && d.status !== "completed"),
+          recoveryIntent: "delete_docs",
+          hint: "User confirmed permanent delete of overdue files",
+        },
+        workspaceInventory: inventory,
+      };
+    }
     if (/\bconfirmar\s+marcar\s+como\s+completados\b/.test(q) || /\bconfirm\s+mark\s+as\s+completed\b/.test(q)) {
       const today = call("get_today_scope", () => get_today_scope(ctx, { includeCompleted: false }));
       const triage = partitionTodayByClock(today.documents || [], ctx.now instanceof Date ? ctx.now : new Date());

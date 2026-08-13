@@ -8,7 +8,7 @@ import {
   formatWorkDurationLabel,
 } from "../../lib/gina/buildGinaVisualization.js";
 import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
-import { buildRecoveryEasyLinksLegend, buildRecoverySnoozeMenuOptions, buildRecoverySnoozeExactProtocol, buildRecoveryChangeStatusMenuOptions, buildRescheduleBatchApplyProtocol } from "../../lib/gina/ginaScheduleRecovery.js";
+import { buildRecoveryEasyLinksLegend, buildRecoverySnoozeMenuOptions, buildRecoverySnoozeExactProtocol, buildRecoveryChangeStatusMenuOptions, buildSheetRowStatusMenuOptions, buildRescheduleBatchApplyProtocol } from "../../lib/gina/ginaScheduleRecovery.js";
 import { formatClockRange12h } from "../../lib/clockFormat.js";
 import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns, buildGinaCategoryRail, buildGinaWeekdayRail } from "../../lib/gina/ginaDepartmentColors.js";
 import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
@@ -736,6 +736,7 @@ function TimeCell({ doc, time, passedSlot, delayHighlights, struck = false }) {
 function RecoveryPreviewVisualization({ data }) {
   const docs = Array.isArray(data.documents) ? data.documents : [];
   const intent = data.intent || "mark_past_due";
+  const isDelete = intent === "delete_docs";
   const isStatusFlip = intent === "mark_past_due"
     || intent === "mark_completed"
     || intent === "mark_in_progress";
@@ -744,13 +745,15 @@ function RecoveryPreviewVisualization({ data }) {
     : intent === "mark_in_progress"
       ? "in_progress"
       : "past_due";
-  const eyebrow = intent === "mark_completed"
-    ? "Marcar como completados"
-    : intent === "mark_in_progress"
-      ? "Pasar a En Progreso"
-      : intent === "mark_past_due"
-        ? "Marcar como vencidos"
-        : "Reagendar en cadena";
+  const eyebrow = intent === "delete_docs"
+    ? "Borrar archivos"
+    : intent === "mark_completed"
+      ? "Marcar como completados"
+      : intent === "mark_in_progress"
+        ? "Pasar a En Progreso"
+        : intent === "mark_past_due"
+          ? "Marcar como vencidos"
+          : "Reagendar en cadena";
   return (
     <div className="gina-viz gina-viz--recovery-preview">
       <header className="gina-viz__head">
@@ -764,7 +767,15 @@ function RecoveryPreviewVisualization({ data }) {
           {docs.map((doc) => (
             <li key={doc.id || doc.title} className="gina-viz__recovery-row">
               <div className="gina-viz__recovery-title">{doc.title}</div>
-              {isStatusFlip ? (
+              {isDelete ? (
+                <div className="gina-viz__recovery-status">
+                  {doc.status ? <DocStatusChip status={doc.status} /> : (
+                    <span className="gina-viz__recovery-null">Sin status</span>
+                  )}
+                  <span className="gina-viz__recovery-arrow" aria-hidden>→</span>
+                  <span className="gina-viz__recovery-null">Borrar</span>
+                </div>
+              ) : isStatusFlip ? (
                 <div className="gina-viz__recovery-status">
                   {doc.status ? <DocStatusChip status={doc.status} /> : (
                     <span className="gina-viz__recovery-null">Sin status</span>
@@ -950,7 +961,14 @@ function CascadeSlotPickerVisualization({ data, onSelectAction }) {
                     onAnchorFinishTimeChange={(next) => patchCascadeDraft(id, { finishTime: next })}
                   />
                   <span className="gina-viz__sheet-title gina-viz__cascade-title">{doc.title}</span>
-                  {doc.status ? <DocStatusChip status={doc.status} /> : null}
+                  {doc.status || id ? (
+                    <GinaSheetRowStatusPicker
+                      status={doc.status || DOC_WORK_STATUS.NOT_STARTED}
+                      docId={id}
+                      locale={en ? "en" : "es"}
+                      onSelectAction={onSelectAction}
+                    />
+                  ) : null}
                 </li>
               );
             })}
@@ -1148,7 +1166,7 @@ function GapsSlotPickerVisualization({ data, onSelectAction }) {
               const draft = drafts[id] || null;
               const assigned = Boolean(doc.assigned || serverAssigned.has(id) || draft);
               return (
-                <li key={doc.id || doc.title}>
+                <li key={doc.id || doc.title} className="gina-viz__slot-doc-row">
                   <button
                     type="button"
                     className={
@@ -1177,8 +1195,15 @@ function GapsSlotPickerVisualization({ data, onSelectAction }) {
                     {assigned ? (
                       <span className="gina-viz__slot-check" aria-label={en ? "Assigned" : "Asignado"}>✓</span>
                     ) : null}
-                    {doc.status ? <DocStatusChip status={doc.status} /> : null}
                   </button>
+                  {doc.status || id ? (
+                    <GinaSheetRowStatusPicker
+                      status={doc.status || DOC_WORK_STATUS.NOT_STARTED}
+                      docId={id}
+                      locale={en ? "en" : "es"}
+                      onSelectAction={onSelectAction}
+                    />
+                  ) : null}
                 </li>
               );
             })}
@@ -1695,18 +1720,21 @@ function TodayQuickSheet({
   locale = "es",
   title = null,
   eyebrow = null,
+  folderProgress = null,
+  dayProgress = null,
 }) {
   const rows = collectTodayOverviewTableDocs({ quickSheet, documents, groups });
   const en = locale === "en";
   const sheetTitle = title
-    || (en ? "Today's sheet" : "Sheet del día");
-  const sheetEyebrow = eyebrow
-    || (en ? "Chronological schedule" : "Horario cronológico");
+    || (en ? "Today's schedule" : "Horario del día");
+  const sheetEyebrow = eyebrow != null ? eyebrow : null;
+  const folders = Array.isArray(folderProgress) ? folderProgress : [];
+  const day = dayProgress && typeof dayProgress === "object" ? dayProgress : null;
   if (!rows.length) {
     return (
       <div className="gina-viz__quick-sheet gina-viz gina-viz--table">
         <header className="gina-viz__quick-sheet-head">
-          <span className="gina-viz__eyebrow">{sheetEyebrow}</span>
+          {sheetEyebrow ? <span className="gina-viz__eyebrow">{sheetEyebrow}</span> : null}
           <h3 className="gina-viz__title">{sheetTitle}</h3>
         </header>
         <p className="gina-viz__empty">
@@ -1721,7 +1749,7 @@ function TodayQuickSheet({
   return (
     <div className="gina-viz__quick-sheet gina-viz gina-viz--table gina-viz--table-rail">
       <header className="gina-viz__quick-sheet-head">
-        <span className="gina-viz__eyebrow">{sheetEyebrow}</span>
+        {sheetEyebrow ? <span className="gina-viz__eyebrow">{sheetEyebrow}</span> : null}
         <h3 className="gina-viz__title">{sheetTitle}</h3>
       </header>
       <div className="gina-viz__table-layout">
@@ -1810,6 +1838,31 @@ function TodayQuickSheet({
             </li>
           ))}
         </ul>
+      ) : null}
+      {(folders.length > 0 || day) ? (
+        <footer className="gina-viz__day-folder-foot">
+          {day && day.total > 0 ? (
+            <p className="gina-viz__day-folder-foot-day">
+              {en
+                ? `Day progress: ${day.completed}/${day.total} done · ${day.remaining} left`
+                : `Avance del día: ${day.completed}/${day.total} listos · faltan ${day.remaining}`}
+            </p>
+          ) : null}
+          {folders.length > 0 ? (
+            <ul className="gina-viz__day-folder-foot-list">
+              {folders.map((f) => (
+                <li key={f.folderId || f.folder} className="gina-viz__day-folder-foot-row">
+                  <span className="gina-viz__day-folder-foot-name">{f.folder}</span>
+                  <span className="gina-viz__day-folder-foot-meta">
+                    {en
+                      ? `${f.todayCount || 0} on schedule · ${f.percent}% (${f.done}/${f.total})`
+                      : `${f.todayCount || 0} en horario · ${f.percent}% (${f.done}/${f.total})`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </footer>
       ) : null}
     </div>
   );
@@ -1900,6 +1953,31 @@ function TodayOverviewVisualization({ data, showTable = true }) {
                   </div>
                 </div>
                 <DeptHoursLegend items={legendItems} />
+                {(Array.isArray(data.folderProgress) && data.folderProgress.length) || data.dayProgress ? (
+                  <footer className="gina-viz__day-folder-foot">
+                    {data.dayProgress?.total > 0 ? (
+                      <p className="gina-viz__day-folder-foot-day">
+                        {locale === "en"
+                          ? `Day progress: ${data.dayProgress.completed}/${data.dayProgress.total} done · ${data.dayProgress.remaining} left`
+                          : `Avance del día: ${data.dayProgress.completed}/${data.dayProgress.total} listos · faltan ${data.dayProgress.remaining}`}
+                      </p>
+                    ) : null}
+                    {Array.isArray(data.folderProgress) && data.folderProgress.length ? (
+                      <ul className="gina-viz__day-folder-foot-list">
+                        {data.folderProgress.map((f) => (
+                          <li key={f.folderId || f.folder} className="gina-viz__day-folder-foot-row">
+                            <span className="gina-viz__day-folder-foot-name">{f.folder}</span>
+                            <span className="gina-viz__day-folder-foot-meta">
+                              {locale === "en"
+                                ? `${f.todayCount || 0} on schedule · ${f.percent}% (${f.done}/${f.total})`
+                                : `${f.todayCount || 0} en horario · ${f.percent}% (${f.done}/${f.total})`}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </footer>
+                ) : null}
               </>
             )}
           </div>
@@ -1940,8 +2018,10 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
         documents={data.documents}
         groups={groups}
         locale={locale}
-        eyebrow={en ? "Day schedule" : "Horario del día"}
-        title={data.dateLabel || data.date || (en ? "Today" : "Hoy")}
+        eyebrow={null}
+        title={en ? "Today's schedule" : "Horario del día"}
+        folderProgress={data.folderProgress}
+        dayProgress={data.dayProgress}
       />
     );
   }
@@ -2077,7 +2157,7 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
                 ? (data.recoveryOfferMode === "late_start"
                   ? (locale === "en" ? "Pending start" : "Inicio pendiente")
                   : (locale === "en" ? "Expired windows" : "Horarios vencidos"))
-                : (isDaySheet ? "Sheet del día" : "Horarios")}
+                : (isDaySheet ? "Horario del día" : "Horarios")}
             </span>
             <h3 className="gina-viz__title">{data.dateLabel || data.date || "Hoy"}</h3>
             {progress && progress.total > 0 ? (
@@ -2128,7 +2208,16 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
                             <span className={"gina-viz__sheet-title" + (struck ? " gina-viz__sheet-title--struck" : "")}>
                               {struck ? <s>{doc.title}</s> : doc.title}
                             </span>
-                            {doc.status ? <DocStatusChip status={doc.status} /> : null}
+                            {(step === "overdue_check" || data.rowStatusEditable) && doc.id ? (
+                              <GinaSheetRowStatusPicker
+                                status={doc.status || DOC_WORK_STATUS.NOT_STARTED}
+                                docId={doc.id}
+                                locale={locale}
+                                onSelectAction={onSelectAction}
+                              />
+                            ) : (
+                              doc.status ? <DocStatusChip status={doc.status} /> : null
+                            )}
                           </li>
                         );
                       })}
@@ -2161,11 +2250,35 @@ function ScheduleSheetVisualization({ data, onSelectAction, onToggleDaySheetDoc,
 const EASY_LINK_SFX_BY_ID = {
   mark_completed: "easy_link_completed",
   mark_past_due: "easy_link_past_due",
+  delete_overdue_docs: "easy_link_delete",
   move_end_of_day: "easy_link_reschedule",
   recovery_snooze: "easy_link_snooze",
   mark_in_progress_batch: "easy_link_in_progress",
   open_late_start_doc: "easy_link_open",
 };
+
+/**
+ * Highlight first case-insensitive occurrence of phrase inside body text.
+ * @param {string} body
+ * @param {string} phrase
+ */
+function highlightEasyLinkPhrase(body, phrase) {
+  const text = String(body || "");
+  const needle = String(phrase || "").trim();
+  if (!text || !needle) return text;
+  const idx = text.toLowerCase().indexOf(needle.toLowerCase());
+  if (idx < 0) return text;
+  const before = text.slice(0, idx);
+  const match = text.slice(idx, idx + needle.length);
+  const after = text.slice(idx + needle.length);
+  return (
+    <>
+      {before}
+      <mark className="gina-viz__easy-link-mark">{match}</mark>
+      {after}
+    </>
+  );
+}
 
 function RecoverySnoozeMenu({ locale = "es", onSelectAction }) {
   const en = locale === "en";
@@ -2271,9 +2384,9 @@ function RecoverySnoozeMenu({ locale = "es", onSelectAction }) {
   );
 }
 
-function RecoveryChangeStatusMenu({ locale = "es", onSelectAction }) {
+function RecoveryChangeStatusMenu({ locale = "es", recoveryOfferMode, onSelectAction }) {
   const en = locale === "en";
-  const options = buildRecoveryChangeStatusMenuOptions({ locale });
+  const options = buildRecoveryChangeStatusMenuOptions({ locale, recoveryOfferMode });
   const [open, setOpen] = useState(false);
   const [appliedId, setAppliedId] = useState(/** @type {string | null} */ (null));
   const rootRef = useRef(null);
@@ -2334,6 +2447,100 @@ function RecoveryChangeStatusMenu({ locale = "es", onSelectAction }) {
 }
 
 /**
+ * Per-row status chip → menu. Used inside schedule / reschedule tables so each
+ * block can be updated without a global Easy Links action.
+ */
+function GinaSheetRowStatusPicker({
+  status,
+  docId,
+  locale = "es",
+  onSelectAction,
+}) {
+  const en = locale === "en";
+  const id = String(docId || "").trim();
+  const [open, setOpen] = useState(false);
+  const [localStatus, setLocalStatus] = useState(status || null);
+  const rootRef = useRef(null);
+  const options = buildSheetRowStatusMenuOptions({ locale, docId: id });
+
+  useEffect(() => {
+    setLocalStatus(status || null);
+  }, [status, id]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const escape = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  if (!id || !localStatus) {
+    return localStatus ? <DocStatusChip status={localStatus} /> : null;
+  }
+
+  return (
+    <div className="gina-viz__row-status-picker" ref={rootRef}>
+      <button
+        type="button"
+        className="gina-viz__row-status-trigger"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={en ? "Change status" : "Cambiar status"}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <DocStatusChip status={localStatus} />
+        <span className="gina-viz__row-status-caret" aria-hidden>▾</span>
+      </button>
+      {open ? (
+        <div className="gina-viz__snooze-popover gina-viz__row-status-popover" role="menu">
+          {options.map((opt) => {
+            const active = opt.status === localStatus;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                className={
+                  "gina-viz__snooze-option"
+                  + (active ? " gina-viz__snooze-option--active" : "")
+                }
+                role="menuitem"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!opt.text) return;
+                  setLocalStatus(opt.status);
+                  onSelectAction?.(opt.text, opt.label);
+                  setOpen(false);
+                }}
+              >
+                <DocStatusChip status={opt.status} />
+                {active ? (
+                  <span className="gina-viz__status-applied" aria-hidden>✓</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
  * Easy Links — star Reagendar + secondary alternatives + status/snooze menus.
  */
 function RecoveryEasyLinksLegend({
@@ -2361,11 +2568,13 @@ function RecoveryEasyLinksLegend({
   const secondary = rows.filter((r) => r.tier === "secondary");
   const status = rows.find((r) => r.tier === "status") || null;
   const snooze = rows.find((r) => r.tier === "snooze") || null;
+  const cards = rows.filter((r) => r.tier === "card");
 
-  /** One typewriter beat at a time: star → alt intro → secondary… → status → snooze. */
+  /** star → status → alt intro → secondary… → snooze → card (delete last). */
   const steps = [];
   if (star) steps.push({ kind: "row", row: star });
-  if (star && secondary.length) {
+  if (status) steps.push({ kind: "row", row: status });
+  if (star && (secondary.length || cards.length)) {
     steps.push({
       kind: "intro",
       text: en
@@ -2374,8 +2583,8 @@ function RecoveryEasyLinksLegend({
     });
   }
   for (const row of secondary) steps.push({ kind: "row", row });
-  if (status) steps.push({ kind: "row", row: status });
   if (snooze) steps.push({ kind: "row", row: snooze });
+  for (const row of cards) steps.push({ kind: "row", row });
 
   const [stepIdx, setStepIdx] = useState(0);
   const typingKeyRef = useRef(0);
@@ -2429,7 +2638,7 @@ function RecoveryEasyLinksLegend({
               className={
                 "gina-viz__easy-link"
                 + (row.tier === "star" ? " gina-viz__easy-link--star" : "")
-                + (row.tier === "snooze" ? " gina-viz__easy-link--snooze" : "")
+                + (row.tier === "snooze" || row.tier === "card" ? " gina-viz__easy-link--snooze" : "")
                 + (row.tier === "status" ? " gina-viz__easy-link--status" : "")
                 + (row.tier === "secondary" ? " gina-viz__easy-link--secondary gina-viz__easy-link--flat" : "")
               }
@@ -2455,8 +2664,10 @@ function RecoveryEasyLinksLegend({
                         <span className="gina-chat-card__ai-headline">{`${row.title}:`}</span>
                       </div>
                       <p className="gina-chat-card__ai-body gina-viz__easy-link-body">
-                        {row.body}
-                        {row.control === "link" && row.actionText ? (
+                        {row.bodyHighlight
+                          ? highlightEasyLinkPhrase(row.body, row.bodyHighlight)
+                          : row.body}
+                        {row.control === "link" && row.actionText && row.tier !== "card" ? (
                           <>
                             {" "}
                             <button
@@ -2472,8 +2683,29 @@ function RecoveryEasyLinksLegend({
                           </>
                         ) : null}
                       </p>
+                      {row.control === "link" && row.actionText && row.tier === "card" ? (
+                        <button
+                          type="button"
+                          className={
+                            "gina-viz__snooze-trigger"
+                            + (row.id === "delete_overdue_docs"
+                              ? " gina-viz__snooze-trigger--danger"
+                              : "")
+                          }
+                          onClick={() => onSelectAction?.(
+                            row.actionText,
+                            row.ctaLabel || row.title,
+                          )}
+                        >
+                          {row.ctaLabel || row.title}
+                        </button>
+                      ) : null}
                       {row.control === "status_menu" ? (
-                        <RecoveryChangeStatusMenu locale={locale} onSelectAction={onSelectAction} />
+                        <RecoveryChangeStatusMenu
+                          locale={locale}
+                          recoveryOfferMode={recoveryOfferMode}
+                          onSelectAction={onSelectAction}
+                        />
                       ) : null}
                       {row.control === "snooze_menu" ? (
                         <RecoverySnoozeMenu locale={locale} onSelectAction={onSelectAction} />
@@ -3095,6 +3327,8 @@ export function GinaDataVisualization({
           documents={data.documents}
           groups={data.groups}
           locale={data.locale === "en" ? "en" : "es"}
+          folderProgress={data.folderProgress}
+          dayProgress={data.dayProgress}
         />
       );
     case "recovery_preview":

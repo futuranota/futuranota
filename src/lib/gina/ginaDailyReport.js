@@ -24,6 +24,43 @@ function isClosedStatus(status) {
 }
 
 /**
+ * Folder % snapshot for documents that appear on today's schedule.
+ * @param {object[]} docs
+ * @param {Record<string, object>} nodesById
+ * @param {Record<string, object>} docsById
+ * @returns {{ folderId: string, folder: string, percent: number, done: number, total: number, todayCount: number }[]}
+ */
+export function buildFolderProgressForDocuments(docs = [], nodesById = {}, docsById = {}) {
+  const list = Array.isArray(docs) ? docs : [];
+  /** @type {Map<string, number>} */
+  const todayCountByFolder = new Map();
+  for (const d of list) {
+    const fid = String(
+      d?.parentFolderId || d?.folderId || d?.parentDocId || "",
+    ).trim();
+    if (!fid) continue;
+    todayCountByFolder.set(fid, (todayCountByFolder.get(fid) || 0) + 1);
+  }
+  const out = [];
+  for (const [folderId, todayCount] of todayCountByFolder) {
+    const st = resolveFolderStatus(nodesById, folderId);
+    if (!st.total) continue;
+    const folderDoc = docsById[folderId];
+    out.push({
+      folderId,
+      folder: folderDoc?.title || folderDoc?.name || "Folder",
+      percent: st.percent,
+      done: st.done,
+      total: st.total,
+      todayCount,
+      status: st.status,
+    });
+  }
+  out.sort((a, b) => String(a.folder).localeCompare(String(b.folder)));
+  return out;
+}
+
+/**
  * @param {import("./ginaTools.js").GinaToolsContext} ctx
  * @param {{ now?: Date }} [opts]
  */
@@ -87,18 +124,19 @@ export function buildGinaDailyReport(ctx = {}, opts = {}) {
     }));
 
   /** Folders that have at least one today-scheduled doc. */
-  const folderIds = new Set();
-  for (const d of todayDocs) {
-    const fid = d.parentFolderId || d.folderId || d.parentDocId || null;
-    if (fid) folderIds.add(fid);
-  }
+  const folderProgress = buildFolderProgressForDocuments(
+    todayDocs,
+    nodesById,
+    docsById,
+  );
+  // Also include folders that only appear via occupied intervals (no timed today doc title).
+  const folderIds = new Set(folderProgress.map((f) => f.folderId));
   for (const row of occupiedRaw) {
     const node = nodesById[row.id];
     if (node?.parentDocId) folderIds.add(node.parentDocId);
   }
-
-  const folderProgress = [];
   for (const folderId of folderIds) {
+    if (folderProgress.some((f) => f.folderId === folderId)) continue;
     const st = resolveFolderStatus(nodesById, folderId);
     if (!st.total) continue;
     const folderDoc = docsById[folderId];
@@ -108,6 +146,7 @@ export function buildGinaDailyReport(ctx = {}, opts = {}) {
       percent: st.percent,
       done: st.done,
       total: st.total,
+      todayCount: 0,
       status: st.status,
     });
   }

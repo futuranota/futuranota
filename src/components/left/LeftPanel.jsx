@@ -56,12 +56,12 @@ import {
   buildScheduleRecoveryIntroText,
   buildScheduleRecoveryStepText,
   buildReschedulePickerText,
-  buildRescheduleForkText,
-  buildRescheduleForkChips,
   buildRescheduleAppliedText,
   buildRescheduleDayReadyText,
   buildRescheduleProgressText,
   buildRecoverySnoozeText,
+  buildPassedSlotSignals,
+  parseGinaSilentSetDocStatus,
   resolvePostMutationRecoveryFollowUp,
   isGinaWarmGoodbye,
 } from "../../lib/gina/ginaScheduleRecovery.js";
@@ -3196,8 +3196,23 @@ export function LeftPanel({
       if (plan) return "";
     }
 
-    // Silent late-start → In progress (status menu). Keeps the recovery Easy Links UI intact.
-    if (!meetingOn && /^GinaSilentMarkInProgress\b/i.test(String(text || "").trim())) {
+    // Silent per-row status from schedule / reschedule tables.
+    const silentRowStatus = parseGinaSilentSetDocStatus(text);
+    if (!meetingOn && silentRowStatus?.docId && silentRowStatus.status) {
+      const updateNode = useNodesStore.getState().updateNode;
+      updateNode(
+        silentRowStatus.docId,
+        syncDocWorkStatusFields({ status: silentRowStatus.status }),
+      );
+      return "";
+    }
+
+    // Silent recovery status menu (late-start Easy Links). Keeps UI intact.
+    const silentStatusMatch = String(text || "").trim().match(
+      /^GinaSilentMark(InProgress|Completed|PastDue)\b/i,
+    );
+    if (!meetingOn && silentStatusMatch) {
+      const kind = String(silentStatusMatch[1] || "").toLowerCase();
       const now = new Date();
       const today = get_today_scope({
         docs: docsMap,
@@ -3207,16 +3222,32 @@ export function LeftPanel({
         now,
         userId: ginaUserId,
       }, { includeCompleted: false });
-      const triage = partitionTodayByClock(today.documents || [], now);
-      const slots = Array.isArray(triage.lateStartActive) ? triage.lateStartActive : [];
+      const docs = today.documents || [];
+      const triage = partitionTodayByClock(docs, now);
+      const { markableSlots } = buildPassedSlotSignals(docs, now);
       const updateNode = useNodesStore.getState().updateNode;
-      let applied = 0;
-      for (const slot of slots) {
-        if (!slot?.id) continue;
-        updateNode(slot.id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.IN_PROGRESS }));
-        applied += 1;
+      /** @type {object[]} */
+      let slots = [];
+      /** @type {string | null} */
+      let nextStatus = null;
+      if (kind === "inprogress") {
+        nextStatus = DOC_WORK_STATUS.IN_PROGRESS;
+        slots = (triage.lateStartActive || []).length
+          ? triage.lateStartActive
+          : markableSlots;
+      } else if (kind === "completed") {
+        nextStatus = DOC_WORK_STATUS.COMPLETED;
+        slots = markableSlots;
+      } else if (kind === "pastdue") {
+        nextStatus = DOC_WORK_STATUS.PAST_DUE;
+        slots = markableSlots;
       }
-      // Empty string = no chat bubbles; menu stays on screen.
+      if (nextStatus) {
+        for (const slot of slots) {
+          if (!slot?.id) continue;
+          updateNode(slot.id, syncDocWorkStatusFields({ status: nextStatus }));
+        }
+      }
       return "";
     }
 
@@ -3611,6 +3642,7 @@ export function LeftPanel({
         overviewByDepartment: dayReadyViz?.data?.overviewByDepartment || [],
         totalMinutes: dayReadyViz?.data?.totalMinutes,
         totalHoursLabel: dayReadyViz?.data?.totalHoursLabel,
+        folderProgress: dayReadyViz?.data?.folderProgress || [],
         locale: localeKey,
         userId: ginaUserId,
         hasDaySheet: true,
@@ -3709,6 +3741,7 @@ export function LeftPanel({
       || routed.family === "schedule_recovery_postpone"
       || routed.family === "schedule_recovery_complete"
       || routed.family === "schedule_recovery_in_progress"
+      || routed.family === "schedule_recovery_delete"
     )) {
       const visualization = buildGinaVisualization(routed.family, routed.toolContext, {
         locale: localeKey,
@@ -3766,10 +3799,34 @@ export function LeftPanel({
       }
 
       try { setRecoveryNotifySnooze(ginaUserId, now, durationMs); } catch { /* ignore */ }
+
+      // Overdue Posponer card: also mark markable passed slots as past_due.
+      const todayForSnooze = get_today_scope({
+        docs: docsMap,
+        nodes: nodesMap,
+        departments,
+        objectId: activeObjectId || filterObjectId || null,
+        now,
+        userId: ginaUserId,
+      }, { includeCompleted: false });
+      const { markableSlots: snoozeMarkable } = buildPassedSlotSignals(
+        todayForSnooze.documents || [],
+        now,
+      );
+      let markedPastDue = 0;
+      if (snoozeMarkable.length > 0) {
+        const updateNodeForSnooze = useNodesStore.getState().updateNode;
+        for (const slot of snoozeMarkable) {
+          if (!slot?.id) continue;
+          updateNodeForSnooze(slot.id, syncDocWorkStatusFields({ status: DOC_WORK_STATUS.PAST_DUE }));
+          markedPastDue += 1;
+        }
+      }
+
       const visualization = buildGinaVisualization("schedule_recovery_next", {
         ...routed.toolContext,
-        nodes: ctx.nodes,
-        docs: ctx.docs,
+        nodes: useNodesStore.getState().nodes || ctx.nodes,
+        docs: useDocsStore.getState().docs || ctx.docs,
         objectId: ctx.objectId,
       }, {
         locale: localeKey,
@@ -3797,6 +3854,7 @@ export function LeftPanel({
         locale: localeKey,
         minutes: untilLabel ? null : minutes,
         untilLabel,
+        markPastDue: markedPastDue > 0,
       });
       return {
         message: data.currentStep && data.currentStep !== "summary"
@@ -3813,10 +3871,42 @@ export function LeftPanel({
     }
 
     if (!meetingOn && routed.family === "schedule_recovery_reschedule_fork") {
+      // Legacy: treat fork as cascade pick (no essay).
+      const todayScope = get_today_scope(ctx, { includeCompleted: false });
+      const visualization = buildGinaVisualization("schedule_recovery_reschedule_pick", {
+        ...todayScope,
+        ...routed.toolContext,
+        nodes: ctx.nodes,
+        docs: ctx.docs,
+        objectId: ctx.objectId,
+        rescheduleMode: "cascade",
+      }, {
+        locale: localeKey,
+        now: ctx.now,
+        userText: text,
+      });
+      try {
+        setPendingGinaOffer({
+          type: "reschedule_session",
+          sessionMoveDocIds: visualization?.data?.sessionMoveDocIds || [],
+          assignedDocIds: visualization?.data?.assignedDocIds || [],
+          rescheduleMode: "cascade",
+        });
+      } catch { /* ignore */ }
       return {
-        message: buildRescheduleForkText({ locale: localeKey }),
-        visualization: null,
-        chips: buildRescheduleForkChips({ locale: localeKey }),
+        message: buildReschedulePickerText({
+          locale: localeKey,
+          mode: "cascade",
+          hasFreeSlot: Boolean(visualization?.data?.hasFreeSlot) && !visualization?.data?.noCupo,
+          noCupo: Boolean(visualization?.data?.noCupo),
+          activeTitle: visualization?.data?.activeTitle || null,
+        }),
+        visualization,
+        chips: buildGinaReplyChips({
+          family: "schedule_recovery_reschedule_pick",
+          visualization,
+          locale: localeKey,
+        }),
       };
     }
 
@@ -4082,13 +4172,26 @@ export function LeftPanel({
       || routed.family === "schedule_recovery_postpone_confirm"
       || routed.family === "schedule_recovery_complete_confirm"
       || routed.family === "schedule_recovery_in_progress_confirm"
+      || routed.family === "schedule_recovery_delete_confirm"
     )) {
       const updateNode = useNodesStore.getState().updateNode;
+      const deleteBlocks = useNodesStore.getState().deleteNodeAndDocBlocks;
       const now = ctx.now;
       let appliedIntent = "mark_past_due";
       let appliedCount = 0;
 
-      if (routed.family === "schedule_recovery_complete_confirm") {
+      if (routed.family === "schedule_recovery_delete_confirm") {
+        appliedIntent = "delete_docs";
+        const slots = Array.isArray(routed.toolContext?.markableSlots)
+          ? routed.toolContext.markableSlots
+          : [];
+        appliedCount = slots.length;
+        try { playTrashBoxSound(); } catch { /* ignore */ }
+        for (const slot of slots) {
+          if (!slot?.id) continue;
+          deleteBlocks(slot.id);
+        }
+      } else if (routed.family === "schedule_recovery_complete_confirm") {
         appliedIntent = "mark_completed";
         const slots = Array.isArray(routed.toolContext?.markableSlots)
           ? routed.toolContext.markableSlots
@@ -4945,6 +5048,7 @@ export function LeftPanel({
           overviewByDepartment: visualization.data.overviewByDepartment || [],
           totalMinutes: visualization.data.totalMinutes,
           totalHoursLabel: visualization.data.totalHoursLabel,
+          folderProgress: visualization.data.folderProgress || [],
           locale: localeKey,
           userId: ginaUserId,
           hasDaySheet: daySheetAnchored,

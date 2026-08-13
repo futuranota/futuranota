@@ -36,6 +36,7 @@ import {
   mapQuickSheetSections,
   summarizeTodayOverlaps,
 } from "./ginaTodayQuickSheet.js";
+import { buildFolderProgressForDocuments } from "./ginaDailyReport.js";
 
 /**
  * Build deterministic Gina chat visualizations from query family + tool JSON.
@@ -1266,6 +1267,13 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const postRescheduleDaySheet = Boolean(
       opts.postRescheduleDaySheet || today.postRescheduleDaySheet,
     );
+    const nodesById = today.nodes || ctx.nodes || {};
+    const docsById = today.docs || ctx.docs || {};
+    const folderProgress = buildFolderProgressForDocuments(allToday, nodesById, docsById);
+    const timedCompleted = allToday.filter(
+      (d) => d.status === "completed" || d.completed === true,
+    ).length;
+    const timedTotal = allToday.length;
     const baseData = attachRecoveryMeta({
       date: today.date,
       dateLabel: formatGinaDayLabel(today.date, locale),
@@ -1287,6 +1295,15 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       totalMinutes,
       totalHoursLabel: formatWorkDurationLabel(totalMinutes, locale),
       hoursChart,
+      folderProgress,
+      dayProgress: {
+        completed: timedCompleted,
+        total: timedTotal,
+        remaining: Math.max(0, timedTotal - timedCompleted),
+        percent: timedTotal > 0
+          ? Math.min(100, Math.round((timedCompleted / timedTotal) * 100))
+          : 0,
+      },
       quickSheet: postRescheduleDaySheet
         ? { ...quickSheet, isCleanDay: true }
         : quickSheet,
@@ -1692,7 +1709,20 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     || family === "schedule_recovery_postpone"
     || family === "schedule_recovery_complete"
     || family === "schedule_recovery_in_progress"
+    || family === "schedule_recovery_delete"
   ) {
+    if (family === "schedule_recovery_delete") {
+      const slots = asDocs(ctx.markableSlots?.length ? ctx.markableSlots : ctx.passedSlots);
+      return {
+        type: "recovery_preview",
+        data: {
+          intent: "delete_docs",
+          documents: slots.map((d) => mapDocRow(d, now)),
+          count: slots.length,
+          firstPendingTitle: ctx.firstPendingTitle || slots[0]?.title || null,
+        },
+      };
+    }
     if (family === "schedule_recovery_complete") {
       const slots = asDocs(ctx.markableSlots?.length ? ctx.markableSlots : ctx.passedSlots);
       return {
