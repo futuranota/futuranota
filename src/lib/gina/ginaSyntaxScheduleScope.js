@@ -194,6 +194,21 @@ export function wantsGinaScheduleScopeList(text) {
 export { ginaWeekBounds };
 
 /**
+ * Open protocol for a week folder-% row (folder id → Documents).
+ * @param {{ folderId?: string|null, folder?: string|null }} row
+ * @returns {{ text: string, displayText: string } | null}
+ */
+export function buildGinaWeekFolderOpenAction(row = {}) {
+  const folderId = String(row?.folderId || "").trim();
+  if (!folderId) return null;
+  const name = String(row?.folder || "").trim() || folderId;
+  return {
+    text: `GinaOpenDocument:${folderId}`,
+    displayText: name,
+  };
+}
+
+/**
  * Keep docs whose anchorAt falls in scheduleScope.
  * Assumes caller already dropped docs without anchorAt when showSchedule.
  * @param {object[]} docs

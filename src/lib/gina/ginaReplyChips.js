@@ -528,28 +528,29 @@ export function buildCountDocumentsChips(opts = {}) {
           || view.scheduleScope === "week";
         if (isWeek && !opts.empty) {
           const weekMode = opts.view?.weekDisplayMode || "schedule";
-          for (const chip of getGinaWeekViewChips(en ? "en" : "es")) {
-            if (weekMode === chip.mode) continue;
-            chips.push({
-              id: chip.id,
-              kind: "week_view",
-              group: "week_view",
-              label: chip.label,
-              text: chip.text,
-              value: chip.mode,
-              selectable: true,
-              primary: chip.mode === "folder_pct",
-            });
-          }
-          if (weekMode !== "schedule") {
+          if (weekMode === "schedule") {
+            for (const chip of getGinaWeekViewChips(en ? "en" : "es")) {
+              chips.push({
+                id: chip.id,
+                kind: "week_view",
+                group: "week_view",
+                label: chip.label,
+                text: chip.text,
+                value: chip.mode,
+                selectable: true,
+                primary: chip.mode === "folder_pct",
+              });
+            }
+          } else {
             chips.push({
               id: "week_back_schedule",
               kind: "week_view",
               group: "week_view",
-              label: en ? "Back to week schedule" : "Volver a horarios de la semana",
+              label: en ? "Back" : "atrás",
               text: en ? "back to this week's schedules" : "volver a horarios de la semana",
               value: "schedule",
               selectable: true,
+              primary: true,
             });
           }
         }
@@ -2179,8 +2180,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
             : `Aquí tienes **${n}** horario${n === 1 ? "" : "s"} vencido${n === 1 ? "" : "s"} de esta semana (horas pasadas, status sin actualizar).${layerNote}`;
         }
         return en
-          ? `Here are **${n}** scheduled document${n === 1 ? "" : "s"} from this week, by weekday.${layerNote}`
-          : `Aquí tienes **${n}** documento${n === 1 ? "" : "s"} con horario de esta semana, por día.${layerNote}`;
+          ? `Here are **${n}** scheduled document${n === 1 ? "" : "s"} for this week, by weekday.${layerNote}`
+          : `Aquí tienes **${n}** documento${n === 1 ? "" : "s"} vigentes de esta semana, por día.${layerNote}`;
       }
       return pickGinaDocsByDepartmentHeadline({
         count: n,

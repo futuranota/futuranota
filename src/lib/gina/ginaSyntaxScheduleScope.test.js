@@ -4,6 +4,7 @@ import {
   parseGinaScheduleScope,
   parseGinaWeekViewMode,
   wantsGinaScheduleScopeList,
+  buildGinaWeekFolderOpenAction,
   GINA_SCHEDULE_SCOPE_CHIPS_ES,
 } from "./ginaSyntaxScheduleScope.js";
 import { runGinaQueryFamily } from "./ginaQueryFamily.js";
@@ -229,12 +230,18 @@ describe("schedule scope routing → list_all table", () => {
     const completed = viz.data.documents.find((d) => d.title === "Blog semana");
     expect(completed?.struck).toBe(true);
     expect(completed?.status).toBe("completed");
+    // Passed morning slots are not on the main vigentes table
+    const titles = (viz.data.documents || []).map((d) => d.title);
+    expect(titles).not.toContain("Blog hoy");
+    expect(titles).not.toContain("Sales hoy sin cat");
+    expect(titles).not.toContain("Past due semana");
+    expect(titles).not.toContain("Viejo");
 
     const headline = buildGinaFunnelHeadline(viz, { locale: "es", salt: 1 });
-    expect(headline).toMatch(/esta semana|por d[ií]a/i);
+    expect(headline).toMatch(/esta semana|vigentes|por d[ií]a/i);
     expect(headline).not.toMatch(/por departamento/i);
     expect(headline).not.toMatch(/esa tabla/i);
-    expect(viz.data.title).toMatch(/Horarios de la semana/i);
+    expect(viz.data.title).toMatch(/^Esta semana$/i);
     expect(viz.data.rail.every((s) => (s.abbr || s.letter) && s.dayIndex != null)).toBe(true);
     expect(viz.data.weekProgress?.total).toBeGreaterThan(0);
   });
@@ -249,17 +256,37 @@ describe("schedule scope routing → list_all table", () => {
       now,
     });
     expect(viz.data.weekDisplayMode).toBe("folder_pct");
+    expect(viz.data.title).toMatch(/esta semana.*folder|folder.*esta semana/i);
+    // % uses vigentes only — passed morning docs excluded from progress source
+    const pctTitles = (viz.data.documents || []).map((d) => d.title);
+    expect(pctTitles).not.toContain("Blog hoy");
+    expect(pctTitles).toContain("Blog semana");
     expect(Array.isArray(viz.data.folderProgress)).toBe(true);
     expect(viz.data.folderProgress.length).toBeGreaterThan(0);
     expect(Array.isArray(viz.data.folderPctChart)).toBe(true);
-    expect(viz.data.title).toMatch(/folder/i);
+    for (const row of viz.data.folderProgress) {
+      const action = buildGinaWeekFolderOpenAction(row);
+      expect(action).toBeTruthy();
+      expect(action.text).toBe(`GinaOpenDocument:${row.folderId}`);
+      expect(action.displayText).toBeTruthy();
+    }
     const chips = buildGinaReplyChips({
       family: "count_documents",
       visualization: viz,
       locale: "es",
     });
     expect(chips.some((c) => c.id === "week_back_schedule")).toBe(true);
-    expect(chips.some((c) => c.id === "week_overdue")).toBe(true);
+    expect(chips.find((c) => c.id === "week_back_schedule")?.label).toMatch(/^atrás$/i);
+    expect(chips.some((c) => c.id === "week_overdue")).toBe(false);
+    expect(chips.some((c) => c.id === "week_pct")).toBe(false);
+  });
+
+  it("buildGinaWeekFolderOpenAction requires folderId", () => {
+    expect(buildGinaWeekFolderOpenAction({ folder: "Solo nombre" })).toBeNull();
+    expect(buildGinaWeekFolderOpenAction({ folderId: "f1", folder: "Trends" })).toEqual({
+      text: "GinaOpenDocument:f1",
+      displayText: "Trends",
+    });
   });
 
   it("week overdue mode keeps only markable passed slots", () => {
@@ -272,14 +299,19 @@ describe("schedule scope routing → list_all table", () => {
     expect(viz.data.weekDisplayMode).toBe("overdue");
     // n6 is already past_due → not markable; n3 completed Wed morning is not markable
     const titles = (viz.data.documents || []).map((d) => d.title);
+    expect(titles).toContain("Blog hoy");
+    expect(titles).toContain("Sales hoy sin cat");
     expect(titles).not.toContain("Past due semana");
     expect(titles).not.toContain("Viejo");
+    expect(titles).not.toContain("Blog semana");
     const chips = buildGinaReplyChips({
       family: "count_documents",
       visualization: viz,
       locale: "es",
     });
-    expect(chips.some((c) => c.id === "week_pct")).toBe(true);
+    expect(chips.some((c) => c.id === "week_back_schedule")).toBe(true);
+    expect(chips.find((c) => c.id === "week_back_schedule")?.label).toMatch(/^atrás$/i);
+    expect(chips.some((c) => c.id === "week_pct")).toBe(false);
   });
 
   it("week chips include % and overdue from schedules_week", () => {
@@ -295,6 +327,7 @@ describe("schedule scope routing → list_all table", () => {
     });
     expect(chips.some((c) => c.id === "week_pct")).toBe(true);
     expect(chips.some((c) => c.id === "week_overdue")).toBe(true);
+    expect(chips.some((c) => c.id === "week_back_schedule")).toBe(false);
     expect(chips.some((c) => c.id === "ask_filter_categories")).toBe(false);
   });
 

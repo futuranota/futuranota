@@ -2809,7 +2809,7 @@ function ConflictsVisualization({ data }) {
   );
 }
 
-function WeekFolderPctPie({ data, locale = "es" }) {
+function WeekFolderPctPie({ data, locale = "es", onSelectAction }) {
   const chart = Array.isArray(data?.folderPctChart) ? data.folderPctChart : [];
   const week = data?.weekProgress && typeof data.weekProgress === "object"
     ? data.weekProgress
@@ -2873,17 +2873,37 @@ function WeekFolderPctPie({ data, locale = "es" }) {
         </div>
       ) : null}
       {Array.isArray(data.folderProgress) && data.folderProgress.length ? (
-        <ul className="gina-viz__day-folder-foot-list">
-          {data.folderProgress.map((f) => (
-            <li key={f.folderId || f.folder} className="gina-viz__day-folder-foot-row">
-              <span className="gina-viz__day-folder-foot-name">{f.folder}</span>
-              <span className="gina-viz__day-folder-foot-meta">
-                {en
-                  ? `${f.todayCount || 0} on week · ${f.percent}% (${f.done}/${f.total})`
-                  : `${f.todayCount || 0} en semana · ${f.percent}% (${f.done}/${f.total})`}
-              </span>
-            </li>
-          ))}
+        <ul className="gina-viz__day-folder-foot-list gina-viz__week-folder-list">
+          {data.folderProgress.map((f) => {
+            const folderId = String(f.folderId || "").trim();
+            const name = String(f.folder || "").trim() || "Folder";
+            const meta = en
+              ? `${f.todayCount || 0} on week · ${f.percent}% (${f.done}/${f.total})`
+              : `${f.todayCount || 0} en semana · ${f.percent}% (${f.done}/${f.total})`;
+            if (folderId && onSelectAction) {
+              return (
+                <li key={folderId || name} className="gina-viz__day-folder-foot-row">
+                  <button
+                    type="button"
+                    className="gina-viz__week-folder-open"
+                    onClick={() => onSelectAction(
+                      `GinaOpenDocument:${folderId}`,
+                      name,
+                    )}
+                  >
+                    <span className="gina-viz__day-folder-foot-name">{name}</span>
+                    <span className="gina-viz__day-folder-foot-meta">{meta}</span>
+                  </button>
+                </li>
+              );
+            }
+            return (
+              <li key={folderId || name} className="gina-viz__day-folder-foot-row">
+                <span className="gina-viz__day-folder-foot-name">{name}</span>
+                <span className="gina-viz__day-folder-foot-meta">{meta}</span>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
       {week && week.total > 0 ? (
@@ -3037,22 +3057,19 @@ function TableVisualization({ data, onSelectAction }) {
   };
 
   const weekModeButtons = isWeekLayout
-    ? [
-      ...getGinaWeekViewChips(locale).map((c) => ({
+    ? (weekDisplayMode === "schedule"
+      ? getGinaWeekViewChips(locale).map((c) => ({
         id: c.id,
         mode: c.mode,
         label: c.label,
         text: c.text,
-      })),
-      ...(weekDisplayMode !== "schedule"
-        ? [{
-          id: "week_back_schedule",
-          mode: "schedule",
-          label: en ? "Back to week schedule" : "Volver a horarios de la semana",
-          text: en ? "back to this week's schedules" : "volver a horarios de la semana",
-        }]
-        : []),
-    ]
+      }))
+      : [{
+        id: "week_back_schedule",
+        mode: "schedule",
+        label: en ? "Back" : "atrás",
+        text: en ? "back to this week's schedules" : "volver a horarios de la semana",
+      }])
     : [];
 
   const emptyCopy = weekDisplayMode === "overdue"
@@ -3069,7 +3086,11 @@ function TableVisualization({ data, onSelectAction }) {
     <div className={"gina-viz gina-viz--table" + (showTableRail ? " gina-viz--table-rail" : "")}>
       {data.title ? <h3 className="gina-viz__title">{data.title}</h3> : null}
       {weekDisplayMode === "folder_pct" ? (
-        <WeekFolderPctPie data={data} locale={locale} />
+        <WeekFolderPctPie
+          data={data}
+          locale={locale}
+          onSelectAction={onSelectAction}
+        />
       ) : (
         <>
           {(data.empty || !docs.length) ? (

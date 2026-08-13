@@ -980,6 +980,38 @@
   color: rgba(255, 255, 255, 0.62);
 }
 
+.gina-viz__week-folder-list {
+  margin-top: 10px;
+}
+
+.gina-viz__week-folder-open {
+  appearance: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: #151515;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.gina-viz__week-folder-open:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: #1a1a1a;
+}
+
+.gina-viz__week-folder-open:focus-visible {
+  outline: 1px solid rgba(0, 138, 245, 0.55);
+  outline-offset: 1px;
+}
+
 .gina-viz__dept-legend {
   display: flex;
   flex-wrap: wrap;

@@ -1,7 +1,6 @@
 import {
   isPassedSlot,
   isMarkablePassedSlot,
-  buildPassedSlotSignals,
   buildCascadeSchedulePreview,
   resolveRecoveryCurrentStep,
   resolveRecoveryNextStep,
@@ -816,12 +815,21 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       const allWeekDocs = railMode === "weekday"
         ? sortDocsByWeekdayThenTime(docs, { weekStartsOn })
         : docs;
-      if (weekDisplayMode === "overdue") {
-        docs = allWeekDocs.filter((d) => (
+      // Main week table + %: only vigentes (slot not passed). Overdue → dedicated mode.
+      const weekVigentes = resolved.layout === "schedules_week"
+        ? allWeekDocs.filter((d) => !isPassedSlot(d, now))
+        : allWeekDocs;
+      const weekOverdueMarkable = resolved.layout === "schedules_week"
+        ? allWeekDocs.filter((d) => (
           isMarkablePassedSlot(d, now)
           && d.status !== "completed"
           && d.completed !== true
-        ));
+        ))
+        : [];
+      if (weekDisplayMode === "overdue") {
+        docs = weekOverdueMarkable;
+      } else if (resolved.layout === "schedules_week" && railMode === "weekday") {
+        docs = weekVigentes;
       } else if (railMode === "weekday") {
         docs = allWeekDocs;
       } else if (railMode === "status") {
@@ -883,8 +891,8 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
         ? (weekDisplayMode === "overdue"
           ? (locale === "en" ? "Overdue schedules this week" : "Horarios vencidos de la semana")
           : (weekDisplayMode === "folder_pct"
-            ? (locale === "en" ? "Week progress by folder" : "Avance de la semana por folder")
-            : (locale === "en" ? "This week’s schedules" : "Horarios de la semana")))
+            ? (locale === "en" ? "This week’s progress by folder" : "Avance de esta semana por folder")
+            : (locale === "en" ? "This week" : "Esta semana")))
         : (resolved.layout === "schedules_all" || resolved.layout === "schedules_today"
           ? (locale === "en" ? "Schedules" : "Horarios")
           : (corpusName || (locale === "en" ? "All documents" : "Todos los documentos")));
@@ -895,7 +903,8 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       if (resolved.layout === "schedules_week") {
         const nodesById = ctx.nodes || {};
         const docsById = ctx.docs || {};
-        const sourceForProgress = allWeekDocs.length ? allWeekDocs : docs;
+        // % view follows vigentes only (same set as the main week table).
+        const sourceForProgress = weekVigentes;
         folderProgress = buildFolderProgressForDocuments(sourceForProgress, nodesById, docsById);
         const timedCompleted = sourceForProgress.filter(
           (d) => d.status === "completed" || d.completed === true,
@@ -920,9 +929,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           fill: ginaDepartmentRailColor(i, Math.max(7, folderProgress.length)),
         }));
       }
-      const markableWeek = resolved.layout === "schedules_week"
-        ? buildPassedSlotSignals(allWeekDocs.length ? allWeekDocs : docs, now).markableSlots
-        : [];
+      const markableWeek = weekOverdueMarkable;
 
       return {
         type: "table",
@@ -937,12 +944,8 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           corpusName,
           department,
           category,
-          count: weekDisplayMode === "folder_pct"
-            ? (allWeekDocs.length || docs.length)
-            : (docs.length),
-          documents: weekDisplayMode === "folder_pct"
-            ? (allWeekDocs.length ? allWeekDocs : docs)
-            : docs,
+          count: docs.length,
+          documents: weekDisplayMode === "folder_pct" ? weekVigentes : docs,
           view: {
             ...view,
             secondaryColumn: resolved.secondaryColumn,
@@ -966,7 +969,7 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
             : [],
           empty: Boolean(ctx.empty) || (
             weekDisplayMode === "folder_pct"
-              ? !(allWeekDocs.length || docs.length)
+              ? weekVigentes.length === 0
               : docs.length === 0
           ),
           deferredCategoryHighlight: deferred,
