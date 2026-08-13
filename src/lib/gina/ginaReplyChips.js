@@ -21,8 +21,8 @@ import {
   buildDailyReportMovePreviewText,
   buildDailyReportOfferText,
 } from "./ginaDailyReport.js";
-import { getGinaTestQuickLinks } from "./ginaTestQuickLinks.js";
 import { buildResaltarCategoryChipText } from "./ginaSyntaxDocsByCategory.js";
+import { liveCategoriesFromTableDocs } from "./ginaTableCategoryAsk.js";
 import {
   pickGinaDocsByDepartmentHeadline,
   pickGinaDocsByStatusHeadline,
@@ -45,6 +45,15 @@ const DAY_SHEET_ALREADY_READY_CLOSING = {
   es: "Tu agenda está lista.\n\nCuando trabajes en cualquier archivo, abre el Asistente para revisar o tachar avances.",
   en: "Your agenda is ready.\n\nWhen you work in any file, open the Assistant to review or check off progress.",
 };
+
+/**
+ * Dashboard home opening chips (intro → 3 schedule → explore copy → Ver todo).
+ * @param {GinaReplyChip[] | null | undefined} chips
+ */
+export function chipsAreHomeOpening(chips) {
+  if (!Array.isArray(chips) || !chips.length) return false;
+  return chips.some((c) => c?.group === "opening_home");
+}
 
 /**
  * Fixed reply chips for Gina progressive funnel (ids stable; labels user-facing).
@@ -110,36 +119,62 @@ export function buildGinaOpeningChips(opts = {}) {
     return docChips;
   }
 
-  const testLinks = getGinaTestQuickLinks({ locale: opts.locale });
-  /** @type {GinaReplyChip[]} */
-  const chips = [
+  // Dashboard home — greeting is separate; chips carry body copy + actions.
+  return [
     {
-      id: "today",
-      label: en ? "What's for today?" : "¿Qué tenemos para hoy?",
-      text: en ? "What do we have for today?" : "¿Qué tenemos para hoy?",
+      id: "home_intro",
+      kind: "prompt",
+      group: "opening_home",
+      label: en
+        ? "I already have your documents organized by schedule on your desktop. What would you like to review first?"
+        : "Ya tengo listos los documentos organizados por horarios en tu escritorio. ¿Qué te gustaría revisar primero?",
+      selectable: false,
+    },
+    {
+      id: "agenda_today",
+      kind: "home_schedule",
+      group: "opening_home",
+      label: en ? "What's on today's agenda?" : "¿Qué hay en agenda para hoy?",
+      text: en ? "What do we have for today?" : "qué tenemos para hoy",
       primary: true,
+      selectable: true,
+    },
+    {
+      id: "review_week",
+      kind: "home_schedule",
+      group: "opening_home",
+      label: en ? "Review the week" : "Revisar la semana",
+      text: en
+        ? "view all schedules this week"
+        : "visualizar todos los horarios de la semana",
+      selectable: true,
+    },
+    {
+      id: "all_schedules",
+      kind: "home_schedule",
+      group: "opening_home",
+      label: en ? "View all schedules" : "Ver todos los horarios",
+      text: en ? "view all created schedules" : "Entregame todos los horarios",
+      selectable: true,
+    },
+    {
+      id: "home_explore",
+      kind: "prompt",
+      group: "opening_home",
+      label: en
+        ? "If you'd rather explore all your material at once, tell me and I'll show you the full archive."
+        : "Si prefieres explorar todo tu material de una vez, dímelo y te muestro el archivo completo.",
+      selectable: false,
+    },
+    {
+      id: "see_all_docs",
+      kind: "home_all",
+      group: "opening_home",
+      label: en ? "View all" : "Ver todo",
+      text: en ? "full document list" : "entregame todos los documentos",
+      selectable: true,
     },
   ];
-  if (opts.hasDaySheet) {
-    chips.push({
-      id: "day_sheet",
-      label: en ? "Day schedule" : "Horario del día",
-      text: en ? "Day schedule" : "Horario del día",
-    });
-  }
-  chips.push(
-    ...testLinks.map((link) => ({
-      id: link.id,
-      label: link.label,
-      text: link.text,
-    })),
-    {
-      id: "schedule",
-      label: en ? "Today's schedule" : "Horarios de hoy",
-      text: en ? "Show me today's schedule" : "Muéstrame los horarios de hoy",
-    },
-  );
-  return chips;
 }
 
 /**
@@ -373,8 +408,12 @@ export function buildCountDocumentsChips(opts = {}) {
       const available = Array.isArray(opts.availableCategories) ? opts.availableCategories : [];
       const selected = new Set(selectedCats.map((c) => String(c).trim().toLowerCase()));
 
-      // Full list without filter → multi-select refine palette
-      if (!selectedCats.length && !view.showSchedule && !view.showStatus) {
+      // Full list without category / schedule-scope filter → multi-select refine palette.
+      // all_docs already shows Status + Fecha y Hora; still offer week/all/today scopes + cats.
+      const isAllDocsBare = opts.view?.layout === "all_docs"
+        && !view.scheduleScope
+        && opts.view?.timedOnly === false;
+      if (!selectedCats.length && ((!view.showSchedule && !view.showStatus) || isAllDocsBare)) {
         const isFullCorpusList = mode === "list_all";
         const departmentCount = isFullCorpusList
           ? (Number.isFinite(Number(opts.departmentCount))
@@ -437,34 +476,36 @@ export function buildCountDocumentsChips(opts = {}) {
             selectable: true,
           });
         }
-        chips.push({
-          id: "hint_layers",
-          kind: "prompt",
-          group: "list_refine",
-          label: hints.layerHint,
-          selectable: false,
-        });
-        chips.push({
-          id: "layer_schedule",
-          kind: "layer_schedule",
-          group: "list_refine",
-          label: en ? "+schedule" : "+horarios",
-          selectable: true,
-        });
-        chips.push({
-          id: "layer_status",
-          kind: "layer_status",
-          group: "list_refine",
-          label: en ? "+status" : "+status",
-          selectable: true,
-        });
-        chips.push({
-          id: "layer_omit",
-          kind: "omit",
-          group: "list_refine",
-          label: en ? "skip" : "omitir",
-          selectable: true,
-        });
+        if (!isAllDocsBare) {
+          chips.push({
+            id: "hint_layers",
+            kind: "prompt",
+            group: "list_refine",
+            label: hints.layerHint,
+            selectable: false,
+          });
+          chips.push({
+            id: "layer_schedule",
+            kind: "layer_schedule",
+            group: "list_refine",
+            label: en ? "+schedule" : "+horarios",
+            selectable: true,
+          });
+          chips.push({
+            id: "layer_status",
+            kind: "layer_status",
+            group: "list_refine",
+            label: en ? "+status" : "+status",
+            selectable: true,
+          });
+          chips.push({
+            id: "layer_omit",
+            kind: "omit",
+            group: "list_refine",
+            label: en ? "skip" : "omitir",
+            selectable: true,
+          });
+        }
         if (available.length > 8) {
           chips.push({
             id: "more_cats",
@@ -478,11 +519,33 @@ export function buildCountDocumentsChips(opts = {}) {
         return chips;
       }
 
-      // Left the refine (schedule scope / layers / category filter) → only go back
+      // Left the refine (schedule scope / layers / category filter) → category ask + back
       if (
         view.scheduleScope
         || Boolean(opts.fromCountDocuments)
       ) {
+        const liveCats = liveCategoriesFromTableDocs(opts.documents);
+        // Offer ask only when the shown table still has cats and isn't already
+        // narrowed to a category highlight selection.
+        if (liveCats.length && !selectedCats.length) {
+          chips.push({
+            id: "ask_filter_categories",
+            kind: "ask_table_categories",
+            group: "table_category_ask",
+            label: en ? "Filter by categories" : "Filtramelo por categorías",
+            text: en ? "filter by categories" : "filtramelo por categorias",
+            primary: true,
+            selectable: true,
+          });
+          chips.push({
+            id: "ask_exclude_categories",
+            kind: "ask_table_categories",
+            group: "table_category_ask",
+            label: en ? "Exclude categories" : "Excluyeme las categorías",
+            text: en ? "exclude the categories" : "excluyeme las categorias",
+            selectable: true,
+          });
+        }
         chips.push({
           id: "nav_back_refine",
           kind: "nav_back",
@@ -1621,12 +1684,15 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     return `${head}\n${bullets}\n\n${ask}`;
   }
 
-  if (visualization.type === "folder_list") {
+  if (
+    visualization.type === "folder_list"
+    || (visualization.type === "table" && data.fromCategoryScope && data.scope === "category_folders")
+  ) {
     const corpus = data.corpusName || (en ? "this workspace" : "este corpus");
     const dept = data.department || null;
     const cat = data.category || null;
     const folders = Array.isArray(data.folders) ? data.folders : [];
-    const n = data.count ?? folders.length;
+    const n = data.folderCount ?? data.count ?? folders.length;
     if (n === 0 || data.empty) {
       if (data.emptyReason === "no_folders_in_category" || (cat && data.fromCategoryScope)) {
         return en
@@ -1654,9 +1720,14 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       .slice(0, 12)
       .map((f) => `• ${f.name}`)
       .join("\n");
+    const docN = Array.isArray(data.documents) ? data.documents.length : 0;
     const ask = en
-      ? "Want to open the documents of one of these folders?"
-      : "¿Quieres ver los documentos de alguno de estos folders?";
+      ? (docN > 0
+        ? `Here are the folders and their **${docN}** document(s).`
+        : "Want to open the documents of one of these folders?")
+      : (docN > 0
+        ? `Aquí tienes los folders y sus **${docN}** documento(s).`
+        : "¿Quieres ver los documentos de alguno de estos folders?");
     return `${head}\n${bullets}\n\n${ask}`;
   }
 
@@ -1853,6 +1924,10 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
     }
     if (data.fromCountDocuments) {
       const view = data.view || {};
+      // “Entregame todos los horarios” → table only, no spoken headline.
+      if (view.scheduleScope === "all" || view.layout === "schedules_all") {
+        return "";
+      }
       const bits = [];
       if (view.showSchedule) {
         if (view.scheduleScope === "week") bits.push(en ? "this week" : "semana");
@@ -1869,6 +1944,24 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
       const layerNote = bits.length
         ? (en ? ` Filters: ${bits.join(" · ")}.` : ` Filtros: ${bits.join(" · ")}.`)
         : "";
+      if (data.scope === "folder" || data.folder) {
+        const folder = data.folder || data.title || name;
+        const dept = data.department || data.hierarchy?.department;
+        const cat = data.category || data.hierarchy?.category;
+        if (data.empty || n === 0) {
+          return en
+            ? `Folder **${folder}** has zero documents.`
+            : `El folder **${folder}** no tiene documentos.`;
+        }
+        const pathBits = [];
+        if (dept) pathBits.push(en ? `department **${dept}**` : `departamento de **${dept}**`);
+        if (cat) pathBits.push(en ? `category **${cat}**` : `categoría **${cat}**`);
+        pathBits.push(en ? `folder **${folder}**` : `folder **${folder}**`);
+        const path = pathBits.join(en ? ", " : ", ");
+        return en
+          ? `From the ${path}, here are all **${n}** document(s).`
+          : `Del ${path}, aquí tienes los **${n}** documento(s).`;
+      }
       if (data.empty || n === 0) {
         if (data.scope === "category" && data.category) {
           return en
@@ -1914,6 +2007,11 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
           layerNote,
         });
       }
+      if (data.railMode === "weekday" || data.groupBy === "weekday") {
+        return en
+          ? `Here are **${n}** scheduled document${n === 1 ? "" : "s"} by weekday.${layerNote}`
+          : `Aquí tienes **${n}** documento${n === 1 ? "" : "s"} con horario, por día de la semana.${layerNote}`;
+      }
       return pickGinaDocsByDepartmentHeadline({
         count: n,
         locale: en ? "en" : "es",
@@ -1953,8 +2051,8 @@ export function buildGinaFunnelHeadline(visualization, opts = {}) {
         : `Del ${path}, aquí tienes los **${n}** documento(s).`;
     }
     return en
-      ? `From the **${name}** department, here are all the documents (${n}), including flexible ones without hours.`
-      : `Del departamento de **${name}**, aquí tienes todos los documentos (${n}), incluidos los flexibles sin horario.`;
+      ? `I found a total of **${n}** documents in the **${name}** department. Here you go:`
+      : `Encontré un total de **${n}** documentos del departamento de **${name}**. Aquí te lo muestro:`;
   }
 
   if (visualization.type === "folder_summary") {
@@ -2215,6 +2313,19 @@ export function buildGinaReplyChips(opts = {}) {
       empty: Boolean(data.empty),
       locale,
     });
+  }
+  if (type === "table" && (data.fromCategoryScope || data.scope === "category_folders")) {
+    return buildCategoryScopeChips({
+      mode: "list_folders",
+      department: data.department,
+      category: data.category,
+      folders: data.folders,
+      empty: Boolean(data.empty),
+      locale,
+    });
+  }
+  if (type === "table" && data.scope === "folder") {
+    return [];
   }
   if (type === "document_list" || type === "document_count") {
     return buildCountDocumentsChips({

@@ -15,6 +15,7 @@ import {
   textHasNearPhrase,
   tokenizeGinaText,
 } from "./ginaFuzzyMatch.js";
+import { ginaWeekBounds } from "./ginaTimeScope.js";
 
 /**
  * @typedef {{
@@ -582,12 +583,7 @@ export function get_today_scope(ctx = {}, filters = {}) {
 }
 
 function weekBounds(now, weekOffset = 0) {
-  const base = startOfDay(now);
-  const day = base.getDay(); // 0 Sun
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const monday = addDays(base, mondayOffset + weekOffset * 7);
-  const sunday = addDays(monday, 6);
-  return { monday, sunday };
+  return ginaWeekBounds(now, Number(weekOffset) || 0);
 }
 
 /** TOOL 8 */

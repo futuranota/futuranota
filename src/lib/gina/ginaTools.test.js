@@ -429,11 +429,10 @@ describe("ginaQueryFamily", () => {
 });
 
 describe("ginaOpenings", () => {
-  it("varies by salt", () => {
-    const a = pickGinaOpening({ locale: "es", userName: "Ross", salt: 0, now });
-    const b = pickGinaOpening({ locale: "es", userName: "Ross", salt: 1, now });
-    expect(a).toMatch(/Ross|asist|mente|revisar/i);
-    expect(a).not.toBe(b);
+  it("uses fixed home greeting with user name", () => {
+    const line = pickGinaOpening({ locale: "es", userName: "Ross", salt: 0, now });
+    expect(line).toBe("Hola, buenas Ross.");
+    expect(line).not.toMatch(/organizados por horarios/i);
   });
 
   it("does not suggest Hoy vencidos in opening", () => {

@@ -166,42 +166,56 @@ describe("schedule scope routing → list_all table", () => {
     expect(titles).not.toContain("Flexible");
   });
 
-  it("week table uses status rail (not department) + struck completed", () => {
+  it("Entregame todos los horarios → Status column + dept rail", () => {
+    expect(parseGinaScheduleScope("Entregame todos los horarios")).toBe("all");
+    const routed = runGinaQueryFamily("Entregame todos los horarios", ctx);
+    expect(routed.toolContext.view.layout).toBe("schedules_all");
+    expect(routed.toolContext.view.showStatus).toBe(true);
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    expect(viz?.type).toBe("table");
+    expect(viz.data.columns).toEqual(["document", "category", "time", "status"]);
+    expect(viz.data.railMode).toBe("department");
+    expect(viz.data.departmentRail?.length).toBeGreaterThan(0);
+  });
+
+  it("Entregame todos los horarios → silent headline (table only)", () => {
+    const routed = runGinaQueryFamily("Entregame todos los horarios", ctx);
+    const viz = buildGinaVisualization("count_documents", routed.toolContext, {
+      locale: "es",
+      now,
+    });
+    expect(viz?.type).toBe("table");
+    expect(viz.data.view.scheduleScope).toBe("all");
+    expect(buildGinaFunnelHeadline(viz, { locale: "es", salt: 0 })).toBe("");
+  });
+
+  it("week table uses weekday rail (not status) + Status column + struck completed", () => {
     const routed = runGinaQueryFamily("visualizar todos los horarios de la semana", ctx);
     const viz = buildGinaVisualization("count_documents", routed.toolContext, {
       locale: "es",
       now,
     });
     expect(viz?.type).toBe("table");
-    expect(viz.data.railMode).toBe("status");
-    expect(viz.data.groupBy).toBe("status");
+    expect(viz.data.railMode).toBe("weekday");
+    expect(viz.data.groupBy).toBe("weekday");
+    expect(viz.data.columns).toEqual(["document", "category", "time", "status"]);
+    expect(viz.data.columns).not.toContain("weekday");
     expect(Array.isArray(viz.data.rail)).toBe(true);
-    expect(viz.data.statusRail).toEqual(viz.data.rail);
+    expect(viz.data.weekdayRail).toEqual(viz.data.rail);
+    expect(viz.data.statusRail).toBeUndefined();
     expect(viz.data.departmentRail).toBeUndefined();
-
-    const ids = viz.data.rail.map((s) => s.id);
-    expect(ids).toContain("past_due");
-    expect(ids).toContain("in_progress");
-    expect(ids).toContain("completed");
-    expect(ids.indexOf("past_due")).toBeLessThan(ids.indexOf("in_progress"));
-    expect(ids.indexOf("in_progress")).toBeLessThan(ids.indexOf("completed"));
+    expect(viz.data.rail.every((s) => s.letter && s.dayIndex != null)).toBe(true);
 
     const completed = viz.data.documents.find((d) => d.title === "Blog semana");
     expect(completed?.struck).toBe(true);
     expect(completed?.status).toBe("completed");
 
-    // Contiguous order: all past_due before in_progress before completed
-    const statuses = viz.data.documents.map((d) => d.status);
-    const firstIp = statuses.indexOf("in_progress");
-    const lastPast = statuses.lastIndexOf("past_due");
-    const firstDone = statuses.indexOf("completed");
-    expect(lastPast).toBeLessThan(firstIp);
-    expect(firstIp).toBeLessThan(firstDone);
-
     const headline = buildGinaFunnelHeadline(viz, { locale: "es", salt: 1 });
-    expect(headline).toMatch(/status/i);
-    expect(headline).not.toMatch(/departamentos/i);
-    expect(headline).toMatch(/semana|Filtros/i);
+    expect(headline).toMatch(/d[ií]a de la semana|semana/i);
+    expect(headline).not.toMatch(/por departamento/i);
   });
 
   it("today schedule scope keeps department rail", () => {
@@ -219,7 +233,7 @@ describe("schedule scope routing → list_all table", () => {
 });
 
 describe("nav_back after schedule scope / filtered list", () => {
-  it("horarios de hoy → only Volver chip", () => {
+  it("horarios de hoy → category ask chips when table has cats + Volver", () => {
     const routed = runGinaQueryFamily("visualizar todos los horarios de hoy", ctx);
     const viz = buildGinaVisualization("count_documents", routed.toolContext, {
       locale: "es",
@@ -230,10 +244,9 @@ describe("nav_back after schedule scope / filtered list", () => {
       visualization: viz,
       locale: "es",
     });
-    expect(chips).toHaveLength(1);
-    expect(chips[0].id).toBe("nav_back_refine");
-    expect(chips[0].kind).toBe("nav_back");
-    expect(chips[0].label).toMatch(/Volver/i);
+    expect(chips.some((c) => c.id === "ask_filter_categories")).toBe(true);
+    expect(chips.some((c) => c.id === "ask_exclude_categories")).toBe(true);
+    expect(chips.some((c) => c.id === "nav_back_refine")).toBe(true);
     expect(chips.some((c) => c.kind === "category")).toBe(false);
     expect(chips.some((c) => /status/i.test(c.label))).toBe(false);
   });

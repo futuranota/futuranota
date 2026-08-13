@@ -17,6 +17,9 @@ import { isoFromAnchorFields, anchorFieldsFromIso } from "../nodeAnchor.js";
 import { formatClock12h, formatClockRange12h } from "../clockFormat.js";
 import {
   buildGinaDepartmentRail,
+  buildGinaCategoryRail,
+  buildGinaWeekdayRail,
+  sortDocsByWeekdayThenTime,
   GINA_DEPT_RAIL_COLORS,
   GINA_DEPT_RAIL_UNASSIGNED,
   ginaDepartmentRailColor,
@@ -26,6 +29,8 @@ import {
   compareDocsByStatusThenTime,
 } from "./ginaStatusColors.js";
 import { buildGinaTimeDisplay } from "./ginaRelativeDay.js";
+import { resolveGinaTableView } from "./ginaTableViewContract.js";
+import { getGinaPrefs } from "./ginaPrefs.js";
 import {
   buildTodayQuickSheetSections,
   mapQuickSheetSections,
@@ -115,6 +120,8 @@ function mapDocRow(d, now = null, locale = "es") {
     time: timeLabel,
     timeLabel,
     relativeDay: display.relativeDay,
+    dayBadge: display.dayBadge || null,
+    weekday: display.weekday || null,
     timeClock: display.timeClock,
     absoluteDate: display.absoluteDate,
     dueDate: d.dueDate || null,
@@ -528,13 +535,55 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
     const documents = Array.isArray(ctx.documents) ? ctx.documents : [];
 
     if (mode === "list_folders") {
+      // Folders of a category → Doc + Folder table, category rail (no dept rail).
+      // Include empty folders as stub rows so every live folder name appears.
+      const docs = documents.map((d) => mapDocRow(d, now, locale));
+      const foldKey = (s) => String(s || "").trim().toLowerCase();
+      const seenFolder = new Set(docs.map((d) => foldKey(d.folder)).filter(Boolean));
+      for (const f of folders) {
+        const name = String(f.name || "").trim();
+        if (!name || seenFolder.has(foldKey(name))) continue;
+        seenFolder.add(foldKey(name));
+        docs.push(mapDocRow({
+          id: `gina-empty-folder:${f.id || name}`,
+          title: locale === "en" ? "(no documents)" : "(sin documentos)",
+          status: null,
+          category: f.category || category,
+          department: f.departmentName || department,
+          departmentName: f.departmentName || department,
+          folder: name,
+          parentFolderName: name,
+        }, now, locale));
+      }
+      docs.sort((a, b) => {
+        const fa = String(a.folder || "").localeCompare(
+          String(b.folder || ""),
+          undefined,
+          { sensitivity: "base" },
+        );
+        if (fa !== 0) return fa;
+        return String(a.title || "").localeCompare(String(b.title || ""), undefined, {
+          sensitivity: "base",
+        });
+      });
+      const resolved = resolveGinaTableView({
+        subject: "document",
+        secondaryColumn: "folder",
+        railPrefer: "category",
+        columns: ["document", "folder"],
+      });
+      const rail = buildGinaCategoryRail(docs);
       return {
-        type: "folder_list",
+        type: "table",
         data: {
+          title: category
+            ? (locale === "en" ? `Folders · ${category}` : `Folders · ${category}`)
+            : (locale === "en" ? "Folders" : "Folders"),
           corpusName,
           department,
           category,
-          count: ctx.folderCount ?? folders.length,
+          count: docs.length,
+          folderCount: folders.length,
           folders: folders.map((f) => ({
             id: f.id || f.name,
             name: String(f.name || "").trim(),
@@ -543,14 +592,38 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
             documentCount: f.documentCount ?? 0,
             hasSchedule: Boolean(f.hasSchedule),
           })).filter((f) => f.name),
-          empty: Boolean(ctx.empty) || folders.length === 0,
+          documents: docs,
+          columns: resolved.columns,
+          rail,
+          railMode: "category",
+          categoryRail: rail,
+          view: {
+            secondaryColumn: "folder",
+            railMode: "category",
+            showSchedule: false,
+            showStatus: false,
+          },
+          empty: Boolean(ctx.empty) || (docs.length === 0 && folders.length === 0),
           emptyReason: folders.length === 0 ? "no_folders_in_category" : null,
+          listAll: true,
+          fromCountDocuments: true,
           fromCategoryScope: true,
+          scope: "category_folders",
+          locale,
         },
       };
     }
 
     if (mode === "list_docs") {
+      const docs = documents.map((d) => mapDocRow(d, now, locale));
+      const resolved = resolveGinaTableView({
+        subject: "document",
+        secondaryColumn: ctx.view?.secondaryColumn || null,
+        showSchedule: Boolean(ctx.view?.showSchedule),
+        showStatus: Boolean(ctx.view?.showStatus),
+        railPrefer: "category",
+      });
+      const rail = buildGinaCategoryRail(docs);
       return {
         type: "table",
         data: {
@@ -559,10 +632,22 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
             : (category || (locale === "en" ? "Documents" : "Documentos")),
           department,
           category,
-          documents: documents.map((d) => mapDocRow(d, now)),
+          documents: docs,
+          columns: resolved.columns,
+          rail,
+          railMode: "category",
+          categoryRail: rail,
+          view: {
+            secondaryColumn: resolved.secondaryColumn,
+            railMode: "category",
+            showSchedule: Boolean(ctx.view?.showSchedule),
+            showStatus: Boolean(ctx.view?.showStatus),
+          },
           empty: documents.length === 0,
           listAll: true,
+          fromCountDocuments: true,
           scope: "category",
+          locale,
         },
       };
     }
@@ -694,16 +779,51 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           ? ctx.view.highlightCategories
           : [],
         scheduleScope: ctx.view?.scheduleScope || null,
+        secondaryColumn: ctx.view?.secondaryColumn || null,
+        railMode: ctx.view?.railMode || null,
+        layout: ctx.view?.layout || null,
+        timedOnly: ctx.view?.timedOnly,
       };
-      const docs = documents.map((d) => ({
+      let docs = documents.map((d) => ({
         ...mapDocRow(d, now, locale),
         anchorAt: d.anchorAt || d.startedAt || null,
       }));
-      const useStatusRail = Boolean(view.showSchedule && view.scheduleScope === "week");
-      if (useStatusRail) {
+      const resolved = resolveGinaTableView({
+        subject: "document",
+        secondaryColumn: view.secondaryColumn,
+        showSchedule: view.showSchedule,
+        showStatus: view.showStatus,
+        scheduleScope: view.scheduleScope,
+        layout: view.layout,
+        timedOnly: view.timedOnly,
+        railPrefer: view.railMode,
+        columns: Array.isArray(ctx.view?.columns) ? ctx.view.columns : null,
+      });
+      const weekStartsOn = getGinaPrefs().weekStartsOn === 0 ? 0 : 1;
+      const railMode = resolved.railMode;
+      if (railMode === "weekday") {
+        docs = sortDocsByWeekdayThenTime(docs, { weekStartsOn });
+      } else if (railMode === "status") {
         docs.sort(compareDocsByStatusThenTime);
+      } else if (railMode === "category" || resolved.secondaryColumn === "folder") {
+        docs.sort((a, b) => {
+          const ca = String(a.category || "").localeCompare(
+            String(b.category || ""),
+            undefined,
+            { sensitivity: "base" },
+          );
+          if (ca !== 0) return ca;
+          const fa = String(a.folder || "").localeCompare(
+            String(b.folder || ""),
+            undefined,
+            { sensitivity: "base" },
+          );
+          if (fa !== 0) return fa;
+          return String(a.title || "").localeCompare(String(b.title || ""), undefined, {
+            sensitivity: "base",
+          });
+        });
       } else {
-        // Stable sort by department (preserves schedule-first order within dept)
         docs.sort((a, b) => {
           const da = String(a.department || "").localeCompare(
             String(b.department || ""),
@@ -711,27 +831,38 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
             { sensitivity: "base" },
           );
           if (da !== 0) return da;
-          if (view.showSchedule) return 0;
+          if (view.showSchedule) {
+            const ta = a.anchorAt ? new Date(a.anchorAt).getTime() : Number.POSITIVE_INFINITY;
+            const tb = b.anchorAt ? new Date(b.anchorAt).getTime() : Number.POSITIVE_INFINITY;
+            if (ta !== tb) return ta - tb;
+          }
           return String(a.title || "").localeCompare(String(b.title || ""), undefined, {
             sensitivity: "base",
           });
         });
       }
-      /** @type {string[]} */
-      // Department (or status) shown as left color rail + legend — not a repeated column
-      const columns = ["document", "category"];
-      if (view.showSchedule) columns.push("time");
-      if (view.showStatus) columns.push("status");
-      const railMode = useStatusRail ? "status" : "department";
-      const rail = useStatusRail
+      const columns = resolved.columns;
+      const rail = railMode === "status"
         ? buildGinaStatusRail(docs, locale)
-        : buildGinaDepartmentRail(docs);
+        : (railMode === "category"
+          ? buildGinaCategoryRail(docs)
+          : (railMode === "weekday"
+            ? buildGinaWeekdayRail(docs, { locale, weekStartsOn })
+            : (railMode === "none" ? [] : buildGinaDepartmentRail(docs))));
       const departmentRail = railMode === "department" ? rail : undefined;
       const statusRail = railMode === "status" ? rail : undefined;
+      const categoryRail = railMode === "category" ? rail : undefined;
+      const weekdayRail = railMode === "weekday" ? rail : undefined;
       const deferred = Boolean(ctx.deferredCategoryHighlight) && view.highlightCategories.length > 0;
       const highlightDelayMs = deferred
         ? (Number.isFinite(Number(ctx.highlightDelayMs)) ? Number(ctx.highlightDelayMs) : 2000)
         : 0;
+
+      const defaultTitle = resolved.layout === "schedules_week"
+        ? (locale === "en" ? "This week’s schedules" : "Horarios de la semana")
+        : (resolved.layout === "schedules_all" || resolved.layout === "schedules_today"
+          ? (locale === "en" ? "Schedules" : "Horarios")
+          : (corpusName || (locale === "en" ? "All documents" : "Todos los documentos")));
 
       return {
         type: "table",
@@ -742,18 +873,29 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
               ? category
               : (view.highlightCategories.length
                 ? view.highlightCategories.join(", ")
-                : (corpusName || (locale === "en" ? "All documents" : "Todos los documentos")))),
+                : defaultTitle)),
           corpusName,
           department,
           category,
           count: ctx.count ?? docs.length,
           documents: docs,
-          view,
+          view: {
+            ...view,
+            secondaryColumn: resolved.secondaryColumn,
+            layout: resolved.layout,
+            timedOnly: resolved.timedOnly,
+            showSchedule: resolved.showSchedule,
+            showStatus: resolved.showStatus,
+            railMode,
+            columns,
+          },
           columns,
           rail,
           railMode,
           departmentRail,
           statusRail,
+          categoryRail,
+          weekdayRail,
           availableCategories: Array.isArray(ctx.availableCategories)
             ? ctx.availableCategories
             : [],
@@ -761,11 +903,12 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
           deferredCategoryHighlight: deferred,
           highlightDelayMs,
           listAll: true,
-          groupBy: railMode === "status" ? "status" : "department",
+          groupBy: railMode === "none" ? null : railMode,
           scope: mode === "list_by_category"
             ? "category"
             : (mode === "list_by_department" ? "department" : "corpus"),
           fromCountDocuments: true,
+          locale,
         },
       };
     }
@@ -1696,18 +1839,38 @@ export function buildGinaVisualization(family, toolContext, opts = {}) {
       const pct = total ? Math.round((completed / total) * 100) : 0;
       const listAll = Boolean(ctx.listAll) || wantsTable || /\b(todos|all|lista|list)\b/.test(q);
       if (listAll || total === 0) {
+        const resolved = resolveGinaTableView({
+          subject: "document",
+          secondaryColumn: "category",
+          showSchedule: true,
+          showStatus: true,
+          railPrefer: "none",
+          columns: ["document", "category", "time", "status"],
+        });
         return {
           type: "table",
           data: {
             title: ctx.folderName
-              ? (locale === "en" ? `Documents · ${ctx.folderName}` : `Documentos · ${ctx.folderName}`)
+              ? (locale === "en" ? ctx.folderName : ctx.folderName)
               : (locale === "en" ? "Documents" : "Documentos"),
             documents: docs,
             department: ctx.departmentName || ctx.department || null,
             category: ctx.category || null,
             folder: ctx.folderName || null,
+            columns: resolved.columns,
+            rail: [],
+            railMode: "none",
+            view: {
+              secondaryColumn: "category",
+              railMode: "none",
+              showSchedule: true,
+              showStatus: true,
+            },
             empty: total === 0,
             listAll: true,
+            fromCountDocuments: true,
+            scope: "folder",
+            locale,
             hierarchy: {
               department: ctx.departmentName || ctx.department || null,
               category: ctx.category || null,

@@ -111,6 +111,12 @@ import {
   buildWordScopeEmptyMessage,
   buildWordScopeChips,
 } from "../../lib/gina/ginaSyntaxWordScope.js";
+import { buildGinaTableColumnRefineMessage } from "../../lib/gina/ginaTableColumnRefine.js";
+import {
+  buildTableCategoryAskMessage,
+  buildTableCategoryAskEmptyMessage,
+  buildTableCategoryFilterMessage,
+} from "../../lib/gina/ginaTableCategoryAsk.js";
 import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization, getGinaLastTurn } from "../../lib/gina/ginaLastTurn.js";
 import { inferConfirmContinueAction } from "../../lib/gina/ginaConfirmContinue.js";
 import {
@@ -3280,6 +3286,35 @@ export function LeftPanel({
       };
     }
 
+    if (!meetingOn && routed.family === "table_category_ask") {
+      const userName = resolveGinaUserDisplayName(authUser);
+      const mode = routed.toolContext?.mode === "exclude" ? "exclude" : "include";
+      if (routed.toolContext?.emptyTable) {
+        return {
+          message: buildTableCategoryAskEmptyMessage({ locale: localeKey, mode }),
+          visualization: null,
+          chips: null,
+        };
+      }
+      const liveCats = Array.isArray(routed.toolContext?.liveCategories)
+        ? routed.toolContext.liveCategories
+        : [];
+      return {
+        message: buildTableCategoryAskMessage({
+          locale: localeKey,
+          userName,
+          mode,
+        }),
+        visualization: null,
+        chips: liveCats.slice(0, 8).map((name, i) => ({
+          id: `pick_cat_${name}`,
+          label: name,
+          text: name,
+          primary: i === 0,
+        })),
+      };
+    }
+
     if (
       !meetingOn
       && (routed.family === "last_turn_modify" || routed.family === "last_turn_missing")
@@ -4490,8 +4525,31 @@ export function LeftPanel({
         now: ctx.now,
         userText: text,
       });
-      enrichGinaLastTurnFromVisualization(visualization);
-      const message = routed.toolContext?.fromLastTurnCategoryRefine
+      enrichGinaLastTurnFromVisualization(visualization, { locale: localeKey });
+      const silentTable = Boolean(
+        visualization?.data?.view?.scheduleScope === "all"
+        || visualization?.data?.view?.layout === "schedules_all"
+      ) && !routed.toolContext?.tableCategoryFilter
+        && !routed.toolContext?.fromLastTurnTableRefine
+        && !routed.toolContext?.fromLastTurnCategoryRefine
+        && !routed.toolContext?.fromLastTurnDepartmentRefine
+        && !routed.toolContext?.fromLastTurnRefine;
+      const message = routed.toolContext?.tableCategoryFilter
+        ? buildTableCategoryFilterMessage({
+          locale: localeKey,
+          mode: routed.toolContext.tableCategoryFilter.mode,
+          categories: routed.toolContext.tableCategoryFilter.categories,
+          count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
+          empty: Boolean(routed.toolContext?.empty),
+        })
+        : routed.toolContext?.fromLastTurnTableRefine
+        ? buildGinaTableColumnRefineMessage({
+          locale: localeKey,
+          predicates: routed.toolContext?.tableRefine?.predicates || [],
+          count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
+          empty: Boolean(routed.toolContext?.empty),
+        })
+        : routed.toolContext?.fromLastTurnCategoryRefine
         ? buildLastTurnCategoryRefineMessage({
           locale: localeKey,
           matchKind: routed.toolContext?.matchKind || "category",
@@ -4514,6 +4572,8 @@ export function LeftPanel({
           department: routed.toolContext?.department || null,
           count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
         })
+        : silentTable
+        ? ""
         : (buildGinaFunnelHeadline(visualization, { locale: localeKey })
           || (localeKey === "en"
             ? (routed.toolContext?.empty
@@ -4525,7 +4585,12 @@ export function LeftPanel({
       return {
         message,
         visualization,
-        searchSequence: buildGinaSearchSequence(localeKey),
+        searchSequence: silentTable
+          ? {
+            preludeMessage: localeKey === "en" ? "Searching…" : "Buscando…",
+            searching: true,
+          }
+          : buildGinaSearchSequence(localeKey),
         chips: buildGinaReplyChips({
           family: "count_documents",
           visualization,
@@ -4598,7 +4663,7 @@ export function LeftPanel({
         now: ctx.now,
         userText: text,
       });
-      enrichGinaLastTurnFromVisualization(visualization);
+      enrichGinaLastTurnFromVisualization(visualization, { locale: localeKey });
       const message = buildGinaFunnelHeadline(visualization, { locale: localeKey })
         || (localeKey === "en"
           ? `From the ${routed.toolContext?.department || "department"} department.`
@@ -4738,7 +4803,7 @@ export function LeftPanel({
               now: ctx.now,
               userText: text,
             });
-            enrichGinaLastTurnFromVisualization(visualization);
+            enrichGinaLastTurnFromVisualization(visualization, { locale: localeKey });
             stampGinaLastTurnFromRouted(deptRouted, {
               objectId: ctx.objectId || null,
               userText: text,
@@ -4903,7 +4968,7 @@ export function LeftPanel({
         : [];
 
       if (!meetingOn && visualization) {
-        enrichGinaLastTurnFromVisualization(visualization);
+        enrichGinaLastTurnFromVisualization(visualization, { locale: localeKey });
       }
 
       return {

@@ -3,6 +3,7 @@ import {
   calendarDayDelta,
   formatGinaRelativeDay,
   formatGinaShortDate,
+  formatGinaDayBadge,
   formatGinaAbsoluteTooltip,
   buildGinaTimeDisplay,
 } from "./ginaRelativeDay.js";
@@ -55,24 +56,34 @@ describe("formatGinaRelativeDay", () => {
   });
 });
 
+describe("formatGinaDayBadge", () => {
+  it("ES absolute day badge", () => {
+    expect(formatGinaDayBadge(atDay(0), "es")).toBe("07 Ago");
+  });
+});
+
 describe("buildGinaTimeDisplay", () => {
   it("Flexible without anchor", () => {
     expect(buildGinaTimeDisplay({}, NOW).timeLabel).toBe("Flexible");
   });
 
-  it("hybrid relative · clock", () => {
+  it("absolute badge · clock (not relative Hoy)", () => {
     const out = buildGinaTimeDisplay(
       { anchorAt: atDay(0, 9), timeRange: "9:00 a. m. – 10:00 a. m." },
       NOW,
+      "es",
     );
     expect(out.relativeDay).toBe("Hoy");
-    expect(out.timeLabel).toBe("Hoy · 9:00 a. m. – 10:00 a. m.");
+    expect(out.dayBadge).toBe("07 Ago");
+    expect(out.timeLabel).toBe("07 Ago · 9:00 a. m. – 10:00 a. m.");
     expect(out.absoluteDate).toMatch(/7 ago 2026/);
   });
 
-  it("Mañana without clock", () => {
-    const out = buildGinaTimeDisplay({ anchorAt: atDay(1) }, NOW);
-    expect(out.timeLabel).toBe("Mañana");
+  it("day badge without clock (not Mañana as primary)", () => {
+    const out = buildGinaTimeDisplay({ anchorAt: atDay(1) }, NOW, "es");
+    expect(out.relativeDay).toBe("Mañana");
+    expect(out.dayBadge).toBe("08 Ago");
+    expect(out.timeLabel).toBe("08 Ago");
   });
 });
 

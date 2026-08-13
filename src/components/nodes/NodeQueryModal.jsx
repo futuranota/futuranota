@@ -93,6 +93,7 @@ import {
   buildWordScopeEmptyMessage,
   buildWordScopeChips,
 } from "../../lib/gina/ginaSyntaxWordScope.js";
+import { buildGinaTableColumnRefineMessage } from "../../lib/gina/ginaTableColumnRefine.js";
 import { stampGinaLastTurnFromRouted, enrichGinaLastTurnFromVisualization, getGinaLastTurn } from "../../lib/gina/ginaLastTurn.js";
 import { inferConfirmContinueAction } from "../../lib/gina/ginaConfirmContinue.js";
 import { useDocsStore, useNodesStore, useObjectsStore } from "../../stores/index.js";
@@ -720,9 +721,16 @@ export function NodeQueryModal({
         now: ctx.now,
         userText: text,
       });
-      enrichGinaLastTurnFromVisualization(visualization);
+      enrichGinaLastTurnFromVisualization(visualization, { locale: localeKey });
       return {
-        message: routed.toolContext?.fromLastTurnCategoryRefine
+        message: routed.toolContext?.fromLastTurnTableRefine
+          ? buildGinaTableColumnRefineMessage({
+            locale: localeKey,
+            predicates: routed.toolContext?.tableRefine?.predicates || [],
+            count: routed.toolContext?.count ?? visualization?.data?.documents?.length ?? 0,
+            empty: Boolean(routed.toolContext?.empty),
+          })
+          : routed.toolContext?.fromLastTurnCategoryRefine
           ? buildLastTurnCategoryRefineMessage({
             locale: localeKey,
             matchKind: routed.toolContext?.matchKind || "category",
@@ -903,7 +911,7 @@ export function NodeQueryModal({
               now: ctx.now,
               userText: text,
             });
-            enrichGinaLastTurnFromVisualization(deptViz);
+            enrichGinaLastTurnFromVisualization(deptViz, { locale: localeKey });
             stampGinaLastTurnFromRouted(deptRouted, {
               objectId: ctx.objectId || null,
               userText: text,

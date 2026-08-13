@@ -10,8 +10,9 @@ import {
 import { buildTodayOverviewDeptBlocks } from "../../lib/gina/ginaReplyChips.js";
 import { buildRecoveryEasyLinksLegend, buildRecoverySnoozeMenuOptions, buildRecoverySnoozeExactProtocol, buildRecoveryChangeStatusMenuOptions, buildRescheduleBatchApplyProtocol } from "../../lib/gina/ginaScheduleRecovery.js";
 import { formatClockRange12h } from "../../lib/clockFormat.js";
-import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns } from "../../lib/gina/ginaDepartmentColors.js";
+import { buildGinaDepartmentRail, buildGinaDepartmentRailRuns, buildGinaCategoryRail, buildGinaWeekdayRail } from "../../lib/gina/ginaDepartmentColors.js";
 import { buildGinaStatusRail, buildGinaStatusRailRuns } from "../../lib/gina/ginaStatusColors.js";
+import { getGinaPrefs } from "../../lib/gina/ginaPrefs.js";
 import { flattenTodayQuickSheetRows } from "../../lib/gina/ginaTodayQuickSheet.js";
 import { DOC_WORK_STATUS } from "../../lib/docWorkStatus.js";
 import { isoFromAnchorFields, anchorFieldsFromIso } from "../../lib/nodeAnchor.js";
@@ -37,21 +38,38 @@ export function GinaHierarchyPath({ department, category, folder, className = ""
   );
 }
 
-/** Relative day primary + clock; absolute date in tooltip. */
+/** Absolute day badge + clock; relative only as tooltip fallback. */
 function GinaTimeCell({ doc, className = "", as: Tag = "span", struck = false }) {
   if (!doc) return null;
   const label = doc.timeLabel || doc.time || "Flexible";
-  const title = doc.absoluteDate || undefined;
+  const title = doc.absoluteDate || doc.relativeDay || undefined;
   const Inner = struck ? "s" : "span";
+  const dayBadge = doc.dayBadge || null;
+  const clock = doc.timeClock || null;
+  if (dayBadge) {
+    return (
+      <Tag className={`gina-viz__time ${className}`.trim()} title={title}>
+        <Inner className="gina-viz__time-inner">
+          <span className="gina-viz__time-badge">{dayBadge}</span>
+          {clock ? (
+            <>
+              <br />
+              <span className="gina-viz__time-clock">{clock}</span>
+            </>
+          ) : null}
+        </Inner>
+      </Tag>
+    );
+  }
   if (doc.relativeDay) {
     return (
       <Tag className={`gina-viz__time ${className}`.trim()} title={title}>
         <Inner className="gina-viz__time-inner">
           <span className="gina-viz__time-rel">{doc.relativeDay}</span>
-          {doc.timeClock ? (
+          {clock ? (
             <>
               <span className="gina-viz__time-sep"> · </span>
-              <span className="gina-viz__time-clock">{doc.timeClock}</span>
+              <span className="gina-viz__time-clock">{clock}</span>
             </>
           ) : null}
         </Inner>
@@ -2562,6 +2580,7 @@ function TableVisualization({ data }) {
   const docs = Array.isArray(data.documents) ? data.documents : [];
   const limit = data.listAll ? 80 : 12;
   const view = data.view || {};
+  const locale = data.locale === "en" ? "en" : "es";
   const fromCount = Boolean(data.fromCountDocuments);
   const highlightCats = (Array.isArray(view.highlightCategories) && view.highlightCategories.length
     ? view.highlightCategories
@@ -2587,15 +2606,36 @@ function TableVisualization({ data }) {
   }, [deferMs, highlightKey]);
 
   const shown = docs.slice(0, limit);
-  const railMode = data.railMode === "status" ? "status" : "department";
+  const railModeRaw = data.railMode || view.railMode || "department";
+  const railMode = railModeRaw === "status"
+    || railModeRaw === "category"
+    || railModeRaw === "weekday"
+    || railModeRaw === "none"
+    ? railModeRaw
+    : "department";
+  const weekStartsOn = getGinaPrefs().weekStartsOn === 0 ? 0 : 1;
   // Rail must match visible rows so segment height lines up with tbody
-  const tableRail = fromCount
+  const tableRail = fromCount && railMode !== "none"
     ? (railMode === "status"
-      ? buildGinaStatusRail(shown, "es")
-      : buildGinaDepartmentRail(shown))
+      ? buildGinaStatusRail(shown, locale)
+      : (railMode === "category"
+        ? buildGinaCategoryRail(shown)
+        : (railMode === "weekday"
+          ? buildGinaWeekdayRail(shown, { locale, weekStartsOn })
+          : buildGinaDepartmentRail(shown))))
     : [];
   const showTableRail = fromCount && tableRail.length > 0 && shown.length > 0;
-  const railLegendLabel = railMode === "status" ? "Status" : "Departamentos";
+  const railLegendLabel = railMode === "status"
+    ? "Status"
+    : (railMode === "category"
+      ? "Categorías"
+      : (railMode === "weekday" ? (locale === "en" ? "Days" : "Días") : "Departamentos"));
+  const legendName = (seg) => {
+    if (railMode === "weekday" && seg.letter) {
+      return `${seg.letter} · ${seg.name}`;
+    }
+    return seg.name;
+  };
   const categoryIsHighlighted = (doc) => {
     if (!fromCount || !highlightCats.length || !highlightReady) return false;
     const cat = String(doc.category || doc.hierarchy?.category || "").trim().toLowerCase();
@@ -2603,24 +2643,39 @@ function TableVisualization({ data }) {
     return highlightCats.some((h) => cat === h || cat.includes(h) || h.includes(cat));
   };
   const columns = Array.isArray(data.columns) && data.columns.length
-    ? data.columns.filter((key) => !(fromCount && key === "department"))
+    ? data.columns.filter((key) => !(fromCount && key === "department" && railMode === "department"))
     : fromCount
-      ? [
-        "document",
-        "category",
-        ...(view.showSchedule ? ["time"] : []),
-        ...(view.showStatus ? ["status"] : []),
-      ]
+      ? (() => {
+        const secondary = view.secondaryColumn === "folder" ? "folder" : "category";
+        if (view.layout === "schedules_all" || view.layout === "schedules_week") {
+          return [
+            "document",
+            secondary,
+            "time",
+            ...(view.showStatus !== false ? ["status"] : []),
+          ];
+        }
+        return [
+          "document",
+          secondary,
+          // Prefer all_docs order: Status before Fecha y Hora
+          ...(view.showStatus || view.layout === "all_docs" ? ["status"] : []),
+          ...(view.showSchedule || view.layout === "all_docs" ? ["time"] : []),
+        ];
+      })()
       : ["document", "path", "status", "time"];
 
   const colLabel = (key) => {
+    const en = locale === "en";
     switch (key) {
-      case "document": return "Document";
-      case "department": return "Departamento";
-      case "category": return "Categoría";
-      case "path": return "Ruta";
-      case "status": return "Status";
-      case "time": return "Time";
+      case "document": return en ? "Document" : "Documento";
+      case "department": return en ? "Department" : "Departamento";
+      case "category": return en ? "Category" : "Categoría";
+      case "folder": return "Folder";
+      case "path": return en ? "Path" : "Ruta";
+      case "status": return en ? "Status" : "Estado";
+      case "time": return en ? "Date and time" : "Fecha y Hora";
+      case "weekday": return en ? "Day" : "Día";
       default: return key;
     }
   };
@@ -2642,12 +2697,16 @@ function TableVisualization({ data }) {
         return doc.department || h.department || "—";
       case "category":
         return doc.category || h.category || "—";
+      case "folder":
+        return doc.folder || h.folder || "—";
       case "path":
         return [h.department, h.category, h.folder].filter(Boolean).join(" / ") || "—";
       case "status":
         return doc.status ? <DocStatusChip status={doc.status} /> : "—";
       case "time":
         return <GinaTimeCell doc={doc} struck={Boolean(doc.struck || doc.completed)} />;
+      case "weekday":
+        return doc.weekday || "—";
       default:
         return "—";
     }
@@ -2675,13 +2734,20 @@ function TableVisualization({ data }) {
                   {tableRail.map((seg) => (
                     <div
                       key={seg.id || seg.name}
-                      className="gina-viz__dept-rail-seg"
+                      className={
+                        "gina-viz__dept-rail-seg"
+                        + (railMode === "weekday" ? " gina-viz__dept-rail-seg--weekday" : "")
+                      }
                       style={{
                         flexGrow: Math.max(1, seg.count),
                         background: seg.color,
                       }}
                       title={`${seg.name} · ${seg.count}`}
-                    />
+                    >
+                      {railMode === "weekday" && seg.letter ? (
+                        <span className="gina-viz__dept-rail-letter">{seg.letter}</span>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -2725,7 +2791,7 @@ function TableVisualization({ data }) {
                     style={{ background: seg.color }}
                     aria-hidden
                   />
-                  <span className="gina-viz__dept-legend-name">{seg.name}</span>
+                  <span className="gina-viz__dept-legend-name">{legendName(seg)}</span>
                 </li>
               ))}
             </ul>

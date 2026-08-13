@@ -90,10 +90,20 @@ function isRefineFilterFolder(q) {
 function isRefineFilterCategory(q) {
   if (!q) return false;
   if (isRefineFilterFolder(q)) return false;
+  // Opening a named doc from previous table is not a category filter
+  if (/\b(abra|abre(?:me)?|abrir|open)\b/.test(q) && /\b(documento|document)\b/.test(q)) {
+    return false;
+  }
   const filterCue = /\b(filtr\w*|filtra|filter)\b/.test(q);
+  const organizeCue = /\b(organiz\w*|orden\w*|reorganiz\w*|agrup\w*|quiero|entreg\w*|dame|muestra\w*|trae\w*)\b/.test(q);
   const tableCue = /\b(de\s+la\s+tabla\s+anterior|tabla\s+anterior|lista\s+anterior|previous\s+table|last\s+table|previous\s+list)\b/.test(q);
-  const porCue = /\bpor\s+(todos\s+los|todas\s+las|la\s+categor[ií]a|los|las)\b/.test(q);
-  if (filterCue && (tableCue || porCue)) return true;
+  const porCue = /\bpor\s+(todos\s+los|todas\s+las|la\s+categor[ií]a|los|las)\b/.test(q)
+    || (/\bpor\b/.test(q) && !/\bpor\s+favor\b/.test(q) && organizeCue);
+  // "quiero … tabla anterior" alone without por/filter is often open_named — require por or filtr
+  if (tableCue && organizeCue && !filterCue && !porCue && !/\bpor\b/.test(q)) {
+    return false;
+  }
+  if ((filterCue || organizeCue) && (tableCue || porCue)) return true;
   if (/\bfiltr\w*\s+(la\s+)?(tabla|lista)\s+anterior\b/.test(q)) return true;
   return false;
 }

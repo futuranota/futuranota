@@ -194,6 +194,34 @@
   max-width: 92%;
 }
 
+.gina-chat-card__searching {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 1.2em;
+}
+
+.gina-chat-card__searching-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  -webkit-mask-image: url("/uploads/search.svg");
+  mask-image: url("/uploads/search.svg");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  animation: gina-searching-pulse 1s ease-in-out infinite;
+}
+
+@keyframes gina-searching-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
 .gina-chat-card__ai-text {
   display: block;
   white-space: pre-wrap;
@@ -886,6 +914,23 @@
   opacity: 0.92;
 }
 
+.gina-viz__dept-rail-seg--weekday {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 18px;
+}
+
+.gina-viz__dept-rail-letter {
+  font-family: var(--sans, system-ui, sans-serif);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
 .gina-viz__dept-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1152,6 +1197,28 @@
   letter-spacing: normal;
   color: #a8a8a8;
   animation: gina-chip-hint-in 420ms ease;
+}
+
+.gina-chat-card__home-opening {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+  max-width: 92%;
+}
+
+.gina-chat-card__home-opening-body {
+  margin: 0;
+  font-family: "Inter", var(--sans, system-ui, sans-serif);
+  font-weight: 400;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #a8a8a8;
+  white-space: pre-wrap;
+}
+
+.gina-chat-card__home-opening-body--after {
+  margin-top: 4px;
 }
 
 .gina-chat-card__refine-line {

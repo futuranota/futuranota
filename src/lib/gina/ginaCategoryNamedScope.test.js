@@ -161,7 +161,7 @@ describe("Gina named category scope", () => {
     expect(msg).toMatch(/caja\s*\/\s*cajón|cajón/i);
   });
 
-  it("social media / redes sociales → list_folders with bullets", () => {
+  it("social media / redes sociales → list_folders as Doc+Folder table", () => {
     const routed = runGinaQueryFamily(
       "Cuales son los redes sociales que tenemos creadas?",
       ctx,
@@ -177,12 +177,25 @@ describe("Gina named category scope", () => {
     const viz = buildGinaVisualization("category_scope", routed.toolContext, {
       locale: "es",
     });
-    expect(viz?.type).toBe("folder_list");
+    expect(viz?.type).toBe("table");
     expect(viz.data.fromCategoryScope).toBe(true);
+    expect(viz.data.railMode).toBe("category");
+    expect(viz.data.columns).toEqual(["document", "folder"]);
+    // Instagram has 0 docs in fixture — still appears as stub row
+    expect(viz.data.documents.some((d) => d.folder === "Instagram")).toBe(true);
     const msg = buildGinaFunnelHeadline(viz, { locale: "es" });
     expect(msg).toMatch(/Social/);
     expect(msg).toMatch(/Twitter/);
     expect(msg).toMatch(/Instagram/);
+  });
+
+  it("nombre de folders de categoría blogs → list_folders", () => {
+    const phrase = "gina cual es el nombre de los folders de la categoria blogs";
+    expect(wantsNamedCategoryListFolders(phrase)).toBe(true);
+    const routed = runGinaQueryFamily(phrase, ctx);
+    expect(routed.family).toBe("category_scope");
+    expect(routed.toolContext.mode).toBe("list_folders");
+    expect(routed.toolContext.category).toBe("Blogs");
   });
 
   it("categoría live con 0 folders → empty honesto", () => {

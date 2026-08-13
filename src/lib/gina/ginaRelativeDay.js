@@ -1,11 +1,16 @@
 /**
- * Relative day labels for Gina schedule cells (Hoy / Mañana / En N días…).
- * ISO timestamps stay in data; this is display-only.
+ * Absolute Fecha y Hora display for Gina table cells.
+ * Relative labels (En N días) stay available for other surfaces but tables use day badge + clock.
  */
 
 const MONTH_SHORT_ES = [
   "ene", "feb", "mar", "abr", "may", "jun",
   "jul", "ago", "sep", "oct", "nov", "dic",
+];
+
+const MONTH_SHORT_ES_CAP = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ];
 
 function toDate(value) {
@@ -35,7 +40,7 @@ export function calendarDayDelta(from, to) {
   return Math.round(ms / 86_400_000);
 }
 
-/** Short absolute date for ≥7d or tooltip — e.g. "15 sep". */
+/** Short absolute date — e.g. "15 sep" or "15 Sep" (badge). */
 export function formatGinaShortDate(value, locale = "es") {
   const d = toDate(value);
   if (!d) return null;
@@ -43,6 +48,28 @@ export function formatGinaShortDate(value, locale = "es") {
     return `${d.getDate()} ${MONTH_SHORT_ES[d.getMonth()]}`;
   }
   return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+}
+
+/** Badge day for Fecha y Hora column — "09 Ago". */
+export function formatGinaDayBadge(value, locale = "es") {
+  const d = toDate(value);
+  if (!d) return null;
+  const dd = String(d.getDate()).padStart(2, "0");
+  if (normalizeLocale(locale) === "es") {
+    return `${dd} ${MONTH_SHORT_ES_CAP[d.getMonth()]}`;
+  }
+  return d.toLocaleDateString("en-US", { day: "2-digit", month: "short" });
+}
+
+/** Single-letter weekday: ES L M X J V S D · EN M T W T F S S */
+export function formatGinaWeekdayLetter(value, locale = "es") {
+  const d = toDate(value);
+  if (!d) return null;
+  const i = d.getDay(); // 0 Sun
+  if (normalizeLocale(locale) === "en") {
+    return ["S", "M", "T", "W", "T", "F", "S"][i];
+  }
+  return ["D", "L", "M", "X", "J", "V", "S"][i];
 }
 
 /** Full absolute for tooltip — e.g. "7 ago 2026, 09:00". */
@@ -77,7 +104,7 @@ export function formatGinaRelativeDay(value, now = new Date(), locale = "es") {
 }
 
 /**
- * Compose Time cell: "Hoy · 9:00 – 10:00" or relative-only / Flexible.
+ * Compose Fecha y Hora cell: day badge + clock range (absolute). No "En N días" as primary.
  * @param {{ anchorAt?: string|null, anchorFinishAt?: string|null, timeRange?: string|null }} opts
  * @param {Date} [now]
  * @param {string} [locale]
@@ -85,25 +112,31 @@ export function formatGinaRelativeDay(value, now = new Date(), locale = "es") {
 export function buildGinaTimeDisplay(opts = {}, now = new Date(), locale = "es") {
   const anchor = opts.anchorAt || null;
   const relativeDay = formatGinaRelativeDay(anchor, now, locale);
+  const dayBadge = formatGinaDayBadge(anchor, locale);
+  const weekday = formatGinaWeekdayLetter(anchor, locale);
   const timeClock = opts.timeRange || null;
   const absoluteDate = formatGinaAbsoluteTooltip(anchor, locale);
 
   if (!anchor) {
     return {
       relativeDay: null,
+      dayBadge: null,
+      weekday: null,
       timeClock: null,
       absoluteDate: null,
       timeLabel: "Flexible",
     };
   }
 
-  let timeLabel = relativeDay || timeClock || "—";
-  if (relativeDay && timeClock) timeLabel = `${relativeDay} · ${timeClock}`;
-  else if (relativeDay) timeLabel = relativeDay;
+  let timeLabel = dayBadge || timeClock || "—";
+  if (dayBadge && timeClock) timeLabel = `${dayBadge} · ${timeClock}`;
+  else if (dayBadge) timeLabel = dayBadge;
   else if (timeClock) timeLabel = timeClock;
 
   return {
     relativeDay,
+    dayBadge,
+    weekday,
     timeClock,
     absoluteDate,
     timeLabel,

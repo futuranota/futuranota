@@ -5,12 +5,19 @@
 
 import { foldGinaText } from "./ginaTimeScope.js";
 import { matchNamedCategoryInText, matchDepartmentInText } from "./ginaTools.js";
+import { buildGinaTableSchemaFromVisualization } from "./ginaTableColumnRefine.js";
 
 /**
  * @typedef {{
  *   id: string,
  *   title?: string,
  * }} GinaLastTurnDoc
+ *
+ * @typedef {{
+ *   locale?: "es" | "en",
+ *   columns?: Array<{ key: string, label: string, role: string }>,
+ *   valuesByKey?: Record<string, string[]>,
+ * }} GinaTableSchema
  *
  * @typedef {{
  *   family: string,
@@ -21,6 +28,7 @@ import { matchNamedCategoryInText, matchDepartmentInText } from "./ginaTools.js"
  *   folderName?: string | null,
  *   dateKey?: string | null,
  *   documents: GinaLastTurnDoc[],
+ *   tableSchema?: GinaTableSchema | null,
  *   userText?: string | null,
  *   ts: number,
  * }} GinaLastTurn
@@ -48,6 +56,7 @@ const NO_STAMP_FAMILIES = new Set([
   "name_ambiguity",
   "word_scope",
   "gina_day_ritual_reset",
+  "table_category_ask",
 ]);
 
 /**
@@ -77,6 +86,7 @@ function normalizeTurn(turn) {
   return {
     ...turn,
     documents: Array.isArray(turn.documents) ? turn.documents.slice(0, 40) : [],
+    tableSchema: turn.tableSchema || null,
     ts: turn.ts || Date.now(),
   };
 }
@@ -331,20 +341,24 @@ export function buildGinaLastTurnFromRouted(routed, ctx = {}) {
  * If viz has document rows and lastTurn is thin, fill ids/titles from what the user saw.
  * @param {{ type?: string, data?: Record<string, unknown> } | null | undefined} visualization
  */
-export function enrichGinaLastTurnFromVisualization(visualization) {
+export function enrichGinaLastTurnFromVisualization(visualization, opts = {}) {
   if (!lastTurn || !visualization || typeof visualization !== "object") return lastTurn;
   const data = visualization.data && typeof visualization.data === "object"
     ? visualization.data
     : null;
   if (!data) return lastTurn;
   const fromViz = mapDocs(data.documents);
-  if (!fromViz.length) return lastTurn;
+  const schema = buildGinaTableSchemaFromVisualization(visualization, {
+    locale: opts.locale || data.locale || "es",
+  });
+  if (!fromViz.length && !schema) return lastTurn;
   lastTurn = {
     ...lastTurn,
-    documents: fromViz,
+    documents: fromViz.length ? fromViz : lastTurn.documents,
     department: lastTurn.department
       || String(data.department || "").trim()
       || null,
+    tableSchema: schema || lastTurn.tableSchema || null,
     ts: Date.now(),
   };
   if (turnHistory.length && turnHistory[0]?.ts === lastTurn.ts) {

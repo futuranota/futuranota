@@ -4,6 +4,7 @@ import { useAuthStore } from "../../stores/authStore.js";
 import { usePlanStore } from "../../stores/planStore.js";
 import { getCreditsDisplay } from "../../lib/planConfig.js";
 import { isAppSoundMuted, setAppSoundMuted } from "../../lib/appSoundPrefs.js";
+import { getGinaPrefs, setGinaPrefs } from "../../lib/gina/ginaPrefs.js";
 
 function IconUser({ className = "" }) {
   return (
@@ -28,6 +29,7 @@ export function UserMenu() {
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(true);
   const [soundMuted, setSoundMuted] = useState(() => isAppSoundMuted());
+  const [ginaPrefs, setGinaPrefsState] = useState(() => getGinaPrefs());
   const rootRef = useRef(null);
   const profile = usePlanStore((s) => s.profile);
   const searchCount = usePlanStore((s) => s.profile.searchCount);
@@ -76,6 +78,10 @@ export function UserMenu() {
     const next = !soundMuted;
     setSoundMuted(next);
     setAppSoundMuted(next);
+  };
+
+  const patchGinaPrefs = (partial) => {
+    setGinaPrefsState(setGinaPrefs(partial));
   };
 
   return (
@@ -148,6 +154,60 @@ export function UserMenu() {
                   >
                     <span className="user-menu__switch-thumb" />
                   </button>
+                </div>
+
+                <div className="user-menu__setting user-menu__setting--stack">
+                  <div className="user-menu__setting-copy">
+                    <span className="user-menu__setting-title">Gina week starts</span>
+                    <span className="user-menu__setting-hint">
+                      Schedule “this week” range
+                    </span>
+                  </div>
+                  <div className="user-menu__seg" role="group" aria-label="Gina week starts on">
+                    <button
+                      type="button"
+                      className={"user-menu__seg-btn" + (ginaPrefs.weekStartsOn === 1 ? " is-on" : "")}
+                      aria-pressed={ginaPrefs.weekStartsOn === 1}
+                      onClick={() => patchGinaPrefs({ weekStartsOn: 1 })}
+                    >
+                      Monday
+                    </button>
+                    <button
+                      type="button"
+                      className={"user-menu__seg-btn" + (ginaPrefs.weekStartsOn === 0 ? " is-on" : "")}
+                      aria-pressed={ginaPrefs.weekStartsOn === 0}
+                      onClick={() => patchGinaPrefs({ weekStartsOn: 0 })}
+                    >
+                      Sunday
+                    </button>
+                  </div>
+                </div>
+
+                <div className="user-menu__setting user-menu__setting--stack">
+                  <div className="user-menu__setting-copy">
+                    <span className="user-menu__setting-title">Gina list column</span>
+                    <span className="user-menu__setting-hint">
+                      Default Doc + Category or Folder
+                    </span>
+                  </div>
+                  <div className="user-menu__seg" role="group" aria-label="Gina secondary column">
+                    <button
+                      type="button"
+                      className={"user-menu__seg-btn" + (ginaPrefs.secondaryColumn === "category" ? " is-on" : "")}
+                      aria-pressed={ginaPrefs.secondaryColumn === "category"}
+                      onClick={() => patchGinaPrefs({ secondaryColumn: "category" })}
+                    >
+                      Category
+                    </button>
+                    <button
+                      type="button"
+                      className={"user-menu__seg-btn" + (ginaPrefs.secondaryColumn === "folder" ? " is-on" : "")}
+                      aria-pressed={ginaPrefs.secondaryColumn === "folder"}
+                      onClick={() => patchGinaPrefs({ secondaryColumn: "folder" })}
+                    >
+                      Folder
+                    </button>
+                  </div>
                 </div>
 
                 <button

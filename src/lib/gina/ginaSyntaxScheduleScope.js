@@ -5,7 +5,7 @@
  * Pattern: every new Gina intent ships a ginaSyntax*.js + tests of variants.
  */
 
-import { foldGinaText, dayKey, startOfDay, addDays, toDate } from "./ginaTimeScope.js";
+import { foldGinaText, dayKey, toDate, ginaWeekBounds } from "./ginaTimeScope.js";
 
 /** Stable chip / command labels (ES). */
 export const GINA_SCHEDULE_SCOPE_CHIPS_ES = [
@@ -77,12 +77,21 @@ export function parseGinaScheduleScope(text) {
   if (
     /\bvisualizar\s+todos\s+los\s+horarios\s+de\s+la\s+semana\b/.test(q)
     || /\bview\s+all\s+schedules?\s+(this\s+)?week\b/.test(q)
+    || /\bhorarios?\s+de\s+la\s+semana\b/.test(q)
+    || (/\bhorarios?\b/.test(q) && /\b(esta\s+)?semana\b/.test(q) && !/\bhoy\b/.test(q))
+    || (/\bdocumentos?\b/.test(q) && /\bhorarios?\b/.test(q) && /\bsemana\b/.test(q))
   ) {
     return "week";
   }
   if (
     /\bvisualizar\s+todos\s+los\s+horarios\s+creados\b/.test(q)
     || /\bview\s+all\s+created\s+schedules?\b/.test(q)
+    || /\b(todos\s+los\s+)?horarios?\s+(creados|activos)\b/.test(q)
+    || (/\b(dame|entreg\w*|muestra\w*|trae\w*|quiero|ver)\b/.test(q)
+      && /\b(todos\s+los\s+)?horarios?\b/.test(q)
+      && !/\bhoy\b/.test(q)
+      && !/\bsemana\b/.test(q)
+      && !/\bmu[eé]strame\s+los\s+horarios\s+de\s+hoy\b/.test(q))
   ) {
     return "all";
   }
@@ -98,18 +107,12 @@ export function wantsGinaScheduleScopeList(text) {
 }
 
 /**
- * Monday–Sunday bounds (local), same rule as ginaTools weekBounds.
+ * Monday–Sunday by default (prefs.weekStartsOn); see ginaTimeScope.ginaWeekBounds.
  * @param {Date} now
  * @param {number} [weekOffset]
+ * @param {{ weekStartsOn?: 0 | 1 }} [opts]
  */
-export function ginaWeekBounds(now, weekOffset = 0) {
-  const base = startOfDay(now);
-  const day = base.getDay();
-  const mondayOffset = day === 0 ? -6 : 1 - day;
-  const monday = addDays(base, mondayOffset + weekOffset * 7);
-  const sunday = addDays(monday, 6);
-  return { monday, sunday };
-}
+export { ginaWeekBounds };
 
 /**
  * Keep docs whose anchorAt falls in scheduleScope.

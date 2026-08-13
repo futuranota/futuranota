@@ -170,7 +170,7 @@ describe("Gina count_documents browse + list", () => {
       .toBe("# Department");
   });
 
-  it("listado completo → columnar table without schedule/status by default", () => {
+  it("listado completo → all_docs Doc|Cat|Status|Time + dept rail (incluye Flexible)", () => {
     expect(wantsCorpusDocsListAll("Quiero el listado completo")).toBe(true);
     expect(wantsFolderDocsList("Quiero el listado de todos los documentos")).toBe(false);
     expect(wantsCorpusDocsListAll("Gina quiero el listado de todos los documentos")).toBe(true);
@@ -182,8 +182,11 @@ describe("Gina count_documents browse + list", () => {
     expect(routed.family).toBe("count_documents");
     expect(routed.toolContext.mode).toBe("list_all");
     expect(routed.toolContext.count).toBe(3);
-    expect(routed.toolContext.view.showSchedule).toBe(false);
-    expect(routed.toolContext.view.showStatus).toBe(false);
+    expect(routed.toolContext.view.layout).toBe("all_docs");
+    expect(routed.toolContext.view.showSchedule).toBe(true);
+    expect(routed.toolContext.view.showStatus).toBe(true);
+    expect(routed.toolContext.view.timedOnly).toBe(false);
+    expect(routed.toolContext.documents.some((d) => d.title === "Flexible B")).toBe(true);
     expect(routed.toolContext.groups?.length).toBeGreaterThan(0);
 
     const viz = buildGinaVisualization("count_documents", routed.toolContext, {
@@ -192,9 +195,10 @@ describe("Gina count_documents browse + list", () => {
     });
     expect(viz?.type).toBe("table");
     expect(viz.data.fromCountDocuments).toBe(true);
-    expect(viz.data.view.showSchedule).toBe(false);
-    expect(viz.data.view.showStatus).toBe(false);
-    expect(viz.data.columns).toEqual(["document", "category"]);
+    expect(viz.data.view.showSchedule).toBe(true);
+    expect(viz.data.view.showStatus).toBe(true);
+    expect(viz.data.columns).toEqual(["document", "category", "status", "time"]);
+    expect(viz.data.railMode).toBe("department");
     expect(viz.data.departmentRail?.length).toBeGreaterThan(0);
     expect(viz.data.departmentRail.every((s) => s.color && s.count > 0)).toBe(true);
     expect(viz.data.documents.every((d) => d.department)).toBe(true);
@@ -212,9 +216,8 @@ describe("Gina count_documents browse + list", () => {
     expect(chips.some((c) => c.kind === "prompt")).toBe(true);
     expect(chips.some((c) => c.kind === "category" && c.label === "Blogs")).toBe(true);
     expect(chips.some((c) => /^Resaltar\s+/i.test(c.label))).toBe(false);
-    expect(chips.some((c) => c.kind === "layer_schedule" && /^\+horarios$/i.test(c.label))).toBe(true);
-    expect(chips.some((c) => c.kind === "layer_status" && /^\+status$/i.test(c.label))).toBe(true);
-    expect(chips.some((c) => c.kind === "omit")).toBe(true);
+    expect(chips.some((c) => c.kind === "schedule_scope")).toBe(true);
+    expect(chips.some((c) => /semana/i.test(c.label))).toBe(true);
     expect(chips.filter((c) => c.kind === "category").length).toBeLessThanOrEqual(8);
   });
 
@@ -298,7 +301,7 @@ describe("Gina count_documents browse + list", () => {
     }
   });
 
-  it("listado completo con horarios → timed only (excluye flexible) + Time column", () => {
+  it("listado completo con horarios → timed only (excluye flexible) + Time + Status", () => {
     const routed = runGinaQueryFamily(
       "Listado completo con horarios",
       ctx,
@@ -316,7 +319,7 @@ describe("Gina count_documents browse + list", () => {
     expect(viz?.type).toBe("table");
     expect(viz.data.view.showSchedule).toBe(true);
     expect(viz.data.columns).toContain("time");
-    expect(viz.data.columns).not.toContain("status");
+    expect(viz.data.columns).toContain("status");
     const msg = buildGinaFunnelHeadline(viz, { locale: "es" });
     expect(msg).toMatch(/horarios/i);
   });
@@ -378,7 +381,10 @@ describe("Gina count_documents browse + list", () => {
     });
     expect(tableViz?.type).toBe("table");
     expect(tableViz.data.scope).toBe("department");
-    expect(tableViz.data.columns).toEqual(["document", "category"]);
+    // Same all_docs contract as corpus list (Doc|Cat|Status|Time + dept rail)
+    expect(filtered.toolContext.view?.layout).toBe("all_docs");
+    expect(tableViz.data.columns).toEqual(["document", "category", "status", "time"]);
+    expect(tableViz.data.railMode).toBe("department");
     expect(tableViz.data.departmentRail?.length).toBe(1);
     expect(tableViz.data.departmentRail[0].name).toBe("Marketing");
   });

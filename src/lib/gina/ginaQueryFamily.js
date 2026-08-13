@@ -116,6 +116,20 @@ import {
   extractLastTurnFolderHint,
   matchLastTurnDocumentId,
 } from "./ginaSyntaxLastTurn.js";
+import {
+  wantsGinaTableColumnRefine,
+  parseGinaTableColumnRefine,
+  filterDocsByTableColumnRefine,
+  tryParseGinaLastTurnTableBridge,
+  buildGinaTableSchemaFromLastTurn,
+  matchGinaTableSchemaValue,
+} from "./ginaTableColumnRefine.js";
+import {
+  parseTableCategoryAskIntent,
+  liveCategoriesFromLastTable,
+  parseLiveCategoriesFromReply,
+  filterDocsByLiveCategories,
+} from "./ginaTableCategoryAsk.js";
 import { inferConfirmContinueAction } from "./ginaConfirmContinue.js";
 import {
   getGinaLastTurn,
@@ -277,6 +291,8 @@ export function wantsCorpusDocsListAll(text) {
     if (/\bdocumentos?\s+(del|de|en)\s+(?!todos\b|todas\b|general\b|total\b)/.test(q)) {
       return false;
     }
+    // "del folder X … todos los documentos" → folder-scoped
+    if (/\b(folder|carpeta|caja)\b/.test(q)) return false;
     if (/\b(entreg\w*|dame|muestra\w*|trae\w*|quiero|ver|lista\w*|listame|show|give|fetch|bring)\b/.test(q)) {
       return true;
     }
@@ -521,6 +537,9 @@ export function wantsNamedCategoryListFolders(text) {
     || /\bpor\s+secci[oó]n(\s+primero)?\b/.test(q)
     || /\b(show\s+sections?|sections?\s+of)\b/.test(q)
     || /\b(secci[oó]n|secciones|t[ií]tulo\s+de\s+caja|caj[oó]n)\b/.test(q)
+    || /\bnombres?\s+de\s+(los\s+)?folders?\b/.test(q)
+    || /\bfolders?\s+(de|en|de\s+la)\s+(la\s+)?categor/.test(q)
+    || /\b(cual|cuál)\s+es\s+(el\s+)?nombre\s+de\s+(los\s+)?folders?\b/.test(q)
   );
   const hasCreatedList = /\b(tenemos|hay)\s+cread/.test(q);
   if (!hasExplicitList && !hasCreatedList) return false;
@@ -689,7 +708,25 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
         ? parsedView.highlightCategories
         : []),
     scheduleScope: opts.view?.scheduleScope || parsedView.scheduleScope || null,
+    layout: opts.view?.layout || null,
+    timedOnly: opts.view?.timedOnly,
+    railMode: opts.view?.railMode || null,
+    columns: Array.isArray(opts.view?.columns) ? opts.view.columns : null,
+    secondaryColumn: opts.view?.secondaryColumn || null,
   };
+  // Document list modes default to all_docs (Doc|Cat|Status|Time + dept rail).
+  const isDocListMode = mode === "list_all"
+    || mode === "list_by_department"
+    || mode === "list_by_category";
+  if (isDocListMode && !view.layout && !view.scheduleScope) {
+    if (!view.showSchedule && !view.showStatus && view.timedOnly == null) {
+      view.layout = "all_docs";
+      view.showSchedule = true;
+      view.showStatus = true;
+      view.timedOnly = false;
+      view.railMode = view.railMode || "department";
+    }
+  }
   const allDocs = get_all_company_documents(ctx);
 
   const mapDoc = (d) => ({
@@ -840,8 +877,12 @@ function buildCountDocumentsFamily(ctx, inventory, toolsCalled, opts = {}) {
     filtered = scoped.filter((d) => view.categories.some((c) => matchCat(d, c)));
   }
 
-  // +horarios / con horarios: timed docs only — exclude flexible (no anchorAt)
-  if (view.showSchedule) {
+  // Timed layouts / +horarios: exclude flexible (no anchorAt).
+  // all_docs sets timedOnly:false so Flexible stays (Fecha y Hora = Flexible).
+  const timedOnly = view.timedOnly != null
+    ? Boolean(view.timedOnly)
+    : Boolean(view.showSchedule);
+  if (timedOnly) {
     filtered = filtered.filter((d) => Boolean(d?.anchorAt));
   }
   if (view.showSchedule && view.scheduleScope) {
@@ -1125,6 +1166,13 @@ export function recentWasFolderDocsOffer(ctx = {}) {
 export function wantsFolderDocsList(q) {
   const body = fold(q).replace(/^gina\b[\s,:!-]*/, "").trim();
   if (!body) return false;
+  // Explicit folder-scoped ask wins over corpus "todos los documentos"
+  if (
+    /\b(folder|carpeta|caja)\b/.test(body)
+    && /\bdocumentos?\b/.test(body)
+  ) {
+    return true;
+  }
   // Corpus-wide list — handled by count_documents list_all, not folder lookup
   if (wantsCorpusDocsListAll(body)) return false;
   if (wantsDocsByDepartmentBrowse(body) || wantsDocsByCategoryBrowse(body)) return false;
@@ -1916,6 +1964,92 @@ export function runGinaQueryFamily(text, ctx = {}) {
   // Word-scope follow-up: user named the layer and/or the live name (two variables).
   {
     const pending = getPendingGinaOffer() || ctx.pendingGinaOffer || null;
+    if (pending?.type === "ask_table_category_filter") {
+      const last = getGinaLastTurn() || ctx.lastTurn || null;
+      const idList = Array.isArray(last?.documents) ? last.documents : [];
+      const schema = last?.tableSchema
+        || buildGinaTableSchemaFromLastTurn(last)
+        || null;
+      const liveCats = Array.isArray(pending.liveCategories) && pending.liveCategories.length
+        ? pending.liveCategories
+        : liveCategoriesFromLastTable(
+          // hydrate categories from company docs for matching labels
+          (() => {
+            const ids = new Set(idList.map((d) => String(d?.id || "").trim()).filter(Boolean));
+            return get_all_company_documents(ctx).filter((d) => ids.has(d.id));
+          })(),
+          schema,
+        );
+      const picked = parseLiveCategoriesFromReply(text, liveCats);
+      if (picked.length && idList.length) {
+        consumePendingGinaOffer();
+        const mode = pending.mode === "exclude" ? "exclude" : "include";
+        const ids = new Set(idList.map((d) => String(d?.id || "").trim()).filter(Boolean));
+        const hydrated = get_all_company_documents(ctx).filter((d) => ids.has(d.id));
+        const matched = filterDocsByLiveCategories(hydrated, picked, mode);
+        toolsCalled.push("filter_table_categories");
+        const documents = matched.map((d) => ({
+          id: d.id,
+          title: d.title || d.name || "—",
+          status: d.status || null,
+          departmentName: d.departmentName || null,
+          category: d.category || null,
+          folder: d.parentFolderName || null,
+          anchorAt: d.anchorAt || null,
+          anchorFinishAt: d.anchorFinishAt || null,
+        }));
+        const schemaCols = Array.isArray(schema?.columns)
+          ? schema.columns.map((c) => c.key).filter(Boolean)
+          : null;
+        return {
+          family: "count_documents",
+          toolsCalled,
+          toolContext: {
+            inventory,
+            corpusName: String(ctx.corpusName || ctx.objectName || ctx.companyName || "").trim() || null,
+            mode: "list_all",
+            department: last?.department || null,
+            category: picked.length === 1 ? picked[0] : null,
+            count: documents.length,
+            documents,
+            groups: groupDocsByDepartment(documents),
+            view: {
+              showSchedule: schemaCols ? schemaCols.includes("time") : true,
+              showStatus: schemaCols ? schemaCols.includes("status") : true,
+              categories: mode === "include" ? picked : [],
+              highlightCategories: mode === "include" ? picked : [],
+              scheduleScope: null,
+              columns: schemaCols,
+              timedOnly: false,
+              railMode: "department",
+            },
+            empty: documents.length === 0,
+            listAll: true,
+            fromLastTurnTableRefine: true,
+            tableCategoryFilter: { mode, categories: picked },
+            availableCategories: liveCats,
+            lastTurnFamily: last?.family || null,
+            hint: "Last-table category include/exclude after ask",
+          },
+          workspaceInventory: inventory,
+          pendingGinaOffer: null,
+        };
+      }
+      // No live cat matched — keep pending and re-ask
+      return {
+        family: "table_category_ask",
+        toolsCalled,
+        toolContext: {
+          mode: pending.mode === "exclude" ? "exclude" : "include",
+          liveCategories: liveCats,
+          emptyTable: !liveCats.length,
+          retry: true,
+          hint: "Re-ask categories — reply did not match live table cats",
+        },
+        workspaceInventory: inventory,
+        pendingGinaOffer: pending,
+      };
+    }
     if (pending?.type === "word_scope" && pending.scan) {
       const picked = parseWordScopeLayerReply(text, pending.scan);
       if (picked?.layer && (picked.name || picked.id)) {
@@ -1934,7 +2068,146 @@ export function runGinaQueryFamily(text, ctx = {}) {
   // Follow-ups that need the last shown result (“este”, filtrar, ábrelo).
   // Find (“encuentra un documento sobre…”) is global scan — do not steal as lastTurn open_named.
   {
+    // Soft ask: “filtramelo por categorías” / “excluyeme las categorías” on last table.
+    const askMode = parseTableCategoryAskIntent(text);
+    if (askMode && !isFindDocumentIntent(text)) {
+      const last = getGinaLastTurn() || ctx.lastTurn || null;
+      const idList = Array.isArray(last?.documents) ? last.documents : [];
+      if (last && idList.length) {
+        const schema = last.tableSchema
+          || buildGinaTableSchemaFromLastTurn(last)
+          || null;
+        const ids = new Set(idList.map((d) => String(d?.id || "").trim()).filter(Boolean));
+        const hydrated = get_all_company_documents(ctx).filter((d) => ids.has(d.id));
+        const liveCats = liveCategoriesFromLastTable(hydrated, schema);
+        if (!liveCats.length) {
+          clearPendingGinaOffer();
+          return {
+            family: "table_category_ask",
+            toolsCalled,
+            toolContext: {
+              mode: askMode,
+              liveCategories: [],
+              emptyTable: true,
+              hint: "Last table has no real categories — no ask chips path",
+            },
+            workspaceInventory: inventory,
+            pendingGinaOffer: null,
+          };
+        }
+        const offer = {
+          type: "ask_table_category_filter",
+          mode: askMode,
+          liveCategories: liveCats,
+        };
+        setPendingGinaOffer(offer);
+        return {
+          family: "table_category_ask",
+          toolsCalled,
+          toolContext: {
+            mode: askMode,
+            liveCategories: liveCats,
+            emptyTable: false,
+            hint: "Ask user which live category to include/exclude",
+          },
+          workspaceInventory: inventory,
+          pendingGinaOffer: offer,
+        };
+      }
+    }
+
     const lastIntent = isFindDocumentIntent(text) ? null : parseLastTurnIntent(text);
+    // Bridge: any live cell value from last table (Plan de Negocio, folder…) → filter + show.
+    // Runs before dedicated intents only when those intents are absent — except we also
+    // run when organiza/por matches a schema value even if lastIntent is null.
+    {
+      const { anchor: tableAnchor } = resolveLastTurnAnchor(text, { ctx });
+      const last = tableAnchor || getGinaLastTurn() || ctx.lastTurn || null;
+      const idList = Array.isArray(last?.documents) ? last.documents : [];
+      if (
+        last
+        && idList.length
+        && !isFindDocumentIntent(text)
+        && (!lastIntent || lastIntent === "refine_filter_category")
+      ) {
+        const schema = last.tableSchema
+          || buildGinaTableSchemaFromLastTurn(last)
+          || null;
+        const parsed = tryParseGinaLastTurnTableBridge(
+          text,
+          schema,
+          ctx.now instanceof Date ? ctx.now : new Date(),
+        );
+        // Prefer bridge when schema cell matched (organiza por Plan de negocios).
+        const cellHit = schema ? matchGinaTableSchemaValue(text, schema) : null;
+        const useBridge = Boolean(parsed?.predicates?.length)
+          && (
+            !lastIntent
+            || Boolean(cellHit)
+            || wantsGinaTableColumnRefine(text, schema)
+          );
+        if (useBridge) {
+          const ids = new Set(idList.map((d) => String(d?.id || "").trim()).filter(Boolean));
+          const all = get_all_company_documents(ctx);
+          const hydrated = all.filter((d) => ids.has(d.id));
+          const now = ctx.now instanceof Date ? ctx.now : new Date();
+          const matched = filterDocsByTableColumnRefine(hydrated, parsed, now);
+          toolsCalled.push("filter_table_column_refine");
+          const documents = matched.map((d) => ({
+            id: d.id,
+            title: d.title || d.name || "—",
+            status: d.status || null,
+            departmentName: d.departmentName || null,
+            category: d.category || null,
+            folder: d.parentFolderName || null,
+            anchorAt: d.anchorAt || null,
+            anchorFinishAt: d.anchorFinishAt || null,
+          }));
+          const deptName = last.department || null;
+          const schemaCols = Array.isArray(schema?.columns)
+            ? schema.columns.map((c) => c.key).filter(Boolean)
+            : null;
+          return {
+            family: "count_documents",
+            toolsCalled,
+            toolContext: {
+              inventory,
+              corpusName: String(ctx.corpusName || ctx.objectName || ctx.companyName || "").trim() || null,
+              mode: deptName ? "list_by_department" : "list_all",
+              department: deptName,
+              category: cellHit?.key === "category" ? cellHit.value : null,
+              count: documents.length,
+              documents,
+              groups: groupDocsByDepartment(documents),
+              view: {
+                showSchedule: schemaCols ? schemaCols.includes("time") : true,
+                showStatus: schemaCols ? schemaCols.includes("status") : Boolean(
+                  schema?.columns?.some((c) => c.key === "status"),
+                ),
+                categories: [],
+                highlightCategories: [],
+                scheduleScope: null,
+                columns: schemaCols,
+                timedOnly: false,
+                railMode: Array.isArray(schema?.valuesByKey?.department)
+                  && schema.valuesByKey.department.length
+                  ? "department"
+                  : null,
+              },
+              empty: documents.length === 0,
+              listAll: true,
+              fromLastTurnTableRefine: true,
+              tableRefine: parsed,
+              lastTurnFamily: last?.family || null,
+              hint: "Last-table bridge — match live cell, filter, show (never ask to list)",
+            },
+            workspaceInventory: inventory,
+            pendingGinaOffer: null,
+          };
+        }
+      }
+    }
+
     if (lastIntent) {
       const needleForAnchor = lastIntent === "refine_filter_category"
         ? extractLastTurnCategoryHint(text)
@@ -2026,9 +2299,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
               ...(refined.toolContext || {}),
               fromLastTurnCategoryRefine: true,
               matchKind: "department",
-              lastTurnFamily: last.family || null,
-              anchorReason,
-              hint: "Anchored department refine from table history",
+              lastTurnFamily: last?.family || null,
             },
           };
         }
@@ -2043,7 +2314,7 @@ export function runGinaQueryFamily(text, ctx = {}) {
               matchKind: "empty",
               needle,
               department: last.department || null,
-              lastTurnFamily: last.family || null,
+              lastTurnFamily: last?.family || null,
               anchorReason,
               hint: "No title matches for keyword in anchored scope",
             },
@@ -3224,30 +3495,66 @@ export function runGinaQueryFamily(text, ctx = {}) {
     }
   }
 
-  // Schedule-scope list from post-listado refine chips (before bare list_all / time scopes).
+  // Schedule-scope list from chips / “todos los horarios” / “horarios de la semana”.
   if (wantsGinaScheduleScopeList(text)) {
     clearPendingGinaOffer();
     const scheduleScope = parseGinaScheduleScope(text);
+    const layout = scheduleScope === "week"
+      ? "schedules_week"
+      : (scheduleScope === "today" ? "schedules_today" : "schedules_all");
+    const withStatus = layout === "schedules_week" || layout === "schedules_all";
     return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
       mode: "list_all",
       view: {
         showSchedule: true,
-        showStatus: false,
+        showStatus: withStatus,
         categories: [],
         highlightCategories: [],
         scheduleScope,
+        layout,
+        timedOnly: true,
+        railMode: scheduleScope === "week" ? "weekday" : "department",
       },
       text,
     });
   }
 
-  // Full corpus document list (before folder-list steals "listado de todos…").
+  // Full corpus document list — Doc | Cat | Status | Fecha y Hora + dept rail (incl. Flexible).
+  // “listado completo con horarios” → schedules_all (timed only + Status).
   if (wantsCorpusDocsListAll(text)) {
     clearPendingGinaOffer();
     const view = parseDocsListView(text);
+    if (view.showSchedule || view.scheduleScope) {
+      const scope = view.scheduleScope || null;
+      const layout = scope === "week"
+        ? "schedules_week"
+        : (scope === "today" ? "schedules_today" : "schedules_all");
+      const withStatus = layout === "schedules_week" || layout === "schedules_all";
+      return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
+        mode: "list_all",
+        view: {
+          ...view,
+          layout,
+          showSchedule: true,
+          showStatus: withStatus,
+          timedOnly: true,
+          scheduleScope: scope,
+          railMode: layout === "schedules_week" ? "weekday" : "department",
+        },
+        text,
+      });
+    }
     return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
       mode: "list_all",
-      view,
+      view: {
+        ...view,
+        layout: "all_docs",
+        showSchedule: true,
+        showStatus: true,
+        timedOnly: false,
+        scheduleScope: null,
+        railMode: "department",
+      },
       text,
     });
   }
@@ -3263,7 +3570,14 @@ export function runGinaQueryFamily(text, ctx = {}) {
       return buildCountDocumentsFamily(ctx, inventory, toolsCalled, {
         mode: "list_by_department",
         departmentName: deptHit.name,
-        view,
+        view: {
+          ...view,
+          layout: view.layout || (view.scheduleScope ? null : "all_docs"),
+          showSchedule: view.scheduleScope ? view.showSchedule : true,
+          showStatus: view.scheduleScope ? view.showStatus : true,
+          timedOnly: view.scheduleScope ? view.timedOnly : false,
+          railMode: view.railMode || "department",
+        },
         text,
       });
     }

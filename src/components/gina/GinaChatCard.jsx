@@ -11,7 +11,7 @@ import { GinaAiMessageText } from "./GinaAnimatedText.jsx";
 import { GinaStartDocReveal } from "./GinaStartDocReveal.jsx";
 import { GinaDataVisualization } from "./GinaDataVisualization.jsx";
 import { GinaThinkingStatus } from "./GinaThinkingStatus.jsx";
-import { buildGinaOpeningChips } from "../../lib/gina/ginaReplyChips.js";
+import { buildGinaOpeningChips, chipsAreHomeOpening } from "../../lib/gina/ginaReplyChips.js";
 import { hasDaySheet } from "../../lib/gina/ginaDaySheetStore.js";
 import {
   applyDaySheetCompletionBatch,
@@ -225,6 +225,65 @@ function chipsAreListRefine(chips) {
   // nav_back-only results use the plain chip row
   if (chips.every((c) => c?.kind === "nav_back")) return false;
   return chips.some((c) => c?.group === "list_refine" && c?.kind !== "nav_back");
+}
+
+/**
+ * Home opening: intro copy → 3 schedule chips → explore copy → Ver todo.
+ */
+function GinaHomeOpeningChips({ chips, disabled, onSubmit }) {
+  const list = Array.isArray(chips) ? chips : [];
+  const intro = list.find((c) => c.id === "home_intro");
+  const explore = list.find((c) => c.id === "home_explore");
+  const schedules = list.filter((c) => c.kind === "home_schedule");
+  const seeAll = list.filter((c) => c.kind === "home_all");
+
+  const send = (chip) => {
+    if (disabled || !chip?.text) return;
+    onSubmit?.(chip.text, chip.label);
+  };
+
+  return (
+    <div className="gina-chat-card__home-opening" role="group" aria-label="Home options">
+      {intro?.label ? (
+        <p className="gina-chat-card__home-opening-body">{intro.label}</p>
+      ) : null}
+      {schedules.length ? (
+        <div className="gina-chat-card__chips" role="group">
+          {schedules.map((chip) => (
+            <button
+              key={chip.id || chip.label}
+              type="button"
+              className={"gina-chat-card__chip" + (chip.primary ? " is-primary" : "")}
+              disabled={disabled}
+              onClick={() => send(chip)}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {explore?.label ? (
+        <p className="gina-chat-card__home-opening-body gina-chat-card__home-opening-body--after">
+          {explore.label}
+        </p>
+      ) : null}
+      {seeAll.length ? (
+        <div className="gina-chat-card__chips" role="group">
+          {seeAll.map((chip) => (
+            <button
+              key={chip.id || chip.label}
+              type="button"
+              className="gina-chat-card__chip"
+              disabled={disabled}
+              onClick={() => send(chip)}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /** Prefer chip label in the user bubble when the send text is an open/reveal protocol. */
@@ -1189,7 +1248,7 @@ export function GinaChatCard({
     if (aiMessages.length > spokenCountRef.current) {
       const newest = aiMessages[aiMessages.length - 1];
       spokenCountRef.current = aiMessages.length;
-      if (ttsEnabled && synthesisSupported && !isListening && newest?.text) {
+      if (ttsEnabled && synthesisSupported && !isListening && newest?.text && !newest?.searching) {
         speak(newest.text, { lang: speechLang });
       }
     }
@@ -1353,6 +1412,7 @@ export function GinaChatCard({
                 id: makeMsgId(),
                 sender: "ai",
                 text: preludeMessage,
+                searching: Boolean(reply.searchSequence?.searching),
                 visualization: null,
                 learnProposal: null,
                 chips: null,
@@ -1819,6 +1879,16 @@ export function GinaChatCard({
                     }
                   >
                     {msg.sender === "ai" ? (
+                      msg.searching ? (
+                        <span className="gina-chat-card__searching" aria-live="polite">
+                          <span className="gina-chat-card__searching-icon" aria-hidden="true" />
+                          <GinaAiMessageText
+                            text={msg.text}
+                            plainBody
+                            onComplete={i === lastAiMessageIndex ? handleAiAnimComplete : undefined}
+                          />
+                        </span>
+                      ) : (
                       <GinaAiMessageText
                         text={msg.text}
                         plainBody={msg.visualization?.type === "recovery_preview"}
@@ -1922,6 +1992,7 @@ export function GinaChatCard({
                           handleAiAnimComplete();
                         }) : undefined}
                       />
+                      )
                     ) : msg.text}
                   </div>
                   ) : null}
@@ -2245,7 +2316,21 @@ export function GinaChatCard({
                   && (!(msg.textAfter || msg.textAfterRest) || msg.afterRevealed)
                   && (!msg.textPitch || msg.pitchRevealed)
                 )) ? (
-                chipsAreListRefine(msg.chips) ? (
+                chipsAreHomeOpening(msg.chips) ? (
+                  <GinaHomeOpeningChips
+                    chips={msg.chips}
+                    disabled={isTyping || isAiAnimating}
+                    onSubmit={(text, displayText) => {
+                      if (!text) return;
+                      setMessages((prev) => prev.map((m, idx) => (
+                        idx === i ? stashMessageChips(m) : m
+                      )));
+                      enqueueOrDeliver(text, {
+                        displayText: displayText || bubbleTextForProtocolSend(text, displayText),
+                      });
+                    }}
+                  />
+                ) : chipsAreListRefine(msg.chips) ? (
                   <GinaListRefineChips
                     chips={msg.chips}
                     locale={chipLocale}

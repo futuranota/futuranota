@@ -2,6 +2,8 @@
  * Parse natural-language time scopes for Gina.
  */
 
+import { getGinaPrefs } from "./ginaPrefs.js";
+
 function fold(s) {
   return String(s || "")
     .normalize("NFD")
@@ -212,6 +214,39 @@ export function parseGinaTimeScope(text, nowValue = new Date(), opts = {}) {
   }
 
   return null;
+}
+
+/**
+ * Week bounds (local calendar). Default Mon–Sun; prefs.weekStartsOn 0 = Sun–Sat.
+ * @param {Date} now
+ * @param {number} [weekOffset]
+ * @param {{ weekStartsOn?: 0 | 1 }} [opts]
+ */
+export function ginaWeekBounds(now, weekOffset = 0, opts = {}) {
+  let weekStartsOn = opts.weekStartsOn;
+  if (weekStartsOn !== 0 && weekStartsOn !== 1) {
+    weekStartsOn = getGinaPrefs().weekStartsOn;
+  }
+  if (weekStartsOn !== 0 && weekStartsOn !== 1) weekStartsOn = 1;
+
+  const base = startOfDay(now);
+  const day = base.getDay(); // 0 Sun … 6 Sat
+  let startOffset;
+  if (weekStartsOn === 0) {
+    startOffset = -day;
+  } else {
+    startOffset = day === 0 ? -6 : 1 - day;
+  }
+  const weekStart = addDays(base, startOffset + weekOffset * 7);
+  const weekEnd = addDays(weekStart, 6);
+  return {
+    weekStart,
+    weekEnd,
+    /** @deprecated use weekStart — kept for Mon-default call sites */
+    monday: weekStart,
+    sunday: weekEnd,
+    weekStartsOn,
+  };
 }
 
 export {

@@ -12,12 +12,21 @@ import {
 } from "./ginaReplyChips.js";
 
 describe("ginaReplyChips", () => {
-  it("opening chips include today, test harness, and schedule", () => {
+  it("opening chips are home agenda entries only", () => {
     const chips = buildGinaOpeningChips({ locale: "es" });
-    expect(chips[0].id).toBe("today");
-    expect(chips.some((c) => c.id === "test_folder_plan_negocio")).toBe(true);
-    expect(chips.some((c) => c.id === "schedule")).toBe(true);
-    expect(chips.find((c) => c.id === "test_folder_plan_negocio")?.text).toMatch(/plan de negocio/i);
+    expect(chips.map((c) => c.id)).toEqual([
+      "home_intro",
+      "agenda_today",
+      "review_week",
+      "all_schedules",
+      "home_explore",
+      "see_all_docs",
+    ]);
+    expect(chips[0].kind).toBe("prompt");
+    expect(chips.find((c) => c.id === "agenda_today")?.label).toMatch(/agenda para hoy/i);
+    expect(chips.find((c) => c.id === "all_schedules")?.text).toMatch(/todos los horarios/i);
+    expect(chips.find((c) => c.id === "see_all_docs")?.label).toMatch(/Ver todo/i);
+    expect(chips.some((c) => String(c.id).startsWith("test_") || String(c.id).startsWith("core_"))).toBe(false);
   });
 
   it("document surface offers free-hours check (and day sheet when saved)", () => {
@@ -70,15 +79,15 @@ describe("ginaReplyChips", () => {
     expect(dashboard).toMatch(/puedes decir/i);
   });
 
-  it("dashboard opening chip uses Horario del día when sheet is saved", () => {
+  it("dashboard opening has no day_sheet / legacy today chip", () => {
     const chips = buildGinaOpeningChips({
       locale: "es",
       surface: "dashboard",
       hasDaySheet: true,
     });
-    const day = chips.find((c) => c.id === "day_sheet");
-    expect(day?.label).toBe("Horario del día");
-    expect(chips.some((c) => c.id === "today")).toBe(true);
+    expect(chips.some((c) => c.id === "day_sheet")).toBe(false);
+    expect(chips.some((c) => c.id === "today")).toBe(false);
+    expect(chips.some((c) => c.id === "agenda_today")).toBe(true);
   });
 
   it("department chips have no past_due", () => {
